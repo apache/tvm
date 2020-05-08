@@ -523,7 +523,6 @@ centered at that value (zero padding is added where necessary).
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .add_type_rel("Identity", IdentityRel);
 
 

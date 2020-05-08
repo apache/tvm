@@ -135,7 +135,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 });
 
 TVM_REGISTER_GLOBAL("relay._quantize._GetCurrentQConfig")
-.set_body_typed(QConfig::Current);
+.set_body_typed([]() -> QConfig {
+  return QConfig::Current();
+});
 
 TVM_REGISTER_GLOBAL("relay._quantize._EnterQConfigScope")
 .set_body_typed(QConfig::EnterQConfigScope);

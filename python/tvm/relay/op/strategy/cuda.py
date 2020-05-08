@@ -136,8 +136,32 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_compute_conv2d(topi.cuda.conv2d_nhwc),
                 wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc),
                 name="conv2d_nhwc.cuda")
-            N, _, _, _ = get_const_tuple(data.shape)
-            _, _, CI, CO = get_const_tuple(kernel.shape)
+            N, H, W, _ = get_const_tuple(data.shape)
+            KH, KW, CI, CO = get_const_tuple(kernel.shape)
+            # Winograd shape related judgment
+            judge_winograd_tensorcore, judge_winograd_shape = winograd_judge(N, H, W, KH, KW,
+                                                                             CI, CO, padding,
+                                                                             stride_h, stride_w,
+                                                                             dilation_h, dilation_w,
+                                                                             pre_flag=False)
+            if judge_winograd_shape:
+                if target.target_name == "cuda" and \
+                    nvcc.have_tensorcore(tvm.gpu(0).compute_version) and \
+                    judge_winograd_tensorcore:
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.cuda.conv2d_nhwc_winograd_tensorcore),
+                        wrap_topi_schedule(
+                            topi.cuda.schedule_conv2d_nhwc_winograd_tensorcore),
+                        name="conv2d_nhwc_winograd_tensorcore.cuda",
+                        plevel=5)
+                else:
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(
+                            topi.cuda.conv2d_nhwc_winograd_direct),
+                        wrap_topi_schedule(
+                            topi.cuda.schedule_conv2d_nhwc_winograd_direct),
+                        name="conv2d_nhwc_winograd_direct.cuda",
+                        plevel=5)
             if target.target_name == "cuda":
                 if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
                     if (N % 16 == 0 and CI % 16 == 0 and CO % 16 == 0) or \
@@ -220,6 +244,9 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
+    data, kernel = inputs
+    stride_h, stride_w = attrs.get_int_tuple("strides")
+    padding = attrs.get_int_tuple("padding")
     assert dilation == (1, 1), "Do not support dilate now"
     assert groups == 1, "Do not supoort arbitrary group number"
     strategy = _op.OpStrategy()
@@ -229,6 +256,30 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
             wrap_topi_schedule(
                 topi.cuda.schedule_conv2d_nchw_winograd_without_weight_transform),
             name="conv2d_nchw_winograd_without_weight_transform.cuda")
+    elif layout == "NHWC":
+        N, H, W, _ = get_const_tuple(data.shape)
+        alpha, _, CI, CO = get_const_tuple(kernel.shape)
+        dilation_h, dilation_w = dilation
+        judge_winograd_tensorcore, _ = winograd_judge(N, H, W, alpha, alpha, CI, CO,
+                                                      padding, stride_h, stride_w,
+                                                      dilation_h, dilation_w,
+                                                      pre_flag=True)
+        if target.target_name == "cuda" and \
+            nvcc.have_tensorcore(tvm.gpu(0).compute_version) and \
+            judge_winograd_tensorcore:
+            strategy.add_implementation(
+                wrap_compute_conv2d(
+                    topi.cuda.conv2d_nhwc_winograd_tensorcore_without_weight_transform),
+                wrap_topi_schedule(
+                    topi.cuda.schedule_conv2d_nhwc_winograd_tensorcore_without_weight_transform),
+                name="conv2d_nhwc_winograd_tensorcore_without_weight_transform.cuda")
+        else:
+            strategy.add_implementation(
+                wrap_compute_conv2d(
+                    topi.cuda.conv2d_nhwc_winograd_direct_without_weight_transform),
+                wrap_topi_schedule(
+                    topi.cuda.schedule_conv2d_nhwc_winograd_direct_without_weight_transform),
+                name="conv2d_nhwc_winograd_direct_without_weight_transform.cuda")
     else:
         raise RuntimeError("Unsupported conv2d_winograd_without_weight_transfrom layout {}".
                            format(layout))
@@ -516,3 +567,26 @@ def proposal_strategy_cuda(attrs, inputs, out_type, target):
                                 wrap_topi_schedule(topi.cuda.schedule_proposal),
                                 name="proposal.cuda")
     return strategy
+
+def winograd_judge(N, H, W, KH, KW, CI, CO, padding, stride_h,
+                   stride_w, dilation_h, dilation_w, pre_flag):
+    """Winograd judgement about tensorcore and shape"""
+    if H % 8 == 0:
+        tile_size = 4
+    else:
+        tile_size = 2
+    if pre_flag:
+        alpha = KH
+        KH = KW = alpha + 1 - tile_size
+    pt, pl, pb, pr = topi.nn.get_pad_tuple(padding, (KH, KW))
+    OH = (H + pt + pb - KH) // stride_h + 1
+    OW = (W + pl + pr - KW) // stride_w + 1
+    nH, nW = (OH + tile_size - 1) // tile_size, (OW + tile_size - 1) // tile_size
+    P = N * nH * nW
+    judge_winograd_tensorcore = (P % 16 == 0 and CI % 16 == 0 and CO % 16 == 0) or \
+                                   (P % 8 == 0 and CI % 16 == 0 and CO % 32 == 0) or \
+                                   (P % 32 == 0 and CI % 16 == 0 and CO % 8 == 0)
+    judge_winograd_shape = 2 < KH < 8 and 2 < KW < 8 and KH == KW and \
+                              stride_h == 1 and stride_w == 1 and \
+                              dilation_h == 1 and dilation_w == 1
+    return judge_winograd_tensorcore, judge_winograd_shape

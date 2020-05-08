@@ -73,6 +73,16 @@ def get_real_image(im_height, im_width):
     data = np.reshape(x, (1, im_height, im_width, 3))
     return data
 
+def get_real_image_object_detection(im_height, im_width):
+    repo_base = 'https://github.com/dmlc/web-data/raw/master/gluoncv/detection/'
+    img_name = 'street_small.jpg'
+    image_url = os.path.join(repo_base, img_name)
+    img_path = download_testdata(image_url, img_name, module='data')
+    image = Image.open(img_path).resize((im_height, im_width))
+    x = np.array(image).astype('uint8')
+    data = np.reshape(x, (1, im_height, im_width, 3))
+    return data
+
 def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target='llvm',
                   out_names=None):
     """ Generic function to compile on relay and execute on tvm """
@@ -98,6 +108,7 @@ def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target
     mod, params = relay.frontend.from_tflite(tflite_model,
                                              shape_dict=shape_dict,
                                              dtype_dict=dtype_dict)
+
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(mod, target, params=params)
 
@@ -418,6 +429,29 @@ def test_forward_cast():
     _test_cast(np.arange(6.0, dtype=np.float32).reshape((1, 6)), cast_dtype=tf.int32)
     _test_cast(np.arange(6.0, dtype=np.float32).reshape((1, 6)), cast_dtype=tf.uint8)
     _test_cast(np.arange(6.0, dtype=np.int32).reshape((1, 6)), cast_dtype=tf.int64)
+
+#######################################################################
+# Batch Mat Mul
+# ----
+def _test_batch_matmul(A_shape, B_shape, dtype, adjoint_a=False, adjoint_b=False):
+    with tf.Graph().as_default():
+        A = array_ops.placeholder(shape=A_shape, dtype=dtype, name='A')
+        B = array_ops.placeholder(shape=B_shape, dtype=dtype, name='B')
+        result = math_ops.matmul(A, B, adjoint_a=adjoint_a,
+                           adjoint_b=adjoint_b, name='batchmatmul')
+
+        A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
+        B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
+        compare_tflite_with_tvm([A_np, B_np], [A.name, B.name], [A, B], [result])
+
+
+def test_forward_batch_matmul():
+    """ BATCH_MAT_MUL """
+    _test_batch_matmul((3, 5, 4), (3, 4, 5), 'float32')
+    _test_batch_matmul((3, 5, 4), (3, 4, 5), 'float32', True, True)
+    _test_batch_matmul((3, 5, 4), (3, 5, 4), 'float32', True, False)
+    _test_batch_matmul((3, 5, 4), (3, 5, 4), 'float32', False, True)
+    _test_batch_matmul((2, 3, 4, 5, 6), (2, 3, 4, 6, 5), 'float32')
 
 #######################################################################
 # Tile
@@ -1176,6 +1210,43 @@ def test_all_elemwise():
         _test_forward_elemwise(_test_floor_divide)
         _test_forward_elemwise(_test_floor_mod)
 
+
+#######################################################################
+# AddN
+# ----
+
+
+def _test_forward_add_n(inputs):
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        temp = []
+        for each in inputs:
+            temp.append(tf.placeholder(shape=each.shape, dtype=each.dtype))
+        output = tf.add_n(temp)
+        compare_tflite_with_tvm([each for each in inputs], [each.name for each in temp],
+                                [each for each in temp], [output])
+
+
+def test_forward_add_n():
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        x = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
+        y = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
+        z = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
+        m, n, o = x.astype(np.float32), y.astype(np.float32), z.astype(np.float32)
+        in0 = x
+        in1 = [x, y]
+        in2 = (x, y, z)
+        in3 = m
+        in4 = [m, n]
+        in5 = (m, n, o)
+        _test_forward_add_n(in0)
+        _test_forward_add_n(in1)
+        _test_forward_add_n(in2)
+        _test_forward_add_n(in3)
+        _test_forward_add_n(in4)
+        _test_forward_add_n(in5)
+
+
 #######################################################################
 # Logical operators
 # -----------------
@@ -1378,6 +1449,27 @@ def test_all_reduce():
 
 
 #######################################################################
+# Select, Where
+# -------------
+
+def test_forward_select():
+    with tf.Graph().as_default():
+        with tf.Session() as sess:
+            input1 = tf.placeholder(
+                tf.int32, shape=[1, 4, 4, 3], name='input1')
+            input2 = tf.placeholder(
+                tf.int32, shape=[1, 4, 4, 3], name='input2')
+            mask = input1 > input2
+            out = tf.where(mask, input1 + 1, input2 * 2)
+            in_data1 = np.random.uniform(
+                0, 10, size=(1, 4, 4, 3)).astype("int32")
+            in_data2 = np.random.uniform(
+                0, 10, size=(1, 4, 4, 3)).astype("int32")
+
+            compare_tflite_with_tvm([in_data1, in_data2], [
+                                'input1:0', 'input2:0'], [input1, input2], [out])
+
+
 # Squeeze
 # -------
 
@@ -1741,23 +1833,30 @@ def test_detection_postprocess():
     tflite_output = run_tflite_graph(tflite_model, [box_encodings, class_predictions])
     tvm_output = run_tvm_graph(tflite_model, [box_encodings, class_predictions],
                                ["raw_outputs/box_encodings", "raw_outputs/class_predictions"], num_output=4)
-    # check valid count is the same
+
+    # Check all output shapes are equal
+    assert all([tvm_tensor.shape == tflite_tensor.shape \
+                for (tvm_tensor, tflite_tensor) in zip(tvm_output, tflite_output)])
+
+    # Check valid count is the same
     assert tvm_output[3] == tflite_output[3]
-    # check all the output shapes are the same
-    assert tvm_output[0].shape == tflite_output[0].shape
-    assert tvm_output[1].shape == tflite_output[1].shape
-    assert tvm_output[2].shape == tflite_output[2].shape
     valid_count = tvm_output[3][0]
-    # only check the valid detections are the same
-    # tvm has a different convention to tflite for invalid detections, it uses all -1s whereas
-    # tflite appears to put in nonsense data instead
-    tvm_boxes = tvm_output[0][0][:valid_count]
-    tvm_classes = tvm_output[1][0][:valid_count]
-    tvm_scores = tvm_output[2][0][:valid_count]
-    # check the output data is correct
-    tvm.testing.assert_allclose(np.squeeze(tvm_boxes), np.squeeze(tflite_output[0]), rtol=1e-5, atol=1e-5)
-    tvm.testing.assert_allclose(np.squeeze(tvm_classes), np.squeeze(tflite_output[1]), rtol=1e-5, atol=1e-5)
-    tvm.testing.assert_allclose(np.squeeze(tvm_scores), np.squeeze(tflite_output[2]), rtol=1e-5, atol=1e-5)
+
+    # For boxes that do not have any detections, TFLite puts random values. Therefore, we compare
+    # tflite and tvm tensors for only valid boxes.
+    for i in range(0, valid_count):
+        # Check bounding box co-ords
+        tvm.testing.assert_allclose(np.squeeze(tvm_output[0][0][i]), np.squeeze(tflite_output[0][0][i]),
+                                    rtol=1e-5, atol=1e-5)
+
+        # Check the class
+        # Stricter check to ensure class remains same
+        np.testing.assert_equal(np.squeeze(tvm_output[1][0][i]),
+                                np.squeeze(tflite_output[1][0][i]))
+
+        # Check the score
+        tvm.testing.assert_allclose(np.squeeze(tvm_output[2][0][i]), np.squeeze(tflite_output[2][0][i]),
+                                    rtol=1e-5, atol=1e-5)
 
 
 #######################################################################
@@ -1943,6 +2042,100 @@ def test_forward_qnn_mobilenet_v3_net():
 
 
 #######################################################################
+# Quantized SSD Mobilenet
+# -----------------------
+
+def test_forward_qnn_coco_ssd_mobilenet_v1():
+    """Test the quantized Coco SSD Mobilenet V1 TF Lite model."""
+    pytest.skip("LLVM bug - getExtendedVectorNumElements - "
+                + "https://discuss.tvm.ai/t/segfault-in-llvm/3567. The workaround is to use a "
+                + "specific target, for example, llvm -mpcu=core-avx2")
+
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/download.tensorflow.org/models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip",
+        "detect.tflite")
+
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+
+    data = get_real_image_object_detection(300, 300)
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'normalized_input_image_tensor', num_output=4)
+
+    # Check all output shapes are equal
+    assert all([tvm_tensor.shape == tflite_tensor.shape \
+                for (tvm_tensor, tflite_tensor) in zip(tvm_output, tflite_output)])
+
+    # Check valid count is the same
+    assert tvm_output[3] == tflite_output[3]
+    valid_count = tvm_output[3][0]
+
+    # For boxes that do not have any detections, TFLite puts random values. Therefore, we compare
+    # tflite and tvm tensors for only valid boxes.
+    for i in range(0, valid_count):
+        # We compare the bounding boxes whose prediction score is above 60%. This is typical in end
+        # to end application where a low prediction score is discarded. This is also needed because
+        # multiple low score bounding boxes can have same score and TFlite and TVM can have
+        # different orderings for same score bounding boxes. Another reason for minor differences in
+        # low score bounding boxes is the difference between TVM and TFLite for requantize operator.
+        if tvm_output[2][0][i] > 0.6:
+            # Check bounding box co-ords. The tolerances have to be adjusted, from 1e-5 to 1e-2,
+            # because of differences between for requantiize operator in TFLite and TVM.
+            tvm.testing.assert_allclose(np.squeeze(tvm_output[0][0][i]),
+                                        np.squeeze(tflite_output[0][0][i]),
+                                        rtol=1e-2, atol=1e-2)
+
+            # Check the class
+            # Stricter check to ensure class remains same
+            np.testing.assert_equal(np.squeeze(tvm_output[1][0][i]),
+                                    np.squeeze(tflite_output[1][0][i]))
+
+            # Check the score
+            tvm.testing.assert_allclose(np.squeeze(tvm_output[2][0][i]),
+                                        np.squeeze(tflite_output[2][0][i]),
+                                        rtol=1e-5, atol=1e-5)
+
+
+#######################################################################
+# SSD Mobilenet
+# -------------
+
+def test_forward_coco_ssd_mobilenet_v1():
+    """Test the FP32 Coco SSD Mobilenet V1 TF Lite model."""
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/models/object_detection/ssd_mobilenet_v1_coco_2018_01_28.tgz",
+        "ssd_mobilenet_v1_coco_2018_01_28.tflite")
+
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+
+    np.random.seed(0)
+    data = np.random.uniform(size=(1, 300, 300, 3)).astype('float32')
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'normalized_input_image_tensor', num_output=4)
+
+    # Check all output shapes are equal
+    assert all([tvm_tensor.shape == tflite_tensor.shape \
+                for (tvm_tensor, tflite_tensor) in zip(tvm_output, tflite_output)])
+
+    # Check valid count is the same
+    assert tvm_output[3] == tflite_output[3]
+    valid_count = tvm_output[3][0]
+
+    # For boxes that do not have any detections, TFLite puts random values. Therefore, we compare
+    # tflite and tvm tensors for only valid boxes.
+    for i in range(0, valid_count):
+        # Check bounding box co-ords
+        tvm.testing.assert_allclose(np.squeeze(tvm_output[0][0][i]), np.squeeze(tflite_output[0][0][i]),
+                                    rtol=1e-5, atol=1e-5)
+        # Check the class
+        np.testing.assert_equal(np.squeeze(tvm_output[1][0][i]), np.squeeze(tflite_output[1][0][i]))
+
+        # Check the score
+        tvm.testing.assert_allclose(np.squeeze(tvm_output[2][0][i]), np.squeeze(tflite_output[2][0][i]),
+                                    rtol=1e-5, atol=1e-5)
+
+#######################################################################
 # MediaPipe
 # -------------
 
@@ -1960,6 +2153,7 @@ def test_forward_mediapipe_hand_landmark():
     for i in range(2):
         tvm.testing.assert_allclose(np.squeeze(tvm_output[i]), np.squeeze(tflite_output[i]),
                                     rtol=1e-5, atol=1e-5)
+
 
 #######################################################################
 # Main
@@ -1980,6 +2174,9 @@ if __name__ == '__main__':
     # Cast
     test_forward_cast()
 
+    # BatchMatMul
+    test_forward_batch_matmul()
+
     # Tile
     test_forward_tile()
 
@@ -1997,6 +2194,7 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_depthtospace()
     test_forward_spacetodepth()
+    test_forward_select()
 
     # NN
     test_forward_convolution()
@@ -2014,6 +2212,7 @@ if __name__ == '__main__':
 
     # Elemwise
     test_all_elemwise()
+    test_forward_add_n()
 
     # Unary elemwise
     test_all_unary_elemwise()
@@ -2038,6 +2237,7 @@ if __name__ == '__main__':
     test_forward_mobilenet_v3()
     test_forward_inception_v3_net()
     test_forward_inception_v4_net()
+    test_forward_coco_ssd_mobilenet_v1()
     test_forward_mediapipe_hand_landmark()
 
     # End to End quantized
@@ -2047,3 +2247,4 @@ if __name__ == '__main__':
     #This also fails with a segmentation fault in my run
     #with Tflite 1.15.2
     test_forward_qnn_mobilenet_v3_net()
+    test_forward_qnn_coco_ssd_mobilenet_v1()

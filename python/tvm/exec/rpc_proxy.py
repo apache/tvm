@@ -29,12 +29,11 @@ from ..rpc.proxy import Proxy
 def find_example_resource():
     """Find resource examples."""
     curr_path = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-    base_path = os.path.join(curr_path, "../../../")
-    index_page = os.path.join(base_path, "web/example_rpc.html")
+    base_path = os.path.abspath(os.path.join(curr_path, "..", "..", ".."))
+    index_page = os.path.join(base_path, "web", "apps", "browser", "rpc_server.html")
     js_files = [
-        os.path.join(base_path, "web/tvm_runtime.js"),
-        os.path.join(base_path, "build/libtvm_web_runtime.js"),
-        os.path.join(base_path, "build/libtvm_web_runtime.js.mem")
+        os.path.join(base_path, "web/dist/tvmjs.bundle.js"),
+        os.path.join(base_path, "web/dist/wasm/tvmjs_runtime.wasi.js")
     ]
     for fname in [index_page] + js_files:
         if not os.path.exists(fname):
@@ -69,7 +68,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--host', type=str, default="0.0.0.0",
+    parser.add_argument('--host', type=str, default="localhost",
                         help='the hostname of the server')
     parser.add_argument('--port', type=int, default=9090,
                         help='The port of the RPC')
