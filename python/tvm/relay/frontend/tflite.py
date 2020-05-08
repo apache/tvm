@@ -31,6 +31,7 @@ from .. import qnn as _qnn
 from ... import nd as _nd
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
+from .tflite_flexbuffer import FlexBufferDecoder
 
 __all__ = ['from_tflite']
 
@@ -323,6 +324,45 @@ class OperatorConverter(object):
                                          input_zero_point=tensor.qnn_params['zero_point'])
         return dequantized
 
+
+    def convert_qnn_fused_activation_function(self, expr, fused_activation_fn,
+                                              scale, zero_point, dtype):
+        """Convert TFLite fused activation function. The expr is an input quantized tensor with
+        scale and zero point """
+        try:
+            from tflite.ActivationFunctionType import ActivationFunctionType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        # Quantize a float value to an quantized integer value
+        quantize = lambda x: float(int(round(x / scale)) + zero_point)
+
+        # Get min/max of the output dtype. This will be used to ensure that clip a_min/a_max are not
+        # beyond the dtype range.
+        qmin = float(tvm.tir.op.min_value(dtype).value)
+        qmax = float(tvm.tir.op.max_value(dtype).value)
+
+        # The input expr is a quantized tensor with its scale and zero point. We calculate the
+        # suitable clip off points based on these scale and zero point.
+        if fused_activation_fn == ActivationFunctionType.NONE:
+            return expr
+        if fused_activation_fn == ActivationFunctionType.RELU6:
+            return _op.clip(expr,
+                            a_min=max(qmin, quantize(0)),
+                            a_max=min(qmax, quantize(6.0)))
+        if fused_activation_fn == ActivationFunctionType.RELU_N1_TO_1:
+            return _op.clip(expr,
+                            a_min=max(qmin, quantize(-1.0)),
+                            a_max=min(qmax, quantize(1.0)))
+        if fused_activation_fn == ActivationFunctionType.RELU:
+            return _op.clip(expr,
+                            a_min=max(qmin, quantize(0.0)),
+                            a_max=qmax)
+
+        fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
+        raise tvm.error.OpNotImplemented(
+            'Quantized activation {} is not supported yet.'.format(fused_activation_fn_str))
+
     def convert_conv2d(self, op):
         """Convert TFLite conv2d"""
         return self.convert_conv(op, "conv2d")
@@ -431,7 +471,6 @@ class OperatorConverter(object):
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.L2NormOptions import L2NormOptions
-            from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -456,17 +495,15 @@ class OperatorConverter(object):
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
                 'TFLite quantized L2_NORMALIZATION operator is not supported yet.')
+
         # TFL uses only the default epsilon value
         out = _op.nn.l2_normalize(in_expr, eps=1e-12, axis=[input_tensor_rank - 1])
 
         # if we have fused activation fn
-        if fused_activation_fn != ActivationFunctionType.NONE:
-            if not output_tensor.qnn_params:
-                out = self.convert_fused_activation_function(out, fused_activation_fn)
-            else:
-                raise tvm.error.OpNotImplemented(
-                    'TFLite quantized L2_NORMALIZATION operator\
-                    with fused activation function is not supported yet.')
+        if output_tensor.qnn_params:
+            raise tvm.error.OpNotImplemented(
+                'TFLite quantized L2_NORMALIZATION operator is not supported yet.')
+        out = self.convert_fused_activation_function(out, fused_activation_fn)
 
         return out
 
@@ -611,7 +648,6 @@ class OperatorConverter(object):
         try:
             from tflite.ConcatenationOptions import ConcatenationOptions
             from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -643,14 +679,20 @@ class OperatorConverter(object):
                                       output_zero_point=output_tensor.qnn_params['zero_point'],
                                       axis=concatenation_axis)
 
-        # if we have activation fn
-        if fused_activation_fn != ActivationFunctionType.NONE:
-            if not output_tensor.qnn_params:
-                out = self.convert_fused_activation_function(out, fused_activation_fn)
-            else:
-                raise tvm.error.OpNotImplemented(
-                    'Operator {} with fused activation is not supported yet.'
-                    .format('qnn.op.concatenate'))
+        # Handle fused activations
+        if output_tensor.qnn_params:
+            scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
+            zero_point_val = get_scalar_from_constant(output_tensor.qnn_params['zero_point'])
+            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
+            out = self.convert_qnn_fused_activation_function(\
+                    expr=out,
+                    fused_activation_fn=fused_activation_fn,
+                    scale=scale_val,
+                    zero_point=zero_point_val,
+                    dtype=output_tensor_type_str)
+        else:
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
+
         return out
 
     def _convert_unary_elemwise(self, relay_op, op):
@@ -793,7 +835,6 @@ class OperatorConverter(object):
             from tflite.MulOptions import MulOptions
             from tflite.DivOptions import DivOptions
             from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -839,13 +880,20 @@ class OperatorConverter(object):
             op_options = op.BuiltinOptions()
             options.Init(op_options.Bytes, op_options.Pos)
             fused_activation_fn = options.FusedActivationFunction()
-            # if we have activation fn
-            if fused_activation_fn != ActivationFunctionType.NONE:
-                if output_tensor.qnn_params:
-                    raise tvm.error.OpNotImplemented(
-                        'Elemwise operators with fused activation are not supported yet.')
-                out = self.convert_fused_activation_function(out, fused_activation_fn)
 
+            # Handle fused activations
+            if output_tensor.qnn_params:
+                scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
+                zero_point_val = get_scalar_from_constant(output_tensor.qnn_params['zero_point'])
+                output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
+                out = self.convert_qnn_fused_activation_function(\
+                        expr=out,
+                        fused_activation_fn=fused_activation_fn,
+                        scale=scale_val,
+                        zero_point=zero_point_val,
+                        dtype=output_tensor_type_str)
+            else:
+                out = self.convert_fused_activation_function(out, fused_activation_fn)
         return out
 
     def convert_add(self, op):
@@ -1307,7 +1355,6 @@ class OperatorConverter(object):
             from tflite.FullyConnectedOptions import FullyConnectedOptions
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.TensorType import TensorType
-            from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -1389,15 +1436,6 @@ class OperatorConverter(object):
                                                dtype=bias_tensor_type_str)
             out = _op.nn.bias_add(out, bias_expr)
 
-        # If we have fused activations
-        if fused_activation_fn != ActivationFunctionType.NONE:
-            if not output_tensor.qnn_params:
-                out = self.convert_fused_activation_function(out, fused_activation_fn)
-            else:
-                raise tvm.error.OpNotImplemented(
-                    'Operator {} with fused activation is not supported yet.'
-                    .format('qnn.op.dense'))
-
         # Finally if the dense is quantized. Add a requantize at the end.
         if output_tensor.qnn_params:
             data_scale = input_tensor.qnn_params['scale']
@@ -1407,12 +1445,27 @@ class OperatorConverter(object):
             new_input_scale_val = data_scale_val * weight_scale_val
             new_input_scale = relay.const(new_input_scale_val, 'float32')
             new_input_zero_point = relay.const(0, 'int32')
+
+            # Requantize
             out = _qnn.op.requantize(out,
                                      input_scale=new_input_scale,
                                      input_zero_point=new_input_zero_point,
                                      output_scale=output_tensor.qnn_params['scale'],
                                      output_zero_point=output_tensor.qnn_params['zero_point'],
                                      out_dtype=output_tensor_type_str)
+
+            # Call activation function
+            output_scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
+            output_zero_point_val = get_scalar_from_constant(output_tensor.qnn_params['zero_point'])
+            out = self.convert_qnn_fused_activation_function(\
+                    expr=out,
+                    fused_activation_fn=fused_activation_fn,
+                    scale=output_scale_val,
+                    zero_point=output_zero_point_val,
+                    dtype=output_tensor_type_str)
+
+        else:
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
 
         return out
 
@@ -1448,7 +1501,9 @@ class OperatorConverter(object):
             from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
             raise ImportError("The tflite package must be installed")
-        assert fused_activation_fn != ActivationFunctionType.NONE
+
+        if fused_activation_fn == ActivationFunctionType.NONE:
+            return in_expr
         if fused_activation_fn == ActivationFunctionType.RELU6:
             return _op.clip(in_expr, a_min=0, a_max=6)
         if fused_activation_fn == ActivationFunctionType.RELU:
@@ -1459,13 +1514,12 @@ class OperatorConverter(object):
             return _op.tanh(in_expr)
         fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
         raise tvm.error.OpNotImplemented(
-            'Operator {} is not supported for frontend TFLite.'.format(fused_activation_fn_str))
+            'Fused activation {} is not supported yet.'.format(fused_activation_fn_str))
 
     def convert_conv(self, op, conv_type):
         """convolution implementation."""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ActivationFunctionType import ActivationFunctionType
             from tflite.TensorType import TensorType
             from tflite.Conv2DOptions import Conv2DOptions
             from tflite.DepthwiseConv2DOptions import DepthwiseConv2DOptions
@@ -1596,17 +1650,9 @@ class OperatorConverter(object):
             channel_axis = 3
             out = _op.nn.bias_add(out, bias_expr, axis=channel_axis)
 
-        # If we have fused activations
-        if fused_activation_fn != ActivationFunctionType.NONE:
-            if not output_tensor.qnn_params:
-                out = self.convert_fused_activation_function(out, fused_activation_fn)
-            else:
-                raise tvm.error.OpNotImplemented(
-                    'Operator {} with fused activation is not supported yet.'
-                    .format('qnn.op.conv2d'))
-
-        # Finally if the conv is quantized. Add a requantize at the end.
+        # Handle fused activation.
         if output_tensor.qnn_params:
+            # Calculate the intermediate scale and zero point of the int32 output.
             data_scale = input_tensor.qnn_params['scale']
             weight_scale = weight_tensor.qnn_params['scale']
             data_scale_val = get_scalar_from_constant(data_scale)
@@ -1614,12 +1660,26 @@ class OperatorConverter(object):
             new_input_scale_val = data_scale_val * weight_scale_val
             new_input_scale = relay.const(new_input_scale_val, 'float32')
             new_input_zero_point = relay.const(0, 'int32')
+
+            # Finally requantize
             out = _qnn.op.requantize(out,
                                      input_scale=new_input_scale,
                                      input_zero_point=new_input_zero_point,
                                      output_scale=output_tensor.qnn_params['scale'],
                                      output_zero_point=output_tensor.qnn_params['zero_point'],
                                      out_dtype=output_tensor_type_str)
+
+            # Call activation function
+            output_scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
+            output_zero_point_val = get_scalar_from_constant(output_tensor.qnn_params['zero_point'])
+            out = self.convert_qnn_fused_activation_function(\
+                    expr=out,
+                    fused_activation_fn=fused_activation_fn,
+                    scale=output_scale_val,
+                    zero_point=output_zero_point_val,
+                    dtype=output_tensor_type_str)
+        else:
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
 
         return out
 
@@ -1796,7 +1856,6 @@ class OperatorConverter(object):
         """pool2d implementation."""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ActivationFunctionType import ActivationFunctionType
             from tflite.Pool2DOptions import Pool2DOptions
             from tflite.Padding import Padding
         except ImportError:
@@ -1871,13 +1930,19 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'Operator {} is not supported for frontend TFLite.'.format(pool_type + ' pool'))
 
-        # If we have fused activations
-        if fused_activation_fn != ActivationFunctionType.NONE:
-            if input_tensor.qnn_params:
-                raise tvm.error.OpNotImplemented(
-                    'Operator {} with fused activation is not supported yet.'
-                    .format('qnn.op.pool2d'))
+        # Handle fused activations
+        if output_tensor.qnn_params:
+            scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
+            zero_point_val = get_scalar_from_constant(output_tensor.qnn_params['zero_point'])
+            out = self.convert_qnn_fused_activation_function(\
+                    expr=out,
+                    fused_activation_fn=fused_activation_fn,
+                    scale=scale_val,
+                    zero_point=zero_point_val,
+                    dtype=output_tensor_type_str)
+        else:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
+
         return out
 
     def convert_pad(self, op):
@@ -2266,28 +2331,15 @@ class OperatorConverter(object):
 
     def convert_detection_postprocess(self, op):
         """Convert TFLite_Detection_PostProcess"""
-        _option_names = [
-            "w_scale",
-            "max_detections",
-            "_output_quantized",
-            "detections_per_class",
-            "x_scale",
-            "nms_score_threshold",
-            "num_classes",
-            "max_classes_per_detection",
-            "use_regular_nms",
-            "y_scale",
-            "h_scale",
-            "_support_output_type_float_in_quantized_op",
-            "nms_iou_threshold"
-        ]
+        flexbuffer = op.CustomOptionsAsNumpy().tobytes()
+        custom_options = FlexBufferDecoder(flexbuffer).decode()
 
-        custom_options = get_custom_options(op, _option_names)
-        if custom_options["use_regular_nms"]:
-            raise tvm.error.OpAttributeUnImplemented(
-                "use_regular_nms=True is not yet supported for operator {}."
-                .format("TFLite_Detection_PostProcess")
-            )
+        if "use_regular_nms" in custom_options:
+            if custom_options["use_regular_nms"]:
+                raise tvm.error.OpAttributeUnImplemented(
+                    "use_regular_nms=True is not yet supported for operator {}."
+                    .format("TFLite_Detection_PostProcess")
+                )
 
         inputs = self.get_input_tensors(op)
         assert len(inputs) == 3, "inputs length should be 3"
@@ -2470,91 +2522,6 @@ def get_tensor_name(subgraph, tensor_idx):
         tensor name in UTF-8 encoding
     """
     return subgraph.Tensors(tensor_idx).Name().decode("utf-8")
-
-
-def get_custom_options(op, option_names):
-    """Get the options of a custom operator.
-
-    This implements partial flexbuffer deserialization to be able
-    to read custom options. It is not intended to be a general
-    purpose flexbuffer deserializer and as such only supports a
-    limited number of types and assumes the data is a flat map.
-
-    Parameters
-    ----------
-    op:
-        A custom TFlite operator.
-    option_names: list
-        A complete list of the custom option names.
-
-    Returns
-    -------
-    options: dict
-        A dictionary of the custom options.
-
-    """
-    import struct
-    from enum import IntEnum
-
-    class _FlexBufferType(IntEnum):
-        """Flexbuffer type schema from flexbuffers.h"""
-        FBT_NULL = 0
-        FBT_INT = 1
-        FBT_UINT = 2
-        FBT_FLOAT = 3
-        # Types above stored inline, types below store an offset.
-        FBT_KEY = 4
-        FBT_STRING = 5
-        FBT_INDIRECT_INT = 6
-        FBT_INDIRECT_UINT = 7
-        FBT_INDIRECT_FLOAT = 8
-        FBT_MAP = 9
-        FBT_VECTOR = 10 # Untyped.
-        FBT_VECTOR_INT = 11 # Typed any size (stores no type table).
-        FBT_VECTOR_UINT = 12
-        FBT_VECTOR_FLOAT = 13
-        FBT_VECTOR_KEY = 14
-        FBT_VECTOR_STRING = 15
-        FBT_VECTOR_INT2 = 16 # Typed tuple (no type table, no size field).
-        FBT_VECTOR_UINT2 = 17
-        FBT_VECTOR_FLOAT2 = 18
-        FBT_VECTOR_INT3 = 19 # Typed triple (no type table, no size field).
-        FBT_VECTOR_UINT3 = 20
-        FBT_VECTOR_FLOAT3 = 21
-        FBT_VECTOR_INT4 = 22 # Typed quad (no type table, no size field).
-        FBT_VECTOR_UINT4 = 23
-        FBT_VECTOR_FLOAT4 = 24
-        FBT_BLOB = 25
-        FBT_BOOL = 26
-        FBT_VECTOR_BOOL = 36 # To Allow the same type of conversion of type to vector type
-
-    buffer = op.CustomOptionsAsNumpy().tobytes()
-    value_vector_offset = buffer[-3]
-    buffer = buffer[:-3]
-    num_bytes = 4 # Assume all values are stored in 32 bit width
-    value_vector_size = struct.unpack(
-        "<i", buffer[-value_vector_offset - num_bytes:-value_vector_offset]
-    )[0]
-    type_offset = value_vector_size
-    types = buffer[-type_offset:]
-    values = []
-    for i, t in enumerate(types):
-        flex_type = _FlexBufferType(t >> 2)
-        value_offset = -value_vector_offset + i*num_bytes
-        value_bytes = buffer[value_offset:value_offset+num_bytes]
-        if flex_type == _FlexBufferType.FBT_BOOL:
-            value = bool(value_bytes[0])
-        if flex_type == _FlexBufferType.FBT_INT:
-            value = struct.unpack("<i", value_bytes)[0]
-        if flex_type == _FlexBufferType.FBT_UINT:
-            value = struct.unpack("<I", value_bytes)[0]
-        if flex_type == _FlexBufferType.FBT_FLOAT:
-            value = struct.unpack("<f", value_bytes)[0]
-
-        values.append(value)
-
-    custom_options = dict(zip(sorted(option_names), values))
-    return custom_options
 
 
 def from_tflite(model, shape_dict, dtype_dict):
