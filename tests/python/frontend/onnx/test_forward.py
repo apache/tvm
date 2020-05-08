@@ -1279,7 +1279,63 @@ def verify_pad(indata, pads, mode='constant', value=0.0):
     #  tvm result
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(
-            model, indata, target, ctx, outdata.shape, 'float32')
+            model, indata, target, ctx, outdata.shape, 'float32', opset=2)
+    tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def verify_pad_v11(indata, pads, mode='constant', value=0.0):
+    indata = np.array(indata).astype(np.float32)
+    #  numpy expect result
+    len_dim = len(pads) // 2
+    np_pads = [(pads[i], pads[i+len_dim]) for i in range(len_dim)]
+    pads = np.array(pads)
+    #  onnx graph
+    if mode in ['edge', 'reflect']:
+        inputs = [indata, pads]
+        outdata = np.pad(indata, pad_width=np_pads, mode=mode)
+        node = helper.make_node(
+            'Pad',
+            inputs=['input', 'pads'],
+            outputs=['output'],
+            mode=mode
+        )
+        graph = helper.make_graph([node],
+                                  'pad_test',
+                                  inputs=[helper.make_tensor_value_info("input",
+                                                                        TensorProto.FLOAT, list(indata.shape)),
+                                          helper.make_tensor_value_info("pads",
+                                                                        TensorProto.INT64,(len(pads),))],
+                                  initializer=[helper.make_tensor("pads", TensorProto.INT64, (len(pads),), pads)],
+                                  outputs=[helper.make_tensor_value_info("output",
+                                                                         TensorProto.FLOAT, list(outdata.shape))])
+    else:
+        inputs = [indata, pads, np.array([value])]
+        outdata = np.pad(indata, pad_width=np_pads,
+                         mode='constant', constant_values=value)
+        node = helper.make_node(
+            'Pad',
+            inputs=['input', 'pads', 'constant_value'],
+            outputs=['output'],
+            mode='constant'
+        )
+        graph = helper.make_graph([node],
+                                  'pad_test',
+                                  inputs=[helper.make_tensor_value_info("input",
+                                                                        TensorProto.FLOAT, list(indata.shape)),
+                                          helper.make_tensor_value_info("pads",
+                                                                        TensorProto.INT64,(len(pads),)),
+                                          helper.make_tensor_value_info("constant_value",
+                                                                        TensorProto.INT64,(1,)),
+                                          ],
+                                  initializer=[helper.make_tensor("pads", TensorProto.INT64, (len(pads),), pads),
+                                               helper.make_tensor("constant_value", TensorProto.FLOAT, (1,), [value])],
+                                  outputs=[helper.make_tensor_value_info("output",
+                                                                         TensorProto.FLOAT, list(outdata.shape))])
+    model = helper.make_model(graph, producer_name='pad_test')
+    #  tvm result
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(
+            model, inputs, target, ctx, outdata.shape, 'float32', opset=11)
     tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
 
 
@@ -1293,6 +1349,17 @@ def test_pad():
     verify_pad(np.random.randn(1, 3, 4, 5).astype(
         np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'edge')
     verify_pad(np.random.randn(1, 3, 4, 5).astype(
+        np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'reflect')
+
+    verify_pad_v11(np.random.randn(2, 2).astype(
+        np.float32), [0, 1, 0, 0], 'constant', 0.0)
+    verify_pad_v11(np.random.randn(2, 3).astype(
+        np.float32), [1, 0, 0, 1], 'constant', 0.0)
+    verify_pad_v11(np.random.randn(3, 2).astype(
+        np.float32), [0, 0, 1, 0], 'constant', 5.0)
+    verify_pad_v11(np.random.randn(1, 3, 4, 5).astype(
+        np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'edge')
+    verify_pad_v11(np.random.randn(1, 3, 4, 5).astype(
         np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'reflect')
 
 
