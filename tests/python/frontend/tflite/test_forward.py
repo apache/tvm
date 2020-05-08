@@ -931,23 +931,21 @@ def _test_range_default():
     if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
         tf.reset_default_graph()
         with tf.Graph().as_default():
-
             inputs = [
                 tf.placeholder(dtype=tf.int32, shape=(), name="p1"),
                 tf.placeholder(dtype=tf.int32, shape=(), name="p2")
             ]
-            leaves = [
-                tf.range(start = inputs[0], limit = inputs[1]), #use default delta
-                tf.range(start = inputs[1]) #use start as limit with 0 as the first item in the range
+            outputs = [
+                tf.range(start = inputs[0], limit = inputs[1]), # use default delta
+                tf.range(start = inputs[1]) # use start as limit with 0 as the first item in the range
             ]
 
             compare_tflite_with_tvm(
                 [np.int32(1), np.int32(18)],
                 ["p1", "p2"],
                 inputs,
-                leaves,
-                mode="vm",
-                quantized=False
+                outputs,
+                mode="vm"
         )
 
 def test_forward_range():
@@ -975,8 +973,7 @@ def test_forward_shape():
                 ["start", "limit", "delta"],
                 [start, limit, delta],
                 [out],
-                mode="vm",
-                quantized=False
+                mode="vm"
             )
 
 #######################################################################
