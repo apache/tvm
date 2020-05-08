@@ -33,7 +33,6 @@ from .common import ExprTable
 from .common import infer_shape as _infer_shape
 from .tflite_flexbuffer import FlexBufferDecoder
 
-
 __all__ = ['from_tflite']
 
 class TensorWrapper(object):
