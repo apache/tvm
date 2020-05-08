@@ -23,8 +23,9 @@ use std::{
     os::raw::c_void,
 };
 
-pub use crate::ffi::TVMValue;
 use crate::{errors::ValueDowncastError, ffi::*};
+
+pub use crate::ffi::TVMValue;
 
 pub trait PackedFunc:
     Fn(&[ArgValue]) -> Result<RetValue, crate::errors::FuncCallError> + Send + Sync

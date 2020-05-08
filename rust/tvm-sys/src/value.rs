@@ -19,9 +19,9 @@
 
 use std::str::FromStr;
 
-use thiserror::Error;
-
 use crate::ffi::*;
+
+use thiserror::Error;
 
 macro_rules! impl_pod_tvm_value {
     ($field:ident, $field_ty:ty, $( $ty:ty ),+) => {

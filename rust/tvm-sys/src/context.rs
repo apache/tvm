@@ -24,8 +24,8 @@
 //! # Example
 //!
 //! ```
-//! # use tvm_sys::{TVMDeviceType, Context};
-//! let cpu = TVMDeviceType::from("cpu");
+//! # use tvm_sys::{DeviceType, Context};
+//! let cpu = DeviceType::from("cpu");
 //! let ctx = Context::new(cpu , 0);
 //! let cpu0 = Context::cpu(0);
 //! assert_eq!(ctx, cpu0);
@@ -39,124 +39,116 @@
 //! println!("{}", cpu0);
 //! ```
 
+use std::convert::TryFrom;
+use std::str::FromStr;
+use std::fmt::{self, Display, Formatter};
+
 use crate::ffi::{self, *};
 use crate::packed_func::{ArgValue, RetValue};
 
-use std::convert::TryFrom;
-use std::str::FromStr;
 use thiserror::Error;
-
-use std::fmt::{self, Display, Formatter};
-
 use anyhow::Result;
+use enumn::N;
 
-/// Device type can be from a supported device name. See the supported devices
-/// in [TVM](https://github.com/apache/incubator-tvm).
+/// Device type represents the set of devices supported by
+/// [TVM](https://github.com/apache/incubator-tvm).
 ///
 /// ## Example
 ///
 /// ```
-/// use tvm_sys::TVMDeviceType;
-/// let cpu = TVMDeviceType::from("cpu");
+/// use tvm_sys::DeviceType;
+/// let cpu = DeviceType::from("cpu");
 /// println!("device is: {}", cpu);
 ///```
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TVMDeviceType(pub i64);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, N)]
+#[repr(i64)]
+pub enum DeviceType {
+    CPU = 1,
+    GPU,
+    CPUPinned,
+    OpenCL,
+    Vulkan,
+    Metal,
+    VPI,
+    ROCM,
+    ExtDev,
+}
 
-impl Default for TVMDeviceType {
+impl Default for DeviceType {
     /// default device is cpu.
     fn default() -> Self {
-        TVMDeviceType(1)
+        DeviceType::CPU
     }
 }
 
-impl From<TVMDeviceType> for ffi::DLDeviceType {
-    fn from(device_type: TVMDeviceType) -> Self {
-        match device_type.0 {
-            1 => ffi::DLDeviceType_kDLCPU,
-            2 => ffi::DLDeviceType_kDLGPU,
-            3 => ffi::DLDeviceType_kDLCPUPinned,
-            4 => ffi::DLDeviceType_kDLOpenCL,
-            7 => ffi::DLDeviceType_kDLVulkan,
-            8 => ffi::DLDeviceType_kDLMetal,
-            9 => ffi::DLDeviceType_kDLVPI,
-            10 => ffi::DLDeviceType_kDLROCM,
-            12 => ffi::DLDeviceType_kDLExtDev,
-            _ => panic!("device type not found!"),
-        }
+impl From<DeviceType> for ffi::DLDeviceType {
+    fn from(device_type: DeviceType) -> Self {
+        device_type as Self
     }
 }
 
-impl From<ffi::DLDeviceType> for TVMDeviceType {
+impl From<ffi::DLDeviceType> for DeviceType {
     fn from(device_type: ffi::DLDeviceType) -> Self {
-        match device_type {
-            ffi::DLDeviceType_kDLCPU => TVMDeviceType(1),
-            ffi::DLDeviceType_kDLGPU => TVMDeviceType(2),
-            ffi::DLDeviceType_kDLCPUPinned => TVMDeviceType(3),
-            ffi::DLDeviceType_kDLOpenCL => TVMDeviceType(4),
-            ffi::DLDeviceType_kDLVulkan => TVMDeviceType(7),
-            ffi::DLDeviceType_kDLMetal => TVMDeviceType(8),
-            ffi::DLDeviceType_kDLVPI => TVMDeviceType(9),
-            ffi::DLDeviceType_kDLROCM => TVMDeviceType(10),
-            ffi::DLDeviceType_kDLExtDev => TVMDeviceType(12),
-            _ => panic!("device type not found!"),
-        }
+        Self::n(device_type as _)
+            .expect("invalid enumeration value for ffi::DLDeviceType")
     }
 }
 
-impl Display for TVMDeviceType {
+impl Display for DeviceType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f,
             "{}",
             match self {
-                TVMDeviceType(1) => "cpu",
-                TVMDeviceType(2) => "gpu",
-                TVMDeviceType(3) => "cpu_pinned",
-                TVMDeviceType(4) => "opencl",
-                TVMDeviceType(8) => "meta",
-                TVMDeviceType(9) => "vpi",
-                TVMDeviceType(10) => "rocm",
-                TVMDeviceType(_) => "rpc",
+                DeviceType::CPU => "cpu",
+                DeviceType::GPU => "gpu",
+                DeviceType::CPUPinned => "cpu_pinned",
+                DeviceType::OpenCL => "opencl",
+                DeviceType::Vulkan => "vulkan",
+                DeviceType::Metal => "metal",
+                DeviceType::VPI => "vpi",
+                DeviceType::ROCM => "rocm",
+                DeviceType::ExtDev => "ext_device",
+                // DeviceType(_) => "rpc",
             }
         )
     }
 }
 
-impl<'a> From<&'a str> for TVMDeviceType {
+impl<'a> From<&'a str> for DeviceType {
     fn from(type_str: &'a str) -> Self {
         match type_str {
-            "cpu" => TVMDeviceType(1),
-            "llvm" => TVMDeviceType(1),
-            "stackvm" => TVMDeviceType(1),
-            "gpu" => TVMDeviceType(2),
-            "cuda" => TVMDeviceType(2),
-            "nvptx" => TVMDeviceType(2),
-            "cl" => TVMDeviceType(4),
-            "opencl" => TVMDeviceType(4),
-            "metal" => TVMDeviceType(8),
-            "vpi" => TVMDeviceType(9),
-            "rocm" => TVMDeviceType(10),
+            "cpu" => DeviceType::CPU,
+            "llvm" => DeviceType::CPU,
+            "stackvm" => DeviceType::CPU,
+            "gpu" => DeviceType::GPU,
+            "cuda" => DeviceType::GPU,
+            "nvptx" => DeviceType::GPU,
+            "cl" => DeviceType::OpenCL,
+            "opencl" => DeviceType::OpenCL,
+            "metal" => DeviceType::Metal,
+            "vpi" => DeviceType::VPI,
+            "rocm" => DeviceType::ROCM,
             _ => panic!("{:?} not supported!", type_str),
         }
     }
 }
 
-impl<'a> From<&TVMDeviceType> for ArgValue<'a> {
-    fn from(dev: &TVMDeviceType) -> Self {
-        Self::Int(dev.0)
+impl<'a> From<&DeviceType> for ArgValue<'a> {
+    fn from(dev: &DeviceType) -> Self {
+        Self::Int(*dev as _)
     }
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Context {
-    pub device_type: TVMDeviceType,
+    pub device_type: DeviceType,
     pub device_id: usize,
 }
 
 impl Context {
-    pub fn new(device_type: TVMDeviceType, device_id: usize) -> Context {
+    pub fn new(device_type: DeviceType, device_id: usize) -> Context {
         Context {
             device_type,
             device_id,
@@ -229,14 +221,14 @@ impl_tvm_context!(
 
 impl<'a> From<&'a str> for Context {
     fn from(target: &str) -> Self {
-        Context::new(TVMDeviceType::from(target), 0)
+        Context::new(DeviceType::from(target), 0)
     }
 }
 
 impl From<ffi::DLContext> for Context {
     fn from(ctx: ffi::DLContext) -> Self {
         Context {
-            device_type: TVMDeviceType::from(ctx.device_type),
+            device_type: DeviceType::from(ctx.device_type),
             device_id: ctx.device_id as usize,
         }
     }
@@ -282,12 +274,12 @@ mod tests {
     fn context() {
         let ctx = Context::cpu(0);
         println!("ctx: {}", ctx);
-        let default_ctx = Context::new(TVMDeviceType(1), 0);
+        let default_ctx = Context::new(DeviceType::CPU, 0);
         assert_eq!(ctx.clone(), default_ctx);
         assert_ne!(ctx, Context::gpu(0));
 
-        let str_ctx = Context::new(TVMDeviceType::from("gpu"), 0);
+        let str_ctx = Context::new(DeviceType::GPU, 0);
         assert_eq!(str_ctx.clone(), str_ctx);
-        assert_ne!(str_ctx, Context::new(TVMDeviceType::from("cpu"), 0));
+        assert_ne!(str_ctx, Context::new(DeviceType::CPU, 0));
     }
 }

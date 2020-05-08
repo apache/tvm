@@ -46,7 +46,7 @@ macro_rules! impl_dltensor_from_ndarray {
                         lanes: 1,
                     },
                     shape: arr.shape().as_ptr() as *const i64 as *mut i64,
-                    strides: arr.strides().as_mut_ptr(),
+                    strides: arr.strides().as_ptr() as *const i64 as *mut i64,
                     byte_offset: 0,
                 }
             }

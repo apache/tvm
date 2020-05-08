@@ -29,6 +29,7 @@ bindings = []
 thiserror = "^1.0"
 anyhow = "^1.0"
 ndarray = "0.12"
+enumn = "^0.1"
 
 [build-dependencies]
 bindgen = "0.51"

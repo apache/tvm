@@ -18,21 +18,25 @@
  */
 
 use std::any::TypeId;
-
 use std::convert::TryFrom;
 use std::str::FromStr;
 
 use crate::packed_func::RetValue;
+use crate::ffi::DLDataType;
 
 use thiserror::Error;
 
-use crate::ffi::DLDataType;
+
+const DL_INT_CODE: u8 = 0;
+const DL_UINT_CODE: u8 = 1;
+const DL_FLOAT_CODE: u8 = 2;
+const DL_HANDLE: u8 = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DataType {
-    pub code: u8,
-    pub bits: u8,
-    pub lanes: u16,
+    code: u8,
+    bits: u8,
+    lanes: u16,
 }
 
 impl DataType {
@@ -51,12 +55,12 @@ impl DataType {
             return false;
         }
         let typ = TypeId::of::<T>();
-        (typ == TypeId::of::<i32>() && self.code == 0 && self.bits == 32)
-            || (typ == TypeId::of::<i64>() && self.code == 0 && self.bits == 64)
-            || (typ == TypeId::of::<u32>() && self.code == 1 && self.bits == 32)
-            || (typ == TypeId::of::<u64>() && self.code == 1 && self.bits == 64)
-            || (typ == TypeId::of::<f32>() && self.code == 2 && self.bits == 32)
-            || (typ == TypeId::of::<f64>() && self.code == 2 && self.bits == 64)
+        (typ == TypeId::of::<i32>() && self.code == DL_INT_CODE && self.bits == 32)
+            || (typ == TypeId::of::<i64>() && self.code == DL_INT_CODE && self.bits == 64)
+            || (typ == TypeId::of::<u32>() && self.code == DL_UINT_CODE && self.bits == 32)
+            || (typ == TypeId::of::<u64>() && self.code == DL_UINT_CODE && self.bits == 64)
+            || (typ == TypeId::of::<f32>() && self.code == DL_FLOAT_CODE && self.bits == 32)
+            || (typ == TypeId::of::<f64>() && self.code == DL_FLOAT_CODE && self.bits == 64)
     }
 
     pub fn code(&self) -> usize {
@@ -128,10 +132,10 @@ impl FromStr for DataType {
         };
 
         let type_code = match type_name {
-            "int" => 0,
-            "uint" => 1,
-            "float" => 2,
-            "handle" => 3,
+            "int" => DL_INT_CODE,
+            "uint" => DL_UINT_CODE,
+            "float" => DL_FLOAT_CODE,
+            "handle" => DL_HANDLE,
             _ => return Err(ParseTvmTypeError::UnknownType(type_name.to_string())),
         };
 
@@ -145,10 +149,10 @@ impl std::fmt::Display for DataType {
             return write!(f, "bool");
         }
         let mut type_str = match self.code {
-            0 => "int",
-            1 => "uint",
-            2 => "float",
-            4 => "handle",
+            DL_INT_CODE => "int",
+            DL_UINT_CODE => "uint",
+            DL_FLOAT_CODE => "float",
+            DL_HANDLE => "handle",
             _ => "unknown",
         }
         .to_string();
