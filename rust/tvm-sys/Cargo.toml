@@ -15,18 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-max_width = 100
-hard_tabs = false
-tab_spaces = 4
-newline_style = "Auto"
-use_small_heuristics = "Default"
-reorder_imports = true
-reorder_modules = true
-remove_nested_parens = true
-fn_args_layout = "Tall"
+[package]
+name = "tvm-sys"
+version = "0.1.0"
+authors = ["TVM Contributors"]
+license = "Apache-2.0"
 edition = "2018"
-merge_derives = true
-use_try_shorthand = false
-use_field_init_shorthand = false
-force_explicit_abi = true
 
+[features]
+bindings = []
+
+[dependencies]
+thiserror = "^1.0"
+anyhow = "^1.0"
+ndarray = "0.12"
+enumn = "^0.1"
+
+[build-dependencies]
+bindgen = "0.51"
