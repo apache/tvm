@@ -28,6 +28,7 @@
 #include <tvm/runtime/device_api.h>
 #include <functional>
 #include <string>
+#include <utility>
 #include "rpc_session.h"
 
 namespace tvm {
@@ -40,13 +41,13 @@ namespace runtime {
 class LocalSession : public RPCSession {
  public:
   // function overrides
-  PackedFuncHandle GetFunction(const std::string& name) final;
+  PackedFuncHandle GetFunction(const std::string& name) override;
 
   void CallFunc(PackedFuncHandle func,
                 const TVMValue* arg_values,
                 const int* arg_type_codes,
                 int num_args,
-                const FEncodeReturn& fencode_return) final;
+                const FEncodeReturn& fencode_return) override;
 
   void CopyToRemote(void* from,
                     size_t from_offset,
@@ -54,7 +55,7 @@ class LocalSession : public RPCSession {
                     size_t to_offset,
                     size_t nbytes,
                     TVMContext ctx_to,
-                    DLDataType type_hint) final;
+                    DLDataType type_hint) override;
 
   void CopyFromRemote(void* from,
                       size_t from_offset,
@@ -62,23 +63,23 @@ class LocalSession : public RPCSession {
                       size_t to_offset,
                       size_t nbytes,
                       TVMContext ctx_from,
-                      DLDataType type_hint) final;
+                      DLDataType type_hint) override;
 
-  void FreeHandle(void* handle, int type_code) final;
+  void FreeHandle(void* handle, int type_code) override;
 
-  DeviceAPI* GetDeviceAPI(TVMContext ctx, bool allow_missing = false) final;
+  DeviceAPI* GetDeviceAPI(TVMContext ctx, bool allow_missing = false) override;
 
-  bool IsLocalSession() const final {
+  bool IsLocalSession() const override {
     return true;
   }
 
  protected:
   /*!
-   * \brief Internal implementation of GetFunction.
-   * \param name The name of the function.
-   * \return The corresponding PackedFunc.
+   * \brief internal encode return fucntion.
+   * \param rv The return value.
+   * \param encode_return The encoding function.
    */
-  virtual PackedFunc GetFunctionInternal(const std::string& name);
+  void EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_return);
 };
 
 }  // namespace runtime

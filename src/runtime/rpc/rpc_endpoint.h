@@ -206,6 +206,8 @@ class RPCEndpoint {
   std::string name_;
   // The remote key
   std::string remote_key_;
+  // AsyncIO
+  bool ayncio_;
 };
 
 /*!

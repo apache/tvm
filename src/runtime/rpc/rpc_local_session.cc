@@ -31,21 +31,15 @@ namespace runtime {
 
 RPCSession::PackedFuncHandle
 LocalSession::GetFunction(const std::string& name) {
-  PackedFunc pf = this->GetFunctionInternal(name);
-  // return raw handl because the remote need to explicitly manage it.
-  if (pf != nullptr) return new PackedFunc(pf);
-  return nullptr;
+  if (auto* fp = tvm::runtime::Registry::Get(name)) {
+    // return raw handle because the remote need to explicitly manage it.
+    return new PackedFunc(*fp);
+  } else {
+    return nullptr;
+  }
 }
 
-void LocalSession::CallFunc(RPCSession::PackedFuncHandle func,
-                            const TVMValue* arg_values,
-                            const int* arg_type_codes,
-                            int num_args,
-                            const FEncodeReturn& encode_return) {
-  auto* pf = static_cast<PackedFunc*>(func);
-  TVMRetValue rv;
-
-  pf->CallPacked(TVMArgs(arg_values, arg_type_codes, num_args), &rv);
+void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_return) {
   int rv_tcode = rv.type_code();
 
   // return value encoding.
@@ -82,6 +76,17 @@ void LocalSession::CallFunc(RPCSession::PackedFuncHandle func,
     set_arg(1, rv);
     encode_return(TVMArgs(ret_value_pack, ret_tcode_pack, 2));
   }
+}
+
+void LocalSession::CallFunc(RPCSession::PackedFuncHandle func,
+                            const TVMValue* arg_values,
+                            const int* arg_type_codes,
+                            int num_args,
+                            const FEncodeReturn& encode_return) {
+  auto* pf = static_cast<PackedFunc*>(func);
+  TVMRetValue rv;
+  pf->CallPacked(TVMArgs(arg_values, arg_type_codes, num_args), &rv);
+  this->EncodeReturn(std::move(rv), encode_return);
 }
 
 void LocalSession::CopyToRemote(void* from,
@@ -132,15 +137,6 @@ void LocalSession::FreeHandle(void* handle, int type_code) {
 
 DeviceAPI* LocalSession::GetDeviceAPI(TVMContext ctx, bool allow_missing) {
   return DeviceAPI::Get(ctx, allow_missing);
-}
-
-PackedFunc LocalSession::GetFunctionInternal(const std::string& name) {
-  auto* fp = tvm::runtime::Registry::Get(name);
-  if (fp != nullptr) {
-    return *fp;
-  } else {
-    return nullptr;
-  }
 }
 
 TVM_REGISTER_GLOBAL("rpc.LocalSession")
