@@ -710,51 +710,50 @@ def test_llvm_shuffle():
         module(a_, b_, c_)
         tvm.testing.assert_allclose(c_.asnumpy(), (a_.asnumpy() * 2).astype('int32'))
 
-import sys
-import struct
+def np_float2np_bf16(arr):
+    ''' Convert a numpy array of float to a numpy array 
+    of bf16 in uint16'''
+    orig = arr.view('<u4')
+    bias = np.bitwise_and(np.right_shift(orig, 16), 1) + 0x7FFF
+    return np.right_shift(orig + bias, 16).astype('uint16')
 
-def float2bf16(v):
-    ba = bytearray(struct.pack("f", v))
-    if sys.byteorder=='little':
-        return struct.unpack('h',ba[2:])[0]
-    else:
-        return struct.unpack('h',ba[0:2])[0]
+def np_float2tvm_bf16(arr):
+    ''' Convert a numpy array of float to a TVM array 
+    of bf16'''
+    nparr = np_float2np_bf16(arr)
+    return tvm.nd.empty(nparr.shape, 'bf16').copyfrom(nparr)
 
-def bf162float(v):
-    ba = struct.pack("h", v)
-    if sys.byteorder=='little':
-        return struct.unpack('f', b"\0\0" + ba)[0]
-    else:
-        return struct.unpack('f', ba + b"\0\0")[0]
+def np_bf162np_float(arr):
+    ''' Convert a numpy array of bf16 (uint16) to a numpy array 
+    of float'''
+    u32 = np.left_shift(arr.astype('uint32'), 16)
+    return u32.view('<f4')
 
-def bf16_cast_and_cast_back(v):
-    return bf162float(float2bf16(v))
+def np_bf16_cast_and_cast_back(arr):
+    ''' Convert a numpy array of float to bf16 and cast back'''
+    return np_bf162np_float(np_float2np_bf16(arr))
 
 def test_llvm_bf16():
     np.random.seed(122)
-    A = te.placeholder((6, ))
-    B = te.placeholder((6, ))
-    a = te.compute((6, ), lambda x: topi.cast(A[x], 'bf16'), 'A')
-    b = te.compute((6, ), lambda x: topi.cast(B[x], 'bf16'), 'B')
-    c = te.compute((6, ), lambda x: a[x] + b[x])
-    d = te.compute((6, ), lambda x: topi.cast(c[x], 'float'), 'D')
+    A = te.placeholder((6, ), dtype='bf16')
+    B = te.placeholder((6, ), dtype='bf16')
+    d = te.compute((6, ), lambda x: A[x] + B[x])
     sch = te.create_schedule(d.op)
     module = tvm.build(sch, [A, B, d])
 
     npa = np.random.rand(6).astype('float32')
     npb = np.random.rand(6).astype('float32')
-    res = [0] * len(npa)
-    for i in range(len(npa)):
-        va = bf16_cast_and_cast_back(npa[i])
-        vb = bf16_cast_and_cast_back(npb[i])
-        res[i] = bf16_cast_and_cast_back(va + vb)
-    a_ = tvm.nd.array(npa)
-    b_ = tvm.nd.array(npb)
-    c_ = tvm.nd.array(np.zeros((6,), dtype='float32'))
+    va = np_bf16_cast_and_cast_back(npa)
+    vb = np_bf16_cast_and_cast_back(npb)
+    res = np_bf16_cast_and_cast_back(va + vb)
+    a_ = np_float2tvm_bf16(npa)
+    b_ = np_float2tvm_bf16(npb)
+    c_ = tvm.nd.empty((6,), 'bf16')
     module(a_, b_, c_)
-    tvm.testing.assert_allclose(c_.asnumpy(), res)
+    tvm.testing.assert_allclose(np_bf162np_float(c_.asnumpy()), res)
 
 if __name__ == "__main__":
+    test_llvm_bf16()
     test_multiple_func()
     test_llvm_large_uintimm()
     test_llvm_import()
@@ -776,4 +775,3 @@ if __name__ == "__main__":
     test_llvm_fp_math()
     test_dwarf_debug_information()
     test_llvm_shuffle()
-    test_llvm_bf16()
