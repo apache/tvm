@@ -526,8 +526,8 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::AllocTensor: {
-      os << "alloc_tensor $" << instr.dst << " $" << instr.alloc_tensor.storage << " ["
-         << instr.alloc_tensor.storage << " "
+      os << "alloc_tensor $" << instr.dst << " $"
+         << instr.alloc_tensor.storage << " $"
          << instr.alloc_tensor.offset << " ["
          << StrJoin<int64_t>(instr.alloc_tensor.shape, 0, instr.alloc_tensor.ndim) << "] ";
       DLDatatypePrint(os, instr.alloc_tensor.dtype);
@@ -854,7 +854,6 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::LoadConst: {
         auto constant_obj = exec_->constants[instr.const_index];
-        auto arr = Downcast<NDArray>(constant_obj);
         // We cache the allocated object in the constant pool. To measure, the
         // first iteration will set the pool up. The other iterations will
         // directly reuse the allocated objects.

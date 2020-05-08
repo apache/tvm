@@ -53,12 +53,7 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
   };
 
   void Bound(const Var& v) {
-    // std::cout << "HERE " << v << std::endl;
     if (current_bound.count(v) != 0 || total_bound.count(v) != 0 || free.count(v) != 0) {
-      // std::cout << "WELL FORMED: " << v << std::endl;
-      // std::cout << "current bindings :" << current_bound.count(v) << std::endl;
-      // std::cout << "total bindings :" << total_bound.count(v) << std::endl;
-      // std::cout << "free bindings :" << free.count(v) << std::endl;
       well_formed = false;
     }
     CHECK_GE(scope.size(), 0);

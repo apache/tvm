@@ -190,9 +190,7 @@ class StorageCoalesce(ExprMutator):
         """When leaving a scope build a region allocation for the scope."""
         dtype_region = self.regions.pop()
         for _, region in reversed(list(dtype_region.items())):
-            if len(region.offsets) == 0:
-                continue
-            else:
+            if len(region.offsets) != 0:
                 body = region.to_expr(body)
 
         return body
@@ -241,6 +239,7 @@ class StorageCoalesce(ExprMutator):
 
 
     def mk_let(self, dynamic_regions):
+        """Let bind the dynamic regions"""
         def _mk_let(bindings, body):
             for var, value in reversed(bindings):
                 assert var
@@ -273,6 +272,7 @@ class StorageCoalesce(ExprMutator):
         return result
 
     def process_alloc_storage(self, dynamic_regions, lhs, call):
+        """Process alloc_storage"""
         size, alignment = call.args
         dtype = call.attrs.dtype
         ctx = TVMContext(call.attrs.device_type, call.attrs.device_id)
@@ -286,6 +286,7 @@ class StorageCoalesce(ExprMutator):
         return lhs, region.var
 
     def process_alloc_tensor(self, lhs, call):
+        """Process alloc tensor. Region and offset are computed"""
         storage, old_offset, shape = call.args
         region, offset = self.new_region_and_offset(storage)
 
@@ -298,6 +299,7 @@ class StorageCoalesce(ExprMutator):
         )
 
 class LiftConst(ExprMutator):
+    """A internal pass to lift constants to the top level of function."""
     def __init__(self):
         self.i = 0
         self.constants = []
@@ -310,21 +312,21 @@ class LiftConst(ExprMutator):
         self.constants.append((var, const))
         return var
 
-    def visit_function(self, function):
-        if int(getattr(function.attrs, "Primitive", 0)) == 1:
-            return function
+    def visit_function(self, fn):
+        if int(getattr(fn.attrs, "Primitive", 0)) == 1:
+            return fn
 
         if self.top_level:
             self.top_level = False
-            body = mk_let(self.constants, self.visit(function.body))
+            body = mk_let(self.constants, self.visit(fn.body))
             return Function(
-                function.params,
+                fn.params,
                 body,
-                function.ret_type,
-                function.type_params,
-                function.attrs)
+                fn.ret_type,
+                fn.type_params,
+                fn.attrs)
         else:
-            return super().visit_function(function)
+            return super().visit_function(fn)
 
 @function_pass(opt_level=0)
 class MemoryPlan:
@@ -333,25 +335,8 @@ class MemoryPlan:
     def transform_function(self, func, mod, _):
         mod.import_from_std("core.rly")
         sc = StorageCoalesce()
-        # func = Uniq().visit(func)
         func = sc.visit(func)
-        # func = Uniq().visit(func)
         return func
-
-class Uniq(ExprMutator):
-    def __init__(self):
-        self.var_map = {}
-        self.i = 0
-        super().__init__()
-
-    def visit_var(self, var):
-        if var in self.var_map:
-            return self.var_map[var]
-        else:
-            new_var = expr.Var(f"var{self.i}", type_annotation=var.type_annotation)
-            self.i += 1
-            self.var_map[var] = new_var
-            return new_var
 
 register_func("relay.transform.MemoryPlan", MemoryPlan)
 
