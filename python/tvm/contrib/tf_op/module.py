@@ -17,6 +17,7 @@
 """Module container of TensorFlow TVMDSO op"""
 import tensorflow as tf
 from tensorflow.python.framework import load_library
+from tensorflow.python import platform
 
 
 class OpModule:
@@ -67,7 +68,7 @@ class TensorFunc:
         elif output_shape is not None:
             self.dynamic_output_shape = self._pack_shape_tensor(output_shape)
 
-        self.module = load_library.load_op_library('tvm_dso_op.so')
+        self.module = self._load_platform_specific_library("tvm_dso_op")
         self.tvm_dso_op = self.module.tvm_dso_op
 
     def apply(self, *params):
@@ -81,6 +82,16 @@ class TensorFunc:
 
     def __call__(self, *params):
         return self.apply(*params)
+
+    def _load_platform_specific_library(self, lib_name):
+        system = platform.system()
+        if system == "Darwin":
+            lib_file_name = lib_name + ".dylib"
+        elif system == "Windows":
+            lib_file_name = lib_name + ".dll"
+        else:
+            lib_file_name = lib_name + ".so"
+        return load_library.load_op_library(lib_file_name)
 
     def _is_static_shape(self, shape):
         if shape is None or not isinstance(shape, list):
