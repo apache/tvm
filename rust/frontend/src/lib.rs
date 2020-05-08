@@ -46,7 +46,7 @@ use std::{
 use failure::Error;
 
 pub use crate::{
-    context::{DeviceType, TVMContext},
+    context::{TVMContext, TVMDeviceType},
     errors::*,
     function::Function,
     module::Module,

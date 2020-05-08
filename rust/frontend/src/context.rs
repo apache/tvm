@@ -24,8 +24,8 @@
 //! # Example
 //!
 //! ```
-//! # use tvm_frontend::{DeviceType, TVMContext};
-//! let cpu = DeviceType::from("cpu");
+//! # use tvm_frontend::{TVMDeviceType, TVMContext};
+//! let cpu = TVMDeviceType::from("cpu");
 //! let ctx = TVMContext::new(cpu , 0);
 //! let cpu0 = TVMContext::cpu(0);
 //! assert_eq!(ctx, cpu0);
@@ -58,23 +58,23 @@ use crate::{function, TVMArgValue};
 /// ## Example
 ///
 /// ```
-/// use tvm_frontend::DeviceType;
-/// let cpu = DeviceType::from("cpu");
+/// use tvm_frontend::TVMDeviceType;
+/// let cpu = TVMDeviceType::from("cpu");
 /// println!("device is: {}", cpu);
 ///```
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct DeviceType(pub i64);
+pub struct TVMDeviceType(pub i64);
 
-impl Default for DeviceType {
+impl Default for TVMDeviceType {
     /// default device is cpu.
     fn default() -> Self {
-        DeviceType(1)
+        TVMDeviceType(1)
     }
 }
 
-impl From<DeviceType> for ffi::DLDeviceType {
-    fn from(device_type: DeviceType) -> Self {
+impl From<TVMDeviceType> for ffi::DLDeviceType {
+    fn from(device_type: TVMDeviceType) -> Self {
         match device_type.0 {
             1 => ffi::DLDeviceType_kDLCPU,
             2 => ffi::DLDeviceType_kDLGPU,
@@ -90,63 +90,63 @@ impl From<DeviceType> for ffi::DLDeviceType {
     }
 }
 
-impl From<ffi::DLDeviceType> for DeviceType {
+impl From<ffi::DLDeviceType> for TVMDeviceType {
     fn from(device_type: ffi::DLDeviceType) -> Self {
         match device_type {
-            ffi::DLDeviceType_kDLCPU => DeviceType(1),
-            ffi::DLDeviceType_kDLGPU => DeviceType(2),
-            ffi::DLDeviceType_kDLCPUPinned => DeviceType(3),
-            ffi::DLDeviceType_kDLOpenCL => DeviceType(4),
-            ffi::DLDeviceType_kDLVulkan => DeviceType(7),
-            ffi::DLDeviceType_kDLMetal => DeviceType(8),
-            ffi::DLDeviceType_kDLVPI => DeviceType(9),
-            ffi::DLDeviceType_kDLROCM => DeviceType(10),
-            ffi::DLDeviceType_kDLExtDev => DeviceType(12),
+            ffi::DLDeviceType_kDLCPU => TVMDeviceType(1),
+            ffi::DLDeviceType_kDLGPU => TVMDeviceType(2),
+            ffi::DLDeviceType_kDLCPUPinned => TVMDeviceType(3),
+            ffi::DLDeviceType_kDLOpenCL => TVMDeviceType(4),
+            ffi::DLDeviceType_kDLVulkan => TVMDeviceType(7),
+            ffi::DLDeviceType_kDLMetal => TVMDeviceType(8),
+            ffi::DLDeviceType_kDLVPI => TVMDeviceType(9),
+            ffi::DLDeviceType_kDLROCM => TVMDeviceType(10),
+            ffi::DLDeviceType_kDLExtDev => TVMDeviceType(12),
             _ => panic!("device type not found!"),
         }
     }
 }
 
-impl Display for DeviceType {
+impl Display for TVMDeviceType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f,
             "{}",
             match self {
-                DeviceType(1) => "cpu",
-                DeviceType(2) => "gpu",
-                DeviceType(3) => "cpu_pinned",
-                DeviceType(4) => "opencl",
-                DeviceType(8) => "meta",
-                DeviceType(9) => "vpi",
-                DeviceType(10) => "rocm",
-                DeviceType(_) => "rpc",
+                TVMDeviceType(1) => "cpu",
+                TVMDeviceType(2) => "gpu",
+                TVMDeviceType(3) => "cpu_pinned",
+                TVMDeviceType(4) => "opencl",
+                TVMDeviceType(8) => "meta",
+                TVMDeviceType(9) => "vpi",
+                TVMDeviceType(10) => "rocm",
+                TVMDeviceType(_) => "rpc",
             }
         )
     }
 }
 
-impl<'a> From<&'a str> for DeviceType {
+impl<'a> From<&'a str> for TVMDeviceType {
     fn from(type_str: &'a str) -> Self {
         match type_str {
-            "cpu" => DeviceType(1),
-            "llvm" => DeviceType(1),
-            "stackvm" => DeviceType(1),
-            "gpu" => DeviceType(2),
-            "cuda" => DeviceType(2),
-            "nvptx" => DeviceType(2),
-            "cl" => DeviceType(4),
-            "opencl" => DeviceType(4),
-            "metal" => DeviceType(8),
-            "vpi" => DeviceType(9),
-            "rocm" => DeviceType(10),
+            "cpu" => TVMDeviceType(1),
+            "llvm" => TVMDeviceType(1),
+            "stackvm" => TVMDeviceType(1),
+            "gpu" => TVMDeviceType(2),
+            "cuda" => TVMDeviceType(2),
+            "nvptx" => TVMDeviceType(2),
+            "cl" => TVMDeviceType(4),
+            "opencl" => TVMDeviceType(4),
+            "metal" => TVMDeviceType(8),
+            "vpi" => TVMDeviceType(9),
+            "rocm" => TVMDeviceType(10),
             _ => panic!("{:?} not supported!", type_str),
         }
     }
 }
 
-impl<'a> From<&DeviceType> for TVMArgValue<'a> {
-    fn from(dev: &DeviceType) -> Self {
+impl<'a> From<&TVMDeviceType> for TVMArgValue<'a> {
+    fn from(dev: &TVMDeviceType) -> Self {
         Self::Int(dev.0)
     }
 }
@@ -174,14 +174,14 @@ impl<'a> From<&DeviceType> for TVMArgValue<'a> {
 #[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct TVMContext {
     /// Supported device types
-    pub device_type: DeviceType,
+    pub device_type: TVMDeviceType,
     /// Device id
     pub device_id: i32,
 }
 
 impl TVMContext {
     /// Creates context from device type and id.
-    pub fn new(device_type: DeviceType, device_id: i32) -> Self {
+    pub fn new(device_type: TVMDeviceType, device_id: i32) -> Self {
         TVMContext {
             device_type,
             device_id,
@@ -194,7 +194,7 @@ macro_rules! impl_ctxs {
         $(
             impl TVMContext {
                 pub fn $ctx(device_id: i32) -> Self {
-                    Self::new(DeviceType($dldevt), device_id)
+                    Self::new(TVMDeviceType($dldevt), device_id)
                 }
             }
         )+
@@ -216,7 +216,7 @@ impl_ctxs!((cpu, 1);
 
 impl<'a> From<&'a str> for TVMContext {
     fn from(target: &str) -> Self {
-        TVMContext::new(DeviceType::from(target), 0)
+        TVMContext::new(TVMDeviceType::from(target), 0)
     }
 }
 
@@ -284,7 +284,7 @@ impl_device_attrs!((max_threads_per_block, 1);
 impl From<ffi::DLContext> for TVMContext {
     fn from(ctx: ffi::DLContext) -> Self {
         TVMContext {
-            device_type: DeviceType::from(ctx.device_type),
+            device_type: TVMDeviceType::from(ctx.device_type),
             device_id: ctx.device_id,
         }
     }
@@ -313,13 +313,13 @@ mod tests {
     fn context() {
         let ctx = TVMContext::cpu(0);
         println!("ctx: {}", ctx);
-        let default_ctx = TVMContext::new(DeviceType(1), 0);
+        let default_ctx = TVMContext::new(TVMDeviceType(1), 0);
         assert_eq!(ctx.clone(), default_ctx);
         assert_ne!(ctx, TVMContext::gpu(0));
 
-        let str_ctx = TVMContext::new(DeviceType::from("gpu"), 0);
+        let str_ctx = TVMContext::new(TVMDeviceType::from("gpu"), 0);
         assert_eq!(str_ctx.clone(), str_ctx);
-        assert_ne!(str_ctx, TVMContext::new(DeviceType::from("cpu"), 0));
+        assert_ne!(str_ctx, TVMContext::new(TVMDeviceType::from("cpu"), 0));
     }
 
     #[test]
