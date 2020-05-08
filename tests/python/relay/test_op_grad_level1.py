@@ -68,7 +68,7 @@ def test_unary_op():
                         (tvm.relay.atan, lambda x: 1 / (1 + np.power(x, 2.0))),
                         (tvm.relay.log2, lambda x: 1 / (np.log(2) * x)),
                         (tvm.relay.log10, lambda x: 1 / (np.log(10) * x)),
-                        (tvm.relay.cosh, lambda x: -1.0 * np.sinh(x)),
+                        (tvm.relay.cosh, lambda x: np.sinh(x)),
                         (tvm.relay.sinh, lambda x: np.cosh(x)),
                         (tvm.relay.asin, lambda x: 1. / (1. - x**2) ** (1./2.)),
                         (tvm.relay.acos, lambda x: -1. / (1. - x**2.) ** (1./2.)),
