@@ -346,11 +346,13 @@ class StorageFlattener : public StmtExprMutator {
     }
     auto &func_name = op->buffer->name;
     vars.push_back(Var(
-        String("prefetch." + (std::string)func_name + "." + std::to_string(starts)), DataType::Int(32)));
+    String("prefetch." + (std::string)func_name + "." + std::to_string(starts)),
+    DataType::Int(32)));
     args.push_back(op->bounds[starts]->min + stride * vars.back());
     for (int i = starts - 1; i >= 0; --i) {
       vars.push_back(Var(
-          String("prefetch." + (std::string)func_name + "." + std::to_string(i)), DataType::Int(32)));
+      String("prefetch." + (std::string)func_name + "." + std::to_string(i)),
+      DataType::Int(32)));
       args.push_back(vars.back() + op->bounds[i]->min);
     }
     for (int i = starts; i >= 0; --i) {
