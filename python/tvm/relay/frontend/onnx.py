@@ -557,6 +557,31 @@ class Pad(OnnxOpConverter):
             },
             )(inputs, attr, params)
 
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        pad_width = []
+        pads = infer_value_simulated(inputs[1], params).asnumpy()
+        if len(inputs) == 3:
+            value = infer_value_simulated(inputs[2], params).asnumpy().item()
+        else:
+            value = 0
+        attr["pad_value"] = value
+        dims = int(len(pads) / 2)
+        for i in range(dims):
+            pad_width.append((pads[i], pads[i+dims]))
+        attr['pad_width'] = pad_width
+        pad_mode = attr.get('mode', b'constant').decode('utf-8')
+        if pad_mode in ['constant', 'edge', 'reflect']:
+            attr['pad_mode'] = pad_mode
+            attr.pop('mode', None)
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                'Value ' + pad_mode + ' in attribute "mode" is invalid for operator Pad.')
+
+        return AttrCvt('pad')(inputs[:1], attr, params)
+
+
+
 
 class ParametricSoftPlus(OnnxOpConverter):
     """ Operator converter for ParametricSoftPlus.
