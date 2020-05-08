@@ -19,8 +19,8 @@
 A pass for manifesting explicit memory allocations.
 """
 from typing import Optional, Dict, List, Tuple
-import attr
 from collections import defaultdict
+import attr
 
 from ..expr_functor import ExprMutator
 from .. import op, expr
@@ -90,11 +90,14 @@ class Region:
             assert ctx
             self.ctx = ctx
 
+        new_size = (size + self.alignment - expr.const(1, "int64")) \
+            / self.alignment * self.alignment
+
         # Record the offset at which we allocate the storage.
         offset_var: expr.RelayExpr = expr.var(f"offset{len(self.offsets)}")
         self.offsets[old_storage] = (offset_var, self.size)
 
-        self.size = self.size + size
+        self.size = self.size + new_size
 
     def offset_for(self, alloc: expr.Expr) -> expr.Expr:
         return self.offsets.get(alloc, [None])[0]
@@ -180,14 +183,13 @@ class StorageCoalesce(ExprMutator):
         self.regions = []
 
     def enter_scope(self) -> None:
-        zero = expr.const(0, dtype="int64")
         region_no = len(self.regions)
         self.regions.append(defaultdict(lambda: Region.empty(region_no)))
 
     def exit_scope(self, body: expr.Expr) -> expr.Expr:
         """When leaving a scope build a region allocation for the scope."""
         dtype_region = self.regions.pop()
-        for dtype, region in reversed(list(dtype_region.items())):
+        for _, region in reversed(list(dtype_region.items())):
             if len(region.offsets) == 0:
                 continue
             else:
@@ -359,9 +361,7 @@ class LiftConstants:
 
     def transform_function(self, func, mod, _):
         mod.import_from_std("core.rly")
-        print(func)
         func = LiftConst().visit(func)
-        print(func)
         return func
 
 
