@@ -259,12 +259,12 @@ class RPCSession {
   /*!
    * \brief Asynchrous version of CopyFromRemote.
    *
-   * \param local_from The source host data.
-   * \param local_from_offset The byte offeset in the from.
-   * \param remote_to The target array.
-   * \param remote_to_offset The byte offset in the to.
+   * \param remote_from The source host data.
+   * \param remote_from_offset The byte offeset in the from.
+   * \param to The target array.
+   * \param to_offset The byte offset in the to.
    * \param nbytes The size of the memory in bytes.
-   * \param remote_ctx_to The target context.
+   * \param remote_ctx_from The source context in the remote.
    * \param type_hint Hint of content data type.
    *
    * \param on_complete The callback to signal copy complete.
