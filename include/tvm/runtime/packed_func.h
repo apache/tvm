@@ -736,7 +736,11 @@ class TVMRetValue : public TVMPODValue_ {
     return *this;
   }
   TVMRetValue& operator=(PackedFunc f) {
-    this->SwitchToClass(kTVMPackedFuncHandle, f);
+    if (f == nullptr) {
+      this->SwitchToPOD(kTVMNullptr);
+    } else {
+      this->SwitchToClass(kTVMPackedFuncHandle, f);
+    }
     return *this;
   }
   template<typename FType>
@@ -1185,8 +1189,13 @@ class TVMArgsSetter {
     type_codes_[i] = kTVMBytes;
   }
   TVM_ALWAYS_INLINE void operator()(size_t i, const PackedFunc& value) const {
-    values_[i].v_handle = const_cast<PackedFunc*>(&value);
-    type_codes_[i] = kTVMPackedFuncHandle;
+    if (value != nullptr) {
+      values_[i].v_handle = const_cast<PackedFunc*>(&value);
+      type_codes_[i] = kTVMPackedFuncHandle;
+    } else {
+      values_[i].v_handle = nullptr;
+      type_codes_[i] = kTVMNullptr;
+    }
   }
   template<typename FType>
   TVM_ALWAYS_INLINE void operator()(size_t i, const TypedPackedFunc<FType>& value) const {
