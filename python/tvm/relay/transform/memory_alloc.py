@@ -96,8 +96,7 @@ class ManifestAllocPass(ExprMutator):
         """Allocate a tensor with a statically known shape."""
         shape = [int(sh) for sh in tensor_type.shape]
         if len(shape) == 0:
-            shape = expr.const(np.array([]).astype(
-                self.compute_dtype), dtype=self.compute_dtype)
+            shape = expr.const(np.empty((), dtype=self.compute_dtype), dtype=self.compute_dtype)
         else:
             shape = expr.const(np.array(shape), dtype=self.compute_dtype)
         size = self.compute_storage(tensor_type)

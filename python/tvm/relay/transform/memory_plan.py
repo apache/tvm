@@ -59,6 +59,7 @@ class Region:
     @staticmethod
     def empty(region_no):
         zero = expr.const(0, dtype="int64")
+        assert len(zero.data.shape) == 0
         region_var = expr.var(f"region{region_no}")
         return Region(region_var, zero, None, None, None, {})
 
@@ -358,7 +359,9 @@ class LiftConstants:
 
     def transform_function(self, func, mod, _):
         mod.import_from_std("core.rly")
+        print(func)
         func = LiftConst().visit(func)
+        print(func)
         return func
 
 
