@@ -2291,9 +2291,9 @@ class OperatorConverter(object):
             assert t_type in (TensorType.INT32, TensorType.INT64)
 
         out = _op.sparse_to_dense(
-            self.get_expr(indices.tensor_idx),
-            self.get_expr(values.tensor_idx),
-            self.get_expr(default_value.tensor_idx),
+            self.get_tensor_expr(indices),
+            self.get_tensor_expr(values),
+            self.get_tensor_expr(default_value),
             list(self.get_tensor_value(output_shape))
         )
 
