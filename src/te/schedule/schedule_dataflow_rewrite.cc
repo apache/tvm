@@ -355,7 +355,7 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
     }
   }
   Operation cache_op = ComputeOpNode::make(
-      (String)((std::string)compute->name + "." + scope), compute->tag, compute->attrs,
+      (std::string)compute->name + "." + scope, compute->tag, compute->attrs,
       new_axis, body_list);
 
   Array<PrimExpr> cache_expr_list;
@@ -418,7 +418,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
   }
 
   Operation cache_op = TensorComputeOpNode::make(
-      (String)((std::string)tensor_op->name + "." + scope), tensor_op->tag, new_axis,
+      (std::string)tensor_op->name + "." + scope, tensor_op->tag, new_axis,
       tensor_op->reduce_axis, tensor_op->schedulable_ndim,
       tensor_op->intrin, tensor_op->inputs, new_regions, new_scalar_inputs);
 
@@ -736,7 +736,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
       factor_axis >= 0 ? factor_axis : static_cast<int>(compute_op->axis.size() + 1) + factor_axis;
   CHECK_LE(factor_axis_pos, compute_op->axis.size());
   auto n = make_object<ComputeOpNode>();
-  n->name = (String)((std::string)compute_op->name + ".rf");
+  n->name = (std::string)compute_op->name + ".rf";
   {
     // axis relacement.
     auto iv_node = make_object<IterVarNode>();

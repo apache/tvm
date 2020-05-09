@@ -31,7 +31,7 @@ TEST(Expr, Basic) {
   std::ostringstream os;
   os << z;
   CHECK(zz.same_as(z));
-  CHECK(os.str() == "max(((\"x\" + 1) + 2), 100)");
+  CHECK(os.str() == "max(((x + 1) + 2), 100)");
 }
 
 

@@ -223,7 +223,7 @@ class Layout : public ObjectRef {
     for (auto dst_axis : dst_layout->axes) {
       if (LayoutAxis::Get(dst_axis).IsPrimal()) {
         if (!this->Contains(LayoutAxis::Get(dst_axis))) {
-          new_src_layout_str += std::string(dst_axis->var->name_hint);
+          new_src_layout_str += dst_axis->var->name_hint.c_str();
         }
       }
     }

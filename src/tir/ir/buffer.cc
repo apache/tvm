@@ -381,7 +381,7 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
                           extents,
                           strides,
                           elem_offset,
-                          String((std::string)n->name + "_slice"),
+                          (std::string)n->name + "_slice",
                           n->scope,
                           n->data_alignment,
                           0,

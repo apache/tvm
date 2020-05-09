@@ -347,10 +347,10 @@ llvm::Value* CodeGenCPU::CreateCallExtern(const CallNode* op) {
 #endif
     return builder_->CreateCall(ext_callee, arg_values);
   } else {
-    llvm::Function* f = module_->getFunction((std::string)op->name);
+    llvm::Function* f = module_->getFunction(op->name.c_str());
     if (f == nullptr) {
       f = llvm::Function::Create(
-          ftype, llvm::Function::ExternalLinkage, (std::string)op->name, module_.get());
+          ftype, llvm::Function::ExternalLinkage, op->name.c_str(), module_.get());
     }
 #if TVM_LLVM_VERSION >= 90
     auto ext_callee = llvm::FunctionCallee(f);
@@ -453,7 +453,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   llvm::Function* fcompute =
       llvm::Function::Create(ftype,
                              llvm::Function::PrivateLinkage,
-                             (std::string)op->value.as<StringImmNode>()->value,
+                             op->value.as<StringImmNode>()->value.c_str(),
                              module_.get());
   BasicBlock* compute_call_end = CheckCallSuccess(
       builder_->CreateCall(fcompute, arg_values));

@@ -122,7 +122,7 @@ class JacobianMutator : public ExprMutator {
         return FloatImm(expr.dtype(), 0.0);
       } else {
         throw dmlc::Error("Derivative of this intrinsic is not implemented: " +
-         (std::string)op->name);
+        (std::string)op->name);
       }
     }
     NOT_IMPLEMENTED

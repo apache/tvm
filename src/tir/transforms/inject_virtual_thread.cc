@@ -442,7 +442,7 @@ class VTInjector : public StmtExprMutator {
       return SeqStmt::Flatten(seq);
     } else {
       // insert a for loop
-      Var idx((String)((std::string)var_->name_hint + ".s"), var_->dtype);
+      Var idx((std::string)var_->name_hint + ".s", var_->dtype);
       Map<Var, PrimExpr> values{{var_, idx}};
       stmt = Substitute(stmt, values);
       return ForNode::make(idx, make_zero(idx.dtype()),

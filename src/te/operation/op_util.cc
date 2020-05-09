@@ -74,7 +74,7 @@ MakeLoopNest(const Stage& stage,
     if (bind_iv->thread_tag.length() == 0) {
       // Only generate new loop if we're not bound to a thread.
       if (new_loop_var) {
-        var = Var((String)((std::string)iv->var->name_hint + ".init"), bind_iv->var.dtype());
+        var = Var((std::string)iv->var->name_hint + ".init", bind_iv->var.dtype());
       }
 
       ForType for_type = ForType::Serial;
@@ -114,7 +114,7 @@ MakeLoopNest(const Stage& stage,
                       for_type, DeviceAPI::None, no_op));
         value_map[iv] = var;
       } else {
-        Var idx(String((std::string)bind_iv->var->name_hint + ".idx"), bind_iv->var.dtype());
+        Var idx((std::string)bind_iv->var->name_hint + ".idx", bind_iv->var.dtype());
         nest[i + 1].emplace_back(
             ForNode::make(idx, 0, dom->extent,
                       for_type, DeviceAPI::None, no_op));
