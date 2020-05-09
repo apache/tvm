@@ -163,9 +163,21 @@ MakeLoopNest(const Stage& stage,
         value_map[iv] = dom->min;
       } else {
         runtime::ThreadScope ts = runtime::ThreadScope::make(bind_iv->thread_tag);
-        if (stage->scope == "" || stage->scope == "warp" ||
+        if (stage->scope == "" ||
             static_cast<int>(runtime::StorageScope::make(stage->scope).rank) <= ts.rank) {
           value_map[iv] = var;
+        } else if (stage->scope == "warp" && ts.rank == 1) {
+          // To determine whether a thread index is inside or outside a warp, we need
+          // to know the thread extent. We leave a warning for now.
+          if (ts.dim_index == 0) {
+            value_map[iv] = var;
+          } else {
+            LOG(WARNING)
+              << "WARNING: threadIdx.y or threadIdx.z accessing warp-scope memory detected. "
+              << "TVM assumes only threadIdx.x indicates threads inside a warp, "
+              << "while threadIdx.y and threadIdx.z indicates different warps.";
+            value_map[iv] = dom->min;
+          }
         } else {
           value_map[iv] = dom->min;
         }
