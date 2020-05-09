@@ -265,10 +265,12 @@ class WarpAccessRewriter : protected StmtExprMutator {
           << op->index << " local_index=" << local_index;
       PrimExpr load_value = LoadNode::make(
           op->dtype, op->buffer_var, local_index, op->predicate);
+      PrimExpr mask = CallNode::make(DataType::UInt(32),
+          intrinsic::tvm_warp_activemask, {}, CallNode::Intrinsic);
       return CallNode::make(load_value.dtype(),
-                        intrinsic::tvm_warp_shuffle,
-                        {load_value, group, width_, warp_size_},
-                        CallNode::Intrinsic);
+                            intrinsic::tvm_warp_shuffle,
+                            {mask, load_value, group, width_, warp_size_},
+                            CallNode::Intrinsic);
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }

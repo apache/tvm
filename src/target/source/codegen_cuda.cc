@@ -64,6 +64,10 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << _cuda_half_util;
   }
 
+  if (enable_warp_shuffle_) {
+    decl_stream << _cuda_warp_intrinsic_util;
+  }
+
   if (enable_int8_) {
     decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 610)\n";
     decl_stream << "#include <sm_61_intrinsics.h>\n";
@@ -269,6 +273,11 @@ void CodeGenCUDA::PrintVecBinaryOp(
 
 void CodeGenCUDA::PrintVecElemLoad(
     const std::string& vec, DataType t, int i, std::ostream& os) {  // NOLINT(*)
+  if (t.is_scalar()) {
+    os << vec;
+    return;
+  }
+
   static const char access[] = {'x', 'y', 'z', 'w'};
   CHECK(i >= 0 && i < (t.is_float16() ? 8 : 4));
   if ((t.is_int()) && t.bits() == 8) {
@@ -395,7 +404,15 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   os << sret;
 }
 
-void CodeGenCUDA::VisitExpr_(const CallNode *op, std::ostream& os) {
+void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
+  // This is only for backward compatibility with __shfl_{up/down}.
+  // A macro will be used to replace *_sync calls to legacy ones.
+  if (op->is_intrinsic("__shfl_sync") ||
+      op->is_intrinsic("__shfl_up_sync") ||
+      op->is_intrinsic("__shfl_down_sync")) {
+    enable_warp_shuffle_ = true;
+  }
+
   if (op->is_intrinsic(intrinsic::tvm_fill_fragment)) {
     need_mma_h_ = true;
     CHECK_EQ(op->args.size(), 6U);

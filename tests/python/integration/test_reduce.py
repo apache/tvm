@@ -338,6 +338,106 @@ def test_rfactor_argmax():
     check_target("cuda")
     check_target("vulkan")
 
+def test_warp_reduction1():
+    nthx = 32
+    nthy = 4
+    block_x = te.thread_axis("blockIdx.x")
+    thread_x = te.thread_axis((0, nthx), "threadIdx.x")
+    thread_y = te.thread_axis((0, nthy), "threadIdx.y")
+
+    def check_target(device, m, n):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("skip because %s is not enabled.." % device)
+            return
+
+        # compute
+        A = te.placeholder((m, n), name='A')
+        k = te.reduce_axis((0, n))
+        B = te.compute((m,), lambda i: te.max(A[i][k], axis=k), name='B')
+        s = te.create_schedule(B.op)
+
+        # schedule
+        k = s[B].op.reduce_axis[0]
+        ko, _ = s[B].split(k, nparts=nthx)
+        s[B].bind(ko, thread_x)
+        xo, xi = s[B].split(s[B].op.axis[0], factor=nthy)
+        s[B].bind(xi, thread_y)
+        s[B].bind(xo, block_x)
+
+        print(tvm.lower(s, [A, B], simple_mode=True))
+
+        # validation
+        func = tvm.build(s, [A, B], "cuda", name="warp_reduction")
+        a_np = np.random.uniform(size=(m,n)).astype(A.dtype)
+        b_np = np.zeros((m,), dtype=A.dtype)
+        a = tvm.nd.array(a_np, ctx)
+        b = tvm.nd.array(b_np, ctx)
+        b_np = np.max(a_np, axis=1)
+        func(a, b)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
+
+    check_target("cuda", m=32, n=256)
+    check_target("cuda", m=10, n=20)
+    # This is a bug in normal reduction.
+    # check_target("cuda", m=10, n=37)
+
+def test_warp_reduction2():
+    def fcombine(x, y):
+        return x[0] + y[0], x[1] * y[1]
+
+    def fidentity(t0, t1):
+        return tvm.tir.const(0, t0), tvm.tir.const(1, t1)
+
+    add_mul_reducer = te.comm_reducer(fcombine, fidentity, name='add_mul_reducer')
+
+    # compute
+    m = 16
+    n = 256
+    A0 = te.placeholder((m, n), name='A0', dtype='float32')
+    A1 = te.placeholder((m, n), name='Al', dtype='float32')
+    k = te.reduce_axis((0, n), 'k')
+    T0, T1 = te.compute((m, ), lambda i: \
+        add_mul_reducer((A0[i, k], A1[i, k]), axis=k), name='T')
+
+    nthdx, nthdy = 32, 2
+    block_x = te.thread_axis("blockIdx.x")
+    thread_x = te.thread_axis((0, nthdx), "threadIdx.x")
+    thread_y = te.thread_axis((0, nthdy), "threadIdx.y")
+
+    def check_target(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("skip because %s is not enabled.." % device)
+            return
+
+        # schedule
+        s = te.create_schedule(T0.op)
+        ko, _ = s[T0].split(k, nparts=nthdx)
+        xo, xi = s[T0].split(s[T0].op.axis[0], factor=nthdy)
+        s[T0].bind(ko, thread_x)
+        s[T0].bind(xi, thread_y)
+        s[T0].bind(xo, block_x)
+
+        # validation
+        ctx = tvm.context(device, 0)
+        a0_np = np.random.uniform(size=(m,n)).astype(A0.dtype)
+        a1_np = np.random.uniform(size=(m,n)).astype(A1.dtype)
+        t0_np = np.zeros((m,), dtype=A0.dtype)
+        t1_np = np.zeros((m,), dtype=A1.dtype)
+        a0 = tvm.nd.array(a0_np, ctx)
+        a1 = tvm.nd.array(a1_np, ctx)
+        t0 = tvm.nd.array(t0_np, ctx)
+        t1 = tvm.nd.array(t1_np, ctx)
+        func = tvm.build(s, [A0, A1, T0, T1], device, name="reduction")
+        func(a0, a1, t0, t1)
+        t0_np = np.sum(a0_np, axis=1)
+        t1_np = np.product(a1_np, axis=1)
+        tvm.testing.assert_allclose(t0.asnumpy(), t0_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(t1.asnumpy(), t1_np, rtol=1e-3, atol=1e-3)
+
+    check_target("cuda")
+
 if __name__ == "__main__":
     test_rfactor_elemwise_threads()
     test_rfactor_threads()
@@ -346,3 +446,5 @@ if __name__ == "__main__":
     test_reduce_prims()
     test_argmax()
     test_rfactor_argmax()
+    test_warp_reduction1()
+    test_warp_reduction2()
