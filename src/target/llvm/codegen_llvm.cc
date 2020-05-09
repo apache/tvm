@@ -558,6 +558,22 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
   builder_->SetInsertPoint(for_end);
 }
 
+static llvm::Value* GetInt32VectorOrScalar(
+                                          llvm::IRBuilder<llvm::ConstantFolder,
+                                            llvm::IRBuilderDefaultInserter>& builder,
+                                          uint32_t v,
+                                          int lanes) {
+  if (lanes == 1) {
+    return builder.getInt32(v);
+  } else {
+    std::vector<llvm::Constant*> consts;
+    for (int i = 0; i < lanes; i++) {
+      consts.emplace_back(builder.getInt32(v));
+    }
+    return llvm::ConstantVector::get(consts);
+  }
+}
+
 // cast operatpr
 llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* value) {
   llvm::Type* target = DTypeToLLVMType(to);
@@ -567,17 +583,22 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
   } else if (to.is_float() && from.is_bfloat()) {
     CHECK_EQ(from.bits(), 16);
     CHECK_EQ(to.bits(), 32);
-    auto v = builder_->CreateZExt(value, builder_->getInt32Ty());
-    if (module_->getDataLayout().isLittleEndian())
-      v = builder_->CreateShl(v, 16);
+    llvm::Type* extended_type = (from.lanes() != 1) ?
+      static_cast<llvm::Type*>(builder_->getInt32Ty()) :
+      llvm::VectorType::get(builder_->getInt32Ty(), from.lanes());
+    auto v = builder_->CreateZExt(value, extended_type);
+    v = builder_->CreateShl(v, 16);
     return builder_->CreateBitCast(v, target);
   } else if (to.is_bfloat() && from.is_float()) {
     CHECK_EQ(to.bits(), 16);
     CHECK_EQ(from.bits(), 32);
-    auto v = builder_->CreateBitCast(value, builder_->getInt32Ty());
+    llvm::Type* extended_type = (from.lanes() != 1) ?
+      static_cast<llvm::Type*>(builder_->getInt32Ty()) :
+      llvm::VectorType::get(builder_->getInt32Ty(), to.lanes());
+    auto v = builder_->CreateBitCast(value, extended_type);
     auto bias = builder_->CreateLShr(v, 16);
-    bias = builder_->CreateAnd(bias, builder_->getInt32(1));
-    bias = builder_->CreateAdd(bias, builder_->getInt32(0x7fff));
+    bias = builder_->CreateAnd(bias, GetInt32VectorOrScalar(*builder_, 1, to.lanes()));
+    bias = builder_->CreateAdd(bias, GetInt32VectorOrScalar(*builder_, 0x7fff, to.lanes()));
     v = builder_->CreateAdd(v, bias);
     v = builder_->CreateLShr(v, 16);
     return builder_->CreateTrunc(v, target);
