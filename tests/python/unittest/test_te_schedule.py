@@ -286,8 +286,8 @@ def test_tensor_intrin_scalar_params():
     stmt = tvm.lower(s, [A, C])["main"].body
     assert isinstance(stmt.body.body, tvm.tir.Evaluate)
     assert len(stmt.body.body.value.args) == 5
-    assert str(stmt.body.body.value.args[3]) == "(i*i)"
-    assert str(stmt.body.body.value.args[4]) == "(i + j)"
+    assert str(stmt.body.body.value.args[3]) == "(i: int32*i)"
+    assert str(stmt.body.body.value.args[4]) == "(i: int32 + j: int32)"
 
 if __name__ == "__main__":
     test_singleton()
