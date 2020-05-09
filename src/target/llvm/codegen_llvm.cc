@@ -583,7 +583,7 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
   } else if (to.is_float() && from.is_bfloat()) {
     CHECK_EQ(from.bits(), 16);
     CHECK_EQ(to.bits(), 32);
-    llvm::Type* extended_type = (from.lanes() != 1) ?
+    llvm::Type* extended_type = (from.lanes() == 1) ?
       static_cast<llvm::Type*>(builder_->getInt32Ty()) :
       llvm::VectorType::get(builder_->getInt32Ty(), from.lanes());
     auto v = builder_->CreateZExt(value, extended_type);
@@ -592,7 +592,7 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
   } else if (to.is_bfloat() && from.is_float()) {
     CHECK_EQ(to.bits(), 16);
     CHECK_EQ(from.bits(), 32);
-    llvm::Type* extended_type = (from.lanes() != 1) ?
+    llvm::Type* extended_type = (from.lanes() == 1) ?
       static_cast<llvm::Type*>(builder_->getInt32Ty()) :
       llvm::VectorType::get(builder_->getInt32Ty(), to.lanes());
     auto v = builder_->CreateBitCast(value, extended_type);
