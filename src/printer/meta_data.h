@@ -109,6 +109,15 @@ class TextMetaDataContext {
   }
 
   /*!
+   * \brief Test whether a node has been put in meta
+   * \param node The query node
+   * \return whether the node has been put in meta
+   */
+  bool InMeta(const ObjectRef& node) {
+    return meta_repr_.find(node) != meta_repr_.end();
+  }
+
+  /*!
    * \brief Print a key value pair
    */
   Doc PrintKeyValue(const std::string& str, const Doc& v) const {
