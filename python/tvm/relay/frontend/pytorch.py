@@ -628,6 +628,12 @@ def _maxpool_2d():
         return _op.nn.max_pool2d(data, pool_size, strides, padding, "NCHW", ceil_mode)
     return _impl
 
+def _maxpool_2d_with_indices():
+    def _impl(inputs, input_types):
+        # returns dummy indices too
+        return _maxpool_2d()(inputs, input_types), None
+    return _impl
+
 def _maxpool_1d():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -1645,7 +1651,7 @@ def _get_convert_map(prelude):
         "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(),
         "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),
         "aten::max_pool2d"                      : _maxpool_2d(),
-        "aten::max_pool2d_with_indices"         : _maxpool_2d(),
+        "aten::max_pool2d_with_indices"         : _maxpool_2d_with_indices(),
         "aten::max_pool1d"                      : _maxpool_1d(),
         "aten::max_pool3d"                      : _maxpool_3d(),
         "aten::hardtanh"                        : _hardtanh(),
@@ -2241,7 +2247,7 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude):
                 out_names = _get_output_names(op_node)
                 outputs.update(zip(out_names, relay_out))
             else:
-                outputs[_get_output_names(op_node)[0]] = relay_out
+                outputs[_get_output_name(op_node)] = relay_out
 
     return [_wrap_const(outputs[ret_name])
             for ret_name in ret_names]
