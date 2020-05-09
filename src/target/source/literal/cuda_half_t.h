@@ -295,4 +295,18 @@ __pack_half2(const half x, const half y) {
 }
 )";
 
+static constexpr const char* _cuda_warp_intrinsic_util = R"(
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
+#define __shfl_sync(mask, var, lane, width) \
+        __shfl((var), (lane), (width))
+
+#define __shfl_down_sync(mask, var, offset, width) \
+        __shfl_down((var), (offset), (width))
+
+#define __shfl_up_sync(mask, var, offset, width) \
+        __shfl_up((var), (offset), (width))
+#endif
+
+)";
+
 #endif  // TVM_TARGET_SOURCE_LITERAL_CUDA_HALF_T_H_
