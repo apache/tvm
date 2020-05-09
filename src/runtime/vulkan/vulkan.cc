@@ -750,8 +750,10 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     }
   }
 
-  std::shared_ptr<VulkanPipeline> GetPipeline(size_t device_id, const std::string& func_name,
-                                               size_t num_pack_args) {
+  std::shared_ptr<VulkanPipeline> GetPipeline(
+      size_t device_id,
+      const std::string& func_name,
+      size_t num_pack_args) {
     const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
     std::lock_guard<std::mutex> lock(mutex_);
     const auto& cp = ecache_[device_id][func_name];
@@ -776,6 +778,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     std::vector<VkDescriptorSetLayoutBinding> arg_binding;
     std::vector<VkDescriptorUpdateTemplateEntryKHR> arg_template;
     uint32_t num_pod = 0, num_buffer = 0;
+
     {
       auto fit = fmap_.find(func_name);
       CHECK(fit != fmap_.end());
@@ -931,8 +934,6 @@ class VulkanModuleNode final : public runtime::ModuleNode {
   }
 
  private:
-  // the binary data
-  std::vector<uint32_t> data_;
   // function information table.
   std::unordered_map<std::string, VulkanShader> smap_;
   // function information table.
