@@ -430,7 +430,7 @@ class Vectorizer : public StmtExprMutator {
   }
   // scalarize the statment
   Stmt Scalarize(Stmt stmt) {
-    Var idx((String)((std::string)var_->name_hint + ".s"), var_->dtype);
+    Var idx((std::string)var_->name_hint + ".s", var_->dtype);
     Map<Var, PrimExpr> values{{var_, idx}};
     stmt = Substitute(stmt, values);
     return ForNode::make(idx, 0, var_lanes_, ForType::Serial, DeviceAPI::None, stmt);
