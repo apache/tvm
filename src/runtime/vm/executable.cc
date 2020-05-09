@@ -307,7 +307,7 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       break;
     }
     case Opcode::AllocTensor: {
-      // Number of fields = 6 + instr.alloc_tensor.ndim
+      // Number of fields = 7 + instr.alloc_tensor.ndim
       fields.push_back(instr.alloc_tensor.storage);
       fields.push_back(instr.alloc_tensor.offset);
       // Save `DLDataType` and the dst register.
@@ -550,7 +550,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       return Instruction::InvokePacked(packed_index, arity, output_size, args);
     }
     case Opcode::AllocTensor: {
-      // Number of fields = 6 + instr.alloc_tensor.ndim
+      // Number of fields = 7 + instr.alloc_tensor.ndim
       DCHECK_GE(instr.fields.size(), 7U);
       DCHECK_EQ(instr.fields.size(), 7U + static_cast<size_t>(instr.fields[4]));
 
@@ -565,7 +565,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       Index ndim = instr.fields[5];
       RegName dst = instr.fields[6];
 
-      std::vector<Index> shape = ExtractFields(instr.fields, 6, ndim);
+      std::vector<Index> shape = ExtractFields(instr.fields, 7, ndim);
 
       return Instruction::AllocTensor(storage_reg, offset, shape, dtype, dst);
     }

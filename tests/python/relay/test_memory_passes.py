@@ -63,7 +63,7 @@ def test_tyck_alloc_tensor():
     mod.import_from_std("core.rly")
     sto = relay.Var("x", storage_type(mod))
     sh = relay.const(np.array([1, 2]), dtype="int64")
-    at = relay.op.memory.alloc_tensor(sto, sh)
+    at = relay.op.memory.alloc_tensor(sto, relay.const(0, dtype="int64"), sh)
     mod['main'] = relay.Function([sto], at)
     relay.transform.InferType()(mod)
 
