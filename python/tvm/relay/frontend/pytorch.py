@@ -2241,7 +2241,7 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude):
                 out_names = _get_output_names(op_node)
                 outputs.update(zip(out_names, relay_out))
             else:
-                outputs[node_name] = relay_out
+                outputs[_get_output_names(op_node)[0]] = relay_out
 
     return [_wrap_const(outputs[ret_name])
             for ret_name in ret_names]
