@@ -227,7 +227,8 @@ Doc TIRTextPrinter::VisitExpr_(const VarNode* op) {
 #define TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(OpName, OpString)     \
   Doc TIRTextPrinter::VisitExpr_(const OpName* op) {               \
     Doc doc;                                                       \
-    doc << '(' << Print(op->a) << OpString << Print(op->b) << ")"; \
+    doc << "(" << Print(op->a) << OpString;                        \
+    doc << Print(op->b) << ")";                                    \
     return doc;                                                    \
   }
 
