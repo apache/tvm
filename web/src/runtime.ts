@@ -25,7 +25,9 @@ import { Disposable } from "./types";
 import { Memory, CachedCallStack } from "./memory";
 import { assert, StringToUint8Array } from "./support";
 import { Environment } from "./environment";
+import { WebGPUContext } from "./webgpu";
 
+import * as compact from "./compact";
 import * as ctypes from "./ctypes";
 
 /**
@@ -42,8 +44,8 @@ class FFILibrary implements Disposable {
   wasm32: boolean;
   memory: Memory;
   exports: Record<string, Function>;
+  webGPUContext?: WebGPUContext;
   private wasmInstance: WebAssembly.Instance;
-
   private recycledCallStacks: Array<CachedCallStack> = [];
 
   constructor(
@@ -174,8 +176,8 @@ const DeviceEnumToStr: Record<number, string> = {
   1: "cpu",
   2: "gpu",
   4: "opencl",
-  7: "vulkan",
   8: "metal",
+  15: "webgpu"
 };
 
 const DeviceStrToEnum: Record<string, number> = {
@@ -186,6 +188,7 @@ const DeviceStrToEnum: Record<string, number> = {
   opencl: 4,
   vulkan: 7,
   metal: 8,
+  webgpu: 15
 };
 
 /**
@@ -203,6 +206,9 @@ export class DLContext {
     const tp = typeof deviceType;
     if (tp == "string") {
       this.deviceType = DeviceStrToEnum[deviceType];
+      if (this.deviceType == undefined) {
+        throw new Error("Cannot recogonize deviceType " + deviceType);
+      }
     } else if (tp == "number") {
       this.deviceType = deviceType as number;
     } else {
@@ -215,14 +221,11 @@ export class DLContext {
   /**
    * Synchronize the context
    */
-  sync(): void {
-    this.lib.checkCall(
-      (this.lib.exports.TVMSynchronize as ctypes.FTVMSynchronize)(
-        this.deviceType,
-        this.deviceId,
-        0
-      )
-    );
+  async sync(): Promise<void> {
+    if (this.deviceType == DeviceStrToEnum.webgpu) {
+      assert(this.lib.webGPUContext !== undefined);
+      await this.lib.webGPUContext.sync();
+    }
   }
 
   toString(): string {
@@ -284,17 +287,24 @@ export class NDArray implements Disposable {
   shape: Array<number>;
   /** Context of the array. */
   context: DLContext;
-
+  /** Whether it is a temporary view that can become invalid after the call. */
+  private isView: boolean;
   private byteOffset: number;
   private dltensor: Pointer;
+  private dataPtr: Pointer;
   private lib: FFILibrary;
   private dlDataType: DLDataType;
 
-  constructor(handle: Pointer, lib: FFILibrary) {
+  constructor(handle: Pointer, isView: boolean, lib: FFILibrary) {
     this.handle = handle;
+    this.isView = isView;
     this.lib = lib;
 
-    this.dltensor = this.getDLTensorFromArrayHandle(this.handle);
+    if (this.isView) {
+      this.dltensor = handle;
+    } else {
+      this.dltensor = this.getDLTensorFromArrayHandle(this.handle);
+    }
     // constant offsets.
     const arrayOffsetData = 0;
     const arrayOffsetContext = arrayOffsetData + this.lib.sizeofPtr();
@@ -308,6 +318,8 @@ export class NDArray implements Disposable {
     const arrayOffsetShape = arrayOffsetDtype + SizeOf.DLDataType;
     const arrayOffsetStrides = arrayOffsetShape + this.lib.sizeofPtr();
     const arrayOffsetByteOffset = arrayOffsetStrides + this.lib.sizeofPtr();
+    // dataPtr
+    this.dataPtr = lib.memory.loadPointer(this.dltensor);
     // ndim
     this.ndim = lib.memory.loadI32(this.dltensor + arrayOffsetNdim);
     // shape
@@ -333,7 +345,7 @@ export class NDArray implements Disposable {
   }
 
   dispose(): void {
-    if (this.handle != 0) {
+    if (this.handle != 0 && !this.isView) {
       this.lib.checkCall(
         (this.lib.exports.TVMArrayFree as ctypes.FTVMArrayFree)(this.handle)
       );
@@ -347,7 +359,7 @@ export class NDArray implements Disposable {
    * @param data The source data array.
    * @returns this
    */
-  copyFrom(data: NDArray | Array<number>): this {
+  copyFrom(data: NDArray | Array<number> | Float32Array): this {
     if (data instanceof NDArray) {
       this.lib.checkCall(
         (this.lib.exports.TVMArrayCopyFromTo as ctypes.FTVMArrayCopyFromTo)(
@@ -421,9 +433,13 @@ export class NDArray implements Disposable {
    * @returns The result array.
    */
   toRawBytes(): Uint8Array {
+    if (this.context.deviceType != DeviceStrToEnum.cpu) {
+      throw new Error("Can only synchronize copy for GPU array, use copyfrom instead.");
+    }
     const size = this.shape.reduce((a, b) => {
       return a * b;
     }, 1);
+
     const nbytes = this.dlDataType.numStorageBytes() * size;
     const stack = this.lib.getOrAllocCallStack();
 
@@ -542,6 +558,114 @@ export class Module implements Disposable {
       )
     );
   }
+}
+
+/**
+ *  Graph runtime.
+ *
+ *  This is a thin wrapper of the underlying TVM module.
+ *  you can also directly call set_input, run, and get_output
+ *  of underlying module functions
+ */
+class GraphRuntime implements Disposable {
+  module: Module;
+  private packedSetInput: PackedFunc;
+  private packedRun: PackedFunc;
+  private packedGetOutput: PackedFunc;
+  private packedLoadParams: PackedFunc;
+
+  /**
+   * COnstructor
+   * @param module The underlying module.
+   */
+  constructor(module: Module) {
+    this.module = module;
+    this.packedSetInput = module.getFunction("set_input");
+    this.packedRun = module.getFunction("run");
+    this.packedGetOutput = module.getFunction("get_output");
+    this.packedLoadParams = module.getFunction("load_params");
+  }
+
+  dispose(): void {
+    this.packedSetInput.dispose();
+    this.packedRun.dispose();
+    this.packedGetOutput.dispose();
+  }
+
+  /**
+   * Set input to the executor.
+   *
+   * @param key The input key.
+   * @param value The value to get set.
+   */
+  setInput(key: number | string, value: NDArray): void {
+    if (typeof key == "number") {
+      this.packedSetInput(new Scalar(key, "int32"), value);
+    } else {
+      this.packedSetInput(key, value);
+
+    }
+  }
+
+  /**
+   * Execute the underlying graph.
+   */
+  run(): void {
+    this.packedRun();
+  }
+
+  /**
+   * Get index-th output.
+   * @param index The index number.
+   * @param out The optional output storage parameters.
+   * @returns The output array.
+   */
+  getOutput(index: number, out: NDArray | undefined = undefined): NDArray {
+    if (out !== undefined) {
+      this.packedGetOutput(new Scalar(index, "int32"), out)
+      return out;
+    } else {
+      return this.packedGetOutput(new Scalar(index, "int32"));
+    }
+  }
+
+  /**
+   * Load parameters from parameter binary.
+   * @param paramBinary The parameter binary.
+   */
+  loadParams(paramBinary: Uint8Array): void {
+    this.packedLoadParams(paramBinary);
+  }
+
+  /**
+   * Benchmark stable execution of the graph(without data copy).
+   * @params ctx The context to sync during each run.
+   * @number The number of times to compute the average.
+   * @repeat The number of times to repeat the run.
+   */
+  async benchmarkRuns(ctx: DLContext, number=10, repeat=4): Promise<number[]> {
+    // Skip first run as it can involve GPU warmup and module loading time.
+    const perf = compact.getPeformance();
+    const results = [];
+    this.run();
+    await ctx.sync();
+    for (let k = 0; k < repeat; ++k) {
+      const tstart = perf.now();
+      for (let i = 0; i < number; ++i) {
+        this.run();
+      }
+      await ctx.sync();
+      const tend = perf.now();
+      results.push((tend - tstart) / number);
+    }
+    return results;
+  }
+}
+
+/** Code used as the first argument of the async callback. */
+const enum AyncCallbackCode {
+  kReturn = 4,
+  kException = 5,
 }
 
 /**
@@ -789,8 +913,24 @@ export class Instance implements Disposable {
    * @param deviceId The device index.
    * @returns The created context.
    */
-  context(deviceType: number | string, deviceId: number): DLContext {
+  context(deviceType: number | string, deviceId = 0): DLContext {
     return new DLContext(deviceType, deviceId, this.lib);
+  }
+
+  /**
+   * Create a new cpu {@link DLContext}
+   * @param deviceId The device index.
+   */
+  cpu(deviceId = 0): DLContext {
+    return this.context("cpu", deviceId);
+  }
+
+  /**
+   * Create a new webgpu {@link DLContext}
+   * @param deviceId The device index.
+   */
+  webgpu(deviceId = 0): DLContext {
+    return this.context("webgpu", deviceId);
   }
 
   /**
@@ -831,36 +971,125 @@ export class Instance implements Disposable {
         outPtr
       )
     );
-    const ret = new NDArray(this.memory.loadPointer(outPtr), this.lib);
+    const ret = new NDArray(this.memory.loadPointer(outPtr), false, this.lib);
     this.lib.recycleCallStack(stack);
     return ret;
+  }
+
+  /**
+   * Create a new graph runtime.
+   *
+   * @param graphJson The graph runtime json file.
+   * @param lib The underlying library.
+   * @param ctx The execution context of the graph.
+   */
+  createGraphRuntime(
+    graphJson: string,
+    lib: Module,
+    ctx: DLContext
+  ): GraphRuntime {
+    const fcreate = this.getGlobalFunc("tvm.graph_runtime.create");
+    const module = fcreate(
+      graphJson,
+      lib,
+      this.scalar(ctx.deviceType, "int32"),
+      this.scalar(ctx.deviceId, "int32")) as Module;
+    return new GraphRuntime(module);
+  }
+
+
+  /**
+   * Register an asyncfunction to be global function in the server.
+   * @param name The name of the function.
+   * @param func function to be registered.
+   * @param override Whether overwrite function in existing registry.
+   *
+   * @note The async function will only be used for serving remote calls in the rpc.
+   */
+  registerAsyncServerFunc(
+    name: string,
+    func: Function,
+    override = false
+  ): void {
+    const asyncVariant = (...args: Array<any>): void => {
+      const fargs = args.slice(0, args.length - 1);
+      const callback = args[args.length - 1] as PackedFunc;
+      const promise: Promise<any> = func(...fargs);
+      promise.then((rv: any) => {
+        callback(this.scalar(AyncCallbackCode.kReturn, "int32"), rv);
+      });
+    };
+    this.registerFunc("__async." + name, asyncVariant, override);
+  }
+
+  /**
+   * Initialize webgpu in the runtime.
+   * @param device The given GPU device.
+   */
+  initWebGPU(device: GPUDevice): void {
+    const webGPUContext = new WebGPUContext(
+      this.memory, device
+    );
+    this.registerFunc("wasm.WebGPUDeviceAPI", (name: string) => {
+      return webGPUContext.getDeviceAPI(name);
+    });
+    this.registerFunc("wasm.WebGPUCreateShader", (info: string, data: Uint8Array) => {
+      return webGPUContext.createShader(info, data);
+    });
+    this.registerAsyncServerFunc("wasm.WebGPUWaitForTasks", async () => {
+      await webGPUContext.sync();
+    });
+    this.lib.webGPUContext = webGPUContext;
   }
 
   /** Register global packed functions needed by the backend to the env. */
   private registerEnvGlobalPackedFuncs(): void {
     // Register the timer function to enable the time_evaluator.
-    let perf: Performance;
-    if (typeof performance == "undefined") {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const performanceNode = require('perf_hooks');
-      perf = performanceNode.performance as Performance;
-    } else {
-      perf = performance as Performance;
-    }
+    const perf = compact.getPeformance();
 
-    const getTimer = (func: PackedFunc) => {
-      return (n: number): number => {
-        const nscalar = this.scalar(n, "int32");
-        const tstart: number = perf.now();
-        func(nscalar);
-        const tend: number = perf.now();
-        return tend - tstart;
+    // Helper function to time the finvoke
+    const timeExecution = async (
+      finvoke: PackedFunc,
+      ctx: DLContext,
+      nstep: number,
+      repeat: number,
+      minRepeatMs: number
+    ): Promise<Uint8Array> => {
+      finvoke(this.scalar(1, "int32"));
+      await ctx.sync();
+      const result = [];
+      let setupNumber: number = nstep;
+
+      for (let i = 0; i < repeat; ++i) {
+        let durationMs = 0.0;
+        do {
+          if (durationMs > 0.0) {
+            setupNumber = Math.floor(
+              Math.max(minRepeatMs / (durationMs / nstep) + 1, nstep * 1.618)
+            );
+          }
+          const tstart: number = perf.now();
+          finvoke(this.scalar(setupNumber, "int32"));
+          await ctx.sync();
+          const tend: number = perf.now();
+
+          durationMs = tend - tstart;
+        } while (durationMs < minRepeatMs);
+        const speed = durationMs / setupNumber / 1000;
+        result.push(speed);
       }
+      const ret = new Float64Array(result.length);
+      ret.set(result);
+      return new Uint8Array(ret.buffer);
     };
-    this.registerFunc("wasm.GetTimer", getTimer);
-    const rpcWrapTimeEvaluator = this.getGlobalFunc("wasm.RPCTimeEvaluator");
-    this.registerFunc("runtime.RPCTimeEvaluator", rpcWrapTimeEvaluator, true);
-    rpcWrapTimeEvaluator.dispose();
+
+    const addOne = async (x: number): Promise<number> => {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      return x + 1;
+    };
+
+    this.registerAsyncServerFunc("wasm.TimeExecution", timeExecution);
+    this.registerAsyncServerFunc("testing.asyncAddOne", addOne);
   }
 
   private createPackedFuncFromCFunc(
@@ -924,6 +1153,10 @@ export class Instance implements Disposable {
           stack.storePtr(valueOffset, val.value);
           stack.storeI32(codeOffset, TypeCode.TVMOpaqueHandle);
         }
+      } else if (val instanceof DLContext) {
+        stack.storeI32(valueOffset, val.deviceType);
+        stack.storeI32(valueOffset + SizeOf.I32, val.deviceType);
+        stack.storeI32(codeOffset, TypeCode.TVMContext);
       } else if (tp == "number") {
         stack.storeF64(valueOffset, val);
         stack.storeI32(codeOffset, TypeCode.Float);
@@ -984,7 +1217,7 @@ export class Instance implements Disposable {
           );
         }
         tcode = lib.memory.loadI32(codePtr);
-        jsArgs.push(this.retValueToJS(valuePtr, tcode));
+        jsArgs.push(this.retValueToJS(valuePtr, tcode, true));
       }
 
       const rv = func(...jsArgs);
@@ -1041,7 +1274,7 @@ export class Instance implements Disposable {
         )
       );
 
-      const ret = this.retValueToJS(rvaluePtr, this.memory.loadI32(rcodePtr));
+      const ret = this.retValueToJS(rvaluePtr, this.memory.loadI32(rcodePtr), false);
       this.lib.recycleCallStack(stack);
       return ret;
     };
@@ -1055,15 +1288,22 @@ export class Instance implements Disposable {
     return ret as PackedFunc;
   }
 
-  private retValueToJS(rvaluePtr: Pointer, tcode: number): any {
+  private retValueToJS(rvaluePtr: Pointer, tcode: number, callbackArg: boolean): any {
     switch (tcode) {
       case TypeCode.Int:
       case TypeCode.UInt:
         return this.memory.loadI64(rvaluePtr);
       case TypeCode.Float:
         return this.memory.loadF64(rvaluePtr);
+        case TypeCode.TVMOpaqueHandle: {
+          return this.memory.loadPointer(rvaluePtr);
+        }
       case TypeCode.TVMNDArrayHandle: {
-        return new NDArray(this.memory.loadPointer(rvaluePtr), this.lib);
+        return new NDArray(this.memory.loadPointer(rvaluePtr), false, this.lib);
+      }
+      case TypeCode.TVMDLTensorHandle: {
+        assert(callbackArg);
+        return new NDArray(this.memory.loadPointer(rvaluePtr), true, this.lib);
       }
       case TypeCode.TVMPackedFuncHandle: {
         return this.makePackedFunc(this.memory.loadPointer(rvaluePtr));
@@ -1077,10 +1317,15 @@ export class Instance implements Disposable {
           }
         );
       }
-      case TypeCode.Null:
-        return undefined;
+      case TypeCode.Null: return undefined;
+      case TypeCode.TVMContext: {
+        const deviceType = this.memory.loadI32(rvaluePtr);
+        const deviceId = this.memory.loadI32(rvaluePtr + SizeOf.I32);
+        return this.context(deviceType, deviceId);
+      }
       case TypeCode.TVMStr: {
-        return this.memory.loadCString(this.memory.loadPointer(rvaluePtr));
+        const ret = this.memory.loadCString(this.memory.loadPointer(rvaluePtr));
+        return ret;
       }
       case TypeCode.TVMBytes: {
         return this.memory.loadTVMBytes(this.memory.loadPointer(rvaluePtr));
@@ -1098,12 +1343,17 @@ export class Instance implements Disposable {
  * a WASI object, or an object containing wasmLibraryProvider field.
  * We can take benefit of syslib implementations from the Emscripten
  * by passing its generated js Module as the imports.
+ *
+ * @param bufferSource The source to be compiled.
+ * @param importObject The import objects.
+ * @param logger The system logger.
  */
 export function instantiate(
   bufferSource: ArrayBuffer,
-  importObject: Record<string, any> = {}
+  importObject: Record<string, any> = {},
+  logger: (msg: string) => void = console.log
 ): Promise<Instance> {
-  const env = new Environment(importObject);
+  const env = new Environment(importObject, logger);
 
   return WebAssembly.instantiate(bufferSource, env.imports).then(
     (result: WebAssembly.WebAssemblyInstantiatedSource): Instance => {

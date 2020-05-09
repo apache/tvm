@@ -40,6 +40,7 @@ namespace tvm {
 namespace codegen {
 namespace spirv {
 
+
 /*! \brief Represent the SPIRV Type */
 struct SType {
   /*! \brief The Id to represent type */
@@ -301,6 +302,7 @@ class IRBuilder {
     data.insert(data.end(), debug_.begin(), debug_.end());
     data.insert(data.end(), decorate_.begin(), decorate_.end());
     data.insert(data.end(), global_.begin(), global_.end());
+    data.insert(data.end(), func_header_.begin(), func_header_.end());
     data.insert(data.end(), function_.begin(), function_.end());
     return data;
   }
@@ -612,6 +614,8 @@ class IRBuilder {
   std::vector<uint32_t> decorate_;
     /*! \brief Global segment: types, variables, types */
   std::vector<uint32_t> global_;
+  /*! \brief Function header segment */
+  std::vector<uint32_t> func_header_;
   /*! \brief Function segment */
   std::vector<uint32_t> function_;
 };

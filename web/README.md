@@ -82,3 +82,16 @@ The following is an example to reproduce this.
   - Browswer version:  open https://localhost:8888, click connect to proxy
   - NodeJS version: `npm run rpc`
 - run `python tests/node/websock_rpc_test.py` to run the rpc client.
+
+
+## WebGPU Experiments
+
+Web gpu is still experimental, so apis can change.
+Right now we use the SPIRV to generate shaders that can be accepted by Chrome and Firefox.
+
+- Obtain a browser that support webgpu.
+  - So far only Chrome Canary on MacOS works
+  - Firefox should be close pending the support of Fence.
+- Download vulkan SDK (1.1 or higher) that supports SPIRV 1.3
+- Start the WebSocket RPC
+- run `python tests/node/webgpu_rpc_test.py`

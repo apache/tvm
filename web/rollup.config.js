@@ -27,8 +27,10 @@ export default {
     format: 'umd',
     name: 'tvmjs',
     exports: 'named',
-    globals: {'ws': 'ws'}
+    globals: {'ws': 'ws',
+              'perf_hooks': 'perf_hooks',
+              '@webgpu/types': 'webgputypes'}
   },
   plugins: [commonjs(), resolve()],
-  external: ['ws']
+  external: ['ws', 'perf_hooks', '@webgpu/types']
 };

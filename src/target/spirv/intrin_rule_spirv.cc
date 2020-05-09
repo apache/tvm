@@ -65,6 +65,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.fabs")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.exp")
 .set_body(DispatchGLSLPureIntrin<GLSLstd450Exp>);
 
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.log")
 .set_body(DispatchGLSLPureIntrin<GLSLstd450Log>);
 
@@ -75,6 +76,37 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.pow")
 .set_body(DispatchGLSLPureIntrin<GLSLstd450Pow>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.tanh")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Tanh>);
+
+// WebGPU rules.
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.floor")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Floor>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.ceil")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Ceil>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.round")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Round>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.trunc")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Trunc>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.fabs")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450FAbs>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.exp")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Exp>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.log")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Log>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.sqrt")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Sqrt>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.pow")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Pow>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.tanh")
 .set_body(DispatchGLSLPureIntrin<GLSLstd450Tanh>);
 
 }  // namespace spirv

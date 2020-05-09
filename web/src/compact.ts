@@ -16,14 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/** NodeJS and Web compact layer */
 
-export {
-  Scalar, DLContext, DLDataType,
-  PackedFunc, Module, NDArray, Instance,
-  instantiate
-} from "./runtime";
-export { Disposable, LibraryProvider } from "./types";
-export { RPCServer } from "./rpc_server";
-export { wasmPath } from "./support";
-export { detectGPUDevice } from "./webgpu";
-export { assert } from "./support";
+/**
+ * Get performance masurement.
+ */
+export function getPeformance(): Performance {
+  if (typeof performance == "undefined") {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const performanceNode = require("perf_hooks");
+    return performanceNode.performance as Performance;
+  } else {
+    return performance as Performance;
+  }
+}
+
+/**
+ * Create a new websocket for a given URL
+ * @param url The url.
+ */
+export function createWebSocket(url: string): WebSocket {
+  if (typeof WebSocket == "undefined") {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const WebSocket = require("ws");
+    return new WebSocket(url);
+  } else {
+    return new (WebSocket as any)(url);
+  }
+
+}

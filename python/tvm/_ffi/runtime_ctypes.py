@@ -147,6 +147,7 @@ class TVMContext(ctypes.Structure):
         12: 'ext_dev',
         13: 'micro_dev',
         14: 'hexagon',
+        15: 'webgpu'
     }
     STR2MASK = {
         'llvm': 1,
@@ -169,6 +170,7 @@ class TVMContext(ctypes.Structure):
         'ext_dev': 12,
         'micro_dev': 13,
         'hexagon': 14,
+        'webgpu': 15,
     }
     def __init__(self, device_type, device_id):
         super(TVMContext, self).__init__()

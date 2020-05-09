@@ -29,55 +29,50 @@ import numpy as np
 proxy_host = "localhost"
 proxy_port = 9090
 
+
 def test_rpc():
     if not tvm.runtime.enabled("rpc"):
         return
     # generate the wasm library
-    target = "llvm -target=wasm32-unknown-unknown-wasm -system-lib"
-    if not tvm.runtime.enabled(target):
-        raise RuntimeError("Target %s is not enbaled" % target)
-    n = te.var("n")
+    target_device = "webgpu"
+    target_host = "llvm -target=wasm32-unknown-unknown-wasm -system-lib"
+    if not tvm.runtime.enabled(target_host):
+        raise RuntimeError("Target %s is not enbaled" % target_host)
+
+    n = 2048
     A = te.placeholder((n,), name='A')
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
     s = te.create_schedule(B.op)
 
-    fadd = tvm.build(s, [A, B], target, name="addone")
+    num_thread = 2
+    xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
+    s[B].bind(xi, te.thread_axis("threadIdx.x"))
+    s[B].bind(xo, te.thread_axis("blockIdx.x"))
+
+
+    fadd = tvm.build(s, [A, B], target_device, target_host=target_host, name="addone")
     temp = util.tempdir()
 
-    wasm_path = temp.relpath("addone.wasm")
+    wasm_path = temp.relpath("addone_gpu.wasm")
     fadd.export_library(wasm_path, emcc.create_tvmjs_wasm)
 
     wasm_binary = open(wasm_path, "rb").read()
-
     remote = rpc.connect(proxy_host, proxy_port, key="wasm",
                          session_constructor_args=["rpc.WasmSession", wasm_binary])
 
     def check(remote):
         # basic function checks.
-        faddone = remote.get_function("testing.asyncAddOne")
-        fecho = remote.get_function("testing.echo")
-        assert(faddone(100) == 101)
-        assert(fecho(1, 2, 3) == 1)
-        assert(fecho(1, 2, 3) == 1)
-        assert(fecho(100, 2, 3) == 100)
-        assert(fecho("xyz") == "xyz")
-        assert(bytes(fecho(bytearray(b"123"))) == b"123")
+        ctx = remote.webgpu(0)
+        adata = np.random.uniform(size=n).astype(A.dtype)
+        a = tvm.nd.array(adata, ctx)
+        b = tvm.nd.array(np.zeros(n, dtype=A.dtype), ctx)
 
-        # run the generated library.
+        np.testing.assert_equal(a.asnumpy(), adata)
         f1 = remote.system_lib()
-        ctx = remote.cpu(0)
-        a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
-        # invoke the function
         addone = f1.get_function("addone")
         addone(a, b)
-
-        # time evaluator
-        time_f = f1.time_evaluator("addone", ctx, number=100, repeat=10)
-        time_f(a, b)
-        cost = time_f(a, b).mean
-        print('%g secs/op' % cost)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        print("Test pass..")
 
     check(remote)
 

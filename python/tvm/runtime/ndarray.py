@@ -478,6 +478,22 @@ def hexagon(dev_id=0):
     return TVMContext(14, dev_id)
 
 
+def webgpu(dev_id=0):
+    """Construct a webgpu device.
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    ctx : TVMContext
+        The created context
+    """
+    return TVMContext(15, dev_id)
+
+
 cl = opencl
 mtl = metal
 

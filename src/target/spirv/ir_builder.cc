@@ -32,10 +32,14 @@ namespace spirv {
 void IRBuilder::InitHeader() {
   CHECK_EQ(header_.size(), 0U);
   header_.push_back(spv::MagicNumber);
-  // Use SPIR-V v1.0. This needs to be kept in sync (or at least behind)
-  // `VkApplicationInfo.apiVersion` in `vulkan.cc` to ensure Vulkan API
-  // validation passes.
+
+  // Use the spirv version as indicated in the SDK.
+#if SPV_VERSION >= 0x10300
+  header_.push_back(0x10300);
+#else
   header_.push_back(0x10000);
+#endif
+
   // generator: set to 0, unknown
   header_.push_back(0U);
   // Bound: set during Finalize
@@ -146,11 +150,20 @@ SType IRBuilder::GetStructArrayType(const SType& value_type,
   ib_.Begin(spv::OpMemberDecorate)
       .AddSeq(struct_type, 0, spv::DecorationOffset, 0)
       .Commit(&decorate_);
+
+
+#if SPV_VERSION < 0x10300
+  // NOTE: BufferBlock was deprecated in SPIRV 1.3
+  // use StorageClassStorageBuffer instead.
   // runtime array are always decorated as BufferBlock(shader storage buffer)
   if (num_elems == 0) {
     this->Decorate(spv::OpDecorate,
                    struct_type, spv::DecorationBufferBlock);
   }
+#else
+  this->Decorate(spv::OpDecorate,
+                 struct_type, spv::DecorationBlock);
+#endif
   struct_array_type_tbl_[key] = struct_type;
   return struct_type;
 }
@@ -190,11 +203,21 @@ Value IRBuilder::FloatImm(const SType& dtype, double value) {
 Value IRBuilder::BufferArgument(const SType& value_type,
                                 uint32_t descriptor_set,
                                 uint32_t binding) {
+  // NOTE: BufferBlock was deprecated in SPIRV 1.3
+  // use StorageClassStorageBuffer instead.
+#if SPV_VERSION >= 0x10300
+  spv::StorageClass storage_class = spv::StorageClassStorageBuffer;
+#else
+  spv::StorageClass storage_class = spv::StorageClassUniform;
+#endif
+
   SType sarr_type = GetStructArrayType(value_type, 0);
-  SType ptr_type = GetPointerType(sarr_type, spv::StorageClassUniform);
+  SType ptr_type = GetPointerType(sarr_type, storage_class);
   Value val = NewValue(ptr_type, kStructArrayPtr);
+
   ib_.Begin(spv::OpVariable)
-      .AddSeq(ptr_type, val, spv::StorageClassUniform).Commit(&global_);
+      .AddSeq(ptr_type, val, storage_class).Commit(&global_);
+
   this->Decorate(spv::OpDecorate,
                  val, spv::DecorationDescriptorSet, descriptor_set);
   this->Decorate(spv::OpDecorate,
@@ -262,10 +285,13 @@ void IRBuilder::CommitKernelFunction(const Value& func, const std::string& name)
 
 void IRBuilder::StartFunction(const Value& func) {
   CHECK_EQ(func.flag, kFunction);
-  this->MakeInst(
-      spv::OpFunction, t_void_, func, 0, t_void_func_);
+  // add function declaration to the header.
+  ib_.Begin(spv::OpFunction).AddSeq(
+      t_void_, func, 0, t_void_func_).Commit(&func_header_);
+
   spirv::Label start_label = this->NewLabel();
-  this->StartLabel(start_label);
+  ib_.Begin(spv::OpLabel).AddSeq(start_label).Commit(&func_header_);
+  curr_label_ = start_label;
 }
 
 void IRBuilder::SetLocalSize(const Value& func,
@@ -286,7 +312,7 @@ Value IRBuilder::Allocate(const SType& value_type,
   Value val = NewValue(ptr_type, kStructArrayPtr);
   if (storage_class == spv::StorageClassFunction) {
     ib_.Begin(spv::OpVariable)
-        .AddSeq(ptr_type, val, storage_class).Commit(&function_);
+        .AddSeq(ptr_type, val, storage_class).Commit(&func_header_);
   } else {
     ib_.Begin(spv::OpVariable)
         .AddSeq(ptr_type, val, storage_class).Commit(&global_);

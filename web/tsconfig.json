@@ -6,7 +6,7 @@
 		"rootDir": "src",
 		"declaration": true,
 		"sourceMap": true,
-		"strict": true,
+		"strict": true
 	},
     "include": ["src"],
     "exclude": ["node_modules"]

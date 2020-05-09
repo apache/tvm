@@ -30,7 +30,9 @@
 namespace tvm {
 namespace codegen {
 
-std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f) {
+std::vector<uint32_t> CodeGenSPIRV::BuildFunction(
+    const PrimFunc& f,
+    const std::string& name) {
   this->InitFuncState();
   CHECK(f->HasNonzeroAttr(tir::attr::kNoAlias))
       << "SPIRV only takes restricted memory model";
@@ -77,12 +79,7 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f) {
   builder_->MakeInst(spv::OpReturn);
   builder_->MakeInst(spv::OpFunctionEnd);
 
-  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  CHECK(global_symbol.defined())
-      << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
-
-  builder_->CommitKernelFunction(
-    func_ptr, static_cast<std::string>(global_symbol.value()));
+  builder_->CommitKernelFunction(func_ptr, name);
 
   return builder_->Finalize();
 }

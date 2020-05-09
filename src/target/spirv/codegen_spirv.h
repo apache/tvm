@@ -32,6 +32,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
+#include <string>
 
 #include "ir_builder.h"
 #include "../../runtime/thread_storage_scope.h"
@@ -51,9 +52,11 @@ class CodeGenSPIRV:
   /*!
    * \brief Compile and add function f to the current module.
    * \param f The function to be added.
+   * \param name The name of the target function.
    * \return The final spirv module.
    */
-  virtual std::vector<uint32_t> BuildFunction(const PrimFunc& f);
+  virtual std::vector<uint32_t> BuildFunction(const PrimFunc& f,
+                                              const std::string& name);
   /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.

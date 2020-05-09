@@ -110,11 +110,15 @@ Target CreateTarget(const std::string& target_name,
     if (t->device_name == "intel_graphics") {
       t->thread_warp_size = 16;
     }
-  } else if (target_name == "metal" || target_name == "vulkan") {
+  } else if (target_name == "metal" ||
+             target_name == "vulkan" ||
+             target_name == "webgpu") {
     if (target_name == "metal") {
       t->device_type = kDLMetal;
-    } else {
+    } else if (target_name == "vulkan") {
       t->device_type = kDLVulkan;
+    } else {
+      t->device_type = kDLWebGPU;
     }
     t->keys_array.push_back(target_name);
     t->keys_array.push_back("gpu");
@@ -139,6 +143,9 @@ Target CreateTarget(const std::string& target_name,
   } else if (target_name == "hexagon") {
     t->keys_array.push_back("hexagon");
     t->device_type = kDLHexagon;
+  } else if (target_name == "webgpu") {
+    t->keys_array.push_back("webgpu");
+    t->device_type = kDLWebGPU;
   } else {
     LOG(ERROR) << "Unknown target name " << target_name << "; falling back to stackvm";
     return target::stackvm();
