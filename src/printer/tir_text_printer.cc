@@ -46,6 +46,8 @@ Doc TIRTextPrinter::Print(const ObjectRef& node) {
   if (!node.defined()) return Doc::Text("(nullptr)");
   if (node->IsInstance<StmtNode>()) {
     return VisitStmt(Downcast<Stmt>(node));
+  } else if (node->IsInstance<AnyNode>()) {
+    return Doc::Text("?");
   } else if (node->IsInstance<PrimExprNode>()) {
     return VisitExpr(Downcast<PrimExpr>(node));
   } else if (node->IsInstance<TypeNode>()) {
