@@ -88,6 +88,8 @@ class CodeGenCUDA final : public CodeGenC {
   bool enable_fp16_{false};
   // whether enable int8
   bool enable_int8_{false};
+  // whether enable warp shuffle intrinsics
+  bool enable_warp_shuffle_{false};
   // whether need math_constants.h
   bool need_math_constants_h_{false};
   // whether need mma.h

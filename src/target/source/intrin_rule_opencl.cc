@@ -94,13 +94,13 @@ static void DispatchIntelShuffle(const TVMArgs& args, TVMRetValue* rv) {
   PrimExpr e = args[0];
   const CallNode* call = e.as<CallNode>();
   CHECK(call != nullptr);
-  CHECK_EQ(call->args.size(), 4);  // value, warp_id, width, warp_size
+  CHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
   arith::Analyzer analyzer;
-  CHECK(analyzer.CanProve(call->args[2] == call->args[3]))
+  CHECK(analyzer.CanProve(call->args[3] == call->args[4]))
     << "Intel warp shuffle dose not support width != warp_size";
-  Array<PrimExpr> cuda_args{{call->args[0], call->args[1]}};
-  *rv = CallNode::make(
-      call->dtype, "intel_sub_group_shuffle", cuda_args, CallNode::PureExtern);
+  Array<PrimExpr> opencl_args{{call->args[1], call->args[2]}};
+  *rv = CallNode::make(call->dtype, "intel_sub_group_shuffle",
+    opencl_args, CallNode::PureExtern);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.tvm_warp_shuffle")
