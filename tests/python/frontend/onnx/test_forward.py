@@ -2028,8 +2028,18 @@ def test_or():
     verify_or(indata=[x, y], dtype=bool)
 
 
-def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilations, auto_pad="NOTSET"):
-    if padding is None:
+def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilations, auto_pad="NOTSET", unset_pad=False):
+    if unset_pad:
+        node = helper.make_node('Conv',
+                                inputs=['x', 'W'],
+                                outputs=['y'],
+                                kernel_shape=kernel_shape,
+                                # Default values for other attributes:
+                                strides=strides,
+                                dilations=dilations,
+                                # groups=1
+                                )
+    elif padding is None:
         node = helper.make_node('Conv',
                                 inputs=['x', 'W'],
                                 outputs=['y'],
@@ -2095,6 +2105,15 @@ def test_conv():
                     repeat(1, D),
                     repeat(1, D),
                     auto_pad="SAME_UPPER")
+        # Convolution with unset padding
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(3, D),
+                    2 * repeat(0, D),
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(1, D),
+                    True)
         # Convolution with non uniform stride
         verify_conv((1, 1) + repeat(5, D),
                     (1, 1) + repeat(3, D),
