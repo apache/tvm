@@ -90,6 +90,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
 
     if os.path.isdir(source_dir):
         dll_path.append(os.path.join(source_dir, "web", "dist", "wasm"))
+        dll_path.append(os.path.join(source_dir, "web", "dist"))
 
     dll_path = [os.path.realpath(x) for x in dll_path]
     if search_path is not None:
