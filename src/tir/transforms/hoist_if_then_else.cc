@@ -164,6 +164,74 @@ Stmt update_for(const Stmt& parent_for_stmt, const Stmt& new_if_stmt) {
   return IRTransform(parent_for_stmt, nullptr, replace_target_for, Array<String>{"For"});
 }
 
+// Rename all the Var defined in the else case, to meet the SSA requirement
+class Renamer : public StmtExprMutator {
+ public:
+  explicit Renamer(const std::string &suffix)
+    : suffix_(suffix) {}
+
+  Stmt Rename(Stmt stmt) {
+    stmt = operator()(std::move(stmt));
+    return Substitute(std::move(stmt), var_map_);
+  }
+
+ protected:
+  Stmt VisitStmt_(const ForNode *op) override {
+    depth_++;
+    auto ret = StmtExprMutator::VisitStmt_(op);
+    depth_--;
+    if (depth_ >= 1) {
+      return ret;
+    }
+    op = ret.as<ForNode>();
+    Var new_var(op->loop_var->name_hint + suffix_);
+    var_map_.Set(op->loop_var, new_var);
+    return ForNode::make(new_var, op->min, op->extent, op->for_type,
+        op->device_api, op->body);
+  }
+
+  Stmt VisitStmt_(const AllocateNode *op) override {
+    auto ret = StmtExprMutator::VisitStmt_(op);
+    if (depth_ >= 1) {
+      return ret;
+    }
+    op = ret.as<AllocateNode>();
+    Var new_var(op->buffer_var->name_hint + suffix_);
+    var_map_.Set(op->buffer_var, new_var);
+    return AllocateNode::make(new_var, op->dtype, op->extents,
+        op->condition, op->body);
+  }
+
+  Stmt VisitStmt_(const LetStmtNode *op) override {
+    auto ret = StmtExprMutator::VisitStmt_(op);
+    if (depth_ >= 1) {
+      return ret;
+    }
+    op = ret.as<LetStmtNode>();
+    Var new_var(op->var->name_hint + suffix_);
+    var_map_.Set(op->var, new_var);
+    return LetStmtNode::make(new_var, op->value, op->body);
+  }
+
+  PrimExpr VisitExpr_(const LetNode *op) override {
+    auto ret = StmtExprMutator::VisitExpr_(op);
+    if (depth_ >= 1) {
+      return ret;
+    }
+    op = ret.as<LetNode>();
+    Var new_var(op->var->name_hint + suffix_);
+    var_map_.Set(op->var, new_var);
+    return LetNode::make(new_var, op->value, op->body);
+  }
+
+ private:
+  int depth_ = 0;  // how may For nodes we are in
+                   // we only rename the out-most loop, because
+                   // Rename is called iteratively
+  const std::string &suffix_;  // name suffix
+  Map<Var, PrimExpr> var_map_;  // old var -> new var
+};
+
 // Remove IfThenElse node from a For node.
 // A pair of For nodes will be generated.
 std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
@@ -173,7 +241,7 @@ std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
 
   PackedFunc replace_then_case = PackedFunc(
     [&](TVMArgs args, TVMRetValue *ret){
-      const ObjectRef& node  = args[0];
+      const ObjectRef& node = args[0];
       if (node == if_stmt) {
         *ret = node.as<IfThenElseNode>()->then_case;
       }
@@ -181,7 +249,7 @@ std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
 
   PackedFunc replace_else_case = PackedFunc(
     [&](TVMArgs args, TVMRetValue *ret){
-      const ObjectRef& node  = args[0];
+      const ObjectRef& node = args[0];
       if (node == if_stmt) {
         *ret = node.as<IfThenElseNode>()->else_case;
       }
@@ -190,6 +258,7 @@ std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
   then_for = IRTransform(for_stmt, nullptr, replace_then_case, Array<String>{"IfThenElse"});
   if (if_stmt.as<IfThenElseNode>()->else_case.defined()) {
     else_for = IRTransform(for_stmt, nullptr, replace_else_case, Array<String>{"IfThenElse"});
+    else_for = Renamer(".else").Rename(std::move(else_for));
   }
 
   return std::make_pair(then_for, else_for);
@@ -346,7 +415,7 @@ Stmt IfThenElseHoist::HoistIf(const Stmt& if_stmt) {
       for_tracking_map_[for_stmt.get()].at(updated_for_idx);
     auto generated_for_pair = RemoveIf(updated_for_node, new_if);
     const Stmt& then_for = generated_for_pair.first;
-    const Stmt& else_for = generated_for_pair.second;;
+    const Stmt& else_for = generated_for_pair.second;
     for_tracking_map_[for_stmt.get()].at(updated_for_idx) = then_for;
 
     if (else_for.get()) {

@@ -69,7 +69,8 @@ def test_basic():
     stmt = ib.get()
     new_stmt = tvm.testing.HoistIfThenElse(stmt)
     expected_struct = {('For', 'k'): (None,), ('For', 'j'): (('For', 'k'),),
-                       ('IfThenElse', ('i',)): (('For', 'j'), ('For', 'j')),
+                       ('For', 'k.else'): (None,), ('For', 'j.else'): (('For', 'k.else'),),
+                       ('IfThenElse', ('i',)): (('For', 'j'), ('For', 'j.else')),
                        ('For', 'i'): (('IfThenElse', ('i',)),)}
     verify_structure(new_stmt, expected_struct)
 
@@ -114,7 +115,8 @@ def test_attr_stmt():
 
     stmt = ib.get()
     new_stmt = tvm.testing.HoistIfThenElse(stmt)
-    expected_struct = {('For', 'k'): (None,), ('IfThenElse', ('i', 'j')): (('For', 'k'), ('For', 'k')),
+    expected_struct = {('For', 'k'): (None,), ('For', 'k.else'): (None,),
+                       ('IfThenElse', ('i', 'j')): (('For', 'k'), ('For', 'k.else')),
                        ('For', 'j'): (('IfThenElse', ('i', 'j')),), ('For', 'i'): (('For', 'j'),),
                        ('AttrStmt', 'thread_extent', 64): (('For', 'i'),),
                        ('AttrStmt', 'thread_extent', 32): (('AttrStmt', 'thread_extent', 64),)}
