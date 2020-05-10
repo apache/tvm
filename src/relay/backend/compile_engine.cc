@@ -46,6 +46,7 @@
 #include <vector>
 
 #include "utils.h"
+#include "../transforms/pass_util.h"
 
 namespace tvm {
 namespace relay {
@@ -468,7 +469,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     CHECK_GT(tshape_data_dependant.count(op), 0)
       << "Internal error, cannot find TShapeDataDependant for " << op->name;
 
-    data_dependants_.push_back(tshape_data_dependant[op]);
+    data_dependants_.push_back(IsDataDependant(call_node));
     // Visit all inputs
     Array<te::Tensor> inputs;
     int count_tuple = 0;

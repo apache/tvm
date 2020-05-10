@@ -83,6 +83,13 @@ Expr TypeSubst(const Expr& expr, const tvm::Map<TypeVar, Type>& subst_map);
 bool IsDynamic(const Type& ty);
 
 /*!
+ * \brief Check if call is data dependant.
+ * \param call The call to be checked.
+ * \return Whether the call is data dependant.
+ */
+bool IsDataDependant(const CallNode* call);
+
+/*!
  * \brief Make arbitrary transformation preserve the out most function.
  * \param func The transformation.
  * \param e The expression

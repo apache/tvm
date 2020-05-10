@@ -140,6 +140,7 @@ def test_any_concat():
 
 def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newshape=False):
     x = relay.var('x', shape=x_shape, dtype="float32")
+    relu_x = relay.nn.relu(x)
     data = np.random.uniform(size=x_np_shape).astype('float32')
     params = [x]
     args = [data]
@@ -150,7 +151,7 @@ def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newsha
         args.append(np.array(newshape, dtype='int64'))
         newshape = newshape_var
 
-    y = relay.reshape(x, newshape=newshape)
+    y = relay.reshape(relu_x, newshape=newshape)
     mod = tvm.IRModule()
     mod["main"] = relay.Function(params, y)
 
