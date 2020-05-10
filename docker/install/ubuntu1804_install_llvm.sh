@@ -20,16 +20,21 @@ set -e
 set -u
 set -o pipefail
 
-apt-get update && apt-get install -y --no-install-recommends git cmake python-setuptools
+echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main\
+     >> /etc/apt/sources.list.d/llvm.list
 
-git clone https://github.com/Maratyszcza/NNPACK NNPACK
-git clone https://github.com/Maratyszcza/pthreadpool  NNPACK/pthreadpool
 
-# Use specific versioning tag.
-(cd NNPACK && git checkout 1e005b0c2)
-(cd NNPACK/pthreadpool && git checkout 13da0b4c)
+echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main\
+     >> /etc/apt/sources.list.d/llvm.list
 
-mkdir -p NNPACK/build
-cd NNPACK/build
-cmake -DCMAKE_INSTALL_PREFIX:PATH=. -DNNPACK_INFERENCE_ONLY=OFF -DNNPACK_CONVOLUTION_ONLY=OFF -DNNPACK_BUILD_TESTS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DPTHREADPOOL_SOURCE_DIR=pthreadpool .. && make -j2 && make install
-cd -
+echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic main\
+     >> /etc/apt/sources.list.d/llvm.list
+
+wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
+apt-get update && apt-get install -y llvm-9 llvm-10 llvm-11 clang-9 clang-10 clang-11
