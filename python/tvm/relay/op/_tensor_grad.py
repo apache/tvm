@@ -122,9 +122,8 @@ def sinh_grad(orig, grad):
 def acos_grad(orig, grad):
     """Returns [grad * -1/((1 - (x ^ 2)) ^ 1/2)]"""
     x = orig.args[0]
-    a = const(2.0)
     ones = ones_like(x)
-    return [grad * (-ones / sqrt(ones - power(x, a)))]
+    return [grad * (-ones / sqrt(ones - (x * x)))]
 
 
 @register_gradient("acosh")
@@ -139,36 +138,32 @@ def acosh_grad(orig, grad):
 def asin_grad(orig, grad):
     """Returns [grad * 1/((1 - (x ^ 2)) ^ (1/2))]"""
     x = orig.args[0]
-    a = const(2.0)
     ones = ones_like(x)
-    return [grad * ones / sqrt(ones - power(x, a))]
+    return [grad * ones / sqrt(ones - (x * x))]
 
 
 @register_gradient("asinh")
 def asinh_grad(orig, grad):
     """Returns [grad * 1/((1 + (x ^ 2)) ^ (1/2))]"""
     x = orig.args[0]
-    a = const(2.0)
     ones = ones_like(x)
-    return [grad * ones / sqrt(ones + power(x, a))]
+    return [grad * ones / sqrt(ones + (x * x))]
 
 
 @register_gradient("atan")
 def atan_grad(orig, grad):
     """Returns [grad * 1 / (1 + x ^ 2)]"""
     x = orig.args[0]
-    a = const(2.0)
     ones = ones_like(x)
-    return [grad * ones / (ones + power(x, a))]
+    return [grad * ones / (ones + (x * x))]
 
 
 @register_gradient("atanh")
 def atanh_grad(orig, grad):
     """Returns [grad * 1 / (1 - x ^ 2)]"""
     x = orig.args[0]
-    a = const(2.0)
     ones = ones_like(x)
-    return [grad * ones / (ones - power(x, a))]
+    return [grad * ones / (ones - (x * x))]
 
 
 @register_gradient("exp")
