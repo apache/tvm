@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,25 +16,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# For CPU
-FROM ubuntu:16.04
+set -e
+set -u
 
-RUN apt-get update --fix-missing
+export PYTHONPATH=`pwd`/python
 
-COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
-RUN bash /install/ubuntu_install_core.sh
-
-COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
-RUN bash /install/ubuntu_install_python.sh
-
-COPY install/ubuntu_install_emscripten.sh /install/ubuntu_install_emscripten.sh
-RUN bash /install/ubuntu_install_emscripten.sh
-
-COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
-RUN bash /install/ubuntu_install_python_package.sh
-
-RUN chmod a+rwx -R /emsdk-portable
-RUN cp -r /emsdk-portable  /emsdk-portable-backup
-RUN mv /emsdk-portable  /emsdk-portable-x
-RUN mv /emsdk-portable-backup /emsdk-portable
-RUN cp /root/.emscripten /emsdk-portable/
+cd web
+npm install
+npm run lint
+npm run prepare
+npm run bundle
+npm run test
+npm run typedoc
+cd ..
