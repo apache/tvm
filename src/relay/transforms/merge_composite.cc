@@ -122,7 +122,9 @@ class MergeCompositeWrapper : public ExprMutator {
       Expr new_arg;
       if (arg->IsInstance<CallNode>()) {
         // if we've already processed this call node, return the previous result
-        if (call_map->find(arg) != call_map->end()) {
+        if (call_map->find(arg) != call_map->end() &&
+            ExtractPattern(Downcast<Call>(arg), Downcast<Call>(root->args[i]), var_map, call_map)
+                .defined()) {
           new_arg = (*call_map)[arg];
         } else {
           // fail if the root argument is not also a call node
