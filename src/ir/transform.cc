@@ -322,7 +322,7 @@ Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassCont
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
 TVM_REGISTER_GLOBAL("transform.PassInfo")
-    .set_body_typed([](int opt_level, String, tvm::Array<runtime::String> required) {
+    .set_body_typed([](int opt_level, String name, tvm::Array<runtime::String> required) {
       return PassInfo(opt_level, name, required);
     });
 

@@ -569,7 +569,7 @@ inline String operator+(const std::string lhs, const String& rhs) {
 }
 
 inline std::ostream& operator<<(std::ostream& out, const String& input) {
-  out << input.operator std::string();
+  out.write(input.data(), input.size());
   return out;
 }
 

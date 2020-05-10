@@ -47,13 +47,9 @@ void DictAttrsNode::InitByPackedArgs(const runtime::TVMArgs& args, bool allow_un
 
 Array<AttrFieldInfo> DictAttrsNode::ListFieldInfo() const { return {}; }
 
-DictAttrs::DictAttrs(Map<String, ObjectRef> dict) {
+DictAttrs::DictAttrs(Map<std::string, ObjectRef> dict) {
   ObjectPtr<DictAttrsNode> n = make_object<DictAttrsNode>();
-  Map<std::string, ObjectRef> dict_copy;
-  for (auto iter : dict) {
-    dict_copy.Set(iter.first.operator std::string(), iter.second);
-  }
-  n->dict = std::move(dict_copy);
+  n->dict = std::move(dict);
   data_ = std::move(n);
 }
 
