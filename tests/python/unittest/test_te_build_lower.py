@@ -17,6 +17,11 @@
 import tvm
 from tvm import te
 
+def collect_visit(stmt, f):
+    ret = []
+    tvm.tir.stmt_functor.post_order_visit(stmt, lambda x : ret.append(f(x)))
+    return ret
+
 def test_lower_rfactor():
     n = te.size_var("n")
     m = te.size_var("m")
@@ -49,7 +54,7 @@ def test_split_uneven_unique_likely():
     sch = te.create_schedule(c.op)
     xo, xi = sch[c].split(x, 5)
     stmt = tvm.lower(sch, [a, b, c])["main"].body
-    assert isinstance(stmt.body.body.body, tvm.tir.stmt.IfThenElse)
+    assert(any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse))))
 
 
 if __name__ == "__main__":

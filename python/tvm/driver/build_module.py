@@ -187,6 +187,8 @@ def lower(sch,
     pass_list += [
         tvm.tir.transform.VectorizeLoop(not cfg.disable_vectorize),
         tvm.tir.transform.InjectVirtualThread(),
+        tvm.tir.transform.HoistIfThenElse(), # After InjectVirtualThread
+                                             # to protect vthread loops
         tvm.tir.transform.InjectDoubleBuffer(cfg.double_buffer_split_loop),
         tvm.tir.transform.StorageRewrite(),
         tvm.tir.transform.UnrollLoop(

@@ -349,6 +349,14 @@ TVM_DLL Pass NarrowDataType(int target_bits);
  */
 TVM_DLL Pass PointerValueTypeRewrite();
 
+/*!
+ * \brief Hoist loop-invariant IfThenElse nodes to
+ * outside the corresponding loops.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass HoistIfThenElse();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

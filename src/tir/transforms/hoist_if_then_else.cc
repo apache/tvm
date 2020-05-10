@@ -22,6 +22,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
@@ -416,6 +417,22 @@ Stmt HoistIfThenElse(Stmt stmt) {
   return IfThenElseHoist().VisitAndMutate(stmt);
 }
 
+
+namespace transform {
+
+Pass HoistIfThenElse() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = HoistIfThenElse(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.HoistIfThenElse", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.HoistIfThenElse")
+.set_body_typed(HoistIfThenElse);
+
+}  // namespace transform
 
 TVM_REGISTER_GLOBAL("testing.HoistIfThenElse")
 .set_body_typed(HoistIfThenElse);
