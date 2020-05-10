@@ -177,6 +177,20 @@ def test_if_block():
                        ('IfThenElse', ('n',)): (('For', 'j'), None)}
     verify_structure(new_stmt, expected_struct)
 
+def test_multi_if():
+    ib = tvm.tir.ir_builder.create()
+    data = ib.pointer("float32", name="data")
+
+    with ib.for_range(0, 10, "i") as i:
+        with ib.for_range(0, 10, "j") as j:
+            with ib.for_range(0, 10, "k") as k:
+                with ib.if_scope(i >= 3):
+                    with ib.if_scope(j >= 3):
+                        data[i * 100 + j * 10 + k] = data[i * 100 + j * 10 + k] + 0.5
+
+    stmt = ib.get()
+    new_stmt = tvm.testing.HoistIfThenElse(stmt)
+
 
 if __name__ == "__main__":
     test_basic()
@@ -184,3 +198,4 @@ if __name__ == "__main__":
     test_attr_stmt()
     test_nested_for()
     test_if_block()
+    test_multi_if()

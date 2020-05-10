@@ -298,7 +298,8 @@ void IfThenElseHoist::LocateTopFor() {
     } else {
       std::vector<Stmt> actual_if_list;
       for (const Stmt& if_stmt : if_list) {
-        if (if_position_map.count(if_stmt.get())) {
+        if (if_position_map.count(if_stmt.get()) &&
+            if_position_map.at(if_stmt.get()).as<ForNode>()->loop_var.get() == top_for_var) {
           actual_if_list.push_back(if_stmt);
         }
       }
