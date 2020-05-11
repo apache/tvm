@@ -19,25 +19,20 @@
 set -e
 set -u
 
-export PYTHONPATH=python
+mkdir -p build
+cd build
+cp ../cmake/config.cmake .
 
-cp /emsdk-portable/.emscripten ~/.emscripten
-source /emsdk-portable/emsdk_env.sh
-
-export EM_CONFIG=${HOME}/.emscripten
-export EM_CACHE=${HOME}/.emscripten_cache
-
-echo "Build TVM Web runtime..."
-make web
-
-echo "Prepare test libraries..."
-python tests/web/prepare_test_libs.py
-
-echo "Start testing..."
-
-for test in tests/web/test_*.js; do
-    echo node $test
-    node $test
-done
-
-echo "All tests finishes..."
+echo set\(USE_SORT ON\) >> config.cmake
+echo set\(USE_MICRO ON\) >> config.cmake
+echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
+echo set\(USE_GRAPH_RUNTIME_DEBUG ON\) >> config.cmake
+echo set\(USE_VM_PROFILER ON\) >> config.cmake
+echo set\(USE_EXAMPLE_EXT_RUNTIME ON\) >> config.cmake
+echo set\(USE_LLVM llvm-config-10\) >> config.cmake
+echo set\(USE_ANTLR ON\) >> config.cmake
+echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
+echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
+echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
+echo set\(USE_VTA_TSIM ON\) >> config.cmake
+echo set\(USE_VTA_FSIM ON\) >> config.cmake

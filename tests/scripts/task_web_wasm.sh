@@ -15,6 +15,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-cp /emsdk-portable/.emscripten ~/.emscripten
-source /emsdk-portable/emsdk_env.sh
-make -j4
+
+set -e
+set -u
+
+export PYTHONPATH=`pwd`/python
+
+cd web
+npm install
+npm run lint
+npm run prepwasm
+npm run bundle
+npm run test
+npm run typedoc
+cd ..

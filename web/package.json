@@ -4,7 +4,7 @@
   "license": "Apache-2.0",
   "version": "0.7.0",
   "scripts": {
-    "prepare": "make && python3 tests/python/prepare_test_libs.py",
+    "prepwasm": "make && python3 tests/python/prepare_test_libs.py",
     "build": "tsc -b && make rmtypedep",
     "lint": "eslint -c .eslintrc.json .",
     "typedoc": "typedoc .",
