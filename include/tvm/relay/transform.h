@@ -92,10 +92,10 @@ TVM_DLL Pass LazyGradientInit();
 
 /*!
  * \brief Fold constant expressions.
- * \param preserve_anf Controls the inlining of let bindings.
+ *
  * \return The pass.
  */
-TVM_DLL Pass FoldConstant(bool preserve_anf = false);
+TVM_DLL Pass FoldConstant();
 
 /*!
  * \brief Fuse operations into expr into seperate functions.

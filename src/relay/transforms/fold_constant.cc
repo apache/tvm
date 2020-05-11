@@ -77,7 +77,7 @@ TVM_REGISTER_GLOBAL("relay.analysis.check_constant").set_body_typed(ConstantChec
 // or make a more powerful partial evaluator.
 class ConstantFolder : public ExprMutator {
  public:
-  explicit ConstantFolder(FInterpreter executor, IRModule module, bool preserve_anf)
+  explicit ConstantFolder(FInterpreter executor, IRModule module)
       : executor_(executor),
         module_(module),
         shape_of_op_(Op::Get("shape_of")),
@@ -85,12 +85,11 @@ class ConstantFolder : public ExprMutator {
         shape_func_op_(Op::Get("memory.shape_func")),
         alloc_tensor_op_(Op::Get("memory.alloc_tensor")),
         alloc_storage_op_(Op::Get("memory.alloc_storage")),
-        cast_op_(Op::Get("cast")),
-        preserve_anf(preserve_anf) {}
+        cast_op_(Op::Get("cast")) {}
 
   Expr VisitExpr_(const LetNode* op) final {
     Expr value = this->Mutate(op->value);
-    if (!preserve_anf && value.as<ConstantNode>()) {
+    if (value.as<ConstantNode>()) {
       memo_[op->var] = value;
       return this->Mutate(op->body);
     } else {
@@ -172,7 +171,6 @@ class ConstantFolder : public ExprMutator {
   const Op& alloc_tensor_op_;
   const Op& alloc_storage_op_;
   const Op& cast_op_;
-  bool preserve_anf;
 
   // Convert value to expression.
   Expr ObjectToExpr(const ObjectRef& value) {
@@ -269,7 +267,7 @@ class ConstantFolder : public ExprMutator {
   }
 };
 
-Expr FoldConstant(const Expr& expr, const IRModule& mod, bool preserve_anf) {
+Expr FoldConstant(const Expr& expr, const IRModule& mod) {
   DLContext ctx;
   ctx.device_type = kDLCPU;
   ctx.device_id = 0;
@@ -278,12 +276,12 @@ Expr FoldConstant(const Expr& expr, const IRModule& mod, bool preserve_anf) {
   // in case we are already in a build context.
   With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
 
-  return ConstantFolder(CreateInterpreter(mod, ctx, target), mod, preserve_anf).Mutate(expr);
+  return ConstantFolder(CreateInterpreter(mod, ctx, target), mod).Mutate(expr);
 }
 
 namespace transform {
 
-Pass FoldConstant(bool preserve_anf) {
+Pass FoldConstant() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(FoldConstant(f, m));
