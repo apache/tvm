@@ -224,8 +224,6 @@ inline const char* DeviceName(int type) {
       return "vpi";
     case kDLROCM:
       return "rocm";
-    case kOpenGL:
-      return "opengl";
     case kDLExtDev:
       return "ext_dev";
     case kDLWebGPU:
