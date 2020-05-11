@@ -20,16 +20,13 @@ set -e
 set -u
 set -o pipefail
 
-apt-get update && apt-get install -y --no-install-recommends git cmake python-setuptools
+# install python and pip, don't modify this, modify install_python_package.sh
+apt-get update
+apt-get install -y software-properties-common
+apt-get install -y python3-dev python3-setuptools
 
-git clone https://github.com/Maratyszcza/NNPACK NNPACK
-git clone https://github.com/Maratyszcza/pthreadpool  NNPACK/pthreadpool
+# Install pip
+cd /tmp && wget -q https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py
 
-# Use specific versioning tag.
-(cd NNPACK && git checkout 1e005b0c2)
-(cd NNPACK/pthreadpool && git checkout 13da0b4c)
-
-mkdir -p NNPACK/build
-cd NNPACK/build
-cmake -DCMAKE_INSTALL_PREFIX:PATH=. -DNNPACK_INFERENCE_ONLY=OFF -DNNPACK_CONVOLUTION_ONLY=OFF -DNNPACK_BUILD_TESTS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DPTHREADPOOL_SOURCE_DIR=pthreadpool .. && make -j2 && make install
-cd -
+# Pin pip version
+pip3 install pip==19.3.1

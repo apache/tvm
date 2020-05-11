@@ -29,7 +29,6 @@ cd ..
 
 # Install flatbuffers python packages.
 pip3 install flatbuffers
-pip2 install flatbuffers
 
 # Build the TFLite static library, necessary for building with TFLite ON.
 # The library is built at:
@@ -69,9 +68,8 @@ cat <<EOM >__init__.py
 name = "tflite"
 EOM
 
-# Install tflite over python2 and python3
+# Install tflite over python3
 python3 setup.py install
-python2 setup.py install
 
 cd ..
 rm -rf tflite
