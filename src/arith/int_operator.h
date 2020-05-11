@@ -38,56 +38,41 @@ namespace arith {
  * \return Whether overflow can happen.
  * \tparam Op The integer operator.
  */
-template<typename Op>
-inline bool WillOverflow(int64_t x,
-                         int64_t y,
-                         int64_t min_value,
-                         int64_t max_value) {
+template <typename Op>
+inline bool WillOverflow(int64_t x, int64_t y, int64_t min_value, int64_t max_value) {
   return false;
 }
 
-template<>
-inline bool WillOverflow<tir::AddNode>(int64_t x,
-                                      int64_t y,
-                                      int64_t min_value,
-                                      int64_t max_value) {
+template <>
+inline bool WillOverflow<tir::AddNode>(int64_t x, int64_t y, int64_t min_value, int64_t max_value) {
   if ((y > 0) && (x > max_value - y)) return true;
   if ((y < 0) && (x < min_value - y)) return true;
   return false;
 }
 
-template<>
-inline bool WillOverflow<tir::SubNode>(int64_t x,
-                                      int64_t y,
-                                      int64_t min_value,
-                                      int64_t max_value) {
+template <>
+inline bool WillOverflow<tir::SubNode>(int64_t x, int64_t y, int64_t min_value, int64_t max_value) {
   if ((y > 0) && (x < min_value + y)) return true;
   if ((y < 0) && (x > max_value + y)) return true;
   return false;
 }
 
-template<>
-inline bool WillOverflow<tir::MulNode>(int64_t x,
-                                      int64_t y,
-                                      int64_t min_value,
-                                      int64_t max_value) {
+template <>
+inline bool WillOverflow<tir::MulNode>(int64_t x, int64_t y, int64_t min_value, int64_t max_value) {
   if (y == 0) return false;
   if (y > 0) {
-    if (x < min_value / y)  return true;
-    if (x > max_value / y)  return true;
+    if (x < min_value / y) return true;
+    if (x > max_value / y) return true;
   } else {
     if (y == -1 && x == std::numeric_limits<int64_t>::min()) return true;
-    if (x > min_value / y)  return true;
-    if (x < max_value / y)  return true;
+    if (x > min_value / y) return true;
+    if (x < max_value / y) return true;
   }
   return false;
 }
 
-template<>
-inline bool WillOverflow<tir::ModNode>(int64_t x,
-                                      int64_t y,
-                                      int64_t min_value,
-                                      int64_t max_value) {
+template <>
+inline bool WillOverflow<tir::ModNode>(int64_t x, int64_t y, int64_t min_value, int64_t max_value) {
   return y == 0;
 }
 
@@ -97,9 +82,7 @@ inline bool WillOverflow<tir::ModNode>(int64_t x,
  * \param y The right operand.
  * \return the result.
  */
-inline int64_t truncdiv(int64_t x, int64_t y) {
-  return x / y;
-}
+inline int64_t truncdiv(int64_t x, int64_t y) { return x / y; }
 
 /*!
  * \brief Compute the truncdiv remainder of two integers.
@@ -107,9 +90,7 @@ inline int64_t truncdiv(int64_t x, int64_t y) {
  * \param y The right operand.
  * \return the result.
  */
-inline int64_t truncmod(int64_t x, int64_t y) {
-  return x % y;
-}
+inline int64_t truncmod(int64_t x, int64_t y) { return x % y; }
 
 /*!
  * \brief Peform floor division of two integers.
@@ -120,12 +101,9 @@ inline int64_t truncmod(int64_t x, int64_t y) {
 inline int64_t floordiv(int64_t x, int64_t y) {
   int64_t rdiv = x / y;
   int64_t rmod = x % y;
-  bool is_floor_div =
-      (y >= 0 && rmod >= 0) ||
-      (y < 0 && rmod <= 0);
+  bool is_floor_div = (y >= 0 && rmod >= 0) || (y < 0 && rmod <= 0);
   return is_floor_div ? rdiv : (rdiv - 1);
 }
-
 
 /*!
  * \brief Compute the floordiv remainder of two integers.
@@ -135,9 +113,7 @@ inline int64_t floordiv(int64_t x, int64_t y) {
  */
 inline int64_t floormod(int64_t x, int64_t y) {
   int64_t rmod = x % y;
-  bool is_floor_div =
-      (y >= 0 && rmod >= 0) ||
-      (y < 0 && rmod <= 0);
+  bool is_floor_div = (y >= 0 && rmod >= 0) || (y < 0 && rmod <= 0);
   return is_floor_div ? rmod : rmod + y;
 }
 

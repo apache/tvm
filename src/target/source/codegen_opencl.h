@@ -25,7 +25,9 @@
 #define TVM_TARGET_SOURCE_CODEGEN_OPENCL_H_
 
 #include <tvm/target/codegen.h>
+
 #include <string>
+
 #include "codegen_c.h"
 
 namespace tvm {
@@ -38,24 +40,22 @@ class CodeGenOpenCL final : public CodeGenC {
 
   // override print thread tag.
   void InitFuncState(const PrimFunc& f) final;
-  void PrintFuncPrefix() final; // NOLINT(*)
-  void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
-  void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
-  void PrintStorageSync(const CallNode* op) final;  // NOLINT(*)
-  void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
-  std::string GetVecLoad(DataType t, const VarNode* buffer,
-                         PrimExpr base) final;
-  void PrintVecStore(const VarNode* buffer,
-                     DataType t, PrimExpr base,
+  void PrintFuncPrefix() final;                                              // NOLINT(*)
+  void BindThreadIndex(const IterVar& iv) final;                             // NOLINT(*)
+  void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
+  void PrintStorageSync(const CallNode* op) final;                           // NOLINT(*)
+  void PrintType(DataType t, std::ostream& os) final;                        // NOLINT(*)
+  std::string GetVecLoad(DataType t, const VarNode* buffer, PrimExpr base) final;
+  void PrintVecStore(const VarNode* buffer, DataType t, PrimExpr base,
                      const std::string& value) final;  // NOLINT(*)
   // the address of load/store
-  void PrintVecAddr(const VarNode* buffer, DataType t,
-                    PrimExpr base, std::ostream& os);  // NOLINT(*)
-  std::string CastFromTo(std::string value, DataType from, DataType target); // NOLINT(*)
+  void PrintVecAddr(const VarNode* buffer, DataType t, PrimExpr base,
+                    std::ostream& os);                                        // NOLINT(*)
+  std::string CastFromTo(std::string value, DataType from, DataType target);  // NOLINT(*)
 
   // overload visitor
-  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const FloatImmNode *op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
 
  private:
   // whether enable fp16 and fp64 extension

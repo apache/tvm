@@ -21,9 +21,10 @@
  * \file resize.cc
  * \brief Image resize operators
  */
-#include <tvm/tir/data_layout.h>
-#include <tvm/relay/op.h>
 #include <tvm/relay/attrs/image.h>
+#include <tvm/relay/op.h>
+#include <tvm/tir/data_layout.h>
+
 #include "../op_common.h"
 
 namespace tvm {
@@ -31,9 +32,7 @@ namespace relay {
 
 TVM_REGISTER_NODE_TYPE(ResizeAttrs);
 
-bool ResizeRel(const Array<Type>& types,
-               int num_inputs,
-               const Attrs& attrs,
+bool ResizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -46,8 +45,8 @@ bool ResizeRel(const Array<Type>& types,
   const Layout in_layout(param->layout);
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
   CHECK(layout_converter.defined())
-    << "Resize only support input layouts that are convertible from NCHW."
-    << " But got " << in_layout;
+      << "Resize only support input layouts that are convertible from NCHW."
+      << " But got " << in_layout;
 
   auto oshape = layout_converter.ForwardShape(data->shape);
   oshape.Set(2, param->size[0]);
@@ -59,20 +58,14 @@ bool ResizeRel(const Array<Type>& types,
   }
 
   // assign output type
-  reporter->Assign(types[1],
-                   TensorType(layout_converter.BackwardShape(oshape),
-                                        out_dtype));
+  reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), out_dtype));
   return true;
 }
 
 // Positional relay function to create image operator
 // used by frontend FFI.
-Expr MakeResize(Expr data,
-                Array<IndexExpr> size,
-                std::string layout,
-                std::string method,
-                std::string coordinate_transformation_mode,
-                DataType out_dtype) {
+Expr MakeResize(Expr data, Array<IndexExpr> size, std::string layout, std::string method,
+                std::string coordinate_transformation_mode, DataType out_dtype) {
   auto attrs = make_object<ResizeAttrs>();
   attrs->size = std::move(size);
   attrs->layout = std::move(layout);
@@ -83,13 +76,10 @@ Expr MakeResize(Expr data,
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-
-TVM_REGISTER_GLOBAL("relay.op.image._make.resize")
-.set_body_typed(MakeResize);
-
+TVM_REGISTER_GLOBAL("relay.op.image._make.resize").set_body_typed(MakeResize);
 
 RELAY_REGISTER_OP("image.resize")
-.describe(R"code(Perform resize to input array with nearest neighbour or bilinear interpolation.
+    .describe(R"code(Perform resize to input array with nearest neighbour or bilinear interpolation.
 
 - **data**: data is 4D array of shape
             (batch_size, channels, in_height, in_width) for NCHW
@@ -102,26 +92,22 @@ RELAY_REGISTER_OP("image.resize")
            for layout NHWC
            (batch_size, size[0], size[1], channels)
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<ResizeAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(5)
-.add_type_rel("Resize", ResizeRel)
-.set_attr<TOpPattern>("TOpPattern", kInjective);
-
+    .set_attrs_type<ResizeAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(5)
+    .add_type_rel("Resize", ResizeRel)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 TVM_REGISTER_NODE_TYPE(CropAndResizeAttrs);
 
-bool CropAndResizeRel(const Array<Type>& types,
-                      int num_inputs,
-                      const Attrs& attrs,
+bool CropAndResizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* boxes = types[1].as<TensorTypeNode>();
   const auto* box_indices = types[2].as<TensorTypeNode>();
-  if (data == nullptr || boxes == nullptr ||
-      box_indices == nullptr) return false;
+  if (data == nullptr || boxes == nullptr || box_indices == nullptr) return false;
 
   const CropAndResizeAttrs* param = attrs.as<CropAndResizeAttrs>();
   CHECK(param != nullptr);
@@ -142,19 +128,12 @@ bool CropAndResizeRel(const Array<Type>& types,
   oshape.Set(3, crop_size[1]);
   auto bshape = layout_converter.BackwardShape(oshape);
   // assign output type
-  reporter->Assign(types[3],
-                   TensorType(layout_converter.BackwardShape(oshape),
-                                        out_dtype));
+  reporter->Assign(types[3], TensorType(layout_converter.BackwardShape(oshape), out_dtype));
   return true;
 }
 
-Expr MakeCropAndResize(Expr data,
-                       Expr boxes,
-                       Expr box_indices,
-                       Array<IndexExpr> crop_size,
-                       std::string layout,
-                       std::string method,
-                       double extrapolation_value,
+Expr MakeCropAndResize(Expr data, Expr boxes, Expr box_indices, Array<IndexExpr> crop_size,
+                       std::string layout, std::string method, double extrapolation_value,
                        DataType out_dtype) {
   auto attrs = make_object<CropAndResizeAttrs>();
   attrs->crop_size = std::move(crop_size);
@@ -166,12 +145,11 @@ Expr MakeCropAndResize(Expr data,
   return Call(op, {data, boxes, box_indices}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.image._make.crop_and_resize")
-.set_body_typed(MakeCropAndResize);
-
+TVM_REGISTER_GLOBAL("relay.op.image._make.crop_and_resize").set_body_typed(MakeCropAndResize);
 
 RELAY_REGISTER_OP("image.crop_and_resize")
-    .describe(R"code(Perform crop and resize to input array with nearest neighbour or bilinear interpolation.
+    .describe(
+        R"code(Perform crop and resize to input array with nearest neighbour or bilinear interpolation.
 
 - **data**: data is 4D array of shape
             (batch_size, channels, in_height, in_width) for NCHW
@@ -184,14 +162,14 @@ RELAY_REGISTER_OP("image.crop_and_resize")
            for layout NHWC
            (batch_size, crop_size[0], crop_size[1], channels)
 )code" TVM_ADD_FILELINE)
-.set_num_inputs(3)
-.add_argument("data", "Tensor", "The input tensor.")
-.add_argument("boxes", "Tensor", "The boxes tensor.")
-.add_argument("box_indices", "Tensor", "The box indices tensor.")
-.set_attrs_type<CropAndResizeAttrs>()
-.set_support_level(5)
-.add_type_rel("CropAndResize", CropAndResizeRel)
-.set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("boxes", "Tensor", "The boxes tensor.")
+    .add_argument("box_indices", "Tensor", "The box indices tensor.")
+    .set_attrs_type<CropAndResizeAttrs>()
+    .set_support_level(5)
+    .add_type_rel("CropAndResize", CropAndResizeRel)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay
 }  // namespace tvm

@@ -32,6 +32,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/runtime/object.h>
+
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -47,8 +48,7 @@ class CallGraph;
 
 class CallGraphNode : public Object {
   using CallGraphMap =
-      std::unordered_map<GlobalVar, std::unique_ptr<CallGraphEntry>, ObjectHash,
-                         ObjectEqual>;
+      std::unordered_map<GlobalVar, std::unique_ptr<CallGraphEntry>, ObjectHash, ObjectEqual>;
   // Create iterator alias for a CallGraphNode object.
   using iterator = CallGraphMap::iterator;
   using const_iterator = CallGraphMap::const_iterator;
@@ -60,9 +60,7 @@ class CallGraphNode : public Object {
   /*! \brief Default constructor. */
   CallGraphNode() {}
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("module", &module);
-  }
+  void VisitAttrs(AttrVisitor* v) { v->Visit("module", &module); }
 
   /*!
    * \brief Print the call graph.
@@ -72,21 +70,13 @@ class CallGraphNode : public Object {
   void Print(std::ostream& os) const;
 
   /*! \return The begin iterator. */
-  iterator begin() {
-    return call_graph_.begin();
-  }
+  iterator begin() { return call_graph_.begin(); }
   /*! \return The end iterator. */
-  iterator end() {
-    return call_graph_.end();
-  }
+  iterator end() { return call_graph_.end(); }
   /*! \return The begin iterator. */
-  const_iterator begin() const {
-    return call_graph_.begin();
-  }
+  const_iterator begin() const { return call_graph_.begin(); }
   /*! \return The end iterator. */
-  const_iterator end() const {
-    return call_graph_.end();
-  }
+  const_iterator end() const { return call_graph_.end(); }
 
   /*!
    * \brief Get an element from the CallGraphNode using a GlobalVar.
@@ -157,8 +147,7 @@ class CallGraphNode : public Object {
    *
    * \return The GlobalVar removed from the current module.
    */
-  GlobalVar RemoveGlobalVarFromModule(CallGraphEntry* cg_node,
-                                      bool update_call_graph = false);
+  GlobalVar RemoveGlobalVarFromModule(CallGraphEntry* cg_node, bool update_call_graph = false);
 
   /*!
    * \brief Lookup a GlobalVar for the CallGraphNode. It creates an entry for
@@ -207,8 +196,7 @@ class CallGraphNode : public Object {
  */
 class CallGraph : public ObjectRef {
   using CallGraphMap =
-      std::unordered_map<GlobalVar, std::unique_ptr<CallGraphEntry>, ObjectHash,
-                         ObjectEqual>;
+      std::unordered_map<GlobalVar, std::unique_ptr<CallGraphEntry>, ObjectHash, ObjectEqual>;
   // Create iterator alias for a CallGraph object.
   using iterator = CallGraphMap::iterator;
   using const_iterator = CallGraphMap::const_iterator;
@@ -340,30 +328,20 @@ class CallGraphEntry {
   CallGraphEntry& operator=(const CallGraphEntry&) = delete;
 
   /*! \return The begin iterator */
-  iterator begin() {
-    return called_globals_.begin();
-  }
+  iterator begin() { return called_globals_.begin(); }
   /*! \return The end iterator */
-  iterator end() {
-    return called_globals_.end();
-  }
+  iterator end() { return called_globals_.end(); }
   /*! \return The const begin iterator */
-  const_iterator begin() const {
-    return called_globals_.begin();
-  }
+  const_iterator begin() const { return called_globals_.begin(); }
   /*! \return The const end iterator */
-  const_iterator end() const {
-    return called_globals_.end();
-  }
+  const_iterator end() const { return called_globals_.end(); }
 
   /*!
    * \brief Return if the list of called nodes is empty.
    *
    * \return true if the list is empty. Otherwise, false.
    */
-  bool empty() const {
-    return called_globals_.empty();
-  }
+  bool empty() const { return called_globals_.empty(); }
 
   /*!
    * \brief Return the size of the list that represents the nodes are called by
@@ -371,9 +349,7 @@ class CallGraphEntry {
    *
    * \return The number of called nodes.
    */
-  uint32_t size() const {
-    return static_cast<uint32_t>(called_globals_.size());
-  }
+  uint32_t size() const { return static_cast<uint32_t>(called_globals_.size()); }
 
   /*!
    * \brief Fetch the i-th CallGraphEntry from the list of nodes that are called
@@ -400,27 +376,21 @@ class CallGraphEntry {
    *
    * \return The count.
    */
-  uint32_t GetRefCount() const {
-    return ref_cnt_;
-  }
+  uint32_t GetRefCount() const { return ref_cnt_; }
 
   /*!
    * \brief Return the GlobalVar stored in the current CallGraphEntry.
    *
    * \return The GlobalVar.
    */
-  GlobalVar GetGlobalVar() const {
-    return global_;
-  }
+  GlobalVar GetGlobalVar() const { return global_; }
 
   /*!
    * \brief Return the name hint of the GlobalVar stored in the CallGraphEntry.
    *
    * \return The name hint of the global function.
    */
-  std::string GetNameHint() const {
-    return global_->name_hint;
-  }
+  std::string GetNameHint() const { return global_->name_hint; }
 
   /*!
    * \brief Return if the global function corresponding to the current
@@ -428,9 +398,7 @@ class CallGraphEntry {
    *
    * \return true if it is recursive. Otherwise, false.
    */
-  bool IsRecursive() const {
-    return is_recursive_;
-  }
+  bool IsRecursive() const { return is_recursive_; }
 
   /*!
    * \brief Return if the global function corresponding to the current
@@ -439,9 +407,7 @@ class CallGraphEntry {
    *
    * \return true if it is both a recursive function and an entry. Otherwise, false.
    */
-  bool IsRecursiveEntry() const {
-    return GetRefCount() == 1 && IsRecursive();
-  }
+  bool IsRecursiveEntry() const { return GetRefCount() == 1 && IsRecursive(); }
 
   /*!
    * \brief Return the topological order of the CallGraphEntry.

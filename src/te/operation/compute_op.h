@@ -24,10 +24,11 @@
 #ifndef TVM_TE_OPERATION_COMPUTE_OP_H_
 #define TVM_TE_OPERATION_COMPUTE_OP_H_
 
-#include <tvm/tir/expr.h>
 #include <tvm/te/operation.h>
-#include <vector>
+#include <tvm/tir/expr.h>
+
 #include <unordered_map>
+#include <vector>
 
 namespace tvm {
 namespace te {
@@ -58,11 +59,9 @@ struct ComputeLoopNest {
    * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1
    * \return The constructed loop nest
    */
-  static ComputeLoopNest make(
-      const BaseComputeOpNode* self,
-      const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map,
-      bool debug_keep_trivial_loop);
+  static ComputeLoopNest make(const BaseComputeOpNode* self, const Stage& stage,
+                              const std::unordered_map<IterVar, Range>& dom_map,
+                              bool debug_keep_trivial_loop);
 };
 
 /*!
@@ -73,11 +72,9 @@ struct ComputeLoopNest {
  * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1
  * \return The created statement.
  */
-Stmt MakeCrossThreadReduction(
-    const ComputeOpNode* self,
-    const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
-    bool debug_keep_trivial_loop);
+Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
+                              const std::unordered_map<IterVar, Range>& dom_map,
+                              bool debug_keep_trivial_loop);
 
 /*!
  * \brief Build body of compute for tensorization.
@@ -87,10 +84,8 @@ Stmt MakeCrossThreadReduction(
  * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1
  * \return The created statement.
  */
-Stmt MakeTensorize(const ComputeOpNode* self,
-                   const Stage& stage,
-                   const std::unordered_map<IterVar, Range>& dom_map,
-                   bool debug_keep_trivial_loop);
+Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
+                   const std::unordered_map<IterVar, Range>& dom_map, bool debug_keep_trivial_loop);
 
 /*!
  * \brief Transform the update part when there is no init func in tensorizing
@@ -101,11 +96,8 @@ Stmt MakeTensorize(const ComputeOpNode* self,
  * \param update The update func in tensorize intrin
  * \return Transformed result.
  */
-Stmt TransformUpdate(const Stage& stage,
-                     const std::unordered_map<IterVar, Range>& dom_map,
-                     const ComputeLoopNest& n,
-                     Stmt body,
-                     Stmt update);
+Stmt TransformUpdate(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
+                     const ComputeLoopNest& n, Stmt body, Stmt update);
 }  // namespace te
 }  // namespace tvm
 

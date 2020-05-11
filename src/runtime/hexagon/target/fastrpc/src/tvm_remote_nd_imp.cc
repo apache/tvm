@@ -41,8 +41,7 @@ struct msg_call {
   uint32_t data[];
 } __attribute__((packed));
 
-__attribute__((naked)) uint32_t launcher(volatile msg_call* mc,
-                                         uint64_t* pcc) {
+__attribute__((naked)) uint32_t launcher(volatile msg_call* mc, uint64_t* pcc) {
   __asm__(
       "// This function is intentionally written to be readable,      \n"
       "// rather than fast.                                           \n"
@@ -114,8 +113,7 @@ __attribute__((naked)) uint32_t launcher(volatile msg_call* mc,
 
 extern "C" {
 #pragma weak __wrap_pthread_create
-int __wrap_pthread_create(pthread_t* restrict thread,
-                          const pthread_attr_t* restrict attr,
+int __wrap_pthread_create(pthread_t* restrict thread, const pthread_attr_t* restrict attr,
                           void* (*start)(void*), void* restrict arg) {
   FARF(ERROR, "Wrong %s called", __func__);
   abort();
@@ -133,15 +131,13 @@ static void* lib_thread = nullptr;
 int tvm_remote_nd_open() {
   lib_thread = dlopen("libtvm_wrap_pthread.so", RTLD_NOW | RTLD_GLOBAL);
   if (lib_thread == nullptr) {
-    FARF(ERROR, "%s: dlopen failed for libtvm_wrap_pthread.so: %s", __func__,
-         dlerror());
+    FARF(ERROR, "%s: dlopen failed for libtvm_wrap_pthread.so: %s", __func__, dlerror());
     return AEE_EUNABLETOLOAD;
   }
 
   lib_rt = dlopen("libtvm_runtime.so", RTLD_NOW | RTLD_GLOBAL);
   if (lib_rt == nullptr) {
-    FARF(ERROR, "%s: dlopen failed for libtvm_runtime.so: %s", __func__,
-         dlerror());
+    FARF(ERROR, "%s: dlopen failed for libtvm_runtime.so: %s", __func__, dlerror());
     return AEE_EUNABLETOLOAD;
   }
   return AEE_SUCCESS;
@@ -174,9 +170,7 @@ int tvm_remote_nd_close() {
  * This function is present as a workaround. See comment at the call site
  * in hexagon_device_target.cc.
  */
-int tvm_remote_nd_call_mmap64() {
-  return AEE_SUCCESS;
-}
+int tvm_remote_nd_call_mmap64() { return AEE_SUCCESS; }
 
 /*!
  *  \brief  Load a shared library.
@@ -210,8 +204,8 @@ int tvm_remote_nd_load_library(const char* soname, int soname_len,
  *
  *  \return 0 on success, negative value on error.
  */
-int tvm_remote_nd_get_symbol(tvm_remote_nd_handle_t lib, const char* name,
-                             int name_len, tvm_remote_nd_handle_t* sym_ptr) {
+int tvm_remote_nd_get_symbol(tvm_remote_nd_handle_t lib, const char* name, int name_len,
+                             tvm_remote_nd_handle_t* sym_ptr) {
   FARF(ALWAYS, "%s: name=%s", __func__, name);
   if (void* p = dlsym(reinterpret_cast<void*>(lib), name)) {
     *sym_ptr = reinterpret_cast<tvm_remote_nd_handle_t>(p);
@@ -223,8 +217,8 @@ int tvm_remote_nd_get_symbol(tvm_remote_nd_handle_t lib, const char* name,
 }
 
 static void print_msg_call(const msg_call& mc) {
-  FARF(ALWAYS, "device: launching %x scalar_num:%d stack_num:%d", mc.func_va,
-       mc.scalar_num, mc.stack_num);
+  FARF(ALWAYS, "device: launching %x scalar_num:%d stack_num:%d", mc.func_va, mc.scalar_num,
+       mc.stack_num);
   for (unsigned i = 0; i != mc.scalar_num; ++i) {
     FARF(ALWAYS, "scalar_data[%d]  %x", i, mc.data[i]);
   }
@@ -261,14 +255,13 @@ static void print_msg_call(const msg_call& mc) {
  * The 8 "octet" arguments in this function are used for cache operations
  * only. They are not used for procesing.
  */
-int tvm_remote_nd_kernel(
-    tvm_remote_nd_handle_t lib, tvm_remote_nd_handle_t symbol,
-    const int* scalar, int scalar_len, const int* stack, int stack_len,
-    const tvm_remote_nd_buffer* scalar_in_octet, int scalar_in_octet_len,
-    tvm_remote_nd_buffer* scalar_out_octet, int scalar_out_octet_len,
-    const tvm_remote_nd_buffer* stack_in_octet, int stack_in_octet_len,
-    tvm_remote_nd_buffer* stack_out_octet, int stack_out_octet_len,
-    uint64* pcycles, uint64* time_usec) {
+int tvm_remote_nd_kernel(tvm_remote_nd_handle_t lib, tvm_remote_nd_handle_t symbol,
+                         const int* scalar, int scalar_len, const int* stack, int stack_len,
+                         const tvm_remote_nd_buffer* scalar_in_octet, int scalar_in_octet_len,
+                         tvm_remote_nd_buffer* scalar_out_octet, int scalar_out_octet_len,
+                         const tvm_remote_nd_buffer* stack_in_octet, int stack_in_octet_len,
+                         tvm_remote_nd_buffer* stack_out_octet, int stack_out_octet_len,
+                         uint64* pcycles, uint64* time_usec) {
   hvx::config_t hvx_info = {0};
   hvx::prepare_mt_job(&hvx_info);
 
@@ -277,18 +270,16 @@ int tvm_remote_nd_kernel(
   if (hvx_info.num_reserved > 0) {
     lock_result = hvx::lock(hvx::MODE_128B);
     if (lock_result < 0) {
-      FARF(ERROR, "%s: HVX locking failed lock_result=%d num_reserved=%d",
-           __func__, lock_result, hvx_info.num_reserved);
+      FARF(ERROR, "%s: HVX locking failed lock_result=%d num_reserved=%d", __func__, lock_result,
+           hvx_info.num_reserved);
     } else {
-      FARF(ALWAYS, "%s: HVX lock successful lock_result=%d", __func__,
-           lock_result);
+      FARF(ALWAYS, "%s: HVX lock successful lock_result=%d", __func__, lock_result);
     }
   } else {
     FARF(ERROR, "%s: there are no HVX units available", __func__);
   }
 
-  struct msg_call* mc = (struct msg_call*)malloc(sizeof(uint32_t) *
-                                                 (3 + scalar_len + stack_len));
+  struct msg_call* mc = (struct msg_call*)malloc(sizeof(uint32_t) * (3 + scalar_len + stack_len));
   if (mc == nullptr) {
     FARF(ERROR, "%s: failed to allocate memory for mc", __func__);
     return AEE_ENOMEMORY;
@@ -312,8 +303,7 @@ int tvm_remote_nd_kernel(
   uint64_t start_time = HAP_perf_get_time_us();
   int result = launcher(mc, pcycles);
   *time_usec = HAP_perf_get_time_us() - start_time;
-  FARF(ALWAYS, "kernel execution: %llu pcycles  %llu usec", *pcycles,
-       *time_usec);
+  FARF(ALWAYS, "kernel execution: %llu pcycles  %llu usec", *pcycles, *time_usec);
   if (lock_result > 0) hvx::unlock();
   hvx::cleanup_mt_job(&hvx_info);
   if (mc) free(mc);

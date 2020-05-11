@@ -24,22 +24,20 @@
 #ifndef TOPI_ROCM_NORMALIZATION_H_
 #define TOPI_ROCM_NORMALIZATION_H_
 
-#include <tvm/te/operation.h>
-#include <tvm/target/generic_func.h>
 #include <topi/tags.h>
+#include <tvm/target/generic_func.h>
+#include <tvm/te/operation.h>
 
 namespace topi {
 using namespace tvm;
 using namespace tvm::te;
 namespace rocm {
 /*!
-* \brief Create a rocm schedule for LRN
-* \param outs The output tensors.
-* \return A schedule for the given ops.
-*/
-inline Schedule schedule_lrn(const Array<Tensor>& outs) {
-  return topi::cuda::schedule_lrn(outs);
-}
+ * \brief Create a rocm schedule for LRN
+ * \param outs The output tensors.
+ * \return A schedule for the given ops.
+ */
+inline Schedule schedule_lrn(const Array<Tensor>& outs) { return topi::cuda::schedule_lrn(outs); }
 
 }  // namespace rocm
 }  // namespace topi

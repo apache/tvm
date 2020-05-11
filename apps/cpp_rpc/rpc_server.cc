@@ -32,9 +32,9 @@
 #include <set>
 #include <string>
 
-#include "../../src/support/socket.h"
 #include "../../src/runtime/rpc/rpc_endpoint.h"
 #include "../../src/runtime/rpc/rpc_socket_impl.h"
+#include "../../src/support/socket.h"
 #include "rpc_env.h"
 #include "rpc_server.h"
 #include "rpc_tracker_client.h"
@@ -78,7 +78,7 @@ static std::string getNextString(std::stringstream* iss) {
   while (end < len && !isspace(str[end])) end++;
 
   iss->seekg(end);
-  return str.substr(start, end-start);
+  return str.substr(start, end - start);
 }
 #endif
 
@@ -96,14 +96,15 @@ class RPCServer {
   /*!
    * \brief Constructor.
    */
-  RPCServer(std::string host, int port, int port_end, std::string tracker_addr,
-            std::string key, std::string custom_addr) :
-    host_(std::move(host)), port_(port), my_port_(0), port_end_(port_end),
-    tracker_addr_(std::move(tracker_addr)), key_(std::move(key)),
-    custom_addr_(std::move(custom_addr))
-  {
-
-  }
+  RPCServer(std::string host, int port, int port_end, std::string tracker_addr, std::string key,
+            std::string custom_addr)
+      : host_(std::move(host)),
+        port_(port),
+        my_port_(0),
+        port_end_(port_end),
+        tracker_addr_(std::move(tracker_addr)),
+        key_(std::move(key)),
+        custom_addr_(std::move(custom_addr)) {}
 
   /*!
    * \brief Destructor.
@@ -113,8 +114,7 @@ class RPCServer {
       // Free the resources
       tracker_sock_.Close();
       listen_sock_.Close();
-    } catch(...) {
-
+    } catch (...) {
     }
   }
 
@@ -213,7 +213,6 @@ class RPCServer {
       try {
         SpawnRPCChild(conn.sockfd, seconds(timeout));
       } catch (const std::exception&) {
-
       }
       auto dur = high_resolution_clock::now() - start_time;
 
@@ -233,11 +232,8 @@ class RPCServer {
    * \param opts Parsed options for socket
    * \param ping_period Timeout for select call waiting
    */
-  void AcceptConnection(TrackerClient* tracker,
-                        support::TCPSocket* conn_sock,
-                        support::SockAddr* addr,
-                        std::string* opts,
-                        int ping_period = 2) {
+  void AcceptConnection(TrackerClient* tracker, support::TCPSocket* conn_sock,
+                        support::SockAddr* addr, std::string* opts, int ping_period = 2) {
     std::set<std::string> old_keyset;
     std::string matchkey;
 
@@ -249,7 +245,7 @@ class RPCServer {
       support::TCPSocket conn = listen_sock_.Accept(addr);
 
       int code = kRPCMagic;
-        CHECK_EQ(conn.RecvAll(&code, sizeof(code)), sizeof(code));
+      CHECK_EQ(conn.RecvAll(&code, sizeof(code)), sizeof(code));
       if (code != kRPCMagic) {
         conn.Close();
         LOG(FATAL) << "Client connected is not TVM RPC server";
@@ -348,9 +344,9 @@ class RPCServer {
 
 #if defined(WIN32)
 /*!
-* \brief ServerLoopFromChild The Server loop process.
-* \param socket The socket information
-*/
+ * \brief ServerLoopFromChild The Server loop process.
+ * \param socket The socket information
+ */
 void ServerLoopFromChild(SOCKET socket) {
   // Server loop
   tvm::support::TCPSocket sock(socket);
@@ -367,10 +363,10 @@ void ServerLoopFromChild(SOCKET socket) {
  * \param host The hostname of the server, Default=0.0.0.0
  * \param port The port of the RPC, Default=9090
  * \param port_end The end search port of the RPC, Default=9199
- * \param tracker_addr The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
- * \param key The key used to identify the device type in tracker. Default=""
- * \param custom_addr Custom IP Address to Report to RPC Tracker. Default=""
- * \param silent Whether run in silent mode. Default=True
+ * \param tracker_addr The address of RPC tracker in host:port format e.g. 10.77.1.234:9190
+ * Default="" \param key The key used to identify the device type in tracker. Default="" \param
+ * custom_addr Custom IP Address to Report to RPC Tracker. Default="" \param silent Whether run in
+ * silent mode. Default=True
  */
 void RPCServerCreate(std::string host, int port, int port_end, std::string tracker_addr,
                      std::string key, std::string custom_addr, bool silent) {
@@ -379,13 +375,13 @@ void RPCServerCreate(std::string host, int port, int port_end, std::string track
     dmlc::InitLogging("--minloglevel=2");
   }
   // Start the rpc server
-  RPCServer rpc(std::move(host), port, port_end, std::move(tracker_addr), std::move(key), std::move(custom_addr));
+  RPCServer rpc(std::move(host), port, port_end, std::move(tracker_addr), std::move(key),
+                std::move(custom_addr));
   rpc.Start();
 }
 
-TVM_REGISTER_GLOBAL("rpc.ServerCreate")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    RPCServerCreate(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
-  });
+TVM_REGISTER_GLOBAL("rpc.ServerCreate").set_body([](TVMArgs args, TVMRetValue* rv) {
+  RPCServerCreate(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+});
 }  // namespace runtime
 }  // namespace tvm

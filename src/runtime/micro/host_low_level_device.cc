@@ -23,10 +23,12 @@
  */
 
 #include <sys/mman.h>
+
 #include <cstring>
 #include <memory>
-#include "micro_common.h"
+
 #include "low_level_device.h"
+#include "micro_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -50,16 +52,14 @@ class HostLowLevelDevice final : public LowLevelDevice {
     int mmap_prot = PROT_READ | PROT_WRITE | PROT_EXEC;
     int mmap_flags = MAP_ANONYMOUS | MAP_PRIVATE;
     base_addr_ = mmap(nullptr, size_in_pages * kPageSize, mmap_prot, mmap_flags, -1, 0);
-    *base_addr = TargetPtr(TargetWordSize(sizeof(size_t) * 8),
-                           reinterpret_cast<uint64_t>(base_addr_));
+    *base_addr =
+        TargetPtr(TargetWordSize(sizeof(size_t) * 8), reinterpret_cast<uint64_t>(base_addr_));
   }
 
   /*!
    * \brief destructor to deallocate on-host device region
    */
-  virtual ~HostLowLevelDevice() {
-    munmap(base_addr_, size_);
-  }
+  virtual ~HostLowLevelDevice() { munmap(base_addr_, size_); }
 
   void Read(TargetPtr addr, void* buf, size_t num_bytes) {
     std::memcpy(buf, addr.cast_to<void*>(), num_bytes);
@@ -73,9 +73,7 @@ class HostLowLevelDevice final : public LowLevelDevice {
     reinterpret_cast<void (*)(void)>(func_addr.value().uint64())();
   }
 
-  const char* device_type() const final {
-    return "host";
-  }
+  const char* device_type() const final { return "host"; }
 
  private:
   /*! \brief base address of the micro device memory region */

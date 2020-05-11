@@ -26,6 +26,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+
 #include "let_list.h"
 
 namespace tvm {
@@ -33,7 +34,7 @@ namespace relay {
 
 class UseVarVisitor : public ExprVisitor {
  public:
-  explicit UseVarVisitor(const Var& v) : v(v) { }
+  explicit UseVarVisitor(const Var& v) : v(v) {}
 
   static bool UseVar(const Var& v, const Expr& e) {
     UseVarVisitor uv(v);
@@ -45,9 +46,7 @@ class UseVarVisitor : public ExprVisitor {
   bool use_var = false;
   Var v;
 
-  void VisitExpr_(const VarNode* vn) override {
-    use_var = use_var || (v == GetRef<Var>(vn));
-  }
+  void VisitExpr_(const VarNode* vn) override { use_var = use_var || (v == GetRef<Var>(vn)); }
 };
 
 class GNF : public ExprMutator {
@@ -58,9 +57,7 @@ class GNF : public ExprMutator {
     return var_map_.count(v) == 0 ? v : var_map_.at(v);
   }
 
-  static bool UseVar(const Var& v, const Expr& e) {
-    return UseVarVisitor::UseVar(v, e);
-  }
+  static bool UseVar(const Var& v, const Expr& e) { return UseVarVisitor::UseVar(v, e); }
 
   static Expr WrapRec(const Var& var, const Expr& val) {
     return UseVar(var, val) ? Let(var, val, var) : val;
@@ -72,22 +69,19 @@ class GNF : public ExprMutator {
   }
 };
 
-Expr ToGraphNormalForm(const Expr& e) {
-  return GNF()(e);
-}
+Expr ToGraphNormalForm(const Expr& e) { return GNF()(e); }
 
 namespace transform {
 
 Pass ToGraphNormalForm() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(ToGraphNormalForm(f));
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(ToGraphNormalForm(f));
+      };
   return CreateFunctionPass(pass_func, 1, "ToGraphNormalForm", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.ToGraphNormalForm")
-.set_body_typed(ToGraphNormalForm);
+TVM_REGISTER_GLOBAL("relay._transform.ToGraphNormalForm").set_body_typed(ToGraphNormalForm);
 
 }  // namespace transform
 

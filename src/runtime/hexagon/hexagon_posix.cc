@@ -23,12 +23,10 @@
 #include <stdlib.h>
 
 extern "C" {
-int posix_memalign(void** memptr, size_t alignment, size_t size)
-    __attribute__((nothrow));
+int posix_memalign(void** memptr, size_t alignment, size_t size) __attribute__((nothrow));
 }
 
-__attribute__((nothrow)) int posix_memalign(void** memptr, size_t alignment,
-                                            size_t size) {
+__attribute__((nothrow)) int posix_memalign(void** memptr, size_t alignment, size_t size) {
   if (void* p = memalign(alignment, size)) {
     *memptr = p;
     return 0;

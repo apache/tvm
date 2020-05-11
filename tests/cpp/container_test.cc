@@ -20,8 +20,8 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/container.h>
-#include <tvm/tir/op.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/op.h>
 
 #include <new>
 #include <unordered_map>
@@ -35,8 +35,7 @@ class TestErrorSwitch {
  public:
   // Need this so that destructor of temporary objects don't interrupt our
   // testing.
-  TestErrorSwitch(const TestErrorSwitch& other)
-      : should_fail(other.should_fail) {
+  TestErrorSwitch(const TestErrorSwitch& other) : should_fail(other.should_fail) {
     const_cast<TestErrorSwitch&>(other).should_fail = false;
   }
 
@@ -50,8 +49,7 @@ class TestErrorSwitch {
   }
 };
 
-class TestArrayObj : public Object,
-                     public InplaceArrayBase<TestArrayObj, TestErrorSwitch> {
+class TestArrayObj : public Object, public InplaceArrayBase<TestArrayObj, TestErrorSwitch> {
  public:
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "test.TestArrayObj";
@@ -112,8 +110,7 @@ TEST(InplaceArrayBase, BadExceptionSafety) {
     TestErrorSwitch f2{true};
     TestErrorSwitch f3{false};
     std::vector<TestErrorSwitch> fields{f1, f2, f3};
-    auto ptr =
-        make_inplace_array_object<TestArrayObj, TestErrorSwitch>(fields.size());
+    auto ptr = make_inplace_array_object<TestArrayObj, TestErrorSwitch>(fields.size());
     try {
       ptr->WrongInit(fields.begin(), fields.end());
     } catch (...) {
@@ -133,8 +130,7 @@ TEST(InplaceArrayBase, ExceptionSafety) {
     // since it's not initalized.
     TestErrorSwitch f2{true};
     std::vector<TestErrorSwitch> fields{f1, f2};
-    auto ptr =
-        make_inplace_array_object<TestArrayObj, TestErrorSwitch>(fields.size());
+    auto ptr = make_inplace_array_object<TestArrayObj, TestErrorSwitch>(fields.size());
     try {
       ptr->Init(fields.begin(), fields.end());
     } catch (...) {
@@ -223,8 +219,7 @@ TEST(Map, Iterator) {
   using namespace tvm;
   PrimExpr a = 1, b = 2;
   Map<PrimExpr, PrimExpr> map1{{a, b}};
-  std::unordered_map<PrimExpr, PrimExpr, ObjectHash, ObjectEqual> map2(
-      map1.begin(), map1.end());
+  std::unordered_map<PrimExpr, PrimExpr, ObjectHash, ObjectEqual> map2(map1.begin(), map1.end());
   CHECK(map2[a].as<IntImmNode>()->value == 2);
 }
 
@@ -401,7 +396,6 @@ TEST(String, Cast) {
   ObjectRef r = s;
   String s2 = Downcast<String>(r);
 }
-
 
 TEST(Optional, Composition) {
   Optional<String> opt0(nullptr);

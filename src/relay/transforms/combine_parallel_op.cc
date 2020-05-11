@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -23,33 +23,33 @@
  * \brief Abstract class to combine parallel ops and their successive element-wise ops.
  */
 
+#include "combine_parallel_op.h"
+
 #include <tvm/node/structural_hash.h>
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
+
 #include <algorithm>
-#include <utility>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
+
 #include "expr_subst.h"
 #include "pattern_util.h"
-#include "combine_parallel_op.h"
-
 
 namespace tvm {
 namespace relay {
 
-BranchGroupFinder::BranchGroupFinder(const Op& op,
-                                     FIsSupportedOp fis_supported_op,
+BranchGroupFinder::BranchGroupFinder(const Op& op, FIsSupportedOp fis_supported_op,
                                      FAreCompatibleOps fare_compatible_ops)
-  : cached_op_(op),
-    fis_supported_op_(fis_supported_op),
-    fare_compatible_ops_(fare_compatible_ops) {
-}
+    : cached_op_(op),
+      fis_supported_op_(fis_supported_op),
+      fare_compatible_ops_(fare_compatible_ops) {}
 
 std::vector<Group> BranchGroupFinder::Find(const Expr& expr) {
   this->VisitExpr(expr);
@@ -111,18 +111,13 @@ void BranchGroupFinder::VisitExpr_(const CallNode* n) {
 }
 
 ParallelOpCombiner::ParallelOpCombiner(const std::string& op_name, uint64_t min_num_branches)
-  : cached_op_(Op::Get(op_name)),
-    min_num_branches_(min_num_branches) {
-}
+    : cached_op_(Op::Get(op_name)), min_num_branches_(min_num_branches) {}
 
 Expr ParallelOpCombiner::Combine(const Expr& expr) {
-  auto groups = BranchGroupFinder(cached_op_,
-                                  [&](const CallNode* n) {
-                                    return IsSupportedOp(n);
-                                  },
-                                  [&](const CallNode* a, const CallNode* b) {
-                                    return CanOpsBeCombined(a, b);
-                                  }).Find(expr);
+  auto groups = BranchGroupFinder(
+                    cached_op_, [&](const CallNode* n) { return IsSupportedOp(n); },
+                    [&](const CallNode* a, const CallNode* b) { return CanOpsBeCombined(a, b); })
+                    .Find(expr);
   for (const Group& group : groups) {
     if (group.size() < min_num_branches_) {
       continue;
@@ -135,10 +130,9 @@ Expr ParallelOpCombiner::Combine(const Expr& expr) {
 void ParallelOpCombiner::CombineBranches(const Group& branches) {
   Call combined = MakeCombinedOp(branches);
   auto it = std::min_element(branches.begin(), branches.end(),
-                              [](const Branch& branch_a,
-                                const Branch& branch_b) {
-                                  return branch_a.size() < branch_b.size();
-                                });
+                             [](const Branch& branch_a, const Branch& branch_b) {
+                               return branch_a.size() < branch_b.size();
+                             });
   size_t depth = it->size();
   size_t i;
   // starting from 1 to skip the op
@@ -155,32 +149,30 @@ void ParallelOpCombiner::CombineBranches(const Group& branches) {
 }
 
 bool ParallelOpCombiner::CheckLevel(const Group& branches, size_t depth, size_t parent_index) {
-    const CallNode* call = branches[0][depth];
-    tvm::StructuralEqual attrs_equal;
-    // check if all branches in current depth can be combined
-    for (auto it = branches.begin() + 1; it != branches.end(); it++) {
-      const Branch& branch = *it;
-      if (!branch[depth]->op.same_as(call->op) ||
-          !attrs_equal(branch[depth]->attrs, call->attrs) ||
-          branch[depth]->args.size() != call->args.size()) {
+  const CallNode* call = branches[0][depth];
+  tvm::StructuralEqual attrs_equal;
+  // check if all branches in current depth can be combined
+  for (auto it = branches.begin() + 1; it != branches.end(); it++) {
+    const Branch& branch = *it;
+    if (!branch[depth]->op.same_as(call->op) || !attrs_equal(branch[depth]->attrs, call->attrs) ||
+        branch[depth]->args.size() != call->args.size()) {
+      return false;
+    }
+
+    if (branch[depth]->args[parent_index].get() != branch[depth - 1]) return false;
+
+    // Check args
+    for (size_t i = 0; i < call->args.size(); i++) {
+      if (i == parent_index) continue;
+
+      if (!IsArgCompatible(call, branch[depth], i) ||
+          !attrs_equal(call->attrs, branch[depth]->attrs)) {
         return false;
-      }
-
-      if (branch[depth]->args[parent_index].get() != branch[depth - 1])
-        return false;
-
-      // Check args
-      for (size_t i = 0; i < call->args.size(); i++) {
-        if (i == parent_index) continue;
-
-        if (!IsArgCompatible(call, branch[depth], i) ||
-            !attrs_equal(call->attrs, branch[depth]->attrs)) {
-          return false;
-        }
       }
     }
-    return true;
   }
+  return true;
+}
 
 }  // namespace relay
 }  // namespace tvm

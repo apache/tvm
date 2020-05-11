@@ -19,27 +19,25 @@
 
 #include <gtest/gtest.h>
 #include <topi/generic/injective.h>
-#include <tvm/node/structural_equal.h>
 #include <tvm/driver/driver_api.h>
-#include <tvm/relay/expr.h>
 #include <tvm/ir/module.h>
+#include <tvm/node/structural_equal.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 
-TVM_REGISTER_GLOBAL("schedule")
-    .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
-      *rv = topi::generic::schedule_injective(args[0], args[1]);
-    });
+TVM_REGISTER_GLOBAL("schedule").set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+  *rv = topi::generic::schedule_injective(args[0], args[1]);
+});
 
 TEST(Relay, Sequential) {
   using namespace tvm;
   auto tensor_type = relay::TensorType({1, 2, 3}, DataType::Float(32));
-  auto c_data =
-      tvm::runtime::NDArray::Empty({1, 2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto c_data = tvm::runtime::NDArray::Empty({1, 2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
   // Create a function for optimization.
   auto c = relay::Constant(c_data);
@@ -53,8 +51,7 @@ TEST(Relay, Sequential) {
   auto z2 = relay::Call(add_op, {z, z1});
   // Let expression and varaible a should be dead-code eliminated.
   auto z3 = relay::Let(a, c, z2);
-  relay::Function func =
-      relay::Function(relay::FreeVars(z3), z3, relay::Type(), {});
+  relay::Function func = relay::Function(relay::FreeVars(z3), z3, relay::Type(), {});
 
   // Get schedule
   auto reg = tvm::runtime::Registry::Get("relay.op._Register");
@@ -67,11 +64,8 @@ TEST(Relay, Sequential) {
 
   // Run sequential passes.
   tvm::Array<relay::transform::Pass> pass_seqs{
-      relay::transform::InferType(),
-      relay::transform::DeadCodeElimination(),
-      relay::transform::EliminateCommonSubexpr(),
-      relay::transform::AlterOpLayout()
-  };
+      relay::transform::InferType(), relay::transform::DeadCodeElimination(),
+      relay::transform::EliminateCommonSubexpr(), relay::transform::AlterOpLayout()};
   relay::transform::Pass seq = relay::transform::Sequential(pass_seqs);
   auto mod = IRModule::FromExpr(func);
   auto pass_ctx = relay::transform::PassContext::Create();
@@ -96,8 +90,7 @@ TEST(Relay, Sequential) {
   y1 = relay::Call(add_op, {x1, y1});
   auto zz = relay::Call(add_op, {y1, c1});
   zz = relay::Call(add_op, {zz, zz});
-  relay::Function expected_func =
-      relay::Function(relay::FreeVars(zz), zz, relay::Type(), {});
+  relay::Function expected_func = relay::Function(relay::FreeVars(zz), zz, relay::Type(), {});
 
   // Infer type for the expected function.
   auto mod1 = IRModule::FromExpr(expected_func);

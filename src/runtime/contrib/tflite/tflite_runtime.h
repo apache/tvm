@@ -29,9 +29,9 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
-#include <vector>
-#include <string>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -52,18 +52,15 @@ class TFLiteRuntime : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const {
-    return "TFLiteRuntime";
-  }
+  const char* type_key() const { return "TFLiteRuntime"; }
 
   /*!
-   * \brief Invoke the internal tflite interpreter and run the whole model in 
+   * \brief Invoke the internal tflite interpreter and run the whole model in
    * dependency order.
    */
   void Invoke();
@@ -73,8 +70,7 @@ class TFLiteRuntime : public ModuleNode {
    * \param tflite_model_bytes The tflite model.
    * \param ctx The context where the tflite model will be executed on.
    */
-  void Init(const std::string& tflite_model_bytes,
-            TVMContext ctx);
+  void Init(const std::string& tflite_model_bytes, TVMContext ctx);
 
   /*!
    * \brief set index-th input to the model.

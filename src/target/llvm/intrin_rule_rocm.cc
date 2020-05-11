@@ -22,9 +22,8 @@
  */
 #ifdef TVM_LLVM_VERSION
 
-#include <tvm/tir/expr.h>
-#include <tvm/tir/expr.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/expr.h>
 
 #include <sstream>
 
@@ -38,77 +37,54 @@ inline void DispatchExternOCML(const TVMArgs& args, TVMRetValue* rv) {
   CHECK(call != nullptr);
   std::ostringstream intrinsic_name;
   intrinsic_name << "__ocml_" << call->name << "_f" << call->dtype.bits();
-  *rv = CallNode::make(call->dtype, intrinsic_name.str(), call->args,
-                   CallNode::PureExtern);
+  *rv = CallNode::make(call->dtype, intrinsic_name.str(), call->args, CallNode::PureExtern);
 }
 
 namespace llvm {
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.floor")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.floor").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.ceil")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.ceil").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.round")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.round").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.trunc")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.trunc").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fabs")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fabs").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp2")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp2").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp10")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp10").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.erf")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.erf").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fma")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fma").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log2")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log2").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log10")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log10").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sqrt")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sqrt").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.pow")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.pow").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tanh")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tanh").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tan")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tan").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cos")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cos").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cosh")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cosh").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sin")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sin").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sinh")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sinh").set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.atan")
-.set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.atan").set_body(DispatchExternOCML);
 
 }  // namespace llvm
 }  // namespace codegen

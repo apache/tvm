@@ -25,16 +25,16 @@
 #ifndef TVM_RUNTIME_CONTRIB_COREML_COREML_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_COREML_COREML_RUNTIME_H_
 
-#import <Foundation/Foundation.h>
 #import <CoreML/CoreML.h>
+#import <Foundation/Foundation.h>
 
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
-#include <vector>
-#include <string>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -53,15 +53,12 @@ class CoreMLRuntime : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const {
-    return "CoreMLRuntime";
-  }
+  const char* type_key() const { return "CoreMLRuntime"; }
 
   /*!
    * \brief Invoke the coreml prediction.
@@ -74,9 +71,8 @@ class CoreMLRuntime : public ModuleNode {
    * \param ctx The context where the coreml model will be executed on.
    * \param output_names The output names of the model.
    */
-  void Init(const std::string& model_path,
-            TVMContext ctx,
-            const std::vector<NSString *>& output_names);
+  void Init(const std::string& model_path, TVMContext ctx,
+            const std::vector<NSString*>& output_names);
 
   /*!
    * \brief set input to the model.
@@ -99,13 +95,13 @@ class CoreMLRuntime : public ModuleNode {
   int GetNumOutputs() const;
 
   // CoreML model
-  MLModel *model_;
+  MLModel* model_;
   // CoreML model input dictionary
-  NSMutableDictionary<NSString *, id> *input_dict_;
+  NSMutableDictionary<NSString*, id>* input_dict_;
   // CoreML model output
   id<MLFeatureProvider> output_;
   // List of output names
-  std::vector<NSString *> output_names_;
+  std::vector<NSString*> output_names_;
   // TVM context
   TVMContext ctx_;
 };

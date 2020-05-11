@@ -17,12 +17,12 @@
  * under the License.
  */
 
+#include <gtest/gtest.h>
+#include <tvm/runtime/c_backend_api.h>
+
 #include <atomic>
 #include <memory>
 #include <thread>
-
-#include <gtest/gtest.h>
-#include <tvm/runtime/c_backend_api.h>
 
 constexpr size_t N = 128;
 

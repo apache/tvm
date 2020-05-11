@@ -24,9 +24,10 @@
 #ifndef TVM_TE_SCHEDULE_GRAPH_H_
 #define TVM_TE_SCHEDULE_GRAPH_H_
 
-#include <tvm/tir/expr.h>
-#include <tvm/te/schedule.h>
 #include <tvm/te/operation.h>
+#include <tvm/te/schedule.h>
+#include <tvm/tir/expr.h>
+
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -72,8 +73,7 @@ ReadGraph CreateReadGraph(const Array<Operation>& roots);
  *
  * \return The subgraph.
  */
-Array<Operation> GetSubGraph(const Array<Tensor>& outputs,
-                             const Array<Tensor>& inputs,
+Array<Operation> GetSubGraph(const Array<Tensor>& outputs, const Array<Tensor>& inputs,
                              bool include_inputs);
 
 /*!
@@ -85,8 +85,7 @@ Array<Operation> GetSubGraph(const Array<Tensor>& outputs,
  * \note PostDFSOrder is a special case of Topoligical order,
  *   and can be used when topoligical order is needed.
  */
-Array<Operation> PostDFSOrder(
-    const Array<Operation>& roots, const ReadGraph& g);
+Array<Operation> PostDFSOrder(const Array<Operation>& roots, const ReadGraph& g);
 
 /*!
  * \brief Create feedgraph for given Schedule

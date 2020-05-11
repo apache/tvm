@@ -25,6 +25,7 @@
 #define TVM_RELAY_QNN_ATTRS_H_
 
 #include <tvm/ir/attrs.h>
+
 #include <string>
 
 namespace tvm {
@@ -39,19 +40,20 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
 
   TVM_DECLARE_ATTRS(RequantizeAttrs, "relay.attrs.RequantizeAttrs") {
     TVM_ATTR_FIELD(axis)
-      .describe("The output channel axis for channel wise quantization. Default value is -1,"
-                "which corresponds to the last axis.")
-      .set_default(-1);
-    TVM_ATTR_FIELD(rounding).set_default("UPWARD")
-        .describe("Defines the rounding direction when the value is midway between"
-                  "two representable values. There are two supported modes - UPWARD"
-                  "or TONEAREST. Both modes behave exactly same except at the"
-                  "midpoints between the two representable values. At the midpoint,"
-                  "UPWARD rounds towards positive infinity (for example -1.5 will be"
-                  "rounded to -1). TONEAREST is the standard rounding where the"
-                  "value is rounded away from zero at midpoints (for example, -1.5"
-                  "rounds to -2). More context can be found at following gblic manual"
-                  "https://www.gnu.org/software/libc/manual/html_node/Rounding.html.");
+        .describe(
+            "The output channel axis for channel wise quantization. Default value is -1,"
+            "which corresponds to the last axis.")
+        .set_default(-1);
+    TVM_ATTR_FIELD(rounding).set_default("UPWARD").describe(
+        "Defines the rounding direction when the value is midway between"
+        "two representable values. There are two supported modes - UPWARD"
+        "or TONEAREST. Both modes behave exactly same except at the"
+        "midpoints between the two representable values. At the midpoint,"
+        "UPWARD rounds towards positive infinity (for example -1.5 will be"
+        "rounded to -1). TONEAREST is the standard rounding where the"
+        "value is rounded away from zero at midpoints (for example, -1.5"
+        "rounds to -2). More context can be found at following gblic manual"
+        "https://www.gnu.org/software/libc/manual/html_node/Rounding.html.");
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
@@ -64,12 +66,12 @@ struct QuantizeAttrs : public tvm::AttrsNode<QuantizeAttrs> {
   int axis;
 
   TVM_DECLARE_ATTRS(QuantizeAttrs, "relay.attrs.QuantizeAttrs") {
-    TVM_ATTR_FIELD(out_dtype)
-      .describe("Output data type, can be one of [int8 or uint8].");
+    TVM_ATTR_FIELD(out_dtype).describe("Output data type, can be one of [int8 or uint8].");
     TVM_ATTR_FIELD(axis)
-      .describe("The output channel axis for channel wise quantization. Default value is -1,"
-                "which corresponds to the last axis.")
-      .set_default(-1);
+        .describe(
+            "The output channel axis for channel wise quantization. Default value is -1,"
+            "which corresponds to the last axis.")
+        .set_default(-1);
   }
 };
 

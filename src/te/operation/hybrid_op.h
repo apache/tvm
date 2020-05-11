@@ -24,16 +24,16 @@
 #ifndef TVM_TE_OPERATION_HYBRID_OP_H_
 #define TVM_TE_OPERATION_HYBRID_OP_H_
 
-#include <tvm/tir/expr.h>
 #include <tvm/te/schedule.h>
+#include <tvm/tir/expr.h>
 
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
-#include "../schedule/message_passing.h"
-#include "../../tir/transforms/ir_util.h"
 #include "../../tir/transforms/arg_binder.h"
+#include "../../tir/transforms/ir_util.h"
+#include "../schedule/message_passing.h"
 
 namespace tvm {
 namespace te {
@@ -49,8 +49,7 @@ std::vector<IterVar> GatherLoopVars(Stmt stmt);
  * \param stmt The statement to be processed.
  * \param replace The replacement rule.
  */
-Stmt ReplaceProvideTensor(Stmt stmt,
-                          const std::unordered_map<Tensor, Tensor>& replace);
+Stmt ReplaceProvideTensor(Stmt stmt, const std::unordered_map<Tensor, Tensor>& replace);
 
 /*!
  * \brief Apply the schedule manipulation on the function body.
@@ -58,8 +57,8 @@ Stmt ReplaceProvideTensor(Stmt stmt,
  * \param dom_map The extents of the iterative variables may be used.
  * \param stage The schedule information to be applied.
  */
-Stmt ApplySchedule(const Stage& stage,
-                   const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt);
+Stmt ApplySchedule(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
+                   Stmt stmt);
 
 /*!
  * \brief Apply loop splits and fuses in the schedule on the function body.
@@ -67,9 +66,8 @@ Stmt ApplySchedule(const Stage& stage,
  * \param dom_map The extents of the iterative variables may be used.
  * \param stmt The statement to be processed.
  */
-Stmt ApplyLoopShapes(const Stage &stage,
-                     const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt);
-
+Stmt ApplyLoopShapes(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
+                     Stmt stmt);
 
 /*!
  * \brief Apply loop annotation in the schedule on the function body.
@@ -77,8 +75,8 @@ Stmt ApplyLoopShapes(const Stage &stage,
  * \param rebased The map specifies the rebase, a.k.a rename, relationship of these variables.
  * \param stmt The statement to be processed.
  */
-Stmt ApplyLoopAnnotations(const Stage &stage,
-                          const std::unordered_map<IterVar, IterVar>& rebased, Stmt stmt);
+Stmt ApplyLoopAnnotations(const Stage& stage, const std::unordered_map<IterVar, IterVar>& rebased,
+                          Stmt stmt);
 
 /*!
  * \brief Apply loop order in the schedule on the function body.
@@ -87,9 +85,8 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
  * \param rebased The map specifies the rebase, a.k.a rename, relationship of these variables.
  * \param stmt The statement to be processed.
  */
-Stmt ApplyLoopOrder(const Stage &stage,
-                    const std::unordered_map<IterVar, Range> &dom_map,
-                    const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt);
+Stmt ApplyLoopOrder(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
+                    const std::unordered_map<IterVar, IterVar>& rebased, Stmt stmt);
 
 }  // namespace te
 }  // namespace tvm

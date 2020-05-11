@@ -25,11 +25,13 @@
 #define TVM_TARGET_SOURCE_CODEGEN_OPENGL_H_
 
 #include <tvm/target/codegen.h>
+
 #include <string>
-#include <unordered_set>
 #include <unordered_map>
-#include "codegen_c.h"
+#include <unordered_set>
+
 #include "../../runtime/opengl/opengl_module.h"
+#include "codegen_c.h"
 
 namespace tvm {
 namespace codegen {
@@ -45,11 +47,11 @@ class CodeGenOpenGL final : public CodeGenC {
   void VisitStmt_(const StoreNode* op) final;
   std::string TexelFetch(const VarNode* buffer, PrimExpr index);
   std::string GetBufferRef(DataType t, const VarNode* buffer, PrimExpr index) final;
-  void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
+  void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
 
   // Codegen for immediate values
-  void VisitExpr_(const IntImmNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const IntImmNode* op, std::ostream& os) final;     // NOLINT(*)
+  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
   void VisitExpr_(const StringImmNode* op, std::ostream& os) final;  // NOLINT(*)
 
   // Match glsl_texture_store Call.

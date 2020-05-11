@@ -23,10 +23,12 @@
  *
  *  Reference: Philip Wadler. A Prettier Printer. Journal of Functional Programming'98
  */
-#include <tvm/runtime/packed_func.h>
-#include <vector>
-#include <sstream>
 #include "doc.h"
+
+#include <tvm/runtime/packed_func.h>
+
+#include <sstream>
+#include <vector>
 
 namespace tvm {
 
@@ -38,9 +40,7 @@ class DocTextNode : public DocAtomNode {
   /*! \brief The str content in the text. */
   std::string str;
 
-  explicit DocTextNode(std::string str_val)
-      : str(str_val) {
-  }
+  explicit DocTextNode(std::string str_val) : str(str_val) {}
 
   static constexpr const char* _type_key = "printer.DocText";
   TVM_DECLARE_FINAL_OBJECT_INFO(DocTextNode, DocAtomNode);
@@ -68,8 +68,7 @@ class DocLineNode : public DocAtomNode {
   /*! \brief The amount of indent in newline. */
   int indent;
 
-  explicit DocLineNode(int indent)
-      : indent(indent) {}
+  explicit DocLineNode(int indent) : indent(indent) {}
 
   static constexpr const char* _type_key = "printer.DocLine";
   TVM_DECLARE_FINAL_OBJECT_INFO(DocLineNode, DocAtomNode);
@@ -79,9 +78,7 @@ TVM_REGISTER_OBJECT_TYPE(DocLineNode);
 
 class DocLine : public DocAtom {
  public:
-  explicit DocLine(int indent) {
-    data_ = runtime::make_object<DocLineNode>(indent);
-  }
+  explicit DocLine(int indent) { data_ = runtime::make_object<DocLineNode>(indent); }
 
   TVM_DEFINE_OBJECT_REF_METHODS(DocLine, DocAtom, DocLineNode);
 };
@@ -89,14 +86,11 @@ class DocLine : public DocAtom {
 // DSL function implementations
 Doc& Doc::operator<<(const Doc& right) {
   CHECK(this != &right);
-  this->stream_.insert(
-      this->stream_.end(), right.stream_.begin(), right.stream_.end());
+  this->stream_.insert(this->stream_.end(), right.stream_.begin(), right.stream_.end());
   return *this;
 }
 
-Doc& Doc::operator<<(std::string right) {
-  return *this << DocText(right);
-}
+Doc& Doc::operator<<(std::string right) { return *this << DocText(right); }
 
 Doc& Doc::operator<<(const DocAtom& right) {
   this->stream_.push_back(right);
@@ -117,13 +111,9 @@ std::string Doc::str() {
   return os.str();
 }
 
-Doc Doc::NewLine(int indent) {
-  return Doc() << DocLine(indent);
-}
+Doc Doc::NewLine(int indent) { return Doc() << DocLine(indent); }
 
-Doc Doc::Text(std::string text) {
-  return Doc() << DocText(text);
-}
+Doc Doc::Text(std::string text) { return Doc() << DocText(text); }
 
 Doc Doc::RawText(std::string text) {
   return Doc() << DocAtom(runtime::make_object<DocTextNode>(text));
@@ -152,10 +142,7 @@ Doc Doc::PyBoolLiteral(bool value) {
   }
 }
 
-Doc Doc::Brace(std::string open,
-               const Doc& body,
-               std::string close,
-               int indent) {
+Doc Doc::Brace(std::string open, const Doc& body, std::string close, int indent) {
   Doc doc;
   doc << open;
   doc << Indent(indent, NewLine() << body) << NewLine();
