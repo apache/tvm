@@ -525,14 +525,18 @@ def test_forward_maxpool2d():
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
 
-    verify_model(torch.nn.MaxPool2d(kernel_size=[1, 1]).eval(),
-                 input_data)
-    verify_model(torch.nn.MaxPool2d(kernel_size=[10, 10]).eval(),
-                 input_data)
-    verify_model(torch.nn.MaxPool2d(kernel_size=[4, 4],
-                                    padding=2,
-                                    stride=2).eval(),
-                 input_data)
+    for return_indices in [True, False]:
+        verify_model(torch.nn.MaxPool2d(kernel_size=[1, 1],
+                                        return_indices=return_indices).eval(),
+                    input_data)
+        verify_model(torch.nn.MaxPool2d(kernel_size=[10, 10],
+                                        return_indices=return_indices).eval(),
+                    input_data)
+        verify_model(torch.nn.MaxPool2d(kernel_size=[4, 4],
+                                        padding=2,
+                                        stride=2,
+                                        return_indices=return_indices).eval(),
+                    input_data)
 
 def test_forward_maxpool1d():
     torch.set_grad_enabled(False)
