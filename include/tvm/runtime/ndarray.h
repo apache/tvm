@@ -459,6 +459,7 @@ inline bool NDArray::Load(dmlc::Stream* strm) {
   for (int i = 0; i < ret->ndim; ++i) {
     num_elems *= ret->shape[i];
   }
+  int64_t data_byte_size;
   CHECK(strm->Read(&data_byte_size)) << "Invalid DLTensor file format";
   CHECK(data_byte_size == num_elems * elem_bytes) << "Invalid DLTensor file format";
   auto read_ret = strm->Read(ret->data, data_byte_size);
