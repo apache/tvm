@@ -25,27 +25,27 @@
 #define TVM_TARGET_LLVM_CODEGEN_LLVM_H_
 #ifdef TVM_LLVM_VERSION
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/container.h>
-#include <tvm/arith/analyzer.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt.h>
-#include <tvm/tir/op.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/stmt_functor.h>
 #include <tvm/target/codegen.h>
-
+#include <tvm/tir/expr.h>
+#include <tvm/tir/function.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/stmt.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include <memory>
-#include <utility>
-#include <vector>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include "llvm_common.h"
-#include "../../runtime/thread_storage_scope.h"
+#include <utility>
+#include <vector>
+
 #include "../../arith/compute_expr.h"
+#include "../../runtime/thread_storage_scope.h"
 #include "../../tir/transforms/ir_util.h"
+#include "llvm_common.h"
 
 namespace tvm {
 namespace codegen {
@@ -55,9 +55,8 @@ using namespace tir;
 /*!
  * \brief A base class to generate a LLVM.
  */
-class CodeGenLLVM :
-      public ExprFunctor<llvm::Value* (const PrimExpr&)>,
-      public StmtFunctor<void(const Stmt&)> {
+class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
+                    public StmtFunctor<void(const Stmt&)> {
  public:
   /*!
    * \brief Create new code generator based on target machine.
@@ -74,11 +73,8 @@ class CodeGenLLVM :
    * \param dynamic_lookup Whether dynamically lookup runtime function
    *                       or use the runtime function table passed by caller.
    */
-  virtual void Init(const std::string& module_name,
-                    llvm::TargetMachine* tm,
-                    llvm::LLVMContext* ctx,
-                    bool system_lib,
-                    bool dynamic_lookup);
+  virtual void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
+                    bool system_lib, bool dynamic_lookup);
   /*!
    * \brief Compile and add function f to the current module.
    * \param f The function to be added.
@@ -104,9 +100,7 @@ class CodeGenLLVM :
    * \param e The expression to be created value for.
    * \return created value.
    */
-  llvm::Value* MakeValue(const PrimExpr& e) {
-    return VisitExpr(e);
-  }
+  llvm::Value* MakeValue(const PrimExpr& e) { return VisitExpr(e); }
   // Short hande code to get a constant int 32
   llvm::Constant* ConstInt32(int64_t value) const {
     return llvm::ConstantInt::getSigned(t_int32_, value);
@@ -170,7 +164,7 @@ class CodeGenLLVM :
    * \tparam F The function to be executed.
    * \return The result.
    */
-  template<typename F>
+  template <typename F>
   llvm::AllocaInst* WithFunctionEntry(F falloca) {
     llvm::BasicBlock* current = builder_->GetInsertBlock();
     llvm::BasicBlock* entry = &(function_->getEntryBlock());
@@ -191,8 +185,7 @@ class CodeGenLLVM :
   virtual void InitPassManagerBuilder(llvm::PassManagerBuilder* builder);
   // Scalarize by iterating elements of e.
   // f is a callback that takes index and v.
-  virtual void Scalarize(const PrimExpr& e,
-                         std::function<void(int i, llvm::Value* v)> f);
+  virtual void Scalarize(const PrimExpr& e, std::function<void(int i, llvm::Value* v)> f);
   // Initialize target
   virtual void InitTarget(llvm::TargetMachine* tm);
   // Add module startup function if needed.
@@ -205,8 +198,7 @@ class CodeGenLLVM :
   virtual unsigned GetGlobalAddressSpace() const;
   void AddFunctionInternal(const PrimFunc& f, bool ret_void);
   // Create extern call
-  llvm::CallInst* CreateCallExtern(llvm::Type* ret,
-                                   const std::string& name,
+  llvm::CallInst* CreateCallExtern(llvm::Type* ret, const std::string& name,
                                    const std::vector<llvm::Value*>& value);
   /*!
    * \brief Get the LLVM Type for a given runtime type.
@@ -243,20 +235,18 @@ class CodeGenLLVM :
    *         could not be generated (e.g. if the argument/return types do not
    *         match).
    */
-  llvm::Function* GetIntrinsicDecl(llvm::Intrinsic::ID id,
-                                   llvm::Type* ret_type,
+  llvm::Function* GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type* ret_type,
                                    llvm::ArrayRef<llvm::Type*> arg_types);
   // initialize the function state.
   void InitFuncState();
   // Get alignment given index.
-  void GetAlignment(
-      DataType t, const VarNode* buf_var, const PrimExpr& index,
-      int* p_alignment, int* p_native_bits);
+  void GetAlignment(DataType t, const VarNode* buf_var, const PrimExpr& index, int* p_alignment,
+                    int* p_native_bits);
   // Get constant string
   llvm::Value* GetConstString(const std::string& str);
   // do a scalarize call with f
-  llvm::Value* CreateScalarizedCall(
-      const CallNode* op, llvm::Function* f, const std::vector<llvm::Value*>& args);
+  llvm::Value* CreateScalarizedCall(const CallNode* op, llvm::Function* f,
+                                    const std::vector<llvm::Value*>& args);
   // handle module import
   void HandleImport(const std::string& code);
   // cast operatpr
@@ -279,9 +269,7 @@ class CodeGenLLVM :
   llvm::Value* CreateVecConcat(std::vector<llvm::Value*> vecs);
   llvm::Value* CreateVecPad(llvm::Value* vec, int target_lanes);
   // Create serial for
-  void CreateSerialFor(llvm::Value* begin,
-                       llvm::Value* end,
-                       llvm::Value* stride,
+  void CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
                        const Var& loop_var, const Stmt& body);
   // add alias information.
   void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index, DataType type);

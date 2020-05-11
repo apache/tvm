@@ -24,14 +24,14 @@
 #ifndef TVM_ARITH_ANALYZER_H_
 #define TVM_ARITH_ANALYZER_H_
 
-#include <tvm/support/with.h>
-#include <tvm/ir/expr.h>
 #include <tvm/arith/int_set.h>
+#include <tvm/ir/expr.h>
+#include <tvm/support/with.h>
 
-#include <vector>
-#include <unordered_map>
-#include <memory>
 #include <limits>
+#include <memory>
+#include <unordered_map>
+#include <vector>
 
 namespace tvm {
 /*! \brief namespace of arithmetic analysis. */
@@ -130,9 +130,7 @@ class ConstIntBoundAnalyzer {
    * \param info The bound information.
    * \param override Whether do we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var,
-                      const ConstIntBound& info,
-                      bool override = false);
+  TVM_DLL void Update(const Var& var, const ConstIntBound& info, bool override = false);
   /*!
    * \brief Bind variable to a range.
    *
@@ -221,9 +219,7 @@ class ModularSetAnalyzer {
    * \param info The bound information.
    * \param override Whether do we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var,
-                      const ModularSet& info,
-                      bool override = false);
+  TVM_DLL void Update(const Var& var, const ModularSet& info, bool override = false);
 
  private:
   friend class Analyzer;
@@ -262,9 +258,7 @@ class RewriteSimplifier {
    * \param new_expr
    * \param override Whether do we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var,
-                      const PrimExpr& new_expr,
-                      bool override = false);
+  TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool override = false);
 
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
@@ -298,9 +292,7 @@ class CanonicalSimplifier {
    * \param new_expr
    * \param override Whether do we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var,
-                      const PrimExpr& new_expr,
-                      bool override = false);
+  TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool override = false);
 
  private:
   friend class Analyzer;

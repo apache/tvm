@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,28 +24,28 @@
 #ifndef TVM_RUNTIME_ROCM_ROCM_COMMON_H_
 #define TVM_RUNTIME_ROCM_ROCM_COMMON_H_
 
-#include <tvm/runtime/packed_func.h>
 #include <hip/hip_runtime_api.h>
+#include <tvm/runtime/packed_func.h>
+
 #include <string>
+
 #include "../workspace_pool.h"
 
 namespace tvm {
 namespace runtime {
 
-#define ROCM_DRIVER_CALL(x)                                             \
-  {                                                                     \
-    hipError_t result = x;                                              \
-    if (result != hipSuccess && result != hipErrorDeinitialized) {      \
-      LOG(FATAL)                                                        \
-          << "ROCM HIP Error: " #x " failed with error: " << hipGetErrorString(result); \
-    }                                                                   \
+#define ROCM_DRIVER_CALL(x)                                                                    \
+  {                                                                                            \
+    hipError_t result = x;                                                                     \
+    if (result != hipSuccess && result != hipErrorDeinitialized) {                             \
+      LOG(FATAL) << "ROCM HIP Error: " #x " failed with error: " << hipGetErrorString(result); \
+    }                                                                                          \
   }
 
-#define ROCM_CALL(func)                                               \
-  {                                                                   \
-    hipError_t e = (func);                                            \
-    CHECK(e == hipSuccess)                                            \
-        << "ROCM HIP: " << hipGetErrorString(e);                      \
+#define ROCM_CALL(func)                                             \
+  {                                                                 \
+    hipError_t e = (func);                                          \
+    CHECK(e == hipSuccess) << "ROCM HIP: " << hipGetErrorString(e); \
   }
 
 /*! \brief Thread local workspace */

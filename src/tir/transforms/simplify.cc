@@ -21,14 +21,13 @@
  * \file simplify.cc
  * \brief Statement simplifier based on analyzer
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/transform.h>
 #include <tvm/tir/analysis.h>
-#include <tvm/arith/analyzer.h>
-
+#include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
-#include <tvm/arith/analyzer.h>
+#include <tvm/tir/transform.h>
+
 #include "../../arith/ir_mutator_with_analyzer.h"
 
 namespace tvm {
@@ -38,20 +37,15 @@ using namespace tir;
 
 class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
-  explicit StmtSimplifier(Analyzer* analyzer)
-      : IRMutatorWithAnalyzer(analyzer) {}
+  explicit StmtSimplifier(Analyzer* analyzer) : IRMutatorWithAnalyzer(analyzer) {}
 
   using Parent = IRMutatorWithAnalyzer;
   using Parent::VisitStmt;
   using Parent::VisitStmt_;
 
-  PrimExpr VisitExpr(const PrimExpr& expr) final {
-    return analyzer_->Simplify(expr);
-  }
+  PrimExpr VisitExpr(const PrimExpr& expr) final { return analyzer_->Simplify(expr); }
 
-  Stmt Simplify(Stmt stmt) {
-    return operator()(std::move(stmt));
-  }
+  Stmt Simplify(Stmt stmt) { return operator()(std::move(stmt)); }
 
   Stmt VisitStmt_(const ForNode* op) final {
     analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
@@ -69,8 +63,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
       return this->VisitStmt(op->body);
     }
     Stmt body = this->VisitStmt(op->body);
-    if (value.same_as(op->value) &&
-        body.same_as(op->body)) {
+    if (value.same_as(op->value) && body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     } else {
       auto n = this->CopyOnWrite(op);
@@ -109,8 +102,7 @@ Pass Simplify() {
   return CreatePrimFuncPass(pass_func, 0, "tir.Simplify", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.Simplify")
-.set_body_typed(Simplify);
+TVM_REGISTER_GLOBAL("tir.transform.Simplify").set_body_typed(Simplify);
 
 }  // namespace transform
 

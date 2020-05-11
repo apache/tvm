@@ -24,8 +24,8 @@
 #ifndef TVM_ARITH_PATTERN_H_
 #define TVM_ARITH_PATTERN_H_
 
-#include <tvm/node/container.h>
 #include <tvm/ir/expr.h>
+#include <tvm/node/container.h>
 #include <tvm/tir/expr.h>
 
 namespace tvm {
@@ -38,8 +38,7 @@ namespace arith {
  * \param vars List of variables to be used in detection.
  * \return [coeff[i]] if it is possible, empty array if it is not.
  */
-Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
-                                     const Array<tir::Var>& vars);
+Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const Array<tir::Var>& vars);
 
 /*!
  * \brief Detect if expression corresponds to clip bound of the vars
@@ -49,8 +48,7 @@ Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
  * \return concat([min_value[i], max_value[i]]), None is returned if there is no min or max value
  *          return empty if the e does not match the pattern.
  */
-Array<PrimExpr> DetectClipBound(const PrimExpr& e,
-                                const Array<tir::Var>& vars);
+Array<PrimExpr> DetectClipBound(const PrimExpr& e, const Array<tir::Var>& vars);
 
 }  // namespace arith
 }  // namespace tvm

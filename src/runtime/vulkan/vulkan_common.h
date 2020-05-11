@@ -22,8 +22,8 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/packed_func.h>
-
 #include <vulkan/vulkan.h>
+
 #include <memory>
 #include <mutex>
 #include <string>
@@ -139,7 +139,6 @@ struct VulkanContext {
 
   bool UseImmediate() const { return descriptor_template_khr_functions.get() != nullptr; }
 };
-
 
 }  // namespace vulkan
 }  // namespace runtime
