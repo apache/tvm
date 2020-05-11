@@ -21,26 +21,23 @@
  * \file tvm/arith/solve_linear_equation.cc
  * \brief Solve linear equations.
  */
-#include <tvm/runtime/registry.h>
-#include <tvm/tir/expr.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
-#include <tvm/arith/util.h>
 #include <tvm/arith/pattern.h>
-
+#include <tvm/arith/util.h>
+#include <tvm/runtime/data_type.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/runtime/data_type.h>
 
 namespace tvm {
 namespace arith {
 
 using namespace tvm::runtime;
 
-void SmithNormalFormDiag(std::vector<std::vector<int64_t> >* S,
-                         std::vector<std::vector<int64_t> >* V,
-                         std::vector<PrimExpr>* x,
-                         std::vector<PrimExpr>* y) {
+void SmithNormalFormDiag(std::vector<std::vector<int64_t>>* S, std::vector<std::vector<int64_t>>* V,
+                         std::vector<PrimExpr>* x, std::vector<PrimExpr>* y) {
   if (S->empty() || V->empty()) return;
   size_t m = S->size();
   size_t n = (*S)[0].size();  // n is # of variables
@@ -124,9 +121,9 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t> >* S,
         for (size_t j = index; j < (*S)[i].size(); ++j) {
           // Multiply index-th row by a and add the i-th row multiplied by b
           // This will make the index-th diagonal element equal to the gcd
-          int64_t new_index_j = a*(*S)[index][j] + b*(*S)[i][j];
+          int64_t new_index_j = a * (*S)[index][j] + b * (*S)[i][j];
           // This transformation performs zeroing of matrix[i][index]
-          int64_t new_i_j = n_g*(*S)[index][j] - m_g*(*S)[i][j];
+          int64_t new_i_j = n_g * (*S)[index][j] - m_g * (*S)[i][j];
           (*S)[index][j] = new_index_j;
           (*S)[i][j] = new_i_j;
         }
@@ -135,8 +132,8 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t> >* S,
         PrimExpr eb = tir::make_const((*y)[i].dtype(), b);
         PrimExpr e_m_g = tir::make_const((*y)[i].dtype(), m_g);
         PrimExpr e_n_g = tir::make_const((*y)[index].dtype(), n_g);
-        PrimExpr new_index_rhs = ea*(*y)[index] + eb*(*y)[i];
-        PrimExpr new_i_rhs = e_n_g*(*y)[index] - e_m_g*(*y)[i];
+        PrimExpr new_index_rhs = ea * (*y)[index] + eb * (*y)[i];
+        PrimExpr new_i_rhs = e_n_g * (*y)[index] - e_m_g * (*y)[i];
         (*y)[index] = new_index_rhs;
         (*y)[i] = new_i_rhs;
       }
@@ -178,15 +175,15 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t> >* S,
         int64_t n_g = (*S)[index][j] / g;
 
         for (size_t i = index; i < m; ++i) {
-          int64_t new_i_index = a*(*S)[i][index] + b*(*S)[i][j];
-          int64_t new_i_j = n_g*(*S)[i][index] - m_g*(*S)[i][j];
+          int64_t new_i_index = a * (*S)[i][index] + b * (*S)[i][j];
+          int64_t new_i_j = n_g * (*S)[i][index] - m_g * (*S)[i][j];
           (*S)[i][index] = new_i_index;
           (*S)[i][j] = new_i_j;
         }
         // We do exactly the same transformations with V
         for (size_t i = 0; i < n; ++i) {
-          int64_t new_i_index = a*(*V)[i][index] + b*(*V)[i][j];
-          int64_t new_i_j = n_g*(*V)[i][index] - m_g*(*V)[i][j];
+          int64_t new_i_index = a * (*V)[i][index] + b * (*V)[i][j];
+          int64_t new_i_j = n_g * (*V)[i][index] - m_g * (*V)[i][j];
           (*V)[i][index] = new_i_index;
           (*V)[i][j] = new_i_j;
         }
@@ -195,8 +192,8 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t> >* S,
         PrimExpr eb = tir::make_const((*x)[index].dtype(), b);
         PrimExpr e_m_g = tir::make_const((*x)[index].dtype(), m_g);
         PrimExpr e_n_g = tir::make_const((*x)[j].dtype(), n_g);
-        PrimExpr new_index = e_m_g*(*x)[index] + e_n_g*(*x)[j];
-        PrimExpr new_j = eb*(*x)[index] - ea*(*x)[j];
+        PrimExpr new_index = e_m_g * (*x)[index] + e_n_g * (*x)[j];
+        PrimExpr new_j = eb * (*x)[index] - ea * (*x)[j];
         (*x)[index] = new_index;
         (*x)[j] = new_j;
       }
@@ -210,8 +207,7 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t> >* S,
   }
 }
 
-Map<Var, Range> InferRange(const Map<Var, PrimExpr>& vars_to_infer,
-                           const Array<Var>& ori_vars,
+Map<Var, Range> InferRange(const Map<Var, PrimExpr>& vars_to_infer, const Array<Var>& ori_vars,
                            const Map<Var, Range>& ori_ranges) {
   // The resulting ranges
   Map<Var, Range> new_ranges;
@@ -245,8 +241,7 @@ Map<Var, Range> InferRange(const Map<Var, PrimExpr>& vars_to_infer,
 
 // pretty print matrix equation
 void DebugPrint(const std::vector<std::vector<int64_t>>& S,
-                const std::vector<std::vector<int64_t>>& V,
-                const std::vector<PrimExpr>& V_inv_x,
+                const std::vector<std::vector<int64_t>>& V, const std::vector<PrimExpr>& V_inv_x,
                 const std::vector<PrimExpr>& rhs) {
   std::cout << "S:\n";
   for (size_t i = 0; i < S.size(); ++i) {
@@ -267,7 +262,7 @@ void DebugPrint(const std::vector<std::vector<int64_t>>& S,
   std::cout << "\n" << std::endl;
 }
 
-IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_solve) {
+IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_solve) {
   // m: # of equations
   // n: # of variables
   // we first construct A_{mxn} x_{nx1} = y_{mx1}
@@ -275,10 +270,10 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
   // S_{mxn} = U_{mxm} A_{mxn} V_{nxn}
   // => U^{-1} S V^{-1} x = y
   // S V^{-1} x = U y
-  std::vector<PrimExpr> Uy;  // mx1
+  std::vector<PrimExpr> Uy;             // mx1
   std::vector<std::vector<int64_t>> S;  // mxn
   std::vector<std::vector<int64_t>> V;  // nxn
-  std::vector<PrimExpr> V_inv_x;  // V^{-1} x, nx1
+  std::vector<PrimExpr> V_inv_x;        // V^{-1} x, nx1
   // Conditions we don't know what to do with
   std::vector<PrimExpr> rest;
 
@@ -301,9 +296,8 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
   for (const PrimExpr& equation : system_to_solve->relations) {
     if (const tir::EQNode* eq = equation.as<tir::EQNode>()) {
       // a-b = sum_{i=0}^{n-1} variables[i] * coeff[i] + coeff[n]
-      Array<PrimExpr> coeffs = arith::DetectLinearEquation(
-          analyzer_problem.Simplify(eq->a - eq->b),
-          system_to_solve->variables);
+      Array<PrimExpr> coeffs = arith::DetectLinearEquation(analyzer_problem.Simplify(eq->a - eq->b),
+                                                           system_to_solve->variables);
       if (!coeffs.empty()) {
         std::vector<int64_t> row;
         for (size_t j = 0; j < coeffs.size() - 1; ++j) {
@@ -365,13 +359,12 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
     new_relation = analyzer_problem.Simplify(new_relation);
     if (tir::is_const_int(new_relation, 0)) {
       // unable to solve the system.
-      return IntConstraintsTransform(
-          system_to_solve,
-          IntConstraints(
-              /*variables=*/{},
-              /*ranges=*/{},
-              /*relations=*/{tir::make_zero(DataType::Bool())}),
-          {}, {});
+      return IntConstraintsTransform(system_to_solve,
+                                     IntConstraints(
+                                         /*variables=*/{},
+                                         /*ranges=*/{},
+                                         /*relations=*/{tir::make_zero(DataType::Bool())}),
+                                     {}, {});
     } else if (!tir::is_const_int(new_relation, 1)) {
       new_relations.push_back(new_relation);
     }
@@ -405,14 +398,12 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
       // S^{-1}_{nxm} Uy_{mxn}
       if (S[j][j] >= 0) {
         PrimExpr a = tir::make_const(Uy[j].dtype(), S[j][j]);
-        solution_for_V_inv_x.push_back(
-            analyzer_problem.Simplify(floordiv(Uy[j], a)));
+        solution_for_V_inv_x.push_back(analyzer_problem.Simplify(floordiv(Uy[j], a)));
       } else {
         // This is required because some simplifiers
         // have problems with dividing by negative numbers
         PrimExpr a = tir::make_const(Uy[j].dtype(), -S[j][j]);
-        solution_for_V_inv_x.push_back(
-            analyzer_problem.Simplify(floordiv(-Uy[j], a)));
+        solution_for_V_inv_x.push_back(analyzer_problem.Simplify(floordiv(-Uy[j], a)));
       }
     }
   }
@@ -421,15 +412,15 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
   for (size_t i = 0; i < num_vars; ++i) {
     PrimExpr e = tir::make_zero(system_to_solve->variables[i].dtype());
     for (size_t j = 0; j < num_vars; ++j) {
-      e = e + tir::make_const(e.dtype(), V[i][j])*solution_for_V_inv_x[j];
+      e = e + tir::make_const(e.dtype(), V[i][j]) * solution_for_V_inv_x[j];
     }
     e = analyzer_problem.Simplify(e);
     old_to_new_map.Set(system_to_solve->variables[i], e);
   }
 
   // The resulting ranges
-  Map<Var, Range> new_ranges = InferRange(
-      new_to_old_map, system_to_solve->variables, system_to_solve->ranges);
+  Map<Var, Range> new_ranges =
+      InferRange(new_to_old_map, system_to_solve->variables, system_to_solve->ranges);
   Analyzer analyzer_solution;
   analyzer_solution.Bind(new_ranges);
 
@@ -440,10 +431,9 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
     const Range& old_range = p.second;
     if (old_to_new_map.count(old_var)) {
       PrimExpr express_by_new_vars = old_to_new_map[old_var];
-      PrimExpr lower_cond = analyzer_solution.Simplify(
-          old_range->min <= express_by_new_vars);
-      PrimExpr upper_cond = analyzer_solution.Simplify(
-          express_by_new_vars < old_range->min + old_range->extent);
+      PrimExpr lower_cond = analyzer_solution.Simplify(old_range->min <= express_by_new_vars);
+      PrimExpr upper_cond =
+          analyzer_solution.Simplify(express_by_new_vars < old_range->min + old_range->extent);
       if (!tir::is_const_int(lower_cond, 1)) {
         new_relations.push_back(lower_cond);
       }
@@ -459,23 +449,21 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
   }
 
   IntConstraints solution(new_vars, new_ranges, new_relations);
-  IntConstraintsTransform transform(
-      system_to_solve, solution, old_to_new_map, new_to_old_map);
+  IntConstraintsTransform transform(system_to_solve, solution, old_to_new_map, new_to_old_map);
 
   return transform;
 }
 
-TVM_REGISTER_GLOBAL("arith.SolveLinearEquations")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args.size() == 1) {
-      *ret = SolveLinearEquations(args[0]);
-    } else if (args.size() == 3) {
-      IntConstraints problem(args[0], args[1], args[2]);
-      *ret = SolveLinearEquations(problem);
-    } else {
-      LOG(FATAL) << "arith.SolveLinearEquations expects 1 or 3 arguments, gets " << args.size();
-    }
-  });
+TVM_REGISTER_GLOBAL("arith.SolveLinearEquations").set_body([](TVMArgs args, TVMRetValue* ret) {
+  if (args.size() == 1) {
+    *ret = SolveLinearEquations(args[0]);
+  } else if (args.size() == 3) {
+    IntConstraints problem(args[0], args[1], args[2]);
+    *ret = SolveLinearEquations(problem);
+  } else {
+    LOG(FATAL) << "arith.SolveLinearEquations expects 1 or 3 arguments, gets " << args.size();
+  }
+});
 
 }  // namespace arith
 }  // namespace tvm

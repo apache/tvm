@@ -21,22 +21,18 @@
  * \file simplify_inference.cc
  */
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
-#include <tvm/relay/transform.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
+#include <tvm/relay/transform.h>
+
 #include "pattern_util.h"
 
 namespace tvm {
 namespace relay {
 
-Expr BatchNormToInferUnpack(const Attrs attrs,
-                            Expr data,
-                            Expr gamma,
-                            Expr beta,
-                            Expr moving_mean,
-                            Expr moving_var,
-                            Type tdata) {
+Expr BatchNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta, Expr moving_mean,
+                            Expr moving_var, Type tdata) {
   auto ttype = tdata.as<TensorTypeNode>();
   CHECK(ttype);
   const auto param = attrs.as<BatchNormAttrs>();
@@ -64,12 +60,7 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
   return out;
 }
 
-
-Expr GroupNormToInferUnpack(const Attrs attrs,
-                            Expr data,
-                            Expr gamma,
-                            Expr beta,
-                            Type tdata) {
+Expr GroupNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta, Type tdata) {
   auto ttype = tdata.as<TensorTypeNode>();
   CHECK(ttype);
   const auto param = attrs.as<GroupNormAttrs>();
@@ -88,20 +79,20 @@ Expr GroupNormToInferUnpack(const Attrs attrs,
   // new shape = N, num_groups, C/num_groups, H, W
   // reduce_axes = axis of (C/num_groups, H, W)
   for (int i = 0; i < ndim; ++i) {
-      auto val = ttype->shape[i].as<IntImmNode>()->value;
+    auto val = ttype->shape[i].as<IntImmNode>()->value;
 
-      // Save the old shape to reshape later
-      old_shape.push_back(val);
-      if (i == axis) {
-          new_shape.push_back(num_groups);
-          new_shape.push_back(channel / num_groups);
-          reduced_axes.push_back(i + 1);
-          continue;
-      }
-      if (i >= axis) {
-          reduced_axes.push_back(i + 1);
-      }
-      new_shape.push_back(val);
+    // Save the old shape to reshape later
+    old_shape.push_back(val);
+    if (i == axis) {
+      new_shape.push_back(num_groups);
+      new_shape.push_back(channel / num_groups);
+      reduced_axes.push_back(i + 1);
+      continue;
+    }
+    if (i >= axis) {
+      reduced_axes.push_back(i + 1);
+    }
+    new_shape.push_back(val);
   }
 
   data = Reshape(data, new_shape);
@@ -124,11 +115,7 @@ Expr GroupNormToInferUnpack(const Attrs attrs,
   return out;
 }
 
-Expr LayerNormToInferUnpack(const Attrs attrs,
-                            Expr data,
-                            Expr gamma,
-                            Expr beta,
-                            Type tdata) {
+Expr LayerNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta, Type tdata) {
   auto ttype = tdata.as<TensorTypeNode>();
   CHECK(ttype);
   const auto param = attrs.as<LayerNormAttrs>();
@@ -151,11 +138,7 @@ Expr LayerNormToInferUnpack(const Attrs attrs,
   return out;
 }
 
-Expr InstanceNormToInferUnpack(const Attrs attrs,
-                               Expr data,
-                               Expr gamma,
-                               Expr beta,
-                               Type tdata) {
+Expr InstanceNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta, Type tdata) {
   auto ttype = tdata.as<TensorTypeNode>();
   CHECK(ttype);
   const auto param = attrs.as<InstanceNormAttrs>();
@@ -165,8 +148,7 @@ Expr InstanceNormToInferUnpack(const Attrs attrs,
   int axis = (param->axis < 0) ? param->axis + ndim : param->axis;
   Array<Integer> reduced_axes;
   for (int i = 1; i < ndim; ++i) {
-      if (i != axis)
-          reduced_axes.push_back(i);
+    if (i != axis) reduced_axes.push_back(i);
   }
 
   Expr epsilon = MakeConstantScalar(DataType::Float(32), static_cast<float>(param->epsilon));
@@ -259,22 +241,19 @@ class InferenceSimplifier : public ExprMutator {
   std::unordered_map<Expr, Type, ObjectHash, ObjectEqual> ty_map_;
 };
 
-Expr SimplifyInference(const Expr& e) {
-  return InferenceSimplifier().Mutate(e);
-}
+Expr SimplifyInference(const Expr& e) { return InferenceSimplifier().Mutate(e); }
 
 namespace transform {
 
 Pass SimplifyInference() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(SimplifyInference(f));
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(SimplifyInference(f));
+      };
   return CreateFunctionPass(pass_func, 0, "SimplifyInference", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.SimplifyInference")
-.set_body_typed(SimplifyInference);
+TVM_REGISTER_GLOBAL("relay._transform.SimplifyInference").set_body_typed(SimplifyInference);
 
 }  // namespace transform
 

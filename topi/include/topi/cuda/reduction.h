@@ -24,11 +24,11 @@
 #ifndef TOPI_CUDA_REDUCTION_H_
 #define TOPI_CUDA_REDUCTION_H_
 
+#include <topi/detail/fuse.h>
+#include <topi/tags.h>
+#include <tvm/target/generic_func.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule_pass.h>
-#include <tvm/target/generic_func.h>
-#include <topi/tags.h>
-#include <topi/detail/fuse.h>
 
 namespace topi {
 using namespace tvm;
@@ -45,10 +45,8 @@ namespace cuda {
  * an index, such as argmax or argmin.
  *
  * \return The schedule given by sch
-*/
-Schedule ScheduleReduce(const Target& target,
-                        Operation op,
-                        Schedule sch,
+ */
+Schedule ScheduleReduce(const Target& target, Operation op, Schedule sch,
                         bool is_idx_reduce = false) {
   Tensor data_out;
   Tensor data_in;
@@ -61,8 +59,8 @@ Schedule ScheduleReduce(const Target& target,
   }
 
   auto out_stage = sch[data_out];
-  CHECK_GT(out_stage->op.as<ComputeOpNode>()->reduce_axis.size(), 0) <<
-    "reduce_axis must be greater than zero";
+  CHECK_GT(out_stage->op.as<ComputeOpNode>()->reduce_axis.size(), 0)
+      << "reduce_axis must be greater than zero";
 
   bool all_reduce;
   int num_thread;
@@ -120,10 +118,8 @@ Schedule ScheduleReduce(const Target& target,
     }
   } else {
     if (is_idx_reduce) {
-      sch[temp_idx_input].compute_at(stage_real,
-                                     stage_real->op.as<ComputeOpNode>()->axis[0]);
-      sch[temp_val_input].compute_at(stage_real,
-                                     stage_real->op.as<ComputeOpNode>()->axis[0]);
+      sch[temp_idx_input].compute_at(stage_real, stage_real->op.as<ComputeOpNode>()->axis[0]);
+      sch[temp_val_input].compute_at(stage_real, stage_real->op.as<ComputeOpNode>()->axis[0]);
     }
   }
 
@@ -152,13 +148,13 @@ void TraverseBeforeReduce(Schedule s, Operation op) {
 }
 
 /*!
-* \brief Schedule a reduce op, then invoke TraverseBeforeReduce on each
-* of the op's inputs.
-*
-* \param target The target to generate a schedule for.
-* \param s The schedule we are building
-* \param op The reduce op
-*/
+ * \brief Schedule a reduce op, then invoke TraverseBeforeReduce on each
+ * of the op's inputs.
+ *
+ * \param target The target to generate a schedule for.
+ * \param s The schedule we are building
+ * \param op The reduce op
+ */
 void TraverseAfterReduce(const Target& target, Schedule s, Operation op) {
   if (is_broadcast(op->tag)) {
     LOG(ERROR) << "Elementwise op after reduce is not yet supported";
@@ -178,13 +174,13 @@ void TraverseAfterReduce(const Target& target, Schedule s, Operation op) {
 }
 
 /*!
-* \brief Create a CUDA schedule for a reduce operation.
-*
-* \param target The target to generate a schedule for.
-* \param outs The output tensors.
-*
-* \return A schedule for the given ops.
-*/
+ * \brief Create a CUDA schedule for a reduce operation.
+ *
+ * \param target The target to generate a schedule for.
+ * \param outs The output tensors.
+ *
+ * \return A schedule for the given ops.
+ */
 Schedule schedule_reduce(const Target& target, Array<Tensor> outs) {
   CHECK_EQ(outs.size(), 1) << "outs must have size 1";
   Array<Operation> out_ops;

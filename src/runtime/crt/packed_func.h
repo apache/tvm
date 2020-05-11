@@ -24,29 +24,34 @@
 #ifndef TVM_RUNTIME_CRT_PACKED_FUNC_H_
 #define TVM_RUNTIME_CRT_PACKED_FUNC_H_
 
-#include <tvm/runtime/c_runtime_api.h>
-
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
+#include <tvm/runtime/c_runtime_api.h>
 
 #include "module.h"
 
-static inline DLDataType String2DLDataType(const char * s) {
+static inline DLDataType String2DLDataType(const char* s) {
   DLDataType t;
   // handle None type
   if (strlen(s) == 0) {
-    t.bits = 0; t.lanes = 0; t.code = kTVMOpaqueHandle;
+    t.bits = 0;
+    t.lanes = 0;
+    t.code = kTVMOpaqueHandle;
     return t;
   }
-  t.bits = 32; t.lanes = 1;
+  t.bits = 32;
+  t.lanes = 1;
   const char* scan;
   if (!strncmp(s, "int", 3)) {
-    t.code = kDLInt;  scan = s + 3;
+    t.code = kDLInt;
+    scan = s + 3;
   } else if (!strncmp(s, "uint", 4)) {
-    t.code = kDLUInt; scan = s + 4;
+    t.code = kDLUInt;
+    scan = s + 4;
   } else if (!strncmp(s, "float", 5)) {
-    t.code = kDLFloat; scan = s + 5;
+    t.code = kDLFloat;
+    scan = s + 5;
   } else if (!strncmp(s, "handle", 6)) {
     t.code = kTVMOpaqueHandle;
     t.bits = 64;  // handle uses 64 bit by default.
@@ -75,11 +80,11 @@ static inline DLDataType String2DLDataType(const char * s) {
 
 typedef struct TVMArgs {
   TVMValue values[TVM_CRT_MAX_ARGS];
-  int tcodes[TVM_CRT_MAX_ARGS];  /* Data type should be identical to type_codes in TVMPackedCFunc */
+  int tcodes[TVM_CRT_MAX_ARGS]; /* Data type should be identical to type_codes in TVMPackedCFunc */
   uint32_t values_count;
 } TVMArgs;
 
-static inline TVMArgs TVMArgs_Create(TVMValue * values, uint32_t * tcodes, uint32_t values_count) {
+static inline TVMArgs TVMArgs_Create(TVMValue* values, uint32_t* tcodes, uint32_t values_count) {
   uint32_t idx;
   TVMArgs args;
   memset(&args, 0, sizeof(args));
@@ -91,8 +96,8 @@ static inline TVMArgs TVMArgs_Create(TVMValue * values, uint32_t * tcodes, uint3
   return args;
 }
 
-static inline int TVMNoOperation(TVMValue * args, int * type_codes, int num_args,
-                                 TVMRetValueHandle ret, void * res) {
+static inline int TVMNoOperation(TVMValue* args, int* type_codes, int num_args,
+                                 TVMRetValueHandle ret, void* res) {
   return 0;
 }
 
@@ -100,24 +105,24 @@ typedef struct TVMPackedFunc {
   char name[200];
   TVMPackedCFunc fexec;
   TVMArgs args;
-  void (*Call)(struct TVMPackedFunc * pf);
-  void (*SetArgs)(struct TVMPackedFunc * pf, const struct TVMArgs * args);
+  void (*Call)(struct TVMPackedFunc* pf);
+  void (*SetArgs)(struct TVMPackedFunc* pf, const struct TVMArgs* args);
 } TVMPackedFunc;
 
-static inline void TVMPackedFunc_Call(TVMPackedFunc * pf) {
+static inline void TVMPackedFunc_Call(TVMPackedFunc* pf) {
   pf->fexec(pf->args.values, pf->args.tcodes, pf->args.values_count, 0, 0);
 }
 
-static inline void TVMPackedFunc_SetArgs(TVMPackedFunc * pf, const TVMArgs * args) {
+static inline void TVMPackedFunc_SetArgs(TVMPackedFunc* pf, const TVMArgs* args) {
   memcpy(&(pf->args), args, sizeof(TVMArgs));
 }
 
-TVMPackedFunc * g_fexecs = 0;
+TVMPackedFunc* g_fexecs = 0;
 uint32_t g_fexecs_count = 0;
 
 // Implement TVMModule::GetFunction
 // Put implementation in this file so we have seen the TVMPackedFunc
-static inline void TVMModule_GetFunction(TVMModule * mod, const char * name, TVMPackedFunc * pf) {
+static inline void TVMModule_GetFunction(TVMModule* mod, const char* name, TVMPackedFunc* pf) {
   int idx;
   memset(pf, 0, sizeof(TVMPackedFunc));
   assert(strlen(name) <= sizeof(pf->name));

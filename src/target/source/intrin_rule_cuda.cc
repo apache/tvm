@@ -31,10 +31,14 @@ struct CUDAMath {
   std::string operator()(DataType t, std::string name) const {
     if (t.is_float()) {
       switch (t.bits()) {
-        case 64: return name;
-        case 32: return name + 'f';
-        case 16: return 'h' + name;
-        default: return "";
+        case 64:
+          return name;
+        case 32:
+          return name + 'f';
+        case 16:
+          return 'h' + name;
+        default:
+          return "";
       }
     }
     return "";
@@ -55,14 +59,18 @@ struct CUDAFastMath : public CUDAMath {
 struct CUDAFastMathTan : public CUDAMath {
   std::string operator()(DataType t, std::string name) const {
     if (t.is_float()) {
-        switch (t.bits()) {
-          case 64: return name;
-          // `__tanf` seems to produce some values too deviant from numpy tan version.
-          // So, let's use just `tanf` instead.
-          case 32: return name + 'f';
-          case 16: LOG(FATAL) << "cuda tan unsupported for float16";
-          default: return "";
-        }
+      switch (t.bits()) {
+        case 64:
+          return name;
+        // `__tanf` seems to produce some values too deviant from numpy tan version.
+        // So, let's use just `tanf` instead.
+        case 32:
+          return name + 'f';
+        case 16:
+          LOG(FATAL) << "cuda tan unsupported for float16";
+        default:
+          return "";
+      }
     }
     return "";
   }
@@ -72,15 +80,17 @@ struct CUDAPopcount {
   std::string operator()(DataType t, std::string name) const {
     if (t.is_uint()) {
       switch (t.bits()) {
-        case 32: return "__popc";
-        case 64: return "__popcll";
-        default: return "";
+        case 32:
+          return "__popc";
+        case 64:
+          return "__popcll";
+        default:
+          return "";
       }
     }
     return "";
   }
 };
-
 
 struct CUDAWarpIntrinsic {
   const char* operator()(DataType t, const std::string& name) const {
@@ -111,86 +121,63 @@ static void DispatchCUDAShuffle(const TVMArgs& args, TVMRetValue* rv) {
   *rv = CallNode::make(call->dtype, name, cuda_args, CallNode::PureExtern);
 }
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.floor")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.floor").set_body(DispatchExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.ceil")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.ceil").set_body(DispatchExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.trunc")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.trunc").set_body(DispatchExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fabs")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fabs").set_body(DispatchExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.round")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.round").set_body(DispatchExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp").set_body(DispatchExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp2")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp2").set_body(DispatchExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp10")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp10").set_body(DispatchExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.erf")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.erf").set_body(DispatchExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log").set_body(DispatchExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log2")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log2").set_body(DispatchExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log10")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log10").set_body(DispatchExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tan")
-.set_body(DispatchExtern<CUDAFastMathTan>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tan").set_body(DispatchExtern<CUDAFastMathTan>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cos")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cos").set_body(DispatchExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cosh")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cosh").set_body(DispatchExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sin")
-.set_body(DispatchExtern<CUDAFastMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sin").set_body(DispatchExtern<CUDAFastMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sinh")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sinh").set_body(DispatchExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.atan")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.atan").set_body(DispatchExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tanh")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tanh").set_body(DispatchExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sqrt")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sqrt").set_body(DispatchExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.pow")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.pow").set_body(DispatchExtern<CUDAMath>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.popcount")
-.set_body(DispatchExtern<CUDAPopcount>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.popcount").set_body(DispatchExtern<CUDAPopcount>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle")
-.set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
+    .set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle_up")
-.set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
+    .set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle_down")
-.set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
+    .set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_activemask")
-.set_body(DispatchExtern<CUDAWarpIntrinsic>);
+    .set_body(DispatchExtern<CUDAWarpIntrinsic>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fmod")
-.set_body(DispatchExtern<CUDAMath>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fmod").set_body(DispatchExtern<CUDAMath>);
 
 }  // namespace intrin
 }  // namespace codegen

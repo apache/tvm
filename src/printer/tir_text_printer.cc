@@ -86,7 +86,8 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   }
   // print PrimFunc
   Doc doc;
-  doc << "primfn" << "(";
+  doc << "primfn"
+      << "(";
   // print params and its type annotation
   std::vector<Doc> params;
   for (const auto& param : op->params) {
@@ -109,10 +110,9 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   std::vector<Doc> buffer_docs;
   for (const auto& it : memo_buf_) {
     const auto& buf = it.first;
-    buffer_docs.push_back(Print(buf)
-                              << Doc::Text(": Buffer(") << Print(buf->data) << ", "
-                              << PrintDType(buf->dtype) << ", " << Print(buf->shape) << ", "
-                              << Print(buf->strides));
+    buffer_docs.push_back(Print(buf) << Doc::Text(": Buffer(") << Print(buf->data) << ", "
+                                     << PrintDType(buf->dtype) << ", " << Print(buf->shape) << ", "
+                                     << Print(buf->strides));
     if (!is_zero(buf->elem_offset)) {
       buffer_docs.back() << ", elem_offset=" << Print(buf->elem_offset);
     }
@@ -138,8 +138,8 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   for (const auto& it : op->buffer_map) {
     buffer_map_doc.push_back(Print(it.first) << ": " << Print(it.second));
   }
-  doc << Doc::Indent(2, Doc::NewLine()
-      << "buffer_map = {" << PrintSep(buffer_map_doc, Doc::Text(", ")) << "}");
+  doc << Doc::Indent(
+      2, Doc::NewLine() << "buffer_map = {" << PrintSep(buffer_map_doc, Doc::Text(", ")) << "}");
   doc << PrintBody(op->body);
   return doc;
 }
@@ -226,12 +226,12 @@ Doc TIRTextPrinter::VisitExpr_(const VarNode* op) {
   return meta_->InMeta(var) ? meta_->GetMetaNode(var) : AllocVar(GetRef<Var>(op));
 }
 
-#define TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(OpName, OpString)     \
-  Doc TIRTextPrinter::VisitExpr_(const OpName* op) {               \
-    Doc doc;                                                       \
-    doc << "(" << Print(op->a) << OpString;                        \
-    doc << Print(op->b) << ")";                                    \
-    return doc;                                                    \
+#define TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(OpName, OpString) \
+  Doc TIRTextPrinter::VisitExpr_(const OpName* op) {           \
+    Doc doc;                                                   \
+    doc << "(" << Print(op->a) << OpString;                    \
+    doc << Print(op->b) << ")";                                \
+    return doc;                                                \
   }
 
 TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(AddNode, " + ")
@@ -293,8 +293,8 @@ Doc TIRTextPrinter::VisitExpr_(const BufferLoadNode* op) {
 
 Doc TIRTextPrinter::VisitExpr_(const LoadNode* op) {
   Doc doc;
-  doc << "(" << PrintDType(op->dtype) << "*)"
-      << Print(op->buffer_var) << "[" << Print(op->index) << "])";
+  doc << "(" << PrintDType(op->dtype) << "*)" << Print(op->buffer_var) << "[" << Print(op->index)
+      << "])";
   if (!is_one(op->predicate)) {
     doc << " if " << Print(op->predicate);
   }
@@ -321,12 +321,18 @@ Doc TIRTextPrinter::VisitExpr_(const LetNode* op) {
 
 inline const char* CallType2String(CallNode::CallType t) {
   switch (t) {
-    case CallNode::Extern:return "extern";
-    case CallNode::ExternCPlusPlus:return "extern_cpp";
-    case CallNode::PureExtern:return "pure_extern";
-    case CallNode::Halide:return "halide";
-    case CallNode::Intrinsic:return "intrin";
-    case CallNode::PureIntrinsic:return "pure_intrin";
+    case CallNode::Extern:
+      return "extern";
+    case CallNode::ExternCPlusPlus:
+      return "extern_cpp";
+    case CallNode::PureExtern:
+      return "pure_extern";
+    case CallNode::Halide:
+      return "halide";
+    case CallNode::Intrinsic:
+      return "intrin";
+    case CallNode::PureIntrinsic:
+      return "pure_intrin";
   }
   LOG(FATAL) << "Unknown CallType";
   return "Unknown";
@@ -339,8 +345,7 @@ Doc TIRTextPrinter::VisitExpr_(const CallNode* op) {
   for (const auto& arg : op->args) {
     args.push_back(Print(arg));
   }
-  doc << PrintSep(args, Doc::Text(", "))
-      << ", dtype=" << PrintDType(op->dtype)
+  doc << PrintSep(args, Doc::Text(", ")) << ", dtype=" << PrintDType(op->dtype)
       << ", type=" << Doc::StrLiteral(CallType2String(op->call_type))
       << ", index=" << op->value_index << ")";
   return doc;
@@ -455,10 +460,14 @@ Doc TIRTextPrinter::VisitStmt_(const EvaluateNode* op) {
 
 inline const char* ForType2String(ForType t) {
   switch (t) {
-    case ForType::Serial:return "serial";
-    case ForType::Parallel:return "parallel";
-    case ForType::Vectorized:return "vectorized";
-    case ForType::Unrolled:return "unroll";
+    case ForType::Serial:
+      return "serial";
+    case ForType::Parallel:
+      return "parallel";
+    case ForType::Vectorized:
+      return "vectorized";
+    case ForType::Unrolled:
+      return "unroll";
   }
   LOG(FATAL) << "Unknown ForType";
   return "Unknown";
@@ -525,9 +534,15 @@ Doc TIRTextPrinter::PrintConstScalar(DataType dtype, const T& data) {
     }
     doc << Doc::Text(os.str());
     switch (dtype.code()) {
-      case kDLInt: doc << "i"; break;
-      case kDLUInt: doc << "u"; break;
-      case kDLFloat: doc << "f"; break;
+      case kDLInt:
+        doc << "i";
+        break;
+      case kDLUInt:
+        doc << "u";
+        break;
+      case kDLFloat:
+        doc << "f";
+        break;
     }
     doc << Doc::Text(std::to_string(dtype.bits()));
     if (dtype.lanes() != 1) doc << "x" << Doc::Text(std::to_string(dtype.lanes()));
@@ -540,8 +555,8 @@ Doc TIRTextPrinter::GetUniqueName(std::string prefix) {
   std::string unique_prefix = prefix;
   auto it = name_alloc_map_.find(prefix);
   if (it != name_alloc_map_.end()) {
-    while (name_alloc_map_.count(
-        unique_prefix = prefix + "_" + std::to_string(++it->second)) > 0) {}
+    while (name_alloc_map_.count(unique_prefix = prefix + "_" + std::to_string(++it->second)) > 0) {
+    }
   }
   name_alloc_map_[unique_prefix] = 0;
   return Doc::Text(unique_prefix);

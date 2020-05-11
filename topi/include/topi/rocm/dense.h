@@ -24,14 +24,15 @@
 #ifndef TOPI_ROCM_DENSE_H_
 #define TOPI_ROCM_DENSE_H_
 
-#include <tvm/te/operation.h>
-#include <tvm/target/generic_func.h>
 #include <topi/tags.h>
-#include "topi/detail/array_utils.h"
-#include "topi/nn/dense.h"
+#include <tvm/target/generic_func.h>
+#include <tvm/te/operation.h>
+
 #include "topi/contrib/rocblas.h"
-#include "topi/generic/extern.h"
 #include "topi/cuda/dense.h"
+#include "topi/detail/array_utils.h"
+#include "topi/generic/extern.h"
+#include "topi/nn/dense.h"
 
 namespace topi {
 using namespace tvm;
@@ -39,21 +40,19 @@ using namespace tvm::te;
 
 namespace rocm {
 /*!
-* \brief Implementation of dense for rocm backend
-*
-* \param target The target device
-* \param data Tensor with shape [batch, in_dim]
-* \param weight Tensor with shape [out_dim, in_dim]
-* \param bias Tensor with shape [out_dim]. Optional; to omit bias, pass Tensor()
-* \param out_dtype Output data type. Used for mixed precision.
-*
-* \return Tensor with shape [batch, out_dim]
-*/
-inline tvm::te::Tensor dense_rocm(const Target& target,
-                              const tvm::te::Tensor& data,
-                              const tvm::te::Tensor& weight,
-                              const tvm::te::Tensor& bias,
-                              const DataType& out_dtype) {
+ * \brief Implementation of dense for rocm backend
+ *
+ * \param target The target device
+ * \param data Tensor with shape [batch, in_dim]
+ * \param weight Tensor with shape [out_dim, in_dim]
+ * \param bias Tensor with shape [out_dim]. Optional; to omit bias, pass Tensor()
+ * \param out_dtype Output data type. Used for mixed precision.
+ *
+ * \return Tensor with shape [batch, out_dim]
+ */
+inline tvm::te::Tensor dense_rocm(const Target& target, const tvm::te::Tensor& data,
+                                  const tvm::te::Tensor& weight, const tvm::te::Tensor& bias,
+                                  const DataType& out_dtype) {
   CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias.defined()) {
@@ -68,10 +67,8 @@ inline tvm::te::Tensor dense_rocm(const Target& target,
     CHECK_EQ(data->dtype, out_dtype) << "Mixed precision not supported.";
     auto mm = topi::contrib::rocblas_matmul(data, weight, false, true);
     if (bias.defined()) {
-      mm = tvm::te::compute({ batch, out_dim },
-                        [&](Var i, Var j) {
-                          return mm(i, j) + bias(j);
-                        }, "tensor", kBroadcast);
+      mm = tvm::te::compute(
+          {batch, out_dim}, [&](Var i, Var j) { return mm(i, j) + bias(j); }, "tensor", kBroadcast);
     }
 
     return mm;
@@ -81,16 +78,15 @@ inline tvm::te::Tensor dense_rocm(const Target& target,
 }
 
 /*!
-* \brief Create a rocm schedule for dense
-*
-* \param target The target to generate a schedule for.
-* \param outs The output tensors.
-*
-* \return A schedule for the given ops.
-*/
-inline Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) {
-  if (target->target_name == "rocm" &&
-    target->libs().count("rocblas")) {
+ * \brief Create a rocm schedule for dense
+ *
+ * \param target The target to generate a schedule for.
+ * \param outs The output tensors.
+ *
+ * \return A schedule for the given ops.
+ */
+inline Schedule schedule_dense(const Target& target, const Array<Tensor>& outs) {
+  if (target->target_name == "rocm" && target->libs().count("rocblas")) {
     return topi::generic::schedule_extern(target, outs);
   }
 

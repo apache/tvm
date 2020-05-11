@@ -21,17 +21,15 @@
  * \file topk.cc
  * \brief TopK operators
  */
-#include <tvm/relay/op.h>
 #include <tvm/relay/attrs/algorithm.h>
+#include <tvm/relay/op.h>
 
 namespace tvm {
 namespace relay {
 
 TVM_REGISTER_NODE_TYPE(TopKAttrs);
 
-bool TopKRel(const Array<Type>& types,
-             int num_inputs,
-             const Attrs& attrs,
+bool TopKRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
              const TypeReporter& reporter) {
   // `types` contains: [data, result]
   const TopKAttrs* param = attrs.as<TopKAttrs>();
@@ -66,12 +64,7 @@ bool TopKRel(const Array<Type>& types,
   return true;
 }
 
-Expr MakeTopK(Expr data,
-              int k,
-              int axis,
-              std::string ret_type,
-              bool is_ascend,
-              DataType dtype) {
+Expr MakeTopK(Expr data, int k, int axis, std::string ret_type, bool is_ascend, DataType dtype) {
   auto attrs = make_object<TopKAttrs>();
   attrs->k = k;
   attrs->axis = axis;
@@ -82,19 +75,16 @@ Expr MakeTopK(Expr data,
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-
-TVM_REGISTER_GLOBAL("relay.op._make.topk")
-.set_body_typed(MakeTopK);
+TVM_REGISTER_GLOBAL("relay.op._make.topk").set_body_typed(MakeTopK);
 
 RELAY_REGISTER_OP("topk")
-.describe(R"doc(Get the top k elements in an input tensor along the given axis.
+    .describe(R"doc(Get the top k elements in an input tensor along the given axis.
 )doc" TVM_ADD_FILELINE)
-.set_num_inputs(1)
-.set_attrs_type<TopKAttrs>()
-.add_argument("data", "Tensor", "Input data.")
-.set_support_level(6)
-.add_type_rel("TopK", TopKRel);
+    .set_num_inputs(1)
+    .set_attrs_type<TopKAttrs>()
+    .add_argument("data", "Tensor", "Input data.")
+    .set_support_level(6)
+    .add_type_rel("TopK", TopKRel);
 
 }  // namespace relay
 }  // namespace tvm
-

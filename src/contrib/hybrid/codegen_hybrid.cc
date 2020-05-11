@@ -20,10 +20,12 @@
 /*!
  * \file codegen_hybrid.cc
  */
-#include <tvm/runtime/registry.h>
-#include <iomanip>
-#include <cctype>
 #include "codegen_hybrid.h"
+
+#include <tvm/runtime/registry.h>
+
+#include <cctype>
+#include <iomanip>
 
 namespace tvm {
 namespace contrib {
@@ -34,7 +36,7 @@ using runtime::TVMRetValue;
 using namespace tir;
 
 std::string dot_to_underscore(std::string s) {
-  for (auto &ch : s)
+  for (auto& ch : s)
     if (ch == '.') ch = '_';
   return s;
 }
@@ -57,11 +59,9 @@ std::string CodeGenHybrid::GetUniqueName(std::string prefix) {
   return prefix;
 }
 
-std::string CodeGenHybrid::Finish() {
-  return stream.str();
-}
+std::string CodeGenHybrid::Finish() { return stream.str(); }
 
-void CodeGenHybrid::PrintType(DataType t, std::ostream &os) {
+void CodeGenHybrid::PrintType(DataType t, std::ostream& os) {
   if (t.is_float()) {
     os << "float";
     CHECK(t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
@@ -80,20 +80,19 @@ void CodeGenHybrid::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOL
   os << op->value;
 }
 
-void CodeGenHybrid::VisitExpr_(const FloatImmNode* op, std::ostream& os) { // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintType(op->dtype, os);
   os << "(" << std::setprecision(20) << op->value << ")";
 }
-void CodeGenHybrid::VisitExpr_(const StringImmNode* op, std::ostream& os) { // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const StringImmNode* op, std::ostream& os) {  // NOLINT(*)
   os << "'" << op->value << "'";
 }
 
-template<typename T>
-inline void PrintBinaryExpr(const T* op,
-                            const char* opstr,
+template <typename T>
+inline void PrintBinaryExpr(const T* op, const char* opstr,
                             std::ostream& os,  // NOLINT(*)
                             CodeGenHybrid* p) {
-  CHECK(op->dtype.lanes() == 1)  << "vec bin op not implemented";
+  CHECK(op->dtype.lanes() == 1) << "vec bin op not implemented";
   if (isalpha(opstr[0])) {
     os << opstr << '(';
     p->PrintExpr(op->a, os);
@@ -111,11 +110,10 @@ inline void PrintBinaryExpr(const T* op,
   }
 }
 
-inline void PrintBinaryIntrinsitc(const CallNode* op,
-                                  const char* opstr,
+inline void PrintBinaryIntrinsitc(const CallNode* op, const char* opstr,
                                   std::ostream& os,  // NOLINT(*)
                                   CodeGenHybrid* p) {
-  CHECK(op->dtype.lanes() == 1)  << "vec bin intrin not implemented";
+  CHECK(op->dtype.lanes() == 1) << "vec bin intrin not implemented";
   CHECK_EQ(op->args.size(), 2U);
   os << '(';
   p->PrintExpr(op->args[0], os);
@@ -252,9 +250,7 @@ void CodeGenHybrid::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLIN
   LOG(FATAL) << "Phase 0 has no Load(s)!";
 }
 
-void CodeGenHybrid::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Phase 0 has no Store(s)!";
-}
+void CodeGenHybrid::VisitStmt_(const StoreNode* op) { LOG(FATAL) << "Phase 0 has no Store(s)!"; }
 
 void CodeGenHybrid::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Phase 0 has no Let(s)!";
@@ -268,7 +264,7 @@ void CodeGenHybrid::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLIN
   LOG(FATAL) << "Ramp to be supported yet";
 }
 
-void CodeGenHybrid::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Broadcast: not supported ";
 }
 
@@ -293,8 +289,8 @@ void CodeGenHybrid::VisitStmt_(const AttrStmtNode* op) {
     CHECK(iter_var);
     binds_[iter_var->var.get()] = dot_to_underscore(iter_var->var->name_hint);
     PrintIndent();
-    stream << "for " << binds_[iter_var->var.get()] << " in bind('"
-           << iter_var->var->name_hint << "', ";
+    stream << "for " << binds_[iter_var->var.get()] << " in bind('" << iter_var->var->name_hint
+           << "', ";
     PrintExpr(op->value, stream);
     stream << "):\n";
     indent_ += tab_;
@@ -355,17 +351,16 @@ void CodeGenHybrid::VisitStmt_(const ForNode* op) {
   std::string extent = PrintExpr(op->extent);
   PrintIndent();
   std::string vid = GetVarID(op->loop_var.get());
-  stream << "for " << vid << " in " << "range(" << extent << "):\n";
+  stream << "for " << vid << " in "
+         << "range(" << extent << "):\n";
   indent_ += tab_;
   PrintStmt(op->body);
   indent_ -= tab_;
 }
 
-bool is_noop(const Stmt &stmt) {
-  if (!stmt.defined())
-    return true;
-  if (auto eval = stmt.as<EvaluateNode>())
-    return is_const(eval->value);
+bool is_noop(const Stmt& stmt) {
+  if (!stmt.defined()) return true;
+  if (auto eval = stmt.as<EvaluateNode>()) return is_const(eval->value);
   return false;
 }
 
@@ -395,17 +390,13 @@ void CodeGenHybrid::VisitStmt_(const SeqStmtNode* op) {
 void CodeGenHybrid::VisitStmt_(const EvaluateNode* op) {
   if (is_const(op->value)) return;
   std::string str = PrintExpr(op->value);
-  if (!str.empty())
-    stream << str << "\n";
+  if (!str.empty()) stream << str << "\n";
 }
 
-void CodeGenHybrid::PrintIndent() {
-  stream << std::string(indent_, ' ');
-}
+void CodeGenHybrid::PrintIndent() { stream << std::string(indent_, ' '); }
 
-std::string CodeGenHybrid::GetVarID(const VarNode *v) {
-  if (binds_.count(v))
-    return binds_[v];
+std::string CodeGenHybrid::GetVarID(const VarNode* v) {
+  if (binds_.count(v)) return binds_[v];
   auto key = std::make_pair(static_cast<const Object*>(v), 0);
   if (id_map_.count(key)) {
     return id_map_[key];
@@ -413,7 +404,7 @@ std::string CodeGenHybrid::GetVarID(const VarNode *v) {
   return id_map_[key] = GetUniqueName(v->name_hint);
 }
 
-std::string CodeGenHybrid::GetTensorID(const FunctionRef &func, int value_index) {
+std::string CodeGenHybrid::GetTensorID(const FunctionRef& func, int value_index) {
   auto key = std::make_pair(func.get(), value_index);
   if (id_map_.count(key)) {
     return id_map_[key];
@@ -469,10 +460,8 @@ void CodeGenHybrid::ReserveKeywords() {
   GetUniqueName("max_num_threads");
 }
 
-void CodeGenHybrid::DumpStmt(const Stmt &stmt,
-                             const Array<ObjectRef> &inputs,
-                             const Array<Tensor> &outputs,
-                             const std::string &name) {
+void CodeGenHybrid::DumpStmt(const Stmt& stmt, const Array<ObjectRef>& inputs,
+                             const Array<Tensor>& outputs, const std::string& name) {
   ReserveKeywords();
   GetUniqueName(name);
 
@@ -491,14 +480,12 @@ void CodeGenHybrid::DumpStmt(const Stmt &stmt,
   indent_ += tab_;
   for (size_t i = 0; i < outputs.size(); ++i) {
     PrintIndent();
-    stream << GetTensorID(outputs[i]->op, outputs[i]->value_index)
-           << " = output_tensor((";
+    stream << GetTensorID(outputs[i]->op, outputs[i]->value_index) << " = output_tensor((";
     for (size_t j = 0; j < outputs[i]->shape.size(); ++j) {
       if (j) stream << ", ";
       PrintExpr(outputs[i]->shape[j], stream);
     }
-    if (outputs[i]->shape.size() == 1)
-      stream << ", ";
+    if (outputs[i]->shape.size() == 1) stream << ", ";
     stream << "), '" << outputs[i]->dtype << "')\n";
   }
   PrintStmt(stmt);
@@ -511,14 +498,13 @@ void CodeGenHybrid::DumpStmt(const Stmt &stmt,
   stream << "\n";
 }
 
-TVM_REGISTER_GLOBAL("hybrid._Dump")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    CodeGenHybrid codegen;
-    if (args.size() == 4)
-      codegen.DumpStmt(args[0], args[1], args[2], args[3]);
-    else
-      codegen.DumpStmt(args[0], args[1], args[2]);
-    *rv = codegen.Finish();
-  });
+TVM_REGISTER_GLOBAL("hybrid._Dump").set_body([](TVMArgs args, TVMRetValue* rv) {
+  CodeGenHybrid codegen;
+  if (args.size() == 4)
+    codegen.DumpStmt(args[0], args[1], args[2], args[3]);
+  else
+    codegen.DumpStmt(args[0], args[1], args[2]);
+  *rv = codegen.Finish();
+});
 }  // namespace contrib
 }  // namespace tvm

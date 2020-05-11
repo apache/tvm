@@ -23,17 +23,15 @@
  *  To correctly order mutation and read to resolve
  *  write after read problem and read after write problems.
  */
-#include <nnvm/pass.h>
 #include <nnvm/op_attr_types.h>
+#include <nnvm/pass.h>
 
 namespace nnvm {
 namespace pass {
 namespace {
 
-template<typename T>
-inline T get_with_default(const std::unordered_map<Node*, T> &map,
-                          Node* key,
-                          const T& def) {
+template <typename T>
+inline T get_with_default(const std::unordered_map<Node*, T>& map, Node* key, const T& def) {
   auto it = map.find(key);
   if (it != map.end()) return it->second;
   return def;
@@ -46,19 +44,19 @@ inline bool IsMutate(const std::vector<uint32_t>& mutate_inputs, uint32_t i) {
 Graph OrderMutation(const Graph& src) {
   std::unordered_map<Node*, std::vector<NodeEntry> > version_hist;
   DFSVisit(src.outputs, [&version_hist](const ObjectPtr& n) {
-      for (const NodeEntry& e : n->inputs) {
-        if (e.node->is_variable()) {
-          if (e.version != 0 && version_hist.count(e.node.get()) == 0) {
-            version_hist[e.node.get()] = std::vector<NodeEntry>{};
-          }
+    for (const NodeEntry& e : n->inputs) {
+      if (e.node->is_variable()) {
+        if (e.version != 0 && version_hist.count(e.node.get()) == 0) {
+          version_hist[e.node.get()] = std::vector<NodeEntry>{};
         }
       }
-    });
+    }
+  });
   // no mutation happens, everything if fine.
   if (version_hist.size() == 0) return src;
   // start preparing for remapping the nodes.
   std::unordered_map<Node*, ObjectPtr> old_new;
-  auto prepare = [&version_hist, &old_new] (const ObjectPtr& n) {
+  auto prepare = [&version_hist, &old_new](const ObjectPtr& n) {
     static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
     std::vector<uint32_t> mutate_inputs;
     if (!n->is_variable() && fmutate_inputs.count(n->op())) {
@@ -91,17 +89,17 @@ Graph OrderMutation(const Graph& src) {
   };
   DFSVisit(src.outputs, prepare);
   // comparator of history entry
-  auto comparator = [](const NodeEntry& a, const NodeEntry &b) {
+  auto comparator = [](const NodeEntry& a, const NodeEntry& b) {
     if (a.version < b.version) return true;
     if (a.version > b.version) return false;
     return a.index > b.index;
   };
 
-  for (auto &kv : version_hist) {
+  for (auto& kv : version_hist) {
     std::sort(kv.second.begin(), kv.second.end(), comparator);
   }
   // copy the nodes, as well as add control deps
-  for (auto &kv : old_new) {
+  for (auto& kv : old_new) {
     // copy the nodes
     for (const NodeEntry& e : kv.first->inputs) {
       auto it = old_new.find(e.node.get());
@@ -112,8 +110,7 @@ Graph OrderMutation(const Graph& src) {
       }
     }
     for (const ObjectPtr& p : kv.first->control_deps) {
-      kv.second->control_deps.emplace_back(
-          get_with_default(old_new, p.get(), p));
+      kv.second->control_deps.emplace_back(get_with_default(old_new, p.get(), p));
     }
     // add control deps
     static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
@@ -127,9 +124,8 @@ Graph OrderMutation(const Graph& src) {
       const NodeEntry& e = kv.first->inputs[i];
       if (e.node->is_variable() && version_hist.count(e.node.get()) != 0) {
         std::vector<NodeEntry>& vec = version_hist.at(e.node.get());
-        auto it = std::lower_bound(vec.begin(), vec.end(),
-                                   NodeEntry{nullptr, 1, e.version},
-                                   comparator);
+        auto it =
+            std::lower_bound(vec.begin(), vec.end(), NodeEntry{nullptr, 1, e.version}, comparator);
         if (IsMutate(mutate_inputs, i)) {
           int read_dep = 0;
           while (it != vec.begin()) {
@@ -137,37 +133,35 @@ Graph OrderMutation(const Graph& src) {
             if (it->index != 0) break;
             ++read_dep;
             // depend on previous read
-            kv.second->control_deps.push_back(
-                get_with_default(old_new, it->node.get(), it->node));
+            kv.second->control_deps.push_back(get_with_default(old_new, it->node.get(), it->node));
           }
           if (read_dep == 0 && it->index != 0) {
             // depend on last write
-            kv.second->control_deps.push_back(
-                get_with_default(old_new, it->node.get(), it->node));
+            kv.second->control_deps.push_back(get_with_default(old_new, it->node.get(), it->node));
           }
         } else {
           // depend on last write
           if (it->index != 0) {
-            kv.second->control_deps.push_back(
-                get_with_default(old_new, it->node.get(), it->node));
+            kv.second->control_deps.push_back(get_with_default(old_new, it->node.get(), it->node));
           }
         }
       }
     }
   }
   Graph ret;
-  for (const NodeEntry &e : src.outputs) {
-    ret.outputs.emplace_back(NodeEntry{
-        get_with_default(old_new, e.node.get(), e.node), e.index, e.version});
+  for (const NodeEntry& e : src.outputs) {
+    ret.outputs.emplace_back(
+        NodeEntry{get_with_default(old_new, e.node.get(), e.node), e.index, e.version});
   }
   return ret;
 }
 
 NNVM_REGISTER_PASS(OrderMutation)
-.describe("Return a new graph that adds control dependencies, "\
-          "to order the mutation and reads if mutation exists.")
-.set_body(OrderMutation)
-.set_change_graph(true);
+    .describe(
+        "Return a new graph that adds control dependencies, "
+        "to order the mutation and reads if mutation exists.")
+    .set_body(OrderMutation)
+    .set_change_graph(true);
 
 }  // namespace
 }  // namespace pass

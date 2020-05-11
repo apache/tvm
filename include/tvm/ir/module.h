@@ -24,15 +24,16 @@
 #ifndef TVM_IR_MODULE_H_
 #define TVM_IR_MODULE_H_
 
-#include <tvm/ir/type.h>
+#include <tvm/ir/adt.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
-#include <tvm/ir/adt.h>
+#include <tvm/ir/type.h>
 #include <tvm/node/container.h>
+
 #include <string>
-#include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace tvm {
 class IRModule;
@@ -102,8 +103,7 @@ class IRModuleNode : public Object {
    *
    * It does not do type checking as AddTypeDef does.
    */
-  TVM_DLL void AddTypeDefUnchecked(const GlobalTypeVar& var,
-                                   const TypeData& type,
+  TVM_DLL void AddTypeDefUnchecked(const GlobalTypeVar& var, const TypeData& type,
                                    bool update = false);
 
   /*!
@@ -303,9 +303,7 @@ class IRModule : public ObjectRef {
    *
    * \returns The constructed module
    */
-  static IRModule Empty() {
-    return IRModule(Map<GlobalVar, BaseFunc>());
-  }
+  static IRModule Empty() { return IRModule(Map<GlobalVar, BaseFunc>()); }
   /*!
    * \brief Construct a module from a standalone expression.
    *
@@ -318,10 +316,9 @@ class IRModule : public ObjectRef {
    *
    * \returns A module with expr set as the main function.
    */
-  TVM_DLL static IRModule FromExpr(
-    const RelayExpr& expr,
-    const Map<GlobalVar, BaseFunc>& global_funcs = {},
-    const Map<GlobalTypeVar, TypeData>& type_definitions = {});
+  TVM_DLL static IRModule FromExpr(const RelayExpr& expr,
+                                   const Map<GlobalVar, BaseFunc>& global_funcs = {},
+                                   const Map<GlobalTypeVar, TypeData>& type_definitions = {});
 
   /*!
    * \brief Parse text format source file into an IRModule.
@@ -362,8 +359,7 @@ TVM_DLL String PrettyPrint(const ObjectRef& node);
  * \sa PrettyPrint.
  * \return The text representation.
  */
-TVM_DLL String AsText(const ObjectRef& node,
-                      bool show_meta_data = true,
+TVM_DLL String AsText(const ObjectRef& node, bool show_meta_data = true,
                       runtime::TypedPackedFunc<String(ObjectRef)> annotate = nullptr);
 }  // namespace tvm
 #endif  // TVM_IR_MODULE_H_

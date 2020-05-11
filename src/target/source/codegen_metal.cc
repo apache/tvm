@@ -20,13 +20,15 @@
 /*!
  * \file codegen_metal.cc
  */
-#include <vector>
-#include <string>
-#include <algorithm>
 #include "codegen_metal.h"
-#include "../build_common.h"
+
+#include <algorithm>
+#include <string>
+#include <vector>
+
 #include "../../runtime/metal/metal_module.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "../build_common.h"
 
 namespace tvm {
 namespace codegen {
@@ -57,8 +59,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
 
   // add to alloc buffer type.
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  CHECK(global_symbol.defined())
-      << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+  CHECK(global_symbol.defined()) << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
 
   // Function header.
   this->stream << "kernel void " << static_cast<std::string>(global_symbol.value()) << "(";
@@ -67,7 +68,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   size_t num_buffer = 0;
   for (size_t i = 0; i < f->params.size(); ++i, ++num_buffer) {
     Var v = f->params[i];
-    if (!v.dtype().is_handle())  break;
+    if (!v.dtype().is_handle()) break;
     stream << "  ";
     std::string vid = AllocVarID(v.get());
     auto it = alloc_storage_scope_.find(v.get());
@@ -83,17 +84,15 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
         RegisterHandleType(v.get(), prim->dtype);
       }
     }
-    stream << ' ' << vid
-           << " [[ buffer(" << i << ") ]],\n";
+    stream << ' ' << vid << " [[ buffer(" << i << ") ]],\n";
   }
   // Setup normal arguments.
   size_t nargs = f->params.size() - num_buffer;
   std::string varg = GetUniqueName("arg");
   if (nargs != 0) {
-    std::string arg_buf_type =
-        static_cast<std::string>(global_symbol.value()) + "_args_t";
-    stream << "  constant " << arg_buf_type << "& " << varg
-           << " [[ buffer(" << num_buffer << ") ]],\n";
+    std::string arg_buf_type = static_cast<std::string>(global_symbol.value()) + "_args_t";
+    stream << "  constant " << arg_buf_type << "& " << varg << " [[ buffer(" << num_buffer
+           << ") ]],\n";
     // declare the struct
     decl_stream << "struct " << arg_buf_type << " {\n";
     for (size_t i = num_buffer; i < f->params.size(); ++i) {
@@ -120,8 +119,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   CHECK_EQ(GetUniqueName("threadIdx"), "threadIdx");
   CHECK_EQ(GetUniqueName("blockIdx"), "blockIdx");
   int work_dim = 0;
-  auto thread_axis = f->GetAttr<Array<tir::IterVar>>(
-      tir::attr::kDeviceThreadAxis).value();
+  auto thread_axis = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis).value();
 
   for (IterVar iv : thread_axis) {
     runtime::ThreadScope scope = runtime::ThreadScope::make(iv->thread_tag);
@@ -164,23 +162,31 @@ void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
 void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
-    CHECK_EQ(lanes, 1)
-        << "do not yet support vector types";
-    os << "void*"; return;
+    CHECK_EQ(lanes, 1) << "do not yet support vector types";
+    os << "void*";
+    return;
   }
   if (t == DataType::Bool()) {
-    os << "bool"; return;
+    os << "bool";
+    return;
   }
   bool fail = false;
   if (t.is_float()) {
     switch (t.bits()) {
-      case 16: os << "half"; break;
-      case 32: os << "float"; break;
-      default: fail = true; break;
+      case 16:
+        os << "half";
+        break;
+      case 32:
+        os << "float";
+        break;
+      default:
+        fail = true;
+        break;
     }
     if (!fail && lanes == 1) return;
     if (!fail && (lanes >= 2 && lanes <= 4)) {
-      os << lanes; return;
+      os << lanes;
+      return;
     }
   } else if (t.is_uint() || t.is_int()) {
     if (t.is_uint()) {
@@ -188,18 +194,30 @@ void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     }
     if (t.bits() == 8 && t.lanes() == 4) {
       // directly 4 8 bit int in integer.
-      os << "int"; return;
+      os << "int";
+      return;
     }
     switch (t.bits()) {
-      case 8: os << "char"; break;
-      case 16: os << "short"; break;
-      case 32: os << "int"; break;
-      case 1: os << "bool"; break;
-      default: fail = true; break;
+      case 8:
+        os << "char";
+        break;
+      case 16:
+        os << "short";
+        break;
+      case 32:
+        os << "int";
+        break;
+      case 1:
+        os << "bool";
+        break;
+      default:
+        fail = true;
+        break;
     }
     if (!fail && lanes == 1) return;
     if (!fail && (lanes >= 2 && lanes <= 4)) {
-      os << lanes; return;
+      os << lanes;
+      return;
     }
   }
   LOG(FATAL) << "Cannot convert type " << t << " to Metal type";
@@ -218,22 +236,19 @@ void CodeGenMetal::PrintStorageSync(const CallNode* op) {
   }
 }
 
-void CodeGenMetal::PrintVecElemLoad(const std::string& vec,
-                                    DataType t, int i,
+void CodeGenMetal::PrintVecElemLoad(const std::string& vec, DataType t, int i,
                                     std::ostream& os) {  // NOLINT(*)
   os << vec << "[" << i << "]";
 }
 
-void CodeGenMetal::PrintVecElemStore(const std::string& vec,
-                                     DataType t, int i,
+void CodeGenMetal::PrintVecElemStore(const std::string& vec, DataType t, int i,
                                      const std::string& value) {
   this->PrintIndent();
   stream << vec << "[" << i << "]"
          << " = " << value << ";\n";
 }
 
-void CodeGenMetal::PrintStorageScope(
-    const std::string& scope, std::ostream& os) { // NOLINT(*)
+void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os) {  // NOLINT(*)
   if (scope == "global") {
     os << "device ";
   } else if (scope == "shared") {
@@ -243,7 +258,7 @@ void CodeGenMetal::PrintStorageScope(
   }
 }
 
-void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   // NOLINT(*)
+void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   PrintType(op->dtype, os);
   os << "(";
@@ -273,9 +288,8 @@ runtime::Module BuildMetal(IRModule mod) {
   CodeGenMetal cg;
   cg.Init(output_ssa);
 
-  for (auto kv :  mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>())
-        << "CodeGenMetal: Can only take PrimFunc";
+  for (auto kv : mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
@@ -294,9 +308,8 @@ runtime::Module BuildMetal(IRModule mod) {
   return MetalModuleCreate(code, fmt, ExtractFuncInfo(mod), source);
 }
 
-TVM_REGISTER_GLOBAL("target.build.metal")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = BuildMetal(args[0]);
-  });
+TVM_REGISTER_GLOBAL("target.build.metal").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = BuildMetal(args[0]);
+});
 }  // namespace codegen
 }  // namespace tvm

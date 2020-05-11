@@ -36,14 +36,15 @@
  *  - Add annotation of extern buffers using the buffer_map field
  *    in the PrimFunc type.
  */
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/container.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/te/operation.h>
-#include <utility>
+
 #include <unordered_map>
+#include <utility>
 
 namespace tvm {
 namespace te {
@@ -62,8 +63,7 @@ Buffer CreateBufferFor(const Tensor& tensor) {
 class TensorToBufferMapper : public StmtExprMutator {
  public:
   explicit TensorToBufferMapper(std::unordered_map<Tensor, Buffer> buffer_map)
-      : buffer_map_(buffer_map) {
-  }
+      : buffer_map_(buffer_map) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     auto ret = StmtExprMutator::VisitStmt_(op);
@@ -76,22 +76,19 @@ class TensorToBufferMapper : public StmtExprMutator {
       Operation operation = Downcast<Operation>(op->node);
       for (int i = operation->num_outputs(); i != 0; --i) {
         Buffer buffer = GetOrAllocBuffer(operation.output(i - 1));
-        body = AttrStmtNode::make(
-            buffer, op->attr_key, op->value, body);
+        body = AttrStmtNode::make(buffer, op->attr_key, op->value, body);
       }
       return body;
     } else if (op->attr_key == tir::attr::buffer_bind_scope) {
-      Array<ObjectRef> tuple = Downcast<Array<ObjectRef> >(op->node);
+      Array<ObjectRef> tuple = Downcast<Array<ObjectRef>>(op->node);
       Tensor tensor = Downcast<Tensor>(tuple[1]);
-      return AttrStmtNode::make(
-          Array<ObjectRef>{tuple[0], GetOrAllocBuffer(tensor)},
-          op->attr_key, op->value, op->body);
-    } else if (op->attr_key == tir::attr::buffer_dim_align||
+      return AttrStmtNode::make(Array<ObjectRef>{tuple[0], GetOrAllocBuffer(tensor)}, op->attr_key,
+                                op->value, op->body);
+    } else if (op->attr_key == tir::attr::buffer_dim_align ||
                op->attr_key == tir::attr::prefetch_scope) {
       Tensor tensor = Downcast<Tensor>(op->node);
       Buffer buffer = GetOrAllocBuffer(tensor);
-      return AttrStmtNode::make(
-          buffer, op->attr_key, op->value, op->body);
+      return AttrStmtNode::make(buffer, op->attr_key, op->value, op->body);
     } else {
       return ret;
     }
@@ -131,9 +128,7 @@ class TensorToBufferMapper : public StmtExprMutator {
   }
 
  private:
-  Buffer GetOrAllocBuffer(const Tensor& tensor) {
-    return GetBuffer(tensor, true);
-  }
+  Buffer GetOrAllocBuffer(const Tensor& tensor) { return GetBuffer(tensor, true); }
 
   Buffer GetBuffer(const Tensor& tensor, bool allow_alloc = false) {
     auto it = buffer_map_.find(tensor);
@@ -149,9 +144,7 @@ class TensorToBufferMapper : public StmtExprMutator {
   std::unordered_map<Tensor, Buffer> buffer_map_;
 };
 
-
-PrimFunc SchedulePostProcToPrimFunc(Array<ObjectRef> arg_list,
-                                    Stmt body,
+PrimFunc SchedulePostProcToPrimFunc(Array<ObjectRef> arg_list, Stmt body,
                                     Optional<Map<Tensor, Buffer>> extern_buffer_opt) {
   std::unordered_map<Tensor, Buffer> extern_buffer;
 
@@ -188,7 +181,7 @@ PrimFunc SchedulePostProcToPrimFunc(Array<ObjectRef> arg_list,
 }
 
 TVM_REGISTER_GLOBAL("schedule.SchedulePostProcToPrimFunc")
-.set_body_typed(SchedulePostProcToPrimFunc);
+    .set_body_typed(SchedulePostProcToPrimFunc);
 
 }  // namespace te
 }  // namespace tvm

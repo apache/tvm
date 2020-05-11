@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_OPENCL_AOCL_AOCL_COMMON_H_
 
 #include <memory>
+
 #include "../opencl_common.h"
 
 namespace tvm {
@@ -43,7 +44,6 @@ class AOCLWorkspace final : public OpenCLWorkspace {
   // get the global workspace
   static const std::shared_ptr<OpenCLWorkspace>& Global();
 };
-
 
 /*! \brief Thread local workspace for AOCL */
 class AOCLThreadEntry : public OpenCLThreadEntry {

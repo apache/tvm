@@ -24,9 +24,9 @@
 #ifndef TVM_SUPPORT_RING_BUFFER_H_
 #define TVM_SUPPORT_RING_BUFFER_H_
 
-#include <vector>
-#include <cstring>
 #include <algorithm>
+#include <cstring>
+#include <vector>
 
 namespace tvm {
 namespace support {
@@ -41,13 +41,9 @@ class RingBuffer {
   /*! \brief constructor */
   RingBuffer() : ring_(kInitCapacity) {}
   /*! \return number of bytes available in buffer. */
-  size_t bytes_available() const {
-    return bytes_available_;
-  }
+  size_t bytes_available() const { return bytes_available_; }
   /*! \return Current capacity of buffer. */
-  size_t capacity() const {
-    return ring_.size();
-  }
+  size_t capacity() const { return ring_.size(); }
   /*!
    *  Reserve capacity to be at least n.
    *  Will only increase capacity if n is bigger than current capacity.
@@ -59,16 +55,15 @@ class RingBuffer {
    */
   void Reserve(size_t n) {
     if (ring_.size() < n) {
-        size_t old_size = ring_.size();
-        size_t new_size = static_cast<size_t>(n * 1.2);
-        ring_.resize(new_size);
-        if (head_ptr_ + bytes_available_ > old_size) {
-          // copy the ring overflow part into the tail.
-          size_t ncopy = head_ptr_ + bytes_available_ - old_size;
-          memcpy(&ring_[0] + old_size, &ring_[0], ncopy);
-        }
-    } else if (ring_.size() > n * 8 &&
-               ring_.size() > kInitCapacity) {
+      size_t old_size = ring_.size();
+      size_t new_size = static_cast<size_t>(n * 1.2);
+      ring_.resize(new_size);
+      if (head_ptr_ + bytes_available_ > old_size) {
+        // copy the ring overflow part into the tail.
+        size_t ncopy = head_ptr_ + bytes_available_ - old_size;
+        memcpy(&ring_[0] + old_size, &ring_[0], ncopy);
+      }
+    } else if (ring_.size() > n * 8 && ring_.size() > kInitCapacity) {
       // shrink too large temporary buffer to
       // avoid out of memory on some embedded devices
       if (bytes_available_ != 0) {
@@ -81,7 +76,7 @@ class RingBuffer {
         bytes_available_ = old_bytes;
       }
       // shrink the ring.
-      size_t new_size  = kInitCapacity;
+      size_t new_size = kInitCapacity;
       new_size = std::max(new_size, n);
       new_size = std::max(new_size, bytes_available_);
 
@@ -102,8 +97,7 @@ class RingBuffer {
     size_t ncopy = std::min(size, ring_.size() - head_ptr_);
     memcpy(data, &ring_[0] + head_ptr_, ncopy);
     if (ncopy < size) {
-      memcpy(reinterpret_cast<char*>(data) + ncopy,
-             &ring_[0], size - ncopy);
+      memcpy(reinterpret_cast<char*>(data) + ncopy, &ring_[0], size - ncopy);
     }
     head_ptr_ = (head_ptr_ + size) % ring_.size();
     bytes_available_ -= size;
@@ -115,7 +109,7 @@ class RingBuffer {
    * \param max_nbytes Maximum number of bytes can to read.
    * \tparam FSend A non-blocking function with signature size_t (const void* data, size_t size);
    */
-  template<typename FSend>
+  template <typename FSend>
   size_t ReadWithCallback(FSend fsend, size_t max_nbytes) {
     size_t size = std::min(max_nbytes, bytes_available_);
     CHECK_NE(size, 0U);
@@ -155,7 +149,7 @@ class RingBuffer {
    * \param max_nbytes Maximum number of bytes can write.
    * \tparam FRecv A non-blocking function with signature size_t (void* data, size_t size);
    */
-  template<typename FRecv>
+  template <typename FRecv>
   size_t WriteWithCallback(FRecv frecv, size_t max_nbytes) {
     this->Reserve(bytes_available_ + max_nbytes);
     size_t nbytes = max_nbytes;

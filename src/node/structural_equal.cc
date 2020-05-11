@@ -19,10 +19,10 @@
 /*!
  * \file src/node/structural_equal.cc
  */
-#include <tvm/node/structural_equal.h>
-#include <tvm/node/reflection.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
+#include <tvm/node/reflection.h>
+#include <tvm/node/structural_equal.h>
 #include <tvm/runtime/registry.h>
 
 #include <unordered_map>
@@ -30,13 +30,13 @@
 namespace tvm {
 
 // Define the dispatch functio here since primary user is in this file.
-bool ReflectionVTable::
-SEqualReduce(const Object* self, const Object* other, SEqualReducer equal) const {
+bool ReflectionVTable::SEqualReduce(const Object* self, const Object* other,
+                                    SEqualReducer equal) const {
   uint32_t tindex = self->type_index();
   if (tindex >= fsequal_reduce_.size() || fsequal_reduce_[tindex] == nullptr) {
     LOG(FATAL) << "TypeError: SEqualReduce of " << self->GetTypeKey()
-        << " is not registered via TVM_REGISTER_NODE_TYPE."
-        << " Did you forget to set _type_has_method_sequal_reduce=true?";
+               << " is not registered via TVM_REGISTER_NODE_TYPE."
+               << " Did you forget to set _type_has_method_sequal_reduce=true?";
   }
   return fsequal_reduce_[tindex](self, other, equal);
 }
@@ -50,11 +50,9 @@ SEqualReduce(const Object* self, const Object* other, SEqualReducer equal) const
  *  The order of SEqual being called is the same as the order as if we
  *  eagerly do recursive calls in SEqualReduce.
  */
-class RemapVarSEqualHandler :
-      public SEqualReducer::Handler {
+class RemapVarSEqualHandler : public SEqualReducer::Handler {
  public:
-  explicit RemapVarSEqualHandler(bool assert_mode)
-      : assert_mode_(assert_mode) {}
+  explicit RemapVarSEqualHandler(bool assert_mode) : assert_mode_(assert_mode) {}
 
   bool SEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars) final {
     // We cannot use check lhs.same_as(rhs) to check equality.
@@ -121,9 +119,8 @@ class RemapVarSEqualHandler :
   // Check the result.
   bool CheckResult(bool result, const ObjectRef& lhs, const ObjectRef& rhs) {
     if (assert_mode_ && !result) {
-      LOG(FATAL)
-          << "ValueError: StructuralEqual check failed, caused by\n"
-          << "lhs = " << lhs << "\nrhs = " << rhs;
+      LOG(FATAL) << "ValueError: StructuralEqual check failed, caused by\n"
+                 << "lhs = " << lhs << "\nrhs = " << rhs;
     }
     return result;
   }
@@ -177,9 +174,7 @@ class RemapVarSEqualHandler :
   // The default equal as registered in the structural equal vtable.
   bool DispatchSEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars) {
     auto compute = [=]() {
-      CHECK(lhs.defined() &&
-            rhs.defined() &&
-            lhs->type_index() == rhs->type_index());
+      CHECK(lhs.defined() && rhs.defined() && lhs->type_index() == rhs->type_index());
       // skip entries that already have equality maps.
       auto it = equal_map_lhs_.find(lhs);
       if (it != equal_map_lhs_.end()) {
@@ -227,15 +222,12 @@ class RemapVarSEqualHandler :
 };
 
 TVM_REGISTER_GLOBAL("node.StructuralEqual")
-.set_body_typed([](const ObjectRef& lhs,
-                   const ObjectRef& rhs,
-                   bool assert_mode,
-                   bool map_free_vars) {
-  return RemapVarSEqualHandler(assert_mode).Equal(lhs, rhs, map_free_vars);
-});
+    .set_body_typed([](const ObjectRef& lhs, const ObjectRef& rhs, bool assert_mode,
+                       bool map_free_vars) {
+      return RemapVarSEqualHandler(assert_mode).Equal(lhs, rhs, map_free_vars);
+    });
 
-bool StructuralEqual::operator()(const ObjectRef& lhs,
-                                 const ObjectRef& rhs) const {
+bool StructuralEqual::operator()(const ObjectRef& lhs, const ObjectRef& rhs) const {
   return RemapVarSEqualHandler(false).Equal(lhs, rhs, false);
 }
 

@@ -26,7 +26,9 @@
 
 #include <cuda_runtime.h>
 #include <tvm/runtime/packed_func.h>
+
 #include <string>
+
 #include "../workspace_pool.h"
 
 namespace tvm {
@@ -36,18 +38,16 @@ namespace runtime {
   {                                                                     \
     CUresult result = x;                                                \
     if (result != CUDA_SUCCESS && result != CUDA_ERROR_DEINITIALIZED) { \
-      const char *msg;                                                  \
+      const char* msg;                                                  \
       cuGetErrorName(result, &msg);                                     \
-      LOG(FATAL)                                                        \
-          << "CUDAError: " #x " failed with error: " << msg;            \
+      LOG(FATAL) << "CUDAError: " #x " failed with error: " << msg;     \
     }                                                                   \
   }
 
-#define CUDA_CALL(func)                                            \
-  {                                                                \
-    cudaError_t e = (func);                                        \
-    CHECK(e == cudaSuccess || e == cudaErrorCudartUnloading)       \
-        << "CUDA: " << cudaGetErrorString(e);                      \
+#define CUDA_CALL(func)                                                                            \
+  {                                                                                                \
+    cudaError_t e = (func);                                                                        \
+    CHECK(e == cudaSuccess || e == cudaErrorCudartUnloading) << "CUDA: " << cudaGetErrorString(e); \
   }
 
 /*! \brief Thread local workspace */

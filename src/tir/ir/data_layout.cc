@@ -21,46 +21,43 @@
  * \file src/lang/data_layout.cc
  * \brief Data Layout expression.
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/arith/analyzer.h>
 
 #include <cctype>
 
 namespace tvm {
 namespace tir {
-using tir::Var;
 using tir::IterVar;
 using tir::IterVarNode;
+using tir::Var;
 
 TVM_REGISTER_NODE_TYPE(LayoutNode);
 TVM_REGISTER_NODE_TYPE(BijectiveLayoutNode);
 
 const LayoutAxis LayoutAxis::UPPER_CASE[] = {
-  LayoutAxis('A'), LayoutAxis('B'), LayoutAxis('C'), LayoutAxis('D'), LayoutAxis('E'),
-  LayoutAxis('F'), LayoutAxis('G'), LayoutAxis('H'), LayoutAxis('I'), LayoutAxis('J'),
-  LayoutAxis('K'), LayoutAxis('L'), LayoutAxis('M'), LayoutAxis('N'), LayoutAxis('O'),
-  LayoutAxis('P'), LayoutAxis('Q'), LayoutAxis('R'), LayoutAxis('S'), LayoutAxis('T'),
-  LayoutAxis('U'), LayoutAxis('V'), LayoutAxis('W'), LayoutAxis('X'), LayoutAxis('Y'),
-  LayoutAxis('Z')
-};
+    LayoutAxis('A'), LayoutAxis('B'), LayoutAxis('C'), LayoutAxis('D'), LayoutAxis('E'),
+    LayoutAxis('F'), LayoutAxis('G'), LayoutAxis('H'), LayoutAxis('I'), LayoutAxis('J'),
+    LayoutAxis('K'), LayoutAxis('L'), LayoutAxis('M'), LayoutAxis('N'), LayoutAxis('O'),
+    LayoutAxis('P'), LayoutAxis('Q'), LayoutAxis('R'), LayoutAxis('S'), LayoutAxis('T'),
+    LayoutAxis('U'), LayoutAxis('V'), LayoutAxis('W'), LayoutAxis('X'), LayoutAxis('Y'),
+    LayoutAxis('Z')};
 
 const LayoutAxis LayoutAxis::LOWER_CASE[] = {
-  LayoutAxis('a'), LayoutAxis('b'), LayoutAxis('c'), LayoutAxis('d'), LayoutAxis('e'),
-  LayoutAxis('f'), LayoutAxis('g'), LayoutAxis('h'), LayoutAxis('i'), LayoutAxis('j'),
-  LayoutAxis('k'), LayoutAxis('l'), LayoutAxis('m'), LayoutAxis('n'), LayoutAxis('o'),
-  LayoutAxis('p'), LayoutAxis('q'), LayoutAxis('r'), LayoutAxis('s'), LayoutAxis('t'),
-  LayoutAxis('u'), LayoutAxis('v'), LayoutAxis('w'), LayoutAxis('x'), LayoutAxis('y'),
-  LayoutAxis('z')
-};
+    LayoutAxis('a'), LayoutAxis('b'), LayoutAxis('c'), LayoutAxis('d'), LayoutAxis('e'),
+    LayoutAxis('f'), LayoutAxis('g'), LayoutAxis('h'), LayoutAxis('i'), LayoutAxis('j'),
+    LayoutAxis('k'), LayoutAxis('l'), LayoutAxis('m'), LayoutAxis('n'), LayoutAxis('o'),
+    LayoutAxis('p'), LayoutAxis('q'), LayoutAxis('r'), LayoutAxis('s'), LayoutAxis('t'),
+    LayoutAxis('u'), LayoutAxis('v'), LayoutAxis('w'), LayoutAxis('x'), LayoutAxis('y'),
+    LayoutAxis('z')};
 
 const LayoutAxis& LayoutAxis::Get(const char name) {
   CHECK((name >= 'A' && name <= 'Z') || (name >= 'a' && name <= 'z'))
-    << "Invalid layout axis name: " << name << ". Has to be A-Z or a-z.";
-  return (name >= 'A' && name <= 'Z') ?
-         LayoutAxis::UPPER_CASE[name-'A'] :
-         LayoutAxis::LOWER_CASE[name-'a'];
+      << "Invalid layout axis name: " << name << ". Has to be A-Z or a-z.";
+  return (name >= 'A' && name <= 'Z') ? LayoutAxis::UPPER_CASE[name - 'A']
+                                      : LayoutAxis::LOWER_CASE[name - 'a'];
 }
 
 const LayoutAxis& LayoutAxis::Get(const IterVar& itvar) {
@@ -83,8 +80,8 @@ Layout::Layout(const Array<IterVar>& axes) {
       CHECK_GT(factor->value, 0);
       repr << factor->value;
     }
-    CHECK_EQ(axis->var.get()->name_hint.size(), 1) << "Invalid layout axis "
-                                                   << axis->var.get()->name_hint;
+    CHECK_EQ(axis->var.get()->name_hint.size(), 1)
+        << "Invalid layout axis " << axis->var.get()->name_hint;
     char c = axis->var.get()->name_hint[0];
     CHECK((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) << "Invalid layout axis " << c;
     repr << axis->var.get()->name_hint;
@@ -93,7 +90,7 @@ Layout::Layout(const Array<IterVar>& axes) {
   data_ = std::move(node);
 }
 
-Layout::Layout(const std::string& name) { // NOLINT(*)
+Layout::Layout(const std::string& name) {  // NOLINT(*)
   if (name == "__undef__") return;
 
   auto node = make_object<LayoutNode>();
@@ -105,19 +102,18 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
   int32_t factor = 0;
   for (char c : name) {
     if (c >= 'A' && c <= 'Z') {
-      CHECK_EQ(factor, 0) << "Invalid layout " << name
-                          << ": invalid factor size " << factor
+      CHECK_EQ(factor, 0) << "Invalid layout " << name << ": invalid factor size " << factor
                           << " before dimension " << c;
       std::string shape_name("_shape");
       shape_name.insert(0, 1, c);
-      IterVar axis = IterVarNode::make(Range(PrimExpr(0), Var(shape_name)),
-                                       Var(std::string(1, c)), tir::kDataPar);
+      IterVar axis = IterVarNode::make(Range(PrimExpr(0), Var(shape_name)), Var(std::string(1, c)),
+                                       tir::kDataPar);
       node->axes.push_back(axis);
     } else if (c >= 'a' && c <= 'z') {
-      CHECK_GT(factor, 0) << "Invalid layout " << name << ": invalid factor size "
-                          << factor << " for dimension " << c;
-      IterVar axis = IterVarNode::make(Range(PrimExpr(0), PrimExpr(factor)),
-                                       Var(std::string(1, c)), tir::kDataPar);
+      CHECK_GT(factor, 0) << "Invalid layout " << name << ": invalid factor size " << factor
+                          << " for dimension " << c;
+      IterVar axis = IterVarNode::make(Range(PrimExpr(0), PrimExpr(factor)), Var(std::string(1, c)),
+                                       tir::kDataPar);
       node->axes.push_back(axis);
       factor = 0;
     } else if (c >= '0' && c <= '9') {
@@ -141,16 +137,14 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
   for (const IterVar& v : node->axes) {
     char axis = v->var.get()->name_hint[0];
     if (axis >= 'a' && axis <= 'z') {
-      CHECK(exist_axis[axis-'a'+'A']) << "Invalid layout " << name << ": missing axis "
-                                      << std::toupper(axis);
+      CHECK(exist_axis[axis - 'a' + 'A'])
+          << "Invalid layout " << name << ": missing axis " << std::toupper(axis);
     }
   }
   data_ = std::move(node);
 }
 
-Layout LayoutNode::make(const std::string& layout) {
-  return Layout(layout);
-}
+Layout LayoutNode::make(const std::string& layout) { return Layout(layout); }
 
 Layout Layout::SubLayout(size_t pos, size_t len) const {
   if (!defined() || pos > ndim()) return Layout::Undef();
@@ -164,16 +158,16 @@ Layout Layout::SubLayout(size_t pos, size_t len) const {
   return Layout(new_layout);
 }
 
-Layout Layout::Split(const LayoutAxis &axis, size_t target_pos, int32_t factor) const {
+Layout Layout::Split(const LayoutAxis& axis, size_t target_pos, int32_t factor) const {
   if (!defined()) return Layout::Undef();
   const std::string& name = operator->()->name;
   const auto axes = operator->()->axes;
-  CHECK(target_pos <= this->ndim()) << "Invalid split position "
-                                    << target_pos << " for layout " << name;
+  CHECK(target_pos <= this->ndim())
+      << "Invalid split position " << target_pos << " for layout " << name;
   CHECK(axis.IsPrimal()) << "Cannot split a subordinate axis " << axis;
   CHECK(this->Contains(axis)) << "Axis " << axis << " does not exist in " << name;
-  CHECK(!this->Contains(axis.ToSubordinate())) << "Axis " << axis
-                                                << " has already been split in " << name;
+  CHECK(!this->Contains(axis.ToSubordinate()))
+      << "Axis " << axis << " has already been split in " << name;
   CHECK(factor > 0) << "Invalid split size " << factor;
   Array<IterVar> new_layout;
   for (size_t i = 0; i <= this->ndim(); ++i) {
@@ -202,16 +196,15 @@ int32_t Layout::FactorOf(const LayoutAxis& axis) const {
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<LayoutNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* l = static_cast<const LayoutNode*>(node.get());
-    p->stream << "Layout(" << l->name << ")";
-  });
+    .set_dispatch<LayoutNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* l = static_cast<const LayoutNode*>(node.get());
+      p->stream << "Layout(" << l->name << ")";
+    });
 
-inline bool GetStoreRule(Array<PrimExpr>* rule,
-                         const Layout& src_layout,
+inline bool GetStoreRule(Array<PrimExpr>* rule, const Layout& src_layout,
                          const Layout& dst_layout) {
-  if (!src_layout.defined() || src_layout.name().empty() ||
-      !dst_layout.defined() || dst_layout.name().empty()) {
+  if (!src_layout.defined() || src_layout.name().empty() || !dst_layout.defined() ||
+      dst_layout.name().empty()) {
     return false;
   }
   for (size_t i = 0; i < dst_layout.ndim(); ++i) {
@@ -273,16 +266,15 @@ Array<PrimExpr> BijectiveLayout::ForwardIndex(const Array<PrimExpr>& src_index) 
   CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
   CHECK_EQ(src_index.size(), self->src_layout->axes.size())
-    << "Input mismatch with layout " << self->src_layout;
+      << "Input mismatch with layout " << self->src_layout;
   return TransformIndex(src_index, self->src_layout->axes, self->forward_rule);
 }
-
 
 Array<PrimExpr> BijectiveLayout::BackwardIndex(const Array<PrimExpr>& dst_index) const {
   CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
   CHECK_EQ(dst_index.size(), self->dst_layout->axes.size())
-    << "Output mismatch with layout " << self->dst_layout;
+      << "Output mismatch with layout " << self->dst_layout;
   return TransformIndex(dst_index, self->dst_layout->axes, self->backward_rule);
 }
 
@@ -310,8 +302,8 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
         const auto* orig_axis_extent = orig_axis->dom->extent.as<IntImmNode>();
         if (orig_shape_const) {
           CHECK_EQ(orig_shape_const->value, orig_axis_extent->value)
-            << "Input shape mismatch at index " << i << ". Expected "
-            << orig_axis->dom->extent << ", get " << orig_shape;
+              << "Input shape mismatch at index " << i << ". Expected " << orig_axis->dom->extent
+              << ", get " << orig_shape;
         }
       }
       bind_map[orig_axis->var.get()] = PrimExpr(0);
@@ -343,15 +335,13 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
 Array<PrimExpr> BijectiveLayout::ForwardShape(const Array<PrimExpr>& shape) const {
   CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
-  return TransformShape(shape, self->src_layout->axes,
-                        self->dst_layout->axes, self->forward_rule);
+  return TransformShape(shape, self->src_layout->axes, self->dst_layout->axes, self->forward_rule);
 }
 
 Array<PrimExpr> BijectiveLayout::BackwardShape(const Array<PrimExpr>& shape) const {
   CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
-  return TransformShape(shape, self->dst_layout->axes,
-                        self->src_layout->axes, self->backward_rule);
+  return TransformShape(shape, self->dst_layout->axes, self->src_layout->axes, self->backward_rule);
 }
 
 BijectiveLayout::BijectiveLayout(Layout src_layout, Layout dst_layout) {
@@ -369,51 +359,47 @@ BijectiveLayout::BijectiveLayout(Layout src_layout, Layout dst_layout) {
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<BijectiveLayoutNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* b = static_cast<const BijectiveLayoutNode*>(node.get());
-    p->stream << "BijectiveLayout(" << b->src_layout.name()
-              << "->" << b->dst_layout.name() << ")";
-  });
+    .set_dispatch<BijectiveLayoutNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* b = static_cast<const BijectiveLayoutNode*>(node.get());
+      p->stream << "BijectiveLayout(" << b->src_layout.name() << "->" << b->dst_layout.name()
+                << ")";
+    });
 
-TVM_REGISTER_GLOBAL("tir.Layout")
-.set_body_typed(LayoutNode::make);
+TVM_REGISTER_GLOBAL("tir.Layout").set_body_typed(LayoutNode::make);
 
-TVM_REGISTER_GLOBAL("tir.LayoutIndexOf")
-.set_body_typed([](Layout layout, std::string axis) -> int {
+TVM_REGISTER_GLOBAL("tir.LayoutIndexOf").set_body_typed([](Layout layout, std::string axis) -> int {
   return layout.IndexOf(LayoutAxis::make(axis));
 });
 
 TVM_REGISTER_GLOBAL("tir.LayoutFactorOf")
-.set_body_typed([](Layout layout, std::string axis) -> int {
-  return layout.FactorOf(LayoutAxis::make(axis));
-});
+    .set_body_typed([](Layout layout, std::string axis) -> int {
+      return layout.FactorOf(LayoutAxis::make(axis));
+    });
 
-TVM_REGISTER_GLOBAL("tir.LayoutNdim")
-.set_body_typed([](Layout layout) -> int {
+TVM_REGISTER_GLOBAL("tir.LayoutNdim").set_body_typed([](Layout layout) -> int {
   return layout.ndim();
 });
 
-TVM_REGISTER_GLOBAL("tir.LayoutGetItem")
-.set_body_typed([](Layout layout, int idx) -> std::string {
+TVM_REGISTER_GLOBAL("tir.LayoutGetItem").set_body_typed([](Layout layout, int idx) -> std::string {
   const LayoutAxis& axis = layout[idx];
   return axis.name();
 });
 
 TVM_REGISTER_GLOBAL("tir.BijectiveLayout")
-.set_body_typed([](Layout src_layout, Layout dst_layout) -> BijectiveLayout {
-  return BijectiveLayout(src_layout, dst_layout);
-});
+    .set_body_typed([](Layout src_layout, Layout dst_layout) -> BijectiveLayout {
+      return BijectiveLayout(src_layout, dst_layout);
+    });
 
 TVM_REGISTER_GLOBAL("tir.BijectiveLayoutForwardIndex")
-.set_body_method(&BijectiveLayout::ForwardIndex);
+    .set_body_method(&BijectiveLayout::ForwardIndex);
 
 TVM_REGISTER_GLOBAL("tir.BijectiveLayoutBackwardIndex")
-.set_body_method(&BijectiveLayout::BackwardIndex);
+    .set_body_method(&BijectiveLayout::BackwardIndex);
 
 TVM_REGISTER_GLOBAL("tir.BijectiveLayoutForwardShape")
-.set_body_method(&BijectiveLayout::ForwardShape);
+    .set_body_method(&BijectiveLayout::ForwardShape);
 
 TVM_REGISTER_GLOBAL("tir.BijectiveLayoutBackwardShape")
-.set_body_method(&BijectiveLayout::BackwardShape);
+    .set_body_method(&BijectiveLayout::BackwardShape);
 }  // namespace tir
 }  // namespace tvm

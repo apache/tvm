@@ -21,27 +21,23 @@
  * \file simple_analysis.cc
  * \brief Implementation of simple passes
  */
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/analysis.h>
 
 namespace tvm {
 namespace tir {
 
 class VarTouchVisitor : public ExprVisitor {
  public:
-  explicit VarTouchVisitor(
-      std::function<bool(const VarNode*)> var_set)
-      : var_set_(var_set) {}
+  explicit VarTouchVisitor(std::function<bool(const VarNode*)> var_set) : var_set_(var_set) {}
 
   void VisitExpr(const PrimExpr& e) final {
     if (use_var_) return;
     ExprVisitor::VisitExpr(e);
   }
 
-  void VisitExpr_(const VarNode* op) final {
-    Handle(op);
-  }
+  void VisitExpr_(const VarNode* op) final { Handle(op); }
 
   void VisitExpr_(const LoadNode* op) final {
     Handle(op->buffer_var.get());
@@ -58,9 +54,7 @@ class VarTouchVisitor : public ExprVisitor {
   std::function<bool(const VarNode*)> var_set_;
 };
 
-
-bool ExprUseVar(const PrimExpr& e,
-                std::function<bool(const VarNode*)> var_set) {
+bool ExprUseVar(const PrimExpr& e, std::function<bool(const VarNode*)> var_set) {
   VarTouchVisitor visitor(var_set);
   visitor(e);
   return visitor.use_var_;

@@ -35,9 +35,7 @@ namespace runtime {
 
 class ROCMDeviceAPI final : public DeviceAPI {
  public:
-  void SetDevice(TVMContext ctx) final {
-    ROCM_CALL(hipSetDevice(ctx.device_id));
-  }
+  void SetDevice(TVMContext ctx) final { ROCM_CALL(hipSetDevice(ctx.device_id)); }
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final {
     int value = 0;
     switch (kind) {
@@ -53,27 +51,26 @@ class ROCMDeviceAPI final : public DeviceAPI {
         break;
       }
       case kMaxThreadsPerBlock: {
-        ROCM_CALL(hipDeviceGetAttribute(
-            &value, hipDeviceAttributeMaxThreadsPerBlock, ctx.device_id));
+        ROCM_CALL(
+            hipDeviceGetAttribute(&value, hipDeviceAttributeMaxThreadsPerBlock, ctx.device_id));
         break;
       }
       case kWarpSize: {
-        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeWarpSize,
-                                        ctx.device_id));
+        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeWarpSize, ctx.device_id));
         break;
       }
       case kMaxSharedMemoryPerBlock: {
-        ROCM_CALL(hipDeviceGetAttribute(
-            &value, hipDeviceAttributeMaxSharedMemoryPerBlock, ctx.device_id));
+        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeMaxSharedMemoryPerBlock,
+                                        ctx.device_id));
         break;
       }
       case kComputeVersion: {
         std::ostringstream os;
-        ROCM_CALL(hipDeviceGetAttribute(
-            &value, hipDeviceAttributeComputeCapabilityMajor, ctx.device_id));
+        ROCM_CALL(
+            hipDeviceGetAttribute(&value, hipDeviceAttributeComputeCapabilityMajor, ctx.device_id));
         os << value << ".";
-        ROCM_CALL(hipDeviceGetAttribute(
-            &value, hipDeviceAttributeComputeCapabilityMinor, ctx.device_id));
+        ROCM_CALL(
+            hipDeviceGetAttribute(&value, hipDeviceAttributeComputeCapabilityMinor, ctx.device_id));
         os << value;
         *rv = os.str();
         return;
@@ -86,23 +83,19 @@ class ROCMDeviceAPI final : public DeviceAPI {
         return;
       }
       case kMaxClockRate: {
-        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeClockRate,
-                                        ctx.device_id));
+        ROCM_CALL(hipDeviceGetAttribute(&value, hipDeviceAttributeClockRate, ctx.device_id));
         break;
       }
       case kMultiProcessorCount: {
-        ROCM_CALL(hipDeviceGetAttribute(
-            &value, hipDeviceAttributeMultiprocessorCount, ctx.device_id));
+        ROCM_CALL(
+            hipDeviceGetAttribute(&value, hipDeviceAttributeMultiprocessorCount, ctx.device_id));
         break;
       }
       case kMaxThreadDimensions: {
         int dims[3];
-        ROCM_CALL(hipDeviceGetAttribute(
-            &dims[0], hipDeviceAttributeMaxBlockDimX, ctx.device_id));
-        ROCM_CALL(hipDeviceGetAttribute(
-            &dims[1], hipDeviceAttributeMaxBlockDimY, ctx.device_id));
-        ROCM_CALL(hipDeviceGetAttribute(
-            &dims[2], hipDeviceAttributeMaxBlockDimZ, ctx.device_id));
+        ROCM_CALL(hipDeviceGetAttribute(&dims[0], hipDeviceAttributeMaxBlockDimX, ctx.device_id));
+        ROCM_CALL(hipDeviceGetAttribute(&dims[1], hipDeviceAttributeMaxBlockDimY, ctx.device_id));
+        ROCM_CALL(hipDeviceGetAttribute(&dims[2], hipDeviceAttributeMaxBlockDimZ, ctx.device_id));
 
         std::stringstream ss;
         ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
@@ -132,9 +125,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
     ROCM_CALL(hipFree(ptr));
   }
 
-  void CopyDataFromTo(const void* from, size_t from_offset, void* to,
-                      size_t to_offset, size_t size, TVMContext ctx_from,
-                      TVMContext ctx_to, DLDataType type_hint,
+  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
+                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
     hipStream_t hip_stream = static_cast<hipStream_t>(stream);
     from = static_cast<const char*>(from) + from_offset;
@@ -144,15 +136,12 @@ class ROCMDeviceAPI final : public DeviceAPI {
       if (ctx_from.device_id == ctx_to.device_id) {
         GPUCopy(from, to, size, hipMemcpyDeviceToDevice, hip_stream);
       } else {
-        hipMemcpyPeerAsync(to, ctx_to.device_id, from, ctx_from.device_id, size,
-                           hip_stream);
+        hipMemcpyPeerAsync(to, ctx_to.device_id, from, ctx_from.device_id, size, hip_stream);
       }
-    } else if (ctx_from.device_type == kDLROCM &&
-               ctx_to.device_type == kDLCPU) {
+    } else if (ctx_from.device_type == kDLROCM && ctx_to.device_type == kDLCPU) {
       ROCM_CALL(hipSetDevice(ctx_from.device_id));
       GPUCopy(from, to, size, hipMemcpyDeviceToHost, hip_stream);
-    } else if (ctx_from.device_type == kDLCPU &&
-               ctx_to.device_type == kDLROCM) {
+    } else if (ctx_from.device_type == kDLCPU && ctx_to.device_type == kDLROCM) {
       ROCM_CALL(hipSetDevice(ctx_to.device_id));
       GPUCopy(from, to, size, hipMemcpyHostToDevice, hip_stream);
     } else {
@@ -178,14 +167,13 @@ class ROCMDeviceAPI final : public DeviceAPI {
   }
 
   static const std::shared_ptr<ROCMDeviceAPI>& Global() {
-    static std::shared_ptr<ROCMDeviceAPI> inst =
-        std::make_shared<ROCMDeviceAPI>();
+    static std::shared_ptr<ROCMDeviceAPI> inst = std::make_shared<ROCMDeviceAPI>();
     return inst;
   }
 
  private:
-  static void GPUCopy(const void* from, void* to, size_t size,
-                      hipMemcpyKind kind, hipStream_t stream) {
+  static void GPUCopy(const void* from, void* to, size_t size, hipMemcpyKind kind,
+                      hipStream_t stream) {
     if (stream != 0) {
       ROCM_CALL(hipMemcpyAsync(to, from, size, kind, stream));
     } else {
@@ -198,14 +186,11 @@ typedef dmlc::ThreadLocalStore<ROCMThreadEntry> ROCMThreadStore;
 
 ROCMThreadEntry::ROCMThreadEntry() : pool(kDLROCM, ROCMDeviceAPI::Global()) {}
 
-ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() {
-  return ROCMThreadStore::Get();
-}
+ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() { return ROCMThreadStore::Get(); }
 
-TVM_REGISTER_GLOBAL("device_api.rocm")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      DeviceAPI* ptr = ROCMDeviceAPI::Global().get();
-      *rv = static_cast<void*>(ptr);
-    });
+TVM_REGISTER_GLOBAL("device_api.rocm").set_body([](TVMArgs args, TVMRetValue* rv) {
+  DeviceAPI* ptr = ROCMDeviceAPI::Global().get();
+  *rv = static_cast<void*>(ptr);
+});
 }  // namespace runtime
 }  // namespace tvm

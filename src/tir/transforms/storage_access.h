@@ -24,19 +24,21 @@
 #ifndef TVM_TIR_TRANSFORMS_STORAGE_ACCESS_H_
 #define TVM_TIR_TRANSFORMS_STORAGE_ACCESS_H_
 
+#include <tvm/arith/int_set.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/tir/expr.h>
-#include <tvm/arith/int_set.h>
 #include <tvm/tir/stmt_functor.h>
-#include <vector>
+
 #include <unordered_map>
+#include <vector>
+
 #include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace tir {
 
-using runtime::StorageScope;
 using runtime::StorageRank;
+using runtime::StorageScope;
 /*!
  * \brief Base class of storage access analysis
  */
@@ -85,31 +87,20 @@ class StorageAccessVisitor : public StmtExprVisitor {
   void VisitExpr_(const CallNode* op) final;
 
  protected:
-  StorageAccessVisitor() {
-    scope_.push_back(std::vector<StmtEntry>());
-  }
+  StorageAccessVisitor() { scope_.push_back(std::vector<StmtEntry>()); }
   /*! \return number of conditions in the current scope. */
-  int condition_counter() const {
-    return condition_counter_;
-  }
+  int condition_counter() const { return condition_counter_; }
   /*! \return whether we are in device environment. */
-  bool in_device_env() const {
-    return in_device_env_;
-  }
+  bool in_device_env() const { return in_device_env_; }
   /*! \return environment threads */
-  const Array<IterVar>& env_threads() const {
-    return env_threads_;
-  }
+  const Array<IterVar>& env_threads() const { return env_threads_; }
   /*!
    * \brief Whether we need analyze the buffer in current scope.
    * \param buffer The buffer to be checked
    * \param scope The scope of the buffer.
    * \return Whether the analysis of buffer is enabled.
    */
-  virtual bool Enabled(const VarNode* buffer,
-                       const StorageScope& scope) const {
-    return true;
-  }
+  virtual bool Enabled(const VarNode* buffer, const StorageScope& scope) const { return true; }
   /*!
    * \brief Summarize the sequence of operations into parent.
    *
@@ -121,8 +112,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
    * \return The summarized sequence that represent access that
    *  the parent should taken care of to synchronize.
    */
-  virtual std::vector<AccessEntry> Summarize(
-      std::vector<StmtEntry> seq, const ForNode* loop) = 0;
+  virtual std::vector<AccessEntry> Summarize(std::vector<StmtEntry> seq, const ForNode* loop) = 0;
   /*!
    * \brief Get the scope of the buffer array.
    * \return The scope of the final buffer array.

@@ -21,11 +21,13 @@
  * \file ir_util.cc
  * \brief Helper functions to construct and compose IR nodes.
  */
-#include <tvm/tir/stmt_functor.h>
-#include <utility>
-#include <unordered_set>
-#include <unordered_map>
 #include "ir_util.h"
+
+#include <tvm/tir/stmt_functor.h>
+
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
 
 namespace tvm {
 namespace tir {
@@ -84,7 +86,6 @@ Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body) {
   return body;
 }
 
-
 class IRConvertSSA final : public StmtExprMutator {
  public:
   PrimExpr VisitExpr_(const VarNode* op) final {
@@ -112,9 +113,8 @@ class IRConvertSSA final : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<LoadNode>();
     if (scope_.count(op->buffer_var.get())) {
-      return LoadNode::make(
-          op->dtype, scope_[op->buffer_var.get()].back(),
-          op->index, op->predicate);
+      return LoadNode::make(op->dtype, scope_[op->buffer_var.get()].back(), op->index,
+                            op->predicate);
     } else {
       return expr;
     }
@@ -123,9 +123,8 @@ class IRConvertSSA final : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<StoreNode>();
     if (scope_.count(op->buffer_var.get())) {
-      return StoreNode::make(
-          scope_[op->buffer_var.get()].back(), op->value,
-          op->index, op->predicate);
+      return StoreNode::make(scope_[op->buffer_var.get()].back(), op->value, op->index,
+                             op->predicate);
     } else {
       return stmt;
     }
@@ -152,8 +151,7 @@ class IRConvertSSA final : public StmtExprMutator {
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       scope_[v.get()].pop_back();
       op = stmt.as<ForNode>();
-      return ForNode::make(
-          new_var, op->min, op->extent, op->for_type, op->device_api, op->body);
+      return ForNode::make(new_var, op->min, op->extent, op->for_type, op->device_api, op->body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
@@ -167,9 +165,7 @@ class IRConvertSSA final : public StmtExprMutator {
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       scope_[v.get()].pop_back();
       op = stmt.as<AllocateNode>();
-      return AllocateNode::make(
-          new_var, op->dtype, op->extents, op->condition,
-          op->body);
+      return AllocateNode::make(new_var, op->dtype, op->extents, op->condition, op->body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
@@ -184,15 +180,13 @@ class IRConvertSSA final : public StmtExprMutator {
           if (new_alloc.same_as(op->body)) return GetRef<Stmt>(op);
           alloc = new_alloc.as<AllocateNode>();
           CHECK(alloc);
-          return AttrStmtNode::make(
-              alloc->buffer_var, op->attr_key, op->value, new_alloc);
+          return AttrStmtNode::make(alloc->buffer_var, op->attr_key, op->value, new_alloc);
         }
       }
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AttrStmtNode>();
       if (scope_.count(v) && scope_[v].size() != 0) {
-        return AttrStmtNode::make(
-            scope_[v].back(), op->attr_key, op->value, op->body);
+        return AttrStmtNode::make(scope_[v].back(), op->attr_key, op->value, op->body);
       } else {
         return stmt;
       }
@@ -202,13 +196,11 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
  private:
-  std::unordered_map<const VarNode*, std::vector<Var> > scope_;
+  std::unordered_map<const VarNode*, std::vector<Var>> scope_;
   std::unordered_set<const VarNode*> defined_;
 };
 
-Stmt ConvertSSA(Stmt stmt) {
-  return IRConvertSSA()(std::move(stmt));
-}
+Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }
 
 }  // namespace tir
 }  // namespace tvm

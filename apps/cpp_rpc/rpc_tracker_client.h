@@ -24,12 +24,12 @@
 #ifndef TVM_APPS_CPP_RPC_TRACKER_CLIENT_H_
 #define TVM_APPS_CPP_RPC_TRACKER_CLIENT_H_
 
-#include <set>
-#include <iostream>
 #include <chrono>
+#include <iostream>
 #include <random>
-#include <vector>
+#include <set>
 #include <string>
+#include <vector>
 
 #include "../../src/runtime/rpc/rpc_endpoint.h"
 #include "../../src/support/socket.h"
@@ -47,29 +47,28 @@ class TrackerClient {
  public:
   /*!
    * \brief Constructor.
-  */
-  TrackerClient(const std::string& tracker_addr,
-                const std::string& key,
+   */
+  TrackerClient(const std::string& tracker_addr, const std::string& key,
                 const std::string& custom_addr)
-      : tracker_addr_(tracker_addr), key_(key), custom_addr_(custom_addr),
-        gen_(std::random_device{}()), dis_(0.0, 1.0) {
-  }
+      : tracker_addr_(tracker_addr),
+        key_(key),
+        custom_addr_(custom_addr),
+        gen_(std::random_device{}()),
+        dis_(0.0, 1.0) {}
   /*!
    * \brief Destructor.
-  */
+   */
   ~TrackerClient() {
     // Free the resources
     Close();
   }
   /*!
    * \brief IsValid Check tracker is valid.
-  */
-  bool IsValid() {
-    return (!tracker_addr_.empty() && !tracker_sock_.IsClosed());
-  }
+   */
+  bool IsValid() { return (!tracker_addr_.empty() && !tracker_sock_.IsClosed()); }
   /*!
    * \brief TryConnect Connect to tracker if the tracker address is valid.
-  */
+   */
   void TryConnect() {
     if (!tracker_addr_.empty() && (tracker_sock_.IsClosed())) {
       tracker_sock_ = ConnectWithRetry();
@@ -80,8 +79,8 @@ class TrackerClient {
       CHECK_EQ(code, kRPCTrackerMagic) << tracker_addr_.c_str() << " is not RPC Tracker";
 
       std::ostringstream ss;
-      ss << "[" << static_cast<int>(TrackerCode::kUpdateInfo)
-         << ", {\"key\": \"server:"<< key_ << "\"}]";
+      ss << "[" << static_cast<int>(TrackerCode::kUpdateInfo) << ", {\"key\": \"server:" << key_
+         << "\"}]";
       tracker_sock_.SendBytes(ss.str());
 
       // Receive status and validate
@@ -91,20 +90,19 @@ class TrackerClient {
   }
   /*!
    * \brief Close Clean up tracker resources.
-  */
+   */
   void Close() {
     // close tracker resource
     if (!tracker_sock_.IsClosed()) {
       tracker_sock_.Close();
     }
   }
- /*!
-  * \brief ReportResourceAndGetKey Report resource to tracker.
-  * \param port listening port.
-  * \param matchkey Random match key output.
- */
-  void ReportResourceAndGetKey(int port,
-                               std::string *matchkey) {
+  /*!
+   * \brief ReportResourceAndGetKey Report resource to tracker.
+   * \param port listening port.
+   * \param matchkey Random match key output.
+   */
+  void ReportResourceAndGetKey(int port, std::string* matchkey) {
     if (!tracker_sock_.IsClosed()) {
       *matchkey = RandomKey(key_ + ":", old_keyset_);
       if (custom_addr_.empty()) {
@@ -112,8 +110,8 @@ class TrackerClient {
       }
 
       std::ostringstream ss;
-      ss << "[" << static_cast<int>(TrackerCode::kPut) << ", \"" << key_ << "\", ["
-         << port << ", \"" << *matchkey << "\"], " << custom_addr_ << "]";
+      ss << "[" << static_cast<int>(TrackerCode::kPut) << ", \"" << key_ << "\", [" << port
+         << ", \"" << *matchkey << "\"], " << custom_addr_ << "]";
 
       tracker_sock_.SendBytes(ss.str());
 
@@ -121,7 +119,7 @@ class TrackerClient {
       std::string remote_status = tracker_sock_.RecvBytes();
       CHECK_EQ(std::stoi(remote_status), static_cast<int>(TrackerCode::kSuccess));
     } else {
-        *matchkey = key_;
+      *matchkey = key_;
     }
   }
 
@@ -131,11 +129,9 @@ class TrackerClient {
    * \param port listening port.
    * \param ping_period Select wait time.
    * \param matchkey Random match key output.
-  */
-  void WaitConnectionAndUpdateKey(support::TCPSocket listen_sock,
-                                  int port,
-                                  int ping_period,
-                                  std::string *matchkey) {
+   */
+  void WaitConnectionAndUpdateKey(support::TCPSocket listen_sock, int port, int ping_period,
+                                  std::string* matchkey) {
     int unmatch_period_count = 0;
     int unmatch_timeout = 4;
     while (true) {
@@ -155,9 +151,9 @@ class TrackerClient {
           // if match key not in pending key set
           // it means the key is acquired by a client but not used.
           if (pending_keys.find(*matchkey) == std::string::npos) {
-              unmatch_period_count += 1;
+            unmatch_period_count += 1;
           } else {
-              unmatch_period_count = 0;
+            unmatch_period_count = 0;
           }
           // regenerate match key if key is acquired but not used for a while
           if (unmatch_period_count * ping_period > unmatch_timeout + ping_period) {
@@ -166,8 +162,8 @@ class TrackerClient {
             *matchkey = RandomKey(key_ + ":", old_keyset_);
 
             std::ostringstream ss;
-            ss << "[" << static_cast<int>(TrackerCode::kPut) << ", \"" << key_ << "\", ["
-               << port << ", \"" << *matchkey << "\"], " << custom_addr_ << "]";
+            ss << "[" << static_cast<int>(TrackerCode::kPut) << ", \"" << key_ << "\", [" << port
+               << ", \"" << *matchkey << "\"], " << custom_addr_ << "]";
             tracker_sock_.SendBytes(ss.str());
 
             std::string remote_status = tracker_sock_.RecvBytes();
@@ -201,26 +197,25 @@ class TrackerClient {
       }
 
       auto period = (std::chrono::duration_cast<std::chrono::seconds>(
-                  std::chrono::system_clock::now() - tbegin)).count();
+                         std::chrono::system_clock::now() - tbegin))
+                        .count();
       CHECK(period < timeout) << "Failed to connect to server" << addr.AsString();
-      LOG(WARNING) << "Cannot connect to tracker " << addr.AsString()
-                   << " retry in " << retry_period << " seconds.";
+      LOG(WARNING) << "Cannot connect to tracker " << addr.AsString() << " retry in "
+                   << retry_period << " seconds.";
       std::this_thread::sleep_for(std::chrono::seconds(retry_period));
     }
   }
   /*!
-  * \brief Random Generate a random number between 0 and 1.
-  * \return random float value.
-  */
-  float Random() {
-    return dis_(gen_);
-  }
+   * \brief Random Generate a random number between 0 and 1.
+   * \return random float value.
+   */
+  float Random() { return dis_(gen_); }
   /*!
    * \brief Generate a random key.
    * \param prefix The string prefix.
    * \return cmap The conflict map set.
    */
-  std::string RandomKey(const std::string& prefix, const std::set <std::string> &cmap) {
+  std::string RandomKey(const std::string& prefix, const std::set<std::string>& cmap) {
     if (!cmap.empty()) {
       while (true) {
         std::string key = prefix + std::to_string(Random());
@@ -236,10 +231,9 @@ class TrackerClient {
   std::string key_;
   std::string custom_addr_;
   support::TCPSocket tracker_sock_;
-  std::set <std::string> old_keyset_;
+  std::set<std::string> old_keyset_;
   std::mt19937 gen_;
   std::uniform_real_distribution<float> dis_;
-
 };
 }  // namespace runtime
 }  // namespace tvm

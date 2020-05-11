@@ -26,10 +26,12 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
-#include <tvm/ir/op.h>
 #include <tvm/ir/module.h>
-#include <string>
+#include <tvm/ir/op.h>
+
 #include <functional>
+#include <string>
+
 #include "./base.h"
 #include "./type.h"
 
@@ -63,9 +65,7 @@ class ConstantNode : public ExprNode {
   TensorType tensor_type() const;
 
   /*! \return Whether it is scalar(rank-0 tensor) */
-  bool is_scalar() const {
-    return data->ndim == 0;
-  }
+  bool is_scalar() const { return data->ndim == 0; }
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
@@ -77,9 +77,7 @@ class ConstantNode : public ExprNode {
     return equal(data, other->data);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(data);
-  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(data); }
 
   static constexpr const char* _type_key = "relay.Constant";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, ExprNode);
@@ -172,9 +170,7 @@ class VarNode : public ExprNode {
   Type type_annotation;
 
   /*! \return The name hint of the variable */
-  const std::string& name_hint() const {
-    return vid->name_hint;
-  }
+  const std::string& name_hint() const { return vid->name_hint; }
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("vid", &vid);
@@ -184,9 +180,7 @@ class VarNode : public ExprNode {
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
-    return
-        equal(type_annotation, other->type_annotation) &&
-        equal.FreeVarEqualImpl(this, other);
+    return equal(type_annotation, other->type_annotation) && equal.FreeVarEqualImpl(this, other);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -194,11 +188,9 @@ class VarNode : public ExprNode {
     hash_reduce.FreeVarHashImpl(this);
   }
 
-  TVM_DLL static Var make(std::string name_hint,
-                          Type type_annotation);
+  TVM_DLL static Var make(std::string name_hint, Type type_annotation);
 
-  TVM_DLL static Var make(Id vid,
-                          Type type_annotation);
+  TVM_DLL static Var make(Id vid, Type type_annotation);
 
   static constexpr const char* _type_key = "relay.Var";
   TVM_DECLARE_FINAL_OBJECT_INFO(VarNode, ExprNode);
@@ -211,8 +203,7 @@ class Var : public Expr {
    * \param name_hint The name hint of a variable.
    * \param type_annotation The type annotation of a variable.
    */
-  TVM_DLL Var(std::string name_hint, Type type_annotation) :
-    Var(Id(name_hint), type_annotation) {}
+  TVM_DLL Var(std::string name_hint, Type type_annotation) : Var(Id(name_hint), type_annotation) {}
 
   /*!
    * \brief The constructor
@@ -278,11 +269,8 @@ class CallNode : public ExprNode {
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
     // skip type_args check for primitive ops.
     equal->MarkGraphNode();
-    return
-        equal(op, other->op) &&
-        equal(args, other->args) &&
-        equal(attrs, other->attrs) &&
-        (IsPrimitiveOp(op) || equal(type_args, other->type_args));
+    return equal(op, other->op) && equal(args, other->args) && equal(attrs, other->attrs) &&
+           (IsPrimitiveOp(op) || equal(type_args, other->type_args));
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -308,9 +296,7 @@ class Call : public Expr {
    * \param attrs The attributes of the call node.
    * \param type_args The type arguments passed to a polymorphic function.
    */
-  TVM_DLL Call(Expr op,
-               Array<Expr> args,
-               Attrs attrs = Attrs(),
+  TVM_DLL Call(Expr op, Array<Expr> args, Attrs attrs = Attrs(),
                Array<Type> type_args = Array<Type>());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Call, RelayExpr, CallNode);
@@ -348,10 +334,8 @@ class LetNode : public ExprNode {
 
   bool SEqualReduce(const LetNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return
-        equal.DefEqual(var, other->var) &&
-        equal(value, other->value) &&
-        equal(body, other->body);
+    return equal.DefEqual(var, other->var) && equal(value, other->value) &&
+           equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -410,10 +394,8 @@ class IfNode : public ExprNode {
 
   bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return
-        equal(cond, other->cond) &&
-        equal(true_branch, other->true_branch) &&
-        equal(false_branch, other->false_branch);
+    return equal(cond, other->cond) && equal(true_branch, other->true_branch) &&
+           equal(false_branch, other->false_branch);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -457,9 +439,7 @@ class TupleGetItemNode : public ExprNode {
   }
 
   bool SEqualReduce(const TupleGetItemNode* other, SEqualReducer equal) const {
-    return
-        equal(tuple, other->tuple) &&
-        equal(index, other->index);
+    return equal(tuple, other->tuple) && equal(index, other->index);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -576,9 +556,7 @@ class RefWriteNode : public ExprNode {
 
   bool SEqualReduce(const RefWriteNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return
-        equal(ref, other->ref) &&
-        equal(value, other->value);
+    return equal(ref, other->ref) && equal(value, other->value);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {

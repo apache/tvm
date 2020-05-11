@@ -34,35 +34,35 @@
 #ifndef TVM_NODE_NODE_H_
 #define TVM_NODE_NODE_H_
 
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container.h>
-#include <tvm/runtime/object.h>
-#include <tvm/runtime/memory.h>
+#include <tvm/node/container.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/node/container.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/container.h>
+#include <tvm/runtime/memory.h>
+#include <tvm/runtime/object.h>
 
 #include <string>
-#include <vector>
-#include <utility>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 namespace tvm {
 
-using runtime::TypeIndex;
+using runtime::Downcast;
+using runtime::GetRef;
+using runtime::make_object;
 using runtime::Object;
+using runtime::ObjectEqual;
+using runtime::ObjectHash;
 using runtime::ObjectPtr;
 using runtime::ObjectRef;
-using runtime::GetRef;
-using runtime::Downcast;
-using runtime::ObjectHash;
-using runtime::ObjectEqual;
-using runtime::make_object;
 using runtime::PackedFunc;
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
+using runtime::TypeIndex;
 
 }  // namespace tvm
 #endif  // TVM_NODE_NODE_H_

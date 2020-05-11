@@ -25,8 +25,9 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
-#include "../../transforms/pattern_util.h"
+
 #include "../../transforms/infer_layout_util.h"
+#include "../../transforms/pattern_util.h"
 #include "../util.h"
 
 namespace tvm {
@@ -68,7 +69,7 @@ Array<Array<Layout>> RequantizeInferCorrectLayout(const Attrs& attrs,
     for (auto iter_var : new_in_layouts[0]->axes) {
       const auto& layout_axis = LayoutAxis::Get(iter_var);
       const std::string& layout_dim = layout_axis.name();
-      if (old_dim  == layout_dim) {
+      if (old_dim == layout_dim) {
         new_axis = tvm::Integer(axis_index);
       }
       // Collect only the primal axis.
@@ -249,18 +250,16 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* data = types[0].as<TensorTypeNode>();
   CHECK(data != nullptr);
   const auto in_dtype = data->dtype;
-  CHECK(in_dtype == DataType::Int(8) ||
-        in_dtype == DataType::UInt(8) ||
+  CHECK(in_dtype == DataType::Int(8) || in_dtype == DataType::UInt(8) ||
         in_dtype == DataType::Int(32))
       << "Input type should be one of [int8, uint8, int32] but was " << in_dtype;
 
   const RequantizeAttrs* requantize_attrs = attrs.as<RequantizeAttrs>();
   int axis = requantize_attrs->axis;
-  axis = (axis == -1) ? data->shape.size() - 1: axis;
+  axis = (axis == -1) ? data->shape.size() - 1 : axis;
   CHECK_LT(axis, static_cast<int>(data->shape.size()))
       << "axis " << requantize_attrs->axis << " is out of range";
-  CHECK_GE(axis, 0)
-      << "axis " << requantize_attrs->axis << " is out of range";
+  CHECK_GE(axis, 0) << "axis " << requantize_attrs->axis << " is out of range";
 
   // Check and assign types for scale and zero points.
   AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // input_scale
@@ -272,8 +271,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type
   auto out_dtype = requantize_attrs->out_dtype;
-  CHECK(out_dtype == DataType::Int(8) ||
-        out_dtype == DataType::UInt(8) ||
+  CHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
         out_dtype == DataType::Int(32))
       << "Output type should be one of [int8, uint8, int32] but was " << out_dtype;
   reporter->Assign(types[5], TensorType(oshape, out_dtype));
@@ -290,11 +288,11 @@ Expr MakeRequantize(Expr data, Expr input_scale, Expr input_zero_point, Expr out
   attrs->out_dtype = std::move(out_dtype);
   static const Op& op = Op::Get("qnn.requantize");
   return Call(op, {data, input_scale, input_zero_point, output_scale, output_zero_point},
-                        Attrs(attrs), {});
+              Attrs(attrs), {});
 }
 
 RELAY_REGISTER_OP("qnn.requantize")
-.describe(R"code(Requantize operator.
+    .describe(R"code(Requantize operator.
 The requantize operator converts one quantized tensor to another quantized
 tensor. For the output tensor, we are provided with output scale and zero
 point. The computation looks like this
@@ -302,20 +300,20 @@ point. The computation looks like this
 Q_output = zp_output +  (scale_input)/(scale_output) * (Q_input - zp_input)
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<RequantizeAttrs>()
-.set_num_inputs(5)
-.add_argument("data", "Tensor", "The quantized input tensor.")
-.add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
-.add_argument("input_zero_point", "Tensor", "The quantization zero_point of the input tensor.")
-.add_argument("output_scale", "Tensor", "The quantization scale of the output tensor.")
-.add_argument("output_zero_point", "Tensor", "The quantization zero_point of the output tensor.")
-.set_support_level(11)
-.add_type_rel("Requantize", RequantizeRel)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", RequantizeQnnCanonicalize)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", RequantizeInferCorrectLayout);
+    .set_attrs_type<RequantizeAttrs>()
+    .set_num_inputs(5)
+    .add_argument("data", "Tensor", "The quantized input tensor.")
+    .add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
+    .add_argument("input_zero_point", "Tensor", "The quantization zero_point of the input tensor.")
+    .add_argument("output_scale", "Tensor", "The quantization scale of the output tensor.")
+    .add_argument("output_zero_point", "Tensor",
+                  "The quantization zero_point of the output tensor.")
+    .set_support_level(11)
+    .add_type_rel("Requantize", RequantizeRel)
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", RequantizeQnnCanonicalize)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", RequantizeInferCorrectLayout);
 
-TVM_REGISTER_GLOBAL("relay.qnn.op._make.requantize")
-.set_body_typed(MakeRequantize);
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.requantize").set_body_typed(MakeRequantize);
 
 }  // namespace qnn
 }  // namespace relay

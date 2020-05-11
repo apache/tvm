@@ -24,10 +24,11 @@
 #ifndef TVM_CONTRIB_HYBRID_CODEGEN_HYBRID_H_
 #define TVM_CONTRIB_HYBRID_CODEGEN_HYBRID_H_
 
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
 #include <tvm/target/codegen.h>
 #include <tvm/te/schedule.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
+
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -45,9 +46,8 @@ using namespace tir;
  * **NOTE** CodeGenHybrid does not aim at generating Python scripts consumed by Python2/3.
  * For runtime support, please refer the decorator in ``tvm/python/hybrid/api.py``.
  */
-class CodeGenHybrid :
-      public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
-      public StmtFunctor<void(const Stmt&)> {
+class CodeGenHybrid : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
+                      public StmtFunctor<void(const Stmt&)> {
  public:
   /*!
    * \brief Dump the given function body to hybrid script.
@@ -56,8 +56,8 @@ class CodeGenHybrid :
    * \param outputs Output tensors of this schedule.
    * \param name The name of the function.
    */
-  void DumpStmt(const Stmt &stmt, const Array<ObjectRef> &inputs, const Array<Tensor> &outputs,
-                const std::string &name = "hybrid_func");
+  void DumpStmt(const Stmt& stmt, const Array<ObjectRef>& inputs, const Array<Tensor>& outputs,
+                const std::string& name = "hybrid_func");
   /*!
    * \brief Finalize the compilation and return the code.
    * \return The code.
@@ -69,55 +69,51 @@ class CodeGenHybrid :
    * \brief Print the Stmt n to CodeGenHybrid->stream
    * \param n The statement to be printed.
    */
-  void PrintStmt(const Stmt &n) {
-    this->VisitStmt(n);
-  }
+  void PrintStmt(const Stmt& n) { this->VisitStmt(n); }
   /*!
    * \brief Print the expression n(or its ssa id if in ssa mode) into os
    * \param n The expression to be printed.
    * \param os The output stream
    */
-  void PrintExpr(const PrimExpr &n, std::ostream &os) {
-    this->VisitExpr(n, os);
-  }
+  void PrintExpr(const PrimExpr& n, std::ostream& os) { this->VisitExpr(n, os); }
   /*!
    * \brief Same as PrintExpr, but simply returns result string
    * \param n The expression to be printed.
    */
-  std::string PrintExpr(const PrimExpr &n) {
+  std::string PrintExpr(const PrimExpr& n) {
     std::ostringstream os;
     PrintExpr(n, os);
     return os.str();
   }
   // expression
-  void VisitExpr_(const VarNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const LoadNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const LetNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const AddNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const SubNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const MulNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const DivNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const ModNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const FloorDivNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const FloorModNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const MinNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const MaxNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const EQNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const NENode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const LTNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const LENode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const GTNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const GENode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const AndNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const OrNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const CastNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const NotNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const SelectNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const RampNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const VarNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const LoadNode* op, std::ostream& os) override;       // NOLINT(*)
+  void VisitExpr_(const LetNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) override;       // NOLINT(*)
+  void VisitExpr_(const AddNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const SubNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const MulNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const DivNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const ModNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const FloorDivNode* op, std::ostream& os) override;   // NOLINT(*)
+  void VisitExpr_(const FloorModNode* op, std::ostream& os) override;   // NOLINT(*)
+  void VisitExpr_(const MinNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const MaxNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const EQNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const NENode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const LTNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const LENode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const GTNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const GENode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const AndNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const OrNode* op, std::ostream& os) override;         // NOLINT(*)
+  void VisitExpr_(const CastNode* op, std::ostream& os) override;       // NOLINT(*)
+  void VisitExpr_(const NotNode* op, std::ostream& os) override;        // NOLINT(*)
+  void VisitExpr_(const SelectNode* op, std::ostream& os) override;     // NOLINT(*)
+  void VisitExpr_(const RampNode* op, std::ostream& os) override;       // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const IntImmNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const FloatImmNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const IntImmNode* op, std::ostream& os) override;     // NOLINT(*)
+  void VisitExpr_(const FloatImmNode* op, std::ostream& os) override;   // NOLINT(*)
   void VisitExpr_(const StringImmNode* op, std::ostream& os) override;  // NOLINT(*)
   // statment
   void VisitStmt_(const LetStmtNode* op) override;
@@ -136,7 +132,7 @@ class CodeGenHybrid :
    * \param t The type representation.
    * \param os The stream to print the ctype into
    */
-  virtual void PrintType(DataType t, std::ostream& os); // NOLINT(*)
+  virtual void PrintType(DataType t, std::ostream& os);  // NOLINT(*)
 
  private:
   /*! \brief The current indent of the code dump. */
@@ -150,9 +146,9 @@ class CodeGenHybrid :
   /*!
    * \brief Keys are either (tensors, value_index) or (variables, 0).
    *        Values are the corresponding IDs.*/
-  std::map<std::pair<const Object *, int>, std::string> id_map_;
+  std::map<std::pair<const Object*, int>, std::string> id_map_;
   /*! \brief Variables (keys) binded to the threads (values). */
-  std::map<const VarNode *, std::string> binds_;
+  std::map<const VarNode*, std::string> binds_;
   /*!
    * \brief Find an unallocated name for the given prefix.
    * \param prefix The given prefix.
@@ -164,13 +160,13 @@ class CodeGenHybrid :
    * \brief Get or allocate the ID for the given variable.
    * \param v The given variable.
    */
-  std::string GetVarID(const VarNode *v);
+  std::string GetVarID(const VarNode* v);
   /*!
    * \brief Get or allocate the ID for the given tensor.
    * \param func The tensor to allocate a name.
    * \param value_index The value index of the given tensor.
    */
-  std::string GetTensorID(const FunctionRef &func, int value_index);
+  std::string GetTensorID(const FunctionRef& func, int value_index);
   /*! \brief the storage scope of allocation */
   std::map<FunctionRef, std::string> alloc_storage_scope_;
 };

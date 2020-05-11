@@ -44,7 +44,7 @@ class GraphInputNode;
 class GraphOpNode;
 
 using IntegerArray = Array<Integer>;
-using ShapeVector = std::vector<std::vector<int64_t> >;
+using ShapeVector = std::vector<std::vector<int64_t>>;
 using GraphAttrs = std::unordered_map<std::string, dmlc::any>;
 using GraphObjectPtr = std::shared_ptr<GraphNode>;
 using GraphInputObjectPtr = std::shared_ptr<GraphInputNode>;
@@ -70,8 +70,7 @@ class GraphNodeRef {
  public:
   GraphNodeRef() {}
   GraphNodeRef(int ident, int index, int version = 0)
-    : ident_(ident), index_(index), version_(version) {}
-
+      : ident_(ident), index_(index), version_(version) {}
 
   inline void Save(dmlc::JSONWriter* writer) const {
     writer->BeginArray();
@@ -81,9 +80,7 @@ class GraphNodeRef {
     writer->EndArray();
   }
 
-  inline void Load(dmlc::JSONReader* reader) {
-    LOG(FATAL) << "Not implemented.";
-  }
+  inline void Load(dmlc::JSONReader* reader) { LOG(FATAL) << "Not implemented."; }
 
  protected:
   int ident_;
@@ -136,11 +133,8 @@ class GraphInputNode : public GraphNode {
 class GraphOpNode : public GraphNode {
  public:
   GraphOpNode() {}
-  GraphOpNode(const std::string& name,
-              const GraphAttrs& nd_attrs,
-              const std::string& op_name,
-              const std::vector<GraphNodeRef>& inputs,
-              const GraphAttrs& attrs,
+  GraphOpNode(const std::string& name, const GraphAttrs& nd_attrs, const std::string& op_name,
+              const std::vector<GraphNodeRef>& inputs, const GraphAttrs& attrs,
               size_t num_outputs = 1) {
     name_ = name;
     attrs_ = nd_attrs;
@@ -173,8 +167,7 @@ class GraphOpNode : public GraphNode {
                                                   const GraphAttrs& nd_attrs,
                                                   const std::string& op_name,
                                                   const std::vector<GraphNodeRef>& inputs,
-                                                  const GraphAttrs& attrs,
-                                                  size_t num_outputs = 1) {
+                                                  const GraphAttrs& attrs, size_t num_outputs = 1) {
     auto ptr = std::make_shared<GraphOpNode>(name, nd_attrs, op_name, inputs, attrs, num_outputs);
     return std::dynamic_pointer_cast<GraphNode>(ptr);
   }
@@ -335,8 +328,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     return fields;
   }
 
-  std::vector<GraphNodeRef> GraphAddCallNode(const CallNode* op,
-                                             const std::string& op_name,
+  std::vector<GraphNodeRef> GraphAddCallNode(const CallNode* op, const std::string& op_name,
                                              const std::string& func_name) {
     std::vector<GraphNodeRef> inputs;
     for (auto arg : op->args) {
@@ -345,11 +337,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
         inputs.push_back(nr);
       }
     }
-    auto node = GraphOpNode::make_node_ptr(op_name,
-                                           GraphAttrs(),
-                                           func_name,
-                                           inputs,
-                                           GraphAttrs());
+    auto node = GraphOpNode::make_node_ptr(op_name, GraphAttrs(), func_name, inputs, GraphAttrs());
     return AddNode(node, GetRef<Expr>(op));
   }
 
@@ -384,11 +372,11 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     }
 
     CHECK_GE(storage_device_map_.count(expr), 0);
-    auto &device_type = storage_device_map_[expr][1];
+    auto& device_type = storage_device_map_[expr][1];
     auto call_dev_type = device_type[0]->value;
     // Normal Relay Function
     if (targets_.size() == 1) {
-       // homogeneous execution.
+      // homogeneous execution.
       const auto& it = targets_.begin();
       target = (*it).second;
     } else {
@@ -400,8 +388,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
         call_dev_name = runtime::DeviceName(call_dev_type);
       }
       if (targets_.count(call_dev_type) == 0) {
-        LOG(FATAL) << "No target is provided for device "
-                   << call_dev_name;
+        LOG(FATAL) << "No target is provided for device " << call_dev_name;
       }
       target = targets_[call_dev_type];
     }
@@ -411,9 +398,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
       lowered_funcs_[target->str()] = IRModule::Empty();
     }
     lowered_funcs_[target->str()]->Update(lowered_func->funcs);
-    return GraphAddCallNode(op,
-                           _GetUniqueName(lowered_func->func_name),
-                           lowered_func->func_name);
+    return GraphAddCallNode(op, _GetUniqueName(lowered_func->func_name), lowered_func->func_name);
   }
 
   std::vector<GraphNodeRef> VisitExpr_(const LetNode* op) override {
@@ -560,37 +545,34 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
 class GraphRuntimeCodegenModule : public runtime::ModuleNode {
  public:
   GraphRuntimeCodegenModule() {}
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self) {
-     if (name == "init") {
-       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-         CHECK_EQ(args.num_args, 2)
-             << "The expected of arguments are: "
-             << "runtime::Module mod and Map<int, Target> targets";
-         void* mod = args[0];
-         Map<Integer, tvm::Target> tmp = args[1];
-         TargetsMap targets;
-         for (const auto& it : tmp) {
-           auto dev_type = it.first.as<tir::IntImmNode>();
-           CHECK(dev_type);
-           targets[dev_type->value] = it.second;
-         }
-         codegen_ = std::make_shared<GraphRuntimeCodegen>(
-             reinterpret_cast<runtime::Module*>(mod), targets);
-       });
+  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+    if (name == "init") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        CHECK_EQ(args.num_args, 2) << "The expected of arguments are: "
+                                   << "runtime::Module mod and Map<int, Target> targets";
+        void* mod = args[0];
+        Map<Integer, tvm::Target> tmp = args[1];
+        TargetsMap targets;
+        for (const auto& it : tmp) {
+          auto dev_type = it.first.as<tir::IntImmNode>();
+          CHECK(dev_type);
+          targets[dev_type->value] = it.second;
+        }
+        codegen_ =
+            std::make_shared<GraphRuntimeCodegen>(reinterpret_cast<runtime::Module*>(mod), targets);
+      });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Function func = args[0];
         this->output_ = this->codegen_->Codegen(func);
       });
     } else if (name == "get_graph_json") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->output_.graph_json;
-      });
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.graph_json; });
     } else if (name == "list_params_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Array<runtime::String> ret;
-        for (const auto &kv : this->output_.params) {
+        for (const auto& kv : this->output_.params) {
           ret.push_back(kv.first);
         }
         *rv = ret;
@@ -614,9 +596,7 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
     }
   }
 
-  const char* type_key() const final {
-    return "RelayGraphRuntimeCodegenModule";
-  }
+  const char* type_key() const final { return "RelayGraphRuntimeCodegenModule"; }
 
  private:
   std::shared_ptr<GraphRuntimeCodegen> codegen_;
@@ -629,9 +609,7 @@ runtime::Module CreateGraphCodegenMod() {
 }
 
 TVM_REGISTER_GLOBAL("relay.build_module._GraphRuntimeCodegen")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = CreateGraphCodegenMod();
-});
+    .set_body([](TVMArgs args, TVMRetValue* rv) { *rv = CreateGraphCodegenMod(); });
 
 }  // namespace backend
 }  // namespace relay

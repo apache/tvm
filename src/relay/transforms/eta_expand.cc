@@ -24,9 +24,9 @@
  *
  */
 #include <tvm/ir/type_functor.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
-#include <tvm/relay/expr_functor.h>
 
 namespace tvm {
 namespace relay {
@@ -62,16 +62,14 @@ class EtaExpander : public ExprMutator {
         type_var_replacer_(TypeVarReplacer()),
         expand_constructor_(expand_constructor),
         expand_global_var_(expand_global_var) {
-    CHECK(expand_constructor || expand_global_var)
-      << "must expand at least one language feature";
+    CHECK(expand_constructor || expand_global_var) << "must expand at least one language feature";
   }
 
   IRModule Expand() {
     for (GlobalVar global_var : mod_->GetGlobalVars()) {
       const BaseFunc base_func = mod_->Lookup(global_var);
       if (auto* n = base_func.as<FunctionNode>()) {
-        const Function new_func = Downcast<Function>(
-            VisitExpr(GetRef<Function>(n)));
+        const Function new_func = Downcast<Function>(VisitExpr(GetRef<Function>(n)));
         mod_->Update(global_var, new_func);
       }
     }
@@ -111,11 +109,8 @@ class EtaExpander : public ExprMutator {
     Expr body = Call(cons, params, Attrs());
     Type ret_type = TypeCall(cons->belong_to, type_params);
 
-    return Function(
-      Downcast<tvm::Array<Var>>(params),
-      body,
-      ret_type,
-      Downcast<tvm::Array<TypeVar>>(type_params));
+    return Function(Downcast<tvm::Array<Var>>(params), body, ret_type,
+                    Downcast<tvm::Array<TypeVar>>(type_params));
   }
 
   Expr VisitExpr_(const GlobalVarNode* gvar_node) final {
@@ -124,7 +119,7 @@ class EtaExpander : public ExprMutator {
       return std::move(gvar);
     }
     const auto base_func = mod_->Lookup(gvar);
-    if (auto *ptr = base_func.as<FunctionNode>()) {
+    if (auto* ptr = base_func.as<FunctionNode>()) {
       // handle relay function, skip external functions.
       auto func = GetRef<Function>(ptr);
       tvm::Array<Expr> params;
@@ -135,11 +130,7 @@ class EtaExpander : public ExprMutator {
         args.push_back(var);
       }
 
-    return Function(
-        args,
-        Call(gvar, params),
-        func->ret_type,
-        func->type_params);
+      return Function(args, Call(gvar, params), func->ret_type, func->type_params);
     } else {
       return std::move(gvar);
     }
@@ -161,15 +152,14 @@ class EtaExpander : public ExprMutator {
 namespace transform {
 
 Pass EtaExpand(bool expand_constructor, bool expand_global_var) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-    [=](IRModule mod, PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
+                                                                            PassContext pc) {
     return eta_expand::EtaExpander(mod, expand_constructor, expand_global_var).Expand();
   };
   return CreateModulePass(pass_func, 1, "EtaExpand", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.EtaExpand")
-.set_body_typed(EtaExpand);
+TVM_REGISTER_GLOBAL("relay._transform.EtaExpand").set_body_typed(EtaExpand);
 
 }  // namespace transform
 

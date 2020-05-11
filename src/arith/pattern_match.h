@@ -67,7 +67,9 @@
 
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
+
 #include <tuple>
+
 #include "const_fold.h"
 
 namespace tvm {
@@ -84,7 +86,7 @@ namespace arith {
  *
  * \tparam Derived The type of the derived class.
  */
-template<typename Derived>
+template <typename Derived>
 class Pattern {
  public:
   /*!
@@ -108,30 +110,26 @@ class Pattern {
    *
    * \return whether value matches the pattern.
    */
-  template<typename NodeType>
+  template <typename NodeType>
   bool Match(const NodeType& value) const {
     derived().InitMatch_();
     return derived().Match_(value);
   }
   /*! \return Derived instance of current class. */
-  const Derived& derived() const {
-    return *static_cast<const Derived*>(this);
-  }
+  const Derived& derived() const { return *static_cast<const Derived*>(this); }
 };
 
 /*!
  * \brief Default deep equality checker
  * \tparam T the comparison point.
  */
-template<typename T>
+template <typename T>
 class PEqualChecker {
  public:
-  bool operator()(const T& lhs, const T& rhs) const {
-    return lhs == rhs;
-  }
+  bool operator()(const T& lhs, const T& rhs) const { return lhs == rhs; }
 };
 
-template<>
+template <>
 class PEqualChecker<PrimExpr> {
  public:
   bool operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
@@ -140,20 +138,16 @@ class PEqualChecker<PrimExpr> {
   }
 };
 
-template<>
+template <>
 class PEqualChecker<IntImm> {
  public:
-  bool operator()(const IntImm& lhs, const IntImm& rhs) const {
-    return lhs->value == rhs->value;
-  }
+  bool operator()(const IntImm& lhs, const IntImm& rhs) const { return lhs->value == rhs->value; }
 };
 
-template<>
+template <>
 class PEqualChecker<tir::Var> {
  public:
-  bool operator()(const tir::Var& lhs, const tir::Var& rhs) const {
-    return lhs.same_as(rhs);
-  }
+  bool operator()(const tir::Var& lhs, const tir::Var& rhs) const { return lhs.same_as(rhs); }
 };
 
 /*!
@@ -166,15 +160,13 @@ class PEqualChecker<tir::Var> {
  * \note PVar is not thread safe.
  *       Do not use the same PVar in multiple threads.
  */
-template<typename T>
-class PVar : public Pattern<PVar<T> > {
+template <typename T>
+class PVar : public Pattern<PVar<T>> {
  public:
   // Store PVars by reference in the expression.
   using Nested = const PVar<T>&;
 
-  void InitMatch_() const {
-    filled_ = false;
-  }
+  void InitMatch_() const { filled_ = false; }
 
   bool Match_(const T& value) const {
     if (!filled_) {
@@ -186,9 +178,8 @@ class PVar : public Pattern<PVar<T> > {
     }
   }
 
-  template<typename NodeRefType,
-           typename = typename std::enable_if<
-             std::is_base_of<NodeRefType, T>::value>::type>
+  template <typename NodeRefType,
+            typename = typename std::enable_if<std::is_base_of<NodeRefType, T>::value>::type>
   bool Match_(const NodeRefType& value) const {
     if (const auto* ptr = value.template as<typename T::ContainerType>()) {
       return Match_(GetRef<T>(ptr));
@@ -214,21 +205,17 @@ class PVar : public Pattern<PVar<T> > {
  *
  * \tparam T the type of the hole.
  */
-template<typename T>
-class PConst : public Pattern<PConst<T> > {
+template <typename T>
+class PConst : public Pattern<PConst<T>> {
  public:
   PConst(T value)  // NOLINT(*)
       : value_(value) {}
 
   void InitMatch_() const {}
 
-  bool Match_(const T& value) const {
-    return PEqualChecker<T>()(value_, value);
-  }
+  bool Match_(const T& value) const { return PEqualChecker<T>()(value_, value); }
 
-  T Eval() const {
-    return value_;
-  }
+  T Eval() const { return value_; }
 
  private:
   const T value_;
@@ -240,9 +227,8 @@ class PConst : public Pattern<PConst<T> > {
  * \tparam TA The pattern type of the first operand.
  * \tparam TB The pattern type of the second operand.
  */
-template<typename NodeType, typename TA, typename TB>
-class PBinaryExpr :
-      public Pattern<PBinaryExpr<NodeType, TA, TB> > {
+template <typename NodeType, typename TA, typename TB>
+class PBinaryExpr : public Pattern<PBinaryExpr<NodeType, TA, TB>> {
  public:
   PBinaryExpr(const TA& a, const TB& b) : a_(a), b_(b) {}
 
@@ -274,12 +260,10 @@ class PBinaryExpr :
   typename TB::Nested b_;
 };
 
-template<typename TA>
-class PConstWithTypeLike :
-      public Pattern<PConstWithTypeLike<TA> > {
+template <typename TA>
+class PConstWithTypeLike : public Pattern<PConstWithTypeLike<TA>> {
  public:
-  PConstWithTypeLike(const TA& ref, int64_t value)
-      : ref_(ref), value_(value) {}
+  PConstWithTypeLike(const TA& ref, int64_t value) : ref_(ref), value_(value) {}
 
   void InitMatch_() const {}
 
@@ -291,39 +275,33 @@ class PConstWithTypeLike :
     }
   }
 
-  PrimExpr Eval() const {
-    return tir::make_const(ref_.Eval().dtype(), value_);
-  }
+  PrimExpr Eval() const { return tir::make_const(ref_.Eval().dtype(), value_); }
 
  private:
   typename TA::Nested ref_;
   int64_t value_;
 };
 
-
-#define TVM_PATTERN_BINARY_OP_EX(FuncName, NodeName, CheckStep)     \
-  template<typename TA, typename TB>                                \
-  inline PBinaryExpr<NodeName, TA, TB>                              \
-  FuncName(const Pattern<TA>& a, const Pattern<TB>& b) {            \
-    CheckStep;                                                      \
-    return PBinaryExpr<NodeName, TA, TB>(a.derived(), b.derived()); \
-  }                                                                 \
-  template<typename TA>                                             \
-  inline PBinaryExpr<NodeName, TA, PConstWithTypeLike<TA> >         \
-  FuncName(const Pattern<TA>& a, int64_t b) {                       \
-    CheckStep;                                                      \
-    return FuncName(a, PConstWithTypeLike<TA>(a.derived(), b));     \
-  }                                                                 \
-  template<typename TA>                                             \
-  inline PBinaryExpr<NodeName, PConstWithTypeLike<TA>, TA>          \
-  FuncName(int64_t b, const Pattern<TA>& a) {                       \
-    CheckStep;                                                      \
-    return FuncName(PConstWithTypeLike<TA>(a.derived(), b), a);     \
+#define TVM_PATTERN_BINARY_OP_EX(FuncName, NodeName, CheckStep)                               \
+  template <typename TA, typename TB>                                                         \
+  inline PBinaryExpr<NodeName, TA, TB> FuncName(const Pattern<TA>& a, const Pattern<TB>& b) { \
+    CheckStep;                                                                                \
+    return PBinaryExpr<NodeName, TA, TB>(a.derived(), b.derived());                           \
+  }                                                                                           \
+  template <typename TA>                                                                      \
+  inline PBinaryExpr<NodeName, TA, PConstWithTypeLike<TA>> FuncName(const Pattern<TA>& a,     \
+                                                                    int64_t b) {              \
+    CheckStep;                                                                                \
+    return FuncName(a, PConstWithTypeLike<TA>(a.derived(), b));                               \
+  }                                                                                           \
+  template <typename TA>                                                                      \
+  inline PBinaryExpr<NodeName, PConstWithTypeLike<TA>, TA> FuncName(int64_t b,                \
+                                                                    const Pattern<TA>& a) {   \
+    CheckStep;                                                                                \
+    return FuncName(PConstWithTypeLike<TA>(a.derived(), b), a);                               \
   }
 
-#define TVM_PATTERN_BINARY_OP(FuncName, NodeName) \
-  TVM_PATTERN_BINARY_OP_EX(FuncName, NodeName, )
-
+#define TVM_PATTERN_BINARY_OP(FuncName, NodeName) TVM_PATTERN_BINARY_OP_EX(FuncName, NodeName, )
 
 // raise ambiguity error for operator overload of / and %
 TVM_PATTERN_BINARY_OP_EX(operator/, tir::DivNode, DivAmbiguityError(a));
@@ -355,15 +333,12 @@ TVM_PATTERN_BINARY_OP(operator||, tir::OrNode);
  * \brief Pattern not expression.
  * \tparam TA The pattern type of the true operand.
  */
-template<typename TA>
-class PNotExpr : public Pattern<PNotExpr<TA> > {
+template <typename TA>
+class PNotExpr : public Pattern<PNotExpr<TA>> {
  public:
-  explicit PNotExpr(const TA& value)
-      : value_(value) {}
+  explicit PNotExpr(const TA& value) : value_(value) {}
 
-  void InitMatch_() const {
-    value_.InitMatch_();
-  }
+  void InitMatch_() const { value_.InitMatch_(); }
 
   bool Match_(const ObjectRef& node) const {
     if (const tir::NotNode* ptr = node.as<tir::NotNode>()) {
@@ -374,15 +349,13 @@ class PNotExpr : public Pattern<PNotExpr<TA> > {
     }
   }
 
-  PrimExpr Eval() const {
-    return tir::NotNode::make(value_.Eval());
-  }
+  PrimExpr Eval() const { return tir::NotNode::make(value_.Eval()); }
 
  private:
   typename TA::Nested value_;
 };
 
-template<typename TA>
+template <typename TA>
 inline PNotExpr<TA> operator!(const Pattern<TA>& value) {
   return PNotExpr<TA>(value.derived());
 }
@@ -394,16 +367,11 @@ inline PNotExpr<TA> operator!(const Pattern<TA>& value) {
  * \tparam TA The pattern type of the true operand.
  * \tparam TB The pattern type of the false operand.
  */
-template<typename TCond, typename TA, typename TB>
-class PSelectExpr :
-      public Pattern<PSelectExpr<TCond, TA, TB> > {
+template <typename TCond, typename TA, typename TB>
+class PSelectExpr : public Pattern<PSelectExpr<TCond, TA, TB>> {
  public:
-  PSelectExpr(const TCond& condition,
-              const TA& true_value,
-              const TB& false_value)
-      : condition_(condition),
-        true_value_(true_value),
-        false_value_(false_value) {}
+  PSelectExpr(const TCond& condition, const TA& true_value, const TB& false_value)
+      : condition_(condition), true_value_(true_value), false_value_(false_value) {}
 
   void InitMatch_() const {
     condition_.InitMatch_();
@@ -423,8 +391,7 @@ class PSelectExpr :
   }
 
   PrimExpr Eval() const {
-    return tir::SelectNode::make(
-        condition_.Eval(), true_value_.Eval(), false_value_.Eval());
+    return tir::SelectNode::make(condition_.Eval(), true_value_.Eval(), false_value_.Eval());
   }
 
  private:
@@ -446,13 +413,12 @@ class PSelectExpr :
  * \tparam TA The pattern type of the true operand.
  * \tparam TB The pattern type of the false operand.
  */
-template<typename TCond, typename TA, typename TB>
-inline PSelectExpr<TCond, TA, TB>
-select(const Pattern<TCond>& condition,
-       const Pattern<TA>& true_value,
-       const Pattern<TB>& false_value) {
-  return PSelectExpr<TCond, TA, TB>(
-      condition.derived(), true_value.derived(), false_value.derived());
+template <typename TCond, typename TA, typename TB>
+inline PSelectExpr<TCond, TA, TB> select(const Pattern<TCond>& condition,
+                                         const Pattern<TA>& true_value,
+                                         const Pattern<TB>& false_value) {
+  return PSelectExpr<TCond, TA, TB>(condition.derived(), true_value.derived(),
+                                    false_value.derived());
 }
 
 /*!
@@ -460,13 +426,10 @@ select(const Pattern<TCond>& condition,
  * \tparam DType The Pattern type of dtype.
  * \tparam TA The pattern type of the first operand.
  */
-template<typename DType, typename TA>
-class PCastExpr :
-      public Pattern<PCastExpr<DType, TA> > {
+template <typename DType, typename TA>
+class PCastExpr : public Pattern<PCastExpr<DType, TA>> {
  public:
-  PCastExpr(const DType& dtype, const TA& value)
-      : dtype_(dtype), value_(value) {
-  }
+  PCastExpr(const DType& dtype, const TA& value) : dtype_(dtype), value_(value) {}
 
   void InitMatch_() const {
     dtype_.InitMatch_();
@@ -483,9 +446,7 @@ class PCastExpr :
     }
   }
 
-  PrimExpr Eval() const {
-    return tir::CastNode::make(dtype_.Eval(), value_.Eval());
-  }
+  PrimExpr Eval() const { return tir::CastNode::make(dtype_.Eval(), value_.Eval()); }
 
  private:
   typename DType::Nested dtype_;
@@ -503,9 +464,8 @@ class PCastExpr :
  * \tparam DType The pattern type of type.
  * \tparam TA The pattern type of value.
  */
-template<typename DType, typename TA>
-inline PCastExpr<DType, TA>
-cast(const Pattern<DType>& dtype, const Pattern<TA>& value) {
+template <typename DType, typename TA>
+inline PCastExpr<DType, TA> cast(const Pattern<DType>& dtype, const Pattern<TA>& value) {
   return PCastExpr<DType, TA>(dtype.derived(), value.derived());
 }
 
@@ -515,15 +475,11 @@ cast(const Pattern<DType>& dtype, const Pattern<TA>& value) {
  * \tparam TStride The pattern type of the stride.
  * \tparam TLanes The pattern type of the lanes.
  */
-template<typename TBase, typename TStride, typename TLanes>
-class PRampExpr :
-      public Pattern<PRampExpr<TBase, TStride, TLanes> > {
+template <typename TBase, typename TStride, typename TLanes>
+class PRampExpr : public Pattern<PRampExpr<TBase, TStride, TLanes>> {
  public:
-  PRampExpr(const TBase& base,
-            const TStride& stride,
-            const TLanes& lanes)
-      : base_(base), stride_(stride), lanes_(lanes) {
-  }
+  PRampExpr(const TBase& base, const TStride& stride, const TLanes& lanes)
+      : base_(base), stride_(stride), lanes_(lanes) {}
 
   void InitMatch_() const {
     base_.InitMatch_();
@@ -542,9 +498,7 @@ class PRampExpr :
     }
   }
 
-  PrimExpr Eval() const {
-    return tir::RampNode::make(base_.Eval(), stride_.Eval(), lanes_.Eval());
-  }
+  PrimExpr Eval() const { return tir::RampNode::make(base_.Eval(), stride_.Eval(), lanes_.Eval()); }
 
  private:
   typename TBase::Nested base_;
@@ -565,24 +519,18 @@ class PRampExpr :
  * \tparam TStride The pattern type of the stride.
  * \tparam TLanes The pattern type of the lanes.
  */
-template<typename TBase, typename TStride, typename TLanes>
-inline PRampExpr<TBase, TStride, TLanes>
-ramp(const Pattern<TBase>& base,
-     const Pattern<TStride>& stride,
-     const Pattern<TLanes>& lanes) {
-  return PRampExpr<TBase, TStride, TLanes>(
-      base.derived(), stride.derived(), lanes.derived());
+template <typename TBase, typename TStride, typename TLanes>
+inline PRampExpr<TBase, TStride, TLanes> ramp(const Pattern<TBase>& base,
+                                              const Pattern<TStride>& stride,
+                                              const Pattern<TLanes>& lanes) {
+  return PRampExpr<TBase, TStride, TLanes>(base.derived(), stride.derived(), lanes.derived());
 }
 
-template<typename TBase>
-inline PRampExpr<TBase, PConstWithTypeLike<TBase>, PConst<int>>
-ramp(const Pattern<TBase>& base,
-     int stride,
-     int lanes) {
+template <typename TBase>
+inline PRampExpr<TBase, PConstWithTypeLike<TBase>, PConst<int>> ramp(const Pattern<TBase>& base,
+                                                                     int stride, int lanes) {
   return PRampExpr<TBase, PConstWithTypeLike<TBase>, PConst<int>>(
-      base.derived(),
-      PConstWithTypeLike<TBase>(base.derived(), stride),
-      PConst<int>(lanes));
+      base.derived(), PConstWithTypeLike<TBase>(base.derived(), stride), PConst<int>(lanes));
 }
 
 /*!
@@ -590,14 +538,10 @@ ramp(const Pattern<TBase>& base,
  * \tparam TA The pattern type of the value.
  * \tparam TLanes The pattern type of the lanes.
  */
-template<typename TA, typename TLanes>
-class PBroadcastExpr :
-      public Pattern<PBroadcastExpr<TA, TLanes> > {
+template <typename TA, typename TLanes>
+class PBroadcastExpr : public Pattern<PBroadcastExpr<TA, TLanes>> {
  public:
-  PBroadcastExpr(const TA& value,
-                 const TLanes& lanes)
-      : value_(value), lanes_(lanes) {
-  }
+  PBroadcastExpr(const TA& value, const TLanes& lanes) : value_(value), lanes_(lanes) {}
 
   void InitMatch_() const {
     value_.InitMatch_();
@@ -614,9 +558,7 @@ class PBroadcastExpr :
     }
   }
 
-  PrimExpr Eval() const {
-    return tir::BroadcastNode::make(value_.Eval(), lanes_.Eval());
-  }
+  PrimExpr Eval() const { return tir::BroadcastNode::make(value_.Eval(), lanes_.Eval()); }
 
  private:
   typename TA::Nested value_;
@@ -634,40 +576,37 @@ class PBroadcastExpr :
  * \tparam TA The pattern type of the value.
  * \tparam TLanes The pattern type of the lanes.
  */
-template<typename TA, typename TLanes>
-inline PBroadcastExpr<TA, TLanes>
-broadcast(const Pattern<TA>& value, const Pattern<TLanes>& lanes) {
+template <typename TA, typename TLanes>
+inline PBroadcastExpr<TA, TLanes> broadcast(const Pattern<TA>& value,
+                                            const Pattern<TLanes>& lanes) {
   return PBroadcastExpr<TA, TLanes>(value.derived(), lanes.derived());
 }
 
 // internal namespace
 namespace detail {
 // implementation details for  CallExpr
-template<bool stop, std::size_t I, typename F>
+template <bool stop, std::size_t I, typename F>
 struct tuple_for_each_dispatcher {
-  template<typename TTuple>
-  static void run(F& f, const TTuple& tuple) { // NOLINT(*)
+  template <typename TTuple>
+  static void run(F& f, const TTuple& tuple) {  // NOLINT(*)
     f(I, std::get<I>(tuple));
-    tuple_for_each_dispatcher<
-      (I + 1) == std::tuple_size<TTuple>::value, (I + 1), F>
-        ::run(f, tuple);
+    tuple_for_each_dispatcher<(I + 1) == std::tuple_size<TTuple>::value, (I + 1), F>::run(f, tuple);
   }
 };
 
-template<std::size_t I, typename F>
+template <std::size_t I, typename F>
 struct tuple_for_each_dispatcher<true, I, F> {
-  template<typename TTuple>
-  static void run(F& f, const TTuple& tuple) {} // NOLINT(*)
+  template <typename TTuple>
+  static void run(F& f, const TTuple& tuple) {}  // NOLINT(*)
 };
 
-template<typename F, typename TTuple>
+template <typename F, typename TTuple>
 inline void tuple_for_each(F& f, const TTuple& tuple) {  // NOLINT(*)
-  tuple_for_each_dispatcher<std::tuple_size<TTuple>::value == 0, 0, F>
-      ::run(f, tuple);
+  tuple_for_each_dispatcher<std::tuple_size<TTuple>::value == 0, 0, F>::run(f, tuple);
 }
 
 struct PCallExprInitMatchFunctor {
-  template<typename T>
+  template <typename T>
   void operator()(size_t i, const T& pattern) const {
     pattern.InitMatch_();
   }
@@ -677,10 +616,9 @@ struct PCallExprMatchFunctor {
   const tir::CallNode* call_;
   bool matched_{true};
 
-  explicit PCallExprMatchFunctor(const tir::CallNode* call)
-      : call_(call) {}
+  explicit PCallExprMatchFunctor(const tir::CallNode* call) : call_(call) {}
 
-  template<typename T>
+  template <typename T>
   void operator()(size_t i, const T& pattern) {
     matched_ = matched_ && pattern.Match_(call_->args[i]);
   }
@@ -689,7 +627,7 @@ struct PCallExprMatchFunctor {
 struct PCallExprEvalArgsFunctor {
   Array<PrimExpr> args_;
 
-  template<typename T>
+  template <typename T>
   void operator()(size_t i, const T& pattern) {
     args_.push_back(pattern.Eval());
   }
@@ -703,13 +641,10 @@ struct PCallExprEvalArgsFunctor {
  * \note Op functor contains the name of the function and
  *          the implementation of Eval.
  */
-template<typename Op, typename ...TArgs>
-class PCallExpr :
-      public Pattern<PCallExpr<Op, TArgs...> > {
+template <typename Op, typename... TArgs>
+class PCallExpr : public Pattern<PCallExpr<Op, TArgs...>> {
  public:
-  explicit PCallExpr(const TArgs&... args)
-      : args_(args...) {
-  }
+  explicit PCallExpr(const TArgs&... args) : args_(args...) {}
 
   void InitMatch_() const {
     detail::PCallExprInitMatchFunctor finit;
@@ -739,18 +674,16 @@ class PCallExpr :
 };
 
 // arithemetic intrinsics
-#define TVM_PATTERN_BINARY_INTRIN(FuncName, OpName, IntrinStr)          \
-  struct OpName {                                                       \
-    static PrimExpr Eval(Array<PrimExpr> args) {                                \
-      return tir::CallNode::make(args[0].dtype(), kName, args,           \
-                                tir::CallNode::PureIntrinsic);           \
-    }                                                                   \
-    static constexpr const char* kName = IntrinStr;                     \
-  };                                                                    \
-  template<typename TA, typename TB>                                    \
-  inline PCallExpr<OpName, TA, TB>                                      \
-  FuncName(const Pattern<TA>& a, const Pattern<TB>& b) {                \
-    return PCallExpr<OpName, TA, TB>(a.derived(), b.derived());         \
+#define TVM_PATTERN_BINARY_INTRIN(FuncName, OpName, IntrinStr)                                \
+  struct OpName {                                                                             \
+    static PrimExpr Eval(Array<PrimExpr> args) {                                              \
+      return tir::CallNode::make(args[0].dtype(), kName, args, tir::CallNode::PureIntrinsic); \
+    }                                                                                         \
+    static constexpr const char* kName = IntrinStr;                                           \
+  };                                                                                          \
+  template <typename TA, typename TB>                                                         \
+  inline PCallExpr<OpName, TA, TB> FuncName(const Pattern<TA>& a, const Pattern<TB>& b) {     \
+    return PCallExpr<OpName, TA, TB>(a.derived(), b.derived());                               \
   }
 
 TVM_PATTERN_BINARY_INTRIN(operator<<, PLeftShiftOp, "shift_left");
@@ -760,18 +693,16 @@ TVM_PATTERN_BINARY_INTRIN(operator|, PBitwiseOrOp, "bitwise_or");
 TVM_PATTERN_BINARY_INTRIN(operator^, PBitwiseXorOp, "bitwise_xor");
 
 // unary intrinsics
-#define TVM_PATTERN_UNARY_INTRIN(FuncName, OpName, IntrinStr)           \
-  struct OpName {                                                       \
-    static PrimExpr Eval(Array<PrimExpr> args) {                                \
-      return tir::CallNode::make(args[0].dtype(), kName, args,           \
-                                tir::CallNode::PureIntrinsic);           \
-    }                                                                   \
-    static constexpr const char* kName = IntrinStr;                     \
-  };                                                                    \
-  template<typename TA>                                                 \
-  inline PCallExpr<OpName, TA>                                          \
-  FuncName(const Pattern<TA>& a) {                                      \
-    return PCallExpr<OpName, TA>(a.derived());                          \
+#define TVM_PATTERN_UNARY_INTRIN(FuncName, OpName, IntrinStr)                                 \
+  struct OpName {                                                                             \
+    static PrimExpr Eval(Array<PrimExpr> args) {                                              \
+      return tir::CallNode::make(args[0].dtype(), kName, args, tir::CallNode::PureIntrinsic); \
+    }                                                                                         \
+    static constexpr const char* kName = IntrinStr;                                           \
+  };                                                                                          \
+  template <typename TA>                                                                      \
+  inline PCallExpr<OpName, TA> FuncName(const Pattern<TA>& a) {                               \
+    return PCallExpr<OpName, TA>(a.derived());                                                \
   }
 
 TVM_PATTERN_UNARY_INTRIN(operator~, PBitwiseNotOp, "bitwise_not");
@@ -779,9 +710,7 @@ TVM_PATTERN_UNARY_INTRIN(operator~, PBitwiseNotOp, "bitwise_not");
 // if_then_else
 struct PIfThenElseOp {
   static PrimExpr Eval(Array<PrimExpr> args) {
-    return tir::CallNode::make(
-        args[1].dtype(), kName, args,
-        tir::CallNode::PureIntrinsic);
+    return tir::CallNode::make(args[1].dtype(), kName, args, tir::CallNode::PureIntrinsic);
   }
   static constexpr const char* kName = "tvm_if_then_else";
 };
@@ -799,13 +728,12 @@ struct PIfThenElseOp {
  * \tparam TA The pattern type of the true operand.
  * \tparam TB The pattern type of the false operand.
  */
-template<typename TCond, typename TA, typename TB>
-inline PCallExpr<PIfThenElseOp, TCond, TA, TB>
-if_then_else(const Pattern<TCond>& cond,
-             const Pattern<TA>& true_value,
-             const Pattern<TB>& false_value) {
-  return PCallExpr<PIfThenElseOp, TCond, TA, TB>(
-      cond.derived(), true_value.derived(), false_value.derived());
+template <typename TCond, typename TA, typename TB>
+inline PCallExpr<PIfThenElseOp, TCond, TA, TB> if_then_else(const Pattern<TCond>& cond,
+                                                            const Pattern<TA>& true_value,
+                                                            const Pattern<TB>& false_value) {
+  return PCallExpr<PIfThenElseOp, TCond, TA, TB>(cond.derived(), true_value.derived(),
+                                                 false_value.derived());
 }
 
 }  // namespace arith

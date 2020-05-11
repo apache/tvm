@@ -33,8 +33,7 @@ TEST(SimplePasses, HasSideEffect) {
   CHECK(!tvm::tir::HasSideEffect(A[0]));
 }
 
-
-int main(int argc, char ** argv) {
+int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
   return RUN_ALL_TESTS();

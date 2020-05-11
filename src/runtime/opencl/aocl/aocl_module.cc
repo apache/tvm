@@ -20,23 +20,24 @@
 /*!
  * \file aocl_module.cc
  */
+#include "aocl_module.h"
+
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/registry.h>
-#include <vector>
+
 #include <string>
 #include <unordered_map>
+#include <vector>
+
 #include "aocl_common.h"
-#include "aocl_module.h"
 
 namespace tvm {
 namespace runtime {
 
 class AOCLModuleNode : public OpenCLModuleNode {
  public:
-  explicit AOCLModuleNode(std::string data,
-                          std::string fmt,
-                          std::unordered_map<std::string, FunctionInfo> fmap,
-                          std::string source)
+  explicit AOCLModuleNode(std::string data, std::string fmt,
+                          std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : OpenCLModuleNode(data, fmt, fmap, source) {}
   const std::shared_ptr<cl::OpenCLWorkspace>& GetGlobalWorkspace() final;
 };
@@ -45,18 +46,14 @@ const std::shared_ptr<cl::OpenCLWorkspace>& AOCLModuleNode::GetGlobalWorkspace()
   return cl::AOCLWorkspace::Global();
 }
 
-Module AOCLModuleCreate(
-    std::string data,
-    std::string fmt,
-    std::unordered_map<std::string, FunctionInfo> fmap,
-    std::string source) {
+Module AOCLModuleCreate(std::string data, std::string fmt,
+                        std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
   auto n = make_object<AOCLModuleNode>(data, fmt, fmap, source);
   n->Init();
   return Module(n);
 }
 
-Module AOCLModuleLoadFile(const std::string& file_name,
-                          const std::string& format) {
+Module AOCLModuleLoadFile(const std::string& file_name, const std::string& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
@@ -66,8 +63,7 @@ Module AOCLModuleLoadFile(const std::string& file_name,
   return AOCLModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_aocx")
-.set_body_typed(AOCLModuleLoadFile);
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_aocx").set_body_typed(AOCLModuleLoadFile);
 
 }  // namespace runtime
 }  // namespace tvm

@@ -22,11 +22,12 @@
  * \brief Remove no op from the stmt
  */
 #include <tvm/runtime/registry.h>
-#include <tvm/tir/stmt.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
-#include <tvm/tir/transform.h>
+#include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
+
 #include <unordered_map>
 
 namespace tvm {
@@ -105,7 +106,7 @@ class NoOpRemover : public StmtMutator {
       auto n = CopyOnWrite(op);
       size_t top = 0;
       for (size_t i = 0; i < n->seq.size(); ++i) {
-        if (!is_no_op(n->seq[i]))  {
+        if (!is_no_op(n->seq[i])) {
           n->seq.Set(top++, n->seq[i]);
         }
       }
@@ -147,9 +148,7 @@ class NoOpRemover : public StmtMutator {
   }
 };
 
-Stmt RemoveNoOp(Stmt stmt) {
-  return NoOpRemover()(std::move(stmt));
-}
+Stmt RemoveNoOp(Stmt stmt) { return NoOpRemover()(std::move(stmt)); }
 
 namespace transform {
 
@@ -162,8 +161,7 @@ Pass RemoveNoOp() {
   return CreatePrimFuncPass(pass_func, 0, "tir.RemoveNoOp", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.RemoveNoOp")
-.set_body_typed(RemoveNoOp);
+TVM_REGISTER_GLOBAL("tir.transform.RemoveNoOp").set_body_typed(RemoveNoOp);
 
 }  // namespace transform
 

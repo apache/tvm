@@ -21,15 +21,16 @@
  * \file src/relay/qnn/op/convolution.cc
  * \brief Property def of qnn convolution operator.
  */
-#include <tvm/tir/data_layout.h>
+#include "../../op/nn/convolution.h"
+
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/base.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/qnn/attrs.h>
 #include <tvm/relay/transform.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/data_layout.h>
 
-#include "../../op/nn/convolution.h"
 #include "../../transforms/pattern_util.h"
 #include "../util.h"
 
@@ -88,9 +89,8 @@ Array<Array<Layout>> QnnConvInferCorrectLayout(const Attrs& attrs,
 }
 
 bool is_depthwise(const Conv2DAttrs* param) {
-  return param->channels.defined() &&
-      tvm::tir::ExprDeepEqual()(param->channels, param->groups) &&
-      param->groups != 1;
+  return param->channels.defined() && tvm::tir::ExprDeepEqual()(param->channels, param->groups) &&
+         param->groups != 1;
 }
 
 // Workload - batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier
@@ -201,8 +201,8 @@ Expr Conv2DPadInput(const Expr& data, const Expr& input_zero_point, const Conv2D
   auto pad_left_value = get_const_int(param->padding[1]);
   auto pad_bottom_value = get_const_int(param->padding[2]);
   auto pad_right_value = get_const_int(param->padding[3]);
-  bool do_pad = pad_top_value != 0 || pad_left_value != 0 ||
-                pad_bottom_value != 0 || pad_right_value != 0;
+  bool do_pad =
+      pad_top_value != 0 || pad_left_value != 0 || pad_bottom_value != 0 || pad_right_value != 0;
   if (do_pad) {
     Array<IndexExpr> pad_n({0, 0});
     Array<IndexExpr> pad_c({0, 0});
@@ -676,13 +676,12 @@ Expr MakeQnnConv2D(Expr data, Expr weight, Expr input_zero_point, Expr kernel_ze
   attrs->out_layout = std::move(out_layout);
   attrs->out_dtype = std::move(out_dtype);
   static const Op& op = Op::Get("qnn.conv2d");
-  return Call(
-      op, {data, weight, input_zero_point, kernel_zero_point, input_scale, kernel_scale},
-      Attrs(attrs), {});
+  return Call(op, {data, weight, input_zero_point, kernel_zero_point, input_scale, kernel_scale},
+              Attrs(attrs), {});
 }
 
 RELAY_REGISTER_OP("qnn.conv2d")
-.describe(R"code(2D quantized convolution layer.
+    .describe(R"code(2D quantized convolution layer.
 This operator convolves quantized weight with quantized data. The scale of the
 output quantized tensor is the product of the weight_scale and input_scale of
 the input quantized tensors. The zero point of the output quantized tensor is
@@ -694,18 +693,19 @@ operator to understand how to scale back the int32 output to (u)int8.
 - **out**:  This depends on the `layout` parameter. Output is 4D array of shape
             (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<Conv2DAttrs>()
-.set_num_inputs(6)
-.add_argument("data", "Tensor", "The quantized input data tensor.")
-.add_argument("weight", "Tensor", "The quantized weight tensor.")
-.add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
-.add_argument("input_zero_point", "Tensor", "The quantization zero_point of the input tensor.")
-.add_argument("weight_scale", "Tensor", "The quantization scale of the weight tensor.")
-.add_argument("weight_zero_point", "Tensor", "The quantization zero_point of the weight tensor.")
-.set_support_level(11)
-.add_type_rel("QnnConv2D", QnnConv2DRel)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnConv2DCanonicalize)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnConvInferCorrectLayout);
+    .set_attrs_type<Conv2DAttrs>()
+    .set_num_inputs(6)
+    .add_argument("data", "Tensor", "The quantized input data tensor.")
+    .add_argument("weight", "Tensor", "The quantized weight tensor.")
+    .add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
+    .add_argument("input_zero_point", "Tensor", "The quantization zero_point of the input tensor.")
+    .add_argument("weight_scale", "Tensor", "The quantization scale of the weight tensor.")
+    .add_argument("weight_zero_point", "Tensor",
+                  "The quantization zero_point of the weight tensor.")
+    .set_support_level(11)
+    .add_type_rel("QnnConv2D", QnnConv2DRel)
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnConv2DCanonicalize)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnConvInferCorrectLayout);
 
 TVM_REGISTER_GLOBAL("relay.qnn.op._make.conv2d").set_body_typed(MakeQnnConv2D);
 

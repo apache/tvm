@@ -21,7 +21,9 @@
 #define TVM_ARENA_HAS_DESTRUCTOR 0
 
 #include <unistd.h>
+
 #include <cstdlib>
+
 #include "minrpc_server.h"
 
 namespace tvm {
@@ -33,20 +35,13 @@ namespace runtime {
 class PosixIOHandler {
  public:
   explicit PosixIOHandler(int read_fd = 0, int write_fd = 1)
-      : read_fd_(read_fd), write_fd_(write_fd) {
-  }
+      : read_fd_(read_fd), write_fd_(write_fd) {}
 
-  ssize_t PosixRead(void* data, size_t size) {
-    return read(read_fd_, data, size);
-  }
+  ssize_t PosixRead(void* data, size_t size) { return read(read_fd_, data, size); }
 
-  ssize_t PosixWrite(const void* data, size_t size) {
-    return write(write_fd_, data, size);
-  }
+  ssize_t PosixWrite(const void* data, size_t size) { return write(write_fd_, data, size); }
 
-  void Exit(int code) {
-    exit(code);
-  }
+  void Exit(int code) { exit(code); }
 
   void Close() {
     if (read_fd_ != 0) close(read_fd_);

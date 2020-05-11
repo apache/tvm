@@ -21,27 +21,24 @@
  * \file tensor.cc
  */
 #include <tvm/runtime/registry.h>
-#include <tvm/te/tensor.h>
 #include <tvm/te/operation.h>
+#include <tvm/te/tensor.h>
 #include <tvm/te/tensor_intrin.h>
+
 #include <memory>
 
 namespace tvm {
 namespace te {
 
 IterVar thread_axis(Range dom, std::string tag) {
-  return IterVarNode::make(
-      dom, Var(tag), kThreadIndex, tag);
+  return IterVarNode::make(dom, Var(tag), kThreadIndex, tag);
 }
 
 IterVar reduce_axis(Range dom, std::string name) {
-  return IterVarNode::make(
-      dom, Var(name), kCommReduce);
+  return IterVarNode::make(dom, Var(name), kCommReduce);
 }
 
-Var var(std::string name_hint, DataType t) {
-  return Var(name_hint, t);
-}
+Var var(std::string name_hint, DataType t) { return Var(name_hint, t); }
 
 // Tensor
 PrimExpr Tensor::operator()(Array<Var> indices) const {
@@ -52,13 +49,11 @@ PrimExpr Tensor::operator()(Array<Var> indices) const {
 PrimExpr Tensor::operator()(Array<PrimExpr> indices) const {
   using tir::CallNode;
   if (ndim() != 0) {
-    CHECK_EQ(ndim(), indices.size())
-        << "Tensor dimension mismatch in read"
-        << "ndim = " << ndim() << ", indices.size=" << indices.size();
+    CHECK_EQ(ndim(), indices.size()) << "Tensor dimension mismatch in read"
+                                     << "ndim = " << ndim() << ", indices.size=" << indices.size();
   }
-  auto n = CallNode::make(
-      (*this)->dtype, (*this)->op->name, indices, CallNode::Halide,
-      (*this)->op, (*this)->value_index);
+  auto n = CallNode::make((*this)->dtype, (*this)->op->name, indices, CallNode::Halide, (*this)->op,
+                          (*this)->value_index);
   return n;
 }
 
@@ -71,10 +66,7 @@ Tensor Operation::output(size_t i) const {
   return Tensor(node);
 }
 
-Tensor TensorNode::make(Array<PrimExpr> shape,
-                        DataType dtype,
-                        Operation op,
-                        int value_index) {
+Tensor TensorNode::make(Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {
   auto n = make_object<TensorNode>();
   n->shape = std::move(shape);
   n->dtype = dtype;
@@ -84,25 +76,18 @@ Tensor TensorNode::make(Array<PrimExpr> shape,
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<TensorNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* t = static_cast<const TensorNode*>(node.get());
-    p->stream << "Tensor(shape=" << t->shape
-              << ", op.name=" << t->op->name << ')';
-  });
+    .set_dispatch<TensorNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* t = static_cast<const TensorNode*>(node.get());
+      p->stream << "Tensor(shape=" << t->shape << ", op.name=" << t->op->name << ')';
+    });
 
 TVM_REGISTER_NODE_TYPE(TensorNode);
 
-
 // TensorIntrin
 
-TensorIntrin TensorIntrinNode::make(std::string name,
-                                    Operation op,
-                                    Array<Tensor> inputs,
-                                    Array<Buffer> buffers,
-                                    Array<Var> scalar_params,
-                                    Stmt body,
-                                    Stmt reduce_init,
-                                    Stmt reduce_update) {
+TensorIntrin TensorIntrinNode::make(std::string name, Operation op, Array<Tensor> inputs,
+                                    Array<Buffer> buffers, Array<Var> scalar_params, Stmt body,
+                                    Stmt reduce_init, Stmt reduce_update) {
   auto n = make_object<TensorIntrinNode>();
   n->name = std::move(name);
   n->op = std::move(op);
@@ -116,20 +101,17 @@ TensorIntrin TensorIntrinNode::make(std::string name,
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<TensorIntrinNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const TensorIntrinNode*>(node.get());
-    p->stream << "TensorIntrin(name=" << op->name << ", " << op << ")";
-  });
+    .set_dispatch<TensorIntrinNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const TensorIntrinNode*>(node.get());
+      p->stream << "TensorIntrin(name=" << op->name << ", " << op << ")";
+    });
 
 TVM_REGISTER_NODE_TYPE(TensorIntrinNode);
 
-
 // TensorIntrinCall
 
-TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin,
-                                            Array<Tensor> tensors,
-                                            Array<Region> regions,
-                                            Array<IterVar> reduce_axis,
+TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin, Array<Tensor> tensors,
+                                            Array<Region> regions, Array<IterVar> reduce_axis,
                                             Array<PrimExpr> scalar_inputs) {
   auto n = make_object<TensorIntrinCallNode>();
   n->intrin = std::move(intrin);
@@ -141,40 +123,32 @@ TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin,
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<TensorIntrinCallNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* n = static_cast<const TensorIntrinCallNode*>(node.get());
-    p->stream << "TensorIntrinCall(intrin=" << n->intrin << ", " << n << ")";
-  });
+    .set_dispatch<TensorIntrinCallNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* n = static_cast<const TensorIntrinCallNode*>(node.get());
+      p->stream << "TensorIntrinCall(intrin=" << n->intrin << ", " << n << ")";
+    });
 
 TVM_REGISTER_NODE_TYPE(TensorIntrinCallNode);
 
-TVM_REGISTER_GLOBAL("te.Tensor")
-.set_body_typed(TensorNode::make);
+TVM_REGISTER_GLOBAL("te.Tensor").set_body_typed(TensorNode::make);
 
-TVM_REGISTER_GLOBAL("te.TensorIntrin")
-.set_body_typed(TensorIntrinNode::make);
+TVM_REGISTER_GLOBAL("te.TensorIntrin").set_body_typed(TensorIntrinNode::make);
 
-TVM_REGISTER_GLOBAL("te.TensorIntrinCall")
-.set_body_typed(TensorIntrinCallNode::make);
+TVM_REGISTER_GLOBAL("te.TensorIntrinCall").set_body_typed(TensorIntrinCallNode::make);
 
-TVM_REGISTER_GLOBAL("te.TensorEqual")
-.set_body_method(&Tensor::operator==);
+TVM_REGISTER_GLOBAL("te.TensorEqual").set_body_method(&Tensor::operator==);
 
-TVM_REGISTER_GLOBAL("te.TensorHash")
-.set_body_typed([](Tensor tensor) -> int64_t {
-    return static_cast<int64_t>(std::hash<Tensor>()(tensor));
-  });
+TVM_REGISTER_GLOBAL("te.TensorHash").set_body_typed([](Tensor tensor) -> int64_t {
+  return static_cast<int64_t>(std::hash<Tensor>()(tensor));
+});
 
-TVM_REGISTER_GLOBAL("te.OpGetOutput")
-.set_body_typed([](Operation op, int64_t output) {
+TVM_REGISTER_GLOBAL("te.OpGetOutput").set_body_typed([](Operation op, int64_t output) {
   return op.output(static_cast<size_t>(output));
 });
 
-TVM_REGISTER_GLOBAL("te.OpNumOutputs")
-.set_body_method<Operation>(&OperationNode::num_outputs);
+TVM_REGISTER_GLOBAL("te.OpNumOutputs").set_body_method<Operation>(&OperationNode::num_outputs);
 
-TVM_REGISTER_GLOBAL("te.OpInputTensors")
-.set_body_method<Operation>(&OperationNode::InputTensors);
+TVM_REGISTER_GLOBAL("te.OpInputTensors").set_body_method<Operation>(&OperationNode::InputTensors);
 
 }  // namespace te
 }  // namespace tvm

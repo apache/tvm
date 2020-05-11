@@ -21,7 +21,9 @@
  * \file opengl_device_api.cc
  */
 #include <tvm/runtime/registry.h>
+
 #include <cstring>
+
 #include "opengl_common.h"
 #include "opengl_module.h"
 
@@ -60,26 +62,23 @@ static const char* GLGetErrorString(GLenum error) {
  */
 void OpenGLWorkspace::CheckOpenGLError() {
   GLenum err = gl->GetError();
-  CHECK_EQ(err, GL_NO_ERROR) << "OpenGL error, code=" << err << ": "
-                             << gl::GLGetErrorString(err);
+  CHECK_EQ(err, GL_NO_ERROR) << "OpenGL error, code=" << err << ": " << gl::GLGetErrorString(err);
 }
 
 /*!
  * \brief Protected OpenGL call.
  * \param func Expression to call.
  */
-#define OPENGL_CALL(func)                                                      \
-  {                                                                            \
-    (func);                                                                    \
-    CheckOpenGLError();                                                        \
+#define OPENGL_CALL(func) \
+  {                       \
+    (func);               \
+    CheckOpenGLError();   \
   }
 
 /*!
  * \brief The error handling callback passed to GLFW.
  */
-void GlfwErrorCallback(int err, const char* str) {
-  LOG(FATAL) << "Error: [" << err << "] " << str;
-}
+void GlfwErrorCallback(int err, const char* str) { LOG(FATAL) << "Error: [" << err << "] " << str; }
 
 const std::shared_ptr<OpenGLWorkspace>& OpenGLWorkspace::Global() {
   static std::shared_ptr<OpenGLWorkspace> inst(new OpenGLWorkspace);
@@ -87,13 +86,11 @@ const std::shared_ptr<OpenGLWorkspace>& OpenGLWorkspace::Global() {
 }
 
 void OpenGLWorkspace::SetDevice(TVMContext ctx) {
-  CHECK_EQ(ctx.device_type, static_cast<int>(kOpenGL))
-    << "Device type must be OpenGL.";
+  CHECK_EQ(ctx.device_type, static_cast<int>(kOpenGL)) << "Device type must be OpenGL.";
   CHECK_EQ(ctx.device_id, 0) << "Only support 1 OpenGL \"device\".";
 }
 
-void OpenGLWorkspace::GetAttr(
-    TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
+void OpenGLWorkspace::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
   switch (kind) {
     case kExist: {
       *rv = static_cast<int>(ctx.device_id == 0);
@@ -108,20 +105,26 @@ void OpenGLWorkspace::GetAttr(
       *rv = 1;
       break;
     }
-    case kMaxSharedMemoryPerBlock: return;
+    case kMaxSharedMemoryPerBlock:
+      return;
     case kComputeVersion: {
       break;
     }
-    case kDeviceName: return;
-    case kMaxClockRate: return;
-    case kMultiProcessorCount: return;
-    case kMaxThreadDimensions: return;
-    case kGcnArch: return;
+    case kDeviceName:
+      return;
+    case kMaxClockRate:
+      return;
+    case kMultiProcessorCount:
+      return;
+    case kMaxThreadDimensions:
+      return;
+    case kGcnArch:
+      return;
   }
 }
 
-void* OpenGLWorkspace::AllocDataSpace(
-    TVMContext ctx, size_t nbytes, size_t alignment, DLDataType type_hint) {
+void* OpenGLWorkspace::AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
+                                      DLDataType type_hint) {
   return reinterpret_cast<void*>(new Texture(CreateTexture(type_hint, nbytes)));
 }
 
@@ -129,14 +132,9 @@ void OpenGLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
   delete reinterpret_cast<Texture*>(ptr);
 }
 
-void OpenGLWorkspace::CopyDataFromTo(const void* from,
-                                     size_t from_offset,
-                                     void* to,
-                                     size_t to_offset,
-                                     size_t size,
-                                     TVMContext ctx_from,
-                                     TVMContext ctx_to,
-                                     DLDataType type_hint,
+void OpenGLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* to,
+                                     size_t to_offset, size_t size, TVMContext ctx_from,
+                                     TVMContext ctx_to, DLDataType type_hint,
                                      TVMStreamHandle stream) {
   CHECK(stream == nullptr);
 
@@ -159,7 +157,7 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
 
   } else if (type_from_to == std::make_tuple(gl_devtype, kDLCPU)) {
     auto texture = static_cast<const Texture*>(from);
-    void *data = static_cast<char *>(to) + to_offset;
+    void* data = static_cast<char*>(to) + to_offset;
     auto elemsz = texture->elemsz();
     auto begin = static_cast<GLint>(from_offset / elemsz);
     auto nelems = static_cast<GLsizei>(size / elemsz);
@@ -213,8 +211,7 @@ OpenGLWorkspace::OpenGLWorkspace() {
   GLuint vertex_buffer;
   OPENGL_CALL(gl->GenBuffers(1, &vertex_buffer));
   OPENGL_CALL(gl->BindBuffer(GL_ARRAY_BUFFER, vertex_buffer));
-  OPENGL_CALL(gl->BufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices,
-                             GL_STATIC_DRAW));
+  OPENGL_CALL(gl->BufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW));
 
   GLuint vertex_array;
   OPENGL_CALL(gl->GenVertexArrays(1, &vertex_array));
@@ -244,9 +241,7 @@ void OpenGLWorkspace::OnDeleteTexture(GLuint texture) {
   OPENGL_CALL(gl->DeleteTextures(1, &texture));
 }
 
-void OpenGLWorkspace::OnDeleteProgram(GLuint program) {
-  OPENGL_CALL(gl->DeleteProgram(program));
-}
+void OpenGLWorkspace::OnDeleteProgram(GLuint program) { OPENGL_CALL(gl->DeleteProgram(program)); }
 
 GLuint OpenGLWorkspace::NumTextureUnits() {
   GLint num_units;
@@ -255,28 +250,22 @@ GLuint OpenGLWorkspace::NumTextureUnits() {
 }
 
 const OpenGLWorkspace::Vertex OpenGLWorkspace::vertices[OpenGLWorkspace::kNumVertices] = {
-    {-1.f, -1.f},
-    {1.0f, -1.f},
-    {1.0f, 1.0f},
-    {-1.f, -1.f},
-    {-1.f, 1.0f},
-    {1.0f, 1.0f},
+    {-1.f, -1.f}, {1.0f, -1.f}, {1.0f, 1.0f}, {-1.f, -1.f}, {-1.f, 1.0f}, {1.0f, 1.0f},
 };
 
 // Don't need to change this.
 // The vertex shader only needs to take in the triangle points.
 // No need for point transformations.
-const char* OpenGLWorkspace::vertex_shader_text_ = "#version 300 es\n"
+const char* OpenGLWorkspace::vertex_shader_text_ =
+    "#version 300 es\n"
     "in vec2 point; // input to vertex shader\n"
     "void main() {\n"
     "  gl_Position = vec4(point, 0.0, 1.0);\n"
     "}\n";
 
-Program OpenGLWorkspace::CreateProgram(
-    const char* fragment_shader_src) {
+Program OpenGLWorkspace::CreateProgram(const char* fragment_shader_src) {
   // Create and compile the shaders.
-  GLuint fragment_shader = CreateShader(GL_FRAGMENT_SHADER,
-                                        fragment_shader_src);
+  GLuint fragment_shader = CreateShader(GL_FRAGMENT_SHADER, fragment_shader_src);
 
   // Link the shaders and create the program.
   Program program = CreateProgram(fragment_shader);
@@ -286,8 +275,7 @@ Program OpenGLWorkspace::CreateProgram(
   return program;
 }
 
-GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind,
-                                     const char* shader_src) {
+GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind, const char* shader_src) {
   // Create the shader.
   GLuint shader = gl->CreateShader(shader_kind);
   gl->ShaderSource(shader, 1, &shader_src, nullptr);
@@ -367,20 +355,14 @@ Texture OpenGLWorkspace::CreateTexture(DLDataType type, size_t nbytes) {
   auto nelems = static_cast<GLsizei>(nbytes / (type.bits / 8));
   auto height = (nelems + kTextureRowSize - 1) / kTextureRowSize;
   auto width = (height == 1) ? nelems : kTextureRowSize;
-  OPENGL_CALL(gl->TexImage2D(GL_TEXTURE_2D, /*level=*/0,
-                             texture_format.internal_format,
-                             width, height, /*border=*/0,
-                             texture_format.format, texture_format.type,
+  OPENGL_CALL(gl->TexImage2D(GL_TEXTURE_2D, /*level=*/0, texture_format.internal_format, width,
+                             height, /*border=*/0, texture_format.format, texture_format.type,
                              /*data=*/nullptr));
 
-  OPENGL_CALL(
-      gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-  OPENGL_CALL(
-      gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-  OPENGL_CALL(
-      gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-  OPENGL_CALL(
-      gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+  OPENGL_CALL(gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+  OPENGL_CALL(gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+  OPENGL_CALL(gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+  OPENGL_CALL(gl->TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
 
   return Texture(this, texture, texture_format, width, height);
 }
@@ -414,8 +396,8 @@ Program OpenGLWorkspace::CreateProgram(GLuint fragment_shader) {
   auto point_attrib = GLuint(gl->GetAttribLocation(program, "point"));
   OPENGL_CALL(gl->EnableVertexAttribArray(point_attrib));
 
-  OPENGL_CALL(gl->VertexAttribPointer(point_attrib, 2, GL_FLOAT, GL_FALSE,
-                                      sizeof(Vertex), nullptr));
+  OPENGL_CALL(
+      gl->VertexAttribPointer(point_attrib, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), nullptr));
 
   return Program(this, program);
 }
@@ -465,29 +447,22 @@ static void Visit1DRange(GLint beg, GLint end, F&& on_2d_block) {
   on_2d_block(0, ylast, xlast + 1, 1);
 }
 
-void OpenGLWorkspace::PutTextureData(Texture *texture,
-                                     GLint begin,
-                                     GLsizei nelems,
+void OpenGLWorkspace::PutTextureData(Texture* texture, GLint begin, GLsizei nelems,
                                      const GLvoid* data) {
   // Bind to temporary unit.
   BindTextureUnit(NumTextureUnits() - 1, texture->texture());
 
-  Visit1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg,
-                                          GLsizei width, GLsizei height) {
+  Visit1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg, GLsizei width, GLsizei height) {
     auto offset = (ybeg * kTextureRowSize + xbeg - begin) * texture->elemsz();
     const GLvoid* ptr = static_cast<const char*>(data) + offset;
 
     // Similar to cudaMemcpy.
-    OPENGL_CALL(gl->TexSubImage2D(GL_TEXTURE_2D, /*level=*/0,
-                                  xbeg, ybeg, width, height,
-                                  texture->format_.format,
-                                  texture->format_.type, ptr));
+    OPENGL_CALL(gl->TexSubImage2D(GL_TEXTURE_2D, /*level=*/0, xbeg, ybeg, width, height,
+                                  texture->format_.format, texture->format_.type, ptr));
   });
 }
 
-void OpenGLWorkspace::GetTextureData(const Texture *texture,
-                                     GLint begin,
-                                     GLsizei nelems,
+void OpenGLWorkspace::GetTextureData(const Texture* texture, GLint begin, GLsizei nelems,
                                      GLvoid* data) {
   BindTextureUnit(NumTextureUnits() - 1, texture->texture());
 
@@ -497,8 +472,8 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture,
   OPENGL_CALL(gl->BindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
 
   // Bind texture to framebuffer's attachment 0.
-  OPENGL_CALL(gl->FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                       GL_TEXTURE_2D, texture->texture(), 0));
+  OPENGL_CALL(gl->FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                                       texture->texture(), 0));
 
   // Always check that our framebuffer is okay.
   if (gl->CheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
@@ -521,28 +496,24 @@ void OpenGLWorkspace::GetTextureData(const Texture *texture,
   auto nchannels = 4;
   auto padded_data_size = nchannels * nelems * elemsz;
   auto padded_data = std::unique_ptr<char[]>(new char[padded_data_size]);
-  Visit1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg,
-                                          GLsizei width, GLsizei height) {
+  Visit1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg, GLsizei width, GLsizei height) {
     auto data_offset = (ybeg * kTextureRowSize + xbeg - begin) * elemsz;
     auto padded_data_offset = data_offset * nchannels;
-    OPENGL_CALL(gl->ReadPixels(xbeg, ybeg, width, height,
-                               GL_RGBA, GL_FLOAT,
+    OPENGL_CALL(gl->ReadPixels(xbeg, ybeg, width, height, GL_RGBA, GL_FLOAT,
                                padded_data.get() + padded_data_offset));
   });
   for (GLsizei i = 0; i != nelems; ++i) {
-    auto dst = reinterpret_cast<char *>(data) + i * elemsz;
+    auto dst = reinterpret_cast<char*>(data) + i * elemsz;
     auto src = padded_data.get() + nchannels * i * elemsz;
     std::memcpy(dst, src, elemsz);
   }
 #else
-  Visit1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg,
-                                          GLsizei width, GLsizei height) {
+  Visit1DRange(begin, begin + nelems, [&](GLint xbeg, GLint ybeg, GLsizei width, GLsizei height) {
     auto offset = (ybeg * kTextureRowSize + xbeg - begin) * texture->elemsz();
     GLvoid* ptr = static_cast<char*>(data) + offset;
 
-    OPENGL_CALL(gl->ReadPixels(xbeg, ybeg, width, height,
-                               texture->format_.format, texture->format_.type,
-                               ptr));
+    OPENGL_CALL(gl->ReadPixels(xbeg, ybeg, width, height, texture->format_.format,
+                               texture->format_.type, ptr));
   });
 #endif
 
@@ -553,9 +524,7 @@ void OpenGLWorkspace::SetCurrentProgram(const Program& program) {
   OPENGL_CALL(gl->UseProgram(program.program()));
 }
 
-void OpenGLWorkspace::SetUniform(const Program& program,
-                                 const std::string& name,
-                                 DLDataType type,
+void OpenGLWorkspace::SetUniform(const Program& program, const std::string& name, DLDataType type,
                                  void* value) {
   GLint location = gl->GetUniformLocation(program.program(), name.c_str());
   switch (type.code) {
@@ -582,9 +551,7 @@ void OpenGLWorkspace::SetUniform(const Program& program,
   }
 }
 
-void OpenGLWorkspace::SetInputTexture(const Program& program,
-                                      const std::string& name,
-                                      GLuint unit,
+void OpenGLWorkspace::SetInputTexture(const Program& program, const std::string& name, GLuint unit,
                                       Texture* texture) {
   // We always use the last texture unit as temporary.
   // Therefore, we can have "NumTextureUnits() - 1" input textures.
@@ -602,8 +569,8 @@ void OpenGLWorkspace::Render(Texture* output) {
   OPENGL_CALL(gl->BindFramebuffer(GL_FRAMEBUFFER, frame_buffer));
 
   // Set "renderedTexture" as our colour attachement 0.
-  OPENGL_CALL(gl->FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                       GL_TEXTURE_2D, output->texture(), 0));
+  OPENGL_CALL(gl->FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                                       output->texture(), 0));
 
   // Specify that we will render to color attachment 0.
   GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
@@ -622,8 +589,7 @@ void OpenGLWorkspace::Render(Texture* output) {
   OPENGL_CALL(gl->DeleteFramebuffers(1, &frame_buffer));
 }
 
-TVM_REGISTER_GLOBAL("device_api.opengl")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.opengl").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = OpenGLWorkspace::Global().get();
   *rv = static_cast<void*>(ptr);
 });

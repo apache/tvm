@@ -24,10 +24,11 @@
 #ifndef TVM_RUNTIME_DATA_TYPE_H_
 #define TVM_RUNTIME_DATA_TYPE_H_
 
-#include <tvm/runtime/c_runtime_api.h>
 #include <dmlc/logging.h>
-#include <type_traits>
+#include <tvm/runtime/c_runtime_api.h>
+
 #include <string>
+#include <type_traits>
 
 namespace tvm {
 namespace runtime {
@@ -52,8 +53,7 @@ class DataType {
    * \brief Constructor
    * \param dtype The DLDataType
    */
-  explicit DataType(DLDataType dtype)
-      : data_(dtype) {}
+  explicit DataType(DLDataType dtype) : data_(dtype) {}
   /*!
    * \brief Constructor
    * \param code The type code.
@@ -66,110 +66,70 @@ class DataType {
     data_.lanes = static_cast<uint16_t>(lanes);
   }
   /*! \return The type code. */
-  int code() const {
-    return static_cast<int>(data_.code);
-  }
+  int code() const { return static_cast<int>(data_.code); }
   /*! \return number of bits in the data. */
-  int bits() const {
-    return static_cast<int>(data_.bits);
-  }
+  int bits() const { return static_cast<int>(data_.bits); }
   /*! \return number of bytes to store each scalar. */
-  int bytes() const {
-    return (bits() + 7) / 8;
-  }
+  int bytes() const { return (bits() + 7) / 8; }
   /*! \return number of lanes in the data. */
-  int lanes() const {
-    return static_cast<int>(data_.lanes);
-  }
+  int lanes() const { return static_cast<int>(data_.lanes); }
   /*! \return whether type is a scalar type. */
-  bool is_scalar() const {
-    return lanes() == 1;
-  }
+  bool is_scalar() const { return lanes() == 1; }
   /*! \return whether type is a scalar type. */
-  bool is_bool() const {
-    return code() == DataType::kUInt && bits() == 1;
-  }
+  bool is_bool() const { return code() == DataType::kUInt && bits() == 1; }
   /*! \return whether type is a float type. */
-  bool is_float() const {
-    return code() == DataType::kFloat;
-  }
+  bool is_float() const { return code() == DataType::kFloat; }
   /*! \return whether type is a float16 type. */
-  bool is_float16() const {
-    return is_float() && bits() == 16;
-  }
+  bool is_float16() const { return is_float() && bits() == 16; }
   /*! \return whether type is an int type. */
-  bool is_int() const {
-    return code() == DataType::kInt;
-  }
+  bool is_int() const { return code() == DataType::kInt; }
   /*! \return whether type is an uint type. */
-  bool is_uint() const {
-    return code() == DataType::kUInt;
-  }
+  bool is_uint() const { return code() == DataType::kUInt; }
   /*! \return whether type is a handle type. */
-  bool is_handle() const {
-    return code() == DataType::kHandle && !is_void();
-  }
+  bool is_handle() const { return code() == DataType::kHandle && !is_void(); }
   /*! \return whether type is a vector type. */
-  bool is_vector() const {
-    return lanes() > 1;
-  }
+  bool is_vector() const { return lanes() > 1; }
   /*! \return whether type is a bool vector type. */
-  bool is_vector_bool() const {
-    return is_vector() && bits() == 1;
-  }
+  bool is_vector_bool() const { return is_vector() && bits() == 1; }
   /*! \return whether type is a Void type. */
-  bool is_void() const {
-    return code() == DataType::kHandle && bits() == 0 && lanes() == 0;
-  }
+  bool is_void() const { return code() == DataType::kHandle && bits() == 0 && lanes() == 0; }
   /*!
    * \brief Create a new data type by change lanes to a specified value.
    * \param lanes The target number of lanes.
    * \return the result type.
    */
-  DataType with_lanes(int lanes) const {
-    return DataType(data_.code, data_.bits, lanes);
-  }
+  DataType with_lanes(int lanes) const { return DataType(data_.code, data_.bits, lanes); }
   /*!
    * \brief Create a new data type by change bits to a specified value.
    * \param bits The target number of bits.
    * \return the result type.
    */
-  DataType with_bits(int bits) const {
-    return DataType(data_.code, bits, data_.lanes);
-  }
+  DataType with_bits(int bits) const { return DataType(data_.code, bits, data_.lanes); }
   /*!
    * \brief Get the scalar version of the type.
    * \return the result type.
    */
-  DataType element_of() const {
-    return with_lanes(1);
-  }
+  DataType element_of() const { return with_lanes(1); }
   /*!
    * \brief Equal comparator.
    * \param other The data type to compre against.
    * \return The comparison resilt.
    */
   bool operator==(const DataType& other) const {
-    return
-        data_.code == other.data_.code &&
-        data_.bits == other.data_.bits &&
-        data_.lanes == other.data_.lanes;
+    return data_.code == other.data_.code && data_.bits == other.data_.bits &&
+           data_.lanes == other.data_.lanes;
   }
   /*!
    * \brief NotEqual comparator.
    * \param other The data type to compre against.
    * \return The comparison resilt.
    */
-  bool operator!=(const DataType& other) const {
-    return !operator==(other);
-  }
+  bool operator!=(const DataType& other) const { return !operator==(other); }
   /*!
    * \brief Converter to DLDataType
    * \return the result.
    */
-  operator DLDataType () const {
-    return data_;
-  }
+  operator DLDataType() const { return data_; }
 
   /*!
    * \brief Construct an int type.
@@ -177,51 +137,39 @@ class DataType {
    * \param lanes The number of lanes.
    * \return The constructed data type.
    */
-  static DataType Int(int bits, int lanes = 1) {
-    return DataType(kDLInt, bits, lanes);
-  }
+  static DataType Int(int bits, int lanes = 1) { return DataType(kDLInt, bits, lanes); }
   /*!
    * \brief Construct an uint type.
    * \param bits The number of bits in the type.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType UInt(int bits, int lanes = 1) {
-    return DataType(kDLUInt, bits, lanes);
-  }
+  static DataType UInt(int bits, int lanes = 1) { return DataType(kDLUInt, bits, lanes); }
   /*!
    * \brief Construct an uint type.
    * \param bits The number of bits in the type.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType Float(int bits, int lanes = 1) {
-    return DataType(kDLFloat, bits, lanes);
-  }
+  static DataType Float(int bits, int lanes = 1) { return DataType(kDLFloat, bits, lanes); }
   /*!
    * \brief Construct a bool type.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType Bool(int lanes = 1) {
-    return DataType::UInt(1, lanes);
-  }
+  static DataType Bool(int lanes = 1) { return DataType::UInt(1, lanes); }
   /*!
    * \brief Construct a handle type.
    * \param bits The number of bits in the type.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType Handle(int bits = 64, int lanes = 1) {
-    return DataType(kHandle, bits, lanes);
-  }
+  static DataType Handle(int bits = 64, int lanes = 1) { return DataType(kHandle, bits, lanes); }
   /*!
    * \brief Construct a Void type.
    * \return The constructed data type.
    */
-  static DataType Void() {
-    return DataType(kHandle, 0, 0);
-  }
+  static DataType Void() { return DataType(kHandle, 0, 0); }
   /*!
    * \brief Get the corresponding type of TVMShapeIndex.
    * \return The type of TVM shape index.
@@ -246,14 +194,11 @@ class DataType {
 inline int GetVectorBytes(DataType dtype) {
   int data_bits = dtype.bits() * dtype.lanes();
   // allow bool to exist
-  if (dtype == DataType::Bool() ||
-      dtype == DataType::Int(4) ||
-      dtype == DataType::UInt(4) ||
+  if (dtype == DataType::Bool() || dtype == DataType::Int(4) || dtype == DataType::UInt(4) ||
       dtype == DataType::Int(1)) {
     return 1;
   }
-  CHECK_EQ(data_bits % 8, 0U)
-      << "Need to load/store by multiple of bytes";
+  CHECK_EQ(data_bits % 8, 0U) << "Need to load/store by multiple of bytes";
   return data_bits / 8;
 }
 
@@ -322,29 +267,46 @@ inline std::string DLDataType2String(DLDataType t);
 // implementation details
 inline const char* TypeCode2Str(int type_code) {
   switch (type_code) {
-    case kDLInt: return "int";
-    case kDLUInt: return "uint";
-    case kDLFloat: return "float";
-    case kTVMStr: return "str";
-    case kTVMBytes: return "bytes";
-    case kTVMOpaqueHandle: return "handle";
-    case kTVMNullptr: return "NULL";
-    case kTVMDLTensorHandle: return "ArrayHandle";
-    case kTVMDataType: return "DLDataType";
-    case kTVMContext: return "TVMContext";
-    case kTVMPackedFuncHandle: return "FunctionHandle";
-    case kTVMModuleHandle: return "ModuleHandle";
-    case kTVMNDArrayHandle: return "NDArrayContainer";
-    case kTVMObjectHandle: return "Object";
-    case kTVMObjectRValueRefArg: return "ObjectRValueRefArg";
-    default: LOG(FATAL) << "unknown type_code="
-                        << static_cast<int>(type_code); return "";
+    case kDLInt:
+      return "int";
+    case kDLUInt:
+      return "uint";
+    case kDLFloat:
+      return "float";
+    case kTVMStr:
+      return "str";
+    case kTVMBytes:
+      return "bytes";
+    case kTVMOpaqueHandle:
+      return "handle";
+    case kTVMNullptr:
+      return "NULL";
+    case kTVMDLTensorHandle:
+      return "ArrayHandle";
+    case kTVMDataType:
+      return "DLDataType";
+    case kTVMContext:
+      return "TVMContext";
+    case kTVMPackedFuncHandle:
+      return "FunctionHandle";
+    case kTVMModuleHandle:
+      return "ModuleHandle";
+    case kTVMNDArrayHandle:
+      return "NDArrayContainer";
+    case kTVMObjectHandle:
+      return "Object";
+    case kTVMObjectRValueRefArg:
+      return "ObjectRValueRefArg";
+    default:
+      LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
+      return "";
   }
 }
 
 inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
-    os << "bool"; return os;
+    os << "bool";
+    return os;
   }
   if (DataType(t).is_void()) {
     return os << "void";
@@ -362,7 +324,7 @@ inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)
   return os;
 }
 
-inline std::ostream& operator<<(std::ostream& os, const DataType& dtype) { // NOLINT(*)
+inline std::ostream& operator<<(std::ostream& os, const DataType& dtype) {  // NOLINT(*)
   return os << dtype.operator DLDataType();
 }
 
@@ -380,14 +342,18 @@ inline DLDataType String2DLDataType(std::string s) {
     t = DataType::Void();
     return t;
   }
-  t.bits = 32; t.lanes = 1;
+  t.bits = 32;
+  t.lanes = 1;
   const char* scan;
   if (s.substr(0, 3) == "int") {
-    t.code = kDLInt;  scan = s.c_str() + 3;
+    t.code = kDLInt;
+    scan = s.c_str() + 3;
   } else if (s.substr(0, 4) == "uint") {
-    t.code = kDLUInt; scan = s.c_str() + 4;
+    t.code = kDLUInt;
+    scan = s.c_str() + 4;
   } else if (s.substr(0, 5) == "float") {
-    t.code = kDLFloat; scan = s.c_str() + 5;
+    t.code = kDLFloat;
+    scan = s.c_str() + 5;
   } else if (s.substr(0, 6) == "handle") {
     t.code = kTVMOpaqueHandle;
     t.bits = 64;  // handle uses 64 bit by default.

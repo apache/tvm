@@ -25,16 +25,18 @@
 #define TVM_RELAY_ANALYSIS_DEPENDENCY_GRAPH_H_
 
 #include <tvm/relay/expr.h>
+
 #include <unordered_map>
 #include <vector>
-#include "../transforms/let_list.h"
+
 #include "../../support/arena.h"
+#include "../transforms/let_list.h"
 
 namespace tvm {
 namespace relay {
 
-using support::LinkNode;
 using support::LinkedList;
+using support::LinkNode;
 
 /* DependencyGraph track input and output of an Expr.
  * Additionally, dummy scope is created to model scope.

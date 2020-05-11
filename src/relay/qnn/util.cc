@@ -23,6 +23,7 @@
  */
 
 #include "util.h"
+
 #include "../transforms/pattern_util.h"
 
 namespace tvm {
@@ -48,8 +49,7 @@ namespace qnn {
  *
  *       Credit to TFLite reference implementation.
  */
-std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(
-    double double_multiplier) {
+std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(double double_multiplier) {
   int32_t significand, exponent;
   if (double_multiplier == 0.) {
     significand = 0;
@@ -84,8 +84,7 @@ Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& 
 
   // 1) Calculating the integer multiplier and integer shift
   int32_t fixed_point_multiplier, shift;
-  std::tie(fixed_point_multiplier, shift) =
-      GetFixedPointMultiplierShift(multiplier);
+  std::tie(fixed_point_multiplier, shift) = GetFixedPointMultiplierShift(multiplier);
   int left_shift = shift > 0 ? shift : 0;
   int right_shift = shift > 0 ? 0 : -shift;
 
@@ -119,8 +118,7 @@ Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& 
     auto neg_rounder_t = Full(neg_rounder, input_shape, hp_dtype);
 
     auto zero_t = Zeros(input_shape, hp_dtype);
-    round_scalar =
-        Where(GreaterEqual(tensor, zero_t), pos_rounder_t, neg_rounder_t);
+    round_scalar = Where(GreaterEqual(tensor, zero_t), pos_rounder_t, neg_rounder_t);
   } else {
     LOG(FATAL) << "Rounding mode " << rounding << " not supported.";
   }
@@ -128,8 +126,7 @@ Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& 
   tensor = Add(tensor, round_scalar);
 
   // 5) Simply right shift the result to get the final output.
-  tensor =
-      RightShift(tensor, MakeConstantScalar(hp_dtype, total_right_shift));
+  tensor = RightShift(tensor, MakeConstantScalar(hp_dtype, total_right_shift));
 
   // 6) The fixed point multiplication keeps the value in int32 range. Casting back to int32.
   return Cast(tensor, DataType::Int(32));

@@ -28,12 +28,12 @@
  *  3. Collect the device allocation of each expression.
  */
 
-#include <tvm/tir/expr.h>
-#include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/attrs/annotation.h>
+#include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/tir/expr.h>
 
 #include <memory>
 #include <unordered_map>
@@ -103,8 +103,7 @@ class ValidateAnnotation : private ExprVisitor {
    * \return The device type.
    */
   int GetDeviceId(const CallNode* call_node) {
-    CHECK(IsOnDeviceNode(call_node))
-        << "The input call node must be on_device node.";
+    CHECK(IsOnDeviceNode(call_node)) << "The input call node must be on_device node.";
     const OnDeviceAttrs* on_device_attr = call_node->attrs.as<OnDeviceAttrs>();
     return on_device_attr->device_type;
   }
@@ -160,8 +159,7 @@ class RewriteAnnotation : public ExprMutator {
   Expr VisitExpr_(const TupleGetItemNode* op) final {
     Expr tuple = op->tuple;
     if (NeedDeviceCopy(tuple.operator->(), op)) {
-      Expr new_expr =
-          TupleGetItem(GetDeviceCopyExpr(tuple, op), op->index);
+      Expr new_expr = TupleGetItem(GetDeviceCopyExpr(tuple, op), op->index);
       UpdateAnnotationMap(op, new_expr.operator->());
       return this->VisitExpr(new_expr);
     } else {
@@ -201,8 +199,7 @@ class RewriteAnnotation : public ExprMutator {
     }
 
     if (annotated) {
-      Call new_call = Call(call_node->op, new_args, call_node->attrs,
-                                     call_node->type_args);
+      Call new_call = Call(call_node->op, new_args, call_node->attrs, call_node->type_args);
 
       UpdateAnnotationMap(call_node, new_call.operator->());
       return this->VisitExpr(new_call);
@@ -235,8 +232,7 @@ class RewriteAnnotation : public ExprMutator {
       return CreateDeviceCopy(src, fallback_device_, dit->second);
     } else {
       const auto dit = annotation_map_.find(dst);
-      int dst_dev_type =
-          dit == annotation_map_.end() ? fallback_device_ : dit->second;
+      int dst_dev_type = dit == annotation_map_.end() ? fallback_device_ : dit->second;
       return CreateDeviceCopy(src, sit->second, dst_dev_type);
     }
   }
@@ -301,6 +297,7 @@ class AnnotatationVisitor : private ExprVisitor {
     visitor(expr);
     return visitor.annotations_;
   }
+
  private:
   void VisitExpr_(const CallNode* call_node) {
     if (IsOnDeviceNode(call_node)) {
@@ -414,9 +411,7 @@ class DeviceInfo {
       // TODO(zhiics) Skip annotation of tuple node for now.
     }
 
-    void VisitExpr_(const TupleGetItemNode* op) final {
-      ExprVisitor::VisitExpr_(op);
-    }
+    void VisitExpr_(const TupleGetItemNode* op) final { ExprVisitor::VisitExpr_(op); }
 
     void VisitExpr_(const VarNode* vn) final {
       post_dfs_order_.push_back(std::make_pair(vn, has_copy_));
@@ -431,7 +426,6 @@ class DeviceInfo {
       ExprVisitor::VisitExpr_(in);
       post_dfs_order_.push_back(std::make_pair(in, has_copy_));
     }
-
 
     int num_device_copy_ops_{0};
     bool has_copy_ = false;
@@ -479,24 +473,22 @@ class DeviceInfo {
         const auto* attrs = last_copy_node->attrs.as<DeviceCopyAttrs>();
         cur_dev_type = attrs->src_dev_type;
         if (out_dev_type == -1) out_dev_type = attrs->dst_dev_type;
-        if (it->second) device_map_.Set(GetRef<Expr>(it->first),
-                                        attrs->dst_dev_type);
+        if (it->second) device_map_.Set(GetRef<Expr>(it->first), attrs->dst_dev_type);
       } else if (last_copy_node) {
         Expr expr = GetRef<Expr>(it->first);
         CHECK_EQ(device_map_.count(expr), 0U);
         if (it->second) device_map_.Set(expr, cur_dev_type);
       }
     }
-      return out_dev_type;
+    return out_dev_type;
   }
 
   void FillPropagation(int out_dev_type) {
     for (const auto& it : post_visitor_.post_dfs_order_) {
-        Expr expr = GetRef<Expr>(it.first);
-        if (!it.second) device_map_.Set(expr, out_dev_type);
+      Expr expr = GetRef<Expr>(it.first);
+      if (!it.second) device_map_.Set(expr, out_dev_type);
     }
   }
-
 
   PostDfsOrderVisitor post_visitor_;
   Map<Expr, Integer> device_map_;
@@ -521,14 +513,12 @@ Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
       }
       CHECK_GT(new_body.size(), 0U);
       if (new_body.size() == 1) {
-        return Function(params, new_body[0], Type(nullptr),
-                                  fn->type_params, fn->attrs);
+        return Function(params, new_body[0], Type(nullptr), fn->type_params, fn->attrs);
       } else if (tuple->fields.size() == new_body.size()) {
-          return new_expr;
+        return new_expr;
       } else {
         Tuple tuple_body = Tuple(new_body);
-        return Function(params, tuple_body, Type(nullptr),
-                                  fn->type_params, fn->attrs);
+        return Function(params, tuple_body, Type(nullptr), fn->type_params, fn->attrs);
       }
     } else {
       return new_expr;
@@ -544,40 +534,35 @@ Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
     if (tuple->fields.size() == new_fields.size()) {
       return new_fields.size() == 1 ? new_fields[0] : new_expr;
     } else {
-      return new_fields.size() == 1 ? new_fields[0]
-                                    : Tuple(new_fields);
+      return new_fields.size() == 1 ? new_fields[0] : Tuple(new_fields);
     }
   } else {
     return new_expr;
   }
 }
 
-Map<Expr, Integer> CollectDeviceInfo(const Expr& expr) {
-  return DeviceInfo::GetDeviceMap(expr);
-}
+Map<Expr, Integer> CollectDeviceInfo(const Expr& expr) { return DeviceInfo::GetDeviceMap(expr); }
 
 Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr) {
   return AnnotatationVisitor::GetAnnotations(expr);
 }
 
-TVM_REGISTER_GLOBAL("relay.analysis.CollectDeviceInfo")
-.set_body_typed(CollectDeviceInfo);
+TVM_REGISTER_GLOBAL("relay.analysis.CollectDeviceInfo").set_body_typed(CollectDeviceInfo);
 
 TVM_REGISTER_GLOBAL("relay.analysis.CollectDeviceAnnotationOps")
-.set_body_typed(CollectDeviceAnnotationOps);
+    .set_body_typed(CollectDeviceAnnotationOps);
 
 namespace transform {
 
 Pass RewriteAnnotatedOps(int fallback_device) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(relay::RewriteAnnotatedOps(f, fallback_device));
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(relay::RewriteAnnotatedOps(f, fallback_device));
+      };
   return CreateFunctionPass(pass_func, 1, "RewriteAnnotatedOps", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.RewriteDeviceAnnotation")
-.set_body_typed(RewriteAnnotatedOps);
+TVM_REGISTER_GLOBAL("relay._transform.RewriteDeviceAnnotation").set_body_typed(RewriteAnnotatedOps);
 
 }  // namespace transform
 

@@ -34,19 +34,18 @@
 #ifndef TVM_RUNTIME_MICRO_MICRO_SESSION_H_
 #define TVM_RUNTIME_MICRO_MICRO_SESSION_H_
 
-#include "micro_common.h"
-#include "micro_section_allocator.h"
-
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/registry.h>
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
-#include <tuple>
 
 #include "low_level_device.h"
+#include "micro_common.h"
+#include "micro_section_allocator.h"
 #include "target_data_layout_encoder.h"
 
 namespace tvm {
@@ -65,8 +64,7 @@ class MicroSession : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
   // todo having this decoupled from the value in utvm_runtime.c gives me stress dreams
   static const size_t kTaskQueueCapacity = 20;
@@ -74,9 +72,7 @@ class MicroSession : public ModuleNode {
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const final {
-    return "MicroSession";
-  }
+  const char* type_key() const final { return "MicroSession"; }
 
   /*!
    * \brief creates session by setting up a low-level device and initting allocators for it
@@ -104,31 +100,14 @@ class MicroSession : public ModuleNode {
    * \param server_addr address of the OpenOCD server to connect to (if `comms_method == "openocd"`)
    * \param port port of the OpenOCD server to connect to (if `comms_method == "openocd"`)
    */
-  MicroSession(
-      const std::string& comms_method,
-      const std::string& binary_path,
-      const std::string& toolchain_prefix,
-      uint64_t text_start,
-      size_t text_size,
-      uint64_t rodata_start,
-      size_t rodata_size,
-      uint64_t data_start,
-      size_t data_size,
-      uint64_t bss_start,
-      size_t bss_size,
-      uint64_t args_start,
-      size_t args_size,
-      uint64_t heap_start,
-      size_t heap_size,
-      uint64_t workspace_start,
-      size_t workspace_size,
-      uint64_t stack_start,
-      size_t stack_size,
-      TargetWordSize word_size,
-      bool thumb_mode,
-      bool use_device_timer,
-      const std::string& server_addr,
-      int port);
+  MicroSession(const std::string& comms_method, const std::string& binary_path,
+               const std::string& toolchain_prefix, uint64_t text_start, size_t text_size,
+               uint64_t rodata_start, size_t rodata_size, uint64_t data_start, size_t data_size,
+               uint64_t bss_start, size_t bss_size, uint64_t args_start, size_t args_size,
+               uint64_t heap_start, size_t heap_size, uint64_t workspace_start,
+               size_t workspace_size, uint64_t stack_start, size_t stack_size,
+               TargetWordSize word_size, bool thumb_mode, bool use_device_timer,
+               const std::string& server_addr, int port);
 
   /*!
    * \brief destructor
@@ -188,29 +167,27 @@ class MicroSession : public ModuleNode {
   std::string ReadString(TargetPtr str_addr);
 
   /*!
-  * \brief read value of symbol from device memory
-  * \param symbol_map symbol map to read location of symbol from
-  * \param symbol name of symbol being read from
-  * \return value at symbol in memory
-  */
+   * \brief read value of symbol from device memory
+   * \param symbol_map symbol map to read location of symbol from
+   * \param symbol name of symbol being read from
+   * \return value at symbol in memory
+   */
   template <typename T>
   T DevSymbolRead(const SymbolMap& symbol_map, const std::string& symbol);
 
   /*!
    * \brief write pointer value into device memory corresponding to symbol
-  * \param symbol_map symbol map to read location of symbol from
-  * \param symbol name of symbol being written to
-  * \param ptr pointer value to write into symbol
+   * \param symbol_map symbol map to read location of symbol from
+   * \param symbol name of symbol being written to
+   * \param ptr pointer value to write into symbol
    */
-  void DevSymbolWrite(const SymbolMap& symbol_map,
-                      const std::string& symbol,
-                      const TargetPtr& ptr);
+  void DevSymbolWrite(const SymbolMap& symbol_map, const std::string& symbol, const TargetPtr& ptr);
 
   /*!
-  * \brief write value into device memory corresponding to symbol
-  * \param symbol_map symbol map to read location of symbol from
-  * \param symbol name of symbol being written to
-  * \param value value being written into symbol
+   * \brief write value into device memory corresponding to symbol
+   * \param symbol_map symbol map to read location of symbol from
+   * \param symbol name of symbol being written to
+   * \param value value being written into symbol
    */
   template <typename T>
   void DevSymbolWrite(const SymbolMap& symbol_map, const std::string& symbol, const T& value);
@@ -307,15 +284,15 @@ class MicroSession : public ModuleNode {
   }
 
   /*!
-    * \brief Push a new session context onto the thread-local stack.
-    *  The session on top of the stack is used as the current global session.
-    */
+   * \brief Push a new session context onto the thread-local stack.
+   *  The session on top of the stack is used as the current global session.
+   */
   static void EnterWithScope(ObjectPtr<MicroSession> session);
 
   /*!
-    * \brief Pop a session off the thread-local context stack,
-    *  restoring the previous session as the current context.
-    */
+   * \brief Pop a session off the thread-local context stack,
+   *  restoring the previous session as the current context.
+   */
   static void ExitWithScope();
 };
 
@@ -336,24 +313,18 @@ struct MicroDevSpace {
 
 /*! \brief TVM array for serialization to 32-bit devices */
 struct TVMArray32 {
-  TVMArray32(
-      TargetVal data,
-      DLContext ctx,
-      int32_t ndim,
-      DLDataType dtype,
-      TargetVal shape,
-      TargetVal strides,
-      TargetVal byte_offset)
-    : data(data.uint32()),
-      ctx(ctx),
-      ndim(ndim),
-      pad0(0),
-      dtype(dtype),
-      shape(shape.uint32()),
-      strides(strides.uint32()),
-      pad1(0),
-      byte_offset(byte_offset.uint32()),
-      pad2(0) { }
+  TVMArray32(TargetVal data, DLContext ctx, int32_t ndim, DLDataType dtype, TargetVal shape,
+             TargetVal strides, TargetVal byte_offset)
+      : data(data.uint32()),
+        ctx(ctx),
+        ndim(ndim),
+        pad0(0),
+        dtype(dtype),
+        shape(shape.uint32()),
+        strides(strides.uint32()),
+        pad1(0),
+        byte_offset(byte_offset.uint32()),
+        pad2(0) {}
 
   /*!
    * \brief The opaque data pointer points to the allocated data.
@@ -386,22 +357,16 @@ struct TVMArray32 {
 
 /*! \brief TVM array for serialization to 64-bit devices */
 struct TVMArray64 {
-  TVMArray64(
-      TargetVal data,
-      DLContext ctx,
-      int32_t ndim,
-      DLDataType dtype,
-      TargetVal shape,
-      TargetVal strides,
-      TargetVal byte_offset)
-    : data(data.uint64()),
-      ctx(ctx),
-      ndim(ndim),
-      pad0(0),
-      dtype(dtype),
-      shape(shape.uint64()),
-      strides(strides.uint64()),
-      byte_offset(byte_offset.uint64()) { }
+  TVMArray64(TargetVal data, DLContext ctx, int32_t ndim, DLDataType dtype, TargetVal shape,
+             TargetVal strides, TargetVal byte_offset)
+      : data(data.uint64()),
+        ctx(ctx),
+        ndim(ndim),
+        pad0(0),
+        dtype(dtype),
+        shape(shape.uint64()),
+        strides(strides.uint64()),
+        byte_offset(byte_offset.uint64()) {}
   /*!
    * \brief The opaque data pointer points to the allocated data.
    *  This will be CUDA device pointer or cl_mem handle in OpenCL.
@@ -442,10 +407,10 @@ struct DevTask {
 /*! \brief MicroTVM task for serialization to 32-bit devices */
 typedef struct StructUTVMTask32 {
   StructUTVMTask32(DevTask task)
-    : func(task.func.uint32()),
-      arg_values(task.arg_values.uint32()),
-      arg_type_codes(task.arg_type_codes.uint32()),
-      num_args(task.num_args) { }
+      : func(task.func.uint32()),
+        arg_values(task.arg_values.uint32()),
+        arg_type_codes(task.arg_type_codes.uint32()),
+        num_args(task.num_args) {}
 
   /*! \brief Pointer to function to call for this task */
   uint32_t func;
@@ -460,10 +425,10 @@ typedef struct StructUTVMTask32 {
 /*! \brief MicroTVM task for serialization to 64-bit devices */
 typedef struct StructUTVMTask64 {
   StructUTVMTask64(DevTask task)
-    : func(task.func.uint64()),
-      arg_values(task.arg_values.uint64()),
-      arg_type_codes(task.arg_type_codes.uint64()),
-      num_args(task.num_args) { }
+      : func(task.func.uint64()),
+        arg_values(task.arg_values.uint64()),
+        arg_type_codes(task.arg_type_codes.uint64()),
+        num_args(task.num_args) {}
 
   /*! \brief Pointer to function to call for this task */
   uint64_t func;

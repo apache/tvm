@@ -21,8 +21,8 @@
  * \file util.cc
  * \brief The utils for arithmetic analysis.
  */
-#include <tvm/arith/util.h>
 #include <dmlc/logging.h>
+#include <tvm/arith/util.h>
 
 namespace tvm {
 namespace arith {
@@ -44,7 +44,7 @@ std::tuple<int64_t, int64_t, int64_t> xgcd(int64_t a, int64_t b) {
 
   CHECK_EQ(a % old_r, 0);
   CHECK_EQ(b % old_r, 0);
-  CHECK(old_r == old_s*a + old_t*b);
+  CHECK(old_r == old_s * a + old_t * b);
 
   return std::make_tuple(old_r, old_s, old_t);
 }

@@ -24,12 +24,12 @@
 #ifndef TOPI_GENERIC_EXTERN_H_
 #define TOPI_GENERIC_EXTERN_H_
 
-#include <tvm/te/operation.h>
-#include <tvm/te/schedule_pass.h>
-#include <tvm/target/generic_func.h>
-#include <topi/tags.h>
 #include <topi/detail/fuse.h>
 #include <topi/generic/injective.h>
+#include <topi/tags.h>
+#include <tvm/target/generic_func.h>
+#include <tvm/te/operation.h>
+#include <tvm/te/schedule_pass.h>
 
 namespace topi {
 using namespace tvm;
@@ -37,13 +37,13 @@ using namespace tvm::te;
 
 namespace generic {
 /*!
-* \brief Schedule an extern op followed by injective operations
-*
-* \param target The target to generate a schedule for.
-* \param outs The output tensors.
-*
-* \return A schedule for the op.
-*/
+ * \brief Schedule an extern op followed by injective operations
+ *
+ * \param target The target to generate a schedule for.
+ * \param outs The output tensors.
+ *
+ * \return A schedule for the op.
+ */
 inline Schedule schedule_extern(const Target& target, Array<Tensor> outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {

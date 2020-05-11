@@ -24,7 +24,6 @@
 #define TVM_RUNTIME_MICRO_MICRO_COMMON_H_
 
 #include <stdio.h>
-
 #include <tvm/runtime/registry.h>
 
 #include <sstream>
@@ -58,21 +57,16 @@ class TargetWordSize {
  public:
   explicit TargetWordSize(size_t word_size_bits) : word_size_bits_{word_size_bits} {
     CHECK(word_size_bits == 32 || word_size_bits == 64)
-      << "only 32-bit and 64-bit are supported now";
+        << "only 32-bit and 64-bit are supported now";
   }
 
-  size_t bytes() const {
-    return word_size_bits_ / 8;
-  }
+  size_t bytes() const { return word_size_bits_ / 8; }
 
-  size_t bits() const {
-    return word_size_bits_;
-  }
+  size_t bits() const { return word_size_bits_; }
 
  private:
   size_t word_size_bits_;
 };
-
 
 /*! \brief class for storing values on varying target word sizes */
 class TargetVal {
@@ -82,7 +76,7 @@ class TargetVal {
 
  public:
   /*! \brief construct a TargetVal matching the size of the given integral argument */
-  template<typename T, typename U = typename std::enable_if<std::is_integral<T>::value, T>::type>
+  template <typename T, typename U = typename std::enable_if<std::is_integral<T>::value, T>::type>
   explicit constexpr TargetVal(T value) : TargetVal(sizeof(T) * 8, value) {}
 
   /*! \brief construct an uninitialized value */
@@ -90,10 +84,8 @@ class TargetVal {
 
   /*! \brief construct a TargetVal with explicit size and value */
   TargetVal(size_t width_bits, uint64_t value) : width_bits_{width_bits} {
-    CHECK(width_bits >= 8 &&
-          width_bits <= 64 &&
-          (width_bits & (width_bits - 1)) == 0)
-      << "width_bits must be a power of 2 in [8, 64], got " << width_bits;
+    CHECK(width_bits >= 8 && width_bits <= 64 && (width_bits & (width_bits - 1)) == 0)
+        << "width_bits must be a power of 2 in [8, 64], got " << width_bits;
     value_ = value & Bitmask();
   }
 
@@ -134,8 +126,8 @@ class TargetVal {
     }
 
     CHECK(width_bits_ >= other.width_bits_)
-      << "Cannot assign TargetVal with width " << other.width_bits_
-      << "bits to TargetVal with width " << width_bits_ << "bits";
+        << "Cannot assign TargetVal with width " << other.width_bits_
+        << "bits to TargetVal with width " << width_bits_ << "bits";
 
     value_ = other.value_ & Bitmask();
     return *this;
@@ -147,12 +139,12 @@ class TargetVal {
 class TargetPtr {
  public:
   /*! \brief construct a device address with variable-length value `value` */
-  TargetPtr(TargetWordSize word_size, std::uint64_t value) :
-      value_(TargetVal(word_size.bits(), value)) {}
+  TargetPtr(TargetWordSize word_size, std::uint64_t value)
+      : value_(TargetVal(word_size.bits(), value)) {}
 
   /*! \brief construct a null address */
-  TargetPtr(TargetWordSize word_size, std::nullptr_t value) :
-      value_{TargetVal(word_size.bits(), 0)} {}
+  TargetPtr(TargetWordSize word_size, std::nullptr_t value)
+      : value_{TargetVal(word_size.bits(), 0)} {}
 
   /*! \brief construct an uninitialized pointer whose word_size can be changed once */
   TargetPtr() = default;
@@ -174,7 +166,9 @@ class TargetPtr {
    * \return casted result
    */
   template <typename T>
-  T cast_to() const { return reinterpret_cast<T>(value_.uint64()); }
+  T cast_to() const {
+    return reinterpret_cast<T>(value_.uint64());
+  }
 
   /*! \brief check if location is null */
   bool operator==(std::nullptr_t) const { return value_.uint64() == 0; }
@@ -224,8 +218,7 @@ class SymbolMap {
    * \param binary contents of binary object file
    * \param toolchain_prefix prefix of compiler toolchain to use
    */
-  SymbolMap(const std::string& binary,
-            const std::string& toolchain_prefix,
+  SymbolMap(const std::string& binary, const std::string& toolchain_prefix,
             TargetWordSize word_size) {
     const auto* f = Registry::Get("tvm_callback_get_symbol_map");
     CHECK(f != nullptr) << "require tvm_callback_get_symbol_map to exist in registry";
@@ -258,9 +251,7 @@ class SymbolMap {
     return result->second;
   }
 
-  bool HasSymbol(const std::string& name) const {
-    return map_.find(name) != map_.end();
-  }
+  bool HasSymbol(const std::string& name) const { return map_.find(name) != map_.end(); }
 
   void Dump(std::ostream& stream) const {
     for (auto e : map_) {
@@ -332,15 +323,10 @@ const char* SectionToString(SectionKind section);
  * \param toolchain_prefix prefix of compiler toolchain to use
  * \return relocated binary file contents
  */
-std::string RelocateBinarySections(
-    const std::string& binary_path,
-    TargetWordSize word_size,
-    TargetPtr text_start,
-    TargetPtr rodata_start,
-    TargetPtr data_start,
-    TargetPtr bss_start,
-    TargetPtr stack_end,
-    const std::string& toolchain_prefix);
+std::string RelocateBinarySections(const std::string& binary_path, TargetWordSize word_size,
+                                   TargetPtr text_start, TargetPtr rodata_start,
+                                   TargetPtr data_start, TargetPtr bss_start, TargetPtr stack_end,
+                                   const std::string& toolchain_prefix);
 
 /*!
  * \brief reads section from binary
@@ -349,8 +335,7 @@ std::string RelocateBinarySections(
  * \param toolchain_prefix prefix of compiler toolchain to use
  * \return contents of the section
  */
-std::string ReadSection(const std::string& binary,
-                        SectionKind section,
+std::string ReadSection(const std::string& binary, SectionKind section,
                         const std::string& toolchain_prefix);
 
 /*!
@@ -361,10 +346,8 @@ std::string ReadSection(const std::string& binary,
  * \param word_size word size of the target, for alignment
  * \return size of the section if it exists, 0 otherwise
  */
-size_t GetSectionSize(const std::string& binary_name,
-                      SectionKind section,
-                      const std::string& toolchain_prefix,
-                      TargetWordSize word_size);
+size_t GetSectionSize(const std::string& binary_name, SectionKind section,
+                      const std::string& toolchain_prefix, TargetWordSize word_size);
 
 }  // namespace runtime
 }  // namespace tvm

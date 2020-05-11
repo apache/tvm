@@ -234,8 +234,7 @@ Pass MergeComposite(const tvm::Array<runtime::String>& pattern_names,
   return func_pass;
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.MergeComposite")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("relay._transform.MergeComposite").set_body([](TVMArgs args, TVMRetValue* rv) {
   tvm::Array<runtime::String> pattern_names = args[0];
   tvm::Array<Expr> patterns = args[1];
   std::vector<PackedFunc> checks;

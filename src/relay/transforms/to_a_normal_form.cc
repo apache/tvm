@@ -26,12 +26,12 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/support/logging.h>
-#include "let_list.h"
-#include "pass_util.h"
+
 #include "../../support/arena.h"
 #include "../analysis/dependency_graph.h"
+#include "let_list.h"
+#include "pass_util.h"
 
 namespace tvm {
 namespace relay {
@@ -47,13 +47,11 @@ struct ScopeNode {
   size_t level;
   Scope parent;
   std::shared_ptr<LetList> ll = std::make_shared<LetList>();
-  explicit ScopeNode(const Scope& parent) : level(1 + parent->level), parent(parent) { }
-  ScopeNode() : level(0) { }
+  explicit ScopeNode(const Scope& parent) : level(1 + parent->level), parent(parent) {}
+  ScopeNode() : level(0) {}
 };
 
-Scope ChildScope(const Scope& s) {
-  return std::make_shared<ScopeNode>(s);
-}
+Scope ChildScope(const Scope& s) { return std::make_shared<ScopeNode>(s); }
 
 Scope LCA(Scope lhs, Scope rhs) {
   while (lhs != rhs) {
@@ -100,8 +98,7 @@ std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGrap
  */
 class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
-  static Expr ToANormalForm(const Expr& e,
-                            const DependencyGraph& dg,
+  static Expr ToANormalForm(const Expr& e, const DependencyGraph& dg,
                             std::unordered_map<DependencyGraph::Node*, Scope>* node_scope) {
     Fill fi(dg, node_scope);
     return fi.GetScope(e)->ll->Get(fi.VisitExpr(e));
@@ -112,14 +109,10 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   std::unordered_map<DependencyGraph::Node*, Scope>* node_scope_;
   std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> memo;
 
-  Fill(const DependencyGraph& dg,
-       std::unordered_map<DependencyGraph::Node*, Scope>* node_scope) :
-    dg_(dg),
-    node_scope_(node_scope) { }
+  Fill(const DependencyGraph& dg, std::unordered_map<DependencyGraph::Node*, Scope>* node_scope)
+      : dg_(dg), node_scope_(node_scope) {}
 
-  Scope GetScope(const Expr& e) {
-    return node_scope_->at(dg_.expr_node.at(e));
-  }
+  Scope GetScope(const Expr& e) { return node_scope_->at(dg_.expr_node.at(e)); }
 
   Scope GetSubScope(const Expr& e, size_t i) {
     DependencyGraph::Node* n = dg_.expr_node.at(e);
@@ -144,18 +137,12 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
     return ret;
   }
 
-  Expr VisitExpr(const Expr& e) {
-    return this->VisitExpr(e, Var());
-  }
+  Expr VisitExpr(const Expr& e) { return this->VisitExpr(e, Var()); }
 
-  Expr Atomic(const Expr& e, const Var& v) {
-    return v.defined() ? GetScope(e)->ll->Push(v, e) : e;
-  }
+  Expr Atomic(const Expr& e, const Var& v) { return v.defined() ? GetScope(e)->ll->Push(v, e) : e; }
 
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
-    Var var = v.defined() ?
-      v :
-      Var(std::string("x"), Type());
+    Var var = v.defined() ? v : Var(std::string("x"), Type());
     return GetScope(orig)->ll->Push(var, now);
   }
 
@@ -199,9 +186,8 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   Expr VisitExpr_(const IfNode* i, const Var& v) final {
     Expr e = GetRef<Expr>(i);
-    Expr ret = If(VisitExpr(i->cond),
-                            GetSubScope(e, 1)->ll->Get(VisitExpr(i->true_branch)),
-                            GetSubScope(e, 2)->ll->Get(VisitExpr(i->false_branch)));
+    Expr ret = If(VisitExpr(i->cond), GetSubScope(e, 1)->ll->Get(VisitExpr(i->true_branch)),
+                  GetSubScope(e, 2)->ll->Get(VisitExpr(i->false_branch)));
     return Compound(e, ret, v);
   }
 
@@ -211,11 +197,8 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
     if (f->HasNonzeroAttr(attr::kPrimitive)) {
       ret = e;
     } else {
-      ret = Function(f->params,
-                               GetSubScope(e, 0)->ll->Get(VisitExpr(f->body)),
-                               f->ret_type,
-                               f->type_params,
-                               f->attrs);
+      ret = Function(f->params, GetSubScope(e, 0)->ll->Get(VisitExpr(f->body)), f->ret_type,
+                     f->type_params, f->attrs);
     }
     return Compound(e, ret, v);
   }
@@ -257,9 +240,8 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
     Expr data = VisitExpr(m->data);
     std::vector<Clause> clauses;
     for (const Clause& c : m->clauses) {
-      clauses.push_back(Clause(
-        c->lhs,
-        GetSubScope(e, 1 + clauses.size())->ll->Get(VisitExpr(c->rhs))));
+      clauses.push_back(
+          Clause(c->lhs, GetSubScope(e, 1 + clauses.size())->ll->Get(VisitExpr(c->rhs))));
     }
     return Compound(e, Match(data, clauses, m->complete), v);
   }
@@ -301,14 +283,9 @@ IRModule ToANormalForm(const IRModule& m) {
     if (const auto* n = it.second.as<FunctionNode>()) {
       if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
     }
-    Expr ret =
-      TransformF([&](const Expr& e) {
-        return ToANormalFormAux(e);
-      }, it.second);
+    Expr ret = TransformF([&](const Expr& e) { return ToANormalFormAux(e); }, it.second);
     CHECK_EQ(FreeVars(ret).size(), 0)
-      << AsText(ret)
-      << "should not has free vars: "
-      << FreeVars(ret);
+        << AsText(ret) << "should not has free vars: " << FreeVars(ret);
     updates.Set(it.first, Downcast<Function>(ret));
   }
 
@@ -325,14 +302,11 @@ namespace transform {
 
 Pass ToANormalForm() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-    [=](IRModule m, PassContext pc) {
-    return relay::ToANormalForm(m);
-  };
+      [=](IRModule m, PassContext pc) { return relay::ToANormalForm(m); };
   return CreateModulePass(pass_func, 1, "ToANormalForm", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.ToANormalForm")
-.set_body_typed(ToANormalForm);
+TVM_REGISTER_GLOBAL("relay._transform.ToANormalForm").set_body_typed(ToANormalForm);
 
 }  // namespace transform
 

@@ -79,22 +79,35 @@ enum class RPCServerStatus : int {
  */
 inline const char* RPCServerStatusToString(RPCServerStatus status) {
   switch (status) {
-    case RPCServerStatus::kSuccess: return "kSuccess";
-    case RPCServerStatus::kInvalidTypeCodeObject: return "kInvalidTypeCodeObject";
-    case RPCServerStatus::kInvalidTypeCodeNDArray: return "kInvalidTypeCodeNDArray";
-    case RPCServerStatus::kInvalidDLTensorFieldStride: return "kInvalidDLTensorFieldStride";
+    case RPCServerStatus::kSuccess:
+      return "kSuccess";
+    case RPCServerStatus::kInvalidTypeCodeObject:
+      return "kInvalidTypeCodeObject";
+    case RPCServerStatus::kInvalidTypeCodeNDArray:
+      return "kInvalidTypeCodeNDArray";
+    case RPCServerStatus::kInvalidDLTensorFieldStride:
+      return "kInvalidDLTensorFieldStride";
     case RPCServerStatus::kInvalidDLTensorFieldByteOffset: {
       return "kInvalidDLTensorFieldByteOffset";
     }
-    case RPCServerStatus::kUnknownTypeCode: return "kUnknownTypeCode";
-    case RPCServerStatus::kUnknownRPCCode: return "kUnknownRPCCode";
-    case RPCServerStatus::kRPCCodeNotSupported: return "RPCCodeNotSupported";
-    case RPCServerStatus::kUnknownRPCSyscall: return "kUnknownRPCSyscall";
-    case RPCServerStatus::kCheckError: return "kCheckError";
-    case RPCServerStatus::kReadError: return "kReadError";
-    case RPCServerStatus::kWriteError: return "kWriteError";
-    case RPCServerStatus::kAllocError: return "kAllocError";
-    default: return "";
+    case RPCServerStatus::kUnknownTypeCode:
+      return "kUnknownTypeCode";
+    case RPCServerStatus::kUnknownRPCCode:
+      return "kUnknownRPCCode";
+    case RPCServerStatus::kRPCCodeNotSupported:
+      return "RPCCodeNotSupported";
+    case RPCServerStatus::kUnknownRPCSyscall:
+      return "kUnknownRPCSyscall";
+    case RPCServerStatus::kCheckError:
+      return "kCheckError";
+    case RPCServerStatus::kReadError:
+      return "kReadError";
+    case RPCServerStatus::kWriteError:
+      return "kWriteError";
+    case RPCServerStatus::kAllocError:
+      return "kAllocError";
+    default:
+      return "";
   }
 }
 
@@ -111,11 +124,10 @@ struct RPCReference {
    * \brief Auxiliary class to get the packed sequence.
    * \tparam TChannel The channel to throw errror.
    */
-  template<typename TChannel>
+  template <typename TChannel>
   struct PackedSeqNumBytesGetter {
    public:
-    explicit PackedSeqNumBytesGetter(TChannel* channel)
-        : channel_(channel) {}
+    explicit PackedSeqNumBytesGetter(TChannel* channel) : channel_(channel) {}
 
     template <typename T>
     void Write(const T& value) {
@@ -127,13 +139,9 @@ struct RPCReference {
       num_bytes_ += sizeof(T) * num;
     }
 
-    void ThrowError(RPCServerStatus status) {
-      channel_->ThrowError(status);
-    }
+    void ThrowError(RPCServerStatus status) { channel_->ThrowError(status); }
 
-    uint64_t num_bytes() const {
-      return num_bytes_;
-    }
+    uint64_t num_bytes() const { return num_bytes_; }
 
    private:
     TChannel* channel_;
@@ -162,12 +170,9 @@ struct RPCReference {
    * \tparam TChannel The type of the communication channel.
    * \return The total number of bytes.
    */
-  template<typename TChannel>
-  static uint64_t PackedSeqGetNumBytes(const TVMValue* arg_values,
-                                       const int* type_codes,
-                                       int num_args,
-                                       bool client_mode,
-                                       TChannel* channel) {
+  template <typename TChannel>
+  static uint64_t PackedSeqGetNumBytes(const TVMValue* arg_values, const int* type_codes,
+                                       int num_args, bool client_mode, TChannel* channel) {
     PackedSeqNumBytesGetter<TChannel> getter(channel);
     SendPackedSeq(arg_values, type_codes, num_args, client_mode, &getter);
     return getter.num_bytes();
@@ -196,12 +201,9 @@ struct RPCReference {
    * \param channel The communication channel handler.
    * \tparam TChannel The type of the communication channel.
    */
-  template<typename TChannel>
-  static void SendPackedSeq(const TVMValue* arg_values,
-                            const int* type_codes,
-                            int num_args,
-                            bool client_mode,
-                            TChannel* channel) {
+  template <typename TChannel>
+  static void SendPackedSeq(const TVMValue* arg_values, const int* type_codes, int num_args,
+                            bool client_mode, TChannel* channel) {
     channel->Write(num_args);
     channel->WriteArray(type_codes, num_args);
 
@@ -270,7 +272,8 @@ struct RPCReference {
           }
           break;
         }
-        case kTVMNullptr: break;
+        case kTVMNullptr:
+          break;
         case kTVMStr: {
           const char* s = value.v_str;
           uint64_t len = StrLength(s);
@@ -303,10 +306,8 @@ struct RPCReference {
    * \tparam TChannel The type of the communication channel.
    * \note The temporary space are populated via an arena inside channel.
    */
-  template<typename TChannel>
-  static void RecvPackedSeq(TVMValue** out_values,
-                            int** out_tcodes,
-                            int* out_num_args,
+  template <typename TChannel>
+  static void RecvPackedSeq(TVMValue** out_values, int** out_tcodes, int* out_num_args,
                             TChannel* channel) {
     // receive number of args
     int num_args;
@@ -411,19 +412,14 @@ struct RPCReference {
    * \param channel The communication channel handler.
    * \tparam TChannel The type of the communication channel.
    */
-  template<typename TChannel>
+  template <typename TChannel>
   static void ReturnException(const char* msg, TChannel* channel) {
     RPCCode code = RPCCode::kException;
     int32_t num_args = 1;
     int32_t tcode = kTVMStr;
     uint64_t len = StrLength(msg);
 
-    uint64_t packet_nbytes =
-        sizeof(code) +
-        sizeof(num_args) +
-        sizeof(tcode) +
-        sizeof(len) +
-        len;
+    uint64_t packet_nbytes = sizeof(code) + sizeof(num_args) + sizeof(tcode) + sizeof(len) + len;
 
     channel->Write(packet_nbytes);
     channel->Write(code);
@@ -440,22 +436,17 @@ struct RPCReference {
    * \param channel The communication channel handler.
    * \tparam TChannel The type of the communication channel.
    */
-  template<typename TChannel>
-  static void ReturnPackedSeq(const TVMValue* arg_values,
-                              const int* type_codes,
-                              int num_args,
+  template <typename TChannel>
+  static void ReturnPackedSeq(const TVMValue* arg_values, const int* type_codes, int num_args,
                               TChannel* channel) {
     RPCCode code = RPCCode::kReturn;
 
     uint64_t packet_nbytes =
-        sizeof(code) +
-        PackedSeqGetNumBytes(
-            arg_values, type_codes, num_args, false, channel);
+        sizeof(code) + PackedSeqGetNumBytes(arg_values, type_codes, num_args, false, channel);
 
     channel->Write(packet_nbytes);
     channel->Write(code);
-    SendPackedSeq(
-        arg_values, type_codes, num_args, false, channel);
+    SendPackedSeq(arg_values, type_codes, num_args, false, channel);
   }
 
   /*!
@@ -464,16 +455,13 @@ struct RPCReference {
    * \param channel The communication channel handler.
    * \tparam TChannel The type of the communication channel.
    */
-  template<typename TChannel>
+  template <typename TChannel>
   static void ReturnVoid(TChannel* channel) {
     int32_t num_args = 1;
     int32_t tcode = kTVMNullptr;
     RPCCode code = RPCCode::kReturn;
 
-    uint64_t packet_nbytes =
-        sizeof(code) +
-        sizeof(num_args) +
-        sizeof(tcode);
+    uint64_t packet_nbytes = sizeof(code) + sizeof(num_args) + sizeof(tcode);
 
     channel->Write(packet_nbytes);
     channel->Write(code);

@@ -25,12 +25,14 @@
 #define TVM_RUNTIME_OPENGL_OPENGL_MODULE_H_
 
 #include <tvm/runtime/packed_func.h>
+
 #include <algorithm>
 #include <memory>
 #include <string>
-#include <vector>
-#include <utility>
 #include <unordered_map>
+#include <utility>
+#include <vector>
+
 #include "../meta_data.h"
 
 namespace tvm {
@@ -67,11 +69,10 @@ OpenGLArgKind String2OpenGLArgKind(const std::string& str);
  */
 struct OpenGLShader {
   OpenGLShader() = default;
-  OpenGLShader(std::string source,
-               std::vector<std::string> arg_names,
-               std::vector<OpenGLArgKind> arg_kinds,
-               std::string thread_extent_var)
-      : source(std::move(source)), arg_names(std::move(arg_names)),
+  OpenGLShader(std::string source, std::vector<std::string> arg_names,
+               std::vector<OpenGLArgKind> arg_kinds, std::string thread_extent_var)
+      : source(std::move(source)),
+        arg_names(std::move(arg_names)),
         arg_kinds(std::move(arg_kinds)),
         thread_extent_var(std::move(thread_extent_var)) {
     CHECK_EQ(this->arg_names.size(), this->arg_kinds.size()) << "Invalid input";
@@ -96,8 +97,7 @@ std::unordered_map<std::string, OpenGLShader> FromJSON(const std::string& str);
  * \param fmt The format of the data,
  * \param fmap The map function information map of each function.
  */
-Module OpenGLModuleCreate(std::unordered_map<std::string, OpenGLShader> shaders,
-                          std::string fmt,
+Module OpenGLModuleCreate(std::unordered_map<std::string, OpenGLShader> shaders, std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap);
 
 inline std::string OpenGLArgKind2String(OpenGLArgKind kind) {
@@ -156,8 +156,7 @@ inline void OpenGLShader::Load(dmlc::JSONReader* reader) {
   }
 }
 
-inline std::string ToJSON(
-    const std::unordered_map<std::string, OpenGLShader>& shaders) {
+inline std::string ToJSON(const std::unordered_map<std::string, OpenGLShader>& shaders) {
   std::ostringstream os;
   dmlc::JSONWriter writer(&os);
   writer.BeginObject();
@@ -166,8 +165,7 @@ inline std::string ToJSON(
   return os.str();
 }
 
-inline std::unordered_map<std::string, OpenGLShader> FromJSON(
-    const std::string& str) {
+inline std::unordered_map<std::string, OpenGLShader> FromJSON(const std::string& str) {
   std::unordered_map<std::string, OpenGLShader> shaders;
   std::istringstream is(str);
   dmlc::JSONReader reader(&is);

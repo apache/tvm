@@ -23,11 +23,11 @@
  */
 
 #include <dmlc/memory_io.h>
-#include <tvm/support/logging.h>
 #include <tvm/runtime/container.h>
-#include <tvm/runtime/vm.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/vm.h>
+#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <chrono>
@@ -56,8 +56,7 @@ inline Storage make_storage(size_t size, size_t alignment, DLDataType dtype_hint
   // We could put cache in here, from ctx to storage allocator.
   auto storage_obj = SimpleObjAllocator().make_object<StorageObj>();
   auto alloc = MemoryManager::Global()->GetAllocator(ctx);
-  DCHECK(alloc != nullptr)
-    << "allocator must not null";
+  DCHECK(alloc != nullptr) << "allocator must not null";
   storage_obj->buffer = alloc->Alloc(size, alignment, dtype_hint);
   return Storage(storage_obj);
 }
@@ -87,8 +86,8 @@ Instruction::Instruction(const Instruction& instr) {
     case Opcode::AllocTensor:
       this->alloc_tensor.storage = instr.alloc_tensor.storage;
       this->alloc_tensor.ndim = instr.alloc_tensor.ndim;
-      this->alloc_tensor.shape = Duplicate<int64_t>(instr.alloc_tensor.shape,
-                                                    instr.alloc_tensor.ndim);
+      this->alloc_tensor.shape =
+          Duplicate<int64_t>(instr.alloc_tensor.shape, instr.alloc_tensor.ndim);
       this->alloc_tensor.dtype = instr.alloc_tensor.dtype;
       return;
     case Opcode::AllocTensorReg:
@@ -151,7 +150,7 @@ Instruction::Instruction(const Instruction& instr) {
   }
 }
 
-template<typename T>
+template <typename T>
 static inline void FreeIf(T* t) {
   if (t != nullptr) {
     delete t;
@@ -177,8 +176,8 @@ Instruction& Instruction::operator=(const Instruction& instr) {
     case Opcode::AllocTensor:
       this->alloc_tensor.storage = instr.alloc_tensor.storage;
       this->alloc_tensor.ndim = instr.alloc_tensor.ndim;
-      this->alloc_tensor.shape = Duplicate<int64_t>(instr.alloc_tensor.shape,
-                                                    instr.alloc_tensor.ndim);
+      this->alloc_tensor.shape =
+          Duplicate<int64_t>(instr.alloc_tensor.shape, instr.alloc_tensor.ndim);
       this->alloc_tensor.dtype = instr.alloc_tensor.dtype;
       return *this;
     case Opcode::AllocTensorReg:
@@ -294,9 +293,7 @@ Instruction Instruction::Fatal() {
   return instr;
 }
 
-Instruction Instruction::InvokePacked(Index packed_index,
-                                      Index arity,
-                                      Index output_size,
+Instruction Instruction::InvokePacked(Index packed_index, Index arity, Index output_size,
                                       const std::vector<RegName>& args) {
   Instruction instr;
   instr.op = Opcode::InvokePacked;
@@ -310,10 +307,8 @@ Instruction Instruction::InvokePacked(Index packed_index,
   return instr;
 }
 
-Instruction Instruction::AllocTensor(
-  RegName storage,
-  const std::vector<int64_t>& shape,
-  DLDataType dtype, Index dst) {
+Instruction Instruction::AllocTensor(RegName storage, const std::vector<int64_t>& shape,
+                                     DLDataType dtype, Index dst) {
   Instruction instr;
   instr.op = Opcode::AllocTensor;
   instr.dst = dst;
@@ -327,10 +322,8 @@ Instruction Instruction::AllocTensor(
   return instr;
 }
 
-Instruction Instruction::AllocTensorReg(
-  RegName storage,
-  RegName shape_register,
-  DLDataType dtype, Index dst) {
+Instruction Instruction::AllocTensorReg(RegName storage, RegName shape_register, DLDataType dtype,
+                                        Index dst) {
   Instruction instr;
   instr.op = Opcode::AllocTensorReg;
   instr.dst = dst;
@@ -340,9 +333,7 @@ Instruction Instruction::AllocTensorReg(
   return instr;
 }
 
-Instruction Instruction::AllocStorage(RegName size,
-                                      Index alignment,
-                                      DLDataType dtype_hint,
+Instruction Instruction::AllocStorage(RegName size, Index alignment, DLDataType dtype_hint,
                                       Index dst) {
   Instruction instr;
   instr.op = Opcode::AllocStorage;
@@ -354,7 +345,7 @@ Instruction Instruction::AllocStorage(RegName size,
 }
 
 Instruction Instruction::AllocADT(Index tag, Index num_fields,
-                                       const std::vector<RegName>& datatype_fields, Index dst) {
+                                  const std::vector<RegName>& datatype_fields, Index dst) {
   Instruction instr;
   instr.op = Opcode::AllocADT;
   instr.dst = dst;
@@ -486,7 +477,7 @@ void DLDatatypePrint(std::ostream& os, const DLDataType& dtype) {
   }
 }
 
-template<typename T>
+template <typename T>
 std::string StrJoin(T* items, int offset, int cnt, std::string delim = ", ") {
   if (cnt == 0) {
     return "";
@@ -515,26 +506,21 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     }
     case Opcode::InvokePacked: {
       os << "invoke_packed PackedFunc[" << instr.packed_index << "] (in: $"
-         << StrJoin<RegName>(instr.packed_args, 0,
-                             instr.arity - instr.output_size, ", $")
+         << StrJoin<RegName>(instr.packed_args, 0, instr.arity - instr.output_size, ", $")
          << ", out: $"
-         << StrJoin<RegName>(instr.packed_args, instr.arity - instr.output_size,
-                             instr.output_size, ", $")
+         << StrJoin<RegName>(instr.packed_args, instr.arity - instr.output_size, instr.output_size,
+                             ", $")
          << ")";
       break;
     }
     case Opcode::AllocTensor: {
-      os << "alloc_tensor $" << instr.dst << " $"
-         << instr.alloc_tensor.storage << " ["
-         << StrJoin<int64_t>(instr.alloc_tensor.shape, 0,
-                             instr.alloc_tensor.ndim)
-         << "] ";
+      os << "alloc_tensor $" << instr.dst << " $" << instr.alloc_tensor.storage << " ["
+         << StrJoin<int64_t>(instr.alloc_tensor.shape, 0, instr.alloc_tensor.ndim) << "] ";
       DLDatatypePrint(os, instr.alloc_tensor.dtype);
       break;
     }
     case Opcode::AllocTensorReg: {
-      os << "alloc_tensor_reg $" << instr.dst << " $"
-         << instr.alloc_tensor_reg.storage << " $"
+      os << "alloc_tensor_reg $" << instr.dst << " $" << instr.alloc_tensor_reg.storage << " $"
          << instr.alloc_tensor_reg.shape_register << " ";
       DLDatatypePrint(os, instr.alloc_tensor_reg.dtype);
       break;
@@ -545,26 +531,24 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::AllocClosure: {
-      os << "alloc_closure $" << instr.dst << " VMFunc[" << instr.clo_index
-         << "]($" << StrJoin<RegName>(instr.free_vars, 0, instr.num_freevar, ",$")
-         << ")";
+      os << "alloc_closure $" << instr.dst << " VMFunc[" << instr.clo_index << "]($"
+         << StrJoin<RegName>(instr.free_vars, 0, instr.num_freevar, ",$") << ")";
       break;
     }
     case Opcode::If: {
-      os << "if " << "$" << instr.if_op.test << " $" << instr.if_op.target << " "
-         << instr.if_op.true_offset << " " << instr.if_op.false_offset;
+      os << "if "
+         << "$" << instr.if_op.test << " $" << instr.if_op.target << " " << instr.if_op.true_offset
+         << " " << instr.if_op.false_offset;
       break;
     }
     case Opcode::Invoke: {
       os << "invoke $" << instr.dst << " VMFunc[" << instr.func_index << "]($"
-         << StrJoin<RegName>(instr.invoke_args_registers, 0, instr.num_args, ",$")
-         << ")";
+         << StrJoin<RegName>(instr.invoke_args_registers, 0, instr.num_args, ",$") << ")";
       break;
     }
     case Opcode::InvokeClosure: {
       os << "invoke_closure $" << instr.dst << " $" << instr.closure << "($"
-         << StrJoin<RegName>(instr.closure_args, 0, instr.num_closure_args, ",$")
-         << ")";
+         << StrJoin<RegName>(instr.closure_args, 0, instr.num_closure_args, ",$") << ")";
       break;
     }
     case Opcode::LoadConst: {
@@ -576,8 +560,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::GetField: {
-      os << "get_field $" << instr.dst << " $" << instr.object << "["
-         << instr.field_index << "]";
+      os << "get_field $" << instr.dst << " $" << instr.object << "[" << instr.field_index << "]";
       break;
     }
     case Opcode::GetTag: {
@@ -589,11 +572,9 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::AllocStorage: {
-      os << "alloc_storage $" <<
-        instr.dst << " $" <<
-        instr.alloc_storage.allocation_size << " $" <<
-        instr.alloc_storage.alignment << " " <<
-        DLDataType2String(instr.alloc_storage.dtype_hint);
+      os << "alloc_storage $" << instr.dst << " $" << instr.alloc_storage.allocation_size << " $"
+         << instr.alloc_storage.alignment << " "
+         << DLDataType2String(instr.alloc_storage.dtype_hint);
       break;
     }
     default:
@@ -637,14 +618,14 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       std::string func_name = args[0];
       auto git = exec_->global_map.find(func_name);
       CHECK(git != exec_->global_map.end())
-        << "Cannot find function " << func_name << " in the executable";
+          << "Cannot find function " << func_name << " in the executable";
       auto func = exec_->functions[git->second];
       if (func.params.empty()) {
         *rv = Invoke(func, {});
       } else {
         auto it = inputs_.find(func_name);
         CHECK(it != inputs_.end()) << "Input has not been set for function " << func_name;
-        const std::vector<ObjectRef> &func_args = it->second;
+        const std::vector<ObjectRef>& func_args = it->second;
         *rv = Invoke(func, func_args);
       }
     });
@@ -672,8 +653,8 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       const auto& param_names = vm_func.params;
       // TODO(icemelon9): For heterogeneous execution, get input device information
       TVMContext ctx = ctxs_[0];
-      CHECK_EQ(args.size() - 1, param_names.size()) <<
-          "The number of provided parameters doesn't match the number of arguments";
+      CHECK_EQ(args.size() - 1, param_names.size())
+          << "The number of provided parameters doesn't match the number of arguments";
       std::vector<ObjectRef> func_args(param_names.size());
       for (int i = 1; i < args.size(); ++i) {
         ObjectRef obj = CopyTo(args[i], ctx);
@@ -745,16 +726,14 @@ ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<Objec
 ObjectRef VirtualMachine::Invoke(const std::string& name, const std::vector<ObjectRef>& args) {
   CHECK(exec_) << "The executable has not been created yet.";
   auto it = exec_->global_map.find(name);
-  CHECK(it != exec_->global_map.end())
-    << "Cannot find function " << name << " in the executable";
+  CHECK(it != exec_->global_map.end()) << "Cannot find function " << name << " in the executable";
   auto func_index_ = it->second;
   DLOG(INFO) << "Invoke Global " << name << " at index " << func_index_;
   return Invoke(exec_->functions[func_index_], args);
 }
 
-void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
-                                  Index arg_count, Index output_size,
-                                  const std::vector<ObjectRef>& args) {
+void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
+                                  Index output_size, const std::vector<ObjectRef>& args) {
   size_t arity = 0;
   for (Index i = 0; i < arg_count; i++) {
     if (const auto* obj = args[i].as<ADTObj>()) {
@@ -806,10 +785,7 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
   }
 }
 
-
-void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) {
-  ctxs_ = ctxs;
-}
+void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) { ctxs_ = ctxs; }
 
 inline void VirtualMachine::WriteRegister(Index r, const ObjectRef& val) {
   frames_.back().register_file[r] = val;
@@ -893,13 +869,13 @@ void VirtualMachine::RunLoop() {
         goto main_loop;
       }
       case Opcode::InvokePacked: {
-        DLOG(INFO) << "InvokedPacked " << "arity=" << instr.arity;
+        DLOG(INFO) << "InvokedPacked "
+                   << "arity=" << instr.arity;
         const auto& func = packed_funcs_[instr.packed_index];
         const auto& arity = instr.arity;
         std::vector<ObjectRef> args;
         for (Index i = 0; i < arity; ++i) {
-          DLOG(INFO) <<
-            "arg" << i << " $" << instr.packed_args[i];
+          DLOG(INFO) << "arg" << i << " $" << instr.packed_args[i];
           auto arg = ReadRegister(instr.packed_args[i]);
           args.push_back(arg);
         }
@@ -1022,10 +998,8 @@ void VirtualMachine::RunLoop() {
         auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
         auto alignment = LoadScalarInt(instr.alloc_storage.alignment);
 
-        DLOG(INFO) <<
-          "AllocStorage: allocation_size=" << size <<
-          "alignment=" << alignment <<
-          "dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint);
+        DLOG(INFO) << "AllocStorage: allocation_size=" << size << "alignment=" << alignment
+                   << "dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint);
 
         auto storage = make_storage(size, alignment, instr.alloc_storage.dtype_hint, ctxs_[0]);
         WriteRegister(instr.dst, storage);
@@ -1057,8 +1031,7 @@ runtime::Module CreateVirtualMachine(const Executable* exec) {
   return runtime::Module(vm);
 }
 
-TVM_REGISTER_GLOBAL("runtime._VirtualMachine")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime._VirtualMachine").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());
   CHECK(exec) << "The virtual machine executable has not been defined yet.";

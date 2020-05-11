@@ -28,9 +28,11 @@
 #include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
-#include <tvm/support/logging.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
+#include <tvm/support/logging.h>
+#include <tvm/tir/function.h>
+
 #include <iostream>
 #include <memory>
 #include <string>
@@ -38,8 +40,9 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include "../../../runtime/vm/profiler/vm.h"
+
 #include "../../../runtime/vm/naive_allocator.h"
+#include "../../../runtime/vm/profiler/vm.h"
 #include "../../backend/compile_engine.h"
 #include "../../transforms/pass_util.h"
 
@@ -79,17 +82,13 @@ struct VMCompilerContext {
   std::unordered_map<tir::PrimFunc, size_t, ObjectHash, ObjectEqual> seen_funcs;
 };
 
-
 class VMCompiler : public runtime::ModuleNode {
  public:
   virtual ~VMCompiler() {}
 
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
-  const char* type_key() const {
-    return "VMCompiler";
-  }
+  const char* type_key() const { return "VMCompiler"; }
 
   /*!
    * \brief Set the parameters
@@ -107,9 +106,7 @@ class VMCompiler : public runtime::ModuleNode {
                     to target mapping. For homogeneous compilation, it is a build target.
    * \param target_host Host compilation target, if target is device.
    */
-  void Lower(IRModule mod,
-             const TargetsMap& targets,
-             const tvm::Target& target_host);
+  void Lower(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host);
 
   /*! \brief Generate the machine code for lowered functions. */
   void Codegen();

@@ -21,12 +21,12 @@
  * \file ViewController.mm
  */
 
-#include <string>
 #import "ViewController.h"
+#include <string>
 
 @implementation ViewController
 
-- (void)stream:(NSStream *)strm handleEvent:(NSStreamEvent)event {
+- (void)stream:(NSStream*)strm handleEvent:(NSStreamEvent)event {
   std::string buffer;
   switch (event) {
     case NSStreamEventOpenCompleted: {
@@ -45,7 +45,7 @@
       break;
     }
     case NSStreamEventErrorOccurred: {
-      NSLog(@"%@",[strm streamError].localizedDescription);
+      NSLog(@"%@", [strm streamError].localizedDescription);
       break;
     }
     case NSStreamEventEndEncountered: {
@@ -64,8 +64,7 @@
   constexpr int kRPCMagic = 0xff271;
   if (!initialized_) {
     int code;
-    size_t nbytes = [inputStream_ read:reinterpret_cast<uint8_t*>(&code)
-                                  maxLength:sizeof(code)];
+    size_t nbytes = [inputStream_ read:reinterpret_cast<uint8_t*>(&code) maxLength:sizeof(code)];
     if (nbytes != sizeof(code)) {
       self.infoText.text = @"Fail to receive remote confirmation code.";
       [self close];
@@ -115,7 +114,7 @@
 - (void)onWriteAvailable {
   if (initSendPtr_ < initBytes_.length()) {
     initSendPtr_ += [outputStream_ write:reinterpret_cast<uint8_t*>(&initBytes_[initSendPtr_])
-                                   maxLength:(initBytes_.length() - initSendPtr_)];
+                               maxLength:(initBytes_.length() - initSendPtr_)];
   }
   if (initialized_) {
     try {
@@ -148,13 +147,10 @@
   // Initialize the network.
   CFReadStreamRef readStream;
   CFWriteStreamRef writeStream;
-  CFStreamCreatePairWithSocketToHost(
-      NULL,
-      (__bridge CFStringRef) self.proxyURL.text,
-      [self.proxyPort.text intValue],
-      &readStream, &writeStream);
-  inputStream_ = (__bridge_transfer NSInputStream *)readStream;
-  outputStream_ = (__bridge_transfer NSOutputStream *)writeStream;
+  CFStreamCreatePairWithSocketToHost(NULL, (__bridge CFStringRef)self.proxyURL.text,
+                                     [self.proxyPort.text intValue], &readStream, &writeStream);
+  inputStream_ = (__bridge_transfer NSInputStream*)readStream;
+  outputStream_ = (__bridge_transfer NSOutputStream*)writeStream;
   [inputStream_ setDelegate:self];
   [outputStream_ setDelegate:self];
   [inputStream_ scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];

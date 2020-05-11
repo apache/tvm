@@ -24,9 +24,10 @@
 #ifndef TVM_TIR_TRANSFORMS_IR_UTIL_H_
 #define TVM_TIR_TRANSFORMS_IR_UTIL_H_
 
+#include <tvm/runtime/device_api.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
-#include <tvm/runtime/device_api.h>
+
 #include <vector>
 
 namespace tvm {
@@ -56,7 +57,7 @@ Stmt MergeNest(const std::vector<std::vector<Stmt> >& nest, Stmt body);
  * \return if update happens, return the new array, else return the
  *  original array
  */
-template<typename T, typename F>
+template <typename T, typename F>
 inline Array<T> UpdateArray(Array<T> arr, F fupdate) {
   std::vector<T> new_arr(arr.size());
   bool changed = false;
@@ -81,13 +82,10 @@ inline Array<T> UpdateArray(Array<T> arr, F fupdate) {
  * \param kind The data kind.
  * \return the get expression.
  */
-inline PrimExpr TVMStructGet(
-    DataType dtype, Var handle, int index,
-    intrinsic::TVMStructFieldKind kind) {
-  Array<PrimExpr> args ={
-    handle,
-    make_const(DataType::Int(32), index),
-    make_const(DataType::Int(32), static_cast<int>(kind))};
+inline PrimExpr TVMStructGet(DataType dtype, Var handle, int index,
+                             intrinsic::TVMStructFieldKind kind) {
+  Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
+                          make_const(DataType::Int(32), static_cast<int>(kind))};
   return CallNode::make(dtype, intrinsic::tvm_struct_get, args, CallNode::PureIntrinsic);
 }
 
@@ -101,7 +99,7 @@ inline PrimExpr AddressOffset(Var handle, DataType dtype, int offset) {
   return CallNode::make(
       DataType::Handle(), intrinsic::tvm_address_of,
       {LoadNode::make(dtype, handle, make_const(DataType::Int(32), offset * dtype.lanes()),
-                  const_true(dtype.lanes()))},
+                      const_true(dtype.lanes()))},
       CallNode::PureIntrinsic);
 }
 
@@ -116,11 +114,9 @@ inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
     offset = offset * make_const(offset.dtype(), dtype.lanes());
     offset = RampNode::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
   }
-  return CallNode::make(
-      DataType::Handle(), intrinsic::tvm_address_of,
-      {LoadNode::make(dtype, handle, offset,
-                  const_true(dtype.lanes()))},
-      CallNode::PureIntrinsic);
+  return CallNode::make(DataType::Handle(), intrinsic::tvm_address_of,
+                        {LoadNode::make(dtype, handle, offset, const_true(dtype.lanes()))},
+                        CallNode::PureIntrinsic);
 }
 
 /*!
@@ -131,14 +127,10 @@ inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
  * \param value The value to be set.
  * \return the set stmt.
  */
-inline Stmt TVMStructSet(
-    Var handle, int index,
-    intrinsic::TVMStructFieldKind kind, PrimExpr value) {
-  Array<PrimExpr> args ={
-    handle,
-    make_const(DataType::Int(32), index),
-    make_const(DataType::Int(32), static_cast<int>(kind)),
-    value};
+inline Stmt TVMStructSet(Var handle, int index, intrinsic::TVMStructFieldKind kind,
+                         PrimExpr value) {
+  Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
+                          make_const(DataType::Int(32), static_cast<int>(kind)), value};
   return EvaluateNode::make(
       CallNode::make(DataType::Int(32), intrinsic::tvm_struct_set, args, CallNode::Intrinsic));
 }
@@ -150,8 +142,7 @@ inline Stmt TVMStructSet(
  */
 inline DataType APIType(DataType t) {
   if (t.is_handle()) return t;
-  CHECK_EQ(t.lanes(), 1)
-      << "Cannot pass vector type through packed API.";
+  CHECK_EQ(t.lanes(), 1) << "Cannot pass vector type through packed API.";
   if (t.is_uint() || t.is_int()) return DataType::Int(64);
   CHECK(t.is_float());
   return DataType::Float(64);
@@ -173,7 +164,6 @@ inline int GetTempAllocaAlignment(DataType type, int32_t const_size) {
   }
   return align;
 }
-
 
 /*!
  * \brief Convert a IR node to be SSA form.

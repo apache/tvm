@@ -151,8 +151,8 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     for (size_t i = 0; i < out_shape.size(); ++i) {
       out_size *= out_shape[i];
     }
-    buf_stream << dtype << "* " << out <<
-      " = (" << dtype << "*)std::malloc(4 * " << out_size << ");";
+    buf_stream << dtype << "* " << out << " = (" << dtype << "*)std::malloc(4 * " << out_size
+               << ");";
     buf_decl_.push_back(buf_stream.str());
 
     decl_stream << ", " << out << ");";

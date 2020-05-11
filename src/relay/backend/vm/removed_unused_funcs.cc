@@ -22,12 +22,13 @@
  * \brief Remove unused global relay functions in a relay module.
  */
 
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/support/logging.h>
-#include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
+#include <tvm/support/logging.h>
+
 #include <iostream>
 #include <unordered_set>
 #include <vector>
@@ -48,10 +49,7 @@ struct CallTracer : ExprVisitor {
   // Record the expressions that are being visited
   std::unordered_set<Expr, ObjectHash, ObjectEqual> visiting_;
 
-  explicit CallTracer(const IRModule& module)
-    : module_{module},
-      called_funcs_{},
-      visiting_{} {}
+  explicit CallTracer(const IRModule& module) : module_{module}, called_funcs_{}, visiting_{} {}
 
   void VisitExpr_(const GlobalVarNode* op) final {
     called_funcs_.insert(op->name_hint);
@@ -86,8 +84,7 @@ struct CallTracer : ExprVisitor {
  *
  * \return The module with dead functions removed.
  */
-IRModule RemoveUnusedFunctions(const IRModule& module,
-                               Array<runtime::String> entry_funcs) {
+IRModule RemoveUnusedFunctions(const IRModule& module, Array<runtime::String> entry_funcs) {
   std::unordered_set<std::string> called_funcs{};
   for (auto entry : entry_funcs) {
     auto funcs = CallTracer(module).Trace(entry);
@@ -108,15 +105,14 @@ IRModule RemoveUnusedFunctions(const IRModule& module,
 namespace transform {
 
 Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-    [=](IRModule m, PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
+                                                                            PassContext pc) {
     return relay::vm::RemoveUnusedFunctions(m, entry_functions);
   };
   return CreateModulePass(pass_func, 1, "RemoveUnusedFunctions", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.RemoveUnusedFunctions")
-.set_body_typed(RemoveUnusedFunctions);
+TVM_REGISTER_GLOBAL("relay._transform.RemoveUnusedFunctions").set_body_typed(RemoveUnusedFunctions);
 
 }  // namespace transform
 

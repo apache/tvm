@@ -35,8 +35,9 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/support/logging.h>
 #include <tvm/relay/transform.h>
+#include <tvm/support/logging.h>
+
 #include <string>
 #include <unordered_set>
 
@@ -83,11 +84,8 @@ class Inliner : ExprMutator {
   }
 
   Function Inline(const Function& func) {
-    return Function(func->params,
-                              VisitExpr(func->body),
-                              func->ret_type,
-                              func->type_params,
-                              func->attrs);
+    return Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
+                    func->attrs);
   }
 
  private:
@@ -115,20 +113,13 @@ class Inliner : ExprMutator {
   }
 
   // Make a new Relay expression to replace the callee.
-  Expr MakeNewExpr(const GlobalVar& global,
-                   const Array<Expr>& args,
-                   const Expr& callee) {
-    CHECK(callee->IsInstance<CallNode>() ||
-          callee->IsInstance<GlobalVarNode>());
+  Expr MakeNewExpr(const GlobalVar& global, const Array<Expr>& args, const Expr& callee) {
+    CHECK(callee->IsInstance<CallNode>() || callee->IsInstance<GlobalVarNode>());
     auto base_func = call_graph_->GetGlobalFunction(global);
     const auto* fn = base_func.as<FunctionNode>();
     CHECK(fn) << "Expected to work on a Relay function.";
 
-    auto func = Function(fn->params,
-                         fn->body,
-                         fn->ret_type,
-                         fn->type_params,
-                         fn->attrs);
+    auto func = Function(fn->params, fn->body, fn->ret_type, fn->type_params, fn->attrs);
     // Inline the function body to the caller if this function uses default
     // compiler, i.e. no external codegen is needed.
     if (!func->GetAttr<String>(attr::kCompiler).defined()) {
@@ -144,14 +135,13 @@ class Inliner : ExprMutator {
         // Cannot replace TensorType/TensorTupleType with FuncType. Therefore,
         // we simply inline the function as a closure instead of directly using
         // its body when the global var returns FuncType.
-        return ret_type->IsInstance<FuncTypeNode>() ? std::move(func)
-                                                    : func->body;
+        return ret_type->IsInstance<FuncTypeNode>() ? std::move(func) : func->body;
       } else {
         CHECK(callee->IsInstance<CallNode>());
         return Bind(func->body, bind_map);
       }
     } else if (const auto* call_node = callee.as<CallNode>()) {
-        return Call(func, args, call_node->attrs, call_node->type_args);
+      return Call(func, args, call_node->attrs, call_node->type_args);
     } else {
       return std::move(func);
     }
@@ -214,14 +204,11 @@ namespace transform {
 
 Pass Inline() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-    [=](IRModule m, PassContext pc) {
-      return relay::Inline(m);
-  };
+      [=](IRModule m, PassContext pc) { return relay::Inline(m); };
   return CreateModulePass(pass_func, 1, "InlineGlobals", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.Inline")
-.set_body_typed(Inline);
+TVM_REGISTER_GLOBAL("relay._transform.Inline").set_body_typed(Inline);
 
 }  // namespace transform
 

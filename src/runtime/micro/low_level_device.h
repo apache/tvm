@@ -45,9 +45,7 @@ class LowLevelDevice {
    * \param buffer on-host buffer to be read into
    * \param num_bytes number of bytes to read
    */
-  virtual void Read(TargetPtr addr,
-                    void* buffer,
-                    size_t num_bytes) = 0;
+  virtual void Read(TargetPtr addr, void* buffer, size_t num_bytes) = 0;
 
   /*!
    * \brief writes num_bytes from buffer to device memory at addr
@@ -55,9 +53,7 @@ class LowLevelDevice {
    * \param buffer host buffer to write from
    * \param num_bytes number of bytes to write
    */
-  virtual void Write(TargetPtr addr,
-                     const void* buffer,
-                     size_t num_bytes) = 0;
+  virtual void Write(TargetPtr addr, const void* buffer, size_t num_bytes) = 0;
 
   /*!
    * \brief starts execution of device at func_addr

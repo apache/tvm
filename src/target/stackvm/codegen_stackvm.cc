@@ -20,14 +20,17 @@
 /*!
  * \file codegen_stackvm.cc
  */
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/container.h>
+#include "codegen_stackvm.h"
+
 #include <tvm/ir/module.h>
-#include <tvm/tir/op.h>
+#include <tvm/runtime/container.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/op.h>
+
 #include <limits>
 #include <utility>
-#include "codegen_stackvm.h"
+
 #include "../../runtime/stackvm/stackvm_module.h"
 
 namespace tvm {
@@ -40,19 +43,32 @@ using namespace tir;
 StackVM::StructFieldKind MapFieldKind(int64_t kind) {
   auto val = static_cast<intrinsic::TVMStructFieldKind>(kind);
   switch (val) {
-    case intrinsic::kArrData: return StackVM::kArrData;
-    case intrinsic::kArrShape: return StackVM::kArrShape;
-    case intrinsic::kArrAddr: return StackVM::kArrAddr;
-    case intrinsic::kArrStrides: return StackVM::kArrStrides;
-    case intrinsic::kArrNDim: return StackVM::kArrNDim;
-    case intrinsic::kArrTypeCode: return StackVM::kArrTypeCode;
-    case intrinsic::kArrTypeBits: return StackVM::kArrTypeBits;
-    case intrinsic::kArrTypeLanes: return StackVM::kArrTypeLanes;
-    case intrinsic::kArrByteOffset: return StackVM::kArrByteOffset;
-    case intrinsic::kArrDeviceId: return StackVM::kArrDeviceId;
-    case intrinsic::kArrDeviceType: return StackVM::kArrDeviceType;
-    case intrinsic::kTVMValueContent: return StackVM::kTVMValueContent;
-    default: LOG(FATAL) << "Do not know how to map field " << kind;
+    case intrinsic::kArrData:
+      return StackVM::kArrData;
+    case intrinsic::kArrShape:
+      return StackVM::kArrShape;
+    case intrinsic::kArrAddr:
+      return StackVM::kArrAddr;
+    case intrinsic::kArrStrides:
+      return StackVM::kArrStrides;
+    case intrinsic::kArrNDim:
+      return StackVM::kArrNDim;
+    case intrinsic::kArrTypeCode:
+      return StackVM::kArrTypeCode;
+    case intrinsic::kArrTypeBits:
+      return StackVM::kArrTypeBits;
+    case intrinsic::kArrTypeLanes:
+      return StackVM::kArrTypeLanes;
+    case intrinsic::kArrByteOffset:
+      return StackVM::kArrByteOffset;
+    case intrinsic::kArrDeviceId:
+      return StackVM::kArrDeviceId;
+    case intrinsic::kArrDeviceType:
+      return StackVM::kArrDeviceType;
+    case intrinsic::kTVMValueContent:
+      return StackVM::kTVMValueContent;
+    default:
+      LOG(FATAL) << "Do not know how to map field " << kind;
   }
   return StackVM::kArrData;
 }
@@ -84,8 +100,7 @@ void CodeGenStackVM::PushOp(StackVM::OpCode opcode) {
 }
 
 void CodeGenStackVM::SetOperand(int64_t operand_index, int64_t operand) {
-  CHECK(operand >= std::numeric_limits<int>::min() &&
-        operand <= std::numeric_limits<int>::max());
+  CHECK(operand >= std::numeric_limits<int>::min() && operand <= std::numeric_limits<int>::max());
   vm_.code.at(operand_index).v_int = static_cast<int>(operand);
 }
 
@@ -120,8 +135,7 @@ int CodeGenStackVM::AllocVarID(const VarNode* v) {
 
 int CodeGenStackVM::GetVarID(const VarNode* v) const {
   auto it = var_idmap_.find(v);
-  CHECK(it != var_idmap_.end())
-      << "Find undefined Variable " << v->name_hint;
+  CHECK(it != var_idmap_.end()) << "Find undefined Variable " << v->name_hint;
   return it->second;
 }
 
@@ -161,7 +175,7 @@ void CodeGenStackVM::VisitStmt_(const AllocateNode* op) {
 
 void CodeGenStackVM::VisitExpr_(const CallNode* op) {
   if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-    const LoadNode *l = op->args[0].as<LoadNode>();
+    const LoadNode* l = op->args[0].as<LoadNode>();
     CHECK(op->args.size() == 1 && l);
     this->PushOp(StackVM::LOAD_HEAP, GetVarID(l->buffer_var.get()));
     this->Push(l->index);
@@ -261,9 +275,7 @@ void CodeGenStackVM::VisitExpr_(const CallNode* op) {
   }
 }
 
-void CodeGenStackVM::PushBinary(StackVM::OpCode op_int64,
-                                const PrimExpr& a,
-                                const PrimExpr& b) {
+void CodeGenStackVM::PushBinary(StackVM::OpCode op_int64, const PrimExpr& a, const PrimExpr& b) {
   this->Push(a);
   this->Push(b);
   DataType t = a.dtype();
@@ -295,7 +307,7 @@ void CodeGenStackVM::VisitExpr_(const IntImmNode* op) {
   CHECK(op->value >= std::numeric_limits<int>::min() &&
         op->value <= std::numeric_limits<int>::max())
       << "Int constant exceed bound";
-    this->PushOp(StackVM::PUSH_I64, static_cast<int>(op->value));
+  this->PushOp(StackVM::PUSH_I64, static_cast<int>(op->value));
 }
 
 void CodeGenStackVM::VisitExpr_(const FloatImmNode* op) {
@@ -312,25 +324,15 @@ void CodeGenStackVM::VisitExpr_(const CastNode* op) {
   PushCast(op->dtype, op->value.dtype());
 }
 
-void CodeGenStackVM::VisitExpr_(const AddNode* op) {
-  PushBinary(StackVM::ADD_I64, op->a, op->b);
-}
+void CodeGenStackVM::VisitExpr_(const AddNode* op) { PushBinary(StackVM::ADD_I64, op->a, op->b); }
 
-void CodeGenStackVM::VisitExpr_(const SubNode* op) {
-  PushBinary(StackVM::SUB_I64, op->a, op->b);
-}
+void CodeGenStackVM::VisitExpr_(const SubNode* op) { PushBinary(StackVM::SUB_I64, op->a, op->b); }
 
-void CodeGenStackVM::VisitExpr_(const MulNode* op) {
-  PushBinary(StackVM::MUL_I64, op->a, op->b);
-}
+void CodeGenStackVM::VisitExpr_(const MulNode* op) { PushBinary(StackVM::MUL_I64, op->a, op->b); }
 
-void CodeGenStackVM::VisitExpr_(const DivNode* op) {
-  PushBinary(StackVM::DIV_I64, op->a, op->b);
-}
+void CodeGenStackVM::VisitExpr_(const DivNode* op) { PushBinary(StackVM::DIV_I64, op->a, op->b); }
 
-void CodeGenStackVM::VisitExpr_(const ModNode* op) {
-  PushBinary(StackVM::MOD_I64, op->a, op->b);
-}
+void CodeGenStackVM::VisitExpr_(const ModNode* op) { PushBinary(StackVM::MOD_I64, op->a, op->b); }
 
 void CodeGenStackVM::VisitExpr_(const MinNode* op) {
   this->Push(op->a);
@@ -350,22 +352,16 @@ void CodeGenStackVM::VisitExpr_(const MaxNode* op) {
   this->PushOp(StackVM::SELECT);
 }
 
-void CodeGenStackVM::VisitExpr_(const EQNode* op) {
-  PushBinary(StackVM::EQ_I64, op->a, op->b);
-}
+void CodeGenStackVM::VisitExpr_(const EQNode* op) { PushBinary(StackVM::EQ_I64, op->a, op->b); }
 
-void CodeGenStackVM::VisitExpr_(const LENode* op) {
-  PushBinary(StackVM::LE_I64, op->a, op->b);
-}
+void CodeGenStackVM::VisitExpr_(const LENode* op) { PushBinary(StackVM::LE_I64, op->a, op->b); }
 
 void CodeGenStackVM::VisitExpr_(const NENode* op) {
   PushBinary(StackVM::EQ_I64, op->a, op->b);
   this->PushOp(StackVM::NOT);
 }
 
-void CodeGenStackVM::VisitExpr_(const LTNode* op) {
-  PushBinary(StackVM::LT_I64, op->a, op->b);
-}
+void CodeGenStackVM::VisitExpr_(const LTNode* op) { PushBinary(StackVM::LT_I64, op->a, op->b); }
 
 void CodeGenStackVM::VisitExpr_(const GENode* op) {
   PushBinary(StackVM::LT_I64, op->a, op->b);
@@ -431,7 +427,7 @@ void CodeGenStackVM::VisitStmt_(const SeqStmtNode* op) {
   }
 }
 
-void CodeGenStackVM::VisitStmt_(const EvaluateNode *ev) {
+void CodeGenStackVM::VisitStmt_(const EvaluateNode* ev) {
   if (is_const(ev->value)) return;
   const CallNode* op = ev->value.as<CallNode>();
   if (op && op->is_intrinsic(intrinsic::tvm_struct_set)) {
@@ -482,9 +478,7 @@ void CodeGenStackVM::VisitStmt_(const LetStmtNode* op) {
   this->Push(op->body);
 }
 
-void CodeGenStackVM::VisitExpr_(const RampNode* op) {
-  LOG(FATAL) << "Ramp is not supported";
-}
+void CodeGenStackVM::VisitExpr_(const RampNode* op) { LOG(FATAL) << "Ramp is not supported"; }
 
 void CodeGenStackVM::VisitExpr_(const BroadcastNode* op) {
   LOG(FATAL) << "Broadcast is not supported";
@@ -506,9 +500,7 @@ void CodeGenStackVM::VisitStmt_(const AssertStmtNode* op) {
   this->Push(op->body);
 }
 
-void CodeGenStackVM::VisitStmt_(const AttrStmtNode* op) {
-  this->Push(op->body);
-}
+void CodeGenStackVM::VisitStmt_(const AttrStmtNode* op) { this->Push(op->body); }
 
 void CodeGenStackVM::VisitExpr_(const LetNode* op) {
   this->Push(op->value);
@@ -521,17 +513,15 @@ runtime::Module BuildStackVM(const IRModule& mod, const std::string& target) {
   std::unordered_map<std::string, StackVM> fmap;
   std::string entry_func;
 
-  for (auto kv :  mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>())
-        << "CodeGenStackVM: Can only take PrimFunc";
+  for (auto kv : mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenStackVM: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
     CHECK(global_symbol.defined())
         << "CodeGenStackVM: Expect PrimFunc to have the global_symbol attribute";
     std::string f_name = global_symbol.value();
     StackVM vm = codegen::CodeGenStackVM().Compile(f);
-    CHECK(!fmap.count(f_name))
-        << "Function name " << f_name << "already exist in list";
+    CHECK(!fmap.count(f_name)) << "Function name " << f_name << "already exist in list";
     fmap[f_name] = std::move(vm);
 
     if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
@@ -542,7 +532,6 @@ runtime::Module BuildStackVM(const IRModule& mod, const std::string& target) {
   return runtime::StackVMModuleCreate(fmap, entry_func);
 }
 
-TVM_REGISTER_GLOBAL("target.build.stackvm")
-.set_body_typed(BuildStackVM);
+TVM_REGISTER_GLOBAL("target.build.stackvm").set_body_typed(BuildStackVM);
 }  // namespace codegen
 }  // namespace tvm

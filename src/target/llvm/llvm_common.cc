@@ -22,11 +22,13 @@
  */
 #ifdef TVM_LLVM_VERSION
 
-#include <dmlc/logging.h>
-#include <atomic>
-#include <mutex>
-#include <memory>
 #include "llvm_common.h"
+
+#include <dmlc/logging.h>
+
+#include <atomic>
+#include <memory>
+#include <mutex>
 
 namespace tvm {
 namespace codegen {
@@ -56,15 +58,11 @@ void InitializeLLVM() {
   }
 }
 
-void ParseLLVMTargetOptions(const std::string& target_str,
-                            std::string* triple,
-                            std::string* mcpu,
-                            std::string* mattr,
-                            llvm::TargetOptions* options) {
+void ParseLLVMTargetOptions(const std::string& target_str, std::string* triple, std::string* mcpu,
+                            std::string* mattr, llvm::TargetOptions* options) {
   // setup target triple
   size_t start = 0;
-  if (target_str.length() >= 4 &&
-      target_str.substr(0, 4) == "llvm") {
+  if (target_str.length() >= 4 && target_str.substr(0, 4) == "llvm") {
     start = 4;
   }
   // simple parser
@@ -82,16 +80,13 @@ void ParseLLVMTargetOptions(const std::string& target_str,
     }
     size_t pos = key.find('=');
     if (pos != std::string::npos) {
-      CHECK_GE(key.length(), pos + 1)
-          << "invalid argument " << key;
+      CHECK_GE(key.length(), pos + 1) << "invalid argument " << key;
       value = key.substr(pos + 1, key.length() - 1);
       key = key.substr(0, pos);
     } else {
-      CHECK(is >> value)
-          << "Unspecified value for option " << key;
+      CHECK(is >> value) << "Unspecified value for option " << key;
     }
-    if (key == "-target" ||
-        key == "-mtriple") {
+    if (key == "-target" || key == "-mtriple") {
       *triple = value;
     } else if (key == "-mcpu") {
       *mcpu = value;
@@ -115,16 +110,15 @@ void ParseLLVMTargetOptions(const std::string& target_str,
     }
   }
 
-  if (triple->length() == 0 ||
-      *triple == "default") {
+  if (triple->length() == 0 || *triple == "default") {
     *triple = llvm::sys::getDefaultTargetTriple();
   }
   // set target option
   llvm::TargetOptions& opt = *options;
   opt = llvm::TargetOptions();
-  #if TVM_LLVM_VERSION < 50
+#if TVM_LLVM_VERSION < 50
   opt.LessPreciseFPMADOption = true;
-  #endif
+#endif
   opt.AllowFPOpFusion = llvm::FPOpFusion::Fast;
   opt.UnsafeFPMath = false;
   opt.NoInfsFPMath = false;
@@ -136,21 +130,14 @@ void ParseLLVMTargetOptions(const std::string& target_str,
   }
 }
 
-
-std::unique_ptr<llvm::TargetMachine>
-GetLLVMTargetMachine(const std::string& target_str,
-                     bool allow_null) {
+std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const std::string& target_str,
+                                                          bool allow_null) {
   std::string target_triple, mcpu, mattr;
   llvm::TargetOptions opt;
 
-  ParseLLVMTargetOptions(target_str,
-                         &target_triple,
-                         &mcpu,
-                         &mattr,
-                         &opt);
+  ParseLLVMTargetOptions(target_str, &target_triple, &mcpu, &mattr, &opt);
 
-  if (target_triple.length() == 0 ||
-      target_triple == "default") {
+  if (target_triple.length() == 0 || target_triple == "default") {
     target_triple = llvm::sys::getDefaultTargetTriple();
   }
   if (mcpu.length() == 0) {
@@ -158,14 +145,13 @@ GetLLVMTargetMachine(const std::string& target_str,
   }
 
   std::string err;
-  const llvm::Target* target =
-      llvm::TargetRegistry::lookupTarget(target_triple, err);
+  const llvm::Target* target = llvm::TargetRegistry::lookupTarget(target_triple, err);
   if (target == nullptr) {
     CHECK(allow_null) << err << " target_triple=" << target_triple;
     return nullptr;
   }
-  llvm::TargetMachine* tm = target->createTargetMachine(
-      target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_);
+  llvm::TargetMachine* tm =
+      target->createTargetMachine(target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_);
   return std::unique_ptr<llvm::TargetMachine>(tm);
 }
 

@@ -28,12 +28,13 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/pattern_functor.h>
+
 #include "../transforms/pass_util.h"
 
 namespace tvm {
 namespace relay {
 
-template<typename T>
+template <typename T>
 struct InsertionSet {
   std::unordered_set<T, ObjectHash, ObjectEqual> set;
   std::vector<T> data;
@@ -47,10 +48,8 @@ struct InsertionSet {
 
 class TypeVarTVisitor : public TypeVisitor {
  public:
-  TypeVarTVisitor(
-      InsertionSet<TypeVar>* type_vars,
-      InsertionSet<TypeVar>* bound_type_vars)
-    : type_vars_(type_vars), bound_type_vars_(bound_type_vars) { }
+  TypeVarTVisitor(InsertionSet<TypeVar>* type_vars, InsertionSet<TypeVar>* bound_type_vars)
+      : type_vars_(type_vars), bound_type_vars_(bound_type_vars) {}
 
   void VisitType_(const TypeVarNode* tp) final {
     TypeVar var = GetRef<TypeVar>(tp);
@@ -149,8 +148,7 @@ class TypeVarEVisitor : private ExprVisitor {
   }
 
   void VisitType(const Type& t) final {
-    TypeVarTVisitor(&type_vars_, &bound_type_vars_)
-        .VisitType(t);
+    TypeVarTVisitor(&type_vars_, &bound_type_vars_).VisitType(t);
   }
 
  private:
@@ -204,9 +202,7 @@ class VarVisitor : protected ExprVisitor, protected PatternVisitor {
     vars_.Insert(v);
   }
 
-  void VisitExpr_(const VarNode* var) final {
-    vars_.Insert(GetRef<Var>(var));
-  }
+  void VisitExpr_(const VarNode* var) final { vars_.Insert(GetRef<Var>(var)); }
 
   void VisitExpr_(const FunctionNode* op) final {
     for (const auto& param : op->params) {
@@ -221,13 +217,9 @@ class VarVisitor : protected ExprVisitor, protected PatternVisitor {
     VisitExpr(op->body);
   }
 
-  void VisitPattern(const Pattern& p) final {
-    PatternVisitor::VisitPattern(p);
-  }
+  void VisitPattern(const Pattern& p) final { PatternVisitor::VisitPattern(p); }
 
-  void VisitPattern_(const PatternVarNode* op) final {
-    MarkBounded(op->var);
-  }
+  void VisitPattern_(const PatternVarNode* op) final { MarkBounded(op->var); }
 
  private:
   InsertionSet<Var> vars_;
@@ -258,82 +250,66 @@ tvm::Array<TypeVar> AllTypeVars(const Type& type, const IRModule& mod) {
   return TypeVarEVisitor(mod).All(type);
 }
 
-tvm::Array<Var> FreeVars(const Expr& expr) {
-  return VarVisitor().Free(expr);
-}
+tvm::Array<Var> FreeVars(const Expr& expr) { return VarVisitor().Free(expr); }
 
-tvm::Array<Var> BoundVars(const Expr& expr) {
-  return VarVisitor().Bound(expr);
-}
+tvm::Array<Var> BoundVars(const Expr& expr) { return VarVisitor().Bound(expr); }
 
-tvm::Array<Var> BoundVars(const Pattern& pat) {
-  return VarVisitor().Bound(pat);
-}
+tvm::Array<Var> BoundVars(const Pattern& pat) { return VarVisitor().Bound(pat); }
 
-tvm::Array<Var> AllVars(const Expr& expr) {
-  return VarVisitor().All(expr);
-}
+tvm::Array<Var> AllVars(const Expr& expr) { return VarVisitor().All(expr); }
 
-TVM_REGISTER_GLOBAL("relay.analysis.free_vars")
-.set_body_typed(FreeVars);
+TVM_REGISTER_GLOBAL("relay.analysis.free_vars").set_body_typed(FreeVars);
 
-TVM_REGISTER_GLOBAL("relay.analysis.bound_vars")
-  .set_body([](TVMArgs args, TVMRetValue* ret) {
-      ObjectRef x = args[0];
-      if (x.as<ExprNode>()) {
-        *ret = BoundVars(Downcast<Expr>(x));
-      } else {
-        *ret = BoundVars(Downcast<Pattern>(x));
-      }
-    });
+TVM_REGISTER_GLOBAL("relay.analysis.bound_vars").set_body([](TVMArgs args, TVMRetValue* ret) {
+  ObjectRef x = args[0];
+  if (x.as<ExprNode>()) {
+    *ret = BoundVars(Downcast<Expr>(x));
+  } else {
+    *ret = BoundVars(Downcast<Pattern>(x));
+  }
+});
 
-TVM_REGISTER_GLOBAL("relay.analysis.all_vars")
-.set_body_typed(AllVars);
+TVM_REGISTER_GLOBAL("relay.analysis.all_vars").set_body_typed(AllVars);
 
-TVM_REGISTER_GLOBAL("relay.analysis.free_type_vars")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    ObjectRef x = args[0];
-    IRModule mod = args[1];
-    if (x.as<TypeNode>()) {
-      *ret = FreeTypeVars(Downcast<Type>(x), mod);
-    } else {
-      *ret = FreeTypeVars(Downcast<Expr>(x), mod);
-    }
-  });
+TVM_REGISTER_GLOBAL("relay.analysis.free_type_vars").set_body([](TVMArgs args, TVMRetValue* ret) {
+  ObjectRef x = args[0];
+  IRModule mod = args[1];
+  if (x.as<TypeNode>()) {
+    *ret = FreeTypeVars(Downcast<Type>(x), mod);
+  } else {
+    *ret = FreeTypeVars(Downcast<Expr>(x), mod);
+  }
+});
 
-TVM_REGISTER_GLOBAL("relay.analysis.bound_type_vars")
-  .set_body([](TVMArgs args, TVMRetValue* ret) {
-      ObjectRef x = args[0];
-      IRModule mod = args[1];
-      if (x.as<TypeNode>()) {
-        *ret = BoundTypeVars(Downcast<Type>(x), mod);
-      } else {
-        *ret = BoundTypeVars(Downcast<Expr>(x), mod);
-      }
-    });
+TVM_REGISTER_GLOBAL("relay.analysis.bound_type_vars").set_body([](TVMArgs args, TVMRetValue* ret) {
+  ObjectRef x = args[0];
+  IRModule mod = args[1];
+  if (x.as<TypeNode>()) {
+    *ret = BoundTypeVars(Downcast<Type>(x), mod);
+  } else {
+    *ret = BoundTypeVars(Downcast<Expr>(x), mod);
+  }
+});
 
-TVM_REGISTER_GLOBAL("relay.analysis.all_type_vars")
-  .set_body([](TVMArgs args, TVMRetValue* ret) {
-      ObjectRef x = args[0];
-      IRModule mod = args[1];
-      if (x.as<TypeNode>()) {
-        *ret = AllTypeVars(Downcast<Type>(x), mod);
-      } else {
-        *ret = AllTypeVars(Downcast<Expr>(x), mod);
-      }
-    });
+TVM_REGISTER_GLOBAL("relay.analysis.all_type_vars").set_body([](TVMArgs args, TVMRetValue* ret) {
+  ObjectRef x = args[0];
+  IRModule mod = args[1];
+  if (x.as<TypeNode>()) {
+    *ret = AllTypeVars(Downcast<Type>(x), mod);
+  } else {
+    *ret = AllTypeVars(Downcast<Expr>(x), mod);
+  }
+});
 
 /*!
  * \brief Get reference counter of each internal ExprNode in body.
  * \param body The body expression.
  * \return The reference count mapping.
  */
-std::unordered_map<const Object*, size_t>
-GetExprRefCount(const Expr& body) {
+std::unordered_map<const Object*, size_t> GetExprRefCount(const Expr& body) {
   class ExprRefCounter : private MixedModeVisitor {
    public:
-    std::unordered_map<const Object*, size_t>
-    Get(const Expr& body) {
+    std::unordered_map<const Object*, size_t> Get(const Expr& body) {
       this->VisitExpr(body);
       return std::move(this->visit_counter_);
     }
@@ -391,9 +367,7 @@ bool IsAllPositiveConstant(const Expr& expr) {
     }
   } else if (const auto* op = expr.as<CallNode>()) {
     // tail recursion.
-    if (op->op == expand_dims_op ||
-        op->op == reshape_op ||
-        op->op == transpose_op ||
+    if (op->op == expand_dims_op || op->op == reshape_op || op->op == transpose_op ||
         op->op == squeeze_op) {
       return IsAllPositiveConstant(op->args[0]);
     } else {
@@ -419,17 +393,11 @@ Type TypeSubst(const Type& type, const tvm::Map<TypeVar, Type>& subst_map) {
 Expr TypeSubst(const Expr& expr, const tvm::Map<TypeVar, Type>& subst_map) {
   class TypeSubstMutator : public ExprMutator, public PatternMutator {
    public:
-    explicit TypeSubstMutator(const tvm::Map<TypeVar, Type>& subst_map) : subst_map_(subst_map) { }
-    Type VisitType(const Type& t) final {
-      return TypeSubst(t, subst_map_);
-    }
-    Var VisitVar(const Var& v) final {
-      return Downcast<Var>(VisitExpr(v));
-    }
+    explicit TypeSubstMutator(const tvm::Map<TypeVar, Type>& subst_map) : subst_map_(subst_map) {}
+    Type VisitType(const Type& t) final { return TypeSubst(t, subst_map_); }
+    Var VisitVar(const Var& v) final { return Downcast<Var>(VisitExpr(v)); }
 
-    Pattern VisitPattern(const Pattern& p) final {
-      return PatternMutator::VisitPattern(p);
-    }
+    Pattern VisitPattern(const Pattern& p) final { return PatternMutator::VisitPattern(p); }
 
     Clause VisitClause(const Clause& c) final {
       Pattern pat = VisitPattern(c->lhs);

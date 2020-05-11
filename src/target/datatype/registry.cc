@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/registry.h>
 #include "registry.h"
+
+#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace datatype {
@@ -25,25 +26,22 @@ namespace datatype {
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
 
-TVM_REGISTER_GLOBAL("runtime._datatype_register")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("runtime._datatype_register").set_body([](TVMArgs args, TVMRetValue* ret) {
   datatype::Registry::Global()->Register(args[0], static_cast<uint8_t>(args[1].operator int()));
 });
 
-TVM_REGISTER_GLOBAL("runtime._datatype_get_type_code")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("runtime._datatype_get_type_code").set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = datatype::Registry::Global()->GetTypeCode(args[0]);
 });
 
-TVM_REGISTER_GLOBAL("runtime._datatype_get_type_name")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("runtime._datatype_get_type_name").set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = Registry::Global()->GetTypeName(args[0].operator int());
 });
 
 TVM_REGISTER_GLOBAL("runtime._datatype_get_type_registered")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = Registry::Global()->GetTypeRegistered(args[0].operator int());
-});
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      *ret = Registry::Global()->GetTypeRegistered(args[0].operator int());
+    });
 
 Registry* Registry::Global() {
   static Registry inst;

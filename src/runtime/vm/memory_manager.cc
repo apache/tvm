@@ -21,9 +21,11 @@
  * \file tvm/runtime/vm/memory_manager.cc
  * \brief Allocate and manage memory for the runtime.
  */
-#include <utility>
-#include <memory>
 #include "memory_manager.h"
+
+#include <memory>
+#include <utility>
+
 #include "naive_allocator.h"
 #include "pooled_allocator.h"
 
@@ -35,8 +37,7 @@ static void BufferDeleter(Object* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
   CHECK(ptr->manager_ctx != nullptr);
   Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
-  MemoryManager::Global()->GetAllocator(buffer->ctx)->
-      Free(*(buffer));
+  MemoryManager::Global()->GetAllocator(buffer->ctx)->Free(*(buffer));
   delete buffer;
   delete ptr;
 }
@@ -93,7 +94,7 @@ NDArray StorageObj::AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDa
   // RAII in effect, now run the check.
   // TODO(@jroesch): generalize later to non-overlapping allocations.
   CHECK(needed_size == this->buffer.size)
-    << "size mistmatch required " << needed_size << " found " << this->buffer.size;
+      << "size mistmatch required " << needed_size << " found " << this->buffer.size;
 
   return ret;
 }
@@ -106,8 +107,8 @@ MemoryManager* MemoryManager::Global() {
 Allocator* MemoryManager::GetAllocator(TVMContext ctx) {
   std::lock_guard<std::mutex> lock(mu_);
   if (allocators_.find(ctx) == allocators_.end()) {
-    DLOG(INFO) << "New allocator for " << DeviceName(ctx.device_type) << "("
-               << ctx.device_id << ")";
+    DLOG(INFO) << "New allocator for " << DeviceName(ctx.device_type) << "(" << ctx.device_id
+               << ")";
     std::unique_ptr<Allocator> alloc(new NaiveAllocator(ctx));
     allocators_.emplace(ctx, std::move(alloc));
   }
@@ -120,7 +121,7 @@ NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext
   container->SetDeleter(BufferDeleter);
   size_t size = GetDataSize(container->dl_tensor);
   size_t alignment = GetDataAlignment(container->dl_tensor);
-  Buffer *buffer = new Buffer;
+  Buffer* buffer = new Buffer;
   *buffer = this->Alloc(size, alignment, dtype);
   container->manager_ctx = reinterpret_cast<void*>(buffer);
   container->dl_tensor.data = buffer->data;

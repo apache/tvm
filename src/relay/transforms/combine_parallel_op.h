@@ -26,26 +26,27 @@
 #define TVM_RELAY_TRANSFORMS_COMBINE_PARALLEL_OP_H_
 
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
+
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <string>
+
 #include "./expr_subst.h"
 #include "pattern_util.h"
-
 
 namespace tvm {
 namespace relay {
 
 using Branch = std::vector<const CallNode*>;
 using Group = std::vector<Branch>;
-using FIsSupportedOp = std::function<bool (const CallNode* n)>;
-using FAreCompatibleOps = std::function<bool (const CallNode* a, const CallNode* b)>;
+using FIsSupportedOp = std::function<bool(const CallNode* n)>;
+using FAreCompatibleOps = std::function<bool(const CallNode* a, const CallNode* b)>;
 using ExprSubstMap = std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>;
 
 /*
@@ -74,8 +75,7 @@ class BranchGroupFinder : private ExprVisitor {
    * \param fare_compatible_ops function that returns true if
    *                            two ops are compatible for combining
    */
-  BranchGroupFinder(const Op& op,
-                    FIsSupportedOp fis_supported_op,
+  BranchGroupFinder(const Op& op, FIsSupportedOp fis_supported_op,
                     FAreCompatibleOps fare_compatible_ops);
 
   /*
@@ -188,10 +188,8 @@ class ParallelOpCombiner {
    *                     all combined ops
    * \return new combined call
    */
-  virtual Call MakeCombinedCallFromFollowingOps(const Expr& data,
-                                                const Group& branches,
-                                                size_t depth,
-                                                size_t parent_index) = 0;
+  virtual Call MakeCombinedCallFromFollowingOps(const Expr& data, const Group& branches,
+                                                size_t depth, size_t parent_index) = 0;
 
   /*
    * \brief Updates map of expr to substitute with combined expr. This usually involves
@@ -201,9 +199,7 @@ class ParallelOpCombiner {
    * \param depth depth at which to substitute
    * \param subst_map map of Expr to replace with Expr to replace it with
    */
-  virtual void UpdateGroupOutput(const Expr& data,
-                                 const Group& branches,
-                                 size_t depth,
+  virtual void UpdateGroupOutput(const Expr& data, const Group& branches, size_t depth,
                                  ExprSubstMap* subst_map) = 0;
 
  private:

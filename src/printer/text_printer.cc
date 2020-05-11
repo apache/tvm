@@ -23,9 +23,11 @@
  *        that can be parsed by a parser.
  */
 
-#include <tvm/tir/function.h>
-#include <string>
 #include "text_printer.h"
+
+#include <tvm/tir/function.h>
+
+#include <string>
 
 namespace tvm {
 
@@ -79,26 +81,21 @@ String PrettyPrint(const ObjectRef& node) {
   return doc.str();
 }
 
-String AsText(const ObjectRef& node,
-              bool show_meta_data,
+String AsText(const ObjectRef& node, bool show_meta_data,
               runtime::TypedPackedFunc<String(ObjectRef)> annotate) {
   Doc doc;
   doc << kSemVer << Doc::NewLine();
   runtime::TypedPackedFunc<std::string(ObjectRef)> ftyped = nullptr;
   if (annotate != nullptr) {
     ftyped = runtime::TypedPackedFunc<std::string(ObjectRef)>(
-        [&annotate](const ObjectRef& expr) -> std::string {
-          return annotate(expr);
-        });
+        [&annotate](const ObjectRef& expr) -> std::string { return annotate(expr); });
   }
   doc << TextPrinter(show_meta_data, ftyped).PrintFinal(node);
   return doc.str();
 }
 
-TVM_REGISTER_GLOBAL("ir.PrettyPrint")
-.set_body_typed(PrettyPrint);
+TVM_REGISTER_GLOBAL("ir.PrettyPrint").set_body_typed(PrettyPrint);
 
-TVM_REGISTER_GLOBAL("ir.AsText")
-.set_body_typed(AsText);
+TVM_REGISTER_GLOBAL("ir.AsText").set_body_typed(AsText);
 
 }  // namespace tvm

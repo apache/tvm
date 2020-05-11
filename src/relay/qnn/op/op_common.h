@@ -28,7 +28,9 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
+
 #include <vector>
+
 #include "../../op/type_relations.h"
 #include "../../transforms/infer_layout_util.h"
 #include "../util.h"
@@ -87,10 +89,9 @@ struct QnnBinaryOpArguments {
  */
 struct QnnBinaryOpTensorType {
   DataType dtype;
-  Array <PrimExpr> shape;
+  Array<PrimExpr> shape;
 
-  explicit QnnBinaryOpTensorType(const Array<tvm::relay::Type>& arg_types,
-                                 const int32_t arg_idx) {
+  explicit QnnBinaryOpTensorType(const Array<tvm::relay::Type>& arg_types, const int32_t arg_idx) {
     CHECK_EQ(arg_types.size(), kNumQnnBinaryOpArgTypes);
     auto tensor_type = arg_types[arg_idx].as<TensorTypeNode>();
     CHECK(tensor_type != nullptr);
@@ -109,8 +110,7 @@ struct QnnBinaryOpTensorType {
  * \return New expression with target dtype and possibly lower
  * precision.
  */
-inline Expr ConvertDtype(const Expr& expr,
-                         const DataType& target_dtype) {
+inline Expr ConvertDtype(const Expr& expr, const DataType& target_dtype) {
   auto q_min = GetQmin(target_dtype);
   auto q_max = GetQmax(target_dtype);
   auto output = Clip(expr, q_min, q_max);
@@ -134,18 +134,15 @@ inline Expr ConvertDtype(const Expr& expr,
  * it simply casts the given expression to Int32 as no requantization is
  * needed in this case.
  */
-inline Expr RequantizeOrUpcast(const Expr& expr,
-                               const Expr& expr_scale,
-                               const Expr& expr_zero_point,
-                               const Expr& target_scale,
-                               const Expr& target_zero_point,
-                               const Array<PrimExpr>& expr_shape,
+inline Expr RequantizeOrUpcast(const Expr& expr, const Expr& expr_scale,
+                               const Expr& expr_zero_point, const Expr& target_scale,
+                               const Expr& target_zero_point, const Array<PrimExpr>& expr_shape,
                                const DataType& target_dtype = DataType::Int(32)) {
   auto result = expr;
   if (!IsEqualScalar(expr_scale, target_scale) ||
       !IsEqualScalar(expr_zero_point, target_zero_point)) {
-    result = Requantize(expr, expr_shape, expr_scale, expr_zero_point,
-                        target_scale, target_zero_point, target_dtype);
+    result = Requantize(expr, expr_shape, expr_scale, expr_zero_point, target_scale,
+                        target_zero_point, target_dtype);
   } else {
     result = Cast(result, target_dtype);
   }
@@ -153,27 +150,23 @@ inline Expr RequantizeOrUpcast(const Expr& expr,
 }
 
 /*! \brief Infer layout for QNN binary broadcast operators */
-inline Array<Array<Layout> > QnnBinaryBroadcastLayout(
-                    const Attrs& attrs,
-                    const Array<Layout>& new_in_layouts,
-                    const Array<Layout>& old_in_layouts,
-                    const Array<tvm::relay::Type>& old_in_types) {
+inline Array<Array<Layout> > QnnBinaryBroadcastLayout(const Attrs& attrs,
+                                                      const Array<Layout>& new_in_layouts,
+                                                      const Array<Layout>& old_in_layouts,
+                                                      const Array<tvm::relay::Type>& old_in_types) {
   // Use Relay Binary Broadcast Infer correct layout.
   auto layouts = BinaryBroadcastLayout(attrs, new_in_layouts, old_in_layouts, old_in_types);
 
   // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
   // tensors can be treated as C.
   Layout channel_layout = Layout("C");
-  Array<Layout> input_layouts = {layouts[0][0], layouts[0][1], channel_layout, channel_layout,
+  Array<Layout> input_layouts = {layouts[0][0],  layouts[0][1],  channel_layout, channel_layout,
                                  channel_layout, channel_layout, channel_layout, channel_layout};
   Array<Layout> output_layouts = layouts[1];
   return {input_layouts, output_layouts};
 }
 
-
-static inline bool QnnBroadcastRel(const Array<Type>& types,
-                                   int num_inputs,
-                                   const Attrs& attrs,
+static inline bool QnnBroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                                    const TypeReporter& reporter) {
   CHECK_EQ(types.size(), kNumQnnBinaryOpArgTypes);
 
@@ -201,28 +194,28 @@ static inline bool QnnBroadcastRel(const Array<Type>& types,
  *
  * \param OpName the name of registry.
  */
-#define QNN_REGISTER_BINARY_OP(OpName)                                  \
-  TVM_REGISTER_GLOBAL("relay.qnn.op._make." OpName)                     \
-  .set_body_typed([](Expr lhs, Expr rhs, Expr lhs_scale, Expr lhs_zero_point, Expr rhs_scale, \
-                     Expr rhs_zero_point, Expr output_scale, Expr output_zero_point) { \
-    static const Op& op = Op::Get("qnn." OpName);                       \
-    return Call(op, {lhs, rhs,                                          \
-                     lhs_scale, lhs_zero_point,                         \
-                     rhs_scale, rhs_zero_point,                         \
-                     output_scale, output_zero_point}, Attrs(), {});    \
-  });                                                                   \
-  RELAY_REGISTER_OP("qnn." OpName)                                      \
-  .set_num_inputs(kNumQnnBinaryOpInputs)                                                 \
-  .add_argument("lhs", "Tensor", "The left hand side quantized tensor.")                 \
-  .add_argument("rhs", "Tensor", "The right hand side quantized tensor.")                \
-  .add_argument("lhs_scale", "Tensor", "The scale of the lhs tensor.")                   \
-  .add_argument("lhs_zero_point", "Tensor", "The zero_point of the lhs tensor.")         \
-  .add_argument("rhs_scale", "Tensor", "The scale of the rhs tensor.")                   \
-  .add_argument("rhs_zero_point", "Tensor", "The zero_point of the rhs tensor.")         \
-  .add_argument("output_scale", "Tensor", "The scale of the output tensor.")             \
-  .add_argument("output_zero_point", "Tensor", "The zero_point of the output tensor.")   \
-  .add_type_rel("QnnBroadcast", QnnBroadcastRel)                                         \
-  .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnBinaryBroadcastLayout)
+#define QNN_REGISTER_BINARY_OP(OpName)                                                             \
+  TVM_REGISTER_GLOBAL("relay.qnn.op._make." OpName)                                                \
+      .set_body_typed([](Expr lhs, Expr rhs, Expr lhs_scale, Expr lhs_zero_point, Expr rhs_scale,  \
+                         Expr rhs_zero_point, Expr output_scale, Expr output_zero_point) {         \
+        static const Op& op = Op::Get("qnn." OpName);                                              \
+        return Call(op,                                                                            \
+                    {lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale, \
+                     output_zero_point},                                                           \
+                    Attrs(), {});                                                                  \
+      });                                                                                          \
+  RELAY_REGISTER_OP("qnn." OpName)                                                                 \
+      .set_num_inputs(kNumQnnBinaryOpInputs)                                                       \
+      .add_argument("lhs", "Tensor", "The left hand side quantized tensor.")                       \
+      .add_argument("rhs", "Tensor", "The right hand side quantized tensor.")                      \
+      .add_argument("lhs_scale", "Tensor", "The scale of the lhs tensor.")                         \
+      .add_argument("lhs_zero_point", "Tensor", "The zero_point of the lhs tensor.")               \
+      .add_argument("rhs_scale", "Tensor", "The scale of the rhs tensor.")                         \
+      .add_argument("rhs_zero_point", "Tensor", "The zero_point of the rhs tensor.")               \
+      .add_argument("output_scale", "Tensor", "The scale of the output tensor.")                   \
+      .add_argument("output_zero_point", "Tensor", "The zero_point of the output tensor.")         \
+      .add_type_rel("QnnBroadcast", QnnBroadcastRel)                                               \
+      .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnBinaryBroadcastLayout)
 
 }  // namespace qnn
 }  // namespace relay

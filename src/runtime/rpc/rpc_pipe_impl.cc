@@ -24,18 +24,18 @@
 // Linux only for now, as linux is the most common usecase.
 #if defined(__linux__) || defined(__ANDROID__)
 
-#include <sys/types.h>
-#include <unistd.h>
 #include <errno.h>
 #include <signal.h>
-
+#include <sys/types.h>
 #include <tvm/runtime/registry.h>
-#include <memory>
-#include <cstdlib>
+#include <unistd.h>
 
+#include <cstdlib>
+#include <memory>
+
+#include "../../support/pipe.h"
 #include "rpc_endpoint.h"
 #include "rpc_local_session.h"
-#include "../../support/pipe.h"
 
 namespace tvm {
 namespace runtime {
@@ -43,12 +43,9 @@ namespace runtime {
 class PipeChannel final : public RPCChannel {
  public:
   explicit PipeChannel(int readfd, int writefd, pid_t child_pid)
-      : readfd_(readfd), writefd_(writefd), child_pid_(child_pid) {
-  }
+      : readfd_(readfd), writefd_(writefd), child_pid_(child_pid) {}
 
-  ~PipeChannel() {
-    Close();
-  }
+  ~PipeChannel() { Close(); }
 
   size_t Send(const void* data, size_t size) final {
     ssize_t n = write(writefd_, data, size);
@@ -77,7 +74,6 @@ class PipeChannel final : public RPCChannel {
   int writefd_;
   pid_t child_pid_;
 };
-
 
 Module CreatePipeClient(std::vector<std::string> cmd) {
   int parent2child[2];
@@ -111,22 +107,19 @@ Module CreatePipeClient(std::vector<std::string> cmd) {
   close(child_write);
 
   auto endpt = RPCEndpoint::Create(
-      std::unique_ptr<PipeChannel>(
-          new PipeChannel(parent_read, parent_write, pid)),
-      "pipe", "pipe");
+      std::unique_ptr<PipeChannel>(new PipeChannel(parent_read, parent_write, pid)), "pipe",
+      "pipe");
   endpt->InitRemoteSession(TVMArgs(nullptr, nullptr, 0));
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }
 
-TVM_REGISTER_GLOBAL("rpc.CreatePipeClient")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("rpc.CreatePipeClient").set_body([](TVMArgs args, TVMRetValue* rv) {
   std::vector<std::string> cmd;
   for (int i = 0; i < args.size(); ++i) {
     cmd.push_back(args[i].operator std::string());
   }
   *rv = CreatePipeClient(cmd);
 });
-
 
 }  // namespace runtime
 }  // namespace tvm

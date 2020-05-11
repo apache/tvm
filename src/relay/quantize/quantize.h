@@ -24,9 +24,11 @@
 #ifndef TVM_RELAY_QUANTIZE_QUANTIZE_H_
 #define TVM_RELAY_QUANTIZE_QUANTIZE_H_
 
-#include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/op.h>
+
 #include <string>
+
 #include "../transforms/pattern_util.h"
 
 namespace tvm {
@@ -34,12 +36,7 @@ namespace relay {
 namespace quantize {
 
 /*! \brief Kind of annotate field */
-enum QAnnotateKind : int {
-  kQIdentity = 0,
-  kQInput = 1,
-  kQWeight = 2,
-  kQActivation = 3
-};
+enum QAnnotateKind : int { kQIdentity = 0, kQInput = 1, kQWeight = 2, kQActivation = 3 };
 
 /*! \brief Attribute for simulated quantize operator */
 struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
@@ -48,20 +45,17 @@ struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
   std::string rounding;
 
   TVM_DECLARE_ATTRS(SimulatedQuantizeAttrs, "relay.attrs.SimulatedQuantizeAttrs") {
-    TVM_ATTR_FIELD(kind)
-        .describe("kind of field, hint for nbit/dtype configuration.");
-    TVM_ATTR_FIELD(sign).set_default(true)
-        .describe("whether to use signed data type.");
-    TVM_ATTR_FIELD(rounding).set_default("round")
-        .describe("rounding mode. Can be 'floor', 'ceil', 'round'");
+    TVM_ATTR_FIELD(kind).describe("kind of field, hint for nbit/dtype configuration.");
+    TVM_ATTR_FIELD(sign).set_default(true).describe("whether to use signed data type.");
+    TVM_ATTR_FIELD(rounding).set_default("round").describe(
+        "rounding mode. Can be 'floor', 'ceil', 'round'");
   }
 };
 
-
 class QConfig;
 /*!
-* \brief Container for build configuration options
-*/
+ * \brief Container for build configuration options
+ */
 class QConfigNode : public Object {
  public:
   int nbit_input = 8;
@@ -103,20 +97,16 @@ class QConfigNode : public Object {
 };
 
 /*!
-* \brief Container for build configuration options
-*/
+ * \brief Container for build configuration options
+ */
 class QConfig : public ObjectRef {
  public:
   QConfig() {}
   explicit QConfig(ObjectPtr<Object> n) : ObjectRef(n) {}
 
-  const QConfigNode* operator->() const {
-    return static_cast<const QConfigNode*>(get());
-  }
+  const QConfigNode* operator->() const { return static_cast<const QConfigNode*>(get()); }
 
-  QConfigNode* operator->() {
-    return static_cast<QConfigNode*>(get_mutable());
-  }
+  QConfigNode* operator->() { return static_cast<QConfigNode*>(get_mutable()); }
 
   /*!
    * \brief Push a new BuildConfig context onto the thread local stack.
@@ -150,14 +140,10 @@ struct QConfigContext {
    * context. When the BuildConfigContext is destructed, the previous context is restored.
    * \param build_config The BuildConfig to set as the new current context.
    */
-  explicit QConfigContext(const QConfig& qconfig) {
-    QConfig::EnterQConfigScope(qconfig);
-  }
+  explicit QConfigContext(const QConfig& qconfig) { QConfig::EnterQConfigScope(qconfig); }
 
   /*! \brief Destructor. Pops the context off the thread local stack. */
-  ~QConfigContext() {
-    QConfig::ExitQConfigScope();
-  }
+  ~QConfigContext() { QConfig::ExitQConfigScope(); }
 };
 
 }  // namespace quantize

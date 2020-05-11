@@ -24,13 +24,13 @@
 #ifndef TVM_IR_ERROR_H_
 #define TVM_IR_ERROR_H_
 
-#include <tvm/ir/span.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/span.h>
 
-#include <string>
-#include <vector>
 #include <sstream>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace tvm {
 /*!
@@ -51,7 +51,7 @@ namespace tvm {
  */
 struct ErrorBuilder {
  public:
-  template<typename T>
+  template <typename T>
   ErrorBuilder& operator<<(const T& val) {  // NOLINT(*)
     stream_ << val;
     return *this;
@@ -78,12 +78,12 @@ class Error : public dmlc::Error {
    * \brief construct error from error builder.
    * \param err The error builder
    */
-  Error(const ErrorBuilder& err) : dmlc::Error(err.stream_.str()), span(nullptr) {} // NOLINT(*)
+  Error(const ErrorBuilder& err) : dmlc::Error(err.stream_.str()), span(nullptr) {}  // NOLINT(*)
   /*!
    * \brief copy constructor.
    * \param other The other ereor.
    */
-  Error(const Error& other) : dmlc::Error(other.what()), span(other.span) {} // NOLINT(*)
+  Error(const Error& other) : dmlc::Error(other.what()), span(other.span) {}  // NOLINT(*)
   /*!
    * \brief default constructor. */
   Error() : dmlc::Error(""), span(nullptr) {}
@@ -173,9 +173,7 @@ class ErrorReporter {
    */
   void RenderErrors(const IRModule& module, bool use_color = true);
 
-  inline bool AnyErrors() {
-    return errors_.size() != 0;
-  }
+  inline bool AnyErrors() { return errors_.size() != 0; }
 
  private:
   std::vector<Error> errors_;

@@ -21,17 +21,15 @@
  * \file argsort.cc
  * \brief Argsort operators
  */
-#include <tvm/relay/op.h>
 #include <tvm/relay/attrs/algorithm.h>
+#include <tvm/relay/op.h>
 
 namespace tvm {
 namespace relay {
 
 TVM_REGISTER_NODE_TYPE(ArgsortAttrs);
 
-bool ArgsortRel(const Array<Type>& types,
-                int num_inputs,
-                const Attrs& attrs,
+bool ArgsortRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                 const TypeReporter& reporter) {
   // `types` contains: [data, result]
   const ArgsortAttrs* param = attrs.as<ArgsortAttrs>();
@@ -39,18 +37,14 @@ bool ArgsortRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
     CHECK(types[0].as<IncompleteTypeNode>())
-        << "Argsort: expect input type to be TensorType but get "
-        << types[0];
+        << "Argsort: expect input type to be TensorType but get " << types[0];
     return false;
   }
   reporter->Assign(types[1], TensorType(data->shape, param->dtype));
   return true;
 }
 
-Expr MakeArgsort(Expr data,
-                 int axis,
-                 bool is_ascend,
-                 DataType dtype) {
+Expr MakeArgsort(Expr data, int axis, bool is_ascend, DataType dtype) {
   auto attrs = make_object<ArgsortAttrs>();
   attrs->axis = axis;
   attrs->is_ascend = is_ascend;
@@ -59,19 +53,17 @@ Expr MakeArgsort(Expr data,
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-
-TVM_REGISTER_GLOBAL("relay.op._make.argsort")
-.set_body_typed(MakeArgsort);
+TVM_REGISTER_GLOBAL("relay.op._make.argsort").set_body_typed(MakeArgsort);
 
 RELAY_REGISTER_OP("argsort")
-.describe(R"doc(Returns the indices that would sort an
+    .describe(R"doc(Returns the indices that would sort an
 input array along the given axis.
 )doc" TVM_ADD_FILELINE)
-.set_num_inputs(1)
-.set_attrs_type<ArgsortAttrs>()
-.add_argument("data", "Tensor", "Input data.")
-.set_support_level(6)
-.add_type_rel("Argsort", ArgsortRel);
+    .set_num_inputs(1)
+    .set_attrs_type<ArgsortAttrs>()
+    .add_argument("data", "Tensor", "Input data.")
+    .set_support_level(6)
+    .add_type_rel("Argsort", ArgsortRel);
 
 }  // namespace relay
 }  // namespace tvm

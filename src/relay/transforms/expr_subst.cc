@@ -22,8 +22,9 @@
  * \brief Utility functions for substituting expressions.
  */
 
-#include <tvm/relay/expr_functor.h>
 #include "./expr_subst.h"
+
+#include <tvm/relay/expr_functor.h>
 
 namespace tvm {
 namespace relay {

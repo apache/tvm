@@ -23,19 +23,23 @@
  *        X must be direct input tensor of Y.
  *        The result Jacobian shape will be (Y.shape, X.shape)
  */
-#include <tvm/te/autodiff.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/te/autodiff.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <memory>
+
 #include "ad_util.h"
 
 namespace tvm {
 namespace te {
 
-#define NOT_IMPLEMENTED \
-  { LOG(FATAL) << "Derivative of this expr is not implemented: " << GetRef<PrimExpr>(op); throw; }
+#define NOT_IMPLEMENTED                                                                   \
+  {                                                                                       \
+    LOG(FATAL) << "Derivative of this expr is not implemented: " << GetRef<PrimExpr>(op); \
+    throw;                                                                                \
+  }
 
 /*! \brief Differentiate an expression wrt a variable or a tensor element */
 class JacobianMutator : public ExprMutator {
@@ -46,7 +50,7 @@ class JacobianMutator : public ExprMutator {
    * \param indices The indices of the element with respect to which to differentiate.
    */
   explicit JacobianMutator(Tensor input, Array<PrimExpr> indices)
-    : input_(input), indices_(indices) {}
+      : input_(input), indices_(indices) {}
   /*!
    * \brief Differentiate wrt the input variable.
    * \param input The input variable.
@@ -71,14 +75,13 @@ class JacobianMutator : public ExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) NOT_IMPLEMENTED
-  PrimExpr VisitExpr_(const LetNode* op) NOT_IMPLEMENTED
+  PrimExpr VisitExpr_(const LoadNode* op) NOT_IMPLEMENTED;
+  PrimExpr VisitExpr_(const LetNode* op) NOT_IMPLEMENTED;
 
   PrimExpr VisitExpr_(const CallNode* op) {
     PrimExpr expr = GetRef<PrimExpr>(op);
     if (op->call_type == CallNode::CallType::Halide) {
-      if (input_.get() && op->func.same_as(input_->op) &&
-          op->value_index == input_->value_index) {
+      if (input_.get() && op->func.same_as(input_->op) && op->value_index == input_->value_index) {
         // Tensor(indices)
         CHECK_EQ(indices_.size(), op->args.size());
         PrimExpr condition = const_true();
@@ -99,86 +102,71 @@ class JacobianMutator : public ExprMutator {
         return MulNode::make(Mutate(op->args[0]),
                              MulNode::make(expr, SubNode::make(FloatImm(expr.dtype(), 1.0), expr)));
       } else if (op->name == "sqrt") {
-        return DivNode::make(Mutate(op->args[0]),
-                             MulNode::make(expr, FloatImm(expr.dtype(), 2.0)));
+        return DivNode::make(Mutate(op->args[0]), MulNode::make(expr, FloatImm(expr.dtype(), 2.0)));
       } else if (op->name == "tanh") {
         return MulNode::make(Mutate(op->args[0]),
                              SubNode::make(FloatImm(expr.dtype(), 1.0), MulNode::make(expr, expr)));
       } else if (op->name == "pow") {
         auto x = op->args[0], y = op->args[1];
-        return expr * (Mutate(y)*log(x) + Mutate(x)*y/x);
+        return expr * (Mutate(y) * log(x) + Mutate(x) * y / x);
       } else if (op->name == "fabs") {
         auto type = op->args[0].dtype();
         return MulNode::make(Mutate(op->args[0]),
                              SelectNode::make(GENode::make(op->args[0], make_zero(type)),
                                               FloatImm(type, 1.0), FloatImm(type, -1.0)));
       } else if (op->name == intrinsic::tvm_if_then_else) {
-        Array<PrimExpr> new_args = {op->args[0],
-                                    Mutate(op->args[1]),
-                                    Mutate(op->args[2])};
-        return CallNode::make(op->dtype, op->name, new_args,
-                              op->call_type, op->func, op->value_index);
+        Array<PrimExpr> new_args = {op->args[0], Mutate(op->args[1]), Mutate(op->args[2])};
+        return CallNode::make(op->dtype, op->name, new_args, op->call_type, op->func,
+                              op->value_index);
       } else if (piecewise_const.count(op->name)) {
         return FloatImm(expr.dtype(), 0.0);
       } else {
         throw dmlc::Error("Derivative of this intrinsic is not implemented: " + op->name);
       }
     }
-    NOT_IMPLEMENTED
+    NOT_IMPLEMENTED;
   }
 
-  PrimExpr VisitExpr_(const AddNode* op) {
-    return AddNode::make(Mutate(op->a), Mutate(op->b));
-  }
+  PrimExpr VisitExpr_(const AddNode* op) { return AddNode::make(Mutate(op->a), Mutate(op->b)); }
 
-  PrimExpr VisitExpr_(const SubNode* op) {
-    return SubNode::make(Mutate(op->a), Mutate(op->b));
-  }
+  PrimExpr VisitExpr_(const SubNode* op) { return SubNode::make(Mutate(op->a), Mutate(op->b)); }
 
   PrimExpr VisitExpr_(const MulNode* op) {
-    return AddNode::make(
-        MulNode::make(Mutate(op->a), op->b),
-        MulNode::make(op->a, Mutate(op->b)));
+    return AddNode::make(MulNode::make(Mutate(op->a), op->b), MulNode::make(op->a, Mutate(op->b)));
   }
 
   PrimExpr VisitExpr_(const DivNode* op) {
     return DivNode::make(
-        SubNode::make(
-            MulNode::make(Mutate(op->a), op->b),
-            MulNode::make(op->a, Mutate(op->b))),
+        SubNode::make(MulNode::make(Mutate(op->a), op->b), MulNode::make(op->a, Mutate(op->b))),
         MulNode::make(op->b, op->b));
   }
 
-  PrimExpr VisitExpr_(const ModNode* op) NOT_IMPLEMENTED
+  PrimExpr VisitExpr_(const ModNode* op) NOT_IMPLEMENTED;
 
   PrimExpr VisitExpr_(const FloorDivNode* op) {
     return FloorDivNode::make(
-        SubNode::make(
-            MulNode::make(Mutate(op->a), op->b),
-            MulNode::make(op->a, Mutate(op->b))),
+        SubNode::make(MulNode::make(Mutate(op->a), op->b), MulNode::make(op->a, Mutate(op->b))),
         MulNode::make(op->b, op->b));
   }
 
-  PrimExpr VisitExpr_(const FloorModNode* op) NOT_IMPLEMENTED
+  PrimExpr VisitExpr_(const FloorModNode* op) NOT_IMPLEMENTED;
 
   PrimExpr VisitExpr_(const MinNode* op) {
-    return SelectNode::make(LENode::make(op->a, op->b),
-        Mutate(op->a), Mutate(op->b));
+    return SelectNode::make(LENode::make(op->a, op->b), Mutate(op->a), Mutate(op->b));
   }
 
   PrimExpr VisitExpr_(const MaxNode* op) {
-    return SelectNode::make(GENode::make(op->a, op->b),
-        Mutate(op->a), Mutate(op->b));
+    return SelectNode::make(GENode::make(op->a, op->b), Mutate(op->a), Mutate(op->b));
   }
 
-  PrimExpr VisitExpr_(const EQNode* op) NOT_IMPLEMENTED
-  PrimExpr VisitExpr_(const NENode* op) NOT_IMPLEMENTED
-  PrimExpr VisitExpr_(const LTNode* op) NOT_IMPLEMENTED
-  PrimExpr VisitExpr_(const LENode* op) NOT_IMPLEMENTED
-  PrimExpr VisitExpr_(const GTNode* op) NOT_IMPLEMENTED
-  PrimExpr VisitExpr_(const GENode* op) NOT_IMPLEMENTED
-  PrimExpr VisitExpr_(const AndNode* op) NOT_IMPLEMENTED
-  PrimExpr VisitExpr_(const OrNode* op) NOT_IMPLEMENTED
+  PrimExpr VisitExpr_(const EQNode* op) NOT_IMPLEMENTED;
+  PrimExpr VisitExpr_(const NENode* op) NOT_IMPLEMENTED;
+  PrimExpr VisitExpr_(const LTNode* op) NOT_IMPLEMENTED;
+  PrimExpr VisitExpr_(const LENode* op) NOT_IMPLEMENTED;
+  PrimExpr VisitExpr_(const GTNode* op) NOT_IMPLEMENTED;
+  PrimExpr VisitExpr_(const GENode* op) NOT_IMPLEMENTED;
+  PrimExpr VisitExpr_(const AndNode* op) NOT_IMPLEMENTED;
+  PrimExpr VisitExpr_(const OrNode* op) NOT_IMPLEMENTED;
 
   PrimExpr VisitExpr_(const ReduceNode* op) {
     // This case is relatively difficult because a reduction expression
@@ -265,9 +253,8 @@ class JacobianMutator : public ExprMutator {
     CommReducer new_combiner = CommReducerNode::make(new_lhs, new_rhs, new_result, new_identity);
     // Also simplify the resulting combiner
     // (mostly to get rid of unused components, e.g., the original expressions)
-    return analyzer_.Simplify(
-        ReduceNode::make(new_combiner, new_source, new_op->axis,
-                         new_op->condition, new_op->value_index));
+    return analyzer_.Simplify(ReduceNode::make(new_combiner, new_source, new_op->axis,
+                                               new_op->condition, new_op->value_index));
   }
 
   PrimExpr VisitExpr_(const CastNode* op) {
@@ -278,26 +265,21 @@ class JacobianMutator : public ExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const NotNode* op) NOT_IMPLEMENTED
+  PrimExpr VisitExpr_(const NotNode* op) NOT_IMPLEMENTED;
 
   PrimExpr VisitExpr_(const SelectNode* op) {
-    return SelectNode::make(op->condition,
-        Mutate(op->true_value), Mutate(op->false_value));
+    return SelectNode::make(op->condition, Mutate(op->true_value), Mutate(op->false_value));
   }
 
-  PrimExpr VisitExpr_(const RampNode* op) NOT_IMPLEMENTED
-  PrimExpr VisitExpr_(const BroadcastNode* op) NOT_IMPLEMENTED
-  PrimExpr VisitExpr_(const ShuffleNode* op) NOT_IMPLEMENTED
+  PrimExpr VisitExpr_(const RampNode* op) NOT_IMPLEMENTED;
+  PrimExpr VisitExpr_(const BroadcastNode* op) NOT_IMPLEMENTED;
+  PrimExpr VisitExpr_(const ShuffleNode* op) NOT_IMPLEMENTED;
 
-  PrimExpr VisitExpr_(const IntImmNode* op) {
-    return IntImm(op->dtype, 0);
-  }
+  PrimExpr VisitExpr_(const IntImmNode* op) { return IntImm(op->dtype, 0); }
 
-  PrimExpr VisitExpr_(const FloatImmNode* op) {
-    return FloatImm(op->dtype, 0);
-  }
+  PrimExpr VisitExpr_(const FloatImmNode* op) { return FloatImm(op->dtype, 0); }
 
-  PrimExpr VisitExpr_(const StringImmNode* op) NOT_IMPLEMENTED
+  PrimExpr VisitExpr_(const StringImmNode* op) NOT_IMPLEMENTED;
 
  private:
   Tensor input_;
@@ -336,8 +318,8 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
   Array<PrimExpr> input_indices;
   size_t i = 0;
   for (PrimExpr ext : input->shape) {
-    IterVar new_v = IterVarNode::make(Range(0, ext), Var("jac_i" + std::to_string(i++)),
-        IterVarType::kDataPar);
+    IterVar new_v =
+        IterVarNode::make(Range(0, ext), Var("jac_i" + std::to_string(i++)), IterVarType::kDataPar);
     // Append jacobian iter to new_axis
     new_axis.push_back(new_v);
     // Differentiate wrt input[input_indices]
@@ -345,8 +327,8 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
   }
   arith::Analyzer analzyer;
   // Compute Jacobian
-  PrimExpr new_body = Jacobian(
-      Substitute(op->body[output->value_index], vmap), input, input_indices);
+  PrimExpr new_body =
+      Jacobian(Substitute(op->body[output->value_index], vmap), input, input_indices);
   new_body = analzyer.Simplify(new_body);
 
   int value_index = 0;
@@ -358,14 +340,14 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
     value_index = red->value_index;
     for (size_t idx = 0; idx < red->source.size(); ++idx) {
       new_bodies.push_back(
-            ReduceNode::make(red->combiner, red->source, red->axis, red->condition, idx));
+          ReduceNode::make(red->combiner, red->source, red->axis, red->condition, idx));
     }
   } else {
     new_bodies.push_back(new_body);
   }
 
-  auto new_op = ComputeOpNode::make(
-      op->name + ".jacobian", op->tag, op->attrs, new_axis, new_bodies);
+  auto new_op =
+      ComputeOpNode::make(op->name + ".jacobian", op->tag, op->attrs, new_axis, new_bodies);
 
   // Jacobian shape = output.shape + input.shape
   Array<PrimExpr> new_shape = output->shape;

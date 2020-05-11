@@ -27,7 +27,7 @@ namespace tvm {
 namespace tir {
 
 // Implementation of Visitors
-template<typename T, typename F>
+template <typename T, typename F>
 inline void VisitArray(const Array<T>& arr, F fvisit) {
   for (size_t i = 0; i < arr.size(); i++) {
     fvisit(arr[i]);
@@ -35,10 +35,8 @@ inline void VisitArray(const Array<T>& arr, F fvisit) {
 }
 
 // Implementation of mutators
-template<typename T, typename F>
-inline Array<T> MutateArray(const Array<T>& arr,
-                            F fmutate,
-                            bool allow_copy_on_write = false) {
+template <typename T, typename F>
+inline Array<T> MutateArray(const Array<T>& arr, F fmutate, bool allow_copy_on_write = false) {
   if (allow_copy_on_write) {
     // if we allow copy on write, we can directly
     // call the inplace mutate function.

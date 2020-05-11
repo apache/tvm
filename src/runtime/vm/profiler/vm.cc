@@ -22,6 +22,8 @@
  * \brief The Relay debug virtual machine.
  */
 
+#include "vm.h"
+
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/vm.h>
 
@@ -34,27 +36,24 @@
 #include <utility>
 #include <vector>
 
-#include "vm.h"
-
 namespace tvm {
 namespace runtime {
 namespace vm {
 
-PackedFunc VirtualMachineDebug::GetFunction(
-    const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
+                                            const ObjectPtr<Object>& sptr_to_self) {
   if (name == "get_stat") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.size(), 1U);
       std::vector<std::pair<Index, double>> op_acc_time;
       for (auto kv : op_durations_) {
-        auto val = std::make_pair(
-            kv.first, std::accumulate(kv.second.begin(), kv.second.end(), 0.0));
+        auto val =
+            std::make_pair(kv.first, std::accumulate(kv.second.begin(), kv.second.end(), 0.0));
         op_acc_time.push_back(val);
       }
       bool sort_by_time = args[0];
       if (sort_by_time) {
-        auto comp = [](const std::pair<Index, double>& lhs,
-                       const std::pair<Index, double>& rhs) {
+        auto comp = [](const std::pair<Index, double>& lhs, const std::pair<Index, double>& rhs) {
           return lhs.second > rhs.second;
         };
         std::sort(op_acc_time.begin(), op_acc_time.end(), comp);
@@ -74,9 +73,9 @@ PackedFunc VirtualMachineDebug::GetFunction(
         auto min_value = *std::min_element(vals.begin(), vals.end());
         auto max_value = *std::max_element(vals.begin(), vals.end());
 
-        os << std::setw(30) << std::left << packed_index_map_[kv.first] << "\t"
-           << std::setw(10) << std::left << op_invokes_[kv.first] << "\t"
-           <<  sum << "/" << mean << "/" << min_value << "/" << max_value << std::endl;
+        os << std::setw(30) << std::left << packed_index_map_[kv.first] << "\t" << std::setw(10)
+           << std::left << op_invokes_[kv.first] << "\t" << sum << "/" << mean << "/" << min_value
+           << "/" << max_value << std::endl;
 
         total_duration += sum;
         total_packed_funcs += op_invokes_[kv.first];
@@ -104,10 +103,8 @@ void VirtualMachineDebug::LoadExecutable(const Executable* exec) {
   }
 }
 
-void VirtualMachineDebug::InvokePacked(Index packed_index,
-                                       const PackedFunc& func, Index arg_count,
-                                       Index output_size,
-                                       const std::vector<ObjectRef>& args) {
+void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
+                                       Index output_size, const std::vector<ObjectRef>& args) {
   CHECK(exec_);
   auto ctx = this->GetParamsContext();
   // warmup
@@ -119,9 +116,7 @@ void VirtualMachineDebug::InvokePacked(Index packed_index,
   TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
   auto op_end = std::chrono::high_resolution_clock::now();
   double op_duration =
-      std::chrono::duration_cast<std::chrono::duration<double> >(op_end -
-                                                                 op_begin)
-          .count();
+      std::chrono::duration_cast<std::chrono::duration<double>>(op_end - op_begin).count();
 
   op_durations_[packed_index].push_back(op_duration * 1e6);
   op_invokes_[packed_index] += 1;
@@ -133,8 +128,7 @@ runtime::Module CreateVirtualMachineDebug(const Executable* exec) {
   return runtime::Module(vm);
 }
 
-TVM_REGISTER_GLOBAL("runtime._VirtualMachineDebug")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime._VirtualMachineDebug").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());
   CHECK(exec) << "Virtual machine has not been defined yet."

@@ -21,8 +21,9 @@
  * \file src/runtime/contrib/cudnn/softmax.cc
  * \brief Use external cudnn softmax function
  */
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/registry.h>
+
 #include "cudnn_utils.h"
 
 namespace tvm {
@@ -31,64 +32,53 @@ namespace contrib {
 using namespace runtime;
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  DLTensor* x = args[0];
-  DLTensor* y = args[1];
-  int axis = args[2];
-  int ndim = x->ndim;
-  int64_t* shape = x->shape;
-  if (axis < 0) axis += ndim;
-  CHECK(axis >= 0 && axis < ndim);
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      DLTensor* x = args[0];
+      DLTensor* y = args[1];
+      int axis = args[2];
+      int ndim = x->ndim;
+      int64_t* shape = x->shape;
+      if (axis < 0) axis += ndim;
+      CHECK(axis >= 0 && axis < ndim);
 
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
-  entry_ptr->softmax_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);
+      CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+      entry_ptr->softmax_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);
 
-  // Set mode and shape descriptor
-  if (axis == ndim - 1) {
-    int64_t N = 1;
-    for (int i = 0; i < ndim - 1; ++i) {
-      N *= shape[i];
-    }
-    entry_ptr->softmax_entry.mode = CUDNN_SOFTMAX_MODE_INSTANCE;
-    CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->softmax_entry.shape_desc,
-                                          CUDNN_TENSOR_NCHW,
-                                          entry_ptr->softmax_entry.data_type,
-                                          static_cast<int>(N),
-                                          static_cast<int>(shape[ndim - 1]),
-                                          1,
-                                          1));
-  } else {
-    int64_t pre_axis_dim = 1;
-    int64_t post_axis_dim = 1;
-    for (int i = 0; i < ndim; ++i) {
-      if (i < axis) {
-        pre_axis_dim *= shape[i];
-      } else if (i > axis) {
-        post_axis_dim *= shape[i];
+      // Set mode and shape descriptor
+      if (axis == ndim - 1) {
+        int64_t N = 1;
+        for (int i = 0; i < ndim - 1; ++i) {
+          N *= shape[i];
+        }
+        entry_ptr->softmax_entry.mode = CUDNN_SOFTMAX_MODE_INSTANCE;
+        CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->softmax_entry.shape_desc,
+                                              CUDNN_TENSOR_NCHW, entry_ptr->softmax_entry.data_type,
+                                              static_cast<int>(N),
+                                              static_cast<int>(shape[ndim - 1]), 1, 1));
+      } else {
+        int64_t pre_axis_dim = 1;
+        int64_t post_axis_dim = 1;
+        for (int i = 0; i < ndim; ++i) {
+          if (i < axis) {
+            pre_axis_dim *= shape[i];
+          } else if (i > axis) {
+            post_axis_dim *= shape[i];
+          }
+        }
+        entry_ptr->softmax_entry.mode = CUDNN_SOFTMAX_MODE_CHANNEL;
+        CUDNN_CALL(cudnnSetTensor4dDescriptor(
+            entry_ptr->softmax_entry.shape_desc, CUDNN_TENSOR_NCHW,
+            entry_ptr->softmax_entry.data_type, static_cast<int>(pre_axis_dim),
+            static_cast<int>(shape[axis]), static_cast<int>(post_axis_dim), 1));
       }
-    }
-    entry_ptr->softmax_entry.mode = CUDNN_SOFTMAX_MODE_CHANNEL;
-    CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->softmax_entry.shape_desc,
-                                          CUDNN_TENSOR_NCHW,
-                                          entry_ptr->softmax_entry.data_type,
-                                          static_cast<int>(pre_axis_dim),
-                                          static_cast<int>(shape[axis]),
-                                          static_cast<int>(post_axis_dim),
-                                          1));
-  }
 
-  auto alpha = CuDNNDataType::GetConst<1>(entry_ptr->softmax_entry.data_type);
-  auto beta = CuDNNDataType::GetConst<0>(entry_ptr->softmax_entry.data_type);
-  CUDNN_CALL(cudnnSoftmaxForward(entry_ptr->handle,
-                                 CUDNN_SOFTMAX_ACCURATE,
-                                 entry_ptr->softmax_entry.mode,
-                                 alpha,
-                                 entry_ptr->softmax_entry.shape_desc,
-                                 x->data,
-                                 beta,
-                                 entry_ptr->softmax_entry.shape_desc,
-                                 y->data));
-});
+      auto alpha = CuDNNDataType::GetConst<1>(entry_ptr->softmax_entry.data_type);
+      auto beta = CuDNNDataType::GetConst<0>(entry_ptr->softmax_entry.data_type);
+      CUDNN_CALL(cudnnSoftmaxForward(entry_ptr->handle, CUDNN_SOFTMAX_ACCURATE,
+                                     entry_ptr->softmax_entry.mode, alpha,
+                                     entry_ptr->softmax_entry.shape_desc, x->data, beta,
+                                     entry_ptr->softmax_entry.shape_desc, y->data));
+    });
 
 }  // namespace contrib
 }  // namespace tvm

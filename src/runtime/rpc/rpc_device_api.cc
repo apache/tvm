@@ -21,9 +21,11 @@
  * \file rpc_device_api.cc
  */
 #include <dmlc/logging.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/registry.h>
+
 #include <utility>
+
 #include "rpc_session.h"
 
 namespace tvm {
@@ -41,14 +43,12 @@ class RPCDeviceAPI final : public DeviceAPI {
     GetSess(ctx)->GetDeviceAPI(remote_ctx)->GetAttr(remote_ctx, kind, rv);
   }
 
-  void* AllocDataSpace(TVMContext ctx,
-                       size_t nbytes,
-                       size_t alignment,
+  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
                        DLDataType type_hint) final {
     auto sess = GetSess(ctx);
     auto remote_ctx = RemoveSessMask(ctx);
-    void *data = sess->GetDeviceAPI(remote_ctx)->AllocDataSpace(
-        remote_ctx, nbytes, alignment, type_hint);
+    void* data =
+        sess->GetDeviceAPI(remote_ctx)->AllocDataSpace(remote_ctx, nbytes, alignment, type_hint);
 
     RemoteSpace* space = new RemoteSpace();
     space->data = data;
@@ -59,49 +59,38 @@ class RPCDeviceAPI final : public DeviceAPI {
     RemoteSpace* space = static_cast<RemoteSpace*>(ptr);
     auto remote_ctx = RemoveSessMask(ctx);
     try {
-      GetSess(ctx)->GetDeviceAPI(remote_ctx)->FreeDataSpace(
-          remote_ctx, space->data);
+      GetSess(ctx)->GetDeviceAPI(remote_ctx)->FreeDataSpace(remote_ctx, space->data);
     } catch (const dmlc::Error& e) {
       // fault tolerance to remote close.
     }
     delete space;
   }
-  void CopyDataFromTo(const void* from,
-                      size_t from_offset,
-                      void* to,
-                      size_t to_offset,
-                      size_t size,
-                      TVMContext ctx_from,
-                      TVMContext ctx_to,
-                      DLDataType type_hint,
+  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
+                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
     int from_dev_type = ctx_from.device_type;
     int to_dev_type = ctx_to.device_type;
-    if (from_dev_type > kRPCSessMask &&
-        to_dev_type > kRPCSessMask) {
+    if (from_dev_type > kRPCSessMask && to_dev_type > kRPCSessMask) {
       CHECK(ctx_from.device_type == ctx_to.device_type)
           << "Cannot copy across two different remote session";
       auto remote_ctx_from = RemoveSessMask(ctx_from);
       auto remote_ctx_to = RemoveSessMask(ctx_to);
       auto remote_ctx = remote_ctx_from;
       if (remote_ctx.device_type == kDLCPU) remote_ctx = remote_ctx_to;
-      GetSess(ctx_from)->GetDeviceAPI(remote_ctx)
+      GetSess(ctx_from)
+          ->GetDeviceAPI(remote_ctx)
           ->CopyDataFromTo(static_cast<const RemoteSpace*>(from)->data, from_offset,
-                           static_cast<const RemoteSpace*>(to)->data, to_offset,
-                           size, remote_ctx_from, remote_ctx_to, type_hint, stream);
-    } else if (from_dev_type > kRPCSessMask &&
-               to_dev_type == kDLCPU) {
+                           static_cast<const RemoteSpace*>(to)->data, to_offset, size,
+                           remote_ctx_from, remote_ctx_to, type_hint, stream);
+    } else if (from_dev_type > kRPCSessMask && to_dev_type == kDLCPU) {
       auto remote_ctx_from = RemoveSessMask(ctx_from);
-      GetSess(ctx_from)->CopyFromRemote(
-          static_cast<const RemoteSpace*>(from)->data, from_offset,
-          to, to_offset, size, remote_ctx_from, type_hint);
-    } else if (from_dev_type == kDLCPU &&
-               to_dev_type > kRPCSessMask) {
+      GetSess(ctx_from)->CopyFromRemote(static_cast<const RemoteSpace*>(from)->data, from_offset,
+                                        to, to_offset, size, remote_ctx_from, type_hint);
+    } else if (from_dev_type == kDLCPU && to_dev_type > kRPCSessMask) {
       auto remote_ctx_to = RemoveSessMask(ctx_to);
-      GetSess(ctx_to)->CopyToRemote(
-          const_cast<void*>(from), from_offset,
-          static_cast<const RemoteSpace*>(to)->data, to_offset,
-          size, remote_ctx_to, type_hint);
+      GetSess(ctx_to)->CopyToRemote(const_cast<void*>(from), from_offset,
+                                    static_cast<const RemoteSpace*>(to)->data, to_offset, size,
+                                    remote_ctx_to, type_hint);
     } else {
       LOG(FATAL) << "expect copy from/to remote or between remote";
     }
@@ -116,7 +105,7 @@ class RPCDeviceAPI final : public DeviceAPI {
   std::shared_ptr<RPCSession> GetSess(TVMContext ctx) {
     int dev_type = ctx.device_type;
     CHECK_GE(dev_type, kRPCSessMask);
-    int tbl_index = dev_type / kRPCSessMask -  1;
+    int tbl_index = dev_type / kRPCSessMask - 1;
     return RPCSession::Get(tbl_index);
   }
 
@@ -126,11 +115,10 @@ class RPCDeviceAPI final : public DeviceAPI {
   }
 };
 
-TVM_REGISTER_GLOBAL("device_api.rpc")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    static RPCDeviceAPI inst;
-    DeviceAPI* ptr = &inst;
-    *rv = static_cast<void*>(ptr);
-  });
+TVM_REGISTER_GLOBAL("device_api.rpc").set_body([](TVMArgs args, TVMRetValue* rv) {
+  static RPCDeviceAPI inst;
+  DeviceAPI* ptr = &inst;
+  *rv = static_cast<void*>(ptr);
+});
 }  // namespace runtime
 }  // namespace tvm

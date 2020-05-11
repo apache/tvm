@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,12 +24,11 @@
 #import <UIKit/UIKit.h>
 #include "TVMRuntime.h"
 
-@interface ViewController : UIViewController<NSStreamDelegate>
-{
+@interface ViewController : UIViewController <NSStreamDelegate> {
   // input socket stream
-  NSInputStream *inputStream_;
+  NSInputStream* inputStream_;
   // output socket stream
-  NSOutputStream *outputStream_;
+  NSOutputStream* outputStream_;
   // temporal receive buffer.
   std::string recvBuffer_;
   // Whether connection is initialized.
@@ -46,11 +45,11 @@
   tvm::runtime::FEventHandler handler_;
 }
 
-@property (weak, nonatomic) IBOutlet UITextField *proxyURL;
-@property (weak, nonatomic) IBOutlet UITextField *proxyPort;
-@property (weak, nonatomic) IBOutlet UITextField *proxyKey;
-@property (weak, nonatomic) IBOutlet UILabel *statusLabel;
-@property (weak, nonatomic) IBOutlet UITextView *infoText;
+@property(weak, nonatomic) IBOutlet UITextField* proxyURL;
+@property(weak, nonatomic) IBOutlet UITextField* proxyPort;
+@property(weak, nonatomic) IBOutlet UITextField* proxyKey;
+@property(weak, nonatomic) IBOutlet UILabel* statusLabel;
+@property(weak, nonatomic) IBOutlet UITextView* infoText;
 
 - (IBAction)connect:(id)sender;
 - (IBAction)disconnect:(id)sender;

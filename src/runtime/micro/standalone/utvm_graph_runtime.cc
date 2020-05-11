@@ -20,8 +20,10 @@
 #include "utvm_graph_runtime.h"
 
 #include <dlfcn.h>
+
 #include <cassert>
 #include <string>
+
 #include "picojson.h"
 
 namespace tvm {

@@ -20,8 +20,9 @@
 /*!
  * \file rpc_channel.cc
  */
-#include <string>
 #include "rpc_channel.h"
+
+#include <string>
 
 namespace tvm {
 namespace runtime {

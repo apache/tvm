@@ -31,9 +31,8 @@
 #endif
 
 #include <cstddef>
-#include <utility>
 #include <type_traits>
-
+#include <utility>
 
 namespace tvm {
 namespace support {
@@ -74,9 +73,7 @@ class SimplePageAllocator {
    * \brief De-allocate an allocate page.
    * \param page The page to be de-allocated.
    */
-  void deallocate(ArenaPageHeader* page) {
-    delete [] reinterpret_cast<Page*>(page);
-  }
+  void deallocate(ArenaPageHeader* page) { delete[] reinterpret_cast<Page*>(page); }
 
   static const constexpr int kPageSize = 16 << 10;
   static const constexpr int kPageAlign = 1024;
@@ -91,20 +88,17 @@ class SimplePageAllocator {
  * \brief Arena allocator that allocates memory from continuous
  *  chunk and frees them all only during destruction.
  */
-template<typename PageAllocator>
+template <typename PageAllocator>
 class GenericArena {
  public:
-  explicit GenericArena(PageAllocator alloc = PageAllocator())
-      : alloc_(alloc) {
+  explicit GenericArena(PageAllocator alloc = PageAllocator()) : alloc_(alloc) {
     // eagerly allocate the first page.
     head_ = tail_ = alloc_.allocate(1);
     head_->next = nullptr;
   }
 
 #if TVM_ARENA_HAS_DESTRUCTOR
-  ~GenericArena() {
-    this->FreeAll();
-  }
+  ~GenericArena() { this->FreeAll(); }
 #endif
 
   /*! \brief Free all pages. */
@@ -129,10 +123,9 @@ class GenericArena {
    * \param count Numberof elements
    * \note The space of T is not initialized.
    */
-  template<typename T>
+  template <typename T>
   T* allocate_(int count = 1) {
-    static_assert(PageAllocator::kPageAlign % alignof(T) == 0,
-                  "To large alignment");
+    static_assert(PageAllocator::kPageAlign % alignof(T) == 0, "To large alignment");
     return static_cast<T*>(Alloc(sizeof(T) * count, alignof(T)));
   }
   /*!
@@ -146,7 +139,7 @@ class GenericArena {
    *  memory allocated from the same arena.
    *  Otherwise the destructor needs to be called explicitly.
    */
-  template<typename T, typename... Args>
+  template <typename T, typename... Args>
   T* make(Args&&... args) {
     T* ptr = allocate_<T>();
     new (ptr) T(std::forward<Args>(args)...);
@@ -183,7 +176,7 @@ class GenericArena {
     } else {
       ArenaPageHeader* new_head;
       offset = UpperAlign(sizeof(ArenaPageHeader), align);
-      if (free_list_ != nullptr && offset + size <= free_list_-> size) {
+      if (free_list_ != nullptr && offset + size <= free_list_->size) {
         new_head = free_list_;
         free_list_ = free_list_->next;
       } else {
@@ -215,7 +208,7 @@ using Arena = GenericArena<SimplePageAllocator>;
  * \brief Link list node
  * \tparam T the content data type
  */
-template<typename T>
+template <typename T>
 struct LinkNode {
   /*! \brief The content value */
   T value;
@@ -228,7 +221,7 @@ struct LinkNode {
  * \note This is a simple data structure that can be used together with the arena.
  * \sa LinkNode
  */
-template<typename T>
+template <typename T>
 struct LinkedList {
   /*! \brief Head pointer */
   LinkNode<T>* head{nullptr};

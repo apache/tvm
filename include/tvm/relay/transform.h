@@ -24,13 +24,13 @@
 #ifndef TVM_RELAY_TRANSFORM_H_
 #define TVM_RELAY_TRANSFORM_H_
 
-#include <tvm/runtime/container.h>
-#include <tvm/relay/attrs/transform.h>
 #include <tvm/ir/transform.h>
+#include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
-#include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/op.h>
+#include <tvm/relay/op_attr_types.h>
+#include <tvm/runtime/container.h>
 
 #include <string>
 
@@ -56,11 +56,9 @@ using Sequential = tvm::transform::Sequential;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
-                                Function(Function, IRModule, PassContext)>& pass_func,
-                                int opt_level,
-                                const std::string& name,
-                                const tvm::Array<runtime::String>& required);
+TVM_DLL Pass CreateFunctionPass(
+    const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
+    int opt_level, const std::string& name, const tvm::Array<runtime::String>& required);
 
 /*! \brief Remove expressions which does not effect the program result.
  *
@@ -79,17 +77,17 @@ TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
 TVM_DLL Pass DeadCodeElimination(bool inline_once = false);
 
 /*!
-* \brief Convert all expressions of TensorType into GradCell,
-* an algebraic data type defined in gradient.rly.
-*
-* This will delay or decrease memory usage. All calls to
-* ones, ones_like, zeros, zeros_like will not immediately instantiate a tensor in memory,
-* rather only instantiate if needed. It also defines + and * operation
-* between GradCell types which can increase performance when using
-* zero-filled or one-filled tensors, which is the case in reverse mode ad.
-*
-* \return the pass
-*/
+ * \brief Convert all expressions of TensorType into GradCell,
+ * an algebraic data type defined in gradient.rly.
+ *
+ * This will delay or decrease memory usage. All calls to
+ * ones, ones_like, zeros, zeros_like will not immediately instantiate a tensor in memory,
+ * rather only instantiate if needed. It also defines + and * operation
+ * between GradCell types which can increase performance when using
+ * zero-filled or one-filled tensors, which is the case in reverse mode ad.
+ *
+ * \return the pass
+ */
 TVM_DLL Pass LazyGradientInit();
 
 /*!
@@ -373,9 +371,7 @@ TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
  * \return A type checked Function with its checked_type field populated.
  * \note this function mutates mod and is not thread-safe.
  */
-TVM_DLL Function InferType(const Function& f,
-                           const IRModule& mod,
-                           const GlobalVar& var);
+TVM_DLL Function InferType(const Function& f, const IRModule& mod, const GlobalVar& var);
 
 /*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order. This
@@ -389,8 +385,7 @@ TVM_DLL Function InferType(const Function& f,
  *                           an Expr consumed by multiple callers.
  * \return The rewritten expression.
  */
-TVM_DLL Expr ForwardRewrite(const Expr& expr,
-                            const std::string& rewrite_map_attr_name,
+TVM_DLL Expr ForwardRewrite(const Expr& expr, const std::string& rewrite_map_attr_name,
                             std::function<ObjectRef(const Call&)> fcontext = nullptr,
                             std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
 
@@ -406,8 +401,7 @@ TVM_DLL Expr ForwardRewrite(const Expr& expr,
  *
  * \return The rewritten expression.
  */
-TVM_DLL Expr ForwardRewrite(const Expr& expr,
-                            const FForwardRewrite& rewrite_func,
+TVM_DLL Expr ForwardRewrite(const Expr& expr, const FForwardRewrite& rewrite_func,
                             std::function<ObjectRef(const Call&)> fcontext = nullptr,
                             std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
 

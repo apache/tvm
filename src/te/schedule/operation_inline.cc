@@ -20,14 +20,16 @@
 /*!
  * \file operation_inline.cc
  */
+#include "operation_inline.h"
+
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
-#include <utility>
-#include "operation_inline.h"
-#include "../../tir/transforms/ir_util.h"
 
+#include <utility>
+
+#include "../../tir/transforms/ir_util.h"
 
 namespace tvm {
 namespace te {
@@ -62,8 +64,7 @@ class OperationInliner final : public StmtExprMutator {
         for (size_t i = 0; i < args_.size(); ++i) {
           vmap.Set(args_[i], op->args[i]);
         }
-        expr = Substitute(
-            EvaluateNode::make(expr), vmap).as<EvaluateNode>()->value;
+        expr = Substitute(EvaluateNode::make(expr), vmap).as<EvaluateNode>()->value;
       }
       return expr;
     } else {
@@ -77,12 +78,8 @@ class OperationInliner final : public StmtExprMutator {
   PrimExpr body_;
 };
 
-Stmt Inline(Stmt stmt,
-            Operation f,
-            Array<Var> args,
-            PrimExpr body) {
-  CHECK_EQ(f->num_outputs(), 1)
-      << "can only inline output single value operation";
+Stmt Inline(Stmt stmt, Operation f, Array<Var> args, PrimExpr body) {
+  CHECK_EQ(f->num_outputs(), 1) << "can only inline output single value operation";
   Stmt ret = OperationInliner(f, args, body)(std::move(stmt));
   if (ret.same_as(stmt)) return ret;
   return ConvertSSA(ret);

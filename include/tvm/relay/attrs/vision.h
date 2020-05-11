@@ -26,6 +26,7 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/base.h>
+
 #include <string>
 
 namespace tvm {
@@ -41,39 +42,32 @@ struct MultiBoxPriorAttrs : public tvm::AttrsNode<MultiBoxPriorAttrs> {
 
   TVM_DECLARE_ATTRS(MultiBoxPriorAttrs, "relay.attrs.MultiBoxPriorAttrs") {
     TVM_ATTR_FIELD(sizes)
-      .set_default(Array<IndexExpr>({static_cast<float>(1.0)}))
-      .describe("List of sizes of generated MultiBoxPriores.");
+        .set_default(Array<IndexExpr>({static_cast<float>(1.0)}))
+        .describe("List of sizes of generated MultiBoxPriores.");
     TVM_ATTR_FIELD(ratios)
-      .set_default(Array<IndexExpr>({static_cast<float>(1.0)}))
-      .describe("List of aspect ratios of generated MultiBoxPriores.");
+        .set_default(Array<IndexExpr>({static_cast<float>(1.0)}))
+        .describe("List of aspect ratios of generated MultiBoxPriores.");
     TVM_ATTR_FIELD(steps)
-      .set_default(Array<IndexExpr>({static_cast<float>(-1.0),
-                                     static_cast<float>(-1.0)}))
-      .describe("Priorbox step across y and x, -1 for auto calculation.");
+        .set_default(Array<IndexExpr>({static_cast<float>(-1.0), static_cast<float>(-1.0)}))
+        .describe("Priorbox step across y and x, -1 for auto calculation.");
     TVM_ATTR_FIELD(offsets)
-      .set_default(Array<IndexExpr>({static_cast<float>(0.5),
-                                     static_cast<float>(0.5)}))
-      .describe("Priorbox center offsets, y and x respectively.");
-    TVM_ATTR_FIELD(clip).set_default(false)
-      .describe("Whether to clip out-of-boundary boxes.");
+        .set_default(Array<IndexExpr>({static_cast<float>(0.5), static_cast<float>(0.5)}))
+        .describe("Priorbox center offsets, y and x respectively.");
+    TVM_ATTR_FIELD(clip).set_default(false).describe("Whether to clip out-of-boundary boxes.");
   }
 };
 
-struct MultiBoxTransformLocAttrs
-    : public tvm::AttrsNode<MultiBoxTransformLocAttrs> {
+struct MultiBoxTransformLocAttrs : public tvm::AttrsNode<MultiBoxTransformLocAttrs> {
   bool clip;
   double threshold;
   Array<IndexExpr> variances;
 
-  TVM_DECLARE_ATTRS(MultiBoxTransformLocAttrs,
-                    "relay.attrs.MultiBoxTransformLocAttrs") {
-    TVM_ATTR_FIELD(clip).set_default(true)
-      .describe("Clip out-of-boundary boxes.");
-    TVM_ATTR_FIELD(threshold).set_default(0.01)
-      .describe("Threshold to be a positive prediction.");
+  TVM_DECLARE_ATTRS(MultiBoxTransformLocAttrs, "relay.attrs.MultiBoxTransformLocAttrs") {
+    TVM_ATTR_FIELD(clip).set_default(true).describe("Clip out-of-boundary boxes.");
+    TVM_ATTR_FIELD(threshold).set_default(0.01).describe("Threshold to be a positive prediction.");
     TVM_ATTR_FIELD(variances)
-      .set_default(Array<IndexExpr>({0.1f, 0.1f , 0.2f, 0.2f}))
-      .describe("Variances to be decoded from box regression output.");
+        .set_default(Array<IndexExpr>({0.1f, 0.1f, 0.2f, 0.2f}))
+        .describe("Variances to be decoded from box regression output.");
   }
 };
 
@@ -84,12 +78,11 @@ struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs> {
   int score_index;
 
   TVM_DECLARE_ATTRS(GetValidCountsAttrs, "relay.attrs.GetValidCountsAttrs") {
-    TVM_ATTR_FIELD(score_threshold).set_default(0.0)
-      .describe("Lower limit of score for valid bounding boxes.");
-    TVM_ATTR_FIELD(id_index).set_default(0)
-      .describe("Axis index of id.");
-    TVM_ATTR_FIELD(score_index).set_default(1)
-      .describe("Index of the scores/confidence of boxes.");
+    TVM_ATTR_FIELD(score_threshold)
+        .set_default(0.0)
+        .describe("Lower limit of score for valid bounding boxes.");
+    TVM_ATTR_FIELD(id_index).set_default(0).describe("Axis index of id.");
+    TVM_ATTR_FIELD(score_index).set_default(1).describe("Index of the scores/confidence of boxes.");
   }
 };
 
@@ -106,25 +99,28 @@ struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionA
   bool invalid_to_bottom;
 
   TVM_DECLARE_ATTRS(NonMaximumSuppressionAttrs, "relay.attrs.NonMaximumSuppressionAttrs") {
-    TVM_ATTR_FIELD(max_output_size).set_default(-1)
-      .describe("Max number of output valid boxes for each instance."
-                "By default all valid boxes are returned.");
-    TVM_ATTR_FIELD(iou_threshold).set_default(0.5)
-      .describe("Non-maximum suppression threshold.");
-    TVM_ATTR_FIELD(force_suppress).set_default(false)
-      .describe("Suppress all detections regardless of class_id.");
-    TVM_ATTR_FIELD(top_k).set_default(-1)
-      .describe("Keep maximum top k detections before nms, -1 for no limit.");
-    TVM_ATTR_FIELD(coord_start).set_default(2)
-      .describe("Start index of the consecutive 4 coordinates.");
-    TVM_ATTR_FIELD(score_index).set_default(1)
-      .describe("Index of the scores/confidence of boxes.");
-    TVM_ATTR_FIELD(id_index).set_default(0)
-      .describe("Axis index of id.");
-    TVM_ATTR_FIELD(return_indices).set_default(true)
-      .describe("Whether to return box indices in input data.");
-    TVM_ATTR_FIELD(invalid_to_bottom).set_default(false)
-      .describe("Whether to move all invalid bounding boxes to the bottom.");
+    TVM_ATTR_FIELD(max_output_size)
+        .set_default(-1)
+        .describe(
+            "Max number of output valid boxes for each instance."
+            "By default all valid boxes are returned.");
+    TVM_ATTR_FIELD(iou_threshold).set_default(0.5).describe("Non-maximum suppression threshold.");
+    TVM_ATTR_FIELD(force_suppress)
+        .set_default(false)
+        .describe("Suppress all detections regardless of class_id.");
+    TVM_ATTR_FIELD(top_k).set_default(-1).describe(
+        "Keep maximum top k detections before nms, -1 for no limit.");
+    TVM_ATTR_FIELD(coord_start)
+        .set_default(2)
+        .describe("Start index of the consecutive 4 coordinates.");
+    TVM_ATTR_FIELD(score_index).set_default(1).describe("Index of the scores/confidence of boxes.");
+    TVM_ATTR_FIELD(id_index).set_default(0).describe("Axis index of id.");
+    TVM_ATTR_FIELD(return_indices)
+        .set_default(true)
+        .describe("Whether to return box indices in input data.");
+    TVM_ATTR_FIELD(invalid_to_bottom)
+        .set_default(false)
+        .describe("Whether to move all invalid bounding boxes to the bottom.");
   }
 };
 
@@ -177,9 +173,7 @@ struct YoloReorgAttrs : public tvm::AttrsNode<YoloReorgAttrs> {
   Integer stride;
 
   TVM_DECLARE_ATTRS(YoloReorgAttrs, "relay.attrs.YoloReorgAttrs") {
-    TVM_ATTR_FIELD(stride)
-      .set_default(1)
-      .describe("Stride value for yolo reorg");
+    TVM_ATTR_FIELD(stride).set_default(1).describe("Stride value for yolo reorg");
   }
 };
 
@@ -206,10 +200,8 @@ struct ProposalAttrs : public tvm::AttrsNode<ProposalAttrs> {
         .describe(
             "The size of the receptive field each unit in the convolution layer of the rpn,"
             "for example the product of all stride's prior to this layer.");
-    TVM_ATTR_FIELD(threshold)
-        .set_default(0.7)
-        .describe(
-            "IoU threshold of non-maximum suppresion (suppress boxes with IoU >= this threshold)");
+    TVM_ATTR_FIELD(threshold).set_default(0.7).describe(
+        "IoU threshold of non-maximum suppresion (suppress boxes with IoU >= this threshold)");
     TVM_ATTR_FIELD(rpn_pre_nms_top_n)
         .set_default(6000)
         .describe("Number of top scoring boxes to apply NMS. -1 to use all boxes");

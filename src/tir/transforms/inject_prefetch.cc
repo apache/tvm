@@ -21,20 +21,21 @@
  * \file inject_prefetch.cc
  */
 // Inject prefetch op in HalideIR
+#include <tvm/arith/analyzer.h>
+#include <tvm/arith/bound.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/arith/bound.h>
-#include <tvm/arith/analyzer.h>
+
 #include <unordered_set>
 
 namespace tvm {
 namespace tir {
 
-using arith::IntSet;
 using arith::DomainTouched;
+using arith::IntSet;
 
 class PrefetchInjector : public StmtMutator {
  public:
@@ -68,7 +69,7 @@ class PrefetchInjector : public StmtMutator {
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
-    auto &var = op->loop_var;
+    auto& var = op->loop_var;
     loop_nest_.push_back(var);
     if (op->for_type == ForType::Vectorized) {
       vectorized_[var.get()] = IntSet::interval(op->min, (op->min + op->extent) - 1);
@@ -83,16 +84,13 @@ class PrefetchInjector : public StmtMutator {
 
  private:
   std::vector<Var> loop_nest_;
-  std::unordered_map<const VarNode *, IntSet> vectorized_;
+  std::unordered_map<const VarNode*, IntSet> vectorized_;
   static const Range none;
 };
 
 const Range PrefetchInjector::none;
 
-Stmt InjectPrefetch(Stmt stmt) {
-  return PrefetchInjector()(std::move(stmt));
-}
-
+Stmt InjectPrefetch(Stmt stmt) { return PrefetchInjector()(std::move(stmt)); }
 
 namespace transform {
 
@@ -105,8 +103,7 @@ Pass InjectPrefetch() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectPrefetch", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InjectPrefetch")
-.set_body_typed(InjectPrefetch);
+TVM_REGISTER_GLOBAL("tir.transform.InjectPrefetch").set_body_typed(InjectPrefetch);
 
 }  // namespace transform
 

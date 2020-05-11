@@ -215,5 +215,4 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
 }  // namespace relay
 }  // namespace tvm
 
-
 #endif  // TVM_RELAY_BACKEND_UTILS_H_

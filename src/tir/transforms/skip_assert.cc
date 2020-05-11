@@ -17,10 +17,10 @@
  * under the License.
  */
 
-#include <tvm/tir/expr.h>
-#include <tvm/tir/transform.h>
-#include <tvm/tir/stmt_functor.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
 
 namespace tvm {
 namespace tir {
@@ -34,9 +34,7 @@ class AssertSkipper : public StmtMutator {
   }
 };
 
-Stmt SkipAssert(Stmt stmt) {
-  return AssertSkipper()(std::move(stmt));
-}
+Stmt SkipAssert(Stmt stmt) { return AssertSkipper()(std::move(stmt)); }
 
 namespace transform {
 
@@ -49,8 +47,7 @@ Pass SkipAssert() {
   return CreatePrimFuncPass(pass_func, 0, "tir.SkipAssert", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.SkipAssert")
-.set_body_typed(SkipAssert);
+TVM_REGISTER_GLOBAL("tir.transform.SkipAssert").set_body_typed(SkipAssert);
 
 }  // namespace transform
 

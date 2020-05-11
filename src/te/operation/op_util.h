@@ -24,13 +24,15 @@
 #ifndef TVM_TE_OPERATION_OP_UTIL_H_
 #define TVM_TE_OPERATION_OP_UTIL_H_
 
-#include <tvm/tir/expr.h>
 #include <tvm/te/schedule.h>
+#include <tvm/tir/expr.h>
+
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include "../../tir/transforms/ir_util.h"
+
 #include "../../tir/transforms/arg_binder.h"
+#include "../../tir/transforms/ir_util.h"
 #include "../schedule/message_passing.h"
 
 namespace tvm {
@@ -49,14 +51,12 @@ using tir::MergeNest;
  * \param p_value_map The result value of each IterVar.
  * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1
  */
-std::vector<std::vector<Stmt> >
-MakeLoopNest(const Stage& stage,
-             const std::unordered_map<IterVar, Range>& dom_map,
-             size_t begin_iter_pos,
-             bool new_loop_var,
-             const std::unordered_set<IterVar>& skip_iter,
-             std::unordered_map<IterVar, PrimExpr>* p_value_map,
-             bool debug_keep_trivial_loop);
+std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
+                                             const std::unordered_map<IterVar, Range>& dom_map,
+                                             size_t begin_iter_pos, bool new_loop_var,
+                                             const std::unordered_set<IterVar>& skip_iter,
+                                             std::unordered_map<IterVar, PrimExpr>* p_value_map,
+                                             bool debug_keep_trivial_loop);
 
 /*!
  * \brief Create a nest of if checking the predicates.
@@ -71,15 +71,13 @@ std::vector<Stmt> MakeIfNest(const std::vector<PrimExpr>& predicates);
  * \param stmt The statement to be processed.
  * \param replace The replacement rule.
  */
-Stmt ReplaceTensor(Stmt stmt,
-                   const std::unordered_map<Tensor, Tensor>& replace);
+Stmt ReplaceTensor(Stmt stmt, const std::unordered_map<Tensor, Tensor>& replace);
 /*!
  * \brief Replace the tensor reference (especially in Call's) in stmt by the replace map.
  * \param expr The expression to be processed.
  * \param replace The replacement rule.
  */
-PrimExpr ReplaceTensor(PrimExpr expr,
-                       const std::unordered_map<Tensor, Tensor>& replace);
+PrimExpr ReplaceTensor(PrimExpr expr, const std::unordered_map<Tensor, Tensor>& replace);
 
 /*!
  * \brief Substitute the variables of stmt by value map.
@@ -87,8 +85,7 @@ PrimExpr ReplaceTensor(PrimExpr expr,
  * \param value_map The value map.
  * \return Substituted result.
  */
-Stmt Substitute(Stmt stmt,
-                const std::unordered_map<IterVar, PrimExpr>& value_map);
+Stmt Substitute(Stmt stmt, const std::unordered_map<IterVar, PrimExpr>& value_map);
 
 /*!
  * \brief Converts Halide ForType to its corresponding IterVarType

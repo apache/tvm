@@ -44,8 +44,7 @@ StubAPI::StubAPI() {
   constexpr auto domain_lib_name = "libtvm_remote_stub.so";
   constexpr auto nondomain_lib_name = "libtvm_remote_nd_stub.so";
 
-  const char* lib_name =
-      enable_domains_ ? domain_lib_name : nondomain_lib_name;
+  const char* lib_name = enable_domains_ ? domain_lib_name : nondomain_lib_name;
   CHECK(lib_handle_ = dlopen(lib_name, RTLD_LAZY | RTLD_LOCAL));
 
 #define RESOLVE(fn) p##fn##_ = GetSymbol<fn##_t*>(#fn)

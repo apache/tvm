@@ -29,8 +29,8 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/c_runtime_api.h>
 
 /*!
  * \brief TODO
@@ -98,9 +98,9 @@ void UTVMDone();
 // GCC -O3 begins to inject memset and memmove calls, so we provide impls in
 // the runtime for this case and for general usage.
 
-void *memset(void *s, int c, size_t n);
+void* memset(void* s, int c, size_t n);
 
-void *memmove(void *to, const void *from, size_t n);
+void* memmove(void* to, const void* from, size_t n);
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C

@@ -21,11 +21,12 @@
  * \file feature.cc
  * \brief Detect features used in Expr/Module
  */
-#include <tvm/relay/feature.h>
+#include <tvm/ir/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/ir/module.h>
+#include <tvm/relay/feature.h>
+
 #include "../transforms/pass_util.h"
 
 namespace tvm {
@@ -49,34 +50,30 @@ FeatureSet DetectFeature(const Expr& expr) {
         }
       }
     }
-#define DETECT_CONSTRUCT(CONSTRUCT_NAME, STMT)            \
-  void VisitExpr_(const CONSTRUCT_NAME##Node* op) final { \
-    STMT                                                  \
-    fs += f##CONSTRUCT_NAME;                              \
-  }
-#define DETECT_DEFAULT_CONSTRUCT(CONSTRUCT_NAME) DETECT_CONSTRUCT(CONSTRUCT_NAME, { \
-    ExprVisitor::VisitExpr_(op);                                                    \
-  })
+#define DETECT_CONSTRUCT(CONSTRUCT_NAME, STMT) \
+  void VisitExpr_(const CONSTRUCT_NAME##Node* op) final { STMT fs += f##CONSTRUCT_NAME; }
+#define DETECT_DEFAULT_CONSTRUCT(CONSTRUCT_NAME) \
+  DETECT_CONSTRUCT(CONSTRUCT_NAME, { ExprVisitor::VisitExpr_(op); })
     DETECT_DEFAULT_CONSTRUCT(Var)
     DETECT_DEFAULT_CONSTRUCT(GlobalVar)
     DETECT_DEFAULT_CONSTRUCT(Constant)
     DETECT_DEFAULT_CONSTRUCT(Tuple)
     DETECT_DEFAULT_CONSTRUCT(TupleGetItem)
     DETECT_CONSTRUCT(Function, {
-        if (!op->HasNonzeroAttr(attr::kPrimitive)) {
-          ExprVisitor::VisitExpr_(op);
-        }
-      })
+      if (!op->HasNonzeroAttr(attr::kPrimitive)) {
+        ExprVisitor::VisitExpr_(op);
+      }
+    })
     DETECT_DEFAULT_CONSTRUCT(Op)
     DETECT_DEFAULT_CONSTRUCT(Call)
     DETECT_CONSTRUCT(Let, {
-        for (const Var& v : FreeVars(op->value)) {
-          if (op->var == v) {
-            fs += fLetRec;
-          }
+      for (const Var& v : FreeVars(op->value)) {
+        if (op->var == v) {
+          fs += fLetRec;
         }
-        ExprVisitor::VisitExpr_(op);
-      })
+      }
+      ExprVisitor::VisitExpr_(op);
+    })
     DETECT_DEFAULT_CONSTRUCT(If)
     DETECT_DEFAULT_CONSTRUCT(RefCreate)
     DETECT_DEFAULT_CONSTRUCT(RefRead)
@@ -104,8 +101,7 @@ Array<Integer> PyDetectFeature(const Expr& expr, const IRModule& mod) {
   return static_cast<Array<Integer>>(fs);
 }
 
-TVM_REGISTER_GLOBAL("relay.analysis.detect_feature")
-.set_body_typed(PyDetectFeature);
+TVM_REGISTER_GLOBAL("relay.analysis.detect_feature").set_body_typed(PyDetectFeature);
 
 }  // namespace relay
 }  // namespace tvm

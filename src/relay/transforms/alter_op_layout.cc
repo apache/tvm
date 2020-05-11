@@ -24,20 +24,20 @@
           custom layouts or other general weight pre-transformation.
  */
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/transform.h>
-#include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
 #include <tvm/te/operation.h>
-#include <tuple>
-#include <vector>
+
 #include <functional>
 #include <string>
-#include <utility>
+#include <tuple>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
-#include "transform_layout.h"
 #include "pattern_util.h"
+#include "transform_layout.h"
 
 namespace tvm {
 namespace relay {
@@ -85,8 +85,8 @@ class AlterTransformMemorizer : public TransformMemorizer {
       }
       // TODO(@kevinthesun, @icemelon9): This won't work if inputs/outputs are dynamic shapes.
       //   Probably we need to disable the AlterOpLayout when compiling dynamic models.
-      Expr altered_value = falter_layout[op](ref_call->attrs, new_args, tinfos,
-                                             ref_call->checked_type());
+      Expr altered_value =
+          falter_layout[op](ref_call->attrs, new_args, tinfos, ref_call->checked_type());
       if (altered_value.defined()) {
         new_e = altered_value;
         modified = true;
@@ -122,14 +122,13 @@ namespace transform {
 
 Pass AlterOpLayout() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-      return Downcast<Function>(relay::alter_op_layout::AlterOpLayout(f));
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(relay::alter_op_layout::AlterOpLayout(f));
+      };
   return CreateFunctionPass(pass_func, 3, "AlterOpLayout", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.AlterOpLayout")
-.set_body_typed(AlterOpLayout);
+TVM_REGISTER_GLOBAL("relay._transform.AlterOpLayout").set_body_typed(AlterOpLayout);
 
 }  // namespace transform
 

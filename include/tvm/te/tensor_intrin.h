@@ -100,14 +100,9 @@ class TensorIntrinNode : public Object {
     v->Visit("reduce_update", &reduce_update);
   }
 
-  TVM_DLL static TensorIntrin make(std::string name,
-                                   Operation op,
-                                   Array<Tensor> inputs,
-                                   Array<Buffer> buffers,
-                                   Array<Var> scalar_params,
-                                   Stmt body,
-                                   Stmt reduce_init,
-                                   Stmt reduce_update);
+  TVM_DLL static TensorIntrin make(std::string name, Operation op, Array<Tensor> inputs,
+                                   Array<Buffer> buffers, Array<Var> scalar_params, Stmt body,
+                                   Stmt reduce_init, Stmt reduce_update);
 
   static constexpr const char* _type_key = "TensorIntrin";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorIntrinNode, Object);
@@ -144,7 +139,6 @@ class TensorIntrinCallNode : public Object {
   /*! \brief regions of input tensors */
   Array<Region> regions;
 
-
   /*!
    * \brief IterVar on each reduction axis, if the
    * intrin will use the reduce axis
@@ -161,11 +155,8 @@ class TensorIntrinCallNode : public Object {
     v->Visit("reduce_axis", &reduce_axis);
     v->Visit("scalar_inputs", &scalar_inputs);
   }
-  static TensorIntrinCall make(TensorIntrin intrin,
-                               Array<Tensor> tensors,
-                               Array<Region> regions,
-                               Array<IterVar> reduce_axis,
-                               Array<PrimExpr> scalar_inputs);
+  static TensorIntrinCall make(TensorIntrin intrin, Array<Tensor> tensors, Array<Region> regions,
+                               Array<IterVar> reduce_axis, Array<PrimExpr> scalar_inputs);
 
   static constexpr const char* _type_key = "TensorIntrinCall";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorIntrinCallNode, Object);

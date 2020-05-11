@@ -22,9 +22,10 @@
  * \brief Property def of nn.sparse_dense operator.
  */
 
-#include <tvm/tir/data_layout.h>
-#include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
+#include <tvm/relay/op.h>
+#include <tvm/tir/data_layout.h>
+
 #include <vector>
 
 #include "../../transforms/infer_layout_util.h"
@@ -53,9 +54,8 @@ bool SparseDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 
   if (weight_data->shape.size() == 3) {
     // BSR case.
-    Array<IndexExpr> oshape({
-        data->shape[0],
-          (weight_indptr->shape[0] - 1) * weight_data->shape[1]});
+    Array<IndexExpr> oshape(
+        {data->shape[0], (weight_indptr->shape[0] - 1) * weight_data->shape[1]});
     reporter->Assign(types[4], TensorType(oshape, data->dtype));
     return true;
   }
@@ -71,32 +71,32 @@ Expr MakeSparseDense(Expr data, Expr weight_data, Expr weight_indices, Expr weig
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_dense")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 4>(MakeSparseDense, args, rv);
-});
+    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
+      runtime::detail::unpack_call<Expr, 4>(MakeSparseDense, args, rv);
+    });
 
 RELAY_REGISTER_OP("nn.sparse_dense")
-.describe(R"code(Applies a sparse linear transformation: :math:`Y = XW^T` with X sparse.
+    .describe(R"code(Applies a sparse linear transformation: :math:`Y = XW^T` with X sparse.
 
 - **data**: `(x1, x2, ..., xn, input_dim)`
 - **weight**: `(units, input_dim)`
 - **out**: `(x1, x2, ..., xn, units)`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<SparseDenseAttrs>()
-.set_num_inputs(4)
-.add_argument("data", "nD Tensor", "Input data.")
-.add_argument("weight_data", "1D Tensor", "Weight data matrix.")
-.add_argument("weight_indices", "1D Tensor", "Weight indices matrix.")
-.add_argument("weight_indptr", "1D Tensor", "Weight indptr matrix.")
-.set_support_level(1)
-.add_type_rel("SparseDense", SparseDenseRel);
+    .set_attrs_type<SparseDenseAttrs>()
+    .set_num_inputs(4)
+    .add_argument("data", "nD Tensor", "Input data.")
+    .add_argument("weight_data", "1D Tensor", "Weight data matrix.")
+    .add_argument("weight_indices", "1D Tensor", "Weight indices matrix.")
+    .add_argument("weight_indptr", "1D Tensor", "Weight indptr matrix.")
+    .set_support_level(1)
+    .add_type_rel("SparseDense", SparseDenseRel);
 
 // relay.nn.sparse_transpose
 TVM_REGISTER_NODE_TYPE(SparseTransposeAttrs);
 
 bool SparseTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                    const TypeReporter& reporter) {
+                        const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 4);
   const auto* sparse_data = types[0].as<TensorTypeNode>();
   CHECK_EQ(sparse_data->shape.size(), 1);
@@ -119,24 +119,22 @@ Expr MakeSparseTranspose(Expr sparse_data, Expr sparse_indices, Expr sparse_indp
   return Call(op, {sparse_data, sparse_indices, sparse_indptr}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_transpose")
-.set_body_typed(MakeSparseTranspose);
-
+TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_transpose").set_body_typed(MakeSparseTranspose);
 
 RELAY_REGISTER_OP("nn.sparse_transpose")
-.describe(R"code(Transpose a sparse matrix X. Only support square sparse matrix
+    .describe(R"code(Transpose a sparse matrix X. Only support square sparse matrix
 
 - **input**: `(N, N)`
 - **out**: `(N, N)`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<SparseTransposeAttrs>()
-.set_num_inputs(3)
-.add_argument("sparse_data", "1D Tensor", "Sparse data matrix.")
-.add_argument("sparse_indices", "1D Tensor", "Sparse indices matrix.")
-.add_argument("sparse_indptr", "1D Tensor", "Sparse index pointer matrix.")
-.set_support_level(1)
-.add_type_rel("SparseTranspose", SparseTransposeRel);
+    .set_attrs_type<SparseTransposeAttrs>()
+    .set_num_inputs(3)
+    .add_argument("sparse_data", "1D Tensor", "Sparse data matrix.")
+    .add_argument("sparse_indices", "1D Tensor", "Sparse indices matrix.")
+    .add_argument("sparse_indptr", "1D Tensor", "Sparse index pointer matrix.")
+    .set_support_level(1)
+    .add_type_rel("SparseTranspose", SparseTransposeRel);
 
 }  // namespace relay
 }  // namespace tvm

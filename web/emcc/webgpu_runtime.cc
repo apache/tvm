@@ -31,12 +31,13 @@
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/device_api.h>
+
 #include "../../src/runtime/meta_data.h"
-#include "../../src/runtime/workspace_pool.h"
 #include "../../src/runtime/vulkan/vulkan_shader.h"
+#include "../../src/runtime/workspace_pool.h"
 
 namespace tvm {
 namespace runtime {
@@ -52,7 +53,6 @@ class WebGPUThreadEntry {
   static WebGPUThreadEntry* ThreadLocal();
 };
 
-
 // All the implementations are redirectly to the JS side.
 class WebGPUDeviceAPI : public DeviceAPI {
  public:
@@ -67,32 +67,23 @@ class WebGPUDeviceAPI : public DeviceAPI {
     copy_within_gpu_ = getter("deviceCopyWithinGPU");
   }
 
-  void SetDevice(TVMContext ctx) final {
-  }
+  void SetDevice(TVMContext ctx) final {}
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final {
     if (kind == kExist) {
       *rv = 1;
     }
   }
 
-  void* AllocDataSpace(TVMContext ctx,
-                       size_t nbytes,
-                       size_t alignment,
+  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
                        DLDataType type_hint) final {
-
     double ptr_number = alloc_space_(nbytes);
     return reinterpret_cast<void*>(static_cast<int64_t>(ptr_number));
   }
 
-  void FreeDataSpace(TVMContext ctx, void* ptr) final {
-    return free_space_(ptr);
-  }
+  void FreeDataSpace(TVMContext ctx, void* ptr) final { return free_space_(ptr); }
 
-  void CopyDataFromTo(const void* from,
-                      size_t from_offset,
-                      void* to, size_t to_offset, size_t size,
-                      TVMContext ctx_from,
-                      TVMContext ctx_to, DLDataType type_hint,
+  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
+                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
     if (static_cast<int>(ctx_from.device_type) == kDLWebGPU &&
         static_cast<int>(ctx_to.device_type) == kDLWebGPU) {
@@ -126,9 +117,7 @@ class WebGPUDeviceAPI : public DeviceAPI {
     return;
   }
 
-  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
-    LOG(FATAL) << "Not implemented";
-  }
+  void StreamSync(TVMContext ctx, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
 
   void SetStream(TVMContext ctx, TVMStreamHandle stream) final {
     LOG(FATAL) << "Not implemented";
@@ -144,8 +133,7 @@ class WebGPUDeviceAPI : public DeviceAPI {
   }
 
   static const std::shared_ptr<WebGPUDeviceAPI>& Global() {
-    static std::shared_ptr<WebGPUDeviceAPI> inst =
-        std::make_shared<WebGPUDeviceAPI>();
+    static std::shared_ptr<WebGPUDeviceAPI> inst = std::make_shared<WebGPUDeviceAPI>();
     return inst;
   }
 
@@ -155,27 +143,22 @@ class WebGPUDeviceAPI : public DeviceAPI {
   TypedPackedFunc<void(void* ptr)> free_space_;
   TypedPackedFunc<void(void* from, void* to, int64_t to_offset, int64_t nbytes)> copy_to_gpu_;
   TypedPackedFunc<void(void* from, int64_t from_offset, void* to, int64_t nbytes)> copy_from_gpu_;
-  TypedPackedFunc<void(void* from, int64_t from_offset,
-                       void* to, int64_t to_offset, int64_t nbytes)> copy_within_gpu_;
+  TypedPackedFunc<void(void* from, int64_t from_offset, void* to, int64_t to_offset,
+                       int64_t nbytes)>
+      copy_within_gpu_;
 };
-
 
 typedef dmlc::ThreadLocalStore<WebGPUThreadEntry> WebGPUThreadStore;
 
 WebGPUThreadEntry::WebGPUThreadEntry()
-    : pool(static_cast<DLDeviceType>(kDLWebGPU), WebGPUDeviceAPI::Global()) {
-}
+    : pool(static_cast<DLDeviceType>(kDLWebGPU), WebGPUDeviceAPI::Global()) {}
 
-WebGPUThreadEntry* WebGPUThreadEntry::ThreadLocal() {
-  return WebGPUThreadStore::Get();
-}
-
+WebGPUThreadEntry* WebGPUThreadEntry::ThreadLocal() { return WebGPUThreadStore::Get(); }
 
 class WebGPUModuleNode final : public runtime::ModuleNode {
  public:
   explicit WebGPUModuleNode(std::unordered_map<std::string, VulkanShader> smap,
-                            std::unordered_map<std::string, FunctionInfo> fmap,
-                            std::string source)
+                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : smap_(smap), fmap_(fmap), source_(source) {
     auto* fp = tvm::runtime::Registry::Get("wasm.WebGPUCreateShader");
     CHECK(fp != nullptr);
@@ -184,8 +167,7 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
 
   const char* type_key() const final { return "webgpu"; }
 
-  PackedFunc GetFunction(const std::string& name,
-                         const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     auto it = smap_.find(name);
     if (it != smap_.end()) {
       FunctionInfo info = fmap_.at(name);
@@ -206,9 +188,7 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
     LOG(FATAL) << "Not implemented";
   }
 
-  void SaveToBinary(dmlc::Stream* stream) final {
-    LOG(FATAL) << "Not implemented";
-  }
+  void SaveToBinary(dmlc::Stream* stream) final { LOG(FATAL) << "Not implemented"; }
 
   std::string GetSource(const std::string& format) final {
     // can only return source code.
@@ -226,7 +206,6 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
   TypedPackedFunc<PackedFunc(std::string finfo, TVMByteArray shader_data)> create_shader_;
 };
 
-
 Module WebGPUModuleLoadBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
   std::unordered_map<std::string, VulkanShader> smap;
@@ -240,11 +219,9 @@ Module WebGPUModuleLoadBinary(void* strm) {
 }
 
 // for now webgpu is hosted via a vulkan module.
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_vulkan")
-.set_body_typed(WebGPUModuleLoadBinary);
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_vulkan").set_body_typed(WebGPUModuleLoadBinary);
 
-TVM_REGISTER_GLOBAL("device_api.webgpu")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.webgpu").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = WebGPUDeviceAPI::Global().get();
   *rv = static_cast<void*>(ptr);
 });

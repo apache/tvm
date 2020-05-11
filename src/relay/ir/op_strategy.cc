@@ -31,21 +31,18 @@ TVM_REGISTER_NODE_TYPE(OpImplementationNode);
 TVM_REGISTER_NODE_TYPE(OpSpecializationNode);
 TVM_REGISTER_NODE_TYPE(OpStrategyNode);
 
-Array<te::Tensor> OpImplementation::Compute(const Attrs& attrs,
-                                            const Array<te::Tensor>& inputs,
+Array<te::Tensor> OpImplementation::Compute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                             const Type& out_type) {
   return (*this)->fcompute(attrs, inputs, out_type);
 }
 
-te::Schedule OpImplementation::Schedule(const Attrs& attrs,
-                                        const Array<te::Tensor> &outs,
+te::Schedule OpImplementation::Schedule(const Attrs& attrs, const Array<te::Tensor>& outs,
                                         const Target& target) {
   return (*this)->fschedule(attrs, outs, target);
 }
 
 void OpSpecialization::AddImplementation(tvm::relay::FTVMCompute fcompute,
-                                         tvm::relay::FTVMSchedule fschedule,
-                                         std::string name,
+                                         tvm::relay::FTVMSchedule fschedule, std::string name,
                                          int plevel) {
   auto n = make_object<OpImplementationNode>();
   n->fcompute = fcompute;
@@ -55,9 +52,7 @@ void OpSpecialization::AddImplementation(tvm::relay::FTVMCompute fcompute,
   (*this)->implementations.push_back(OpImplementation(n));
 }
 
-void OpStrategy::AddImplementation(FTVMCompute fcompute,
-                                   FTVMSchedule fschedule,
-                                   std::string name,
+void OpStrategy::AddImplementation(FTVMCompute fcompute, FTVMSchedule fschedule, std::string name,
                                    int plevel) {
   auto curr_cond = te::SpecializedCondition::Current();
   auto self = this->operator->();
@@ -77,38 +72,37 @@ void OpStrategy::AddImplementation(FTVMCompute fcompute,
 }
 
 TVM_REGISTER_GLOBAL("relay.op._OpImplementationCompute")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    OpImplementation imp = args[0];
-    Attrs attrs = args[1];
-    Array<te::Tensor> inputs = args[2];
-    Type out_type = args[3];
-    *rv = imp.Compute(attrs, inputs, out_type);
-});
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      OpImplementation imp = args[0];
+      Attrs attrs = args[1];
+      Array<te::Tensor> inputs = args[2];
+      Type out_type = args[3];
+      *rv = imp.Compute(attrs, inputs, out_type);
+    });
 
 TVM_REGISTER_GLOBAL("relay.op._OpImplementationSchedule")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    OpImplementation imp = args[0];
-    Attrs attrs = args[1];
-    Array<te::Tensor> outs = args[2];
-    Target target = args[3];
-    *rv = imp.Schedule(attrs, outs, target);
-});
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      OpImplementation imp = args[0];
+      Attrs attrs = args[1];
+      Array<te::Tensor> outs = args[2];
+      Target target = args[3];
+      *rv = imp.Schedule(attrs, outs, target);
+    });
 
-TVM_REGISTER_GLOBAL("relay.op._make.OpStrategy")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    ObjectPtr<OpStrategyNode> n = make_object<OpStrategyNode>();
-    *rv = OpStrategy(n);
+TVM_REGISTER_GLOBAL("relay.op._make.OpStrategy").set_body([](TVMArgs args, TVMRetValue* rv) {
+  ObjectPtr<OpStrategyNode> n = make_object<OpStrategyNode>();
+  *rv = OpStrategy(n);
 });
 
 TVM_REGISTER_GLOBAL("relay.op._OpStrategyAddImplementation")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    OpStrategy strategy = args[0];
-    FTVMCompute compute = args[1];
-    FTVMSchedule schedule = args[2];
-    std::string name = args[3];
-    int plevel = args[4];
-    strategy.AddImplementation(compute, schedule, name, plevel);
-});
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      OpStrategy strategy = args[0];
+      FTVMCompute compute = args[1];
+      FTVMSchedule schedule = args[2];
+      std::string name = args[3];
+      int plevel = args[4];
+      strategy.AddImplementation(compute, schedule, name, plevel);
+    });
 
 }  // namespace relay
 }  // namespace tvm

@@ -21,20 +21,21 @@
  * \file lower_device_storage_access.cc
  * \brief Lower the special device storage access.
  */
+#include <tvm/arith/analyzer.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/target/target_info.h>
+#include <tvm/tir/buffer.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/tir/buffer.h>
-#include <tvm/arith/analyzer.h>
-#include <tvm/target/target_info.h>
-#include <tvm/runtime/registry.h>
-#include "ir_util.h"
+
 #include "../../runtime/thread_storage_scope.h"
+#include "ir_util.h"
 
 namespace tvm {
 namespace tir {
 
-using runtime::StorageScope;
 using runtime::StorageRank;
+using runtime::StorageScope;
 
 class StorageAccessInfoLower : public StmtExprMutator {
  public:
@@ -51,8 +52,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
           << "Double allocation of " << it->second.scope.to_string();
 
       if (info->head_address.defined()) {
-        return LetStmtNode::make(
-          op->buffer_var, info->head_address, op->body);
+        return LetStmtNode::make(op->buffer_var, info->head_address, op->body);
       } else {
         return op->body;
       }
@@ -99,30 +99,23 @@ class StorageAccessInfoLower : public StmtExprMutator {
     PrimExpr offset = op->args[2];
     auto it = storage_info_.find(buffer);
     if (it != storage_info_.end() && it->second.info.defined()) {
-      return MakeTaggedAccessPtr(
-          op->dtype, buffer_var, dtype, offset,
-          it->second.info);
+      return MakeTaggedAccessPtr(op->dtype, buffer_var, dtype, offset, it->second.info);
     }
     CHECK(op->dtype.is_handle());
     // Change to address_of
     return AddressOffset(buffer_var, dtype, offset);
   }
 
-  PrimExpr MakeTaggedAccessPtr(DataType ptr_type,
-                               Var buffer_var,
-                               DataType dtype,
-                               PrimExpr offset,
+  PrimExpr MakeTaggedAccessPtr(DataType ptr_type, Var buffer_var, DataType dtype, PrimExpr offset,
                                const MemoryInfo& info) {
     if (ptr_type.is_handle()) {
-      CHECK(info->head_address.defined())
-          << buffer_var << " is not adddressable.";
+      CHECK(info->head_address.defined()) << buffer_var << " is not adddressable.";
       return AddressOffset(buffer_var, dtype, offset);
     }
     int dtype_bits = dtype.bits() * dtype.lanes();
     CHECK_EQ(info->unit_bits % dtype_bits, 0);
-    return cast(ptr_type,
-                analyzer_.Simplify(offset / make_const(
-                  offset.dtype(), info->unit_bits / dtype_bits)));
+    return cast(ptr_type, analyzer_.Simplify(
+                              offset / make_const(offset.dtype(), info->unit_bits / dtype_bits)));
   }
   // The storage entry.
   struct StorageEntry {
@@ -139,9 +132,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
   arith::Analyzer analyzer_;
 };
 
-Stmt LowerStorageAccessInfo(Stmt stmt) {
-  return StorageAccessInfoLower()(std::move(stmt));
-}
+Stmt LowerStorageAccessInfo(Stmt stmt) { return StorageAccessInfoLower()(std::move(stmt)); }
 
 namespace transform {
 
@@ -151,12 +142,11 @@ Pass LowerDeviceStorageAccessInfo() {
     n->body = StorageAccessInfoLower()(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(
-      pass_func, 0, "tir.LowerDeviceStorageAccessInfo", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.LowerDeviceStorageAccessInfo", {});
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.LowerDeviceStorageAccessInfo")
-.set_body_typed(LowerDeviceStorageAccessInfo);
+    .set_body_typed(LowerDeviceStorageAccessInfo);
 
 }  // namespace transform
 }  // namespace tir
