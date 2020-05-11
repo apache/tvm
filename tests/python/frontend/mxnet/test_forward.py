@@ -363,6 +363,26 @@ def test_forward_elemwise_ops():
                 op_res = intrp.evaluate()(a_np, b_np)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
 
+
+def test_forward_unary_ops():
+    for op in ["cos", "sin", "tan",
+               "cosh", "sinh", "tanh",
+               "arccos", "arcsin", "arctan",
+               "arccosh", "arcsinh", "arctanh"]:
+        shape = (1, 3, 4, 5)
+        dtype = 'float32'
+        a_np = np.random.uniform(size=shape).astype(dtype)
+        mx_sym = _mx_symbol(mx.sym, op, [mx.sym.var('a')])
+        ref_res = _mx_symbol(mx.nd, op, [mx.nd.array(a_np)])
+        shapes = {'a': shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(a_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5)
+
+
 def test_forward_scalar_ops():
     for op in [operator.add, operator.sub, operator.mul, operator.truediv,
                operator.pow, operator.lt, operator.le, operator.eq,
@@ -1113,6 +1133,7 @@ if __name__ == '__main__':
     test_forward_broadcast_to()
     test_forward_logical_not()
     test_forward_elemwise_ops()
+    test_forward_unary_ops()
     test_forward_scalar_ops()
     test_forward_slice_like()
     test_forward_slice_axis()
