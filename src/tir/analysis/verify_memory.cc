@@ -21,13 +21,12 @@
  * \file verify_memory.cc
  * \brief Pass to check if memory accesses are legal.
  */
-#include <tvm/tir/expr.h>
 #include <tvm/ir/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/stmt_functor.h>
-#include <tvm/target/target.h>
 #include <tvm/runtime/registry.h>
-
+#include <tvm/target/target.h>
+#include <tvm/tir/analysis.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
 namespace tir {
@@ -47,13 +46,12 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
  public:
   /// Special member functions
   //@{
-  explicit MemoryAccessVerifier(PrimFunc f, int device_type)
-      : func_(f), dev_type_(device_type) {}
+  explicit MemoryAccessVerifier(PrimFunc f, int device_type) : func_(f), dev_type_(device_type) {}
   virtual ~MemoryAccessVerifier() = default;
-  MemoryAccessVerifier(const MemoryAccessVerifier &) = delete;
-  MemoryAccessVerifier(MemoryAccessVerifier &&) = delete;
-  MemoryAccessVerifier &operator=(const MemoryAccessVerifier &) = delete;
-  MemoryAccessVerifier &operator=(MemoryAccessVerifier &&) = delete;
+  MemoryAccessVerifier(const MemoryAccessVerifier&) = delete;
+  MemoryAccessVerifier(MemoryAccessVerifier&&) = delete;
+  MemoryAccessVerifier& operator=(const MemoryAccessVerifier&) = delete;
+  MemoryAccessVerifier& operator=(MemoryAccessVerifier&&) = delete;
   //@}
 
   /// Interface to perform memory access verification
@@ -68,12 +66,12 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
  protected:
   /// Visitor implementation
   //@{
-  void VisitExpr(const PrimExpr &n) final {
+  void VisitExpr(const PrimExpr& n) final {
     if (Failed()) return;
     StmtExprVisitor::VisitExpr(n);
   }
 
-  void VisitStmt(const Stmt &n) final {
+  void VisitStmt(const Stmt& n) final {
     if (Failed()) return;
     StmtExprVisitor::VisitStmt(n);
   }
@@ -85,8 +83,8 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (!InThreadEnv() && (op->attr_key == attr::thread_extent ||
-                           op->attr_key == attr::pipeline_exec_scope)) {
+    if (!InThreadEnv() &&
+        (op->attr_key == attr::thread_extent || op->attr_key == attr::pipeline_exec_scope)) {
       EnterThreadEnv();
       StmtExprVisitor::VisitStmt_(op);
       ExitThreadEnv();
@@ -107,8 +105,8 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   //@}
 
   /// Check if the value of a Variable comes from function argument.
-  bool IsFromFunctionArgs(const VarNode *var) const {
-    const VarNode *V = var;
+  bool IsFromFunctionArgs(const VarNode* var) const {
+    const VarNode* V = var;
     for (auto kv : func_->buffer_map) {
       if (V == kv.second->data.get()) return true;
     }
@@ -119,9 +117,9 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 
       // The value is expected to come from a tvm_struct_get Call.
       // Get the first argument of tvm_struct_get, and continue.
-      const auto &iter = defs_.find(V);
+      const auto& iter = defs_.find(V);
       if (iter == defs_.end()) return false;
-      const CallNode *C = iter->second.as<const CallNode>();
+      const CallNode* C = iter->second.as<const CallNode>();
       if (!C || C->name != intrinsic::tvm_struct_get) return false;
       V = C->args[0].as<VarNode>();
     }
@@ -129,7 +127,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   }
 
   /// Handle memory access to a Variable
-  void HandleLoadStoreToVariable(const Var &var) {
+  void HandleLoadStoreToVariable(const Var& var) {
     // We skip the access within thread env.
     if (InThreadEnv()) return;
 
@@ -153,14 +151,11 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 
   /// Check if a given DLDeviceType/TVMDeviceExtType value denotes GPU device.
   static bool IsGPUDevice(int dev_type) {
-    return kDLGPU == dev_type || kDLOpenCL == dev_type ||
-           kDLVulkan == dev_type || kDLMetal == dev_type ||
-           kDLROCM == dev_type || kOpenGL == dev_type;
+    return kDLGPU == dev_type || kDLOpenCL == dev_type || kDLVulkan == dev_type ||
+           kDLMetal == dev_type || kDLROCM == dev_type || kOpenGL == dev_type;
   }
   /// Check if a given DLDeviceType/TVMDeviceExtType value denotes FPGA device.
-  static bool IsFPGADevice(int dev_type) {
-    return kDLSDAccel == dev_type || kDLAOCL == dev_type;
-  }
+  static bool IsFPGADevice(int dev_type) { return kDLSDAccel == dev_type || kDLAOCL == dev_type; }
 
  private:
   /// Status of visitor
@@ -168,21 +163,19 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   bool in_thread_env_{false};
   bool failure_{false};  ///< If the verification fails (i.e. has illegal access)
   //@}
-  tir::PrimFunc func_{nullptr};  ///< Function to be verified.
-  int dev_type_{kDLCPU};       ///< Device type
-  std::unordered_map<const VarNode *, PrimExpr> defs_;  ///< Variable definitions
+  tir::PrimFunc func_{nullptr};                        ///< Function to be verified.
+  int dev_type_{kDLCPU};                               ///< Device type
+  std::unordered_map<const VarNode*, PrimExpr> defs_;  ///< Variable definitions
 };
 }  // namespace
 
 /// Interface of VerifyMemory pass
 bool VerifyMemory(const PrimFunc& func) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
-  CHECK(target.defined())
-      << "LowerWarpMemory: Require the target attribute";
+  CHECK(target.defined()) << "LowerWarpMemory: Require the target attribute";
 
-  if (func->GetAttr<Integer>(
-          tvm::attr::kCallingConv,
-          Integer(CallingConv::kDefault)) == CallingConv::kDefault) {
+  if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
+      CallingConv::kDefault) {
     MemoryAccessVerifier v(func, target.value()->device_type);
     v.Run();
     return !v.Failed();
@@ -191,29 +184,28 @@ bool VerifyMemory(const PrimFunc& func) {
   }
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.verify_memory")
-.set_body_typed(VerifyMemory);
+TVM_REGISTER_GLOBAL("tir.analysis.verify_memory").set_body_typed(VerifyMemory);
 
 namespace transform {
 
 Pass VerifyMemory() {
-  auto pass_func = [=](IRModule mod, PassContext ctx) {
-    for (auto kv : mod->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        auto func = GetRef<PrimFunc>(n);
-        CHECK(VerifyMemory(func))
-            << "RuntimeError: Direct host side access to device memory is detected."
-            << " Did you forget to bind?\n"
-            << func;
-      }
-    }
-    return mod;
-  };
+  auto pass_func =
+      [=](IRModule mod, PassContext ctx) {
+        for (auto kv : mod->functions) {
+          if (auto* n = kv.second.as<PrimFuncNode>()) {
+            auto func = GetRef<PrimFunc>(n);
+            CHECK(VerifyMemory(func))
+                << "RuntimeError: Direct host side access to device memory is detected."
+                << " Did you forget to bind?\n"
+                << func;
+          }
+        }
+        return mod;
+      };
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifyMemory", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.VerifyMemory")
-.set_body_typed(VerifyMemory);
+TVM_REGISTER_GLOBAL("tir.transform.VerifyMemory").set_body_typed(VerifyMemory);
 
 }  // namespace transform
 }  // namespace tir

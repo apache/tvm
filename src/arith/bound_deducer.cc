@@ -21,13 +21,14 @@
  * \file bound_deducer.cc
  * \brief Utility to deduce bound of expression
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
-#include <tvm/arith/analyzer.h>
 
-#include <unordered_set>
 #include <unordered_map>
+#include <unordered_set>
+
 #include "interval_set.h"
 
 namespace tvm {
@@ -37,7 +38,7 @@ using namespace tir;
 
 // a visitor to find the path to the target variable
 // from a expression.
-class VariablePathFinder: public ExprVisitor {
+class VariablePathFinder : public ExprVisitor {
  public:
   explicit VariablePathFinder(PrimExpr target) : target_(target) {}
 
@@ -67,17 +68,17 @@ std::vector<const Object*> GetPath(PrimExpr target, PrimExpr expr) {
   return v.path_;
 }
 
-enum CompareOp {kGreater, kLess, kEqual};
+enum CompareOp { kGreater, kLess, kEqual };
 
 // a visitor to deduce the bound of a variable from a expression
-class BoundDeducer: public ExprVisitor {
+class BoundDeducer : public ExprVisitor {
  public:
   friend class BoundDeduceInputChecker;
   friend class Converter;
   BoundDeducer(PrimExpr target, PrimExpr expr,
                const std::unordered_map<const VarNode*, IntSet>& hint_map,
                const std::unordered_map<const VarNode*, IntSet>& relax_map)
-  : target_(target), expr_(expr), hint_map_(hint_map), relax_map_(relax_map) {}
+      : target_(target), expr_(expr), hint_map_(hint_map), relax_map_(relax_map) {}
 
   void Deduce();
 
@@ -119,7 +120,7 @@ class BoundDeducer: public ExprVisitor {
       result_ += op->b;
     } else {
       result_ -= op->a;
-      result_ = - result_;
+      result_ = -result_;
       comp_op = ReverseOp(comp_op);
     }
     this->VisitExpr(left ? op->a : op->b);
@@ -148,7 +149,7 @@ class BoundDeducer: public ExprVisitor {
     // always use relax bound
     bool divided = analyzer_.CanProve(floormod(result_, operand) == 0);
 
-    result_ = floordiv(result_, operand);   // rounding down here
+    result_ = floordiv(result_, operand);  // rounding down here
 
     if (!divided) {
       if (comp_op == kGreater) {
@@ -193,7 +194,7 @@ class BoundDeducer: public ExprVisitor {
   Analyzer analyzer_;
 };
 
-class BoundDeduceInputChecker: public ExprVisitor {
+class BoundDeduceInputChecker : public ExprVisitor {
  public:
   bool Check(BoundDeducer* deducer) {
     deducer_ = deducer;
@@ -219,9 +220,12 @@ void BoundDeducer::Init() {
 
 CompareOp BoundDeducer::ReverseOp(CompareOp comp_op) {
   switch (comp_op) {
-    case kEqual: return kEqual;   // IntSet can not represent range for `NE
-    case kGreater: return kLess;
-    case kLess: return kGreater;
+    case kEqual:
+      return kEqual;  // IntSet can not represent range for `NE
+    case kGreater:
+      return kLess;
+    case kLess:
+      return kGreater;
     default:
       LOG(FATAL) << "Not a valid compare op";
       return kGreater;  // return some default value
@@ -318,18 +322,18 @@ void BoundDeducer::Relax() {
   // Both LHS and RHS of the EQ should behave as constants e.g.  i == j,
   // can not be resolved when either `i` or `j`  or both are variables with
   // some Range OR `i` and `j` both should be a single point in IntSet
-  if (comp_op == kEqual && (!analyzer_.CanProve(b.min() == b.max())
-     || !analyzer_.CanProve(a.min() == a.max()))) {
+  if (comp_op == kEqual &&
+      (!analyzer_.CanProve(b.min() == b.max()) || !analyzer_.CanProve(a.min() == a.max()))) {
     success_ = false;
     return;
   }
-  expr_  = (comp_op == kGreater) ? a.min() : a.max();
+  expr_ = (comp_op == kGreater) ? a.min() : a.max();
   result_ = (comp_op == kGreater) ? b.max() : b.min();
 }
 
 IntSet DeduceBound(PrimExpr v, PrimExpr e,
-  const std::unordered_map<const VarNode*, IntSet>& hint_map,
-  const std::unordered_map<const VarNode*, IntSet>& relax_map) {
+                   const std::unordered_map<const VarNode*, IntSet>& hint_map,
+                   const std::unordered_map<const VarNode*, IntSet>& relax_map) {
   BoundDeducer d(v, e, hint_map, relax_map);
   d.Deduce();
   if (!d.success_) return IntSet::nothing();
@@ -347,8 +351,7 @@ IntSet DeduceBound(PrimExpr v, PrimExpr e,
 
 // assuming e >= 0, deduce the bound of variable from it.
 // return empty set to represent deduce failure.
-IntSet DeduceBound(PrimExpr v, PrimExpr e,
-                   const Map<Var, IntSet>& hint_map,
+IntSet DeduceBound(PrimExpr v, PrimExpr e, const Map<Var, IntSet>& hint_map,
                    const Map<Var, IntSet>& relax_map) {
   std::unordered_map<const VarNode*, IntSet> hmap;
   for (auto kv : hint_map) {
@@ -361,16 +364,11 @@ IntSet DeduceBound(PrimExpr v, PrimExpr e,
   return DeduceBound(v, e, hmap, rmap);
 }
 
-
 TVM_REGISTER_GLOBAL("arith.DeduceBound")
-.set_body_typed([](
-  PrimExpr v, PrimExpr cond,
-  const Map<Var, IntSet> hint_map,
-  const Map<Var, IntSet> relax_map
-) {
-  return DeduceBound(v, cond, hint_map, relax_map);
-});
-
+    .set_body_typed([](PrimExpr v, PrimExpr cond, const Map<Var, IntSet> hint_map,
+                       const Map<Var, IntSet> relax_map) {
+      return DeduceBound(v, cond, hint_map, relax_map);
+    });
 
 }  // namespace arith
 }  // namespace tvm

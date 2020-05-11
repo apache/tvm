@@ -24,11 +24,11 @@
 #ifndef TVM_TIR_BUFFER_H_
 #define TVM_TIR_BUFFER_H_
 
-#include <tvm/node/container.h>
 #include <tvm/ir/expr.h>
+#include <tvm/node/container.h>
 #include <tvm/tir/var.h>
-#include <string>
 
+#include <string>
 
 namespace tvm {
 namespace tir {
@@ -76,8 +76,7 @@ class Buffer : public ObjectRef {
    * \param content_lanes The number of lanes for the (data) type.
    * \param offset The offset of ptr.
    */
-  TVM_DLL PrimExpr access_ptr(int access_mask,
-                              DataType ptr_type = DataType::Handle(),
+  TVM_DLL PrimExpr access_ptr(int access_mask, DataType ptr_type = DataType::Handle(),
                               int content_lanes = 1,
                               PrimExpr offset = IntImm(DataType::Int(32), 0)) const;
   /*!
@@ -155,15 +154,10 @@ class BufferNode : public Object {
   bool SEqualReduce(const BufferNode* other, SEqualReducer equal) const {
     // Use DefEqual as buffer can define variables
     // in its semantics, skip name as name is not important.
-    return
-        equal.DefEqual(data, other->data) &&
-        equal(dtype, other->dtype) &&
-        equal.DefEqual(shape, other->shape) &&
-        equal.DefEqual(strides, other->strides) &&
-        equal.DefEqual(elem_offset, other->elem_offset) &&
-        equal(scope, other->scope) &&
-        equal(data_alignment, other->data_alignment) &&
-        equal(buffer_type, other->buffer_type);
+    return equal.DefEqual(data, other->data) && equal(dtype, other->dtype) &&
+           equal.DefEqual(shape, other->shape) && equal.DefEqual(strides, other->strides) &&
+           equal.DefEqual(elem_offset, other->elem_offset) && equal(scope, other->scope) &&
+           equal(data_alignment, other->data_alignment) && equal(buffer_type, other->buffer_type);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -184,15 +178,9 @@ class BufferNode : public Object {
 
   // User can specify data_alignment and offset_factor to be 0
   // A default value will be picked.
-  TVM_DLL static Buffer make(Var ptr,
-                             DataType dtype,
-                             Array<PrimExpr> shape,
-                             Array<PrimExpr> strides,
-                             PrimExpr elem_offset,
-                             std::string name,
-                             std::string scope,
-                             int data_alignment,
-                             int offset_factor,
+  TVM_DLL static Buffer make(Var ptr, DataType dtype, Array<PrimExpr> shape,
+                             Array<PrimExpr> strides, PrimExpr elem_offset, std::string name,
+                             std::string scope, int data_alignment, int offset_factor,
                              BufferType buffer_type);
 
   static constexpr const char* _type_key = "Buffer";
@@ -213,8 +201,7 @@ inline const BufferNode* Buffer::operator->() const {
  * \return The created buffer.
  * \sa BufferNode::make for complete constructor.
  */
-TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape,
-                           DataType dtype = DataType::Float(32),
+TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
                            std::string name = "buffer");
 }  // namespace tir
 }  // namespace tvm

@@ -21,23 +21,24 @@
  *  Lower intrinsic calls and ops to device specific ir when possible.
  * \file lower_intrin.cc
  */
-#include <tvm/tir/expr.h>
-#include <tvm/tir/transform.h>
 #include <tvm/runtime/registry.h>
-
-#include <tvm/tir/op.h>
 #include <tvm/target/target.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/transform.h>
+
 #include <unordered_set>
-#include "../../arith/pattern_match.h"
+
 #include "../../arith/ir_mutator_with_analyzer.h"
+#include "../../arith/pattern_match.h"
 
 namespace tvm {
 namespace tir {
 
 class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::VisitStmt_;
   using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::VisitStmt_;
 
   IntrinInjecter(arith::Analyzer* analyzer, std::string target_name)
       : IRMutatorWithAnalyzer(analyzer) {
@@ -50,8 +51,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->call_type == CallNode::Intrinsic ||
-        op->call_type == CallNode::PureIntrinsic) {
+    if (op->call_type == CallNode::Intrinsic || op->call_type == CallNode::PureIntrinsic) {
       PrimExpr r = ApplyPattern(op->name, GetRef<PrimExpr>(op));
       if (r.defined()) return r;
     }
@@ -78,16 +78,14 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     const DataType& dtype = op->dtype;
     CHECK(dtype.is_int() || dtype.is_uint());
 
-    if (support_bitwise_op_ &&
-        is_const_power_of_two_integer(op->b, &shift)) {
+    if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
       // lower to right shift if possible.
       return op->a >> make_const(dtype, shift);
     }
 
     if (analyzer_->CanProveGreaterEqual(op->b, 0)) {
       // Common path, positive divisor
-      if (analyzer_->CanProveGreaterEqual(op->a, 0) ||
-          analyzer_->CanProveGreaterEqual(e, 0)) {
+      if (analyzer_->CanProveGreaterEqual(op->a, 0) || analyzer_->CanProveGreaterEqual(e, 0)) {
         return truncdiv(op->a, op->b);
       } else {
         DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
@@ -100,7 +98,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
           // equivalent to rdiv + (rmod >= 0 ? 0: -1);
           return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
         } else {
-          return tir::SelectNode::make(rmod >= 0 , rdiv, rdiv - make_const(dtype, 1));
+          return tir::SelectNode::make(rmod >= 0, rdiv, rdiv - make_const(dtype, 1));
         }
       }
     } else {
@@ -110,9 +108,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
       PrimExpr rdiv = truncdiv(op->a, op->b);
       PrimExpr rmod = truncmod(op->a, op->b);
-      return tir::SelectNode::make(
-          (op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
-          rdiv, rdiv - make_const(dtype, 1));
+      return tir::SelectNode::make((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
+                                   rdiv - make_const(dtype, 1));
     }
   }
 
@@ -125,11 +122,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     const DataType& dtype = op->dtype;
     CHECK(dtype.is_int() || dtype.is_uint());
 
-    if (support_bitwise_op_ &&
-        is_const_power_of_two_integer(op->b, &shift)) {
+    if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
       // lower to masking if possible.
-      int64_t mask = (
-          static_cast<int64_t>(1) << static_cast<int64_t>(shift)) - 1;
+      int64_t mask = (static_cast<int64_t>(1) << static_cast<int64_t>(shift)) - 1;
       return op->a & make_const(dtype, mask);
     }
 
@@ -160,9 +155,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // b > 0 && rmod < 0  -> rmod + b
       // b < 0 && rmod < 0 -> rmod
       // b < 0 && rmod > 0 -> rmod + b
-      return tir::SelectNode::make(
-          (op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
-          rmod, rmod + op->b);
+      return tir::SelectNode::make((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod,
+                                   rmod + op->b);
     }
   }
 
@@ -171,8 +165,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     PVar<PrimExpr> x, y;
     PVar<IntImm> c;
     auto e = GetRef<PrimExpr>(op);
-    if (max(floordiv(x, y), c).Match(e) &&
-        c.Eval()->value >= 0 &&
+    if (max(floordiv(x, y), c).Match(e) && c.Eval()->value >= 0 &&
         analyzer_->CanProveGreaterEqual(y.Eval(), 0)) {
       return max(VisitExpr(truncdiv(x, y).Eval()), c.Eval());
     }
@@ -232,15 +225,14 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return e;
   }
 
-  PrimExpr MakeFMA(const PrimExpr& a, const PrimExpr& b, const PrimExpr& c,
-               const AddNode* op) {
+  PrimExpr MakeFMA(const PrimExpr& a, const PrimExpr& b, const PrimExpr& c, const AddNode* op) {
     // emit fma instruction: a * b + c
     PrimExpr lhs = SwapBroadcastCast(a);
     PrimExpr rhs = SwapBroadcastCast(b);
 
     if (fma_ != nullptr && op->dtype.is_float()) {
-      PrimExpr r = (*fma_)(CallNode::make(
-          op->dtype, "fma", {lhs, rhs, c}, CallNode::PureIntrinsic));
+      PrimExpr r =
+          (*fma_)(CallNode::make(op->dtype, "fma", {lhs, rhs, c}, CallNode::PureIntrinsic));
       if (r.defined()) return this->VisitExpr(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {
@@ -288,18 +280,15 @@ Pass LowerIntrin() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-    CHECK(target.defined())
-        << "LowerIntrin: Require the target attribute";
+    CHECK(target.defined()) << "LowerIntrin: Require the target attribute";
     arith::Analyzer analyzer;
-    n->body =
-        IntrinInjecter(&analyzer, target.value()->target_name)(std::move(n->body));
+    n->body = IntrinInjecter(&analyzer, target.value()->target_name)(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerIntrin", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerIntrin")
-.set_body_typed(LowerIntrin);
+TVM_REGISTER_GLOBAL("tir.transform.LowerIntrin").set_body_typed(LowerIntrin);
 
 }  // namespace transform
 

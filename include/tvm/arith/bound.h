@@ -23,9 +23,9 @@
 #ifndef TVM_ARITH_BOUND_H_
 #define TVM_ARITH_BOUND_H_
 
-#include <tvm/node/container.h>
-#include <tvm/ir/expr.h>
 #include <tvm/arith/int_set.h>
+#include <tvm/ir/expr.h>
+#include <tvm/node/container.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 
@@ -38,10 +38,10 @@ class Tensor;
 }
 namespace arith {
 
-using tir::Var;
-using tir::VarNode;
 using tir::Domain;
 using tir::Stmt;
+using tir::Var;
+using tir::VarNode;
 
 /*!
  * \brief Deduce the bound of the target variable in a expression,
@@ -58,8 +58,7 @@ using tir::Stmt;
  *        The deduce bound must implies e for all value in relax_map
  * \return An integer set that always satisfies the condition.
  */
-IntSet DeduceBound(PrimExpr v, PrimExpr cond,
-                   const Map<Var, IntSet>& hint_map,
+IntSet DeduceBound(PrimExpr v, PrimExpr cond, const Map<Var, IntSet>& hint_map,
                    const Map<Var, IntSet>& relax_map);
 /*!
  * \brief Same as DeduceBound with  unordered_map signature.
@@ -83,9 +82,7 @@ IntSet DeduceBound(PrimExpr v, PrimExpr cond,
  * \param consider_stores If stores are considered.
  * \return The domain that covers all the calls or provides within the given statement.
  */
-Domain DomainTouched(const Stmt& body,
-                     const tir::Buffer& buffer,
-                     bool consider_loads,
+Domain DomainTouched(const Stmt& body, const tir::Buffer& buffer, bool consider_loads,
                      bool consider_stores);
 
 }  // namespace arith

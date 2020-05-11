@@ -21,18 +21,15 @@
  * \file decorate_device_scope.cc
  */
 #include <tvm/runtime/registry.h>
-#include <tvm/tir/stmt.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/stmt.h>
 #include <tvm/tir/transform.h>
 
 namespace tvm {
 namespace tir {
 
 Stmt DecorateDeviceScope(Stmt&& stmt) {
-  Stmt body = AttrStmtNode::make(make_zero(DataType::Int(32)),
-                                 tir::attr::device_scope,
-                                 0,
-                                 stmt);
+  Stmt body = AttrStmtNode::make(make_zero(DataType::Int(32)), tir::attr::device_scope, 0, stmt);
   return body;
 }
 
@@ -47,8 +44,7 @@ Pass DecorateDeviceScope() {
   return CreatePrimFuncPass(pass_func, 0, "tir.DecorateDeviceScope", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.DecorateDeviceScope")
-.set_body_typed(DecorateDeviceScope);
+TVM_REGISTER_GLOBAL("tir.transform.DecorateDeviceScope").set_body_typed(DecorateDeviceScope);
 
 }  // namespace transform
 }  // namespace tir
