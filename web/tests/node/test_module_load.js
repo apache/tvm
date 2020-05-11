@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
+/* eslint-disable no-undef */
 // Load Emscripten Module, need to change path to root/lib
 const path = require("path");
 const fs = require("fs");
@@ -27,18 +27,21 @@ const wasmPath = tvmjs.wasmPath();
 const EmccWASI = require(path.join(wasmPath, "tvmjs_runtime.wasi.js"));
 const wasmSource = fs.readFileSync(path.join(wasmPath, "test_addone.wasm"));
 
-const tvm = new tvmjs.Instance(new WebAssembly.Module(wasmSource), new EmccWASI());
+const tvm = new tvmjs.Instance(
+  new WebAssembly.Module(wasmSource),
+  new EmccWASI()
+);
 
 // Load system library
 const sysLib = tvm.systemLib();
 
 function randomArray(length, max) {
-  return Array.apply(null, Array(length)).map(function() {
+  return Array.apply(null, Array(length)).map(function () {
     return Math.random() * max;
   });
 }
 
-function testAddOne() {
+test("add one", () => {
   // grab pre-loaded function
   const faddOne = sysLib.getFunction("add_one");
   assert(tvm.isPackedFunc(faddOne));
@@ -47,15 +50,11 @@ function testAddOne() {
   const B = tvm.empty(n);
   // call the function.
   faddOne(A, B);
-  const AA = A.toArray();  // retrieve values in js array
-  const BB = B.toArray();  // retrieve values in js array
+  const AA = A.toArray(); // retrieve values in js array
+  const BB = B.toArray(); // retrieve values in js array
   // verify
   for (var i = 0; i < BB.length; ++i) {
     assert(Math.abs(BB[i] - (AA[i] + 1)) < 1e-5);
   }
   faddOne.dispose();
-}
-
-testAddOne();
-sysLib.dispose();
-console.log("Finish verifying test_module_load");
+});

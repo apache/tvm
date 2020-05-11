@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/* eslint-disable no-undef */
 const path = require("path");
 const fs = require("fs");
 const assert = require("assert");
@@ -46,8 +47,11 @@ function testArrayCopy(dtype, arrayType) {
   a.dispose();
 }
 
-testArrayCopy("float32", Float32Array);
-testArrayCopy("int", Int32Array);
-testArrayCopy("int8", Int8Array);
-testArrayCopy("uint8", Uint8Array);
-testArrayCopy("float64", Float64Array);
+test("array copy", () => {
+  testArrayCopy("float32", Float32Array);
+  testArrayCopy("int", Int32Array);
+  testArrayCopy("int8", Int8Array);
+  testArrayCopy("uint8", Uint8Array);
+  testArrayCopy("float64", Float64Array);
+});
+

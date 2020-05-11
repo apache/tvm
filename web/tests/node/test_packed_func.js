@@ -16,18 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/* eslint-disable no-undef */
 const path = require("path");
 const fs = require("fs");
-const assert = require('assert');
-const tvmjs = require("../../dist")
+const assert = require("assert");
+const tvmjs = require("../../dist");
 
 const wasmPath = tvmjs.wasmPath();
 const EmccWASI = require(path.join(wasmPath, "tvmjs_runtime.wasi.js"));
 const wasmSource = fs.readFileSync(path.join(wasmPath, "tvmjs_runtime.wasm"));
 
-let tvm = new tvmjs.Instance(new WebAssembly.Module(wasmSource), new EmccWASI());
+let tvm = new tvmjs.Instance(
+  new WebAssembly.Module(wasmSource),
+  new EmccWASI()
+);
 
-function testGetGlobal() {
+test("GetGlobal", () => {
   let flist = tvm.listGlobalFuncNames();
   let faddOne = tvm.getGlobalFunc("testing.add_one");
   let fecho = tvm.getGlobalFunc("testing.echo");
@@ -63,9 +67,9 @@ function testGetGlobal() {
   arr2.dispose();
   fecho.dispose();
   faddOne.dispose();
-}
+});
 
-function testReturnFunc() {
+test("ReturnFunc", () => {
   function addy(y) {
     function add(x, z) {
       return x + y + z;
@@ -91,9 +95,9 @@ function testReturnFunc() {
   // test multiple dispose.
   f.dispose();
   f.dispose();
-}
+});
 
-function testRegisterGlobal() {
+test("RegisterGlobal", () => {
   tvm.registerFunc("xyz", function (x, y) {
     return x + y;
   });
@@ -104,27 +108,4 @@ function testRegisterGlobal() {
 
   let syslib = tvm.systemLib();
   syslib.dispose();
-}
-
-function testTimer() {
-  const fecho = tvm.getGlobalFunc("testing.echo");
-  const fgetTimer = tvm.getGlobalFunc("wasm.GetTimer");
-
-  let finvoke = (n) => {
-    let x = "xyz";
-    for (let i = 0; i < n; ++i) {
-      x = fecho(x);
-    }
-  };
-  const number = 10000;
-  const invokeTimer = fgetTimer(finvoke);
-  console.log("Time cost:", number / invokeTimer(number) * 1000, " ops/sec");
-  fecho.dispose();
-  invokeTimer.dispose();
-  fgetTimer.dispose();
-}
-
-testGetGlobal();
-testRegisterGlobal();
-testReturnFunc();
-testTimer();
+});
