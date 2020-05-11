@@ -24,7 +24,7 @@ export PYTHONPATH=`pwd`/python
 cd web
 npm install
 npm run lint
-npm run prepare
+npm run prepwasm
 npm run bundle
 npm run test
 npm run typedoc
