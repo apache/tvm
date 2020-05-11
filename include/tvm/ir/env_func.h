@@ -92,7 +92,7 @@ class EnvFunc : public ObjectRef {
    * \return The created global function.
    * \note The function can be unique
    */
-  TVM_DLL static EnvFunc Get(const std::string& name);
+  TVM_DLL static EnvFunc Get(const String& name);
   /*! \brief specify container node */
   using ContainerType = EnvFuncNode;
 };

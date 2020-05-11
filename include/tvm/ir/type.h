@@ -267,7 +267,7 @@ class GlobalTypeVarNode : public TypeNode {
    *  this only acts as a hint to the user,
    *  and is not used for equality.
    */
-  std::string name_hint;
+  String name_hint;
   /*! \brief The kind of type parameter */
   TypeKind kind;
 
@@ -301,7 +301,7 @@ class GlobalTypeVar : public Type {
    * \param name_hint The name of the type var.
    * \param kind The kind of the type var.
    */
-  TVM_DLL GlobalTypeVar(std::string name_hint, TypeKind kind);
+  TVM_DLL GlobalTypeVar(String name_hint, TypeKind kind);
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalTypeVar, Type, GlobalTypeVarNode);
 };

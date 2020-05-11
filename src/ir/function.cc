@@ -38,7 +38,7 @@ TVM_REGISTER_GLOBAL("ir.BaseFunc_Attrs").set_body_typed([](BaseFunc func) { retu
 TVM_REGISTER_GLOBAL("ir.BaseFuncCopy").set_body_typed([](BaseFunc func) { return func; });
 
 TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttr")
-    .set_body_typed([](BaseFunc func, std::string key, ObjectRef value) -> BaseFunc {
+    .set_body_typed([](BaseFunc func, String key, ObjectRef value) -> BaseFunc {
       if (func->IsInstance<tir::PrimFuncNode>()) {
         return WithAttr(Downcast<tir::PrimFunc>(std::move(func)), key, value);
       } else if (func->IsInstance<relay::FunctionNode>()) {

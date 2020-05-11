@@ -45,7 +45,7 @@ ObjectPtr<Object> CreateEnvNode(const std::string& name) {
   return n;
 }
 
-EnvFunc EnvFunc::Get(const std::string& name) { return EnvFunc(CreateEnvNode(name)); }
+EnvFunc EnvFunc::Get(const String& name) { return EnvFunc(CreateEnvNode(name)); }
 
 TVM_REGISTER_GLOBAL("ir.EnvFuncGet").set_body_typed(EnvFunc::Get);
 

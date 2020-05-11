@@ -26,7 +26,7 @@
 
 namespace tvm {
 
-Constructor::Constructor(std::string name_hint, tvm::Array<Type> inputs, GlobalTypeVar belong_to) {
+Constructor::Constructor(String name_hint, tvm::Array<Type> inputs, GlobalTypeVar belong_to) {
   ObjectPtr<ConstructorNode> n = make_object<ConstructorNode>();
   n->name_hint = std::move(name_hint);
   n->inputs = std::move(inputs);
@@ -37,7 +37,7 @@ Constructor::Constructor(std::string name_hint, tvm::Array<Type> inputs, GlobalT
 TVM_REGISTER_NODE_TYPE(ConstructorNode);
 
 TVM_REGISTER_GLOBAL("ir.Constructor")
-    .set_body_typed([](std::string name_hint, tvm::Array<Type> inputs, GlobalTypeVar belong_to) {
+    .set_body_typed([](String name_hint, tvm::Array<Type> inputs, GlobalTypeVar belong_to) {
       return Constructor(name_hint, inputs, belong_to);
     });
 
