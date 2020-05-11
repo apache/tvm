@@ -152,6 +152,66 @@ def sinh(data):
     """
     return _make.sinh(data)
 
+def acos(data):
+    """Compute elementwise acos of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.acos(data)
+
+def acosh(data):
+    """Compute elementwise acosh of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.acosh(data)
+
+def asin(data):
+    """Compute elementwise asin of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.asin(data)
+
+def asinh(data):
+    """Compute elementwise asinh of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.asinh(data)
+
 def atan(data):
     """Compute elementwise atan of data.
 
@@ -166,6 +226,21 @@ def atan(data):
         The computed result.
     """
     return _make.atan(data)
+
+def atanh(data):
+    """Compute elementwise atanh of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.atanh(data)
 
 def exp(data):
     """Compute elementwise exp of data.

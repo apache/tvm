@@ -24,8 +24,9 @@
  * \brief Annotating the graph with simulated quantize operators.
  */
 
-#include <tvm/relay/transform.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/transform.h>
+
 #include "./quantize.h"
 
 namespace tvm {
@@ -63,10 +64,7 @@ class QAnnotateExpr : public TempExpr {
   TVM_DEFINE_OBJECT_REF_METHODS(QAnnotateExpr, TempExpr, QAnnotateExprNode);
 };
 
-
-Expr QAnnotateExprNode::Realize() const {
-  return expr;
-}
+Expr QAnnotateExprNode::Realize() const { return expr; }
 
 QAnnotateExpr::QAnnotateExpr(Expr expr, QAnnotateKind kind) {
   auto rnode = make_object<QAnnotateExprNode>();
@@ -75,11 +73,9 @@ QAnnotateExpr::QAnnotateExpr(Expr expr, QAnnotateKind kind) {
   data_ = std::move(rnode);
 }
 
-TVM_REGISTER_GLOBAL("relay._quantize.make_annotate_expr")
-.set_body_typed([](Expr expr, int kind) {
+TVM_REGISTER_GLOBAL("relay._quantize.make_annotate_expr").set_body_typed([](Expr expr, int kind) {
   return QAnnotateExpr(expr, static_cast<QAnnotateKind>(kind));
 });
-
 
 Pass QuantizeAnnotate() {
   // TODO(tvm-teams): since partition has added cast_hint in different
@@ -88,8 +84,7 @@ Pass QuantizeAnnotate() {
     if (e->IsInstance<TempExprNode>()) {
       const auto* n = e.as<QAnnotateExprNode>();
       CHECK(n);
-      const PackedFunc* f =
-          runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
+      const PackedFunc* f = runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
       Expr ret = (*f)(n->expr, static_cast<int>(kQInput));
       return static_cast<Expr>(QAnnotateExpr(ret, kQInput));
     }
@@ -97,23 +92,18 @@ Pass QuantizeAnnotate() {
   };
 
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-      auto func = Downcast<Function>(ForwardRewrite(f, "FQAnnotateRewrite", nullptr, fmulti_ref));
-      auto new_params = func->params;
-      for (const auto& x : FreeVars(func)) {
-        new_params.push_back(x);
-      }
-      return Function(new_params,
-                                func->body,
-                                func->ret_type,
-                                func->type_params,
-                                func->attrs);
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        auto func = Downcast<Function>(ForwardRewrite(f, "FQAnnotateRewrite", nullptr, fmulti_ref));
+        auto new_params = func->params;
+        for (const auto& x : FreeVars(func)) {
+          new_params.push_back(x);
+        }
+        return Function(new_params, func->body, func->ret_type, func->type_params, func->attrs);
+      };
   return CreateFunctionPass(pass_func, 1, "QuantizeAnnotate", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._quantize.QuantizeAnnotate")
-.set_body_typed(QuantizeAnnotate);
+TVM_REGISTER_GLOBAL("relay._quantize.QuantizeAnnotate").set_body_typed(QuantizeAnnotate);
 
 TVM_REGISTER_NODE_TYPE(QAnnotateExprNode);
 

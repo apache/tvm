@@ -24,8 +24,8 @@
 #ifndef TVM_RUNTIME_CRT_MODULE_H_
 #define TVM_RUNTIME_CRT_MODULE_H_
 
-#include <tvm/runtime/c_runtime_api.h>
 #include <string.h>
+#include <tvm/runtime/c_runtime_api.h>
 
 struct TVMPackedFunc;
 
@@ -41,7 +41,7 @@ typedef struct TVMModule {
    *
    *  This function will return PackedFunc(nullptr) if function do not exist.
    */
-  void (*GetFunction)(struct TVMModule * mod, const char * name, struct TVMPackedFunc * pf);
+  void (*GetFunction)(struct TVMModule* mod, const char* name, struct TVMPackedFunc* pf);
 } TVMModule;
 
 #endif  // TVM_RUNTIME_CRT_MODULE_H_

@@ -27,19 +27,19 @@
 #ifndef TVM_RELAY_ANALYSIS_ANNOTATED_REGION_SET_H_
 #define TVM_RELAY_ANALYSIS_ANNOTATED_REGION_SET_H_
 
+#include <tvm/ir/error.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
-#include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/runtime/container.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/container.h>
 
+#include <list>
 #include <string>
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include <list>
 
 namespace tvm {
 namespace relay {
@@ -61,29 +61,19 @@ class AnnotatedRegionNode : public Object {
   }
 
   /*! \brief Get the region ID. */
-  int GetID() const {
-    return id_;
-  }
+  int GetID() const { return id_; }
 
   /*! \brief Get the region target. */
-  std::string GetTarget() const {
-    return target_;
-  }
+  std::string GetTarget() const { return target_; }
 
   /*! \brief Get the region's inputs. */
-  std::list<Expr> GetInputs() const {
-    return ins_;
-  }
+  std::list<Expr> GetInputs() const { return ins_; }
 
   /*! \brief Get the region's outputs. */
-  std::list<Expr> GetOutputs() const {
-    return outs_;
-  }
+  std::list<Expr> GetOutputs() const { return outs_; }
 
   /*! \brief Get the region's nodes. */
-  std::unordered_set<Expr, ObjectHash, ObjectEqual> GetNodes() const {
-    return nodes_;
-  }
+  std::unordered_set<Expr, ObjectHash, ObjectEqual> GetNodes() const { return nodes_; }
 
   static constexpr const char* _type_key = "relay.AnnotatedRegion";
   TVM_DECLARE_FINAL_OBJECT_INFO(AnnotatedRegionNode, Object);
@@ -107,7 +97,7 @@ class AnnotatedRegionNode : public Object {
 /*!
  * \brief An object to hold the properties of a region as used by the
  * AnnotatedRegionSet class. This should be considered read-only.
-*/
+ */
 class AnnotatedRegion : public ObjectRef {
  public:
   AnnotatedRegion() {
@@ -116,9 +106,9 @@ class AnnotatedRegion : public ObjectRef {
   }
 
   /*!
- * \brief Construct from an object pointer.
- * \param n The object pointer.
- */
+   * \brief Construct from an object pointer.
+   * \param n The object pointer.
+   */
   explicit AnnotatedRegion(ObjectPtr<Object> n) : ObjectRef(n) {}
 
   /*! \return Mutable pointers to the node. */
@@ -130,8 +120,7 @@ class AnnotatedRegion : public ObjectRef {
 };
 
 class AnnotatedRegionSetNode : public Object {
-  using UnorderedRegionSet =
-  std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual>;
+  using UnorderedRegionSet = std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual>;
   // Create iterator alias for a RegionSet object.
   using iterator = UnorderedRegionSet::iterator;
   using const_iterator = UnorderedRegionSet::const_iterator;
@@ -141,21 +130,13 @@ class AnnotatedRegionSetNode : public Object {
   AnnotatedRegionSetNode() = default;
 
   /*! \return The begin iterator */
-  iterator begin() {
-    return regions_.begin();
-  }
+  iterator begin() { return regions_.begin(); }
   /*! \return The end iterator */
-  iterator end() {
-    return regions_.end();
-  }
+  iterator end() { return regions_.end(); }
   /*! \return The const begin iterator */
-  const_iterator begin() const {
-    return regions_.begin();
-  }
+  const_iterator begin() const { return regions_.begin(); }
   /*! \return The const end iterator */
-  const_iterator end() const {
-    return regions_.end();
-  }
+  const_iterator end() const { return regions_.end(); }
 
   /*!
    * \brief Get the region that an expression belongs to.
@@ -168,11 +149,11 @@ class AnnotatedRegionSetNode : public Object {
   AnnotatedRegion GetRegion(const Expr& expr) const;
 
   /*!
- * \brief Merge src region into dest region.
- *
- * \param src The region to merge - will be erased.
- * \param dest The region into which src will be merged.
- */
+   * \brief Merge src region into dest region.
+   *
+   * \param src The region to merge - will be erased.
+   * \param dest The region into which src will be merged.
+   */
   void MergeRegions(AnnotatedRegion src, AnnotatedRegion dest);
 
   void VisitAttrs(AttrVisitor* v) {
@@ -214,8 +195,7 @@ class AnnotatedRegionSetNode : public Object {
  * to update and query regions.
  */
 class AnnotatedRegionSet : public ObjectRef {
-  using UnorderedRegionSet =
-    std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual>;
+  using UnorderedRegionSet = std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual>;
   // Create iterator alias for a RegionSet object.
   using iterator = UnorderedRegionSet::iterator;
   using const_iterator = UnorderedRegionSet::const_iterator;
@@ -227,10 +207,10 @@ class AnnotatedRegionSet : public ObjectRef {
   }
 
   /*!
- * \brief Construct from an object pointer.
- *
- * \param n The object pointer.
- */
+   * \brief Construct from an object pointer.
+   *
+   * \param n The object pointer.
+   */
   explicit AnnotatedRegionSet(ObjectPtr<Object> n) : ObjectRef(n) {}
 
   /*! \return The begin iterator. */
@@ -253,7 +233,7 @@ class AnnotatedRegionSet : public ObjectRef {
   }
   /*! \return The end iterator. */
   const_iterator end() const {
-    const auto *n = operator->();
+    const auto* n = operator->();
     CHECK(n);
     return n->end();
   }
@@ -267,7 +247,7 @@ class AnnotatedRegionSet : public ObjectRef {
 
   /*! \return The region an expression belongs to. */
   AnnotatedRegion operator[](const Expr& expr) {
-    const auto *n = operator->();
+    const auto* n = operator->();
     CHECK(n);
     return n->GetRegion(expr);
   }
@@ -280,9 +260,7 @@ class AnnotatedRegionSet : public ObjectRef {
    *
    * \return The created RegionSet for the expression.
    */
-  static AnnotatedRegionSet Create(const Expr& expr,
-                                   const Op& begin,
-                                   const Op& end);
+  static AnnotatedRegionSet Create(const Expr& expr, const Op& begin, const Op& end);
 
  private:
   /*! \brief Helper class to construct a RegionSet from an expr.*/

@@ -30,8 +30,9 @@
 
 #include <dmlc/endian.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include "../rpc_protocol.h"
+
 #include "../../../support/arena.h"
+#include "../rpc_protocol.h"
 
 /*! \brief Whether or not to enable glog style DLOG */
 #ifndef TVM_MINRPC_ENABLE_LOGGING
@@ -39,14 +40,13 @@
 #endif
 
 #ifndef MINRPC_CHECK
-#define MINRPC_CHECK(cond)                                      \
+#define MINRPC_CHECK(cond) \
   if (!(cond)) this->ThrowError(RPCServerStatus::kCheckError);
 #endif
 
 #if TVM_MINRPC_ENABLE_LOGGING
 #include <dmlc/logging.h>
 #endif
-
 
 namespace tvm {
 namespace runtime {
@@ -61,15 +61,14 @@ namespace runtime {
  *         - PosixWrite, PosixRead, Close: posix style, read, write, close API.
  *         - Exit: exit with status code.
  */
-template<typename TIOHandler>
+template <typename TIOHandler>
 class MinRPCServer {
  public:
   /*!
    * \brief Constructor.
    * \param io The IO handler.
    */
-  explicit MinRPCServer(TIOHandler io)
-      : io_(io), arena_(PageAllocator(io)) {}
+  explicit MinRPCServer(TIOHandler io) : io_(io), arena_(PageAllocator(io)) {}
 
   /*! \brief Run the server loop until shutdown signal is received. */
   void ServerLoop() {
@@ -135,10 +134,8 @@ class MinRPCServer {
     this->Read(&call_handle);
     RecvPackedSeq(&values, &tcodes, &num_args);
 
-    int call_ecode = TVMFuncCall(
-        reinterpret_cast<void*>(call_handle),
-        values, tcodes, num_args,
-        &(ret_value[1]), &(ret_tcode[1]));
+    int call_ecode = TVMFuncCall(reinterpret_cast<void*>(call_handle), values, tcodes, num_args,
+                                 &(ret_value[1]), &(ret_tcode[1]));
 
     if (call_ecode == 0) {
       // Return value encoding as in LocalSession
@@ -150,8 +147,7 @@ class MinRPCServer {
         ret_value[2].v_handle = ret_value[1].v_handle;
         ret_tcode[2] = kTVMOpaqueHandle;
         this->ReturnPackedSeq(ret_value, ret_tcode, 3);
-      } else if (rv_tcode == kTVMPackedFuncHandle ||
-                 rv_tcode == kTVMModuleHandle) {
+      } else if (rv_tcode == kTVMPackedFuncHandle || rv_tcode == kTVMModuleHandle) {
         ret_tcode[1] = kTVMOpaqueHandle;
         this->ReturnPackedSeq(ret_value, ret_tcode, 2);
       } else {
@@ -179,15 +175,12 @@ class MinRPCServer {
       data_ptr = reinterpret_cast<uint8_t*>(handle) + offset;
     } else {
       data_ptr = this->ArenaAlloc<uint8_t>(num_bytes);
-      call_ecode = TVMDeviceCopyDataFromTo(
-              reinterpret_cast<void*>(handle), offset,
-              data_ptr, 0, num_bytes,
-              ctx, DLContext{kDLCPU, 0},
-              type_hint, nullptr);
+      call_ecode =
+          TVMDeviceCopyDataFromTo(reinterpret_cast<void*>(handle), offset, data_ptr, 0, num_bytes,
+                                  ctx, DLContext{kDLCPU, 0}, type_hint, nullptr);
       // need sync to make sure that the copy is completed.
       if (call_ecode == 0) {
-        call_ecode = TVMSynchronize(
-            ctx.device_type, ctx.device_id, nullptr);
+        call_ecode = TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
       }
     }
 
@@ -222,16 +215,12 @@ class MinRPCServer {
       uint8_t* temp_data = this->ArenaAlloc<uint8_t>(num_bytes);
       this->ReadArray(temp_data, num_bytes);
 
-      call_ecode = TVMDeviceCopyDataFromTo(
-              temp_data, 0,
-              reinterpret_cast<void*>(handle), offset,
-              num_bytes,
-              DLContext{kDLCPU, 0}, ctx,
-              type_hint, nullptr);
+      call_ecode =
+          TVMDeviceCopyDataFromTo(temp_data, 0, reinterpret_cast<void*>(handle), offset, num_bytes,
+                                  DLContext{kDLCPU, 0}, ctx, type_hint, nullptr);
       // need sync to make sure that the copy is completed.
       if (call_ecode == 0) {
-        call_ecode = TVMSynchronize(
-            ctx.device_type, ctx.device_id, nullptr);
+        call_ecode = TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
       }
     }
 
@@ -367,10 +356,8 @@ class MinRPCServer {
     DLDataType type_hint = values[7].v_type;
     TVMStreamHandle stream = values[8].v_handle;
 
-    int call_ecode = TVMDeviceCopyDataFromTo(
-        from, from_offset,
-        to, to_offset, size,
-        ctx_from, ctx_to, type_hint, stream);
+    int call_ecode = TVMDeviceCopyDataFromTo(from, from_offset, to, to_offset, size, ctx_from,
+                                             ctx_to, type_hint, stream);
 
     if (call_ecode == 0) {
       this->ReturnVoid();
@@ -392,8 +379,7 @@ class MinRPCServer {
     DLDataType type_hint = values[3].v_type;
 
     void* handle;
-    int call_ecode = TVMDeviceAllocDataSpace(
-        ctx, nbytes, alignment, type_hint, &handle);
+    int call_ecode = TVMDeviceAllocDataSpace(ctx, nbytes, alignment, type_hint, &handle);
 
     if (call_ecode == 0) {
       this->ReturnHandle(handle);
@@ -440,31 +426,31 @@ class MinRPCServer {
     io_.Exit(static_cast<int>(code));
   }
 
-  template<typename T>
+  template <typename T>
   T* ArenaAlloc(int count) {
     static_assert(std::is_pod<T>::value, "need to be trival");
     return arena_.template allocate_<T>(count);
   }
 
-  template<typename T>
+  template <typename T>
   void Read(T* data) {
     static_assert(std::is_pod<T>::value, "need to be trival");
     this->ReadRawBytes(data, sizeof(T));
   }
 
-  template<typename T>
+  template <typename T>
   void ReadArray(T* data, size_t count) {
     static_assert(std::is_pod<T>::value, "need to be trival");
     return this->ReadRawBytes(data, sizeof(T) * count);
   }
 
-  template<typename T>
+  template <typename T>
   void Write(const T& data) {
     static_assert(std::is_pod<T>::value, "need to be trival");
     return this->WriteRawBytes(&data, sizeof(T));
   }
 
-  template<typename T>
+  template <typename T>
   void WriteArray(T* data, size_t count) {
     static_assert(std::is_pod<T>::value, "need to be trival");
     return this->WriteRawBytes(data, sizeof(T) * count);
@@ -476,16 +462,14 @@ class MinRPCServer {
    public:
     using ArenaPageHeader = tvm::support::ArenaPageHeader;
 
-    explicit PageAllocator(TIOHandler io)
-        : io_(io) {}
+    explicit PageAllocator(TIOHandler io) : io_(io) {}
 
     ArenaPageHeader* allocate(size_t min_size) {
       size_t npages = ((min_size + kPageSize - 1) / kPageSize);
       void* data;
 
-      if (TVMDeviceAllocDataSpace(
-              DLContext{kDLCPU, 0}, npages * kPageSize, kPageAlign,
-              DLDataType{kDLInt, 1, 1}, &data) != 0) {
+      if (TVMDeviceAllocDataSpace(DLContext{kDLCPU, 0}, npages * kPageSize, kPageAlign,
+                                  DLDataType{kDLInt, 1, 1}, &data) != 0) {
         io_.Exit(static_cast<int>(RPCServerStatus::kAllocError));
       }
 
@@ -508,11 +492,8 @@ class MinRPCServer {
     TIOHandler io_;
   };
 
-  void RecvPackedSeq(TVMValue** out_values,
-                     int** out_tcodes,
-                     int* out_num_args) {
-    RPCReference::RecvPackedSeq(
-        out_values, out_tcodes, out_num_args, this);
+  void RecvPackedSeq(TVMValue** out_values, int** out_tcodes, int* out_num_args) {
+    RPCReference::RecvPackedSeq(out_values, out_tcodes, out_num_args, this);
   }
 
   void ReturnVoid() {
@@ -520,8 +501,7 @@ class MinRPCServer {
     int32_t tcode = kTVMNullptr;
     RPCCode code = RPCCode::kReturn;
 
-    uint64_t packet_nbytes =
-        sizeof(code) + sizeof(num_args) + sizeof(tcode);
+    uint64_t packet_nbytes = sizeof(code) + sizeof(num_args) + sizeof(tcode);
 
     this->Write(packet_nbytes);
     this->Write(code);
@@ -536,8 +516,7 @@ class MinRPCServer {
     uint64_t encode_handle = reinterpret_cast<uint64_t>(handle);
 
     uint64_t packet_nbytes =
-        sizeof(code) + sizeof(num_args) +
-        sizeof(tcode) + sizeof(encode_handle);
+        sizeof(code) + sizeof(num_args) + sizeof(tcode) + sizeof(encode_handle);
 
     this->Write(packet_nbytes);
     this->Write(code);
@@ -546,24 +525,18 @@ class MinRPCServer {
     this->Write(encode_handle);
   }
 
-  void ReturnException(const char* msg) {
-    RPCReference::ReturnException(msg, this);
-  }
+  void ReturnException(const char* msg) { RPCReference::ReturnException(msg, this); }
 
-  void ReturnPackedSeq(const TVMValue* arg_values,
-                       const int* type_codes,
-                       int num_args) {
+  void ReturnPackedSeq(const TVMValue* arg_values, const int* type_codes, int num_args) {
     RPCReference::ReturnPackedSeq(arg_values, type_codes, num_args, this);
   }
 
-  void ReturnLastTVMError() {
-    this->ReturnException(TVMGetLastError());
-  }
+  void ReturnLastTVMError() { this->ReturnException(TVMGetLastError()); }
 
   void ReadRawBytes(void* data, size_t size) {
     uint8_t* buf = reinterpret_cast<uint8_t*>(data);
     size_t ndone = 0;
-    while (ndone <  size) {
+    while (ndone < size) {
       ssize_t ret = io_.PosixRead(buf, size - ndone);
       if (ret == 0) {
         if (allow_clean_shutdown_) {
@@ -582,9 +555,9 @@ class MinRPCServer {
   }
 
   void WriteRawBytes(const void* data, size_t size) {
-    const uint8_t *buf = reinterpret_cast<const uint8_t*>(data);
+    const uint8_t* buf = reinterpret_cast<const uint8_t*>(data);
     size_t ndone = 0;
-    while (ndone <  size) {
+    while (ndone < size) {
       ssize_t ret = io_.PosixWrite(buf, size - ndone);
       if (ret == 0 || ret == -1) {
         this->ThrowError(RPCServerStatus::kWriteError);

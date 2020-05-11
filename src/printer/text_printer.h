@@ -26,22 +26,21 @@
 #ifndef TVM_PRINTER_TEXT_PRINTER_H_
 #define TVM_PRINTER_TEXT_PRINTER_H_
 
+#include <tvm/ir/module.h>
+#include <tvm/ir/type_functor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/tir/expr_functor.h>
-#include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/op.h>
-#include <tvm/ir/type_functor.h>
-#include <tvm/ir/module.h>
 #include <tvm/tir/function.h>
-#include <tvm/relay/expr_functor.h>
-#include <tvm/relay/pattern_functor.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/stmt_functor.h>
+
+#include <string>
 #include <unordered_map>
 #include <vector>
-#include <string>
-#include "../relay/analysis/dependency_graph.h"
-#include "../ir/attr_functor.h"
 
+#include "../ir/attr_functor.h"
+#include "../relay/analysis/dependency_graph.h"
 #include "doc.h"
 #include "meta_data.h"
 #include "text_printer.h"
@@ -53,21 +52,19 @@ class TextPrinter;
 namespace tvm {
 namespace relay {
 
-class RelayTextPrinter :
-    public ExprFunctor<Doc(const Expr&)>,
-    public PatternFunctor<Doc(const Pattern&)>,
-    public TypeFunctor<Doc(const Type&)>,
-    public AttrFunctor<Doc(const ObjectRef&)> {
+class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
+                         public PatternFunctor<Doc(const Pattern&)>,
+                         public TypeFunctor<Doc(const Type&)>,
+                         public AttrFunctor<Doc(const ObjectRef&)> {
  public:
-  explicit RelayTextPrinter(bool show_meta_data,
-                            TextMetaDataContext* meta,
+  explicit RelayTextPrinter(bool show_meta_data, TextMetaDataContext* meta,
                             runtime::TypedPackedFunc<std::string(ObjectRef)> annotate)
       : show_meta_data_(show_meta_data), annotate_(annotate), meta_(meta) {}
 
   /*!
-    * \brief Print additional info about expr in comment.
-    * \param expr The expression.
-    */
+   * \brief Print additional info about expr in comment.
+   * \param expr The expression.
+   */
   Doc PrintOptionalInfo(const Expr& expr);
   // indent a new body
   Doc PrintBody(const ObjectRef& node, int indent = 2);
@@ -83,10 +80,10 @@ class RelayTextPrinter :
   Doc TempVar(int n);
   Doc AllocTemp();
   /*!
-    * \brief get a unique name with the corresponding prefix
-    * \param prefix The prefix of the name
-    * \return The returned name.
-    */
+   * \brief get a unique name with the corresponding prefix
+   * \param prefix The prefix of the name
+   * \return The returned name.
+   */
   Doc GetUniqueName(const std::string& prefix);
   Doc Print(Kind k);
   /*!
@@ -213,8 +210,8 @@ class MetaCollector : public StmtExprVisitor {
 
   void Collect(const ObjectRef& n) {
     // these nodes can be print directly(StringLiteral or use identifier to identify)
-    if (!n.defined() || n.as<StringImmNode>() || n.as<StringObj>() || n.as<SizeVarNode>()
-        || n.as<VarNode>() || n.as<BufferNode>() || n.as<IterVarNode>()) {
+    if (!n.defined() || n.as<StringImmNode>() || n.as<StringObj>() || n.as<SizeVarNode>() ||
+        n.as<VarNode>() || n.as<BufferNode>() || n.as<IterVarNode>()) {
       return;
     }
     if (n->IsInstance<StmtNode>()) {
@@ -243,7 +240,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
                        public TypeFunctor<Doc(const Type&)> {
  public:
   explicit TIRTextPrinter(bool show_meta, TextMetaDataContext* meta)
-    : show_meta_(show_meta), meta_(meta), meta_collector_(meta) {}
+      : show_meta_(show_meta), meta_(meta), meta_collector_(meta) {}
 
   /*! \brief Print the node */
   Doc Print(const ObjectRef& node);
@@ -323,9 +320,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintIterVar(const IterVarNode* op);
   Doc PrintRange(const RangeNode* op);
   Doc PrintBuffer(const BufferNode* op);
-  Doc PrintString(const StringObj* op) {
-    return Doc::StrLiteral(op->data);
-  }
+  Doc PrintString(const StringObj* op) { return Doc::StrLiteral(op->data); }
 
   /*!
    * \brief special method to print out data type
@@ -360,7 +355,8 @@ class TextPrinter {
  public:
   explicit TextPrinter(bool show_meta_data,
                        const runtime::TypedPackedFunc<std::string(ObjectRef)>& annotate)
-      : show_meta_data_(show_meta_data), annotate_(annotate),
+      : show_meta_data_(show_meta_data),
+        annotate_(annotate),
         relay_text_printer_(show_meta_data, &meta_, annotate),
         tir_text_printer_(show_meta_data, &meta_) {}
 
@@ -379,8 +375,8 @@ class TextPrinter {
     Doc doc;
     if (node->IsInstance<IRModuleNode>()) {
       doc << PrintMod(Downcast<IRModule>(node));
-    } else if (node->IsInstance<tir::PrimFuncNode>() || node->IsInstance<PrimExprNode>()
-              || node->IsInstance<tir::StmtNode>()) {
+    } else if (node->IsInstance<tir::PrimFuncNode>() || node->IsInstance<PrimExprNode>() ||
+               node->IsInstance<tir::StmtNode>()) {
       doc << tir_text_printer_.Print(node);
     } else {
       doc << relay_text_printer_.PrintFinal(node);

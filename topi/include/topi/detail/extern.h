@@ -25,9 +25,9 @@
 #define TOPI_DETAIL_EXTERN_H_
 
 #include <tvm/te/operation.h>
-#include <vector>
-#include <string>
 
+#include <string>
+#include <vector>
 
 namespace topi {
 namespace detail {
@@ -43,13 +43,11 @@ using namespace tvm::te;
  *
  * \return The Buffer object
  */
-inline Buffer DeclExternBuffer(Array<PrimExpr> shape,
-                               DataType dtype,
-                               std::string name) {
+inline Buffer DeclExternBuffer(Array<PrimExpr> shape, DataType dtype, std::string name) {
   auto data = var(name, DataType::Handle());
   auto elem_offset = PrimExpr();
-  return BufferNode::make(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, "",
-                          -1, 0, kDefault);
+  return BufferNode::make(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, "", -1, 0,
+                          kDefault);
 }
 
 /*!
@@ -76,15 +74,12 @@ using FExtern = std::function<PrimExpr(Array<Buffer>, Array<Buffer>)>;
  * be one output Tensor for each element of out_shapes, with dtype equal to the corresponding
  * element of out_types.
  */
-inline Array<Tensor> make_extern(const Array< Array<PrimExpr> >& out_shapes,
+inline Array<Tensor> make_extern(const Array<Array<PrimExpr> >& out_shapes,
                                  const std::vector<DataType>& out_types,
-                                 const Array<Tensor>& inputs,
-                                 FExtern fextern,
-                                 std::string name,
-                                 std::string tag,
-                                 ::tvm::Map<std::string, ObjectRef> attrs) {
+                                 const Array<Tensor>& inputs, FExtern fextern, std::string name,
+                                 std::string tag, ::tvm::Map<std::string, ObjectRef> attrs) {
   CHECK_EQ(out_shapes.size(), out_types.size())
-    << "make_extern: out_shapes and out_types must have equal size";
+      << "make_extern: out_shapes and out_types must have equal size";
 
   Array<Buffer> input_placeholders;
   for (auto t : inputs) {
@@ -98,9 +93,8 @@ inline Array<Tensor> make_extern(const Array< Array<PrimExpr> >& out_shapes,
   auto body = fextern(input_placeholders, output_placeholders);
   auto body_stmt = tvm::tir::EvaluateNode::make(body);
 
-  auto op = ExternOpNode::make(
-      name, tag, attrs, inputs,
-      input_placeholders, output_placeholders, body_stmt);
+  auto op = ExternOpNode::make(name, tag, attrs, inputs, input_placeholders, output_placeholders,
+                               body_stmt);
 
   Array<Tensor> outputs;
   for (size_t i = 0; i < output_placeholders.size(); ++i) {
@@ -119,27 +113,25 @@ inline Array<Tensor> make_extern(const Array< Array<PrimExpr> >& out_shapes,
  */
 inline PrimExpr pack_buffer(Buffer buf) {
   CHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
-  auto shape = tvm::tir::CallNode::make(
-      DataType::Handle(), tvm::tir::intrinsic::tvm_stack_make_shape,
-      buf->shape, tvm::tir::CallNode::CallType::Intrinsic);
+  auto shape =
+      tvm::tir::CallNode::make(DataType::Handle(), tvm::tir::intrinsic::tvm_stack_make_shape,
+                               buf->shape, tvm::tir::CallNode::CallType::Intrinsic);
   PrimExpr strides;
   if (buf->strides.size() > 0) {
-    strides = tvm::tir::CallNode::make(
-        DataType::Handle(), tvm::tir::intrinsic::tvm_stack_make_shape,
-        buf->shape, tvm::tir::CallNode::CallType::Intrinsic);
+    strides =
+        tvm::tir::CallNode::make(DataType::Handle(), tvm::tir::intrinsic::tvm_stack_make_shape,
+                                 buf->shape, tvm::tir::CallNode::CallType::Intrinsic);
   } else {
     strides = 0;
   }
-  Array<PrimExpr> pack_args{
-    buf->data,
-    shape,
-    strides,
-    make_const(DataType::Int(32), static_cast<int64_t>(buf->shape.size())),
-    make_const(buf->dtype, 0),
-    buf->elem_offset
-  };
+  Array<PrimExpr> pack_args{buf->data,
+                            shape,
+                            strides,
+                            make_const(DataType::Int(32), static_cast<int64_t>(buf->shape.size())),
+                            make_const(buf->dtype, 0),
+                            buf->elem_offset};
   return tvm::tir::CallNode::make(DataType::Handle(), tvm::tir::intrinsic::tvm_stack_make_array,
-                             pack_args, tvm::tir::CallNode::CallType::Intrinsic);
+                                  pack_args, tvm::tir::CallNode::CallType::Intrinsic);
 }
 
 /*!
@@ -152,8 +144,8 @@ inline PrimExpr pack_buffer(Buffer buf) {
  * \return An expression representing the invocation
  */
 inline PrimExpr call_packed(Array<PrimExpr> args) {
-  return tvm::tir::CallNode::make(DataType::Int(32), tvm::tir::intrinsic::tvm_call_packed,
-                             args, tvm::tir::CallNode::CallType::Intrinsic);
+  return tvm::tir::CallNode::make(DataType::Int(32), tvm::tir::intrinsic::tvm_call_packed, args,
+                                  tvm::tir::CallNode::CallType::Intrinsic);
 }
 
 }  // namespace detail

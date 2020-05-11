@@ -25,6 +25,7 @@
 #define TVM_RELAY_ATTRS_REDUCE_H_
 
 #include <tvm/ir/attrs.h>
+
 #include <string>
 
 namespace tvm {
@@ -37,7 +38,8 @@ struct ReduceAttrs : public tvm::AttrsNode<ReduceAttrs> {
   bool exclude;
 
   TVM_DECLARE_ATTRS(ReduceAttrs, "relay.attrs.ReduceAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(NullValue<Array<Integer>>())
+    TVM_ATTR_FIELD(axis)
+        .set_default(NullValue<Array<Integer>>())
         .describe(R"code(The axis or axes along which to perform the reduction.
 
       The default, `axis=()`, will compute over all elements into a
@@ -51,11 +53,11 @@ struct ReduceAttrs : public tvm::AttrsNode<ReduceAttrs> {
       If `exclude` is true, reduction will be performed on the axes that are
       NOT in axis instead.)code");
 
-    TVM_ATTR_FIELD(keepdims).set_default(false)
-      .describe("If this is set to `True`, the reduced axes are left "
-                "in the result as dimension with size one.");
-    TVM_ATTR_FIELD(exclude).set_default(false)
-      .describe("Whether to perform reduction on axis that are NOT in axis instead.");
+    TVM_ATTR_FIELD(keepdims).set_default(false).describe(
+        "If this is set to `True`, the reduced axes are left "
+        "in the result as dimension with size one.");
+    TVM_ATTR_FIELD(exclude).set_default(false).describe(
+        "Whether to perform reduction on axis that are NOT in axis instead.");
   }
 };
 }  // namespace relay

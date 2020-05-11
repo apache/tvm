@@ -25,6 +25,7 @@
 
 #include <string>
 #include <unordered_map>
+
 #include "micro_common.h"
 
 namespace tvm {
@@ -39,19 +40,18 @@ class MicroSectionAllocator {
    * \brief constructor that specifies section boundaries
    * \param region location and size of the section on the device
    */
-  explicit MicroSectionAllocator(std::string section_name,
-                                 DevMemRegion region,
+  explicit MicroSectionAllocator(std::string section_name, DevMemRegion region,
                                  TargetWordSize word_size)
-    : section_name_(section_name),
-      start_addr_(region.start),
-      size_(0),
-      capacity_(region.size),
-      word_size_(word_size) {
-      CHECK_EQ(start_addr_.value().uint64() % word_size.bytes(), 0)
+      : section_name_(section_name),
+        start_addr_(region.start),
+        size_(0),
+        capacity_(region.size),
+        word_size_(word_size) {
+    CHECK_EQ(start_addr_.value().uint64() % word_size.bytes(), 0)
         << "micro section start not aligned to " << word_size.bytes() << " bytes";
-      CHECK_EQ(capacity_ % word_size.bytes(), 0)
+    CHECK_EQ(capacity_ % word_size.bytes(), 0)
         << "micro section end not aligned to " << word_size.bytes() << " bytes";
-    }
+  }
 
   /*!
    * \brief destructor
@@ -66,9 +66,9 @@ class MicroSectionAllocator {
   TargetPtr Allocate(size_t size) {
     size_ = UpperAlignValue(size_, word_size_.bytes());
     CHECK(size_ + size < capacity_)
-      << "cannot alloc " << size << " bytes in section \""
-      << section_name_ << "\" (start_addr=" << start_addr_.cast_to<void*>()
-      << ", used=" << size_ << ", capacity=" << capacity_ << ")";
+        << "cannot alloc " << size << " bytes in section \"" << section_name_
+        << "\" (start_addr=" << start_addr_.cast_to<void*>() << ", used=" << size_
+        << ", capacity=" << capacity_ << ")";
     TargetPtr alloc_addr = start_addr_ + size_;
     size_ += size;
     alloc_map_[alloc_addr.value().uint64()] = size;
@@ -82,7 +82,7 @@ class MicroSectionAllocator {
    */
   void Free(TargetPtr addr) {
     CHECK(alloc_map_.find(addr.value().uint64()) != alloc_map_.end())
-      << "freed pointer was never allocated";
+        << "freed pointer was never allocated";
     alloc_map_.erase(addr.value().uint64());
     if (alloc_map_.empty()) {
       size_ = 0;

@@ -27,7 +27,9 @@
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
+
 #include <string>
+
 #include "codegen_c.h"
 
 namespace tvm {
@@ -40,8 +42,8 @@ class CodeGenVivadoHLS final : public CodeGenC {
 
   void PrintFuncPrefix() final;
   void PreFunctionBody(const PrimFunc& f) final;
-  void VisitExpr_(const MinNode *op, std::ostream& os) final;
-  void VisitExpr_(const MaxNode *op, std::ostream& os) final;
+  void VisitExpr_(const MinNode* op, std::ostream& os) final;
+  void VisitExpr_(const MaxNode* op, std::ostream& os) final;
 };
 
 }  // namespace codegen

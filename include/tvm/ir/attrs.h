@@ -50,12 +50,12 @@
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/packed_func.h>
 
-#include <unordered_map>
-#include <vector>
 #include <functional>
-#include <type_traits>
 #include <string>
+#include <type_traits>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 /*!
@@ -63,34 +63,30 @@ namespace tvm {
  * \param ClassName The name of the class.
  * \param TypeKey The type key to be used by the TVM node system.
  */
-#define TVM_DECLARE_ATTRS(ClassName, TypeKey)                      \
-  static constexpr const char* _type_key = TypeKey;                \
-  TVM_DECLARE_FINAL_OBJECT_INFO(ClassName, ::tvm::BaseAttrsNode)   \
-  template<typename FVisit>                                        \
+#define TVM_DECLARE_ATTRS(ClassName, TypeKey)                    \
+  static constexpr const char* _type_key = TypeKey;              \
+  TVM_DECLARE_FINAL_OBJECT_INFO(ClassName, ::tvm::BaseAttrsNode) \
+  template <typename FVisit>                                     \
   void __VisitAttrs__(FVisit& __fvisit__)  // NOLINT(*)
-
 
 /*!
  * \brief Declare an attribute field.
  * \param FieldName The field name.
  */
-#define TVM_ATTR_FIELD(FieldName) \
-  __fvisit__(#FieldName, &FieldName)
-
+#define TVM_ATTR_FIELD(FieldName) __fvisit__(#FieldName, &FieldName)
 
 /*!
  * \brief Create a NodeRef type that represents null.
  * \tparam TNodeRef the type to be created.
  * \return A instance that will represent None.
  */
-template<typename TObjectRef>
+template <typename TObjectRef>
 inline TObjectRef NullValue() {
-  static_assert(TObjectRef::_type_is_nullable,
-                "Can only get NullValue for nullable types");
+  static_assert(TObjectRef::_type_is_nullable, "Can only get NullValue for nullable types");
   return TObjectRef(ObjectPtr<Object>(nullptr));
 }
 
-template<>
+template <>
 inline DataType NullValue<DataType>() {
   return DataType(DataType::kHandle, 0, 0);
 }
@@ -101,8 +97,7 @@ struct AttrError : public dmlc::Error {
    * \brief constructor
    * \param msg error message
    */
-  explicit AttrError(const std::string &msg)
-      : dmlc::Error(msg) {}
+  explicit AttrError(const std::string& msg) : dmlc::Error(msg) {}
 };
 
 /*!
@@ -154,13 +149,13 @@ class BaseAttrsNode : public Object {
    * \param args The postional arguments in the form
    *        [key0, value0, key1, value1, ..., key_n, value_n]
    */
-  template<typename... Args>
-  inline void InitBySeq(Args&& ...args);
+  template <typename... Args>
+  inline void InitBySeq(Args&&... args);
   /*!
    * \brief Print readible docstring to ostream, add newline.
    * \param os the stream to print the docstring to.
    */
-  inline void PrintDocString(std::ostream &os) const;  // NOLINT(*)
+  inline void PrintDocString(std::ostream& os) const;  // NOLINT(*)
   /*!
    * \brief Visit attributes that do not equal the default value.
    *
@@ -212,9 +207,7 @@ class DictAttrsNode : public BaseAttrsNode {
     return equal(dict, other->dict);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dict);
-  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(dict); }
 
   // implementations
   void VisitAttrs(AttrVisitor* v) final;
@@ -239,7 +232,6 @@ class DictAttrs : public Attrs {
    */
   TVM_DLL explicit DictAttrs(Map<std::string, ObjectRef> dict);
 
-
   TVM_DEFINE_OBJECT_REF_METHODS(DictAttrs, Attrs, DictAttrsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
 };
@@ -252,18 +244,16 @@ using runtime::TVMArgValue;
 struct AttrNopEntry {
   using TSelf = AttrNopEntry;
 
-  TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) {
-    return *this;
-  }
-  template<typename T>
+  TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) { return *this; }
+  template <typename T>
   TSelf& set_default(DMLC_ATTRIBUTE_UNUSED const T& value) {
     return *this;
   }
-  template<typename T>
+  template <typename T>
   TSelf& set_lower_bound(DMLC_ATTRIBUTE_UNUSED const T& begin) {
     return *this;
   }
-  template<typename T>
+  template <typename T>
   TSelf& set_upper_bound(DMLC_ATTRIBUTE_UNUSED const T& end) {
     return *this;
   }
@@ -272,10 +262,8 @@ struct AttrNopEntry {
 // Wrapper for normal visitor.
 class AttrNormalVisitor {
  public:
-  explicit AttrNormalVisitor(AttrVisitor* visitor)
-      : visitor_(visitor) {
-  }
-  template<typename T>
+  explicit AttrNormalVisitor(AttrVisitor* visitor) : visitor_(visitor) {}
+  template <typename T>
   AttrNopEntry operator()(const char* key, T* value) {
     visitor_->Visit(key, value);
     return AttrNopEntry();
@@ -290,16 +278,13 @@ class AttrsSEqualVisitor {
   bool result_{true};
   // constructor
   AttrsSEqualVisitor(const Object* lhs, const Object* rhs, const SEqualReducer& equal)
-      : lhs_(lhs), rhs_(rhs), equal_(equal) {
-  }
-  template<typename T>
+      : lhs_(lhs), rhs_(rhs), equal_(equal) {}
+  template <typename T>
   AttrNopEntry operator()(const char* key, T* lhs_value) {
     if (!result_) return AttrNopEntry();
-    const T* rhs_value =
-        reinterpret_cast<const T*>(
-            reinterpret_cast<const char*>(rhs_) +
-            (reinterpret_cast<const char*>(lhs_value) -
-             reinterpret_cast<const char*>(lhs_)));
+    const T* rhs_value = reinterpret_cast<const T*>(
+        reinterpret_cast<const char*>(rhs_) +
+        (reinterpret_cast<const char*>(lhs_value) - reinterpret_cast<const char*>(lhs_)));
     if (!equal_(*lhs_value, *rhs_value)) {
       result_ = false;
     }
@@ -314,10 +299,9 @@ class AttrsSEqualVisitor {
 
 class AttrsSHashVisitor {
  public:
-  explicit AttrsSHashVisitor(const SHashReducer& hash_reducer)
-      : hash_reducer_(hash_reducer) {}
+  explicit AttrsSHashVisitor(const SHashReducer& hash_reducer) : hash_reducer_(hash_reducer) {}
 
-  template<typename T>
+  template <typename T>
   AttrNopEntry operator()(const char* key, T* value) {
     hash_reducer_(*value);
     return AttrNopEntry();
@@ -328,7 +312,7 @@ class AttrsSHashVisitor {
 };
 
 // helper entry that does initialization, set default.
-template<typename T>
+template <typename T>
 struct AttrInitEntry {
   // The attributes
   using TSelf = AttrInitEntry<T>;
@@ -344,34 +328,31 @@ struct AttrInitEntry {
   ~AttrInitEntry() DMLC_THROW_EXCEPTION {
     if (value_missing_) {
       std::ostringstream os;
-      os << type_key_ << ": Cannot find required field \'" << key_
-         << "\' during initialization";
+      os << type_key_ << ": Cannot find required field \'" << key_ << "\' during initialization";
       throw AttrError(os.str());
     }
   }
   // override fields.
   // This function sets the lower bound of the attribute
   TSelf& set_lower_bound(DMLC_ATTRIBUTE_UNUSED const T& begin) {
-    if (this->value_missing_)  return *this;
+    if (this->value_missing_) return *this;
     const T& val = *value_;
     if (begin > val) {
       std::ostringstream os;
       os << type_key_ << "." << key_ << ": "
-         << "value " << val
-         << " is smaller than the lower bound " << begin;
+         << "value " << val << " is smaller than the lower bound " << begin;
       throw AttrError(os.str());
     }
     return *this;
   }
   // This function sets the upper bound of the attribute
   TSelf& set_upper_bound(DMLC_ATTRIBUTE_UNUSED const T& end) {
-    if (this->value_missing_)  return *this;
+    if (this->value_missing_) return *this;
     const T& val = *value_;
     if (val > end) {
       std::ostringstream os;
       os << type_key_ << "." << key_ << ": "
-         << "value " << val
-         << " is bigger than the upper bound " << end;
+         << "value " << val << " is bigger than the upper bound " << end;
       throw AttrError(os.str());
     }
     return *this;
@@ -383,19 +364,17 @@ struct AttrInitEntry {
     value_missing_ = false;
     return *this;
   }
-  TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) {
-    return *this;
-  }
+  TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) { return *this; }
 };
 
 // Template function to allow smart conversion
 // from Expr types into the constants.
-template<typename T>
+template <typename T>
 inline void SetValue(T* ptr, const TVMArgValue& val) {
   *ptr = val.operator T();
 }
 
-template<typename T>
+template <typename T>
 inline void SetIntValue(T* ptr, const TVMArgValue& val) {
   if (val.type_code() == kDLInt) {
     *ptr = static_cast<T>(val.value().v_int64);
@@ -405,7 +384,7 @@ inline void SetIntValue(T* ptr, const TVMArgValue& val) {
   }
 }
 
-template<>
+template <>
 inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
   if (val.type_code() == kTVMStr) {
     *ptr = val.operator std::string();
@@ -414,7 +393,7 @@ inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
   }
 }
 
-template<>
+template <>
 inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
   if (val.type_code() == kDLFloat || val.type_code() == kDLInt) {
     *ptr = val.operator double();
@@ -430,36 +409,34 @@ inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
     }
   }
 }
-template<>
+template <>
 inline void SetValue<int>(int* ptr, const TVMArgValue& val) {
   SetIntValue(ptr, val);
 }
-template<>
+template <>
 inline void SetValue<int64_t>(int64_t* ptr, const TVMArgValue& val) {
   SetIntValue(ptr, val);
 }
-template<>
+template <>
 inline void SetValue<uint64_t>(uint64_t* ptr, const TVMArgValue& val) {
   SetIntValue(ptr, val);
 }
-template<>
+template <>
 inline void SetValue<bool>(bool* ptr, const TVMArgValue& val) {
   SetIntValue(ptr, val);
 }
 
 // Visitor for value initialization
-template<typename FFind>
+template <typename FFind>
 class AttrInitVisitor {
  public:
   // Counter of number of matched attributes during visit.
   // This is used to decide if there is additional unmatched attributes.
   size_t hit_count_{0};
   // constructor
-  AttrInitVisitor(const char* type_key, FFind ffind)
-      : type_key_(type_key), ffind_(ffind) {
-  }
+  AttrInitVisitor(const char* type_key, FFind ffind) : type_key_(type_key), ffind_(ffind) {}
 
-  template<typename T>
+  template <typename T>
   AttrInitEntry<T> operator()(const char* key, T* value) {
     TVMArgValue val;
     AttrInitEntry<T> opt;
@@ -482,10 +459,8 @@ class AttrInitVisitor {
   FFind ffind_;
 };
 
-template<typename FFind>
-inline AttrInitVisitor<FFind> CreateInitVisitor(
-    const char* type_key,
-    FFind ffind) {
+template <typename FFind>
+inline AttrInitVisitor<FFind> CreateInitVisitor(const char* type_key, FFind ffind) {
   return AttrInitVisitor<FFind>(type_key, ffind);
 }
 
@@ -493,47 +468,47 @@ inline AttrInitVisitor<FFind> CreateInitVisitor(
  * \brief Helper struct to get the type name known to tvm.
  * \tparam T the type we are interested in.
  */
-template<typename T>
+template <typename T>
 struct TypeName {
   static constexpr const char* value = T::ContainerType::_type_key;
 };
 
-template<>
+template <>
 struct TypeName<int> {
   static constexpr const char* value = "int";
 };
 
-template<>
+template <>
 struct TypeName<int64_t> {
   static constexpr const char* value = "int64";
 };
 
-template<>
+template <>
 struct TypeName<uint64_t> {
   static constexpr const char* value = "uint64_t";
 };
 
-template<>
+template <>
 struct TypeName<DataType> {
   static constexpr const char* value = "DataType";
 };
 
-template<>
+template <>
 struct TypeName<std::string> {
   static constexpr const char* value = "str";
 };
 
-template<>
+template <>
 struct TypeName<bool> {
   static constexpr const char* value = "bool";
 };
 
-template<>
+template <>
 struct TypeName<void*> {
   static constexpr const char* value = "handle";
 };
 
-template<>
+template <>
 struct TypeName<double> {
   static constexpr const char* value = "double";
 };
@@ -542,25 +517,23 @@ class AttrDocEntry {
  public:
   using TSelf = AttrDocEntry;
 
-  explicit AttrDocEntry(ObjectPtr<AttrFieldInfoNode> info)
-      : info_(info) {
-  }
+  explicit AttrDocEntry(ObjectPtr<AttrFieldInfoNode> info) : info_(info) {}
   TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) {
     info_->description = str;
     return *this;
   }
-  template<typename T>
+  template <typename T>
   TSelf& set_default(DMLC_ATTRIBUTE_UNUSED const T& value) {
     std::ostringstream os;
     os << info_->type_info << ", default=" << value;
     info_->type_info = os.str();
     return *this;
   }
-  template<typename T>
+  template <typename T>
   TSelf& set_lower_bound(DMLC_ATTRIBUTE_UNUSED T begin) {
     return *this;
   }
-  template<typename T>
+  template <typename T>
   TSelf& set_upper_bound(DMLC_ATTRIBUTE_UNUSED T end) {
     return *this;
   }
@@ -571,10 +544,9 @@ class AttrDocEntry {
 
 class AttrDocVisitor {
  public:
-  template<typename T>
+  template <typename T>
   AttrDocEntry operator()(const char* key, T* v) {
-    ObjectPtr<AttrFieldInfoNode> info
-        = make_object<AttrFieldInfoNode>();
+    ObjectPtr<AttrFieldInfoNode> info = make_object<AttrFieldInfoNode>();
     info->name = key;
     info->type_info = TypeName<T>::value;
     fields_.push_back(AttrFieldInfo(info));
@@ -589,7 +561,7 @@ class AttrExistVisitor {
   std::string key_;
   bool exist_{false};
 
-  template<typename T>
+  template <typename T>
   AttrNopEntry operator()(const char* key, T* v) {
     if (exist_) return AttrNopEntry();
     if (key == key_) exist_ = true;
@@ -597,12 +569,11 @@ class AttrExistVisitor {
   }
 };
 
-template<typename T>
+template <typename T>
 struct AttrTriggerNonDefaultEntry {
   using TSelf = AttrTriggerNonDefaultEntry<T>;
   // constructor
-  AttrTriggerNonDefaultEntry(
-      AttrVisitor* visitor, const char* key, T* data)
+  AttrTriggerNonDefaultEntry(AttrVisitor* visitor, const char* key, T* data)
       : visitor_(visitor), key_(key), data_(data) {}
 
   ~AttrTriggerNonDefaultEntry() DMLC_THROW_EXCEPTION {
@@ -610,37 +581,28 @@ struct AttrTriggerNonDefaultEntry {
       visitor_->Visit(key_, data_);
     }
   }
-  TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) {
-    return *this;
-  }
+  TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) { return *this; }
   TSelf& set_default(const T& value) {
     if (tvm::StructuralEqual()(value, *data_)) {
       trigger_ = false;
     }
     return *this;
   }
-  TSelf& set_lower_bound(DMLC_ATTRIBUTE_UNUSED const T& begin) {
-    return *this;
-  }
-  TSelf& set_upper_bound(DMLC_ATTRIBUTE_UNUSED const T& end) {
-    return *this;
-  }
+  TSelf& set_lower_bound(DMLC_ATTRIBUTE_UNUSED const T& begin) { return *this; }
+  TSelf& set_upper_bound(DMLC_ATTRIBUTE_UNUSED const T& end) { return *this; }
 
  private:
   AttrVisitor* visitor_;
-  const char * key_;
-  T *data_;
+  const char* key_;
+  T* data_;
   bool trigger_{true};
 };
 
 class AttrNonDefaultVisitor {
  public:
-  explicit AttrNonDefaultVisitor(AttrVisitor* visitor)
-      : visitor_(visitor) {
-  }
-  template<typename T>
-  AttrTriggerNonDefaultEntry<T>
-  operator()(const char* key, T* value) {
+  explicit AttrNonDefaultVisitor(AttrVisitor* visitor) : visitor_(visitor) {}
+  template <typename T>
+  AttrTriggerNonDefaultEntry<T> operator()(const char* key, T* value) {
     return AttrTriggerNonDefaultEntry<T>(visitor_, key, value);
   }
 
@@ -655,7 +617,7 @@ class AttrNonDefaultVisitor {
  *
  * \tparam DerivedType The final attribute type.
  */
-template<typename DerivedType>
+template <typename DerivedType>
 class AttrsNode : public BaseAttrsNode {
  public:
   void VisitAttrs(AttrVisitor* v) {
@@ -695,7 +657,7 @@ class AttrsNode : public BaseAttrsNode {
         CHECK_EQ(args.type_codes[i], kTVMStr);
         kwargs[args[i].operator std::string()] = args[i + 1];
       }
-      auto ffind = [&kwargs](const char *key, runtime::TVMArgValue* val) {
+      auto ffind = [&kwargs](const char* key, runtime::TVMArgValue* val) {
         auto it = kwargs.find(key);
         if (it != kwargs.end()) {
           *val = it->second;
@@ -715,8 +677,7 @@ class AttrsNode : public BaseAttrsNode {
         self()->__VisitAttrs__(visitor);
         if (!visitor.exist_) {
           std::ostringstream os;
-          os << DerivedType::_type_key
-             << ": does not have field \'" << visitor.key_
+          os << DerivedType::_type_key << ": does not have field \'" << visitor.key_
              << "\', Possible fields:\n";
           os << "----------------\n";
           this->PrintDocString(os);
@@ -746,21 +707,18 @@ class AttrsNode : public BaseAttrsNode {
 
  private:
   DerivedType* self() const {
-    return const_cast<DerivedType*>(
-        static_cast<const DerivedType*>(this));
+    return const_cast<DerivedType*>(static_cast<const DerivedType*>(this));
   }
 };
 
-
-template<typename... Args>
-inline void BaseAttrsNode::InitBySeq(Args&& ...args) {
-  runtime::PackedFunc pf([this](const TVMArgs& args, TVMRetValue *rv) {
-      this->InitByPackedArgs(args);
-    });
+template <typename... Args>
+inline void BaseAttrsNode::InitBySeq(Args&&... args) {
+  runtime::PackedFunc pf(
+      [this](const TVMArgs& args, TVMRetValue* rv) { this->InitByPackedArgs(args); });
   pf(std::forward<Args>(args)...);
 }
 
-inline void BaseAttrsNode::PrintDocString(std::ostream &os) const { // NOLINT(*)
+inline void BaseAttrsNode::PrintDocString(std::ostream& os) const {  // NOLINT(*)
   Array<AttrFieldInfo> entry = this->ListFieldInfo();
   for (AttrFieldInfo info : entry) {
     os << info->name << " : " << info->type_info << '\n';

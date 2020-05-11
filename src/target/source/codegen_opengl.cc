@@ -23,19 +23,20 @@
  * We are targeting OpenGL 3.3. The reason of not targeting a recent version
  * of OpenGL is to have better compatibility of WebGL 2.
  */
-#include <vector>
-#include <string>
-#include <utility>
-#include <unordered_map>
 #include "codegen_opengl.h"
-#include "../build_common.h"
+
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
 #include "../../runtime/thread_storage_scope.h"
+#include "../build_common.h"
 
 namespace tvm {
 namespace codegen {
 
-CodeGenOpenGL::CodeGenOpenGL()
-    : output_(nullptr), output_iter_var_(nullptr) {}
+CodeGenOpenGL::CodeGenOpenGL() : output_(nullptr), output_iter_var_(nullptr) {}
 
 void CodeGenOpenGL::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
@@ -160,20 +161,16 @@ void CodeGenOpenGL::AddFunction(const PrimFunc& f) {
   CHECK(global_symbol.defined())
       << "CodeGenOpenGL: Expect PrimFunc to have the global_symbol attribute";
 
-  shaders_[static_cast<std::string>(global_symbol.value())] = runtime::OpenGLShader(
-      this->decl_stream.str() + this->stream.str(),
-      std::move(arg_names), std::move(arg_kinds),
-      this->thread_extent_var_);
+  shaders_[static_cast<std::string>(global_symbol.value())] =
+      runtime::OpenGLShader(this->decl_stream.str() + this->stream.str(), std::move(arg_names),
+                            std::move(arg_kinds), this->thread_extent_var_);
 }
 
-std::unordered_map<std::string, runtime::OpenGLShader> CodeGenOpenGL::Finish() {
-  return shaders_;
-}
+std::unordered_map<std::string, runtime::OpenGLShader> CodeGenOpenGL::Finish() { return shaders_; }
 
 void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
   CHECK_EQ(iv->thread_tag, "threadIdx.x") << "Must be threadIdx.x";
-  CHECK(var_idmap_.find(iv->var.get()) == var_idmap_.end())
-    << "Only support one thread iter var";
+  CHECK(var_idmap_.find(iv->var.get()) == var_idmap_.end()) << "Only support one thread iter var";
   CHECK(output_iter_var_ == nullptr) << "Only support one thread iter var";
 
   var_idmap_[iv->var.get()] = iv->thread_tag;
@@ -211,8 +208,7 @@ std::string CodeGenOpenGL::TexelFetch(const VarNode* buffer, PrimExpr index) {
 
 // Print a reference expression to a buffer.
 // Format: texelFetch(buffer, index, 0).r
-std::string CodeGenOpenGL::GetBufferRef(
-    DataType t, const VarNode* buffer, PrimExpr index) {
+std::string CodeGenOpenGL::GetBufferRef(DataType t, const VarNode* buffer, PrimExpr index) {
   CHECK_EQ(t.lanes(), 1) << "Vector type not supported.";
   CHECK(HandleTypeMatch(buffer, t)) << "Type mismatch not supported.";
 
@@ -274,11 +270,10 @@ void CodeGenOpenGL::VisitStmt_(const EvaluateNode* op) {
 
   // Doesn't support store to vector.
   auto type = value.dtype();
-  CHECK_EQ(type.lanes(), 1)
-    << "Vectorized store not implemented, type = " << type;
+  CHECK_EQ(type.lanes(), 1) << "Vectorized store not implemented, type = " << type;
 
   CHECK(inputs_.find(buffer) == inputs_.cend())
-    << "Texture has been read from before. Must not store to it.";
+      << "Texture has been read from before. Must not store to it.";
   if (output_ == nullptr) {
     output_ = buffer;  // Record that this texture is the output.
   } else {
@@ -294,9 +289,8 @@ runtime::Module BuildOpenGL(IRModule mod, std::string target) {
   CodeGenOpenGL cg;
   cg.Init(output_ssa);
 
-  for (auto kv :  mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>())
-        << "CodeGenOpenGL: Can only take PrimFunc";
+  for (auto kv : mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenOpenGL: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
@@ -308,8 +302,7 @@ runtime::Module BuildOpenGL(IRModule mod, std::string target) {
   return OpenGLModuleCreate(shaders, "gl", ExtractFuncInfo(mod));
 }
 
-TVM_REGISTER_GLOBAL("target.build.opengl")
-.set_body_typed(BuildOpenGL);
+TVM_REGISTER_GLOBAL("target.build.opengl").set_body_typed(BuildOpenGL);
 
 }  // namespace codegen
 }  // namespace tvm

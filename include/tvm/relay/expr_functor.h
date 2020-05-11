@@ -25,16 +25,16 @@
 #ifndef TVM_RELAY_EXPR_FUNCTOR_H_
 #define TVM_RELAY_EXPR_FUNCTOR_H_
 
-#include <tvm/node/functor.h>
 #include <tvm/ir/error.h>
+#include <tvm/node/functor.h>
+#include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
-#include <tvm/relay/adt.h>
 #include <tvm/relay/op.h>
 
 #include <string>
-#include <utility>
 #include <unordered_map>
+#include <utility>
 
 namespace tvm {
 namespace relay {
@@ -54,15 +54,13 @@ template <typename FType>
 class ExprFunctor;
 
 // functions to be overriden.
-#define EXPR_FUNCTOR_DEFAULT                                      \
+#define EXPR_FUNCTOR_DEFAULT \
   { return VisitExprDefault_(op, std::forward<Args>(args)...); }
 
-#define RELAY_EXPR_FUNCTOR_DISPATCH(OP)                                \
-  vtable.template set_dispatch<OP>(                                    \
-      [](const ObjectRef& n, TSelf* self, Args... args) {                \
-        return self->VisitExpr_(static_cast<const OP*>(n.get()), \
-                                std::forward<Args>(args)...);          \
-      });
+#define RELAY_EXPR_FUNCTOR_DISPATCH(OP)                                                    \
+  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \
+    return self->VisitExpr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
+  });
 
 template <typename R, typename... Args>
 class ExprFunctor<R(const Expr& n, Args...)> {
@@ -81,9 +79,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
    * \param args Additional arguments.
    * \return The result of the call
    */
-  R operator()(const Expr& n, Args... args) {
-    return VisitExpr(n, std::forward<Args>(args)...);
-  }
+  R operator()(const Expr& n, Args... args) { return VisitExpr(n, std::forward<Args>(args)...); }
   /*!
    * \brief The functor call.
    * \param n The expression node.
@@ -96,22 +92,15 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     return vtable(n, this, std::forward<Args>(args)...);
   }
   // Functions that can be overriden by subclass
-  virtual R VisitExpr_(const ConstantNode* op,
-                       Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const TupleNode* op,
-                       Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const VarNode* op,
-                       Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const GlobalVarNode* op,
-                       Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const FunctionNode* op,
-                       Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const ConstantNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const TupleNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const VarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const GlobalVarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const FunctionNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const CallNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const LetNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const IfNode* op,
-                       Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const OpNode* op,
-                       Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const IfNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const OpNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleGetItemNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const RefCreateNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const RefReadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -154,8 +143,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
  * ExprVisitor treats Expr as dataflow graph,
  * and only visit each Expr node once.
  */
-class ExprVisitor
-    : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
+class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
  public:
   void VisitExpr(const Expr& expr) override;
   void VisitExpr_(const VarNode* op) override;
@@ -189,16 +177,13 @@ class ExprVisitor
  * The mutated results are memoized in a map and reused so that
  * local transformation on the dataflow preserves the graph structure.
  */
-class ExprMutator
-    : public ::tvm::relay::ExprFunctor<Expr(const Expr&)> {
+class ExprMutator : public ::tvm::relay::ExprFunctor<Expr(const Expr&)> {
  public:
   /*!
    * \brief Mutate is alias for VisitExpr
    * \return expr.
    */
-  Expr Mutate(const Expr& expr) {
-    return this->VisitExpr(expr);
-  }
+  Expr Mutate(const Expr& expr) { return this->VisitExpr(expr); }
   Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const ConstantNode* op) override;
@@ -283,7 +268,8 @@ class MixedModeVisitor : public ::tvm::relay::ExprVisitor {
  * recursion to traverse most forms of the IR, but under the hood it expands nested dataflow regions
  * of the graph and processes them iteratatively to prevent stack overflows
  *
- * Uses Rewrite_ API of ExprRewriter for a cleaner split between recrusive and non-recursive behavior.
+ * Uses Rewrite_ API of ExprRewriter for a cleaner split between recrusive and non-recursive
+ * behavior.
  */
 class MixedModeMutator : public ::tvm::relay::ExprMutator {
  public:
@@ -293,14 +279,14 @@ class MixedModeMutator : public ::tvm::relay::ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final { return Rewrite(call_node); };
   Expr VisitExpr_(const TupleGetItemNode* op) final { return Rewrite(op); };
   /*!
-   *  \brief Users should override Rewrite_ methods to implement their pass. Rewrite_ functions will be
-   * able to rewrite the op only with data about the original node `pre` and the same node with
+   *  \brief Users should override Rewrite_ methods to implement their pass. Rewrite_ functions will
+   * be able to rewrite the op only with data about the original node `pre` and the same node with
    * modified inputs `post` and should not recurse.
    *
    * \param pre The expression node before rewriting.
    * \param post The expression with rewritten inputs.
    */
-  virtual Expr Rewrite_(const TupleNode* pre, const Expr& post) { return post;}
+  virtual Expr Rewrite_(const TupleNode* pre, const Expr& post) { return post; }
   virtual Expr Rewrite_(const CallNode* pre, const Expr& post) { return post; }
   virtual Expr Rewrite_(const TupleGetItemNode* pre, const Expr& post) { return post; }
 
@@ -350,9 +336,7 @@ class ExprRewriter {
    * \param post The expression node with rewritten inputs.
    * \return The result of the call
    */
-  Expr operator()(const Expr& pre, const Expr& post) {
-    return Rewrite(pre, post);
-  }
+  Expr operator()(const Expr& pre, const Expr& post) { return Rewrite(pre, post); }
   /*!
    * \brief The functor call.
    * \param pre The expression node before rewriting.

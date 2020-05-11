@@ -25,8 +25,9 @@
 
 #include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <type_traits>
+
 #include <string>
+#include <type_traits>
 #include <utility>
 
 /*!
@@ -100,8 +101,8 @@ struct TypeIndex {
  *       Recommendation: set to estimate number of children needed.
  * - _type_child_slots_can_overflow:
  *       Whether we can add additional child classes even if the number of child classes
- *       exceeds the _type_child_slots. A fallback mechanism to check global type table will be used.
- *       Recommendation: set to false for optimal runtime speed if we know exact number of children.
+ *       exceeds the _type_child_slots. A fallback mechanism to check global type table will be
+ * used. Recommendation: set to false for optimal runtime speed if we know exact number of children.
  *
  * Two macros are used to declare helper functions in the object:
  * - Use TVM_DECLARE_BASE_OBJECT_INFO for object classes that can be sub-classed.
@@ -163,28 +164,22 @@ class Object {
    */
   typedef void (*FDeleter)(Object* self);
   /*! \return The internal runtime type index of the object. */
-  uint32_t type_index() const {
-    return type_index_;
-  }
+  uint32_t type_index() const { return type_index_; }
   /*!
    * \return the type key of the object.
    * \note this operation is expensive, can be used for error reporting.
    */
-  std::string GetTypeKey() const {
-    return TypeIndex2Key(type_index_);
-  }
+  std::string GetTypeKey() const { return TypeIndex2Key(type_index_); }
   /*!
    * \return A hash value of the return of GetTypeKey.
    */
-  size_t GetTypeKeyHash() const {
-    return TypeIndex2KeyHash(type_index_);
-  }
+  size_t GetTypeKeyHash() const { return TypeIndex2KeyHash(type_index_); }
   /*!
    * Check if the object is an instance of TargetType.
    * \tparam TargetType The target type to be checked.
    * \return Whether the target type is true.
    */
-  template<typename TargetType>
+  template <typename TargetType>
   inline bool IsInstance() const;
 
   /*!
@@ -214,12 +209,8 @@ class Object {
 
   static constexpr const char* _type_key = "runtime.Object";
 
-  static uint32_t _GetOrAllocRuntimeTypeIndex() {
-    return TypeIndex::kRoot;
-  }
-  static uint32_t RuntimeTypeIndex() {
-    return TypeIndex::kRoot;
-  }
+  static uint32_t _GetOrAllocRuntimeTypeIndex() { return TypeIndex::kRoot; }
+  static uint32_t RuntimeTypeIndex() { return TypeIndex::kRoot; }
 
   // Default object type properties for sub-classes
   static constexpr bool _type_final = false;
@@ -234,7 +225,6 @@ class Object {
   // The type index of Object is TypeIndex::kRoot
   static constexpr uint32_t _type_index = TypeIndex::kDynamic;
 
-
   // Default constructor and copy constructor
   Object() {}
   // Override the copy and assign constructors to do nothing.
@@ -246,10 +236,10 @@ class Object {
   }
   Object(Object&& other) {  // NOLINT(*)
   }
-  Object& operator=(const Object& other) {  //NOLINT(*)
+  Object& operator=(const Object& other) {  // NOLINT(*)
     return *this;
   }
-  Object& operator=(Object&& other) {  //NOLINT(*)
+  Object& operator=(Object&& other) {  // NOLINT(*)
     return *this;
   }
 
@@ -267,7 +257,7 @@ class Object {
   FDeleter deleter_ = nullptr;
   // Invariant checks.
   static_assert(sizeof(int32_t) == sizeof(RefCounterType) &&
-                alignof(int32_t) == sizeof(RefCounterType),
+                    alignof(int32_t) == sizeof(RefCounterType),
                 "RefCounter ABI check.");
 
   /*!
@@ -287,12 +277,10 @@ class Object {
    * \param type_child_slots_can_overflow Whether to allow child to overflow the slots.
    * \return The allocated type index.
    */
-  TVM_DLL static uint32_t GetOrAllocRuntimeTypeIndex(
-      const std::string& key,
-      uint32_t static_tindex,
-      uint32_t parent_tindex,
-      uint32_t type_child_slots,
-      bool type_child_slots_can_overflow);
+  TVM_DLL static uint32_t GetOrAllocRuntimeTypeIndex(const std::string& key, uint32_t static_tindex,
+                                                     uint32_t parent_tindex,
+                                                     uint32_t type_child_slots,
+                                                     bool type_child_slots_can_overflow);
 
   // reference counter related operations
   /*! \brief developer function, increases reference counter. */
@@ -316,9 +304,9 @@ class Object {
    */
   TVM_DLL bool DerivedFrom(uint32_t parent_tindex) const;
   // friend classes
-  template<typename>
+  template <typename>
   friend class ObjAllocatorBase;
-  template<typename>
+  template <typename>
   friend class ObjectPtr;
   friend class TVMRetValue;
   friend class ObjectInternal;
@@ -398,9 +386,7 @@ class ObjectPtr {
     other.data_ = nullptr;
   }
   /*! \brief destructor */
-  ~ObjectPtr() {
-    this->reset();
-  }
+  ~ObjectPtr() { this->reset(); }
   /*!
    * \brief Swap this array with another Object
    * \param other The other Object
@@ -411,15 +397,11 @@ class ObjectPtr {
   /*!
    * \return Get the content of the pointer
    */
-  T* get() const {
-    return static_cast<T*>(data_);
-  }
+  T* get() const { return static_cast<T*>(data_); }
   /*!
    * \return The pointer
    */
-  T* operator->() const {
-    return get();
-  }
+  T* operator->() const { return get(); }
   /*!
    * \return The reference
    */
@@ -455,29 +437,17 @@ class ObjectPtr {
     }
   }
   /*! \return The use count of the ptr, for debug purposes */
-  int use_count() const {
-    return data_ != nullptr ? data_->use_count() : 0;
-  }
+  int use_count() const { return data_ != nullptr ? data_->use_count() : 0; }
   /*! \return whether the reference is unique */
-  bool unique() const {
-    return data_ != nullptr && data_->use_count() == 1;
-  }
+  bool unique() const { return data_ != nullptr && data_->use_count() == 1; }
   /*! \return Whether two ObjectPtr do not equal each other */
-  bool operator==(const ObjectPtr<T>& other) const {
-    return data_ == other.data_;
-  }
+  bool operator==(const ObjectPtr<T>& other) const { return data_ == other.data_; }
   /*! \return Whether two ObjectPtr equals each other */
-  bool operator!=(const ObjectPtr<T>& other) const {
-    return data_ != other.data_;
-  }
+  bool operator!=(const ObjectPtr<T>& other) const { return data_ != other.data_; }
   /*! \return Whether the pointer is nullptr */
-  bool operator==(std::nullptr_t null) const {
-    return data_ == nullptr;
-  }
+  bool operator==(std::nullptr_t null) const { return data_ == nullptr; }
   /*! \return Whether the pointer is not nullptr */
-  bool operator!=(std::nullptr_t null) const {
-    return data_ != nullptr;
-  }
+  bool operator!=(std::nullptr_t null) const { return data_ != nullptr; }
 
  private:
   /*! \brief internal pointer field */
@@ -506,9 +476,9 @@ class ObjectPtr {
   friend class Object;
   friend class ObjectRef;
   friend struct ObjectHash;
-  template<typename>
+  template <typename>
   friend class ObjectPtr;
-  template<typename>
+  template <typename>
   friend class ObjAllocatorBase;
   friend class TVMPODValue_;
   friend class TVMArgsSetter;
@@ -533,55 +503,37 @@ class ObjectRef {
    * \param other Another object ref.
    * \return the compare result.
    */
-  bool same_as(const ObjectRef& other) const {
-    return data_ == other.data_;
-  }
+  bool same_as(const ObjectRef& other) const { return data_ == other.data_; }
   /*!
    * \brief Comparator
    * \param other Another object ref.
    * \return the compare result.
    */
-  bool operator==(const ObjectRef& other) const {
-    return data_ == other.data_;
-  }
+  bool operator==(const ObjectRef& other) const { return data_ == other.data_; }
   /*!
    * \brief Comparator
    * \param other Another object ref.
    * \return the compare result.
    */
-  bool operator!=(const ObjectRef& other) const {
-    return data_ != other.data_;
-  }
+  bool operator!=(const ObjectRef& other) const { return data_ != other.data_; }
   /*!
    * \brief Comparator
    * \param other Another object ref by address.
    * \return the compare result.
    */
-  bool operator<(const ObjectRef& other) const {
-    return data_.get() < other.data_.get();
-  }
+  bool operator<(const ObjectRef& other) const { return data_.get() < other.data_.get(); }
   /*!
    * \return whether the object is defined(not null).
    */
-  bool defined() const {
-    return data_ != nullptr;
-  }
+  bool defined() const { return data_ != nullptr; }
   /*! \return the internal object pointer */
-  const Object* get() const {
-    return data_.get();
-  }
+  const Object* get() const { return data_.get(); }
   /*! \return the internal object pointer */
-  const Object* operator->() const {
-    return get();
-  }
+  const Object* operator->() const { return get(); }
   /*! \return whether the reference is unique */
-  bool unique() const {
-    return data_.unique();
-  }
+  bool unique() const { return data_.unique(); }
   /*! \return The use count of the ptr, for debug purposes */
-  int use_count() const {
-    return data_.use_count();
-  }
+  int use_count() const { return data_.use_count(); }
   /*!
    * \brief Try to downcast the internal Object to a
    *  raw pointer of a corresponding type.
@@ -605,16 +557,14 @@ class ObjectRef {
   /*! \brief Internal pointer that backs the reference. */
   ObjectPtr<Object> data_;
   /*! \return return a mutable internal ptr, can be used by sub-classes. */
-  Object* get_mutable() const {
-    return data_.get();
-  }
+  Object* get_mutable() const { return data_.get(); }
   /*!
    * \brief Internal helper function downcast a ref without check.
    * \note Only used for internal dev purposes.
    * \tparam T The target reference type.
    * \return The casted result.
    */
-  template<typename T>
+  template <typename T>
   static T DowncastNoCheck(ObjectRef ref) {
     return T(std::move(ref.data_));
   }
@@ -623,16 +573,14 @@ class ObjectRef {
    *        after we successfully moved the field.
    * \param ref The reference data.
    */
-  static void FFIClearAfterMove(ObjectRef* ref) {
-    ref->data_.data_ = nullptr;
-  }
+  static void FFIClearAfterMove(ObjectRef* ref) { ref->data_.data_ = nullptr; }
   /*!
    * \brief Internal helper function get data_ as ObjectPtr of ObjectType.
    * \note only used for internal dev purpose.
    * \tparam ObjectType The corresponding object type.
    * \return the corresponding type.
    */
-  template<typename ObjectType>
+  template <typename ObjectType>
   static ObjectPtr<ObjectType> GetDataPtr(const ObjectRef& ref) {
     return ObjectPtr<ObjectType>(ref.data_.data_);
   }
@@ -657,68 +605,56 @@ inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr);
 
 /*! \brief ObjectRef hash functor */
 struct ObjectHash {
-  size_t operator()(const ObjectRef& a) const {
-    return operator()(a.data_);
-  }
+  size_t operator()(const ObjectRef& a) const { return operator()(a.data_); }
 
-  template<typename T>
+  template <typename T>
   size_t operator()(const ObjectPtr<T>& a) const {
     return std::hash<Object*>()(a.get());
   }
 };
 
-
 /*! \brief ObjectRef equal functor */
 struct ObjectEqual {
-  bool operator()(const ObjectRef& a, const ObjectRef& b) const {
-    return a.same_as(b);
-  }
+  bool operator()(const ObjectRef& a, const ObjectRef& b) const { return a.same_as(b); }
 
-  template<typename T>
+  template <typename T>
   size_t operator()(const ObjectPtr<T>& a, const ObjectPtr<T>& b) const {
     return a == b;
   }
 };
-
 
 /*!
  * \brief helper macro to declare a base object type that can be inheritated.
  * \param TypeName The name of the current type.
  * \param ParentType The name of the ParentType
  */
-#define TVM_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)              \
-  static_assert(!ParentType::_type_final, "ParentObj maked as final");  \
-  static uint32_t RuntimeTypeIndex()  {                                 \
-    static_assert(TypeName::_type_child_slots == 0 ||                   \
-                  ParentType::_type_child_slots == 0 ||                 \
-                  TypeName::_type_child_slots < ParentType::_type_child_slots, \
-                  "Need to set _type_child_slots when parent specifies it."); \
-    if (TypeName::_type_index != ::tvm::runtime::TypeIndex::kDynamic) { \
-      return TypeName::_type_index;                                     \
-    }                                                                   \
-    return _GetOrAllocRuntimeTypeIndex();                               \
-  }                                                                     \
-  static uint32_t _GetOrAllocRuntimeTypeIndex()  {                      \
-    static uint32_t tidx = Object::GetOrAllocRuntimeTypeIndex(          \
-        TypeName::_type_key,                                            \
-        TypeName::_type_index,                                          \
-        ParentType::_GetOrAllocRuntimeTypeIndex(),                      \
-        TypeName::_type_child_slots,                                    \
-        TypeName::_type_child_slots_can_overflow);                      \
-    return tidx;                                                        \
-  }                                                                     \
-
+#define TVM_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)                                     \
+  static_assert(!ParentType::_type_final, "ParentObj maked as final");                         \
+  static uint32_t RuntimeTypeIndex() {                                                         \
+    static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 ||    \
+                      TypeName::_type_child_slots < ParentType::_type_child_slots,             \
+                  "Need to set _type_child_slots when parent specifies it.");                  \
+    if (TypeName::_type_index != ::tvm::runtime::TypeIndex::kDynamic) {                        \
+      return TypeName::_type_index;                                                            \
+    }                                                                                          \
+    return _GetOrAllocRuntimeTypeIndex();                                                      \
+  }                                                                                            \
+  static uint32_t _GetOrAllocRuntimeTypeIndex() {                                              \
+    static uint32_t tidx = Object::GetOrAllocRuntimeTypeIndex(                                 \
+        TypeName::_type_key, TypeName::_type_index, ParentType::_GetOrAllocRuntimeTypeIndex(), \
+        TypeName::_type_child_slots, TypeName::_type_child_slots_can_overflow);                \
+    return tidx;                                                                               \
+  }
 
 /*!
  * \brief helper macro to declare type information in a final class.
-  * \param TypeName The name of the current type.
-  * \param ParentType The name of the ParentType
-  */
-#define TVM_DECLARE_FINAL_OBJECT_INFO(TypeName, ParentType)             \
-  static const constexpr bool _type_final = true;                       \
-  static const constexpr int _type_child_slots = 0;                     \
-  TVM_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)                    \
-
+ * \param TypeName The name of the current type.
+ * \param ParentType The name of the ParentType
+ */
+#define TVM_DECLARE_FINAL_OBJECT_INFO(TypeName, ParentType) \
+  static const constexpr bool _type_final = true;           \
+  static const constexpr int _type_child_slots = 0;         \
+  TVM_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)
 
 /*! \brief helper macro to supress unused warning */
 #if defined(__GNUC__)
@@ -730,8 +666,7 @@ struct ObjectEqual {
 #define TVM_STR_CONCAT_(__x, __y) __x##__y
 #define TVM_STR_CONCAT(__x, __y) TVM_STR_CONCAT_(__x, __y)
 
-#define TVM_OBJECT_REG_VAR_DEF                              \
-  static TVM_ATTRIBUTE_UNUSED uint32_t __make_Object_tid
+#define TVM_OBJECT_REG_VAR_DEF static TVM_ATTRIBUTE_UNUSED uint32_t __make_Object_tid
 
 /*!
  * \brief Helper macro to register the object type to runtime.
@@ -739,20 +674,18 @@ struct ObjectEqual {
  *
  *  Use this macro in the cc file for each terminal class.
  */
-#define TVM_REGISTER_OBJECT_TYPE(TypeName)                              \
-  TVM_STR_CONCAT(TVM_OBJECT_REG_VAR_DEF, __COUNTER__) =                 \
-      TypeName::_GetOrAllocRuntimeTypeIndex()
-
+#define TVM_REGISTER_OBJECT_TYPE(TypeName) \
+  TVM_STR_CONCAT(TVM_OBJECT_REG_VAR_DEF, __COUNTER__) = TypeName::_GetOrAllocRuntimeTypeIndex()
 
 /*
  * \brief Define the default copy/move constructor and assign opeator
  * \param TypeName The class typename.
  */
-#define TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)               \
-  TypeName(const TypeName& other) = default;                            \
-  TypeName(TypeName&& other) = default;                                 \
-  TypeName& operator=(const TypeName& other) = default;                 \
-  TypeName& operator=(TypeName&& other) = default;                      \
+#define TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName) \
+  TypeName(const TypeName& other) = default;              \
+  TypeName(TypeName&& other) = default;                   \
+  TypeName& operator=(const TypeName& other) = default;   \
+  TypeName& operator=(TypeName&& other) = default;
 
 /*
  * \brief Define object reference methods.
@@ -760,15 +693,11 @@ struct ObjectEqual {
  * \param ParentType The parent type of the objectref
  * \param ObjectName The type name of the object.
  */
-#define TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
-  TypeName() = default;                                                 \
-  explicit TypeName(                                                    \
-      ::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)              \
-      : ParentType(n) {}                                                \
-  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                    \
-  const ObjectName* operator->() const {                                \
-    return static_cast<const ObjectName*>(data_.get());                 \
-  }                                                                     \
+#define TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)                        \
+  TypeName() = default;                                                                        \
+  explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {}    \
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                           \
+  const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
   using ContainerType = ObjectName;
 
 /*
@@ -778,15 +707,11 @@ struct ObjectEqual {
  * \param ParentType The parent type of the objectref
  * \param ObjectName The type name of the object.
  */
-#define TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
-  explicit TypeName(                                                    \
-      ::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)              \
-      : ParentType(n) {}                                                \
-  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                    \
-  const ObjectName* operator->() const {                                \
-    return static_cast<const ObjectName*>(data_.get());                 \
-  }                                                                     \
-  static constexpr bool _type_is_nullable = false;                      \
+#define TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)            \
+  explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {}    \
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                           \
+  const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
+  static constexpr bool _type_is_nullable = false;                                             \
   using ContainerType = ObjectName;
 
 /*
@@ -797,15 +722,11 @@ struct ObjectEqual {
  * \note We recommend making objects immutable when possible.
  *       This macro is only reserved for objects that stores runtime states.
  */
-#define TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
-  TypeName() = default;                                                 \
-  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                    \
-  explicit TypeName(                                                    \
-      ::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)              \
-      : ParentType(n) {}                                                \
-  ObjectName* operator->() const {                                      \
-    return static_cast<ObjectName*>(data_.get());                       \
-  }                                                                     \
+#define TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)             \
+  TypeName() = default;                                                                     \
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                        \
+  explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {} \
+  ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }          \
   using ContainerType = ObjectName;
 
 /*!
@@ -827,23 +748,21 @@ struct ObjectEqual {
  *
  * \endcode
  */
-#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)                    \
-  ObjectName* CopyOnWrite() {                                           \
-      CHECK(data_ != nullptr);                                          \
-      if (!data_.unique())  {                                           \
-        auto n = make_object<ObjectName>(*(operator->()));              \
-        ObjectPtr<Object>(std::move(n)).swap(data_);                    \
-      }                                                                 \
-      return static_cast<ObjectName*>(data_.get());                     \
-    }
+#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)     \
+  ObjectName* CopyOnWrite() {                            \
+    CHECK(data_ != nullptr);                             \
+    if (!data_.unique()) {                               \
+      auto n = make_object<ObjectName>(*(operator->())); \
+      ObjectPtr<Object>(std::move(n)).swap(data_);       \
+    }                                                    \
+    return static_cast<ObjectName*>(data_.get());        \
+  }
 
 // Implementations details below
 // Object reference counting.
 #if TVM_OBJECT_ATOMIC_REF_COUNTER
 
-inline void Object::IncRef() {
-  ref_counter_.fetch_add(1, std::memory_order_relaxed);
-}
+inline void Object::IncRef() { ref_counter_.fetch_add(1, std::memory_order_relaxed); }
 
 inline void Object::DecRef() {
   if (ref_counter_.fetch_sub(1, std::memory_order_release) == 1) {
@@ -854,15 +773,11 @@ inline void Object::DecRef() {
   }
 }
 
-inline int Object::use_count() const {
-  return ref_counter_.load(std::memory_order_relaxed);
-}
+inline int Object::use_count() const { return ref_counter_.load(std::memory_order_relaxed); }
 
 #else
 
-inline void Object::IncRef() {
-  ++ref_counter_;
-}
+inline void Object::IncRef() { ++ref_counter_; }
 
 inline void Object::DecRef() {
   if (--ref_counter_ == 0) {
@@ -872,13 +787,11 @@ inline void Object::DecRef() {
   }
 }
 
-inline int Object::use_count() const {
-  return ref_counter_;
-}
+inline int Object::use_count() const { return ref_counter_; }
 
 #endif  // TVM_OBJECT_ATOMIC_REF_COUNTER
 
-template<typename TargetType>
+template <typename TargetType>
 inline bool Object::IsInstance() const {
   const Object* self = this;
   // NOTE: the following code can be optimized by
@@ -912,11 +825,9 @@ inline bool Object::IsInstance() const {
   }
 }
 
-
 template <typename ObjectType>
 inline const ObjectType* ObjectRef::as() const {
-  if (data_ != nullptr &&
-      data_->IsInstance<ObjectType>()) {
+  if (data_ != nullptr && data_->IsInstance<ObjectType>()) {
     return static_cast<ObjectType*>(data_.get());
   } else {
     return nullptr;
@@ -944,12 +855,11 @@ template <typename SubRef, typename BaseRef>
 inline SubRef Downcast(BaseRef ref) {
   if (ref.defined()) {
     CHECK(ref->template IsInstance<typename SubRef::ContainerType>())
-        << "Downcast from " << ref->GetTypeKey() << " to "
-        << SubRef::ContainerType::_type_key << " failed.";
+        << "Downcast from " << ref->GetTypeKey() << " to " << SubRef::ContainerType::_type_key
+        << " failed.";
   } else {
-    CHECK(SubRef::_type_is_nullable)
-        << "Downcast from nullptr to not nullable reference of "
-        << SubRef::ContainerType::_type_key;
+    CHECK(SubRef::_type_is_nullable) << "Downcast from nullptr to not nullable reference of "
+                                     << SubRef::ContainerType::_type_key;
   }
   return SubRef(std::move(ref.data_));
 }

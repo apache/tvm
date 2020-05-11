@@ -21,21 +21,22 @@
  * \file rpc_socket_impl.cc
  * \brief Socket based RPC implementation.
  */
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/container.h>
+#include <tvm/runtime/registry.h>
+
 #include <memory>
-#include "rpc_endpoint.h"
-#include "rpc_session.h"
-#include "rpc_local_session.h"
+
 #include "../../support/socket.h"
+#include "rpc_endpoint.h"
+#include "rpc_local_session.h"
+#include "rpc_session.h"
 
 namespace tvm {
 namespace runtime {
 
 class SockChannel final : public RPCChannel {
  public:
-  explicit SockChannel(support::TCPSocket sock)
-      : sock_(sock) {}
+  explicit SockChannel(support::TCPSocket sock) : sock_(sock) {}
   ~SockChannel() {
     try {
       // BadSocket can throw
@@ -64,13 +65,12 @@ class SockChannel final : public RPCChannel {
   support::TCPSocket sock_;
 };
 
-std::shared_ptr<RPCEndpoint>
-RPCConnect(std::string url, int port, std::string key, TVMArgs init_seq) {
+std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string key,
+                                        TVMArgs init_seq) {
   support::TCPSocket sock;
   support::SockAddr addr(url.c_str(), port);
   sock.Create(addr.ss_family());
-  CHECK(sock.Connect(addr))
-      << "Connect to " << addr.AsString() << " failed";
+  CHECK(sock.Connect(addr)) << "Connect to " << addr.AsString() << " failed";
   // hand shake
   std::ostringstream os;
   int code = kRPCMagic;
@@ -83,12 +83,10 @@ RPCConnect(std::string url, int port, std::string key, TVMArgs init_seq) {
   CHECK_EQ(sock.RecvAll(&code, sizeof(code)), sizeof(code));
   if (code == kRPCMagic + 2) {
     sock.Close();
-    LOG(FATAL) << "URL " << url << ":" << port
-               << " cannot find server that matches key=" << key;
+    LOG(FATAL) << "URL " << url << ":" << port << " cannot find server that matches key=" << key;
   } else if (code == kRPCMagic + 1) {
     sock.Close();
-    LOG(FATAL) << "URL " << url << ":" << port
-               << " server already have key=" << key;
+    LOG(FATAL) << "URL " << url << ":" << port << " server already have key=" << key;
   } else if (code != kRPCMagic) {
     sock.Close();
     LOG(FATAL) << "URL " << url << ":" << port << " is not TVM RPC server";
@@ -99,54 +97,44 @@ RPCConnect(std::string url, int port, std::string key, TVMArgs init_seq) {
     remote_key.resize(keylen);
     CHECK_EQ(sock.RecvAll(&remote_key[0], keylen), keylen);
   }
-  auto endpt = RPCEndpoint::Create(
-      std::unique_ptr<SockChannel>(new SockChannel(sock)), key, remote_key);
+  auto endpt =
+      RPCEndpoint::Create(std::unique_ptr<SockChannel>(new SockChannel(sock)), key, remote_key);
   endpt->InitRemoteSession(init_seq);
   return endpt;
 }
 
-Module RPCClientConnect(std::string url,
-                        int port,
-                        std::string key,
-                        TVMArgs init_seq) {
+Module RPCClientConnect(std::string url, int port, std::string key, TVMArgs init_seq) {
   auto endpt = RPCConnect(url, port, "client:" + key, init_seq);
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }
 
 // TVM_DLL needed for MSVC
 TVM_DLL void RPCServerLoop(int sockfd) {
-  support::TCPSocket sock(
-      static_cast<support::TCPSocket::SockType>(sockfd));
-  RPCEndpoint::Create(
-      std::unique_ptr<SockChannel>(new SockChannel(sock)),
-      "SockServerLoop", "")->ServerLoop();
+  support::TCPSocket sock(static_cast<support::TCPSocket::SockType>(sockfd));
+  RPCEndpoint::Create(std::unique_ptr<SockChannel>(new SockChannel(sock)), "SockServerLoop", "")
+      ->ServerLoop();
 }
 
-void RPCServerLoop(PackedFunc fsend,
-                   PackedFunc frecv) {
-  RPCEndpoint::Create(
-      std::unique_ptr<CallbackChannel>(new CallbackChannel(fsend, frecv)),
-      "SockServerLoop", "")->ServerLoop();
+void RPCServerLoop(PackedFunc fsend, PackedFunc frecv) {
+  RPCEndpoint::Create(std::unique_ptr<CallbackChannel>(new CallbackChannel(fsend, frecv)),
+                      "SockServerLoop", "")
+      ->ServerLoop();
 }
 
-TVM_REGISTER_GLOBAL("rpc.Connect")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
+TVM_REGISTER_GLOBAL("rpc.Connect").set_body([](TVMArgs args, TVMRetValue* rv) {
   std::string url = args[0];
   int port = args[1];
   std::string key = args[2];
-  *rv = RPCClientConnect(
-      url, port, key,
-      TVMArgs(args.values + 3, args.type_codes + 3, args.size() - 3));
+  *rv = RPCClientConnect(url, port, key,
+                         TVMArgs(args.values + 3, args.type_codes + 3, args.size() - 3));
 });
 
-TVM_REGISTER_GLOBAL("rpc.ServerLoop")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("rpc.ServerLoop").set_body([](TVMArgs args, TVMRetValue* rv) {
   if (args[0].type_code() == kDLInt) {
     RPCServerLoop(args[0]);
   } else {
-    RPCServerLoop(
-        args[0].operator tvm::runtime::PackedFunc(),
-        args[1].operator tvm::runtime::PackedFunc());
+    RPCServerLoop(args[0].operator tvm::runtime::PackedFunc(),
+                  args[1].operator tvm::runtime::PackedFunc());
   }
 });
 

@@ -24,12 +24,13 @@
 #ifndef TVM_RUNTIME_RPC_RPC_SESSION_H_
 #define TVM_RUNTIME_RPC_RPC_SESSION_H_
 
-
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/packed_func.h>
+
 #include <functional>
 #include <memory>
 #include <string>
+
 #include "rpc_protocol.h"
 
 namespace tvm {
@@ -120,10 +121,8 @@ class RPCSession {
    * \param fencode_return The function to set the return value,
    *                       if not called, return value is null.
    */
-  virtual void CallFunc(PackedFuncHandle func,
-                        const TVMValue* arg_values,
-                        const int* arg_type_codes,
-                        int num_args,
+  virtual void CallFunc(PackedFuncHandle func, const TVMValue* arg_values,
+                        const int* arg_type_codes, int num_args,
                         const FEncodeReturn& fencode_return) = 0;
 
   /*!
@@ -136,12 +135,8 @@ class RPCSession {
    * \param remote_ctx_to The target context.
    * \param type_hint Hint of content data type.
    */
-  virtual void CopyToRemote(void* local_from,
-                            size_t local_from_offset,
-                            void* remote_to,
-                            size_t remote_to_offset,
-                            size_t nbytes,
-                            TVMContext remote_ctx_to,
+  virtual void CopyToRemote(void* local_from, size_t local_from_offset, void* remote_to,
+                            size_t remote_to_offset, size_t nbytes, TVMContext remote_ctx_to,
                             DLDataType type_hint) = 0;
   /*!
    * \brief Copy bytes from remote array content.
@@ -153,12 +148,8 @@ class RPCSession {
    * \param remote_ctx_from The source context in the remote.
    * \param type_hint Hint of content data type.
    */
-  virtual void CopyFromRemote(void* remote_from,
-                              size_t remote_from_offset,
-                              void* local_to,
-                              size_t local_to_offset,
-                              size_t nbytes,
-                              TVMContext remote_ctx_from,
+  virtual void CopyFromRemote(void* remote_from, size_t remote_from_offset, void* local_to,
+                              size_t local_to_offset, size_t nbytes, TVMContext remote_ctx_from,
                               DLDataType type_hint) = 0;
 
   /*!
@@ -226,11 +217,8 @@ class RPCSession {
    *
    * \param callback The callback to pass the return value or exception.
    */
-  virtual void AsyncCallFunc(PackedFuncHandle func,
-                             const TVMValue* arg_values,
-                             const int* arg_type_codes,
-                             int num_args,
-                             FAsyncCallback callback);
+  virtual void AsyncCallFunc(PackedFuncHandle func, const TVMValue* arg_values,
+                             const int* arg_type_codes, int num_args, FAsyncCallback callback);
 
   /*!
    * \brief Asynchrous version of CopyToRemote.
@@ -247,14 +235,9 @@ class RPCSession {
    * \note All the allocated memory in local_from, and remote_to
    *       must stay alive until on_compelete is called.
    */
-  virtual void AsyncCopyToRemote(void* local_from,
-                                 size_t local_from_offset,
-                                 void* remote_to,
-                                 size_t remote_to_offset,
-                                 size_t nbytes,
-                                 TVMContext remote_ctx_to,
-                                 DLDataType type_hint,
-                                 FAsyncCallback on_complete);
+  virtual void AsyncCopyToRemote(void* local_from, size_t local_from_offset, void* remote_to,
+                                 size_t remote_to_offset, size_t nbytes, TVMContext remote_ctx_to,
+                                 DLDataType type_hint, FAsyncCallback on_complete);
 
   /*!
    * \brief Asynchrous version of CopyFromRemote.
@@ -271,13 +254,9 @@ class RPCSession {
    * \note All the allocated memory in remote_from, and local_to
    *       must stay alive until on_compelete is called.
    */
-  virtual void AsyncCopyFromRemote(void* remote_from,
-                                   size_t remote_from_offset,
-                                   void* local_to,
-                                   size_t local_to_offset,
-                                   size_t nbytes,
-                                   TVMContext remote_ctx_from,
-                                   DLDataType type_hint,
+  virtual void AsyncCopyFromRemote(void* remote_from, size_t remote_from_offset, void* local_to,
+                                   size_t local_to_offset, size_t nbytes,
+                                   TVMContext remote_ctx_from, DLDataType type_hint,
                                    FAsyncCallback on_complete);
   /*!
    * \brief Asynchrously wait for all events in ctx, stream compeletes.
@@ -285,16 +264,12 @@ class RPCSession {
    * \param stream The stream to wait on.
    * \param on_complete The callback to signal copy complete.
    */
-  virtual void AsyncStreamWait(TVMContext ctx,
-                               TVMStreamHandle stream,
-                               FAsyncCallback on_compelte);
+  virtual void AsyncStreamWait(TVMContext ctx, TVMStreamHandle stream, FAsyncCallback on_compelte);
 
   /*!
    * \return The session table index of the session.
    */
-  int table_index() const {
-    return table_index_;
-  }
+  int table_index() const { return table_index_; }
 
   /*!
    * \brief Try get session from the global session table by table index.
@@ -351,10 +326,7 @@ struct RemoteSpace {
  *        the `number` parameter will be automatically increased.
  * \return f_timer A timer function.
  */
-PackedFunc WrapTimeEvaluator(PackedFunc f,
-                             TVMContext ctx,
-                             int number,
-                             int repeat,
+PackedFunc WrapTimeEvaluator(PackedFunc f, TVMContext ctx, int number, int repeat,
                              int min_repeat_ms);
 
 /*!

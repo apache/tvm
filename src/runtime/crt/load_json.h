@@ -24,8 +24,8 @@
 #ifndef TVM_RUNTIME_CRT_LOAD_JSON_H_
 #define TVM_RUNTIME_CRT_LOAD_JSON_H_
 
-#include <stdio.h>
 #include <ctype.h>
+#include <stdio.h>
 
 enum {
   JSON_READ_TYPE_U8 = 1,
@@ -42,12 +42,12 @@ enum {
 };
 
 typedef struct Seq {
-  uint32_t * data;
+  uint32_t* data;
   uint64_t allocated;
   uint32_t size;
-  void (*push_back)(struct Seq * seq, uint32_t src);
-  uint32_t * (*back)(struct Seq * seq);
-  void (*pop_back)(struct Seq * seq);
+  void (*push_back)(struct Seq* seq, uint32_t src);
+  uint32_t* (*back)(struct Seq* seq);
+  void (*pop_back)(struct Seq* seq);
 } Seq;
 
 /*!
@@ -56,8 +56,8 @@ typedef struct Seq {
  */
 typedef struct JSONReader {
   /*! \brief internal reader string */
-  char * is_;
-  char * isptr;
+  char* is_;
+  char* isptr;
   /*! \brief "\\r" counter */
   size_t line_count_r_;
   /*! \brief "\\n" counter */
@@ -66,27 +66,27 @@ typedef struct JSONReader {
    * \brief record how many element processed in
    *  current array/object scope.
    */
-  Seq * scope_counter_;
+  Seq* scope_counter_;
 
-  char (*NextChar)(struct JSONReader * reader);
-  char (*NextNonSpace)(struct JSONReader * reader);
-  char (*PeekNextChar)(struct JSONReader * reader);
-  char (*PeekNextNonSpace)(struct JSONReader * reader);
-  int (*ReadUnsignedInteger)(struct JSONReader * reader, unsigned int * out_value);
-  int (*ReadInteger)(struct JSONReader * reader, int64_t * out_value);
-  int (*ReadString)(struct JSONReader * reader, char * out_value);
-  void (*BeginArray)(struct JSONReader * reader);
-  void (*BeginObject)(struct JSONReader * reader);
-  uint8_t (*NextObjectItem)(struct JSONReader * reader, char * out_key);
-  uint8_t (*NextArrayItem)(struct JSONReader * reader);
+  char (*NextChar)(struct JSONReader* reader);
+  char (*NextNonSpace)(struct JSONReader* reader);
+  char (*PeekNextChar)(struct JSONReader* reader);
+  char (*PeekNextNonSpace)(struct JSONReader* reader);
+  int (*ReadUnsignedInteger)(struct JSONReader* reader, unsigned int* out_value);
+  int (*ReadInteger)(struct JSONReader* reader, int64_t* out_value);
+  int (*ReadString)(struct JSONReader* reader, char* out_value);
+  void (*BeginArray)(struct JSONReader* reader);
+  void (*BeginObject)(struct JSONReader* reader);
+  uint8_t (*NextObjectItem)(struct JSONReader* reader, char* out_key);
+  uint8_t (*NextArrayItem)(struct JSONReader* reader);
 } JSONReader;
 
 /*!
  * \brief Constructor of JSONReader class
  * \param is the input source.
  */
-JSONReader JSONReader_Create(const char * is);
+JSONReader JSONReader_Create(const char* is);
 
-void JSONReader_Release(JSONReader * reader);
+void JSONReader_Release(JSONReader* reader);
 
 #endif  // TVM_RUNTIME_CRT_LOAD_JSON_H_

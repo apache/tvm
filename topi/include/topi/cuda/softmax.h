@@ -24,11 +24,11 @@
 #ifndef TOPI_CUDA_SOFTMAX_H_
 #define TOPI_CUDA_SOFTMAX_H_
 
+#include <topi/detail/fuse.h>
+#include <topi/tags.h>
+#include <tvm/target/generic_func.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule_pass.h>
-#include <tvm/target/generic_func.h>
-#include <topi/tags.h>
-#include <topi/detail/fuse.h>
 
 namespace topi {
 using namespace tvm;
@@ -44,7 +44,7 @@ namespace cuda {
  *
  * \return A schedule for the given ops.
  */
-inline Schedule schedule_softmax(const Target &target, const Array<Tensor>& outs) {
+inline Schedule schedule_softmax(const Target& target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);

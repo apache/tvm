@@ -20,9 +20,9 @@
 /*!
  * \file tvm/arith/analyzer.cc
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
-#include <tvm/arith/analyzer.h>
 #include <tvm/tir/op.h>
 
 namespace tvm {
@@ -33,8 +33,7 @@ Analyzer::Analyzer()
       modular_set(this),
       rewrite_simplify(this),
       canonical_simplify(this),
-      int_set(this) {
-}
+      int_set(this) {}
 
 void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool override) {
   PrimExpr new_expr = expr;
@@ -124,63 +123,53 @@ PrimExpr Analyzer::Simplify(const PrimExpr& expr) {
   return res;
 }
 
-TVM_REGISTER_GLOBAL("arith.CreateAnalyzer")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    using runtime::PackedFunc;
-    using runtime::TypedPackedFunc;
-    auto self = std::make_shared<Analyzer>();
-    auto f = [self](std::string name) -> PackedFunc {
-      if (name == "const_int_bound") {
-        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
-            *ret = self->const_int_bound(args[0]);
-          });
-      } else if (name == "modular_set") {
-        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
-            *ret = self->modular_set(args[0]);
-        });
-      } else if (name == "const_int_bound_update") {
-        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
-            self->const_int_bound.Update(args[0], args[1], args[2]);
-        });
-      } else if (name == "Simplify") {
-        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
-            *ret = self->Simplify(args[0]);
-        });
-      } else if (name == "rewrite_simplify") {
-        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
-            *ret = self->rewrite_simplify(args[0]);
-        });
-      } else if (name == "canonical_simplify") {
-        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
-            *ret = self->canonical_simplify(args[0]);
-        });
-      } else if (name == "int_set") {
-        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
-            *ret = self->int_set(args[0], args[1]);
-        });
-      } else if (name == "bind") {
-        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
-            if (args[1].IsObjectRef<Range>()) {
-              self->Bind(args[0], args[1].operator Range());
-            } else {
-              self->Bind(args[0], args[1].operator PrimExpr());
-            }
-        });
-      } else if (name == "enter_constraint_context") {
-        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
-            // can't use make_shared due to noexcept(false) decl in destructor,
-            // see https://stackoverflow.com/a/43907314
-            auto ctx = std::shared_ptr<With<ConstraintContext> >(
-                new With<ConstraintContext>(self.get(), args[0]));
-            auto fexit = [ctx](TVMArgs, TVMRetValue*) mutable {
-              ctx.reset();
-            };
-            *ret = PackedFunc(fexit);
-        });
-      }
-      return PackedFunc();
-    };
-    *ret = TypedPackedFunc<PackedFunc(std::string)>(f);
+TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValue* ret) {
+  using runtime::PackedFunc;
+  using runtime::TypedPackedFunc;
+  auto self = std::make_shared<Analyzer>();
+  auto f = [self](std::string name) -> PackedFunc {
+    if (name == "const_int_bound") {
+      return PackedFunc(
+          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->const_int_bound(args[0]); });
+    } else if (name == "modular_set") {
+      return PackedFunc(
+          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->modular_set(args[0]); });
+    } else if (name == "const_int_bound_update") {
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        self->const_int_bound.Update(args[0], args[1], args[2]);
+      });
+    } else if (name == "Simplify") {
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) { *ret = self->Simplify(args[0]); });
+    } else if (name == "rewrite_simplify") {
+      return PackedFunc(
+          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->rewrite_simplify(args[0]); });
+    } else if (name == "canonical_simplify") {
+      return PackedFunc(
+          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->canonical_simplify(args[0]); });
+    } else if (name == "int_set") {
+      return PackedFunc(
+          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->int_set(args[0], args[1]); });
+    } else if (name == "bind") {
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        if (args[1].IsObjectRef<Range>()) {
+          self->Bind(args[0], args[1].operator Range());
+        } else {
+          self->Bind(args[0], args[1].operator PrimExpr());
+        }
+      });
+    } else if (name == "enter_constraint_context") {
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        // can't use make_shared due to noexcept(false) decl in destructor,
+        // see https://stackoverflow.com/a/43907314
+        auto ctx = std::shared_ptr<With<ConstraintContext> >(
+            new With<ConstraintContext>(self.get(), args[0]));
+        auto fexit = [ctx](TVMArgs, TVMRetValue*) mutable { ctx.reset(); };
+        *ret = PackedFunc(fexit);
+      });
+    }
+    return PackedFunc();
+  };
+  *ret = TypedPackedFunc<PackedFunc(std::string)>(f);
 });
 
 }  // namespace arith

@@ -20,12 +20,13 @@
 /*!
  * \file graph_runtime_debug.cc
  */
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/ndarray.h>
 
 #include <chrono>
 #include <sstream>
+
 #include "../graph_runtime.h"
 
 namespace tvm {
@@ -59,15 +60,14 @@ class GraphRuntimeDebug : public GraphRuntime {
     std::ostringstream os;
     std::vector<double> time_per_op(op_execs_.size(), 0);
     for (int i = 0; i < repeat; ++i) {
-      std::chrono::time_point<
-        std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin, tend;
+      std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin,
+          tend;
       double duration_ms = 0.0;
       do {
         std::fill(time_per_op.begin(), time_per_op.end(), 0);
         if (duration_ms > 0.0) {
-          number = static_cast<int>(
-              std::max((min_repeat_ms / (duration_ms / number) + 1),
-                       number * 1.618));  // 1.618 is chosen by random
+          number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
+                                             number * 1.618));  // 1.618 is chosen by random
         }
         tbegin = std::chrono::high_resolution_clock::now();
         for (int k = 0; k < number; k++) {
@@ -78,15 +78,17 @@ class GraphRuntimeDebug : public GraphRuntime {
               op_execs_[index]();
               TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
               auto op_tend = std::chrono::high_resolution_clock::now();
-              double op_duration = std::chrono::duration_cast<
-                  std::chrono::duration<double> >(op_tend - op_tbegin).count();
+              double op_duration =
+                  std::chrono::duration_cast<std::chrono::duration<double> >(op_tend - op_tbegin)
+                      .count();
               time_per_op[index] += op_duration * 1e6;  // us
             }
           }
         }
         tend = std::chrono::high_resolution_clock::now();
-        duration_ms = std::chrono::duration_cast<std::chrono::duration<double> >
-            (tend - tbegin).count() * 1000;
+        duration_ms =
+            std::chrono::duration_cast<std::chrono::duration<double> >(tend - tbegin).count() *
+            1000;
       } while (duration_ms < min_repeat_ms);
 
       LOG(INFO) << "Iteration: " << i;
@@ -94,8 +96,8 @@ class GraphRuntimeDebug : public GraphRuntime {
       for (size_t index = 0; index < time_per_op.size(); index++) {
         if (op_execs_[index]) {
           time_per_op[index] /= number;
-          LOG(INFO) << "Op #" << op++ << " " << GetNodeName(index) << ": "
-            << time_per_op[index] << " us/iter";
+          LOG(INFO) << "Op #" << op++ << " " << GetNodeName(index) << ": " << time_per_op[index]
+                    << " us/iter";
         }
       }
     }
@@ -110,17 +112,14 @@ class GraphRuntimeDebug : public GraphRuntime {
    * \param index The index of op which needs to be returned.
    * \param eid The Entry id of the op.
    */
-  NDArray GetOutputByLayer(int index, int eid) {
-    return data_entry_[entry_id(index, eid)];
-  }
+  NDArray GetOutputByLayer(int index, int eid) { return data_entry_[entry_id(index, eid)]; }
 
   /*!
    * \brief GetFunction Get the function based on input.
    * \param name The function which needs to be invoked.
    * \param sptr_to_self Packed function pointer.
    */
-  PackedFunc GetFunction(const std::string& name,
-                         const ObjectPtr<Object>& sptr_to_self);
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
   /*!
    * \brief Get the node index given the name of node.
@@ -135,53 +134,51 @@ class GraphRuntimeDebug : public GraphRuntime {
     }
     LOG(FATAL) << "cannot find " << name << " among nodex";
     return -1;
-}
-
-/*!
- * \brief Copy index-th node to data_out.
- *
- * This method will do a partial run of the the graph
- * from begining upto the index-th node and return output of index-th node.
- * This is costly operation and suggest to use only for debug porpose.
- *
- * \param index: The  index of the node.
- * \param data_out the node data.
- */
-void DebugGetNodeOutput(int index, DLTensor* data_out) {
-  CHECK_LT(static_cast<size_t>(index), op_execs_.size());
-  uint32_t eid = index;
-
-  for (size_t i = 0; i < op_execs_.size(); ++i) {
-    if (op_execs_[i]) op_execs_[i]();
-    if (static_cast<int>(i) == index) break;
   }
 
-  data_entry_[eid].CopyTo(data_out);
-}
-};
+  /*!
+   * \brief Copy index-th node to data_out.
+   *
+   * This method will do a partial run of the the graph
+   * from begining upto the index-th node and return output of index-th node.
+   * This is costly operation and suggest to use only for debug porpose.
+   *
+   * \param index: The  index of the node.
+   * \param data_out the node data.
+   */
+  void DebugGetNodeOutput(int index, DLTensor* data_out) {
+    CHECK_LT(static_cast<size_t>(index), op_execs_.size());
+    uint32_t eid = index;
 
+    for (size_t i = 0; i < op_execs_.size(); ++i) {
+      if (op_execs_[i]) op_execs_[i]();
+      if (static_cast<int>(i) == index) break;
+    }
+
+    data_entry_[eid].CopyTo(data_out);
+  }
+};
 
 /*!
  * \brief GetFunction Get the function based on input.
  * \param name The function which needs to be invoked.
  * \param sptr_to_self Packed function pointer.
  */
-PackedFunc GraphRuntimeDebug::GetFunction(
-    const std::string& name,
-    const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc GraphRuntimeDebug::GetFunction(const std::string& name,
+                                          const ObjectPtr<Object>& sptr_to_self) {
   // return member functions during query.
   if (name == "get_output_by_layer") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->GetOutputByLayer(args[0], args[1]);
-      });
+      *rv = this->GetOutputByLayer(args[0], args[1]);
+    });
   } else if (name == "debug_get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        if (args[0].type_code() == kTVMStr) {
-          this->DebugGetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
-        } else {
-          this->DebugGetNodeOutput(args[0], args[1]);
-        }
-      });
+      if (args[0].type_code() == kTVMStr) {
+        this->DebugGetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
+      } else {
+        this->DebugGetNodeOutput(args[0], args[1]);
+      }
+    });
   } else if (name == "run_individual") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       int number = args[0];
@@ -203,21 +200,18 @@ PackedFunc GraphRuntimeDebug::GetFunction(
  * \param m Compiled module which will be loaded.
  * \param ctxs All devices contexts.
  */
-Module GraphRuntimeDebugCreate(const std::string& sym_json,
-                               const tvm::runtime::Module& m,
+Module GraphRuntimeDebugCreate(const std::string& sym_json, const tvm::runtime::Module& m,
                                const std::vector<TVMContext>& ctxs) {
   auto exec = make_object<GraphRuntimeDebug>();
   exec->Init(sym_json, m, ctxs);
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    CHECK_GE(args.num_args, 4)
-        << "The expected number of arguments for graph_runtime.create is "
-           "at least 4, but it has "
-        << args.num_args;
-    *rv = GraphRuntimeDebugCreate(args[0], args[1], GetAllContext(args));
-  });
+TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create").set_body([](TVMArgs args, TVMRetValue* rv) {
+  CHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
+                                "at least 4, but it has "
+                             << args.num_args;
+  *rv = GraphRuntimeDebugCreate(args[0], args[1], GetAllContext(args));
+});
 }  // namespace runtime
 }  // namespace tvm

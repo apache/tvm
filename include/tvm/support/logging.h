@@ -59,8 +59,8 @@
  *   a = ...
  *   b = ...
  *   // if quit_on_assertion is true, if a==b, continue, otherwise quit.
- *   // if quit_on_assertion is false, if a==b, continue, otherwise 'return false' (default behaviour)
- *   COND_CHECK_EQ(quit_on_assertion, a, b) << "some error message when  quiting"
+ *   // if quit_on_assertion is false, if a==b, continue, otherwise 'return false' (default
+ * behaviour) COND_CHECK_EQ(quit_on_assertion, a, b) << "some error message when  quiting"
  *   ...
  *   for (int i = 0; i < N; i++) {
  *     a = ...
@@ -84,29 +84,24 @@
 
 // Not supposed to be used by users directly.
 #define COND_CHECK_OP(quit_on_assert, x, y, what, op) \
-  if (!quit_on_assert) { \
-    if (!((x) op (y))) \
-      what; \
-  } \
-  else /* NOLINT(*) */ \
+  if (!quit_on_assert) {                              \
+    if (!((x)op(y))) what;                            \
+  } else /* NOLINT(*) */                              \
     CHECK_##op(x, y)
 
 #define COND_CHECK_EQ_4(quit_on_assert, x, y, what) COND_CHECK_OP(quit_on_assert, x, y, what, ==)
 #define COND_CHECK_GE_4(quit_on_assert, x, y, what) COND_CHECK_OP(quit_on_assert, x, y, what, >=)
 
 #define COND_CHECK_3(quit_on_assert, x, what) \
-  if (!quit_on_assert) { \
-    if (!(x)) \
-      what; \
-  } \
-  else /* NOLINT(*) */ \
+  if (!quit_on_assert) {                      \
+    if (!(x)) what;                           \
+  } else /* NOLINT(*) */                      \
     CHECK(x)
 
 #define COND_LOG_3(quit_on_assert, x, what) \
-  if (!quit_on_assert) { \
-    what; \
-  } \
-  else /* NOLINT(*) */ \
+  if (!quit_on_assert) {                    \
+    what;                                   \
+  } else /* NOLINT(*) */                    \
     LOG(x)
 
 #define COND_CHECK_EQ_3(quit_on_assert, x, y) COND_CHECK_EQ_4(quit_on_assert, x, y, return false)
@@ -114,4 +109,4 @@
 #define COND_CHECK_2(quit_on_assert, x) COND_CHECK_3(quit_on_assert, x, return false)
 #define COND_LOG_2(quit_on_assert, x) COND_LOG_3(quit_on_assert, x, return false)
 
-#endif   // TVM_SUPPORT_LOGGING_H_
+#endif  // TVM_SUPPORT_LOGGING_H_
