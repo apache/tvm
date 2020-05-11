@@ -3239,6 +3239,7 @@ def test_spop_placeholder_default():
         def pl_with_default(pl):
             # tpl = tf.convert_to_tensor(pl, dtype=tf.int32)
             return tf.expand_dims(tf.multiply(pl, pl), 0)
+            # return tf.expand_dims(tf.multiply(pl, pl), 0)
 
         # fn = pl_with_default(pl1)
         #
@@ -3303,7 +3304,7 @@ def test_spop_placeholder_dimension_error():
         compare_tf_with_tvm([data, data2], ['pl1:0', 'pl2:0'],
                             'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
-def tvm_frontend_placeholder_spop_error():
+def tvm_frontend_placeholder_invalid_input_index_error():
     tf.reset_default_graph()
     with tf.Graph().as_default():
         in_data1 = np.random.uniform(-5, 5, size=(3, 4, 5)).astype(np.float32)
@@ -3327,9 +3328,10 @@ def tvm_frontend_placeholder_spop_error():
 
 def test_spop():
     test_spop_function_invocation()
-    test_spop_placeholder_default()
-    tvm_frontend_placeholder_spop_error()
+    tvm_frontend_placeholder_invalid_input_index_error()
     test_spop_placeholder_dimension_error()
+    test_spop_placeholder_default()
+
 
 
 #######################################################################
