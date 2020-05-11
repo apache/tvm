@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+include(ExternalProject)
+
 set(PICK_SIM  "sim")
 set(PICK_HW   "target")
 set(PICK_NONE "OFF")
@@ -77,6 +79,13 @@ if(USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}")
   include_directories("${HEXAGON_TOOLCHAIN}/include/iss")
   link_directories("${HEXAGON_TOOLCHAIN}/lib/iss")
   list(APPEND TVM_RUNTIME_LINKER_LIBS "-lwrapper")
+  ExternalProject_Add(sim_dev
+    SOURCE_DIR "${CMAKE_SOURCE_DIR}/src/runtime/hexagon/sim/driver"
+    CMAKE_ARGS
+      "-DCMAKE_C_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang"
+      "-DCMAKE_CXX_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang++"
+    INSTALL_COMMAND "true"
+  )
 elseif(USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
   find_hexagon_sdk_root()
   find_hexagon_toolchain()
