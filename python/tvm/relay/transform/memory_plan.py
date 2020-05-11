@@ -316,17 +316,17 @@ class LiftConst(ExprMutator):
         if int(getattr(fn.attrs, "Primitive", 0)) == 1:
             return fn
 
-        if self.top_level:
-            self.top_level = False
-            body = mk_let(self.constants, self.visit(fn.body))
-            return Function(
-                fn.params,
-                body,
-                fn.ret_type,
-                fn.type_params,
-                fn.attrs)
-        else:
-            return super().visit_function(fn)
+        outer_constant = self.constants
+        self.constants = []
+        body = mk_let(self.constants, self.visit(fn.body))
+        self.constants = outer_constant
+
+        return Function(
+            fn.params,
+            body,
+            fn.ret_type,
+            fn.type_params,
+            fn.attrs)
 
 @function_pass(opt_level=0)
 class MemoryPlan:
