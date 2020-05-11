@@ -252,13 +252,16 @@ def _schedule_add(outs):
         # FIXME(zhanghao): use auto-tune
         i_factors = factors(x_i_max)
         i_factor = i_factors[-1]
-        if i_factor > 28:
-            i_factor = i_factors[-2]
+        while i_factor > 28:
+            del i_factors[-1]
+            i_factor = i_factors[-1]
 
         j_factors = factors(x_j_max)
         j_factor = j_factors[-1]
-        if j_factor > 14:
-            j_factor = j_factors[-2]
+        while j_factor > 14:
+            del j_factors[-1]
+            j_factor = j_factors[-1]
+
         x_i0, x_i1 = s[output].split(x_i, factor=i_factor)
         x_j0, x_j1 = s[output].split(x_j, factor=j_factor)
         s[output].reorder(x_bo, x_i0, x_co0, x_j0, x_co1, x_i1, x_j1, x_bi, x_ci)
