@@ -164,6 +164,15 @@ Stmt update_for(const Stmt& parent_for_stmt, const Stmt& new_if_stmt) {
   return IRTransform(parent_for_stmt, nullptr, replace_target_for, Array<String>{"For"});
 }
 
+template <class T>
+static bool no_intersect(const std::vector<T> &vec, const std::unordered_set<T> &set) {
+  for (auto &&item : vec) {
+    if (set.count(item))
+      return false;
+  }
+  return true;
+}
+
 // Rename all the Var defined in the else case, to meet the SSA requirement
 class Renamer : public StmtExprMutator {
  public:
@@ -271,6 +280,8 @@ void IfThenElseHoist::SelectCandidates(const Stmt& stmt) {
     if (!for_node) return;
 
     std::queue<Stmt> tracker;
+    std::vector<const Object*> var_def;  // don't hoist thread indices out of their
+                                         // definition region
     tracker.push(for_node->body);
     Stmt for_stmt = Downcast<Stmt, ObjectRef>(node);
     for2if_map_.insert({for_stmt.get(), std::vector<Stmt>()});
@@ -279,19 +290,17 @@ void IfThenElseHoist::SelectCandidates(const Stmt& stmt) {
       tracker.pop();
       if (head->IsInstance<ForNode>()) {
         for (const auto& if_stmt : for2if_map_.at(head.get())) {
-          for2if_map_[for_stmt.get()].push_back(if_stmt);
+          if (no_intersect(var_def, cond_var_map_[if_stmt.get()])) {
+            for2if_map_[for_stmt.get()].push_back(if_stmt);
+          }
         }
-      } else if (head->IsInstance<AttrStmtNode>()) {
-        const AttrStmtNode* attr_node = head.as<AttrStmtNode>();
+      } else if (auto attr_node = head.as<AttrStmtNode>()) {
+        if (attr_node->attr_key == attr::thread_extent) {
+          IterVar iv = Downcast<IterVar>(attr_node->node);
+          var_def.push_back(iv->var.get());
+        }
         tracker.push(attr_node->body);
-      } else if (head->IsInstance<IfThenElseNode>()) {
-        for2if_map_[for_stmt.get()].push_back(head);
-        const IfThenElseNode* if_node = head.as<IfThenElseNode>();
-        tracker.push(if_node->then_case);
-        if (if_node->else_case.defined()) {
-          tracker.push(if_node->else_case);
-        }
-
+      } else if (auto if_node = head.as<IfThenElseNode>()) {
         // Record condition variables.
         if (!cond_var_map_.count(head.get())) {
           std::unordered_set<const Object*> new_var_set;
@@ -301,6 +310,14 @@ void IfThenElseHoist::SelectCandidates(const Stmt& stmt) {
               cond_var_map_[head.get()].insert(cond_node.get());
             }
           });
+        }
+
+        if (no_intersect(var_def, cond_var_map_[head.get()])) {
+          for2if_map_[for_stmt.get()].push_back(head);
+        }
+        tracker.push(if_node->then_case);
+        if (if_node->else_case.defined()) {
+          tracker.push(if_node->else_case);
         }
       } else {
         continue;
