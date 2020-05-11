@@ -15,19 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 """RPC client tools"""
-from __future__ import absolute_import
-
 import os
+import stat
 import socket
 import struct
 import time
+
 import tvm._ffi
 from tvm.contrib import util
 from tvm._ffi.base import TVMError
 from tvm.runtime import ndarray as nd
-from tvm.runtime import load_module as _load_module
 
 from . import base
+from . import server
+from . import _ffi_api
 
 
 class RPCSession(object):
@@ -38,8 +39,22 @@ class RPCSession(object):
     # pylint: disable=invalid-name
     def __init__(self, sess):
         self._sess = sess
-        self._tbl_index = base._SessTableIndex(sess)
+        self._tbl_index = _ffi_api.SessTableIndex(sess)
         self._remote_funcs = {}
+
+    def system_lib(self):
+        """Get system-wide library module.
+
+        Returns
+        -------
+        module : runtime.Module
+            The system-wide library module.
+
+        See Also
+        --------
+        tvm.runtime.system_lib
+        """
+        return self.get_function("runtime.SystemLib")()
 
     def get_function(self, name):
         """Get function from the session.
@@ -145,7 +160,7 @@ class RPCSession(object):
         m : Module
             The remote module containing remote function.
         """
-        return base._LoadRemoteModule(self._sess, path)
+        return _ffi_api.LoadRemoteModule(self._sess, path)
 
     def cpu(self, dev_id=0):
         """Construct CPU device."""
@@ -183,28 +198,41 @@ class LocalSession(RPCSession):
     need to be ran both locally and remotely.
     """
     def __init__(self):
-        # pylint: disable=super-init-not-called
-        self.context = nd.context
-        self.get_function = tvm._ffi.get_global_func
-        self._temp = util.tempdir()
+        self._temp = server._server_env([])
+        RPCSession.__init__(self, _ffi_api.LocalSession())
 
-    def upload(self, data, target=None):
-        if isinstance(data, bytearray):
-            if not target:
-                raise ValueError("target must present when file is a bytearray")
-            blob = data
-        else:
-            blob = bytearray(open(data, "rb").read())
-            if not target:
-                target = os.path.basename(data)
-        with open(self._temp.relpath(target), "wb") as f:
-            f.write(blob)
 
-    def download(self, path):
-        return bytearray(open(self._temp.relpath(path), "rb").read())
+@tvm._ffi.register_func("rpc.PopenSession")
+def _popen_session(binary):
+    temp = util.tempdir()
 
-    def load_module(self, path):
-        return _load_module(self._temp.relpath(path))
+    if isinstance(binary, (bytes, bytearray)):
+        path_exec = temp.relpath("server.minrpc")
+        with open(path_exec, "wb") as outfile:
+            outfile.write(binary)
+        os.chmod(path_exec, stat.S_IXUSR | stat.S_IRUSR)
+        path_exec = os.path.abspath(path_exec)
+    else:
+        path_exec = os.path.abspath(binary)
+        if not os.path.isfile(path_exec):
+            raise RuntimeError(f"{path_exec} does not exist.")
+        if not os.access(path_exec, os.X_OK):
+            raise RuntimeError(f"{path_exec} is not executable.")
+
+    sess = _ffi_api.CreatePipeClient(path_exec)
+    return sess
+
+
+class PopenSession(RPCSession):
+    """RPCSession interface backed by popen.
+
+    Parameters
+    ----------
+    binary : List[Union[str, bytes]]
+        The binary to be executed.
+    """
+    def __init__(self, binary):
+        RPCSession.__init__(self, _popen_session(binary))
 
 
 class TrackerSession(object):
@@ -378,7 +406,7 @@ class TrackerSession(object):
                 key, max_retry, str(last_err)))
 
 
-def connect(url, port, key="", session_timeout=0):
+def connect(url, port, key="", session_timeout=0, session_constructor_args=None):
     """Connect to RPC Server
 
     Parameters
@@ -397,15 +425,43 @@ def connect(url, port, key="", session_timeout=0):
         the connection when duration is longer than this value.
         When duration is zero, it means the request must always be kept alive.
 
+    session_constructor_args: List
+        List of additional arguments to passed as the remote session constructor.
+        The first element of the list is always a string specifying the name of
+        the session constructor, the following args are the positional args to that function.
+
     Returns
     -------
     sess : RPCSession
         The connected session.
+
+    Examples
+    --------
+    Normal usage
+    .. code-block:: python
+
+        client = rpc.connect(server_url, server_port, server_key)
+
+    Session_constructor can be used to customize the session in the remote
+    The following code connects to a remote internal server via a proxy
+    by constructing another RPCClientSession on the proxy machine and use that
+    as the serving session of the proxy endpoint.
+
+    .. code-block:: python
+
+        client_via_proxy = rpc.connect(
+            proxy_server_url, proxy_server_port, proxy_server_key,
+            session_constructor_args=[
+                "rpc.Connect", internal_url, internal_port, internal_key])
+
     """
     try:
         if session_timeout:
             key += " -timeout=%s" % str(session_timeout)
-        sess = base._Connect(url, port, key)
+        session_constructor_args = session_constructor_args if session_constructor_args else []
+        if not isinstance(session_constructor_args, (list, tuple)):
+            raise TypeError("Expect the session constructor to be a list or tuple")
+        sess = _ffi_api.Connect(url, port, key, *session_constructor_args)
     except NameError:
         raise RuntimeError("Please compile with USE_RPC=1")
     return RPCSession(sess)
