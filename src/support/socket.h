@@ -35,26 +35,27 @@ using ssize_t = int;
 #pragma comment(lib, "Ws2_32.lib")
 #endif
 #else
+#include <arpa/inet.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
-#include <errno.h>
-#include <unistd.h>
-#include <arpa/inet.h>
 #include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/select.h>
 #include <sys/ioctl.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #endif
 #include <dmlc/logging.h>
-#include <string>
+
 #include <cstring>
-#include <vector>
+#include <string>
 #include <unordered_map>
+#include <vector>
+
 #include "../support/util.h"
 
 #if defined(_WIN32)
-static inline int poll(struct pollfd *pfd, int nfds,
-                       int timeout) {
+static inline int poll(struct pollfd* pfd, int nfds, int timeout) {
   return WSAPoll(pfd, nfds, timeout);
 }
 #else
@@ -68,7 +69,8 @@ namespace support {
  * \return The hostname.
  */
 inline std::string GetHostName() {
-  std::string buf; buf.resize(256);
+  std::string buf;
+  buf.resize(256);
   CHECK_NE(gethostname(&buf[0], 256), -1);
   return std::string(buf.c_str());
 }
@@ -100,16 +102,14 @@ struct SockAddr {
    * \param url The url of the address
    * \param port The port of the address.
    */
-  SockAddr(const char *url, int port) {
-    this->Set(url, port);
-  }
+  SockAddr(const char* url, int port) { this->Set(url, port); }
 
   /*!
-  * \brief SockAddr Get the socket address from tracker.
-  * \param tracker The url containing the ip and port number. Format is ('192.169.1.100', 9090)
-  * \return SockAddr parsed from url.
-  */
-  explicit SockAddr(const std::string &url) {
+   * \brief SockAddr Get the socket address from tracker.
+   * \param tracker The url containing the ip and port number. Format is ('192.169.1.100', 9090)
+   * \return SockAddr parsed from url.
+   */
+  explicit SockAddr(const std::string& url) {
     size_t sep = url.find(",");
     std::string host = url.substr(2, sep - 3);
     std::string port = url.substr(sep + 1, url.length() - 1);
@@ -125,31 +125,28 @@ struct SockAddr {
    * \param host the url of the address
    * \param port the port of address
    */
-  void Set(const char *host, int port) {
+  void Set(const char* host, int port) {
     addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = PF_UNSPEC;
     hints.ai_flags = AI_PASSIVE;
     hints.ai_socktype = SOCK_STREAM;
-    addrinfo *res = NULL;
+    addrinfo* res = NULL;
     int sig = getaddrinfo(host, NULL, &hints, &res);
-    CHECK(sig == 0 && res != NULL)
-        << "cannot obtain address of " <<  host;
+    CHECK(sig == 0 && res != NULL) << "cannot obtain address of " << host;
     switch (res->ai_family) {
       case AF_INET: {
-          sockaddr_in *addr4 = reinterpret_cast<sockaddr_in *>(&addr);
-          memcpy(addr4, res->ai_addr, res->ai_addrlen);
-          addr4->sin_port = htons(port);
-          addr4->sin_family = AF_INET;
-        }
-        break;
+        sockaddr_in* addr4 = reinterpret_cast<sockaddr_in*>(&addr);
+        memcpy(addr4, res->ai_addr, res->ai_addrlen);
+        addr4->sin_port = htons(port);
+        addr4->sin_family = AF_INET;
+      } break;
       case AF_INET6: {
-          sockaddr_in6 *addr6 = reinterpret_cast<sockaddr_in6 *>(&addr);
-          memcpy(addr6, res->ai_addr, res->ai_addrlen);
-          addr6->sin6_port = htons(port);
-          addr6->sin6_family = AF_INET6;
-        }
-        break;
+        sockaddr_in6* addr6 = reinterpret_cast<sockaddr_in6*>(&addr);
+        memcpy(addr6, res->ai_addr, res->ai_addrlen);
+        addr6->sin6_port = htons(port);
+        addr6->sin6_family = AF_INET6;
+      } break;
       default:
         CHECK(false) << "cannot decode address";
     }
@@ -157,35 +154,34 @@ struct SockAddr {
   }
   /*! \brief return port of the address */
   int port() const {
-    return ntohs((addr.ss_family == AF_INET6)? \
-                    reinterpret_cast<const sockaddr_in6 *>(&addr)->sin6_port : \
-                    reinterpret_cast<const sockaddr_in *>(&addr)->sin_port);
+    return ntohs((addr.ss_family == AF_INET6)
+                     ? reinterpret_cast<const sockaddr_in6*>(&addr)->sin6_port
+                     : reinterpret_cast<const sockaddr_in*>(&addr)->sin_port);
   }
   /*! \brief return the ip address family */
-  int ss_family() const {
-    return addr.ss_family;
-  }
+  int ss_family() const { return addr.ss_family; }
   /*! \return a string representation of the address */
   std::string AsString() const {
-    std::string buf; buf.resize(256);
+    std::string buf;
+    buf.resize(256);
 
-  const void *sinx_addr = nullptr;
-  if (addr.ss_family == AF_INET6) {
-    const in6_addr& addr6 = reinterpret_cast<const sockaddr_in6 *>(&addr)->sin6_addr;
-    sinx_addr = reinterpret_cast<const void *>(&addr6);
-  } else if (addr.ss_family == AF_INET) {
-    const in_addr& addr4 = reinterpret_cast<const sockaddr_in *>(&addr)->sin_addr;
-    sinx_addr = reinterpret_cast<const void *>(&addr4);
-  } else {
-    CHECK(false) << "illegal address";
-  }
+    const void* sinx_addr = nullptr;
+    if (addr.ss_family == AF_INET6) {
+      const in6_addr& addr6 = reinterpret_cast<const sockaddr_in6*>(&addr)->sin6_addr;
+      sinx_addr = reinterpret_cast<const void*>(&addr6);
+    } else if (addr.ss_family == AF_INET) {
+      const in_addr& addr4 = reinterpret_cast<const sockaddr_in*>(&addr)->sin_addr;
+      sinx_addr = reinterpret_cast<const void*>(&addr4);
+    } else {
+      CHECK(false) << "illegal address";
+    }
 
 #ifdef _WIN32
-    const char *s = inet_ntop(addr.ss_family, (PVOID)sinx_addr,  // NOLINT(*)
+    const char* s = inet_ntop(addr.ss_family, (PVOID)sinx_addr,  // NOLINT(*)
                               &buf[0], buf.length());
 #else
-    const char *s = inet_ntop(addr.ss_family, sinx_addr,
-                              &buf[0], static_cast<socklen_t>(buf.length()));
+    const char* s =
+        inet_ntop(addr.ss_family, sinx_addr, &buf[0], static_cast<socklen_t>(buf.length()));
 #endif
     CHECK(s != nullptr) << "cannot decode address";
     std::ostringstream os;
@@ -238,10 +234,10 @@ class Socket {
    * \brief bind the socket to an address
    * \param addr The address to be binded
    */
-  void Bind(const SockAddr &addr) {
+  void Bind(const SockAddr& addr) {
     if (bind(sockfd, reinterpret_cast<const sockaddr*>(&addr.addr),
-             (addr.addr.ss_family == AF_INET6 ? sizeof(sockaddr_in6) :
-                                                sizeof(sockaddr_in))) == -1) {
+             (addr.addr.ss_family == AF_INET6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in))) ==
+        -1) {
       Socket::Error("Bind");
     }
   }
@@ -256,8 +252,8 @@ class Socket {
     for (int port = start_port; port < end_port; ++port) {
       SockAddr addr(host.c_str(), port);
       if (bind(sockfd, reinterpret_cast<sockaddr*>(&addr.addr),
-               (addr.addr.ss_family == AF_INET6 ? sizeof(sockaddr_in6) :
-                                                  sizeof(sockaddr_in))) == 0) {
+               (addr.addr.ss_family == AF_INET6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in))) ==
+          0) {
         return port;
       } else {
         LOG(WARNING) << "Bind failed to " << host << ":" << port;
@@ -278,7 +274,7 @@ class Socket {
   int GetSockError() const {
     int error = 0;
     socklen_t len = sizeof(error);
-    if (getsockopt(sockfd,  SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error), &len) != 0) {
+    if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error), &len) != 0) {
       Error("GetSockError");
     }
     return error;
@@ -291,9 +287,7 @@ class Socket {
     return false;
   }
   /*! \brief check if socket is already closed */
-  bool IsClosed() const {
-    return sockfd == INVALID_SOCKET;
-  }
+  bool IsClosed() const { return sockfd == INVALID_SOCKET; }
   /*! \brief close the socket */
   void Close() {
     if (sockfd != INVALID_SOCKET) {
@@ -354,7 +348,7 @@ class Socket {
    * \brief Report an socket error.
    * \param msg The error message.
    */
-  static void Error(const char *msg) {
+  static void Error(const char* msg) {
     int errsv = GetLastError();
 #ifdef _WIN32
     LOG(FATAL) << "Socket " << msg << " Error:WSAError-code=" << errsv;
@@ -364,8 +358,7 @@ class Socket {
   }
 
  protected:
-  explicit Socket(SockType sockfd) : sockfd(sockfd) {
-  }
+  explicit Socket(SockType sockfd) : sockfd(sockfd) {}
 };
 
 /*!
@@ -373,22 +366,20 @@ class Socket {
  */
 class TCPSocket : public Socket {
  public:
-  TCPSocket() : Socket(INVALID_SOCKET) {
-  }
+  TCPSocket() : Socket(INVALID_SOCKET) {}
   /*!
    * \brief construct a TCP socket from existing descriptor
    * \param sockfd The descriptor
    */
-  explicit TCPSocket(SockType sockfd) : Socket(sockfd) {
-  }
+  explicit TCPSocket(SockType sockfd) : Socket(sockfd) {}
   /*!
    * \brief enable/disable TCP keepalive
    * \param keepalive whether to set the keep alive option on
    */
   void SetKeepAlive(bool keepalive) {
     int opt = static_cast<int>(keepalive);
-    if (setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE,
-                   reinterpret_cast<char*>(&opt), sizeof(opt)) < 0) {
+    if (setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, reinterpret_cast<char*>(&opt), sizeof(opt)) <
+        0) {
       Socket::Error("SetKeepAlive");
     }
   }
@@ -406,9 +397,7 @@ class TCPSocket : public Socket {
    * \brief perform listen of the socket
    * \param backlog backlog parameter
    */
-  void Listen(int backlog = 16) {
-    listen(sockfd, backlog);
-  }
+  void Listen(int backlog = 16) { listen(sockfd, backlog); }
   /*!
    * \brief get a new connection
    * \return The accepted socket connection.
@@ -421,14 +410,13 @@ class TCPSocket : public Socket {
     return TCPSocket(newfd);
   }
   /*!
-  * \brief get a new connection
-  * \param addr client address from which connection accepted
-  * \return The accepted socket connection.
-  */
-  TCPSocket Accept(SockAddr *addr) {
+   * \brief get a new connection
+   * \param addr client address from which connection accepted
+   * \return The accepted socket connection.
+   */
+  TCPSocket Accept(SockAddr* addr) {
     socklen_t addrlen = sizeof(addr->addr);
-    SockType newfd = accept(sockfd, reinterpret_cast<sockaddr*>(&addr->addr),
-                            &addrlen);
+    SockType newfd = accept(sockfd, reinterpret_cast<sockaddr*>(&addr->addr), &addrlen);
     if (newfd == INVALID_SOCKET) {
       Socket::Error("Accept");
     }
@@ -453,10 +441,10 @@ class TCPSocket : public Socket {
    * \param addr the address to connect to
    * \return whether connect is successful
    */
-  bool Connect(const SockAddr &addr) {
-    return connect(sockfd, reinterpret_cast<const sockaddr*>(&addr.addr),
-                   (addr.addr.ss_family == AF_INET6 ? sizeof(sockaddr_in6) :
-                                                      sizeof(sockaddr_in))) == 0;
+  bool Connect(const SockAddr& addr) {
+    return connect(
+               sockfd, reinterpret_cast<const sockaddr*>(&addr.addr),
+               (addr.addr.ss_family == AF_INET6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in))) == 0;
   }
   /*!
    * \brief send data using the socket
@@ -466,8 +454,8 @@ class TCPSocket : public Socket {
    * \return size of data actually sent
    *         return -1 if error occurs
    */
-  ssize_t Send(const void *buf_, size_t len, int flag = 0) {
-    const char *buf = reinterpret_cast<const char*>(buf_);
+  ssize_t Send(const void* buf_, size_t len, int flag = 0) {
+    const char* buf = reinterpret_cast<const char*>(buf_);
     return send(sockfd, buf, static_cast<sock_size_t>(len), flag);
   }
   /*!
@@ -478,8 +466,8 @@ class TCPSocket : public Socket {
    * \return size of data actually received
    *         return -1 if error occurs
    */
-  ssize_t Recv(void *buf_, size_t len, int flags = 0) {
-    char *buf = reinterpret_cast<char*>(buf_);
+  ssize_t Recv(void* buf_, size_t len, int flags = 0) {
+    char* buf = reinterpret_cast<char*>(buf_);
     return recv(sockfd, buf, static_cast<sock_size_t>(len), flags);
   }
   /*!
@@ -489,10 +477,10 @@ class TCPSocket : public Socket {
    * \param len the size of the buffer
    * \return size of data actually sent
    */
-  size_t SendAll(const void *buf_, size_t len) {
-    const char *buf = reinterpret_cast<const char*>(buf_);
+  size_t SendAll(const void* buf_, size_t len) {
+    const char* buf = reinterpret_cast<const char*>(buf_);
     size_t ndone = 0;
-    while (ndone <  len) {
+    while (ndone < len) {
       ssize_t ret = send(sockfd, buf, static_cast<ssize_t>(len - ndone), 0);
       if (ret == -1) {
         if (LastErrorWouldBlock()) return ndone;
@@ -510,14 +498,13 @@ class TCPSocket : public Socket {
    * \param len length of data to recv
    * \return size of data actually sent
    */
-  size_t RecvAll(void *buf_, size_t len) {
-    char *buf = reinterpret_cast<char*>(buf_);
+  size_t RecvAll(void* buf_, size_t len) {
+    char* buf = reinterpret_cast<char*>(buf_);
     size_t ndone = 0;
-    while (ndone <  len) {
-      ssize_t ret = recv(sockfd, buf,
-                         static_cast<sock_size_t>(len - ndone), MSG_WAITALL);
+    while (ndone < len) {
+      ssize_t ret = recv(sockfd, buf, static_cast<sock_size_t>(len - ndone), MSG_WAITALL);
       if (ret == -1) {
-        if (LastErrorWouldBlock())  {
+        if (LastErrorWouldBlock()) {
           LOG(FATAL) << "would block";
           return ndone;
         }
@@ -612,7 +599,7 @@ struct PollHelper {
    * \param timeout the timeout counter, can be negative, which means wait until the event happen
    * \return 1 if success, 0 if timeout, and -1 if error occurs
    */
-  inline static int WaitExcept(TCPSocket::SockType fd, long timeout = -1) { // NOLINT(*)
+  inline static int WaitExcept(TCPSocket::SockType fd, long timeout = -1) {  // NOLINT(*)
     pollfd pfd;
     pfd.fd = fd;
     pfd.events = POLLPRI;

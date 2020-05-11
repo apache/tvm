@@ -1347,6 +1347,25 @@ def pad(data,
     return _make.pad(data, pad_width, pad_value, pad_mode)
 
 
+def dilate(data, strides):
+    """Dilate data with zeros.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        n-D, can be any layout.
+
+    strides : <tuple of <int>
+        Dilation stride on each dimension, 1 means no dilation.
+
+    Returns
+    -------
+    Output : tvm.relay.Expr
+        The computed result
+    """
+    return _make.dilate(data, strides)
+
+
 def mirror_pad(data,
                pad_width,
                mode="SYMMETRIC"):

@@ -22,19 +22,21 @@
  * \brief Memory access pattern analysis and optimization.
  *  Re-write data access to enable memory sharing when possible.
  */
-#include <tvm/runtime/registry.h>
 #include <tvm/arith/analyzer.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/transform.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/stmt_functor.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/target/target_info.h>
+#include <tvm/tir/analysis.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
+
 #include <map>
-#include <unordered_set>
 #include <unordered_map>
-#include "ir_util.h"
+#include <unordered_set>
+
 #include "../../arith/compute_expr.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "ir_util.h"
 
 namespace tvm {
 namespace tir {
@@ -125,8 +127,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     const VarNode* buf = op->buffer_var.get();
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
-      CHECK_LT(it->second.level, scope_.size())
-          << "Load memory in places other than store.";
+      CHECK_LT(it->second.level, scope_.size()) << "Load memory in places other than store.";
       scope_[it->second.level].touched.push_back(buf);
     }
   }
@@ -142,24 +143,23 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     // Directly reference to the variable count as a read.
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
-      CHECK_LT(it->second.level, scope_.size())
-          << " buf=" << buf->name_hint;
+      CHECK_LT(it->second.level, scope_.size()) << " buf=" << buf->name_hint;
       scope_[it->second.level].touched.push_back(buf);
     }
   }
-  template<typename T>
+  template <typename T>
   void VisitNewScope(const T* op) {
     scope_.push_back(StmtEntry());
     StmtEntry e;
     e.stmt = op;
-    int64_t begin_index =  static_cast<int64_t>(linear_seq_.size());
+    int64_t begin_index = static_cast<int64_t>(linear_seq_.size());
     // before scope.
     linear_seq_.push_back(e);
     StmtExprVisitor::VisitStmt_(op);
     // after scope.
     e.touched = std::move(scope_.back().touched);
     scope_.pop_back();
-    int64_t end_index =  static_cast<int64_t>(linear_seq_.size());
+    int64_t end_index = static_cast<int64_t>(linear_seq_.size());
     CHECK_GT(end_index, begin_index);
     e.scope_pair_offset = begin_index - end_index;
     linear_seq_.push_back(e);
@@ -179,24 +179,17 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       VisitNewScope(op);
     } else if (op->attr_key == attr::storage_scope) {
       const VarNode* buf = op->node.as<VarNode>();
-      alloc_info_[buf].storage_scope =
-          StorageScope::make(op->value.as<StringImmNode>()->value);
+      alloc_info_[buf].storage_scope = StorageScope::make(op->value.as<StringImmNode>()->value);
       StmtExprVisitor::VisitStmt_(op);
     } else {
       StmtExprVisitor::VisitStmt_(op);
     }
   }
-  void VisitStmt_(const IfThenElseNode* op) final {
-    VisitNewScope(op);
-  }
+  void VisitStmt_(const IfThenElseNode* op) final { VisitNewScope(op); }
 
-  void VisitStmt_(const ForNode* op) final {
-    VisitNewScope(op);
-  }
+  void VisitStmt_(const ForNode* op) final { VisitNewScope(op); }
 
-  void VisitStmt_(const AssertStmtNode* op) final {
-    VisitNewScope(op);
-  }
+  void VisitStmt_(const AssertStmtNode* op) final { VisitNewScope(op); }
 
   // linearized access sequence.
   std::vector<StmtEntry> linear_seq_;
@@ -238,9 +231,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 //
 class InplaceOpVerifier : public StmtExprVisitor {
  public:
-  bool Check(const Object* stmt,
-             const VarNode* dst,
-             const VarNode* src) {
+  bool Check(const Object* stmt, const VarNode* dst, const VarNode* src) {
     dst_ = dst;
     src_ = src;
     result_ = true;
@@ -272,7 +263,8 @@ class InplaceOpVerifier : public StmtExprVisitor {
   void VisitExpr_(const VarNode* op) final {
     // assume all opaque access is unsafe
     if (op == dst_ || op == src_) {
-      result_ = false; return;
+      result_ = false;
+      return;
     }
   }
 
@@ -293,9 +285,9 @@ class InplaceOpVerifier : public StmtExprVisitor {
 
   void VisitStmt_(const AttrStmtNode* op) final {
     // always reject extern code
-    if (op->attr_key == attr::extern_scope ||
-        op->attr_key == attr::volatile_scope) {
-      result_ = false; return;
+    if (op->attr_key == attr::extern_scope || op->attr_key == attr::volatile_scope) {
+      result_ = false;
+      return;
     }
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -304,24 +296,25 @@ class InplaceOpVerifier : public StmtExprVisitor {
     const VarNode* buf = op->buffer_var.get();
     // cannot read from dst_ (no reduction)
     if (buf == dst_) {
-      result_ = false; return;
+      result_ = false;
+      return;
     }
     // do not allow indirect memory load
     if (mem_nest_ != 0) {
-      result_ = false; return;
+      result_ = false;
+      return;
     }
     if (src_ == buf) {
-      if (store_ == nullptr ||
-          store_->value.dtype() != op->dtype ||
+      if (store_ == nullptr || store_->value.dtype() != op->dtype ||
           !tir::ExprDeepEqual()(store_->index, op->index)) {
-        result_ = false; return;
+        result_ = false;
+        return;
       }
     }
     ++mem_nest_;
     StmtExprVisitor::VisitExpr_(op);
     --mem_nest_;
   }
-
 
  private:
   // result of the check
@@ -358,10 +351,9 @@ class StoragePlanRewriter : public StmtExprMutator {
       for (StorageEntry* e : attach_map_.at(nullptr)) {
         // CHECK_EQ(e->scope.rank, 0);
         if (e->new_alloc.defined()) {
-          nest.emplace_back(AttrStmtNode::make(
-              e->alloc_var, attr::storage_scope,
-              StringImmNode::make(e->scope.to_string()),
-              EvaluateNode::make(0)));
+          nest.emplace_back(AttrStmtNode::make(e->alloc_var, attr::storage_scope,
+                                               StringImmNode::make(e->scope.to_string()),
+                                               EvaluateNode::make(0)));
           nest.push_back(e->new_alloc);
         }
       }
@@ -374,20 +366,16 @@ class StoragePlanRewriter : public StmtExprMutator {
     op = stmt.as<StoreNode>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return stmt;
-    return StoreNode::make(it->second->alloc_var,
-                       op->value,
-                       RemapIndex(op->value.dtype(), op->index, it->second),
-                       op->predicate);
+    return StoreNode::make(it->second->alloc_var, op->value,
+                           RemapIndex(op->value.dtype(), op->index, it->second), op->predicate);
   }
   PrimExpr VisitExpr_(const LoadNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<LoadNode>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return expr;
-    return LoadNode::make(op->dtype,
-                      it->second->alloc_var,
-                      RemapIndex(op->dtype, op->index, it->second),
-                      op->predicate);
+    return LoadNode::make(op->dtype, it->second->alloc_var,
+                          RemapIndex(op->dtype, op->index, it->second), op->predicate);
   }
   PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = alloc_map_.find(op);
@@ -417,10 +405,9 @@ class StoragePlanRewriter : public StmtExprMutator {
       if (se->bits_offset != 0) {
         offset = make_const(offset.dtype(), se->bits_offset / elem_bits) + offset;
       }
-      return CallNode::make(
-          op->dtype, op->name,
-          {op->args[0], se->alloc_var, offset, extent, op->args[4]},
-          op->call_type);
+      return CallNode::make(op->dtype, op->name,
+                            {op->args[0], se->alloc_var, offset, extent, op->args[4]},
+                            op->call_type);
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -429,17 +416,14 @@ class StoragePlanRewriter : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
       return this->VisitStmt(op->body);
-    } else if (op->attr_key == attr::thread_extent ||
-               op->attr_key == attr::virtual_thread ||
+    } else if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread ||
                attr::IsPragmaKey(op->attr_key)) {
       // remake all the allocation at the attach scope.
       if (attach_map_.count(op)) {
         auto& svec = attach_map_[op];
         Stmt stmt = StmtExprMutator::VisitStmt_(op);
         op = stmt.as<AttrStmtNode>();
-        return AttrStmtNode::make(
-            op->node, op->attr_key, op->value,
-            MakeAttach(svec, op->body));
+        return AttrStmtNode::make(op->node, op->attr_key, op->value, MakeAttach(svec, op->body));
       } else {
         return StmtExprMutator::VisitStmt_(op);
       }
@@ -448,31 +432,26 @@ class StoragePlanRewriter : public StmtExprMutator {
       op = stmt.as<AttrStmtNode>();
       auto it = alloc_map_.find(op->node.as<VarNode>());
       if (it == alloc_map_.end()) return stmt;
-      return AttrStmtNode::make(
-          it->second->alloc_var, op->attr_key, op->value, op->body);
+      return AttrStmtNode::make(it->second->alloc_var, op->attr_key, op->value, op->body);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
   Stmt VisitStmt_(const ForNode* op) final {
-    CHECK(op->for_type != ForType::Vectorized)
-        << "VectorizeLoop before LiftStorageAlloc";
+    CHECK(op->for_type != ForType::Vectorized) << "VectorizeLoop before LiftStorageAlloc";
     // remake all the allocation at the attach scope.
     if (attach_map_.count(op)) {
       auto& svec = attach_map_[op];
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<ForNode>();
-      return ForNode::make(
-          op->loop_var, op->min, op->extent, op->for_type, op->device_api,
-          MakeAttach(svec, op->body));
+      return ForNode::make(op->loop_var, op->min, op->extent, op->for_type, op->device_api,
+                           MakeAttach(svec, op->body));
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    return this->VisitStmt(op->body);
-  }
+  Stmt VisitStmt_(const AllocateNode* op) final { return this->VisitStmt(op->body); }
 
  private:
   struct StorageEntry {
@@ -517,15 +496,13 @@ class StoragePlanRewriter : public StmtExprMutator {
     std::vector<const VarNode*> kill;
   };
 
-  Stmt MakeAttach(const std::vector<StorageEntry*>& svec,
-                  Stmt body) {
+  Stmt MakeAttach(const std::vector<StorageEntry*>& svec, Stmt body) {
     std::vector<Stmt> nest;
     for (StorageEntry* e : svec) {
       if (e->new_alloc.defined()) {
-        nest.emplace_back(AttrStmtNode::make(
-            e->alloc_var, attr::storage_scope,
-            StringImmNode::make(e->scope.to_string()),
-            EvaluateNode::make(0)));
+        nest.emplace_back(AttrStmtNode::make(e->alloc_var, attr::storage_scope,
+                                             StringImmNode::make(e->scope.to_string()),
+                                             EvaluateNode::make(0)));
         nest.push_back(e->new_alloc);
       }
     }
@@ -545,15 +522,14 @@ class StoragePlanRewriter : public StmtExprMutator {
       attach_map_[e->attach_scope_].push_back(e);
     }
     // find allocation via attach map.
-    for (auto &kv : attach_map_) {
+    for (auto& kv : attach_map_) {
       // find the element with the most amount of bytes.
       std::vector<StorageEntry*>& vec = kv.second;
       // try to find merge, for tagged memory
       for (size_t i = 0; i < vec.size(); ++i) {
         StorageEntry* e = vec[i];
         if (e->scope.tag.length() != 0) {
-          CHECK_NE(e->const_nbits, 0U)
-              << "Special tagged memory must be const size";
+          CHECK_NE(e->const_nbits, 0U) << "Special tagged memory must be const size";
           for (size_t j = 0; j < i; ++j) {
             if (e->scope == vec[j]->scope) {
               vec[j]->merged_children.push_back(e);
@@ -568,7 +544,8 @@ class StoragePlanRewriter : public StmtExprMutator {
         // already merged
         if (e->bits_offset != 0) continue;
         if (e->merged_children.size() != 0) {
-          NewAllocTagMerged(e); continue;
+          NewAllocTagMerged(e);
+          continue;
         }
         // Get the allocation size;
         e->alloc_var = e->allocs[0]->buffer_var;
@@ -581,10 +558,9 @@ class StoragePlanRewriter : public StmtExprMutator {
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
           PrimExpr sz = arith::ComputeReduce<MulNode>(e->allocs[0]->extents,
-                                              make_const(DataType::Int(32), 1));
-          e->new_alloc = AllocateNode::make(
-              e->alloc_var, alloc_type, {sz},
-              e->allocs[0]->condition, EvaluateNode::make(0));
+                                                      make_const(DataType::Int(32), 1));
+          e->new_alloc = AllocateNode::make(e->alloc_var, alloc_type, {sz}, e->allocs[0]->condition,
+                                            EvaluateNode::make(0));
           if (e->scope.tag.length() != 0) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             uint64_t total_elem = e->const_nbits / e->elem_type.bits();
@@ -595,13 +571,12 @@ class StoragePlanRewriter : public StmtExprMutator {
           // Build a merged allocation
           PrimExpr combo_size;
           for (const AllocateNode* op : e->allocs) {
-            PrimExpr sz = arith::ComputeReduce<MulNode>(
-                op->extents, make_const(DataType::Int(32), 1));
+            PrimExpr sz =
+                arith::ComputeReduce<MulNode>(op->extents, make_const(DataType::Int(32), 1));
             auto nbits = op->dtype.bits() * op->dtype.lanes();
             if (const auto* imm = sz.as<IntImmNode>()) {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {
-                LOG(WARNING) << "The allocation requires : " << imm->value
-                             << " * " << nbits
+                LOG(WARNING) << "The allocation requires : " << imm->value << " * " << nbits
                              << " bits, which is greater than the maximum of"
                                 " int32. The size is cast to int64."
                              << "\n";
@@ -625,9 +600,8 @@ class StoragePlanRewriter : public StmtExprMutator {
             combo_size = combo_size + make_const(DataType::Int(32), 1);
           }
           combo_size = analyzer_.Simplify(combo_size);
-          e->new_alloc = AllocateNode::make(
-              e->alloc_var, alloc_type, {combo_size}, const_true(),
-              EvaluateNode::make(0));
+          e->new_alloc = AllocateNode::make(e->alloc_var, alloc_type, {combo_size}, const_true(),
+                                            EvaluateNode::make(0));
           if (e->scope.tag.length() != 0) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             uint64_t total_elem = e->const_nbits / e->elem_type.bits();
@@ -653,7 +627,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // Always align to max_simd_bits
     // so we can remap types by keeping this property
     if (total_bits % align != 0) {
-      total_bits += align  - (total_bits % align);
+      total_bits += align - (total_bits % align);
     }
     e->alloc_var = e->allocs[0]->buffer_var;
     for (StorageEntry* child : e->merged_children) {
@@ -663,15 +637,14 @@ class StoragePlanRewriter : public StmtExprMutator {
       child->alloc_var = e->alloc_var;
       total_bits += child->const_nbits;
       if (total_bits % align != 0) {
-        total_bits += align  - (total_bits % align);
+        total_bits += align - (total_bits % align);
       }
     }
     uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
-    PrimExpr alloc_size = make_const(e->allocs[0]->extents[0].dtype(),
-                                 (total_bits + type_bits - 1) / type_bits);
-    e->new_alloc = AllocateNode::make(
-        e->alloc_var, e->elem_type, {alloc_size}, const_true(),
-        EvaluateNode::make(0));
+    PrimExpr alloc_size =
+        make_const(e->allocs[0]->extents[0].dtype(), (total_bits + type_bits - 1) / type_bits);
+    e->new_alloc = AllocateNode::make(e->alloc_var, e->elem_type, {alloc_size}, const_true(),
+                                      EvaluateNode::make(0));
     if (info.defined()) {
       CHECK_LE(total_bits, info->max_num_bits)
           << "Allocation exceed bound of memory tag " << e->scope.to_string();
@@ -764,8 +737,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                     visitor.Check(s.stmt, var, src)) {
                   uint64_t const_nbits =
                       static_cast<uint64_t>(ae.alloc->constant_allocation_size()) *
-                      ae.alloc->dtype.bits() *
-                      ae.alloc->dtype.lanes();
+                      ae.alloc->dtype.bits() * ae.alloc->dtype.lanes();
                   if (src_entry->const_nbits == const_nbits && !inplace_found) {
                     // successfully inplace
                     dst_entry = src_entry;
@@ -786,8 +758,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       // enter/exit new scope
       if (s.stmt->IsInstance<AttrStmtNode>()) {
         const auto* op = static_cast<const AttrStmtNode*>(s.stmt);
-        if (op->attr_key == attr::thread_extent ||
-            op->attr_key == attr::virtual_thread ||
+        if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread ||
             attr::IsPragmaKey(op->attr_key)) {
           PlanNewScope(op);
         } else {
@@ -816,10 +787,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   // Allocate new storage entry.
-  StorageEntry* NewAlloc(const AllocateNode* op,
-                         const Object* attach_scope,
-                         const StorageScope& scope,
-                         size_t const_nbits) {
+  StorageEntry* NewAlloc(const AllocateNode* op, const Object* attach_scope,
+                         const StorageScope& scope, size_t const_nbits) {
     CHECK(op != nullptr);
     // Re-use not successful, allocate a new buffer.
     std::unique_ptr<StorageEntry> entry(new StorageEntry());
@@ -832,23 +801,21 @@ class StoragePlanRewriter : public StmtExprMutator {
     return e;
   }
 
-  StorageEntry* FindAlloc(const AllocateNode* op,
-                          const Object* attach_scope,
+  StorageEntry* FindAlloc(const AllocateNode* op, const Object* attach_scope,
                           const StorageScope& scope) {
     CHECK(op != nullptr);
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
     uint64_t op_elem_bits = op->dtype.bits() * op->dtype.lanes();
-    uint64_t const_nbits = static_cast<uint64_t>(
-        op->constant_allocation_size() * op_elem_bits);
+    uint64_t const_nbits = static_cast<uint64_t>(op->constant_allocation_size() * op_elem_bits);
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
     if (scope.tag.length() == 0) {
       if (scope.rank >= StorageRank::kWarp || op->dtype.is_handle()) {
         return NewAlloc(op, attach_scope, scope, const_nbits);
       }
-      if (const_nbits > 0  &&  const_nbits <= 32) {
+      if (const_nbits > 0 && const_nbits <= 32) {
         return NewAlloc(op, attach_scope, scope, const_nbits);
       }
     }
@@ -859,7 +826,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       auto end = const_free_map_.upper_bound(const_nbits * match_range);
       // start looking at the buffer that is bigger than the required size first
       for (auto it = mid; it != end; ++it) {
-        StorageEntry *e = it->second;
+        StorageEntry* e = it->second;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
         // when not divided, no reuse, eg, float4 vs float3
@@ -871,7 +838,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       // then start looking at smaller buffers.
       for (auto it = mid; it != begin;) {
         --it;
-        StorageEntry *e = it->second;
+        StorageEntry* e = it->second;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
         if (e->elem_type != op->dtype.element_of()) continue;
@@ -881,8 +848,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       }
     } else {
       // Simple strategy: round roubin.
-      for (auto it = sym_free_list_.begin();
-           it != sym_free_list_.end(); ++it) {
+      for (auto it = sym_free_list_.begin(); it != sym_free_list_.end(); ++it) {
         StorageEntry* e = *it;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
@@ -904,8 +870,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // This rules only apply if we are using non special memory
     if (e->scope.tag.length() == 0) {
       // Disable sharing of local memory.
-      if (e->scope.rank >= StorageRank::kWarp ||
-          e->allocs[0]->dtype.is_handle()) return;
+      if (e->scope.rank >= StorageRank::kWarp || e->allocs[0]->dtype.is_handle()) return;
       // disable reuse of small arrays
       if (e->const_nbits > 0 && e->const_nbits <= 32) return;
     }
@@ -936,7 +901,6 @@ class StoragePlanRewriter : public StmtExprMutator {
   arith::Analyzer analyzer_;
 };
 
-
 // Turn alloc into vector alloc
 // if all its access is the same vector type.
 class VectorAllocRewriter : public StmtExprMutator {
@@ -964,19 +928,15 @@ class VectorAllocRewriter : public StmtExprMutator {
     op = stmt.as<AllocateNode>();
     const auto& tvec = acc_map_[op->buffer_var.get()];
 
-    if (tvec.size() == 1 &&
-        tvec[0].element_of() == op->dtype.element_of() &&
-        tvec[0].lanes() % op->dtype.lanes() == 0 &&
-        tvec[0].lanes() != op->dtype.lanes()) {
+    if (tvec.size() == 1 && tvec[0].element_of() == op->dtype.element_of() &&
+        tvec[0].lanes() % op->dtype.lanes() == 0 && tvec[0].lanes() != op->dtype.lanes()) {
       int factor = tvec[0].lanes() / op->dtype.lanes();
       Array<PrimExpr> extents = op->extents;
       arith::ModularSet me = analyzer_.modular_set(extents[extents.size() - 1]);
       if (me->base % factor == 0 && me->coeff % factor == 0) {
         extents.Set(extents.size() - 1,
                     extents[extents.size() - 1] / make_const(extents[0].dtype(), factor));
-        return AllocateNode::make(
-            op->buffer_var, tvec[0], extents,
-            op->condition, op->body);
+        return AllocateNode::make(op->buffer_var, tvec[0], extents, op->condition, op->body);
       }
     }
     return stmt;
@@ -1000,7 +960,6 @@ Stmt StorageRewrite(Stmt stmt) {
   return VectorAllocRewriter()(std::move(stmt));
 }
 
-
 PrimFunc PointerValueTypeRewrite(PrimFunc f) {
   auto* n = f.CopyOnWrite();
   VectorAllocRewriter rewriter;
@@ -1014,8 +973,7 @@ PrimFunc PointerValueTypeRewrite(PrimFunc f) {
       const auto& tvec = rewriter.acc_map_[var.get()];
 
       if (tvec.size() == 1) {
-        tir::Var new_var(var->name_hint,
-                         PointerType(PrimType(tvec[0])));
+        tir::Var new_var(var->name_hint, PointerType(PrimType(tvec[0])));
         args.push_back(new_var);
         remap_vars.Set(var, new_var);
 
@@ -1023,8 +981,7 @@ PrimFunc PointerValueTypeRewrite(PrimFunc f) {
         // always set data type to be non vectorized so
         // load/store can still work via scalarization
         if (tvec.size() != 0 && !var->type_annotation.defined()) {
-          tir::Var new_var(var->name_hint,
-                           PointerType(PrimType(tvec[0].with_lanes(1))));
+          tir::Var new_var(var->name_hint, PointerType(PrimType(tvec[0].with_lanes(1))));
           args.push_back(new_var);
           remap_vars.Set(var, new_var);
         } else {
@@ -1042,7 +999,6 @@ PrimFunc PointerValueTypeRewrite(PrimFunc f) {
   return f;
 }
 
-
 namespace transform {
 
 Pass StorageRewrite() {
@@ -1055,9 +1011,7 @@ Pass StorageRewrite() {
   return CreatePrimFuncPass(pass_func, 0, "tir.StorageRewrite", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.StorageRewrite")
-.set_body_typed(StorageRewrite);
-
+TVM_REGISTER_GLOBAL("tir.transform.StorageRewrite").set_body_typed(StorageRewrite);
 
 Pass PointerValueTypeRewrite() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
@@ -1067,7 +1021,7 @@ Pass PointerValueTypeRewrite() {
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.PointerValueTypeRewrite")
-.set_body_typed(PointerValueTypeRewrite);
+    .set_body_typed(PointerValueTypeRewrite);
 
 }  // namespace transform
 

@@ -27,7 +27,7 @@
 
 TEST(CRTMemory, Alloc) {
   for (int idx = 0; idx < 65536; idx++) {
-    void * a = vmalloc(1);
+    void* a = vmalloc(1);
     EXPECT_EQ(vleak_size, 1);
     vfree(a);
     EXPECT_EQ(vleak_size, 0);
@@ -36,9 +36,9 @@ TEST(CRTMemory, Alloc) {
 
 TEST(CRTMemory, Realloc) {
   for (int idx = 0; idx < 65536; idx++) {
-    void * a = vrealloc(0, 1);
+    void* a = vrealloc(0, 1);
     EXPECT_EQ(vleak_size, 1);
-    void * b = vrealloc(a, 1);
+    void* b = vrealloc(a, 1);
     EXPECT_EQ(a, b);
     EXPECT_EQ(vleak_size, 1);
     vfree(a);
@@ -46,7 +46,7 @@ TEST(CRTMemory, Realloc) {
   }
 }
 
-int main(int argc, char ** argv) {
+int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
   return RUN_ALL_TESTS();

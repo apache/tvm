@@ -22,26 +22,16 @@
  * \brief uTVM timer API stubs for the host emulated device
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+#include <stdint.h>
 #include "utvm_runtime.h"
 
 // TODO(weberlo): use this? https://stackoverflow.com/questions/5141960/get-the-current-time-in-c
 
 int32_t UTVMTimerStart() {
+  return UTVM_ERR_OK;
+}
+
+uint32_t UTVMTimerStop(int32_t* err) {
+  *err = UTVM_ERR_OK;
   return 0;
 }
-
-void UTVMTimerStop() { }
-
-void UTVMTimerReset() { }
-
-uint32_t UTVMTimerRead() {
-  return 1;
-}
-
-#ifdef __cplusplus
-}  // TVM_EXTERN_C
-#endif

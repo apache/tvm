@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,12 +24,13 @@
 #ifndef NNVM_TUPLE_H_
 #define NNVM_TUPLE_H_
 
-#include <vector>
-#include <type_traits>
 #include <algorithm>
-#include <utility>
 #include <iostream>
 #include <string>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
 #include "base.h"
 
 namespace nnvm {
@@ -47,29 +48,23 @@ typedef int64_t dim_t;
  * \tparam ValueType The type of data stored inside tuple.
  * \sa TShape
  */
-template<typename ValueType>
+template <typename ValueType>
 class Tuple {
  public:
   /*! \brief default constructor */
   Tuple() = default;
   /*! \brief destructor */
-  inline ~Tuple() {
-    delete [] data_heap_;
-  }
+  inline ~Tuple() { delete[] data_heap_; }
   /*!
    * \brief copy constructor from another tuple
    * \param s the source tuple
    */
-  inline Tuple(const Tuple<ValueType>& s) {
-    this->assign(s.begin(), s.end());
-  }
+  inline Tuple(const Tuple<ValueType>& s) { this->assign(s.begin(), s.end()); }
   /*!
    * \brief constructor from initializer list
    * \param init the initializer_list
    */
-  inline Tuple(std::initializer_list<ValueType> init) {
-    this->assign(init.begin(), init.end());
-  }
+  inline Tuple(std::initializer_list<ValueType> init) { this->assign(init.begin(), init.end()); }
   /*!
    * \brief constructor from vector
    * \param init the vector
@@ -82,7 +77,7 @@ class Tuple {
    * \param src the source shape
    */
 
-  inline Tuple(Tuple<ValueType>&& src) {   // NOLINT(runtime/explicit)
+  inline Tuple(Tuple<ValueType>&& src) {  // NOLINT(runtime/explicit)
     this->swap(src);
   }
   /*!
@@ -91,9 +86,8 @@ class Tuple {
    * \param end end the end of the iterator
    * \tparam RandomAccessIterator iterator type
    */
-  template<typename RandomAccessIterator>
-  inline Tuple(RandomAccessIterator begin,
-               RandomAccessIterator end) {
+  template <typename RandomAccessIterator>
+  inline Tuple(RandomAccessIterator begin, RandomAccessIterator end) {
     this->assign(begin, end);
   }
   /*!
@@ -102,9 +96,8 @@ class Tuple {
    * \param end end the end of the iterator
    * \tparam RandomAccessIterator iterator type
    */
-  template<typename RandomAccessIterator>
-  inline void assign(RandomAccessIterator begin,
-                     RandomAccessIterator end) {
+  template <typename RandomAccessIterator>
+  inline void assign(RandomAccessIterator begin, RandomAccessIterator end) {
     this->SetDim(end - begin);
     std::copy(begin, end, this->begin());
   }
@@ -141,7 +134,7 @@ class Tuple {
    * \param init the source initializer list
    * \return reference of self
    */
-  inline Tuple<ValueType> &operator=(std::initializer_list<ValueType> init) {
+  inline Tuple<ValueType>& operator=(std::initializer_list<ValueType> init) {
     this->assign(init.begin(), init.end());
     return *this;
   }
@@ -149,7 +142,7 @@ class Tuple {
    * \return whether two tuple equals
    * \param s the tuple to compare against
    */
-  inline bool operator==(const Tuple<ValueType> &s) const {
+  inline bool operator==(const Tuple<ValueType>& s) const {
     if (ndim_ != s.ndim_) return false;
     return std::equal(begin(), end(), s.begin());
   }
@@ -157,45 +150,33 @@ class Tuple {
    * \return whether two tuple not equal
    * \param s the tuple to compare against
    */
-  inline bool operator!=(const Tuple<ValueType> &s) const {
-    return !(*this == s);
-  }
+  inline bool operator!=(const Tuple<ValueType>& s) const { return !(*this == s); }
   /*! \return the begin data pointer to content of the tuple */
-  inline const ValueType *begin() const {
-    return ndim_ <= kStackCache ? data_stack_ : data_heap_;
-  }
+  inline const ValueType* begin() const { return ndim_ <= kStackCache ? data_stack_ : data_heap_; }
   /*! \return the begin data pointer to content of the tuple */
-  inline ValueType *begin() {
-    return ndim_ <= kStackCache ? data_stack_ : data_heap_;
-  }
+  inline ValueType* begin() { return ndim_ <= kStackCache ? data_stack_ : data_heap_; }
   /*! \return the data pointer to end of the tuple */
   inline const ValueType* end() const {
-    return ndim_ <= kStackCache ? (data_stack_ + ndim_): (data_heap_ + ndim_);
+    return ndim_ <= kStackCache ? (data_stack_ + ndim_) : (data_heap_ + ndim_);
   }
   /*! \return the data pointer to end the tuple */
   inline ValueType* end() {
-    return ndim_ <= kStackCache ? (data_stack_ + ndim_): (data_heap_ + ndim_);
+    return ndim_ <= kStackCache ? (data_stack_ + ndim_) : (data_heap_ + ndim_);
   }
   /*! \return number of dimension of the tuple */
-  inline uint32_t ndim() const {
-    return ndim_;
-  }
+  inline uint32_t ndim() const { return ndim_; }
   /*!
    * \brief get corresponding index
    * \param i dimension index
    * \return the corresponding dimension size
    */
-  inline ValueType& operator[](size_t i) {
-    return begin()[i];
-  }
+  inline ValueType& operator[](size_t i) { return begin()[i]; }
   /*!
    * \brief get corresponding index
    * \param i dimension index
    * \return the corresponding dimension size
    */
-  inline const ValueType& operator[](size_t i) const {
-    return begin()[i];
-  }
+  inline const ValueType& operator[](size_t i) const { return begin()[i]; }
   /*!
    * \brief Save Tuple to JSON.
    * \param writer JSONWriter
@@ -219,7 +200,7 @@ class Tuple {
    * \param t the tuple
    * \return the ostream
    */
-  friend std::ostream &operator<<(std::ostream &os, const Tuple<ValueType> &t) {
+  friend std::ostream& operator<<(std::ostream& os, const Tuple<ValueType>& t) {
     os << '[';
     const ValueType* begin = t.begin();
     const ValueType* end = t.end();
@@ -236,7 +217,7 @@ class Tuple {
    * \param t The tuple
    * \return the istream
    */
-  friend std::istream &operator>>(std::istream &is, Tuple<ValueType> &t) {
+  friend std::istream& operator>>(std::istream& is, Tuple<ValueType>& t) {
     // get (
     while (true) {
       char ch = is.peek();
@@ -252,7 +233,7 @@ class Tuple {
       if (!isspace(ch)) {
         is.setstate(std::ios::failbit);
         return is;
-    }
+      }
     }
     // Handle empty tuple
     while (isspace(is.peek())) {
@@ -278,10 +259,12 @@ class Tuple {
         while (true) {
           ch = is.peek();
           if (isspace(ch)) {
-            is.get(); continue;
+            is.get();
+            continue;
           }
           if (ch == ')' || ch == ']') {
-            is.get(); break;
+            is.get();
+            break;
           }
           break;
         }
@@ -302,8 +285,8 @@ class Tuple {
    * \tparam DType data type that save to
    * \tparam TStream any stream type that have write
    */
-  template<typename DType = ValueType, typename TStream>
-  inline void Save(TStream *strm) const;
+  template <typename DType = ValueType, typename TStream>
+  inline void Save(TStream* strm) const;
   /*!
    * \brief load the content from binary stream
    * \param strm the output stream
@@ -311,8 +294,8 @@ class Tuple {
    * \tparam TStream any stream type that have write
    * \return whether the load is successful
    */
-  template<typename DType = ValueType, typename TStream>
-  inline bool Load(TStream *strm);
+  template <typename DType = ValueType, typename TStream>
+  inline bool Load(TStream* strm);
 
  protected:
   // stack cache size
@@ -327,9 +310,8 @@ class Tuple {
   ValueType* data_heap_{nullptr};
   // internal function to change the dimension
   inline void SetDim(uint32_t ndim) {
-    if (ndim > kStackCache &&
-        ndim > num_heap_allocated_) {
-      delete [] data_heap_;
+    if (ndim > kStackCache && ndim > num_heap_allocated_) {
+      delete[] data_heap_;
       data_heap_ = new ValueType[ndim];
       num_heap_allocated_ = ndim;
     }
@@ -356,16 +338,14 @@ class TShape : public Tuple<dim_t> {
    * \brief copy constructor of TShape
    * \param s source shape.
    */
-  inline TShape(const Tuple<dim_t>& s) { // NOLINT(*)
+  inline TShape(const Tuple<dim_t>& s) {  // NOLINT(*)
     this->assign(s.begin(), s.end());
   }
   /*!
    * \brief constructor from initializer list
    * \param init the initializer_list
    */
-  inline TShape(std::initializer_list<dim_t> init) {
-    this->assign(init.begin(), init.end());
-  }
+  inline TShape(std::initializer_list<dim_t> init) { this->assign(init.begin(), init.end()); }
   /*!
    * \brief move constructor.
    * \param s source shape.
@@ -379,9 +359,8 @@ class TShape : public Tuple<dim_t> {
    * \param end end the end of the iterator
    * \tparam RandomAccessIterator iterator type
    */
-  template<typename RandomAccessIterator>
-  inline TShape(RandomAccessIterator begin,
-                RandomAccessIterator end) {
+  template <typename RandomAccessIterator>
+  inline TShape(RandomAccessIterator begin, RandomAccessIterator end) {
     this->assign(begin, end);
   }
   /*!
@@ -399,13 +378,13 @@ class TShape : public Tuple<dim_t> {
    * \return self.
    */
   inline TShape& operator=(Tuple<dim_t>&& src) {  // NOLINT(*)
-    TShape(std::move(src)).swap(*this);  // NOLINT(*)
+    TShape(std::move(src)).swap(*this);           // NOLINT(*)
     return *this;
   }
   /*! \return total number of elements in the shape */
   inline size_t Size() const {
     dim_t size = 1;
-    const dim_t* start = begin(), *fin = end();
+    const dim_t *start = begin(), *fin = end();
     for (const dim_t* it = start; it != fin; ++it) {
       size *= *it;
     }
@@ -418,28 +397,24 @@ class TShape : public Tuple<dim_t> {
    */
   inline size_t ProdShape(int dimstart, int dimend) const {
     dim_t num = 1;
-    const dim_t *d = this->data();
+    const dim_t* d = this->data();
     for (int i = dimstart; i < dimend; ++i) {
       num *= d[i];
     }
     return num;
   }
   /*! \return the begin data pointer to content of the tuple */
-  inline const dim_t *data() const {
-    return begin();
-  }
+  inline const dim_t* data() const { return begin(); }
   /*! \return the begin data pointer to content of the tuple */
-  inline dim_t *data() {
-    return begin();
-  }
+  inline dim_t* data() { return begin(); }
 #ifdef MSHADOW_XINLINE
-  template<int dim>
-  inline TShape(const mshadow::Shape<dim> &s) {// NOLINT(*)
+  template <int dim>
+  inline TShape(const mshadow::Shape<dim>& s) {  // NOLINT(*)
     this->assign(s.shape_, s.shape_ + dim);
   }
 
-  template<int dim>
-  inline TShape(mshadow::Shape<dim> &&s) {// NOLINT(*)
+  template <int dim>
+  inline TShape(mshadow::Shape<dim>&& s) {  // NOLINT(*)
     this->assign(s.shape_, s.shape_ + dim);
   }
   /*!
@@ -448,8 +423,8 @@ class TShape : public Tuple<dim_t> {
    * \tparam dim shape dimension
    * \return reference of self
    */
-  template<int dim>
-  inline TShape &operator=(const mshadow::Shape<dim> &shape) {
+  template <int dim>
+  inline TShape& operator=(const mshadow::Shape<dim>& shape) {
     this->assign(shape.shape_, shape.shape_ + dim);
     return *this;
   }
@@ -458,11 +433,11 @@ class TShape : public Tuple<dim_t> {
    * \return the shape requested
    * \tparam dim dimension of the tensor
    */
-  template<int dim>
+  template <int dim>
   inline mshadow::Shape<dim> get() const {
     CHECK_EQ(dim, static_cast<int>(ndim()))
         << "dimension do not match target dimension " << dim << " vs " << ndim();
-    const dim_t *d = this->data();
+    const dim_t* d = this->data();
     mshadow::Shape<dim> s;
     for (int i = 0; i < dim; ++i) {
       s[i] = d[i];
@@ -476,7 +451,7 @@ class TShape : public Tuple<dim_t> {
   inline mshadow::Shape<2> FlatTo2D(void) const {
     mshadow::Shape<2> s;
     if (ndim() == 0) return mshadow::Shape2(0, 0);
-    const dim_t *d = this->data();
+    const dim_t* d = this->data();
     s.shape_[1] = d[ndim() - 1];
     dim_t ymax = 1;
     for (size_t i = 1; i < ndim(); ++i) {
@@ -495,7 +470,7 @@ class TShape : public Tuple<dim_t> {
     CHECK(axis_end >= axis_begin);
     mshadow::Shape<3> s;
     if (ndim() == 0) return mshadow::Shape3(0, 0, 0);
-    const dim_t *d = this->data();
+    const dim_t* d = this->data();
     s.shape_[0] = 1;
     s.shape_[1] = 1;
     s.shape_[2] = 1;
@@ -516,25 +491,21 @@ class TShape : public Tuple<dim_t> {
    * \param axis The axis specified.
    * \return the flat 3d shape
    */
-  inline mshadow::Shape<3> FlatTo3D(size_t axis) const {
-    return FlatTo3D(axis, axis);
-  }
-  inline bool operator==(const TShape &s) const {
+  inline mshadow::Shape<3> FlatTo3D(size_t axis) const { return FlatTo3D(axis, axis); }
+  inline bool operator==(const TShape& s) const {
     if (ndim() != s.ndim()) return false;
     return std::equal(begin(), end(), s.begin());
   }
-  inline bool operator!=(const TShape &s) const {
-    return !(*this == s);
-  }
+  inline bool operator!=(const TShape& s) const { return !(*this == s); }
   /*!
    * \return whether two shape equals
    * \param s the shape to compare against
    * \tparam dim dimension of the shape
    */
-  template<int dim>
-  inline bool operator==(const mshadow::Shape<dim> &s) const {
+  template <int dim>
+  inline bool operator==(const mshadow::Shape<dim>& s) const {
     if (ndim_ != dim) return false;
-    const dim_t *d = dim <= kStackCache ? data_stack_ : data_heap_;
+    const dim_t* d = dim <= kStackCache ? data_stack_ : data_heap_;
     for (size_t i = 0; i < dim; ++i) {
       if (d[i] != s.shape_[i]) return false;
     }
@@ -545,18 +516,16 @@ class TShape : public Tuple<dim_t> {
    * \param s the shape to compare against
    * \tparam dim dimension of the shape
    */
-  template<int dim>
-  inline bool operator!=(const mshadow::Shape<dim> &s) const {
+  template <int dim>
+  inline bool operator!=(const mshadow::Shape<dim>& s) const {
     return !(*this == s);
   }
 #endif
 };
 
 /*! \brief helper function to cast type of container elements */
-template<typename SrcIter, typename DstIter>
-inline DstIter ShapeTypeCast(const SrcIter begin,
-                             const SrcIter end,
-                             DstIter dst_begin) {
+template <typename SrcIter, typename DstIter>
+inline DstIter ShapeTypeCast(const SrcIter begin, const SrcIter end, DstIter dst_begin) {
   typedef typename std::iterator_traits<SrcIter>::value_type SrcDType;
   typedef typename std::iterator_traits<DstIter>::value_type DstDType;
   auto cast = [](const SrcDType& dim) { return static_cast<DstDType>(dim); };
@@ -564,7 +533,7 @@ inline DstIter ShapeTypeCast(const SrcIter begin,
 }
 
 /*! \brief helper function to transform a container to TShape with type cast */
-template<typename SrcIter>
+template <typename SrcIter>
 inline TShape ShapeTypeCast(const SrcIter begin, const SrcIter end) {
   size_t ndim = std::distance(begin, end);
   TShape res(ndim);
@@ -573,9 +542,9 @@ inline TShape ShapeTypeCast(const SrcIter begin, const SrcIter end) {
 }
 
 /*! \tparam ValueType The type of data stored inside tuple. */
-template<typename ValueType>
-template<typename DType, typename TStream>
-inline void Tuple<ValueType>::Save(TStream *strm) const {
+template <typename ValueType>
+template <typename DType, typename TStream>
+inline void Tuple<ValueType>::Save(TStream* strm) const {
   strm->Write(&ndim_, sizeof(ndim_));
   if (typeid(DType) == typeid(ValueType)) {
     strm->Write(begin(), sizeof(ValueType) * ndim_);
@@ -587,9 +556,9 @@ inline void Tuple<ValueType>::Save(TStream *strm) const {
 }
 
 /*! \tparam ValueType The type of data stored inside tuple. */
-template<typename ValueType>
-template<typename DType, typename TStream>
-inline bool Tuple<ValueType>::Load(TStream *strm) {
+template <typename ValueType>
+template <typename DType, typename TStream>
+inline bool Tuple<ValueType>::Load(TStream* strm) {
   if (strm->Read(&ndim_, sizeof(ndim_)) != sizeof(ndim_)) return false;
   this->SetDim(ndim_);
   size_t nread = sizeof(DType) * ndim_;
@@ -607,7 +576,7 @@ inline bool Tuple<ValueType>::Load(TStream *strm) {
 
 namespace std {
 /*! \brief hash function for Tuple. */
-template<typename T>
+template <typename T>
 struct hash<nnvm::Tuple<T> > {
   /*! \brief hash a Tuple into unsigned int */
   size_t operator()(const nnvm::Tuple<T>& val) const {
@@ -621,7 +590,7 @@ struct hash<nnvm::Tuple<T> > {
 };
 
 /*! \brief hash function for TShape. */
-template<>
+template <>
 struct hash<nnvm::TShape> {
   /*! \brief hash a TShape into unsigned int */
   size_t operator()(const nnvm::TShape& val) const {
@@ -640,11 +609,9 @@ namespace dmlc {
 DMLC_DECLARE_TYPE_NAME(optional<nnvm::TShape>, "Shape or None");
 // avoid low version of MSVC
 #if !defined(_MSC_VER)
-template<typename T>
+template <typename T>
 struct type_name_helper<nnvm::Tuple<T> > {
-  static inline std::string value() {
-    return "tuple of <" + type_name<T>() + ">";
-  }
+  static inline std::string value() { return "tuple of <" + type_name<T>() + ">"; }
 };
 #endif
 }  // namespace dmlc

@@ -21,10 +21,11 @@
  * \file dso_libary.cc
  * \brief Create library module to load from dynamic shared library.
  */
-#include <tvm/runtime/module.h>
 #include <tvm/runtime/memory.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
+
 #include "library_module.h"
 
 #if defined(_WIN32)
@@ -43,13 +44,9 @@ class DSOLibrary final : public Library {
   ~DSOLibrary() {
     if (lib_handle_) Unload();
   }
-  void Init(const std::string& name) {
-    Load(name);
-  }
+  void Init(const std::string& name) { Load(name); }
 
-  void* GetSymbol(const char* name) final {
-    return GetSymbol_(name);
-  }
+  void* GetSymbol(const char* name) final { return GetSymbol_(name); }
 
  private:
   // Platform dependent handling.
@@ -58,8 +55,7 @@ class DSOLibrary final : public Library {
   HMODULE lib_handle_{nullptr};
 
   void* GetSymbol_(const char* name) {
-    return reinterpret_cast<void*>(
-        GetProcAddress(lib_handle_, (LPCSTR)name)); // NOLINT(*)
+    return reinterpret_cast<void*>(GetProcAddress(lib_handle_, (LPCSTR)name));  // NOLINT(*)
   }
 
   // Load the library
@@ -67,8 +63,7 @@ class DSOLibrary final : public Library {
     // use wstring version that is needed by LLVM.
     std::wstring wname(name.begin(), name.end());
     lib_handle_ = LoadLibraryW(wname.c_str());
-    CHECK(lib_handle_ != nullptr)
-        << "Failed to load dynamic shared library " << name;
+    CHECK(lib_handle_ != nullptr) << "Failed to load dynamic shared library " << name;
   }
 
   void Unload() {
@@ -81,14 +76,11 @@ class DSOLibrary final : public Library {
   // load the library
   void Load(const std::string& name) {
     lib_handle_ = dlopen(name.c_str(), RTLD_LAZY | RTLD_LOCAL);
-    CHECK(lib_handle_ != nullptr)
-        << "Failed to load dynamic shared library " << name
-        << " " << dlerror();
+    CHECK(lib_handle_ != nullptr) << "Failed to load dynamic shared library " << name << " "
+                                  << dlerror();
   }
 
-  void* GetSymbol_(const char* name) {
-    return dlsym(lib_handle_, name);
-  }
+  void* GetSymbol_(const char* name) { return dlsym(lib_handle_, name); }
 
   void Unload() {
     dlclose(lib_handle_);
@@ -97,11 +89,10 @@ class DSOLibrary final : public Library {
 #endif
 };
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_so")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    auto n = make_object<DSOLibrary>();
-    n->Init(args[0]);
-    *rv = CreateModuleFromLibrary(n);
-  });
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_so").set_body([](TVMArgs args, TVMRetValue* rv) {
+  auto n = make_object<DSOLibrary>();
+  n->Init(args[0]);
+  *rv = CreateModuleFromLibrary(n);
+});
 }  // namespace runtime
 }  // namespace tvm

@@ -25,10 +25,12 @@
 #define TVM_RUNTIME_CUDA_CUDA_MODULE_H_
 
 #include <tvm/runtime/module.h>
+
 #include <memory>
-#include <vector>
 #include <string>
 #include <unordered_map>
+#include <vector>
+
 #include "../meta_data.h"
 
 namespace tvm {
@@ -45,11 +47,9 @@ static constexpr const int kMaxNumGPUs = 32;
  * \param fmap The map function information map of each function.
  * \param cuda_source Optional, cuda source file
  */
-Module CUDAModuleCreate(
-    std::string data,
-    std::string fmt,
-    std::unordered_map<std::string, FunctionInfo> fmap,
-    std::string cuda_source);
+Module CUDAModuleCreate(std::string data, std::string fmt,
+                        std::unordered_map<std::string, FunctionInfo> fmap,
+                        std::string cuda_source);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_CUDA_CUDA_MODULE_H_

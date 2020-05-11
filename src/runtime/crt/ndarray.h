@@ -24,13 +24,12 @@
 #ifndef TVM_RUNTIME_CRT_NDARRAY_H_
 #define TVM_RUNTIME_CRT_NDARRAY_H_
 
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/c_backend_api.h>
 #include <dlpack/dlpack.h>
-
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/c_runtime_api.h>
 
 /*! \brief Magic number for NDArray file */
 static const uint64_t kTVMNDArrayMagic = 0xDD5E40F096B4A13F;
@@ -42,17 +41,17 @@ typedef struct TVMNDArray {
   DLTensor dl_tensor;
 } TVMNDArray;
 
-TVMNDArray TVMNDArray_Create(uint32_t ndim, const tvm_index_t * shape,
-                             DLDataType dtype, DLContext ctx);
+TVMNDArray TVMNDArray_Create(uint32_t ndim, const tvm_index_t* shape, DLDataType dtype,
+                             DLContext ctx);
 
-TVMNDArray TVMNDArray_Empty(uint32_t ndim, const tvm_index_t * shape,
-                            DLDataType dtype, DLContext ctx);
+TVMNDArray TVMNDArray_Empty(uint32_t ndim, const tvm_index_t* shape, DLDataType dtype,
+                            DLContext ctx);
 
-int TVMNDArray_Load(TVMNDArray * ret, const char ** strm);
+int TVMNDArray_Load(TVMNDArray* ret, const char** strm);
 
-TVMNDArray TVMNDArray_CreateView(TVMNDArray * arr, const tvm_index_t * shape,
-                                 uint32_t ndim, DLDataType dtype);
+TVMNDArray TVMNDArray_CreateView(TVMNDArray* arr, const tvm_index_t* shape, uint32_t ndim,
+                                 DLDataType dtype);
 
-int TVMNDArray_Release(TVMNDArray * arr);
+int TVMNDArray_Release(TVMNDArray* arr);
 
 #endif  // TVM_RUNTIME_CRT_NDARRAY_H_

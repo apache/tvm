@@ -21,15 +21,16 @@
  * \file constant_folding.cc
  */
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/interpreter.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/relay/interpreter.h>
-#include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/object.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/container.h>
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/object.h>
+
 #include "pattern_util.h"
 
 namespace tvm {
@@ -48,8 +49,7 @@ class ConstantChecker : private ExprVisitor {
       return true;
     }
     const auto it = memo_.find(expr);
-    if (it != memo_.end())
-      return it->second;
+    if (it != memo_.end()) return it->second;
     VisitExpr(expr);
     return memo_[expr];  // return memoized result or the default value false
   }
@@ -69,12 +69,9 @@ class ConstantChecker : private ExprVisitor {
   }
 };
 
-bool ConstantCheck(const Expr& e) {
-  return ConstantChecker().Check(e);
-}
+bool ConstantCheck(const Expr& e) { return ConstantChecker().Check(e); }
 
-TVM_REGISTER_GLOBAL("relay.analysis.check_constant")
-.set_body_typed(ConstantCheck);
+TVM_REGISTER_GLOBAL("relay.analysis.check_constant").set_body_typed(ConstantCheck);
 
 // TODO(tvm-team) consider combine dead-code with constant folder.
 // or make a more powerful partial evaluator.
@@ -98,9 +95,7 @@ class ConstantFolder : public ExprMutator {
     } else {
       Var var = Downcast<Var>(this->Mutate(op->var));
       Expr body = this->Mutate(op->body);
-      if (var.same_as(op->var) &&
-          value.same_as(op->value) &&
-          body.same_as(op->body)) {
+      if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
         return GetRef<Expr>(op);
       } else {
         return Let(var, value, body);
@@ -123,7 +118,7 @@ class ConstantFolder : public ExprMutator {
     const OpNode* op = call->op.as<OpNode>();
     if (op == nullptr) return res;
     if (skip_list.count(op->name)) {
-        return res;
+      return res;
     }
     // skip stateful ops.
     if (op_stateful.get(GetRef<Op>(op), false)) return res;
@@ -133,9 +128,7 @@ class ConstantFolder : public ExprMutator {
     }
 
     // We should think about potentially constant evaluation over these ops too.
-    if (call->op == invoke_tvm_op_ ||
-        call->op == shape_func_op_ ||
-        call->op == alloc_tensor_op_ ||
+    if (call->op == invoke_tvm_op_ || call->op == shape_func_op_ || call->op == alloc_tensor_op_ ||
         call->op == alloc_storage_op_) {
       return GetRef<Call>(call);
     }
@@ -184,8 +177,7 @@ class ConstantFolder : public ExprMutator {
     if (value->IsInstance<runtime::NDArray::ContainerType>()) {
       auto nd_array = Downcast<runtime::NDArray>(value);
       for (auto dim : nd_array.Shape()) {
-        CHECK_GT(dim, 0)
-          << "invalid dimension after constant eval";
+        CHECK_GT(dim, 0) << "invalid dimension after constant eval";
       }
       return Constant(nd_array);
     } else if (const auto* val = value.as<runtime::ADTObj>()) {
@@ -202,7 +194,7 @@ class ConstantFolder : public ExprMutator {
   }
   // Constant evaluate a expression.
   Expr ConstEvaluate(Expr expr) {
-    std::vector<transform::Pass> passes = {transform::FuseOps(0),
+    std::vector<transform::Pass> passes = {transform::FuseOps(0), transform::ToANormalForm(),
                                            transform::InferType()};
     Function func;
     if (expr.as<FunctionNode>()) {
@@ -211,10 +203,7 @@ class ConstantFolder : public ExprMutator {
       // TODO(@jroesch): fix this
       func = Function(FreeVars(expr), expr, Type(), FreeTypeVars(expr, module_), {});
     }
-    auto mod = IRModule(
-      {},
-      module_->type_definitions,
-      module_->Imports());
+    auto mod = IRModule({}, module_->type_definitions, module_->Imports());
     auto global = GlobalVar("main");
     mod->Add(global, func);
     auto seq = transform::Sequential(passes);
@@ -250,7 +239,7 @@ class ConstantFolder : public ExprMutator {
       value = runtime::NDArray::Empty({}, cdtype, ctx);
     } else {
       CHECK_NE(ishape.size(), 0);
-      std::vector<int64_t> cshape = { static_cast<int64_t>(ishape.size()) };
+      std::vector<int64_t> cshape = {static_cast<int64_t>(ishape.size())};
       value = runtime::NDArray::Empty(cshape, cdtype, ctx);
       int32_t* dims = static_cast<int32_t*>(value->data);
       using ::tvm::tir::IntImmNode;
@@ -273,11 +262,10 @@ class ConstantFolder : public ExprMutator {
     // Cast the constant into correct dtype
     auto cast_attrs = make_object<CastAttrs>();
     cast_attrs->dtype = param->dtype;
-    Expr ret = Call(cast_op_, { shape }, Attrs(cast_attrs), {});
+    Expr ret = Call(cast_op_, {shape}, Attrs(cast_attrs), {});
     return ConstEvaluate(ret);
   }
 };
-
 
 Expr FoldConstant(const Expr& expr, const IRModule& mod) {
   DLContext ctx;
@@ -295,14 +283,13 @@ namespace transform {
 
 Pass FoldConstant() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-      return Downcast<Function>(FoldConstant(f, m));
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(FoldConstant(f, m));
+      };
   return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.FoldConstant")
-.set_body_typed(FoldConstant);
+TVM_REGISTER_GLOBAL("relay._transform.FoldConstant").set_body_typed(FoldConstant);
 
 }  // namespace transform
 

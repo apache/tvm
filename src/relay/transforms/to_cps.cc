@@ -51,9 +51,10 @@
  * wheter directly invoking it, or indirectly by recursion.
  */
 #include <tvm/ir/type_functor.h>
-#include <tvm/relay/transform.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
+#include <tvm/relay/transform.h>
+
 #include "let_list.h"
 #include "pass_util.h"
 
@@ -62,9 +63,7 @@ namespace relay {
 
 // we assume the data type has no closure - no idea how to look into datatype right now.
 
-Type Arrow(const Type& l, const Type& r) {
-  return FuncType({l}, r, {}, {});
-}
+Type Arrow(const Type& l, const Type& r) { return FuncType({l}, r, {}, {}); }
 
 Type CPSType(const Type& t, const TypeVar& answer);
 
@@ -79,7 +78,7 @@ FuncType CPSFuncType(const FuncType& f, const TypeVar& answer) {
 
 Type CPSType(const Type& t, const TypeVar& answer) {
   struct CPSTypeMutator : TypeMutator {
-    explicit CPSTypeMutator(const TypeVar& answer) : answer(answer) { }
+    explicit CPSTypeMutator(const TypeVar& answer) : answer(answer) {}
     TypeVar answer;
     Type VisitType_(const FuncTypeNode* t) final {
       return CPSFuncType(GetRef<FuncType>(t), answer);
@@ -113,22 +112,15 @@ using MCont = std::function<Expr(const Expr&)>;
 
 Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm);
 
-Function ToCPS(const Function& f,
-               const IRModule& m,
-               CPSMap* cm,
-               VarMap* vm,
+Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm, VarMap* vm,
                const TypeVar& answer) {
-  std::function<Var(Var)> remap = [&](const Var& v) {
-    return vm->count(v) == 0 ? v : vm->at(v);
-  };
+  std::function<Var(Var)> remap = [&](const Var& v) { return vm->count(v) == 0 ? v : vm->at(v); };
   auto function_type = Downcast<FuncType>(f->checked_type());
   // Each MCont can be used at most once.
   struct CPSFunctor : ExprFunctor<Expr(const Expr&, const MCont&)>, PatternMutator {
-    CPSFunctor(const std::function<Var(Var)>& remap,
-               const TypeVar& answer,
-               const IRModule& m,
-               VarMap* vm,
-               CPSMap* cm) : remap(remap), answer(answer), m(m), vm(vm), cm(cm) { }
+    CPSFunctor(const std::function<Var(Var)>& remap, const TypeVar& answer, const IRModule& m,
+               VarMap* vm, CPSMap* cm)
+        : remap(remap), answer(answer), m(m), vm(vm), cm(cm) {}
     const std::function<Var(Var)>& remap;
     TypeVar answer;
     IRModule m;
@@ -136,9 +128,8 @@ Function ToCPS(const Function& f,
     CPSMap* cm;
 
     Expr VisitExpr_(const LetNode* op, const MCont& k) final {
-      return VisitExpr(op->value, [&](const Expr& v) {
-        return Let(remap(op->var), v, VisitExpr(op->body, k));
-      });
+      return VisitExpr(
+          op->value, [&](const Expr& v) { return Let(remap(op->var), v, VisitExpr(op->body, k)); });
     }
 
     Expr VisitExpr_(const FunctionNode* op, const MCont& k) final {
@@ -150,13 +141,9 @@ Function ToCPS(const Function& f,
       return k(GetRef<Constant>(op));
     }
 
-    Expr VisitExpr_(const VarNode* op, const MCont& k) final {
-      return k(remap(GetRef<Var>(op)));
-    }
+    Expr VisitExpr_(const VarNode* op, const MCont& k) final { return k(remap(GetRef<Var>(op))); }
 
-    Pattern VisitPattern_(const PatternVarNode* op) final {
-      return PatternVar(remap(op->var));
-    }
+    Pattern VisitPattern_(const PatternVarNode* op) final { return PatternVar(remap(op->var)); }
 
     Expr VisitExpr_(const GlobalVarNode* op, const MCont& k) final {
       auto gv = GetRef<GlobalVar>(op);
@@ -186,16 +173,14 @@ Function ToCPS(const Function& f,
     }
 
     Expr reify(const MCont& k, const std::function<Expr(MCont)>& cont) {
-      return LetList::LetBind(reify(k),
-                          [&](const Var& f) {
+      return LetList::LetBind(reify(k), [&](const Var& f) {
         return cont([&](const Expr& e) { return Call(f, {e}); });
       });
     }
 
     Expr VisitExpr_(const IfNode* op, const MCont& k) final {
       return reify(k, [&](const MCont& kf) {
-        return VisitExpr(op->cond,
-                         [&](const Expr& v) {
+        return VisitExpr(op->cond, [&](const Expr& v) {
           return If(v, VisitExpr(op->true_branch, kf), VisitExpr(op->false_branch, kf));
         });
       });
@@ -214,19 +199,13 @@ Function ToCPS(const Function& f,
     }
 
     Expr VisitExpr_(const RefReadNode* op, const MCont& k) final {
-      return VisitExpr(op->ref,
-                       [&](const Expr& r) {
-        return LetList::LetBind(RefRead(r), k);
-      });
+      return VisitExpr(op->ref, [&](const Expr& r) { return LetList::LetBind(RefRead(r), k); });
     }
 
     Expr VisitExpr_(const RefWriteNode* op, const MCont& k) final {
-      return VisitExpr(op->ref,
-                       [&](const Expr& r) {
+      return VisitExpr(op->ref, [&](const Expr& r) {
         return VisitExpr(op->value,
-                         [&](const Expr& v) {
-          return LetList::LetBind(RefWrite(r, v), k);
-        });
+                         [&](const Expr& v) { return LetList::LetBind(RefWrite(r, v), k); });
       });
     }
 
@@ -234,20 +213,18 @@ Function ToCPS(const Function& f,
       tvm::Array<Expr> fields;
       std::function<Expr()> next;
       next = [&]() {
-        return (fields.size() == op->fields.size()) ?
-          k(Tuple(fields)) :
-          VisitExpr(op->fields[fields.size()], [&](const Expr& v) {
-            fields.push_back(v);
-            return next();
-          });
+        return (fields.size() == op->fields.size())
+                   ? k(Tuple(fields))
+                   : VisitExpr(op->fields[fields.size()], [&](const Expr& v) {
+                       fields.push_back(v);
+                       return next();
+                     });
       };
       return next();
     }
 
     Expr VisitExpr_(const TupleGetItemNode* op, const MCont& k) final {
-      return VisitExpr(op->tuple, [&](const Expr& v) {
-        return k(TupleGetItem(v, op->index));
-      });
+      return VisitExpr(op->tuple, [&](const Expr& v) { return k(TupleGetItem(v, op->index)); });
     }
 
     Expr VisitExpr_(const CallNode* op, const MCont& k) final {
@@ -259,9 +236,9 @@ Function ToCPS(const Function& f,
             return LetList::LetBind(Call(op->op, args, op->attrs, op->type_args), k);
           } else {
             return VisitExpr(op->args[args.size()], [&](const Expr& v) {
-                args.push_back(v);
-                return next();
-              });
+              args.push_back(v);
+              return next();
+            });
           }
         };
         return next();
@@ -279,7 +256,7 @@ Function ToCPS(const Function& f,
               return next();
             });
           }
-         };
+        };
         return VisitExpr(op->op, [&](const Expr& v) {
           f = v;
           return next();
@@ -293,19 +270,15 @@ Function ToCPS(const Function& f,
     new_params.push_back(remap(v));
   }
   new_params.push_back(k);
-  return Function(new_params,
-                            mut.VisitExpr(f->body,
-                                          [&](const Expr& e) { return Call(k, {e}); }),
-                            answer,
-                            f->type_params,
-                            f->attrs);
+  return Function(new_params, mut.VisitExpr(f->body, [&](const Expr& e) { return Call(k, {e}); }),
+                  answer, f->type_params, f->attrs);
 }
 
 Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm) {
   TypeVar answer = TypeVar("answer", kType);
   VarMap var;
   struct Remapper : ExprVisitor, PatternVisitor {
-    Remapper(const TypeVar& answer, VarMap* vm) : answer(answer), vm(vm) { }
+    Remapper(const TypeVar& answer, VarMap* vm) : answer(answer), vm(vm) {}
     TypeVar answer;
     VarMap* vm;
     void VisitExpr_(const VarNode* vn) final {
@@ -316,13 +289,9 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm) {
       }
     }
 
-    void VisitPattern(const Pattern& p) final {
-      PatternVisitor::VisitPattern(p);
-    }
+    void VisitPattern(const Pattern& p) final { PatternVisitor::VisitPattern(p); }
 
-    void VisitPattern_(const PatternVarNode* op) final {
-      VisitExpr(op->var);
-    }
+    void VisitPattern_(const PatternVarNode* op) final { VisitExpr(op->var); }
   } remap(answer, &var);
   remap.VisitExpr(f);
   Function ret = ToCPS(f, m, cm, &var, answer);
@@ -366,43 +335,32 @@ Function UnCPS(const Function& f) {
     type_args.push_back(tp);
   }
   type_args.push_back(new_ret_type);
-  return Function(new_params,
-                            Call(f, args, {}, type_args),
-                            new_ret_type,
-                            new_type_params,
-                            f->attrs);
+  return Function(new_params, Call(f, args, {}, type_args), new_ret_type, new_type_params,
+                  f->attrs);
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.to_cps")
-.set_body_typed(static_cast<Function (*)(const Function&, const IRModule&)>(ToCPS));
+    .set_body_typed(static_cast<Function (*)(const Function&, const IRModule&)>(ToCPS));
 
-TVM_REGISTER_GLOBAL("relay._transform.un_cps")
-.set_body_typed(UnCPS);
+TVM_REGISTER_GLOBAL("relay._transform.un_cps").set_body_typed(UnCPS);
 
 namespace transform {
 
 Pass ToCPS() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-    return Function(ToCPS(f, m));
-  };
+      [=](Function f, IRModule m, PassContext pc) { return Function(ToCPS(f, m)); };
   return CreateFunctionPass(pass_func, 1, "ToCPS", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.ToCPS")
-.set_body_typed(ToCPS);
-
+TVM_REGISTER_GLOBAL("relay._transform.ToCPS").set_body_typed(ToCPS);
 
 Pass UnCPS() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-      return Function(UnCPS(f));
-    };
+      [=](Function f, IRModule m, PassContext pc) { return Function(UnCPS(f)); };
   return CreateFunctionPass(pass_func, 1, "UnCPS", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.UnCPS")
-.set_body_typed(UnCPS);
+TVM_REGISTER_GLOBAL("relay._transform.UnCPS").set_body_typed(UnCPS);
 
 }  // namespace transform
 

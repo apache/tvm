@@ -20,12 +20,15 @@
 /*!
  * \file storage_access.cc
  */
+#include "storage_access.h"
+
 #include <tvm/target/target_info.h>
+
 #include <string>
 #include <utility>
-#include "storage_access.h"
-#include "ir_util.h"
+
 #include "../../arith/compute_expr.h"
+#include "ir_util.h"
 
 namespace tvm {
 namespace tir {
@@ -89,8 +92,7 @@ void StorageAccessVisitor::VisitStmt_(const EvaluateNode* op) {
 void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::storage_scope) {
     const VarNode* buf = op->node.as<VarNode>();
-    storage_scope_[buf] =
-        StorageScope::make(op->value.as<StringImmNode>()->value);
+    storage_scope_[buf] = StorageScope::make(op->value.as<StringImmNode>()->value);
     StmtExprVisitor::VisitStmt_(op);
   } else if (op->attr_key == attr::double_buffer_write) {
     CHECK(double_buffer_write_ == nullptr);
@@ -145,8 +147,8 @@ void StorageAccessVisitor::VisitStmt_(const ForNode* op) {
   if (s.access.size() != 0) {
     // relax the touched set to contain all ranges in the loop.
     std::unordered_map<const VarNode*, arith::IntSet> relax_map;
-    relax_map[op->loop_var.get()] = arith::IntSet::range(
-        Range::make_by_min_extent(op->min, op->extent));
+    relax_map[op->loop_var.get()] =
+        arith::IntSet::range(Range::make_by_min_extent(op->min, op->extent));
     for (AccessEntry& e : s.access) {
       if (e.buffer.defined()) {
         CHECK(e.touched.defined());
@@ -180,7 +182,7 @@ void StorageAccessVisitor::VisitStmt_(const IfThenElseNode* op) {
 
 void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-    const LoadNode *l = op->args[0].as<LoadNode>();
+    const LoadNode* l = op->args[0].as<LoadNode>();
     StmtExprVisitor::VisitExpr_(l);
   } else if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
     CHECK_EQ(op->args.size(), 5U);
@@ -197,8 +199,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       e.threads = env_threads();
       e.dtype = dtype;
       e.buffer = Downcast<Var>(op->args[1]);
-      e.touched = arith::IntSet::range(
-          Range::make_by_min_extent(offset, extent));
+      e.touched = arith::IntSet::range(Range::make_by_min_extent(offset, extent));
       e.scope = scope;
       if (flag->value & 1) {
         e.type = kRead;

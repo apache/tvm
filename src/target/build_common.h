@@ -24,27 +24,27 @@
 #ifndef TVM_TARGET_BUILD_COMMON_H_
 #define TVM_TARGET_BUILD_COMMON_H_
 
-#include <tvm/target/codegen.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/container.h>
 #include <tvm/ir/module.h>
-#include <tvm/tir/function.h>
+#include <tvm/runtime/container.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/stmt.h>
-#include <unordered_map>
+
 #include <string>
+#include <unordered_map>
+
 #include "../runtime/meta_data.h"
 
 namespace tvm {
 namespace codegen {
 
-inline std::unordered_map<std::string, runtime::FunctionInfo>
-ExtractFuncInfo(const IRModule& mod) {
+inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(const IRModule& mod) {
   std::unordered_map<std::string, runtime::FunctionInfo> fmap;
 
-  for (auto kv :  mod->functions) {
-    CHECK(kv.second->IsInstance<tir::PrimFuncNode>())
-        << "Can only lower IR Module with PrimFuncs";
+  for (auto kv : mod->functions) {
+    CHECK(kv.second->IsInstance<tir::PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
     auto f = Downcast<tir::PrimFunc>(kv.second);
 
     runtime::FunctionInfo info;

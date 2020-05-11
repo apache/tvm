@@ -48,6 +48,7 @@ def _lower(mod,
                 grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
                 grc.codegen(mod["main"])
                 return
+
     # default case
     # Try graph codegen first to extract autotvm tasks.
     # If failed to compile, then fallback to use VM compiler.

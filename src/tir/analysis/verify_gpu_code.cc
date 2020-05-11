@@ -35,12 +35,8 @@ namespace tir {
 
 class GPUCodeVerifier : public StmtVisitor {
  public:
-  bool Verify(Stmt stmt,
-              int64_t max_local_memory_per_block,
-              int64_t max_shared_memory_per_block,
-              int64_t max_threads_per_block,
-              int64_t max_thread_x,
-              int64_t max_thread_y,
+  bool Verify(Stmt stmt, int64_t max_local_memory_per_block, int64_t max_shared_memory_per_block,
+              int64_t max_threads_per_block, int64_t max_thread_x, int64_t max_thread_y,
               int64_t max_thread_z) {
     max_local_memory_per_block_ = static_cast<size_t>(max_local_memory_per_block);
     max_shared_memory_per_block_ = static_cast<size_t>(max_shared_memory_per_block);
@@ -84,7 +80,7 @@ class GPUCodeVerifier : public StmtVisitor {
       }
 
       Var var = op->node.as<IterVarNode>()->var;
-      const auto *extent = op->value.as<IntImmNode>();
+      const auto* extent = op->value.as<IntImmNode>();
       CHECK(extent);
 
       // record the number of threads in a block
@@ -136,8 +132,8 @@ class GPUCodeVerifier : public StmtVisitor {
  private:
   int nest_level_{0};
 
-  std::unordered_set<const VarNode *> visited_local_buffers_;
-  std::unordered_set<const VarNode *> visited_shared_buffers_;
+  std::unordered_set<const VarNode*> visited_local_buffers_;
+  std::unordered_set<const VarNode*> visited_shared_buffers_;
   std::unordered_set<std::string> visited_threads_;
 
   size_t thread_x_extent_, thread_y_extent_, thread_z_extent_;
@@ -164,8 +160,7 @@ class GPUCodeVerifier : public StmtVisitor {
   }
 };
 
-bool VerifyGPUCode(const PrimFunc& func,
-                   Map<std::string, PrimExpr> constraints) {
+bool VerifyGPUCode(const PrimFunc& func, Map<std::string, PrimExpr> constraints) {
   GPUCodeVerifier verifier;
 
   int64_t max_local_memory_per_block = INT64_MAX;
@@ -193,18 +188,11 @@ bool VerifyGPUCode(const PrimFunc& func,
       LOG(FATAL) << "Invalid check item: " << iter.first;
   }
 
-  return verifier.Verify(func->body,
-                         max_local_memory_per_block,
-                         max_shared_memory_per_block,
-                         max_threads_per_block,
-                         max_thread_x,
-                         max_thread_y,
-                         max_thread_z);
+  return verifier.Verify(func->body, max_local_memory_per_block, max_shared_memory_per_block,
+                         max_threads_per_block, max_thread_x, max_thread_y, max_thread_z);
 }
 
-
-TVM_REGISTER_GLOBAL("tir.analysis.verify_gpu_code")
-.set_body_typed(VerifyGPUCode);
+TVM_REGISTER_GLOBAL("tir.analysis.verify_gpu_code").set_body_typed(VerifyGPUCode);
 
 namespace transform {
 
@@ -213,9 +201,7 @@ Pass VerifyGPUCode(Map<std::string, PrimExpr> constraints) {
     for (auto kv : mod->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {
         auto func = GetRef<PrimFunc>(n);
-        CHECK(VerifyGPUCode(func, constraints))
-            << "RuntimeError: GPU constraint violated"
-            << func;
+        CHECK(VerifyGPUCode(func, constraints)) << "RuntimeError: GPU constraint violated" << func;
       }
     }
     return mod;
@@ -223,8 +209,7 @@ Pass VerifyGPUCode(Map<std::string, PrimExpr> constraints) {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifyGPUCode", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.VerifyGPUCode")
-.set_body_typed(VerifyGPUCode);
+TVM_REGISTER_GLOBAL("tir.transform.VerifyGPUCode").set_body_typed(VerifyGPUCode);
 
 }  // namespace transform
 }  // namespace tir

@@ -21,38 +21,44 @@
  * \file Use external cudnn utils function
  */
 #include "cudnn_utils.h"
+
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
-
 
 namespace tvm {
 namespace contrib {
 
 // CuDNN Data Type
-cudnnDataType_t CuDNNDataType::DLTypeToCuDNNType(const DLDataType &dtype) {
+cudnnDataType_t CuDNNDataType::DLTypeToCuDNNType(const DLDataType& dtype) {
   switch (dtype.code) {
-      case kDLInt:
-        if (dtype.bits == 8 && dtype.lanes == 1) return CUDNN_DATA_INT8;
-        else if (dtype.bits == 32 && dtype.lanes == 1) return CUDNN_DATA_INT32;
-        else if (dtype.bits == 8 && dtype.lanes == 4) return CUDNN_DATA_INT8x4;
-        else
-          LOG(FATAL) << "Unsupported type";
-        break;
-      case kDLUInt:
+    case kDLInt:
+      if (dtype.bits == 8 && dtype.lanes == 1)
+        return CUDNN_DATA_INT8;
+      else if (dtype.bits == 32 && dtype.lanes == 1)
+        return CUDNN_DATA_INT32;
+      else if (dtype.bits == 8 && dtype.lanes == 4)
+        return CUDNN_DATA_INT8x4;
+      else
         LOG(FATAL) << "Unsupported type";
-        break;
-      case kDLFloat:
-        if (dtype.bits == 32 && dtype.lanes == 1) return CUDNN_DATA_FLOAT;
-        else if (dtype.bits == 64 && dtype.lanes == 1) return CUDNN_DATA_DOUBLE;
-        else if (dtype.bits == 16 && dtype.lanes == 1) return CUDNN_DATA_HALF;
-        else
-          LOG(FATAL) << "Unsupported type";
-        break;
-    }
-    return CUDNN_DATA_FLOAT;
+      break;
+    case kDLUInt:
+      LOG(FATAL) << "Unsupported type";
+      break;
+    case kDLFloat:
+      if (dtype.bits == 32 && dtype.lanes == 1)
+        return CUDNN_DATA_FLOAT;
+      else if (dtype.bits == 64 && dtype.lanes == 1)
+        return CUDNN_DATA_DOUBLE;
+      else if (dtype.bits == 16 && dtype.lanes == 1)
+        return CUDNN_DATA_HALF;
+      else
+        LOG(FATAL) << "Unsupported type";
+      break;
+  }
+  return CUDNN_DATA_FLOAT;
 }
 
-template<>
+template <>
 const void* CuDNNDataType::GetConst<0>(cudnnDataType_t type) {
   static const int int_v = 0;
   static const float float_v = 0;
@@ -69,7 +75,7 @@ const void* CuDNNDataType::GetConst<0>(cudnnDataType_t type) {
   return nullptr;
 }
 
-template<>
+template <>
 const void* CuDNNDataType::GetConst<1>(cudnnDataType_t type) {
   static const int int_v = 1;
   static const float float_v = 1.f;
@@ -91,22 +97,18 @@ const void* CuDNNDataType::GetConst<1>(cudnnDataType_t type) {
 CuDNNThreadEntry::CuDNNThreadEntry() {
   auto stream = runtime::CUDAThreadEntry::ThreadLocal()->stream;
   auto func = runtime::Registry::Get("device_api.gpu");
-  void *ret = (*func)();
+  void* ret = (*func)();
   cuda_api = static_cast<runtime::DeviceAPI*>(ret);
   CUDNN_CALL(cudnnCreate(&handle));
   CUDNN_CALL(cudnnSetStream(handle, stream));
   conv_entry.cuda_api = cuda_api;
 }
 
-CuDNNThreadEntry::~CuDNNThreadEntry() {
-  CUDNN_CALL(cudnnDestroy(handle));
-}
+CuDNNThreadEntry::~CuDNNThreadEntry() { CUDNN_CALL(cudnnDestroy(handle)); }
 
 typedef dmlc::ThreadLocalStore<CuDNNThreadEntry> CuDNNThreadStore;
 
-CuDNNThreadEntry* CuDNNThreadEntry::ThreadLocal() {
-  return CuDNNThreadStore::Get();
-}
+CuDNNThreadEntry* CuDNNThreadEntry::ThreadLocal() { return CuDNNThreadStore::Get(); }
 
 // ConvEntry
 
@@ -142,13 +144,9 @@ void ConvEntry::CleanWorkspace() {
 
 // SoftmaxEntry
 
-SoftmaxEntry::SoftmaxEntry() {
-  CUDNN_CALL(cudnnCreateTensorDescriptor(&shape_desc));
-}
+SoftmaxEntry::SoftmaxEntry() { CUDNN_CALL(cudnnCreateTensorDescriptor(&shape_desc)); }
 
-SoftmaxEntry::~SoftmaxEntry() {
-  CUDNN_CALL(cudnnDestroyTensorDescriptor(shape_desc));
-}
+SoftmaxEntry::~SoftmaxEntry() { CUDNN_CALL(cudnnDestroyTensorDescriptor(shape_desc)); }
 
 }  // namespace contrib
 }  // namespace tvm

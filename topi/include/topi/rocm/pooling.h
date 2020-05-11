@@ -24,12 +24,12 @@
 #ifndef TOPI_ROCM_POOLING_H_
 #define TOPI_ROCM_POOLING_H_
 
-#include <tvm/te/operation.h>
-#include <tvm/target/generic_func.h>
-#include <topi/tags.h>
-#include <topi/detail/fuse.h>
-#include <topi/detail/array_utils.h>
 #include <topi/cuda/pooling.h>
+#include <topi/detail/array_utils.h>
+#include <topi/detail/fuse.h>
+#include <topi/tags.h>
+#include <tvm/target/generic_func.h>
+#include <tvm/te/operation.h>
 
 namespace topi {
 using namespace tvm;
@@ -38,26 +38,26 @@ using namespace tvm::te;
 namespace rocm {
 
 /*!
-* \brief Create a rocm schedule for pool
-*
-* \param target The target to generate a schedule for.
-* \param outs The output tensors.
-*
-* \return A schedule for the given ops.
-*/
-inline Schedule schedule_pool(const Target &target, const Array<Tensor>& outs) {
+ * \brief Create a rocm schedule for pool
+ *
+ * \param target The target to generate a schedule for.
+ * \param outs The output tensors.
+ *
+ * \return A schedule for the given ops.
+ */
+inline Schedule schedule_pool(const Target& target, const Array<Tensor>& outs) {
   return topi::cuda::schedule_pool(target, outs);
 }
 
 /*!
-* \brief Create a rocm schedule for global_pool
-*
-* \param target The target to generate a schedule for.
-* \param outs The output tensors.
-*
-* \return A schedule for the given ops.
-*/
-inline Schedule schedule_global_pool(const Target &target, const Array<Tensor>& outs) {
+ * \brief Create a rocm schedule for global_pool
+ *
+ * \param target The target to generate a schedule for.
+ * \param outs The output tensors.
+ *
+ * \return A schedule for the given ops.
+ */
+inline Schedule schedule_global_pool(const Target& target, const Array<Tensor>& outs) {
   return topi::cuda::schedule_global_pool(target, outs);
 }
 

@@ -26,9 +26,9 @@
 #include <dmlc/logging.h>
 #include <tvm/runtime/object.h>
 
-#include <vector>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 
@@ -60,16 +60,16 @@ using runtime::ObjectRef;
  * \tparam FType function signiture
  *  This type if only defined for FType with function signature
  */
-template<typename FType>
+template <typename FType>
 class NodeFunctor;
 
-template<typename R, typename ...Args>
+template <typename R, typename... Args>
 class NodeFunctor<R(const ObjectRef& n, Args...)> {
  private:
   /*! \brief internal function pointer type */
-  typedef R (*FPointer)(const ObjectRef&n, Args...);
+  typedef R (*FPointer)(const ObjectRef& n, Args...);
   /*! \brief refer to itself. */
-  using TSelf = NodeFunctor<R (const ObjectRef& n, Args...)>;
+  using TSelf = NodeFunctor<R(const ObjectRef& n, Args...)>;
   /*! \brief internal function table */
   std::vector<FPointer> func_;
 
@@ -92,9 +92,8 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
    * \return The result.
    */
   R operator()(const ObjectRef& n, Args... args) const {
-    CHECK(can_dispatch(n))
-        << "NodeFunctor calls un-registered function on type "
-        << n->GetTypeKey();
+    CHECK(can_dispatch(n)) << "NodeFunctor calls un-registered function on type "
+                           << n->GetTypeKey();
     return (*func_[n->type_index()])(n, std::forward<Args>(args)...);
   }
   /*!
@@ -103,37 +102,32 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
    * \tparam TNode the type of Node to be dispatched.
    * \return reference to self.
    */
-  template<typename TNode>
+  template <typename TNode>
   TSelf& set_dispatch(FPointer f) {  // NOLINT(*)
     uint32_t tindex = TNode::RuntimeTypeIndex();
     if (func_.size() <= tindex) {
       func_.resize(tindex + 1, nullptr);
     }
-    CHECK(func_[tindex] == nullptr)
-        << "Dispatch for " << TNode::_type_key
-        << " is already set";
+    CHECK(func_[tindex] == nullptr) << "Dispatch for " << TNode::_type_key << " is already set";
     func_[tindex] = f;
     return *this;
   }
   /*!
-  * \brief unset the dispacher for type TNode
-  *
-  * \tparam TNode the type of Node to be dispatched.
-  * \return reference to self.
-  */
-  template<typename TNode>
+   * \brief unset the dispacher for type TNode
+   *
+   * \tparam TNode the type of Node to be dispatched.
+   * \return reference to self.
+   */
+  template <typename TNode>
   TSelf& clear_dispatch() {  // NOLINT(*)
     uint32_t tindex = TNode::RuntimeTypeIndex();
-    CHECK_LT(tindex, func_.size())
-        << "clear_dispatch: index out of range";
+    CHECK_LT(tindex, func_.size()) << "clear_dispatch: index out of range";
     func_[tindex] = nullptr;
     return *this;
   }
 };
 
-
-#define TVM_REG_FUNC_VAR_DEF(ClsName)                                 \
-  static TVM_ATTRIBUTE_UNUSED auto & __make_functor ## _ ## ClsName
+#define TVM_REG_FUNC_VAR_DEF(ClsName) static TVM_ATTRIBUTE_UNUSED auto& __make_functor##_##ClsName
 
 /*!
  * \brief Useful macro to set NodeFunctor dispatch in a global static field.
@@ -176,8 +170,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
  * \param ClsName The name of the class
  * \param FField The static function that returns a singleton of NodeFunctor.
  */
-#define TVM_STATIC_IR_FUNCTOR(ClsName, FField)                       \
-  TVM_STR_CONCAT(TVM_REG_FUNC_VAR_DEF(ClsName), __COUNTER__)  =      \
-      ClsName::FField()
+#define TVM_STATIC_IR_FUNCTOR(ClsName, FField) \
+  TVM_STR_CONCAT(TVM_REG_FUNC_VAR_DEF(ClsName), __COUNTER__) = ClsName::FField()
 }  // namespace tvm
 #endif  // TVM_NODE_FUNCTOR_H_

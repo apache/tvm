@@ -20,12 +20,12 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <topi/cuda/injective.h>
-#include <tvm/te/operation.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/driver/driver_api.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/te/operation.h>
 
-#include <string>
 #include <cmath>
+#include <string>
 
 TEST(BuildModule, Basic) {
   using namespace tvm;
@@ -37,18 +37,17 @@ TEST(BuildModule, Basic) {
   auto A = placeholder(shape, DataType::Float(32), "A");
   auto B = placeholder(shape, DataType::Float(32), "B");
 
-  auto C = compute(A->shape, [&A, &B](PrimExpr i) {
-    return A[i] + B[i];
-  }, "C");
+  auto C = compute(
+      A->shape, [&A, &B](PrimExpr i) { return A[i] + B[i]; }, "C");
 
-  auto s = create_schedule({ C->op });
+  auto s = create_schedule({C->op});
 
   auto cAxis = C->op.as<ComputeOpNode>()->axis;
 
   IterVar bx, tx;
   s[C].split(cAxis[0], 64, &bx, &tx);
 
-  auto args = Array<Tensor>({ A, B, C });
+  auto args = Array<Tensor>({A, B, C});
   std::unordered_map<Tensor, Buffer> binds;
 
   auto config = BuildConfig::Create();
@@ -94,18 +93,15 @@ TEST(BuildModule, Heterogeneous) {
   auto B = placeholder(shape, DataType::Float(32), "B");
   auto C = placeholder(shape, DataType::Float(32), "C");
 
-  auto elemwise_add = compute(A->shape, [&A, &B](PrimExpr i) {
-    return A[i] + B[i];
-  }, "elemwise_add");
+  auto elemwise_add = compute(
+      A->shape, [&A, &B](PrimExpr i) { return A[i] + B[i]; }, "elemwise_add");
 
   auto copy = placeholder(shape, DataType::Float(32), "__copy");
-  auto elemwise_sub = compute(C->shape, [&copy, &C](PrimExpr i) {
-    return copy[i] - C[i];
-  }, "elemwise_sub");
+  auto elemwise_sub = compute(
+      C->shape, [&copy, &C](PrimExpr i) { return copy[i] - C[i]; }, "elemwise_sub");
 
   With<Target> cuda_scope(target_cuda);
   auto s1 = topi::cuda::schedule_injective(target_cuda, {elemwise_add});
-
 
   With<Target> llvm_scope(target_llvm);
   auto s2 = create_schedule({elemwise_sub->op});
@@ -117,8 +113,7 @@ TEST(BuildModule, Heterogeneous) {
   std::unordered_map<Tensor, Buffer> binds;
   auto lowered_s1 = lower(s1, args1, "elemwise_add", binds, config);
   auto lowered_s2 = lower(s2, args2, "elemwise_sub", binds, config);
-  Map<tvm::Target, IRModule> inputs = {{target_cuda, lowered_s1},
-                                       {target_llvm, lowered_s2}};
+  Map<tvm::Target, IRModule> inputs = {{target_cuda, lowered_s1}, {target_llvm, lowered_s2}};
   auto module = build(inputs, Target(), config);
 
   // Assertion for build.
@@ -148,12 +143,9 @@ TEST(BuildModule, Heterogeneous) {
       "\"float32\"]]}}";
 
   // Setup inputs.
-  auto a_val =
-      runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto b_val =
-      runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  auto c_val =
-      runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto a_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto b_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto c_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
   auto pa = (float*)(a_val->data);
   auto pb = (float*)(b_val->data);
@@ -174,8 +166,17 @@ TEST(BuildModule, Heterogeneous) {
 
   const runtime::PackedFunc* graph_runtime =
       tvm::runtime::Registry::Get("tvm.graph_runtime.create");
-  runtime::Module mod = (*graph_runtime)(
-      json, module, cpu_dev_ty, cpu_dev_id, gpu_dev_ty, gpu_dev_id);
+  runtime::Module mod =
+      (*graph_runtime)(json, module, cpu_dev_ty, cpu_dev_id, gpu_dev_ty, gpu_dev_id);
+
+  // test FFI for module.
+  auto test_ffi = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
+    int tcode = args[1];
+    CHECK_EQ(args[0].type_code(), tcode);
+  });
+
+  test_ffi(runtime::Module(mod), static_cast<int>(kTVMModuleHandle));
+  test_ffi(Optional<runtime::Module>(mod), static_cast<int>(kTVMModuleHandle));
 
   PackedFunc set_input = mod.GetFunction("set_input", false);
   PackedFunc run = mod.GetFunction("run", false);
@@ -194,7 +195,7 @@ TEST(BuildModule, Heterogeneous) {
   }
 }
 
-int main(int argc, char ** argv) {
+int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
   return RUN_ALL_TESTS();

@@ -154,7 +154,9 @@ FUNC_OPS = {
     "nn.dropout": op.nn.dropout_raw,
     "zeros": op.zeros,
     "split": op.split,
-    "cast": op.cast
+    "cast": op.cast,
+    "clip": op.clip,
+    "right_shift": op.right_shift,
 }
 
 TYPE_PREFIXES = [

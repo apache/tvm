@@ -22,13 +22,14 @@
  * \brief API for Automatic Differentiation for the Relay IR.
  */
 #include <tvm/ir/type_functor.h>
-#include <tvm/te/operation.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include "pattern_util.h"
-#include "pass_util.h"
+#include <tvm/te/operation.h>
+
 #include "let_list.h"
+#include "pass_util.h"
+#include "pattern_util.h"
 
 namespace tvm {
 namespace relay {
@@ -42,12 +43,14 @@ using namespace tvm::runtime;
  * Formally speaking, such requirement mean that the input function is a closed expression -
  * that is, it only refer to local variable that is it's parameter, or defined inside it.
  * Every top level definition satisfy this criteria.
- * AD can also be run-time, which mean it is merely a function term of AD : (Float[] -> Float[]) -> (Float[] -> Float[]).
- * In relay we currently only support compile-time AD, but it should be enough for a lot of use case.
+ * AD can also be run-time, which mean it is merely a function term of AD : (Float[] -> Float[]) ->
+ * (Float[] -> Float[]). In relay we currently only support compile-time AD, but it should be enough
+ * for a lot of use case.
  *
- * In deep learning, the most common way to train a deep neural network is by gradient descent or some of it's variant.
- * Such optimization method require us to input the gradient of neural network, which can be obtained easily using AD.
- * In fact, back propagation is essentially reverse-mode automatic differentiation, a kind of AD!
+ * In deep learning, the most common way to train a deep neural network is by gradient descent or
+ * some of it's variant. Such optimization method require us to input the gradient of neural
+ * network, which can be obtained easily using AD. In fact, back propagation is essentially
+ * reverse-mode automatic differentiation, a kind of AD!
  */
 
 /*! In relay, automatic differentiation(AD) is a macro,
@@ -55,10 +58,10 @@ using namespace tvm::runtime;
  *  (x0, x1, x2, ...) -> Float[] to
  *  (x0, x1, x2, ...) -> (Float[], (x0, x1,  x2, ...)),
  *  When x0, x1, x2... are Float of different shape.
- * the return value is a pair, with left hand side as the original value, and right hand side as gradient of the input.
- *  WithGradientType will take the type of input, and produce the type of output.
- *  There are multiple implementation of AD in relay, with different characteristic.
- *  However, they all transform the input expr according to WithGradientType.
+ * the return value is a pair, with left hand side as the original value, and right hand side as
+ * gradient of the input. WithGradientType will take the type of input, and produce the type of
+ * output. There are multiple implementation of AD in relay, with different characteristic. However,
+ * they all transform the input expr according to WithGradientType.
  */
 Type WithGradientType(const Type&);
 
@@ -71,10 +74,7 @@ Type WithGradientType(const Type& t) {
   // TODO(M.K.): stricter checking
   auto ty = t.as<FuncTypeNode>();
   CHECK(ty) << "input should be a function";
-  return FuncType(ty->arg_types,
-                            TupleType({
-                              ty->ret_type,
-                              TupleType(ty->arg_types)}), {}, {});
+  return FuncType(ty->arg_types, TupleType({ty->ret_type, TupleType(ty->arg_types)}), {}, {});
 }
 
 //! \brief if the expression is a GlobalVar, transform to it's expression.
@@ -95,7 +95,7 @@ Expr DeGlobal(const IRModule& mod, const Expr& e) {
  *  pass.
  */
 struct ADValueNode {
-  virtual ~ADValueNode() { }
+  virtual ~ADValueNode() {}
   template <typename T>
   T& get() {
     auto ret = dynamic_cast<T*>(this);
@@ -110,8 +110,8 @@ using ADValue = std::shared_ptr<ADValueNode>;
 struct ADTensor : ADValueNode {
   Expr forward;
   mutable Expr reverse;  // must be a variable to avoid duplication
-  ADTensor(LetList* ll, const Expr& forward) :
-    forward(ll->Push(forward)), reverse(ll->Push(ZerosLike(this->forward))) {
+  ADTensor(LetList* ll, const Expr& forward)
+      : forward(ll->Push(forward)), reverse(ll->Push(ZerosLike(this->forward))) {
     this->forward->checked_type_ = forward->checked_type();
   }
 };
@@ -121,51 +121,46 @@ struct ADTensor : ADValueNode {
  * can compute away this function to obtain a reverse mode program.
  */
 struct ADFunction : ADValueNode {
-  std::function<ADValue(const Type&,
-                        const std::vector<ADValue>&,
-                        const Attrs&,
-                        const tvm::Array<Type>&)> func;
-  explicit ADFunction(const std::function<ADValue(const Type&,
-                                                  const std::vector<ADValue>&,
-                                                  const Attrs&,
-                                                  const tvm::Array<Type>&)>& func) :
-    func(func) { }
+  std::function<ADValue(const Type&, const std::vector<ADValue>&, const Attrs&,
+                        const tvm::Array<Type>&)>
+      func;
+  explicit ADFunction(const std::function<ADValue(const Type&, const std::vector<ADValue>&,
+                                                  const Attrs&, const tvm::Array<Type>&)>& func)
+      : func(func) {}
 };
 
-struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr &)> {
+struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr&)> {
   const OpMap<FPrimalGradient> rev_map = Op::GetAttr<FPrimalGradient>("FPrimalGradient");
   std::vector<std::function<void(LetList* ll)>> backprop_actions;
   // we assume no closure so no need for lexical scoping
   std::unordered_map<Var, ADValue, ObjectHash, ObjectEqual> env;
   LetList* ll;
 
-  FirstOrderReverseAD(LetList* ll) : ll(ll) { }
+  FirstOrderReverseAD(LetList* ll) : ll(ll) {}
 
   ADValue VisitExpr_(const OpNode* op) final {
     Op op_ref = GetRef<Op>(op);
-    CHECK(rev_map.count(op_ref))
-      << op->name << " does not have reverse mode defined";
-    return std::make_shared<ADFunction>([this, op_ref](const Type& orig_type,
-                                                       const std::vector<ADValue>& args,
-                                                       const Attrs& attrs,
-                                                       const tvm::Array<Type>& type_args) {
-      std::vector<Expr> call_args;
-      for (const ADValue& adval : args) {
-        call_args.push_back(adval->get<ADTensor>().forward);
-      }
-      auto orig = Call(op_ref, call_args, attrs, type_args);
-      orig->checked_type_ = orig_type;
-      auto ret = std::make_shared<ADTensor>(ll, orig);
-      backprop_actions.push_back([this, args, orig, ret, op_ref](LetList* ll) {
-        tvm::Array<Expr> rev = rev_map[op_ref](orig, ret->reverse);
-        CHECK(args.size() == rev.size());
-        for (size_t i = 0; i < args.size(); ++i) {
-          args[i]->get<ADTensor>().reverse =
-            ll->Push(Add(args[i]->get<ADTensor>().reverse, rev[i]));
-        }
-      });
-      return ret;
-    });
+    CHECK(rev_map.count(op_ref)) << op->name << " does not have reverse mode defined";
+    return std::make_shared<ADFunction>(
+        [this, op_ref](const Type& orig_type, const std::vector<ADValue>& args, const Attrs& attrs,
+                       const tvm::Array<Type>& type_args) {
+          std::vector<Expr> call_args;
+          for (const ADValue& adval : args) {
+            call_args.push_back(adval->get<ADTensor>().forward);
+          }
+          auto orig = Call(op_ref, call_args, attrs, type_args);
+          orig->checked_type_ = orig_type;
+          auto ret = std::make_shared<ADTensor>(ll, orig);
+          backprop_actions.push_back([this, args, orig, ret, op_ref](LetList* ll) {
+            tvm::Array<Expr> rev = rev_map[op_ref](orig, ret->reverse);
+            CHECK(args.size() == rev.size());
+            for (size_t i = 0; i < args.size(); ++i) {
+              args[i]->get<ADTensor>().reverse =
+                  ll->Push(Add(args[i]->get<ADTensor>().reverse, rev[i]));
+            }
+          });
+          return ret;
+        });
   }
 
   ADValue VisitExpr_(const ConstantNode* op) final {
@@ -185,16 +180,15 @@ struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr &)> {
   ADValue VisitExpr_(const FunctionNode* op) final {
     Function f = GetRef<Function>(op);
     // todo: assert no closure
-    return std::make_shared<ADFunction>([this, f](const Type& orig_type,
-                                                  const std::vector<ADValue>& args,
-                                                  const Attrs& attrs,
-                                                  const tvm::Array<Type>& type_args) {
-        CHECK_EQ(f->params.size(), args.size());
-        for (size_t i = 0; i < f->params.size(); ++i) {
-          env[f->params[i]] = args[i];
-        }
-        return VisitExpr(f->body);
-      });
+    return std::make_shared<ADFunction>(
+        [this, f](const Type& orig_type, const std::vector<ADValue>& args, const Attrs& attrs,
+                  const tvm::Array<Type>& type_args) {
+          CHECK_EQ(f->params.size(), args.size());
+          for (size_t i = 0; i < f->params.size(); ++i) {
+            env[f->params[i]] = args[i];
+          }
+          return VisitExpr(f->body);
+        });
   }
 
   ADValue VisitExpr_(const VarNode* op) final {
@@ -240,8 +234,7 @@ Expr FirstOrderGradient(const Expr& re, const IRModule& mod) {
     const auto& res = c->get<ADTensor>();
     Expr grad = LetList::With([&](LetList* ll) {
       res.reverse = OnesLike(res.forward);
-      for (auto it = reverse_ad.backprop_actions.rbegin();
-           it != reverse_ad.backprop_actions.rend();
+      for (auto it = reverse_ad.backprop_actions.rbegin(); it != reverse_ad.backprop_actions.rend();
            ++it) {
         (*it)(ll);
       }
@@ -257,8 +250,7 @@ Expr FirstOrderGradient(const Expr& re, const IRModule& mod) {
   return Function(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.first_order_gradient")
-.set_body_typed(FirstOrderGradient);
+TVM_REGISTER_GLOBAL("relay._transform.first_order_gradient").set_body_typed(FirstOrderGradient);
 
 struct ReverseADType : TypeMutator {
   Type VisitType_(const TensorTypeNode* ttn) final {
@@ -267,17 +259,13 @@ struct ReverseADType : TypeMutator {
   }
 };
 
-Type ReverseType(const Type& t) {
-  return ReverseADType()(t);
-}
+Type ReverseType(const Type& t) { return ReverseADType()(t); }
 
 /*! \brief Lift a function that transform Tensor to a function that also transform more type
  * by doing a structure preserving map.
  */
 Expr LiftTensor(const std::function<Expr(const Expr& t)>& f,
-                const std::function<Type(const Type&)>& tf,
-                const Type& forward_type,
-                const Expr& e,
+                const std::function<Type(const Type&)>& tf, const Type& forward_type, const Expr& e,
                 LetList* ll) {
   CHECK(IsAtomic(e)) << e;
   if (forward_type.as<TensorTypeNode>()) {
@@ -288,11 +276,7 @@ Expr LiftTensor(const std::function<Expr(const Expr& t)>& f,
     tvm::Array<Expr> fields;
     tvm::Array<Type> types;
     for (size_t i = 0; i < tt->fields.size(); ++i) {
-      auto field = LiftTensor(f,
-                              tf,
-                              tt->fields[i],
-                              ll->Push(GetField(e, i)),
-                              ll);
+      auto field = LiftTensor(f, tf, tt->fields[i], ll->Push(GetField(e, i)), ll);
       fields.push_back(field);
       types.push_back(field->checked_type_);
     }
@@ -308,10 +292,7 @@ Expr LiftTensor(const std::function<Expr(const Expr& t)>& f,
 /*! \brief Transfers the gradients from an Expr to a deep duplication of the Expr,
  * by stitching the references in the AD values.
  */
-void TransferGrads(const Type& forward_type,
-                   const Expr& from,
-                   const Expr& to,
-                   LetList* ll) {
+void TransferGrads(const Type& forward_type, const Expr& from, const Expr& to, LetList* ll) {
   CHECK(IsAtomic(from)) << from;
   CHECK(IsAtomic(to)) << to;
   if (forward_type.as<TensorTypeNode>()) {
@@ -320,9 +301,7 @@ void TransferGrads(const Type& forward_type,
     ll->Push(RefWrite(to_ref, RefRead(from_ref)));
   } else if (auto* tt = forward_type.as<TupleTypeNode>()) {
     for (size_t i = 0; i < tt->fields.size(); ++i) {
-      TransferGrads(tt->fields[i],
-                    ll->Push(TupleGetItem(from, i)),
-                    ll->Push(TupleGetItem(to, i)),
+      TransferGrads(tt->fields[i], ll->Push(TupleGetItem(from, i)), ll->Push(TupleGetItem(to, i)),
                     ll);
     }
   } else {
@@ -333,48 +312,31 @@ void TransferGrads(const Type& forward_type,
 
 /*! \brief t -> ReverseType(t). Transform to Reverse Mode Value. */
 Expr GetRev(const Type& forward_type, const Expr& e, LetList* ll) {
-  auto rev = [&](const Expr& e) {
-    return Pair(e, ll->Push(RefCreate(ZerosLike(e))));
-  };
-  auto rev_type = [&](const Type& forward_type) {
-    return ReverseType(forward_type);
-  };
+  auto rev = [&](const Expr& e) { return Pair(e, ll->Push(RefCreate(ZerosLike(e)))); };
+  auto rev_type = [&](const Type& forward_type) { return ReverseType(forward_type); };
   return LiftTensor(rev, rev_type, forward_type, e, ll);
 }
 
 /*! \brief ReverseType(t) -> t. Get the original value. */
 Expr GetValue(const Type& forward_type, const Expr& e, LetList* ll) {
-  auto val = [&](const Expr& e) {
-    return GetField(e, 0);
-  };
-  auto val_type = [&](const Type& forward_type) {
-    return forward_type;
-  };
+  auto val = [&](const Expr& e) { return GetField(e, 0); };
+  auto val_type = [&](const Type& forward_type) { return forward_type; };
   return LiftTensor(val, val_type, forward_type, e, ll);
 }
 
 /*! \brief ReverseType(t) -> t. Get the gradient. */
 Expr GetGrad(const Type& forward_type, const Expr& e, LetList* ll) {
-  auto grad = [&](const Expr& e) {
-    return ll->Push(RefRead(GetField(e, 1)));
-  };
-  auto grad_type = [&](const Type& forward_type) {
-    return forward_type;
-  };
+  auto grad = [&](const Expr& e) { return ll->Push(RefRead(GetField(e, 1))); };
+  auto grad_type = [&](const Type& forward_type) { return forward_type; };
   return LiftTensor(grad, grad_type, forward_type, e, ll);
 }
 
 void UpdateGrad(const Type& t, const Expr& arg, const Expr& grad, LetList* ll) {
   if (t.as<TensorTypeNode>()) {
-    ll->Push(RefWrite(GetField(arg, 1),
-                                Add(ll->Push(RefRead(GetField(arg, 1))),
-                                    grad)));
+    ll->Push(RefWrite(GetField(arg, 1), Add(ll->Push(RefRead(GetField(arg, 1))), grad)));
   } else if (auto* tt = t.as<TupleTypeNode>()) {
     for (size_t i = 0; i < tt->fields.size(); ++i) {
-      UpdateGrad(tt->fields[i],
-                 ll->Push(GetField(arg, i)),
-                 ll->Push(GetField(grad, i)),
-                 ll);
+      UpdateGrad(tt->fields[i], ll->Push(GetField(arg, i)), ll->Push(GetField(grad, i)), ll);
     }
   } else {
     LOG(FATAL) << "unsupported arg type of operator: " << t;
@@ -394,15 +356,14 @@ struct ReverseAD : ExprMutator {
   std::shared_ptr<ADVarMap> ad_vars;
   const OpMap<FPrimalGradient> rev_map = Op::GetAttr<FPrimalGradient>("FPrimalGradient");
 
-  explicit ReverseAD(const Var& bp, std::shared_ptr<ADVarMap> ad_vars)
-      : bp(bp), ad_vars(ad_vars) { }
+  explicit ReverseAD(const Var& bp, std::shared_ptr<ADVarMap> ad_vars) : bp(bp), ad_vars(ad_vars) {}
 
   Expr VisitExpr_(const OpNode* op) final {
     LOG(FATAL) << "op should only be inside call";
     throw;
   }
 
-  Expr VisitCheckpoint(const CallNode *call) {
+  Expr VisitCheckpoint(const CallNode* call) {
     const OpNode* op_node = call->op.as<OpNode>();
     CHECK(op_node) << "expected op in call";
     Op op_ref = GetRef<Op>(op_node);
@@ -412,20 +373,17 @@ struct ReverseAD : ExprMutator {
       auto x_var = ll->Push(x);
       auto ret = ll->Push(GetRev(call->checked_type(), x_var, ll));
       auto bpv = ll->Push(RefRead(bp));
-      Expr nbp = Function(
-        {},
-        LetList::With([&](LetList* ll) {
-          // we need a new ReverseAD visitor to avoid clobbering the bp local var
-          auto dup_bp = ll->Push(BPEmpty());
-          ReverseAD dup_diff(dup_bp, ad_vars);
-          auto dup_ad = ll->Push(dup_diff.VisitExpr(DeDup(x)));
+      Expr nbp = Function({}, LetList::With([&](LetList* ll) {
+                            // we need a new ReverseAD visitor to avoid clobbering the bp local var
+                            auto dup_bp = ll->Push(BPEmpty());
+                            ReverseAD dup_diff(dup_bp, ad_vars);
+                            auto dup_ad = ll->Push(dup_diff.VisitExpr(DeDup(x)));
 
-          TransferGrads(call->checked_type(), ret, dup_ad, ll);
-          ll->Push(Call(RefRead(dup_bp), {}));
-          return Call(bpv, {});
-        }),
-        TupleType::Empty(),
-        {});
+                            TransferGrads(call->checked_type(), ret, dup_ad, ll);
+                            ll->Push(Call(RefRead(dup_bp), {}));
+                            return Call(bpv, {});
+                          }),
+                          TupleType::Empty(), {});
       ll->Push(RefWrite(bp, nbp));
       return ret;
     });
@@ -439,8 +397,7 @@ struct ReverseAD : ExprMutator {
         return VisitCheckpoint(call);
       }
 
-      CHECK(rev_map.count(op_ref))
-        << op_node->name << " does not have reverse mode defined";
+      CHECK(rev_map.count(op_ref)) << op_node->name << " does not have reverse mode defined";
       return LetList::With([&](LetList* ll) {
         std::vector<Var> args;
         for (const auto& arg : call->args) {
@@ -456,18 +413,16 @@ struct ReverseAD : ExprMutator {
         orig_var->checked_type_ = call->checked_type();
         auto ret = ll->Push(GetRev(call->checked_type(), orig_var, ll));
         auto bpv = ll->Push(RefRead(bp));
-        Expr nbp = Function(
-          {},
-          LetList::With([&](LetList* ll) {
-            tvm::Array<Expr> rev = rev_map[op_ref](orig, GetGrad(call->checked_type(), ret, ll));
-            CHECK(args.size() == rev.size());
-            for (size_t i = 0; i < args.size(); ++i) {
-              UpdateGrad(call->args[i]->checked_type(), args[i], rev[i], ll);
-            }
-            return Call(bpv, {});
-          }),
-          TupleType::Empty(),
-          {});
+        Expr nbp = Function({}, LetList::With([&](LetList* ll) {
+                              tvm::Array<Expr> rev =
+                                  rev_map[op_ref](orig, GetGrad(call->checked_type(), ret, ll));
+                              CHECK(args.size() == rev.size());
+                              for (size_t i = 0; i < args.size(); ++i) {
+                                UpdateGrad(call->args[i]->checked_type(), args[i], rev[i], ll);
+                              }
+                              return Call(bpv, {});
+                            }),
+                            TupleType::Empty(), {});
         ll->Push(RefWrite(bp, nbp));
         return ret;
       });
@@ -481,9 +436,8 @@ struct ReverseAD : ExprMutator {
   }
 
   Expr VisitExpr_(const IfNode* op) final {
-    return If(TupleGetItem(VisitExpr(op->cond), 0),
-                        VisitExpr(op->true_branch),
-                        VisitExpr(op->false_branch));
+    return If(TupleGetItem(VisitExpr(op->cond), 0), VisitExpr(op->true_branch),
+              VisitExpr(op->false_branch));
   }
 
   Expr VisitExpr_(const VarNode* var) final {
@@ -497,9 +451,7 @@ struct ReverseAD : ExprMutator {
     return ad_vars->at(var_ref);
   }
 
-  Type VisitType(const Type& t) final {
-    return t.defined() ? ReverseType(t) : t;
-  }
+  Type VisitType(const Type& t) final { return t.defined() ? ReverseType(t) : t; }
 };
 
 bool MissingGrad(const Expr& e) {
@@ -585,8 +537,7 @@ Expr Gradient(const Expr& re, const IRModule& mod) {
   return Function(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.gradient")
-.set_body_typed(Gradient);
+TVM_REGISTER_GLOBAL("relay._transform.gradient").set_body_typed(Gradient);
 
 }  // namespace relay
 }  // namespace tvm
