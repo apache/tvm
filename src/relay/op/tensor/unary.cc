@@ -128,6 +128,50 @@ RELAY_REGISTER_UNARY_OP("sinh")
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::sinh));
 
 
+RELAY_REGISTER_UNARY_OP("acos")
+.describe(R"code(Returns the acos of input array, computed element-wise.
+
+.. math::
+   Y = acos(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::acos));
+
+
+RELAY_REGISTER_UNARY_OP("acosh")
+.describe(R"code(Returns the acosh of input array, computed element-wise.
+
+.. math::
+   Y = acosh(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::acosh));
+
+
+RELAY_REGISTER_UNARY_OP("asin")
+.describe(R"code(Returns the asin of input array, computed element-wise.
+
+.. math::
+   Y = asin(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::asin));
+
+
+RELAY_REGISTER_UNARY_OP("asinh")
+.describe(R"code(Returns the asinh of input array, computed element-wise.
+
+.. math::
+   Y = asinh(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::asinh));
+
+
 RELAY_REGISTER_UNARY_OP("atan")
 .describe(R"code(Returns the atan of input array, computed element-wise.
 
@@ -137,6 +181,17 @@ RELAY_REGISTER_UNARY_OP("atan")
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::atan));
+
+
+RELAY_REGISTER_UNARY_OP("atanh")
+.describe(R"code(Returns the atanh of input array, computed element-wise.
+
+.. math::
+   Y = atanh(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::atanh));
 
 
 RELAY_REGISTER_UNARY_OP("exp")

@@ -31,6 +31,31 @@ namespace topi {
 using namespace tvm;
 using namespace tvm::runtime;
 
+TVM_REGISTER_GLOBAL("topi.acos")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = acos(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.acosh")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = acosh(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.asin")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = asin(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.asinh")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = asinh(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.atanh")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = atanh(args[0]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.exp")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = exp(args[0]);
