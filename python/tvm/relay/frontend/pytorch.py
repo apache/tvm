@@ -1699,6 +1699,8 @@ def _get_convert_map(prelude):
         "aten::sinh"                            : _unary("sinh"),
         "aten::tan"                             : _unary("tan"),
         "aten::tanh"                            : _unary("tanh"),
+        "aten::acos"                            : _unary("acos"),
+        "aten::asin"                            : _unary("asin"),
         "aten::atan"                            : _unary("atan"),
         "aten::log"                             : _unary("log"),
         "aten::log2"                            : _unary("log2"),
