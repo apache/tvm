@@ -146,9 +146,6 @@ class Module(object):
         nmod = _ffi_api.ModuleImportsSize(self)
         return [_ffi_api.ModuleGetImport(self, i) for i in range(nmod)]
 
-    def is_empty(self):
-        return _ffi_api.IsEmpty(self)
-
     def save(self, file_name, fmt=""):
         """Save the module to file.
 

@@ -418,8 +418,6 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
     };
     return {fexec, arg_ptr};
   }
-  CHECK(!module_.IsEmpty())
-    << "Module cannot be empty in order to get functions from the lib";
 
   // Get compiled function from the module that contains both host and device
   // code.
