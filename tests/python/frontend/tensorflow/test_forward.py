@@ -3326,12 +3326,30 @@ def tvm_frontend_placeholder_invalid_input_index_error():
 
         compare_tf_with_tvm([in_data1, in_data2], ['Place1:0', 'Place2:0'], 'out2:0', mode='vm', init_global_variables=True)
 
-def test_spop():
-    test_spop_function_invocation()
+def test_spop_arithmetic():
+    pass
+
+def test_spop_control_flow():
+    pass
+
+def test_spop_variables():
+    pass
+
+def test_spop_constants():
+    pass
+
+def test_spop_placeholder():
     tvm_frontend_placeholder_invalid_input_index_error()
     test_spop_placeholder_dimension_error()
     test_spop_placeholder_default()
 
+def test_spop():
+    test_spop_function_invocation()
+    test_spop_arithmetic()
+    test_spop_control_flow()
+    test_spop_variables()
+    test_spop_constants()
+    test_spop_placeholder()
 
 
 #######################################################################
