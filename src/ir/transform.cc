@@ -201,7 +201,7 @@ class SequentialNode : public PassNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
 };
 
-PassInfo::PassInfo(int opt_level, std::string name, tvm::Array<runtime::String> required) {
+PassInfo::PassInfo(int opt_level, String name, tvm::Array<runtime::String> required) {
   auto pass_info = make_object<PassInfoNode>();
   pass_info->opt_level = opt_level;
   pass_info->name = std::move(name);
@@ -238,7 +238,7 @@ Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
   data_ = std::move(n);
 }
 
-Sequential::Sequential(tvm::Array<Pass> passes, std::string name) {
+Sequential::Sequential(tvm::Array<Pass> passes, String name) {
   auto n = make_object<SequentialNode>();
   n->passes = std::move(passes);
   PassInfo pass_info = PassInfo(2, std::move(name), {});
@@ -282,10 +282,10 @@ bool SequentialNode::PassEnabled(const PassInfo& info) const {
   return ctx->opt_level >= info->opt_level;
 }
 
-Pass GetPass(const std::string& pass_name) {
+Pass GetPass(const String& pass_name) {
   using tvm::runtime::Registry;
   const runtime::PackedFunc* f = nullptr;
-  if (pass_name.find("transform.") != std::string::npos) {
+  if (pass_name.operator std::string().find("transform.") != std::string::npos) {
     f = Registry::Get(pass_name);
   } else if ((f = Registry::Get("transform." + pass_name))) {
     // pass
@@ -313,7 +313,7 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 }
 
 Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                      int opt_level, const std::string& name,
+                      int opt_level, const String& name,
                       const tvm::Array<runtime::String>& required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return ModulePass(pass_func, pass_info);
@@ -322,7 +322,7 @@ Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassCont
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
 TVM_REGISTER_GLOBAL("transform.PassInfo")
-    .set_body_typed([](int opt_level, std::string name, tvm::Array<runtime::String> required) {
+    .set_body_typed([](int opt_level, String name, tvm::Array<runtime::String> required) {
       return PassInfo(opt_level, name, required);
     });
 
@@ -439,7 +439,7 @@ TVM_REGISTER_GLOBAL("transform.EnterPassContext").set_body_typed(PassContext::In
 
 TVM_REGISTER_GLOBAL("transform.ExitPassContext").set_body_typed(PassContext::Internal::ExitScope);
 
-Pass PrintIR(std::string header, bool show_meta_data) {
+Pass PrintIR(String header, bool show_meta_data) {
   auto pass_func = [header, show_meta_data](IRModule mod, const PassContext& ctx) {
     LOG(INFO) << "PrintIR(" << header << "):\n" << AsText(mod, show_meta_data);
     return mod;
