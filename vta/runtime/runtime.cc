@@ -43,6 +43,8 @@
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 #include <rapidjson/stringbuffer.h>
+#include <thread>
+#include <mutex>
 
 namespace vta {
 
@@ -120,10 +122,39 @@ public:
   }
 };
 
+class DeviceAllocStat {
+ public:
+  void AddAlloc(const void* ptr) {
+    std::lock_guard<std::mutex> lock(mtx_);
+    allocated_.insert(ptr);
+  }
+
+  bool CheckAlloc(const void* ptr) {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return allocated_.count(ptr);
+  }
+
+  void DelAlloc(const void* ptr) {
+    std::lock_guard<std::mutex> lock(mtx_);
+    allocated_.erase(ptr);
+  }
+
+ private:
+  std::set<const void*> allocated_;
+  std::mutex mtx_;
+};
+
+// here we use a global variable to memorize the allocation stats
+static std::shared_ptr<DeviceAllocStat> alloc_stat(new DeviceAllocStat());
+
 /*!
  * \brief Data buffer represents data on CMA.
  */
 struct DataBuffer {
+  DataBuffer() {
+    alloc_stat_ = alloc_stat;
+  }
+
   /*! \return Virtual address of the data. */
   void* virt_addr() const { return data_; }
   /*! \return Physical address of the data. */
@@ -180,7 +211,7 @@ struct DataBuffer {
     buffer->data_ = data;
     buffer->phy_addr_ = VTAMemGetPhyAddr(data);
 
-    allocated_.insert(buffer);
+    alloc_stat->AddAlloc(buffer);
     return buffer;
   }
   /*!
@@ -188,7 +219,7 @@ struct DataBuffer {
    * \param buffer The buffer to be freed.
    */
   static void Free(DataBuffer* buffer) {
-    allocated_.erase(buffer);
+    alloc_stat->DelAlloc(buffer);
     VTAMemFree(buffer->data_);
     delete buffer;
   }
@@ -198,7 +229,7 @@ struct DataBuffer {
    * \return The corresponding data buffer header.
    */
   static DataBuffer* FromHandle(const void* buffer) {
-    if (allocated_.count(buffer)) {
+    if (alloc_stat->CheckAlloc(buffer)) {
       return const_cast<DataBuffer*>(
           reinterpret_cast<const DataBuffer*>(buffer));
     } else {
@@ -212,11 +243,10 @@ struct DataBuffer {
   /*! \brief The physical address of the buffer, excluding header. */
   vta_phy_addr_t phy_addr_;
 
-  static std::set<const void*> allocated_;
+  // a copy of global shared_ptr instance
+  // to avoid the global instance is destructed before there are still some pending DataBuffers not destructed
+  std::shared_ptr<DeviceAllocStat> alloc_stat_;
 };
-
-// init static member
-std::set<const void*> DataBuffer::allocated_;
 
 /*!
  * \brief Micro op kernel.
