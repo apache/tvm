@@ -255,6 +255,17 @@ int MaxConcurrency() {
     max_concurrency = std::thread::hardware_concurrency();
 #if defined(_M_X64) || defined(__x86_64__)
     max_concurrency /= 2;  // ignore hyper-threading
+#elif defined(__hexagon__)
+    // With unsigned PDs, getting the number of available hardware threads
+    // is not supported in earlier versions of QuRT. In such cases assume 4.
+    // If running on simulator, set max_concurrency to 1.
+    if (max_concurrency == 0) {
+      if (dlsym(RTLD_DEFAULT, "running_in_sim_dev_17bc90206f6cf5a7")) {
+        max_concurrency = 1;
+      } else {
+        max_concurrency = 4;
+      }
+    }
 #endif
   }
   return std::max(max_concurrency, 1);
