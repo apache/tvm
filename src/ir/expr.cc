@@ -137,7 +137,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "range(min=" << op->min << ", ext=" << op->extent << ')';
     });
 
-GlobalVar::GlobalVar(std::string name_hint) {
+GlobalVar::GlobalVar(String name_hint) {
   ObjectPtr<GlobalVarNode> n = make_object<GlobalVarNode>();
   n->name_hint = std::move(name_hint);
   data_ = std::move(n);
@@ -145,7 +145,7 @@ GlobalVar::GlobalVar(std::string name_hint) {
 
 TVM_REGISTER_NODE_TYPE(GlobalVarNode);
 
-TVM_REGISTER_GLOBAL("ir.GlobalVar").set_body_typed([](std::string name) {
+TVM_REGISTER_GLOBAL("ir.GlobalVar").set_body_typed([](String name) {
   return GlobalVar(name);
 });
 

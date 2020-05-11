@@ -185,7 +185,7 @@ class Op : public RelayExpr {
    * \param op_name Name of the operator.
    * \return Pointer to a Op, valid throughout program lifetime.
    */
-  TVM_DLL static const Op& Get(const std::string& op_name);
+  TVM_DLL static const Op& Get(const String& op_name);
 
   /*! \brief specify container node */
   using ContainerType = OpNode;
@@ -196,13 +196,13 @@ class Op : public RelayExpr {
    * \param key The attribute key
    * \return reference to GenericOpMap
    */
-  TVM_DLL static const GenericOpMap& GetGenericAttr(const std::string& key);
+  TVM_DLL static const GenericOpMap& GetGenericAttr(const String& key);
   /*!
    * \brief Checks if the key is present in the registry
    * \param key The attribute key
    * \return bool True if the key is present
    */
-  TVM_DLL static bool HasGenericAttr(const std::string& key);
+  TVM_DLL static bool HasGenericAttr(const String& key);
 };
 
 /*!
@@ -303,7 +303,8 @@ class OpRegistry {
   // return internal pointer to op.
   inline OpNode* get();
   // update the attribute OpMap
-  TVM_DLL void UpdateAttr(const std::string& key, runtime::TVMRetValue value, int plevel);
+
+  TVM_DLL void UpdateAttr(const String& key, runtime::TVMRetValue value, int plevel);
 };
 
 /*!
