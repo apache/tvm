@@ -29,16 +29,13 @@
 namespace tvm {
 namespace tir {
 
-
 // For now, rewrite unsafe select expression to if_then_else
 // TODO(tqchen) pattern matching to support masked load
 class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
  public:
   // select itself is always considered safe if condition is safe
   // Because we will issue guard to make sure it is.
-  bool VisitExpr_(const SelectNode* op) {
-    return VisitExpr(op->condition);
-  }
+  bool VisitExpr_(const SelectNode* op) { return VisitExpr(op->condition); }
   bool VisitExpr_(const CallNode* op) {
     if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
       return VisitExpr(op->args[0]);
@@ -75,21 +72,11 @@ class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
   bool VisitExpr_(const GENode* op) final { return BinaryOp(op); }
   bool VisitExpr_(const AndNode* op) final { return BinaryOp(op); }
   bool VisitExpr_(const OrNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const NotNode* op) final {
-    return VisitExpr(op->a);
-  }
-  bool VisitExpr_(const LetNode* op) final {
-    return VisitExpr(op->body) || VisitExpr(op->value);
-  }
-  bool VisitExpr_(const CastNode* op) final {
-    return VisitExpr(op->value);
-  }
-  bool VisitExpr_(const BroadcastNode* op) final {
-    return VisitExpr(op->value);
-  }
-  bool VisitExpr_(const RampNode* op) final {
-    return VisitExpr(op->base) && VisitExpr(op->stride);
-  }
+  bool VisitExpr_(const NotNode* op) final { return VisitExpr(op->a); }
+  bool VisitExpr_(const LetNode* op) final { return VisitExpr(op->body) || VisitExpr(op->value); }
+  bool VisitExpr_(const CastNode* op) final { return VisitExpr(op->value); }
+  bool VisitExpr_(const BroadcastNode* op) final { return VisitExpr(op->value); }
+  bool VisitExpr_(const RampNode* op) final { return VisitExpr(op->base) && VisitExpr(op->stride); }
   bool VisitExpr_(const ShuffleNode* op) final {
     for (PrimExpr e : op->vectors) {
       if (VisitExpr(e)) return true;
@@ -102,7 +89,7 @@ class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
   bool VisitExpr_(const StringImmNode* op) final { return false; }
 
  private:
-  template<typename T>
+  template <typename T>
   bool BinaryOp(const T* op) {
     return VisitExpr(op->a) || VisitExpr(op->b);
   }
@@ -115,23 +102,17 @@ class UnsafeSelectRewriter : public StmtExprMutator {
     op = expr.as<SelectNode>();
     UnsafeExprDetector unsafe;
     bool cond_is_scalar_bool = op->condition.dtype().is_bool() && op->condition.dtype().is_scalar();
-    if ((unsafe.VisitExpr(op->true_value) ||
-        unsafe.VisitExpr(op->false_value)) &&
+    if ((unsafe.VisitExpr(op->true_value) || unsafe.VisitExpr(op->false_value)) &&
         cond_is_scalar_bool) {
-      return CallNode::make(
-          op->dtype,
-          intrinsic::tvm_if_then_else,
-          {op->condition, op->true_value, op->false_value},
-          CallNode::Intrinsic);
+      return CallNode::make(op->dtype, intrinsic::tvm_if_then_else,
+                            {op->condition, op->true_value, op->false_value}, CallNode::Intrinsic);
     } else {
       return expr;
     }
   }
 };
 
-Stmt RewriteUnsafeSelect(Stmt stmt) {
-  return UnsafeSelectRewriter()(std::move(stmt));
-}
+Stmt RewriteUnsafeSelect(Stmt stmt) { return UnsafeSelectRewriter()(std::move(stmt)); }
 
 namespace transform {
 
@@ -144,8 +125,7 @@ Pass RewriteUnsafeSelect() {
   return CreatePrimFuncPass(pass_func, 0, "tir.RewriteUnsafeSelect", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.RewriteUnsafeSelect")
-.set_body_typed(RewriteUnsafeSelect);
+TVM_REGISTER_GLOBAL("tir.transform.RewriteUnsafeSelect").set_body_typed(RewriteUnsafeSelect);
 
 }  // namespace transform
 

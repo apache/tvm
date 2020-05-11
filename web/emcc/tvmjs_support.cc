@@ -31,12 +31,12 @@
 #define DMLC_LOG_NODATE 1
 #define DMLC_LOG_FATAL_THROW 0
 
-
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
+
 #include "../../src/runtime/rpc/rpc_local_session.h"
 
 extern "C" {
@@ -61,8 +61,7 @@ TVM_DLL void TVMWasmFreeSpace(void* data);
  * \sa TVMWasmPackedCFunc, TVMWasmPackedCFuncFinalizer
 3A * \return 0 if success.
  */
-TVM_DLL int TVMWasmFuncCreateFromCFunc(void* resource_handle,
-                                       TVMFunctionHandle *out);
+TVM_DLL int TVMWasmFuncCreateFromCFunc(void* resource_handle, TVMFunctionHandle* out);
 
 // --- APIs to be implemented by the frontend. ---
 /*!
@@ -75,10 +74,7 @@ TVM_DLL int TVMWasmFuncCreateFromCFunc(void* resource_handle,
  * \param resource_handle The handle additional resouce handle from fron-end.
  * \return 0 if success, -1 if failure happens, set error via TVMAPISetLastError.
  */
-extern int TVMWasmPackedCFunc(TVMValue* args,
-                              int* type_codes,
-                              int num_args,
-                              TVMRetValueHandle ret,
+extern int TVMWasmPackedCFunc(TVMValue* args, int* type_codes, int num_args, TVMRetValueHandle ret,
                               void* resource_handle);
 
 /*!
@@ -88,23 +84,17 @@ extern int TVMWasmPackedCFunc(TVMValue* args,
 extern void TVMWasmPackedCFuncFinalizer(void* resource_handle);
 }  // extern "C"
 
-
 void* TVMWasmAllocSpace(int size) {
   int num_count = (size + 7) / 8;
   return new int64_t[num_count];
 }
 
-void TVMWasmFreeSpace(void* arr) {
-  delete[] static_cast<int64_t*>(arr);
-}
+void TVMWasmFreeSpace(void* arr) { delete[] static_cast<int64_t*>(arr); }
 
-int TVMWasmFuncCreateFromCFunc(void* resource_handle,
-                               TVMFunctionHandle *out) {
-  return TVMFuncCreateFromCFunc(
-    TVMWasmPackedCFunc, resource_handle,
-    TVMWasmPackedCFuncFinalizer, out);
+int TVMWasmFuncCreateFromCFunc(void* resource_handle, TVMFunctionHandle* out) {
+  return TVMFuncCreateFromCFunc(TVMWasmPackedCFunc, resource_handle, TVMWasmPackedCFuncFinalizer,
+                                out);
 }
-
 
 namespace tvm {
 namespace runtime {
@@ -113,8 +103,7 @@ namespace runtime {
 // functions in the JS runtime.
 class AsyncLocalSession : public LocalSession {
  public:
-  AsyncLocalSession() {
-  }
+  AsyncLocalSession() {}
 
   PackedFuncHandle GetFunction(const std::string& name) final {
     if (name == "runtime.RPCTimeEvaluator") {
@@ -122,7 +111,7 @@ class AsyncLocalSession : public LocalSession {
     } else if (auto* fp = tvm::runtime::Registry::Get(name)) {
       // return raw handle because the remote need to explicitly manage it.
       return new PackedFunc(*fp);
-    } else if(auto* fp = tvm::runtime::Registry::Get("__async." + name)) {
+    } else if (auto* fp = tvm::runtime::Registry::Get("__async." + name)) {
       auto* rptr = new PackedFunc(*fp);
       async_func_set_.insert(rptr);
       return rptr;
@@ -143,20 +132,16 @@ class AsyncLocalSession : public LocalSession {
     }
   }
 
-  void AsyncCallFunc(PackedFuncHandle func,
-                     const TVMValue* arg_values,
-                     const int* arg_type_codes,
-                     int num_args,
-                     FAsyncCallback callback) final {
+  void AsyncCallFunc(PackedFuncHandle func, const TVMValue* arg_values, const int* arg_type_codes,
+                     int num_args, FAsyncCallback callback) final {
     auto it = async_func_set_.find(func);
     if (it != async_func_set_.end()) {
       PackedFunc packed_callback([callback, this](TVMArgs args, TVMRetValue*) {
         int code = args[0];
         TVMRetValue rv;
         rv = args[1];
-        this->EncodeReturn(std::move(rv), [&](TVMArgs encoded_args) {
-          callback(RPCCode::kReturn, encoded_args);
-        });
+        this->EncodeReturn(std::move(rv),
+                           [&](TVMArgs encoded_args) { callback(RPCCode::kReturn, encoded_args); });
       });
 
       TVMRetValue temp;
@@ -175,8 +160,8 @@ class AsyncLocalSession : public LocalSession {
       // special handle time evaluator.
       try {
         TVMArgs args(arg_values, arg_type_codes, num_args);
-        PackedFunc retfunc = this->GetTimeEvaluator(
-            args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+        PackedFunc retfunc =
+            this->GetTimeEvaluator(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
         TVMRetValue rv;
         rv = retfunc;
         this->EncodeReturn(std::move(rv), [&](TVMArgs encoded_args) {
@@ -192,53 +177,39 @@ class AsyncLocalSession : public LocalSession {
     }
   }
 
-  void AsyncCopyToRemote(void* local_from,
-                         size_t local_from_offset,
-                         void* remote_to,
-                         size_t remote_to_offset,
-                         size_t nbytes,
-                         TVMContext remote_ctx_to,
-                         DLDataType type_hint,
-                         FAsyncCallback on_complete) final {
+  void AsyncCopyToRemote(void* local_from, size_t local_from_offset, void* remote_to,
+                         size_t remote_to_offset, size_t nbytes, TVMContext remote_ctx_to,
+                         DLDataType type_hint, FAsyncCallback on_complete) final {
     TVMContext cpu_ctx;
     cpu_ctx.device_type = kDLCPU;
     cpu_ctx.device_id = 0;
     try {
-      this->GetDeviceAPI(remote_ctx_to)->CopyDataFromTo(
-          local_from, local_from_offset,
-          remote_to, remote_to_offset,
-          nbytes, cpu_ctx, remote_ctx_to, type_hint, nullptr);
+      this->GetDeviceAPI(remote_ctx_to)
+          ->CopyDataFromTo(local_from, local_from_offset, remote_to, remote_to_offset, nbytes,
+                           cpu_ctx, remote_ctx_to, type_hint, nullptr);
       this->AsyncStreamWait(remote_ctx_to, nullptr, on_complete);
     } catch (const std::runtime_error& e) {
       this->SendException(on_complete, e.what());
     }
   }
 
-  void AsyncCopyFromRemote(void* remote_from,
-                           size_t remote_from_offset,
-                           void* local_to,
-                           size_t local_to_offset,
-                           size_t nbytes,
-                           TVMContext remote_ctx_from,
-                           DLDataType type_hint,
-                           FAsyncCallback on_complete) final {
+  void AsyncCopyFromRemote(void* remote_from, size_t remote_from_offset, void* local_to,
+                           size_t local_to_offset, size_t nbytes, TVMContext remote_ctx_from,
+                           DLDataType type_hint, FAsyncCallback on_complete) final {
     TVMContext cpu_ctx;
     cpu_ctx.device_type = kDLCPU;
     cpu_ctx.device_id = 0;
     try {
-      this->GetDeviceAPI(remote_ctx_from)->CopyDataFromTo(
-          remote_from, remote_from_offset,
-          local_to, local_to_offset,
-          nbytes, remote_ctx_from, cpu_ctx, type_hint, nullptr);
+      this->GetDeviceAPI(remote_ctx_from)
+          ->CopyDataFromTo(remote_from, remote_from_offset, local_to, local_to_offset, nbytes,
+                           remote_ctx_from, cpu_ctx, type_hint, nullptr);
       this->AsyncStreamWait(remote_ctx_from, nullptr, on_complete);
     } catch (const std::runtime_error& e) {
       this->SendException(on_complete, e.what());
     }
   }
 
-  void AsyncStreamWait(TVMContext ctx,
-                       TVMStreamHandle stream,
-                       FAsyncCallback on_complete) final {
+  void AsyncStreamWait(TVMContext ctx, TVMStreamHandle stream, FAsyncCallback on_complete) final {
     if (ctx.device_type == kDLCPU) {
       TVMValue value;
       int32_t tcode = kTVMNullptr;
@@ -259,9 +230,7 @@ class AsyncLocalSession : public LocalSession {
     }
   }
 
-  bool IsAsync() const final {
-    return true;
-  }
+  bool IsAsync() const final { return true; }
 
  private:
   std::unordered_set<void*> async_func_set_;
@@ -269,13 +238,8 @@ class AsyncLocalSession : public LocalSession {
   const PackedFunc* async_wait_{nullptr};
 
   // time evaluator
-  PackedFunc GetTimeEvaluator(Optional<Module> opt_mod,
-                              std::string name,
-                              int device_type,
-                              int device_id,
-                              int number,
-                              int repeat,
-                              int min_repeat_ms) {
+  PackedFunc GetTimeEvaluator(Optional<Module> opt_mod, std::string name, int device_type,
+                              int device_id, int number, int repeat, int min_repeat_ms) {
     TVMContext ctx;
     ctx.device_type = static_cast<DLDeviceType>(device_type);
     ctx.device_id = device_id;
@@ -283,24 +247,18 @@ class AsyncLocalSession : public LocalSession {
     if (opt_mod.defined()) {
       Module m = opt_mod.value();
       std::string tkey = m->type_key();
-      return WrapWasmTimeEvaluator(
-          m.GetFunction(name, false), ctx, number, repeat, min_repeat_ms);
+      return WrapWasmTimeEvaluator(m.GetFunction(name, false), ctx, number, repeat, min_repeat_ms);
     } else {
       auto* pf = runtime::Registry::Get(name);
       CHECK(pf != nullptr) << "Cannot find " << name << " in the global function";
-      return WrapWasmTimeEvaluator(
-          *pf, ctx, number, repeat, min_repeat_ms);
+      return WrapWasmTimeEvaluator(*pf, ctx, number, repeat, min_repeat_ms);
     }
   }
 
   // time evaluator
-  PackedFunc WrapWasmTimeEvaluator(PackedFunc pf,
-                                   TVMContext ctx,
-                                   int number,
-                                   int repeat,
+  PackedFunc WrapWasmTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repeat,
                                    int min_repeat_ms) {
-    auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](
-        TVMArgs args, TVMRetValue *rv) {
+    auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue* rv) {
       // the function is a async function.
       PackedFunc on_complete = args[args.size() - 1];
       // keep argument alive in finvoke so that they
@@ -317,15 +275,14 @@ class AsyncLocalSession : public LocalSession {
       };
       auto* time_exec = runtime::Registry::Get("__async.wasm.TimeExecution");
       CHECK(time_exec != nullptr) << "Cannot find wasm.GetTimer in the global function";
-      (*time_exec)(TypedPackedFunc<void(int)>(finvoke),
-                   ctx, number, repeat, min_repeat_ms, on_complete);
+      (*time_exec)(TypedPackedFunc<void(int)>(finvoke), ctx, number, repeat, min_repeat_ms,
+                   on_complete);
     };
     return PackedFunc(ftimer);
   }
 };
 
-TVM_REGISTER_GLOBAL("wasm.LocalSession")
-.set_body_typed([]() {
+TVM_REGISTER_GLOBAL("wasm.LocalSession").set_body_typed([]() {
   return CreateRPCSessionModule(std::make_shared<AsyncLocalSession>());
 });
 

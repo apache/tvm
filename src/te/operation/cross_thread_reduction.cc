@@ -28,21 +28,17 @@ namespace tvm {
 namespace te {
 using namespace tir;
 
-Stmt MakeCrossThreadReduction(
-    const ComputeOpNode* self,
-    const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
-    bool debug_keep_trivial_loop) {
-  Array<PrimExpr>  args;
+Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
+                              const std::unordered_map<IterVar, Range>& dom_map,
+                              bool debug_keep_trivial_loop) {
+  Array<PrimExpr> args;
   for (IterVar iv : self->axis) {
     args.push_back(iv->var);
   }
   std::unordered_map<IterVar, PrimExpr> value_map;
-  auto nest = MakeLoopNest(
-      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map, debug_keep_trivial_loop);
-  auto conds = MakeBoundCheck(
-      stage, dom_map, value_map, false,
-      std::unordered_set<IterVar>());
+  auto nest = MakeLoopNest(stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map,
+                           debug_keep_trivial_loop);
+  auto conds = MakeBoundCheck(stage, dom_map, value_map, false, std::unordered_set<IterVar>());
 
   size_t size = self->body.size();
   CHECK_GT(size, 0);
@@ -96,10 +92,10 @@ Stmt MakeCrossThreadReduction(
     Array<PrimExpr> update_value = (*combiner)(lhs, reduces[0]->source);
     for (size_t i = 0; i < size; ++i) {
       DataType t = reduces[i]->dtype;
-      normal_init.emplace_back(StoreNode::make(
-            normal_res_handles[i], init_value[i], 0, const_true(t.lanes())));
-      normal_update.emplace_back(StoreNode::make(
-            normal_res_handles[i], update_value[i], 0, const_true(t.lanes())));
+      normal_init.emplace_back(
+          StoreNode::make(normal_res_handles[i], init_value[i], 0, const_true(t.lanes())));
+      normal_update.emplace_back(
+          StoreNode::make(normal_res_handles[i], update_value[i], 0, const_true(t.lanes())));
     }
   }
 
@@ -108,8 +104,7 @@ Stmt MakeCrossThreadReduction(
   for (size_t i = 0; i < size; ++i) {
     if (!normal_red.empty()) {
       DataType t = reduces[i]->dtype;
-      freduce_args.push_back(LoadNode::make(
-            t, normal_res_handles[i], 0, const_true(t.lanes())));
+      freduce_args.push_back(LoadNode::make(t, normal_res_handles[i], 0, const_true(t.lanes())));
     } else {
       freduce_args.push_back(reduces[0]->source[i]);
     }
@@ -124,8 +119,7 @@ Stmt MakeCrossThreadReduction(
   for (IterVar iv : stage->leaf_iter_vars) {
     if (iv->iter_type == kCommReduce) {
       auto it = stage->iter_var_attrs.find(iv);
-      if (it != stage->iter_var_attrs.end() &&
-          (*it).second->bind_thread.defined()) {
+      if (it != stage->iter_var_attrs.end() && (*it).second->bind_thread.defined()) {
         IterVar tv = (*it).second->bind_thread;
         freduce_args.push_back(tv->var);
       }
@@ -138,14 +132,9 @@ Stmt MakeCrossThreadReduction(
   }
 
   Stmt reduce_body = EvaluateNode::make(CallNode::make(
-      DataType::Handle(),
-      tir::intrinsic::tvm_thread_allreduce,
-      freduce_args, CallNode::Intrinsic));
-  reduce_body = AttrStmtNode::make(
-      reduces[0]->combiner,
-      tir::attr::reduce_scope,
-      make_zero(DataType::Handle()),
-      reduce_body);
+      DataType::Handle(), tir::intrinsic::tvm_thread_allreduce, freduce_args, CallNode::Intrinsic));
+  reduce_body = AttrStmtNode::make(reduces[0]->combiner, tir::attr::reduce_scope,
+                                   make_zero(DataType::Handle()), reduce_body);
 
   if (!normal_red.empty()) {
     Stmt init_body = SeqStmt::Flatten(normal_init);
@@ -159,23 +148,22 @@ Stmt MakeCrossThreadReduction(
   for (size_t idx = 0; idx < size; ++idx) {
     DataType t = reduces[idx]->dtype;
     assigns[idx] = ProvideNode::make(
-      stage->op, idx,
-      LoadNode::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
+        stage->op, idx, LoadNode::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
   }
   Stmt assign_body = SeqStmt::Flatten(assigns);
   assign_body = MergeNest(MakeIfNest(thread_head_check), assign_body);
   assign_body = MergeNest(MakeIfNest(conds), assign_body);
   Stmt body = SeqStmt::Flatten(reduce_body, assign_body);
   for (size_t idx = size; idx != 0; --idx) {
-    body = AllocateNode::make(
-      res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
-    body = AttrStmtNode::make(
-      res_handles[idx - 1], tir::attr::storage_scope, StringImmNode::make("local"), body);
+    body =
+        AllocateNode::make(res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
+    body = AttrStmtNode::make(res_handles[idx - 1], tir::attr::storage_scope,
+                              StringImmNode::make("local"), body);
     if (!normal_red.empty()) {
-      body = AllocateNode::make(
-        normal_res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
-      body = AttrStmtNode::make(
-        normal_res_handles[idx - 1], tir::attr::storage_scope, StringImmNode::make("local"), body);
+      body = AllocateNode::make(normal_res_handles[idx - 1], reduces[idx - 1]->dtype, {1},
+                                const_true(), body);
+      body = AttrStmtNode::make(normal_res_handles[idx - 1], tir::attr::storage_scope,
+                                StringImmNode::make("local"), body);
     }
   }
   body = Substitute(body, value_map);

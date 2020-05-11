@@ -22,10 +22,11 @@
  * \brief Replaces non linear activation functions with their fast but approximate counterparts.
  */
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
-#include <tvm/relay/transform.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
+#include <tvm/relay/transform.h>
+
 #include "pattern_util.h"
 
 namespace tvm {
@@ -33,10 +34,7 @@ namespace relay {
 
 class FastMathMutator : public ExprRewriter {
  public:
-  FastMathMutator()
-      : exp_op_(Op::Get("exp")),
-        erf_op_(Op::Get("erf")),
-        tanh_op_(Op::Get("tanh")) {}
+  FastMathMutator() : exp_op_(Op::Get("exp")), erf_op_(Op::Get("erf")), tanh_op_(Op::Get("tanh")) {}
 
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     if (pre->op == exp_op_) {
@@ -67,14 +65,11 @@ namespace transform {
 
 Pass FastMath() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(FastMath(f));
-  };
+      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(FastMath(f)); };
   return CreateFunctionPass(pass_func, 4, "FastMath", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.FastMath")
-.set_body_typed(FastMath);
+TVM_REGISTER_GLOBAL("relay._transform.FastMath").set_body_typed(FastMath);
 
 }  // namespace transform
 

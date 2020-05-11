@@ -24,9 +24,10 @@
 #ifndef TVM_TIR_VAR_H_
 #define TVM_TIR_VAR_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/ir/expr.h>
+
 #include <string>
 
 namespace tvm {
@@ -91,8 +92,7 @@ class Var : public PrimExpr {
    * \param name_hint variable name
    * \param dtype data type
    */
-  TVM_DLL explicit Var(std::string name_hint = "v",
-                       DataType dtype = DataType::Int(32));
+  TVM_DLL explicit Var(std::string name_hint = "v", DataType dtype = DataType::Int(32));
   /*!
    * \brief Constructor which provides a more detailed type annotation.
    * \param name_hint variable name.
@@ -109,16 +109,12 @@ class Var : public PrimExpr {
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const VarNode* operator->() const {
-    return get();
-  }
+  const VarNode* operator->() const { return get(); }
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const VarNode* get() const {
-    return static_cast<const VarNode*>(data_.get());
-  }
+  const VarNode* get() const { return static_cast<const VarNode*>(data_.get()); }
   /*! \brief type indicate the container type */
   using ContainerType = VarNode;
 };
@@ -142,26 +138,20 @@ class SizeVar : public Var {
    * \param name_hint variable name
    * \param t data type
    */
-  TVM_DLL explicit SizeVar(std::string name_hint = "s",
-                           DataType t = DataType::Int(32));
+  TVM_DLL explicit SizeVar(std::string name_hint = "s", DataType t = DataType::Int(32));
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const SizeVarNode* operator->() const {
-    return get();
-  }
+  const SizeVarNode* operator->() const { return get(); }
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const SizeVarNode* get() const {
-    return static_cast<const SizeVarNode*>(data_.get());
-  }
+  const SizeVarNode* get() const { return static_cast<const SizeVarNode*>(data_.get()); }
   /*! \brief type indicate the container type */
   using ContainerType = SizeVarNode;
 };
-
 
 /*! \brief container class of iteration variable. */
 class IterVarNode;
@@ -292,11 +282,8 @@ class IterVarNode : public Object {
   }
 
   bool SEqualReduce(const IterVarNode* other, SEqualReducer equal) const {
-    return
-        equal(dom, other->dom) &&
-        equal.DefEqual(var, other->var) &&
-        equal(iter_type, other->iter_type) &&
-        equal(thread_tag, other->thread_tag);
+    return equal(dom, other->dom) && equal.DefEqual(var, other->var) &&
+           equal(iter_type, other->iter_type) && equal(thread_tag, other->thread_tag);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -306,8 +293,7 @@ class IterVarNode : public Object {
     hash_reduce(thread_tag);
   }
 
-  TVM_DLL static IterVar make(Range dom, Var var,
-                              IterVarType iter_type,
+  TVM_DLL static IterVar make(Range dom, Var var, IterVarType iter_type,
                               std::string thread_tag = "");
 
   static constexpr const char* _type_key = "IterVar";
@@ -321,21 +307,28 @@ inline const IterVarNode* IterVar::operator->() const {
   return static_cast<const IterVarNode*>(data_.get());
 }
 
-inline IterVar::operator PrimExpr() const {
-  return (*this)->var;
-}
+inline IterVar::operator PrimExpr() const { return (*this)->var; }
 
 inline const char* IterVarType2String(IterVarType t) {
   switch (t) {
-    case kDataPar: return "DataPar";
-    case kThreadIndex: return "ThreadIndex";
-    case kCommReduce: return "CommReduce";
-    case kOrdered: return "Ordered";
-    case kOpaque: return "Opaque";
-    case kUnrolled: return "Unrolled";
-    case kVectorized: return "Vectorized";
-    case kParallelized: return "Parallelized";
-    case kTensorized: return "Tensorized";
+    case kDataPar:
+      return "DataPar";
+    case kThreadIndex:
+      return "ThreadIndex";
+    case kCommReduce:
+      return "CommReduce";
+    case kOrdered:
+      return "Ordered";
+    case kOpaque:
+      return "Opaque";
+    case kUnrolled:
+      return "Unrolled";
+    case kVectorized:
+      return "Vectorized";
+    case kParallelized:
+      return "Parallelized";
+    case kTensorized:
+      return "Tensorized";
   }
   return "Unknown";
 }

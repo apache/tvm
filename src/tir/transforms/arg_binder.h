@@ -24,13 +24,13 @@
 #ifndef TVM_TIR_TRANSFORMS_ARG_BINDER_H_
 #define TVM_TIR_TRANSFORMS_ARG_BINDER_H_
 
-#include <tvm/tir/expr.h>
-#include <tvm/tir/buffer.h>
 #include <tvm/arith/analyzer.h>
+#include <tvm/tir/buffer.h>
+#include <tvm/tir/expr.h>
 
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 namespace tvm {
 namespace tir {
@@ -63,10 +63,7 @@ class ArgBinder {
    * \param def_map A definition map that contains definition of known variables.
    *   ArgBinder will update this def_map when adding new definitions.
    */
-  explicit ArgBinder(
-      std::unordered_map<const VarNode*, PrimExpr>* def_map)
-      : def_map_(def_map) {
-  }
+  explicit ArgBinder(std::unordered_map<const VarNode*, PrimExpr>* def_map) : def_map_(def_map) {}
   /*!
    * \brief Try to bind arg to value, generate constraint if necessary.
    * \param arg The argument to be binded.
@@ -74,9 +71,7 @@ class ArgBinder {
    * \param arg_name argument name.
    * \param with_let Whether add lets during bind
    */
-  void Bind(const PrimExpr& arg,
-            const PrimExpr& value,
-            const std::string& arg_name,
+  void Bind(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
             bool with_let = false);
   /*!
    * \brief Bind array to array
@@ -84,19 +79,17 @@ class ArgBinder {
    * \param value The target expression value
    * \param arg_name argument name.
    */
-  void BindArray(const Array<PrimExpr>& arg,
-                 const Array<PrimExpr>& value,
+  void BindArray(const Array<PrimExpr>& arg, const Array<PrimExpr>& value,
                  const std::string& arg_name);
   /*!
    * \brief Bind symbolic buffer to another symbolic buffer
    * \param arg The argument to be binded.
    * \param value The target expression value
    * \param arg_name argument name.
-   * \param fuzzy_match If enabled, we allow value's dimension to be smaller than arg, as long as arg's higher dimensions are of 1.
+   * \param fuzzy_match If enabled, we allow value's dimension to be smaller than arg, as long as
+   * arg's higher dimensions are of 1.
    */
-  void BindBuffer(const Buffer& arg,
-                  const Buffer& value,
-                  const std::string& arg_name,
+  void BindBuffer(const Buffer& arg, const Buffer& value, const std::string& arg_name,
                   bool fuzzy_match);
   /*!
    * \brief Bind symbolic buffer to a DLTensor handle.
@@ -106,20 +99,13 @@ class ArgBinder {
    * \param handle The DLTensor handle.
    * \param arg_name argument name.
    */
-  void BindDLTensor(const Buffer& buffer,
-                    const PrimExpr& device_type,
-                    const PrimExpr& device_id,
-                    const Var& handle,
-                    const std::string& arg_name);
+  void BindDLTensor(const Buffer& buffer, const PrimExpr& device_type, const PrimExpr& device_id,
+                    const Var& handle, const std::string& arg_name);
 
   /*! \return The defs generated in binding. */
-  const std::vector<Var>& defs() const {
-    return defs_;
-  }
+  const std::vector<Var>& defs() const { return defs_; }
   /*! \return The asserts generated in binding */
-  const std::vector<Stmt>& asserts() const {
-    return asserts_;
-  }
+  const std::vector<Stmt>& asserts() const { return asserts_; }
   /*!
    * \brief Initialization nest generated
    *  This is only non-empty when BindDLTensor is called.
@@ -131,19 +117,13 @@ class ArgBinder {
    *  Let statement is usually generated when bind to DLTensor and memory load is involved.
    * \return The initialization nest generated during binding.
    */
-  const std::vector<Stmt>& init_nest() const {
-    return init_nest_;
-  }
+  const std::vector<Stmt>& init_nest() const { return init_nest_; }
   /*! \return Handle data type of the data */
-  const Map<Var, PrimExpr>& def_handle_dtype() const {
-    return def_handle_dtype_;
-  }
+  const Map<Var, PrimExpr>& def_handle_dtype() const { return def_handle_dtype_; }
 
  private:
   // Internal bind function
-  bool Bind_(const PrimExpr& arg,
-             const PrimExpr& value,
-             const std::string& arg_name,
+  bool Bind_(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
              bool with_lets);
   /*! \brief The definition map, can be uses to substitute */
   std::unordered_map<const VarNode*, PrimExpr>* def_map_;

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,10 +25,12 @@
 #define TVM_RUNTIME_ROCM_ROCM_MODULE_H_
 
 #include <tvm/runtime/module.h>
+
 #include <memory>
-#include <vector>
 #include <string>
 #include <unordered_map>
+#include <vector>
+
 #include "../meta_data.h"
 
 namespace tvm {
@@ -45,12 +47,9 @@ static constexpr const int kMaxNumGPUs = 32;
  * \param fmap The map function information map of each function.
  * \param rocm_source Optional, rocm source file
  */
-Module ROCMModuleCreate(
-    std::string data,
-    std::string fmt,
-    std::unordered_map<std::string, FunctionInfo> fmap,
-    std::string rocm_source,
-    std::string assembly);
+Module ROCMModuleCreate(std::string data, std::string fmt,
+                        std::unordered_map<std::string, FunctionInfo> fmap, std::string rocm_source,
+                        std::string assembly);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_ROCM_ROCM_MODULE_H_

@@ -30,10 +30,9 @@ namespace autotvm {
 
 // for loop
 void FeatureVisitor::VisitStmt_(const ForNode* op) {
-  const auto *extent = op->extent.as<IntImmNode>();
+  const auto* extent = op->extent.as<IntImmNode>();
   int64_t loop_extent = -1;
-  if (extent != nullptr)
-    loop_extent = extent->value;
+  if (extent != nullptr) loop_extent = extent->value;
   AnnotationType ann = kSerial;
   switch (op->for_type) {
     case ForType ::Parallel:
@@ -58,10 +57,9 @@ void FeatureVisitor::VisitStmt_(const ForNode* op) {
 
 // parallel axis, virtual thread
 void FeatureVisitor::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == attr::thread_extent ||
-      op->attr_key == attr::virtual_thread) {
+  if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
     Var var = op->node.as<tir::IterVarNode>()->var;
-    const auto *extent = op->value.as<IntImmNode>();
+    const auto* extent = op->value.as<IntImmNode>();
     CHECK(extent);
 
     std::string name = var.get()->name_hint;

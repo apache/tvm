@@ -25,7 +25,7 @@
 TEST(Simplify, MinMax) {
   tvm::arith::Analyzer ana;
   auto x = tvm::te::var("x");
-  auto e1 = (tvm::max(x, 1) - tvm::max(x, 1)) ;
+  auto e1 = (tvm::max(x, 1) - tvm::max(x, 1));
   auto e1s = ana.canonical_simplify(e1);
   CHECK(tvm::tir::is_zero(e1s));
 
@@ -37,7 +37,7 @@ TEST(Simplify, MinMax) {
 TEST(Simplify, Mul) {
   tvm::arith::Analyzer ana;
   auto x = tvm::te::var("x");
-  auto e = (x * x) - (x * x) ;
+  auto e = (x * x) - (x * x);
   auto es = ana.canonical_simplify(e);
   CHECK(tvm::tir::is_zero(es));
 }
@@ -53,7 +53,7 @@ TEST(Simplify, Mod) {
   auto es = ana.canonical_simplify(mod - x);
   CHECK(tvm::tir::is_zero(es));
 }
-int main(int argc, char ** argv) {
+int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
   return RUN_ALL_TESTS();

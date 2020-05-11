@@ -22,7 +22,9 @@
  * \brief Implementation of dependency graph APIs.
  */
 #include "dependency_graph.h"
+
 #include <tvm/relay/expr_functor.h>
+
 #include <unordered_set>
 #include <utility>
 
@@ -32,8 +34,7 @@ namespace relay {
 // Creator of DependencyGraph
 class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
  public:
-  explicit Creator(support::Arena* arena)
-    : arena_(arena) {}
+  explicit Creator(support::Arena* arena) : arena_(arena) {}
 
   DependencyGraph Create(const Expr& body) {
     this->VisitExpr(body);
@@ -164,15 +165,15 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
     }
   }
 
-  void VisitExpr_(const VarNode* v) final { }
+  void VisitExpr_(const VarNode* v) final {}
 
-  void VisitExpr_(const GlobalVarNode* v) final { }
+  void VisitExpr_(const GlobalVarNode* v) final {}
 
-  void VisitExpr_(const ConstantNode* c) final { }
+  void VisitExpr_(const ConstantNode* c) final {}
 
-  void VisitExpr_(const OpNode* o) final { }
+  void VisitExpr_(const OpNode* o) final {}
 
-  void VisitExpr_(const ConstructorNode* c) final { }
+  void VisitExpr_(const ConstructorNode* c) final {}
 };
 
 DependencyGraph DependencyGraph::Create(support::Arena* arena, const Expr& body) {

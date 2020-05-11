@@ -25,14 +25,16 @@
 #define TVM_RUNTIME_RPC_RPC_ENDPOINT_H_
 
 #include <tvm/runtime/packed_func.h>
+
+#include <memory>
 #include <mutex>
 #include <string>
-#include <memory>
 #include <utility>
-#include "rpc_session.h"
+
+#include "../../support/ring_buffer.h"
 #include "rpc_channel.h"
 #include "rpc_protocol.h"
-#include "../../support/ring_buffer.h"
+#include "rpc_session.h"
 
 namespace tvm {
 namespace runtime {
@@ -58,7 +60,6 @@ enum class TrackerCode : int {
   kSummary = 6,
   kGetPendingMatchKeys = 7
 };
-
 
 /*!
  * \brief Communication endpoints to connect local and remote RPC sessions.
@@ -122,11 +123,8 @@ class RPCEndpoint {
    * \param num_args Number of arguments.
    * \param fencode_return The function to receive return value encodings.
    */
-  void CallFunc(RPCSession::PackedFuncHandle handle,
-                const TVMValue* arg_values,
-                const int* arg_type_codes,
-                int num_args,
-                RPCSession::FEncodeReturn encode_return);
+  void CallFunc(RPCSession::PackedFuncHandle handle, const TVMValue* arg_values,
+                const int* arg_type_codes, int num_args, RPCSession::FEncodeReturn encode_return);
   /*!
    * \brief Copy bytes into remote array content.
    * \param from The source host data.
@@ -137,13 +135,8 @@ class RPCEndpoint {
    * \param ctx_to The target context.
    * \param type_hint Hint of content data type.
    */
-  void CopyToRemote(void* from,
-                    size_t from_offset,
-                    void* to,
-                    size_t to_offset,
-                    size_t nbytes,
-                    TVMContext ctx_to,
-                    DLDataType type_hint);
+  void CopyToRemote(void* from, size_t from_offset, void* to, size_t to_offset, size_t nbytes,
+                    TVMContext ctx_to, DLDataType type_hint);
   /*!
    * \brief Copy bytes from remote array content.
    * \param from The source host data.
@@ -154,13 +147,8 @@ class RPCEndpoint {
    * \param ctx_from The source context.
    * \param type_hint Hint of content data type.
    */
-  void CopyFromRemote(void* from,
-                      size_t from_offset,
-                      void* to,
-                      size_t to_offset,
-                      size_t nbytes,
-                      TVMContext ctx_from,
-                      DLDataType type_hint);
+  void CopyFromRemote(void* from, size_t from_offset, void* to, size_t to_offset, size_t nbytes,
+                      TVMContext ctx_from, DLDataType type_hint);
 
   /*!
    * \brief Call a remote defined system function with arguments.
@@ -168,8 +156,8 @@ class RPCEndpoint {
    * \param args The arguments
    * \return The returned remote value.
    */
-  template<typename... Args>
-  inline TVMRetValue SysCallRemote(RPCCode fcode, Args&& ...args);
+  template <typename... Args>
+  inline TVMRetValue SysCallRemote(RPCCode fcode, Args&&... args);
   /*!
    * \brief Create a RPC session with given channel.
    * \param channel The communication channel.
@@ -178,10 +166,8 @@ class RPCEndpoint {
    *   if remote_key equals "%toinit", we need to re-intialize
    *   it by event handler.
    */
-  static std::shared_ptr<RPCEndpoint> Create(
-      std::unique_ptr<RPCChannel> channel,
-      std::string name,
-      std::string remote_key);
+  static std::shared_ptr<RPCEndpoint> Create(std::unique_ptr<RPCChannel> channel, std::string name,
+                                             std::string remote_key);
 
  private:
   class EventHandler;
@@ -213,12 +199,11 @@ class RPCEndpoint {
  * \param endpoint The endpoint.
  * \return The created session.
  */
-std::shared_ptr<RPCSession>
-CreateClientSession(std::shared_ptr<RPCEndpoint> endpoint);
+std::shared_ptr<RPCSession> CreateClientSession(std::shared_ptr<RPCEndpoint> endpoint);
 
 // implementation of inline functions
-template<typename... Args>
-inline TVMRetValue RPCEndpoint::SysCallRemote(RPCCode code, Args&& ...args) {
+template <typename... Args>
+inline TVMRetValue RPCEndpoint::SysCallRemote(RPCCode code, Args&&... args) {
   return syscall_remote_(static_cast<int>(code), std::forward<Args>(args)...);
 }
 }  // namespace runtime

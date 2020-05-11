@@ -24,14 +24,14 @@
 #ifndef TVM_TARGET_GENERIC_FUNC_H_
 #define TVM_TARGET_GENERIC_FUNC_H_
 
-#include <tvm/support/with.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/support/with.h>
 #include <tvm/target/target.h>
 
-#include <vector>
 #include <string>
-#include <utility>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace tvm {
 
@@ -52,8 +52,7 @@ class GenericFunc : public ObjectRef {
    * false, an error will be logged if the call would override a previously registered function.
    * \return reference to self.
    */
-  TVM_DLL GenericFunc& set_default(const runtime::PackedFunc value,
-                                   bool allow_override = false);
+  TVM_DLL GenericFunc& set_default(const runtime::PackedFunc value, bool allow_override = false);
   /*!
    * \brief Register a specialized function
    * \param tags The tags for this specialization
@@ -63,8 +62,7 @@ class GenericFunc : public ObjectRef {
    * \return reference to self.
    */
   TVM_DLL GenericFunc& register_func(const std::vector<std::string>& tags,
-                                     const runtime::PackedFunc value,
-                                     bool allow_override = false);
+                                     const runtime::PackedFunc value, bool allow_override = false);
   /*!
    * \brief Call generic function by directly passing in unpacked format.
    * \param args Arguments to be passed.
@@ -79,16 +77,15 @@ class GenericFunc : public ObjectRef {
    *   }
    * \endcode
    */
-  template<typename... Args>
-  inline runtime::TVMRetValue operator()(Args&& ...args) const;
+  template <typename... Args>
+  inline runtime::TVMRetValue operator()(Args&&... args) const;
   /*!
    * \brief Invoke the relevant function for the current target context, set by set_target_context.
    * Arguments are passed in packed format.
    * \param args The arguments to pass to the function.
    * \param ret The return value
    */
-  TVM_DLL void CallPacked(runtime::TVMArgs args,
-                          runtime::TVMRetValue* ret) const;
+  TVM_DLL void CallPacked(runtime::TVMArgs args, runtime::TVMRetValue* ret) const;
 
   /*!
    * \brief Find or register the GenericFunc instance corresponding to the give name
@@ -120,14 +117,14 @@ class GenericFunc : public ObjectRef {
   friend struct Manager;
 };
 
-template<typename... Args>
-inline runtime::TVMRetValue GenericFunc::operator()(Args&& ...args) const {
+template <typename... Args>
+inline runtime::TVMRetValue GenericFunc::operator()(Args&&... args) const {
   const int kNumArgs = sizeof...(Args);
   const int kArraySize = kNumArgs > 0 ? kNumArgs : 1;
   TVMValue values[kArraySize];
   int type_codes[kArraySize];
   runtime::detail::for_each(runtime::TVMArgsSetter(values, type_codes),
-    std::forward<Args>(args)...);
+                            std::forward<Args>(args)...);
   runtime::TVMRetValue rv;
   CallPacked(runtime::TVMArgs(values, type_codes, kNumArgs), &rv);
   return rv;
@@ -155,8 +152,7 @@ inline GenericFuncNode* GenericFunc::operator->() {
   return static_cast<GenericFuncNode*>(get_mutable());
 }
 
-#define TVM_GENERIC_FUNC_REG_VAR_DEF                            \
-  static TVM_ATTRIBUTE_UNUSED ::tvm::GenericFunc& __mk_ ## TVM
+#define TVM_GENERIC_FUNC_REG_VAR_DEF static TVM_ATTRIBUTE_UNUSED ::tvm::GenericFunc& __mk_##TVM
 
 /*!
  * \def TVM_REGISTER_GENERIC_FUNC
@@ -165,9 +161,8 @@ inline GenericFuncNode* GenericFunc::operator->() {
  *
  * \param name The name of the function
  */
-#define TVM_REGISTER_GENERIC_FUNC(name)                           \
-  TVM_STR_CONCAT(TVM_GENERIC_FUNC_REG_VAR_DEF, __COUNTER__) =     \
-      ::tvm::GenericFunc::Get(#name)
+#define TVM_REGISTER_GENERIC_FUNC(name) \
+  TVM_STR_CONCAT(TVM_GENERIC_FUNC_REG_VAR_DEF, __COUNTER__) = ::tvm::GenericFunc::Get(#name)
 
 }  // namespace tvm
 #endif  // TVM_TARGET_GENERIC_FUNC_H_

@@ -22,12 +22,12 @@
  * \brief Verify if there was any compact buffer bound to a statement.
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/te/schedule_pass.h>
+#include <tvm/te/tensor.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/te/tensor.h>
-#include <tvm/te/schedule_pass.h>
 
 #include <unordered_map>
 
@@ -57,8 +57,7 @@ bool VerifyCompactBuffer(const Stmt& stmt) {
   return verifier.Verify(stmt);
 }
 
-TVM_REGISTER_GLOBAL("schedule.VerifyCompactBuffer")
-.set_body_typed(VerifyCompactBuffer);
+TVM_REGISTER_GLOBAL("schedule.VerifyCompactBuffer").set_body_typed(VerifyCompactBuffer);
 
 }  // namespace te
 }  // namespace tvm

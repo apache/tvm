@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_MICRO_TARGET_DATA_LAYOUT_ENCODER_H_
 
 #include <vector>
+
 #include "host_driven/utvm_runtime.h"
 
 namespace tvm {
@@ -97,10 +98,11 @@ class TargetDataLayoutEncoder {
    * \param start_addr start address of the encoder in device memory
    */
   explicit TargetDataLayoutEncoder(size_t capacity, TargetWordSize word_size)
-      : buf_(std::vector<uint8_t>()), curr_offset_(0),
+      : buf_(std::vector<uint8_t>()),
+        curr_offset_(0),
         start_addr_(word_size, nullptr),
-        capacity_(capacity), word_size_(word_size) {
-  }
+        capacity_(capacity),
+        word_size_(word_size) {}
 
   /*!
    * \brief allocates a slot for `sizeof(T) * num_elems` bytes of data
@@ -129,17 +131,13 @@ class TargetDataLayoutEncoder {
    * \brief returns the array backing the encoder's buffer
    * \return array backing the encoder's buffer
    */
-  uint8_t* data() {
-    return buf_.data();
-  }
+  uint8_t* data() { return buf_.data(); }
 
   /*!
    * \brief returns current size of the encoder's buffer
    * \return buffer size
    */
-  size_t buf_size() const {
-    return buf_.size();
-  }
+  size_t buf_size() const { return buf_.size(); }
 
   TargetPtr start_addr() const {
     CHECK_NE(start_addr_.value().uint64(), 0) << "start addr uninitialized";
@@ -148,8 +146,8 @@ class TargetDataLayoutEncoder {
 
   void set_start_addr(TargetPtr start_addr) {
     CHECK_EQ(buf_.size(), 0) << "cannot change encoder start addr unless empty";
-    start_addr_ = TargetPtr(word_size_,
-                            UpperAlignValue(start_addr.value().uint64(), word_size_.bytes()));
+    start_addr_ =
+        TargetPtr(word_size_, UpperAlignValue(start_addr.value().uint64(), word_size_.bytes()));
   }
 
  private:
@@ -166,10 +164,8 @@ class TargetDataLayoutEncoder {
 };
 
 template <typename T>
-TargetDataLayoutEncoder::Slot<T>::Slot(TargetDataLayoutEncoder* parent,
-                                       size_t start_offset,
-                                       size_t size,
-                                       TargetPtr start_addr)
+TargetDataLayoutEncoder::Slot<T>::Slot(TargetDataLayoutEncoder* parent, size_t start_offset,
+                                       size_t size, TargetPtr start_addr)
     : parent_(parent),
       start_offset_(start_offset),
       curr_offset_(0),
@@ -180,8 +176,8 @@ template <typename T>
 TargetDataLayoutEncoder::Slot<T>::~Slot() {
   // TODO(weberlo, areusch): this can mask the exception thrown by slot allocation... even though
   // that doesn't make sense.
-  CHECK(curr_offset_ == size_) << "unwritten space in slot; curr_offset="
-                               << curr_offset_ << ", size=" << size_;
+  CHECK(curr_offset_ == size_) << "unwritten space in slot; curr_offset=" << curr_offset_
+                               << ", size=" << size_;
 }
 
 template <typename T>

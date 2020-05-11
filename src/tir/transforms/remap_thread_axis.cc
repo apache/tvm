@@ -20,12 +20,12 @@
 /*!
  * \file remap_thread_axis.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/runtime/registry.h>
-#include <unordered_map>
 
+#include <unordered_map>
 
 namespace tvm {
 namespace tir {
@@ -33,14 +33,9 @@ namespace tir {
 // Mutator to change the read pattern
 class ThreadAxisRewriter : private StmtExprMutator {
  public:
-  explicit ThreadAxisRewriter(
-      const std::unordered_map<std::string, IterVar>& tmap)
-      : tmap_(tmap) {
-  }
+  explicit ThreadAxisRewriter(const std::unordered_map<std::string, IterVar>& tmap) : tmap_(tmap) {}
 
-  Stmt Rewrite(Stmt stmt) {
-    return operator()(std::move(stmt));
-  }
+  Stmt Rewrite(Stmt stmt) { return operator()(std::move(stmt)); }
 
  private:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -57,8 +52,7 @@ class ThreadAxisRewriter : private StmtExprMutator {
           CHECK(vmap_[v].same_as(new_iv->var));
         }
         Stmt body = this->VisitStmt(op->body);
-        return AttrStmtNode::make(
-            new_iv, op->attr_key, op->value, body);
+        return AttrStmtNode::make(new_iv, op->attr_key, op->value, body);
       }
     }
     return StmtExprMutator::VisitStmt_(op);
@@ -75,7 +69,6 @@ class ThreadAxisRewriter : private StmtExprMutator {
   std::unordered_map<const VarNode*, Var> vmap_;
 };
 
-
 PrimFunc RemapThreadAxis(PrimFunc&& f, Map<runtime::String, IterVar> thread_map) {
   std::unordered_map<std::string, IterVar> tmap;
   for (const auto& kv : thread_map) {
@@ -83,8 +76,7 @@ PrimFunc RemapThreadAxis(PrimFunc&& f, Map<runtime::String, IterVar> thread_map)
   }
 
   auto opt_thread_axis = f->GetAttr<Array<IterVar>>(tir::attr::kDeviceThreadAxis);
-  CHECK(opt_thread_axis != nullptr)
-      << "Require attribute " << tir::attr::kDeviceThreadAxis;
+  CHECK(opt_thread_axis != nullptr) << "Require attribute " << tir::attr::kDeviceThreadAxis;
   auto thread_axis = opt_thread_axis.value();
   auto* n = f.CopyOnWrite();
 
@@ -99,7 +91,6 @@ PrimFunc RemapThreadAxis(PrimFunc&& f, Map<runtime::String, IterVar> thread_map)
   return WithAttr(std::move(f), tir::attr::kDeviceThreadAxis, thread_axis);
 }
 
-
 namespace transform {
 
 Pass RemapThreadAxis(Map<runtime::String, IterVar> thread_map) {
@@ -109,8 +100,7 @@ Pass RemapThreadAxis(Map<runtime::String, IterVar> thread_map) {
   return CreatePrimFuncPass(pass_func, 0, "tir.RemapThreadAxis", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.RemapThreadAxis")
-.set_body_typed(RemapThreadAxis);
+TVM_REGISTER_GLOBAL("tir.transform.RemapThreadAxis").set_body_typed(RemapThreadAxis);
 
 }  // namespace transform
 }  // namespace tir

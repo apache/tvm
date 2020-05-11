@@ -32,24 +32,25 @@
  *    - Var
  *  - Otherwise, inline if the node is at the end of a scope and is used at most once.
  */
-#include <tvm/ir/type_functor.h>
 #include <tvm/ir/module.h>
-#include <tvm/tir/function.h>
+#include <tvm/ir/type_functor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
+#include <tvm/tir/function.h>
+
+#include "../ir/attr_functor.h"
+#include "../relay/analysis/dependency_graph.h"
 #include "doc.h"
 #include "meta_data.h"
-#include "../relay/analysis/dependency_graph.h"
-#include "../ir/attr_functor.h"
 #include "text_printer.h"
 
 namespace tvm {
 namespace relay {
 
 /*!
-  * \brief Print additional info about expr in comment.
-  * \param expr The expression.
-  */
+ * \brief Print additional info about expr in comment.
+ * \param expr The expression.
+ */
 Doc RelayTextPrinter::PrintOptionalInfo(const Expr& expr) {
   Doc doc;
   // default annotations
@@ -90,8 +91,7 @@ Doc RelayTextPrinter::PrintScope(const ObjectRef& node) {
 }
 
 Doc RelayTextPrinter::PrintFinal(const ObjectRef& node) {
-  if (node->IsInstance<BaseFuncNode>() &&
-      !node->IsInstance<relay::FunctionNode>()) {
+  if (node->IsInstance<BaseFuncNode>() && !node->IsInstance<relay::FunctionNode>()) {
     // Temporarily skip non-relay functions.
     // TODO(tvm-team) enhance the code to work for all functions
   } else if (node.as<ExprNode>()) {
@@ -106,8 +106,7 @@ Doc RelayTextPrinter::PrintFinal(const ObjectRef& node) {
 
 Doc RelayTextPrinter::Print(const ObjectRef& node, bool meta, bool try_inline) {
   bool is_non_relay_func =
-      node->IsInstance<BaseFuncNode>() &&
-      !node->IsInstance<relay::FunctionNode>();
+      node->IsInstance<BaseFuncNode>() && !node->IsInstance<relay::FunctionNode>();
   if (node.as<ExprNode>() && !is_non_relay_func) {
     return PrintExpr(Downcast<Expr>(node), meta, try_inline);
   } else if (node.as<TypeNode>()) {
@@ -129,15 +128,13 @@ Doc RelayTextPrinter::TempVar(int n) {
   return doc << "%" << n;
 }
 
-Doc RelayTextPrinter::AllocTemp() {
-  return TempVar(temp_var_counter_++);
-}
+Doc RelayTextPrinter::AllocTemp() { return TempVar(temp_var_counter_++); }
 
 /*!
-  * \brief get a unique name with the corresponding prefix
-  * \param prefix The prefix of the name
-  * \return The returned name.
-  */
+ * \brief get a unique name with the corresponding prefix
+ * \param prefix The prefix of the name
+ * \return The returned name.
+ */
 Doc RelayTextPrinter::GetUniqueName(const std::string& prefix) {
   std::string unique_prefix = prefix;
   auto it = name_alloc_map_.find(prefix);
@@ -158,21 +155,21 @@ Doc RelayTextPrinter::GetUniqueName(const std::string& prefix) {
 
 Doc RelayTextPrinter::Print(Kind k) {
   switch (k) {
-  case kType:
-    return Doc::Text("Type");
-  case kShapeVar:
-    return Doc::Text("Shape");
-  case kBaseType:
-    return Doc::Text("BaseType");
-  case kConstraint:
-    return Doc::Text("Constraint");
-  case kAdtHandle:
-    return Doc::Text("AdtHandle");
-  case kTypeData:
-    return Doc::Text("TypeData");
-  default:
-    LOG(ERROR) << "Unknown Kind";
-    throw;
+    case kType:
+      return Doc::Text("Type");
+    case kShapeVar:
+      return Doc::Text("Shape");
+    case kBaseType:
+      return Doc::Text("BaseType");
+    case kConstraint:
+      return Doc::Text("Constraint");
+    case kAdtHandle:
+      return Doc::Text("AdtHandle");
+    case kTypeData:
+      return Doc::Text("TypeData");
+    default:
+      LOG(ERROR) << "Unknown Kind";
+      throw;
   }
 }
 /*!
@@ -290,16 +287,14 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
 
 // Should only be triggered when op is a free variable being visited for the
 // first time.
-Doc RelayTextPrinter::VisitExpr_(const VarNode* op) {
-  return AllocVar(GetRef<Var>(op));
-}
+Doc RelayTextPrinter::VisitExpr_(const VarNode* op) { return AllocVar(GetRef<Var>(op)); }
 
 /*!
  * \brief special method to print out const scalar
  * \param dtype The data type
  * \param value The value to be printed.
  */
-template<typename T>
+template <typename T>
 Doc RelayTextPrinter::ScalarLiteral(DataType dtype, const T& value) {
   std::ostringstream os;
   if (dtype == DataType::Int(32)) {
@@ -369,13 +364,8 @@ Doc RelayTextPrinter::VisitExpr_(const IfNode* op) {
 
 Doc RelayTextPrinter::VisitExpr_(const LetNode* op) {
   Doc doc;
-  doc
-    << "let "
-    << AllocVar(op->var)
-    << " = "
-    << Print(op->value, false, true)
-    << ";"
-    << Doc::NewLine();
+  doc << "let " << AllocVar(op->var) << " = " << Print(op->value, false, true) << ";"
+      << Doc::NewLine();
   // we use a scope here so GNF hoisting doesn't escape too far
   // and nested, unique lets are not hoisted
   doc << PrintScope(op->body);
@@ -420,7 +410,7 @@ Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const BaseFunc& base_func) {
   } else {
     // def @xyz = meta['ExternalFunc'][id]
     Doc doc;
-    doc << prefix << " = " <<  meta_->GetMetaNode(base_func);
+    doc << prefix << " = " << meta_->GetMetaNode(base_func);
     return doc;
   }
 }
@@ -456,13 +446,9 @@ Doc RelayTextPrinter::VisitExpr_(const FunctionNode* op) {
   return PrintFunc(Doc::Text("fn "), GetRef<Function>(op));
 }
 
-Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) {
-  return Doc::Text('@' + op->name_hint);
-}
+Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) { return Doc::Text('@' + op->name_hint); }
 
-Doc RelayTextPrinter::VisitExpr_(const OpNode* op) {
-  return Doc::Text(op->name);
-}
+Doc RelayTextPrinter::VisitExpr_(const OpNode* op) { return Doc::Text(op->name); }
 
 Doc RelayTextPrinter::VisitExpr_(const CallNode* op) {
   Doc doc;
@@ -569,13 +555,9 @@ Doc RelayTextPrinter::VisitPattern_(const PatternTupleNode* pt) {
   return doc;
 }
 
-Doc RelayTextPrinter::VisitPattern_(const PatternWildcardNode* pw) {
-  return Doc::Text("_");
-}
+Doc RelayTextPrinter::VisitPattern_(const PatternWildcardNode* pw) { return Doc::Text("_"); }
 
-Doc RelayTextPrinter::VisitPattern_(const PatternVarNode* pv) {
-  return AllocVar(pv->var);
-}
+Doc RelayTextPrinter::VisitPattern_(const PatternVarNode* pv) { return AllocVar(pv->var); }
 
 Doc RelayTextPrinter::VisitExpr_(const ConstructorNode* n) {
   Doc doc;
@@ -612,9 +594,7 @@ Doc RelayTextPrinter::VisitTypeDefault_(const Object* node) {
   return Print(GetRef<ObjectRef>(node), true);
 }
 
-Doc RelayTextPrinter::VisitType_(const TypeVarNode* node) {
-  return Doc::Text(node->name_hint);
-}
+Doc RelayTextPrinter::VisitType_(const TypeVarNode* node) { return Doc::Text(node->name_hint); }
 
 Doc RelayTextPrinter::VisitType_(const GlobalTypeVarNode* node) {
   return Doc::Text(node->name_hint);
@@ -770,17 +750,14 @@ Doc RelayTextPrinter::VisitAttr_(const tir::StringImmNode* op) {
   return Doc::StrLiteral(op->value);
 }
 
-
 /*!
  * \brief Attribute printer which prints the attributes in the call.
  */
-class RelayTextPrinter::AttrPrinter :
-      public AttrVisitor {
+class RelayTextPrinter::AttrPrinter : public AttrVisitor {
  public:
-  AttrPrinter(std::vector<Doc>* doc, RelayTextPrinter* parent)
-      : docs(doc), parent_(parent) {}
+  AttrPrinter(std::vector<Doc>* doc, RelayTextPrinter* parent) : docs(doc), parent_(parent) {}
 
-  template<typename T>
+  template <typename T>
   void PrintKV(const char* key, const T& value) {
     Doc doc;
     doc << key << "=" << value;
@@ -792,24 +769,12 @@ class RelayTextPrinter::AttrPrinter :
     doc << key << "=" << *value << "f";
     docs->push_back(doc);
   }
-  void Visit(const char* key, int64_t* value) final {
-    PrintKV(key, *value);
-  }
-  void Visit(const char* key, uint64_t* value) final {
-    PrintKV(key, *value);
-  }
-  void Visit(const char* key, int* value) final {
-    PrintKV(key, *value);
-  }
-  void Visit(const char* key, bool* value) final {
-    PrintKV(key, Doc::PyBoolLiteral(*value));
-  }
-  void Visit(const char* key, std::string* value) final {
-    PrintKV(key, Doc::StrLiteral(*value));
-  }
-  void Visit(const char* key, void** value) final {
-    LOG(FATAL) << "do not allow void as argument";
-  }
+  void Visit(const char* key, int64_t* value) final { PrintKV(key, *value); }
+  void Visit(const char* key, uint64_t* value) final { PrintKV(key, *value); }
+  void Visit(const char* key, int* value) final { PrintKV(key, *value); }
+  void Visit(const char* key, bool* value) final { PrintKV(key, Doc::PyBoolLiteral(*value)); }
+  void Visit(const char* key, std::string* value) final { PrintKV(key, Doc::StrLiteral(*value)); }
+  void Visit(const char* key, void** value) final { LOG(FATAL) << "do not allow void as argument"; }
   void Visit(const char* key, DataType* value) final {
     PrintKV(key, Doc::StrLiteral(runtime::DLDataType2String(*value)));
   }
@@ -825,8 +790,7 @@ class RelayTextPrinter::AttrPrinter :
   RelayTextPrinter* parent_;
 };
 
-std::vector<Doc> RelayTextPrinter::PrintCallAttrs(
-    const Attrs& attrs, const Expr& op) {
+std::vector<Doc> RelayTextPrinter::PrintCallAttrs(const Attrs& attrs, const Expr& op) {
   std::vector<Doc> docs;
   if (!attrs.defined()) return docs;
   const auto* op_node = op.as<OpNode>();

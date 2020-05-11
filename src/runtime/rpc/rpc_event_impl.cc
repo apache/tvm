@@ -22,31 +22,29 @@
  * \brief Event driven RPC server implementation.
  */
 #include <tvm/runtime/registry.h>
+
 #include <memory>
+
 #include "rpc_endpoint.h"
 #include "rpc_local_session.h"
 
 namespace tvm {
 namespace runtime {
 
-PackedFunc CreateEventDrivenServer(PackedFunc fsend,
-                                   std::string name,
-                                   std::string remote_key) {
+PackedFunc CreateEventDrivenServer(PackedFunc fsend, std::string name, std::string remote_key) {
   static PackedFunc frecv([](TVMArgs args, TVMRetValue* rv) {
     LOG(FATAL) << "Do not allow explicit receive";
     return 0;
   });
 
   std::unique_ptr<CallbackChannel> ch(new CallbackChannel(fsend, frecv));
-  std::shared_ptr<RPCEndpoint> sess =
-      RPCEndpoint::Create(std::move(ch), name, remote_key);
+  std::shared_ptr<RPCEndpoint> sess = RPCEndpoint::Create(std::move(ch), name, remote_key);
   return PackedFunc([sess](TVMArgs args, TVMRetValue* rv) {
-      int ret = sess->ServerAsyncIOEventHandler(args[0], args[1]);
-      *rv = ret;
-    });
+    int ret = sess->ServerAsyncIOEventHandler(args[0], args[1]);
+    *rv = ret;
+  });
 }
 
-TVM_REGISTER_GLOBAL("rpc.CreateEventDrivenServer")
-.set_body_typed(CreateEventDrivenServer);
+TVM_REGISTER_GLOBAL("rpc.CreateEventDrivenServer").set_body_typed(CreateEventDrivenServer);
 }  // namespace runtime
 }  // namespace tvm

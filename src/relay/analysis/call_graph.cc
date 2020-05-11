@@ -26,6 +26,7 @@
 
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/object.h>
+
 #include <algorithm>
 #include <memory>
 #include <sstream>
@@ -72,22 +73,21 @@ void CallGraphNode::AddToCallGraph(const GlobalVar& gv, const Function& func) {
 
 const CallGraphEntry* CallGraphNode::operator[](const GlobalVar& gv) const {
   const_iterator cit = call_graph_.find(gv);
-  CHECK(cit != call_graph_.end())
-      << "GlobalVar " << gv->name_hint << " not found in the call graph!";
+  CHECK(cit != call_graph_.end()) << "GlobalVar " << gv->name_hint
+                                  << " not found in the call graph!";
   return cit->second.get();
 }
 
 CallGraphEntry* CallGraphNode::operator[](const GlobalVar& gv) {
   const_iterator cit = call_graph_.find(gv);
-  CHECK(cit != call_graph_.end())
-      << "GlobalVar " << gv->name_hint << " not found in the call graph!";
+  CHECK(cit != call_graph_.end()) << "GlobalVar " << gv->name_hint
+                                  << " not found in the call graph!";
   return cit->second.get();
 }
 
 BaseFunc CallGraphNode::GetGlobalFunction(const GlobalVar& var) const {
   CHECK(module->ContainGlobalVar(var->name_hint))
-      << "GlobalVar " << var->name_hint
-      << " not found in the current ir module";
+      << "GlobalVar " << var->name_hint << " not found in the current ir module";
   return module->Lookup(var);
 }
 
@@ -120,8 +120,8 @@ GlobalVar CallGraphNode::RemoveGlobalVarFromModule(CallGraphEntry* cg_node,
                                                    bool update_call_graph) {
   CHECK(cg_node->empty() || (cg_node->IsRecursive() && cg_node->size() == 1))
       << "Cannot remove global var " << cg_node->GetNameHint()
-      << " from call graph, because it still calls "
-      << cg_node->size() << " other global functions";
+      << " from call graph, because it still calls " << cg_node->size()
+      << " other global functions";
 
   if (update_call_graph) {
     // Update the call graph by removing all edges that point to the node
@@ -172,8 +172,7 @@ std::vector<CallGraphEntry*> CallGraphNode::TopologicalOrder() const {
                      << " with # refs = " << (*this)[it.first]->GetRefCount();
       }
     }
-    LOG(FATAL) << "Expected " << module->functions.size()
-               << " globals, but received "
+    LOG(FATAL) << "Expected " << module->functions.size() << " globals, but received "
                << ret.size();
   }
 
@@ -184,8 +183,7 @@ std::vector<CallGraphEntry*> CallGraphNode::TopologicalOrder() const {
 // that are visited by previous CallGraphEntry entries can be memoized. This
 // helps us to make sure no entry will be visited multiple times when collecting
 // the nodes for an entire call graph.
-std::vector<CallGraphEntry*> CallGraphEntry::TopologicalOrder(
-    CallGraphEntrySet* visited) const {
+std::vector<CallGraphEntry*> CallGraphEntry::TopologicalOrder(CallGraphEntrySet* visited) const {
   std::vector<CallGraphEntry*> ret;
   std::vector<CallGraphEntry*> current_nodes;
   if (visited->find(this) == visited->end()) {
@@ -234,8 +232,7 @@ inline void CallGraphEntry::AddCalledGlobal(CallGraphEntry* cg_node) {
 // Remove an edge from the current global function to the callee.
 void CallGraphEntry::RemoveCallTo(const GlobalVar& callee) {
   for (auto it = begin();; ++it) {
-    CHECK(it != end()) << "Cannot find global function "
-                       << callee->name_hint << " to remove!";
+    CHECK(it != end()) << "Cannot find global function " << callee->name_hint << " to remove!";
     if (it->second->GetGlobalVar() == callee) {
       // Only remove one occurrence of the call site.
       it->second->DecRef();
@@ -260,8 +257,7 @@ void CallGraphEntry::RemoveAllCallTo(CallGraphEntry* callee) {
   }
   // Make sure all references to the callee are removed.
   CHECK_EQ(callee->GetRefCount(), 0U)
-      << "All references to " << callee->GetNameHint()
-      << " should have been removed";
+      << "All references to " << callee->GetNameHint() << " should have been removed";
 }
 
 void CallGraphEntry::Print(std::ostream& os) const {
@@ -293,54 +289,51 @@ std::ostream& operator<<(std::ostream& os, const CallGraphEntry& cgn) {
 TVM_REGISTER_NODE_TYPE(CallGraphNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<CallGraphNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const CallGraphNode*>(ref.get());
-  CHECK(node);
-  p->stream << "CallGraph: \n" << GetRef<CallGraph>(node);
-});
+    .set_dispatch<CallGraphNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const CallGraphNode*>(ref.get());
+      CHECK(node);
+      p->stream << "CallGraph: \n" << GetRef<CallGraph>(node);
+    });
 
-TVM_REGISTER_GLOBAL("relay.analysis.CallGraph")
-.set_body_typed([](IRModule module) {
+TVM_REGISTER_GLOBAL("relay.analysis.CallGraph").set_body_typed([](IRModule module) {
   return CallGraph(module);
 });
 
-TVM_REGISTER_GLOBAL("relay.analysis.PrintCallGraph")
-.set_body_typed([](CallGraph call_graph) {
+TVM_REGISTER_GLOBAL("relay.analysis.PrintCallGraph").set_body_typed([](CallGraph call_graph) {
   std::stringstream ss;
   ss << call_graph;
   return ss.str();
 });
 
-TVM_REGISTER_GLOBAL("relay.analysis.GetModule")
-.set_body_typed([](CallGraph call_graph) {
+TVM_REGISTER_GLOBAL("relay.analysis.GetModule").set_body_typed([](CallGraph call_graph) {
   return call_graph->module;
 });
 
 TVM_REGISTER_GLOBAL("relay.analysis.PrintCallGraphGlobalVar")
-.set_body_typed([](CallGraph call_graph, GlobalVar var) {
-  const auto* entry_node = call_graph[var];
-  std::stringstream ss;
-  ss << *entry_node;
-  return ss.str();
-});
+    .set_body_typed([](CallGraph call_graph, GlobalVar var) {
+      const auto* entry_node = call_graph[var];
+      std::stringstream ss;
+      ss << *entry_node;
+      return ss.str();
+    });
 
 TVM_REGISTER_GLOBAL("relay.analysis.GetRefCountGlobalVar")
-.set_body_typed([](CallGraph call_graph, GlobalVar var) {
-  const auto* entry_node = call_graph[var];
-  return static_cast<int>(entry_node->GetRefCount());
-});
+    .set_body_typed([](CallGraph call_graph, GlobalVar var) {
+      const auto* entry_node = call_graph[var];
+      return static_cast<int>(entry_node->GetRefCount());
+    });
 
 TVM_REGISTER_GLOBAL("relay.analysis.GetGlobalVarCallCount")
-.set_body_typed([](CallGraph call_graph, GlobalVar var) {
-  const auto* entry_node = call_graph[var];
-  return static_cast<int>(entry_node->size());
-});
+    .set_body_typed([](CallGraph call_graph, GlobalVar var) {
+      const auto* entry_node = call_graph[var];
+      return static_cast<int>(entry_node->size());
+    });
 
 TVM_REGISTER_GLOBAL("relay.analysis.IsRecursive")
-.set_body_typed([](CallGraph call_graph, GlobalVar var) {
-  const auto* entry_node = call_graph[var];
-  return entry_node->IsRecursive();
-});
+    .set_body_typed([](CallGraph call_graph, GlobalVar var) {
+      const auto* entry_node = call_graph[var];
+      return entry_node->IsRecursive();
+    });
 
 }  // namespace relay
 }  // namespace tvm

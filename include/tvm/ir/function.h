@@ -24,12 +24,12 @@
 #ifndef TVM_IR_FUNCTION_H_
 #define TVM_IR_FUNCTION_H_
 
-#include <tvm/ir/expr.h>
 #include <tvm/ir/attrs.h>
+#include <tvm/ir/expr.h>
 #include <tvm/runtime/container.h>
-#include <type_traits>
-#include <string>
 
+#include <string>
+#include <type_traits>
 
 namespace tvm {
 
@@ -96,7 +96,7 @@ class BaseFuncNode : public RelayExprNode {
    *
    * \endcode
    */
-  template<typename TObjectRef>
+  template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
       Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
@@ -111,9 +111,8 @@ class BaseFuncNode : public RelayExprNode {
     }
   }
   // variant that uses TObjectRef to enable implicit conversion to default value.
-  template<typename TObjectRef>
-  Optional<TObjectRef> GetAttr(
-      const std::string& attr_key, TObjectRef default_value) const {
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
     return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
   }
   /*!
@@ -180,12 +179,9 @@ class BaseFunc : public RelayExpr {
  *
  * \endcode
  */
-template<typename TFunc,
-         typename = typename std::enable_if<
-           std::is_base_of<BaseFunc, TFunc>::value>::type>
-inline TFunc WithAttr(TFunc func,
-                      const std::string& attr_key,
-                      ObjectRef attr_value) {
+template <typename TFunc,
+          typename = typename std::enable_if<std::is_base_of<BaseFunc, TFunc>::value>::type>
+inline TFunc WithAttr(TFunc func, const std::string& attr_key, ObjectRef attr_value) {
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   TNode* node = func.CopyOnWrite();

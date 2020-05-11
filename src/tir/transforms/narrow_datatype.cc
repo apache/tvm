@@ -22,9 +22,10 @@
  * \brief narrow the datatype of indexing vars
  */
 
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
-#include <tvm/runtime/registry.h>
+
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../arith/ir_visitor_with_analyzer.h"
 
@@ -55,8 +56,8 @@ namespace tir {
 // - Use DataTypeRewritter to rewrite the components of an indexing expression.
 
 using arith::Analyzer;
-using arith::IRMutatorWithAnalyzer;
 using arith::ConstIntBound;
+using arith::IRMutatorWithAnalyzer;
 
 // Determine the result dtype for Var, IntImm and Cast,
 // which will be stored in `vmap` eventually.
@@ -70,8 +71,7 @@ using arith::ConstIntBound;
 // Otherwise, `var` is not narrowed, that is, `vmap[var] = var.dtype.bits()`
 class DataTypeVisitor final : public StmtExprVisitor {
  public:
-  explicit DataTypeVisitor(int target_bits)
-    : bits_(target_bits), target_bits_(target_bits) {}
+  explicit DataTypeVisitor(int target_bits) : bits_(target_bits), target_bits_(target_bits) {}
 
   void VisitExpr(const PrimExpr& e) {
     if (e.dtype().is_int()) {
@@ -86,7 +86,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
           (bound->max_value <= ubound && bound->min_value >= lbound)) {
         bits = target_bits_;
       }
-      int tmp = bits > bits_ ? bits :  bits_;
+      int tmp = bits > bits_ ? bits : bits_;
       std::swap(bits_, tmp);
       StmtExprVisitor::VisitExpr(e);
       std::swap(bits_, tmp);
@@ -96,19 +96,16 @@ class DataTypeVisitor final : public StmtExprVisitor {
   }
 
   void VisitStmt_(const ForNode* op) {
-    analyzer_.Bind(op->loop_var,
-                   Range::make_by_min_extent(op->min, op->extent));
+    analyzer_.Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
     vextent_[op->loop_var.as<VarNode>()] = op->extent.dtype();
     return StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitStmt_(const AttrStmtNode* op) {
-    if (op->attr_key == attr::thread_extent ||
-        op->attr_key == attr::virtual_thread) {
+    if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
-      analyzer_.Bind(iv->var,
-                      Range::make_by_min_extent(0, op->value));
+      analyzer_.Bind(iv->var, Range::make_by_min_extent(0, op->value));
       vextent_[iv->var.as<VarNode>()] = op->value.dtype();
       StmtExprVisitor::VisitStmt_(op);
     } else {
@@ -191,7 +188,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
 
 class DataTypeRewriter : public StmtExprMutator {
  public:
-  explicit DataTypeRewriter(int target_bits): visitor_(target_bits) {}
+  explicit DataTypeRewriter(int target_bits) : visitor_(target_bits) {}
 
   Stmt operator()(Stmt s) {
     visitor_(s);
@@ -211,19 +208,15 @@ class DataTypeRewriter : public StmtExprMutator {
     is_index_ = true;
     PrimExpr index = this->VisitExpr(op->index);
     is_index_ = false;
-    Stmt s = StoreNode::make(op->buffer_var,
-                             op->value,
-                             index,
-                             op->predicate);
+    Stmt s = StoreNode::make(op->buffer_var, op->value, index, op->predicate);
     return StmtExprMutator::VisitStmt_(s.as<StoreNode>());
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
     Stmt s = StmtExprMutator::VisitStmt_(op);
     op = s.as<ForNode>();
-    CHECK(op != nullptr)
-      << "Expected type to be ForNode"
-      << ", but get " << s->GetTypeKey();
+    CHECK(op != nullptr) << "Expected type to be ForNode"
+                         << ", but get " << s->GetTypeKey();
     PrimExpr e = VisitExpr(op->loop_var);
     Var var = Downcast<Var>(e);
     return ForNode::make(var, cast(var.dtype(), op->min), cast(var.dtype(), op->extent),
@@ -231,27 +224,20 @@ class DataTypeRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent ||
-        op->attr_key == attr::virtual_thread) {
+    if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       Stmt s = StmtExprMutator::VisitStmt_(op);
       op = s.as<AttrStmtNode>();
-      CHECK(op != nullptr)
-        << "Expected type to be AttrStmtNode"
-        << ", but get " << s->GetTypeKey();
+      CHECK(op != nullptr) << "Expected type to be AttrStmtNode"
+                           << ", but get " << s->GetTypeKey();
       const IterVarNode* iv = op->node.as<IterVarNode>();
-      CHECK(iv != nullptr)
-        << "Expected type to be IterVarNode"
-        << ", but get " << op->node->GetTypeKey();
+      CHECK(iv != nullptr) << "Expected type to be IterVarNode"
+                           << ", but get " << op->node->GetTypeKey();
       PrimExpr e = VisitExpr(iv->var);
       Var var = Downcast<Var>(e);
       if (ivmap_.find(iv) == ivmap_.end()) {
         ivmap_[iv] = IterVarNode::make(iv->dom, var, iv->iter_type, iv->thread_tag);
       }
-      return AttrStmtNode::make(
-        ivmap_[iv],
-        op->attr_key,
-        cast(var.dtype(), op->value),
-        op->body);
+      return AttrStmtNode::make(ivmap_[iv], op->attr_key, cast(var.dtype(), op->value), op->body);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -297,9 +283,8 @@ class DataTypeRewriter : public StmtExprMutator {
     if (is_index_ && visitor_.vmap.find(op) != visitor_.vmap.end()) {
       PrimExpr e = StmtExprMutator::VisitExpr_(op);
       const CastNode* new_op = e.as<CastNode>();
-      CHECK(new_op != nullptr)
-        << "Expected type to be CastNode"
-        << ", but get " << e->GetTypeKey();
+      CHECK(new_op != nullptr) << "Expected type to be CastNode"
+                               << ", but get " << e->GetTypeKey();
       return CastNode::make(visitor_.vmap[op], new_op->value);
     }
     return StmtExprMutator::VisitExpr_(op);
@@ -335,40 +320,38 @@ class DataTypeRewriter : public StmtExprMutator {
   bool is_index_{false};
 };
 
-#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)               \
-  PrimExpr DataTypeRewriter::VisitExpr_(const OP* op) {                 \
-    PrimExpr a = this->VisitExpr(op->a);                                \
-    PrimExpr b = this->VisitExpr(op->b);                                \
-    if (a.same_as(op->a) &&                                             \
-        b.same_as(op->b)) {                                             \
-      return GetRef<PrimExpr>(op);                                      \
-    } else {                                                            \
-      return FUNC(a, b);                                                \
-    }                                                                   \
+#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC) \
+  PrimExpr DataTypeRewriter::VisitExpr_(const OP* op) {   \
+    PrimExpr a = this->VisitExpr(op->a);                  \
+    PrimExpr b = this->VisitExpr(op->b);                  \
+    if (a.same_as(op->a) && b.same_as(op->b)) {           \
+      return GetRef<PrimExpr>(op);                        \
+    } else {                                              \
+      return FUNC(a, b);                                  \
+    }                                                     \
   }
 
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(AddNode, operator+)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(SubNode, operator-)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MulNode, operator*)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(DivNode, div)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(ModNode, truncmod)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorDivNode, floordiv)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorModNode, floormod)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MinNode, min)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MaxNode, max)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator <)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator >)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=)
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(AddNode, operator+);
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(SubNode, operator-);
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MulNode, operator*);
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(DivNode, div);
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(ModNode, truncmod);
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorDivNode, floordiv);
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorModNode, floormod);
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MinNode, min);
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MaxNode, max);
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 
 PrimExpr DataTypeRewriter::VisitExpr_(const CallNode* op) {
   PrimExpr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
-  CHECK(op != nullptr)
-    << "Expected type to be CallNode"
-    << ", but get " << e->GetTypeKey();
+  CHECK(op != nullptr) << "Expected type to be CallNode"
+                       << ", but get " << e->GetTypeKey();
   if (op->call_type == CallNode::PureIntrinsic) {
     if (op->name == intrinsic::tvm_if_then_else) {
       return if_then_else(op->args[0], op->args[1], op->args[2]);
@@ -389,9 +372,7 @@ PrimExpr DataTypeRewriter::VisitExpr_(const CallNode* op) {
   return e;
 }
 
-Stmt NarrowDataType(Stmt stmt, int target_bits) {
-  return DataTypeRewriter(target_bits)(stmt);
-}
+Stmt NarrowDataType(Stmt stmt, int target_bits) { return DataTypeRewriter(target_bits)(stmt); }
 
 namespace transform {
 
@@ -401,12 +382,10 @@ Pass NarrowDataType(int target_bits) {
     n->body = DataTypeRewriter(target_bits)(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(
-      pass_func, 0, "tir.NarrowDataType", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.NarrowDataType", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.NarrowDataType")
-.set_body_typed(NarrowDataType);
+TVM_REGISTER_GLOBAL("tir.transform.NarrowDataType").set_body_typed(NarrowDataType);
 
 }  // namespace transform
 }  // namespace tir

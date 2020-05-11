@@ -20,14 +20,13 @@
 /*!
  *  Optional module when build opencl is switched to off
  */
-#include "../source/codegen_source_base.h"
 #include "../../runtime/opengl/opengl_module.h"
+#include "../source/codegen_source_base.h"
 
 namespace tvm {
 namespace runtime {
 
-Module OpenGLModuleCreate(std::unordered_map<std::string, OpenGLShader> shaders,
-                          std::string fmt,
+Module OpenGLModuleCreate(std::unordered_map<std::string, OpenGLShader> shaders, std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap) {
   LOG(WARNING) << "OpenGL runtime not enabled, return a source module...";
   auto data = ToJSON(shaders);

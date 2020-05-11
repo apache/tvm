@@ -27,10 +27,12 @@
 #import <MetalPerformanceShaders/MetalPerformanceShaders.h>
 #include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/data_type.h>
+
 #include <vector>
+
 #include "../../metal/metal_common.h"
 
 namespace tvm {
@@ -38,18 +40,17 @@ namespace contrib {
 
 /*! breif Convert DLTensor type to MPS type */
 struct MPSType {
-  static MPSDataType DLTypeToMPSType(const DLDataType &dtype);
+  static MPSDataType DLTypeToMPSType(const DLDataType& dtype);
 };  // struct MPSType
 
 struct MetalThreadEntry {
   MetalThreadEntry();
   ~MetalThreadEntry();
-  MPSImage *AllocMPSImage(id<MTLDevice> dev, MPSImageDescriptor *desc);
-  MPSTemporaryImage *AllocTempImage(id<MTLCommandBuffer> cb,
-                                    MPSImageDescriptor *desc);
-  runtime::metal::MetalWorkspace *metal_api{nullptr};
-  static MetalThreadEntry *ThreadLocal();
-  std::vector<MPSImage *> img_table;
+  MPSImage* AllocMPSImage(id<MTLDevice> dev, MPSImageDescriptor* desc);
+  MPSTemporaryImage* AllocTempImage(id<MTLCommandBuffer> cb, MPSImageDescriptor* desc);
+  runtime::metal::MetalWorkspace* metal_api{nullptr};
+  static MetalThreadEntry* ThreadLocal();
+  std::vector<MPSImage*> img_table;
 };  // MetalThreadEntry
 
 }  // namespace contrib
