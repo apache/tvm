@@ -126,6 +126,65 @@ def test_no_match_call():
     add_pattern = is_op('add')(wildcard(), wildcard())
     assert not add_pattern.match(x - y)
 
+def test_match_option():
+    x = relay.var('x')
+    w = relay.var('w')
+    b = relay.var('b')
+    pattern = is_op("nn.relu")(
+            is_op("nn.conv2d")(wildcard(), wildcard()
+                             ).optional(lambda x: is_op("nn.bias_add")(x, wildcard()))
+        )
+
+    conv2d = relay.op.nn.conv2d(x, w)
+    relu = relay.op.nn.relu(conv2d)
+    assert pattern.match(relu)
+
+    conv2d = relay.op.nn.conv2d(x, w)
+    bias_add = relay.op.nn.bias_add(conv2d, b)
+    relu = relay.op.nn.relu(bias_add)
+    assert pattern.match(relu)
+
+    pattern = is_op("nn.conv2d")(wildcard(), wildcard())
+    pattern = pattern.optional(is_op('nn.relu')).optional(is_op("tanh"))
+
+    conv2d = relay.op.nn.conv2d(x, w)
+    relu = relay.op.nn.relu(conv2d)
+    tanh = relay.op.tanh(conv2d)
+    tanh2 = relay.op.tanh(relu)
+    relu2 = relay.op.nn.relu(tanh)
+    assert pattern.match(conv2d)
+    assert pattern.match(relu)
+    assert pattern.match(tanh)
+    assert pattern.match(tanh2)
+    assert not pattern.match(relu2)
+
+def test_no_match_option():
+    x = relay.var('x')
+    w = relay.var('w')
+    b = relay.var('b')
+    pattern = is_op("nn.relu")(
+            is_op("nn.conv2d")(wildcard(), wildcard()
+                             ).optional(lambda x: is_op("nn.bias_add")(x, wildcard()))
+        )
+
+    conv2d = relay.op.nn.conv2d(x, w)
+    relu = relay.op.tanh(conv2d)
+    assert not pattern.match(relu)
+
+    conv2d = relay.op.nn.dense(x, w)
+    relu = relay.op.tanh(conv2d)
+    assert not pattern.match(relu)
+
+    conv2d = relay.op.nn.dense(x, w)
+    bias_add = relay.op.nn.bias_add(conv2d, b)
+    relu = relay.op.nn.relu(bias_add)
+    assert not pattern.match(relu)
+
+    conv2d = relay.op.nn.conv2d(x, w)
+    bias_add = conv2d + w
+    relu = relay.op.nn.relu(bias_add)
+    assert not pattern.match(relu)
+
 def test_match_tuple():
     x = relay.var('x')
     y = relay.var('y')

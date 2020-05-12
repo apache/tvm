@@ -148,6 +148,23 @@ class DFPattern(Node):
             path = wildcard()
         return DominatorPattern(parent, path, self)
 
+    def optional(self, option_constructor):
+        """
+        Create a dominator for this partern
+
+        Parameters
+        ----------
+        option_constructor: function
+            A function that takes a single Pattern parameter and returns
+            a constructed pattern matching the option
+
+        Returns
+        -------
+        result: tvm.relay.dataflow_pattern.DFPattern
+            The resulting Pattern
+        """
+        return self | option_constructor(self)
+
 
 def is_input(name: str = "") -> DFPattern:
     """
