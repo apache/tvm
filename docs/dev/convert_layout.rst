@@ -230,7 +230,7 @@ Second example is for a lightly-layout sensitive operator - batch normalization.
 
 ConvertLayout pass is extremely easy to use. The pass is not a part of default relay.build pipeline. The intended usage is to call it between the framework-to-relay parser and relay.build module call.
 
-In order to specify the layouts to convert to, we create a mapping of heavily-layout sensitive operators to a list of the desired layouts for that operator.
+In order to specify the layouts to convert to, we create a mapping of heavily-layout sensitive operators to a list of the desired layouts for that operator. The first example below specifies data layout, we allow the kernel layout to be automatically converted to one that is supported by TVM (for that particular data layout and operator). This is specified by the use of the "default" keyword. The second example shows how we could have also converted to a specific kernel layout of our choosing. It's worth noting that the following examples will convert to the same layouts i.e. `{'nn.conv2d': ['NCHW', 'default']} == {'nn.conv2d': ['NCHW', 'OIHW']}`
 
 .. code-block:: python
 
@@ -240,12 +240,12 @@ In order to specify the layouts to convert to, we create a mapping of heavily-la
                                              dtype_dict=dtype_dict)
 
     # We assume our model's heavily-layout sensitive operators only consist of nn.conv2d
-    desired_layouts = {'nn.conv2d': ['NCHW']}
+    desired_layouts = {'nn.conv2d': ['NCHW', 'default']}
 
     # Convert the layout to NCHW
     # RemoveUnunsedFunctions is used to clean up the graph.
     seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
-                                      relay.transform.ConvertLayout(desired_layouts)])
+                                    relay.transform.ConvertLayout(desired_layouts)])
     with relay.transform.PassContext(opt_level=3):
         mod = seq(mod)
 
@@ -254,24 +254,13 @@ In order to specify the layouts to convert to, we create a mapping of heavily-la
          graph, lib, params = relay.build(mod, target, params=params)
 
 
-The example above only considers data layout because the kernel layout is automatically converted to one that is supported by TVM. If we wish to also convert to a specific kernel layout this can be done like so:
-
 .. code-block:: python
 
-    desired_layouts = {'nn.conv2d': ['NCHW', 'HWIO']}
+    desired_layouts = {'nn.conv2d': ['NCHW', 'OIHW']}
     pass = relay.transform.ConvertLayout(desired_layouts)
 
 
-The ordering of layouts is defined by the implementation of `register_convert_op_layout("OPNAME")`, you can refer to the docstring which should explicitly state the expected layout. In the example above it's [data_layout, kernel_layout].
-
-If we wish to select the default choice for a specific layout then the layout should be declared as "default". For nn.conv2d the following two statements are equivalent: `{'nn.conv2d': ['NHWC', 'default']} == {'nn.conv2d': ['NHWC', 'HWIO']}` since the default kernel layout in TVM is HWIO for NHWC. In the first example, the kernel layout is implicitly defined as "default". The example below shows how this can be used:
-
-.. code-block:: python
-
-    # Use the layout that TVM chooses by default
-    desired_layouts = {'nn.conv2d': ['NCHW', 'default']}
-    pass = relay.transform.ConvertLayout(desired_layouts)
-
+The ordering of the layouts is defined by the implementation of `register_convert_op_layout("OPNAME")`, you can refer to the docstring which should explicitly state the expected layout. In the examples above it's [data_layout, kernel_layout].
 
 Current implementation has support for almost all the operators commonly used in image classification models. However, if one encounters too many data layout transforms in the graph, it is highly likely that there is an operator whose layouts need special handling as described in Section 3. Some pull requests that can help in such a situation are
 
