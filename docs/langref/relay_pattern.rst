@@ -110,32 +110,32 @@ Expression Pattern
 Match a literal expression.
 
 Wildcard
-******************
+********
 
 Match any expression.
 
 Type Pattern
-******************
+************
 
 Check that the expression matched by the nested pattern has a particular type.
 
 Attribute Pattern
-******************
+*****************
 
 Check that the operator matched by the pattern has an attribute with a particular value.
 
 Input
-******************
+*****
 
 Check that the expression is an input, i.e has no parents and is a variable.
 
 
 Alternate
-******************
+*********
 
 Either match the first pattern or the second pattern.
 
 Domination
-******************
+**********
 
 Match child pattern, find a match for the parent pattern, insuring that the child ultimately dominates the parrent (i.e., no nodes outside the pattern use outputs of the parent), and that ever node betwen the child and the pattern matches the path pattern.
