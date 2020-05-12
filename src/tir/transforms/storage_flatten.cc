@@ -128,7 +128,6 @@ class StorageFlattener : public StmtExprMutator {
     const BufferEntry& e = it->second;
     CHECK(!e.released) << "Read a buffer that is already out of scope";
 
-
     Stmt body = e.buffer.vstore(e.RelIndex(op->indices), op->value);
     if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
       shape_collector_.push_back(std::make_pair(e.buffer->data, e.buffer->shape));
