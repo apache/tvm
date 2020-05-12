@@ -111,8 +111,6 @@ class StorageFlattener : public StmtExprMutator {
       vinfo[dim].align_factor = tuple->args[1].as<IntImmNode>()->value;
       vinfo[dim].align_offset = tuple->args[2].as<IntImmNode>()->value;
       return this->VisitStmt(op->body);
-    } else if (op->attr_key == attr::opengl_stage_scope) {
-      is_opengl_ = true;
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -130,23 +128,19 @@ class StorageFlattener : public StmtExprMutator {
     const BufferEntry& e = it->second;
     CHECK(!e.released) << "Read a buffer that is already out of scope";
 
-    if (is_opengl_) {
-      return EvaluateNode::make(CallNode::make(DataType(), CallNode::glsl_texture_store,
-                                               {e.buffer->data, op->value}, CallNode::Intrinsic));
-    } else {
-      Stmt body = e.buffer.vstore(e.RelIndex(op->indices), op->value);
-      if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
-        shape_collector_.push_back(std::make_pair(e.buffer->data, e.buffer->shape));
-      }
-      // To create bound attribute collector should has at least one item.
-      if (create_bound_attributes_ && shape_collector_.size()) {
-        for (size_t i = 0; i < shape_collector_.size(); ++i) {
-          body = AttrStmtNode::make(shape_collector_[i].first, tir::attr::buffer_bound,
-                                    MakeBound(e.buffer->dtype, shape_collector_[i].second), body);
-        }
-      }
-      return body;
+
+    Stmt body = e.buffer.vstore(e.RelIndex(op->indices), op->value);
+    if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
+      shape_collector_.push_back(std::make_pair(e.buffer->data, e.buffer->shape));
     }
+    // To create bound attribute collector should has at least one item.
+    if (create_bound_attributes_ && shape_collector_.size()) {
+      for (size_t i = 0; i < shape_collector_.size(); ++i) {
+        body = AttrStmtNode::make(shape_collector_[i].first, tir::attr::buffer_bound,
+                                  MakeBound(e.buffer->dtype, shape_collector_[i].second), body);
+      }
+    }
+    return body;
   }
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
@@ -516,8 +510,6 @@ class StorageFlattener : public StmtExprMutator {
   IRVisitorWithAnalyzer* bound_analyzer_;
   // The size of cacheline
   int cache_line_size_;
-  // The current stage is an OpenGL shader.
-  bool is_opengl_{false};
   // Whether to mark load/store with theirs bounds.
   bool create_bound_attributes_{false};
 };

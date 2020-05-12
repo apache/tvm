@@ -745,7 +745,6 @@ class CallNode : public PrimExprNode {
   static constexpr const char* shift_right = "shift_right";
   static constexpr const char* popcount = "popcount";
   static constexpr const char* likely = "likely";
-  static constexpr const char* glsl_texture_store = "glsl_texture_store";
   static constexpr const char* prefetch = "prefetch";
   static constexpr const char* isnan = "isnan";
   static constexpr const char* isfinite = "isfinite";
