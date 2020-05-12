@@ -188,7 +188,7 @@ class VarNode : public ExprNode {
     hash_reduce.FreeVarHashImpl(this);
   }
 
-  TVM_DLL static Var make(std::string name_hint, Type type_annotation);
+  TVM_DLL static Var make(String name_hint, Type type_annotation);
 
   TVM_DLL static Var make(Id vid, Type type_annotation);
 
@@ -203,7 +203,7 @@ class Var : public Expr {
    * \param name_hint The name hint of a variable.
    * \param type_annotation The type annotation of a variable.
    */
-  TVM_DLL Var(std::string name_hint, Type type_annotation) : Var(Id(name_hint), type_annotation) {}
+  TVM_DLL Var(String name_hint, Type type_annotation) : Var(Id(name_hint), type_annotation) {}
 
   /*!
    * \brief The constructor
