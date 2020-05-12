@@ -24,13 +24,13 @@
 #ifndef NNVM_BASE_H_
 #define NNVM_BASE_H_
 
+#include <dmlc/any.h>
+#include <dmlc/array_view.h>
 #include <dmlc/base.h>
 #include <dmlc/common.h>
-#include <dmlc/any.h>
-#include <dmlc/memory.h>
 #include <dmlc/logging.h>
+#include <dmlc/memory.h>
 #include <dmlc/registry.h>
-#include <dmlc/array_view.h>
 
 namespace nnvm {
 
@@ -52,7 +52,7 @@ enum TypeFlag {
   kFloat16 = 2,
   kUint8 = 3,
   kInt32 = 4,
-  kInt8  = 5,
+  kInt8 = 5,
   kInt64 = 6,
   // kBool = 7,
   // 7 is reserved for kBool, in order to keep consistency with MXNet TypeFlag defined in

@@ -22,10 +22,10 @@
 #ifndef TVM_TE_SCHEDULE_OPERATION_INLINE_H_
 #define TVM_TE_SCHEDULE_OPERATION_INLINE_H_
 
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/tensor.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt.h>
 
 namespace tvm {
 namespace te {
@@ -41,10 +41,7 @@ namespace te {
  *
  * \note All the passes in this file uses SSA form and outputs SSA form.
  */
-Stmt Inline(Stmt stmt,
-            Operation op,
-            Array<Var> args,
-            PrimExpr body);
+Stmt Inline(Stmt stmt, Operation op, Array<Var> args, PrimExpr body);
 
 }  // namespace te
 }  // namespace tvm

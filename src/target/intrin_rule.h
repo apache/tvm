@@ -24,9 +24,9 @@
 #ifndef TVM_TARGET_INTRIN_RULE_H_
 #define TVM_TARGET_INTRIN_RULE_H_
 
-#include <tvm/tir/expr.h>
-#include <tvm/tir/expr.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/expr.h>
+
 #include <string>
 
 namespace tvm {
@@ -49,21 +49,18 @@ struct FloatSuffix {
 
 // Return the intrinsic name
 struct Direct {
-  std::string operator()(DataType t, std::string name) const {
-    return name;
-  }
+  std::string operator()(DataType t, std::string name) const { return name; }
 };
 
 // Call pure extern function.
-template<typename T>
+template <typename T>
 inline void DispatchExtern(const TVMArgs& args, TVMRetValue* rv) {
   PrimExpr e = args[0];
   const CallNode* call = e.as<CallNode>();
   CHECK(call != nullptr);
   std::string name = T()(call->dtype, call->name);
   if (name.length() != 0) {
-    *rv = CallNode::make(
-        call->dtype, name, call->args, CallNode::PureExtern);
+    *rv = CallNode::make(call->dtype, name, call->args, CallNode::PureExtern);
   } else {
     *rv = e;
   }

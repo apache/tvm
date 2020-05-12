@@ -25,9 +25,10 @@
 #define TVM_RELAY_BACKEND_CONTRIB_CODEGEN_C_CODEGEN_C_H_
 
 #include <tvm/relay/expr.h>
-#include <tvm/relay/op.h>
 #include <tvm/relay/function.h>
+#include <tvm/relay/op.h>
 #include <tvm/runtime/container.h>
+
 #include <sstream>
 #include <string>
 #include <utility>
@@ -69,8 +70,7 @@ class CSourceModuleCodegenBase {
    * \return An external symbol.
    */
   std::string GetExtSymbol(const Function& func) const {
-    const auto name_node =
-        func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
     CHECK(name_node.defined()) << "Fail to retrieve external symbol.";
     return std::string(name_node.value());
   }
@@ -124,8 +124,7 @@ class CodegenCBase {
    *
    * \endcode
    */
-  void GenerateBackendCFunc(const std::string& func_name,
-                            const Array<Var>& args,
+  void GenerateBackendCFunc(const std::string& func_name, const Array<Var>& args,
                             const Output& out) {
     // Print signature
     code_stream_ << "\n";
@@ -158,8 +157,8 @@ class CodegenCBase {
     code_stream_ << "}\n\n";
 
     // Generate the macro
-    code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(" << func_name << ", "
-                 << func_name << "_wrapper_);\n\n";
+    code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(" << func_name << ", " << func_name
+                 << "_wrapper_);\n\n";
   }
 
   /*!
@@ -187,8 +186,7 @@ class CodegenCBase {
    */
   std::string JitImpl(const std::string& ext_func_id, const Array<Var>& args,
                       const std::vector<std::string>& buf_decl,
-                      const std::vector<std::string>& body,
-                      const std::vector<Output>& out) {
+                      const std::vector<std::string>& body, const std::vector<Output>& out) {
     // Create the signature. For example, it could be:
     // extern "C" void dnnl_0_(float* input0, float* input1, float* out, int M, int N) {}
     code_stream_ << "extern \"C\" void " << ext_func_id << "_(";

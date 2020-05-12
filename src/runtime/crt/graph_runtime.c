@@ -22,26 +22,29 @@
  * \brief implement graph runtime in pure C
  */
 
+#include "graph_runtime.h"
+
 #include <tvm/runtime/crt/memory.h>
 
 #include "logging.h"
-#include "graph_runtime.h"
 
 #ifndef MAX
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #endif  // MAX
 
-uint32_t Shape_Accumulate(int64_t * shape, uint32_t ndim) {
+uint32_t Shape_Accumulate(int64_t* shape, uint32_t ndim) {
   int64_t accum = 1;
   uint32_t idx;
   for (idx = 0; idx < ndim; idx++) {
-    if (shape[idx] == 0) { break; }
+    if (shape[idx] == 0) {
+      break;
+    }
     accum *= shape[idx];
   }
   return accum;
 }
 
-int NodeEntry_Load(TVMGraphRuntimeNodeEntry * entry, JSONReader * reader) {
+int NodeEntry_Load(TVMGraphRuntimeNodeEntry* entry, JSONReader* reader) {
   int status = 0;
   reader->BeginArray(reader);
   if (!(reader->NextArrayItem(reader))) {
@@ -66,8 +69,8 @@ int NodeEntry_Load(TVMGraphRuntimeNodeEntry * entry, JSONReader * reader) {
   return status;
 }
 
-void TVMGraphRuntimeNode_LoadAttrs(TVMGraphRuntimeNode * node, JSONReader *reader,
-                                              TVMOpParam* param) {
+void TVMGraphRuntimeNode_LoadAttrs(TVMGraphRuntimeNode* node, JSONReader* reader,
+                                   TVMOpParam* param) {
   int bitmask = 0;
   char key[20], value[120];
   memset(param, 0, sizeof(TVMOpParam));
@@ -92,10 +95,12 @@ void TVMGraphRuntimeNode_LoadAttrs(TVMGraphRuntimeNode * node, JSONReader *reade
       fprintf(stderr, "do not support key %s", key);
     }
   }
-  if (bitmask != (1|2|4|8)) { fprintf(stderr, "invalid format\n"); }
+  if (bitmask != (1 | 2 | 4 | 8)) {
+    fprintf(stderr, "invalid format\n");
+  }
 }
 
-int TVMGraphRuntimeNode_Load(TVMGraphRuntimeNode * node, JSONReader *reader) {
+int TVMGraphRuntimeNode_Load(TVMGraphRuntimeNode* node, JSONReader* reader) {
   int status = 0;
   reader->BeginObject(reader);
   int bitmask = 0;
@@ -111,8 +116,8 @@ int TVMGraphRuntimeNode_Load(TVMGraphRuntimeNode * node, JSONReader *reader) {
       size_t count = node->inputs_count;
       reader->BeginArray(reader);
       while (reader->NextArrayItem(reader)) {
-        node->inputs = vrealloc(node->inputs, sizeof(TVMGraphRuntimeNodeEntry)*(count+1));
-        TVMGraphRuntimeNodeEntry * inputs = node->inputs + count;
+        node->inputs = vrealloc(node->inputs, sizeof(TVMGraphRuntimeNodeEntry) * (count + 1));
+        TVMGraphRuntimeNodeEntry* inputs = node->inputs + count;
         reader->BeginArray(reader);
         if (!reader->NextArrayItem(reader)) {
           fprintf(stderr, "invalid json format\n");
@@ -152,9 +157,11 @@ int TVMGraphRuntimeNode_Load(TVMGraphRuntimeNode * node, JSONReader *reader) {
       fprintf(stderr, "do not support key %s", key);
       status = -1;
     }
-    if (status != 0) { break; }
+    if (status != 0) {
+      break;
+    }
   }
-  if (bitmask != (1|2|4)) {
+  if (bitmask != (1 | 2 | 4)) {
     fprintf(stderr, "invalid format\n");
     status = -1;
   }
@@ -169,15 +176,17 @@ TVMGraphRuntimeNode TVMGraphRuntimeNodeCreate() {
   return node;
 }
 
-void TVMGraphRuntimeNodeRelease(TVMGraphRuntimeNode * node) {
-  if (!node) { return; }
+void TVMGraphRuntimeNodeRelease(TVMGraphRuntimeNode* node) {
+  if (!node) {
+    return;
+  }
   if (node->inputs) {
     vfree(node->inputs);
     node->inputs = 0;
   }
 }
 
-int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *reader) {
+int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* reader) {
   int status = 0;
   int bitmask = 0;
   char key[16], type[16];
@@ -211,7 +220,8 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *r
         reader->ReadString(reader, attr->dltype + dltype_count * TVM_CRT_STRLEN_DLTYPE);
         dltype_count++;
       }
-      attr->dltype_count = dltype_count;;
+      attr->dltype_count = dltype_count;
+
       if (reader->NextArrayItem(reader)) {
         fprintf(stderr, "Invalid json format\n");
         status = -1;
@@ -238,7 +248,7 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *r
       }
       reader->BeginArray(reader);
       while (reader->NextArrayItem(reader)) {
-        attr->storage_id = vrealloc(attr->storage_id, sizeof(uint32_t)*(storage_id_count+1));
+        attr->storage_id = vrealloc(attr->storage_id, sizeof(uint32_t) * (storage_id_count + 1));
         reader->ReadUnsignedInteger(reader, &(attr->storage_id[storage_id_count]));
         storage_id_count++;
       }
@@ -269,10 +279,10 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *r
       reader->BeginArray(reader);
       while (reader->NextArrayItem(reader)) {
         attr->shape =
-          vrealloc(attr->shape, sizeof(attr->shape[0])*(shape_count+1)*TVM_CRT_MAX_NDIM);
-        attr->ndim = vrealloc(attr->ndim, sizeof(attr->ndim[0])*(shape_count+1));
+            vrealloc(attr->shape, sizeof(attr->shape[0]) * (shape_count + 1) * TVM_CRT_MAX_NDIM);
+        attr->ndim = vrealloc(attr->ndim, sizeof(attr->ndim[0]) * (shape_count + 1));
         reader->BeginArray(reader);
-        int64_t * attr_shape_ptr = attr->shape + shape_count*TVM_CRT_MAX_NDIM;
+        int64_t* attr_shape_ptr = attr->shape + shape_count * TVM_CRT_MAX_NDIM;
         reader->ReadInteger(reader, attr_shape_ptr + 0);
         uint32_t ndim = 1;
         if (reader->NextArrayItem(reader)) {
@@ -316,7 +326,8 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *r
         break;
       }
       while (reader->NextArrayItem(reader)) {
-        attr->device_index = vrealloc(attr->device_index, sizeof(uint32_t)*(device_index_count+1));
+        attr->device_index =
+            vrealloc(attr->device_index, sizeof(uint32_t) * (device_index_count + 1));
         reader->ReadUnsignedInteger(reader, &(attr->device_index[device_index_count]));
         device_index_count++;
       }
@@ -339,7 +350,7 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *r
           status = -1;
           break;
         }
-        uint32_t * temp = 0;
+        uint32_t* temp = 0;
         uint32_t temp_count = 0;
         reader->BeginArray(reader);
         while (reader->NextArrayItem(reader)) {
@@ -371,15 +382,17 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *r
       }
     }
   }
-  if (bitmask != (1|2|4)) {
+  if (bitmask != (1 | 2 | 4)) {
     fprintf(stderr, "invalid format\n");
     status = -1;
   }
   return status;
 }
 
-void TVMGraphRuntimeGraphAttr_Release(TVMGraphRuntimeGraphAttr * attr) {
-  if (!attr) { return; }
+void TVMGraphRuntimeGraphAttr_Release(TVMGraphRuntimeGraphAttr* attr) {
+  if (!attr) {
+    return;
+  }
   if (attr->storage_id) {
     vfree(attr->storage_id);
     attr->storage_id = 0;
@@ -402,90 +415,90 @@ void TVMGraphRuntimeGraphAttr_Release(TVMGraphRuntimeGraphAttr * attr) {
   }
 }
 
-int TVMGraphRuntime_Load(TVMGraphRuntime * runtime, JSONReader *reader) {
-    int status = 0;
-    reader->BeginObject(reader);
-    int bitmask = 0;
-    char key[20];
-    while (reader->NextObjectItem(reader, key)) {
-      if (!strcmp(key, "nodes")) {
-        reader->BeginArray(reader);
-        while (reader->NextArrayItem(reader)) {
-          runtime->nodes =
+int TVMGraphRuntime_Load(TVMGraphRuntime* runtime, JSONReader* reader) {
+  int status = 0;
+  reader->BeginObject(reader);
+  int bitmask = 0;
+  char key[20];
+  while (reader->NextObjectItem(reader, key)) {
+    if (!strcmp(key, "nodes")) {
+      reader->BeginArray(reader);
+      while (reader->NextArrayItem(reader)) {
+        runtime->nodes =
             vrealloc(runtime->nodes, sizeof(TVMGraphRuntimeNode) * (runtime->nodes_count + 1));
-          TVMGraphRuntimeNode * node = runtime->nodes + runtime->nodes_count;
-          status = TVMGraphRuntimeNode_Load(node, reader);
-          if (status != 0) {
-            fprintf(stderr, "failed to load an element in `nodes` field in graph runtime node.\n");
-            break;
+        TVMGraphRuntimeNode* node = runtime->nodes + runtime->nodes_count;
+        status = TVMGraphRuntimeNode_Load(node, reader);
+        if (status != 0) {
+          fprintf(stderr, "failed to load an element in `nodes` field in graph runtime node.\n");
+          break;
 #if TVM_CRT_DEBUG
-          } else {
-            printf("loading: node (%u) %s loaded.\n", runtime->nodes_count, node->name);
+        } else {
+          printf("loading: node (%u) %s loaded.\n", runtime->nodes_count, node->name);
 #endif  // TVM_CRT_DEBUG
-          }
-          runtime->nodes_count++;
         }
-        bitmask |= 1;
-      } else if (!strcmp(key, "arg_nodes")) {
-        reader->BeginArray(reader);
-        while (reader->NextArrayItem(reader)) {
-          runtime->input_nodes =
+        runtime->nodes_count++;
+      }
+      bitmask |= 1;
+    } else if (!strcmp(key, "arg_nodes")) {
+      reader->BeginArray(reader);
+      while (reader->NextArrayItem(reader)) {
+        runtime->input_nodes =
             vrealloc(runtime->input_nodes, sizeof(uint32_t) * (runtime->input_nodes_count + 1));
-          uint32_t * node = runtime->input_nodes + runtime->input_nodes_count;
-          reader->ReadUnsignedInteger(reader, node);
-          runtime->input_nodes_count++;
-        }
-        bitmask |= 2;
-      } else if (!strcmp(key, "node_row_ptr")) {
-        reader->BeginArray(reader);
-        while (reader->NextArrayItem(reader)) {
-          runtime->node_row_ptr =
+        uint32_t* node = runtime->input_nodes + runtime->input_nodes_count;
+        reader->ReadUnsignedInteger(reader, node);
+        runtime->input_nodes_count++;
+      }
+      bitmask |= 2;
+    } else if (!strcmp(key, "node_row_ptr")) {
+      reader->BeginArray(reader);
+      while (reader->NextArrayItem(reader)) {
+        runtime->node_row_ptr =
             vrealloc(runtime->node_row_ptr, sizeof(uint32_t) * (runtime->node_row_ptr_count + 1));
-          uint32_t count = runtime->node_row_ptr_count;
-          uint32_t * node = runtime->node_row_ptr + count;
-          reader->ReadUnsignedInteger(reader, node);
-          runtime->node_row_ptr_count++;
-        }
-        bitmask |= 4;
-      } else if (!strcmp(key, "heads")) {
-        reader->BeginArray(reader);
-        while (reader->NextArrayItem(reader)) {
-          runtime->outputs =
-            vrealloc(runtime->outputs,
-                     sizeof(TVMGraphRuntimeNodeEntry) * (runtime->outputs_count + 1));
-          TVMGraphRuntimeNodeEntry * entry = runtime->outputs + runtime->outputs_count;
-          status = NodeEntry_Load(entry, reader);
-          if (status != 0) {
-            fprintf(stderr, "Fail to load an element in `heads` field in graph runtime node.\n");
-            break;
-          }
-          runtime->outputs_count++;
-        }
-        bitmask |= 8;
-      } else if (!strcmp(key, "attrs")) {
-        status = TVMGraphRuntimeGraphAttr_Load(&(runtime->attrs), reader);
+        uint32_t count = runtime->node_row_ptr_count;
+        uint32_t* node = runtime->node_row_ptr + count;
+        reader->ReadUnsignedInteger(reader, node);
+        runtime->node_row_ptr_count++;
+      }
+      bitmask |= 4;
+    } else if (!strcmp(key, "heads")) {
+      reader->BeginArray(reader);
+      while (reader->NextArrayItem(reader)) {
+        runtime->outputs = vrealloc(
+            runtime->outputs, sizeof(TVMGraphRuntimeNodeEntry) * (runtime->outputs_count + 1));
+        TVMGraphRuntimeNodeEntry* entry = runtime->outputs + runtime->outputs_count;
+        status = NodeEntry_Load(entry, reader);
         if (status != 0) {
           fprintf(stderr, "Fail to load an element in `heads` field in graph runtime node.\n");
           break;
         }
-        bitmask |= 16;
-      } else if (!strcmp(key, "metadata")) {
-        break;
-      } else {
-        fprintf(stderr, "key %s is not supported\n", key);
-        status = -1;
+        runtime->outputs_count++;
       }
-      if (status != 0) { break; }
+      bitmask |= 8;
+    } else if (!strcmp(key, "attrs")) {
+      status = TVMGraphRuntimeGraphAttr_Load(&(runtime->attrs), reader);
+      if (status != 0) {
+        fprintf(stderr, "Fail to load an element in `heads` field in graph runtime node.\n");
+        break;
+      }
+      bitmask |= 16;
+    } else if (!strcmp(key, "metadata")) {
+      break;
+    } else {
+      fprintf(stderr, "key %s is not supported\n", key);
+      status = -1;
     }
-    if (!(bitmask == (1|2|4|8|16))) {
-        fprintf(stderr, "invalid format\n");
-        status = -1;
+    if (status != 0) {
+      break;
     }
-    return status;
+  }
+  if (!(bitmask == (1 | 2 | 4 | 8 | 16))) {
+    fprintf(stderr, "invalid format\n");
+    status = -1;
+  }
+  return status;
 }
 
-uint32_t TVMGraphRuntime_GetEntryId(TVMGraphRuntime * runtime,
-                                                  uint32_t nid, uint32_t index) {
+uint32_t TVMGraphRuntime_GetEntryId(TVMGraphRuntime* runtime, uint32_t nid, uint32_t index) {
   return runtime->node_row_ptr[nid] + index;
 }
 
@@ -495,10 +508,10 @@ uint32_t TVMGraphRuntime_GetEntryId(TVMGraphRuntime * runtime,
  * \param name The name of the input.
  * \return The index of input.
  */
-int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime * runtime, const char * name) {
+int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name) {
   uint32_t i;
   int32_t rv = -1;
-  for (i = 0; i< runtime->input_nodes_count; ++i) {
+  for (i = 0; i < runtime->input_nodes_count; ++i) {
     uint32_t nid = runtime->input_nodes[i];
     if (!strcmp(runtime->nodes[nid].name, name)) {
       rv = i;
@@ -515,7 +528,7 @@ int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime * runtime, const char * name) 
  * \param name The name of the input.
  * \param data_in The input data.
  */
-void TVMGraphRuntime_SetInput(TVMGraphRuntime * runtime, const char * name, DLTensor* data_in) {
+void TVMGraphRuntime_SetInput(TVMGraphRuntime* runtime, const char* name, DLTensor* data_in) {
   uint32_t index = runtime->GetInputIndex(runtime, name);
   if (index >= runtime->input_nodes_count) {
     fprintf(stderr, "given index is greater than num of input nodes.\n");
@@ -531,10 +544,10 @@ void TVMGraphRuntime_SetInput(TVMGraphRuntime * runtime, const char * name, DLTe
  * \param param_size The parameter size.
  * \return The result of this function execution.
  */
-int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blob,
+int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
                                const uint32_t param_size) {
   int status = 0;
-  const char * bptr = param_blob;
+  const char* bptr = param_blob;
   uint64_t header, reserved;
   header = ((uint64_t*)bptr)[0];  // NOLINT(*)
   bptr += sizeof(header);
@@ -546,7 +559,7 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blo
   bptr += sizeof(reserved);
 
   // read names
-  char * names = vmalloc(TVM_CRT_STRLEN_NAME * runtime->nodes_count);
+  char* names = vmalloc(TVM_CRT_STRLEN_NAME * runtime->nodes_count);
   memset(names, 0, TVM_CRT_STRLEN_NAME * runtime->nodes_count);
   uint64_t names_count;
   int idx;
@@ -576,12 +589,12 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blo
 
   for (idx = 0; idx < size; idx++) {
     int32_t in_idx = runtime->GetInputIndex(runtime, names + TVM_CRT_STRLEN_NAME * idx);
-    CHECK_GT(in_idx, 0,
-             "Found param for non-existent input: %s\n", names + TVM_CRT_STRLEN_NAME * idx);
+    CHECK_GT(in_idx, 0, "Found param for non-existent input: %s\n",
+             names + TVM_CRT_STRLEN_NAME * idx);
     uint32_t eid = runtime->GetEntryId(runtime, runtime->input_nodes[in_idx], 0);
     if (!(eid < runtime->data_entry_count)) {
-      fprintf(stderr, "`entry_id`=%d is greater than expected(%d).\n",
-              eid, runtime->data_entry_count);
+      fprintf(stderr, "`entry_id`=%d is greater than expected(%d).\n", eid,
+              runtime->data_entry_count);
       status = -1;
     }
 
@@ -595,11 +608,11 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blo
     }
     status |= TVMNDArray_Load(&(runtime->data_entry[eid]), &bptr);
 #if TVM_CRT_DEBUG
-    TVMNDArray * entry = &(runtime->data_entry[eid]);
+    TVMNDArray* entry = &(runtime->data_entry[eid]);
     printf("loading: param %s loaded, in_idx=%d, eid=%d, ndim=%d, data[0]=%f\n",
            names + TVM_CRT_STRLEN_NAME * idx, in_idx, eid, entry->dl_tensor.ndim,
            ((float*)entry->dl_tensor.data)[0]);  // NOLINT(*)
-#endif  // TVM_CRT_DEBUG
+#endif                                           // TVM_CRT_DEBUG
   }
 
   // Release memory
@@ -612,7 +625,7 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blo
  * \brief Run all the operations one by one.
  * \param runtime The graph runtime.
  */
-void TVMGraphRuntime_Run(TVMGraphRuntime * runtime) {
+void TVMGraphRuntime_Run(TVMGraphRuntime* runtime) {
   // setup the array and requirements.
   uint32_t idx;
   for (idx = 0; idx < runtime->op_execs_count; ++idx) {
@@ -625,7 +638,7 @@ void TVMGraphRuntime_Run(TVMGraphRuntime * runtime) {
   }
 }
 
-int TVMGraphRuntime_GetOutput(TVMGraphRuntime * runtime, const int32_t idx, DLTensor * out) {
+int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t idx, DLTensor* out) {
   int status = 0;
   uint32_t nid = runtime->outputs[idx].node_id;
   uint32_t index = runtime->outputs[idx].index;
@@ -634,7 +647,7 @@ int TVMGraphRuntime_GetOutput(TVMGraphRuntime * runtime, const int32_t idx, DLTe
   // copy data section to allocated output tensor
   int32_t elem_bytes = out->dtype.bits / 8;
   int64_t size = Shape_Accumulate(out->shape, out->ndim);
-  DLTensor * tensor = &(runtime->data_entry[eid].dl_tensor);
+  DLTensor* tensor = &(runtime->data_entry[eid].dl_tensor);
   CHECK(out->ndim == tensor->ndim);
   CHECK(out->dtype.bits == tensor->dtype.bits);
   CHECK(Shape_Accumulate(out->shape, out->ndim) == Shape_Accumulate(tensor->shape, tensor->ndim));
@@ -642,27 +655,27 @@ int TVMGraphRuntime_GetOutput(TVMGraphRuntime * runtime, const int32_t idx, DLTe
   return status;
 }
 
-void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
+void TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
   uint32_t idx;
 
   // Grab saved optimization plan from graph.
-  TVMGraphRuntimeGraphAttr * attrs = &(runtime->attrs);
-  DLDataType * vtype = vmalloc(sizeof(DLDataType) * attrs->dltype_count);
+  TVMGraphRuntimeGraphAttr* attrs = &(runtime->attrs);
+  DLDataType* vtype = vmalloc(sizeof(DLDataType) * attrs->dltype_count);
   for (idx = 0; idx < attrs->dltype_count; idx++) {
     vtype[idx] = String2DLDataType(attrs->dltype + idx * TVM_CRT_STRLEN_DLTYPE);
   }
 
   // Size and device type of each storage pool entry.
-  TVMGraphRuntimePoolEntry * pool_entry =
-    vmalloc(sizeof(TVMGraphRuntimePoolEntry) * runtime->nodes_count);
+  TVMGraphRuntimePoolEntry* pool_entry =
+      vmalloc(sizeof(TVMGraphRuntimePoolEntry) * runtime->nodes_count);
   memset(pool_entry, 0, sizeof(TVMGraphRuntimePoolEntry) * runtime->nodes_count);
-  uint32_t  pool_entry_count = 0;
+  uint32_t pool_entry_count = 0;
   // Find the maximum space size.
   for (idx = 0; idx < attrs->shape_count; idx++) {
     int storage_id = attrs->storage_id[idx];
     // Use the fallback device if no device index is available.
     int device_type = runtime->ctxs[0].device_type;
-    uint32_t size = Shape_Accumulate(attrs->shape+idx*TVM_CRT_MAX_NDIM, attrs->ndim[idx]);
+    uint32_t size = Shape_Accumulate(attrs->shape + idx * TVM_CRT_MAX_NDIM, attrs->ndim[idx]);
     DLDataType t = vtype[idx];
     uint32_t bits = t.bits * t.lanes;
     size_t bytes = ((bits + 7U) / 8U) * size;
@@ -678,9 +691,11 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
   // Allocate the space.
   for (idx = 0; idx < pool_entry_count; idx++) {
     runtime->storage_pool =
-      vrealloc(runtime->storage_pool, sizeof(TVMNDArray) * (runtime->storage_pool_count + 1));
+        vrealloc(runtime->storage_pool, sizeof(TVMNDArray) * (runtime->storage_pool_count + 1));
     TVMGraphRuntimePoolEntry pit = pool_entry[idx];
-    int64_t shape[TVM_CRT_MAX_NDIM] = {0, };
+    int64_t shape[TVM_CRT_MAX_NDIM] = {
+        0,
+    };
     TVMContext ctx = runtime->ctxs[0];
     DLDataType dtype = {kDLFloat, 32, 1};
     shape[0] = (pit.size + 3) / 4;
@@ -699,8 +714,8 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
     uint32_t storage_id = attrs->storage_id[idx];
     CHECK(storage_id < runtime->storage_pool_count);
     runtime->data_entry[idx] =
-      TVMNDArray_CreateView(&(runtime->storage_pool[storage_id]),
-                         attrs->shape+idx*TVM_CRT_MAX_NDIM, attrs->ndim[idx], vtype[idx]);
+        TVMNDArray_CreateView(&(runtime->storage_pool[storage_id]),
+                              attrs->shape + idx * TVM_CRT_MAX_NDIM, attrs->ndim[idx], vtype[idx]);
     CHECK_NE(runtime->data_entry[idx].dl_tensor.data, 0,
              "fail to create for node with idx=%d, storage_id=%u\n", idx, storage_id);
   }
@@ -710,18 +725,18 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
   vfree(pool_entry);
 }
 
-int TVMGraphRuntime_SetupOpExecs(TVMGraphRuntime * runtime) {
+int TVMGraphRuntime_SetupOpExecs(TVMGraphRuntime* runtime) {
   int status = 0;
   uint32_t nid, idx;
   runtime->op_execs_count = runtime->nodes_count;
   runtime->op_execs = vmalloc(sizeof(TVMPackedFunc) * runtime->op_execs_count);
   for (nid = 0; nid < runtime->nodes_count; nid++) {
-    const TVMGraphRuntimeNode * inode = runtime->nodes + nid;
+    const TVMGraphRuntimeNode* inode = runtime->nodes + nid;
     if (strcmp(inode->op_type, "null")) {
       DLTensorPtr args[TVM_CRT_MAX_ARGS];
       uint32_t args_count = 0;
       for (idx = 0; idx < inode->inputs_count; idx++) {
-        const TVMGraphRuntimeNodeEntry * entry = inode->inputs + idx;
+        const TVMGraphRuntimeNodeEntry* entry = inode->inputs + idx;
         uint32_t eid = runtime->GetEntryId(runtime, entry->node_id, entry->index);
         args[idx] = &(runtime->data_entry[eid].dl_tensor);
         args_count++;
@@ -760,13 +775,13 @@ typedef struct TVMOpArgs {
   uint32_t arg_values_count;
   uint32_t arg_tcodes[TVM_CRT_MAX_ARGS];
   uint32_t arg_tcodes_count;
-  int64_t  shape_data[TVM_CRT_MAX_ARGS];
+  int64_t shape_data[TVM_CRT_MAX_ARGS];
   uint32_t shape_data_count;
 } TVMOpArgs;
 
-int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime * runtime, const TVMOpParam * param,
-                                    DLTensorPtr * args, const uint32_t args_count,
-                                    uint32_t num_inputs, TVMPackedFunc * pf) {
+int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime* runtime, const TVMOpParam* param,
+                                    DLTensorPtr* args, const uint32_t args_count,
+                                    uint32_t num_inputs, TVMPackedFunc* pf) {
   int status = 0;
   uint32_t idx;
   TVMOpArgs arg_ptr;
@@ -778,7 +793,7 @@ int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime * runtime, const TVMOpParam 
   for (idx = 0; idx < arg_ptr.args_count; ++idx) {
     TVMValue v;
     memset(&v, 0, sizeof(v));
-    DLTensor * t = &(arg_ptr.args[idx]);
+    DLTensor* t = &(arg_ptr.args[idx]);
     /* v.v_handle = &((*args)[idx]); */
     v.v_handle = args[idx];
     arg_ptr.arg_values[idx] = v;
@@ -811,19 +826,19 @@ int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime * runtime, const TVMOpParam 
  * \param ctxs The context of the host and devices where graph nodes will be
  * executed on.
  */
-void TVMGraphRuntime_Init(TVMGraphRuntime * runtime, const char * graph_json,
-                          const TVMModule * module, const TVMContext * ctxs) {
+void TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json, const TVMModule* module,
+                          const TVMContext* ctxs) {
   JSONReader reader = JSONReader_Create(graph_json);
   runtime->Load(runtime, &reader);
+  JSONReader_Release(&reader);
   runtime->ctxs[0] = ctxs[0];
   runtime->SetupStorage(runtime);
   runtime->SetupOpExecs(runtime);
-  JSONReader_Release(&reader);
 }
 
-TVMGraphRuntime * TVMGraphRuntimeCreate(const char * sym_json,
-                                        const TVMModule * m, const TVMContext * ctxs) {
-  TVMGraphRuntime * runtime = (TVMGraphRuntime*)vmalloc(sizeof(TVMGraphRuntime));  // NOLINT(*)
+TVMGraphRuntime* TVMGraphRuntimeCreate(const char* sym_json, const TVMModule* m,
+                                       const TVMContext* ctxs) {
+  TVMGraphRuntime* runtime = (TVMGraphRuntime*)vmalloc(sizeof(TVMGraphRuntime));  // NOLINT(*)
   memset(runtime, 0, sizeof(TVMGraphRuntime));
   runtime->GetEntryId = TVMGraphRuntime_GetEntryId;
   runtime->GetInputIndex = TVMGraphRuntime_GetInputIndex;
@@ -842,9 +857,9 @@ TVMGraphRuntime * TVMGraphRuntimeCreate(const char * sym_json,
   return runtime;
 }
 
-void TVMGraphRuntimeRelease(TVMGraphRuntime ** pptr) {
+void TVMGraphRuntimeRelease(TVMGraphRuntime** pptr) {
   int32_t idx;
-  TVMGraphRuntime * runtime = *pptr;
+  TVMGraphRuntime* runtime = *pptr;
   for (idx = 0; idx < runtime->nodes_count; ++idx) {
     TVMGraphRuntimeNodeRelease(&(runtime->nodes[idx]));
   }

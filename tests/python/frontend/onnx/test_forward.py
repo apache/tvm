@@ -1598,6 +1598,17 @@ def test_single_ops():
     verify_single_ops("Exp", x, np.exp(x))
     verify_single_ops("Log", x, np.log(x))
     verify_single_ops("Log", x, np.log(x))
+    verify_single_ops("ACos", x, np.arccos(x))
+    verify_single_ops("ACosh", x, np.arccosh(x))
+    verify_single_ops("ASin", x, np.arcsin(x))
+    verify_single_ops("ASinh", x, np.arcsinh(x))
+    verify_single_ops("ATan", x, np.arctan(x))
+    verify_single_ops("ATanh", x, np.arctanh(x))
+    verify_single_ops("Cos", x, np.cos(x))
+    verify_single_ops("Cosh", x, np.cosh(x))
+    verify_single_ops("Sin", x, np.sin(x))
+    verify_single_ops("Sinh", x, np.sinh(x))
+    verify_single_ops("Tan", x, np.tan(x))
     verify_single_ops("Tanh", x, np.tanh(x))
     verify_single_ops("Sigmoid", x, 1 / (1 + np.exp(-x)))
     verify_single_ops("Softsign", x, x / (1 + np.abs(x)))
@@ -2028,8 +2039,18 @@ def test_or():
     verify_or(indata=[x, y], dtype=bool)
 
 
-def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilations, auto_pad="NOTSET"):
-    if padding is None:
+def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilations, auto_pad="NOTSET", unset_pad=False):
+    if unset_pad:
+        node = helper.make_node('Conv',
+                                inputs=['x', 'W'],
+                                outputs=['y'],
+                                kernel_shape=kernel_shape,
+                                # Default values for other attributes:
+                                strides=strides,
+                                dilations=dilations,
+                                # groups=1
+                                )
+    elif padding is None:
         node = helper.make_node('Conv',
                                 inputs=['x', 'W'],
                                 outputs=['y'],
@@ -2095,6 +2116,15 @@ def test_conv():
                     repeat(1, D),
                     repeat(1, D),
                     auto_pad="SAME_UPPER")
+        # Convolution with unset padding
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(3, D),
+                    2 * repeat(0, D),
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(1, D),
+                    True)
         # Convolution with non uniform stride
         verify_conv((1, 1) + repeat(5, D),
                     (1, 1) + repeat(3, D),

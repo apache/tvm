@@ -325,7 +325,6 @@ class Conv(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         # Use shape of input to determine convolution type.
         input_shape = infer_shape(inputs[0])
-
         if 'auto_pad' in attr:
             attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
             if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
@@ -350,7 +349,10 @@ class Conv(OnnxOpConverter):
             attr.pop('auto_pad')
         elif len(attr['kernel_shape']) == 2:
             sym_pad = True
-            padding = attr['pads']
+            if 'pads' in attr:
+                padding = attr['pads']
+            else:
+                padding = [0, 0, 0, 0]
             for i in range(0, len(padding), 2):
                 sym_pad = sym_pad and padding[i] == padding[i + 1]
 
@@ -1625,6 +1627,17 @@ def _get_convert_map(opset):
         'Greater': Greater.get_converter(opset),
         'Less': Less.get_converter(opset),
         'Log': Renamer('log'),
+        'ACos': Renamer('acos'),
+        'ACosh': Renamer('acosh'),
+        'ASin': Renamer('asin'),
+        'ASinh': Renamer('asinh'),
+        'ATan': Renamer('atan'),
+        'ATanh': Renamer('atanh'),
+        'Cos': Renamer('cos'),
+        'Cosh': Renamer('cosh'),
+        'Sin': Renamer('sin'),
+        'Sinh': Renamer('sinh'),
+        'Tan': Renamer('tan'),
         'Tanh': Renamer('tanh'),
         'Pow': Renamer('power'),
         'PRelu': Prelu.get_converter(opset),

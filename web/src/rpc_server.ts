@@ -19,8 +19,9 @@
 
 import { SizeOf, TypeCode } from "./ctypes";
 import { assert, StringToUint8Array, Uint8ArrayToString } from "./support";
+import { detectGPUDevice } from "./webgpu";
+import * as compact from "./compact";
 import * as runtime from "./runtime";
-import { Class } from "estree";
 
 enum RPCServerState {
   InitHeader,
@@ -79,6 +80,7 @@ export class RPCServer {
   state: RPCServerState = RPCServerState.InitHeader;
   logger: (msg: string) => void;
   getImports: () => Record<string, unknown>;
+  private pendingSend: Promise<void> = Promise.resolve();
   private name: string;
   private inst?: runtime.Instance = undefined;
   private serverRecvData?: (header: Uint8Array, body: Uint8Array) => void;
@@ -102,16 +104,7 @@ export class RPCServer {
     this.logger = logger;
 
     this.checkLittleEndian();
-
-    if (typeof WebSocket == "undefined") {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const WebSocket = require("ws");
-      this.socket = new WebSocket(url);
-    } else {
-      this.socket = new (WebSocket as any)(url);
-    }
-
-    //this.socket = this.getSocket(url);
+    this.socket = compact.createWebSocket(url);
     this.socket.binaryType = "arraybuffer";
 
     this.socket.addEventListener("open", (event: Event) => {
@@ -132,6 +125,8 @@ export class RPCServer {
     }
     if (this.state == RPCServerState.ReceivePacketHeader) {
       this.log("Closing the server in clean state");
+      this.log("Automatic reconnecting..");
+      new RPCServer(this.url, this.key, this.getImports, this.logger);
     } else {
       this.log("Closing the server, final state=" + this.state);
     }
@@ -247,11 +242,26 @@ export class RPCServer {
   ): void {
     // start the server
     assert(args[0] == "rpc.WasmSession");
-    assert(args[1] instanceof Uint8Array);
     assert(this.pendingBytes == 0);
 
-    runtime.instantiate(args[1].buffer, this.getImports())
-    .then((inst: runtime.Instance) => {
+    const asyncInitServer = async (): Promise<void> => {
+      assert(args[1] instanceof Uint8Array);
+      const inst = await runtime.instantiate(
+        args[1].buffer,
+        this.getImports(),
+        this.logger
+      );
+      try {
+        const gpuDevice: GPUDevice | undefined = await detectGPUDevice();
+        if (gpuDevice !== undefined) {
+          const label = gpuDevice.label?.toString() || "WebGPU";
+          this.log("Initialize GPU device: " + label);
+          inst.initWebGPU(gpuDevice);
+        }
+      } catch (err) {
+        this.log("Cannnot initialize WebGPU, " + err.toString());
+      }
+
       this.inst = inst;
       const fcreate = this.inst.getGlobalFunc("rpc.CreateEventDrivenServer");
 
@@ -259,7 +269,30 @@ export class RPCServer {
         (cbytes: Uint8Array): runtime.Scalar => {
           assert(this.inst !== undefined);
           if (this.socket.readyState == 1) {
-            this.socket.send(cbytes);
+            // WebSocket will automatically close the socket
+            // if we burst send data that exceeds its internal buffer
+            // wait a bit before we send next one.
+            const sendDataWithCongestionControl = async (): Promise<void> => {
+              const packetSize = 4 << 10;
+              const maxBufferAmount = 4 * packetSize;
+              const waitTimeMs = 20;
+              for (
+                let offset = 0;
+                offset < cbytes.length;
+                offset += packetSize
+              ) {
+                const end = Math.min(offset + packetSize, cbytes.length);
+                while (this.socket.bufferedAmount >= maxBufferAmount) {
+                  await new Promise((r) => setTimeout(r, waitTimeMs));
+                }
+                this.socket.send(cbytes.slice(offset, end));
+              }
+            };
+            // Chain up the pending send so that the async send is always in-order.
+            this.pendingSend = this.pendingSend.then(
+              sendDataWithCongestionControl
+            );
+            // Directly return since the data are "sent" from the caller's pov.
             return this.inst.scalar(cbytes.length, "int32");
           } else {
             return this.inst.scalar(0, "int32");
@@ -285,7 +318,7 @@ export class RPCServer {
       // The RPC will look for "rpc.wasmSession"
       // and we will redirect it to the correct local session.
       // register the callback to redirect the session to local.
-      const flocal = this.inst.getGlobalFunc("rpc.LocalSession");
+      const flocal = this.inst.getGlobalFunc("wasm.LocalSession");
       const localSession = flocal();
       flocal.dispose();
       assert(localSession instanceof runtime.Module);
@@ -307,8 +340,10 @@ export class RPCServer {
       this.state = RPCServerState.ReceivePacketHeader;
       // call process events in case there are bufferred data.
       this.processEvents();
-    });
+    };
+
     this.state = RPCServerState.WaitForCallback;
+    asyncInitServer();
   }
 
   private log(msg: string): void {

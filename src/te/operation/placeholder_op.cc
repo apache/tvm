@@ -29,20 +29,16 @@ namespace te {
 
 // PlaceholderOpNode
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<PlaceholderOpNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const PlaceholderOpNode*>(node.get());
-    p->stream << "placeholder(" << op->name << ", " << op << ")";
-});
+    .set_dispatch<PlaceholderOpNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const PlaceholderOpNode*>(node.get());
+      p->stream << "placeholder(" << op->name << ", " << op << ")";
+    });
 
 TVM_REGISTER_NODE_TYPE(PlaceholderOpNode);
 
-int PlaceholderOpNode::num_outputs() const {
-  return 1;
-}
+int PlaceholderOpNode::num_outputs() const { return 1; }
 
-Array<IterVar> PlaceholderOpNode::root_iter_vars() const {
-  return {};
-}
+Array<IterVar> PlaceholderOpNode::root_iter_vars() const { return {}; }
 
 DataType PlaceholderOpNode::output_dtype(size_t i) const {
   CHECK_EQ(i, 0U);
@@ -54,9 +50,7 @@ Array<PrimExpr> PlaceholderOpNode::output_shape(size_t i) const {
   return shape;
 }
 
-Operation PlaceholderOpNode::make(std::string name,
-                                  Array<PrimExpr> shape,
-                                  DataType dtype) {
+Operation PlaceholderOpNode::make(std::string name, Array<PrimExpr> shape, DataType dtype) {
   auto n = make_object<PlaceholderOpNode>();
   n->name = name;
   n->shape = shape;
@@ -69,44 +63,35 @@ Tensor placeholder(Array<PrimExpr> shape, DataType dtype, std::string name) {
 }
 
 TVM_REGISTER_GLOBAL("te.Placeholder")
-.set_body_typed([](Array<PrimExpr> shape, DataType dtype, std::string name) {
-  return placeholder(shape, dtype, name);
-});
+    .set_body_typed([](Array<PrimExpr> shape, DataType dtype, std::string name) {
+      return placeholder(shape, dtype, name);
+    });
 
-Array<Tensor> PlaceholderOpNode::InputTensors() const {
-  return {};
-}
+Array<Tensor> PlaceholderOpNode::InputTensors() const { return {}; }
 
-Operation PlaceholderOpNode::ReplaceInputs(
-    const Operation& self,
-    const std::unordered_map<Tensor, Tensor>& rmap) const {
+Operation PlaceholderOpNode::ReplaceInputs(const Operation& self,
+                                           const std::unordered_map<Tensor, Tensor>& rmap) const {
   return self;
 }
 
 void PlaceholderOpNode::PropBoundToInputs(
-    const Operation& self,
-    arith::Analyzer* analyzer,
+    const Operation& self, arith::Analyzer* analyzer,
     const std::unordered_map<const VarNode*, IntSet>& dom_map,
-    std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
-}
+    std::unordered_map<Tensor, TensorDom>* out_dom_map) const {}
 
-void PlaceholderOpNode::GatherBound(
-    const Operation& self,
-    const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-    std::unordered_map<IterVar, Range>* out_dom_map) const {
-}
+void PlaceholderOpNode::GatherBound(const Operation& self,
+                                    const std::unordered_map<Tensor, TensorDom>& tensor_dom,
+                                    std::unordered_map<IterVar, Range>* out_dom_map) const {}
 
-Stmt PlaceholderOpNode::BuildRealize(
-    const Stage& stage,
-    const std::unordered_map<IterVar, Range>& realize_map,
-    const Stmt& body) const {
+Stmt PlaceholderOpNode::BuildRealize(const Stage& stage,
+                                     const std::unordered_map<IterVar, Range>& realize_map,
+                                     const Stmt& body) const {
   return body;
 }
 
-Stmt PlaceholderOpNode::BuildProvide(
-    const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
-    bool debug_keep_trivial_loop) const {
+Stmt PlaceholderOpNode::BuildProvide(const Stage& stage,
+                                     const std::unordered_map<IterVar, Range>& dom_map,
+                                     bool debug_keep_trivial_loop) const {
   return Stmt();
 }
 }  // namespace te

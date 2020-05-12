@@ -22,13 +22,14 @@
  * \brief QNN concatenate operator. It concatenates quantized input tensors along a given axis.
  */
 
-#include <tvm/tir/expr.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
+#include <tvm/tir/expr.h>
+
 #include "../../op/tensor/transform.h"
-#include "../../transforms/pattern_util.h"
 #include "../../transforms/infer_layout_util.h"
+#include "../../transforms/pattern_util.h"
 #include "../util.h"
 
 namespace tvm {
@@ -42,10 +43,9 @@ bool QnnConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& at
   // Check the scale and zero point types
   const auto* input_scales_tuple = types[1].as<TupleTypeNode>();
   if (input_scales_tuple == nullptr) {
-    throw Error(
-        ErrorBuilder()
-        << "qnn concatenate requires a tuple of scales as the second argument, found "
-        << PrettyPrint(types[1]));
+    throw Error(ErrorBuilder()
+                << "qnn concatenate requires a tuple of scales as the second argument, found "
+                << PrettyPrint(types[1]));
   }
   for (const auto& input_scale : input_scales_tuple->fields) {
     CHECK(IsScalarType(input_scale, DataType::Float(32)));  // input_scales[idx]
@@ -53,10 +53,9 @@ bool QnnConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& at
 
   const auto* input_zero_points_tuple = types[2].as<TupleTypeNode>();
   if (input_zero_points_tuple == nullptr) {
-    throw Error(
-        ErrorBuilder()
-        << "qnn concatenate requires a tuple of zero_points as the third argument, found "
-        << PrettyPrint(types[2]));
+    throw Error(ErrorBuilder()
+                << "qnn concatenate requires a tuple of zero_points as the third argument, found "
+                << PrettyPrint(types[2]));
   }
   for (const auto& input_zero_point : input_zero_points_tuple->fields) {
     CHECK(IsScalarType(input_zero_point, DataType::Int(32)));  // input_zero_points[idx]
@@ -113,9 +112,8 @@ Expr MakeQnnConcatenate(Expr data, Expr input_scales, Expr input_zero_points, Ex
   auto attrs = make_object<ConcatenateAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("qnn.concatenate");
-  return Call(op,
-                        {data, input_scales, input_zero_points, output_scale, output_zero_point},
-                        Attrs(attrs), {});
+  return Call(op, {data, input_scales, input_zero_points, output_scale, output_zero_point},
+              Attrs(attrs), {});
 }
 
 /*
@@ -196,22 +194,23 @@ Expr ConcatenateQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 }
 
 RELAY_REGISTER_OP("qnn.concatenate")
-.describe(R"code(Concatenate the quantized input tensors along the given axis.
+    .describe(R"code(Concatenate the quantized input tensors along the given axis.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<ConcatenateAttrs>()
-.set_num_inputs(5)
-.add_argument("data", "Tensor", "The tensor to concatenate.")
-.add_argument("input_scales", "Tensor", "The quantization scales of the input tensors.")
-.add_argument("input_zero_points", "Tensor", "The quantization zero_points of the input tensors.")
-.add_argument("output_scale", "Tensor", "The quantization scale of the output tensor.")
-.add_argument("output_zero_point", "Tensor", "The quantization zero_point of the output tensor.")
-.set_support_level(11)
-.add_type_rel("QnnConcatenate", QnnConcatenateRel)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", ConcatenateQnnCanonicalize)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnConcatenateLayout);
+    .set_attrs_type<ConcatenateAttrs>()
+    .set_num_inputs(5)
+    .add_argument("data", "Tensor", "The tensor to concatenate.")
+    .add_argument("input_scales", "Tensor", "The quantization scales of the input tensors.")
+    .add_argument("input_zero_points", "Tensor",
+                  "The quantization zero_points of the input tensors.")
+    .add_argument("output_scale", "Tensor", "The quantization scale of the output tensor.")
+    .add_argument("output_zero_point", "Tensor",
+                  "The quantization zero_point of the output tensor.")
+    .set_support_level(11)
+    .add_type_rel("QnnConcatenate", QnnConcatenateRel)
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", ConcatenateQnnCanonicalize)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnConcatenateLayout);
 
-TVM_REGISTER_GLOBAL("relay.qnn.op._make.concatenate")
-.set_body_typed(MakeQnnConcatenate);
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.concatenate").set_body_typed(MakeQnnConcatenate);
 
 }  // namespace qnn
 }  // namespace relay

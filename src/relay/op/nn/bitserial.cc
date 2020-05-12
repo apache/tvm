@@ -22,12 +22,12 @@
  * \brief Property def of bitserial operators.
  */
 
-#include <tvm/tir/data_layout.h>
 #include <tvm/relay/attrs/bitserial.h>
 #include <tvm/relay/op.h>
+#include <tvm/tir/data_layout.h>
 
-#include "../op_common.h"
 #include "../../transforms/infer_layout_util.h"
+#include "../op_common.h"
 
 namespace tvm {
 namespace relay {
@@ -109,11 +109,11 @@ efficient implementation of bitserial operations.
             packed must be divisible by number of bits.
 - **out**:  Packed tensor with shape appropriately compressed.
 )code" TVM_ADD_FILELINE)
-.set_num_inputs(1)
-.set_attrs_type<BitPackAttrs>()
-.add_argument("data", "Tensor", "Input data.")
-.set_support_level(2)
-.add_type_rel("BitPack", BitPackRel);
+    .set_num_inputs(1)
+    .set_attrs_type<BitPackAttrs>()
+    .add_argument("data", "Tensor", "Input data.")
+    .set_support_level(2)
+    .add_type_rel("BitPack", BitPackRel);
 
 // relay.nn.bitserial_conv2d
 TVM_REGISTER_NODE_TYPE(BinaryConv2DAttrs);
@@ -137,10 +137,8 @@ bool BinaryConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   Array<IndexExpr> oshape({dshape_nchw[0], param->channels, 0, 0});
   IndexExpr pad_h, pad_w;
   GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
-  oshape.Set(
-      2, (dshape_nchw[2] + pad_h - param->kernel_size[0]) / param->strides[0] + 1);
-  oshape.Set(
-      3, (dshape_nchw[3] + pad_w - param->kernel_size[1]) / param->strides[1] + 1);
+  oshape.Set(2, (dshape_nchw[2] + pad_h - param->kernel_size[0]) / param->strides[0] + 1);
+  oshape.Set(3, (dshape_nchw[3] + pad_w - param->kernel_size[1]) / param->strides[1] + 1);
   DataType out_dtype = param->out_dtype;
   oshape = trans_in_layout.BackwardShape(oshape);
   // assign output type
@@ -187,14 +185,14 @@ on some platforms.
 
 - **out**:    Output with same layout as input.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<BinaryConv2DAttrs>()
-.set_num_inputs(2)
-.add_argument("data", "Tensor", "The input tensor.")
-.add_argument("weight", "Tensor", "The weight tensor.")
-.set_support_level(2)
-.add_type_rel("BinaryConv2D", BinaryConv2DRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                               BinaryConv2DInferCorrectLayout<BinaryConv2DAttrs>);
+    .set_attrs_type<BinaryConv2DAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("weight", "Tensor", "The weight tensor.")
+    .set_support_level(2)
+    .add_type_rel("BinaryConv2D", BinaryConv2DRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   BinaryConv2DInferCorrectLayout<BinaryConv2DAttrs>);
 
 // relay.nn.bitserial_dense
 TVM_REGISTER_NODE_TYPE(BinaryDenseAttrs);
@@ -248,12 +246,12 @@ RELAY_REGISTER_OP("nn.bitserial_dense")
 - **out**: `(x1, x2, ..., xn, units)`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<BinaryDenseAttrs>()
-.set_num_inputs(2)
-.add_argument("data", "2D Tensor", "Input data.")
-.add_argument("weight", "2D Tensor", "Weight matrix.")
-.set_support_level(1)
-.add_type_rel("BinaryDense", BinaryDenseRel);
+    .set_attrs_type<BinaryDenseAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "2D Tensor", "Input data.")
+    .add_argument("weight", "2D Tensor", "Weight matrix.")
+    .set_support_level(1)
+    .add_type_rel("BinaryDense", BinaryDenseRel);
 
 }  // namespace relay
 }  // namespace tvm

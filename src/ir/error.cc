@@ -22,8 +22,8 @@
  * \brief Utilities for error tracking and reporting.
  */
 
-#include <tvm/ir/module.h>
 #include <tvm/ir/error.h>
+#include <tvm/ir/module.h>
 // NOTE: reverse dependency on relay.
 // These dependencies do not happen at the interface-level,
 // and are only used in minimum cases where they are clearly marked.
@@ -31,13 +31,15 @@
 // Rationale: use relay's printer for astext.
 #include <tvm/relay/expr.h>
 
+// clang-format off
 #include <string>
 #include <vector>
 #include <rang.hpp>
+// clang-format on
 
 namespace tvm {
 
-template<typename T, typename U>
+template <typename T, typename U>
 using NodeMap = std::unordered_map<T, U, ObjectHash, ObjectEqual>;
 
 void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
@@ -76,9 +78,9 @@ void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
     // Setup error map.
     auto it = error_maps.find(global);
     if (it != error_maps.end()) {
-      it->second.insert({ node, err_msg.str() });
+      it->second.insert({node, err_msg.str()});
     } else {
-      error_maps.insert({ global, { { node, err_msg.str() }}});
+      error_maps.insert({global, {{node, err_msg.str()}}});
     }
   }
 
@@ -87,10 +89,10 @@ void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
   std::stringstream annotated_prog;
 
   // First we output a header for the errors.
-  annotated_prog <<
-  rang::style::bold << std::endl <<
-  "Error(s) have occurred. The program has been annotated with them:"
-  << std::endl << std::endl << rang::style::reset;
+  annotated_prog << rang::style::bold << std::endl
+                 << "Error(s) have occurred. The program has been annotated with them:" << std::endl
+                 << std::endl
+                 << rang::style::reset;
 
   // For each global function which contains errors, we will
   // construct an annotated function.
@@ -101,11 +103,8 @@ void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
 
     // We output the name of the function before displaying
     // the annotated program.
-    annotated_prog <<
-      rang::style::bold <<
-      "In `" << global->name_hint << "`: " <<
-      std::endl <<
-      rang::style::reset;
+    annotated_prog << rang::style::bold << "In `" << global->name_hint << "`: " << std::endl
+                   << rang::style::reset;
 
     // We then call into the Relay printer to generate the program.
     //
@@ -140,9 +139,9 @@ void ErrorReporter::ReportAt(const GlobalVar& global, const ObjectRef& node, con
   if (it != this->node_to_error_.end()) {
     it->second.push_back(index_to_insert);
   } else {
-    this->node_to_error_.insert({ node, { index_to_insert }});
+    this->node_to_error_.insert({node, {index_to_insert}});
   }
-  this->node_to_gv_.insert({ node, global });
+  this->node_to_gv_.insert({node, global});
 }
 
 }  // namespace tvm

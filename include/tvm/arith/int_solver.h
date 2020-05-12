@@ -26,15 +26,16 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/tir/expr.h>
+
 #include <unordered_map>
 #include <vector>
 
 namespace tvm {
 namespace arith {
 
+using tir::IterVar;
 using tir::Var;
 using tir::VarNode;
-using tir::IterVar;
 
 /*!
  * \brief Represent integer constrains including (integer) variables, their ranges and
@@ -60,10 +61,8 @@ class IntConstraintsNode : public Object {
   }
 
   bool SEqualReduce(const IntConstraintsNode* other, SEqualReducer equal) const {
-    return
-        equal(variables, other->variables) &&
-        equal(ranges, other->ranges) &&
-        equal(relations, other->relations);
+    return equal(variables, other->variables) && equal(ranges, other->ranges) &&
+           equal(relations, other->relations);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -90,9 +89,7 @@ class IntConstraints : public ObjectRef {
    * \param relations The linear relations between the variables
    *                  (either equations or inequalities)
    */
-  TVM_DLL IntConstraints(Array<Var> variables,
-                         Map<Var, Range> ranges,
-                         Array<PrimExpr> relations);
+  TVM_DLL IntConstraints(Array<Var> variables, Map<Var, Range> ranges, Array<PrimExpr> relations);
 
   TVM_DEFINE_OBJECT_REF_METHODS(IntConstraints, ObjectRef, IntConstraintsNode);
 };
@@ -126,11 +123,8 @@ class IntConstraintsTransformNode : public Object {
   }
 
   bool SEqualReduce(const IntConstraintsTransformNode* other, SEqualReducer equal) const {
-    return
-        equal(src, other->src) &&
-        equal(dst, other->dst) &&
-        equal(src_to_dst, other->src_to_dst) &&
-        equal(dst_to_src, other->dst_to_src);
+    return equal(src, other->src) && equal(dst, other->dst) &&
+           equal(src_to_dst, other->src_to_dst) && equal(dst_to_src, other->dst_to_src);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -161,10 +155,8 @@ class IntConstraintsTransform : public ObjectRef {
    * \param dst_to_src mapping from variables in the \p dst to the variables in the \p src,
    *                   e.g., {m -> a, n -> -b}
    */
-  TVM_DLL IntConstraintsTransform(IntConstraints src,
-                                  IntConstraints dst,
-                                  Map<Var, PrimExpr> src_to_dst,
-                                  Map<Var, PrimExpr> dst_to_src);
+  TVM_DLL IntConstraintsTransform(IntConstraints src, IntConstraints dst,
+                                  Map<Var, PrimExpr> src_to_dst, Map<Var, PrimExpr> dst_to_src);
 
   TVM_DEFINE_OBJECT_REF_METHODS(IntConstraintsTransform, ObjectRef, IntConstraintsTransformNode);
 };
@@ -176,20 +168,16 @@ class IntConstraintsTransform : public ObjectRef {
  *        NOTE: Although in standard Smith Normal Form the diagonal elements satisfy
  *              s_i | s_{i+1} (| means divides), the implement here does not guarantee it.
  *        TODO(yzhliu): From sergei-grechanik:
- *          computing the proper Smith normal form may improve stability of automatic differentiation
- *          (generating the same gradient code for slightly different but equivalent input code
- *        U_{mxm} and V_{nxn} are invertible matrices.
- *        This function modifies \p S to be S_{mxn}, \p V to be V_{nxn},
- *        \p y to be U_{mxm} y_{mx1} and \p x to be V^{-1} x.
- * \param S  the original A_{mxn}, it will be modified to S_{mxn}
- * \param V  an identity matrix, it will be modified to V_{nxn}
- * \param x  the x in A x = y. it will be modified to V^{-1}_{nxn} x_{nx1}
- * \param y  the y in A x = y. it will be modified to U_{mxm} y_{mx1}
+ *          computing the proper Smith normal form may improve stability of automatic
+ * differentiation (generating the same gradient code for slightly different but equivalent input
+ * code U_{mxm} and V_{nxn} are invertible matrices. This function modifies \p S to be S_{mxn}, \p V
+ * to be V_{nxn}, \p y to be U_{mxm} y_{mx1} and \p x to be V^{-1} x. \param S  the original
+ * A_{mxn}, it will be modified to S_{mxn} \param V  an identity matrix, it will be modified to
+ * V_{nxn} \param x  the x in A x = y. it will be modified to V^{-1}_{nxn} x_{nx1} \param y  the y
+ * in A x = y. it will be modified to U_{mxm} y_{mx1}
  */
-void SmithNormalFormDiag(std::vector<std::vector<int64_t>> *S,
-                         std::vector<std::vector<int64_t>> *V,
-                         std::vector<PrimExpr>* x,
-                         std::vector<PrimExpr> *y);
+void SmithNormalFormDiag(std::vector<std::vector<int64_t>>* S, std::vector<std::vector<int64_t>>* V,
+                         std::vector<PrimExpr>* x, std::vector<PrimExpr>* y);
 
 /*!
  * \brief Solve linear equations.
@@ -201,7 +189,7 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t>> *S,
  *          as well as inequalities inferred from the \p system_to_solve.
  *          You can get the mapping from the original variables to the solution via ret->src_to_dst.
  */
-IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_solve);
+IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_solve);
 
 }  // namespace arith
 }  // namespace tvm

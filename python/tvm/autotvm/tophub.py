@@ -66,6 +66,7 @@ def _alias(name):
         'vtacpu': 'vta',
 
         'metal': 'opencl',
+        'webgpu': 'opencl',
         'vulkan': 'opencl',
         'nvptx': 'cuda',
     }

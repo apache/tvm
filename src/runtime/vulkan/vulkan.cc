@@ -17,21 +17,19 @@
  * under the License.
  */
 
-#include <vulkan/vulkan.h>
 #include <dmlc/memory_io.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
+#include <vulkan/vulkan.h>
 
 #include <array>
 #include <cstring>
-
 
 #include "../file_util.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../workspace_pool.h"
-
 #include "vulkan_common.h"
 #include "vulkan_module.h"
 #include "vulkan_shader.h"
@@ -117,9 +115,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
   }
   void SetDevice(TVMContext ctx) final { VulkanThreadEntry::ThreadLocal()->ctx = ctx; }
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx,
-                       size_t nbytes,
-                       size_t alignment,
+  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
                        DLDataType type_hint) final {
     const auto& vctx = context(ctx.device_id);
     VkBufferCreateInfo info;
@@ -628,9 +624,8 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
 #ifdef USE_VULKAN_IMMEDIATE_MODE
     if (has_extension("VK_KHR_push_descriptor") &&
         has_extension("VK_KHR_descriptor_update_template")) {
-      ctx.descriptor_template_khr_functions =
-          std::unique_ptr<VulkanDescriptorTemplateKHRFunctions>(
-              new VulkanDescriptorTemplateKHRFunctions());
+      ctx.descriptor_template_khr_functions = std::unique_ptr<VulkanDescriptorTemplateKHRFunctions>(
+          new VulkanDescriptorTemplateKHRFunctions());
       ctx.descriptor_template_khr_functions->vkCreateDescriptorUpdateTemplateKHR =
           CHECK_NOTNULL((PFN_vkCreateDescriptorUpdateTemplateKHR)vkGetDeviceProcAddr(
               ctx.device, "vkCreateDescriptorUpdateTemplateKHR"));
@@ -672,9 +667,7 @@ class VulkanModuleNode;
 // a wrapped function class to get packed func.
 class VulkanWrappedFunc {
  public:
-  void Init(VulkanModuleNode* m,
-            ObjectPtr<Object> sptr,
-            const std::string& func_name,
+  void Init(VulkanModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
             const std::vector<std::string>& thread_axis_tags) {
     m_ = m;
@@ -710,13 +703,12 @@ class VulkanWrappedFunc {
 class VulkanModuleNode final : public runtime::ModuleNode {
  public:
   explicit VulkanModuleNode(std::unordered_map<std::string, VulkanShader> smap,
-                             std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
+                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : smap_(smap), fmap_(fmap), source_(source) {}
 
   const char* type_key() const final { return "vulkan"; }
 
-  PackedFunc GetFunction(const std::string& name,
-                         const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     CHECK_EQ(sptr_to_self.get(), this);
     CHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
     auto it = fmap_.find(name);
@@ -751,7 +743,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
   }
 
   std::shared_ptr<VulkanPipeline> GetPipeline(size_t device_id, const std::string& func_name,
-                                               size_t num_pack_args) {
+                                              size_t num_pack_args) {
     const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
     std::lock_guard<std::mutex> lock(mutex_);
     const auto& cp = ecache_[device_id][func_name];
@@ -776,6 +768,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     std::vector<VkDescriptorSetLayoutBinding> arg_binding;
     std::vector<VkDescriptorUpdateTemplateEntryKHR> arg_template;
     uint32_t num_pod = 0, num_buffer = 0;
+
     {
       auto fit = fmap_.find(func_name);
       CHECK(fit != fmap_.end());
@@ -931,8 +924,6 @@ class VulkanModuleNode final : public runtime::ModuleNode {
   }
 
  private:
-  // the binary data
-  std::vector<uint32_t> data_;
   // function information table.
   std::unordered_map<std::string, VulkanShader> smap_;
   // function information table.
@@ -1021,8 +1012,7 @@ VulkanStream* VulkanThreadEntry::Stream(size_t device_id) {
   return streams_[device_id].get();
 }
 
-void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
-                                    const ArgUnion* pack_args) const {
+void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion* pack_args) const {
   int device_id = VulkanThreadEntry::ThreadLocal()->ctx.device_id;
   CHECK_LT(device_id, kVulkanMaxNumDevice);
   const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);

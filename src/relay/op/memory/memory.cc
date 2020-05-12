@@ -23,11 +23,11 @@
  */
 
 #include <topi/elemwise.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/runtime/data_type.h>
 
 #include "../../transforms/infer_layout_util.h"
 #include "../op_common.h"
@@ -109,12 +109,11 @@ std::vector<int64_t> FromConstShape(Constant konst) {
   runtime::NDArray shape = konst->data;
   std::vector<int64_t> raw_shape;
   CHECK_EQ(shape->ndim, 1u);
-  CHECK_EQ(shape->dtype.code, 0U)
-    << "The dtype of constant shape must be int32 or int64, but got "
-    << runtime::DLDataType2String(shape->dtype);
+  CHECK_EQ(shape->dtype.code, 0U) << "The dtype of constant shape must be int32 or int64, but got "
+                                  << runtime::DLDataType2String(shape->dtype);
   CHECK(shape->dtype.bits == 64 || shape->dtype.bits == 32)
-    << "The dtype of constant shape must be int32 or int64, but got"
-    << runtime::DLDataType2String(shape->dtype);
+      << "The dtype of constant shape must be int32 or int64, but got"
+      << runtime::DLDataType2String(shape->dtype);
 
   if (shape->dtype.bits == 32) {
     const int32_t* int_ptr = reinterpret_cast<int32_t*>(shape->data);
@@ -331,14 +330,12 @@ Expr ToTupleType(const Type& t, const std::vector<Expr>& exprs) {
   }
 }
 
-TVM_REGISTER_GLOBAL("relay.op.memory._make.FlattenTupleType")
-.set_body_typed([](Type type) {
+TVM_REGISTER_GLOBAL("relay.op.memory._make.FlattenTupleType").set_body_typed([](Type type) {
   auto types = FlattenTupleType(type);
   return Array<Type>(types.begin(), types.end());
 });
 
-TVM_REGISTER_GLOBAL("relay.op.memory._make.FromTupleType")
-.set_body_typed([](Type type, Expr expr) {
+TVM_REGISTER_GLOBAL("relay.op.memory._make.FromTupleType").set_body_typed([](Type type, Expr expr) {
   auto exprs = FromTupleType(type, expr);
   return Array<Expr>(exprs.begin(), exprs.end());
 });

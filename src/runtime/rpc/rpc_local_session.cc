@@ -21,31 +21,26 @@
  * \file local_session.cc
  * \brief Local session that directs requests to local API.
  */
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/device_api.h>
-#include <memory>
 #include "rpc_local_session.h"
+
+#include <tvm/runtime/device_api.h>
+#include <tvm/runtime/registry.h>
+
+#include <memory>
 
 namespace tvm {
 namespace runtime {
 
-RPCSession::PackedFuncHandle
-LocalSession::GetFunction(const std::string& name) {
-  PackedFunc pf = this->GetFunctionInternal(name);
-  // return raw handl because the remote need to explicitly manage it.
-  if (pf != nullptr) return new PackedFunc(pf);
-  return nullptr;
+RPCSession::PackedFuncHandle LocalSession::GetFunction(const std::string& name) {
+  if (auto* fp = tvm::runtime::Registry::Get(name)) {
+    // return raw handle because the remote need to explicitly manage it.
+    return new PackedFunc(*fp);
+  } else {
+    return nullptr;
+  }
 }
 
-void LocalSession::CallFunc(RPCSession::PackedFuncHandle func,
-                            const TVMValue* arg_values,
-                            const int* arg_type_codes,
-                            int num_args,
-                            const FEncodeReturn& encode_return) {
-  auto* pf = static_cast<PackedFunc*>(func);
-  TVMRetValue rv;
-
-  pf->CallPacked(TVMArgs(arg_values, arg_type_codes, num_args), &rv);
+void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_return) {
   int rv_tcode = rv.type_code();
 
   // return value encoding.
@@ -64,8 +59,7 @@ void LocalSession::CallFunc(RPCSession::PackedFuncHandle func,
     ret_value_pack[2].v_handle = ret_value_pack[1].v_handle;
     ret_tcode_pack[2] = kTVMOpaqueHandle;
     encode_return(TVMArgs(ret_value_pack, ret_tcode_pack, 3));
-  } else if (rv_tcode == kTVMPackedFuncHandle ||
-             rv_tcode == kTVMModuleHandle) {
+  } else if (rv_tcode == kTVMPackedFuncHandle || rv_tcode == kTVMModuleHandle) {
     // MoveToCHost means rv no longer manages the object.
     // return handle instead.
     rv.MoveToCHost(&ret_value_pack[1], &ret_tcode_pack[1]);
@@ -84,40 +78,35 @@ void LocalSession::CallFunc(RPCSession::PackedFuncHandle func,
   }
 }
 
-void LocalSession::CopyToRemote(void* from,
-                                size_t from_offset,
-                                void* to,
-                                size_t to_offset,
-                                size_t nbytes,
-                                TVMContext ctx_to,
-                                DLDataType type_hint) {
+void LocalSession::CallFunc(RPCSession::PackedFuncHandle func, const TVMValue* arg_values,
+                            const int* arg_type_codes, int num_args,
+                            const FEncodeReturn& encode_return) {
+  auto* pf = static_cast<PackedFunc*>(func);
+  TVMRetValue rv;
+  pf->CallPacked(TVMArgs(arg_values, arg_type_codes, num_args), &rv);
+  this->EncodeReturn(std::move(rv), encode_return);
+}
+
+void LocalSession::CopyToRemote(void* from, size_t from_offset, void* to, size_t to_offset,
+                                size_t nbytes, TVMContext ctx_to, DLDataType type_hint) {
   TVMContext cpu_ctx;
   cpu_ctx.device_type = kDLCPU;
   cpu_ctx.device_id = 0;
-  this->GetDeviceAPI(ctx_to)->CopyDataFromTo(
-      from, from_offset,
-      to, to_offset,
-      nbytes, cpu_ctx, ctx_to, type_hint, nullptr);
+  this->GetDeviceAPI(ctx_to)->CopyDataFromTo(from, from_offset, to, to_offset, nbytes, cpu_ctx,
+                                             ctx_to, type_hint, nullptr);
   // Copy can happen asynchrously
   // synchronize to make sure that copy is completed
   this->GetDeviceAPI(ctx_to)->StreamSync(ctx_to, nullptr);
 }
 
-void LocalSession::CopyFromRemote(void* from,
-                                  size_t from_offset,
-                                  void* to,
-                                  size_t to_offset,
-                                  size_t nbytes,
-                                  TVMContext ctx_from,
-                                  DLDataType type_hint) {
+void LocalSession::CopyFromRemote(void* from, size_t from_offset, void* to, size_t to_offset,
+                                  size_t nbytes, TVMContext ctx_from, DLDataType type_hint) {
   TVMContext cpu_ctx;
   cpu_ctx.device_type = kDLCPU;
   cpu_ctx.device_id = 0;
 
-  this->GetDeviceAPI(ctx_from)->CopyDataFromTo(
-      from, from_offset,
-      to, to_offset,
-      nbytes, ctx_from, cpu_ctx, type_hint, nullptr);
+  this->GetDeviceAPI(ctx_from)->CopyDataFromTo(from, from_offset, to, to_offset, nbytes, ctx_from,
+                                               cpu_ctx, type_hint, nullptr);
   // Copy can happen asynchrously
   // synchronize to make sure that copy is completed
   this->GetDeviceAPI(ctx_from)->StreamSync(ctx_from, nullptr);
@@ -134,17 +123,7 @@ DeviceAPI* LocalSession::GetDeviceAPI(TVMContext ctx, bool allow_missing) {
   return DeviceAPI::Get(ctx, allow_missing);
 }
 
-PackedFunc LocalSession::GetFunctionInternal(const std::string& name) {
-  auto* fp = tvm::runtime::Registry::Get(name);
-  if (fp != nullptr) {
-    return *fp;
-  } else {
-    return nullptr;
-  }
-}
-
-TVM_REGISTER_GLOBAL("rpc.LocalSession")
-.set_body_typed([]() {
+TVM_REGISTER_GLOBAL("rpc.LocalSession").set_body_typed([]() {
   return CreateRPCSessionModule(std::make_shared<LocalSession>());
 });
 

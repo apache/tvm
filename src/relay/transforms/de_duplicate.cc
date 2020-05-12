@@ -23,17 +23,15 @@
  * \brief Use a fresh Id for every Var to make the result well-formed.
  */
 #include <tvm/ir/type_functor.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 
 namespace tvm {
 namespace relay {
 
 Expr DeDup(const Expr& e) {
-  class DeDupMutator : public TypeMutator,
-                       public ExprMutator,
-                       public PatternMutator {
+  class DeDupMutator : public TypeMutator, public ExprMutator, public PatternMutator {
    public:
     TypeVar Fresh(const TypeVar& tv) {
       TypeVar ret = TypeVar(tv->name_hint, tv->kind);
@@ -65,9 +63,7 @@ Expr DeDup(const Expr& e) {
       return Let(v, VisitExpr(op->value), VisitExpr(op->body));
     }
 
-    Type VisitType(const Type& t) final {
-      return t.defined() ? TypeMutator::VisitType(t) : t;
-    }
+    Type VisitType(const Type& t) final { return t.defined() ? TypeMutator::VisitType(t) : t; }
 
     Expr VisitExpr_(const FunctionNode* op) final {
       tvm::Array<TypeVar> type_params;
@@ -78,29 +74,19 @@ Expr DeDup(const Expr& e) {
       for (const Var& param : op->params) {
         params.push_back(Fresh(param));
       }
-      return Function(params,
-                                VisitExpr(op->body),
-                                VisitType(op->ret_type),
-                                type_params,
-                                op->attrs);
+      return Function(params, VisitExpr(op->body), VisitType(op->ret_type), type_params, op->attrs);
     }
 
-    Pattern VisitPattern(const Pattern& p) final {
-      return PatternFunctor::VisitPattern(p);
-    }
+    Pattern VisitPattern(const Pattern& p) final { return PatternFunctor::VisitPattern(p); }
 
-    Pattern VisitPattern_(const PatternVarNode* op) final {
-      return PatternVar(Fresh(op->var));
-    }
+    Pattern VisitPattern_(const PatternVarNode* op) final { return PatternVar(Fresh(op->var)); }
 
     Type VisitType_(const TypeVarNode* op) final {
       TypeVar v = GetRef<TypeVar>(op);
       return type_rename_.count(v) != 0 ? type_rename_.at(v) : v;
     }
 
-    Var VisitVar(const Var& v) final {
-      return Fresh(v);
-    }
+    Var VisitVar(const Var& v) final { return Fresh(v); }
 
    private:
     std::unordered_map<Var, Var, ObjectHash, ObjectEqual> rename_;
@@ -113,8 +99,7 @@ Expr DeDup(const Expr& e) {
   return ret;
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.dedup")
-.set_body_typed(DeDup);
+TVM_REGISTER_GLOBAL("relay._transform.dedup").set_body_typed(DeDup);
 
 }  // namespace relay
 }  // namespace tvm

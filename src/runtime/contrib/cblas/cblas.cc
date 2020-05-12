@@ -21,8 +21,9 @@
  * \file Use external cblas library call.
  */
 #include <dmlc/logging.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/registry.h>
+
 #include "gemm_common.h"
 
 extern "C" {
@@ -50,8 +51,8 @@ struct CblasSgemmOp {
   void operator()(bool ta, bool tb, int M, int N, int K, float alpha, float* A, int lda, float* B,
                   int ldb, float beta, float* C, int ldc) {
 #if USE_DNNL == 1
-    dnnl_sgemm(BooleanToTransposeChar(tb), BooleanToTransposeChar(ta), N, M, K, alpha, B,
-               ldb, A, lda, beta, C, ldc);
+    dnnl_sgemm(BooleanToTransposeChar(tb), BooleanToTransposeChar(ta), N, M, K, alpha, B, ldb, A,
+               lda, beta, C, ldc);
 #else
     cblas_sgemm(CblasColMajor, BooleanToTranspose(ta), BooleanToTranspose(tb), M, N, K, alpha, A,
                 lda, B, ldb, beta, C, ldc);
@@ -159,8 +160,7 @@ struct CblasDgemmBatchIterativeOp {
 };
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* A = args[0];
   CHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
 
@@ -170,8 +170,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul")
     CallGemm(args, ret, CblasDgemmOp());
 });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* A = args[0];
   CHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
   if (TypeMatch(A->dtype, kDLFloat, 32)) {
@@ -182,14 +181,14 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul")
 });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul_iterative")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
-  CHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
-  if (TypeMatch(A->dtype, kDLFloat, 32)) {
-    CallBatchGemm(args, ret, CblasSgemmBatchIterativeOp());
-  } else {
-    CallBatchGemm(args, ret, CblasDgemmBatchIterativeOp());
-  }
-});
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      DLTensor* A = args[0];
+      CHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
+      if (TypeMatch(A->dtype, kDLFloat, 32)) {
+        CallBatchGemm(args, ret, CblasSgemmBatchIterativeOp());
+      } else {
+        CallBatchGemm(args, ret, CblasDgemmBatchIterativeOp());
+      }
+    });
 }  // namespace contrib
 }  // namespace tvm

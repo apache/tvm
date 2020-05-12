@@ -20,21 +20,21 @@
 /*!
  * \file target/target_info.cc
  */
-#include <tvm/runtime/registry.h>
 #include <tvm/node/repr_printer.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/target/target_info.h>
 
 namespace tvm {
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<MemoryInfoNode>([](const ObjectRef& node, ReprPrinter* p) {
-  auto* op = static_cast<const MemoryInfoNode*>(node.get());
-  p->stream << "mem-info("
-            << "unit_bits=" << op->unit_bits << ", "
-            << "max_num_bits=" << op->max_num_bits << ", "
-            << "max_simd_bits=" << op->max_simd_bits << ", "
-            << "head_address=" << op->head_address << ")";
-});
+    .set_dispatch<MemoryInfoNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const MemoryInfoNode*>(node.get());
+      p->stream << "mem-info("
+                << "unit_bits=" << op->unit_bits << ", "
+                << "max_num_bits=" << op->max_num_bits << ", "
+                << "max_simd_bits=" << op->max_simd_bits << ", "
+                << "head_address=" << op->head_address << ")";
+    });
 
 TVM_REGISTER_NODE_TYPE(MemoryInfoNode);
 

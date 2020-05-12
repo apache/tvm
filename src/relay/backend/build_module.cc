@@ -21,13 +21,14 @@
  * \file relay/backend/build_module.cc
  * \brief Code generation for TVM's graph runtime.
  */
-#include <tvm/relay/analysis.h>
 #include <tvm/driver/driver_api.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/expr.h>
+#include <tvm/relay/qnn/transform.h>
+#include <tvm/relay/transform.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/vm.h>
-#include <tvm/relay/expr.h>
-#include <tvm/relay/transform.h>
-#include <tvm/relay/qnn/transform.h>
+
 #include <memory>
 
 #include "../../target/source/codegen_source_base.h"
@@ -36,7 +37,6 @@
 namespace tvm {
 namespace relay {
 namespace backend {
-
 
 using TargetsMap = Map<tvm::Integer, tvm::Target>;
 using namespace tvm::relay::transform;
@@ -63,17 +63,11 @@ struct GraphCodegen {
   }
   ~GraphCodegen() {}
 
-  void Init(runtime::Module* m, TargetsMap targets) {
-    CallFunc("init", m, targets);
-  }
+  void Init(runtime::Module* m, TargetsMap targets) { CallFunc("init", m, targets); }
 
-  void Codegen(const Function& func) {
-    CallFunc("codegen", func);
-  }
+  void Codegen(const Function& func) { CallFunc("codegen", func); }
 
-  std::string GetJSON() {
-    return CallFunc<std::string>("get_graph_json", nullptr);
-  }
+  std::string GetJSON() { return CallFunc<std::string>("get_graph_json", nullptr); }
 
   Array<tvm::runtime::Module> GetExternalModules() {
     return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
@@ -96,13 +90,13 @@ struct GraphCodegen {
 
  protected:
   tvm::runtime::Module mod;
-  template<typename R, typename ...Args>
-  R CallFunc(const std::string &name, Args... args) {
+  template <typename R, typename... Args>
+  R CallFunc(const std::string& name, Args... args) {
     auto pf = mod.GetFunction(name, false);
     return pf(std::forward<Args>(args)...);
   }
-  template<typename ...Args>
-  void CallFunc(const std::string &name, Args... args) {
+  template <typename... Args>
+  void CallFunc(const std::string& name, Args... args) {
     auto pf = mod.GetFunction(name, false);
     pf(std::forward<Args>(args)...);
     return;
@@ -121,29 +115,24 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  PackedFunc GetFunction(const std::string& name,
-                         const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_graph_json") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->GetGraphJSON();
-      });
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetGraphJSON(); });
     } else if (name == "get_module") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->GetModule();
-      });
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
     } else if (name == "build") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         CHECK_EQ(args.num_args, 3);
         this->Build(args[0], args[1], args[2]);
       });
     } else if (name == "list_params") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->ListParamNames();
-      });
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->ListParamNames(); });
     } else if (name == "get_params") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->GetParams();
-      });
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetParams(); });
     } else if (name == "set_params") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Map<std::string, Constant> params = args[0];
@@ -153,11 +142,11 @@ class RelayBuildModule : public runtime::ModuleNode {
       });
     } else if (name == "get_irmodule") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          *rv = this->graph_codegen_->GetIRModule();
+        *rv = this->graph_codegen_->GetIRModule();
       });
     } else if (name == "get_external_modules") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          *rv = this->graph_codegen_->GetExternalModules();
+        *rv = this->graph_codegen_->GetExternalModules();
       });
     } else if (name == "optimize") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -175,18 +164,14 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \return const std::string graph_json
    */
-  const std::string& GetGraphJSON() {
-    return ret_.graph_json;
-  }
+  const std::string& GetGraphJSON() { return ret_.graph_json; }
 
   /*!
    * \brief Get the Module object
    *
    * \return runtime::Module
    */
-  runtime::Module GetModule() {
-    return ret_.mod;
-  }
+  runtime::Module GetModule() { return ret_.mod; }
 
   /*!
    * \brief List all paramter names
@@ -220,18 +205,14 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param name name of parameter
    * \param data_in input DLTensor
    */
-  void SetParam(const std::string& name, runtime::NDArray data_in) {
-    params_[name] = data_in;
-  }
+  void SetParam(const std::string& name, runtime::NDArray data_in) { params_[name] = data_in; }
 
   /*!
    * \brief type key
    *
    * \return const char*
    */
-  const char* type_key() const final {
-    return "RelayBuildModule";
-  }
+  const char* type_key() const final { return "RelayBuildModule"; }
 
   /*!
    * \brief Build relay IRModule for graph runtime
@@ -240,9 +221,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param target Target device
    * \param target_host Host target device
    */
-  void Build(IRModule mod,
-             const TargetsMap& targets,
-             const tvm::Target& target_host) {
+  void Build(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host) {
     targets_ = targets;
     target_host_ = target_host;
     BuildRelay(mod, params_);
@@ -258,13 +237,10 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \return relay::IRModule The updated Relay IR module after optimization.
    */
-  IRModule Optimize(
-      IRModule relay_module,
-      const TargetsMap& targets,
-      const std::unordered_map<std::string, runtime::NDArray>& params) {
+  IRModule Optimize(IRModule relay_module, const TargetsMap& targets,
+                    const std::unordered_map<std::string, runtime::NDArray>& params) {
     if (params.size()) {
-      CHECK(relay_module->ContainGlobalVar("main"))
-        << "Missing the main entry function";
+      CHECK(relay_module->ContainGlobalVar("main")) << "Missing the main entry function";
       GlobalVar main_glb_var = relay_module->GetGlobalVar("main");
       Function main_func = Downcast<Function>(relay_module->Lookup(main_glb_var));
       auto new_main = BindParamsByName(main_func, params);
@@ -328,8 +304,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Handle heterogeneous compilation.
     transform::PassContext pass_ctx = PassContext::Current();
     if (targets_.size() > 1) {
-      relay_module =
-          RunDeviceAnnotationPass(relay_module, pass_ctx->fallback_device);
+      relay_module = RunDeviceAnnotationPass(relay_module, pass_ctx->fallback_device);
     }
 
     // Fuse the operations if it is needed.
@@ -386,8 +361,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \return updated_module The updated module after device annotation.
    */
-  IRModule RunDeviceAnnotationPass(const IRModule& relay_module,
-                                          int fallback_device) {
+  IRModule RunDeviceAnnotationPass(const IRModule& relay_module, int fallback_device) {
     UpdateHeterogeneousInputs(fallback_device);
     auto rewrite = transform::RewriteAnnotatedOps(fallback_device);
     auto updated_module = rewrite(relay_module);
@@ -416,12 +390,11 @@ class RelayBuildModule : public runtime::ModuleNode {
           break;
         }
         for (auto kv : annotation_map) {
-          CHECK_EQ(kv.second->value, dev_type)
-            << "Expressions in the function are "
-            << "annotated with various device types,"
-            << "but not device copy operators "
-            << "found. Please check the "
-            << "RewriteAnnotation pass.";
+          CHECK_EQ(kv.second->value, dev_type) << "Expressions in the function are "
+                                               << "annotated with various device types,"
+                                               << "but not device copy operators "
+                                               << "found. Please check the "
+                                               << "RewriteAnnotation pass.";
         }
         targets_.Set(0, CreateDefaultTarget(dev_type));
       }
@@ -435,9 +408,8 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param relay_module The Relay IR module.
    * \param params The parameters.
    */
-  void BuildRelay(
-      IRModule relay_module,
-      const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
+  void BuildRelay(IRModule relay_module,
+                  const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
     // Relay IRModule -> IRModule optimizations.
     relay_module = Optimize(relay_module, targets_, params);
     // Get the updated function.
@@ -473,23 +445,19 @@ class RelayBuildModule : public runtime::ModuleNode {
         ret_.mod = tvm::codegen::CSourceModuleCreate(";", "");
       }
     } else {
-      ret_.mod = tvm::build(
-        lowered_funcs,
-        target_host_,
-        BuildConfig::Current());
+      ret_.mod = tvm::build(lowered_funcs, target_host_, BuildConfig::Current());
     }
 
     Array<tvm::runtime::Module> ext_mods = graph_codegen_->GetExternalModules();
     // Import all external runtime modules.
-    for (const auto& it : ext_mods)
-      ret_.mod.Import(it);
+    for (const auto& it : ext_mods) ret_.mod.Import(it);
   }
 
  private:
   Target GetTargetHost() {
     Target target_host = target_host_;
     if (!target_host_.defined()) {
-      for (const auto &it : targets_) {
+      for (const auto& it : targets_) {
         if (it.second->device_type == kDLCPU) {
           target_host = it.second;
           break;
@@ -516,20 +484,19 @@ runtime::Module RelayBuildCreate() {
   return runtime::Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("relay.build_module._BuildModule")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("relay.build_module._BuildModule").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = RelayBuildCreate();
 });
 
 TVM_REGISTER_GLOBAL("relay.build_module.BindParamsByName")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-  Map<std::string, Constant> params = args[1];
-  std::unordered_map<std::string, runtime::NDArray> params_;
-  for (const auto& kv : params) {
-    params_[kv.first] = kv.second->data;
-  }
-  *rv = relay::backend::BindParamsByName(args[0], params_);
-});
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      Map<std::string, Constant> params = args[1];
+      std::unordered_map<std::string, runtime::NDArray> params_;
+      for (const auto& kv : params) {
+        params_[kv.first] = kv.second->data;
+      }
+      *rv = relay::backend::BindParamsByName(args[0], params_);
+    });
 
 }  // namespace backend
 }  // namespace relay

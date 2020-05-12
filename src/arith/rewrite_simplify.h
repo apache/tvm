@@ -26,11 +26,13 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/op.h>
+
 #include <unordered_map>
 #include <vector>
+
 #include "const_fold.h"
-#include "pattern_match.h"
 #include "ir_mutator_with_analyzer.h"
+#include "pattern_match.h"
 
 namespace tvm {
 namespace arith {
@@ -46,8 +48,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::VisitExpr_;
 
-  explicit Impl(Analyzer* parent)
-      : IRMutatorWithAnalyzer(parent) {}
+  explicit Impl(Analyzer* parent) : IRMutatorWithAnalyzer(parent) {}
 
   void Update(const Var& var, const PrimExpr& info, bool override_info);
   PrimExpr VisitExpr_(const AddNode* op) override;
@@ -78,15 +79,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
 
  protected:
   /*! \brief internal structure for comparison. */
-  enum CompareResult {
-    kUnknown,
-    kEQ,
-    kGT,
-    kGE,
-    kLT,
-    kLE,
-    kNE
-  };
+  enum CompareResult { kUnknown, kEQ, kGT, kGE, kLT, kLE, kNE };
   // counter to record recursive rewrite depth.
   int recur_depth_{0};
   // internal variable map
@@ -127,17 +120,16 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
     return res;
   }
 
-  template<typename TA>
+  template <typename TA>
   PConstWithTypeLike<TA> ZeroWithTypeLike(const Pattern<TA>& pattern) {
     return PConstWithTypeLike<TA>(pattern.derived(), 0);
   }
 
-  template<typename TA>
+  template <typename TA>
   PConstWithTypeLike<TA> OneWithTypeLike(const Pattern<TA>& pattern) {
     return PConstWithTypeLike<TA>(pattern.derived(), 1);
   }
 };
-
 
 }  // namespace arith
 }  // namespace tvm

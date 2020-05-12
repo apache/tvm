@@ -91,12 +91,13 @@
  */
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/transform.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/interpreter.h>
-#include "pass_util.h"
+#include <tvm/relay/pattern_functor.h>
+#include <tvm/relay/transform.h>
+
 #include "let_list.h"
+#include "pass_util.h"
 
 namespace tvm {
 namespace relay {
@@ -109,9 +110,7 @@ using namespace runtime;
  * Use VarHash to hash Var by id.
  */
 struct VarHash {
-  size_t operator()(const Var& v) const {
-    return ObjectHash()(v->vid);
-  }
+  size_t operator()(const Var& v) const { return ObjectHash()(v->vid); }
 };
 
 /*! \brief Compare Var by it's id.
@@ -119,9 +118,7 @@ struct VarHash {
  * Use VarEqual to compare Var by id.
  */
 struct VarEqual {
-  bool operator()(const Var& l, const Var& r) const {
-    return l->vid.get() == r->vid.get();
-  }
+  bool operator()(const Var& l, const Var& r) const { return l->vid.get() == r->vid.get(); }
 };
 
 Expr PostProcess(const Expr&);
@@ -137,9 +134,7 @@ class Static : public ObjectRef {
  public:
   Static() {}
   explicit Static(ObjectPtr<Object> n) : ObjectRef(n) {}
-  const StaticNode* operator->() const {
-    return static_cast<const StaticNode*>(get());
-  }
+  const StaticNode* operator->() const { return static_cast<const StaticNode*>(get()); }
 
   using ContainerType = StaticNode;
 };
@@ -156,9 +151,9 @@ struct PStaticNode : Object {
   Static pstatic;  // may be null
   Expr dynamic;
   Time created_time;
-  PStaticNode(const Static& pstatic, const Expr& dynamic) :
-    pstatic(pstatic), dynamic(dynamic), created_time(time()) { }
-  explicit PStaticNode(const Expr& dynamic) : PStaticNode(Static(), dynamic) { }
+  PStaticNode(const Static& pstatic, const Expr& dynamic)
+      : pstatic(pstatic), dynamic(dynamic), created_time(time()) {}
+  explicit PStaticNode(const Expr& dynamic) : PStaticNode(Static(), dynamic) {}
   static constexpr const char* _type_key = "relay.PStatic";
   TVM_DECLARE_FINAL_OBJECT_INFO(PStaticNode, Object);
 };
@@ -170,7 +165,7 @@ class PStatic : public ObjectRef {
 
 struct STupleNode : StaticNode {
   std::vector<PStatic> fields;
-  explicit STupleNode(const std::vector<PStatic>& fields) : fields(fields) { }
+  explicit STupleNode(const std::vector<PStatic>& fields) : fields(fields) {}
   static constexpr const char* _type_key = "relay.STuple";
   TVM_DECLARE_FINAL_OBJECT_INFO(STupleNode, StaticNode);
 };
@@ -186,7 +181,7 @@ Static MkSTuple(const std::vector<PStatic>& fields) {
 
 struct STensorNode : StaticNode {
   runtime::NDArray data;
-  explicit STensorNode(const NDArray& data) : data(data) { }
+  explicit STensorNode(const NDArray& data) : data(data) {}
   static constexpr const char* _type_key = "relay.STensor";
   TVM_DECLARE_FINAL_OBJECT_INFO(STensorNode, StaticNode);
 };
@@ -196,15 +191,13 @@ class STensor : public Static {
   TVM_DEFINE_OBJECT_REF_METHODS(STensor, Static, STensorNode);
 };
 
-Static MkSTensor(const NDArray& data) {
-  return Static(make_object<STensorNode>(data));
-}
+Static MkSTensor(const NDArray& data) { return Static(make_object<STensorNode>(data)); }
 
 struct SConstructorNode : StaticNode {
   Constructor constructor;
   std::vector<PStatic> fields;
-  SConstructorNode(const Constructor& constructor, const std::vector<PStatic>& fields) :
-    constructor(constructor), fields(fields) { }
+  SConstructorNode(const Constructor& constructor, const std::vector<PStatic>& fields)
+      : constructor(constructor), fields(fields) {}
   static constexpr const char* _type_key = "relay.SConstructor";
   TVM_DECLARE_FINAL_OBJECT_INFO(SConstructorNode, StaticNode);
 };
@@ -229,19 +222,14 @@ class SRef : public Static {
   TVM_DEFINE_OBJECT_REF_METHODS(SRef, Static, SRefNode);
 };
 
-Static MkSRef() {
-  return Static(make_object<SRefNode>());
-}
+Static MkSRef() { return Static(make_object<SRefNode>()); }
 
-using Func = std::function<PStatic(const PStatic&,
-                                   const std::vector<PStatic>&,
-                                   const Attrs&,
-                                   const Array<Type>&,
-                                   LetList*)>;
+using Func = std::function<PStatic(const PStatic&, const std::vector<PStatic>&, const Attrs&,
+                                   const Array<Type>&, LetList*)>;
 
 struct SFuncNode : StaticNode {
   Func func;
-  explicit SFuncNode(const Func& func) : func(func) { }
+  explicit SFuncNode(const Func& func) : func(func) {}
   static constexpr const char* _type_key = "relay.SFunc";
   TVM_DECLARE_FINAL_OBJECT_INFO(SFuncNode, StaticNode);
 };
@@ -251,15 +239,13 @@ class SFunc : public Static {
   TVM_DEFINE_OBJECT_REF_METHODS(SFunc, Static, SFuncNode);
 };
 
-Static MkSFunc(const Func& func) {
-  return Static(make_object<SFuncNode>(func));
-}
-
+Static MkSFunc(const Func& func) { return Static(make_object<SFuncNode>(func)); }
 
 class FuelNode;
 /*! \brief A meet-semilattice with finite descending chain.
  * It means that we can meet two element to get an element,
- * and for every element, there is only a finite amount of meet before getting back the same element.
+ * and for every element, there is only a finite amount of meet before getting back the same
+ * element.
  *
  * Every time we recurse, we do a meet and require that progress must be made.
  * This ensures we do not recurse infinitely in the Partial Evaluator.
@@ -301,9 +287,7 @@ class FuelNode : public RelayNode {
   TVM_DECLARE_BASE_OBJECT_INFO(FuelNode, RelayNode);
 };
 
-const FuelNode* Fuel::operator->() const {
-  return static_cast<const FuelNode*>(get());
-}
+const FuelNode* Fuel::operator->() const { return static_cast<const FuelNode*>(get()); }
 
 Fuel MkFSeq(const std::vector<Fuel>& fuels);
 struct FSeqNode : FuelNode {
@@ -318,7 +302,7 @@ struct FSeqNode : FuelNode {
     }
     return MkFSeq(new_fuels);
   }
-  explicit FSeqNode(const std::vector<Fuel>& fuels) : fuels(fuels) { }
+  explicit FSeqNode(const std::vector<Fuel>& fuels) : fuels(fuels) {}
   static constexpr const char* _type_key = "relay.FSeq";
   TVM_DECLARE_FINAL_OBJECT_INFO(FSeqNode, FuelNode);
 };
@@ -328,9 +312,7 @@ class FSeq : public Fuel {
   TVM_DEFINE_OBJECT_REF_METHODS(FSeq, Fuel, FSeqNode);
 };
 
-Fuel MkFSeq(const std::vector<Fuel>& fuels) {
-  return Fuel(make_object<FSeqNode>(fuels));
-}
+Fuel MkFSeq(const std::vector<Fuel>& fuels) { return Fuel(make_object<FSeqNode>(fuels)); }
 
 Fuel MkFTime(Time time);
 struct FTimeNode : FuelNode {
@@ -341,7 +323,7 @@ struct FTimeNode : FuelNode {
     Time new_time = std::min(time, x->time);
     return std::make_tuple(MkFTime(new_time), new_time < time);
   }
-  explicit FTimeNode(Time time) : time(time) { }
+  explicit FTimeNode(Time time) : time(time) {}
   static constexpr const char* _type_key = "relay.FTime";
   TVM_DECLARE_FINAL_OBJECT_INFO(FTimeNode, FuelNode);
 };
@@ -351,9 +333,7 @@ class FTime : public Fuel {
   TVM_DEFINE_OBJECT_REF_METHODS(FTime, Fuel, FTimeNode);
 };
 
-Fuel MkFTime(Time time) {
-  return Fuel(make_object<FTimeNode>(time));
-}
+Fuel MkFTime(Time time) { return Fuel(make_object<FTimeNode>(time)); }
 
 Fuel MkFTValue(size_t tvalue);
 /*! \brief If the pstatic is hold a positive integer scalar, that number, else 0. */
@@ -365,7 +345,7 @@ struct FTValueNode : FuelNode {
     size_t new_tvalue = std::min(tvalue, x->tvalue);
     return std::make_tuple(MkFTValue(new_tvalue), new_tvalue < tvalue);
   }
-  explicit FTValueNode(size_t tvalue) : tvalue(tvalue) { }
+  explicit FTValueNode(size_t tvalue) : tvalue(tvalue) {}
   static constexpr const char* _type_key = "relay.FTValue";
   TVM_DECLARE_FINAL_OBJECT_INFO(FTValueNode, FuelNode);
 };
@@ -375,9 +355,7 @@ class FTValue : public Fuel {
   TVM_DEFINE_OBJECT_REF_METHODS(FTValue, Fuel, FTValueNode);
 };
 
-Fuel MkFTValue(size_t tvalue) {
-  return Fuel(make_object<FTValueNode>(tvalue));
-}
+Fuel MkFTValue(size_t tvalue) { return Fuel(make_object<FTValueNode>(tvalue)); }
 
 /*! \brief Initially every element has Fuel of FTop. It is the largest element.
  *
@@ -397,9 +375,7 @@ class FTop : public Fuel {
   TVM_DEFINE_OBJECT_REF_METHODS(FTop, Fuel, FTopNode);
 };
 
-Fuel MkFTop() {
-  return Fuel(make_object<FTopNode>());
-}
+Fuel MkFTop() { return Fuel(make_object<FTopNode>()); }
 
 /*!
  * \brief A stack frame in the Relay interpreter.
@@ -414,10 +390,10 @@ struct Frame {
 
 class Environment {
  public:
-  Environment() : env_({Frame()}) { }
+  Environment() : env_({Frame()}) {}
   Environment(const Environment&) = delete;
 
-  template<typename T>
+  template <typename T>
   T Extend(const std::function<T()>& body) {
     FrameContext fc(this);
     return body();
@@ -447,12 +423,8 @@ class Environment {
 
   struct FrameContext {
     Environment* env_;
-    explicit FrameContext(Environment* env) : env_(env) {
-      env_->env_.push_back(Frame());
-    }
-    ~FrameContext() {
-      env_->env_.pop_back();
-    }
+    explicit FrameContext(Environment* env) : env_(env) { env_->env_.push_back(Frame()); }
+    ~FrameContext() { env_->env_.pop_back(); }
   };
 };
 
@@ -470,16 +442,16 @@ struct StoreFrame {
    * It only outdate the frame above it, but not the current frame.
    */
   bool history_valid = true;
-  explicit StoreFrame(const std::unordered_map<const SRefNode*, PStatic>& store) : store(store) { }
+  explicit StoreFrame(const std::unordered_map<const SRefNode*, PStatic>& store) : store(store) {}
   StoreFrame() = default;
 };
 
 class Store {
  public:
-  Store() : store_({StoreFrame()}) { }
+  Store() : store_({StoreFrame()}) {}
   Store(const Store&) = delete;
 
-  template<typename T>
+  template <typename T>
   T Extend(const std::function<T()>& body) {
     StoreFrameContext sfc(this);
     return body();
@@ -534,13 +506,9 @@ PStatic HasStatic(const Static& stat, const Expr& dynamic) {
   return PStatic(make_object<PStaticNode>(stat, dynamic));
 }
 
-PStatic NoStatic(const Expr& dynamic) {
-  return PStatic(make_object<PStaticNode>(dynamic));
-}
+PStatic NoStatic(const Expr& dynamic) { return PStatic(make_object<PStaticNode>(dynamic)); }
 
-enum struct MatchStatus {
-  Match, NoMatch, Unknown
-};
+enum struct MatchStatus { Match, NoMatch, Unknown };
 
 bool StatefulOp(const Expr& e) {
   static auto op_stateful = Op::GetAttr<TOpIsStateful>("TOpIsStateful");
@@ -582,20 +550,16 @@ struct WithFuncIdAttrs : public tvm::AttrsNode<WithFuncIdAttrs> {
   FuncId fid;
 
   TVM_DECLARE_ATTRS(WithFuncIdAttrs, "relay.attrs.WithFuncIdAttrs") {
-    TVM_ATTR_FIELD(fid)
-      .describe("The FuncId that an function is annotated with.")
-      .set_default(-1);
+    TVM_ATTR_FIELD(fid).describe("The FuncId that an function is annotated with.").set_default(-1);
   }
 };
 
 TVM_REGISTER_NODE_TYPE(WithFuncIdAttrs);
 
-
 RELAY_REGISTER_OP("annotation.with_funcid")
-.describe(R"code(Annotate a function with a funcid.)code"
-TVM_ADD_FILELINE)
-.set_num_inputs(1)
-.add_argument("func", "Function", "The input data.");
+    .describe(R"code(Annotate a function with a funcid.)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("func", "Function", "The input data.");
 
 // Cache with_funcid op to reduce lookup overhead during traversal.
 static const Op& with_funcid_op = Op::Get("annotation.with_funcid");
@@ -624,7 +588,7 @@ Function AsFunc(const Expr& e) {
 class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>,
                          public PatternFunctor<MatchStatus(const Pattern&, const PStatic&)> {
  public:
-  PartialEvaluator(const IRModule& mod) : mod_(mod) { }
+  PartialEvaluator(const IRModule& mod) : mod_(mod) {}
 
   PStatic VisitExpr(const Expr& e, LetList* ll) final {
     PStatic ret = ExprFunctor<PStatic(const Expr&, LetList*)>::VisitExpr(e, ll);
@@ -639,9 +603,8 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
         return VisitExpr(c->args[0], ll, name);
       }
     }
-    PStatic ret = e.as<FunctionNode>() ?
-      VisitFunc(Downcast<Function>(e), ll, name) :
-      VisitExpr(e, ll);
+    PStatic ret =
+        e.as<FunctionNode>() ? VisitFunc(Downcast<Function>(e), ll, name) : VisitExpr(e, ll);
     CHECK(IsAtomic(ret->dynamic)) << ret->dynamic;
     return ret;
   }
@@ -670,9 +633,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     }
   }
 
-  PStatic VisitExpr_(const VarNode* op, LetList* ll) final {
-    return env_.Lookup(GetRef<Var>(op));
-  }
+  PStatic VisitExpr_(const VarNode* op, LetList* ll) final { return env_.Lookup(GetRef<Var>(op)); }
 
   PStatic VisitGlobalVar(const GlobalVar& gv) {
     CHECK(mod_.defined());
@@ -714,15 +675,11 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
       }
     } else {
       Expr t = store_.Extend<Expr>([&]() {
-          return LetList::With([&](LetList* ll) {
-              return VisitExpr(op->true_branch, ll)->dynamic;
-            });
-        });
+        return LetList::With([&](LetList* ll) { return VisitExpr(op->true_branch, ll)->dynamic; });
+      });
       Expr f = store_.Extend<Expr>([&]() {
-          return LetList::With([&](LetList* ll) {
-              return VisitExpr(op->false_branch, ll)->dynamic;
-            });
-        });
+        return LetList::With([&](LetList* ll) { return VisitExpr(op->false_branch, ll)->dynamic; });
+      });
       store_.Invalidate();
       return NoStatic(ll->Push(If(c->dynamic, t, f)));
     }
@@ -782,16 +739,12 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     PartialEvaluator* pe_;
     FuncId fid_;
     Fuel old_fuel;
-    FuelFrame(PartialEvaluator* pe,
-              FuncId fid,
-              const Fuel& new_fuel) : pe_(pe), fid_(fid) {
+    FuelFrame(PartialEvaluator* pe, FuncId fid, const Fuel& new_fuel) : pe_(pe), fid_(fid) {
       CHECK_GT(pe_->fuel_map_.count(fid_), 0);
       old_fuel = pe_->fuel_map_[fid_];
       pe_->fuel_map_[fid_] = new_fuel;
     }
-    ~FuelFrame() {
-      pe_->fuel_map_[fid_] = old_fuel;
-    }
+    ~FuelFrame() { pe_->fuel_map_[fid_] = old_fuel; }
   };
 
   size_t GetFTValue(const PStatic& ps) {
@@ -829,82 +782,76 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
         free_vars.push_back(std::pair<Var, PStatic>(v, env_.Lookup(v)));
       }
     }
-    return [=](const PStatic& self,
-               const std::vector<PStatic>& pv,
-               const Attrs& attrs,
-               const tvm::Array<Type>& type_args,
-               LetList* ll) {
+    return [=](const PStatic& self, const std::vector<PStatic>& pv, const Attrs& attrs,
+               const tvm::Array<Type>& type_args, LetList* ll) {
       return env_.Extend<PStatic>([&]() {
-          CHECK_EQ(pv.size(), func->params.size());
-          CHECK_GT(func_map_.count(func), 0);
-          FuncId fid = func_map_.at(func);
-          if (fuel_map_.count(fid) == 0) {
-            fuel_map_.insert({fid, MkFTop()});
+        CHECK_EQ(pv.size(), func->params.size());
+        CHECK_GT(func_map_.count(func), 0);
+        FuncId fid = func_map_.at(func);
+        if (fuel_map_.count(fid) == 0) {
+          fuel_map_.insert({fid, MkFTop()});
+        }
+        std::vector<Fuel> args_fuel;
+        for (const auto& v : pv) {
+          args_fuel.push_back(GetFuel(v));
+        }
+        auto meet_res = fuel_map_[fid]->Meet(MkFSeq(args_fuel));
+        if (std::get<1>(meet_res)) {
+          FuelFrame tf(this, fid, std::get<0>(meet_res));
+          Expr dedup_func = RegisterFuncId(DeDup(AnnotateFuncId(func)));
+          Function func = AsFunc(dedup_func);
+          if (var.as<VarNode>()) {
+            env_.Insert(Downcast<Var>(var), self);
           }
-          std::vector<Fuel> args_fuel;
+          for (size_t i = 0; i < pv.size(); ++i) {
+            env_.Insert(func->params[i], pv[i]);
+          }
+          for (const auto& p : free_vars) {
+            env_.Insert(p.first, p.second);
+          }
+          tvm::Map<TypeVar, Type> subst;
+          for (size_t i = 0; i < type_args.size(); ++i) {
+            subst.Set(func->type_params[i], type_args[i]);
+          }
+          for (size_t i = type_args.size(); i < func->type_params.size(); ++i) {
+            subst.Set(func->type_params[i], IncompleteType(kType));
+          }
+          return VisitExpr(RegisterFuncId(TypeSubst(AnnotateFuncId(func->body), subst)), ll);
+        } else {
+          std::vector<Expr> dyn;
           for (const auto& v : pv) {
-            args_fuel.push_back(GetFuel(v));
+            dyn.push_back(v->dynamic);
           }
-          auto meet_res = fuel_map_[fid]->Meet(MkFSeq(args_fuel));
-          if (std::get<1>(meet_res)) {
-            FuelFrame tf(this, fid, std::get<0>(meet_res));
-            Expr dedup_func = RegisterFuncId(DeDup(AnnotateFuncId(func)));
-            Function func = AsFunc(dedup_func);
-            if (var.as<VarNode>()) {
-              env_.Insert(Downcast<Var>(var), self);
-            }
-            for (size_t i = 0; i < pv.size(); ++i) {
-              env_.Insert(func->params[i], pv[i]);
-            }
-            for (const auto& p : free_vars) {
-              env_.Insert(p.first, p.second);
-            }
-            tvm::Map<TypeVar, Type> subst;
-            for (size_t i = 0; i < type_args.size(); ++i) {
-              subst.Set(func->type_params[i], type_args[i]);
-            }
-            for (size_t i = type_args.size(); i < func->type_params.size(); ++i) {
-              subst.Set(func->type_params[i], IncompleteType(kType));
-            }
-            return VisitExpr(RegisterFuncId(TypeSubst(AnnotateFuncId(func->body), subst)), ll);
-          } else {
-            std::vector<Expr> dyn;
-            for (const auto& v : pv) {
-              dyn.push_back(v->dynamic);
-            }
-            return NoStatic(ll->Push(Call(var, dyn, attrs, type_args)));
-          }
-        });
+          return NoStatic(ll->Push(Call(var, dyn, attrs, type_args)));
+        }
+      });
     };
   }
 
   Expr VisitFuncDynamic(const Function& func, const Func& f, const Expr& self) {
     return store_.Extend<Expr>([&]() {
       store_.Invalidate();
-      return Function(func->params,
-                                LetList::With([&](LetList* ll) {
-        std::vector<PStatic> pv;
-        for (const auto& v : func->params) {
-          pv.push_back(NoStatic(v));
-        }
-        tvm::Array<Type> type_args;
-        for (const auto& tp : func->type_params) {
-          type_args.push_back(tp);
-        }
-        return f(HasStatic(MkSFunc(f), self), pv, Attrs(), type_args, ll)->dynamic;
-      }), func->ret_type, func->type_params, func->attrs);
+      return Function(func->params, LetList::With([&](LetList* ll) {
+                        std::vector<PStatic> pv;
+                        for (const auto& v : func->params) {
+                          pv.push_back(NoStatic(v));
+                        }
+                        tvm::Array<Type> type_args;
+                        for (const auto& tp : func->type_params) {
+                          type_args.push_back(tp);
+                        }
+                        return f(HasStatic(MkSFunc(f), self), pv, Attrs(), type_args, ll)->dynamic;
+                      }),
+                      func->ret_type, func->type_params, func->attrs);
     });
   }
 
-  PStatic VisitFunc(const Function& func,
-                    LetList* ll,
-                    const Var& name = Var("x", Type())) {
+  PStatic VisitFunc(const Function& func, LetList* ll, const Var& name = Var("x", Type())) {
     Func f = VisitFuncStatic(func, name);
     Function u_func = AsFunc(RegisterFuncId(DeDup(AnnotateFuncId(func))));
     // TODO(@M.K.): we seems to reduce landin knot into letrec.
     // restore letrec support across whole relay.
-    return HasStatic(MkSFunc(f),
-                     ll->Push(name, VisitFuncDynamic(u_func, f, name)));
+    return HasStatic(MkSFunc(f), ll->Push(name, VisitFuncDynamic(u_func, f, name)));
   }
 
   PStatic VisitExpr_(const FunctionNode* op, LetList* ll) final {
@@ -912,7 +859,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   struct ReflectError : dmlc::Error {
-    ReflectError() : dmlc::Error("static value not found") { }
+    ReflectError() : dmlc::Error("static value not found") {}
   };
 
   Expr Reflect(const PStatic& st) {
@@ -954,31 +901,24 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
   // Constant evaluate a expression.
   PStatic ConstEvaluate(const Expr& expr, LetList* ll) {
-    std::vector<transform::Pass> passes = {transform::FuseOps(0),
-                                           transform::InferType()};
+    std::vector<transform::Pass> passes = {transform::FuseOps(0), transform::InferType()};
     auto mod = IRModule::FromExpr(expr);
     auto seq = transform::Sequential(passes);
     mod = seq(mod);
     auto entry_func = Downcast<Function>(mod->Lookup("main"));
-    auto fused_infered =
-        expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
+    auto fused_infered = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
     return Reify(executor_(fused_infered), ll);
   }
 
   Func ConstEvaluateFunc(const Expr& expr) {
     CHECK_EQ(FreeVars(expr).size(), 0);
-    return [=](const PStatic& self,
-               const std::vector<PStatic>& pv,
-               const Attrs& attrs,
-               const tvm::Array<Type>& type_args,
-               LetList* ll) {
+    return [=](const PStatic& self, const std::vector<PStatic>& pv, const Attrs& attrs,
+               const tvm::Array<Type>& type_args, LetList* ll) {
       tvm::Array<Expr> ns_args;
       for (const PStatic& ps : pv) {
         ns_args.push_back(ps->dynamic);
       }
-      auto ns = [&]() {
-        return NoStatic(ll->Push(Call(expr, ns_args, attrs, type_args)));
-      };
+      auto ns = [&]() { return NoStatic(ll->Push(Call(expr, ns_args, attrs, type_args))); };
       if (StatefulOp(expr)) {
         return ns();
       }
@@ -988,8 +928,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
           args.push_back(Reflect(ps));
         }
         return ConstEvaluate(Call(expr, args, attrs, type_args), ll);
-      }
-      catch (const ReflectError&) {
+      } catch (const ReflectError&) {
         return ns();
       }
     };
@@ -1001,11 +940,8 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
   PStatic VisitExpr_(const ConstructorNode* op, LetList* ll) final {
     Constructor c = GetRef<Constructor>(op);
-    Func f = [=](const PStatic& self,
-                 const std::vector<PStatic>& pv,
-                 const Attrs& attrs,
-                 const tvm::Array<Type>& type_args,
-                 LetList* ll) {
+    Func f = [=](const PStatic& self, const std::vector<PStatic>& pv, const Attrs& attrs,
+                 const tvm::Array<Type>& type_args, LetList* ll) {
       tvm::Array<Expr> dyn;
       for (const PStatic& ps : pv) {
         dyn.push_back(ps->dynamic);
@@ -1020,30 +956,30 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     return env_.Extend<PStatic>([&]() {
       for (const Clause& c : op->clauses) {
         switch (VisitPattern(c->lhs, ps)) {
-        case MatchStatus::Match:
-          return VisitExpr(c->rhs, ll);
-        case MatchStatus::NoMatch:
-          continue;
-        case MatchStatus::Unknown:
-          return [&]() {
-            tvm::Array<Clause> clauses;
-            for (const Clause& c : op->clauses) {
-              Expr expr = store_.Extend<Expr>([&]() {
-                return LetList::With([&](LetList* ll) {
-                  for (const Var& v : BoundVars(c->lhs)) {
-                    env_.Insert(v, NoStatic(v));
-                  }
-                  return VisitExpr(c->rhs, ll)->dynamic;
+          case MatchStatus::Match:
+            return VisitExpr(c->rhs, ll);
+          case MatchStatus::NoMatch:
+            continue;
+          case MatchStatus::Unknown:
+            return [&]() {
+              tvm::Array<Clause> clauses;
+              for (const Clause& c : op->clauses) {
+                Expr expr = store_.Extend<Expr>([&]() {
+                  return LetList::With([&](LetList* ll) {
+                    for (const Var& v : BoundVars(c->lhs)) {
+                      env_.Insert(v, NoStatic(v));
+                    }
+                    return VisitExpr(c->rhs, ll)->dynamic;
+                  });
                 });
-              });
-              clauses.push_back(Clause(c->lhs, expr));
-            }
-            store_.Invalidate();
-            return NoStatic(ll->Push(Match(ps->dynamic, clauses, op->complete)));
-          }();
-        default:
-          LOG(FATAL) << "Unknown MatchStatus";
-          throw;
+                clauses.push_back(Clause(c->lhs, expr));
+              }
+              store_.Invalidate();
+              return NoStatic(ll->Push(Match(ps->dynamic, clauses, op->complete)));
+            }();
+          default:
+            LOG(FATAL) << "Unknown MatchStatus";
+            throw;
         }
       }
       LOG(FATAL) << "No case Match";
@@ -1071,12 +1007,12 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
         for (size_t i = 0; i < op->patterns.size(); ++i) {
           MatchStatus ms = VisitPattern(op->patterns[i], scn->fields[i]);
           switch (ms) {
-          case MatchStatus::Match:
-            continue;
-          case MatchStatus::NoMatch:
-            return MatchStatus::NoMatch;
-          case MatchStatus::Unknown:
-            current_match_status = MatchStatus::Unknown;
+            case MatchStatus::Match:
+              continue;
+            case MatchStatus::NoMatch:
+              return MatchStatus::NoMatch;
+            case MatchStatus::Unknown:
+              current_match_status = MatchStatus::Unknown;
           }
         }
         return current_match_status;
@@ -1095,12 +1031,12 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
       for (size_t i = 0; i < op->patterns.size(); ++i) {
         MatchStatus ms = VisitPattern(op->patterns[i], stn->fields[i]);
         switch (ms) {
-        case MatchStatus::Match:
-          continue;
-        case MatchStatus::NoMatch:
-          return MatchStatus::NoMatch;
-        case MatchStatus::Unknown:
-          current_match_status = MatchStatus::Unknown;
+          case MatchStatus::Match:
+            continue;
+          case MatchStatus::NoMatch:
+            return MatchStatus::NoMatch;
+          case MatchStatus::Unknown:
+            current_match_status = MatchStatus::Unknown;
         }
       }
       return current_match_status;
@@ -1112,7 +1048,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   void InitializeFuncId(const Expr& e) {
     struct InitializeFuncIdVisitor : ExprVisitor, PatternVisitor {
       PartialEvaluator* pe;
-      explicit InitializeFuncIdVisitor(PartialEvaluator* pe) : pe(pe) { }
+      explicit InitializeFuncIdVisitor(PartialEvaluator* pe) : pe(pe) {}
 
       void VisitExpr_(const FunctionNode* op) final {
         Function f = GetRef<Function>(op);
@@ -1121,9 +1057,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
         VisitExpr(f->body);
       }
 
-      void VisitPattern(const Pattern& p) final {
-        PatternVisitor::VisitPattern(p);
-      }
+      void VisitPattern(const Pattern& p) final { PatternVisitor::VisitPattern(p); }
     };
     InitializeFuncIdVisitor(this).VisitExpr(e);
   }
@@ -1131,7 +1065,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   Expr RegisterFuncId(const Expr& e) {
     struct RegisterFuncIdVisitor : ExprVisitor, PatternVisitor {
       PartialEvaluator* pe;
-      explicit RegisterFuncIdVisitor(PartialEvaluator* pe) : pe(pe) { }
+      explicit RegisterFuncIdVisitor(PartialEvaluator* pe) : pe(pe) {}
 
       void VisitExpr_(const CallNode* op) final {
         if (op->op == with_funcid_op) {
@@ -1154,9 +1088,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
         ExprVisitor::VisitExpr_(op);
       }
 
-      void VisitPattern(const Pattern& p) final {
-        PatternVisitor::VisitPattern(p);
-      }
+      void VisitPattern(const Pattern& p) final { PatternVisitor::VisitPattern(p); }
     };
     RegisterFuncIdVisitor(this).VisitExpr(e);
     return e;
@@ -1165,7 +1097,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   Expr AnnotateFuncId(const Expr& e) {
     struct AnnotateFuncIdMutator : ExprMutator, PatternMutator {
       PartialEvaluator* pe;
-      explicit AnnotateFuncIdMutator(PartialEvaluator* pe) : pe(pe) { }
+      explicit AnnotateFuncIdMutator(PartialEvaluator* pe) : pe(pe) {}
 
       Expr VisitExpr_(const FunctionNode* op) final {
         Function f = GetRef<Function>(op);
@@ -1173,13 +1105,9 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
         return MkWithFuncId(ExprMutator::VisitExpr_(op), pe->func_map_.at(f));
       }
 
-      Pattern VisitPattern(const Pattern& p) final {
-        return PatternMutator::VisitPattern(p);
-      }
+      Pattern VisitPattern(const Pattern& p) final { return PatternMutator::VisitPattern(p); }
 
-      Var VisitVar(const Var& v) final {
-        return v;
-      }
+      Var VisitVar(const Var& v) final { return v; }
     };
     return AnnotateFuncIdMutator(this).VisitExpr(e);
   }
@@ -1199,7 +1127,8 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
    *  If no progress is made, we do not inline.
    *  In both case, we remap the mapping to the new Fuel
    *  when we PE inside the Function body.
-   *  Termination is guaranteed because Fuel is finitely descending - there can only be so many meet.
+   *  Termination is guaranteed because Fuel is finitely descending - there can only be so many
+   * meet.
    */
   std::unordered_map<Function, FuncId, ObjectHash, ObjectEqual> func_map_;
   std::unordered_map<FuncId, Fuel> fuel_map_;
@@ -1219,9 +1148,7 @@ Expr Remap(const Expr& e) {
       return remap_.at(v);
     }
 
-    Var VisitVar(const Var& v) final {
-      return Downcast<Var>(VisitExpr(v));
-    }
+    Var VisitVar(const Var& v) final { return Downcast<Var>(VisitExpr(v)); }
 
    private:
     std::unordered_map<Var, Var, VarHash, VarEqual> remap_;
@@ -1240,20 +1167,14 @@ Expr StripWithFuncId(const Expr& e) {
       }
     }
 
-    Pattern VisitPattern(const Pattern& p) final {
-      return PatternMutator::VisitPattern(p);
-    }
+    Pattern VisitPattern(const Pattern& p) final { return PatternMutator::VisitPattern(p); }
 
-    Var VisitVar(const Var& v) final {
-      return v;
-    }
+    Var VisitVar(const Var& v) final { return v; }
   };
   return StripWithFuncIdMutator().VisitExpr(e);
 }
 
-Expr PostProcess(const Expr& e) {
-  return StripWithFuncId(DeDup(Remap(e)));
-}
+Expr PostProcess(const Expr& e) { return StripWithFuncId(DeDup(Remap(e))); }
 
 }  // namespace partial_eval
 
@@ -1273,14 +1194,11 @@ namespace transform {
 
 Pass PartialEval() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-    [=](IRModule m, PassContext pc) {
-    return relay::PartialEval(m);
-  };
+      [=](IRModule m, PassContext pc) { return relay::PartialEval(m); };
   return CreateModulePass(pass_func, 1, "PartialEvaluate", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.PartialEvaluate")
-.set_body_typed(PartialEval);
+TVM_REGISTER_GLOBAL("relay._transform.PartialEvaluate").set_body_typed(PartialEval);
 
 }  // namespace transform
 

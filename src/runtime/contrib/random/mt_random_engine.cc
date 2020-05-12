@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,6 +22,7 @@
  * \brief mt19937 random engine
  */
 #include <dmlc/logging.h>
+
 #include <algorithm>
 #include <ctime>
 #include <random>
@@ -34,45 +35,37 @@ namespace contrib {
  */
 class RandomEngine {
  public:
-   /*!
-    * \brief Creates a RandomEngine using a default seed.
-    */
-  RandomEngine() {
-    this->Seed(time(0));
-  }
+  /*!
+   * \brief Creates a RandomEngine using a default seed.
+   */
+  RandomEngine() { this->Seed(time(0)); }
 
-   /*!
-    * \brief Creates a RandomEngine, suggesting the use of a provided seed.
-    */
-  explicit RandomEngine(unsigned seed) {
-    this->Seed(seed);
-  }
+  /*!
+   * \brief Creates a RandomEngine, suggesting the use of a provided seed.
+   */
+  explicit RandomEngine(unsigned seed) { this->Seed(seed); }
 
-   /*!
-    * \brief Seeds the underlying RNG, if possible.
-    */
+  /*!
+   * \brief Seeds the underlying RNG, if possible.
+   */
   inline void Seed(unsigned seed) {
     rnd_engine_.seed(seed);
     this->rseed_ = static_cast<unsigned>(seed);
   }
 
-   /*!
-    * \return the seed associated with the underlying RNG.
-    */
-  inline unsigned GetSeed() const {
-    return rseed_;
-  }
+  /*!
+   * \return the seed associated with the underlying RNG.
+   */
+  inline unsigned GetSeed() const { return rseed_; }
 
-   /*!
-    * \return a random integer sampled from the RNG.
-    */
-  inline unsigned GetRandInt() {
-    return rnd_engine_();
-  }
+  /*!
+   * \return a random integer sampled from the RNG.
+   */
+  inline unsigned GetRandInt() { return rnd_engine_(); }
 
-   /*!
-    * \brief Fills a tensor with values drawn from Unif(low, high)
-    */
+  /*!
+   * \brief Fills a tensor with values drawn from Unif(low, high)
+   */
   void SampleUniform(DLTensor* data, float low, float high) {
     CHECK_GT(high, low) << "high must be bigger than low";
     CHECK(data->strides == nullptr);
@@ -87,17 +80,16 @@ class RandomEngine {
 
     if (data->ctx.device_type == kDLCPU) {
       std::uniform_real_distribution<float> uniform_dist(low, high);
-      std::generate_n(static_cast<float*>(data->data), size, [&] () {
-        return uniform_dist(rnd_engine_);
-      });
+      std::generate_n(static_cast<float*>(data->data), size,
+                      [&]() { return uniform_dist(rnd_engine_); });
     } else {
       LOG(FATAL) << "Do not support random.uniform on this device yet";
     }
   }
 
-   /*!
-    * \brief Fills a tensor with values drawn from Normal(loc, scale**2)
-    */
+  /*!
+   * \brief Fills a tensor with values drawn from Normal(loc, scale**2)
+   */
   void SampleNormal(DLTensor* data, float loc, float scale) {
     CHECK_GT(scale, 0) << "standard deviation must be positive";
     CHECK(data->strides == nullptr);
@@ -112,9 +104,8 @@ class RandomEngine {
 
     if (data->ctx.device_type == kDLCPU) {
       std::normal_distribution<float> normal_dist(loc, scale);
-      std::generate_n(static_cast<float*>(data->data), size, [&] () {
-        return normal_dist(rnd_engine_);
-      });
+      std::generate_n(static_cast<float*>(data->data), size,
+                      [&]() { return normal_dist(rnd_engine_); });
     } else {
       LOG(FATAL) << "Do not support random.normal on this device yet";
     }

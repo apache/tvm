@@ -26,7 +26,9 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/op.h>
+
 #include <limits>
+
 #include "const_fold.h"
 
 namespace tvm {
@@ -53,26 +55,18 @@ class IntervalSetNode : public IntSetNode {
   }
 
   /*! \return Whether the interval has upper bound. */
-  bool HasUpperBound() const {
-    return !is_pos_inf(max_value) && !IsEmpty();
-  }
+  bool HasUpperBound() const { return !is_pos_inf(max_value) && !IsEmpty(); }
   /*! \return Whether the interval has lower bound. */
-  bool HasLowerBound() const {
-    return !is_neg_inf(min_value) && !IsEmpty();
-  }
+  bool HasLowerBound() const { return !is_neg_inf(min_value) && !IsEmpty(); }
   /*! \return Whether the interval is a single point. */
-  bool IsSinglePoint() const {
-    return min_value.same_as(max_value);
-  }
+  bool IsSinglePoint() const { return min_value.same_as(max_value); }
   /*! \return whether interval represent nothing */
   bool IsEmpty() const {
     // during computations, either extreme could occur.
     return is_pos_inf(min_value) || is_neg_inf(max_value);
   }
   /*! \return whether interval represent everything */
-  bool IsEverything() const {
-    return is_neg_inf(min_value) && is_pos_inf(max_value);
-  }
+  bool IsEverything() const { return is_neg_inf(min_value) && is_pos_inf(max_value); }
 
   static constexpr const char* _type_key = "arith.IntervalSet";
   TVM_DECLARE_FINAL_OBJECT_INFO(IntervalSetNode, IntSetNode);
@@ -97,24 +91,18 @@ class IntervalSet : public IntSet {
    * \param value The value to be represented.
    * \return The result set.
    */
-  static IntervalSet SinglePoint(PrimExpr value) {
-    return IntervalSet(value, value);
-  }
+  static IntervalSet SinglePoint(PrimExpr value) { return IntervalSet(value, value); }
   /*!
    * \brief Create an IntervalSet that represents everything.
    * \param value The value to be represented.
    * \return The result set.
    */
-  static IntervalSet Everything() {
-    return IntervalSet(neg_inf(), pos_inf());
-  }
+  static IntervalSet Everything() { return IntervalSet(neg_inf(), pos_inf()); }
   /*!
    * \brief Create an empty eet.
    * \return The result set.
    */
-  static IntervalSet Empty() {
-    return IntervalSet(pos_inf(), neg_inf());
-  }
+  static IntervalSet Empty() { return IntervalSet(pos_inf(), neg_inf()); }
 
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IntervalSetNode);
   TVM_DEFINE_OBJECT_REF_METHODS(IntervalSet, IntSet, IntervalSetNode);
@@ -136,7 +124,7 @@ TVM_DLL IntervalSet Union(Analyzer* analyzer, IntervalSet a, IntervalSet b);
  * \param b The second set.
  * \return The result set.
  */
-TVM_DLL IntervalSet Intersect(Analyzer *analzyer, IntervalSet a, IntervalSet b);
+TVM_DLL IntervalSet Intersect(Analyzer* analzyer, IntervalSet a, IntervalSet b);
 
 }  // namespace arith
 }  // namespace tvm

@@ -29,11 +29,8 @@ namespace tvm {
 namespace tir {
 
 // Get the function type of a PrimFunc
-PrimFunc::PrimFunc(Array<tir::Var> params,
-                   Stmt body,
-                   Type ret_type,
-                   Map<tir::Var, Buffer> buffer_map,
-                   DictAttrs attrs) {
+PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
+                   Map<tir::Var, Buffer> buffer_map, DictAttrs attrs) {
   // Assume void-return type for now
   // TODO(tvm-team) consider type deduction from body.
   if (!ret_type.defined()) {
@@ -60,29 +57,25 @@ FuncType PrimFuncNode::func_type_annotation() const {
 TVM_REGISTER_NODE_TYPE(PrimFuncNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<PrimFuncNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  // TODO(tvm-team) redirect to Text printer once we have a good text format.
-  auto* node = static_cast<const PrimFuncNode*>(ref.get());
-  p->stream << "PrimFunc(" << node->params << ") ";
-  if (node->attrs.defined()) {
-    p->stream << "attrs=" << node->attrs;
-  }
-  p->stream << " {\n";
-  p->indent += 2;
-  p->Print(node->body);
-  p->indent -= 2;
-  p->stream << "}\n";
-});
-
+    .set_dispatch<PrimFuncNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      // TODO(tvm-team) redirect to Text printer once we have a good text format.
+      auto* node = static_cast<const PrimFuncNode*>(ref.get());
+      p->stream << "PrimFunc(" << node->params << ") ";
+      if (node->attrs.defined()) {
+        p->stream << "attrs=" << node->attrs;
+      }
+      p->stream << " {\n";
+      p->indent += 2;
+      p->Print(node->body);
+      p->indent -= 2;
+      p->stream << "}\n";
+    });
 
 TVM_REGISTER_GLOBAL("tir.PrimFunc")
-.set_body_typed([](Array<tir::Var> params,
-                   Stmt body,
-                   Type ret_type,
-                   Map<tir::Var, Buffer> buffer_map,
-                   DictAttrs attrs) {
-  return PrimFunc(params, body, ret_type, buffer_map, attrs);
-});
+    .set_body_typed([](Array<tir::Var> params, Stmt body, Type ret_type,
+                       Map<tir::Var, Buffer> buffer_map, DictAttrs attrs) {
+      return PrimFunc(params, body, ret_type, buffer_map, attrs);
+    });
 
 }  // namespace tir
 }  // namespace tvm

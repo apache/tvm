@@ -26,6 +26,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
+
 #include "pass_util.h"
 
 namespace tvm {
@@ -36,9 +37,7 @@ namespace relay {
 // so that calling realize repeatively won't hurt perf.
 class TempRealizer : private MixedModeMutator {
  public:
-  Expr Realize(Expr expr) {
-    return Mutate(expr);
-  }
+  Expr Realize(Expr expr) { return Mutate(expr); }
 
  private:
   Expr DispatchVisitExpr(const Expr& expr) final {
@@ -57,17 +56,12 @@ class ForwardRewriter : private MixedModeMutator {
   ForwardRewriter(const OpMap<FForwardRewrite>* rewrite_map,
                   std::function<ObjectRef(const Call&)> fcontext,
                   std::function<Expr(const Expr&)> fmulti_ref_trigger)
-      : rewrite_map_(rewrite_map),
-        fcontext_(fcontext),
-        fmulti_ref_trigger_(fmulti_ref_trigger) {}
+      : rewrite_map_(rewrite_map), fcontext_(fcontext), fmulti_ref_trigger_(fmulti_ref_trigger) {}
 
   ForwardRewriter(const FForwardRewrite* rewrite_func,
                   std::function<ObjectRef(const Call&)> fcontext,
                   std::function<Expr(const Expr&)> fmulti_ref_trigger)
-      : rewrite_func_(rewrite_func),
-        fcontext_(fcontext),
-        fmulti_ref_trigger_(fmulti_ref_trigger) {}
-
+      : rewrite_func_(rewrite_func), fcontext_(fcontext), fmulti_ref_trigger_(fmulti_ref_trigger) {}
 
   // Transform expression.
   Expr Rewrite(const Expr& expr) {
@@ -91,7 +85,7 @@ class ForwardRewriter : private MixedModeMutator {
   TempRealizer realizer_;
 
   // Visit and allow non-realized version.
-  Expr GetTempExpr(const Expr& expr, const Expr& post)  {
+  Expr GetTempExpr(const Expr& expr, const Expr& post) {
     if (fmulti_ref_trigger_ != nullptr) {
       Expr ret = post;
       auto it = ref_counter_.find(expr.get());
@@ -160,9 +154,8 @@ class ForwardRewriter : private MixedModeMutator {
     }
     // try to rewrite.
     if (frewrite != nullptr) {
-      Expr res = frewrite(
-          ref_call, call_args,
-          fcontext_ != nullptr ? fcontext_(ref_call) : ObjectRef(nullptr));
+      Expr res = frewrite(ref_call, call_args,
+                          fcontext_ != nullptr ? fcontext_(ref_call) : ObjectRef(nullptr));
       if (res.defined()) return res;
       // abort, use old rule
       for (size_t i = 0; i < call_args.size(); ++i) {
@@ -175,21 +168,18 @@ class ForwardRewriter : private MixedModeMutator {
       }
     }
     if (unchanged) return ref_call;
-    return Call(
-        new_op, call_args, call_node->attrs, call_node->type_args);
+    return Call(new_op, call_args, call_node->attrs, call_node->type_args);
   }
 };
 
-Expr ForwardRewrite(const Expr& expr,
-                    const std::string& rewrite_map_name,
+Expr ForwardRewrite(const Expr& expr, const std::string& rewrite_map_name,
                     std::function<ObjectRef(const Call&)> fcontext,
                     std::function<Expr(const Expr&)> fmulti_ref_trigger) {
   auto rewrite_map = Op::GetAttr<FForwardRewrite>(rewrite_map_name);
   return ForwardRewriter(&rewrite_map, fcontext, fmulti_ref_trigger).Rewrite(expr);
 }
 
-Expr ForwardRewrite(const Expr& expr,
-                    const FForwardRewrite& rewrite_func,
+Expr ForwardRewrite(const Expr& expr, const FForwardRewrite& rewrite_func,
                     std::function<ObjectRef(const Call&)> fcontext,
                     std::function<Expr(const Expr&)> fmulti_ref_trigger) {
   return ForwardRewriter(&rewrite_func, fcontext, fmulti_ref_trigger).Rewrite(expr);

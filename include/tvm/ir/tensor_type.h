@@ -24,8 +24,8 @@
 #ifndef TVM_IR_TENSOR_TYPE_H_
 #define TVM_IR_TENSOR_TYPE_H_
 
-#include <tvm/ir/type.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/type.h>
 
 namespace tvm {
 /*!
@@ -75,9 +75,7 @@ class TensorTypeNode : public BaseTensorTypeNode {
   }
 
   bool SEqualReduce(const TensorTypeNode* other, SEqualReducer equal) const {
-    return
-        equal(shape, other->shape) &&
-        equal(dtype, other->dtype);
+    return equal(shape, other->shape) && equal(dtype, other->dtype);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {

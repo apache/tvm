@@ -25,8 +25,8 @@
 #define TVM_RELAY_OP_H_
 
 #include <tvm/ir/op.h>
-#include <tvm/relay/type.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/type.h>
 
 namespace tvm {
 namespace relay {
@@ -34,8 +34,7 @@ namespace relay {
 using Op = tvm::Op;
 using OpNode = tvm::OpNode;
 
-#define RELAY_REGISTER_OP(OpName)               \
-  TVM_REGISTER_OP(OpName)
+#define RELAY_REGISTER_OP(OpName) TVM_REGISTER_OP(OpName)
 
 }  // namespace relay
 }  // namespace tvm

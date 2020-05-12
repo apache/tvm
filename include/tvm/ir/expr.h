@@ -24,14 +24,15 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
-#include <tvm/runtime/object.h>
-#include <tvm/node/node.h>
-#include <tvm/node/container.h>
 #include <tvm/ir/span.h>
 #include <tvm/ir/type.h>
-#include <string>
+#include <tvm/node/container.h>
+#include <tvm/node/node.h>
+#include <tvm/runtime/object.h>
+
 #include <algorithm>
 #include <limits>
+#include <string>
 #include <type_traits>
 
 namespace tvm {
@@ -111,9 +112,7 @@ class PrimExpr : public BaseExpr {
   TVM_DLL PrimExpr(float value);  // NOLINT(*)
 
   /*! \return the data type of this expression. */
-  DataType dtype() const {
-    return static_cast<const PrimExprNode*>(get())->dtype;
-  }
+  DataType dtype() const { return static_cast<const PrimExprNode*>(get())->dtype; }
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
 
@@ -160,7 +159,7 @@ class RelayExprNode : public BaseExprNode {
    * \return The corresponding TTypeNode pointer.
    * \tparam The specific TypeNode we look for.
    */
-  template<typename TTypeNode>
+  template <typename TTypeNode>
   inline const TTypeNode* type_as() const;
 
   static constexpr const char* _type_key = "RelayExpr";
@@ -189,7 +188,7 @@ class GlobalVar;
 class GlobalVarNode : public RelayExprNode {
  public:
   /*! \brief The name of the variable, this only acts as a hint. */
-  std::string name_hint;
+  String name_hint;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
@@ -199,9 +198,7 @@ class GlobalVarNode : public RelayExprNode {
 
   bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {
     // name matters for global var.
-    return
-        equal(name_hint, other->name_hint) &&
-        equal.FreeVarEqualImpl(this, other);
+    return equal(name_hint, other->name_hint) && equal.FreeVarEqualImpl(this, other);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -219,7 +216,7 @@ class GlobalVarNode : public RelayExprNode {
  */
 class GlobalVar : public RelayExpr {
  public:
-  TVM_DLL explicit GlobalVar(std::string name_hint);
+  TVM_DLL explicit GlobalVar(String name_hint);
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelayExpr, GlobalVarNode);
 };
@@ -322,35 +319,21 @@ class FloatImm : public PrimExpr {
  */
 class Bool : public IntImm {
  public:
-  explicit Bool(bool value)
-      : IntImm(DataType::Bool(), value) {
-  }
-  Bool operator!() const {
-    return Bool((*this)->value == 0);
-  }
-  operator bool() const {
-    return (*this)->value != 0;
-  }
+  explicit Bool(bool value) : IntImm(DataType::Bool(), value) {}
+  Bool operator!() const { return Bool((*this)->value == 0); }
+  operator bool() const { return (*this)->value != 0; }
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Bool, IntImm, IntImmNode);
 };
 
 // Overload operators to make sure we have the most fine grained types.
-inline Bool operator||(const Bool& a, bool b) {
-  return Bool(a.operator bool() || b);
-}
-inline Bool operator||(bool a, const Bool& b) {
-  return Bool(a || b.operator bool());
-}
+inline Bool operator||(const Bool& a, bool b) { return Bool(a.operator bool() || b); }
+inline Bool operator||(bool a, const Bool& b) { return Bool(a || b.operator bool()); }
 inline Bool operator||(const Bool& a, const Bool& b) {
   return Bool(a.operator bool() || b.operator bool());
 }
-inline Bool operator&&(const Bool& a, bool b) {
-  return Bool(a.operator bool() && b);
-}
-inline Bool operator&&(bool a, const Bool& b) {
-  return Bool(a && b.operator bool());
-}
+inline Bool operator&&(const Bool& a, bool b) { return Bool(a.operator bool() && b); }
+inline Bool operator&&(bool a, const Bool& b) { return Bool(a && b.operator bool()); }
 inline Bool operator&&(const Bool& a, const Bool& b) {
   return Bool(a.operator bool() && b.operator bool());
 }
@@ -384,8 +367,7 @@ class Integer : public IntImm {
    * \tparam Enum The enum type.
    * \param value The enum value.
    */
-  template<typename Enum,
-           typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
+  template <typename Enum, typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
   explicit Integer(Enum value) : Integer(static_cast<int>(value)) {
     static_assert(std::is_same<int, typename std::underlying_type<Enum>::type>::value,
                   "declare enum to be enum int to use visitor");
@@ -402,8 +384,7 @@ class Integer : public IntImm {
    * \brief convert to int64_t
    */
   operator int64_t() const {
-    CHECK(data_ != nullptr)
-        << " Trying to reference a null Integer";
+    CHECK(data_ != nullptr) << " Trying to reference a null Integer";
     return (*this)->value;
   }
   // comparators
@@ -411,16 +392,12 @@ class Integer : public IntImm {
     if (data_ == nullptr) return Bool(false);
     return Bool((*this)->value == other);
   }
-  Bool operator!=(int other) const {
-    return !(*this == other);
-  }
-  template<typename Enum,
-           typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
+  Bool operator!=(int other) const { return !(*this == other); }
+  template <typename Enum, typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
   Bool operator==(Enum other) const {
     return *this == static_cast<int>(other);
   }
-  template<typename Enum,
-           typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
+  template <typename Enum, typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
   Bool operator!=(Enum other) const {
     return *this != static_cast<int>(other);
   }
@@ -482,24 +459,21 @@ class Range : public ObjectRef {
 
 // implementataions
 inline const Type& RelayExprNode::checked_type() const {
-  CHECK(checked_type_.defined())
-      << "internal error: the type checker has "
-      << "not populated the checked_type "
-      << "field for "
-      << GetRef<RelayExpr>(this);
+  CHECK(checked_type_.defined()) << "internal error: the type checker has "
+                                 << "not populated the checked_type "
+                                 << "field for " << GetRef<RelayExpr>(this);
   return this->checked_type_;
 }
 
-template<typename TTypeNode>
+template <typename TTypeNode>
 inline const TTypeNode* RelayExprNode::type_as() const {
   static_assert(std::is_base_of<TypeNode, TTypeNode>::value,
                 "TType must be a special case of type");
   CHECK(checked_type_.defined())
       << "Type inference for this Expr has not completed. Try to call infer_type pass.";
   const TTypeNode* node = checked_type_.as<TTypeNode>();
-  CHECK(node != nullptr)
-      << "Expected type to be " << TTypeNode::_type_key
-      << ", but get " << checked_type_->GetTypeKey();
+  CHECK(node != nullptr) << "Expected type to be " << TTypeNode::_type_key << ", but get "
+                         << checked_type_->GetTypeKey();
   return node;
 }
 
@@ -507,7 +481,7 @@ inline const TTypeNode* RelayExprNode::type_as() const {
 
 namespace tvm {
 namespace runtime {
-template<>
+template <>
 struct PackedFuncValueConverter<PrimExpr> {
   // common rule for both RetValue and ArgValue.
   static PrimExpr From(const TVMPODValue_& val) {

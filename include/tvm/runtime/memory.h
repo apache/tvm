@@ -24,9 +24,10 @@
 #define TVM_RUNTIME_MEMORY_H_
 
 #include <tvm/runtime/object.h>
+
 #include <cstdlib>
-#include <utility>
 #include <type_traits>
+#include <utility>
 
 namespace tvm {
 namespace runtime {
@@ -36,7 +37,7 @@ namespace runtime {
  * \tparam T the node type.
  * \return The ObjectPtr to the allocated object.
  */
-template<typename T, typename... Args>
+template <typename T, typename... Args>
 inline ObjectPtr<T> make_object(Args&&... args);
 
 // Detail implementations after this
@@ -55,7 +56,7 @@ inline ObjectPtr<T> make_object(Args&&... args);
  *
  * \tparam Derived The derived class.
  */
-template<typename Derived>
+template <typename Derived>
 class ObjAllocatorBase {
  public:
   /*!
@@ -64,13 +65,11 @@ class ObjAllocatorBase {
    * \tparam Args The constructor signature.
    * \param args The arguments.
    */
-  template<typename T, typename... Args>
+  template <typename T, typename... Args>
   inline ObjectPtr<T> make_object(Args&&... args) {
     using Handler = typename Derived::template Handler<T>;
-    static_assert(std::is_base_of<Object, T>::value,
-                  "make can only be used to create Object");
-    T* ptr = Handler::New(static_cast<Derived*>(this),
-                          std::forward<Args>(args)...);
+    static_assert(std::is_base_of<Object, T>::value, "make can only be used to create Object");
+    T* ptr = Handler::New(static_cast<Derived*>(this), std::forward<Args>(args)...);
     ptr->type_index_ = T::RuntimeTypeIndex();
     ptr->deleter_ = Handler::Deleter();
     return ObjectPtr<T>(ptr);
@@ -83,14 +82,13 @@ class ObjAllocatorBase {
    * \param num_elems The number of array elements.
    * \param args The arguments.
    */
-  template<typename ArrayType, typename ElemType, typename... Args>
+  template <typename ArrayType, typename ElemType, typename... Args>
   inline ObjectPtr<ArrayType> make_inplace_array(size_t num_elems, Args&&... args) {
     using Handler = typename Derived::template ArrayHandler<ArrayType, ElemType>;
     static_assert(std::is_base_of<Object, ArrayType>::value,
                   "make_inplace_array can only be used to create Object");
-    ArrayType* ptr = Handler::New(static_cast<Derived*>(this),
-                                  num_elems,
-                                  std::forward<Args>(args)...);
+    ArrayType* ptr =
+        Handler::New(static_cast<Derived*>(this), num_elems, std::forward<Args>(args)...);
     ptr->type_index_ = ArrayType::RuntimeTypeIndex();
     ptr->deleter_ = Handler::Deleter();
     return ObjectPtr<ArrayType>(ptr);
@@ -98,15 +96,14 @@ class ObjAllocatorBase {
 };
 
 // Simple allocator that uses new/delete.
-class SimpleObjAllocator :
-      public ObjAllocatorBase<SimpleObjAllocator> {
+class SimpleObjAllocator : public ObjAllocatorBase<SimpleObjAllocator> {
  public:
-  template<typename T>
+  template <typename T>
   class Handler {
    public:
     using StorageType = typename std::aligned_storage<sizeof(T), alignof(T)>::type;
 
-    template<typename... Args>
+    template <typename... Args>
     static T* New(SimpleObjAllocator*, Args&&... args) {
       // NOTE: the first argument is not needed for SimpleObjAllocator
       // It is reserved for special allocators that needs to recycle
@@ -126,9 +123,7 @@ class SimpleObjAllocator :
       return reinterpret_cast<T*>(data);
     }
 
-    static Object::FDeleter Deleter() {
-      return Deleter_;
-    }
+    static Object::FDeleter Deleter() { return Deleter_; }
 
    private:
     static void Deleter_(Object* objptr) {
@@ -146,16 +141,16 @@ class SimpleObjAllocator :
   };
 
   // Array handler that uses new/delete.
-  template<typename ArrayType, typename ElemType>
+  template <typename ArrayType, typename ElemType>
   class ArrayHandler {
    public:
     using StorageType = typename std::aligned_storage<sizeof(ArrayType), alignof(ArrayType)>::type;
     // for now only support elements that aligns with array header.
     static_assert(alignof(ArrayType) % alignof(ElemType) == 0 &&
-                  sizeof(ArrayType) % alignof(ElemType) == 0,
+                      sizeof(ArrayType) % alignof(ElemType) == 0,
                   "element alignment constraint");
 
-    template<typename... Args>
+    template <typename... Args>
     static ArrayType* New(SimpleObjAllocator*, size_t num_elems, Args&&... args) {
       // NOTE: the first argument is not needed for ArrayObjAllocator
       // It is reserved for special allocators that needs to recycle
@@ -177,9 +172,7 @@ class SimpleObjAllocator :
       return reinterpret_cast<ArrayType*>(data);
     }
 
-    static Object::FDeleter Deleter() {
-      return Deleter_;
-    }
+    static Object::FDeleter Deleter() { return Deleter_; }
 
    private:
     static void Deleter_(Object* objptr) {
@@ -193,20 +186,20 @@ class SimpleObjAllocator :
       // call a virtual destructor(which may not be available and is not required).
       tptr->ArrayType::~ArrayType();
       StorageType* p = reinterpret_cast<StorageType*>(tptr);
-      delete []p;
+      delete[] p;
     }
   };
 };
 
-template<typename T, typename... Args>
+template <typename T, typename... Args>
 inline ObjectPtr<T> make_object(Args&&... args) {
   return SimpleObjAllocator().make_object<T>(std::forward<Args>(args)...);
 }
 
-template<typename ArrayType, typename ElemType, typename... Args>
+template <typename ArrayType, typename ElemType, typename... Args>
 inline ObjectPtr<ArrayType> make_inplace_array_object(size_t num_elems, Args&&... args) {
-  return SimpleObjAllocator().make_inplace_array<ArrayType, ElemType>(
-    num_elems, std::forward<Args>(args)...);
+  return SimpleObjAllocator().make_inplace_array<ArrayType, ElemType>(num_elems,
+                                                                      std::forward<Args>(args)...);
 }
 
 }  // namespace runtime
