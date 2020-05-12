@@ -318,7 +318,7 @@ static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> s
  */
 static inline Constant CheckConstantShape(const Array<IndexExpr>& shape) {
   auto shape_array =
-    runtime::NDArray::Empty({int64_t(shape.size())}, DataType::Int(64), {kDLCPU, 0});
+      runtime::NDArray::Empty({int64_t(shape.size())}, DataType::Int(64), {kDLCPU, 0});
   auto* shape_data = static_cast<int64_t*>(shape_array->data);
   for (size_t i = 0; i < shape.size(); ++i) {
     const auto& dim_val = shape[i].as<IntImmNode>();

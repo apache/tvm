@@ -112,8 +112,9 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     if (i != axis) {
       for (int k = 1; k < non_any_size; k++) {
         if (reporter->AssertEQ(non_any[0], non_any[k])) continue;
-        throw Error("relay.concatenate requires all tensors have the same shape "
-                    "on non-concatenating axes");
+        throw Error(
+            "relay.concatenate requires all tensors have the same shape "
+            "on non-concatenating axes");
       }
     }
   }
