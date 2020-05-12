@@ -67,8 +67,13 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
     # choose dtype from int4, int8 and float16
     dtype = 'int4'
     out_dtype = 'int32'
-    wmma_n = wmma_m = 8
-    wmma_k = 32
+    if dtype == 'int4':
+        wmma_n = wmma_m = 8
+        wmma_k = 32
+    else:
+        wmma_m = 16
+        wmma_n = 16
+        wmma_k = 16
     in_height = in_width = in_size
 
     A = te.placeholder((batch, in_height, in_width, in_channel), name='A', dtype=dtype)
@@ -78,7 +83,7 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
         # W = te.placeholder((kernel, kernel, num_filter, in_channel), name='W', dtype=dtype)
         W = te.placeholder((kernel, kernel, in_channel // wmma_k, num_filter // wmma_n , wmma_n, wmma_k), name='W', dtype=dtype)
     else:
-        W = te.placeholder((kernel, kernel, in_channel, num_filter), name='W', dtype=dtype)
+        W = te.placeholder((kernel, kernel, in_channel // wmma_k, num_filter // wmma_n , wmma_n, wmma_k), name='W', dtype=dtype)
 
     bias = te.placeholder((1, 1, 1, num_filter), name='bias', dtype=out_dtype)
 
@@ -160,7 +165,7 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    if dtype == 'int4':
+    if dtype == 'int4' or dtype == 'int8':
         # a_np_tvm = a_np.reshape((batch // wmma_m,
         #         wmma_m,
         #         in_height,
@@ -173,9 +178,10 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
                     wmma_k,
                     num_filter // wmma_n,
                     wmma_n)).transpose((0,1,2,4,5,3))
-        a_np = convert_int32_into_int4(a_np)
-        # b_np = convert_int32_into_int4(b_np)
-        w_np = convert_int32_into_int4_shape6(w_np)
+        if dtype == 'int4':
+            a_np = convert_int32_into_int4(a_np)
+            # b_np = convert_int32_into_int4(b_np)
+            w_np = convert_int32_into_int4_shape6(w_np)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -226,10 +232,10 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
         # logging.getLogger('autotvm').setLevel(logging.DEBUG)
         # logging.getLogger('autotvm').addHandler(logging.StreamHandler(sys.stdout))
 
-        # log_filename = "conv2d_int4_nhwc_tensorcore_injectpad_%d_%d_%d_%d_%d_%d_%d_%d.log" % (batch, in_channel, in_size, num_filter, kernel, stride,
+        # log_filename = "conv2d_int8_nhwc_tensorcore_%d_%d_%d_%d_%d_%d_%d_%d.log" % (batch, in_channel, in_size, num_filter, kernel, stride,
         #                padding, dilation)
         # tmp_log_file = log_filename + '.temp'
-        # num_trial = 2000
+        # num_trial = 1000
         # task_name = "conv2d_nhwc_tensorcore_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride,
         #                padding, dilation)
         # task = autotvm.create('conv2d_nhwc_tensorcore_int4.cuda', args=[A, W, stride, padding, dilation, dtype, out_dtype], target=device)
@@ -305,16 +311,16 @@ def test_conv2d_nhwc_tensorcore():
     # verify_conv2d_nhwc(16, 512, 7, 512, 3, 1, 1)
 
     verify_conv2d_nhwc(8, 64, 56, 64, 3, 1, 1)
-    verify_conv2d_nhwc(8, 64, 56, 64, 1, 1, 0)
-    verify_conv2d_nhwc(8, 64, 56, 128, 3, 2, 1)
-    verify_conv2d_nhwc(8, 64, 56, 64, 1, 2, 0)
-    verify_conv2d_nhwc(8, 128, 28, 128, 3, 1, 1)
-    verify_conv2d_nhwc(8, 128, 28, 256, 3, 2, 1)
-    verify_conv2d_nhwc(8, 128, 28, 256, 1, 2, 0)
-    verify_conv2d_nhwc(8, 256, 14, 256, 3, 1, 1)
-    verify_conv2d_nhwc(8, 256, 14, 512, 3, 2, 1)
-    verify_conv2d_nhwc(8, 256, 14, 512, 1, 2, 0)
-    verify_conv2d_nhwc(8, 512, 7, 512, 3, 1, 1)
+    # verify_conv2d_nhwc(8, 64, 56, 64, 1, 1, 0)
+    # verify_conv2d_nhwc(8, 64, 56, 128, 3, 2, 1)
+    # verify_conv2d_nhwc(8, 64, 56, 64, 1, 2, 0)
+    # verify_conv2d_nhwc(8, 128, 28, 128, 3, 1, 1)
+    # verify_conv2d_nhwc(8, 128, 28, 256, 3, 2, 1)
+    # verify_conv2d_nhwc(8, 128, 28, 256, 1, 2, 0)
+    # verify_conv2d_nhwc(8, 256, 14, 256, 3, 1, 1)
+    # verify_conv2d_nhwc(8, 256, 14, 512, 3, 2, 1)
+    # verify_conv2d_nhwc(8, 256, 14, 512, 1, 2, 0)
+    # verify_conv2d_nhwc(8, 512, 7, 512, 3, 1, 1)
 
 
     # verify_conv2d_nhwc(32, 1024, 14, 256, 1, 1, 1)
