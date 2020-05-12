@@ -3304,7 +3304,7 @@ def test_spop_placeholder_dimension_error():
         compare_tf_with_tvm([data, data2], ['pl1:0', 'pl2:0'],
                             'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
-def tvm_frontend_placeholder_invalid_input_index_error():
+def test_frontend_placeholder_invalid_input_index_error():
     tf.reset_default_graph()
     with tf.Graph().as_default():
         in_data1 = np.random.uniform(-5, 5, size=(3, 4, 5)).astype(np.float32)
@@ -3326,20 +3326,87 @@ def tvm_frontend_placeholder_invalid_input_index_error():
 
         compare_tf_with_tvm([in_data1, in_data2], ['Place1:0', 'Place2:0'], 'out2:0', mode='vm', init_global_variables=True)
 
+def test_spop_placeholder_one():
+    print("Inside placeholder function")
+    tf.reset_default_graph()
+    g = tf.Graph()
+    with g.as_default():
+
+        @function.Defun(*[tf.int32]*2)
+        def Forward(x,y):
+            #Do not create placeholders in Defun methods..placeholders should be created outside of Defun()..and can be passed inside it
+            print(x.name)
+            print(y.name)
+            b = tf.add(x, y)
+            return b
+        pl1 = tf.placeholder(tf.int32,name="pl1")
+        pl2 = tf.placeholder(tf.int32,name="pl2")
+        data = np.array([[-1, 1], [2, -2]], dtype=np.int32)
+        data2 = np.array([[-2, 3], [4, -6]], dtype=np.int32)
+        z = gen_functional_ops.StatefulPartitionedCall(args=[pl1,pl2], Tout=[tf.int32],f=Forward)
+
+        feed = {"pl1:0": data,"pl2:0": data2}
+
+        compare_tf_with_tvm([data, data2], ['pl1:0', 'pl2:0'], 'StatefulPartitionedCall:0', mode='vm',
+                            init_global_variables=True)
+
 def test_spop_arithmetic():
-    pass
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        @function.Defun(*[dtypes.int32]*3)
+        def arithmetic(m,x,c):
+            z = tf.add(tf.multiply(m, x), c)
+            return z
+
+        m = tf.constant(10)
+        x = tf.constant(20)
+        c = tf.constant(2)
+        spopFn = gen_functional_ops.StatefulPartitionedCall(args=[m,x,c],Tout=[tf.int32], f=arithmetic)
+
+        compare_tf_with_tvm([],[],'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
 def test_spop_control_flow():
-    pass
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        # WSTART
+        @function.Defun(*[dtypes.float32] * 2)
+        def Body1(x, y):
+            with ops.device("/job:localhost/replica:0/task:0/device:CPU:0"):
+                # z = Body2
+                z = math_ops.multiply(x, y)
+                i = 0
+                while i<10 :
+                    i +=1
+                    if i == 5:
+                        continue
+                    z = math_ops.multiply(x, y*i)
+            return z
+
+        op = gen_functional_ops.StatefulPartitionedCall(args=[constant_op.constant(32.),
+                                                              constant_op.constant(100.)],
+                                                        Tout=[dtypes.float32], f=Body1)
+        compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
 def test_spop_variables():
     pass
 
 def test_spop_constants():
-    pass
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        @function.Defun(*[dtypes.int32] * 2)
+        def constantsFn(x, y):
+            z = tf.add(x,y)
+            return z
+
+        a = tf.constant(20, name = "a")
+        b = tf.constant(40, name = "b")
+        spopFn = gen_functional_ops.StatefulPartitionedCall(args=[a, b], Tout=[tf.int32], f=constantsFn)
+
+        compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
 def test_spop_placeholder():
-    tvm_frontend_placeholder_invalid_input_index_error()
+    test_spop_placeholder_one()
+    test_frontend_placeholder_invalid_input_index_error()
     test_spop_placeholder_dimension_error()
     test_spop_placeholder_default()
 
@@ -3349,7 +3416,8 @@ def test_spop():
     test_spop_control_flow()
     test_spop_variables()
     test_spop_constants()
-    test_spop_placeholder()
+    test_spop_placeholder_one()
+    # test_spop_placeholder()
 
 
 #######################################################################
@@ -3357,7 +3425,7 @@ def test_spop():
 # ----
 if __name__ == '__main__':
     # StatefulPartitionedOp
-    test_spop()
+    # test_spop()
     # Transforms
     test_forward_slice()
     test_forward_transpose()
