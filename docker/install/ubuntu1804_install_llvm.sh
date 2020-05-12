@@ -20,8 +20,21 @@ set -e
 set -u
 set -o pipefail
 
-cd /
-git clone https://github.com/emscripten-core/emsdk.git
-cd emsdk
-./emsdk install latest
-./emsdk activate latest
+echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main\
+     >> /etc/apt/sources.list.d/llvm.list
+
+
+echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main\
+     >> /etc/apt/sources.list.d/llvm.list
+
+echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic main\
+     >> /etc/apt/sources.list.d/llvm.list
+
+wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
+apt-get update && apt-get install -y llvm-9 llvm-10 llvm-11 clang-9 clang-10 clang-11

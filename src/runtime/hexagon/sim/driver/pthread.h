@@ -51,20 +51,16 @@ const size_t PTHREAD_DESTRUCTOR_ITERATIONS = 4;
 extern "C" {
 #endif
 int pthread_cond_destroy(pthread_cond_t* cond);
-int pthread_cond_init(pthread_cond_t* __restrict cond,
-                      const pthread_condattr_t* __restrict attr);
+int pthread_cond_init(pthread_cond_t* __restrict cond, const pthread_condattr_t* __restrict attr);
 int pthread_cond_signal(pthread_cond_t* cond);
 int pthread_cond_broadcast(pthread_cond_t* cond);
-int pthread_cond_timedwait(pthread_cond_t* __restrict cond,
-                           pthread_mutex_t* __restrict mutex,
+int pthread_cond_timedwait(pthread_cond_t* __restrict cond, pthread_mutex_t* __restrict mutex,
                            const struct timespec* __restrict abstime);
-int pthread_cond_wait(pthread_cond_t* __restrict cond,
-                      pthread_mutex_t* __restrict mutex);
+int pthread_cond_wait(pthread_cond_t* __restrict cond, pthread_mutex_t* __restrict mutex);
 
 int pthread_mutexattr_init(pthread_mutexattr_t* attr);
 int pthread_mutexattr_destroy(pthread_mutexattr_t* attr);
-int pthread_mutexattr_gettype(const pthread_mutexattr_t* __restrict attr,
-                              int* __restrict type);
+int pthread_mutexattr_gettype(const pthread_mutexattr_t* __restrict attr, int* __restrict type);
 int pthread_mutexattr_settype(pthread_mutexattr_t* attr, int type);
 
 int pthread_mutex_init(pthread_mutex_t* __restrict mutex,
@@ -77,8 +73,8 @@ int pthread_mutex_unlock(pthread_mutex_t* mutex);
 int pthread_once(pthread_once_t* once_control, void (*init_routine)(void));
 int pthread_equal(pthread_t t1, pthread_t t2);
 
-int pthread_create(pthread_t* thread, const pthread_attr_t* attr,
-                   void* (*start_routine)(void*), void* arg);
+int pthread_create(pthread_t* thread, const pthread_attr_t* attr, void* (*start_routine)(void*),
+                   void* arg);
 int pthread_join(pthread_t thread, void** retval);
 int pthread_detach(pthread_t thread);
 void pthread_exit(void* retval) __attribute__((__noreturn__));

@@ -433,12 +433,10 @@ bool IsDynamic(const Type& ty) {
   return v.is_dyn;
 }
 
-TVM_REGISTER_GLOBAL("relay.ir.IsDynamic")
-.set_body_typed(IsDynamic);
+TVM_REGISTER_GLOBAL("relay.ir.IsDynamic").set_body_typed(IsDynamic);
 
 bool IsDataDependant(const CallNode* call) {
-  static auto tshape_data_dependant = Op::GetAttr<TShapeDataDependant>(
-        "TShapeDataDependant");
+  static auto tshape_data_dependant = Op::GetAttr<TShapeDataDependant>("TShapeDataDependant");
   Op op = Downcast<Op>(call->op);
 
   if (!tshape_data_dependant.count(op)) {
@@ -446,7 +444,7 @@ bool IsDataDependant(const CallNode* call) {
   }
 
   if (op->name == "reshape") {
-    if (const auto * attrs = call->attrs.as<ReshapeAttrs>()) {
+    if (const auto* attrs = call->attrs.as<ReshapeAttrs>()) {
       if (attrs->newshape.defined()) {
         // If newshape of reshape is defined, it isn't data dependant.
         return false;

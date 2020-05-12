@@ -661,7 +661,7 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
 
 Expr MakeReshape(Expr data, Expr newshape) {
   auto attrs = make_object<ReshapeAttrs>();
-  if (const ConstantNode *c = newshape.as<ConstantNode>()) {
+  if (const ConstantNode* c = newshape.as<ConstantNode>()) {
     CHECK_EQ(c->data->ndim, 1);
     Array<Integer> newshape;
     for (int i = 0; i < c->data->shape[0]; i++) {

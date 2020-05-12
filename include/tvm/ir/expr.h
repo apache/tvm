@@ -188,7 +188,7 @@ class GlobalVar;
 class GlobalVarNode : public RelayExprNode {
  public:
   /*! \brief The name of the variable, this only acts as a hint. */
-  std::string name_hint;
+  String name_hint;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
@@ -216,7 +216,7 @@ class GlobalVarNode : public RelayExprNode {
  */
 class GlobalVar : public RelayExpr {
  public:
-  TVM_DLL explicit GlobalVar(std::string name_hint);
+  TVM_DLL explicit GlobalVar(String name_hint);
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelayExpr, GlobalVarNode);
 };

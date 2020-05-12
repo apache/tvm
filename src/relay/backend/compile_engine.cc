@@ -45,8 +45,8 @@
 #include <utility>
 #include <vector>
 
-#include "utils.h"
 #include "../transforms/pass_util.h"
+#include "utils.h"
 
 namespace tvm {
 namespace relay {

@@ -1895,7 +1895,15 @@ def test_forward_unary():
         def forward(self, *args):
             return torch.tanh(args[0])
 
-    class ATanh1(Module):
+    class Acos1(Module):
+        def forward(self, *args):
+            return torch.acos(args[0])
+
+    class Asin1(Module):
+        def forward(self, *args):
+            return torch.asin(args[0])
+
+    class Atan1(Module):
         def forward(self, *args):
             return torch.atan(args[0])
 
@@ -1956,7 +1964,9 @@ def test_forward_unary():
     verify_model(Sinh1().float().eval(), input_data=input_data)
     verify_model(Tan1().float().eval(), input_data=input_data)
     verify_model(Tanh1().float().eval(), input_data=input_data)
-    verify_model(ATanh1().float().eval(), input_data=input_data)
+    verify_model(Acos1().float().eval(), input_data=input_data)
+    verify_model(Asin1().float().eval(), input_data=input_data)
+    verify_model(Atan1().float().eval(), input_data=input_data)
     verify_model(Log1().float().eval(), input_data=input_data)
     verify_model(Log2_1().float().eval(), input_data=input_data)
     verify_model(Log10_1().float().eval(), input_data=input_data)

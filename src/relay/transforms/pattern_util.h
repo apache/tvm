@@ -550,9 +550,8 @@ static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclu
 Expr MakeReshape(Expr data, Expr newshape);
 
 static inline Expr Reshape(Expr data, Array<Integer> newshape) {
-  auto newshape_tensor = MakeConstantTensor(DataType::Int(32),
-                                            {static_cast<int64_t>(newshape.size())},
-                                            newshape);
+  auto newshape_tensor =
+      MakeConstantTensor(DataType::Int(32), {static_cast<int64_t>(newshape.size())}, newshape);
   return MakeReshape(data, newshape_tensor);
 }
 

@@ -91,7 +91,7 @@ class Constructor : public RelayExpr {
    * \param inputs The input types.
    * \param belong_to The data type var the constructor will construct.
    */
-  TVM_DLL Constructor(std::string name_hint, Array<Type> inputs, GlobalTypeVar belong_to);
+  TVM_DLL Constructor(String name_hint, Array<Type> inputs, GlobalTypeVar belong_to);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Constructor, RelayExpr, ConstructorNode);
 };
