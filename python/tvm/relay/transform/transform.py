@@ -241,7 +241,7 @@ def FoldConstant():
     ret : tvm.transform.Pass
         The registered pass for constant folding.
     """
-    return _ffi_api.FoldConstant(False)
+    return _ffi_api.FoldConstant()
 
 
 def FuseOps(fuse_opt_level=-1):
