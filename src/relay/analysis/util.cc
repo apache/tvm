@@ -447,8 +447,8 @@ bool IsDataDependant(const CallNode* call) {
 
   if (op->name == "reshape") {
     if (const auto * attrs = call->attrs.as<ReshapeAttrs>()) {
-      if (attrs->newshape.as<ConstantNode>()) {
-        // If newshape of reshape is constant, it isn't data dependant.
+      if (attrs->newshape.defined()) {
+        // If newshape of reshape is defined, it isn't data dependant.
         return false;
       }
     }

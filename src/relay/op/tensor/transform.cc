@@ -505,16 +505,9 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   Array<IndexExpr> oshape;
   Array<IndexExpr> data_shape;
   Array<Integer> newshape;
-  const ConstantNode *attr_newshape;
 
-  if ((attr_newshape = param->newshape.as<ConstantNode>())) {
-    Array<Integer> temp;
-
-    CHECK_EQ(attr_newshape->data->ndim, 1);
-    for (int i = 0; i < attr_newshape->data->shape[0]; i++) {
-      temp.push_back(Integer(static_cast<int>(ToScalar(attr_newshape->data, i))));
-    }
-
+  if (param->newshape.defined()) {
+    auto temp = param->newshape.value();
     if (param->reverse) {
       data_shape.assign(data->shape.rbegin(), data->shape.rend());
       newshape.assign(temp.rbegin(), temp.rend());
@@ -668,7 +661,14 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
 
 Expr MakeReshape(Expr data, Expr newshape) {
   auto attrs = make_object<ReshapeAttrs>();
-  attrs->newshape = newshape;
+  if (const ConstantNode *c = newshape.as<ConstantNode>()) {
+    CHECK_EQ(c->data->ndim, 1);
+    Array<Integer> newshape;
+    for (int i = 0; i < c->data->shape[0]; i++) {
+      newshape.push_back(Integer(static_cast<int>(ToScalar(c->data, i))));
+    }
+    attrs->newshape = newshape;
+  }
   attrs->reverse = false;
   static const Op& op = Op::Get("reshape");
   return Call(op, {data, newshape}, Attrs(attrs), {});
@@ -2191,9 +2191,9 @@ the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
     .set_attr<FTVMCompute>("FTVMCompute", LayoutTransformCompute);
 
 /* relay._contrib_reverse_reshape */
-Expr MakeReverseReshape(Expr data, Expr newshape) {
+Expr MakeReverseReshape(Expr data, Array<Integer> newshape) {
   auto attrs = make_object<ReshapeAttrs>();
-  attrs->newshape = newshape;
+  attrs->newshape = std::move(newshape);
   attrs->reverse = true;
   static const Op& op = Op::Get("_contrib_reverse_reshape");
   return Call(op, {data}, Attrs(attrs), {});

@@ -261,11 +261,11 @@ def _reshape_shape_func_input_data(data, newshape, ndim):
 
 @_reg.register_shape_func("reshape", True)
 def reshape_shape_func(attrs, inputs, out_ndims):
-    if isinstance(attrs.newshape, tvm.relay.expr.Constant):
-        newshape = list(attrs.newshape.data.asnumpy())
-        return [_reshape_shape_func_input_shape(inputs[0], convert(newshape), out_ndims[0])]
-
-    return [_reshape_shape_func_input_data(*inputs, out_ndims[0])]
+    if attrs.newshape is None:
+        return [_reshape_shape_func_input_data(*inputs, out_ndims[0])]
+    return [_reshape_shape_func_input_shape(inputs[0],
+                                            convert(attrs.newshape),
+                                            out_ndims[0])]
 
 @script
 def _take_no_axis_shape_func(indices_shape, out_ndim):
