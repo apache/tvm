@@ -57,8 +57,6 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
   using FType = tvm::NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
 
  public:
-  /*! \brief the result type of this functor */
-  using result_type = R;
   /*! \brief virtual destructor */
   virtual ~DFPatternFunctor() {}
   /*!

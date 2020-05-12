@@ -28,8 +28,6 @@ Such a language is not just useful for building a rewriter but also providing ex
 
 In the backend world, we could use the same machinery to build a higher level API using bring your own code generation. This API takes set of patterns describing your hardware capabilities and an external compiler, providing a relatively smooth heterogeneous experience out of the box.
 
-Recently there has been lots of discussion on similar issues in the community, and we wanted to gather feedback and hopefully collaborate on a design that can benefit everyone working in this space. This RFC focuses on the pattern language with future applications to come later.
-
 Examples
 ========
 
@@ -69,13 +67,13 @@ The next example is matching a diamond with two inputs at the top of the diamond
         # Check
         assert diamond.match(out)
 
-The final example we would like to match which is not yet implemented in the prototype is matching diamonds with a post-dominator relationship. Our plan is to embed dominator analysis as type of matching in the pattern language in order to allow for pattern matching with unknown topology.  This is important because we want to able to use the language to describe fuse patterns, like elementwise operations followed by a conv2d::
+The final example  is matching diamonds with a post-dominator relationship. We embed dominator analysis as type of matching in the pattern language in order to allow for pattern matching with unknown topology. This is important because we want to be able to use the language to describe fuse patterns, like elementwise operations followed by a conv2d::
 
     def test_match_dom_diamond():
         # Pattern
         is_conv2d = is_op('nn.conv2d')(is_input(), is_input())
         reduction = is_op('add')(wildcard(), wildcard())
-    	diamond = dominates(is_conv2d, is_elemwise, reduction)
+        diamond = dominates(is_conv2d, is_elemwise, reduction)
 
         # Expr
         inp = relay.var('input')
@@ -140,4 +138,4 @@ Either match the first pattern or the second pattern.
 Domination
 ******************
 
-Match the parent pattern for the route node and then check that the child pattern holds for each child along the domination path.
+Match child pattern, find a match for the parent pattern, insuring that the child ultimately dominates the parrent (i.e., no nodes outside the pattern use outputs of the parent), and that ever node betwen the child and the pattern matches the path pattern.

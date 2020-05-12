@@ -127,7 +127,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
             }
             break;
           default:
-            throw "Unsupported type";
+            CHECK(false) << "Unsupported type in Type Pattern Node";
         }
       }
     }
@@ -256,7 +256,6 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
 
 // Recursively find the Dominator parent along all inputs paths.
 bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& expr) {
-  bool out = true;
   auto call_node = expr.as<CallNode>();
   for (auto node : expr_graph_.node_map_[expr]->inputs_) {
     if (!(call_node && node->ref_ == call_node->op)) {
@@ -265,15 +264,13 @@ bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& e
         return true;
       } else {
         memoize_ = false;
-        if (VisitDFPattern(op->path, node->ref_)) {
-          out &= MatchesPath(op, node->ref_);
-        } else {
+        if (!VisitDFPattern(op->path, node->ref_) || !MatchesPath(op, node->ref_)) {
           return false;
         }
       }
     }
   }
-  return out;
+  return true;
 }
 
 // Iteratively ensure that the parent is dominated somewhere by the child or the path
@@ -368,7 +365,7 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.match")
  * This class creates a number of groups of matched expressions, ensures they don't overlap, and
  * returns them to the caller for post-analysis rewriting.
  *
- * This is primarily needed to suppor the post-dominator analysis required for dominator pattern
+ * This is primarily needed to support the post-dominator analysis required for dominator pattern
  * matching.
  */
 class PatternGrouper : protected MixedModeVisitor {
