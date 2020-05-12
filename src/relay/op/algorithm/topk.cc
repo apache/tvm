@@ -21,9 +21,9 @@
  * \file topk.cc
  * \brief TopK operators
  */
-#include <tvm/tir/op.h>
-#include <tvm/relay/op.h>
 #include <tvm/relay/attrs/algorithm.h>
+#include <tvm/relay/op.h>
+#include <tvm/tir/op.h>
 
 namespace tvm {
 namespace relay {

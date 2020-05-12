@@ -1029,9 +1029,7 @@ Array<te::Tensor> FullCompute(const Attrs& attrs, const Array<te::Tensor>& input
   return {topi::full(out_ttype->shape, out_ttype->dtype, inputs[0]())};
 }
 
-Expr MakeFull(Expr fill_value,
-              Expr shape,
-              DataType dtype) {
+Expr MakeFull(Expr fill_value, Expr shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
   if (const auto* cshape = shape.as<ConstantNode>()) {
     int64_t* shape_val = ToVector(cshape->data);
@@ -1061,9 +1059,7 @@ RELAY_REGISTER_OP("full")
     .set_attr<FTVMCompute>("FTVMCompute", FullCompute)
     .set_attr<TOpPattern>("TOpPattern", kElemWise);
 
-bool InitOpRel(const Array<Type>& types,
-               int num_inputs,
-               const Attrs& attrs,
+bool InitOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const InitOpAttrs* param = attrs.as<InitOpAttrs>();
@@ -1088,8 +1084,7 @@ bool InitOpRel(const Array<Type>& types,
   return true;
 }
 
-Expr MakeZeros(Expr shape,
-               DataType dtype) {
+Expr MakeZeros(Expr shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
   if (const auto* cshape = shape.as<ConstantNode>()) {
     int64_t* shape_val = ToVector(cshape->data);
@@ -1116,8 +1111,7 @@ RELAY_REGISTER_OP("zeros")
     .set_support_level(3)
     .add_type_rel("InitOp", InitOpRel);
 
-Expr MakeOnes(Expr shape,
-              DataType dtype) {
+Expr MakeOnes(Expr shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
   if (const auto* cshape = shape.as<ConstantNode>()) {
     int64_t* shape_val = ToVector(cshape->data);
@@ -1144,9 +1138,7 @@ RELAY_REGISTER_OP("ones")
     .set_support_level(3)
     .add_type_rel("InitOp", InitOpRel);
 
-bool FullLikeRel(const Array<Type>& types,
-                 int num_inputs,
-                 const Attrs& attrs,
+bool FullLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -1742,7 +1734,7 @@ Expr MakeBroadCastTo(Expr data, Expr shape) {
 Array<te::Tensor> BroadCastToCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                      const Type& out_type) {
   const auto* out_ttype = out_type.as<TensorTypeNode>();
-  return { topi::broadcast_to(inputs[0], out_ttype->shape) };
+  return {topi::broadcast_to(inputs[0], out_ttype->shape)};
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.broadcast_to").set_body_typed(MakeBroadCastTo);
