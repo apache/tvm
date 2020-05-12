@@ -103,10 +103,8 @@ NDArray StorageObj::AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDa
   // RAII in effect, now run the check.
 
   CHECK(offset + needed_size <= this->buffer.size)
-    << "storage allocation failure, attempted to allocate "
-    << needed_size << " at offset "
-    << offset << " in region that is "
-    << this->buffer.size << "bytes";
+      << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
+      << offset << " in region that is " << this->buffer.size << "bytes";
 
   return ret;
 }

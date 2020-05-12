@@ -622,16 +622,19 @@ inline ObjectRef CopyTo(ObjectRef src, const DLContext& ctx) {
 std::vector<int64_t> ToShape(NDArray shape_tensor) {
   std::vector<int64_t> shape;
   auto dtype = shape_tensor.DataType();
-  CHECK(shape_tensor.Shape().size() == 1)
-    << "shape tensor should be a k-length vector.";
+  CHECK(shape_tensor.Shape().size() == 1) << "shape tensor should be a k-length vector.";
 
   int64_t ndim = shape_tensor.Shape().at(0);
 
-  if (ndim == 0) { return shape; } else { shape.resize(ndim); }
+  if (ndim == 0) {
+    return shape;
+  } else {
+    shape.resize(ndim);
+  }
 
   const DLTensor* dl_tensor = shape_tensor.operator->();
   if (dtype.is_int() && dtype.bits() == 32 && dtype.lanes() == 1) {
-     int32_t* dims = reinterpret_cast<int32_t*>(dl_tensor->data);
+    int32_t* dims = reinterpret_cast<int32_t*>(dl_tensor->data);
     shape.assign(dims, dims + ndim);
   } else if (dtype.is_int() && dtype.bits() == 64 && dtype.lanes() == 1) {
     int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);

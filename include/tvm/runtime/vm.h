@@ -24,8 +24,8 @@
 #ifndef TVM_RUNTIME_VM_H_
 #define TVM_RUNTIME_VM_H_
 
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/memory.h>
+#include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
@@ -277,8 +277,8 @@ struct Instruction {
    * \param dst The destination register.
    * \return The allocate tensor instruction.
    */
-  static Instruction AllocTensor(RegName storage, Index offset,
-                                 const std::vector<int64_t>& shape, DLDataType dtype, RegName dst);
+  static Instruction AllocTensor(RegName storage, Index offset, const std::vector<int64_t>& shape,
+                                 DLDataType dtype, RegName dst);
   /*!
    * \brief Construct an allocate tensor instruction with register.
    * \param storage The storage to allocate out of.
@@ -288,8 +288,8 @@ struct Instruction {
    * \param dst The destination register.
    * \return The allocate tensor instruction.
    */
-  static Instruction AllocTensorReg(RegName storage, Index offset,
-                                    RegName shape_register, DLDataType dtype, RegName dst);
+  static Instruction AllocTensorReg(RegName storage, Index offset, RegName shape_register,
+                                    DLDataType dtype, RegName dst);
   /*!
    * \brief Construct an allocate datatype instruction.
    * \param tag The datatype tag.
