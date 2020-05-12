@@ -2861,8 +2861,15 @@ class GraphProto(object):
             if f1.signature.name not in self._subgraphs:
                 from tensorflow.python.framework import function_def_to_graph
                 sub = function_def_to_graph.function_def_to_graph_def(f1)
+                print(sub)
+                i = 0
+                newshape = {}
+                for key,value in self._in_shape.items():
+                    newshape[sub[0].node[i].name] = value
+                    i+=1
                 self._subgraphs.update({f1.signature.name: 'started adding'})
-                self._subgraphs.update({f1.signature.name: self.from_tensorflow(sub[0])})
+                self._subgraphs.update({f1.signature.name: self.from_tensorflow(sub[0], shape=newshape)})
+                # self._subgraphs.update({f1.signature.name: self.from_tensorflow(sub[0])})
 
         # if graph.library.function and not self.libFuncs:
         #     for func in graph.library.function:
