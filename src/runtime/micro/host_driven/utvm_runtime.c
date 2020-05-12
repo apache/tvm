@@ -37,9 +37,9 @@ extern "C" {
 // TODO(weberlo, areusch): move defines into header
 // TODO(weberlo, areusch): unify TASK_QUEUE_SIZE and MicroSession::kTaskQueueCapacity.
 #define TASK_QUEUE_SIZE 20
-volatile UTVMTask utvm_tasks[TASK_QUEUE_SIZE] = { };
+volatile UTVMTask utvm_tasks[TASK_QUEUE_SIZE] = {};
 volatile uint32_t utvm_num_tasks = 0;
-volatile uint32_t utvm_task_times[TASK_QUEUE_SIZE] = { };
+volatile uint32_t utvm_task_times[TASK_QUEUE_SIZE] = {};
 
 // These pointers are patched at load time to point to the workspace section.
 volatile char* utvm_workspace_start = NULL;  // NOLINT(*)
@@ -61,7 +61,7 @@ volatile uint32_t utvm_done = 0;
 void UTVMMain() {
   utvm_done = 0;
   // loss of precision should be fine here, since we only care about the lower bits
-  if (((uint32_t) utvm_workspace_start) % utvm_word_size) {
+  if (((uint32_t)utvm_workspace_start) % utvm_word_size) {
     utvm_last_error = UTVM_ERR_WS_UNALIGNED_START;
     UTVMDone();
     return;
@@ -79,10 +79,9 @@ void UTVMMain() {
       UTVMDone();
       return;
     }
-    err = utvm_tasks[i].func(
-        (void*) utvm_tasks[i].arg_values,      // NOLINT(*)
-        (void*) utvm_tasks[i].arg_type_codes,  // NOLINT(*)
-        utvm_tasks[i].num_args);
+    err = utvm_tasks[i].func((void*)utvm_tasks[i].arg_values,      // NOLINT(*)
+                             (void*)utvm_tasks[i].arg_type_codes,  // NOLINT(*)
+                             utvm_tasks[i].num_args);
     if (err < 0) {
       UTVMDone();
       return;
@@ -102,15 +101,13 @@ void UTVMMain() {
 
 // We use a dummy function to signal execution is finished for device
 // backends which require breakpoints.
-void __attribute__((noinline)) UTVMDone() {
-  utvm_done = 1;
-}
+void __attribute__((noinline)) UTVMDone() { utvm_done = 1; }
 
 #define ALIGNED_UP(x, word_size) \
-  ((((word_size) - (((uintptr_t) (x)) % (word_size))) % (word_size)) + (x))
+  ((((word_size) - (((uintptr_t)(x)) % (word_size))) % (word_size)) + (x))
 
-void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
-                               int dtype_code_hint, int dtype_bits_hint) {
+void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size, int dtype_code_hint,
+                               int dtype_bits_hint) {
   if (size == 0) {
     utvm_last_error = UTVM_ERR_WS_ZERO_SIZE_ALLOC;
     return NULL;
@@ -130,7 +127,7 @@ void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
     utvm_last_error = UTVM_ERR_WS_TOO_MANY_ALLOCS;
     return NULL;
   }
-  void* ret_ptr = (void*) utvm_workspace_curr;  // NOLINT(*)
+  void* ret_ptr = (void*)utvm_workspace_curr;  // NOLINT(*)
   utvm_workspace_curr = utvm_workspace_curr + alloc_size_bytes;
   // store the *end* of the alloc, so we can restore the WS pointer when freeing
   utvm_alloc_ends[utvm_alloc_idx] = utvm_workspace_curr;
@@ -175,7 +172,7 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   }
 }
 
-void TVMAPISetLastError(const char* msg) { }
+void TVMAPISetLastError(const char* msg) {}
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C

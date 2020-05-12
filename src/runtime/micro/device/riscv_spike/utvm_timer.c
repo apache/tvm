@@ -28,9 +28,7 @@ extern "C" {
 
 #include "utvm_runtime.h"
 
-int32_t UTVMTimerStart() {
-  return UTVM_ERR_OK;
-}
+int32_t UTVMTimerStart() { return UTVM_ERR_OK; }
 
 uint32_t UTVMTimerStop(int32_t* err) {
   *err = UTVM_ERR_OK;
