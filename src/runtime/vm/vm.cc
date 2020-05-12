@@ -619,6 +619,30 @@ inline ObjectRef CopyTo(ObjectRef src, const DLContext& ctx) {
   return src;
 }
 
+std::vector<int64_t> ToShape(NDArray shape_tensor) {
+  std::vector<int64_t> shape;
+  auto dtype = shape_tensor.DataType();
+  CHECK(shape_tensor.Shape().size() == 1)
+    << "shape tensor should be a k-length vector.";
+
+  int64_t ndim = shape_tensor.Shape().at(0);
+
+  if (ndim == 0) { return shape; } else { shape.resize(ndim); }
+
+  const DLTensor* dl_tensor = shape_tensor.operator->();
+  if (dtype.is_int() && dtype.bits() == 32 && dtype.lanes() == 1) {
+     int32_t* dims = reinterpret_cast<int32_t*>(dl_tensor->data);
+    shape.assign(dims, dims + ndim);
+  } else if (dtype.is_int() && dtype.bits() == 64 && dtype.lanes() == 1) {
+    int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
+    shape.assign(dims, dims + ndim);
+  } else {
+    LOG(FATAL) << "invalid shape tensor datatype: " << dtype;
+  }
+
+  return shape;
+}
+
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
   if (name == "invoke") {
@@ -969,17 +993,7 @@ void VirtualMachine::RunLoop() {
         auto shape_tensor_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
         const auto shape_arr = Downcast<NDArray>(shape_tensor_obj);
         NDArray shape_tensor = shape_arr.CopyTo(cpu_ctx);
-        const DLTensor* dl_tensor = shape_tensor.operator->();
-        CHECK_EQ(dl_tensor->dtype.code, 0u);
-        CHECK_LE(dl_tensor->dtype.bits, 64);
-        std::vector<int64_t> shape;
-        if (dl_tensor->ndim) {
-          int64_t num_dims = shape_tensor->shape[0];
-          int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
-          shape.resize(num_dims);
-          shape.assign(dims, dims + num_dims);
-        }
-
+        auto shape = ToShape(shape_tensor);
         auto storage_obj = ReadRegister(instr.alloc_tensor_reg.storage);
         auto storage = Downcast<Storage>(storage_obj);
         auto offset = LoadScalarInt(instr.alloc_tensor.offset);
