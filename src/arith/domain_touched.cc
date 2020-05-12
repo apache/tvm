@@ -21,13 +21,13 @@
  * \file bound_deducer.cc
  * \brief Utility to deduce bound of expression
  */
+#include <tvm/runtime/registry.h>
+#include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/te/tensor.h>
-#include <tvm/runtime/registry.h>
 
-#include <unordered_set>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace tvm {
 namespace arith {
@@ -37,12 +37,8 @@ using namespace tir;
 // Find Read region of the tensor in the stmt.
 class BufferTouchedDomain final : public StmtExprVisitor {
  public:
-  BufferTouchedDomain(const Buffer &buffer,
-                      bool consider_loads,
-                      bool consider_stores)
-      : buffer_(buffer),
-        consider_loads_(consider_loads),
-        consider_stores_(consider_stores)  {}
+  BufferTouchedDomain(const Buffer& buffer, bool consider_loads, bool consider_stores)
+      : buffer_(buffer), consider_loads_(consider_loads), consider_stores_(consider_stores) {}
 
   Domain Find(const Stmt& stmt) {
     operator()(stmt);
@@ -54,17 +50,15 @@ class BufferTouchedDomain final : public StmtExprVisitor {
     return ret;
   }
 
-  void VisitStmt_(const ForNode *op) final {
+  void VisitStmt_(const ForNode* op) final {
     const VarNode* var = op->loop_var.get();
-    dom_map_[var] = IntSet::range(
-        Range::make_by_min_extent(op->min, op->extent));
+    dom_map_[var] = IntSet::range(Range::make_by_min_extent(op->min, op->extent));
     StmtExprVisitor::VisitStmt_(op);
     dom_map_.erase(var);
   }
 
   void VisitStmt_(const LetStmtNode* op) final {
-    dom_map_[op->var.get()] =
-        arith::EvalSet(op->value, dom_map_);
+    dom_map_[op->var.get()] = arith::EvalSet(op->value, dom_map_);
     StmtExprVisitor::VisitStmt_(op);
     dom_map_.erase(op->var.get());
   }
@@ -107,21 +101,18 @@ class BufferTouchedDomain final : public StmtExprVisitor {
     }
   }
 
-  const Buffer &buffer_;
+  const Buffer& buffer_;
   bool consider_loads_, consider_stores_;
   std::vector<std::vector<IntSet> > bounds_;
   std::unordered_map<const VarNode*, IntSet> dom_map_;
 };
 
-Domain DomainTouched(const Stmt& stmt,
-                     const Buffer& buffer,
-                     bool consider_loads,
+Domain DomainTouched(const Stmt& stmt, const Buffer& buffer, bool consider_loads,
                      bool consider_stores) {
   return BufferTouchedDomain(buffer, consider_loads, consider_stores).Find(stmt);
 }
 
-TVM_REGISTER_GLOBAL("arith.DomainTouched")
-.set_body_typed(DomainTouched);
+TVM_REGISTER_GLOBAL("arith.DomainTouched").set_body_typed(DomainTouched);
 
 }  // namespace arith
 }  // namespace tvm

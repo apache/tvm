@@ -24,9 +24,9 @@
 #ifndef TOPI_NN_FLATTEN_H_
 #define TOPI_NN_FLATTEN_H_
 
-#include <tvm/te/operation.h>
-#include <topi/tags.h>
 #include <topi/detail/constant_utils.h>
+#include <topi/tags.h>
+#include <tvm/te/operation.h>
 
 #include <string>
 #include <vector>
@@ -37,25 +37,23 @@ using namespace tvm;
 using namespace tvm::te;
 
 /*!
-* \brief Flattens the input tensor into a 2-D tensor by collapsing higher dimensions.
-* This requires the input tensor to have constant sized dimensions.
-*
-* \param x The input tensor.
-* \param name The name of the operation
-* \param tag The tag to mark the operation
-*
-* \return A 2-D tensor.
-*/
-inline Tensor flatten(const Tensor& x,
-                      std::string name = "tensor",
-                      std::string tag = kInjective) {
+ * \brief Flattens the input tensor into a 2-D tensor by collapsing higher dimensions.
+ * This requires the input tensor to have constant sized dimensions.
+ *
+ * \param x The input tensor.
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A 2-D tensor.
+ */
+inline Tensor flatten(const Tensor& x, std::string name = "tensor", std::string tag = kInjective) {
   auto ishape = x->shape;
   PrimExpr dim = 1;
   for (size_t i = 1; i < ishape.size(); ++i) {
     dim = dim * ishape[i];
   }
 
-  Array<PrimExpr> oshape({ ishape[0], dim });
+  Array<PrimExpr> oshape({ishape[0], dim});
 
   std::vector<PrimExpr> extra_shape;
   for (size_t i = 1; i < ishape.size(); ++i) {
@@ -64,17 +62,19 @@ inline Tensor flatten(const Tensor& x,
   std::reverse(extra_shape.begin(), extra_shape.end());
 
   return tvm::te::compute(
-    oshape, [&](Var i, Var j) {
-      PrimExpr idx = j;
-      std::vector<PrimExpr> index;
-      for (auto s : extra_shape) {
-        index.push_back(indexmod(idx, s));
-        idx = indexdiv(idx, s);
-      }
-      index.push_back(i);
-      std::reverse(index.begin(), index.end());
-      return x(index);
-    }, name, tag);
+      oshape,
+      [&](Var i, Var j) {
+        PrimExpr idx = j;
+        std::vector<PrimExpr> index;
+        for (auto s : extra_shape) {
+          index.push_back(indexmod(idx, s));
+          idx = indexdiv(idx, s);
+        }
+        index.push_back(i);
+        std::reverse(index.begin(), index.end());
+        return x(index);
+      },
+      name, tag);
 }
 
 }  // namespace nn

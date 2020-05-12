@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "tvm/runtime/micro/standalone/utvm_runtime.h"
+
 #include <cassert>
 
-#include "tvm/runtime/micro/standalone/utvm_runtime.h"
 #include "utvm_graph_runtime.h"
 
 void* UTVMRuntimeCreate(const char* json, size_t json_len, void* module) {
-  return new tvm::micro::MicroGraphRuntime(
-      std::string(json, json + json_len),
-      reinterpret_cast<tvm::micro::DSOModule*>(module));
+  return new tvm::micro::MicroGraphRuntime(std::string(json, json + json_len),
+                                           reinterpret_cast<tvm::micro::DSOModule*>(module));
 }
 
 void UTVMRuntimeDestroy(void* handle) {

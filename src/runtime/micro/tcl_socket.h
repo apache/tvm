@@ -66,12 +66,12 @@ class TclSocket {
 
   /*
    * \return string stream for current command being built
-  */
+   */
   std::ostringstream& cmd_builder() { return cmd_builder_; }
 
   /*
    * \return reply from most recently sent command
-  */
+   */
   const std::string& last_reply() { return last_reply_; }
 
  private:

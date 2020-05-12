@@ -31,14 +31,20 @@ def find_example_resource():
     curr_path = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     base_path = os.path.abspath(os.path.join(curr_path, "..", "..", ".."))
     index_page = os.path.join(base_path, "web", "apps", "browser", "rpc_server.html")
-    js_files = [
-        os.path.join(base_path, "web/dist/tvmjs.bundle.js"),
-        os.path.join(base_path, "web/dist/wasm/tvmjs_runtime.wasi.js")
+    resource_files = [
+        os.path.join(base_path, "web", "dist", "tvmjs.bundle.js"),
+        os.path.join(base_path, "web", "dist", "wasm", "tvmjs_runtime.wasi.js")
     ]
-    for fname in [index_page] + js_files:
+    resource_base = os.path.join(base_path, "web", "dist", "www")
+    if os.path.isdir(resource_base):
+        for fname in os.listdir(resource_base):
+            full_name = os.path.join(resource_base, fname)
+            if os.path.isfile(full_name):
+                resource_files.append(full_name)
+    for fname in [index_page] + resource_files:
         if not os.path.exists(fname):
             raise RuntimeError("Cannot find %s" % fname)
-    return index_page, js_files
+    return index_page, resource_files
 
 
 def main(args):

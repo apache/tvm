@@ -21,54 +21,44 @@
  * \brief Hybrid computation rule.
  * \file hybrid_op.cc
  */
+#include "hybrid_op.h"
+
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
-#include <tvm/arith/analyzer.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
-#include <unordered_set>
+#include <tvm/tir/stmt_functor.h>
+
 #include <string>
+#include <unordered_set>
 #include <utility>
+
 #include "op_util.h"
-#include "hybrid_op.h"
 
 namespace tvm {
 namespace te {
 using namespace tir;
 // HybridOpNode
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<HybridOpNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const HybridOpNode*>(node.get());
-    p->stream << "hybrid(" << op->name << ", " << op << ")";
-  });
+    .set_dispatch<HybridOpNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const HybridOpNode*>(node.get());
+      p->stream << "hybrid(" << op->name << ", " << op << ")";
+    });
 
 TVM_REGISTER_NODE_TYPE(HybridOpNode);
 
-int HybridOpNode::num_outputs() const {
-  return static_cast<int>(outputs.size());
-}
+int HybridOpNode::num_outputs() const { return static_cast<int>(outputs.size()); }
 
-Array<IterVar> HybridOpNode::root_iter_vars() const {
-  return this->axis;
-}
+Array<IterVar> HybridOpNode::root_iter_vars() const { return this->axis; }
 
-DataType HybridOpNode::output_dtype(size_t i) const {
-  return outputs[i]->dtype;
-}
+DataType HybridOpNode::output_dtype(size_t i) const { return outputs[i]->dtype; }
 
-Array<PrimExpr> HybridOpNode::output_shape(size_t i) const {
-  return outputs[i]->shape;
-}
+Array<PrimExpr> HybridOpNode::output_shape(size_t i) const { return outputs[i]->shape; }
 
-
-Operation HybridOpNode::make(std::string name,
-                             std::string tag,
-                             Map<std::string, ObjectRef> attrs,
-                             Array<Tensor> inputs,
-                             Array<Tensor> outputs,
-                             Stmt body) {
+Operation HybridOpNode::make(std::string name, std::string tag, Map<std::string, ObjectRef> attrs,
+                             Array<Tensor> inputs, Array<Tensor> outputs, Stmt body) {
   if (!attrs.defined()) {
     attrs = Map<std::string, ObjectRef>();
   }
@@ -84,9 +74,7 @@ Operation HybridOpNode::make(std::string name,
   return res;
 }
 
-TVM_REGISTER_GLOBAL("te.HybridOp")
-.set_body_typed(HybridOpNode::make);
-
+TVM_REGISTER_GLOBAL("te.HybridOp").set_body_typed(HybridOpNode::make);
 
 Array<Tensor> HybridOpNode::InputTensors() const {
   // Because input tensors could be potentially inlined into hybrid scripts,
@@ -98,21 +86,20 @@ Array<Tensor> HybridOpNode::InputTensors() const {
   std::unordered_set<Tensor> visited;
   Array<Tensor> curr_inputs;
   tir::PostOrderVisit(body, [&curr_inputs, &orig_inputs, &visited](const ObjectRef& n) {
-      const tir::CallNode *call = n.as<tir::CallNode>();
-      if (call != nullptr && call->func.defined()) {
-        Tensor t = Downcast<Operation>(call->func).output(call->value_index);
-        if (orig_inputs.count(t) && !visited.count(t)) {
-          curr_inputs.push_back(t);
-          visited.insert(t);
-        }
+    const tir::CallNode* call = n.as<tir::CallNode>();
+    if (call != nullptr && call->func.defined()) {
+      Tensor t = Downcast<Operation>(call->func).output(call->value_index);
+      if (orig_inputs.count(t) && !visited.count(t)) {
+        curr_inputs.push_back(t);
+        visited.insert(t);
       }
+    }
   });
   return curr_inputs;
 }
 
-Operation HybridOpNode::ReplaceInputs(
-    const Operation &self,
-    const std::unordered_map<Tensor, Tensor> &rmap) const {
+Operation HybridOpNode::ReplaceInputs(const Operation& self,
+                                      const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
   auto n = make_object<HybridOpNode>(*this);
   n->body = te::ReplaceTensor(this->body, rmap);
@@ -123,46 +110,40 @@ Operation HybridOpNode::ReplaceInputs(
     }
   }
 
-  if (body.same_as(n->body) &&
-      inputs.same_as(n->inputs)) {
+  if (body.same_as(n->body) && inputs.same_as(n->inputs)) {
     return self;
   } else {
     return Operation(n);
   }
 }
 
-void HybridOpNode::PropBoundToInputs(
-    const Operation &self,
-    arith::Analyzer* analyzer,
-    const std::unordered_map<const VarNode*, IntSet> &dom_map,
-    std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
+void HybridOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* analyzer,
+                                     const std::unordered_map<const VarNode*, IntSet>& dom_map,
+                                     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   auto curr_inputs = InputTensors();
   for (Tensor t : curr_inputs) {
     auto it = out_dom_map->find(t);
     if (it == out_dom_map->end()) continue;
-    TensorDom &dom = it->second;
+    TensorDom& dom = it->second;
     for (size_t i = 0; i < t->shape.size(); ++i) {
       dom.data[i].emplace_back(IntSet::range(
-          Range::make_by_min_extent(
-              make_const(t->shape[i].dtype(), 0), t->shape[i])));
+          Range::make_by_min_extent(make_const(t->shape[i].dtype(), 0), t->shape[i])));
     }
   }
 }
 
-void HybridOpNode::GatherBound(
-    const Operation &self,
-    const std::unordered_map<Tensor, TensorDom> &tensor_dom,
-    std::unordered_map<IterVar, Range>* out_dom_map) const {
+void HybridOpNode::GatherBound(const Operation& self,
+                               const std::unordered_map<Tensor, TensorDom>& tensor_dom,
+                               std::unordered_map<IterVar, Range>* out_dom_map) const {
   for (auto iter_var : axis) {
     CHECK(!out_dom_map->count(iter_var));
     out_dom_map->operator[](iter_var) = iter_var->dom;
   }
 }
 
-Stmt HybridOpNode::BuildRealize(
-    const Stage &stage,
-    const std::unordered_map<IterVar, Range> &realize_map,
-    const Stmt &body) const {
+Stmt HybridOpNode::BuildRealize(const Stage& stage,
+                                const std::unordered_map<IterVar, Range>& realize_map,
+                                const Stmt& body) const {
   // TODO(@were): Add attribute inject here and remove it from hybrid parser.
   CHECK_EQ(stage->op.get(), this);
   Stmt realize_body = body;
@@ -170,24 +151,20 @@ Stmt HybridOpNode::BuildRealize(
     Tensor t = stage->op.output(k);
     Region bounds;
     for (size_t i = 0; i < t->shape.size(); ++i) {
-      bounds.push_back(
-          Range::make_by_min_extent(
-              make_const(t->shape[i].dtype(), 0), t->shape[i]));
+      bounds.push_back(Range::make_by_min_extent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body = tir::RealizeNode::make(
-        t->op, t->value_index, t->dtype,
-        bounds, const_true(), realize_body);
+    realize_body =
+        tir::RealizeNode::make(t->op, t->value_index, t->dtype, bounds, const_true(), realize_body);
   }
   return realize_body;
 }
 
-Stmt HybridOpNode::BuildProvide(
-    const Stage &stage,
-    const std::unordered_map<IterVar, Range> &dom_map,
-    bool debug_keep_trivial_loop) const {
+Stmt HybridOpNode::BuildProvide(const Stage& stage,
+                                const std::unordered_map<IterVar, Range>& dom_map,
+                                bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt ret = AttrStmtNode::make(
-      make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
+  Stmt ret =
+      AttrStmtNode::make(make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
   std::unordered_map<Tensor, Tensor> rmap;
   for (int i = 0; i < this->num_outputs(); ++i) {
     rmap[outputs[i]] = stage->op.output(i);
@@ -223,45 +200,44 @@ Stmt HybridOpNode::BuildProvide(
   return ret;
 }
 
-Stmt ApplyLoopShapes(const Stage &stage,
-                     const std::unordered_map<IterVar, Range> &dom_map, Stmt stmt) {
+Stmt ApplyLoopShapes(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
+                     Stmt stmt) {
   class LoopSpliter : public StmtExprMutator {
     PrimExpr factor;
-    const VarNode *parent;
+    const VarNode* parent;
     IterVar inner, outer;
 
    public:
     bool splitted;
-    LoopSpliter(const SplitNode *split,
-                const std::unordered_map<IterVar, Range> &dom_map) :
-      factor(split->factor), splitted(false) {
+    LoopSpliter(const SplitNode* split, const std::unordered_map<IterVar, Range>& dom_map)
+        : factor(split->factor), splitted(false) {
       parent = split->parent->var.get();
 
-      auto &inner_ = split->inner;
+      auto& inner_ = split->inner;
       CHECK(dom_map.count(inner_));
-      auto &inner_dom = dom_map.find(inner_)->second;
+      auto& inner_dom = dom_map.find(inner_)->second;
       CHECK(is_const_int(inner_dom->min, 0));
 
-      auto &outer_ = split->outer;
+      auto& outer_ = split->outer;
       CHECK(dom_map.count(outer_));
-      auto &outer_dom = dom_map.find(outer_)->second;
+      auto& outer_dom = dom_map.find(outer_)->second;
       CHECK(is_const_int(outer_dom->min, 0));
 
       inner = IterVarNode::make(inner_dom, inner_->var, inner_->iter_type);
       outer = IterVarNode::make(outer_dom, outer_->var, outer_->iter_type);
     }
 
-    Stmt VisitStmt_(const ForNode *op) final {
+    Stmt VisitStmt_(const ForNode* op) final {
       if (op->loop_var.get() == parent) {
-        std::unordered_map<const VarNode *, PrimExpr> rmap;
+        std::unordered_map<const VarNode*, PrimExpr> rmap;
         rmap[op->loop_var.get()] = inner + outer * factor;
         Stmt ret = tir::Substitute(op->body, rmap);
         PrimExpr cond = likely(outer * factor < (op->extent - inner));
         ret = IfThenElseNode::make(cond, ret);
         ret = ForNode::make(inner->var, PrimExpr(0), inner->dom->extent,
-                        IterVarTypeToForType(inner->iter_type), op->device_api, ret);
+                            IterVarTypeToForType(inner->iter_type), op->device_api, ret);
         ret = ForNode::make(outer->var, PrimExpr(0), outer->dom->extent,
-                        IterVarTypeToForType(outer->iter_type), op->device_api, ret);
+                            IterVarTypeToForType(outer->iter_type), op->device_api, ret);
         splitted = true;
         return ret;
       }
@@ -270,24 +246,27 @@ Stmt ApplyLoopShapes(const Stage &stage,
   };
 
   class LoopFuser : public StmtExprMutator {
-    const IterVar &parent;
-    const VarNode *inner;
-    const VarNode *outer;
+    const IterVar& parent;
+    const VarNode* inner;
+    const VarNode* outer;
     bool under_outer;
     PrimExpr extent;
 
    public:
     bool fused;
-    explicit LoopFuser(const FuseNode *fuse_)
-      : parent(fuse_->fused), inner(fuse_->inner->var.get()),
-        outer(fuse_->outer->var.get()), under_outer(false),
-        extent(0), fused(false) {}
+    explicit LoopFuser(const FuseNode* fuse_)
+        : parent(fuse_->fused),
+          inner(fuse_->inner->var.get()),
+          outer(fuse_->outer->var.get()),
+          under_outer(false),
+          extent(0),
+          fused(false) {}
 
     // TODO(@were): Handle imperfect loops
     Stmt VisitStmt_(const ForNode* op) final {
       if (op->loop_var.get() == inner) {
         CHECK(under_outer);
-        std::unordered_map<const VarNode *, PrimExpr> rmap;
+        std::unordered_map<const VarNode*, PrimExpr> rmap;
         rmap[op->loop_var.get()] = indexmod(parent, op->extent);
         extent = op->extent;
         fused = true;
@@ -295,15 +274,15 @@ Stmt ApplyLoopShapes(const Stage &stage,
       } else if (op->loop_var.get() == outer) {
         under_outer = true;
         Stmt body = this->VisitStmt(op->body);
-        std::unordered_map<const VarNode *, PrimExpr> rmap;
+        std::unordered_map<const VarNode*, PrimExpr> rmap;
         rmap[op->loop_var.get()] = indexdiv(parent, extent);
         body = tir::Substitute(body, rmap);
         under_outer = false;
-        return ForNode::make(parent->var, PrimExpr(0), extent * op->extent,
-                         op->for_type, op->device_api, body);
+        return ForNode::make(parent->var, PrimExpr(0), extent * op->extent, op->for_type,
+                             op->device_api, body);
       } else if (under_outer) {
         Stmt body = this->VisitStmt(op->body);
-        std::unordered_map<const VarNode *, PrimExpr> rmap;
+        std::unordered_map<const VarNode*, PrimExpr> rmap;
         rmap[op->loop_var.get()] = indexmod(indexdiv(parent, extent), op->extent);
         body = tir::Substitute(body, rmap);
         extent = extent * op->extent;
@@ -313,12 +292,12 @@ Stmt ApplyLoopShapes(const Stage &stage,
     }
   };
 
-  for (auto &rel : stage->relations) {
-    if (const SplitNode *split = rel.as<SplitNode>()) {
+  for (auto& rel : stage->relations) {
+    if (const SplitNode* split = rel.as<SplitNode>()) {
       LoopSpliter Spliter(split, dom_map);
       stmt = Spliter(stmt);
       CHECK(Spliter.splitted);
-    } else if (const FuseNode *fuse = rel.as<FuseNode>()) {
+    } else if (const FuseNode* fuse = rel.as<FuseNode>()) {
       LoopFuser Fuser(fuse);
       stmt = Fuser(stmt);
       CHECK(Fuser.fused);
@@ -328,45 +307,45 @@ Stmt ApplyLoopShapes(const Stage &stage,
   return stmt;
 }
 
-Stmt ApplyLoopAnnotations(const Stage &stage,
-                          const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt) {
+Stmt ApplyLoopAnnotations(const Stage& stage, const std::unordered_map<IterVar, IterVar>& rebased,
+                          Stmt stmt) {
   class LoopAnnotator : public StmtMutator {
-    const VarNode *var;
-    const IterVarAttr &attr;
+    const VarNode* var;
+    const IterVarAttr& attr;
 
    public:
-    LoopAnnotator(const VarNode *var_, const IterVarAttr &attr_) : var(var_), attr(attr_) {}
+    LoopAnnotator(const VarNode* var_, const IterVarAttr& attr_) : var(var_), attr(attr_) {}
 
-    Stmt VisitStmt_(const ForNode *op) final {
+    Stmt VisitStmt_(const ForNode* op) final {
       tir::ExprDeepEqual expr_equal;
 
       if (op->loop_var.get() == var) {
         if (attr->bind_thread.defined()) {
-          const auto &iter_var = attr->bind_thread;
+          const auto& iter_var = attr->bind_thread;
           if (iter_var->dom.defined()) {
             CHECK(is_const_int(iter_var->dom->min, 0));
             CHECK(expr_equal(iter_var->dom->extent, op->extent))
-              << "Thread extent and loop extent mismatch!\n";
+                << "Thread extent and loop extent mismatch!\n";
           }
-          std::unordered_map<const VarNode *, PrimExpr> rmap;
+          std::unordered_map<const VarNode*, PrimExpr> rmap;
           rmap[op->loop_var.get()] = iter_var;
           Stmt body = tir::Substitute(op->body, rmap);
           return AttrStmtNode::make(iter_var, "thread_extent", op->extent, body);
         } else {
           return ForNode::make(op->loop_var, op->min, op->extent,
-                           IterVarTypeToForType(attr->iter_type), op->device_api, op->body);
+                               IterVarTypeToForType(attr->iter_type), op->device_api, op->body);
         }
       }
       return StmtMutator::VisitStmt_(op);
     }
   };
 
-  for (auto &iter_var : stage->leaf_iter_vars) {
+  for (auto& iter_var : stage->leaf_iter_vars) {
     bool need_change = false;
     int found = 0;
 
-    const IterVar &actual = rebased.count(iter_var) ? rebased.find(iter_var)->second : iter_var;
-    const VarNode *var = actual->var.get();
+    const IterVar& actual = rebased.count(iter_var) ? rebased.find(iter_var)->second : iter_var;
+    const VarNode* var = actual->var.get();
     ForType expected = IterVarTypeToForType(iter_var->iter_type);
     IterVarAttr attr;
     if (stage->iter_var_attrs.count(iter_var)) {
@@ -374,9 +353,8 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
       expected = IterVarTypeToForType(attr->iter_type);
     }
 
-    PostOrderVisit(stmt,
-    [&found, &var, &attr, &expected, &need_change](const ObjectRef& node) {
-      if (const ForNode *op = node.as<ForNode>()) {
+    PostOrderVisit(stmt, [&found, &var, &attr, &expected, &need_change](const ObjectRef& node) {
+      if (const ForNode* op = node.as<ForNode>()) {
         if (op->loop_var.get() == var) {
           ++found;
           need_change = expected != op->for_type || (attr.defined() && attr->bind_thread.defined());
@@ -392,23 +370,21 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
   return stmt;
 }
 
-Stmt ApplyLoopOrder(const Stage &stage,
-                    const std::unordered_map<IterVar, Range> &dom_map,
-                    const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt) {
+Stmt ApplyLoopOrder(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
+                    const std::unordered_map<IterVar, IterVar>& rebased, Stmt stmt) {
   std::vector<const VarNode*> current_order;
   PostOrderVisit(stmt, [&current_order](const ObjectRef& node) {
-    if (const ForNode *op = node.as<ForNode>())
-      current_order.push_back(op->loop_var.get());
+    if (const ForNode* op = node.as<ForNode>()) current_order.push_back(op->loop_var.get());
   });
   std::reverse(current_order.begin(), current_order.end());
-  auto &required_ord = stage->leaf_iter_vars;
+  auto& required_ord = stage->leaf_iter_vars;
   CHECK_EQ(current_order.size(), required_ord.size()) << "Cannot reorder the loops!";
-  std::unordered_map<const VarNode *, IterVar> reorder;
+  std::unordered_map<const VarNode*, IterVar> reorder;
   bool need_reorder = false;
   for (size_t i = 0; i < current_order.size(); ++i) {
-    auto &current = current_order[i];
-    const IterVar &iter_var = required_ord[i];
-    const IterVar &required = rebased.count(iter_var) ? rebased.find(iter_var)->second : iter_var;
+    auto& current = current_order[i];
+    const IterVar& iter_var = required_ord[i];
+    const IterVar& required = rebased.count(iter_var) ? rebased.find(iter_var)->second : iter_var;
     CHECK(required->dom.defined() || dom_map.count(required)) << required << "\n";
     reorder[current] = required;
     if (current != required->var.get()) {
@@ -417,15 +393,14 @@ Stmt ApplyLoopOrder(const Stage &stage,
   }
 
   class LoopReorder : public StmtMutator {
-    const Stage &stage;
-    const std::unordered_map<IterVar, Range> &dom_map;
-    const std::unordered_map<const VarNode *, IterVar> &reorder;
+    const Stage& stage;
+    const std::unordered_map<IterVar, Range>& dom_map;
+    const std::unordered_map<const VarNode*, IterVar>& reorder;
 
    public:
-    LoopReorder(const Stage &stage,
-                const std::unordered_map<IterVar, Range> &dom_map,
-                const std::unordered_map<const VarNode*, IterVar> &reorder)
-      : stage(stage), dom_map(dom_map), reorder(reorder) {}
+    LoopReorder(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
+                const std::unordered_map<const VarNode*, IterVar>& reorder)
+        : stage(stage), dom_map(dom_map), reorder(reorder) {}
 
     Stmt VisitStmt_(const ForNode* op) final {
       // Reorder from in to out
@@ -434,25 +409,23 @@ Stmt ApplyLoopOrder(const Stage &stage,
       auto target = reorder.find(op->loop_var.get())->second;
       if (body_.same_as(op->body) && op->loop_var.get() == target->var.get())
         return GetRef<Stmt>(op);
-      const Stmt &body = op->body.same_as(body_) ? op->body : body_;
+      const Stmt& body = op->body.same_as(body_) ? op->body : body_;
       ForType for_type = IterVarTypeToForType(target->iter_type);
       if (stage->iter_var_attrs.count(target)) {
         for_type = IterVarTypeToForType(stage->iter_var_attrs[target]->iter_type);
       }
-      const Range &range = target->dom.defined() ? target->dom : dom_map.find(target)->second;
-      return ForNode::make(target->var, range->min, range->extent,
-                       for_type, DeviceAPI::None, body);
+      const Range& range = target->dom.defined() ? target->dom : dom_map.find(target)->second;
+      return ForNode::make(target->var, range->min, range->extent, for_type, DeviceAPI::None, body);
     }
   };
 
-  if (need_reorder)
-    return LoopReorder(stage, dom_map, reorder)(stmt);
+  if (need_reorder) return LoopReorder(stage, dom_map, reorder)(stmt);
 
   return stmt;
 }
 
-Stmt ApplySchedule(const Stage &stage,
-                   const std::unordered_map<IterVar, Range> &dom_map, Stmt stmt) {
+Stmt ApplySchedule(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
+                   Stmt stmt) {
   // TODO(@were): Eliminate loop rebase in script parser and move the burden here
   // Gather rebased variables
   std::unordered_map<IterVar, IterVar> rebased;
@@ -473,7 +446,7 @@ std::vector<IterVar> GatherLoopVars(Stmt stmt) {
   // TODO(@were): Write a comprehensive pass to analyze iter var types
   std::vector<IterVar> res_;
   PostOrderVisit(stmt, [&res_](const ObjectRef& node) {
-    if (const ForNode *op = node.as<ForNode>()) {
+    if (const ForNode* op = node.as<ForNode>()) {
       Var loop_var(op->loop_var);
       Range dom = Range::make_by_min_extent(op->min, op->extent);
       res_.push_back(IterVarNode::make(dom, loop_var, ForTypeToIterVarType(op->for_type)));
@@ -486,15 +459,14 @@ std::vector<IterVar> GatherLoopVars(Stmt stmt) {
 // replacer to replace tensors' usage in Provide
 class ProviderReplacer : public tir::StmtMutator {
  public:
-  explicit ProviderReplacer(const std::unordered_map<Tensor, Tensor> &vmap)
-      : vmap_(vmap) {}
+  explicit ProviderReplacer(const std::unordered_map<Tensor, Tensor>& vmap) : vmap_(vmap) {}
 
   Stmt VisitStmt_(const tir::ProvideNode* op) final {
     Tensor t = Downcast<Operation>(op->func).output(op->value_index);
     auto it = vmap_.find(t);
     if (it != vmap_.end()) {
-      Stmt ret = tir::ProvideNode::make(
-        it->second->op, it->second->value_index, op->value, op->args);
+      Stmt ret =
+          tir::ProvideNode::make(it->second->op, it->second->value_index, op->value, op->args);
       found = true;
       return this->VisitStmt(ret);
     }
@@ -505,11 +477,10 @@ class ProviderReplacer : public tir::StmtMutator {
   bool found{false};
 
  private:
-  const std::unordered_map<Tensor, Tensor> &vmap_;
+  const std::unordered_map<Tensor, Tensor>& vmap_;
 };
 
-Stmt ReplaceProvideTensor(Stmt stmt,
-                   const std::unordered_map<Tensor, Tensor> &replace) {
+Stmt ReplaceProvideTensor(Stmt stmt, const std::unordered_map<Tensor, Tensor>& replace) {
   ProviderReplacer repl(replace);
   Stmt ret = repl(stmt);
   return repl.found ? ret : stmt;

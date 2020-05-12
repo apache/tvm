@@ -26,6 +26,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
+
 #include "../../op/nn/nn.h"
 #include "../../transforms/pattern_util.h"
 #include "../util.h"
@@ -72,9 +73,8 @@ Expr MakeQuantizedDense(Expr data, Expr weight, Expr input_zero_point, Expr kern
   attrs->units = std::move(units);
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("qnn.dense");
-  return Call(
-      op, {data, weight, input_zero_point, kernel_zero_point, input_scale, kernel_scale},
-      Attrs(attrs), {});
+  return Call(op, {data, weight, input_zero_point, kernel_zero_point, input_scale, kernel_scale},
+              Attrs(attrs), {});
 }
 
 Expr DenseFirstTerm(const Expr& quantized_data, const Expr& quantized_kernel,
@@ -173,25 +173,25 @@ Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 }
 
 RELAY_REGISTER_OP("qnn.dense")
-.describe(R"code(Applies a linear transformation: :math:`Y = XW^T`.
+    .describe(R"code(Applies a linear transformation: :math:`Y = XW^T`.
 - **data**: quantized(int8, unit8) `(x1, x2, ..., xn, input_dim)`
 - **weight**: quantized(int8, unit8) `(units, input_dim)`
 - **out**: quantized(int32) `(x1, x2, ..., xn, units)`.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<DenseAttrs>()
-.set_num_inputs(6)
-.add_argument("data", "quantized nD Tensor", "Input data.")
-.add_argument("weight", "quantized 2D Tensor", "Weight matrix.")
-.add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
-.add_argument("input_zero_point", "Tensor", "The quantization zero_point of the input tensor.")
-.add_argument("weight_scale", "Tensor", "The quantization scale of the weight tensor.")
-.add_argument("weight_zero_point", "Tensor", "The quantization zero_point of the weight tensor.")
-.set_support_level(11)
-.add_type_rel("QDense", QnnDenseRel)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnDenseCanonicalize);
+    .set_attrs_type<DenseAttrs>()
+    .set_num_inputs(6)
+    .add_argument("data", "quantized nD Tensor", "Input data.")
+    .add_argument("weight", "quantized 2D Tensor", "Weight matrix.")
+    .add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
+    .add_argument("input_zero_point", "Tensor", "The quantization zero_point of the input tensor.")
+    .add_argument("weight_scale", "Tensor", "The quantization scale of the weight tensor.")
+    .add_argument("weight_zero_point", "Tensor",
+                  "The quantization zero_point of the weight tensor.")
+    .set_support_level(11)
+    .add_type_rel("QDense", QnnDenseRel)
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnDenseCanonicalize);
 
-TVM_REGISTER_GLOBAL("relay.qnn.op._make.dense")
-.set_body_typed(MakeQuantizedDense);
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.dense").set_body_typed(MakeQuantizedDense);
 
 }  // namespace qnn
 }  // namespace relay

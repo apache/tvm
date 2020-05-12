@@ -25,11 +25,11 @@
 #define TVM_TIR_FUNCTION_H_
 
 #include <tvm/ir/function.h>
-#include <tvm/tir/expr.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
-#include <string>
 
+#include <string>
 
 namespace tvm {
 namespace tir {
@@ -104,12 +104,9 @@ class PrimFuncNode : public BaseFuncNode {
 
   bool SEqualReduce(const PrimFuncNode* other, SEqualReducer equal) const {
     // visit params and buffer_map first as they contains defs.
-    return
-        equal.DefEqual(params, other->params) &&
-        equal(buffer_map, other->buffer_map) &&
-        equal(ret_type, other->ret_type) &&
-        equal(body, other->body) &&
-        equal(attrs, other->attrs);
+    return equal.DefEqual(params, other->params) && equal(buffer_map, other->buffer_map) &&
+           equal(ret_type, other->ret_type) && equal(body, other->body) &&
+           equal(attrs, other->attrs);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -146,9 +143,7 @@ class PrimFunc : public BaseFunc {
    * \param buffer_map The buffer map for parameter buffer unpacking.
    * \param attrs Additional function attributes.
    */
-  TVM_DLL PrimFunc(Array<tir::Var> params,
-                   Stmt body,
-                   Type ret_type = VoidType(),
+  TVM_DLL PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type = VoidType(),
                    Map<tir::Var, Buffer> buffer_map = NullValue<Map<tir::Var, Buffer>>(),
                    DictAttrs attrs = NullValue<DictAttrs>());
 

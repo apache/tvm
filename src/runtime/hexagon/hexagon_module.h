@@ -47,9 +47,8 @@ namespace runtime {
  *                      convention.
  */
 Module HexagonModuleCreate(std::string data, std::string fmt,
-                           std::unordered_map<std::string, FunctionInfo> fmap,
-                           std::string asm_str, std::string obj_str,
-                           std::string ir_str, std::string bc_str,
+                           std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
+                           std::string obj_str, std::string ir_str, std::string bc_str,
                            const std::set<std::string>& packed_c_abi);
 
 namespace hexagon {
@@ -91,24 +90,21 @@ class Device {
    * \param src     Pointer (local to device) of the source buffer.
    * \param len     Number of bytes to copy.
    */
-  virtual void CopyDeviceToDevice(void* dst, const void* src,
-                                  unsigned len) = 0;
+  virtual void CopyDeviceToDevice(void* dst, const void* src, unsigned len) = 0;
   /*!
    * \brief Copy a block of data from device to host.
    * \param host_dst  Pointer (local to host) to the destination buffer.
    * \param src       Pointer (local to device) to the source buffer.
    * \param len       Number of bytes to copy.
    */
-  virtual void CopyDeviceToHost(void* host_dst, const void* src,
-                                unsigned len) = 0;
+  virtual void CopyDeviceToHost(void* host_dst, const void* src, unsigned len) = 0;
   /*!
    * \brief Copy a block of data from host to device.
    * \param dst       Pointer (local to device) to the destination buffer.
    * \param host_src  Pointer (local to host) to the source buffer.
    * \param len       Number of bytes to copy.
    */
-  virtual void CopyHostToDevice(void* dst, const void* host_src,
-                                unsigned len) = 0;
+  virtual void CopyHostToDevice(void* dst, const void* host_src, unsigned len) = 0;
   /*!
    * \brief Load a module (typically a shared library) into device.
    * \param data    Name of the shared library.
@@ -141,8 +137,8 @@ class Device {
    *                for padding.
    * \param st_num  Number of values in the "stack" array.
    */
-  virtual void Call(void* func, uint32_t* scalar, unsigned sc_num,
-                    uint32_t* stack, unsigned st_num) = 0;
+  virtual void Call(void* func, uint32_t* scalar, unsigned sc_num, uint32_t* stack,
+                    unsigned st_num) = 0;
 
   virtual ~Device() = 0;
 

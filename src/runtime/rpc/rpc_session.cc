@@ -21,14 +21,82 @@
  * \file rpc_session.cc
  * \brief RPC session for remote function call.
  */
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/device_api.h>
-#include <mutex>
-#include <array>
 #include "rpc_session.h"
+
+#include <tvm/runtime/device_api.h>
+#include <tvm/runtime/packed_func.h>
+
+#include <array>
+#include <mutex>
 
 namespace tvm {
 namespace runtime {
+
+bool RPCSession::IsAsync() const { return false; }
+
+void RPCSession::SendException(FAsyncCallback callback, const char* msg) {
+  TVMValue value;
+  value.v_str = msg;
+  int32_t tcode = kTVMStr;
+  callback(RPCCode::kException, TVMArgs(&value, &tcode, 1));
+}
+
+void RPCSession::AsyncCallFunc(PackedFuncHandle func, const TVMValue* arg_values,
+                               const int* arg_type_codes, int num_args, FAsyncCallback callback) {
+  try {
+    this->CallFunc(func, arg_values, arg_type_codes, num_args,
+                   [&callback](TVMArgs args) { callback(RPCCode::kReturn, args); });
+  } catch (const std::runtime_error& e) {
+    this->SendException(callback, e.what());
+  }
+}
+
+void RPCSession::AsyncCopyToRemote(void* local_from, size_t local_from_offset, void* remote_to,
+                                   size_t remote_to_offset, size_t nbytes, TVMContext remote_ctx_to,
+                                   DLDataType type_hint, RPCSession::FAsyncCallback callback) {
+  TVMValue value;
+  int32_t tcode = kTVMNullptr;
+  value.v_handle = nullptr;
+
+  try {
+    this->CopyToRemote(local_from, local_from_offset, remote_to, remote_to_offset, nbytes,
+                       remote_ctx_to, type_hint);
+    callback(RPCCode::kReturn, TVMArgs(&value, &tcode, 1));
+  } catch (const std::runtime_error& e) {
+    this->SendException(callback, e.what());
+  }
+}
+
+void RPCSession::AsyncCopyFromRemote(void* remote_from, size_t remote_from_offset, void* local_to,
+                                     size_t local_to_offset, size_t nbytes,
+                                     TVMContext remote_ctx_from, DLDataType type_hint,
+                                     RPCSession::FAsyncCallback callback) {
+  TVMValue value;
+  int32_t tcode = kTVMNullptr;
+  value.v_handle = nullptr;
+
+  try {
+    this->CopyFromRemote(remote_from, remote_from_offset, local_to, local_to_offset, nbytes,
+                         remote_ctx_from, type_hint);
+    callback(RPCCode::kReturn, TVMArgs(&value, &tcode, 1));
+  } catch (const std::runtime_error& e) {
+    this->SendException(callback, e.what());
+  }
+}
+
+void RPCSession::AsyncStreamWait(TVMContext ctx, TVMStreamHandle stream,
+                                 RPCSession::FAsyncCallback callback) {
+  TVMValue value;
+  int32_t tcode = kTVMNullptr;
+  value.v_handle = nullptr;
+
+  try {
+    this->GetDeviceAPI(ctx)->StreamSync(ctx, stream);
+    callback(RPCCode::kReturn, TVMArgs(&value, &tcode, 1));
+  } catch (const std::runtime_error& e) {
+    this->SendException(callback, e.what());
+  }
+}
 
 class RPCSessTable {
  public:
@@ -48,7 +116,8 @@ class RPCSessTable {
     std::lock_guard<std::mutex> lock(mutex_);
     for (int i = 0; i < kMaxRPCSession; ++i) {
       if (tbl_[i].lock() == nullptr) {
-        tbl_[i] = ptr; return i;
+        tbl_[i] = ptr;
+        return i;
       }
     }
     LOG(FATAL) << "maximum number of RPC session reached";

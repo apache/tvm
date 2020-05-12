@@ -28,19 +28,18 @@
 
 #include <builtin_fp16.h>
 #include <tvm/node/structural_equal.h>
-#include <tvm/tir/data_layout.h>
-#include <tvm/relay/op.h>
-#include <tvm/relay/expr.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/nn.h>
-#include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/attrs/reduce.h>
+#include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/expr.h>
+#include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/tir/data_layout.h>
 
 #include <string>
-#include <vector>
 #include <utility>
-
+#include <vector>
 
 namespace tvm {
 namespace relay {
@@ -49,42 +48,42 @@ namespace relay {
  * \brief Dispatch DataType to the C++ data type
  *  during runtime.
  */
-#define TVM_DTYPE_DISPATCH(type, DType, ...)            \
-  if (type == DataType::Float(64)) {                              \
-    typedef double DType;                               \
-    {__VA_ARGS__}                                       \
-  } else if (type == DataType::Float(32)) {                       \
-    typedef float DType;                                \
-    {__VA_ARGS__}                                       \
-  } else if (type == DataType::Float(16)) {                       \
-    typedef uint16_t DType;                             \
-    {__VA_ARGS__}                                       \
-  } else if (type == DataType::Int(64)) {                         \
-    typedef int64_t DType;                              \
-    {__VA_ARGS__}                                       \
-  } else if (type == DataType::Int(32)) {                         \
-    typedef int32_t DType;                              \
-    {__VA_ARGS__}                                       \
-  } else if (type == DataType::Int(16)) {                         \
-    typedef int16_t DType;                              \
-    {__VA_ARGS__}                                       \
-  } else if (type == DataType::Int(8)) {                          \
-    typedef int8_t DType;                               \
-    {__VA_ARGS__}                                       \
-  } else if (type == DataType::UInt(64)) {                        \
-    typedef uint64_t DType;                             \
-    {__VA_ARGS__}                                       \
-  } else if (type == DataType::UInt(32)) {                        \
-    typedef uint32_t DType;                             \
-    {__VA_ARGS__}                                       \
-  } else if (type == DataType::UInt(16)) {                        \
-    typedef uint16_t DType;                             \
-    {__VA_ARGS__}                                       \
-  } else if (type == DataType::UInt(8)) {                         \
-    typedef uint8_t DType;                              \
-    {__VA_ARGS__}                                       \
-  } else {                                              \
-    LOG(FATAL) << "unknown data type " << type;         \
+#define TVM_DTYPE_DISPATCH(type, DType, ...)    \
+  if (type == DataType::Float(64)) {            \
+    typedef double DType;                       \
+    { __VA_ARGS__ }                             \
+  } else if (type == DataType::Float(32)) {     \
+    typedef float DType;                        \
+    { __VA_ARGS__ }                             \
+  } else if (type == DataType::Float(16)) {     \
+    typedef uint16_t DType;                     \
+    { __VA_ARGS__ }                             \
+  } else if (type == DataType::Int(64)) {       \
+    typedef int64_t DType;                      \
+    { __VA_ARGS__ }                             \
+  } else if (type == DataType::Int(32)) {       \
+    typedef int32_t DType;                      \
+    { __VA_ARGS__ }                             \
+  } else if (type == DataType::Int(16)) {       \
+    typedef int16_t DType;                      \
+    { __VA_ARGS__ }                             \
+  } else if (type == DataType::Int(8)) {        \
+    typedef int8_t DType;                       \
+    { __VA_ARGS__ }                             \
+  } else if (type == DataType::UInt(64)) {      \
+    typedef uint64_t DType;                     \
+    { __VA_ARGS__ }                             \
+  } else if (type == DataType::UInt(32)) {      \
+    typedef uint32_t DType;                     \
+    { __VA_ARGS__ }                             \
+  } else if (type == DataType::UInt(16)) {      \
+    typedef uint16_t DType;                     \
+    { __VA_ARGS__ }                             \
+  } else if (type == DataType::UInt(8)) {       \
+    typedef uint8_t DType;                      \
+    { __VA_ARGS__ }                             \
+  } else {                                      \
+    LOG(FATAL) << "unknown data type " << type; \
   }
 
 /*!
@@ -99,10 +98,8 @@ namespace relay {
  * \param rhs_value A squeezed version of rhs which only contains matched dimension.
  * \return Whether match is successful.
  */
-inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs,
-                                     const TensorTypeNode* trhs,
-                                     const Array<Integer>& lhs_axes,
-                                     Expr* rhs_value = nullptr) {
+inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs, const TensorTypeNode* trhs,
+                                     const Array<Integer>& lhs_axes, Expr* rhs_value = nullptr) {
   if (tlhs->shape.size() < trhs->shape.size()) return false;
   StructuralEqual equal;
   size_t base = tlhs->shape.size() - trhs->shape.size();
@@ -145,9 +142,7 @@ inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs,
  * \param target_ndim Target dimension.
  * \param axes The axis on the output we want to match on.
  */
-inline Expr ExpandBiasToMatchAxis(Expr bias,
-                                  int target_ndim,
-                                  const Array<Integer>& axes) {
+inline Expr ExpandBiasToMatchAxis(Expr bias, int target_ndim, const Array<Integer>& axes) {
   static const Op& expand_dims = Op::Get("expand_dims");
   for (size_t i = axes.size(); i != 0; --i) {
     if (i == axes.size()) {
@@ -179,14 +174,12 @@ inline Expr ExpandBiasToMatchAxis(Expr bias,
  * \param param The conv2d attributes.
  * \return Whether it is depthwise_conv2d.
  */
-inline bool IsDepthwiseConv2D(const Call& call,
-                              const Conv2DAttrs* param,
+inline bool IsDepthwiseConv2D(const Call& call, const Conv2DAttrs* param,
                               const Layout& kernel_layout) {
   static const Layout kOIHW("OIHW");
   const auto bilayout = tir::BijectiveLayout(kernel_layout, kOIHW);
   auto wshape = bilayout.ForwardShape(call->args[1]->type_as<TensorTypeNode>()->shape);
-  return tir::is_const_int(wshape[0], param->groups) &&
-      tir::is_const_int(wshape[1], 1);
+  return tir::is_const_int(wshape[0], param->groups) && tir::is_const_int(wshape[1], 1);
 }
 
 /*!
@@ -195,12 +188,12 @@ inline bool IsDepthwiseConv2D(const Call& call,
  * \return Super-dimension size of output channels of conv2d.
  */
 inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
-    auto param = call->attrs.as<Conv2DAttrs>();
-    auto tweight = call->args[1]->type_as<TensorTypeNode>();
-    auto index = param->kernel_layout.find('O');
-    CHECK_NE(index, std::string::npos);
-    auto channels = tir::as_const_int(tweight->shape[index]);
-    return *channels;
+  auto param = call->attrs.as<Conv2DAttrs>();
+  auto tweight = call->args[1]->type_as<TensorTypeNode>();
+  auto index = param->kernel_layout.find('O');
+  CHECK_NE(index, std::string::npos);
+  auto channels = tir::as_const_int(tweight->shape[index]);
+  return *channels;
 }
 
 /*!
@@ -304,13 +297,9 @@ inline bool IsEqualScalar(const Expr& a, const Expr& b) {
   return tvm::StructuralEqual()(a, b);
 }
 
-inline Expr GetField(Expr t, size_t i) {
-  return TupleGetItem(t, i);
-}
+inline Expr GetField(Expr t, size_t i) { return TupleGetItem(t, i); }
 
-inline Expr Pair(Expr l, Expr r) {
-  return Tuple({l, r});
-}
+inline Expr Pair(Expr l, Expr r) { return Tuple({l, r}); }
 
 inline Expr Exp(Expr e) {
   static const Op& op = Op::Get("exp");
@@ -362,24 +351,20 @@ inline Expr Negative(Expr x) {
   return Call(op, {x}, Attrs(), {});
 }
 
-
 inline Expr Sqrt(Expr x) {
   static const Op& op = Op::Get("sqrt");
   return Call(op, {x}, Attrs(), {});
 }
-
 
 inline Expr Relu(Expr x) {
   static const Op& op = Op::Get("nn.relu");
   return Call(op, {x}, Attrs(), {});
 }
 
-
 inline Expr Round(Expr x) {
   static const Op& op = Op::Get("round");
   return Call(op, {x}, Attrs(), {});
 }
-
 
 inline Expr Clip(Expr x, double a_min, double a_max) {
   static const Op& op = Op::Get("clip");
@@ -389,24 +374,20 @@ inline Expr Clip(Expr x, double a_min, double a_max) {
   return Call(op, {x}, Attrs(attrs), {});
 }
 
-
 inline Expr Add(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("add");
   return Call(op, {lhs, rhs}, Attrs(), {});
 }
-
 
 inline Expr Subtract(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("subtract");
   return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
-
 inline Expr Multiply(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("multiply");
   return Call(op, {lhs, rhs}, Attrs(), {});
 }
-
 
 inline Expr Divide(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("divide");
@@ -446,30 +427,25 @@ inline Expr Power(Expr lhs, Expr rhs) {
   return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
-
 inline Expr RightShift(Expr x, Expr nbit) {
   static const Op& op = Op::Get("right_shift");
   return Call(op, {x, nbit}, Attrs(), {});
 }
-
 
 inline Expr LeftShift(Expr x, Expr nbit) {
   static const Op& op = Op::Get("left_shift");
   return Call(op, {x, nbit}, Attrs(), {});
 }
 
-
 inline Expr ReshapeLike(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("reshape_like");
   return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
-
 inline Expr Copy(Expr data) {
   static const Op& op = Op::Get("copy");
   return Call(op, {data}, Attrs(), {});
 }
-
 
 inline Expr Mean(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
   auto attrs = make_object<ReduceAttrs>();
@@ -489,7 +465,6 @@ inline Expr Variance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, b
   return Call(op, {data, mean}, Attrs(attrs), {});
 }
 
-
 static inline Expr Where(const Expr& condition, const Expr& x, const Expr& y) {
   static const Op& op = Op::Get("where");
   return Call(op, {condition, x, y});
@@ -500,9 +475,7 @@ static inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
   return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
-static inline Expr Full(Expr fill_value,
-                        Array<IndexExpr> shape,
-                        DataType dtype) {
+static inline Expr Full(Expr fill_value, Array<IndexExpr> shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
@@ -529,10 +502,7 @@ static inline Expr Conv2D(Expr data, Expr weight, Array<IndexExpr> strides,
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
-static inline Expr Dense(Expr data,
-                         Expr weight,
-                         IndexExpr units,
-                         DataType out_dtype) {
+static inline Expr Dense(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
   auto attrs = make_object<DenseAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;

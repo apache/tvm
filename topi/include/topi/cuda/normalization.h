@@ -24,20 +24,20 @@
 #ifndef TOPI_CUDA_NORMALIZATION_H_
 #define TOPI_CUDA_NORMALIZATION_H_
 
+#include <topi/tags.h>
+#include <tvm/target/generic_func.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule_pass.h>
-#include <tvm/target/generic_func.h>
-#include <topi/tags.h>
 
 namespace topi {
 using namespace tvm;
 using namespace tvm::te;
 namespace cuda {
 /*!
-* \brief Create a CUDA schedule for LRN
-* \param outs The output tensors.
-* \return A schedule for the given ops.
-*/
+ * \brief Create a CUDA schedule for LRN
+ * \param outs The output tensors.
+ * \return A schedule for the given ops.
+ */
 inline Schedule schedule_lrn(const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {

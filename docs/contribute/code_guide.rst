@@ -34,6 +34,47 @@ C++ Code Styles
   pass by value is better than pass by const reference in such cases.
 - Favor ``const`` member function when possible.
 
+We use `clang-format` to enforce the code style. Because different version
+of clang-format might change by its version, it is recommended to use the same
+version of the clang-format as the master.
+You can also use the following command via docker.
+
+.. code:: bash
+
+    docker/bash.sh tvmai/ci-lint clang-format-10 [path-to-file]
+
+
+clang-format is also not perfect, when necessary, you can use disble clang-format on certain code regions.
+
+.. code :: c
+
+   // clang-format off
+   void Test() {
+      // clang-format will be disabled in this region.
+   }
+   // clang-format on
+
+
+Because clang-format may not recognize macros, it is recommended to use macro like normal function styles.
+
+
+.. code :: c
+
+   #define MACRO_IMPL { custom impl; }
+   #define MACRO_FUNC(x)
+
+   // not preferred, because clang-format might recognize it as types.
+   virtual void Func1() MACRO_IMPL
+
+   // preferred
+   virtual void Func2() MACRO_IMPL;
+
+   void Func3() {
+     // preferred
+     MACRO_FUNC(xyz);
+   }
+
+
 Python Code Styles
 ------------------
 - The functions and classes are documented in `numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ format.

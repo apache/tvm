@@ -24,6 +24,11 @@
 #ifndef TVM_RELAY_OP_NN_NN_H_
 #define TVM_RELAY_OP_NN_NN_H_
 
+#include <tvm/ir/attrs.h>
+#include <tvm/ir/expr.h>
+#include <tvm/node/container.h>
+#include <tvm/relay/type.h>
+
 #include <utility>
 
 namespace tvm {
@@ -58,8 +63,7 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     if (weight == nullptr) return false;
     Array<tvm::PrimExpr> wshape = weight->shape;
     CHECK(static_cast<int>(weight->shape.size()) == 2);
-    CHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1],
-                             weight->shape[1]))
+    CHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1], weight->shape[1]))
         << "DenseRel: input dimension doesn't match,"
         << " data shape=" << data->shape << ", weight shape=" << weight->shape;
     oshape.Set((oshape.size() - 1), wshape[0]);

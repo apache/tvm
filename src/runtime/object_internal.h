@@ -24,8 +24,9 @@
 #ifndef TVM_RUNTIME_OBJECT_INTERNAL_H_
 #define TVM_RUNTIME_OBJECT_INTERNAL_H_
 
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/object.h>
+
 #include <string>
 
 namespace tvm {
@@ -68,4 +69,4 @@ class ObjectInternal {
 
 }  // namespace runtime
 }  // namespace tvm
-#endif   // TVM_RUNTIME_OBJECT_INTERNAL_H_
+#endif  // TVM_RUNTIME_OBJECT_INTERNAL_H_

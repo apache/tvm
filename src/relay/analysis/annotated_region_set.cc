@@ -19,13 +19,12 @@
 
 #include "annotated_region_set.h"
 
-#include <tvm/relay/expr.h>
 #include <tvm/ir/error.h>
+#include <tvm/relay/expr.h>
 #include <tvm/runtime/container.h>
 
 #include <unordered_map>
 #include <vector>
-
 
 namespace tvm {
 namespace relay {
@@ -39,8 +38,7 @@ AnnotatedRegion AnnotatedRegionSetNode::GetRegion(const Expr& expr) const {
   return AnnotatedRegion(nullptr);
 }
 
-void AnnotatedRegionSetNode::MergeRegions(AnnotatedRegion src,
-                                          AnnotatedRegion dest) {
+void AnnotatedRegionSetNode::MergeRegions(AnnotatedRegion src, AnnotatedRegion dest) {
   if (dest == src) {
     return;
   }
@@ -104,12 +102,12 @@ class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
     for (auto arg : args) {
       const CallNode* end = arg.as<CallNode>();
       if (end && end->op == end_op_) {  // Ignore closed regions.
-          continue;
+        continue;
       }
 
       region = region_set_->GetRegion(arg);
       if (region.defined()) {
-          break;
+        break;
       }
     }
 
@@ -117,7 +115,7 @@ class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
     for (auto arg : args) {
       const CallNode* end = arg.as<CallNode>();
       if (end && end->op == end_op_) {  // Ignore closed regions.
-          continue;
+        continue;
       }
 
       auto arg_region = region_set_->GetRegion(arg);
@@ -171,9 +169,7 @@ class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
     }
   }
 
-  void VisitExpr_(const TupleNode* op) {
-    AddToArgRegion(GetRef<Tuple>(op), op->fields);
-  }
+  void VisitExpr_(const TupleNode* op) { AddToArgRegion(GetRef<Tuple>(op), op->fields); }
 
   void VisitExpr_(const TupleGetItemNode* g) {
     Array<Expr> args = {g->tuple};
@@ -227,15 +223,14 @@ TVM_REGISTER_NODE_TYPE(AnnotatedRegionNode);
 TVM_REGISTER_NODE_TYPE(AnnotatedRegionSetNode);
 
 TVM_REGISTER_GLOBAL("relay.analysis.AnnotatedRegionSet")
-.set_body_typed([](Expr expr, Op begin, Op end) {
-  return AnnotatedRegionSet::Create(expr, begin, end);
-});
+    .set_body_typed([](Expr expr, Op begin, Op end) {
+      return AnnotatedRegionSet::Create(expr, begin, end);
+    });
 
 TVM_REGISTER_GLOBAL("relay.analysis.GetRegion")
-.set_body_typed([](AnnotatedRegionSet region_set, Expr expr) {
-  return region_set->GetRegion(expr);
-});
-
+    .set_body_typed([](AnnotatedRegionSet region_set, Expr expr) {
+      return region_set->GetRegion(expr);
+    });
 
 }  // namespace relay
 }  // namespace tvm

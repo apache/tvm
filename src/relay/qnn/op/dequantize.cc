@@ -26,6 +26,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
+
 #include "../../transforms/pattern_util.h"
 #include "../util.h"
 
@@ -33,19 +34,16 @@ namespace tvm {
 namespace relay {
 namespace qnn {
 
-bool DequantizeRel(const Array<Type>& types,
-                   int num_inputs,
-                   const Attrs& attrs,
+bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
   CHECK(data != nullptr);
   const auto input_dtype = data->dtype;
-  CHECK(input_dtype == DataType::Int(8) ||
-        input_dtype == DataType::UInt(8) ||
+  CHECK(input_dtype == DataType::Int(8) || input_dtype == DataType::UInt(8) ||
         input_dtype == DataType::Int(32))
-    << "Input type should be one of the quantized types [unit8, int8, int32] but was "
-    <<  input_dtype;
+      << "Input type should be one of the quantized types [unit8, int8, int32] but was "
+      << input_dtype;
 
   // Check the types of scale and zero points.
   CHECK(IsScalarType(types[1], DataType::Float(32)));  // input_scale
@@ -83,20 +81,19 @@ Expr DequantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 }
 
 RELAY_REGISTER_OP("qnn.dequantize")
-.describe(R"code(Dequantizes the input and produces float32 output.
+    .describe(R"code(Dequantizes the input and produces float32 output.
 The input is always quantized (int8, uint8) and will be converted to float32 given input scale and zero_point.
 - **data**: Quantized tensor of any shape to dequantize. The input data can be of floating point
 )code" TVM_ADD_FILELINE)
-.set_num_inputs(3)
-.add_argument("data", "Tensor", "The tensor to dequantize.")
-.add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
-.add_argument("input_zero_point", "Tensor", "The quantization zero_point of the input tensor.")
-.set_support_level(11)
-.add_type_rel("Dequantize", DequantizeRel)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", DequantizeQnnCanonicalize);
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The tensor to dequantize.")
+    .add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
+    .add_argument("input_zero_point", "Tensor", "The quantization zero_point of the input tensor.")
+    .set_support_level(11)
+    .add_type_rel("Dequantize", DequantizeRel)
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", DequantizeQnnCanonicalize);
 
-TVM_REGISTER_GLOBAL("relay.qnn.op._make.dequantize")
-.set_body_typed(MakeDequantize);
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.dequantize").set_body_typed(MakeDequantize);
 
 }  // namespace qnn
 }  // namespace relay

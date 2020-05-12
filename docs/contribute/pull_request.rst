@@ -29,7 +29,14 @@ This is a quick guide to submit a pull request, please also refer to the detaile
     git rebase upstream/master
 
 - Make sure code style check pass by typing the following command, and all the existing test-cases pass.
-- ``docker/bash.sh tvmai/ci-lint ./tests/scripts/task_lint.sh``. (Note: You must install docker beforehand so you can run a docker image.)
+
+  .. code:: bash
+
+    # Reproduce the lint procedure in the CI.
+    docker/bash.sh tvmai/ci-lint ./tests/scripts/task_lint.sh
+    # Run clang-format check for all the files that changed since upstream/master
+    docker/bash.sh tvmai/ci-lint ./tests/lint/git-clang-format.sh upstream/master
+
 - Add test-cases to cover the new features or bugfix the patch introduces.
 - Document the code you wrote, see more at :ref:`doc_guide`
 - Send the pull request and fix the problems reported by automatic checks.
@@ -44,11 +51,11 @@ This is a quick guide to submit a pull request, please also refer to the detaile
 - The patch can be merged after the reviewers approve the pull request.
 
 
+
 CI Environment
 --------------
 We use docker container to create stable CI environments
 that can be deployed to multiple machines.
-You can find the prebuilt images in `<https://hub.docker.com/r/tvmai/>`_ .
 Because we want a relatively stable CI environment and make use of pre-cached image,
 all of the CI images are built and maintained by committers.
 

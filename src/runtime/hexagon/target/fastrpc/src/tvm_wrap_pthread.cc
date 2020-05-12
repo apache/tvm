@@ -44,13 +44,11 @@ static constexpr size_t kThreadStackSize = 128 * 1024;  // 128kB
 
 // Make sure the function has C linkage.
 extern "C" {
-int __wrap_pthread_create(pthread_t* restrict thread,
-                          const pthread_attr_t* restrict attr,
+int __wrap_pthread_create(pthread_t* restrict thread, const pthread_attr_t* restrict attr,
                           void* (*start)(void*), void* restrict arg);
 }
 
-int __wrap_pthread_create(pthread_t* restrict thread,
-                          const pthread_attr_t* restrict attr,
+int __wrap_pthread_create(pthread_t* restrict thread, const pthread_attr_t* restrict attr,
                           void* (*start)(void*), void* restrict arg) {
   pthread_attr_t def_attr;
   if (attr == nullptr) {
@@ -72,8 +70,7 @@ int __wrap_pthread_create(pthread_t* restrict thread,
   FARF(ALWAYS, "launching thread with stack_size=%zu", stack_size);
   int t = pthread_create(thread, attr, start, arg);
   if (int rc = pthread_attr_destroy(&def_attr)) {
-    FARF(ERROR, "pthread_attr_destroy failed (after pthread_create): rc=%08x",
-         rc);
+    FARF(ERROR, "pthread_attr_destroy failed (after pthread_create): rc=%08x", rc);
   }
   return t;
 }

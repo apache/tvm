@@ -22,11 +22,11 @@
  * \brief Infrastructure for transformation passes.
  */
 #include <dmlc/thread_local.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ir/transform.h>
+#include <tvm/node/repr_printer.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/node/repr_printer.h>
-#include <tvm/ir/transform.h>
+#include <tvm/runtime/registry.h>
 
 // TODO(tqchen): Update to use String container after it is merged.
 #include <tvm/tir/expr.h>
@@ -37,9 +37,9 @@
 namespace tvm {
 namespace transform {
 
+using tvm::ReprPrinter;
 using tvm::runtime::TVMArgs;
 using tvm::runtime::TVMRetValue;
-using tvm::ReprPrinter;
 
 struct PassContextThreadLocalEntry {
   /*! \brief The default pass context. */
@@ -48,32 +48,26 @@ struct PassContextThreadLocalEntry {
   /*! \brief The current pass context. */
   std::stack<PassContext> context_stack;
 
-  PassContextThreadLocalEntry() {
-    default_context = PassContext(make_object<PassContextNode>());
-  }
+  PassContextThreadLocalEntry() { default_context = PassContext(make_object<PassContextNode>()); }
 };
 
 /*! \brief Thread local store to hold the pass context. */
-typedef dmlc::ThreadLocalStore<PassContextThreadLocalEntry>
-    RelayPassContextThreadLocalStore;
+typedef dmlc::ThreadLocalStore<PassContextThreadLocalEntry> RelayPassContextThreadLocalStore;
 
 void PassContext::EnterWithScope() {
-  PassContextThreadLocalEntry* entry =
-      RelayPassContextThreadLocalStore::Get();
+  PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
   entry->context_stack.push(*this);
 }
 
 void PassContext::ExitWithScope() {
-  PassContextThreadLocalEntry* entry =
-      RelayPassContextThreadLocalStore::Get();
+  PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
   CHECK(!entry->context_stack.empty());
   CHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
 }
 
 PassContext PassContext::Current() {
-  PassContextThreadLocalEntry* entry =
-      RelayPassContextThreadLocalStore::Get();
+  PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
   if (!entry->context_stack.empty()) {
     return entry->context_stack.top();
   } else {
@@ -81,15 +75,13 @@ PassContext PassContext::Current() {
   }
 }
 
-PassContext PassContext::Create() {
-  return PassContext(make_object<PassContextNode>());
-}
+PassContext PassContext::Create() { return PassContext(make_object<PassContextNode>()); }
 
 void PassContext::Trace(const IRModule& module, const PassInfo& info, bool is_before) const {
-    auto pass_ctx_node = this->operator->();
-    if (pass_ctx_node->trace_func != nullptr) {
-      pass_ctx_node->trace_func(module, info, is_before);
-    }
+  auto pass_ctx_node = this->operator->();
+  if (pass_ctx_node->trace_func != nullptr) {
+    pass_ctx_node->trace_func(module, info, is_before);
+  }
 }
 
 class ModulePass;
@@ -114,9 +106,7 @@ class ModulePassNode : public PassNode {
 
   ModulePassNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pass_info", &pass_info);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("pass_info", &pass_info); }
 
   /*!
    * \brief Run a module pass on given pass context.
@@ -211,9 +201,7 @@ class SequentialNode : public PassNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
 };
 
-PassInfo::PassInfo(int opt_level,
-                   std::string name,
-                   tvm::Array<runtime::String> required) {
+PassInfo::PassInfo(int opt_level, String name, tvm::Array<runtime::String> required) {
   auto pass_info = make_object<PassInfoNode>();
   pass_info->opt_level = opt_level;
   pass_info->name = std::move(name);
@@ -221,9 +209,8 @@ PassInfo::PassInfo(int opt_level,
   data_ = std::move(pass_info);
 }
 
-ModulePass::ModulePass(
-    runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
-    PassInfo pass_info) {
+ModulePass::ModulePass(runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
+                       PassInfo pass_info) {
   auto n = make_object<ModulePassNode>();
   n->pass_func = std::move(pass_func);
   n->pass_info = std::move(pass_info);
@@ -231,13 +218,10 @@ ModulePass::ModulePass(
 }
 
 // Module -> Module optimizations.
-IRModule ModulePassNode::operator()(IRModule mod,
-                                    const PassContext& pass_ctx) const {
+IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
-  DLOG(INFO) << "Executing module pass : "
-             << pass_info->name
-             << " with opt level: "
-             << pass_info->opt_level;
+  DLOG(INFO) << "Executing module pass : " << pass_info->name
+             << " with opt level: " << pass_info->opt_level;
 
   CHECK(mod.defined());
   pass_ctx.Trace(mod, pass_info, true);
@@ -254,7 +238,7 @@ Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
   data_ = std::move(n);
 }
 
-Sequential::Sequential(tvm::Array<Pass> passes, std::string name) {
+Sequential::Sequential(tvm::Array<Pass> passes, String name) {
   auto n = make_object<SequentialNode>();
   n->passes = std::move(passes);
   PassInfo pass_info = PassInfo(2, std::move(name), {});
@@ -298,29 +282,27 @@ bool SequentialNode::PassEnabled(const PassInfo& info) const {
   return ctx->opt_level >= info->opt_level;
 }
 
-Pass GetPass(const std::string& pass_name) {
+Pass GetPass(const String& pass_name) {
   using tvm::runtime::Registry;
   const runtime::PackedFunc* f = nullptr;
-  if (pass_name.find("transform.") != std::string::npos) {
+  if (pass_name.operator std::string().find("transform.") != std::string::npos) {
     f = Registry::Get(pass_name);
   } else if ((f = Registry::Get("transform." + pass_name))) {
     // pass
   } else if ((f = Registry::Get("relay._transform." + pass_name))) {
   }
-  CHECK(f != nullptr) << "Cannot use " << pass_name
-                      << "to create the pass";
+  CHECK(f != nullptr) << "Cannot use " << pass_name << "to create the pass";
   return (*f)();
 }
 
 // TODO(zhiics): we currenlty only sequentially execute each pass in
 // a Sequential without the consideration of their orders. The phase
 // ordering problem needs to be handled in the future.
-IRModule SequentialNode::operator()(IRModule mod,
-                                    const PassContext& pass_ctx) const {
+IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
   for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
-    if (!PassEnabled(pass_info))  continue;
+    if (!PassEnabled(pass_info)) continue;
     // resolve dependencies
     for (const auto& it : pass_info->required) {
       mod = GetPass(it)(std::move(mod), pass_ctx);
@@ -330,11 +312,9 @@ IRModule SequentialNode::operator()(IRModule mod,
   return mod;
 }
 
-Pass CreateModulePass(
-    const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-    int opt_level,
-    const std::string& name,
-    const tvm::Array<runtime::String>& required) {
+Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
+                      int opt_level, const String& name,
+                      const tvm::Array<runtime::String>& required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return ModulePass(pass_func, pass_info);
 }
@@ -342,55 +322,50 @@ Pass CreateModulePass(
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
 TVM_REGISTER_GLOBAL("transform.PassInfo")
-.set_body_typed([](int opt_level, std::string name, tvm::Array<runtime::String> required) {
-  return PassInfo(opt_level, name, required);
-});
+    .set_body_typed([](int opt_level, String name, tvm::Array<runtime::String> required) {
+      return PassInfo(opt_level, name, required);
+    });
 
-TVM_REGISTER_GLOBAL("transform.Info")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("transform.Info").set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
   *ret = pass->Info();
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<PassInfoNode>([](const ObjectRef& ref, tvm::ReprPrinter* p) {
-  auto* node = static_cast<const PassInfoNode*>(ref.get());
-  p->stream << "The meta data of the pass: ";
-  p->stream << "pass name: " << node->name;
-  p->stream << "opt_level: " << node->opt_level;
-  p->stream << "required passes: [" << "\n";
-  for (const auto& it : node->required) {
-    p->stream << it << ", ";
-  }
-  p->stream << "]\n";
-});
+    .set_dispatch<PassInfoNode>([](const ObjectRef& ref, tvm::ReprPrinter* p) {
+      auto* node = static_cast<const PassInfoNode*>(ref.get());
+      p->stream << "The meta data of the pass: ";
+      p->stream << "pass name: " << node->name;
+      p->stream << "opt_level: " << node->opt_level;
+      p->stream << "required passes: ["
+                << "\n";
+      for (const auto& it : node->required) {
+        p->stream << it << ", ";
+      }
+      p->stream << "]\n";
+    });
 
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
 TVM_REGISTER_GLOBAL("transform.MakeModulePass")
-.set_body_typed(
-  [](runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
-     PassInfo pass_info) {
-    return ModulePass(pass_func, pass_info);
-});
+    .set_body_typed([](runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
+                       PassInfo pass_info) { return ModulePass(pass_func, pass_info); });
 
-TVM_REGISTER_GLOBAL("transform.RunPass")
-.set_body_typed([](Pass pass, IRModule mod) {
+TVM_REGISTER_GLOBAL("transform.RunPass").set_body_typed([](Pass pass, IRModule mod) {
   return pass(std::move(mod));
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<ModulePassNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const ModulePassNode*>(ref.get());
-  const PassInfo info = node->Info();
-  p->stream << "Run Module pass: " << info->name
-            << " at the optimization level " << info->opt_level;
-});
+    .set_dispatch<ModulePassNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const ModulePassNode*>(ref.get());
+      const PassInfo info = node->Info();
+      p->stream << "Run Module pass: " << info->name << " at the optimization level "
+                << info->opt_level;
+    });
 
 TVM_REGISTER_NODE_TYPE(SequentialNode);
 
-TVM_REGISTER_GLOBAL("transform.Sequential")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("transform.Sequential").set_body([](TVMArgs args, TVMRetValue* ret) {
   tvm::Array<Pass> passes = args[0];
   int opt_level = args[1];
   std::string name = args[2];
@@ -400,23 +375,22 @@ TVM_REGISTER_GLOBAL("transform.Sequential")
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<SequentialNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const SequentialNode*>(ref.get());
-  const PassInfo info = node->Info();
-  p->stream << "Run Sequential pass: " << info->name
-            << " at the optimization level " << info->opt_level << ". ";
-  p->stream << "The passes will be executed are: [";
-  for (const auto& it : node->passes) {
-    const PassInfo pass_info = it->Info();
-    p->stream << pass_info->name << " ";
-  }
-  p->stream << "]";
-});
+    .set_dispatch<SequentialNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const SequentialNode*>(ref.get());
+      const PassInfo info = node->Info();
+      p->stream << "Run Sequential pass: " << info->name << " at the optimization level "
+                << info->opt_level << ". ";
+      p->stream << "The passes will be executed are: [";
+      for (const auto& it : node->passes) {
+        const PassInfo pass_info = it->Info();
+        p->stream << pass_info->name << " ";
+      }
+      p->stream << "]";
+    });
 
 TVM_REGISTER_NODE_TYPE(PassContextNode);
 
-TVM_REGISTER_GLOBAL("transform.PassContext")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("transform.PassContext").set_body([](TVMArgs args, TVMRetValue* ret) {
   auto pctx = PassContext::Create();
   int opt_level = args[0];
   int fallback_device = args[1];
@@ -432,59 +406,48 @@ TVM_REGISTER_GLOBAL("transform.PassContext")
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<PassContextNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const PassContextNode*>(ref.get());
-  p->stream << "Pass context information: " << "\n";
-  p->stream << "\topt_level: " << node->opt_level << "\n";
-  p->stream << "\tfallback device: "
-            << runtime::DeviceName(node->fallback_device)
-            << "\n";
+    .set_dispatch<PassContextNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const PassContextNode*>(ref.get());
+      p->stream << "Pass context information: "
+                << "\n";
+      p->stream << "\topt_level: " << node->opt_level << "\n";
+      p->stream << "\tfallback device: " << runtime::DeviceName(node->fallback_device) << "\n";
 
-  p->stream << "\trequired passes: [" << node->opt_level;
-  for (const auto& it : node->required_pass) {
-    p->stream << it << " ";
-  }
-  p->stream << "]\n";
+      p->stream << "\trequired passes: [" << node->opt_level;
+      for (const auto& it : node->required_pass) {
+        p->stream << it << " ";
+      }
+      p->stream << "]\n";
 
-  p->stream << "\tdisabled passes: [" << node->opt_level;
-  for (const auto& it : node->disabled_pass) {
-    p->stream << it << " ";
-  }
-  p->stream << "]";
-});
+      p->stream << "\tdisabled passes: [" << node->opt_level;
+      for (const auto& it : node->disabled_pass) {
+        p->stream << it << " ";
+      }
+      p->stream << "]";
+    });
 
 class PassContext::Internal {
  public:
-  static void EnterScope(PassContext pass_ctx) {
-    pass_ctx.EnterWithScope();
-  }
+  static void EnterScope(PassContext pass_ctx) { pass_ctx.EnterWithScope(); }
 
-  static void ExitScope(PassContext pass_ctx) {
-    pass_ctx.ExitWithScope();
-  }
+  static void ExitScope(PassContext pass_ctx) { pass_ctx.ExitWithScope(); }
 };
 
-TVM_REGISTER_GLOBAL("transform.GetCurrentPassContext")
-.set_body_typed(PassContext::Current);
+TVM_REGISTER_GLOBAL("transform.GetCurrentPassContext").set_body_typed(PassContext::Current);
 
-TVM_REGISTER_GLOBAL("transform.EnterPassContext")
-.set_body_typed(PassContext::Internal::EnterScope);
+TVM_REGISTER_GLOBAL("transform.EnterPassContext").set_body_typed(PassContext::Internal::EnterScope);
 
-TVM_REGISTER_GLOBAL("transform.ExitPassContext")
-.set_body_typed(PassContext::Internal::ExitScope);
+TVM_REGISTER_GLOBAL("transform.ExitPassContext").set_body_typed(PassContext::Internal::ExitScope);
 
-
-Pass PrintIR(std::string header, bool show_meta_data) {
-  auto pass_func =[header, show_meta_data](IRModule mod, const PassContext& ctx) {
-    LOG(INFO) << "PrintIR(" << header << "):\n"
-              << AsText(mod, show_meta_data);
+Pass PrintIR(String header, bool show_meta_data) {
+  auto pass_func = [header, show_meta_data](IRModule mod, const PassContext& ctx) {
+    LOG(INFO) << "PrintIR(" << header << "):\n" << AsText(mod, show_meta_data);
     return mod;
   };
   return CreateModulePass(pass_func, 0, "PrintIR", {});
 }
 
-TVM_REGISTER_GLOBAL("transform.PrintIR")
-.set_body_typed(PrintIR);
+TVM_REGISTER_GLOBAL("transform.PrintIR").set_body_typed(PrintIR);
 
 }  // namespace transform
 }  // namespace tvm

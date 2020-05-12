@@ -130,7 +130,7 @@ class ForwardHandler(object):
     def on_close_event(self):
         """on close event"""
         assert not self._done
-        logging.info("RPCProxy:on_close %s ...", self.name())
+        logging.info("RPCProxy:on_close_event %s ...", self.name())
         if self.match_key:
             key = self.match_key
             if self._proxy._client_pool.get(key, None) == self:
@@ -158,10 +158,12 @@ class TCPHandler(tornado_util.TCPHandler, ForwardHandler):
         self.on_data(message)
 
     def on_close(self):
+        logging.info("RPCProxy: on_close %s ...", self.name())
+        self._close_process = True
+
         if self.forward_proxy:
             self.forward_proxy.signal_close()
             self.forward_proxy = None
-        logging.info("%s Close socket..", self.name())
         self.on_close_event()
 
 
@@ -187,6 +189,7 @@ class WebSocketHandler(websocket.WebSocketHandler, ForwardHandler):
             self.on_error(err)
 
     def on_close(self):
+        logging.info("RPCProxy: on_close %s ...", self.name())
         if self.forward_proxy:
             self.forward_proxy.signal_close()
             self.forward_proxy = None

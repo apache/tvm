@@ -319,7 +319,7 @@ class Module(object):
 
         if self.imported_modules:
             if enabled("llvm") and llvm_target_triple:
-                path_obj = temp.relpath("devc.o")
+                path_obj = temp.relpath("devc." + object_format)
                 m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_triple)
                 m.save(path_obj)
                 files.append(path_obj)

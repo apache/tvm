@@ -21,9 +21,9 @@
  * \file side_effect.cc
  * \brief side effect analysis
  */
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
-#include <tvm/tir/analysis.h>
 
 namespace tvm {
 namespace tir {
@@ -37,7 +37,8 @@ class ExprSideEffect : public ExprVisitor {
 
   void VisitExpr_(const CallNode* op) final {
     if (!op->is_pure()) {
-      has_side_effect_ = true; return;
+      has_side_effect_ = true;
+      return;
     } else {
       ExprVisitor::VisitExpr_(op);
     }

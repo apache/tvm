@@ -21,10 +21,12 @@
  * \file rpc_module.cc
  * \brief RPC runtime module.
  */
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/container.h>
-#include <memory>
+#include <tvm/runtime/registry.h>
+
 #include <cstring>
+#include <memory>
+
 #include "rpc_endpoint.h"
 #include "rpc_session.h"
 
@@ -36,10 +38,7 @@ namespace runtime {
  */
 class RPCWrappedFunc : public Object {
  public:
-  RPCWrappedFunc(void* handle,
-                 std::shared_ptr<RPCSession> sess)
-      : handle_(handle), sess_(sess) {
-  }
+  RPCWrappedFunc(void* handle, std::shared_ptr<RPCSession> sess) : handle_(handle), sess_(sess) {}
 
   void operator()(TVMArgs args, TVMRetValue* rv) const {
     std::vector<TVMValue> values(args.values, args.values + args.size());
@@ -58,8 +57,7 @@ class RPCWrappedFunc : public Object {
           // are compatible to each other, just need to change the index.
           type_codes[i] = kTVMDLTensorHandle;
           // translate to a remote view of DLTensor
-          auto dptr = std::make_unique<DLTensor>(
-              *static_cast<DLTensor*>(values[i].v_handle));
+          auto dptr = std::make_unique<DLTensor>(*static_cast<DLTensor*>(values[i].v_handle));
           dptr->ctx = RemoveSessMask(dptr->ctx);
           dptr->data = static_cast<RemoteSpace*>(dptr->data)->data;
           values[i].v_handle = dptr.get();
@@ -72,17 +70,13 @@ class RPCWrappedFunc : public Object {
         }
         case kTVMPackedFuncHandle:
         case kTVMModuleHandle: {
-          values[i].v_handle = UnwrapRemoteValueToHandle(
-              TVMArgValue(values[i], tcode));
+          values[i].v_handle = UnwrapRemoteValueToHandle(TVMArgValue(values[i], tcode));
           break;
         }
       }
     }
-    auto set_return = [this, rv](TVMArgs args) {
-      this->WrapRemoteReturnToValue(args, rv);
-    };
-    sess_->CallFunc(handle_, values.data(), type_codes.data(),
-                    args.size(), set_return);
+    auto set_return = [this, rv](TVMArgs args) { this->WrapRemoteReturnToValue(args, rv); };
+    sess_->CallFunc(handle_, values.data(), type_codes.data(), args.size(), set_return);
   }
 
   ~RPCWrappedFunc() {
@@ -133,8 +127,7 @@ class RPCWrappedFunc : public Object {
     data->dl_tensor.data = space;
     NDArray ret(GetObjectPtr<Object>(data));
     // RAII now in effect
-    data->shape_ = std::vector<int64_t>(
-        tensor->shape, tensor->shape + tensor->ndim);
+    data->shape_ = std::vector<int64_t>(tensor->shape, tensor->shape + tensor->ndim);
     data->dl_tensor.shape = dmlc::BeginPtr(data->shape_);
     data->dl_tensor.ndim = static_cast<int>(data->shape_.size());
     // setup dtype
@@ -142,8 +135,7 @@ class RPCWrappedFunc : public Object {
     // setup ctx, encode as remote session
     data->dl_tensor.ctx.device_id = tensor->ctx.device_id;
     data->dl_tensor.ctx.device_type = static_cast<DLDeviceType>(
-        static_cast<int>(tensor->ctx.device_type) +
-        kRPCSessMask * (sess_->table_index() + 1));
+        static_cast<int>(tensor->ctx.device_type) + kRPCSessMask * (sess_->table_index() + 1));
     // check strides.
     CHECK(tensor->strides == nullptr);
     // setup byteoffset
@@ -156,8 +148,7 @@ class RPCWrappedFunc : public Object {
 class RPCModuleNode final : public ModuleNode {
  public:
   RPCModuleNode(void* module_handle, std::shared_ptr<RPCSession> sess)
-      : module_handle_(module_handle), sess_(sess) {
-  }
+      : module_handle_(module_handle), sess_(sess) {}
 
   ~RPCModuleNode() {
     if (module_handle_ != nullptr) {
@@ -170,13 +161,9 @@ class RPCModuleNode final : public ModuleNode {
     }
   }
 
-  const char* type_key() const final {
-    return "rpc";
-  }
+  const char* type_key() const final { return "rpc"; }
 
-  PackedFunc GetFunction(
-      const std::string& name,
-      const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (module_handle_ == nullptr) {
       return WrapRemoteFunc(sess_->GetFunction(name));
     } else {
@@ -190,10 +177,7 @@ class RPCModuleNode final : public ModuleNode {
     return "";
   }
 
-  PackedFunc GetTimeEvaluator(const std::string& name,
-                              TVMContext ctx,
-                              int number,
-                              int repeat,
+  PackedFunc GetTimeEvaluator(const std::string& name, TVMContext ctx, int number, int repeat,
                               int min_repeat_ms) {
     InitRemoteFunc(&remote_get_time_evaluator_, "runtime.RPCTimeEvaluator");
     // Remove session mask because we pass ctx by parts.
@@ -203,15 +187,13 @@ class RPCModuleNode final : public ModuleNode {
     ctx.device_type = static_cast<DLDeviceType>(ctx.device_type % kRPCSessMask);
 
     if (module_handle_ != nullptr) {
-      return remote_get_time_evaluator_(
-          GetRef<Module>(this), name,
-          static_cast<int>(ctx.device_type), ctx.device_id,
-          number, repeat, min_repeat_ms);
+      return remote_get_time_evaluator_(GetRef<Module>(this), name,
+                                        static_cast<int>(ctx.device_type), ctx.device_id, number,
+                                        repeat, min_repeat_ms);
     } else {
-      return remote_get_time_evaluator_(
-          Optional<Module>(nullptr), name,
-          static_cast<int>(ctx.device_type), ctx.device_id,
-          number, repeat, min_repeat_ms);
+      return remote_get_time_evaluator_(Optional<Module>(nullptr), name,
+                                        static_cast<int>(ctx.device_type), ctx.device_id, number,
+                                        repeat, min_repeat_ms);
     }
   }
 
@@ -225,16 +207,12 @@ class RPCModuleNode final : public ModuleNode {
     remote_import_module_(GetRef<Module>(this), other);
   }
 
-  const std::shared_ptr<RPCSession>& sess() {
-    return sess_;
-  }
+  const std::shared_ptr<RPCSession>& sess() { return sess_; }
 
-  void* module_handle() const {
-    return module_handle_;
-  }
+  void* module_handle() const { return module_handle_; }
 
  private:
-  template<typename FType>
+  template <typename FType>
   void InitRemoteFunc(FType* func, const std::string& name) {
     if (*func != nullptr) return;
     RPCSession::PackedFuncHandle handle = sess_->GetFunction(name);
@@ -245,9 +223,7 @@ class RPCModuleNode final : public ModuleNode {
   PackedFunc WrapRemoteFunc(RPCSession::PackedFuncHandle handle) {
     if (handle == nullptr) return PackedFunc();
     auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
-    return PackedFunc([wf](TVMArgs args, TVMRetValue* rv) {
-        return wf->operator()(args, rv);
-      });
+    return PackedFunc([wf](TVMArgs args, TVMRetValue* rv) { return wf->operator()(args, rv); });
   }
 
   // The module handle
@@ -256,7 +232,7 @@ class RPCModuleNode final : public ModuleNode {
   std::shared_ptr<RPCSession> sess_;
   // remote function to get time evaluator
   TypedPackedFunc<PackedFunc(Optional<Module>, std::string, int, int, int, int, int)>
-  remote_get_time_evaluator_;
+      remote_get_time_evaluator_;
   // remote function getter for modules.
   TypedPackedFunc<PackedFunc(Module, std::string, bool)> remote_mod_get_function_;
   // remote function getter for load module
@@ -265,28 +241,23 @@ class RPCModuleNode final : public ModuleNode {
   TypedPackedFunc<void(Module, Module)> remote_import_module_;
 };
 
-
 void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const TVMArgValue& arg) const {
   if (arg.type_code() == kTVMModuleHandle) {
     Module mod = arg;
     std::string tkey = mod->type_key();
-    CHECK_EQ(tkey, "rpc")
-        << "ValueError: Cannot pass a non-RPC module to remote";
+    CHECK_EQ(tkey, "rpc") << "ValueError: Cannot pass a non-RPC module to remote";
     auto* rmod = static_cast<RPCModuleNode*>(mod.operator->());
     CHECK(rmod->sess() == sess_)
         << "ValueError: Cannot pass in module into a different remote session";
     return rmod->module_handle();
   } else {
-    LOG(FATAL) << "ValueError: Cannot pass type "
-               << runtime::TypeCode2Str(arg.type_code())
+    LOG(FATAL) << "ValueError: Cannot pass type " << runtime::TypeCode2Str(arg.type_code())
                << " as an argument to the remote";
     return nullptr;
   }
 }
 
-void RPCWrappedFunc::WrapRemoteReturnToValue(
-    TVMArgs args,
-    TVMRetValue *rv) const {
+void RPCWrappedFunc::WrapRemoteReturnToValue(TVMArgs args, TVMRetValue* rv) const {
   int tcode = args[0];
 
   if (tcode == kTVMNullptr) return;
@@ -294,9 +265,7 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(
     CHECK_EQ(args.size(), 2);
     void* handle = args[1];
     auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
-    *rv = PackedFunc([wf](TVMArgs args, TVMRetValue* rv) {
-      return wf->operator()(args, rv);
-    });
+    *rv = PackedFunc([wf](TVMArgs args, TVMRetValue* rv) { return wf->operator()(args, rv); });
   } else if (tcode == kTVMModuleHandle) {
     CHECK_EQ(args.size(), 2);
     void* handle = args[1];
@@ -321,16 +290,12 @@ Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess) {
 
 std::shared_ptr<RPCSession> RPCModuleGetSession(Module mod) {
   std::string tkey = mod->type_key();
-  CHECK_EQ(tkey, "rpc")
-      << "ValueError: Cannot pass a non-RPC module to remote";
+  CHECK_EQ(tkey, "rpc") << "ValueError: Cannot pass a non-RPC module to remote";
   auto* rmod = static_cast<RPCModuleNode*>(mod.operator->());
   return rmod->sess();
 }
 
-PackedFunc WrapTimeEvaluator(PackedFunc pf,
-                             TVMContext ctx,
-                             int number,
-                             int repeat,
+PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repeat,
                              int min_repeat_ms) {
   CHECK(pf != nullptr);
 
@@ -340,8 +305,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
     return (*get_micro_time_evaluator)(pf, ctx, number, repeat);
   }
 
-  auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv)
-                mutable {
+  auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue* rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;
     // skip first time call, to activate lazy compilation components.
@@ -350,15 +314,14 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
     DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
 
     for (int i = 0; i < repeat; ++i) {
-      std::chrono::time_point<
-        std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin, tend;
+      std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin,
+          tend;
       double duration_ms = 0.0;
 
       do {
         if (duration_ms > 0.0) {
-          number = static_cast<int>(
-              std::max((min_repeat_ms / (duration_ms / number) + 1),
-                       number * 1.618));   // 1.618 is chosen by random
+          number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
+                                             number * 1.618));  // 1.618 is chosen by random
         }
 
         tbegin = std::chrono::high_resolution_clock::now();
@@ -369,12 +332,12 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
         DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
         tend = std::chrono::high_resolution_clock::now();
 
-        duration_ms = std::chrono::duration_cast<std::chrono::duration<double> >
-            (tend - tbegin).count() * 1000;
+        duration_ms =
+            std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() * 1000;
       } while (duration_ms < min_repeat_ms);
 
-      double speed = std::chrono::duration_cast<std::chrono::duration<double> >(
-          tend - tbegin).count() / number;
+      double speed =
+          std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() / number;
       os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
     }
 
@@ -388,64 +351,52 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
   return PackedFunc(ftimer);
 }
 
-
 TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
-.set_body_typed([](Optional<Module> opt_mod,
-                   std::string name,
-                   int device_type,
-                   int device_id,
-                   int number,
-                   int repeat,
-                   int min_repeat_ms) {
-  TVMContext ctx;
-  ctx.device_type = static_cast<DLDeviceType>(device_type);
-  ctx.device_id = device_id;
-  if (opt_mod.defined()) {
-    Module m = opt_mod.value();
-    std::string tkey = m->type_key();
-    if (tkey == "rpc") {
-      return static_cast<RPCModuleNode*>(m.operator->())
-          ->GetTimeEvaluator(name, ctx, number, repeat, min_repeat_ms);
-    } else {
-      return WrapTimeEvaluator(
-          m.GetFunction(name, false), ctx, number, repeat, min_repeat_ms);
-    }
-  } else {
-    auto* pf = runtime::Registry::Get(name);
-    CHECK(pf != nullptr) << "Cannot find " << name << " in the global function";
-    return WrapTimeEvaluator(
-        *pf, ctx, number, repeat, min_repeat_ms);
-  }
-});
+    .set_body_typed([](Optional<Module> opt_mod, std::string name, int device_type, int device_id,
+                       int number, int repeat, int min_repeat_ms) {
+      TVMContext ctx;
+      ctx.device_type = static_cast<DLDeviceType>(device_type);
+      ctx.device_id = device_id;
+      if (opt_mod.defined()) {
+        Module m = opt_mod.value();
+        std::string tkey = m->type_key();
+        if (tkey == "rpc") {
+          return static_cast<RPCModuleNode*>(m.operator->())
+              ->GetTimeEvaluator(name, ctx, number, repeat, min_repeat_ms);
+        } else {
+          return WrapTimeEvaluator(m.GetFunction(name, false), ctx, number, repeat, min_repeat_ms);
+        }
+      } else {
+        auto* pf = runtime::Registry::Get(name);
+        CHECK(pf != nullptr) << "Cannot find " << name << " in the global function";
+        return WrapTimeEvaluator(*pf, ctx, number, repeat, min_repeat_ms);
+      }
+    });
 
 // server function registration.
-TVM_REGISTER_GLOBAL("tvm.rpc.server.ImportModule")
-.set_body_typed([](Module parent, Module child) {
+TVM_REGISTER_GLOBAL("tvm.rpc.server.ImportModule").set_body_typed([](Module parent, Module child) {
   parent->Import(child);
 });
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.ModuleGetFunction")
-.set_body_typed([](Module parent, std::string name, bool query_imports) {
-  return parent->GetFunction(name, query_imports);
-});
+    .set_body_typed([](Module parent, std::string name, bool query_imports) {
+      return parent->GetFunction(name, query_imports);
+    });
 
 // functions to access an RPC module.
-TVM_REGISTER_GLOBAL("rpc.LoadRemoteModule")
-.set_body_typed([](Module sess, std::string name) {
+TVM_REGISTER_GLOBAL("rpc.LoadRemoteModule").set_body_typed([](Module sess, std::string name) {
   std::string tkey = sess->type_key();
   CHECK_EQ(tkey, "rpc");
   return static_cast<RPCModuleNode*>(sess.operator->())->LoadModule(name);
 });
 
-TVM_REGISTER_GLOBAL("rpc.ImportRemoteModule")
-.set_body_typed([](Module parent, Module child) {
+TVM_REGISTER_GLOBAL("rpc.ImportRemoteModule").set_body_typed([](Module parent, Module child) {
   std::string tkey = parent->type_key();
   CHECK_EQ(tkey, "rpc");
   static_cast<RPCModuleNode*>(parent.operator->())->ImportModule(child);
 });
 
-TVM_REGISTER_GLOBAL("rpc.SessTableIndex")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body([](TVMArgs args, TVMRetValue* rv) {
   Module m = args[0];
   std::string tkey = m->type_key();
   CHECK_EQ(tkey, "rpc");

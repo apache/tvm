@@ -17,10 +17,10 @@
  * under the License.
  */
 
- /*!
-  * \file win32_process.h
-  * \brief Win32 process code to mimic a POSIX fork()
-  */
+/*!
+ * \file win32_process.h
+ * \brief Win32 process code to mimic a POSIX fork()
+ */
 #ifndef TVM_APPS_CPP_RPC_WIN32_PROCESS_H_
 #define TVM_APPS_CPP_RPC_WIN32_PROCESS_H_
 #include <chrono>
@@ -34,8 +34,9 @@ namespace runtime {
  */
 void SpawnRPCChild(SOCKET fd, std::chrono::seconds timeout);
 /*!
- * \brief ChildProcSocketHandler Ran from the child process and runs server to handle the client socket
- * \param mmap_path The memory mapped file path that will contain the information to duplicate the client socket from the parent
+ * \brief ChildProcSocketHandler Ran from the child process and runs server to handle the client
+ * socket \param mmap_path The memory mapped file path that will contain the information to
+ * duplicate the client socket from the parent
  */
 void ChildProcSocketHandler(const std::string& mmap_path);
 }  // namespace runtime

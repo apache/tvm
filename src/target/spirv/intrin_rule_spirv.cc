@@ -20,9 +20,9 @@
 /*!
  * \file intrin_rule_spirv.cc
  */
+#include <GLSL.std.450.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
-#include <GLSL.std.450.h>
 
 namespace tvm {
 namespace codegen {
@@ -31,7 +31,7 @@ namespace spirv {
 using namespace runtime;
 
 // num_signature means number of arguments used to query signature
-template<unsigned id>
+template <unsigned id>
 inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e = targs[0];
   const tir::CallNode* call = e.as<tir::CallNode>();
@@ -43,39 +43,55 @@ inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = tir::CallNode::make(
-      call->dtype, "spirv_glsl450", cargs, tir::CallNode::PureIntrinsic);
+  *rv = tir::CallNode::make(call->dtype, "spirv_glsl450", cargs, tir::CallNode::PureIntrinsic);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.floor")
-.set_body(DispatchGLSLPureIntrin<GLSLstd450Floor>);
+    .set_body(DispatchGLSLPureIntrin<GLSLstd450Floor>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.ceil")
-.set_body(DispatchGLSLPureIntrin<GLSLstd450Ceil>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.ceil").set_body(DispatchGLSLPureIntrin<GLSLstd450Ceil>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.round")
-.set_body(DispatchGLSLPureIntrin<GLSLstd450Round>);
+    .set_body(DispatchGLSLPureIntrin<GLSLstd450Round>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.trunc")
-.set_body(DispatchGLSLPureIntrin<GLSLstd450Trunc>);
+    .set_body(DispatchGLSLPureIntrin<GLSLstd450Trunc>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.fabs")
-.set_body(DispatchGLSLPureIntrin<GLSLstd450FAbs>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.fabs").set_body(DispatchGLSLPureIntrin<GLSLstd450FAbs>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.exp")
-.set_body(DispatchGLSLPureIntrin<GLSLstd450Exp>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.exp").set_body(DispatchGLSLPureIntrin<GLSLstd450Exp>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.log")
-.set_body(DispatchGLSLPureIntrin<GLSLstd450Log>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.log").set_body(DispatchGLSLPureIntrin<GLSLstd450Log>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.sqrt")
-.set_body(DispatchGLSLPureIntrin<GLSLstd450Sqrt>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.sqrt").set_body(DispatchGLSLPureIntrin<GLSLstd450Sqrt>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.pow")
-.set_body(DispatchGLSLPureIntrin<GLSLstd450Pow>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.pow").set_body(DispatchGLSLPureIntrin<GLSLstd450Pow>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.tanh")
-.set_body(DispatchGLSLPureIntrin<GLSLstd450Tanh>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.tanh").set_body(DispatchGLSLPureIntrin<GLSLstd450Tanh>);
+
+// WebGPU rules.
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.floor")
+    .set_body(DispatchGLSLPureIntrin<GLSLstd450Floor>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.ceil").set_body(DispatchGLSLPureIntrin<GLSLstd450Ceil>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.round")
+    .set_body(DispatchGLSLPureIntrin<GLSLstd450Round>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.trunc")
+    .set_body(DispatchGLSLPureIntrin<GLSLstd450Trunc>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.fabs").set_body(DispatchGLSLPureIntrin<GLSLstd450FAbs>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.exp").set_body(DispatchGLSLPureIntrin<GLSLstd450Exp>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.log").set_body(DispatchGLSLPureIntrin<GLSLstd450Log>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.sqrt").set_body(DispatchGLSLPureIntrin<GLSLstd450Sqrt>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.pow").set_body(DispatchGLSLPureIntrin<GLSLstd450Pow>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.tanh").set_body(DispatchGLSLPureIntrin<GLSLstd450Tanh>);
 
 }  // namespace spirv
 }  // namespace codegen

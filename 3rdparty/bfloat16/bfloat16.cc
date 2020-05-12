@@ -17,6 +17,7 @@
   ==============================================================================*/
 
 #include <tvm/runtime/c_runtime_api.h>
+
 #include <cstddef>
 #include <cstdint>
 
@@ -50,8 +51,7 @@ void BFloat16ToFloat(const uint16_t* src, float* dst, size_t size) {
 #endif
 }
 
-void BFloat16Add(const uint16_t* a, const uint16_t* b, uint16_t* dst,
-                 size_t size) {
+void BFloat16Add(const uint16_t* a, const uint16_t* b, uint16_t* dst, size_t size) {
   float a_f, b_f;
   BFloat16ToFloat(a, &a_f, 1);
   BFloat16ToFloat(b, &b_f, 1);

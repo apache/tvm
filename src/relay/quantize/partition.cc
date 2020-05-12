@@ -25,6 +25,7 @@
  */
 
 #include <tvm/relay/transform.h>
+
 #include "../transforms/pattern_util.h"
 #include "./quantize.h"
 
@@ -34,16 +35,13 @@ namespace quantize {
 
 using namespace relay::transform;
 
-
 class QPartitionExpr;
 class QPartitionExprNode : public TempExprNode {
  public:
   /*! \brief The original expression */
   Expr expr;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("expr", &expr);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("expr", &expr); }
 
   Expr Realize() const final;
 
@@ -62,7 +60,6 @@ class QPartitionExpr : public TempExpr {
   TVM_DEFINE_OBJECT_REF_METHODS(QPartitionExpr, TempExpr, QPartitionExprNode);
 };
 
-
 Expr QPartitionExprNode::Realize() const {
   // insert cast hint and stop fusion
   const QConfig& cfg = QConfig::Current();
@@ -76,23 +73,20 @@ QPartitionExpr::QPartitionExpr(Expr expr) {
   data_ = std::move(rnode);
 }
 
-TVM_REGISTER_GLOBAL("relay._quantize.make_partition_expr")
-.set_body_typed([](Expr expr) {
+TVM_REGISTER_GLOBAL("relay._quantize.make_partition_expr").set_body_typed([](Expr expr) {
   return QPartitionExpr(expr);
 });
 
 Pass QuantizePartition() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-      auto ret = Downcast<Function>(
-          ForwardRewrite(f, "FQPartitionRewrite", nullptr, nullptr));
-      return ret;
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        auto ret = Downcast<Function>(ForwardRewrite(f, "FQPartitionRewrite", nullptr, nullptr));
+        return ret;
+      };
   return CreateFunctionPass(pass_func, 1, "QuantizePartition", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._quantize.QuantizePartition")
-.set_body_typed(QuantizePartition);
+TVM_REGISTER_GLOBAL("relay._quantize.QuantizePartition").set_body_typed(QuantizePartition);
 
 TVM_REGISTER_NODE_TYPE(QPartitionExprNode);
 

@@ -154,9 +154,7 @@ bool MixedModeMutator::CheckVisited(const Expr& expr) {
   }
 }
 
-Expr MixedModeMutator::DispatchVisitExpr(const Expr& expr) {
-  return ExprMutator::VisitExpr(expr);
-}
+Expr MixedModeMutator::DispatchVisitExpr(const Expr& expr) { return ExprMutator::VisitExpr(expr); }
 
 Expr MixedModeMutator::VisitExpr(const Expr& expr) {
   auto fcheck_visited = [this](const Expr& expr) { return this->CheckVisited(expr); };
@@ -178,6 +176,7 @@ class PostOrderRewriter : public MixedModeMutator {
     auto post = ExprFunctor::VisitExpr(expr);
     return rewriter_->Rewrite(expr, post);
   }
+
  protected:
   ExprRewriter* rewriter_;
 };
@@ -208,17 +207,11 @@ Expr ExprMutator::VisitExpr_(const VarNode* op) {
   return GetRef<Expr>(op);
 }
 
-Expr ExprMutator::VisitExpr_(const ConstantNode* op) {
-  return GetRef<Expr>(op);
-}
+Expr ExprMutator::VisitExpr_(const ConstantNode* op) { return GetRef<Expr>(op); }
 
-Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) {
-  return GetRef<Expr>(op);
-}
+Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) { return GetRef<Expr>(op); }
 
-Expr ExprMutator::VisitExpr_(const OpNode* op) {
-  return GetRef<Expr>(op);
-}
+Expr ExprMutator::VisitExpr_(const OpNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   tvm::Array<Expr> fields;
@@ -257,9 +250,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
   auto ret_type = this->VisitType(op->ret_type);
   auto body = this->Mutate(op->body);
 
-  if (all_ty_params_unchanged &&
-      all_params_unchanged &&
-      ret_type.same_as(op->ret_type) &&
+  if (all_ty_params_unchanged && all_params_unchanged && ret_type.same_as(op->ret_type) &&
       body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
@@ -297,9 +288,7 @@ Expr ExprMutator::VisitExpr_(const LetNode* op) {
   auto value = this->Mutate(op->value);
   auto body = this->Mutate(op->body);
 
-  if (var.same_as(op->var) &&
-      value.same_as(op->value) &&
-      body.same_as(op->body)) {
+  if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
     return Let(var, value, body);
@@ -310,10 +299,9 @@ Expr ExprMutator::VisitExpr_(const IfNode* op) {
   auto guard = this->Mutate(op->cond);
   auto true_b = this->Mutate(op->true_branch);
   auto false_b = this->Mutate(op->false_branch);
-  if (op->cond.same_as(guard) &&
-      op->true_branch.same_as(true_b) &&
+  if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
       op->false_branch.same_as(false_b)) {
-    return GetRef<Expr>(op);;
+    return GetRef<Expr>(op);
   } else {
     return If(guard, true_b, false_b);
   }
@@ -356,9 +344,7 @@ Expr ExprMutator::VisitExpr_(const RefWriteNode* op) {
   }
 }
 
-Expr ExprMutator::VisitExpr_(const ConstructorNode* c) {
-  return GetRef<Expr>(c);
-}
+Expr ExprMutator::VisitExpr_(const ConstructorNode* c) { return GetRef<Expr>(c); }
 
 Expr ExprMutator::VisitExpr_(const MatchNode* m) {
   std::vector<Clause> clauses;
@@ -394,11 +380,9 @@ void ExprVisitor::ExprVisitor::VisitExpr_(const VarNode* op) {
   }
 }
 
-void ExprVisitor::ExprVisitor::VisitExpr_(const GlobalVarNode* op) {
-}
+void ExprVisitor::ExprVisitor::VisitExpr_(const GlobalVarNode* op) {}
 
-void ExprVisitor::ExprVisitor::VisitExpr_(const ConstantNode* op) {
-}
+void ExprVisitor::ExprVisitor::VisitExpr_(const ConstantNode* op) {}
 
 void ExprVisitor::ExprVisitor::VisitExpr_(const TupleNode* op) {
   for (auto field : op->fields) {
@@ -440,17 +424,11 @@ void ExprVisitor::VisitExpr_(const IfNode* op) {
 
 void ExprVisitor::VisitExpr_(const OpNode* op) { return; }
 
-void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
-  this->VisitExpr(op->tuple);
-}
+void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) { this->VisitExpr(op->tuple); }
 
-void ExprVisitor::ExprVisitor::VisitExpr_(const RefCreateNode* op) {
-  this->VisitExpr(op->value);
-}
+void ExprVisitor::ExprVisitor::VisitExpr_(const RefCreateNode* op) { this->VisitExpr(op->value); }
 
-void ExprVisitor::ExprVisitor::VisitExpr_(const RefReadNode* op) {
-  this->VisitExpr(op->ref);
-}
+void ExprVisitor::ExprVisitor::VisitExpr_(const RefReadNode* op) { this->VisitExpr(op->ref); }
 
 void ExprVisitor::ExprVisitor::VisitExpr_(const RefWriteNode* op) {
   this->VisitExpr(op->ref);
@@ -501,30 +479,23 @@ void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
   ExprApplyVisit(fvisit).VisitExpr(e);
 }
 
-TVM_REGISTER_GLOBAL("relay.analysis.post_order_visit")
-.set_body_typed([](Expr expr, PackedFunc f) {
-    PostOrderVisit(expr, [f](const Expr& n) {
-        f(n);
-      });
-  });
+TVM_REGISTER_GLOBAL("relay.analysis.post_order_visit").set_body_typed([](Expr expr, PackedFunc f) {
+  PostOrderVisit(expr, [f](const Expr& n) { f(n); });
+});
 
 // Implement bind.
 class ExprBinder : public ExprMutator, PatternMutator {
  public:
-  explicit ExprBinder(const tvm::Map<Var, Expr>& args_map)
-    : args_map_(args_map) {
-  }
+  explicit ExprBinder(const tvm::Map<Var, Expr>& args_map) : args_map_(args_map) {}
 
   Expr VisitExpr_(const LetNode* op) final {
-    CHECK(!args_map_.count(op->var))
-        << "Cannot bind an internel variable in let";
+    CHECK(!args_map_.count(op->var)) << "Cannot bind an internel variable in let";
     return ExprMutator::VisitExpr_(op);
   }
 
   Expr VisitExpr_(const FunctionNode* op) final {
     for (Var param : op->params) {
-      CHECK(!args_map_.count(param))
-          << "Cannnot bind an internal function parameter";
+      CHECK(!args_map_.count(param)) << "Cannnot bind an internal function parameter";
     }
     return ExprMutator::VisitExpr_(op);
   }
@@ -539,9 +510,7 @@ class ExprBinder : public ExprMutator, PatternMutator {
     }
   }
 
-  Pattern VisitPattern(const Pattern& p) final {
-    return PatternMutator::VisitPattern(p);
-  }
+  Pattern VisitPattern(const Pattern& p) final { return PatternMutator::VisitPattern(p); }
 
   Clause VisitClause(const Clause& c) final {
     Pattern pat = VisitPattern(c->lhs);
@@ -549,8 +518,7 @@ class ExprBinder : public ExprMutator, PatternMutator {
   }
 
   Var VisitVar(const Var& v) final {
-    CHECK(!args_map_.count(v))
-      << "Cannnot bind an internal pattern variable";
+    CHECK(!args_map_.count(v)) << "Cannnot bind an internal pattern variable";
     return v;
   }
 
@@ -567,15 +535,10 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
         new_params.push_back(param);
       }
     }
-    if (new_body.same_as(func->body) &&
-        new_params.size() == func->params.size()) {
+    if (new_body.same_as(func->body) && new_params.size() == func->params.size()) {
       return expr;
     }
-    auto ret = Function(new_params,
-                                  new_body,
-                                  func->ret_type,
-                                  func->type_params,
-                                  func->attrs);
+    auto ret = Function(new_params, new_body, func->ret_type, func->type_params, func->attrs);
     std::unordered_set<Var, ObjectHash, ObjectEqual> set;
     for (const auto& v : FreeVars(expr)) {
       set.insert(v);
@@ -585,11 +548,7 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
         new_params.push_back(v);
       }
     }
-    ret = Function(new_params,
-                             new_body,
-                             func->ret_type,
-                             func->type_params,
-                             func->attrs);
+    ret = Function(new_params, new_body, func->ret_type, func->type_params, func->attrs);
     CHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
     return std::move(ret);
   } else {
@@ -597,15 +556,14 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   }
 }
 
-TVM_REGISTER_GLOBAL("relay.ir.Bind")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    ObjectRef input = args[0];
-    if (input->IsInstance<ExprNode>()) {
-      *ret = Bind(Downcast<Expr>(input), args[1]);
-    } else {
-      CHECK(input->IsInstance<TypeNode>());
-      *ret = Bind(Downcast<Type>(input), args[1]);
-    }
-  });
+TVM_REGISTER_GLOBAL("relay.ir.Bind").set_body([](TVMArgs args, TVMRetValue* ret) {
+  ObjectRef input = args[0];
+  if (input->IsInstance<ExprNode>()) {
+    *ret = Bind(Downcast<Expr>(input), args[1]);
+  } else {
+    CHECK(input->IsInstance<TypeNode>());
+    *ret = Bind(Downcast<Type>(input), args[1]);
+  }
+});
 }  // namespace relay
 }  // namespace tvm

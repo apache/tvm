@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,25 +16,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# For CPU
-FROM ubuntu:16.04
+set -e
+set -u
 
-RUN apt-get update --fix-missing
+mkdir -p build
+cd build
+cp ../cmake/config.cmake .
 
-COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
-RUN bash /install/ubuntu_install_core.sh
-
-COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
-RUN bash /install/ubuntu_install_python.sh
-
-COPY install/ubuntu_install_emscripten.sh /install/ubuntu_install_emscripten.sh
-RUN bash /install/ubuntu_install_emscripten.sh
-
-COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
-RUN bash /install/ubuntu_install_python_package.sh
-
-RUN chmod a+rwx -R /emsdk-portable
-RUN cp -r /emsdk-portable  /emsdk-portable-backup
-RUN mv /emsdk-portable  /emsdk-portable-x
-RUN mv /emsdk-portable-backup /emsdk-portable
-RUN cp /root/.emscripten /emsdk-portable/
+echo set\(USE_SORT ON\) >> config.cmake
+echo set\(USE_MICRO ON\) >> config.cmake
+echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
+echo set\(USE_GRAPH_RUNTIME_DEBUG ON\) >> config.cmake
+echo set\(USE_VM_PROFILER ON\) >> config.cmake
+echo set\(USE_EXAMPLE_EXT_RUNTIME ON\) >> config.cmake
+echo set\(USE_LLVM llvm-config-10\) >> config.cmake
+echo set\(USE_ANTLR ON\) >> config.cmake
+echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
+echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
+echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
+echo set\(USE_VTA_TSIM ON\) >> config.cmake
+echo set\(USE_VTA_FSIM ON\) >> config.cmake

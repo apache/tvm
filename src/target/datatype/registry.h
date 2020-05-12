@@ -22,6 +22,7 @@
 
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+
 #include <string>
 #include <unordered_map>
 
@@ -69,7 +70,7 @@ class Registry {
    * \param type_name The type name
    * \return The type code
    */
-  uint8_t GetTypeCode(const std::string &type_name);
+  uint8_t GetTypeCode(const std::string& type_name);
 
   /*!
    * \brief Get type name from type code

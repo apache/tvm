@@ -54,7 +54,10 @@ def test_rpc():
 
     def check(remote):
         # basic function checks.
+        faddone = remote.get_function("testing.asyncAddOne")
         fecho = remote.get_function("testing.echo")
+        assert(faddone(100) == 101)
+        assert(fecho(1, 2, 3) == 1)
         assert(fecho(1, 2, 3) == 1)
         assert(fecho(100, 2, 3) == 100)
         assert(fecho("xyz") == "xyz")
@@ -70,13 +73,12 @@ def test_rpc():
         addone(a, b)
 
         # time evaluator
-        time_f = f1.time_evaluator("addone", ctx, number=10)
+        time_f = f1.time_evaluator("addone", ctx, number=100, repeat=10)
         time_f(a, b)
         cost = time_f(a, b).mean
         print('%g secs/op' % cost)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
     check(remote)
-
 
 test_rpc()

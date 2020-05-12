@@ -26,8 +26,8 @@
 
 #include <tvm/ir/function.h>
 #include <tvm/relay/expr.h>
-#include <string>
 
+#include <string>
 
 namespace tvm {
 namespace relay {
@@ -71,12 +71,9 @@ class FunctionNode : public BaseFuncNode {
   bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
     // Important to make def equal first.
     equal->MarkGraphNode();
-    return
-        equal.DefEqual(params, other->params) &&
-        equal.DefEqual(type_params, other->type_params) &&
-        equal(ret_type, other->ret_type) &&
-        equal(attrs, other->attrs) &&
-        equal(body, other->body);
+    return equal.DefEqual(params, other->params) &&
+           equal.DefEqual(type_params, other->type_params) && equal(ret_type, other->ret_type) &&
+           equal(attrs, other->attrs) && equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -100,7 +97,6 @@ class FunctionNode : public BaseFuncNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, BaseFuncNode);
 };
 
-
 /*!
  * \brief Managed reference to FunctionNode.
  * \sa FunctionNode
@@ -115,10 +111,7 @@ class Function : public BaseFunc {
    * \param ty_params The type parameters.
    * \param attrs Additional function attributes.
    */
-  TVM_DLL Function(tvm::Array<Var> params,
-                   Expr body,
-                   Type ret_type,
-                   tvm::Array<TypeVar> ty_params,
+  TVM_DLL Function(tvm::Array<Var> params, Expr body, Type ret_type, tvm::Array<TypeVar> ty_params,
                    tvm::DictAttrs attrs = NullValue<DictAttrs>());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);

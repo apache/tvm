@@ -24,13 +24,14 @@
 #ifndef NNVM_GRAPH_H_
 #define NNVM_GRAPH_H_
 
-#include <vector>
-#include <string>
-#include <utility>
 #include <algorithm>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
+#include <vector>
+
 #include "base.h"
 #include "node.h"
 #include "symbolic.h"
@@ -64,7 +65,7 @@ class Graph {
    * \return the reference to corresponding attribute
    * \tparam T the type of the attribute.
    */
-  template<typename T>
+  template <typename T>
   inline const T& GetAttr(const std::string& attr_name) const;
   /*!
    * \brief Check whether has a specific attribute.
@@ -81,7 +82,7 @@ class Graph {
    * \return a new copy of the corresponding attribute.
    * \tparam T the type of the attribute.
    */
-  template<typename T>
+  template <typename T>
   inline T MoveCopyAttr(const std::string& attr_name);
   /*!
    * \brief get a indexed graph of current graph, if not exist, create it on demand
@@ -127,13 +128,9 @@ class IndexedGraph {
     std::weak_ptr<nnvm::Node> weak_ref;
   };
   /*! \return number of nodes in the graph */
-  inline size_t num_nodes() const {
-    return nodes_.size();
-  }
+  inline size_t num_nodes() const { return nodes_.size(); }
   /*! \return total number of NodeEntry in the graph */
-  inline size_t num_node_entries() const {
-    return entry_rptr_.back();
-  }
+  inline size_t num_node_entries() const { return entry_rptr_.back(); }
   /*!
    * \brief Get a unique entry id between 0 to num_node_entries()
    *  for a given IndexedGraph::NodeEntry
@@ -150,9 +147,7 @@ class IndexedGraph {
    * \param e The entry to query for index.
    * \return the unique index.
    */
-  inline uint32_t entry_id(const NodeEntry& e) const {
-    return entry_rptr_[e.node_id] + e.index;
-  }
+  inline uint32_t entry_id(const NodeEntry& e) const { return entry_rptr_[e.node_id] + e.index; }
   /*!
    * \brief Get a unique entry id between 0 to num_node_entries()
    *  for a given NodeEntry.
@@ -167,42 +162,30 @@ class IndexedGraph {
    * \param node The Node to query for index.
    * \return the node index.
    */
-  inline uint32_t node_id(const nnvm::Node* node) const {
-    return node2index_.at(node);
-  }
+  inline uint32_t node_id(const nnvm::Node* node) const { return node2index_.at(node); }
   /*!
    * \brief Get the corresponding Node structure for a given node_id.
    * \param node_id The node id
    * \return const reference to the corresponding IndexedGraph::Node
    */
-  inline const Node& operator[](uint32_t node_id) const {
-    return nodes_[node_id];
-  }
+  inline const Node& operator[](uint32_t node_id) const { return nodes_[node_id]; }
   /*!
    * \brief Get the corresponding Node structure
    * \param node The pointer to the Node structure
    * \return const reference to the corresponding IndexedGraph::Node
    */
-  inline const Node& operator[](const nnvm::Node* node) const {
-    return nodes_[node_id(node)];
-  }
+  inline const Node& operator[](const nnvm::Node* node) const { return nodes_[node_id(node)]; }
   /*! \return list of argument nodes */
-  inline const std::vector<uint32_t>& input_nodes() const {
-    return input_nodes_;
-  }
+  inline const std::vector<uint32_t>& input_nodes() const { return input_nodes_; }
   /*! \return list of mutable nodes */
   inline const std::unordered_set<uint32_t>& mutable_input_nodes() const {
     return mutable_input_nodes_;
   }
   /*! \return list of output entries */
-  inline const std::vector<NodeEntry>& outputs() const {
-    return outputs_;
-  }
+  inline const std::vector<NodeEntry>& outputs() const { return outputs_; }
 
   /*! \return whether a node is existed in the indexed graph */
-  inline bool exist(const nnvm::Node* node) const {
-    return node2index_.count(node);
-  }
+  inline bool exist(const nnvm::Node* node) const { return node2index_.count(node); }
 
   // disalllow copy assign
   IndexedGraph(const IndexedGraph&) = delete;
@@ -239,15 +222,14 @@ class IndexedGraph {
  * \param fvisit a function of type std::function<void(const std::shared_ptr<Node>&)>
  * \tparam FVisit The function type to perform the visit.
  */
-template<typename FVisit>
+template <typename FVisit>
 inline void DFSVisit(const std::vector<NodeEntry>& heads, FVisit fvisit);
 
 // inline function implementations
-template<typename T>
+template <typename T>
 inline const T& Graph::GetAttr(const std::string& attr_name) const {
   auto it = attrs.find(attr_name);
-  CHECK(it != attrs.end())
-      << "Cannot find attribute " << attr_name << " in the graph";
+  CHECK(it != attrs.end()) << "Cannot find attribute " << attr_name << " in the graph";
   return nnvm::unsafe_get<T>(*it->second);
 }
 
@@ -256,11 +238,10 @@ inline bool Graph::HasAttr(const std::string& attr_name) const {
   return it != attrs.end();
 }
 
-template<typename T>
+template <typename T>
 inline T Graph::MoveCopyAttr(const std::string& attr_name) {
   auto it = attrs.find(attr_name);
-  CHECK(it != attrs.end())
-      << "Cannot find attribute " << attr_name << " in the graph";
+  CHECK(it != attrs.end()) << "Cannot find attribute " << attr_name << " in the graph";
   std::shared_ptr<any> sptr = it->second;
   attrs.erase(it);
   if (sptr.unique()) {
@@ -270,14 +251,10 @@ inline T Graph::MoveCopyAttr(const std::string& attr_name) {
   }
 }
 
-template <typename GNode, typename HashType,
-           typename FVisit, typename HashFunc,
-          typename InDegree, typename GetInput>
-void PostOrderDFSVisit(const std::vector<GNode>& heads,
-                       FVisit fvisit,
-                       HashFunc hash,
-                       InDegree indegree,
-                       GetInput getinput) {
+template <typename GNode, typename HashType, typename FVisit, typename HashFunc, typename InDegree,
+          typename GetInput>
+void PostOrderDFSVisit(const std::vector<GNode>& heads, FVisit fvisit, HashFunc hash,
+                       InDegree indegree, GetInput getinput) {
   std::vector<std::pair<GNode, uint32_t> > stack;
   std::unordered_set<HashType> visited;
   for (auto& head : heads) {
@@ -303,28 +280,20 @@ void PostOrderDFSVisit(const std::vector<GNode>& heads,
   }
 }
 
-template<typename FVisit>
-inline void DFSVisit(const std::vector<NodeEntry>& heads,
-                     FVisit fvisit) {
+template <typename FVisit>
+inline void DFSVisit(const std::vector<NodeEntry>& heads, FVisit fvisit) {
   typedef const ObjectPtr* GNode;
   std::vector<GNode> head_nodes(heads.size());
   std::transform(heads.begin(), heads.end(), head_nodes.begin(),
-                 [](const NodeEntry& e)->GNode {
-                   return &e.node;
-                 });
+                 [](const NodeEntry& e) -> GNode { return &e.node; });
   PostOrderDFSVisit<GNode, Node*>(
-      head_nodes,
-      [fvisit](GNode n) {
-        fvisit(*n);
-        },  // FVisit
-      [](GNode n)->Node* {
-        return n->get();
-        },  // HashFunc
-      [](GNode n)->uint32_t {  // InDegree
+      head_nodes, [fvisit](GNode n) { fvisit(*n); },  // FVisit
+      [](GNode n) -> Node* { return n->get(); },      // HashFunc
+      [](GNode n) -> uint32_t {                       // InDegree
         if (!(*n)) return 0;
         return (*n)->inputs.size() + (*n)->control_deps.size();
-        },
-      [](GNode n, uint32_t index)->GNode {  // GetInput
+      },
+      [](GNode n, uint32_t index) -> GNode {  // GetInput
         if (index < (*n)->inputs.size()) {
           return &(*n)->inputs.at(index).node;
         } else {

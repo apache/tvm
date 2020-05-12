@@ -44,17 +44,20 @@
  *
  */
 
+#include "./combine_parallel_op_batch.h"
+
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
+
 #include <unordered_map>
 #include <unordered_set>
-#include "./expr_subst.h"
+
 #include "./combine_parallel_op.h"
-#include "./combine_parallel_op_batch.h"
+#include "./expr_subst.h"
 #include "pattern_util.h"
 
 namespace tvm {
@@ -63,13 +66,9 @@ namespace relay {
 ParallelOpBatchCombiner::ParallelOpBatchCombiner(const std::string& op_name,
                                                  const std::string& batch_op_name,
                                                  uint64_t min_num_branches)
-  : ParallelOpCombiner(op_name, min_num_branches),
-    batch_op_name_(batch_op_name) {
-}
+    : ParallelOpCombiner(op_name, min_num_branches), batch_op_name_(batch_op_name) {}
 
-bool ParallelOpBatchCombiner::IsSupportedOp(const CallNode* n) {
-  return true;
-}
+bool ParallelOpBatchCombiner::IsSupportedOp(const CallNode* n) { return true; }
 
 bool ParallelOpBatchCombiner::CanOpsBeCombined(const CallNode* a, const CallNode* b) {
   if (a->args.size() != b->args.size()) {
@@ -116,19 +115,16 @@ bool ParallelOpBatchCombiner::IsArgCompatible(const CallNode* a, const CallNode*
   auto ta = a->args[index]->type_as<TensorTypeNode>();
   auto tb = b->args[index]->type_as<TensorTypeNode>();
 
-  if (!eq(ta->dtype, tb->dtype) || ta->shape.size() != tb->shape.size())
-    return false;
+  if (!eq(ta->dtype, tb->dtype) || ta->shape.size() != tb->shape.size()) return false;
 
   for (size_t i = 0; i < ta->shape.size(); i++) {
-    if (!eq(ta->shape[i], tb->shape[i]))
-      return false;
+    if (!eq(ta->shape[i], tb->shape[i])) return false;
   }
   return true;
 }
 
 Call ParallelOpBatchCombiner::MakeCombinedCallFromFollowingOps(const Expr& data,
-                                                               const Group& branches,
-                                                               size_t depth,
+                                                               const Group& branches, size_t depth,
                                                                size_t parent_index) {
   Array<Expr> new_args;
   const CallNode* call = branches[0][depth];
@@ -160,10 +156,8 @@ Call ParallelOpBatchCombiner::MakeCombinedCallFromFollowingOps(const Expr& data,
   return Call(call->op, new_args, call->attrs, {});
 }
 
-void ParallelOpBatchCombiner::UpdateGroupOutput(const Expr& data,
-                        const Group& branches,
-                        size_t depth,
-                        ExprSubstMap* subst_map) {
+void ParallelOpBatchCombiner::UpdateGroupOutput(const Expr& data, const Group& branches,
+                                                size_t depth, ExprSubstMap* subst_map) {
   int index = 0;
   auto split = MakeSplit(data, Integer(branches.size()), 0);
   for (const auto& branch : branches) {
@@ -174,30 +168,25 @@ void ParallelOpBatchCombiner::UpdateGroupOutput(const Expr& data,
 }
 
 /*! \brief Combine parallel op into batched op if number of branches >= min_num_branches */
-Expr CombineParallelOpBatch(const Expr& expr,
-                            const std::string& op_name,
-                            const std::string& batch_op_name,
-                            uint64_t min_num_branches) {
+Expr CombineParallelOpBatch(const Expr& expr, const std::string& op_name,
+                            const std::string& batch_op_name, uint64_t min_num_branches) {
   return ParallelOpBatchCombiner(op_name, batch_op_name, min_num_branches).Combine(expr);
 }
 
 namespace transform {
 
-Pass CombineParallelOpBatch(const std::string& op_name,
-                            const std::string& batch_op_name,
+Pass CombineParallelOpBatch(const std::string& op_name, const std::string& batch_op_name,
                             uint64_t min_num_branches) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-      return Downcast<Function>(CombineParallelOpBatch(f,
-                                                       op_name,
-                                                       batch_op_name,
-                                                       min_num_branches));
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(
+            CombineParallelOpBatch(f, op_name, batch_op_name, min_num_branches));
+      };
   return CreateFunctionPass(pass_func, 4, "CombineParallelOpBatch", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.CombineParallelOpBatch")
-.set_body_typed(CombineParallelOpBatch);
+    .set_body_typed(CombineParallelOpBatch);
 
 }  // namespace transform
 
