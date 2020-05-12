@@ -51,9 +51,9 @@ class ConvertTransformMemorizerNode : public TransformMemorizerNode {
  public:
   /*!
    * \brief Initializes the desired_layout.
- * \param desired_layouts Specify mapping of op_name to array of desired layouts for each input.
- *                        For example: Map("nn.conv2d", Array("NHWC", "OHWI")),
- *                        this specifies the desired layout for data then kernel for nn.conv2d.
+   * \param desired_layouts Specify mapping of op_name to array of desired layouts for each input.
+   *                        For example: Map("nn.conv2d", Array("NHWC", "OHWI")),
+   *                        this specifies the desired layout for data then kernel for nn.conv2d.
    */
   explicit ConvertTransformMemorizerNode(Map<std::string, Array<String>> desired_layouts)
       : desired_layouts_(std::move(desired_layouts)) {}
