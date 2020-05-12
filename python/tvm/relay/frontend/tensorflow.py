@@ -3297,6 +3297,7 @@ class GraphProto(object):
 
                 sb.ret(wl(*inputs))
                 op = sb.get()
+                print(op)
             # elif node.op in self.libFuncs:
             #     f1 = self._subgraphs[attr["f"].name][0]["main"]
             #     # add_one = tvm.relay.GlobalVar("add_one")

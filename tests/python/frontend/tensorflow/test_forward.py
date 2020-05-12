@@ -3346,7 +3346,6 @@ def test_spop_placeholder_one():
         z = gen_functional_ops.StatefulPartitionedCall(args=[pl1,pl2], Tout=[tf.int32],f=Forward)
 
         feed = {"pl1:0": data,"pl2:0": data2}
-
         compare_tf_with_tvm([data, data2], ['pl1:0', 'pl2:0'], 'StatefulPartitionedCall:0', mode='vm',
                             init_global_variables=True)
 
@@ -3382,13 +3381,38 @@ def test_spop_control_flow():
                     z = math_ops.multiply(x, y*i)
             return z
 
-        op = gen_functional_ops.StatefulPartitionedCall(args=[constant_op.constant(32.),
-                                                              constant_op.constant(100.)],
-                                                        Tout=[dtypes.float32], f=Body1)
+        op = gen_functional_ops.StatefulPartitionedCall(args=[constant_op.constant(32.), constant_op.constant(100.)], Tout=[dtypes.float32], f=Body1)
+        # @function.Defun()
+        # def test_vanilla_loop():
+        #     i = tf.constant(0)
+        #
+        #     def c(i): return tf.less(i, 10)
+        #
+        #     def b(i): return tf.add(i, 1)
+        #     r = tf.while_loop(c, b, [i])
+        #     return r
+        # z = gen_functional_ops.StatefulPartitionedCall(args=[], Tout=[tf.int32], f=test_vanilla_loop)
         compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
 def test_spop_variables():
-    pass
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        data = np.random.uniform(size=(32, 100)).astype('float32')
+
+        @function.Defun()
+        def variableFn():
+            input_op = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+            input_tensor = array_ops.reshape(input_op, data.shape)
+
+            size = input_tensor.shape.dims[1]
+            with variable_scope.variable_scope("linear", reuse=None):
+                w = variable_scope.get_variable(
+                    "w", shape=[size, size], dtype=input_tensor.dtype)
+            ret = math_ops.matmul(input_tensor, w)
+            return ret
+
+        z = gen_functional_ops.StatefulPartitionedCall(args=[], Tout=[dtypes.float32], f=variableFn)
+        compare_tf_with_tvm(data, 'Placeholder:0', 'StatefulPartitionedCall:0', init_global_variables=True, mode="vm")
 
 def test_spop_constants():
     tf.reset_default_graph()
