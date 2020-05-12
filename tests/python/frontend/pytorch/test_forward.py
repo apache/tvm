@@ -525,18 +525,22 @@ def test_forward_maxpool2d():
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
 
-    for return_indices in [True, False]:
-        verify_model(torch.nn.MaxPool2d(kernel_size=[1, 1],
-                                        return_indices=return_indices).eval(),
-                    input_data)
-        verify_model(torch.nn.MaxPool2d(kernel_size=[10, 10],
-                                        return_indices=return_indices).eval(),
-                    input_data)
-        verify_model(torch.nn.MaxPool2d(kernel_size=[4, 4],
-                                        padding=2,
-                                        stride=2,
-                                        return_indices=return_indices).eval(),
-                    input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[1, 1]).eval(), input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[10, 10]).eval(), input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[4, 4],
+                                    padding=2,
+                                    stride=2).eval(), input_data)
+
+    class MaxPool2DWithIndices(Module):
+        def __init__(self):
+            super(MaxPool2DWithIndices, self).__init__()
+            self.pool = torch.nn.MaxPool2d(kernel_size=[1, 1], return_indices=True)
+
+        def forward(self, *args):
+            output, indices = self.pool(args[0])
+            return output
+
+    verify_model(MaxPool2DWithIndices().float().eval(), input_data=input_data)
 
 def test_forward_maxpool1d():
     torch.set_grad_enabled(False)
@@ -2040,6 +2044,11 @@ def test_forward_addcmul():
 
 if __name__ == "__main__":
     # Single operator tests
+
+    #test_adaptive_pool3d()
+    test_forward_maxpool2d()
+
+
     test_forward_add()
     test_forward_subtract()
     test_forward_multiply()
