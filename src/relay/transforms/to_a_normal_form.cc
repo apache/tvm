@@ -142,7 +142,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   Expr Atomic(const Expr& e, const Var& v) { return v.defined() ? GetScope(e)->ll->Push(v, e) : e; }
 
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
-    Var var = v.defined() ? v : Var(std::string("x"), Type());
+    Var var = v.defined() ? v : Var(String("x"), Type());
     return GetScope(orig)->ll->Push(var, now);
   }
 
