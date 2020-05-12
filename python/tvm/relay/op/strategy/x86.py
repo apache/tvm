@@ -18,12 +18,16 @@
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 import logging
 
+import re
 import topi
 from tvm.te import SpecializedCondition
 from .generic import *
 from .. import op as _op
 
 logger = logging.getLogger('strategy')
+
+_NCHWc_matcher = re.compile("^NCHW[0-9]+c$")
+_OIHWio_matcher = re.compile("^OIHW[0-9]+i[0-9]+o$")
 
 @schedule_injective.register("cpu")
 def schedule_injective_cpu(attrs, outs, target):
@@ -96,6 +100,9 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                     wrap_compute_conv2d(topi.x86.conv2d_nchw),
                     wrap_topi_schedule(topi.x86.schedule_conv2d_nchw),
                     name="conv2d_nchw.x86")
+        elif _NCHWc_matcher.match(layout): # check if layout is NCHWxc
+            assert _OIHWio_matcher.match(kernel_layout) # check if kernel is OIHWio
+            return conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
             logger.warning("For x86 target, NCHW layout is recommended for conv2d.")
@@ -128,6 +135,9 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                     wrap_compute_conv2d(topi.nn.depthwise_conv2d_nchw),
                     wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nchw),
                     name="depthwise_conv2d_nchw.generic")
+        elif _NCHWc_matcher.match(layout): # check if layout is NCHWxc
+            assert _OIHWio_matcher.match(kernel_layout) # check if kernel is OIHWio
+            return depthwise_conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             logger.warning("depthwise_conv2d NHWC layout is not optimized for x86.")
