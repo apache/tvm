@@ -170,7 +170,7 @@ class VarNode : public ExprNode {
   Type type_annotation;
 
   /*! \return The name hint of the variable */
-  const std::string& name_hint() const { return vid->name_hint; }
+  const String& name_hint() const { return vid->name_hint; }
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("vid", &vid);
