@@ -50,7 +50,7 @@ fi
 # Print out specific version
 ${CLANG_FORMAT} --version
 
-echo "Running git-clang-format against " $1
+echo "Running git-clang-format against" $1
 git-${CLANG_FORMAT} --diff --extensions h,mm,c,cc --binary=${CLANG_FORMAT} $1 1> /tmp/$$.clang-format.txt
 echo "---------clang-format log----------"
 cat /tmp/$$.clang-format.txt
