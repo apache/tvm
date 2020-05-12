@@ -44,6 +44,37 @@ You can also use the following command via docker.
     docker/bash.sh tvmai/ci-lint clang-format-10 [path-to-file]
 
 
+clang-format is also not perfect, when necessary, you can use disble clang-format on certain code regions.
+
+.. code :: c
+
+   // clang-format off
+   void Test() {
+      // clang-format will be disabled in this region.
+   }
+   // clang-format on
+
+
+Because clang-format may not recognize macros, it is recommended to use macro like normal function styles.
+
+
+.. code :: c
+
+   #define MACRO_IMPL { custom impl; }
+   #define MACRO_FUNC(x)
+
+   // not preferred, because clang-format might recognize it as types.
+   virtual void Func1() MACRO_IMPL
+
+   // preferred
+   virtual void Func2() MACRO_IMPL;
+
+   void Func3() {
+     // preferred
+     MACRO_FUNC(xyz);
+   }
+
+
 Python Code Styles
 ------------------
 - The functions and classes are documented in `numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ format.
