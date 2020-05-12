@@ -29,9 +29,6 @@
 #include <tvm/relay/transform.h>
 #include <tvm/tir/data_layout.h>
 #include "../op/tensor/transform.h"
-#include "pattern_util.h"
-#include "pass_util.h"
-
 #include "pass_util.h"
 #include "pattern_util.h"
 
@@ -311,8 +308,7 @@ class ForwardPrep : private ExprVisitor {
 
 static bool IsIntInArray(const Array<Integer>& axis, int v) {
   for (size_t i = 0; i < axis.size(); i++) {
-    if (axis[i] == v)
-      return true;
+    if (axis[i] == v) return true;
   }
   return false;
 }
@@ -405,8 +401,7 @@ Expr AddSubForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
   if (slhs != nullptr) {
     CHECK(srhs == nullptr);
     CHECK(MatchBroadcastToLeftAxes(tlhs, trhs, slhs->axes));
-    Expr scale = ReshapeOrExpandToMatchAxis(
-        slhs->scale, tlhs->shape, slhs->axes);
+    Expr scale = ReshapeOrExpandToMatchAxis(slhs->scale, tlhs->shape, slhs->axes);
     if (!scale.defined()) {
       return Expr();
     }
@@ -417,8 +412,7 @@ Expr AddSubForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
   } else {
     CHECK(srhs != nullptr);
     CHECK(MatchBroadcastToLeftAxes(trhs, tlhs, srhs->axes));
-    Expr scale = ReshapeOrExpandToMatchAxis(
-        srhs->scale, trhs->shape, srhs->axes);
+    Expr scale = ReshapeOrExpandToMatchAxis(srhs->scale, trhs->shape, srhs->axes);
     if (!scale.defined()) {
       return Expr();
     }
@@ -504,14 +498,14 @@ Array<Message> Conv2DForwardPrep(const Call& call, const Message& out_message) {
   if (param->groups == 1 || is_depthwise_conv2d) {
     auto ko_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
     auto ki_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
-    if ( (ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) ||  // simple layout
+    if ((ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) ||     // simple layout
         (ko_small_axis >= 0 && ki_small_axis >= 0 && c_small_axis >= 0)) {  // blocked layout
-        Array<Integer> arr{c_big_axis};
-        if (c_small_axis >= 0) {
-          arr.push_back(c_small_axis);
-        }
-        return {Message(arr, false), none};
+      Array<Integer> arr{c_big_axis};
+      if (c_small_axis >= 0) {
+        arr.push_back(c_small_axis);
       }
+      return {Message(arr, false), none};
+    }
   }
   return {none, none};
 }
@@ -548,28 +542,24 @@ Expr Conv2DForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
   // match the ic_axis
   if (is_depthwise_conv2d) {
     if (is_simple) {
-      Expr scale = ExpandBiasToMatchAxis(
-          sdata->scale, kernel_layout.ndim(), {big_ko_axis});
+      Expr scale = ExpandBiasToMatchAxis(sdata->scale, kernel_layout.ndim(), {big_ko_axis});
       weight = Multiply(weight, scale);
     } else {
-      weight = Multiply(weight, ReshapeToMatchAxis(sdata->scale,
-          weight->type_as<TensorTypeNode>()->shape,
-          {big_ko_axis, small_ko_axis}));
-      if (!weight.defined())
-        return Expr();
+      weight = Multiply(weight,
+                        ReshapeToMatchAxis(sdata->scale, weight->type_as<TensorTypeNode>()->shape,
+                                           {big_ko_axis, small_ko_axis}));
+      if (!weight.defined()) return Expr();
     }
 
   } else {
     if (is_simple) {
-      Expr scale = ExpandBiasToMatchAxis(
-          sdata->scale, kernel_layout.ndim(), {big_ki_axis});
+      Expr scale = ExpandBiasToMatchAxis(sdata->scale, kernel_layout.ndim(), {big_ki_axis});
       weight = Multiply(weight, scale);
     } else {
-      weight = Multiply(weight, ReshapeToMatchAxis(sdata->scale,
-          weight->type_as<TensorTypeNode>()->shape,
-          {big_ki_axis, small_ki_axis}));
-      if (!weight.defined())
-        return Expr();
+      weight = Multiply(weight,
+                        ReshapeToMatchAxis(sdata->scale, weight->type_as<TensorTypeNode>()->shape,
+                                           {big_ki_axis, small_ki_axis}));
+      if (!weight.defined()) return Expr();
     }
   }
   // return transformed conv2d
@@ -824,10 +814,8 @@ Expr AddSubBackwardTransform(const Call& call, const Message& message, const Exp
   } else if (lhs_message.defined()) {
     CHECK(equal(message->axes, lhs_message->axes));
     Expr lhs = transformer->Transform(call->args[0], message, scale);
-    Expr rhs = transformer->Transform(
-        call->args[1], NullValue<Message>(), NullValue<Expr>());
-    Expr rhs_scale = ReshapeOrExpandToMatchAxis(scale, tlhs->shape,
-        message->axes);
+    Expr rhs = transformer->Transform(call->args[1], NullValue<Message>(), NullValue<Expr>());
+    Expr rhs_scale = ReshapeOrExpandToMatchAxis(scale, tlhs->shape, message->axes);
     if (!rhs_scale.defined()) {
       return transformer->NormalCallTransform(call.operator->());
     }
@@ -837,8 +825,7 @@ Expr AddSubBackwardTransform(const Call& call, const Message& message, const Exp
     CHECK(equal(message->axes, rhs_message->axes));
     Expr lhs = transformer->Transform(call->args[0], NullValue<Message>(), NullValue<Expr>());
     Expr rhs = transformer->Transform(call->args[1], message, scale);
-    Expr lhs_scale = ReshapeOrExpandToMatchAxis(
-        scale, trhs->shape, message->axes);
+    Expr lhs_scale = ReshapeOrExpandToMatchAxis(scale, trhs->shape, message->axes);
     if (!lhs_scale.defined()) {
       return transformer->NormalCallTransform(call.operator->());
     }
@@ -914,14 +901,14 @@ Message Conv2DBackwardPrep(const Call& call, const Array<Message>& in_messages) 
   if (param->groups == 1 || is_depthwise_conv2d) {
     auto ko_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
     auto ki_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
-    if ( (ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) ||  // simple layout
+    if ((ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) ||     // simple layout
         (ko_small_axis >= 0 && ki_small_axis >= 0 && c_small_axis >= 0)) {  // blocked layout
-        Array<Integer> arr{c_big_axis};
-        if (c_small_axis >= 0) {
-          arr.push_back(c_small_axis);
-        }
-        return Message(arr, false);
+      Array<Integer> arr{c_big_axis};
+      if (c_small_axis >= 0) {
+        arr.push_back(c_small_axis);
       }
+      return Message(arr, false);
+    }
   }
   return NullValue<Message>();
 }
@@ -956,13 +943,11 @@ Expr Conv2DBackwardTransform(const Call& call, const Message& message, const Exp
   // scale on input for deptwise.
   Expr wscale;
   if (is_simple) {
-    wscale = ExpandBiasToMatchAxis(
-      scale, kernel_layout.ndim(), {big_ko_axis});
+    wscale = ExpandBiasToMatchAxis(scale, kernel_layout.ndim(), {big_ko_axis});
   } else {
     wscale = ReshapeToMatchAxis(scale, weight->type_as<TensorTypeNode>()->shape,
-      {big_ko_axis, small_ko_axis});
-    if (!wscale.defined())
-      return transformer->NormalCallTransform(call.operator->());
+                                {big_ko_axis, small_ko_axis});
+    if (!wscale.defined()) return transformer->NormalCallTransform(call.operator->());
   }
   weight = Multiply(weight, wscale);
   return Call(call->op, {data, weight}, call->attrs, call->type_args);
