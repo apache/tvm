@@ -92,19 +92,18 @@ RELAY_REGISTER_OP("memory.alloc_storage")
                            });
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor")
-    .set_body_typed(
-        [](Expr storage, Expr offset, tvm::relay::Expr shape,
-           DataType dtype, Array<IndexExpr> assert_shape) {
-          auto attrs = make_object<AllocTensorAttrs>();
-          attrs->dtype = dtype;
-          if (assert_shape.defined()) {
-            attrs->assert_shape = assert_shape;
-          } else {
-            attrs->const_shape = Downcast<Constant>(shape);
-          }
-          static const Op& op = Op::Get("memory.alloc_tensor");
-          return Call(op, {storage, offset, shape}, Attrs(attrs), {});
-        });
+    .set_body_typed([](Expr storage, Expr offset, tvm::relay::Expr shape, DataType dtype,
+                       Array<IndexExpr> assert_shape) {
+      auto attrs = make_object<AllocTensorAttrs>();
+      attrs->dtype = dtype;
+      if (assert_shape.defined()) {
+        attrs->assert_shape = assert_shape;
+      } else {
+        attrs->const_shape = Downcast<Constant>(shape);
+      }
+      static const Op& op = Op::Get("memory.alloc_tensor");
+      return Call(op, {storage, offset, shape}, Attrs(attrs), {});
+    });
 
 std::vector<int64_t> FromConstShape(Constant konst) {
   runtime::NDArray shape = konst->data;
