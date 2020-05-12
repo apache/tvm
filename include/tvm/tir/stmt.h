@@ -893,13 +893,6 @@ constexpr const char* channel_write_advance = "channel_write_advance";
 constexpr const char* pipeline_stage_scope = "pipeline_stage_scope";
 /*! \brief pipeline execution scope, implies the scope can be pipelined. */
 constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
-/*!
- * \brief Mark that this stage is an OpenGL shader. Since OpenGL shader only
- * allows writing out to one element of the output texture, the Provide node
- * gets translated to a special Call::glsl_texture_store statement instead of a
- * Store statement.
- */
-constexpr const char* opengl_stage_scope = "opengl_stage_scope";
 
 /*!
  * \brief Mark that it is in the device scope.
