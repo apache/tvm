@@ -56,10 +56,6 @@ Stmt MakePipeline(const Stage& s, const std::unordered_map<IterVar, Range>& dom_
   pipeline =
       AttrStmtNode::make(s->op, tir::attr::realize_scope, StringImmNode::make(s->scope), pipeline);
 
-  if (s->is_opengl) {
-    pipeline =
-        AttrStmtNode::make(s->op, tir::attr::opengl_stage_scope, StringImmNode::make(""), pipeline);
-  }
   return pipeline;
 }
 
