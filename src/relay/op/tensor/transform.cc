@@ -1011,7 +1011,7 @@ bool FullRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   std::vector<IndexExpr> oshape;
   if (param->shape) {
     const Array<Integer>& cshape_array = param->shape.value();
-    for (int i = 0; i < cshape_array.size(); ++i) {
+    for (size_t i = 0; i < cshape_array.size(); ++i) {
       oshape.push_back(cshape_array[i]);
     }
   } else {
@@ -1072,7 +1072,7 @@ bool InitOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   std::vector<IndexExpr> oshape;
   if (param->shape) {
     const Array<Integer>& cshape_array = param->shape.value();
-    for (int i = 0; i < cshape_array.size(); ++i) {
+    for (size_t i = 0; i < cshape_array.size(); ++i) {
       oshape.push_back(cshape_array[i]);
     }
   } else {
@@ -1705,7 +1705,7 @@ bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   std::vector<IndexExpr> oshape;
   if (param->shape) {
     const Array<Integer>& cshape_array = param->shape.value();
-    for (int i = 0; i < cshape_array.size(); ++i) {
+    for (size_t i = 0; i < cshape_array.size(); ++i) {
       oshape.push_back(cshape_array[i]);
     }
   } else {
