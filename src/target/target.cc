@@ -47,7 +47,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
  * \brief Construct a Target node from the given name and options.
  * \param target_name The major target name. Should be one of
  * {"aocl", "aocl_sw_emu", "c", "cuda", "ext_dev", "hexagon", "hybrid", "llvm",
- *  "metal", "nvptx", "opencl", "opengl", "rocm", "sdaccel", "stackvm", "vulkan"}
+ *  "metal", "nvptx", "opencl", "rocm", "sdaccel", "stackvm", "vulkan"}
  * \param options Additional options appended to the target
  * \return The constructed Target
  */
@@ -126,9 +126,6 @@ Target CreateTarget(const std::string& target_name, const std::vector<std::strin
     t->device_type = kDLAOCL;
     t->keys_array.push_back("aocl");
     t->keys_array.push_back("hls");
-  } else if (target_name == "opengl") {
-    t->device_type = kOpenGL;
-    t->keys_array.push_back("opengl");
   } else if (target_name == "stackvm") {
     t->device_type = kDLCPU;
   } else if (target_name == "ext_dev") {
