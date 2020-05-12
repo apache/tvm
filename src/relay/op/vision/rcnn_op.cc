@@ -52,7 +52,7 @@ bool ROIAlignRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 Expr MakeROIAlign(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spatial_scale,
-                  int sample_ratio, std::string layout) {
+                  int sample_ratio, String layout) {
   auto attrs = make_object<ROIAlignAttrs>();
   attrs->pooled_size = pooled_size;
   attrs->spatial_scale = spatial_scale;
@@ -102,7 +102,7 @@ bool ROIPoolRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 Expr MakeROIPool(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spatial_scale,
-                 std::string layout) {
+                 String layout) {
   auto attrs = make_object<ROIPoolAttrs>();
   attrs->pooled_size = pooled_size;
   attrs->spatial_scale = spatial_scale;
