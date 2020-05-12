@@ -43,7 +43,7 @@
 //
 //
 
-ci_lint = "tvmai/ci-lint:v0.60"
+ci_lint = "tvmai/ci-lint:v0.61"
 ci_gpu = "tvmai/ci-gpu:v0.63"
 ci_cpu = "tvmai/ci-cpu:v0.62"
 ci_wasm = "tvmai/ci-wasm:v0.60"
