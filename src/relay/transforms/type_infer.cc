@@ -742,11 +742,6 @@ Function InferType(const Function& func, const IRModule& mod, const GlobalVar& v
   return Downcast<Function>(func_ret);
 }
 
-Expr InferType(const Expr& expr) {
-  auto mod = IRModule::FromExpr(expr);
-  return InferType(expr, mod);
-}
-
 namespace transform {
 
 Pass InferType() {

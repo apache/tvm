@@ -337,6 +337,16 @@ bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& e
   return matches;
 }
 
+Expr InferType(const Expr& expr) {
+  auto mod = IRModule::FromExpr(expr);
+  mod = transform::InferType()(mod);
+  if (expr.as<FunctionNode>()) {
+    return mod->Lookup("main");
+  } else {
+    return mod->Lookup("main").as<FunctionNode>()->body;
+  }
+}
+
 bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr) {
   auto expr_type = InferType(expr).as<ExprNode>()->checked_type();
   return (StructuralEqual()(op->type, expr_type)) && VisitDFPattern(op->pattern, expr);
