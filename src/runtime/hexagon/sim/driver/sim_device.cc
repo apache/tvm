@@ -49,17 +49,14 @@ static std::string timeNow() {
   time_t time_value = time(NULL);
   tm* pnow = localtime(&time_value);  // NOLINT(runtime/threadsafe_fn)
 
-  snprintf(str, sizeof(str), "[%02d:%02d:%02d]", pnow->tm_hour, pnow->tm_min,
-           pnow->tm_sec);
+  snprintf(str, sizeof(str), "[%02d:%02d:%02d]", pnow->tm_hour, pnow->tm_min, pnow->tm_sec);
   return std::string(str);
 }
 
-#define LOG(FMT, ...)                                                 \
-  fprintf(stderr, "%s %s:%d: " FMT "\n", timeNow().c_str(), __FILE__, \
-          __LINE__, ##__VA_ARGS__)
+#define LOG(FMT, ...) \
+  fprintf(stderr, "%s %s:%d: " FMT "\n", timeNow().c_str(), __FILE__, __LINE__, ##__VA_ARGS__)
 
-using HVX_Vector =
-    int __attribute__((__vector_size__(128))) __attribute__((aligned(128)));
+using HVX_Vector = int __attribute__((__vector_size__(128))) __attribute__((aligned(128)));
 
 static unsigned getVectorLength() {
   HVX_Vector v = __builtin_HEXAGON_V6_lvsplatw_128B(0x01010101);
@@ -146,9 +143,7 @@ class Allocator {
   struct Block {
     Block(void* p, size_t s) : ptr_(p), size_(s), vtcm_(false) {}
     Block(void* p, size_t s, bool v) : ptr_(p), size_(s), vtcm_(v) {}
-    bool operator<(const Block& b) const {
-      return uintptr_t(ptr_) < uintptr_t(b.ptr_);
-    }
+    bool operator<(const Block& b) const { return uintptr_t(ptr_) < uintptr_t(b.ptr_); }
     void* ptr_;
     size_t size_;
     bool vtcm_;
@@ -219,8 +214,7 @@ void* Allocator::vtcm_alloc(unsigned size, size_t align) {
 
 void Allocator::free(void* ptr) {
   LOG("device: freeing %p", ptr);
-  iterator i = std::lower_bound(allocations_.begin(), allocations_.end(),
-                                Block(ptr, 0));
+  iterator i = std::lower_bound(allocations_.begin(), allocations_.end(), Block(ptr, 0));
   assert(i != allocations_.end());
   assert(i->ptr_ == ptr);
   if (!i->vtcm_) ::free(i->ptr_);
@@ -273,9 +267,7 @@ static void setMsg(uint32_t code, uint32_t len, uint32_t va) {
   message_buffer.va = va;
 }
 
-inline void* pointer(uint32_t v) {
-  return reinterpret_cast<void*>(static_cast<uintptr_t>(v));
-}
+inline void* pointer(uint32_t v) { return reinterpret_cast<void*>(static_cast<uintptr_t>(v)); }
 
 inline uint32_t va(const volatile void* p) {
   return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p));
@@ -372,8 +364,7 @@ int dispatch(Environment* env) {
       break;
     }
     case kAllocVtcm: {
-      LOG("device: {kAllocVtcm, %lu, %lx}", message_buffer.len,
-          message_buffer.va);
+      LOG("device: {kAllocVtcm, %lu, %lx}", message_buffer.len, message_buffer.va);
       assert(message_buffer.len == sizeof(MsgAlloc));
       auto* ma = reinterpret_cast<volatile MsgAlloc*>(message_buffer.va);
       void* p = env->alloc.vtcm_alloc(ma->size, ma->align);
@@ -396,8 +387,7 @@ int dispatch(Environment* env) {
       env->dl_handle = dlopen(name, RTLD_LAZY);
       if (env->dl_handle == nullptr) LOG("dlopen: %s\n", dlerror());
       assert(env->dl_handle != nullptr);
-      reinterpret_cast<volatile MsgPointer*>(payload_buffer)->va =
-          va(env->dl_handle);
+      reinterpret_cast<volatile MsgPointer*>(payload_buffer)->va = va(env->dl_handle);
       setMsg(kNone, sizeof(MsgPointer), va(payload_buffer));
       break;
     }
@@ -412,8 +402,7 @@ int dispatch(Environment* env) {
       break;
     }
     case kResolve: {
-      LOG("device: {kResolve, %lu, %lx}", message_buffer.len,
-          message_buffer.va);
+      LOG("device: {kResolve, %lu, %lx}", message_buffer.len, message_buffer.va);
       assert(env->dl_handle != nullptr);
       dlerror();
       const char* name = static_cast<const char*>(pointer(message_buffer.va));
@@ -470,8 +459,7 @@ int acquire_vector_unit(int);
 void release_vector_unit();
 }
 
-static void makePathList(const std::string& arg,
-                         std::vector<std::string>* list) {
+static void makePathList(const std::string& arg, std::vector<std::string>* list) {
   size_t p = 0, e = arg.size();
   std::vector<char> tmp;
 
@@ -497,8 +485,7 @@ static void makePathList(const std::string& arg,
   }
 }
 
-static std::string findInPaths(const std::string& filename,
-                               const std::string& paths) {
+static std::string findInPaths(const std::string& filename, const std::string& paths) {
   std::vector<std::string> path_list;
   makePathList(paths, &path_list);
 
@@ -550,11 +537,11 @@ int main(int argc, char* argv[]) {
   // for Hexagon, but standalone ops can still refer to it. All of
   // required DeviceAPI's functionality is adequately implemented
   // via the CPU device, so remap device_api.hexagon to device_api.cpu.
-  auto* get_global = reinterpret_cast<decltype(&TVMFuncGetGlobal)>(
-      dlsym(rt_handle, "TVMFuncGetGlobal"));
+  auto* get_global =
+      reinterpret_cast<decltype(&TVMFuncGetGlobal)>(dlsym(rt_handle, "TVMFuncGetGlobal"));
   assert(get_global != nullptr);
-  auto* register_global = reinterpret_cast<decltype(&TVMFuncRegisterGlobal)>(
-      dlsym(rt_handle, "TVMFuncRegisterGlobal"));
+  auto* register_global =
+      reinterpret_cast<decltype(&TVMFuncRegisterGlobal)>(dlsym(rt_handle, "TVMFuncRegisterGlobal"));
   assert(register_global != nullptr);
 
   TVMFunctionHandle cpu_api;
