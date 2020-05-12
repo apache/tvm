@@ -621,16 +621,20 @@ inline ObjectRef CopyTo(ObjectRef src, const DLContext& ctx) {
 
 std::vector<int64_t> ToShape(NDArray shape_tensor) {
   std::vector<int64_t> shape;
+  auto rank = shape_tensor.Shape().size();
   auto dtype = shape_tensor.DataType();
-  CHECK(shape_tensor.Shape().size() == 1) << "shape tensor should be a k-length vector.";
 
-  int64_t ndim = shape_tensor.Shape().at(0);
-
-  if (ndim == 0) {
+  // For 0-rank shapes we need to allocate a single scalar.
+  if (rank == 0) {
     return shape;
-  } else {
-    shape.resize(ndim);
   }
+
+  // Otherwise we should be rank-1, and we will extract the number of dimensions
+  // for the output vector.
+  CHECK(shape_tensor.Shape().size() == 1)
+      << "shape tensor should be a k-length vector, found " << shape_tensor.Shape().size();
+  int64_t ndim = shape_tensor.Shape().at(0);
+  shape.resize(ndim);
 
   const DLTensor* dl_tensor = shape_tensor.operator->();
   if (dtype.is_int() && dtype.bits() == 32 && dtype.lanes() == 1) {
