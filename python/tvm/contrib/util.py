@@ -32,7 +32,8 @@ class TempDirectory(object):
     Automatically removes the directory when it went out of scope.
     """
 
-    # When True, all TempDirectory are *NOT* deleted and instead live inside a predicable directory tree.
+    # When True, all TempDirectory are *NOT* deleted and instead live inside a predicable directory
+    # tree.
     DEBUG_MODE = False
 
     # In debug mode, each tempdir is named after the sequence
