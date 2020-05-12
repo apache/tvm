@@ -57,9 +57,7 @@ class ExprPatternNode : public DFPatternNode {
   /*! \brief The expression to match. */
   Expr expr;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("expr", &expr);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("expr", &expr); }
 
   static constexpr const char* _type_key = "relay.dataflow_pattern.ExprPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExprPatternNode, DFPatternNode);
@@ -76,7 +74,6 @@ class ExprPattern : public DFPattern {
   TVM_DLL explicit ExprPattern(Expr expr);
   TVM_DEFINE_OBJECT_REF_METHODS(ExprPattern, DFPattern, ExprPatternNode);
 };
-
 
 /*!
  * \brief A Pattern to Match a Relay Variable
@@ -97,9 +94,7 @@ class VarPatternNode : public DFPatternNode {
   Type type_annotation;
 
   /*! \return The name hint of the variable */
-  const String& name_hint() const {
-    return name;
-  }
+  const String& name_hint() const { return name; }
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
@@ -183,9 +178,7 @@ class TuplePatternNode : public DFPatternNode {
   /*! \brief the fields of the tuple */
   tvm::Array<DFPattern> fields;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("fields", &fields);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("fields", &fields); }
 
   static constexpr const char* _type_key = "relay.dataflow_pattern.TuplePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(TuplePatternNode, DFPatternNode);
@@ -205,7 +198,6 @@ class TupleGetItemPatternNode : public DFPatternNode {
   DFPattern tuple;
   /*! \brief which value to get */
   int index;
-
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tuple", &tuple);
@@ -250,7 +242,6 @@ class AltPattern : public DFPattern {
   TVM_DLL AltPattern(DFPattern left, DFPattern right);
   TVM_DEFINE_OBJECT_REF_METHODS(AltPattern, DFPattern, AltPatternNode);
 };
-
 
 /*!
  * \brief Wildcard Pattern.
@@ -359,7 +350,7 @@ class DominatorPatternNode : public DFPatternNode {
  */
 class DominatorPattern : public DFPattern {
  public:
-  TVM_DLL  DominatorPattern(DFPattern parent, DFPattern path, DFPattern child);
+  TVM_DLL DominatorPattern(DFPattern parent, DFPattern path, DFPattern child);
   TVM_DEFINE_OBJECT_REF_METHODS(DominatorPattern, DFPattern, DominatorPatternNode);
 };
 

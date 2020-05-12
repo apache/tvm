@@ -21,11 +21,12 @@
  * \file src/relay/ir/indexed_graph.cc
  * \brief Utilties for Creating Indexed Graphs.
  */
+#include "indexed_graph.h"
+
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/dataflow_pattern_functor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include "indexed_graph.h"
 
 namespace tvm {
 namespace relay {
