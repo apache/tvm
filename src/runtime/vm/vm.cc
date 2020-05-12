@@ -311,11 +311,9 @@ Instruction Instruction::InvokePacked(Index packed_index, Index arity, Index out
   return instr;
 }
 
-Instruction Instruction::AllocTensor(RegName storage, const std::vector<int64_t>& shape,
-  RegName storage,
-  RegName offset,
-  const std::vector<int64_t>& shape,
-                                     DLDataType dtype, Index dst) {
+Instruction Instruction::AllocTensor(RegName storage, RegName offset,
+                                     const std::vector<int64_t>& shape, DLDataType dtype,
+                                     Index dst) {
   Instruction instr;
   instr.op = Opcode::AllocTensor;
   instr.dst = dst;
@@ -330,11 +328,8 @@ Instruction Instruction::AllocTensor(RegName storage, const std::vector<int64_t>
   return instr;
 }
 
-Instruction Instruction::AllocTensorReg(RegName storage, RegName shape_register, DLDataType dtype,
-  RegName storage,
-  RegName offset,
-  RegName shape_register,
-                                        Index dst) {
+Instruction Instruction::AllocTensorReg(RegName storage, RegName offset, RegName shape_register,
+                                        DLDataType dtype, Index dst) {
   Instruction instr;
   instr.op = Opcode::AllocTensorReg;
   instr.dst = dst;
@@ -526,8 +521,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::AllocTensor: {
-      os << "alloc_tensor $" << instr.dst << " $"
-         << instr.alloc_tensor.storage << " $"
+      os << "alloc_tensor $" << instr.dst << " $" << instr.alloc_tensor.storage << " $"
          << instr.alloc_tensor.offset << " ["
          << StrJoin<int64_t>(instr.alloc_tensor.shape, 0, instr.alloc_tensor.ndim) << "] ";
       DLDatatypePrint(os, instr.alloc_tensor.dtype);
@@ -535,8 +529,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     }
     case Opcode::AllocTensorReg: {
       os << "alloc_tensor_reg $" << instr.dst << " $" << instr.alloc_tensor_reg.storage << " $"
-         << instr.alloc_tensor_reg.storage << " $"
-         << instr.alloc_tensor_reg.offset << " $"
+         << instr.alloc_tensor_reg.storage << " $" << instr.alloc_tensor_reg.offset << " $"
          << instr.alloc_tensor_reg.shape_register << " ";
       DLDatatypePrint(os, instr.alloc_tensor_reg.dtype);
       break;
@@ -800,7 +793,6 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
     packed_funcs_[packed_index] = pf;
   }
 }
-
 
 void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) { ctxs_ = ctxs; }
 

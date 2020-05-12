@@ -558,10 +558,10 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
           } else {
             this->VisitExpr(args[2]);
             auto shape_register = last_register_;
-            Emit(Instruction::AllocTensorReg(
+            Emit(Instruction::AllocTensorReg(storage_register, offset_register, shape_register, dtype,
                                                    NewRegister()));
-                }
-              })
+          }
+          })
           .Match("memory.alloc_storage",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
                    CHECK_EQ(args.size(), 2);
