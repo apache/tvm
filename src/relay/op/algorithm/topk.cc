@@ -48,12 +48,12 @@ bool TopKRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   for (int i = 0; i < ndim; ++i) {
     if (i != axis) {
       out_shape.push_back(data->shape[i]);
-    } else if (const ConstantNode* ck = param->k.as<ConstantNode>()) {
-      int64_t kval = reinterpret_cast<int64_t*>(ck->data->data)[0];
-      if (kval < 1) {
+    } else if (param->k) {
+      const Integer& ck = param->k.value();
+      if (ck->value < 1) {
         out_shape.push_back(data->shape[i]);
       } else {
-        out_shape.push_back(tir::make_const(data->shape[i].dtype(), kval));
+        out_shape.push_back(ck);
       }
     } else {
       out_shape.push_back(Any::make());
@@ -75,7 +75,9 @@ bool TopKRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 Expr MakeTopK(Expr data, Expr k, int axis, String ret_type, bool is_ascend, DataType dtype) {
   auto attrs = make_object<TopKAttrs>();
-  attrs->k = k;
+  if (const auto& ck = k.as<ConstantNode>()) {
+    attrs->k = tvm::Integer(reinterpret_cast<int*>(ck->data->data)[0]);
+  }
   attrs->axis = axis;
   attrs->ret_type = ret_type;
   attrs->is_ascend = is_ascend;

@@ -53,7 +53,7 @@ struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
 };
 
 struct TopKAttrs : public tvm::AttrsNode<TopKAttrs> {
-  Expr k;
+  Optional<Integer> k;
   int axis;
   bool is_ascend;
   std::string ret_type;

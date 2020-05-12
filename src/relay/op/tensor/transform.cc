@@ -1009,10 +1009,10 @@ bool FullRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(shape_shape) << "Parameter shape must have static shape";
 
   std::vector<IndexExpr> oshape;
-  if (const auto* shape = param->shape.as<ConstantNode>()) {
-    int64_t* shape_val = ToVector(shape->data);
-    for (int i = 0; i < shape_shape->value; ++i) {
-      oshape.push_back(tir::make_const(fill_shape->dtype, shape_val[i]));
+  if (param->shape) {
+    const Array<Integer>& cshape_array = param->shape.value();
+    for (int i = 0; i < cshape_array.size(); ++i) {
+      oshape.push_back(cshape_array[i]);
     }
   } else {
     for (int i = 0; i < shape_shape->value; ++i) {
@@ -1033,7 +1033,14 @@ Expr MakeFull(Expr fill_value,
               Expr shape,
               DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
-  attrs->shape = shape;
+  if (const auto* cshape = shape.as<ConstantNode>()) {
+    int64_t* shape_val = ToVector(cshape->data);
+    Array<Integer> cshape_array;
+    for (int i = 0; i < cshape->data.Shape().front(); ++i) {
+      cshape_array.push_back(tvm::Integer(shape_val[i]));
+    }
+    attrs->shape = cshape_array;
+  }
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("full");
   return Call(op, {fill_value, shape}, Attrs(attrs), {});
@@ -1067,10 +1074,10 @@ bool InitOpRel(const Array<Type>& types,
   CHECK(shape_shape) << "Parameter shape must have static shape";
 
   std::vector<IndexExpr> oshape;
-  if (const auto* shape = param->shape.as<ConstantNode>()) {
-    int64_t* shape_val = ToVector(shape->data);
-    for (int i = 0; i < shape_shape->value; ++i) {
-      oshape.push_back(tir::make_const(fill_shape->dtype, shape_val[i]));
+  if (param->shape) {
+    const Array<Integer>& cshape_array = param->shape.value();
+    for (int i = 0; i < cshape_array.size(); ++i) {
+      oshape.push_back(cshape_array[i]);
     }
   } else {
     for (int i = 0; i < shape_shape->value; ++i) {
@@ -1084,7 +1091,14 @@ bool InitOpRel(const Array<Type>& types,
 Expr MakeZeros(Expr shape,
                DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
-  attrs->shape = shape;
+  if (const auto* cshape = shape.as<ConstantNode>()) {
+    int64_t* shape_val = ToVector(cshape->data);
+    Array<Integer> cshape_array;
+    for (int i = 0; i < cshape->data.Shape().front(); ++i) {
+      cshape_array.push_back(tvm::Integer(shape_val[i]));
+    }
+    attrs->shape = cshape_array;
+  }
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("zeros");
   return Call(op, {shape}, Attrs(attrs), {});
@@ -1105,7 +1119,14 @@ RELAY_REGISTER_OP("zeros")
 Expr MakeOnes(Expr shape,
               DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
-  attrs->shape = shape;
+  if (const auto* cshape = shape.as<ConstantNode>()) {
+    int64_t* shape_val = ToVector(cshape->data);
+    Array<Integer> cshape_array;
+    for (int i = 0; i < cshape->data.Shape().front(); ++i) {
+      cshape_array.push_back(tvm::Integer(shape_val[i]));
+    }
+    attrs->shape = cshape_array;
+  }
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("ones");
   return Call(op, {shape}, Attrs(attrs), {});
@@ -1690,10 +1711,10 @@ bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   CHECK(shape_shape) << "Parameter shape must have static shape";
 
   std::vector<IndexExpr> oshape;
-  if (const auto* shape = param->shape.as<ConstantNode>()) {
-    int64_t* shape_val = ToVector(shape->data);
-    for (int i = 0; i < shape_shape->value; ++i) {
-      oshape.push_back(tir::make_const(target_shape->dtype, shape_val[i]));
+  if (param->shape) {
+    const Array<Integer>& cshape_array = param->shape.value();
+    for (int i = 0; i < cshape_array.size(); ++i) {
+      oshape.push_back(cshape_array[i]);
     }
   } else {
     for (int i = 0; i < shape_shape->value; ++i) {
@@ -1707,7 +1728,14 @@ bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 Expr MakeBroadCastTo(Expr data, Expr shape) {
   static const Op& op = Op::Get("broadcast_to");
   auto attrs = make_object<InitOpAttrs>();
-  attrs->shape = shape;
+  if (const auto* cshape = shape.as<ConstantNode>()) {
+    int64_t* shape_val = ToVector(cshape->data);
+    Array<Integer> cshape_array;
+    for (int i = 0; i < cshape->data.Shape().front(); ++i) {
+      cshape_array.push_back(tvm::Integer(shape_val[i]));
+    }
+    attrs->shape = cshape_array;
+  }
   return Call(op, {data, shape}, Attrs(attrs), {});
 }
 
