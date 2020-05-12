@@ -91,8 +91,8 @@ bool UpSamplingRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 // Positional relay function to create upsampling operator
 // used by frontend FFI.
-Expr MakeUpSampling(Expr data, double scale_h, double scale_w, String layout,
-                    String method, bool align_corners) {
+Expr MakeUpSampling(Expr data, double scale_h, double scale_w, String layout, String method,
+                    bool align_corners) {
   auto attrs = make_object<UpSamplingAttrs>();
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
