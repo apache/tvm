@@ -130,7 +130,7 @@ class DFPattern(Node):
 
     def dominates(self, parent, path=None):
         """
-        Create a dominator for this partern
+        Create a dominator for this pattern
 
         Parameters
         ----------
@@ -150,7 +150,7 @@ class DFPattern(Node):
 
     def optional(self, option_constructor):
         """
-        Create a dominator for this partern
+        Create a optional user of this pattern
 
         Parameters
         ----------
