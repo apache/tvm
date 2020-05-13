@@ -987,6 +987,7 @@ inline Tensor tile(const Tensor& x, Array<Integer> reps, std::string name = "T_t
  *
  * \param data The source array.
  * \param indices The indices of the values to extract.
+ * \param one_dim_support To allow user to input 1 dim tensor.
  * \param name The name of the operation.
  * \param tag The tag to mark the operation.
  *
