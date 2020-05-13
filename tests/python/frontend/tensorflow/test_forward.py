@@ -3188,7 +3188,7 @@ def test_spop_function_invocation():
                                                         Tout=[dtypes.float32], f=fun3, name="SpopFnInvocation")
         compare_tf_with_tvm([],[], 'SpopFnInvocation:0', mode='vm', init_global_variables=True)
 
-def test_spop_placeholder_default():
+def test_spop_placeholder_two():
 
     with tf.Graph().as_default():
         data = np.ones([1], dtype=int).astype(np.int32)
@@ -3198,94 +3198,10 @@ def test_spop_placeholder_default():
 
         @function.Defun(*[tf.int32])
         def pl_with_default(pl):
-            # tpl = tf.convert_to_tensor(pl, dtype=tf.int32)
             return tf.expand_dims(tf.multiply(pl, pl), 0)
-            # return tf.expand_dims(tf.multiply(pl, pl), 0)
-
-        # fn = pl_with_default(pl1)
-        #
-        # with tf.Session() as sess:
-        #     sess.run(tf.global_variables_initializer())
-        #     print("hello ji..the output is as follows: ")
-        #     sess.run(fn)
-        #     print(sess.run(fn))
-
 
         z = gen_functional_ops.StatefulPartitionedCall(args=[tpl], Tout=[tf.int32], f=pl_with_default)
-        compare_tf_with_tvm(data, ['pl1:0'],
-                            'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
-
-        # in_a = tf.placeholder(dtype=tf.int32, shape=(1, 2), name="in_a")
-        # @function.Defun(*[tf.int32])
-        # def forward(x):
-        #     W = tf.Variable([1,2])
-        #     b = tf.Variable([1,3])
-        #     # b = tf.get_variable("b", initializer=tf.zeros(shape=(2)))
-        #     return W * x + b
-        #
-        # # out_a = forward(in_a)
-        # data = [1,0]
-        # z = gen_functional_ops.StatefulPartitionedCall(args=[in_a], Tout=[tf.int32], f=forward)
-        # compare_tf_with_tvm(data, 'in_a:0',
-        #                     'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
-# *******************************************************************
-        # a = tf.constant(5, tf.int32, name='A')
-        # pl = tf.placeholder(tf.int32, name='Pl1', shape=(1))
-        #
-        # @function.Defun(tf.int32, tf.int32)
-        # def Forward(x, y):
-        #     return tf.add(x, y)
-        #     # return tf.expand_dims(tf.convert_to_tensor(tf.add(x, y, name="Forward"), dtype=tf.int32),0)
-        #
-        # z = gen_functional_ops.StatefulPartitionedCall(args=[a, pl], Tout=[tf.int32], f=Forward)
-        # input_shape = [1]
-        # x = np.arange(1, dtype=np.int32).reshape(input_shape)
-        # compare_tf_with_tvm([x], ['Pl1:0'],
-        #                     'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
-
-def test_spop_placeholder_dimension_error():
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        pl1 = tf.placeholder(tf.int32, name="pl1")
-        pl2 = tf.placeholder(tf.int32, name="pl2")
-        data = np.array([[-1, 1], [2, -2]], dtype=np.int32)
-        data2 = np.array([[-2, 3], [4, -6]], dtype=np.int32)
-
-        @function.Defun(*[tf.int32] * 2)
-        def Forward(x, y):
-        # def Forward(x, y) ->[tf.int32]:
-            # Do not create placeholders in Defun methods..placeholders should be created outside of Defun()..and can be passed inside it
-            print(x.name)
-            print(y.name)
-            return tf.add(x, y)
-
-        z = gen_functional_ops.StatefulPartitionedCall(args=[pl1, pl2], Tout=[tf.int32], f=Forward)
-
-        feed = {'pl1:0': data, 'pl2:0': data2}
-        compare_tf_with_tvm([data, data2], ['pl1:0', 'pl2:0'],
-                            'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
-
-def test_frontend_placeholder_invalid_input_index_error():
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        in_data1 = np.random.uniform(-5, 5, size=(3, 4, 5)).astype(np.float32)
-        var1 = tf.Variable(in_data1, name='in1')
-        place1 = array_ops.placeholder_with_default(var1, shape=in_data1.shape, name='Place1')
-
-        in_data2 = np.random.uniform(-5, 5, size=(3, 4, 5)).astype(np.float32)
-        place2 = array_ops.placeholder(
-            shape=in_data1.shape, dtype=in_data1.dtype, name='Place2')
-
-        @function.Defun(*[dtypes.float32] * 2)
-        def Body1(x, y):
-            out1 = tf.math.add(var1, x, name='out1')
-            out2 = tf.math.add(out1, y, name='out2')
-            return out2
-
-        op = gen_functional_ops.StatefulPartitionedCall(args=[place1, place2],
-                                                        Tout=[dtypes.float32], f=Body1)
-
-        compare_tf_with_tvm([in_data1, in_data2], ['Place1:0', 'Place2:0'], 'out2:0', mode='vm', init_global_variables=True)
+        compare_tf_with_tvm(data, ['pl1:0'], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
 def test_spop_placeholder_three():
     tf.disable_eager_execution()
@@ -3293,7 +3209,24 @@ def test_spop_placeholder_three():
     t1_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
     t2 = tf.placeholder(tf.int32, (3, 3, 3), "t2")
     t2_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
-    @tf.function(input_signature=[tf.TensorSpec(shape=(3,3,3), dtype=tf.int32), tf.TensorSpec(shape=(3,3,3), dtype=tf.int32)])
+
+    # @tf.function(input_signature=[tf.TensorSpec(shape=(3, 3, 3), dtype=tf.int32),
+    #                               tf.TensorSpec(shape=(3, 3, 3), dtype=tf.int32)])
+    @tf.function()
+    def add(x, y):
+        return tf.add(x, y, "add_t1_t2")
+    t3 = add(t1, t2)
+    compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
+
+def test_spop_placeholder_four():
+    tf.disable_eager_execution()
+    t1 = tf.placeholder(tf.int32,name="t1")
+    t1_data = np.array([[-1, 1, 3], [2, -2, 4], [2, -3, 14]], dtype=np.int32)
+    t2 = tf.placeholder(tf.int32, name="t2")
+    t2_data = np.array([[-2, 1, 2], [12, -2, 14], [12, -3, 4]], dtype=np.int32)
+
+    @tf.function(input_signature=[tf.TensorSpec(shape=(3, 3, 3), dtype=tf.int32),
+                                  tf.TensorSpec(shape=(3, 3, 3), dtype=tf.int32)])
     def add(x, y):
         return tf.add(x, y, "add_t1_t2")
     t3 = add(t1, t2)
@@ -3320,11 +3253,14 @@ def test_spop_placeholder_one():
         data3 = np.array([[-2, 3], [4, -6]], dtype=np.int32)
         z1 = gen_functional_ops.StatefulPartitionedCall(args=[pl1,pl2], Tout=[tf.int32],f=Forward)
         z2 = z1 + pl3
-
-        feed = {"pl1:0": data,"pl2:0": data2}
-        compare_tf_with_tvm([data, data2, data3], ['pl1:0', 'pl2:0', 'pl3:0'], ['StatefulPartitionedCall:0',z2.name],
+        compare_tf_with_tvm([data, data2], ['pl1:0', 'pl2:0'],
+                            'StatefulPartitionedCall:0',
                             mode='vm',
                             init_global_variables=True)
+        # compare_tf_with_tvm([data, data2, data3], ['pl1:0', 'pl2:0', 'pl3:0'],
+        #                     ['StatefulPartitionedCall:0',z2.name],
+        #                     mode='vm',
+        #                     init_global_variables=True)
 
 def test_spop_arithmetic():
     tf.reset_default_graph()
@@ -3379,7 +3315,6 @@ def test_spop_control_flow_two():
 def test_spop_control_flow():
     test_spop_control_flow_one()
     # test_spop_control_flow_two()
-    test_spop_placeholder_three()
 
 def test_spop_variables():
     tf.reset_default_graph()
@@ -3433,9 +3368,9 @@ def test_spop_constants():
 
 def test_spop_placeholder():
     test_spop_placeholder_one()
-    test_frontend_placeholder_invalid_input_index_error()
-    test_spop_placeholder_dimension_error()
-    test_spop_placeholder_default()
+    test_spop_placeholder_two()
+    test_spop_placeholder_three()
+    # test_spop_placeholder_four()
 
 def test_spop():
     test_spop_function_invocation()
@@ -3443,8 +3378,7 @@ def test_spop():
     test_spop_control_flow()
     test_spop_variables()
     test_spop_constants()
-    test_spop_placeholder_one()
-    # test_spop_placeholder()
+    test_spop_placeholder()
 
 
 #######################################################################
