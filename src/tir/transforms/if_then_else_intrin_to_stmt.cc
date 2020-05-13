@@ -136,7 +136,7 @@ class SyncChecker : public SubExprVisitor<bool> {
  */
 class IfThenElseFinder : public SubExprVisitor<std::pair<PrimExpr, int>> {
  public:
-  IfThenElseFinder() : SubExprVisitor(std::pair<PrimExpr, int>(nullptr, 0)) {}
+  IfThenElseFinder() : SubExprVisitor(std::pair<PrimExpr, int>(PrimExpr{}, 0)) {}
 
  protected:
   void VisitExpr_(const CallNode* op) override {
