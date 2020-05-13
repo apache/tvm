@@ -22,9 +22,10 @@
  * \brief Canonicalize cast expressions to make operator fusion more efficient.
  */
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+
 #include "pass_util.h"
 #include "pattern_util.h"
 
@@ -112,8 +113,7 @@ class CastCanonicalizer : public ExprMutator {
             const CallNode* new_call = new_expr.as<CallNode>();
             CHECK(new_call);
             CHECK(new_call->op == cast_op_);
-            return Call(new_call->op, new_call->args, new_call->attrs,
-                 new_call->type_args);
+            return Call(new_call->op, new_call->args, new_call->attrs, new_call->type_args);
           }
         }
       }
@@ -122,22 +122,19 @@ class CastCanonicalizer : public ExprMutator {
   }
 };
 
-Expr CanonicalizeCast(const Expr& e) {
-  return CastCanonicalizer().Mutate(e);
-}
+Expr CanonicalizeCast(const Expr& e) { return CastCanonicalizer().Mutate(e); }
 
 namespace transform {
 
 Pass CanonicalizeCast() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(CanonicalizeCast(f));
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(CanonicalizeCast(f));
+      };
   return CreateFunctionPass(pass_func, 3, "CanonicalizeCast", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.CanonicalizeCast")
-.set_body_typed(CanonicalizeCast);
+TVM_REGISTER_GLOBAL("relay._transform.CanonicalizeCast").set_body_typed(CanonicalizeCast);
 
 }  // namespace transform
 

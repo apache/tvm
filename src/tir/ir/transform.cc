@@ -21,15 +21,13 @@
  * \file tir/ir/transform.cc
  * \brief TIR specific transformation passes.
  */
-#include <tvm/runtime/registry.h>
 #include <tvm/node/repr_printer.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/transform.h>
-
 
 namespace tvm {
 namespace tir {
 namespace transform {
-
 
 /*!
  * \brief Function level pass that applies transformations to all
@@ -43,9 +41,7 @@ class PrimFuncPassNode : public PassNode {
   /*! \brief The pass function called on each. */
   runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pass_info", &pass_info);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("pass_info", &pass_info); }
 
   /*!
    * \brief Run a function pass on given pass context.
@@ -90,8 +86,7 @@ PrimFuncPass::PrimFuncPass(
 }
 
 // Perform Module -> Module optimizations at the PrimFunc level.
-IRModule PrimFuncPassNode::operator()(IRModule mod,
-                                      const PassContext& pass_ctx) const {
+IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
   CHECK(mod.defined());
   pass_ctx.Trace(mod, pass_info, true);
@@ -123,9 +118,7 @@ IRModule PrimFuncPassNode::operator()(IRModule mod,
 
 Pass CreatePrimFuncPass(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level,
-    const std::string& name,
-    const tvm::Array<runtime::String>& required) {
+    int opt_level, const std::string& name, const tvm::Array<runtime::String>& required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return PrimFuncPass(pass_func, pass_info);
 }
@@ -133,18 +126,16 @@ Pass CreatePrimFuncPass(
 TVM_REGISTER_NODE_TYPE(PrimFuncPassNode);
 
 TVM_REGISTER_GLOBAL("tir.transform.CreatePrimFuncPass")
-.set_body_typed([](runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-    PassInfo pass_info) {
-  return PrimFuncPass(pass_func, pass_info);
-});
+    .set_body_typed(
+        [](runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
+           PassInfo pass_info) { return PrimFuncPass(pass_func, pass_info); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<PrimFuncPassNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const PrimFuncPassNode*>(ref.get());
-  const PassInfo info = node->Info();
-  p->stream << "PrimFuncPass(" << info->name
-            << ", opt_level=" << info->opt_level << ")";
-});
+    .set_dispatch<PrimFuncPassNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const PrimFuncPassNode*>(ref.get());
+      const PassInfo info = node->Info();
+      p->stream << "PrimFuncPass(" << info->name << ", opt_level=" << info->opt_level << ")";
+    });
 
 }  // namespace transform
 }  // namespace tir

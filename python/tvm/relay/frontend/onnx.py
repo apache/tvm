@@ -325,7 +325,6 @@ class Conv(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         # Use shape of input to determine convolution type.
         input_shape = infer_shape(inputs[0])
-
         if 'auto_pad' in attr:
             attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
             if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
@@ -350,7 +349,10 @@ class Conv(OnnxOpConverter):
             attr.pop('auto_pad')
         elif len(attr['kernel_shape']) == 2:
             sym_pad = True
-            padding = attr['pads']
+            if 'pads' in attr:
+                padding = attr['pads']
+            else:
+                padding = [0, 0, 0, 0]
             for i in range(0, len(padding), 2):
                 sym_pad = sym_pad and padding[i] == padding[i + 1]
 
@@ -557,6 +559,31 @@ class Pad(OnnxOpConverter):
             },
             )(inputs, attr, params)
 
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        pad_width = []
+        pads = infer_value_simulated(inputs[1], params).asnumpy()
+        if len(inputs) == 3:
+            value = infer_value_simulated(inputs[2], params).asnumpy().item()
+        else:
+            value = 0
+        attr["pad_value"] = value
+        dims = int(len(pads) / 2)
+        for i in range(dims):
+            pad_width.append((pads[i], pads[i+dims]))
+        attr['pad_width'] = pad_width
+        pad_mode = attr.get('mode', b'constant').decode('utf-8')
+        if pad_mode in ['constant', 'edge', 'reflect']:
+            attr['pad_mode'] = pad_mode
+            attr.pop('mode', None)
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                'Value ' + pad_mode + ' in attribute "mode" is invalid for operator Pad.')
+
+        return AttrCvt('pad')(inputs[:1], attr, params)
+
+
+
 
 class ParametricSoftPlus(OnnxOpConverter):
     """ Operator converter for ParametricSoftPlus.
@@ -576,7 +603,12 @@ class Prelu(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "Prelu need 2 inputs, {} given".format(len(inputs))
-        return _op.nn.prelu(inputs[0], inputs[1])
+        alpha_shape = infer_shape(inputs[1])
+        if len(alpha_shape) != 1:
+            alpha = _op.reshape(inputs[1], (-1,))
+        else:
+            alpha = inputs[1]
+        return _op.nn.prelu(inputs[0], alpha)
 
 
 class Reciprocal(OnnxOpConverter):
@@ -616,7 +648,7 @@ class Reshape(OnnxOpConverter):
     def _impl_v5(cls, inputs, attr, params):
         if get_name(inputs[1]) in params:
             # pop shape out of parameters since it wont be needed later.
-            shape = tuple(params.pop(inputs[1].name_hint).asnumpy())
+            shape = tuple(params.pop(inputs[1].name_hint).asnumpy().astype("int32"))
             out = _op.reshape(inputs[0], shape)
         else:
             data, shape = inputs
@@ -782,7 +814,10 @@ class Upsample(OnnxOpConverter):
         if not scales:
             #Here we are going to higher OPSET version.
             assert len(inputs) == 2, "Upsample op take 2 inputs, {} given".format(len(inputs))
-            scales = params[inputs[1].name_hint].asnumpy()
+            if get_name(inputs[1]) in params:
+                scales = params[inputs[1].name_hint].asnumpy()
+            else:
+                scales = infer_value_simulated(inputs[1], params).asnumpy()
             inputs = inputs[:1]
         assert scales[0] == 1.0 and scales[1] == 1.0
         input_shape = infer_shape(inputs[0])
@@ -1067,6 +1102,11 @@ class ReduceProd(Reduce):
     """ Operator converter for ReduceProd.
     """
     name = 'prod'
+
+class ReduceLogSumExp(Reduce):
+    """ Operator converter for ReduceLogSumExp.
+    """
+    name = 'logsumexp'
 
 class ArgMax(OnnxOpConverter):
     """ Operator converter for ArgMax.
@@ -1477,6 +1517,8 @@ class NonZero(OnnxOpConverter):
             raise ValueError("Expect 1 input only")
 
         output = AttrCvt(op_name='argwhere')(inputs, attr, params)
+        # ONNX NonZero always outputs int64
+        output = _op.cast(output, "int64")
         return _op.transpose(output, axes=(1, 0))
 
 class TopK(OnnxOpConverter):
@@ -1585,6 +1627,17 @@ def _get_convert_map(opset):
         'Greater': Greater.get_converter(opset),
         'Less': Less.get_converter(opset),
         'Log': Renamer('log'),
+        'ACos': Renamer('acos'),
+        'ACosh': Renamer('acosh'),
+        'ASin': Renamer('asin'),
+        'ASinh': Renamer('asinh'),
+        'ATan': Renamer('atan'),
+        'ATanh': Renamer('atanh'),
+        'Cos': Renamer('cos'),
+        'Cosh': Renamer('cosh'),
+        'Sin': Renamer('sin'),
+        'Sinh': Renamer('sinh'),
+        'Tan': Renamer('tan'),
         'Tanh': Renamer('tanh'),
         'Pow': Renamer('power'),
         'PRelu': Prelu.get_converter(opset),
@@ -1630,8 +1683,7 @@ def _get_convert_map(opset):
         'ReduceSum': ReduceSum.get_converter(opset),
         'ReduceMean': ReduceMean.get_converter(opset),
         'ReduceProd': ReduceProd.get_converter(opset),
-        # 'ReduceProd'
-        # 'ReduceLogSumExp'
+        'ReduceLogSumExp': ReduceLogSumExp.get_converter(opset),
 
         #defs/sorting
         'ArgMax': ArgMax.get_converter(opset),

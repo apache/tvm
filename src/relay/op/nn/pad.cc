@@ -21,12 +21,14 @@
  * \file pad.cc
  * \brief Implementation of operator pad
  */
+#include <topi/nn.h>
+#include <tvm/relay/attrs/nn.h>
+#include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/op.h>
-#include <tvm/relay/op.h>
-#include <tvm/relay/attrs/nn.h>
-#include <topi/nn.h>
+
 #include <vector>
+
 #include "../op_common.h"
 
 namespace tvm {
@@ -35,13 +37,11 @@ namespace relay {
 // relay.nn.pad
 TVM_REGISTER_NODE_TYPE(PadAttrs);
 
-Array<Array<Layout> > PadInferCorrectLayout(
-    const Attrs& attrs,
-    const Array<Layout>& new_in_layouts,
-    const Array<Layout>& old_in_layouts,
-    const Array<tvm::relay::Type> &old_in_types) {
+Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layout>& new_in_layouts,
+                                           const Array<Layout>& old_in_layouts,
+                                           const Array<tvm::relay::Type>& old_in_types) {
   // NOTE: Discard "const" qualifier here.
-  PadAttrs *params = const_cast<PadAttrs*>(attrs.as<PadAttrs>());
+  PadAttrs* params = const_cast<PadAttrs*>(attrs.as<PadAttrs>());
 
   Layout ret;
   // If new_in_layouts are defined, this code tries to modify the layout.
@@ -108,12 +108,10 @@ Array<Array<Layout> > PadInferCorrectLayout(
     }
   }
 
-  return Array<Array<Layout> >{{ret}, {ret}};
+  return Array<Array<Layout>>{{ret}, {ret}};
 }
 
-bool PadRel(const Array<Type>& types,
-            int num_inputs,
-            const Attrs& attrs,
+bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
             const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -124,28 +122,26 @@ bool PadRel(const Array<Type>& types,
 
   // check that pad widths match lengths
   CHECK(data->shape.size() == param->pad_width.size())
-    << "There should be as many pad width pairs as shape dimensions "
-    << "but the shape has " << data->shape.size() << " dimensions "
-    << "and there are " << param->pad_width.size() << " pad width pairs.";
+      << "There should be as many pad width pairs as shape dimensions "
+      << "but the shape has " << data->shape.size() << " dimensions "
+      << "and there are " << param->pad_width.size() << " pad width pairs.";
 
   // each pad width element should be a pair of positive integers
   std::vector<IndexExpr> oshape;
   for (size_t i = 0; i < param->pad_width.size(); i++) {
     CHECK(param->pad_width[i].size() == 2)
-      << "Each pad width element should be a pair but at index " << i
-      << " there are " << param->pad_width[i].size() << " elements.";
+        << "Each pad width element should be a pair but at index " << i << " there are "
+        << param->pad_width[i].size() << " elements.";
 
     auto width1 = tir::as_const_int(param->pad_width[i][0]);
     auto width2 = tir::as_const_int(param->pad_width[i][1]);
     CHECK(width1 != nullptr);
     CHECK(width2 != nullptr);
 
-    CHECK(*width1 >= 0)
-      << "Param width elements should be positive but first pad width at "
-      << "index " << i << " is " << *width1 << ".";
-    CHECK(*width2 >= 0)
-      << "Param width elements should be positive but first pad width at "
-      << "index " << i << " is " << *width2 << ".";
+    CHECK(*width1 >= 0) << "Param width elements should be positive but first pad width at "
+                        << "index " << i << " is " << *width1 << ".";
+    CHECK(*width2 >= 0) << "Param width elements should be positive but first pad width at "
+                        << "index " << i << " is " << *width2 << ".";
 
     if (!data->shape[i].as<tir::AnyNode>()) {
       auto padding = tir::make_const(data->shape[i].dtype(), *width1 + *width2);
@@ -155,21 +151,17 @@ bool PadRel(const Array<Type>& types,
     }
   }
 
-  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape),
-                                                  data->dtype));
+  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape), data->dtype));
   return true;
 }
 
-Array<te::Tensor> PadCompute(const Attrs& attrs,
-                             const Array<te::Tensor>& inputs,
+Array<te::Tensor> PadCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                              const Type& out_type) {
   const auto* param = attrs.as<PadAttrs>();
   CHECK(param != nullptr);
 
   auto pad_width = param->pad_width;
-  CHECK(pad_width.size() == inputs[0].ndim() &&
-    pad_width[0].size() == 2)
-    << "Illegal pad_width";
+  CHECK(pad_width.size() == inputs[0].ndim() && pad_width[0].size() == 2) << "Illegal pad_width";
   Array<IndexExpr> pad_before;
   for (size_t i = 0; i < pad_width.size(); ++i) {
     pad_before.push_back(pad_width[i][0]);
@@ -179,18 +171,13 @@ Array<te::Tensor> PadCompute(const Attrs& attrs,
     pad_after.push_back(pad_width[i][1]);
   }
   const auto* out_ttype = out_type.as<TensorTypeNode>();
-  return Array<te::Tensor>{ topi::pad(inputs[0], pad_before, pad_after,
-                                  tvm::tir::make_const(out_ttype->dtype, param->pad_value),
-                                  "T_pad",
-                                  topi::kElementWise,
-                                  param->pad_mode) };
+  return Array<te::Tensor>{topi::pad(inputs[0], pad_before, pad_after,
+                                     tvm::tir::make_const(out_ttype->dtype, param->pad_value),
+                                     "T_pad", topi::kElementWise, param->pad_mode)};
 }
 
 // Handler to create a call to the padding op used by front-end FFI
-Expr MakePad(Expr data,
-             Array<Array<IndexExpr> > pad_width,
-             double pad_value,
-             std::string pad_mode) {
+Expr MakePad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value, std::string pad_mode) {
   auto attrs = make_object<PadAttrs>();
   attrs->pad_value = pad_value;
   attrs->pad_width = std::move(pad_width);
@@ -199,29 +186,25 @@ Expr MakePad(Expr data,
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.pad")
-.set_body_typed(MakePad);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.pad").set_body_typed(MakePad);
 
 RELAY_REGISTER_OP("nn.pad")
-.describe(R"code(Pad for n-D tensor.
+    .describe(R"code(Pad for n-D tensor.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<PadAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(2)
-.add_type_rel("Pad", PadRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PadInferCorrectLayout)
-.set_attr<TOpPattern>("TOpPattern", kInjective)
-.set_attr<FTVMCompute>("FTVMCompute", PadCompute);
-
+    .set_attrs_type<PadAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(2)
+    .add_type_rel("Pad", PadRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PadInferCorrectLayout)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<FTVMCompute>("FTVMCompute", PadCompute);
 
 // relay.nn.mirror_pad
 TVM_REGISTER_NODE_TYPE(MirrorPadAttrs);
 
-bool MirrorPadRel(const Array<Type>& types,
-                  int num_inputs,
-                  const Attrs& attrs,
+bool MirrorPadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -232,40 +215,37 @@ bool MirrorPadRel(const Array<Type>& types,
 
   // check that pad widths match lengths
   CHECK(data->shape.size() == param->pad_width.size())
-    << "There should be as many pad width pairs as shape dimensions "
-    << "but the shape has " << data->shape.size() << " dimensions "
-    << "and there are " << param->pad_width.size() << " pad width pairs.";
+      << "There should be as many pad width pairs as shape dimensions "
+      << "but the shape has " << data->shape.size() << " dimensions "
+      << "and there are " << param->pad_width.size() << " pad width pairs.";
 
   // each pad width element should be a pair of positive integers
   std::vector<IndexExpr> oshape;
   for (size_t i = 0; i < param->pad_width.size(); i++) {
     CHECK(param->pad_width[i].size() == 2)
-      << "Each pad width element should be a pair but at index " << i
-      << " there are " << param->pad_width[i].size() << " elements.";
+        << "Each pad width element should be a pair but at index " << i << " there are "
+        << param->pad_width[i].size() << " elements.";
 
     auto width1 = tir::as_const_int(param->pad_width[i][0]);
     auto width2 = tir::as_const_int(param->pad_width[i][1]);
     CHECK(width1 != nullptr);
     CHECK(width2 != nullptr);
 
-    CHECK(*width1 >= 0)
-      << "Param width elements should be positive but first pad width at "
-      << "index " << i << " is " << *width1 << ".";
-    CHECK(*width2 >= 0)
-      << "Param width elements should be positive but first pad width at "
-      << "index " << i << " is " << *width2 << ".";
+    CHECK(*width1 >= 0) << "Param width elements should be positive but first pad width at "
+                        << "index " << i << " is " << *width1 << ".";
+    CHECK(*width2 >= 0) << "Param width elements should be positive but first pad width at "
+                        << "index " << i << " is " << *width2 << ".";
 
     auto padding = tir::make_const(data->shape[i].dtype(), *width1 + *width2);
     oshape.push_back(data->shape[i] + padding);
   }
 
-  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape),
-                                                  data->dtype));
+  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape), data->dtype));
   return true;
 }
 
 // Handler to create a call to the padding op used by front-end FFI
-Expr MakeMirrorPad(Expr data, Array<Array<IndexExpr> > pad_width, std::string mode) {
+Expr MakeMirrorPad(Expr data, Array<Array<IndexExpr>> pad_width, std::string mode) {
   auto attrs = make_object<MirrorPadAttrs>();
   attrs->mode = mode;
   attrs->pad_width = std::move(pad_width);
@@ -273,19 +253,18 @@ Expr MakeMirrorPad(Expr data, Array<Array<IndexExpr> > pad_width, std::string mo
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.mirror_pad")
-.set_body_typed(MakeMirrorPad);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.mirror_pad").set_body_typed(MakeMirrorPad);
 
 RELAY_REGISTER_OP("nn.mirror_pad")
-.describe(R"code(MirrorPad for n-D tensor.
+    .describe(R"code(MirrorPad for n-D tensor.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<MirrorPadAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(2)
-.add_type_rel("MirrorPad", MirrorPadRel)
-.set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_attrs_type<MirrorPadAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(2)
+    .add_type_rel("MirrorPad", MirrorPadRel)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay
 }  // namespace tvm

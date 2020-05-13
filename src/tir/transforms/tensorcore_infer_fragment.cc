@@ -21,17 +21,17 @@
  * \brief Infer TensorCore metadata from tensor intrinsic.
  * \file tensorcore_fragment.cc
  */
-#include <tvm/tir/expr.h>
-#include <tvm/tir/transform.h>
-#include <tvm/tir/stmt_functor.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
 
 #include <unordered_map>
 #include <unordered_set>
 
-#include "storage_access.h"
-#include "ir_util.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "ir_util.h"
+#include "storage_access.h"
 
 namespace tvm {
 namespace tir {
@@ -47,7 +47,7 @@ class FragmentGetter : public StmtExprVisitor {
     std::string layout;
     FragmentInfo() = default;
     FragmentInfo(int _m, int _n, int _k, const std::string& _layout)
-      : m(_m), n(_n), k(_k), layout(_layout) {}
+        : m(_m), n(_n), k(_k), layout(_layout) {}
   };
 
   void VisitExpr_(const CallNode* op) final {
@@ -136,13 +136,12 @@ class FragmentGetter : public StmtExprVisitor {
 // Check shape of fragment making sure it is a valid shape for tvm_mma_sync
 class FragmentChecker : public StmtExprVisitor {
  public:
-  explicit FragmentChecker(const FragmentGetter &getter) : fragment_getter(getter) {}
+  explicit FragmentChecker(const FragmentGetter& getter) : fragment_getter(getter) {}
 
   void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     // Check shape when calling tvm_mma_sync
-    if (op->is_intrinsic(intrinsic::tvm_mma_sync) ||
-        op->is_intrinsic(intrinsic::tvm_bmma_sync)) {
+    if (op->is_intrinsic(intrinsic::tvm_mma_sync) || op->is_intrinsic(intrinsic::tvm_bmma_sync)) {
       CHECK_EQ(op->args.size(), 8U);
       const VarNode* buffer_var_d = op->args[0].as<VarNode>();
       const VarNode* buffer_var_a = op->args[2].as<VarNode>();
@@ -170,13 +169,13 @@ class FragmentChecker : public StmtExprVisitor {
     return info1.m == info2.m && info1.n == info2.n && info1.k == info2.k;
   }
   // Fragment infomation
-  const FragmentGetter &fragment_getter;
+  const FragmentGetter& fragment_getter;
 };
 
 // Store the metadata into attributes
 class InferFragmenter : public StmtMutator {
  public:
-  explicit InferFragmenter(const FragmentGetter &getter) : fragment_getter(getter) {}
+  explicit InferFragmenter(const FragmentGetter& getter) : fragment_getter(getter) {}
 
   Stmt VisitStmt_(const AllocateNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
@@ -186,15 +185,14 @@ class InferFragmenter : public StmtMutator {
       FragmentGetter::FragmentInfo info = fragment_getter.fragments.at(buffer);
 
       // Add shape attribute to all fragments
-      std::string shape = std::to_string(info.m) + ", " +
-                          std::to_string(info.n) + ", " +
-                          std::to_string(info.k);
+      std::string shape =
+          std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
       PrimExpr shape_expr = StringImmNode::make(shape);
       Stmt shape_attr = AttrStmtNode::make(op->buffer_var, attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
         // Add shape attribute to matrix_a and matrix_b
         Stmt layout_attr = AttrStmtNode::make(op->buffer_var, attr::fragment_layout,
-                                          StringImmNode::make(info.layout), shape_attr);
+                                              StringImmNode::make(info.layout), shape_attr);
         return layout_attr;
       } else {
         return shape_attr;
@@ -205,7 +203,7 @@ class InferFragmenter : public StmtMutator {
 
  private:
   // Fragment infomation
-  const FragmentGetter &fragment_getter;
+  const FragmentGetter& fragment_getter;
 };
 
 Stmt InferFragment(Stmt stmt) {
@@ -228,8 +226,7 @@ Pass InferFragment() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InferFragment", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InferFragment")
-.set_body_typed(InferFragment);
+TVM_REGISTER_GLOBAL("tir.transform.InferFragment").set_body_typed(InferFragment);
 
 }  // namespace transform
 }  // namespace tir

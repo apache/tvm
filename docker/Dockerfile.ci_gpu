@@ -111,7 +111,4 @@ ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/compact:${LD_LIBRARY_P
 
 ENV LD_LIBRARY_PATH=/opt/rocm/lib:${LD_LIBRARY_PATH}
 ENV PATH=/node_modules/.bin:${PATH}
-ENV VULKAN_SDK=/usr/local/VulkanSDK/1.0.65.0/x86_64
-ENV PATH=${PATH}:${VULKAN_SDK}/bin
-ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${VULKAN_SDK}/lib
-ENV VK_LAYER_PATH=${VULKAN_SDK}/etc/explicit_layer.d
+ENV VULKAN_SDK=/usr

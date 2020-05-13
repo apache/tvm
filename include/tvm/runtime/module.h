@@ -27,15 +27,14 @@
 #define TVM_RUNTIME_MODULE_H_
 
 #include <dmlc/io.h>
-
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/memory.h>
+#include <tvm/runtime/object.h>
 
 #include <memory>
-#include <vector>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -50,8 +49,7 @@ class Module : public ObjectRef {
  public:
   Module() {}
   // constructor from container.
-  explicit Module(ObjectPtr<Object> n)
-      : ObjectRef(n) {}
+  explicit Module(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief Get packed function from current module by name.
    *
@@ -82,8 +80,7 @@ class Module : public ObjectRef {
    * \note This function won't load the import relationship.
    *  Re-create import relationship by calling Import.
    */
-  TVM_DLL static Module LoadFromFile(const std::string& file_name,
-                                     const std::string& format = "");
+  TVM_DLL static Module LoadFromFile(const std::string& file_name, const std::string& format = "");
   // refer to the corresponding container.
   using ContainerType = ModuleNode;
   friend class ModuleNode;
@@ -137,16 +134,14 @@ class TVM_DLL ModuleNode : public Object {
    *   If the function need resource from the module(e.g. late linking),
    *   it should capture sptr_to_self.
    */
-  virtual PackedFunc GetFunction(
-      const std::string& name,
-      const ObjectPtr<Object>& sptr_to_self) = 0;
+  virtual PackedFunc GetFunction(const std::string& name,
+                                 const ObjectPtr<Object>& sptr_to_self) = 0;
   /*!
    * \brief Save the module to file.
    * \param file_name The file to be saved to.
    * \param format The format of the file.
    */
-  virtual void SaveToFile(const std::string& file_name,
-                          const std::string& format);
+  virtual void SaveToFile(const std::string& file_name, const std::string& format);
   /*!
    * \brief Save the module to binary stream.
    * \param stream The binary stream to save to.
@@ -188,9 +183,7 @@ class TVM_DLL ModuleNode : public Object {
    */
   const PackedFunc* GetFuncFromEnv(const std::string& name);
   /*! \return The module it imports from */
-  const std::vector<Module>& imports() const {
-    return imports_;
-  }
+  const std::vector<Module>& imports() const { return imports_; }
 
   // integration with the existing components.
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeModule;
@@ -207,8 +200,7 @@ class TVM_DLL ModuleNode : public Object {
 
  private:
   /*! \brief Cache used by GetImport */
-  std::unordered_map<std::string,
-                     std::shared_ptr<PackedFunc> > import_cache_;
+  std::unordered_map<std::string, std::shared_ptr<PackedFunc> > import_cache_;
 };
 
 /*!
@@ -238,13 +230,9 @@ constexpr const char* tvm_module_main = "__tvm_main__";
 
 // implementations of inline functions.
 
-inline void Module::Import(Module other) {
-  return (*this)->Import(other);
-}
+inline void Module::Import(Module other) { return (*this)->Import(other); }
 
-inline ModuleNode* Module::operator->() {
-  return static_cast<ModuleNode*>(get_mutable());
-}
+inline ModuleNode* Module::operator->() { return static_cast<ModuleNode*>(get_mutable()); }
 
 inline const ModuleNode* Module::operator->() const {
   return static_cast<const ModuleNode*>(get());
@@ -254,4 +242,4 @@ inline const ModuleNode* Module::operator->() const {
 }  // namespace tvm
 
 #include <tvm/runtime/packed_func.h>  // NOLINT(*)
-#endif  // TVM_RUNTIME_MODULE_H_
+#endif                                // TVM_RUNTIME_MODULE_H_

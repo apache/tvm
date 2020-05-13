@@ -23,10 +23,11 @@
     This can simplify latter analysis. (e.g. Expand bias_add to expand_dims and broadcast_add.)
  */
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
-#include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/transform.h>
+
 #include "pattern_util.h"
 
 namespace tvm {
@@ -71,14 +72,13 @@ namespace transform {
 
 Pass CanonicalizeOps() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(CanonicalizeOps(f));
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(CanonicalizeOps(f));
+      };
   return CreateFunctionPass(pass_func, 3, "CanonicalizeOps", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.CanonicalizeOps")
-.set_body_typed(CanonicalizeOps);
+TVM_REGISTER_GLOBAL("relay._transform.CanonicalizeOps").set_body_typed(CanonicalizeOps);
 
 }  // namespace transform
 

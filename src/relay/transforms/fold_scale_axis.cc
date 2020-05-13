@@ -23,14 +23,15 @@
  * \brief Fold axis scaling into weights of
  *  conv/dense operators.
  */
-#include <tvm/tir/data_layout.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include "pattern_util.h"
-#include "pass_util.h"
+#include <tvm/tir/data_layout.h>
 
+#include "../op/tensor/transform.h"
+#include "pass_util.h"
+#include "pattern_util.h"
 
 namespace tvm {
 namespace relay {
@@ -39,10 +40,10 @@ namespace relay {
  *
  * Use namespace to reduce potential naming conflict.
  */
+
 namespace fold_scale_axis {
 
 using runtime::TypedPackedFunc;
-
 
 // FoldScaleAxis algorithm:
 //
@@ -109,7 +110,7 @@ class Message : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(Message, ObjectRef, MessageNode);
 };
 
-Message::Message(const AxesSet& axes, bool require_positive)  {
+Message::Message(const AxesSet& axes, bool require_positive) {
   auto n = make_object<MessageNode>();
   n->axes = axes;
   n->require_positive = require_positive;
@@ -139,7 +140,8 @@ AxesSet Intersect(const AxesSet& lhs, const AxesSet& rhs) {
       ++j;
     } else {
       ret.push_back(lhs[i]);
-      ++i; ++j;
+      ++i;
+      ++j;
     }
   }
   return ret;
@@ -166,8 +168,8 @@ Message Intersect(const Message& lhs, const Message& rhs) {
  *        positive scale is required.
  * \return The message containing the result scaling on axes of the input.
  */
-using FForwardPrep = runtime::TypedPackedFunc<
-  Array<Message> (const Call& call, const Message& out_message)>;
+using FForwardPrep =
+    runtime::TypedPackedFunc<Array<Message>(const Call& call, const Message& out_message)>;
 
 /*! \brief Axis scale tuple.  */
 class ScaledExprNode : public TempExprNode {
@@ -180,8 +182,7 @@ class ScaledExprNode : public TempExprNode {
   Expr scale = NullValue<Expr>();
 
   Expr Realize() const final {
-    CHECK(!axes.defined())
-        << "outstanding scale";
+    CHECK(!axes.defined()) << "outstanding scale";
     return value;
   }
 
@@ -195,18 +196,15 @@ class ScaledExprNode : public TempExprNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(ScaledExprNode, TempExprNode);
 };
 
-using FForwardRewrite = TypedPackedFunc<
-  Expr(const Call& ref_call,
-       const Array<Expr>& new_args,
-       const Message& message)>;
+using FForwardRewrite = TypedPackedFunc<Expr(const Call& ref_call, const Array<Expr>& new_args,
+                                             const Message& message)>;
 
 //----------------------------------------------
 // Generic Visitors for FScaleAxisForward
 //----------------------------------------------
 class ForwardPrep : private ExprVisitor {
  public:
-  std::unordered_map<const Object*, Message>
-  Prepare(const Expr& body) {
+  std::unordered_map<const Object*, Message> Prepare(const Expr& body) {
     this->Update(body, NullValue<Message>());
     this->VisitExpr(body);
     // flist is added in the Post-DFS order
@@ -222,7 +220,7 @@ class ForwardPrep : private ExprVisitor {
 
  private:
   // The invoke list
-  std::vector<std::function<void()> > flist_;
+  std::vector<std::function<void()>> flist_;
   // The message on each node.
   std::unordered_map<const Object*, Message> message_;
   // Update the message stored at node.
@@ -245,15 +243,11 @@ class ForwardPrep : private ExprVisitor {
     }
   }
   // Visitor pattern override.
-  void VisitExpr_(const LetNode* call) {
-    LOG(FATAL) << "FoldScaleAxis only accept dataflow-form";
-  }
+  void VisitExpr_(const LetNode* call) { LOG(FATAL) << "FoldScaleAxis only accept dataflow-form"; }
 
   void VisitExpr_(const FunctionNode* op) {
     ExprVisitor::VisitExpr_(op);
-    auto flazy = [this, op] {
-      this->Update(op->body, NullValue<Message>());
-    };
+    auto flazy = [this, op] { this->Update(op->body, NullValue<Message>()); };
     flist_.push_back(flazy);
   }
 
@@ -261,8 +255,7 @@ class ForwardPrep : private ExprVisitor {
     ExprVisitor::VisitExpr_(call);
     // function to be lazily invoked
     auto flazy = [this, call]() {
-      static const auto& fprep =
-        Op::GetAttr<FForwardPrep>("FScaleAxisForwardPrep");
+      static const auto& fprep = Op::GetAttr<FForwardPrep>("FScaleAxisForwardPrep");
       // find the message send to this node.
       auto it = message_.find(call);
       Message out_message;
@@ -314,6 +307,42 @@ class ForwardPrep : private ExprVisitor {
   }
 };
 
+static bool IsIntInArray(const Array<Integer>& axis, int v) {
+  for (size_t i = 0; i < axis.size(); i++) {
+    if (axis[i] == v) return true;
+  }
+  return false;
+}
+
+static Expr ReshapeToMatchAxis(Expr scale, const Array<PrimExpr>& shape,
+                               const Array<Integer>& axis) {
+  Array<Integer> arr;
+  for (size_t i = 0; i < shape.size(); i++) {
+    if (IsIntInArray(axis, i)) {
+      auto node = shape[i].as<IntImmNode>();
+      if (!node) {
+        // if the shape is not a constant, use normal transform
+        return Expr();
+      }
+      arr.push_back(node->value);
+    } else {
+      arr.push_back(1);
+    }
+  }
+  return MakeReshape(
+      scale, MakeConstantTensor(DataType::Int(32), {static_cast<int64_t>(arr.size())}, arr));
+}
+
+// if only one axis, use expand dim. Else, use reshape
+static Expr ReshapeOrExpandToMatchAxis(Expr scale, const Array<PrimExpr>& shape,
+                                       const Array<Integer>& axis) {
+  if (axis.size() > 1) {
+    return ReshapeToMatchAxis(scale, shape, axis);
+  } else {
+    return ExpandBiasToMatchAxis(scale, shape.size(), axis);
+  }
+}
+
 //----------------------------------------------
 // Per operator defs for FScaleAxisForward
 //----------------------------------------------
@@ -326,31 +355,26 @@ Array<Message> ReluForwardPrep(const Call& call, const Message& out_message) {
   return {out_message};
 }
 
-Expr ReluForwardRewrite(const Call& ref_call,
-                        const Array<Expr>& new_args,
-                        const Message& message) {
+Expr ReluForwardRewrite(const Call& ref_call, const Array<Expr>& new_args, const Message& message) {
   const auto* input = new_args[0].as<ScaledExprNode>();
   if (input == nullptr) return Expr(nullptr);
   // return transformed conv2d
   auto rnode = make_object<ScaledExprNode>();
-  rnode->value = Call(
-      ref_call->op, {input->value}, ref_call->attrs, ref_call->type_args);
+  rnode->value = Call(ref_call->op, {input->value}, ref_call->attrs, ref_call->type_args);
   rnode->scale = input->scale;
   rnode->axes = input->axes;
   return Expr(rnode);
 }
 
-RELAY_REGISTER_OP("nn.relu")
-.set_attr<FForwardPrep>("FScaleAxisForwardPrep", ReluForwardPrep);
+RELAY_REGISTER_OP("nn.relu").set_attr<FForwardPrep>("FScaleAxisForwardPrep", ReluForwardPrep);
 
-RELAY_REGISTER_OP("nn.relu")
-.set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", ReluForwardRewrite);
+RELAY_REGISTER_OP("nn.relu").set_attr<FForwardRewrite>("FScaleAxisForwardRewrite",
+                                                       ReluForwardRewrite);
 
-RELAY_REGISTER_OP("nn.leaky_relu")
-.set_attr<FForwardPrep>("FScaleAxisForwardPrep", ReluForwardPrep);
+RELAY_REGISTER_OP("nn.leaky_relu").set_attr<FForwardPrep>("FScaleAxisForwardPrep", ReluForwardPrep);
 
 RELAY_REGISTER_OP("nn.leaky_relu")
-.set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", ReluForwardRewrite);
+    .set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", ReluForwardRewrite);
 
 // AddSub
 Array<Message> AddSubForwardPrep(const Call& call, const Message& out_message) {
@@ -367,8 +391,7 @@ Array<Message> AddSubForwardPrep(const Call& call, const Message& out_message) {
   return {none, none};
 }
 
-Expr AddSubForwardRewrite(const Call& ref_call,
-                          const Array<Expr>& new_args,
+Expr AddSubForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
                           const Message& message) {
   const auto* slhs = new_args[0].as<ScaledExprNode>();
   const auto* srhs = new_args[1].as<ScaledExprNode>();
@@ -380,43 +403,42 @@ Expr AddSubForwardRewrite(const Call& ref_call,
   if (slhs != nullptr) {
     CHECK(srhs == nullptr);
     CHECK(MatchBroadcastToLeftAxes(tlhs, trhs, slhs->axes));
-    Expr scale = ExpandBiasToMatchAxis(
-        slhs->scale, tlhs->shape.size(), slhs->axes);
+    Expr scale = ReshapeOrExpandToMatchAxis(slhs->scale, tlhs->shape, slhs->axes);
+    if (!scale.defined()) {
+      return Expr();
+    }
     Expr rhs = Divide(new_args[1], scale);
-    rnode->value = Call(ref_call->op, {slhs->value, rhs},
-                                  ref_call->attrs, ref_call->type_args);
+    rnode->value = Call(ref_call->op, {slhs->value, rhs}, ref_call->attrs, ref_call->type_args);
     rnode->scale = slhs->scale;
     rnode->axes = slhs->axes;
   } else {
     CHECK(srhs != nullptr);
     CHECK(MatchBroadcastToLeftAxes(trhs, tlhs, srhs->axes));
-    Expr scale = ExpandBiasToMatchAxis(
-        srhs->scale, trhs->shape.size(), srhs->axes);
+    Expr scale = ReshapeOrExpandToMatchAxis(srhs->scale, trhs->shape, srhs->axes);
+    if (!scale.defined()) {
+      return Expr();
+    }
     Expr lhs = Divide(new_args[0], scale);
-    rnode->value = Call(ref_call->op, {lhs, srhs->value},
-                                  ref_call->attrs, ref_call->type_args);
+    rnode->value = Call(ref_call->op, {lhs, srhs->value}, ref_call->attrs, ref_call->type_args);
     rnode->scale = srhs->scale;
     rnode->axes = srhs->axes;
   }
   return Expr(rnode);
 }
 
-RELAY_REGISTER_OP("add")
-.set_attr<FForwardPrep>("FScaleAxisForwardPrep", AddSubForwardPrep);
+RELAY_REGISTER_OP("add").set_attr<FForwardPrep>("FScaleAxisForwardPrep", AddSubForwardPrep);
 
-RELAY_REGISTER_OP("add")
-.set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", AddSubForwardRewrite);
+RELAY_REGISTER_OP("add").set_attr<FForwardRewrite>("FScaleAxisForwardRewrite",
+                                                   AddSubForwardRewrite);
 
-RELAY_REGISTER_OP("subtract")
-.set_attr<FForwardPrep>("FScaleAxisForwardPrep", AddSubForwardPrep);
+RELAY_REGISTER_OP("subtract").set_attr<FForwardPrep>("FScaleAxisForwardPrep", AddSubForwardPrep);
 
 RELAY_REGISTER_OP("subtract")
-.set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", AddSubForwardRewrite);
+    .set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", AddSubForwardRewrite);
 
 // Producer operators
 // Multiply produces the scale-axis pair.
-Expr MultiplyForwardRewrite(const Call& ref_call,
-                            const Array<Expr>& new_args,
+Expr MultiplyForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
                             const Message& message) {
   if (!message.defined()) return Expr();
   const auto& expected_out_axes = message->axes;
@@ -451,7 +473,7 @@ Expr MultiplyForwardRewrite(const Call& ref_call,
 }
 
 RELAY_REGISTER_OP("multiply")
-.set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", MultiplyForwardRewrite);
+    .set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", MultiplyForwardRewrite);
 
 // Consumer operators
 // Conv2D send out requirement of axis folding.
@@ -467,7 +489,6 @@ Array<Message> Conv2DForwardPrep(const Call& call, const Message& out_message) {
 
   CHECK_GE(c_big_axis, 0);
   Message none = NullValue<Message>();
-  AxesSet data_axes = NullValue<AxesSet>();
   // For now, we only support simple pattern (no folded weight/data)
   // More general layout can be supported under the current framework.
   // By using a unified layout transformation.
@@ -476,20 +497,23 @@ Array<Message> Conv2DForwardPrep(const Call& call, const Message& out_message) {
   // only handle depthwise or full conv2d.
   // TODO(tvm-team) handle grouped conv by reshape + bcast
   bool is_depthwise_conv2d = IsDepthwiseConv2D(call, param, kernel_layout);
-  if (kernel_layout.IndexOf(LayoutAxis::Get('i')) < 0 &&
-      c_small_axis < 0 &&
-      (param->groups == 1 || is_depthwise_conv2d)) {
-    data_axes = {c_big_axis};
-  }
-  if (data_axes.defined()) {
-    return {Message(data_axes, false), none};
+  if (param->groups == 1 || is_depthwise_conv2d) {
+    auto ko_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
+    auto ki_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
+    if ((ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) ||     // simple layout
+        (ko_small_axis >= 0 && ki_small_axis >= 0 && c_small_axis >= 0)) {  // blocked layout
+      Array<Integer> arr{c_big_axis};
+      if (c_small_axis >= 0) {
+        arr.push_back(c_small_axis);
+      }
+      return {Message(arr, false), none};
+    }
   }
   return {none, none};
 }
 
 // Conv2D consumes the scale axis during transformation.
-Expr Conv2DForwardRewrite(const Call& ref_call,
-                          const Array<Expr>& new_args,
+Expr Conv2DForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
                           const Message& message) {
   // if data do not have scale, normal transform path.
   const auto* sdata = new_args[0].as<ScaledExprNode>();
@@ -502,13 +526,14 @@ Expr Conv2DForwardRewrite(const Call& ref_call,
   Layout kernel_layout(param->kernel_layout);
   int c_big_axis = data_layout.IndexOf(LayoutAxis::Get('C'));
   CHECK_GE(c_big_axis, 0);
-  // For now, we only support simple pattern (no folded weight/data)
-  // TODO(tvm-team) support general data layout
-  CHECK_EQ(kernel_layout.IndexOf(LayoutAxis::Get('i')), -1);
-  CHECK(sdata->axes.size() == 1 &&
-        c_big_axis == sdata->axes[0]->value);
-  int big_oc_axis = kernel_layout.IndexOf(LayoutAxis::Get('O'));
-  int big_ic_axis = kernel_layout.IndexOf(LayoutAxis::Get('I'));
+  int small_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
+  int small_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
+  int big_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('I'));
+  int big_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('O'));
+
+  bool is_simple = (small_ko_axis < 0 && small_ki_axis < 0 && big_ki_axis >= 0);
+  bool is_blocking = (small_ko_axis >= 0 && small_ki_axis >= 0 && big_ki_axis >= 0);
+  CHECK(is_simple || is_blocking);
 
   // Check it must be depthwise or full conv2d.
   bool is_depthwise_conv2d = IsDepthwiseConv2D(ref_call, param, kernel_layout);
@@ -518,29 +543,39 @@ Expr Conv2DForwardRewrite(const Call& ref_call,
 
   // match the ic_axis
   if (is_depthwise_conv2d) {
-    Expr scale = ExpandBiasToMatchAxis(
-        sdata->scale, kernel_layout.ndim(), {big_oc_axis});
-    weight = Multiply(weight, scale);
+    if (is_simple) {
+      Expr scale = ExpandBiasToMatchAxis(sdata->scale, kernel_layout.ndim(), {big_ko_axis});
+      weight = Multiply(weight, scale);
+    } else {
+      weight = Multiply(weight,
+                        ReshapeToMatchAxis(sdata->scale, weight->type_as<TensorTypeNode>()->shape,
+                                           {big_ko_axis, small_ko_axis}));
+      if (!weight.defined()) return Expr();
+    }
+
   } else {
-    Expr scale = ExpandBiasToMatchAxis(
-        sdata->scale, kernel_layout.ndim(), {big_ic_axis});
-    weight = Multiply(weight, scale);
+    if (is_simple) {
+      Expr scale = ExpandBiasToMatchAxis(sdata->scale, kernel_layout.ndim(), {big_ki_axis});
+      weight = Multiply(weight, scale);
+    } else {
+      weight = Multiply(weight,
+                        ReshapeToMatchAxis(sdata->scale, weight->type_as<TensorTypeNode>()->shape,
+                                           {big_ki_axis, small_ki_axis}));
+      if (!weight.defined()) return Expr();
+    }
   }
   // return transformed conv2d
-  return Call(
-      ref_call->op, {sdata->value, weight}, ref_call->attrs, ref_call->type_args);
+  return Call(ref_call->op, {sdata->value, weight}, ref_call->attrs, ref_call->type_args);
 }
 
-RELAY_REGISTER_OP("nn.conv2d")
-.set_attr<FForwardPrep>("FScaleAxisForwardPrep", Conv2DForwardPrep);
+RELAY_REGISTER_OP("nn.conv2d").set_attr<FForwardPrep>("FScaleAxisForwardPrep", Conv2DForwardPrep);
 
 RELAY_REGISTER_OP("nn.conv2d")
-.set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", Conv2DForwardRewrite);
-
+    .set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", Conv2DForwardRewrite);
 
 Expr ForwardFoldScaleAxis(const Expr& data) {
   auto message = ForwardPrep().Prepare(data);
-  auto fcontext = [&](const Call& call) -> ObjectRef{
+  auto fcontext = [&](const Call& call) -> ObjectRef {
     auto it = message.find(call.get());
     if (it != message.end()) {
       return it->second;
@@ -548,8 +583,7 @@ Expr ForwardFoldScaleAxis(const Expr& data) {
       return ObjectRef(nullptr);
     }
   };
-  return ForwardRewrite(
-      data, "FScaleAxisForwardRewrite", fcontext);
+  return ForwardRewrite(data, "FScaleAxisForwardRewrite", fcontext);
 }
 
 //----------------------------------------
@@ -564,14 +598,11 @@ class BackwardTransformer;
  *        positive scale is required.
  * \return Message containing the result scaling on axes of the input.
  */
-using FBackwardPrep = TypedPackedFunc<
-  Message(const Call& call, const Array<Message>& in_messages)>;
+using FBackwardPrep = TypedPackedFunc<Message(const Call& call, const Array<Message>& in_messages)>;
 
-using FBackwardTransform = TypedPackedFunc<
-  Expr(const Call& call,
-       const Message& message,
-       const Expr& scale,
-       const BackwardTransformer& transformer)>;
+using FBackwardTransform =
+    TypedPackedFunc<Expr(const Call& call, const Message& message, const Expr& scale,
+                         const BackwardTransformer& transformer)>;
 
 //----------------------------------------------
 // Generic Visitors for FScaleAxisBackward
@@ -580,8 +611,7 @@ using FBackwardTransform = TypedPackedFunc<
 class BackwardPrep : private ExprVisitor {
  public:
   // The message on each node.
-  std::unordered_map<const Object*, Message>
-  Prepare(const Expr& body) {
+  std::unordered_map<const Object*, Message> Prepare(const Expr& body) {
     ref_counter_ = GetExprRefCount(body);
     this->VisitExpr(body);
     return std::move(message_);
@@ -595,8 +625,7 @@ class BackwardPrep : private ExprVisitor {
   // Visit the expression.
   void VisitExpr_(const CallNode* call) {
     ExprVisitor::VisitExpr_(call);
-    static const auto& fprep =
-        Op::GetAttr<FBackwardPrep>("FScaleAxisBackwardPrep");
+    static const auto& fprep = Op::GetAttr<FBackwardPrep>("FScaleAxisBackwardPrep");
     auto f = fprep.get(call->op, nullptr);
     if (f == nullptr) return;
     auto rit = ref_counter_.find(call);
@@ -620,9 +649,7 @@ class BackwardPrep : private ExprVisitor {
   }
 };
 
-class BackwardTransformerNode :
-      public Object,
-      private ExprMutator {
+class BackwardTransformerNode : public Object, private ExprMutator {
  public:
   // Run forward transform.
   Expr Fold(Expr expr) {
@@ -692,19 +719,15 @@ class BackwardTransformerNode :
 class BackwardTransformer : public ObjectRef {
  public:
   BackwardTransformer() {}
-  explicit BackwardTransformer(
-      ::tvm::ObjectPtr<::tvm::Object> n) : ObjectRef(n) {
-  }
+  explicit BackwardTransformer(::tvm::ObjectPtr<::tvm::Object> n) : ObjectRef(n) {}
   BackwardTransformerNode* operator->() const {
     return static_cast<BackwardTransformerNode*>(get_mutable());
   }
   using ContainerType = BackwardTransformerNode;
 };
 
-Expr BackwardTransformerNode::Transform(
-    const CallNode* call_node, Message message, Expr scale) {
-  static const auto& ftransform =
-      Op::GetAttr<FBackwardTransform>("FScaleAxisBackwardTransform");
+Expr BackwardTransformerNode::Transform(const CallNode* call_node, Message message, Expr scale) {
+  static const auto& ftransform = Op::GetAttr<FBackwardTransform>("FScaleAxisBackwardTransform");
   auto f = ftransform.get(call_node->op, nullptr);
   if (f != nullptr) {
     const Call call = GetRef<Call>(call_node);
@@ -712,10 +735,7 @@ Expr BackwardTransformerNode::Transform(
     if (it != memo_.end()) {
       return it->second;
     }
-    Expr new_expr = f(GetRef<Call>(call_node),
-                      message,
-                      scale,
-                      GetRef<BackwardTransformer>(this));
+    Expr new_expr = f(GetRef<Call>(call_node), message, scale, GetRef<BackwardTransformer>(this));
     memo_[call] = new_expr;
     return new_expr;
   } else {
@@ -723,7 +743,6 @@ Expr BackwardTransformerNode::Transform(
     return NormalCallTransform(call_node);
   }
 }
-
 
 //----------------------------------------------
 // Per operator defs for FScaleAxisForward
@@ -737,45 +756,38 @@ Message ReluBackwardPrep(const Call& call, const Array<Message>& in_messages) {
   return in_messages[0];
 }
 
-Expr ReluBackwardTransform(const Call& call,
-                           const Message& message,
-                           const Expr& scale,
+Expr ReluBackwardTransform(const Call& call, const Message& message, const Expr& scale,
                            const BackwardTransformer& transformer) {
   if (!message.defined()) {
     return transformer->NormalCallTransform(call.operator->());
   }
-  Expr input = transformer->Transform(
-      call->args[0], message, scale);
+  Expr input = transformer->Transform(call->args[0], message, scale);
   return Call(call->op, {input}, call->attrs, call->type_args);
 }
 
-RELAY_REGISTER_OP("nn.relu")
-.set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", ReluBackwardPrep);
+RELAY_REGISTER_OP("nn.relu").set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", ReluBackwardPrep);
 
-RELAY_REGISTER_OP("nn.relu")
-.set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", ReluBackwardTransform);
-
-RELAY_REGISTER_OP("nn.leaky_relu")
-.set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", ReluBackwardPrep);
+RELAY_REGISTER_OP("nn.relu").set_attr<FBackwardTransform>("FScaleAxisBackwardTransform",
+                                                          ReluBackwardTransform);
 
 RELAY_REGISTER_OP("nn.leaky_relu")
-.set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", ReluBackwardTransform);
+    .set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", ReluBackwardPrep);
+
+RELAY_REGISTER_OP("nn.leaky_relu")
+    .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", ReluBackwardTransform);
 
 // AddSub
 Message AddSubBackwardPrep(const Call& call, const Array<Message>& in_messages) {
   const auto* tlhs = call->args[0]->type_as<TensorTypeNode>();
   const auto* trhs = call->args[1]->type_as<TensorTypeNode>();
   StructuralEqual equal;
-  if (in_messages[0].defined() &&
-      MatchBroadcastToLeftAxes(tlhs, trhs, in_messages[0]->axes)) {
+  if (in_messages[0].defined() && MatchBroadcastToLeftAxes(tlhs, trhs, in_messages[0]->axes)) {
     return in_messages[0];
   } else if (in_messages[1].defined() &&
              MatchBroadcastToLeftAxes(trhs, tlhs, in_messages[1]->axes)) {
     return in_messages[1];
-  } else if (in_messages[0].defined() &&
-             in_messages[1].defined() &&
-             equal(in_messages[0]->axes, in_messages[1]->axes) &&
-             equal(tlhs->shape, trhs->shape)) {
+  } else if (in_messages[0].defined() && in_messages[1].defined() &&
+             equal(in_messages[0]->axes, in_messages[1]->axes) && equal(tlhs->shape, trhs->shape)) {
     // add of two elements.
     return in_messages[0];
   } else {
@@ -784,9 +796,7 @@ Message AddSubBackwardPrep(const Call& call, const Array<Message>& in_messages) 
   }
 }
 
-Expr AddSubBackwardTransform(const Call& call,
-                             const Message& message,
-                             const Expr& scale,
+Expr AddSubBackwardTransform(const Call& call, const Message& message, const Expr& scale,
                              const BackwardTransformer& transformer) {
   const auto* tlhs = call->args[0]->type_as<TensorTypeNode>();
   const auto* trhs = call->args[1]->type_as<TensorTypeNode>();
@@ -806,19 +816,21 @@ Expr AddSubBackwardTransform(const Call& call,
   } else if (lhs_message.defined()) {
     CHECK(equal(message->axes, lhs_message->axes));
     Expr lhs = transformer->Transform(call->args[0], message, scale);
-    Expr rhs = transformer->Transform(
-        call->args[1], NullValue<Message>(), NullValue<Expr>());
-    Expr rhs_scale = ExpandBiasToMatchAxis(
-        scale, tlhs->shape.size(), message->axes);
+    Expr rhs = transformer->Transform(call->args[1], NullValue<Message>(), NullValue<Expr>());
+    Expr rhs_scale = ReshapeOrExpandToMatchAxis(scale, tlhs->shape, message->axes);
+    if (!rhs_scale.defined()) {
+      return transformer->NormalCallTransform(call.operator->());
+    }
     rhs = Multiply(rhs, rhs_scale);
     return Call(call->op, {lhs, rhs}, call->attrs, call->type_args);
   } else if (rhs_message.defined()) {
     CHECK(equal(message->axes, rhs_message->axes));
-    Expr lhs = transformer->Transform(
-        call->args[0], NullValue<Message>(), NullValue<Expr>());
+    Expr lhs = transformer->Transform(call->args[0], NullValue<Message>(), NullValue<Expr>());
     Expr rhs = transformer->Transform(call->args[1], message, scale);
-    Expr lhs_scale = ExpandBiasToMatchAxis(
-        scale, trhs->shape.size(), message->axes);
+    Expr lhs_scale = ReshapeOrExpandToMatchAxis(scale, trhs->shape, message->axes);
+    if (!lhs_scale.defined()) {
+      return transformer->NormalCallTransform(call.operator->());
+    }
     lhs = Multiply(lhs, lhs_scale);
     return Call(call->op, {lhs, rhs}, call->attrs, call->type_args);
   } else {
@@ -827,23 +839,19 @@ Expr AddSubBackwardTransform(const Call& call,
   }
 }
 
-RELAY_REGISTER_OP("add")
-.set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", AddSubBackwardPrep);
+RELAY_REGISTER_OP("add").set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", AddSubBackwardPrep);
 
-RELAY_REGISTER_OP("add")
-.set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", AddSubBackwardTransform);
+RELAY_REGISTER_OP("add").set_attr<FBackwardTransform>("FScaleAxisBackwardTransform",
+                                                      AddSubBackwardTransform);
 
-RELAY_REGISTER_OP("subtract")
-.set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", AddSubBackwardPrep);
+RELAY_REGISTER_OP("subtract").set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", AddSubBackwardPrep);
 
 RELAY_REGISTER_OP("subtract")
-.set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", AddSubBackwardTransform);
+    .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", AddSubBackwardTransform);
 
 // Producer operators
 // Multiply produces the scale-axis pair.
-Expr MultiplyBackwardTransform(const Call& call,
-                               const Message& message,
-                               const Expr& scale,
+Expr MultiplyBackwardTransform(const Call& call, const Message& message, const Expr& scale,
                                const BackwardTransformer& transformer) {
   CHECK(!message.defined()) << "outstanding scale";
   const auto* tlhs = call->args[0]->type_as<TensorTypeNode>();
@@ -871,7 +879,7 @@ Expr MultiplyBackwardTransform(const Call& call,
 }
 
 RELAY_REGISTER_OP("multiply")
-.set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", MultiplyBackwardTransform);
+    .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", MultiplyBackwardTransform);
 
 // Consumer operators
 // Conv2D send out requirement of axis folding.
@@ -892,20 +900,23 @@ Message Conv2DBackwardPrep(const Call& call, const Array<Message>& in_messages) 
   // only handle depthwise or full conv2d.
   // TODO(tvm-team) handle grouped conv by reshape + bcast
   bool is_depthwise_conv2d = IsDepthwiseConv2D(call, param, kernel_layout);
-  if (kernel_layout.IndexOf(LayoutAxis::Get('o')) < 0 &&
-  kernel_layout.IndexOf(LayoutAxis::Get('i')) < 0 &&
-      c_small_axis < 0 &&
-      (param->groups == 1 || is_depthwise_conv2d)) {
-    return Message({c_big_axis}, false);
-  } else {
-    return NullValue<Message>();
+  if (param->groups == 1 || is_depthwise_conv2d) {
+    auto ko_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
+    auto ki_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
+    if ((ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) ||     // simple layout
+        (ko_small_axis >= 0 && ki_small_axis >= 0 && c_small_axis >= 0)) {  // blocked layout
+      Array<Integer> arr{c_big_axis};
+      if (c_small_axis >= 0) {
+        arr.push_back(c_small_axis);
+      }
+      return Message(arr, false);
+    }
   }
+  return NullValue<Message>();
 }
 
 // Conv2D consumes the scale axis during transformation.
-Expr Conv2DBackwardTransform(const Call& call,
-                             const Message& message,
-                             const Expr& scale,
+Expr Conv2DBackwardTransform(const Call& call, const Message& message, const Expr& scale,
                              const BackwardTransformer& transformer) {
   if (!message.defined()) {
     return transformer->NormalCallTransform(call.operator->());
@@ -918,33 +929,37 @@ Expr Conv2DBackwardTransform(const Call& call,
   CHECK_GE(c_big_axis, 0);
   // For now, we only support simple pattern (no folded weight/data)
   // TODO(tvm-team) support general data layout
-  CHECK_EQ(kernel_layout.IndexOf(LayoutAxis::Get('o')), -1);
-  CHECK_EQ(kernel_layout.IndexOf(LayoutAxis::Get('i')), -1);
-  CHECK(message->axes.size() == 1 &&
-        c_big_axis == message->axes[0]->value);
-
-  int big_oc_axis = kernel_layout.IndexOf(LayoutAxis::Get('O'));
+  int small_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
+  int small_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
+  int big_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('I'));
+  int big_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('O'));
   // Check it must be depthwise or full conv2d.
   bool is_depthwise_conv2d = IsDepthwiseConv2D(call, param, kernel_layout);
   CHECK(param->groups == 1 || is_depthwise_conv2d);
+  bool is_simple = (small_ko_axis < 0 && small_ki_axis < 0 && big_ki_axis >= 0);
+  bool is_blocking = (small_ko_axis >= 0 && small_ki_axis >= 0 && big_ki_axis >= 0);
+  CHECK(is_simple || is_blocking);
 
-  Expr data = transformer->Transform(
-      call->args[0], NullValue<Message>(), NullValue<Expr>());
-  Expr weight = transformer->Transform(
-      call->args[1], NullValue<Message>(), NullValue<Expr>());
+  Expr data = transformer->Transform(call->args[0], NullValue<Message>(), NullValue<Expr>());
+  Expr weight = transformer->Transform(call->args[1], NullValue<Message>(), NullValue<Expr>());
   // scale on input for deptwise.
-  Expr wscale = ExpandBiasToMatchAxis(
-      scale, kernel_layout.ndim(), {big_oc_axis});
+  Expr wscale;
+  if (is_simple) {
+    wscale = ExpandBiasToMatchAxis(scale, kernel_layout.ndim(), {big_ko_axis});
+  } else {
+    wscale = ReshapeToMatchAxis(scale, weight->type_as<TensorTypeNode>()->shape,
+                                {big_ko_axis, small_ko_axis});
+    if (!wscale.defined()) return transformer->NormalCallTransform(call.operator->());
+  }
   weight = Multiply(weight, wscale);
-  return Call(
-      call->op, {data, weight}, call->attrs, call->type_args);
+  return Call(call->op, {data, weight}, call->attrs, call->type_args);
 }
 
 RELAY_REGISTER_OP("nn.conv2d")
-.set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", Conv2DBackwardPrep);
+    .set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", Conv2DBackwardPrep);
 
 RELAY_REGISTER_OP("nn.conv2d")
-.set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", Conv2DBackwardTransform);
+    .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", Conv2DBackwardTransform);
 
 Expr BackwardFoldScaleAxis(const Expr& data) {
   return make_object<BackwardTransformerNode>()->Fold(data);
@@ -956,39 +971,33 @@ namespace transform {
 
 Pass ForwardFoldScaleAxis() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-      return Downcast<Function>(
-          relay::fold_scale_axis::ForwardFoldScaleAxis(f));
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(relay::fold_scale_axis::ForwardFoldScaleAxis(f));
+      };
   return CreateFunctionPass(pass_func, 3, "ForwardFoldScaleAxis", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.ForwardFoldScaleAxis")
-.set_body_typed(ForwardFoldScaleAxis);
+TVM_REGISTER_GLOBAL("relay._transform.ForwardFoldScaleAxis").set_body_typed(ForwardFoldScaleAxis);
 
 Pass BackwardFoldScaleAxis() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-      return Downcast<Function>(
-          relay::fold_scale_axis::BackwardFoldScaleAxis(f));
-    };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(relay::fold_scale_axis::BackwardFoldScaleAxis(f));
+      };
   return CreateFunctionPass(pass_func, 3, "BackwardFoldScaleAxis", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.BackwardFoldScaleAxis")
-.set_body_typed(BackwardFoldScaleAxis);
+TVM_REGISTER_GLOBAL("relay._transform.BackwardFoldScaleAxis").set_body_typed(BackwardFoldScaleAxis);
 
 Pass FoldScaleAxis() {
   // FoldScaleAxis pass contains the following three passes. Therefore, we can
   // register it as a sequential pass.
-  Pass pass = Sequential(
-      {BackwardFoldScaleAxis(), ForwardFoldScaleAxis(), FoldConstant()},
-      "FoldScaleAxis");
+  Pass pass = Sequential({BackwardFoldScaleAxis(), ForwardFoldScaleAxis(), FoldConstant()},
+                         "FoldScaleAxis");
   return pass;
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.FoldScaleAxis")
-.set_body_typed(FoldScaleAxis);
+TVM_REGISTER_GLOBAL("relay._transform.FoldScaleAxis").set_body_typed(FoldScaleAxis);
 
 }  // namespace transform
 

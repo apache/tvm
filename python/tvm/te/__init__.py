@@ -19,8 +19,9 @@
 """
 # expose all operators in tvm tir.op
 from tvm.tir import any, all, min_value, max_value, trace
-from tvm.tir import exp, erf, tanh, sigmoid, log, tan, cos, sin, atan, sqrt, rsqrt, floor, ceil
+from tvm.tir import exp, erf, tanh, sigmoid, log, tan, cos, sin, sqrt, rsqrt, floor, ceil
 from tvm.tir import sinh, cosh, log2, log10
+from tvm.tir import asin, asinh, acos, acosh, atan, atanh
 from tvm.tir import trunc, abs, round, nearbyint, power, popcount, fmod, if_then_else, likely
 from tvm.tir import isnan, isfinite, isinf
 from tvm.tir import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod

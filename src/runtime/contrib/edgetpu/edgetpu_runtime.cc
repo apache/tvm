@@ -20,25 +20,23 @@
 /*!
  * \file edgetpu_runtime.cc
  */
-#include <tvm/runtime/registry.h>
+#include "edgetpu_runtime.h"
+
+#include <edgetpu.h>
 #include <tensorflow/lite/interpreter.h>
 #include <tensorflow/lite/kernels/register.h>
 #include <tensorflow/lite/model.h>
-#include <edgetpu.h>
-
-
-#include "edgetpu_runtime.h"
+#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace runtime {
 
-void EdgeTPURuntime::Init(const std::string& tflite_model_bytes,
-                          TVMContext ctx) {
+void EdgeTPURuntime::Init(const std::string& tflite_model_bytes, TVMContext ctx) {
   const char* buffer = tflite_model_bytes.c_str();
   size_t buffer_size = tflite_model_bytes.size();
   // Load compiled model as a FlatBufferModel
   std::unique_ptr<tflite::FlatBufferModel> model =
-    tflite::FlatBufferModel::BuildFromBuffer(buffer, buffer_size);
+      tflite::FlatBufferModel::BuildFromBuffer(buffer, buffer_size);
   // Build resolver
   tflite::ops::builtin::BuiltinOpResolver resolver;
   // Init EdgeTPUContext object
@@ -58,16 +56,14 @@ void EdgeTPURuntime::Init(const std::string& tflite_model_bytes,
   ctx_ = ctx;
 }
 
-Module EdgeTPURuntimeCreate(const std::string& tflite_model_bytes,
-                           TVMContext ctx) {
+Module EdgeTPURuntimeCreate(const std::string& tflite_model_bytes, TVMContext ctx) {
   auto exec = make_object<EdgeTPURuntime>();
   exec->Init(tflite_model_bytes, ctx);
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.edgetpu_runtime.create")
-  .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = EdgeTPURuntimeCreate(args[0], args[1]);
-  });
+TVM_REGISTER_GLOBAL("tvm.edgetpu_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = EdgeTPURuntimeCreate(args[0], args[1]);
+});
 }  // namespace runtime
 }  // namespace tvm

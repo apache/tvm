@@ -19,7 +19,7 @@
 from tvm.relay import expr
 
 from . import _make
-from .util import get_pad_tuple2d, get_pad_tuple3d
+from .util import get_pad_tuple1d, get_pad_tuple2d, get_pad_tuple3d
 
 
 def conv1d(data,
@@ -601,10 +601,11 @@ def max_pool1d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size,)
     if isinstance(strides, int):
         strides = (strides,)
-    if isinstance(padding, int):
-        padding = (padding,)
+    padding = get_pad_tuple1d(padding)
     return _make.max_pool1d(data, pool_size, strides, padding,
                             layout, ceil_mode)
 
@@ -661,6 +662,11 @@ def max_pool2d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides)
+    padding = get_pad_tuple2d(padding)
     return _make.max_pool2d(data, pool_size, strides, padding,
                             layout, ceil_mode)
 
@@ -709,6 +715,11 @@ def max_pool3d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    padding = get_pad_tuple3d(padding)
     return _make.max_pool3d(data, pool_size, strides, padding,
                             layout, ceil_mode)
 
@@ -761,10 +772,11 @@ def avg_pool1d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size,)
     if isinstance(strides, int):
         strides = (strides,)
-    if isinstance(padding, int):
-        padding = (padding,)
+    padding = get_pad_tuple1d(padding)
     return _make.avg_pool1d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
 
@@ -826,6 +838,11 @@ def avg_pool2d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides)
+    padding = get_pad_tuple2d(padding)
     return _make.avg_pool2d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
 
@@ -878,6 +895,11 @@ def avg_pool3d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    padding = get_pad_tuple3d(padding)
     return _make.avg_pool3d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
 

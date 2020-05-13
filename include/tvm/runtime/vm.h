@@ -24,10 +24,11 @@
 #ifndef TVM_RUNTIME_VM_H_
 #define TVM_RUNTIME_VM_H_
 
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/memory.h>
+#include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -271,8 +272,8 @@ struct Instruction {
    * \param dst The destination register.
    * \return The allocate tensor instruction.
    */
-  static Instruction AllocTensor(RegName storage,
-                                 const std::vector<int64_t>& shape, DLDataType dtype, RegName dst);
+  static Instruction AllocTensor(RegName storage, const std::vector<int64_t>& shape,
+                                 DLDataType dtype, RegName dst);
   /*!
    * \brief Construct an allocate tensor instruction with register.
    * \param storage The storage to allocate out of.
@@ -281,8 +282,8 @@ struct Instruction {
    * \param dst The destination register.
    * \return The allocate tensor instruction.
    */
-  static Instruction AllocTensorReg(RegName storage,
-                                    RegName shape_register, DLDataType dtype, RegName dst);
+  static Instruction AllocTensorReg(RegName storage, RegName shape_register, DLDataType dtype,
+                                    RegName dst);
   /*!
    * \brief Construct an allocate datatype instruction.
    * \param tag The datatype tag.
@@ -379,8 +380,8 @@ struct Instruction {
    * \param dst The destination to place the storage.
    * \return The alloc storage instruction.
    */
-  static Instruction AllocStorage(RegName size, RegName alignment,
-                                  DLDataType dtype_hint, RegName dst);
+  static Instruction AllocStorage(RegName size, RegName alignment, DLDataType dtype_hint,
+                                  RegName dst);
 
   Instruction();
   Instruction(const Instruction& instr);
@@ -407,8 +408,7 @@ struct VMFunction {
   Index register_file_size;
 
   VMFunction(const std::string& name, std::vector<std::string> params,
-             const std::vector<Instruction>& instructions,
-             Index register_file_size)
+             const std::vector<Instruction>& instructions, Index register_file_size)
       : name(name),
         params(params),
         instructions(instructions),
@@ -473,8 +473,7 @@ class Executable : public ModuleNode {
    *
    * \return PackedFunc or nullptr when it is not available.
    */
-  PackedFunc GetFunction(const std::string& name,
-                         const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   /*!
    * \brief Serialize the executable into global section, constant section, and
@@ -559,9 +558,7 @@ class Executable : public ModuleNode {
 
   virtual ~Executable() {}
 
-  const char* type_key() const final {
-    return "VMExecutable";
-  }
+  const char* type_key() const final { return "VMExecutable"; }
 
   /*! \brief The runtime module/library that contains both the host and also the device
    * code when executing on non-CPU devices. */
@@ -668,14 +665,11 @@ class VirtualMachine : public runtime::ModuleNode {
    *   If the function needs resource from the module(e.g. late linking),
    *   it should capture sptr_to_self.
    */
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
   virtual ~VirtualMachine() {}
 
-  const char* type_key() const final {
-    return "VirtualMachine";
-  }
+  const char* type_key() const final { return "VirtualMachine"; }
 
   VirtualMachine() : frames_(), func_index_(0), code_(nullptr), pc_(0), exec_(nullptr) {}
 
@@ -763,11 +757,8 @@ class VirtualMachine : public runtime::ModuleNode {
    *
    * \note The return value will be stored in the last output_size slots of args.
    */
-  virtual void InvokePacked(Index packed_index,
-                            const PackedFunc& func,
-                            Index arg_count,
-                            Index output_size,
-                            const std::vector<ObjectRef>& args);
+  virtual void InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
+                            Index output_size, const std::vector<ObjectRef>& args);
 
   /*!
    * \brief Initialize the virtual machine for a set of contexts.

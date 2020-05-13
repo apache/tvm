@@ -534,6 +534,17 @@ def test_forward_maxpool2d():
                                     stride=2).eval(),
                  input_data)
 
+    class MaxPool2DWithIndices(Module):
+        def __init__(self):
+            super(MaxPool2DWithIndices, self).__init__()
+            self.pool = torch.nn.MaxPool2d(kernel_size=[1, 1], return_indices=True)
+
+        def forward(self, *args):
+            output, indices = self.pool(args[0])
+            return output
+
+    verify_model(MaxPool2DWithIndices().float().eval(), input_data=input_data)
+
 def test_forward_maxpool1d():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10]
@@ -902,14 +913,23 @@ def test_forward_mean():
 
 def test_forward_expand():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 10, 10]
 
     class Expand1(Module):
         def forward(self, *args):
             return args[0].expand((3, -1, -1, -1))
 
+    input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(Expand1().float().eval(), input_data=input_data)
+
+    class Expand2(Module):
+        def forward(self, *args):
+            return args[0].expand((3, 3, 3, 1))
+
+    input_shape = [3, 1]
+    input_data = torch.rand(input_shape).float()
+    verify_model(Expand2().float().eval(), input_data=input_data)
+
 
 def test_forward_pow():
     torch.set_grad_enabled(False)
@@ -1895,7 +1915,15 @@ def test_forward_unary():
         def forward(self, *args):
             return torch.tanh(args[0])
 
-    class ATanh1(Module):
+    class Acos1(Module):
+        def forward(self, *args):
+            return torch.acos(args[0])
+
+    class Asin1(Module):
+        def forward(self, *args):
+            return torch.asin(args[0])
+
+    class Atan1(Module):
         def forward(self, *args):
             return torch.atan(args[0])
 
@@ -1956,7 +1984,9 @@ def test_forward_unary():
     verify_model(Sinh1().float().eval(), input_data=input_data)
     verify_model(Tan1().float().eval(), input_data=input_data)
     verify_model(Tanh1().float().eval(), input_data=input_data)
-    verify_model(ATanh1().float().eval(), input_data=input_data)
+    verify_model(Acos1().float().eval(), input_data=input_data)
+    verify_model(Asin1().float().eval(), input_data=input_data)
+    verify_model(Atan1().float().eval(), input_data=input_data)
     verify_model(Log1().float().eval(), input_data=input_data)
     verify_model(Log2_1().float().eval(), input_data=input_data)
     verify_model(Log10_1().float().eval(), input_data=input_data)

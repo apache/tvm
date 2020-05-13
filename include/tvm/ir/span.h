@@ -24,8 +24,9 @@
 #ifndef TVM_IR_SPAN_H_
 #define TVM_IR_SPAN_H_
 
-#include <tvm/runtime/object.h>
 #include <tvm/node/node.h>
+#include <tvm/runtime/object.h>
+
 #include <string>
 
 namespace tvm {
@@ -40,7 +41,7 @@ class SourceName;
 class SourceNameNode : public Object {
  public:
   /*! \brief The source name. */
-  std::string name;
+  String name;
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
 
@@ -64,7 +65,7 @@ class SourceName : public ObjectRef {
    * \param name Name of the operator.
    * \return SourceName valid throughout program lifetime.
    */
-  TVM_DLL static SourceName Get(const std::string& name);
+  TVM_DLL static SourceName Get(const String& name);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SourceName, ObjectRef, SourceNameNode);
 };
@@ -92,10 +93,8 @@ class SpanNode : public Object {
   }
 
   bool SEqualReduce(const SpanNode* other, SEqualReducer equal) const {
-    return
-        equal(source, other->source) &&
-        equal(lineno, other->lineno) &&
-        equal(col_offset, other->col_offset);
+    return equal(source, other->source) && equal(lineno, other->lineno) &&
+           equal(col_offset, other->col_offset);
   }
 
   TVM_DLL static Span make(SourceName source, int lineno, int col_offset);
@@ -103,7 +102,6 @@ class SpanNode : public Object {
   static constexpr const char* _type_key = "Span";
   TVM_DECLARE_FINAL_OBJECT_INFO(SpanNode, Object);
 };
-
 
 class Span : public ObjectRef {
  public:

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,8 +25,10 @@
 #define TVM_RUNTIME_STACKVM_STACKVM_MODULE_H_
 
 #include <tvm/runtime/packed_func.h>
+
 #include <string>
 #include <unordered_map>
+
 #include "stackvm.h"
 
 namespace tvm {
@@ -38,8 +40,7 @@ namespace runtime {
  * \param entry_func The entry function name.
  * \return The created module
  */
-Module StackVMModuleCreate(std::unordered_map<std::string, StackVM> fmap,
-                           std::string entry_func);
+Module StackVMModuleCreate(std::unordered_map<std::string, StackVM> fmap, std::string entry_func);
 
 }  // namespace runtime
 }  // namespace tvm

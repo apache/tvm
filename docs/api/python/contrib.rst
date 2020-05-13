@@ -48,9 +48,9 @@ tvm.contrib.dlpack
 .. automodule:: tvm.contrib.dlpack
     :members:
 
-tvm.contrib.emscripten
-~~~~~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.emscripten
+tvm.contrib.emcc
+~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.emcc
     :members:
 
 tvm.contrib.miopen

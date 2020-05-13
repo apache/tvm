@@ -174,7 +174,7 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     // Allocate large arrays on the static section to avoid stakc overflow.
     // Note that this would probably increase compilation time as the source
     // file could be really large.
-    buf_stream << "static float " << output.name << "[" << num_elems <<"] = {";
+    buf_stream << "static float " << output.name << "[" << num_elems << "] = {";
     for (int64_t i = 0; i < num_elems - 1; i++) {
       buf_stream << ptr[i] << ",";
     }

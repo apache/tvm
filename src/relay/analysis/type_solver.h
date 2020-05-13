@@ -24,21 +24,23 @@
 #ifndef TVM_RELAY_ANALYSIS_TYPE_SOLVER_H_
 #define TVM_RELAY_ANALYSIS_TYPE_SOLVER_H_
 
+#include <tvm/ir/error.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
-#include <tvm/relay/analysis.h>
-#include <tvm/ir/error.h>
-#include <vector>
+
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
+
 #include "../../support/arena.h"
 
 namespace tvm {
 namespace relay {
 
-using support::LinkNode;
 using support::LinkedList;
+using support::LinkNode;
 
 /*!
  * \brief Interface of type solver used in type inference.

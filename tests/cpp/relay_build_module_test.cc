@@ -18,61 +18,59 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/driver/driver_api.h>
-#include <tvm/te/operation.h>
-#include <tvm/relay/expr.h>
-#include <tvm/relay/type.h>
-#include <tvm/relay/analysis.h>
-#include <tvm/relay/transform.h>
-#include <tvm/relay/op_strategy.h>
-#include <tvm/relay/op_attr_types.h>
 #include <topi/broadcast.h>
 #include <topi/generic/injective.h>
-#include <tvm/runtime/packed_func.h>
+#include <tvm/driver/driver_api.h>
 #include <tvm/ir/module.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/expr.h>
+#include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/op_strategy.h>
+#include <tvm/relay/transform.h>
+#include <tvm/relay/type.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/te/operation.h>
 
 using namespace tvm;
 using namespace tvm::relay;
 
 TVM_REGISTER_GLOBAL("test.strategy")
-.set_body_typed([](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                   const Type& out_type, const Target& target) {
-    FTVMCompute fcompute = [](const Attrs& attrs,
-                              const Array<te::Tensor>& inputs,
-                              const Type& out_type) -> Array<te::Tensor> {
+    .set_body_typed([](const Attrs& attrs, const Array<te::Tensor>& inputs, const Type& out_type,
+                       const Target& target) {
+      FTVMCompute fcompute = [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                const Type& out_type) -> Array<te::Tensor> {
         CHECK_EQ(inputs.size(), 2U);
         return {topi::add(inputs[0], inputs[1])};
-    };
-    FTVMSchedule fschedule = [](const Attrs& attrs,
-                                const Array<te::Tensor>& outs,
-                                const Target& target) {
+      };
+      FTVMSchedule fschedule = [](const Attrs& attrs, const Array<te::Tensor>& outs,
+                                  const Target& target) {
         With<Target> target_scope(target);
         return topi::generic::schedule_injective(target, outs);
-    };
+      };
 
-    auto n = make_object<OpStrategyNode>();
-    auto strategy = tvm::relay::OpStrategy(std::move(n));
-    strategy.AddImplementation(fcompute, fschedule, "test.strategy", 10);
-    return strategy;
-});
+      auto n = make_object<OpStrategyNode>();
+      auto strategy = tvm::relay::OpStrategy(std::move(n));
+      strategy.AddImplementation(fcompute, fschedule, "test.strategy", 10);
+      return strategy;
+    });
 
 TVM_REGISTER_GLOBAL("relay.backend.lower_call")
-.set_body_typed([](const relay::Call& call, const Array<te::Tensor>& inputs,
-                   const Target& target) {
-    static auto fstrategy = Op::GetAttr<relay::FTVMStrategy>("FTVMStrategy");
-    Op op = Downcast<Op>(call->op);
-    auto out_type = call->checked_type();
-    OpStrategy strategy = fstrategy[op](call->attrs, inputs, out_type, target);
-    auto impl = strategy->specializations[0]->implementations[0];
-    auto outs = impl.Compute(call->attrs, inputs, out_type);
-    auto f = tvm::runtime::Registry::Get("relay.backend._make_LoweredOutput");
-    if (!f) {
-      LOG(FATAL) << "relay.backend._make_LoweredOutput is not registered";
-    }
-    return (*f)(outs, impl);
-});
+    .set_body_typed([](const relay::Call& call, const Array<te::Tensor>& inputs,
+                       const Target& target) {
+      static auto fstrategy = Op::GetAttr<relay::FTVMStrategy>("FTVMStrategy");
+      Op op = Downcast<Op>(call->op);
+      auto out_type = call->checked_type();
+      OpStrategy strategy = fstrategy[op](call->attrs, inputs, out_type, target);
+      auto impl = strategy->specializations[0]->implementations[0];
+      auto outs = impl.Compute(call->attrs, inputs, out_type);
+      auto f = tvm::runtime::Registry::Get("relay.backend._make_LoweredOutput");
+      if (!f) {
+        LOG(FATAL) << "relay.backend._make_LoweredOutput is not registered";
+      }
+      return (*f)(outs, impl);
+    });
 
 TEST(Relay, BuildModule) {
   auto tensor_type = relay::TensorType({2, 3}, DataType::Float(32));
@@ -107,6 +105,7 @@ TEST(Relay, BuildModule) {
   }
   auto fgeneric = GenericFunc::Get("test.strategy_generic").set_default(*fs);
   (*reg)("add", "FTVMStrategy", fgeneric, 10);
+  (*reg)("add", "TShapeDataDependant", false, 10);
   // build
   auto pfb = tvm::runtime::Registry::Get("relay.build_module._BuildModule");
   tvm::runtime::Module build_mod = (*pfb)();
@@ -178,7 +177,7 @@ TEST(Relay, GetExprRefCount) {
   CHECK(ref_count[z.get()] == 1);
 }
 
-int main(int argc, char ** argv) {
+int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
   return RUN_ALL_TESTS();

@@ -88,6 +88,10 @@ def find_lib_path(name=None, search_path=None, optional=False):
 
     dll_path.append(install_lib_dir)
 
+    if os.path.isdir(source_dir):
+        dll_path.append(os.path.join(source_dir, "web", "dist", "wasm"))
+        dll_path.append(os.path.join(source_dir, "web", "dist"))
+
     dll_path = [os.path.realpath(x) for x in dll_path]
     if search_path is not None:
         if isinstance(search_path, list):
@@ -154,6 +158,7 @@ def find_include_path(name=None, search_path=None, optional=False):
     ffi_dir = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     source_dir = os.path.join(ffi_dir, "..", "..", "..")
     install_include_dir = os.path.join(ffi_dir, "..", "..", "..", "..")
+
     third_party_dir = os.path.join(source_dir, "3rdparty")
 
     header_path = []

@@ -628,6 +628,12 @@ def _maxpool_2d():
         return _op.nn.max_pool2d(data, pool_size, strides, padding, "NCHW", ceil_mode)
     return _impl
 
+def _maxpool_2d_with_indices():
+    def _impl(inputs, input_types):
+        # returns dummy indices too
+        return _maxpool_2d()(inputs, input_types), None
+    return _impl
+
 def _maxpool_1d():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -1245,26 +1251,35 @@ def _matmul():
         return _op.nn.dense(data0, data1_t)
     return _impl
 
+
 def _expand():
     def _impl(inputs, input_types):
         data_in = inputs[0]
         if isinstance(data_in, _expr.Expr):
-            shape = _infer_shape(data_in)
+            shape = list(_infer_shape(data_in))
 
         ndims = len(shape)
         sizes = _infer_shape(inputs[1])
         out = inputs[0]
 
+        out_dims = len(sizes)
+        if ndims < out_dims:
+            num_newaxis = out_dims - ndims
+            out = _op.expand_dims(out, axis=0, num_newaxis=num_newaxis)
+            shape = [1] * num_newaxis + shape
+
         for i in range(ndims):
-            if sizes[i] in {-1, shape[i]}:
+            if sizes[i] == -1 or sizes[i] == shape[i]:
                 continue
             data = list()
             for temp in range(sizes[i]):
                 data.append(out)
-            call = _op.tensor.concatenate(data, i)
 
-        return call
+            out = _op.tensor.concatenate(data, i)
+
+        return out
     return _impl
+
 
 def _int():
     def _impl(inputs, input_types):
@@ -1600,6 +1615,7 @@ def _wrap_const(c):
 def _get_convert_map(prelude):
     convert_map = {
         "aten::device"                          : _none(),
+        "prim::device"                          : _none(),
         "aten::sub"                             : _elemwise("subtract"),
         "aten::sub_"                            : _elemwise("subtract"),
         "aten::max"                             : _elemwise("maximum"),
@@ -1645,7 +1661,7 @@ def _get_convert_map(prelude):
         "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(),
         "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),
         "aten::max_pool2d"                      : _maxpool_2d(),
-        "aten::max_pool2d_with_indices"         : _maxpool_2d(),
+        "aten::max_pool2d_with_indices"         : _maxpool_2d_with_indices(),
         "aten::max_pool1d"                      : _maxpool_1d(),
         "aten::max_pool3d"                      : _maxpool_3d(),
         "aten::hardtanh"                        : _hardtanh(),
@@ -1699,6 +1715,8 @@ def _get_convert_map(prelude):
         "aten::sinh"                            : _unary("sinh"),
         "aten::tan"                             : _unary("tan"),
         "aten::tanh"                            : _unary("tanh"),
+        "aten::acos"                            : _unary("acos"),
+        "aten::asin"                            : _unary("asin"),
         "aten::atan"                            : _unary("atan"),
         "aten::log"                             : _unary("log"),
         "aten::log2"                            : _unary("log2"),
@@ -2241,6 +2259,7 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude):
                 out_names = _get_output_names(op_node)
                 outputs.update(zip(out_names, relay_out))
             else:
+                assert op_node.outputsSize() == 1
                 outputs[node_name] = relay_out
 
     return [_wrap_const(outputs[ret_name])

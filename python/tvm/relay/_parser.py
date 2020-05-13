@@ -114,7 +114,10 @@ class FuncOp(OpWrapper):
     def __call__(self, args, attrs, type_args):
         if attrs is None:
             attrs = {}
-        x = self.operator(*args, **{k: self.convert(v) for k, v in attrs.items()})
+        if self.operator is op.reshape:
+            x = self.operator(*args)
+        else:
+            x = self.operator(*args, **{k: self.convert(v) for k, v in attrs.items()})
         if isinstance(x, expr.TupleWrapper):
             x = x.astuple()
         return x
@@ -151,7 +154,9 @@ FUNC_OPS = {
     "nn.dropout": op.nn.dropout_raw,
     "zeros": op.zeros,
     "split": op.split,
-    "cast": op.cast
+    "cast": op.cast,
+    "clip": op.clip,
+    "right_shift": op.right_shift,
 }
 
 TYPE_PREFIXES = [

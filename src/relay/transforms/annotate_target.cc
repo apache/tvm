@@ -299,8 +299,7 @@ Pass AnnotateTarget(const Array<runtime::String>& targets) {
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(relay::annotate_target::AnnotateTarget(f, targets));
       };
-  auto func_pass = CreateFunctionPass(pass_func, 0, "AnnotateTargetFunc",
-                                      {"InferType"});
+  auto func_pass = CreateFunctionPass(pass_func, 0, "AnnotateTargetFunc", {"InferType"});
   return transform::Sequential({func_pass, InferType()}, "AnnotateTarget");
 }
 

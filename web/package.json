@@ -1,0 +1,32 @@
+{
+  "name": "tvmjs",
+  "displayName": "TVM Wasm JS runtime",
+  "license": "Apache-2.0",
+  "version": "0.7.0",
+  "scripts": {
+    "prepwasm": "make && python3 tests/python/prepare_test_libs.py",
+    "build": "tsc -b && make rmtypedep",
+    "lint": "eslint -c .eslintrc.json .",
+    "typedoc": "typedoc .",
+    "test": "jest",
+    "bundle": "npm run build && rollup -c rollup.config.js",
+    "example": "npm run bundle && node apps/node/example.js",
+    "example:wasi": "npm run bundle && node --experimental-wasi-unstable-preview1 --experimental-wasm-bigint apps/node/wasi_example.js",
+    "rpc": "npm run bundle && node --experimental-wasi-unstable-preview1  --experimental-wasm-bigint apps/node/wasi_rpc_server.js"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^11.1.0",
+    "@rollup/plugin-node-resolve": "^7.1.3",
+    "@types/node": "^12.12.37",
+    "@typescript-eslint/eslint-plugin": "^2.29.0",
+    "@typescript-eslint/parser": "^2.29.0",
+    "@webgpu/types": "^0.0.24",
+    "eslint": "^6.8.0",
+    "jest": "^26.0.1",
+    "rollup": "^2.7.6",
+    "rollup-plugin-typescript2": "^0.27.0",
+    "typedoc": "^0.17.6",
+    "typescript": "^3.8.3",
+    "ws": "^7.2.5"
+  }
+}

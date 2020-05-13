@@ -24,20 +24,20 @@
           custom layouts or other general weight pre-transformation.
  */
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/transform.h>
-#include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
 #include <tvm/te/operation.h>
-#include <tuple>
-#include <vector>
+
 #include <functional>
 #include <string>
-#include <utility>
+#include <tuple>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
-#include "transform_layout.h"
 #include "pattern_util.h"
+#include "transform_layout.h"
 
 namespace tvm {
 namespace relay {
@@ -132,8 +132,7 @@ Pass ConvertLayout(const std::string& desired_layout) {
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(relay::convert_op_layout::ConvertLayout(f, desired_layout));
       };
-  return CreateFunctionPass(
-      pass_func, 3, "ConvertLayout", {"InferType", "CanonicalizeOps"});
+  return CreateFunctionPass(pass_func, 3, "ConvertLayout", {"InferType", "CanonicalizeOps"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.ConvertLayout").set_body_typed(ConvertLayout);

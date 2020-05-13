@@ -45,6 +45,7 @@
 #include <utility>
 #include <vector>
 
+#include "../transforms/pass_util.h"
 #include "utils.h"
 
 namespace tvm {
@@ -69,28 +70,6 @@ CCacheKey::CCacheKey(Function source_func, Target target) {
   n->target = std::move(target);
   data_ = std::move(n);
 }
-
-struct IsDynamicVisitor : public TypeVisitor {
-  bool is_dyn{false};
-  void VisitType_(const TensorTypeNode* tt) {
-    for (auto dim : tt->shape) {
-      if (dim.as<Any>()) {
-        is_dyn = true;
-        break;
-      }
-    }
-  }
-};
-
-bool IsDynamic(const Type& ty) {
-  IsDynamicVisitor v;
-  v.VisitType(ty);
-  return v.is_dyn;
-}
-
-// TODO(@jroesch): MOVE ME
-TVM_REGISTER_GLOBAL("relay.ir.IsDynamic")
-.set_body_typed(IsDynamic);
 
 Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
   // for now, we always use int32 shape when possible
@@ -124,8 +103,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
     for (Var param : prim_func->params) {
       Array<tvm::te::Tensor> inputs;
       if (const auto* ttype = param->checked_type().as<TensorTypeNode>()) {
-        tvm::te::Tensor tensor = tvm::te::placeholder(
-            GetShape(ttype->shape), ttype->dtype);
+        tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype);
         cache_node->inputs.push_back(tensor);
         inputs.push_back(tensor);
       } else {
@@ -135,8 +113,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
           const auto* ttype = field.as<TensorTypeNode>();
           // TODO(@icemelon): Allow recursive tuple
           CHECK(ttype != nullptr);
-          tvm::te::Tensor tensor = tvm::te::placeholder(
-              GetShape(ttype->shape), ttype->dtype);
+          tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype);
           cache_node->inputs.push_back(tensor);
           inputs.push_back(tensor);
         }
@@ -149,7 +126,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
     constexpr static size_t kMaxFuncNameLength = 80;
     if (candidate_name.size() > kMaxFuncNameLength) {
       std::stringstream truncated_name;
-      truncated_name <<  candidate_name.substr(0, kMaxFuncNameLength);
+      truncated_name << candidate_name.substr(0, kMaxFuncNameLength);
       truncated_name << "_" << std::hash<std::string>{}(candidate_name) << "_";
       candidate_name = truncated_name.str();
     }
@@ -190,29 +167,31 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
     CHECK(op->is_scalar());
     void* data = op->data->data;
     DataType dtype = DataType(op->data->dtype);
-    auto value = te::compute({}, [&](const Array<tvm::tir::Var>&) {
-        if (dtype == DataType::Int(32)) {
-          return make_const(dtype, static_cast<const int32_t*>(data)[0]);
-        } else if (dtype == DataType::Int(64)) {
-          return make_const(dtype, static_cast<const int64_t*>(data)[0]);
-        } else if (dtype == DataType::Float(32)) {
-          return make_const(dtype, static_cast<const float*>(data)[0]);
-        } else if (dtype == DataType::Float(64)) {
-          return make_const(dtype, static_cast<const double*>(data)[0]);
-        } else if (dtype == DataType::Bool()) {
-          return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
-        } else {
-          LOG(FATAL) << "not handled";
-          return tvm::PrimExpr();
-        }
-    }, "compile_engine_const", topi::kBroadcast);
+    auto value = te::compute(
+        {},
+        [&](const Array<tvm::tir::Var>&) {
+          if (dtype == DataType::Int(32)) {
+            return make_const(dtype, static_cast<const int32_t*>(data)[0]);
+          } else if (dtype == DataType::Int(64)) {
+            return make_const(dtype, static_cast<const int64_t*>(data)[0]);
+          } else if (dtype == DataType::Float(32)) {
+            return make_const(dtype, static_cast<const float*>(data)[0]);
+          } else if (dtype == DataType::Float(64)) {
+            return make_const(dtype, static_cast<const double*>(data)[0]);
+          } else if (dtype == DataType::Bool()) {
+            return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
+          } else {
+            LOG(FATAL) << "not handled";
+            return tvm::PrimExpr();
+          }
+        },
+        "compile_engine_const", topi::kBroadcast);
     scalars_.push_back(value->op);
     return {value};
   }
 
   Array<te::Tensor> VisitExpr_(const CallNode* call_node) final {
-    static auto fpattern =
-        Op::GetAttr<TOpPattern>("TOpPattern");
+    static auto fpattern = Op::GetAttr<TOpPattern>("TOpPattern");
     static auto flower_call = tvm::runtime::Registry::Get("relay.backend.lower_call");
     CHECK(flower_call) << "relay.backend.lower_call is not registered.";
 
@@ -227,12 +206,10 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
       }
     }
     if (count_tuple) {
-      CHECK_EQ(call_node->args.size(), 1U)
-        << "Only allow function with a single tuple input";
+      CHECK_EQ(call_node->args.size(), 1U) << "Only allow function with a single tuple input";
     }
 
-    CHECK(call_node->op.as<OpNode>())
-      << "Primitive function only allows call into primitive ops";
+    CHECK(call_node->op.as<OpNode>()) << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
 
     Array<te::Tensor> outputs;
@@ -240,8 +217,8 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
     // Skip fcompute for device copy operators as it is not registered.
     if (op == device_copy_op_) {
       const auto* copy_input = inputs[0].operator->();
-      outputs.push_back(te::TensorNode::make(copy_input->shape, copy_input->dtype,
-                                         te::Operation(), 0));
+      outputs.push_back(
+          te::TensorNode::make(copy_input->shape, copy_input->dtype, te::Operation(), 0));
     } else {
       LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_);
       outputs = lowered_out->outputs;
@@ -251,8 +228,8 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
     int op_pattern = fpattern[op];
     if (op_pattern >= kCommReduce) {
       CHECK(!master_op_.defined() || master_op_pattern_ < kCommReduce)
-        << "Two complicated op in a primitive function "
-        << " master=" << master_op_ << " current=" << op;
+          << "Two complicated op in a primitive function "
+          << " master=" << master_op_ << " current=" << op;
     }
     if (op_pattern >= master_op_pattern_) {
       master_op_ = op;
@@ -261,8 +238,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
       master_implementation_ = impl;
     }
     if (outputs.size() != 1) {
-      const auto* tuple_type =
-          call_node->checked_type().as<TupleTypeNode>();
+      const auto* tuple_type = call_node->checked_type().as<TupleTypeNode>();
       CHECK(tuple_type) << "Expect output to be a tuple type";
       CHECK_EQ(tuple_type->fields.size(), outputs.size());
     }
@@ -292,8 +268,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
   Array<te::Tensor> VisitExpr_(const TupleNode* op) final {
     Array<te::Tensor> fields;
     for (Expr field : op->fields) {
-      CHECK(field->checked_type().as<TensorTypeNode>())
-          << "Only allow Tuple of Tensor";
+      CHECK(field->checked_type().as<TensorTypeNode>()) << "Only allow Tuple of Tensor";
       Array<te::Tensor> res = VisitExpr(field);
       CHECK_EQ(res.size(), 1);
       fields.push_back(res[0]);
@@ -349,15 +324,15 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
         shape_inputs.push_back(shape_tensor);
       };
 
-      if (const auto *ttype = param->checked_type().as<TensorTypeNode>()) {
+      if (const auto* ttype = param->checked_type().as<TensorTypeNode>()) {
         add_placeholder(ttype);
       } else {
         // flatten tuple of tensor type.
-        const auto *tuple_type = param->type_as<TupleTypeNode>();
+        const auto* tuple_type = param->type_as<TupleTypeNode>();
         // TODO(@icemelon): Support recursive tuple
         CHECK(tuple_type);
         for (Type field : tuple_type->fields) {
-          const auto *ttype = field.as<TensorTypeNode>();
+          const auto* ttype = field.as<TensorTypeNode>();
           CHECK(ttype);
           add_placeholder(ttype);
         }
@@ -372,7 +347,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     constexpr static size_t kMaxFuncNameLength = 80;
     if (candidate_name.size() > kMaxFuncNameLength) {
       std::stringstream truncated_name;
-      truncated_name <<  candidate_name.substr(0, kMaxFuncNameLength);
+      truncated_name << candidate_name.substr(0, kMaxFuncNameLength);
       truncated_name << "_" << std::hash<std::string>{}(candidate_name) << "_";
       candidate_name = truncated_name.str();
     }
@@ -448,28 +423,31 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     if (data_dependant) {
       void* data = op->data->data;
       DataType dtype = DataType(op->data->dtype);
-      auto value = tvm::te::compute({}, [&](const Array<tvm::tir::Var>&) {
-          if (dtype == DataType::Int(32)) {
-            return make_const(dtype, static_cast<const int32_t*>(data)[0]);
-          } else if (dtype == DataType::Int(64)) {
-            return make_const(dtype, static_cast<const int64_t*>(data)[0]);
-          } else if (dtype == DataType::Float(32)) {
-            return make_const(dtype, static_cast<const float*>(data)[0]);
-          } else if (dtype == DataType::Float(64)) {
-            return make_const(dtype, static_cast<const double*>(data)[0]);
-          } else if (dtype == DataType::Bool()) {
-            return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
-          } else {
-            LOG(FATAL) << "not handled";
-            return tvm::PrimExpr();
-          }
-      }, "data_const", topi::kBroadcast);
+      auto value = tvm::te::compute(
+          {},
+          [&](const Array<tvm::tir::Var>&) {
+            if (dtype == DataType::Int(32)) {
+              return make_const(dtype, static_cast<const int32_t*>(data)[0]);
+            } else if (dtype == DataType::Int(64)) {
+              return make_const(dtype, static_cast<const int64_t*>(data)[0]);
+            } else if (dtype == DataType::Float(32)) {
+              return make_const(dtype, static_cast<const float*>(data)[0]);
+            } else if (dtype == DataType::Float(64)) {
+              return make_const(dtype, static_cast<const double*>(data)[0]);
+            } else if (dtype == DataType::Bool()) {
+              return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
+            } else {
+              LOG(FATAL) << "not handled";
+              return tvm::PrimExpr();
+            }
+          },
+          "data_const", topi::kBroadcast);
       scalars_.push_back(value);
       return {value};
     } else {
-      auto value = tvm::te::compute({}, [&](const Array<tvm::tir::Var>&) {
-          return tir::make_const(DataType::Int(64), 0);
-      }, "shape_const", topi::kBroadcast);
+      auto value = tvm::te::compute(
+          {}, [&](const Array<tvm::tir::Var>&) { return tir::make_const(DataType::Int(64), 0); },
+          "shape_const", topi::kBroadcast);
       scalars_.push_back(value);
       return {value};
     }
@@ -477,20 +455,17 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 
   Array<te::Tensor> VisitExpr_(const CallNode* call_node) final {
     static auto fshape_func = Op::GetAttr<FShapeFunc>("FShapeFunc");
-    static auto tshape_data_dependant = Op::GetAttr<TShapeDataDependant>(
-        "TShapeDataDependant");
-    CHECK(call_node->op.as<OpNode>())
-      << "Primitive function only allows call into primitive ops";
+    static auto tshape_data_dependant = Op::GetAttr<TShapeDataDependant>("TShapeDataDependant");
+    CHECK(call_node->op.as<OpNode>()) << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
     CHECK(data_dependants_.empty() || !data_dependants_.back())
-      << "Error in op fusion: output of the shape func is fed to a "
-      << "data-dependant shape func";
-    CHECK_GT(fshape_func.count(op), 0)
-      << "Internal error, cannot find ShapeFunc for " << op->name;
+        << "Error in op fusion: output of the shape func is fed to a "
+        << "data-dependant shape func";
+    CHECK_GT(fshape_func.count(op), 0) << "Internal error, cannot find ShapeFunc for " << op->name;
     CHECK_GT(tshape_data_dependant.count(op), 0)
-      << "Internal error, cannot find TShapeDataDependant for " << op->name;
+        << "Internal error, cannot find TShapeDataDependant for " << op->name;
 
-    data_dependants_.push_back(tshape_data_dependant[op]);
+    data_dependants_.push_back(IsDataDependant(call_node));
     // Visit all inputs
     Array<te::Tensor> inputs;
     int count_tuple = 0;
@@ -503,8 +478,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
       }
     }
     if (count_tuple) {
-      CHECK_EQ(call_node->args.size(), 1U)
-        << "Only allow function with a single tuple input";
+      CHECK_EQ(call_node->args.size(), 1U) << "Only allow function with a single tuple input";
     }
     // Get output ndims
     auto ret_type = call_node->checked_type();
@@ -543,8 +517,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   Array<te::Tensor> VisitExpr_(const TupleNode* op) final {
     Array<te::Tensor> fields;
     for (Expr field : op->fields) {
-      CHECK(field->checked_type().as<TensorTypeNode>())
-        << "Only allow Tuple of Tensor";
+      CHECK(field->checked_type().as<TensorTypeNode>()) << "Only allow Tuple of Tensor";
       Array<te::Tensor> res = VisitExpr(field);
       CHECK_EQ(res.size(), 1);
       fields.push_back(res[0]);
@@ -570,9 +543,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 class CompileEngineImpl : public CompileEngineNode {
  public:
   // Lower the function.
-  CachedFunc Lower(const CCacheKey& key)  {
-    return LowerInternal(key)->cached_func;
-  }
+  CachedFunc Lower(const CCacheKey& key) { return LowerInternal(key)->cached_func; }
 
   // For now, build one module per function.
   PackedFunc JIT(const CCacheKey& key) final {
@@ -633,9 +604,7 @@ class CompileEngineImpl : public CompileEngineNode {
     return ret;
   }
 
-  void Clear() final {
-    cache_.clear();
-  }
+  void Clear() final { cache_.clear(); }
   // List all items in the cache.
   Array<ObjectRef> ListItems() {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -659,7 +628,7 @@ class CompileEngineImpl : public CompileEngineNode {
 
  private:
   // implement lowered func
-  CCacheValue LowerInternal(const CCacheKey& key)  {
+  CCacheValue LowerInternal(const CCacheKey& key) {
     std::lock_guard<std::mutex> lock(mutex_);
     CCacheValue value;
     auto it = cache_.find(key);
@@ -676,10 +645,8 @@ class CompileEngineImpl : public CompileEngineNode {
     // codegen tool once and lower all functions together.
     if (key->source_func->GetAttr<String>(attr::kCompiler).defined()) {
       auto cache_node = make_object<CachedFuncNode>();
-      const auto name_node =
-          key->source_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-      CHECK(name_node.defined())
-          << "External function has not been attached a name yet.";
+      const auto name_node = key->source_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+      CHECK(name_node.defined()) << "External function has not been attached a name yet.";
       cache_node->func_name = std::string(name_node.value());
       cache_node->target = tvm::target::ext_dev();
       value->cached_func = CachedFunc(cache_node);
@@ -690,8 +657,7 @@ class CompileEngineImpl : public CompileEngineNode {
 
     CHECK(!value->cached_func.defined());
     auto cfunc = CreateSchedule(key->source_func, key->target);
-    auto cache_node = make_object<CachedFuncNode>(
-        *(cfunc.operator->()));
+    auto cache_node = make_object<CachedFuncNode>(*(cfunc.operator->()));
 
     // Skip lowering for device copy node.
     const Expr body = (key->source_func)->body;
@@ -710,13 +676,11 @@ class CompileEngineImpl : public CompileEngineNode {
     }
     // lower the function
     if (const auto* f = runtime::Registry::Get("relay.backend.lower")) {
-      cache_node->funcs = (*f)(
-          cfunc->schedule, all_args, cache_node->func_name, key->source_func);
+      cache_node->funcs = (*f)(cfunc->schedule, all_args, cache_node->func_name, key->source_func);
     } else {
       tvm::BuildConfig bcfg = BuildConfig::Create();
       std::unordered_map<te::Tensor, tir::Buffer> binds;
-      cache_node->funcs = tvm::lower(cfunc->schedule, all_args, cache_node->func_name,
-                                     binds, bcfg);
+      cache_node->funcs = tvm::lower(cfunc->schedule, all_args, cache_node->func_name, binds, bcfg);
     }
     value->cached_func = CachedFunc(cache_node);
     return value;
@@ -740,8 +704,7 @@ class CompileEngineImpl : public CompileEngineNode {
 
     CHECK(!value->cached_func.defined());
     auto spair = MakeShapeFunc().Create(key->source_func);
-    auto cache_node = make_object<CachedFuncNode>(
-            *(spair.second.operator->()));
+    auto cache_node = make_object<CachedFuncNode>(*(spair.second.operator->()));
     cache_node->func_name = GetUniqueName(cache_node->func_name);
     cache_node->target = key->target;
 
@@ -792,57 +755,41 @@ class CompileEngineImpl : public CompileEngineNode {
 const CompileEngine& CompileEngine::Global() {
   // intentionally allocate raw pointer to avoid
   // free during destructuion.
-  static CompileEngine* inst = new CompileEngine(
-      make_object<CompileEngineImpl>());
+  static CompileEngine* inst = new CompileEngine(make_object<CompileEngineImpl>());
   return *inst;
 }
 
 TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
-.set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplementation impl) {
-  return LoweredOutput(outputs, impl);
-});
+    .set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplementation impl) {
+      return LoweredOutput(outputs, impl);
+    });
 
 TVM_REGISTER_GLOBAL("relay.backend._make_CCacheKey")
-.set_body_typed([](Function source_func, Target target) {
-  return CCacheKey(source_func, target);
-});
+    .set_body_typed([](Function source_func, Target target) {
+      return CCacheKey(source_func, target);
+    });
 
-TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGlobal")
-.set_body_typed([]() {
+TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGlobal").set_body_typed([]() {
   return CompileEngine::Global();
 });
 
-TVM_REGISTER_GLOBAL("relay.backend._CompileEngineClear")
-.set_body_typed([](CompileEngine self) {
+TVM_REGISTER_GLOBAL("relay.backend._CompileEngineClear").set_body_typed([](CompileEngine self) {
   self->Clear();
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLower")
-.set_body_typed(
-    [](CompileEngine self, CCacheKey key) {
-  return self->Lower(key);
-});
+    .set_body_typed([](CompileEngine self, CCacheKey key) { return self->Lower(key); });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLowerShapeFunc")
-.set_body_typed(
-    [](CompileEngine self, CCacheKey key) {
-  return self->LowerShapeFunc(key);
-});
+    .set_body_typed([](CompileEngine self, CCacheKey key) { return self->LowerShapeFunc(key); });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileLowerExternalFunctions")
-.set_body_typed([](CompileEngine self) {
-  return self->LowerExternalFunctions();
-});
+    .set_body_typed([](CompileEngine self) { return self->LowerExternalFunctions(); });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineJIT")
-.set_body_typed(
-    [](CompileEngine self, CCacheKey key) {
-  return self->JIT(key);
-});
+    .set_body_typed([](CompileEngine self, CCacheKey key) { return self->JIT(key); });
 
-TVM_REGISTER_GLOBAL("relay.backend._CompileEngineListItems")
-.set_body_typed(
-    [](CompileEngine self){
+TVM_REGISTER_GLOBAL("relay.backend._CompileEngineListItems").set_body_typed([](CompileEngine self) {
   return static_cast<CompileEngineImpl*>(self.operator->())->ListItems();
 });
 }  // namespace relay

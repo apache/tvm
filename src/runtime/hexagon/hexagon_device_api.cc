@@ -33,21 +33,17 @@ class HexagonDeviceAPI : public DeviceAPI {
  public:
   void SetDevice(TVMContext ctx) final;
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
-                       DLDataType type_hint) final;
+  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment, DLDataType type_hint) final;
   void FreeDataSpace(TVMContext ctx, void* ptr) final;
-  void CopyDataFromTo(const void* from, size_t from_offset, void* to,
-                      size_t to_offset, size_t num_bytes, TVMContext ctx_from,
-                      TVMContext ctx_to, DLDataType type_hint,
-                      TVMStreamHandle stream) final;
+  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
+                      size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
+                      DLDataType type_hint, TVMStreamHandle stream) final;
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
-  void* AllocWorkspace(TVMContext ctx, size_t nbytes,
-                       DLDataType type_hint = {}) final;
+  void* AllocWorkspace(TVMContext ctx, size_t nbytes, DLDataType type_hint = {}) final;
   void FreeWorkspace(TVMContext ctx, void* ptr) final;
 
   static const std::shared_ptr<HexagonDeviceAPI>& Global() {
-    static std::shared_ptr<HexagonDeviceAPI> inst =
-        std::make_shared<HexagonDeviceAPI>();
+    static std::shared_ptr<HexagonDeviceAPI> inst = std::make_shared<HexagonDeviceAPI>();
     return inst;
   }
 };
@@ -56,13 +52,11 @@ class HexagonDeviceAPI : public DeviceAPI {
 
 inline void HexagonDeviceAPI::SetDevice(TVMContext ctx) {}
 
-inline void HexagonDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind,
-                                      TVMRetValue* rv) {
+inline void HexagonDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
   if (kind == kExist) *rv = 1;
 }
 
-inline void* HexagonDeviceAPI::AllocDataSpace(TVMContext ctx, size_t nbytes,
-                                              size_t alignment,
+inline void* HexagonDeviceAPI::AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
                                               DLDataType type_hint) {
   CHECK(hexagon::Device::ValidateDeviceId(ctx.device_id));
   return hexagon::Device::Global()->Alloc(nbytes, alignment);
@@ -73,10 +67,10 @@ inline void HexagonDeviceAPI::FreeDataSpace(TVMContext ctx, void* ptr) {
   hexagon::Device::Global()->Free(ptr);
 }
 
-inline void HexagonDeviceAPI::CopyDataFromTo(
-    const void* from, size_t from_offset, void* to, size_t to_offset,
-    size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
-    DLDataType type_hint, TVMStreamHandle stream) {
+inline void HexagonDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void* to,
+                                             size_t to_offset, size_t num_bytes,
+                                             TVMContext ctx_from, TVMContext ctx_to,
+                                             DLDataType type_hint, TVMStreamHandle stream) {
   const char* src = static_cast<const char*>(from) + from_offset;
   char* dst = static_cast<char*>(to) + to_offset;
 
@@ -110,11 +104,9 @@ inline void HexagonDeviceAPI::CopyDataFromTo(
   }
 }
 
-inline void HexagonDeviceAPI::StreamSync(TVMContext ctx,
-                                         TVMStreamHandle stream) {}
+inline void HexagonDeviceAPI::StreamSync(TVMContext ctx, TVMStreamHandle stream) {}
 
-inline void* HexagonDeviceAPI::AllocWorkspace(TVMContext ctx, size_t nbytes,
-                                              DLDataType type_hint) {
+inline void* HexagonDeviceAPI::AllocWorkspace(TVMContext ctx, size_t nbytes, DLDataType type_hint) {
   CHECK(hexagon::Device::ValidateDeviceId(ctx.device_id));
   if (type_hint.code == 100) {
     size_t align = std::min(nbytes, 2048lu);
@@ -128,11 +120,10 @@ inline void HexagonDeviceAPI::FreeWorkspace(TVMContext ctx, void* ptr) {
   DeviceAPI::FreeWorkspace(ctx, ptr);
 }
 
-TVM_REGISTER_GLOBAL("device_api.hexagon")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      DeviceAPI* ptr = HexagonDeviceAPI::Global().get();
-      *rv = ptr;
-    });
+TVM_REGISTER_GLOBAL("device_api.hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
+  DeviceAPI* ptr = HexagonDeviceAPI::Global().get();
+  *rv = ptr;
+});
 }  // namespace runtime
 }  // namespace tvm
 

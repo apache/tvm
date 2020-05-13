@@ -21,8 +21,8 @@
  * \file src/ir/tensor_type.cc
  * \brief The type system AST nodes of Relay.
  */
-#include <tvm/runtime/registry.h>
 #include <tvm/ir/tensor_type.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/op.h>
 
 namespace tvm {
@@ -37,9 +37,7 @@ TensorType::TensorType(Array<PrimExpr> shape, DataType dtype) {
   data_ = std::move(n);
 }
 
-TensorType TensorType::Scalar(DataType dtype) {
-  return TensorType({}, dtype);
-}
+TensorType TensorType::Scalar(DataType dtype) { return TensorType({}, dtype); }
 
 PrimExpr TensorTypeNode::Size() const {
   if (shape.size() == 0) {
@@ -55,15 +53,14 @@ PrimExpr TensorTypeNode::Size() const {
 
 TVM_REGISTER_NODE_TYPE(TensorTypeNode);
 
-TVM_REGISTER_GLOBAL("ir.TensorType")
-.set_body_typed([](Array<PrimExpr> shape, DataType dtype) {
+TVM_REGISTER_GLOBAL("ir.TensorType").set_body_typed([](Array<PrimExpr> shape, DataType dtype) {
   return TensorType(shape, dtype);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<TensorTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const TensorTypeNode*>(ref.get());
-  p->stream << "TensorType(" << node->shape << ", " << node->dtype << ")";
-});
+    .set_dispatch<TensorTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const TensorTypeNode*>(ref.get());
+      p->stream << "TensorType(" << node->shape << ", " << node->dtype << ")";
+    });
 
 }  // namespace tvm

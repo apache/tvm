@@ -42,8 +42,8 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
-#include <fstream>
 #include <cmath>
+#include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
@@ -76,9 +76,8 @@ int Add(TVMValue* value, int* type_code, int nargs) {
   DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
   DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
   DLTensor* out = static_cast<DLTensor*>(value[2].v_handle);
-  Add_(static_cast<float*>(arg0->data), arg0->shape[0],
-       static_cast<float*>(arg1->data), arg1->shape[0],
-       static_cast<float*>(out->data));
+  Add_(static_cast<float*>(arg0->data), arg0->shape[0], static_cast<float*>(arg1->data),
+       arg1->shape[0], static_cast<float*>(out->data));
   return 0;
 }
 
@@ -93,9 +92,8 @@ int Sub(TVMValue* value, int* type_code, int nargs) {
   DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
   DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
   DLTensor* out = static_cast<DLTensor*>(value[2].v_handle);
-  Sub_(static_cast<float*>(arg0->data), arg0->shape[0],
-       static_cast<float*>(arg1->data), arg1->shape[0],
-       static_cast<float*>(out->data));
+  Sub_(static_cast<float*>(arg0->data), arg0->shape[0], static_cast<float*>(arg1->data),
+       arg1->shape[0], static_cast<float*>(out->data));
   return 0;
 }
 
@@ -110,9 +108,8 @@ int Mul(TVMValue* value, int* type_code, int nargs) {
   DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
   DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
   DLTensor* out = static_cast<DLTensor*>(value[2].v_handle);
-  Mul_(static_cast<float*>(arg0->data), arg0->shape[0],
-       static_cast<float*>(arg1->data), arg1->shape[0],
-       static_cast<float*>(out->data));
+  Mul_(static_cast<float*>(arg0->data), arg0->shape[0], static_cast<float*>(arg1->data),
+       arg1->shape[0], static_cast<float*>(out->data));
   return 0;
 }
 
@@ -136,8 +133,7 @@ class ExampleJsonModule : public ModuleNode {
    *
    * \return The function pointer when it is found, otherwise, PackedFunc(nullptr).
    */
-  PackedFunc GetFunction(const std::string& name,
-                         const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (this->graph_.find(name) != this->graph_.end()) {
       this->curr_subgraph_ = name;
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -215,9 +211,7 @@ class ExampleJsonModule : public ModuleNode {
    *
    * \param stream. The stream to save the binary.
    */
-  void SaveToBinary(dmlc::Stream* stream) final {
-      stream->Write(this->graph_json_);
-  }
+  void SaveToBinary(dmlc::Stream* stream) final { stream->Write(this->graph_json_); }
 
   /*!
    * \brief Parse the example json string.
@@ -333,12 +327,10 @@ class ExampleJsonModule : public ModuleNode {
 };
 
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_examplejson")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = ExampleJsonModule::Create(args[0]);
-});
+    .set_body([](TVMArgs args, TVMRetValue* rv) { *rv = ExampleJsonModule::Create(args[0]); });
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_examplejson")
-.set_body_typed(ExampleJsonModule::LoadFromBinary);
+    .set_body_typed(ExampleJsonModule::LoadFromBinary);
 
 }  // namespace runtime
 }  // namespace tvm

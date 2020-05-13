@@ -20,8 +20,9 @@
  * \file rpc_env.cc
  * \brief Server environment of the RPC.
  */
-#include <cerrno>
 #include <tvm/runtime/registry.h>
+
+#include <cerrno>
 #ifndef _WIN32
 #include <dirent.h>
 #include <sys/stat.h>
@@ -30,44 +31,53 @@
 #include <Windows.h>
 #include <direct.h>
 namespace {
-  int mkdir(const char* path, int /* ignored */) { return _mkdir(path); }
-}
+int mkdir(const char* path, int /* ignored */) { return _mkdir(path); }
+}  // namespace
 #endif
 #include <cstring>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
-#include <string>
 
-#include "../../src/support/util.h"
 #include "../../src/runtime/file_util.h"
+#include "../../src/support/util.h"
 #include "rpc_env.h"
 
 namespace {
-  std::string GenerateUntarCommand(const std::string& tar_file, const std::string& output_dir) {
-    std::string untar_cmd;
-    untar_cmd.reserve(512);
+std::string GenerateUntarCommand(const std::string& tar_file, const std::string& output_dir) {
+  std::string untar_cmd;
+  untar_cmd.reserve(512);
 #if defined(__linux__) || defined(__ANDROID__)
-    untar_cmd += "tar -C ";
-    untar_cmd += output_dir;
-    untar_cmd += " -zxf ";
-    untar_cmd += tar_file;
+  untar_cmd += "tar -C ";
+  untar_cmd += output_dir;
+  untar_cmd += " -zxf ";
+  untar_cmd += tar_file;
 #elif defined(_WIN32)
-    untar_cmd += "python -m tarfile -e ";
-    untar_cmd += tar_file;
-    untar_cmd += " ";
-    untar_cmd += output_dir;
+  untar_cmd += "python -m tarfile -e ";
+  untar_cmd += tar_file;
+  untar_cmd += " ";
+  untar_cmd += output_dir;
 #endif
-    return untar_cmd;
-  }
+  return untar_cmd;
+}
 
-}// Anonymous namespace
+}  // Anonymous namespace
 
 namespace tvm {
 namespace runtime {
 RPCEnv::RPCEnv() {
+#ifndef _WIN32
+  char cwd[PATH_MAX];
+  if (char* rc = getcwd(cwd, sizeof(cwd))) {
+    base_ = std::string(cwd) + "/rpc";
+  } else {
+    base_ = "./rpc";
+  }
+#else
   base_ = "./rpc";
+#endif
+
   mkdir(base_.c_str(), 0777);
   TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath").set_body([](TVMArgs args, TVMRetValue* rv) {
     static RPCEnv env;
@@ -162,22 +172,20 @@ std::vector<std::string> ListDir(const std::string& dirname) {
  * \param options The compiler options
  * \param cc The compiler
  */
-void LinuxShared(const std::string output, 
-                 const std::vector<std::string> &files,
-                 std::string options = "", 
-                 std::string cc = "g++") {
-    std::string cmd = cc;
-    cmd += " -shared -fPIC ";
-    cmd += " -o " + output;
-    for (auto f = files.begin(); f != files.end(); ++f) {
-     cmd += " " + *f;
-    }
-    cmd += " " + options;
-    std::string err_msg;
-    auto executed_status = support::Execute(cmd, &err_msg);
-    if (executed_status) {
-      LOG(FATAL) << err_msg;
-    }
+void LinuxShared(const std::string output, const std::vector<std::string>& files,
+                 std::string options = "", std::string cc = "g++") {
+  std::string cmd = cc;
+  cmd += " -shared -fPIC ";
+  cmd += " -o " + output;
+  for (auto f = files.begin(); f != files.end(); ++f) {
+    cmd += " " + *f;
+  }
+  cmd += " " + options;
+  std::string err_msg;
+  auto executed_status = support::Execute(cmd, &err_msg);
+  if (executed_status) {
+    LOG(FATAL) << err_msg;
+  }
 }
 #endif
 
@@ -189,10 +197,8 @@ void LinuxShared(const std::string output,
  * \param options The compiler options
  * \param cc The compiler
  */
-void WindowsShared(const std::string& output, 
-                   const std::vector<std::string>& files,
-                   const std::string& options = "", 
-                   const std::string& cc = "clang") {
+void WindowsShared(const std::string& output, const std::vector<std::string>& files,
+                   const std::string& options = "", const std::string& cc = "clang") {
   std::string cmd = cc;
   cmd += " -O2 -flto=full -fuse-ld=lld-link -Wl,/EXPORT:__tvm_main__ -shared ";
   cmd += " -o " + output;
@@ -233,7 +239,7 @@ void CreateShared(const std::string& output, const std::vector<std::string>& fil
  * \param fmt The format of file
  * \return Module The loaded module
  */
-Module Load(std::string *fileIn, const std::string& fmt) {
+Module Load(std::string* fileIn, const std::string& fmt) {
   const std::string& file = *fileIn;
   if (support::EndsWith(file, ".so") || support::EndsWith(file, ".dll")) {
     return Module::LoadFromFile(file, fmt);

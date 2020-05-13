@@ -747,6 +747,17 @@ def _test_reshape_like(data, shape_like):
 
         compare_tf_with_tvm(data, 'Placeholder:0', 'Reshape:0')
 
+def _test_reshape_symbolic(data, a_data, b_data):
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        a = array_ops.placeholder(shape=a_data.shape, dtype=a_data.dtype)
+        b = array_ops.placeholder(shape=b_data.shape, dtype=b_data.dtype)
+        newshape = tf.add(a, b)
+        out = array_ops.reshape(in_data, newshape)
+
+        for mode in ["debug", "vm"]:
+            compare_tf_with_tvm([data, a_data, b_data], [in_data.name, a.name, b.name], out.name, mode=mode)
+
 def test_forward_reshape():
     _test_reshape(np.arange(6.0), [2, 3])
     _test_reshape(np.arange(6), [-1, 2])
@@ -754,6 +765,10 @@ def test_forward_reshape():
     _test_reshape(np.arange(6), [-1])
     _test_reshape_with_call()
     _test_reshape_like(np.zeros((3, 6)), np.zeros((9, 2)))
+    _test_reshape_symbolic(np.arange(6.0), np.array([2, 0]), np.array([0, 3]))
+    _test_reshape_symbolic(np.arange(6), np.array([-1, 0]), np.array([0, 2]))
+    _test_reshape_symbolic(np.arange(6), np.array([3, 0]), np.array([3, -1]))
+    _test_reshape_symbolic(np.arange(6), np.array([0]), np.array([-1]))
 
 #######################################################################
 # DepthToSpace
@@ -2595,15 +2610,6 @@ def test_forward_zeros_like():
         _test_forward_zeros_like((2, 3, 11), "float64")
 
 
-def test_forward_erf():
-    ishape = (1, 3, 10, 10)
-    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    with tf.Graph().as_default():
-        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
-        tf.math.erf(in1)
-        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Erf:0')
-
-
 def test_forward_squared_difference():
     ishape = (1, 3, 10, 14)
     inp_array_a = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
@@ -2670,52 +2676,32 @@ def test_forward_pow_exp():
         compare_tf_with_tvm([np_in1], ['in1:0'], 'exp:0')
 
 
-def test_forward_log():
-    """test operator Log """
-    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
-        tf.log(in_data, name="log")
-        compare_tf_with_tvm([np_data], ['in_data:0'], 'log:0')
+def test_forward_unary():
+    def _test_forward_unary(op, a_min=1, a_max=5, dtype=np.float32):
+        """test unary operators"""
+        np_data = np.random.uniform(a_min, a_max, size=(2, 3, 5)).astype(dtype)
+        tf.reset_default_graph()
+        with tf.Graph().as_default():
+            in_data = tf.placeholder(dtype, (2, 3, 5), name="in_data")
+            out = op(in_data)
+            compare_tf_with_tvm([np_data], ['in_data:0'], out.name)
 
+    _test_forward_unary(tf.acos, -1, 1)
+    _test_forward_unary(tf.asin, -1, 1)
+    _test_forward_unary(tf.atanh, -1, 1)
+    _test_forward_unary(tf.sinh)
+    _test_forward_unary(tf.cosh)
+    _test_forward_unary(tf.acosh)
+    _test_forward_unary(tf.asinh)
+    _test_forward_unary(tf.atan)
+    _test_forward_unary(tf.sin)
+    _test_forward_unary(tf.cos)
+    _test_forward_unary(tf.tan)
+    _test_forward_unary(tf.tanh)
+    _test_forward_unary(tf.erf)
+    _test_forward_unary(tf.log)
+    _test_forward_unary(tf.log1p)
 
-def test_forward_log1p():
-    """test operator Log1p """
-    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
-        tf.log1p(in_data, name="log1p")
-        compare_tf_with_tvm([np_data], ['in_data:0'], 'log1p:0')
-
-
-def test_forward_cos():
-    """test operator cos """
-    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
-        tf.cos(in_data, name="cos")
-        compare_tf_with_tvm([np_data], ['in_data:0'], 'cos:0')
-
-
-def test_forward_tan():
-    """test operator tan """
-    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
-    tf.reset_default_graph()
-    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
-    tf.tan(in_data, name="tan")
-    compare_tf_with_tvm([np_data], ['in_data:0'], 'tan:0')
-
-def test_forward_atan():
-    """test operator tan """
-    tf.disable_eager_execution()
-    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
-    tf.reset_default_graph()
-    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
-    tf.atan(in_data, name="atan")
-    compare_tf_with_tvm([np_data], ['in_data:0'], 'atan:0')
 
 def test_forward_atan2():
     """test operator tan """
@@ -2727,16 +2713,6 @@ def test_forward_atan2():
     in_data_2 = tf.placeholder(tf.float32, (2, 3, 5), name="in_data_2")
     tf.atan2(in_data_1, in_data_2, name="atan2")
     compare_tf_with_tvm([np_data_1, np_data_2], ['in_data_1:0', 'in_data_2:0'], 'atan2:0')
-
-
-def test_forward_sin():
-    """test operator sin """
-    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
-        tf.sin(in_data, name="sin")
-        compare_tf_with_tvm([np_data], ['in_data:0'], 'sin:0')
 
 
 def test_forward_negative():
@@ -3238,7 +3214,6 @@ if __name__ == '__main__':
     test_forward_left_shift()
     test_forward_truncatemod()
     test_forward_one_hot()
-    test_forward_atan()
     test_forward_atan2()
 
     # Activations
@@ -3254,11 +3229,6 @@ if __name__ == '__main__':
     test_forward_reverse_v2()
     test_forward_pow_exp()
     test_forward_sign()
-    test_forward_log()
-    test_forward_log1p()
-    test_forward_tan()
-    test_forward_cos()
-    test_forward_sin()
     test_forward_negative()
     test_forward_divide()
     test_forward_abs()
@@ -3271,13 +3241,13 @@ if __name__ == '__main__':
     test_forward_log_softmax()
     test_forward_bias_add()
     test_forward_zeros_like()
-    test_forward_erf()
     test_forward_squared_difference()
     test_forward_add_n()
     test_forward_floormod()
     test_forward_isfinite()
     test_forward_isinf()
     test_forward_unravel_index()
+    test_forward_unary()
 
     # Reductions
     test_forward_argminmax()
