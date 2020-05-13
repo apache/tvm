@@ -794,9 +794,6 @@ TVM_REGISTER_GLOBAL("tir._OpIfThenElse")
       return if_then_else(cond, true_value, false_value);
     });
 
-TVM_REGISTER_GLOBAL("tir._OpLikely")
-    .set_body_typed([] (PrimExpr cond) {
-      return likely(cond);
-    });
+TVM_REGISTER_GLOBAL("tir._OpLikely").set_body_typed([](PrimExpr cond) { return likely(cond); });
 
 }  // namespace tvm
