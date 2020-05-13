@@ -16,10 +16,10 @@
     under the License.
 
 Links to API References
-==================================
+=======================
 
 This page contains links to API references that are build with different doc build system.
 
 * `C++ doyxgen API <doxygen/index.html>`_
-* `Javascript jsdoc API <jsdoc/index.html>`_
+* `Typescript typedoc API <typedoc/index.html>`_
 * `Java Javadoc API <javadoc/index.html>`_
