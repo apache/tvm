@@ -94,6 +94,8 @@ class TFLiteRuntime : public ModuleNode {
    */
   NDArray GetOutput(int index) const;
 
+  // Buffer backing the interpreter's model
+  std::unique_ptr<char[]> flatBuffersBuffer_;
   // TFLite interpreter
   std::unique_ptr<tflite::Interpreter> interpreter_;
   // TVM context
