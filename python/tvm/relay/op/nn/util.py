@@ -19,6 +19,37 @@
 from tvm.ir import container
 
 
+def get_pad_tuple1d(padding):
+    """Common code to get the 1 dimensional pad option
+    Parameters
+    ----------
+    padding : Union[int, Tuple[int, ...]]
+        Padding size
+    Returns
+    -------
+    pad_left : int
+        Padding size on left
+    pad_right : int
+        Padding size on right.
+    """
+    # compute the padding size
+    if isinstance(padding, container.Array):
+        padding = list(padding)
+    if isinstance(padding, (tuple, list)):
+        if len(padding) == 1:
+            pad_w = padding[0] * 2
+        elif len(padding) == 2:
+            return padding[0], padding[1]
+        else:
+            raise ValueError("Size of padding can only be 1 or 2")
+    elif isinstance(padding, int):
+        pad_w = padding * 2
+    else:
+        raise ValueError("Unknown padding option %s" % padding)
+    pad_left = (pad_w + 1) // 2
+    return pad_left, pad_w - pad_left
+
+
 def get_pad_tuple2d(padding):
     """Common code to get the pad option
     Parameters

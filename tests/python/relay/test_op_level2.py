@@ -747,7 +747,7 @@ def test_upsampling3d_infer_type():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, 200, 200, 400), "float32")
 
-def _test_pool2d(opfunc, reffunc):
+def _test_pool2d(opfunc, reffunc, pool_size=(2, 2), strides=(2, 2), padding=(0, 0)):
     n, c, h, w = te.size_var("n"), 10, 224, 224
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = opfunc(x, pool_size=(1, 1))
@@ -758,7 +758,7 @@ def _test_pool2d(opfunc, reffunc):
     dtype = "float32"
     dshape = (1, 3, 28, 28)
     x = relay.var("x", shape=dshape)
-    y = opfunc(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
+    y = opfunc(x, pool_size=pool_size, strides=strides, padding=padding)
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
     ref_res = reffunc(data.reshape(1, 3, 14, 2, 14, 2), axis=(3, 5))
@@ -815,7 +815,9 @@ def _test_global_pool2d(opfunc, reffunc):
 
 def test_pool2d():
     _test_pool2d(relay.nn.max_pool2d, np.max)
+    _test_pool2d(relay.nn.max_pool2d, np.max, pool_size=2, strides=2, padding=0)
     _test_pool2d(relay.nn.avg_pool2d, np.mean)
+    _test_pool2d(relay.nn.avg_pool2d, np.mean, pool_size=2, strides=2, padding=0)
     _test_pool2d_int(relay.nn.avg_pool2d, np.mean, 'int32')
     _test_pool2d_int(relay.nn.avg_pool2d, np.mean, 'uint16')
     _test_global_pool2d(relay.nn.global_max_pool2d, np.max)
@@ -824,7 +826,7 @@ def test_pool2d():
 
 def test_pool1d():
 
-    def _test_pool1d(opfunc):
+    def _test_pool1d(opfunc, pool_size=(2,), strides=(2,), padding=(0, 0)):
         n, c, w = te.var("n"), 10, 224
         x = relay.var("x", relay.TensorType((n, c, w), "float32"))
         y = opfunc(x, pool_size=(1,))
@@ -836,7 +838,7 @@ def test_pool1d():
         dshape = (1, 3, 32)
         x = relay.var("x", shape=dshape)
         pool_type = 'max' if 'max' in str(opfunc) else 'avg'
-        y = opfunc(x, pool_size=(2,), strides=(2,), padding=(0, 0))
+        y = opfunc(x, pool_size=pool_size, strides=strides, padding=padding)
         func = relay.Function([x], y)
         data = np.random.uniform(size=dshape).astype(dtype)
         ref_res = topi.testing.pool1d_ncw_python(data, (2,), (2,),
@@ -847,12 +849,18 @@ def test_pool1d():
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_pool1d(relay.nn.max_pool1d)
+    _test_pool1d(relay.nn.max_pool1d, pool_size=2, strides=2, padding=0)
     _test_pool1d(relay.nn.avg_pool1d)
+    _test_pool1d(relay.nn.avg_pool1d, pool_size=2, strides=2, padding=0)
 
 
 def test_pool3d():
 
-    def _test_pool3d(opfunc, padding=(0, 0, 0, 0, 0, 0), out_shape=(1, 3, 16, 16, 16)):
+    def _test_pool3d(opfunc,
+                     pool_size=(2, 2, 2),
+                     strides=(2, 2, 2),
+                     padding=(0, 0, 0, 0, 0, 0),
+                     out_shape=(1, 3, 16, 16, 16)):
         n, c, d, h, w = te.size_var("n"), 10, 5, 224, 224
         x = relay.var("x", relay.TensorType((n, c, d, h, w), "float32"))
         y = opfunc(x, pool_size=(1, 1, 1))
@@ -864,14 +872,14 @@ def test_pool3d():
         dshape = (1, 3, 32, 32, 32)
         x = relay.var("x", shape=dshape)
         pool_type = 'max' if 'max' in str(opfunc) else 'avg'
-        y = opfunc(x, pool_size=(2, 2, 2), strides=(2, 2, 2), padding=padding)
+        y = opfunc(x, pool_size=pool_size, strides=strides, padding=padding)
         func = relay.Function([x], y)
         # check output shape
         f_out_shape = tuple(map(lambda x: int(x), run_infer_type(func).ret_type.shape))
         assert out_shape == f_out_shape, \
             "Output shape mismatch. expected {}, actual {}".format(out_shape, f_out_shape)
         data = np.random.uniform(size=dshape).astype(dtype)
-        ref_res = topi.testing.pool3d_ncdhw_python(data, (2, 2, 2), (2, 2, 2),
+        ref_res = topi.testing.pool3d_ncdhw_python(data, pool_size, strides,
                                                    padding, out_shape, pool_type, False)
         for target, ctx in ctx_list():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
@@ -882,10 +890,12 @@ def test_pool3d():
     _test_pool3d(relay.nn.max_pool3d, padding=(2, 0, 0, 2, 0, 0), out_shape=(1, 3, 18, 16, 16))
     _test_pool3d(relay.nn.max_pool3d, padding=(0, 3, 0, 0, 3, 0), out_shape=(1, 3, 16, 19, 16))
     _test_pool3d(relay.nn.max_pool3d, padding=(0, 0, 4, 0, 0, 4), out_shape=(1, 3, 16, 16, 20))
+    _test_pool3d(relay.nn.max_pool3d, pool_size=2, padding=0, strides=2)
     _test_pool3d(relay.nn.avg_pool3d)
     _test_pool3d(relay.nn.avg_pool3d, padding=(2, 0, 0, 2, 0, 0), out_shape=(1, 3, 18, 16, 16))
     _test_pool3d(relay.nn.avg_pool3d, padding=(0, 3, 0, 0, 3, 0), out_shape=(1, 3, 16, 19, 16))
     _test_pool3d(relay.nn.avg_pool3d, padding=(0, 0, 4, 0, 0, 4), out_shape=(1, 3, 16, 16, 20))
+    _test_pool3d(relay.nn.avg_pool3d, pool_size=2, padding=0, strides=2)
 
 
 def test_avg_pool2d_no_count_pad():
