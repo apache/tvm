@@ -789,6 +789,19 @@ def _mx_l2_normalize(inputs, attrs):
     return _op.nn.l2_normalize(inputs[0], **new_attrs)
 
 
+def _mx_softsign(inputs, attrs):
+    return inputs[0] / (_expr.const(1.0) + _op.abs(inputs[0]))
+
+
+def _mx_hard_sigmoid(inputs, attrs):
+    x = (_expr.const(0.2) * inputs[0]) + _expr.const(0.5)
+    return _op.clip(x, a_min=0.0, a_max=1.0)
+
+
+def _mx_reciprocal(inputs, attrs):
+    return _expr.const(1.0) /inputs[0]
+
+
 def _mx_shape_array(inputs, attrs):
     assert len(inputs) == 1
     if attrs.get_int("lhs_begin", None) is not None:
@@ -1742,12 +1755,15 @@ def _mx_broadcast_logical(logical_op):
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
+    "abs",
     "log",
     "exp",
     "erf",
     "sqrt",
     "floor",
     "ceil",
+    "round",
+    "sign",
     "sigmoid",
     "negative",
     "reshape_like",
@@ -1856,6 +1872,9 @@ _convert_map = {
     "softmax"       : _softmax_op(_op.nn.softmax),
     "log_softmax"   : _softmax_op(_op.nn.log_softmax),
     "Softmax"       : _softmax_op(_op.nn.softmax),
+    "softsign"      : _mx_softsign,
+    "hard_sigmoid"  : _mx_hard_sigmoid,
+    "reciprocal"    : _mx_reciprocal,
     # per op specialization
     "Reshape"       : _reshape,
     "reshape"       : _reshape,
