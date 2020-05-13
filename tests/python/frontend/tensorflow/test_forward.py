@@ -3383,6 +3383,23 @@ def test_spop_control_flow():
 
 def test_spop_variables():
     tf.reset_default_graph()
+    g = tf.Graph()
+    with g.as_default():
+
+        @function.Defun(tf.int32,tf.int32)
+        def Forward(x,y):
+            #create variables outside Defun() method, you can pass variables inside Defun method though
+            return tf.multiply(x,y)
+        const1 = tf.constant(10)
+        const2 = tf.constant(20)
+        var1 = tf.Variable(const1, dtype=tf.int32)
+        var2 = tf.Variable(const2, dtype=tf.int32)
+
+        z = gen_functional_ops.StatefulPartitionedCall(args=[var1,var2],Tout=[tf.int32], f=Forward)
+        compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', init_global_variables=True, mode="vm")
+
+def test_spop_variables_one():
+    tf.reset_default_graph()
     with tf.Graph().as_default():
         data = np.random.uniform(size=(32, 100)).astype('float32')
 
@@ -3393,8 +3410,7 @@ def test_spop_variables():
 
             size = input_tensor.shape.dims[1]
             with variable_scope.variable_scope("linear", reuse=None):
-                w = variable_scope.get_variable(
-                    "w", shape=[size, size], dtype=input_tensor.dtype)
+                w = variable_scope.get_variable("w", shape=[size, size], dtype=input_tensor.dtype)
             ret = math_ops.matmul(input_tensor, w)
             return ret
 
