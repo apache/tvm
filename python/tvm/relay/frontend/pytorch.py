@@ -1615,6 +1615,7 @@ def _wrap_const(c):
 def _get_convert_map(prelude):
     convert_map = {
         "aten::device"                          : _none(),
+        "prim::device"                          : _none(),
         "aten::sub"                             : _elemwise("subtract"),
         "aten::sub_"                            : _elemwise("subtract"),
         "aten::max"                             : _elemwise("maximum"),
