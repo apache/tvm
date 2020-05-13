@@ -24,78 +24,129 @@
 #include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 #include <vector>
+#include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace tir {
 
 /*
- * Find the condition of the out-most if_then_else intrinsic and
- * count the total number of if_then_else intrinsics
+ * Base class of IfThenElseFinder and SyncChecker
+ * Visit sub-expressions of a statement only, not to visit its
+ * sub-statements
  */
-class IfThenElseFinder : public ExprVisitor {
+template <class RetType>
+class SubExprVisitor : public ExprVisitor {
  public:
-  std::pair<PrimExpr, int> Find(const IfThenElseNode *op) {
+  RetType Check(const IfThenElseNode *op) {
     operator()(op->condition);
-    return std::make_pair(condition_, cnt_);
+    return ret_;
   }
 
-  std::pair<PrimExpr, int> Find(const LetStmtNode *op) {
+  RetType Check(const LetStmtNode *op) {
     operator()(op->value);
-    return std::make_pair(condition_, cnt_);
+    return ret_;
   }
 
-  std::pair<PrimExpr, int> Find(const ForNode *op) {
+  RetType Check(const ForNode *op) {
     operator()(op->min);
     operator()(op->extent);
-    return std::make_pair(condition_, cnt_);
+    return ret_;
   }
 
-  std::pair<PrimExpr, int> Find(const AllocateNode *op) {
+  RetType Check(const AllocateNode *op) {
     for (const auto &item : op->extents) {
       operator()(item);
     }
     operator()(op->condition);
-    return std::make_pair(condition_, cnt_);
+    return ret_;
   }
 
-  std::pair<PrimExpr, int> Find(const StoreNode *op) {
+  RetType Check(const StoreNode *op) {
     operator()(op->value);
     operator()(op->index);
     operator()(op->predicate);
-    return std::make_pair(condition_, cnt_);
+    return ret_;
   }
 
-  std::pair<PrimExpr, int> Find(const ProvideNode *op) {
+  RetType Check(const ProvideNode *op) {
     operator()(op->value);
     for (const auto &item : op->args) {
       operator()(item);
     }
-    return std::make_pair(condition_, cnt_);
+    return ret_;
   }
 
-  std::pair<PrimExpr, int> Find(const RealizeNode *op) {
+  RetType Check(const RealizeNode *op) {
     operator()(op->condition);
-    return std::make_pair(condition_, cnt_);
+    return ret_;
   }
 
-  std::pair<PrimExpr, int> Find(const EvaluateNode *op) {
+  RetType Check(const EvaluateNode *op) {
     operator()(op->value);
-    return std::make_pair(condition_, cnt_);
+    return ret_;
   }
+
+ protected:
+  explicit SubExprVisitor(const RetType &ret)
+    : ret_(ret) {}
+
+  RetType ret_;
+};
+
+typedef Map<Var, ObjectRef> VarSet;  // Actually a set. The value is not used.
+
+/*
+ * Check if there are any Load or Store node of shared memory.
+ * If so, we should skip transforming the statment to avoid
+ * thread synchronizing issues
+ */
+class SyncChecker : public SubExprVisitor<bool> {
+ public:
+  explicit SyncChecker(const VarSet &shared_vars)
+    : SubExprVisitor(false), shared_vars_(shared_vars) {}
+
+  template <class Node>
+  bool Check(const Node *op) {
+    return SubExprVisitor::Check(op);
+  }
+
+  bool Check(const StoreNode *op) {
+    if (shared_vars_.count(op->buffer_var)) {
+      return true;
+    }
+    return SubExprVisitor::Check(op);
+  }
+
+ protected:
+  void VisitExpr_(const LoadNode *op) override {
+    if (shared_vars_.count(op->buffer_var)) {
+      ret_ = true;
+    }
+    SubExprVisitor::VisitExpr_(op);
+  }
+
+ private:
+  const VarSet &shared_vars_;
+};
+
+/*
+ * Find the condition of the out-most if_then_else intrinsic and
+ * count the total number of if_then_else intrinsics
+ */
+class IfThenElseFinder : public SubExprVisitor<std::pair<PrimExpr, int>> {
+ public:
+  IfThenElseFinder()
+    : SubExprVisitor(std::pair<PrimExpr, int>(nullptr, 0)) {}
 
  protected:
   void VisitExpr_(const CallNode *op) override {
     if (op->is_intrinsic(tir::intrinsic::tvm_if_then_else)) {
-      if (!condition_.defined())
-        condition_ = op->args[0];
-      cnt_++;
+      if (!ret_.first.defined())
+        ret_.first = op->args[0];  // condition
+      ret_.second++;  // cnt
     }
-    ExprVisitor::VisitExpr_(op);
+    SubExprVisitor::VisitExpr_(op);
   }
-
- private:
-  PrimExpr condition_;
-  int cnt_{0};
 };
 
 // Remove the out-most IfThenElse intrinsic and leave one branch
@@ -194,6 +245,19 @@ class IfThenElseReplacer : public StmtMutator {
       : max_cascading_intrin_(max_cascading_intrin) {}
 
  protected:
+  Stmt VisitStmt_(const AttrStmtNode *op) override {
+    using runtime::StorageRank;
+    using runtime::StorageScope;
+
+    if (op->attr_key == attr::storage_scope) {
+      StorageScope scope = StorageScope::make(op->value.as<StringImmNode>()->value);
+      if (scope.rank == StorageRank::kShared) {
+        shared_vars_.Set(Downcast<Var>(op->node), ObjectRef{});
+      }
+    }
+    return StmtMutator::VisitStmt_(op);
+  }
+
   Stmt VisitStmt_(const IfThenElseNode *op) override {
     return Replace_(op);
   }
@@ -229,9 +293,12 @@ class IfThenElseReplacer : public StmtMutator {
  private:
   template <class Node>
   Stmt Replace_(const Node *op) {
+    if (SyncChecker(shared_vars_).Check(op)) {
+      return StmtMutator::VisitStmt_(op);
+    }
     PrimExpr condition;
     int cnt;
-    std::tie(condition, cnt) = IfThenElseFinder().Find(op);
+    std::tie(condition, cnt) = IfThenElseFinder().Check(op);
     if (cnt > 0 && cnt <= max_cascading_intrin_) {
       IfThenElseOutMostRemover keep_true(true);
       IfThenElseOutMostRemover keep_false(false);
@@ -249,6 +316,7 @@ class IfThenElseReplacer : public StmtMutator {
 
  private:
   int max_cascading_intrin_;
+  VarSet shared_vars_;
 };
 
 
