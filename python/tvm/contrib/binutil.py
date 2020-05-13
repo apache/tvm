@@ -166,6 +166,11 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
     # NOTE: in the past, section_size has been wrong on x86. it may be
     # inconsistent. TODO: maybe stop relying on `*size` to give us the size and
     # instead read the section with `*objcopy` and count the bytes.
+    # NOTE(areusch): I think the problem is due to alignment ops in the linker.
+    # Since this is going away in the impending switch to on-device runtime,
+    # add a constant to hopefully absorb these relocations.
+    if section_size > 0:
+        section_size += 32
     return section_size
 
 
