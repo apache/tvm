@@ -37,7 +37,7 @@ API Reference
 
    langref/index
    api/python/index
-   api_links
+   api/links
 
 Developer Guide
 ---------------
@@ -47,7 +47,7 @@ Developer Guide
    dev/index
 
 Frontends
-----------------
+---------
 .. toctree::
    :maxdepth: 1
 
