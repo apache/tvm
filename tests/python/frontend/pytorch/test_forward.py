@@ -902,14 +902,23 @@ def test_forward_mean():
 
 def test_forward_expand():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 10, 10]
 
     class Expand1(Module):
         def forward(self, *args):
             return args[0].expand((3, -1, -1, -1))
 
+    input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(Expand1().float().eval(), input_data=input_data)
+
+    class Expand2(Module):
+        def forward(self, *args):
+            return args[0].expand((3, 3, 3, 1))
+
+    input_shape = [3, 1]
+    input_data = torch.rand(input_shape).float()
+    verify_model(Expand2().float().eval(), input_data=input_data)
+
 
 def test_forward_pow():
     torch.set_grad_enabled(False)
