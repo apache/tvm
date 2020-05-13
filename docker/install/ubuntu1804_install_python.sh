@@ -18,26 +18,15 @@
 
 set -e
 set -u
+set -o pipefail
 
-export PYTHONPATH=python
+# install python and pip, don't modify this, modify install_python_package.sh
+apt-get update
+apt-get install -y software-properties-common
+apt-get install -y python3-dev python3-setuptools
 
-cp /emsdk-portable/.emscripten ~/.emscripten
-source /emsdk-portable/emsdk_env.sh
+# Install pip
+cd /tmp && wget -q https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py
 
-export EM_CONFIG=${HOME}/.emscripten
-export EM_CACHE=${HOME}/.emscripten_cache
-
-echo "Build TVM Web runtime..."
-make web
-
-echo "Prepare test libraries..."
-python tests/web/prepare_test_libs.py
-
-echo "Start testing..."
-
-for test in tests/web/test_*.js; do
-    echo node $test
-    node $test
-done
-
-echo "All tests finishes..."
+# Pin pip version
+pip3 install pip==19.3.1

@@ -61,7 +61,7 @@ struct OpManager {
 };
 
 // find operator by name
-const Op& Op::Get(const std::string& name) {
+const Op& Op::Get(const String& name) {
   const OpRegistry* reg = dmlc::Registry<OpRegistry>::Find(name);
   CHECK(reg != nullptr) << "Operator " << name << " is not registered";
   return reg->op();
@@ -75,7 +75,7 @@ OpRegistry::OpRegistry() {
 }
 
 // Get attribute map by key
-const GenericOpMap& Op::GetGenericAttr(const std::string& key) {
+const GenericOpMap& Op::GetGenericAttr(const String& key) {
   OpManager* mgr = OpManager::Global();
   std::lock_guard<std::mutex> lock(mgr->mutex);
   auto it = mgr->attr.find(key);
@@ -86,7 +86,7 @@ const GenericOpMap& Op::GetGenericAttr(const std::string& key) {
 }
 
 // Check if a key is present in the registry.
-bool Op::HasGenericAttr(const std::string& key) {
+bool Op::HasGenericAttr(const String& key) {
   OpManager* mgr = OpManager::Global();
   std::lock_guard<std::mutex> lock(mgr->mutex);
   auto it = mgr->attr.find(key);
@@ -110,7 +110,7 @@ void OpRegistry::reset_attr(const std::string& key) {
   }
 }
 
-void OpRegistry::UpdateAttr(const std::string& key, TVMRetValue value, int plevel) {
+void OpRegistry::UpdateAttr(const String& key, TVMRetValue value, int plevel) {
   OpManager* mgr = OpManager::Global();
   std::lock_guard<std::mutex> lock(mgr->mutex);
   std::unique_ptr<GenericOpMap>& op_map = mgr->attr[key];
@@ -141,7 +141,7 @@ TVM_REGISTER_GLOBAL("relay.op._ListOpNames").set_body_typed([]() {
   return ret;
 });
 
-TVM_REGISTER_GLOBAL("relay.op._GetOp").set_body_typed([](std::string name) -> Op {
+TVM_REGISTER_GLOBAL("relay.op._GetOp").set_body_typed([](String name) -> Op {
   return Op::Get(name);
 });
 

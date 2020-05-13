@@ -31,7 +31,7 @@
 // Rationale: use relay's printer for astext.
 #include <tvm/relay/expr.h>
 
-// clang-fomat off
+// clang-format off
 #include <string>
 #include <vector>
 #include <rang.hpp>

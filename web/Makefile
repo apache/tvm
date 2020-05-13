@@ -20,7 +20,7 @@ TVM_ROOT=$(shell cd ..; pwd)
 INCLUDE_FLAGS = -I$(TVM_ROOT) -I$(TVM_ROOT)/include\
 	-I$(TVM_ROOT)/3rdparty/dlpack/include -I$(TVM_ROOT)/3rdparty/dmlc-core/include
 
-.PHONY: clean all removetypedep
+.PHONY: clean all rmtypedep preparetest
 
 all: dist/wasm/tvmjs_runtime.wasm dist/wasm/tvmjs_runtime.wasi.js
 
@@ -47,5 +47,10 @@ dist/wasm/tvmjs_runtime.wasi.js: dist/wasm/tvmjs_runtime.wasm emcc/decorate_as_w
 
 clean:
 	@rm -rf dist/wasm
+
+# Patch to remove require("@webgpu/types")
+rmtypedep:
+	grep -v webgpu/types dist/webgpu.js > dist/webgpu.temp.js
+	mv dist/webgpu.temp.js dist/webgpu.js
 
 -include dist/wasm/*.d

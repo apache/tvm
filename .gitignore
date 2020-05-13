@@ -6,7 +6,7 @@ __pycache__/
 # C extensions
 *.so
 *.ll
-
+.npm
 # Distribution / packaging
 .Python
 env/
@@ -225,7 +225,7 @@ Pipfile.lock
 # conda package artifacts
 conda/Dockerfile.cuda*
 conda/pkg
-
+.node_repl_history
 # nix files
 .envrc
 *.nix

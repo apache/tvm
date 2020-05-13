@@ -98,8 +98,7 @@ K first_available_key(const std::map<K, V>& m) {
 
 int pthread_cond_destroy(pthread_cond_t* cond) { return 0; }
 
-int pthread_cond_init(pthread_cond_t* __restrict cond,
-                      const pthread_condattr_t* __restrict attr) {
+int pthread_cond_init(pthread_cond_t* __restrict cond, const pthread_condattr_t* __restrict attr) {
   return 0;
 }
 
@@ -107,14 +106,12 @@ int pthread_cond_signal(pthread_cond_t* cond) { return 0; }
 
 int pthread_cond_broadcast(pthread_cond_t* cond) { return 0; }
 
-int pthread_cond_timedwait(pthread_cond_t* __restrict cond,
-                           pthread_mutex_t* __restrict mutex,
+int pthread_cond_timedwait(pthread_cond_t* __restrict cond, pthread_mutex_t* __restrict mutex,
                            const struct timespec* __restrict abstime) {
   return 0;
 }
 
-int pthread_cond_wait(pthread_cond_t* __restrict cond,
-                      pthread_mutex_t* __restrict mutex) {
+int pthread_cond_wait(pthread_cond_t* __restrict cond, pthread_mutex_t* __restrict mutex) {
   return 0;
 }
 
@@ -122,12 +119,9 @@ int pthread_mutexattr_init(pthread_mutexattr_t* attr) { return 0; }
 
 int pthread_mutexattr_destroy(pthread_mutexattr_t* attr) { return 0; }
 
-int pthread_mutexattr_settype(pthread_mutexattr_t* attr, int type) {
-  return 0;
-}
+int pthread_mutexattr_settype(pthread_mutexattr_t* attr, int type) { return 0; }
 
-int pthread_mutexattr_gettype(const pthread_mutexattr_t* __restrict attr,
-                              int* __restrict type) {
+int pthread_mutexattr_gettype(const pthread_mutexattr_t* __restrict attr, int* __restrict type) {
   *type = PTHREAD_MUTEX_NORMAL;
   return 0;
 }
@@ -157,8 +151,8 @@ int pthread_once(pthread_once_t* once_control, void (*init_routine)(void)) {
 
 int pthread_equal(pthread_t t1, pthread_t t2) { return t1 == t2; }
 
-int pthread_create(pthread_t* thread, const pthread_attr_t* attr,
-                   void* (*start_routine)(void*), void* arg) {
+int pthread_create(pthread_t* thread, const pthread_attr_t* attr, void* (*start_routine)(void*),
+                   void* arg) {
   std::jmp_buf& env = thread_data[pthread_self()].env;
   volatile pthread_t tid;
   if (setjmp(env) == 0) {

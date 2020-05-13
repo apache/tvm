@@ -415,47 +415,6 @@ Stage& Stage::double_buffer() {
   return *this;
 }
 
-Stage& Stage::opengl() {
-  CHECK(!is_scheduled()) << "Must be a fresh schedule";
-  StageNode* self = operator->();
-
-  auto all_iter_vars = self->all_iter_vars;  // curr version of all_iter_vars
-  CHECK(!all_iter_vars.empty()) << "At least one iter var";
-
-  // Fuse all data parallel dimensions to 1.
-  IterVar fused = all_iter_vars[0];
-  for (size_t i = 1; i != all_iter_vars.size(); ++i) {
-    auto iter_var = all_iter_vars[i];
-    switch (iter_var->iter_type) {
-      case IterVarType::kDataPar: {
-        fuse(fused, all_iter_vars[i], &fused);
-        break;
-      }
-      case IterVarType::kThreadIndex: {
-        LOG(ERROR) << "A fresh schedule shouldn't have thread index iter var";
-        break;
-      }
-      case IterVarType::kCommReduce:
-      case IterVarType::kOrdered:
-      case IterVarType::kOpaque: {
-        break;
-      }
-      default: {
-        LOG(ERROR) << "Invalid iter var type " << IterVarType2String(iter_var->iter_type);
-        break;
-      }
-    }
-  }
-
-  // Bind the only dimension to threadIdx.x.
-  bind(fused, thread_axis(Range(nullptr), "threadIdx.x"));
-
-  // Mark this stage as OpenGL.
-  (*this)->is_opengl = true;
-
-  return *this;
-}
-
 Stage CopyStage(const Stage& s) {
   ObjectPtr<StageNode> n = make_object<StageNode>(*s.operator->());
   return Stage(n);
@@ -913,8 +872,6 @@ TVM_REGISTER_GLOBAL("te.StagePrefetch").set_body_method(&Stage::prefetch);
 TVM_REGISTER_GLOBAL("te.StageStorageAlign").set_body_method(&Stage::storage_align);
 
 TVM_REGISTER_GLOBAL("te.StageDoubleBuffer").set_body_method(&Stage::double_buffer);
-
-TVM_REGISTER_GLOBAL("te.StageOpenGL").set_body_method(&Stage::opengl);
 
 TVM_REGISTER_GLOBAL("te.ScheduleNormalize").set_body_method(&Schedule::normalize);
 

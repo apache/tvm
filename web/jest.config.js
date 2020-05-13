@@ -17,21 +17,11 @@
  * under the License.
  */
 
-/*!
- *  Optional module when build opencl is switched to off
- */
-#include "../../runtime/opengl/opengl_module.h"
-#include "../source/codegen_source_base.h"
+/* eslint-disable no-undef */
+module.exports = {
+  testEnvironment: "node",
 
-namespace tvm {
-namespace runtime {
-
-Module OpenGLModuleCreate(std::unordered_map<std::string, OpenGLShader> shaders, std::string fmt,
-                          std::unordered_map<std::string, FunctionInfo> fmap) {
-  LOG(WARNING) << "OpenGL runtime not enabled, return a source module...";
-  auto data = ToJSON(shaders);
-  return codegen::DeviceSourceModuleCreate(data, "gl", fmap, "opengl");
-}
-
-}  // namespace runtime
-}  // namespace tvm
+  testMatch: [
+     "**/tests/node/*.js"
+  ],
+};
