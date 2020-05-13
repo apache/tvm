@@ -51,7 +51,7 @@ class TempDirectory(object):
     @classmethod
     def _get_debug_parent_dir(cls):
         if cls._DEBUG_PARENT_DIR is None:
-            all_parents = f'{os.environ["TMPDIR"]}/tvm-debug-mode-tempdirs'
+            all_parents = f'{tempfile.gettempdir()}/tvm-debug-mode-tempdirs'
             if not os.path.isdir(all_parents):
                 os.makedirs(all_parents)
             cls._DEBUG_PARENT_DIR = tempfile.mkdtemp(
