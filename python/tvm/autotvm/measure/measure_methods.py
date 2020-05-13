@@ -275,9 +275,8 @@ class RPCRunner(Runner):
                 if isinstance(res, Exception):   # executor error or timeout
                     results.append(MeasureResult((str(res),), MeasureErrorNo.RUN_TIMEOUT,
                                                  self.timeout, time.time()))
-                    raise Exception(f'encountered exception during measurement: {results}')
-
-                results.append(res)
+                else:
+                    results.append(res)
 
         return results
 
