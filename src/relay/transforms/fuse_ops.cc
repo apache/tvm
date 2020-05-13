@@ -31,6 +31,7 @@
 #include <tvm/tir/op.h>
 
 #include "../../support/arena.h"
+#include "pass_util.h"
 #include "pattern_util.h"
 
 namespace tvm {
@@ -237,7 +238,13 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     // need to call Update, as it may be an arbitrary expression.
     OpPatternKind op_pattern = kOpaque;
     if (const OpNode* opnode = call->op.as<OpNode>()) {
-      op_pattern = static_cast<OpPatternKind>(fpattern[GetRef<Op>(opnode)]);
+      auto op = GetRef<Op>(opnode);
+      if (IsDynamic(call->checked_type()) && IsDataDependant(call)) {
+        // output of a shape func can't be fed to a data-dependent shape func
+        op_pattern = kOpaque;
+      } else {
+        op_pattern = static_cast<OpPatternKind>(fpattern[op]);
+      }
     } else {
       this->Update(call->op, node, kOpaque);
     }

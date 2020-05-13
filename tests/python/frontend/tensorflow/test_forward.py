@@ -747,6 +747,17 @@ def _test_reshape_like(data, shape_like):
 
         compare_tf_with_tvm(data, 'Placeholder:0', 'Reshape:0')
 
+def _test_reshape_symbolic(data, a_data, b_data):
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        a = array_ops.placeholder(shape=a_data.shape, dtype=a_data.dtype)
+        b = array_ops.placeholder(shape=b_data.shape, dtype=b_data.dtype)
+        newshape = tf.add(a, b)
+        out = array_ops.reshape(in_data, newshape)
+
+        for mode in ["debug", "vm"]:
+            compare_tf_with_tvm([data, a_data, b_data], [in_data.name, a.name, b.name], out.name, mode=mode)
+
 def test_forward_reshape():
     _test_reshape(np.arange(6.0), [2, 3])
     _test_reshape(np.arange(6), [-1, 2])
@@ -754,6 +765,10 @@ def test_forward_reshape():
     _test_reshape(np.arange(6), [-1])
     _test_reshape_with_call()
     _test_reshape_like(np.zeros((3, 6)), np.zeros((9, 2)))
+    _test_reshape_symbolic(np.arange(6.0), np.array([2, 0]), np.array([0, 3]))
+    _test_reshape_symbolic(np.arange(6), np.array([-1, 0]), np.array([0, 2]))
+    _test_reshape_symbolic(np.arange(6), np.array([3, 0]), np.array([3, -1]))
+    _test_reshape_symbolic(np.arange(6), np.array([0]), np.array([-1]))
 
 #######################################################################
 # DepthToSpace

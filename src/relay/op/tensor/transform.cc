@@ -447,10 +447,54 @@ RELAY_REGISTER_OP("transpose")
 /* relay.reshape */
 TVM_REGISTER_NODE_TYPE(ReshapeAttrs);
 
+double ToScalar(const runtime::NDArray& array, int i = 0) {
+  if (array->dtype.code == kDLInt) {
+    if (array->dtype.bits == 8) {
+      return reinterpret_cast<int8_t*>(array->data)[i];
+    } else if (array->dtype.bits == 16) {
+      return reinterpret_cast<int16_t*>(array->data)[i];
+    } else if (array->dtype.bits == 32) {
+      return reinterpret_cast<int32_t*>(array->data)[i];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<int64_t*>(array->data)[i];
+    }
+  } else if (array->dtype.code == kDLUInt) {
+    if (array->dtype.bits == 8) {
+      return reinterpret_cast<uint8_t*>(array->data)[i];
+    } else if (array->dtype.bits == 16) {
+      return reinterpret_cast<uint16_t*>(array->data)[i];
+    } else if (array->dtype.bits == 32) {
+      return reinterpret_cast<uint32_t*>(array->data)[i];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<uint64_t*>(array->data)[i];
+    }
+  } else if (array->dtype.code == kDLFloat) {
+#if (__ARM_FP16_FORMAT_IEEE == 1)
+    if (array->dtype.bits == 16) {
+      return reinterpret_cast<__fp16*>(array->data)[i];
+    }
+#endif
+    if (array->dtype.bits == 32) {
+      return reinterpret_cast<float*>(array->data)[i];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<double*>(array->data)[i];
+    }
+  }
+  LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
+  // make compiler happy
+  return -std::numeric_limits<double>::infinity();
+}
+
 bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                 const TypeReporter& reporter) {
-  // types: [data, result]
-  CHECK_EQ(types.size(), 2);
+  const auto* param = attrs.as<ReshapeAttrs>();
+  if (param->reverse) {
+    // types: [data, result]
+    CHECK_EQ(types.size(), 2);
+  } else {
+    // types: [data, newshape, result]
+    CHECK_EQ(types.size(), 3);
+  }
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
     CHECK(types[0].as<IncompleteTypeNode>())
@@ -458,17 +502,31 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     return false;
   }
 
-  const auto* param = attrs.as<ReshapeAttrs>();
+  Array<IndexExpr> oshape;
   Array<IndexExpr> data_shape;
   Array<Integer> newshape;
-  if (param->reverse) {
-    data_shape.assign(data->shape.rbegin(), data->shape.rend());
-    newshape.assign(param->newshape.rbegin(), param->newshape.rend());
+
+  if (param->newshape) {
+    auto temp = param->newshape.value();
+    if (param->reverse) {
+      data_shape.assign(data->shape.rbegin(), data->shape.rend());
+      newshape.assign(temp.rbegin(), temp.rend());
+    } else {
+      data_shape = data->shape;
+      newshape = temp;
+    }
   } else {
-    data_shape = data->shape;
-    newshape = param->newshape;
+    const auto* newshape = types[1].as<TensorTypeNode>();
+
+    // Doesn't support dynamic output rank
+    for (int i = 0; i < newshape->shape[0].as<IntImmNode>()->value; i++) {
+      oshape.push_back(Any::make());
+    }
+
+    reporter->Assign(types[2], TensorType(oshape, data->dtype));
+    return true;
   }
-  Array<IndexExpr> oshape;
+
   std::unordered_set<size_t> used_input_dims;
   std::unordered_set<size_t> used_output_dims;
   size_t src_idx = 0;
@@ -581,7 +639,7 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     reporter->Assign(types[1],
                      TensorType(Array<IndexExpr>(oshape.rbegin(), oshape.rend()), data->dtype));
   } else {
-    reporter->Assign(types[1], TensorType(oshape, data->dtype));
+    reporter->Assign(types[2], TensorType(oshape, data->dtype));
   }
   return true;
 }
@@ -601,12 +659,19 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   return {topi::reshape(inputs[0], newshape)};
 }
 
-Expr MakeReshape(Expr data, Array<Integer> newshape) {
+Expr MakeReshape(Expr data, Expr newshape) {
   auto attrs = make_object<ReshapeAttrs>();
-  attrs->newshape = std::move(newshape);
+  if (const ConstantNode* c = newshape.as<ConstantNode>()) {
+    CHECK_EQ(c->data->ndim, 1);
+    Array<Integer> newshape;
+    for (int i = 0; i < c->data->shape[0]; i++) {
+      newshape.push_back(Integer(static_cast<int>(ToScalar(c->data, i))));
+    }
+    attrs->newshape = newshape;
+  }
   attrs->reverse = false;
   static const Op& op = Op::Get("reshape");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(op, {data, newshape}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.reshape").set_body_typed(MakeReshape);
@@ -662,9 +727,10 @@ Example::
 - data.shape = (2,3,4), newshape = (2,-4,-1,3,-2), result.shape = (2,1,3,4)
 
 )code" TVM_ADD_FILELINE)
-    .set_num_inputs(1)
+    .set_num_inputs(2)
     .set_attrs_type<ReshapeAttrs>()
     .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("newshape", "Tensor", "The shape of output tensor.")
     .set_support_level(3)
     .add_type_rel("Reshape", ReshapeRel)
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
@@ -1004,44 +1070,6 @@ and type as the input array.
 
 // arange operator
 TVM_REGISTER_NODE_TYPE(ArangeAttrs);
-
-double ToScalar(const runtime::NDArray& array) {
-  if (array->dtype.code == kDLInt) {
-    if (array->dtype.bits == 8) {
-      return reinterpret_cast<int8_t*>(array->data)[0];
-    } else if (array->dtype.bits == 16) {
-      return reinterpret_cast<int16_t*>(array->data)[0];
-    } else if (array->dtype.bits == 32) {
-      return reinterpret_cast<int32_t*>(array->data)[0];
-    } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<int64_t*>(array->data)[0];
-    }
-  } else if (array->dtype.code == kDLUInt) {
-    if (array->dtype.bits == 8) {
-      return reinterpret_cast<uint8_t*>(array->data)[0];
-    } else if (array->dtype.bits == 16) {
-      return reinterpret_cast<uint16_t*>(array->data)[0];
-    } else if (array->dtype.bits == 32) {
-      return reinterpret_cast<uint32_t*>(array->data)[0];
-    } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<uint64_t*>(array->data)[0];
-    }
-  } else if (array->dtype.code == kDLFloat) {
-#if (__ARM_FP16_FORMAT_IEEE == 1)
-    if (array->dtype.bits == 16) {
-      return reinterpret_cast<__fp16*>(array->data)[0];
-    }
-#endif
-    if (array->dtype.bits == 32) {
-      return reinterpret_cast<float*>(array->data)[0];
-    } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<double*>(array->data)[0];
-    }
-  }
-  LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
-  // make compiler happy
-  return -std::numeric_limits<double>::infinity();
-}
 
 bool ArangeRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attrs,
                const TypeReporter& reporter) {

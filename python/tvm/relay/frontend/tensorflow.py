@@ -1155,14 +1155,11 @@ def _reshape():
                 shape_arg = tuple(params_new.asnumpy().astype('int64').flatten())
             except Exception:
                 # Deal with symbolic shape case.
-                # Currently only shape_of can be the direct ancestor.
-                if not isinstance(pop_node, tvm.relay.expr.Call) or \
-                        "shape_of" not in str(pop_node.op):
-                    raise RuntimeError("If shape operator is used in reshape to "
-                                       "express reshape_like, shape_of must be "
-                                       "the direct ancestor of reshape when input "
-                                       "shape is symbolic.")
-                return _op.reshape_like(inputs[0], pop_node.args[0])
+                if isinstance(pop_node, _expr.Call) and \
+                        "shape_of" in str(pop_node.op):
+                    # shape_of is the direct ancestor.
+                    return _op.reshape_like(inputs[0], pop_node.args[0])
+                shape_arg = pop_node
         return AttrCvt(
             op_name="reshape",
             extras={'newshape': shape_arg},

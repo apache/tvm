@@ -105,6 +105,7 @@ TEST(Relay, BuildModule) {
   }
   auto fgeneric = GenericFunc::Get("test.strategy_generic").set_default(*fs);
   (*reg)("add", "FTVMStrategy", fgeneric, 10);
+  (*reg)("add", "TShapeDataDependant", false, 10);
   // build
   auto pfb = tvm::runtime::Registry::Get("relay.build_module._BuildModule");
   tvm::runtime::Module build_mod = (*pfb)();
