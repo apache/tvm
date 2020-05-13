@@ -445,8 +445,8 @@ bool IsDataDependant(const CallNode* call) {
 
   if (op->name == "reshape") {
     if (const auto* attrs = call->attrs.as<ReshapeAttrs>()) {
-      if (attrs->newshape.defined()) {
-        // If newshape of reshape is defined, it isn't data dependant.
+      if (attrs->newshape) {
+        // If newshape attribute exists, it isn't data dependant.
         return false;
       }
     }

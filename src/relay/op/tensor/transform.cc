@@ -506,7 +506,7 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   Array<IndexExpr> data_shape;
   Array<Integer> newshape;
 
-  if (param->newshape.defined()) {
+  if (param->newshape) {
     auto temp = param->newshape.value();
     if (param->reverse) {
       data_shape.assign(data->shape.rbegin(), data->shape.rend());
