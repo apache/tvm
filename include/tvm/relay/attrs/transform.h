@@ -93,6 +93,16 @@ struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
   }
 };  // struct ReshapeAttrs
 
+/*! \brief Attributes used in gather_nd operators */
+struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
+  bool one_dim_support;
+  TVM_DECLARE_ATTRS(GatherNDAttrs, "relay.attrs.GatherNDAttrs") {
+    TVM_ATTR_FIELD(one_dim_support)
+        .describe("Whether indices one-dim is supported")
+        .set_default(false);
+  }
+};  // struct GatherNDAttrs
+
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   Integer axis;
   std::string mode;

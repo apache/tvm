@@ -743,7 +743,7 @@ def reverse_reshape(data, newshape):
     return _make._contrib_reverse_reshape(data, list(newshape))
 
 
-def gather_nd(data, indices):
+def gather_nd(data, indices, one_dim_support=False):
     """Gather elements or slices from data and store to a tensor whose shape is
     defined by indices.
 
@@ -772,7 +772,7 @@ def gather_nd(data, indices):
         indices = [[0, 1], [1, 0]]
         relay.gather_nd(data, indices) = [[3, 4], [5, 6]]
     """
-    return _make.gather_nd(data, indices)
+    return _make.gather_nd(data, indices, one_dim_support)
 
 
 def sequence_mask(data, valid_length, mask_value=0, axis=0):

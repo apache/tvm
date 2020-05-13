@@ -2223,6 +2223,9 @@ example below::
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+/* relay.gather_nd */
+TVM_REGISTER_NODE_TYPE(GatherNDAttrs);
+
 // gather_nd operator
 bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
@@ -2248,18 +2251,28 @@ bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   Array<IndexExpr> oshape;
   for (size_t i = 1; i < kdim + 1; ++i) oshape.push_back(indices->shape[i]);
   for (size_t i = mdim->value; i < ndim; ++i) oshape.push_back(data->shape[i]);
+  if (oshape.size() == 0) {
+    oshape.push_back(tir::make_const(DataType::Int(32), 1));
+  }
   reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
 
 Array<te::Tensor> GatherNDCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                   const Type& out_type) {
-  return {topi::gather_nd(inputs[0], inputs[1])};
+  const auto* param = attrs.as<GatherNDAttrs>();
+  if (param != nullptr) {
+    return {topi::gather_nd(inputs[0], inputs[1], param->one_dim_support)};
+  } else {
+    return {topi::gather_nd(inputs[0], inputs[1])};
+  }
 }
 
-Expr MakeGatherND(Expr data, Expr indices) {
+Expr MakeGatherND(Expr data, Expr indices, bool one_dim_support) {
+  auto attrs = make_object<GatherNDAttrs>();
+  attrs->one_dim_support = std::move(one_dim_support);
   static const Op& op = Op::Get("gather_nd");
-  return Call(op, {data, indices}, {});
+  return Call(op, {data, indices}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.gather_nd").set_body_typed(MakeGatherND);
@@ -2274,6 +2287,7 @@ shape (M, Y_0, ..., Y_{K-1}), the output will have shape
 output shape will simply be (Y_0, ..., Y_{K-1}).
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
+    .set_attrs_type<GatherNDAttrs>()
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(3)
     .add_type_rel("GatherND", GatherNDRel)
