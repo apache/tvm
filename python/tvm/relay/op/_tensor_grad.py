@@ -479,7 +479,7 @@ def dense_grad(orig, grad):
 @register_gradient("reshape")
 def reshape_grad(orig, grad):
     """Gradient of reshape"""
-    return [reshape_like(grad, orig.args[0])]
+    return [reshape_like(grad, orig.args[0]), orig.args[1]]
 
 
 @register_gradient("cast")

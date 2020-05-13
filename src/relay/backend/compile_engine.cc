@@ -45,6 +45,7 @@
 #include <utility>
 #include <vector>
 
+#include "../transforms/pass_util.h"
 #include "utils.h"
 
 namespace tvm {
@@ -69,27 +70,6 @@ CCacheKey::CCacheKey(Function source_func, Target target) {
   n->target = std::move(target);
   data_ = std::move(n);
 }
-
-struct IsDynamicVisitor : public TypeVisitor {
-  bool is_dyn{false};
-  void VisitType_(const TensorTypeNode* tt) {
-    for (auto dim : tt->shape) {
-      if (dim.as<Any>()) {
-        is_dyn = true;
-        break;
-      }
-    }
-  }
-};
-
-bool IsDynamic(const Type& ty) {
-  IsDynamicVisitor v;
-  v.VisitType(ty);
-  return v.is_dyn;
-}
-
-// TODO(@jroesch): MOVE ME
-TVM_REGISTER_GLOBAL("relay.ir.IsDynamic").set_body_typed(IsDynamic);
 
 Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
   // for now, we always use int32 shape when possible
@@ -485,7 +465,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     CHECK_GT(tshape_data_dependant.count(op), 0)
         << "Internal error, cannot find TShapeDataDependant for " << op->name;
 
-    data_dependants_.push_back(tshape_data_dependant[op]);
+    data_dependants_.push_back(IsDataDependant(call_node));
     // Visit all inputs
     Array<te::Tensor> inputs;
     int count_tuple = 0;

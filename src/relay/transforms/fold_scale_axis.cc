@@ -329,7 +329,8 @@ static Expr ReshapeToMatchAxis(Expr scale, const Array<PrimExpr>& shape,
       arr.push_back(1);
     }
   }
-  return MakeReshape(scale, std::move(arr));
+  return MakeReshape(
+      scale, MakeConstantTensor(DataType::Int(32), {static_cast<int64_t>(arr.size())}, arr));
 }
 
 // if only one axis, use expand dim. Else, use reshape
