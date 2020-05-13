@@ -59,16 +59,16 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     data, kernel = tinfos
     out_dtype = out_type.dtype
 
-    # We only perform layout alteration for NCHW data layout.
-    if data_layout == "NHWC":
-        return None
-
     # Extract data types
     data_tensor, kernel_tensor = tinfos
     data_dtype = data_tensor.dtype
     kernel_dtype = kernel_tensor.dtype
 
     idxd = tvm.tir.indexdiv
+
+    # We don't perform layout alteration for NHWC layout with real data types
+    if data_layout == "NHWC" and data_dtype not in ['uint8', 'int8']:
+        return None
 
     if topi_tmpl == "conv2d_nchw_spatial_pack.arm_cpu":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
@@ -235,5 +235,33 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
              new_attrs['out_layout'], out_dtype], topi_tmpl)
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_depthwise_conv2d_nchwc(*inputs, **new_attrs)
+    if topi_tmpl == "compute_conv2d_NHWC_quantized.arm_cpu":
+        assert (data.dtype == 'int8' and kernel.dtype == 'int8' or
+                data.dtype == 'uint8' and kernel.dtype == 'uint8')
+        CO, IC, KH, KW = get_const_tuple(kernel.shape)
+
+        K = KH * KW * IC
+        N = CO
+
+        pad_k = 0
+        pad_n = 0
+
+        if N % 4 != 0:
+            pad_n = 4 - (N % 4)
+
+        if K % 16 != 0:
+            pad_k = 16 - (K % 16)
+
+        N_padded = N + pad_n
+        K_padded = K + pad_k
+
+        kernel_expr = relay.nn.contrib_conv2d_gemm_weight_transform(inputs[1])
+        new_kernel = te.placeholder((N_padded // 4, K_padded // 16, 4, 16), kernel.dtype)
+
+        new_workload = autotvm.task.args_to_workload(
+            [data, new_kernel, strides, padding, dilation, out_dtype, (KH, KW), CO], "conv2d_NHWC_int8_without_tranform.arm_cpu")
+        dispatch_ctx.update(target, new_workload, cfg)
+
+        return relay.nn.contrib_conv2d_gemm_without_weight_transform(inputs[0], kernel_expr, **new_attrs)
 
     return None

@@ -383,6 +383,38 @@ inline bool Conv2DWinogradWeightTransformRel(const Array<Type>& types, int num_i
   return true;
 }
 
+// Gemm convolution shape relations
+inline bool Conv2DGemmWeightTransformRel(const Array<Type>& types, int num_inputs,
+                                         const Attrs& attrs, const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  CHECK_EQ(data->shape.size(), 4) << "Only support HWIO kernel layout";
+
+  const auto K = data->shape[0]*data->shape[1]*data->shape[2];
+  const auto N = data->shape[3];
+
+  auto k_mod_16 = indexmod(K, 16);
+  auto n_mod_4 = indexmod(N, 4);
+
+  auto pad_k = tvm::if_then_else(k_mod_16 != 0, 16 - k_mod_16, tir::make_zero(DataType::Int(32)));
+  auto pad_n = tvm::if_then_else(n_mod_4 != 0, 4 - n_mod_4, tir::make_zero(DataType::Int(32)));
+
+  const auto N_padded = N + pad_n;
+  const auto K_padded = K + pad_k;
+
+  Array<IndexExpr> oshape{
+            indexdiv(N_padded, 4),
+            indexdiv(K_padded, 16),
+            4,
+            16,
+  };
+
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+  return true;
+}
+
 inline bool Conv3DWinogradWeightTransformRel(const Array<Type>& types, int num_inputs,
                                              const Attrs& attrs, const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
@@ -507,6 +539,78 @@ bool Conv2DWinogradRel(const Array<Type>& types, int num_inputs, const Attrs& at
     oshape.Set(3, (dshape_nchw[3] + pad_w - dilated_ksize_x) / param->strides[1] + 1);
   } else {
     oshape.Set(3, dshape_nchw[3]);
+  }
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+  oshape = trans_out_layout.BackwardShape(oshape);
+  // assign output type
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return true;
+}
+
+template <typename AttrType>
+bool Conv2DGemmRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                       const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  static const Layout kNHWC("NHWC");
+  static const Layout kHWIO("HWIO");
+
+  const AttrType* param = attrs.as<AttrType>();
+  CHECK(param != nullptr);
+  const Layout in_layout(param->data_layout);
+  const Layout kernel_layout(param->kernel_layout);
+
+  const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNHWC);
+  CHECK(trans_in_layout.defined())
+      << "Conv only support input layouts that are convertible from NHWC."
+      << " But got " << in_layout;
+
+  const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kHWIO);
+  CHECK(trans_kernel_layout.defined())
+      << "Conv only support kernel layouts that are convertible from HWIO."
+      << " But got " << kernel_layout;
+
+  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
+  const auto trans_out_layout = tir::BijectiveLayout(out_layout, kNHWC);
+  CHECK(trans_out_layout.defined())
+      << "Conv only support output layouts that are convertible from NHWC."
+      << " But got " << out_layout;
+
+  Array<IndexExpr> dshape_nhwc = trans_in_layout.ForwardShape(data->shape);
+
+  IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
+
+  CHECK(param->kernel_size.defined() && param->channels.defined())
+      << "The kernel size and channels of a Conv must be set or inferred by previous pass";
+
+  CHECK_EQ(param->kernel_size.size(), 2);
+  CHECK_EQ(param->dilation.size(), 2);
+
+  channels = param->channels;
+  dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
+  dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
+
+  // NOTE: Do not check weight shape here!
+
+  // dilation
+  Array<IndexExpr> oshape({dshape_nhwc[0], 0, 0, channels});
+
+  IndexExpr pad_h, pad_w;
+  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
+  if (!dshape_nhwc[2].as<tir::AnyNode>()) {
+    oshape.Set(1, (dshape_nhwc[1] + pad_h - dilated_ksize_y) / param->strides[0] + 1);
+  } else {
+    oshape.Set(1, dshape_nhwc[1]);
+  }
+  if (!dshape_nhwc[3].as<tir::AnyNode>()) {
+    oshape.Set(2, (dshape_nhwc[2] + pad_w - dilated_ksize_x) / param->strides[1] + 1);
+  } else {
+    oshape.Set(2, dshape_nhwc[2]);
   }
 
   DataType out_dtype = param->out_dtype;
