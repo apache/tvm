@@ -505,9 +505,6 @@ def const(value, dtype=None):
     if not isinstance(value, _nd.NDArray):
         raise ValueError("value has to be scalar or NDArray")
 
-    for dim in value.shape:
-        assert dim != 0, "Relay constants can not contain a 0 dimension."
-
     return Constant(value)
 
 

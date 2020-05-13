@@ -65,14 +65,6 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
 
     mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
 
-    # Normalize any parameters with (0,) shape.
-    #
-    # Currently Relay does not support (0,) shaped tensors.
-    for param_key in params:
-        param = params[param_key]
-        if len(param.shape) == 1 and param.shape[0] == 0:
-            params[param_key] = tvm.nd.array(np.empty(()))
-
     with relay.build_config(opt_level=1):
         graph, lib, params = relay.build(mod,
                                          target,
