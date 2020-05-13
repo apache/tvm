@@ -281,10 +281,12 @@ TVM_DLL Pass AlterOpLayout();
  * layouts for conv2d ops for now. Most of the other operators try to adapt to their input layout
  * using the InferCorrectLayout infrastructure.
  *
- * \param desired_layout The desired layout.
+ * \param desired_layouts Specify mapping of op_name to array of desired layouts for each input.
+ *                        For example: Map("nn.conv2d", Array("NHWC", "OHWI")),
+ *                        this specifies the desired layout for data then kernel for nn.conv2d.
  * \return The pass.
  */
-TVM_DLL Pass ConvertLayout(const std::string& desired_layout);
+TVM_DLL Pass ConvertLayout(const Map<std::string, Array<String>>& desired_layouts);
 
 /*!
  * \brief Legalizes an expr with another expression.

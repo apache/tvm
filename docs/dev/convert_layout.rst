@@ -92,7 +92,7 @@ These steps happen for each operator in sequence, where ConvertLayout pass keeps
 .. code-block:: python
 
     @reg.register_convert_op_layout("nn.conv2d")
-    def convert_conv2d(attrs, inputs, tinfos, desired_layout):
+    def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
         """Convert Layout pass registration for conv2d op.
 
         Parameters
@@ -103,8 +103,9 @@ These steps happen for each operator in sequence, where ConvertLayout pass keeps
             The args of the Relay expr to be legalized
         tinfos : list of types
             List of input and output types
-        desired_layout : str
-            The desired layout
+        desired_layouts : list of layout strings
+                List of layouts defining our desired
+                layout for the data and kernel inputs respectively.
 
         Returns
         -------
@@ -113,19 +114,30 @@ These steps happen for each operator in sequence, where ConvertLayout pass keeps
         """
 
         from tvm import relay
-        data_layout = attrs['data_layout']
-        kernel_layout = attrs['kernel_layout']
         data, weight = inputs
-        assert desired_layout == 'NCHW', \
-                "Currently only transformation to NCHW layout is supported."
-        if desired_layout == 'NCHW':
-            new_attrs = dict(attrs)
-            new_attrs['data_layout'] = desired_layout
-            new_attrs['kernel_layout'] = 'OIHW'
+        new_attrs = dict(attrs)
+
+        # We expect 2 desired layouts to be specified, one for the data and one for the kernel.
+        assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv2d's inputs"
+
+        # Use the first entry in desired layouts which specifies the data layout.
+        # The expected ordering of layouts for this operator is defined by this function.
+        desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+
+        assert desired_data_layout != "default", "Data layout cannot be default"
+
+        new_attrs['data_layout'] = desired_data_layout
+
+        if desired_data_layout == 'NCHW':
+            if desired_kernel_layout != 'default':
+                new_attrs['kernel_layout'] = desired_kernel_layout
+            else:
+                new_attrs['kernel_layout'] = 'OIHW'
             # Actual insertion of layout transforms is taken care internally
             # by ConvertLayout pass.
             return relay.nn.conv2d(data, weight, **new_attrs)
-        return None
+
+        raise ValueError('Layout %s is not yet supported' % desired_data_layout)
 
 
 **FInferCorrectLayout - Layout inference** - Currently, this attribute is exposed only in C++. This function takes original input layouts and the new input layouts (passed from the previous operator or from the python callback for layout alteration), and infers the final data layouts. Layout inference is called for each operator. The usage might vary for different operator categories. For layout agnostic operators, we just want to return the new data layouts in this function. For lightly-layout and heavily-layout sensitive operators, we can change the operator attributes (like axis for concatenate, pad_width for pad) so that we can adapt to the new data layout, preventing insertion of layout transforms. Let's look at a couple of examples to understand this better.
@@ -218,6 +230,8 @@ Second example is for a lightly-layout sensitive operator - batch normalization.
 
 ConvertLayout pass is extremely easy to use. The pass is not a part of default relay.build pipeline. The intended usage is to call it between the framework-to-relay parser and relay.build module call.
 
+In order to specify the layouts to convert to, we create a mapping of heavily-layout sensitive operators to a list of the desired layouts for that operator. The first example below specifies data layout, we allow the kernel layout to be automatically converted to one that is supported by TVM (for that particular data layout and operator). This is specified by the use of the "default" keyword. The second example shows how we could have also converted to a specific kernel layout of our choosing. It's worth noting that the following examples will convert to the same layouts i.e. `{'nn.conv2d': ['NCHW', 'default']} == {'nn.conv2d': ['NCHW', 'OIHW']}`
+
 .. code-block:: python
 
     # TFlite framework to Relay parser - Default layout is NHWC
@@ -225,16 +239,28 @@ ConvertLayout pass is extremely easy to use. The pass is not a part of default r
                                              shape_dict=shape_dict,
                                              dtype_dict=dtype_dict)
 
+    # We assume our model's heavily-layout sensitive operators only consist of nn.conv2d
+    desired_layouts = {'nn.conv2d': ['NCHW', 'default']}
+
     # Convert the layout to NCHW
     # RemoveUnunsedFunctions is used to clean up the graph.
     seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
-                                      relay.transform.ConvertLayout('NCHW')])
+                                    relay.transform.ConvertLayout(desired_layouts)])
     with relay.transform.PassContext(opt_level=3):
         mod = seq(mod)
 
     # Call relay compilation
     with relay.build_config(opt_level=3):
          graph, lib, params = relay.build(mod, target, params=params)
+
+
+.. code-block:: python
+
+    desired_layouts = {'nn.conv2d': ['NCHW', 'OIHW']}
+    pass = relay.transform.ConvertLayout(desired_layouts)
+
+
+The ordering of the layouts is defined by the implementation of `register_convert_op_layout("OPNAME")`, you can refer to the docstring which should explicitly state the expected layout. In the examples above it's [data_layout, kernel_layout].
 
 Current implementation has support for almost all the operators commonly used in image classification models. However, if one encounters too many data layout transforms in the graph, it is highly likely that there is an operator whose layouts need special handling as described in Section 3. Some pull requests that can help in such a situation are
 
