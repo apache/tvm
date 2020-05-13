@@ -35,7 +35,7 @@ namespace relay {
 
 IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
   using NodePtr = std::shared_ptr<IndexedGraph<Expr>::Node>;
-  /*! \brief Creator Creates an IndexedGraph and determintes Toplogical order */
+  /*! \brief Creator Creates an IndexedGraph and determintes Topological order */
   class Creator : public MixedModeVisitor {
    public:
     IndexedGraph<Expr> CreateGraph(const Expr& expr) {
@@ -54,7 +54,7 @@ IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
     IndexedGraph<Expr> graph_;
     size_t index_ = 0;
   };
-  /*! \brief Annotator takes an IndexedGraph, fills it's forward outputs, and does domiantor tree
+  /*! \brief Annotator takes an IndexedGraph, fills it's forward outputs, and does dominator tree
    * analysis.
    *
    *  Annotator use ExprFunctor to visit nodes, but iterates over them in pre-determined
