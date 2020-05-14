@@ -2745,6 +2745,7 @@ class GraphProto(object):
         self._hash2tfnode = {}
         self._while_loop_name_set = set()
         self._subgraphs = {}
+        self._subgraphFunctions = []
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
@@ -2795,6 +2796,9 @@ class GraphProto(object):
         self._in_shape = shape
         self._layout = layout
         self._graph = graph
+
+        # ToDo: need _subgraphFunctions as self._graph gets updated on recursive calls
+        self._subgraphFunctions += graph.library.function
 
         if missing_operators:
             freezed_ops = [op for op in missing_operators if op in _freezed_graph_pruned_op_list]
@@ -2856,39 +2860,6 @@ class GraphProto(object):
                     self._while_loop_name_set.add(node_name_prefix)
                 control_flow_nodes.append(node)
 
-        if graph.library.function:
-            f1 = graph.library.function[0]
-            if f1.signature.name not in self._subgraphs:
-                from tensorflow.python.framework import function_def_to_graph
-                # sub, nested_to_flat_tensor_name = function_def_to_graph.function_def_to_graph_def(f1, f1.attr[
-                #     "_input_shapes"].list.shape)
-                sub = function_def_to_graph.function_def_to_graph_def(f1)
-                #FOR MAHESH: Below is new logic which is failing when we can't deduce shapes for input data(tensor)
-                # subgraph_shape_dict = {f_arg.name: self._in_shape[node_input] for f_arg, node_input in
-                #                        zip(f1.signature.input_arg, node.input)}
-                #FOR MAHESH: The following hack works for placeholders and variables if in_shape has all shapes info
-                i = 0
-                newshape = {}
-                for key,value in self._in_shape.items():
-                    newshape[sub[0].node[i].name] = value
-                    i+=1
-                self._subgraphs.update({f1.signature.name: 'started adding'})
-                self._subgraphs.update({f1.signature.name: self.from_tensorflow(sub[0], shape=newshape)})
-                # self._subgraphs.update({f1.signature.name: self.from_tensorflow(sub)})
-
-        # if graph.library.function and not self.libFuncs:
-        #     for func in graph.library.function:
-        #         self.libFuncs.append(func.signature.name)
-        #
-        # if graph.library.function and not self.libFuncsDict:
-        #     for func in graph.library.function:
-        #         if func.signature.name not in self._subgraphs:
-        #             from tensorflow.python.framework import function_def_to_graph
-        #             sub = function_def_to_graph.function_def_to_graph_def(func)
-        #             self.libFuncsDict[func.signature.name] = sub[0]
-        #     for func in self.libFuncsDict:
-        #         self._subgraphs.update({func: 'started adding'})
-        #         self._subgraphs.update({func: self.from_tensorflow(self.libFuncsDict[func])})
         # First, parse all control flow nodes.
         # Convert tf.cond to Branch and tf.while_loop to Loop.
         sorted_cf_nodes = []
@@ -3307,9 +3278,22 @@ class GraphProto(object):
 
                     inputs.append(in_op)
             if node.op in ["PartitionedCall", "StatefulPartitionedCall"]:
+                node_fname = node.attr.get('f').func.name
+                f1 = next((func for func in self._subgraphFunctions if func.signature.name == node_fname), None)
+                if f1 and f1.signature.name not in self._subgraphs:
+                    from tensorflow.python.framework import function_def_to_graph
+                    f1_input_shapes = f1.attr["_input_shapes"].list.shape
+                    subgraph, flat_tensor_name = function_def_to_graph.function_def_to_graph_def(f1, f1_input_shapes)
+
+                    subgraph_shape_dict = {}
+                    for f_arg, node_input in zip(f1.signature.input_arg, node.input):
+                        input_tensor = self._nodes.get(node_input, None)
+                        if input_tensor:
+                            subgraph_shape_dict[f_arg.name] = _infer_shape(input_tensor[0])
+                    tf_graph = self.from_tensorflow(subgraph, shape=subgraph_shape_dict)
+                    self._subgraphs.update({f1.signature.name: tf_graph})
+
                 f1 = self._subgraphs[attr["f"].name][0]["main"]
-                # add_one = tvm.relay.GlobalVar("add_one")
-                # self._mod[add_one] = self._subgraphs[attr["f"].name][0]["main"]
                 wl = tvm.relay.var('partitioned_call')
                 sb = tvm.relay.scope_builder.ScopeBuilder()
                 sb.let(wl, f1)
@@ -3317,16 +3301,6 @@ class GraphProto(object):
                 sb.ret(wl(*inputs))
                 op = sb.get()
                 print(op)
-            # elif node.op in self.libFuncs:
-            #     f1 = self._subgraphs[attr["f"].name][0]["main"]
-            #     # add_one = tvm.relay.GlobalVar("add_one")
-            #     # self._mod[add_one] = self._subgraphs[attr["f"].name][0]["main"]
-            #     wl = tvm.relay.var('partitioned_call')
-            #     sb = tvm.relay.scope_builder.ScopeBuilder()
-            #     sb.let(wl, f1)
-            #
-            #     sb.ret(wl(*inputs))
-            #     op = sb.get()
             else:
                 op = self._convert_operator(node.op, inputs, attr, self._graph)
 
