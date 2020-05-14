@@ -21,9 +21,9 @@
  * \file onnx_module.cc
  * \brief ONNX Module without runtime support
  */
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/container.h>
 
 namespace tvm {
 namespace codegen {
@@ -31,29 +31,20 @@ using namespace tvm::runtime;
 
 class ONNXSourceModuleNode : public runtime::ModuleNode {
  public:
-  explicit ONNXSourceModuleNode(String code)
-      : code_(code) {}
+  explicit ONNXSourceModuleNode(String code) : code_(code) {}
 
-  const char* type_key() const {
-    return "onnx";
-  }
+  const char* type_key() const { return "onnx"; }
 
-  PackedFunc GetFunction(
-    const std::string& name,
-    const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "ONNX Source module cannot execute, to get executable module"
-              << " build TVM with 'onnx' runtime support";
+               << " build TVM with 'onnx' runtime support";
     return PackedFunc();
   }
 
-  std::string GetSource(const std::string& format) final {
-    return code_;
-  }
+  std::string GetSource(const std::string& format) final { return code_; }
 
-  void SaveToFile(const std::string& path,
-                  const std::string& format) final {
-    CHECK_EQ(format, "onnx")
-          << "Can only save to onnx format";
+  void SaveToFile(const std::string& path, const std::string& format) final {
+    CHECK_EQ(format, "onnx") << "Can only save to onnx format";
     CHECK_NE(code_.length(), 0);
     const PackedFunc* to_onnx_ = runtime::Registry::Get("relay.ext.onnx.save_to_file");
     (*to_onnx_)(code_, path, format);
@@ -68,8 +59,7 @@ Module ONNXSourceModuleNodeCreate(String code) {
   return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.ONNXModuleCreate")
-.set_body_typed(ONNXSourceModuleNodeCreate);
+TVM_REGISTER_GLOBAL("runtime.ONNXModuleCreate").set_body_typed(ONNXSourceModuleNodeCreate);
 
 }  // namespace codegen
 }  // namespace tvm
