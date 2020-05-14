@@ -477,7 +477,7 @@ def test_alignment():
     # listed there.
     def has_param_alignment():
         for l in lines:
-            if re.search('test_alignment_compute_\([^(]*align [0-9]', l):
+            if re.search(r'test_alignment_compute_\([^(]*align [0-9]', l):
                 return True
         return False
 
@@ -489,7 +489,7 @@ def test_alignment():
     # a much more detailed analysis of the LLVM IR.
     def has_call_to_assume():
         for l in lines:
-            if re.search('call.*llvm.assume', l):
+            if re.search(r'call.*llvm.assume', l):
                 return True
         return False
 
