@@ -2803,7 +2803,6 @@ class GraphProto(object):
         self._layout = layout
         self._graph = graph
 
-
         if missing_operators:
             freezed_ops = [op for op in missing_operators if op in _freezed_graph_pruned_op_list]
             if freezed_ops:
