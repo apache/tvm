@@ -3168,7 +3168,6 @@ def test_forward_isfinite():
     _verify_infiniteness_ops(tf.is_finite, "isfinite")
 
 def _test_spop_placeholder_one():
-    print("Inside placeholder function")
     tf.reset_default_graph()
     g = tf.Graph()
     with g.as_default():
@@ -3212,8 +3211,6 @@ def _test_spop_placeholder_three():
     t2 = tf.placeholder(tf.int32, (3, 3, 3), "t2")
     t2_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
 
-    # @tf.function(input_signature=[tf.TensorSpec(shape=(3, 3, 3), dtype=tf.int32),
-    #                               tf.TensorSpec(shape=(3, 3, 3), dtype=tf.int32)])
     @tf.function
     def add(x, y):
         return tf.add(x, y, "add_t1_t2")
@@ -3236,7 +3233,8 @@ def _test_spop_placeholder_four():
     t3 = add(t1, t2)
     compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
 
-def _test_spop_function_invocation():
+def _test_spop_function_invocation_one():
+    tf.disable_eager_execution()
     tf.reset_default_graph()
     with tf.Graph().as_default():
 
@@ -3245,6 +3243,87 @@ def _test_spop_function_invocation():
 
         def fun2(b):
             return tf.multiply(b,10)
+
+        @tf.function
+        def fun3(x,y):
+            x = fun2(x)
+            y = fun1(y)
+            z = tf.add(x,y)
+            return z
+
+        t3 = fun3(tf.constant(10.5), tf.constant(20.4))
+
+        compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
+
+def _test_spop_function_invocation_callable_graph():
+    tf.disable_eager_execution()
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+
+        @tf.function
+        def fun1(a):
+            return tf.multiply(a,a)
+
+        @tf.function
+        def fun2(b):
+            return tf.multiply(b,10)
+
+        @tf.function
+        def fun3(x,y):
+            x = fun2(x)
+            y = fun1(y)
+            z = tf.add(x,y)
+            return z
+
+        t3 = fun3(tf.constant(10.5), tf.constant(20.4))
+
+        compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
+
+def _test_spop_function_invocation_simple():
+    tf.disable_eager_execution()
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+
+        @tf.function()
+        def fun2():
+            return tf.constant(1)
+
+        @tf.function()
+        def fun3():
+            return fun2()
+
+        t3 = fun3()
+
+        compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
+
+def _test_spop_function_invocation_params():
+    tf.disable_eager_execution()
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+
+        @tf.function()
+        def fun2(x):
+            return tf.multiply(x,x)
+
+        @tf.function()
+        def fun3(x):
+            y = fun2(x)
+            z = tf.add(x, y)
+            return z
+
+        t3 = fun3(tf.constant(10))
+
+        compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
+
+def _test_spop_function_invocation_defun():
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+
+        def fun1(a):
+            return tf.multiply(a,a)
+
+        def fun2(b):
+            return tf.multiply(b,b)
 
         @function.Defun(dtypes.float32, dtypes.float32, func_name="Fun3")
         def fun3(x,y):
@@ -3327,6 +3406,13 @@ def _test_spop_placeholder():
     _test_spop_placeholder_two()
     _test_spop_placeholder_three()
     _test_spop_placeholder_four()
+
+def _test_spop_function_invocation():
+    _test_spop_function_invocation_simple()
+    _test_spop_function_invocation_params()
+    _test_spop_function_invocation_one()
+    _test_spop_function_invocation_callable_graph()
+    _test_spop_function_invocation_defun()
 
 def test_forward_spop_positive():
     _test_spop_placeholder()
