@@ -24,6 +24,8 @@
 #ifndef TVM_RUNTIME_MICRO_TARGET_DATA_LAYOUT_ENCODER_H_
 #define TVM_RUNTIME_MICRO_TARGET_DATA_LAYOUT_ENCODER_H_
 
+#include <memory>
+#include <set>
 #include <vector>
 
 #include "host_driven/utvm_runtime_enum.h"
@@ -39,7 +41,6 @@ namespace runtime {
  */
 class TargetDataLayoutEncoder {
  public:
-
   /*!
    * \brief helper class for writing into `TargetDataLayoutEncoder`
    */
@@ -126,7 +127,10 @@ class TargetDataLayoutEncoder {
     CHECK(buf_.size() < capacity_) << "out of space in data encoder";
     size_t alloc_start_offset = curr_offset_;
     curr_offset_ += size;
-    class Alloc* alloc = new class Alloc(this, alloc_start_offset, size, start_addr() + alloc_start_offset);
+    class Alloc* alloc = new class Alloc(this,
+                                         alloc_start_offset,
+                                         size,
+                                         start_addr() + alloc_start_offset);
     return std::unique_ptr<class Alloc>(alloc);
   }
 
