@@ -26,6 +26,7 @@
 #define TVM_RUNTIME_CONTRIB_TFLITE_TFLITE_RUNTIME_H_
 
 #include <dlpack/dlpack.h>
+#include <tensorflow/lite/interpreter.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
