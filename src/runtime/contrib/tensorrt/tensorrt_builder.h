@@ -99,7 +99,7 @@ class TensorRTBuilder : public ExprVisitor {
    * \param args Inputs to this execution.
    */
   explicit TensorRTBuilder(runtime::TensorRTLogger* logger, const std::vector<DLTensor*>& args,
-                           size_t max_workspace_size);
+                           size_t max_workspace_size, bool use_implicit_batch_);
 
   void VisitExpr_(const VarNode* node) final;
 
@@ -187,6 +187,9 @@ class TensorRTBuilder : public ExprVisitor {
 
   /*! \brief Max workspace size in bytes for TRT. */
   size_t max_workspace_size_;
+
+  /*! \brief Whether to use implicit batch mode. */
+  bool use_implicit_batch_;
 
   /*! \brief Input names in same order as execution args during runtime. Some of
    * these are not actual input bindings in the TRT engine - use

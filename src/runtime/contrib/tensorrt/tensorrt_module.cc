@@ -48,6 +48,7 @@ class TensorRTModule : public runtime::ModuleNode {
       const std::unordered_map<std::string, std::string>& serialized_subgraphs)
       : serialized_subgraphs_(serialized_subgraphs) {
     max_workspace_size_ = dmlc::GetEnv("TVM_TENSORRT_MAX_WORKSPACE_SIZE", size_t(1) << 31);
+    use_implicit_batch_ = dmlc::GetEnv("TVM_TENSORRT_USE_IMPLICIT_BATCH", true);
 #if TVM_GRAPH_RUNTIME_TENSORRT
     GetCachedEnginesFromDisk();
 #endif
@@ -82,7 +83,8 @@ class TensorRTModule : public runtime::ModuleNode {
         auto inputs = ConvertInputs(args);
         std::string key = GetSubgraphKey(serialized_subgraphs_[name]);
         this->serialized_subgraphs_[name].clear();
-        relay::contrib::TensorRTBuilder builder(&logger_, inputs, max_workspace_size_);
+        relay::contrib::TensorRTBuilder builder(&logger_, inputs, max_workspace_size_,
+                                                use_implicit_batch_);
         auto engine_and_context = builder.BuildEngine(func);
         CacheEngineToDisk(key, engine_and_context);
         LOG(INFO) << "Finished building TensorRT engine for subgraph " << name;
@@ -135,6 +137,9 @@ class TensorRTModule : public runtime::ModuleNode {
 
   /*! \brief Max workspace size for TensorRT */
   size_t max_workspace_size_;
+
+  /*! \brief Whether to use implicit batch mode. */
+  bool use_implicit_batch_;
 
 #if TVM_GRAPH_RUNTIME_TENSORRT
   /*! \brief Map of function name to TRT engine if built already. */
@@ -195,13 +200,15 @@ class TensorRTModule : public runtime::ModuleNode {
       bindings[binding_index] = reinterpret_cast<float*>(arg->data);
 #if TRT_VERSION_GE(6, 0, 1)
       // Set binding dimensions for INetworkV2 explicit batch mode engines.
-      nvinfer1::Dims dims;
-      dims.d[0] = 1;
-      dims.nbDims = arg->ndim;
-      for (int i = 0; i < arg->ndim; ++i) {
-        dims.d[i] = arg->shape[i];
+      if (!use_implicit_batch_) {
+        nvinfer1::Dims dims;
+        dims.d[0] = 1;
+        dims.nbDims = arg->ndim;
+        for (int i = 0; i < arg->ndim; ++i) {
+          dims.d[i] = arg->shape[i];
+        }
+        context->setBindingDimensions(binding_index, dims);
       }
-      context->setBindingDimensions(binding_index, dims);
 #endif
     }
     // Set outputs.
@@ -214,12 +221,17 @@ class TensorRTModule : public runtime::ModuleNode {
       bindings[binding_index] = reinterpret_cast<float*>(out_arg->data);
     }
 #if TRT_VERSION_GE(6, 0, 1)
-    CHECK(context->executeV2(bindings.data())) << "Running TensorRT failed.";
+    if (use_implicit_batch_) {
+      // Use batch size from first input.
+      const int batch_size = inputs[0]->shape[0];
+      CHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
+    } else {
+      CHECK(context->executeV2(bindings.data())) << "Running TensorRT failed.";
+    }
 #else
     // Use batch size from first input.
     const int batch_size = inputs[0]->shape[0];
-    CHECK(context->execute(batch_size, bindings.data()))
-        << "Running TensorRT failed.";
+    CHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
 #endif
     *rv = bindings[num_bindings - num_outputs];
   }
@@ -307,6 +319,7 @@ class TensorRTModule : public runtime::ModuleNode {
     writer.BeginObject();
     writer.WriteObjectKeyValue("subgraphs", serialized_subgraphs_);
     writer.WriteObjectKeyValue("max_workspace_size", max_workspace_size_);
+    writer.WriteObjectKeyValue("use_implicit_batch", use_implicit_batch_);
     writer.EndObject();
     return os.str();
   }
@@ -315,17 +328,20 @@ class TensorRTModule : public runtime::ModuleNode {
   static Module CreateModuleFromString(const std::string& str) {
     std::unordered_map<std::string, std::string> serialized_subgraphs;
     size_t max_workspace_size = 0;
+    bool use_implicit_batch = true;
     std::istringstream is(str);
     dmlc::JSONReader reader(&is);
     dmlc::JSONObjectReadHelper helper;
     helper.DeclareField("subgraphs", &serialized_subgraphs);
     helper.DeclareOptionalField("max_workspace_size", &max_workspace_size);
+    helper.DeclareOptionalField("use_implicit_batch", &use_implicit_batch);
     helper.ReadAllFields(&reader);
     auto n = make_object<TensorRTModule>(serialized_subgraphs);
     // Use max_workspace_size from artifact if it is set and it is not overriden by env var.
     if (max_workspace_size != 0 && dmlc::GetEnv("TVM_TENSORRT_MAX_WORKSPACE_SIZE", 0) != 0) {
       n->max_workspace_size_ = max_workspace_size;
     }
+    n->use_implicit_batch_ = use_implicit_batch;
     return Module(n);
   }
 };

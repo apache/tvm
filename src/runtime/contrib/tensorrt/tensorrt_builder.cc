@@ -105,15 +105,20 @@ GetOpConverters() {
 }
 
 TensorRTBuilder::TensorRTBuilder(runtime::TensorRTLogger* logger,
-    const std::vector<DLTensor*>& args, size_t max_workspace_size)
-    : execution_args_(args), max_workspace_size_(max_workspace_size) {
+    const std::vector<DLTensor*>& args, size_t max_workspace_size, bool use_implicit_batch)
+    : execution_args_(args), max_workspace_size_(max_workspace_size),
+      use_implicit_batch_(use_implicit_batch) {
   // Create TRT builder and network.
   builder_ = nvinfer1::createInferBuilder(*logger);
 #if TRT_VERSION_GE(6, 0, 1)
-  // Use INetworkV2 with explicit batch.
-  const auto flags =
-      1U << static_cast<uint32_t>(
-          nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
+  // Use INetworkV2.
+  auto flags = 1U << static_cast<uint32_t>(
+      nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);;
+  if (use_implicit_batch_) {
+    flags = 0U;
+    batch_size_ = args[0]->shape[0];
+    builder_->setMaxBatchSize(batch_size_);
+  }
   network_ = builder_->createNetworkV2(flags);
 #else
   // Use INetwork with implicit batch.
@@ -177,15 +182,17 @@ runtime::TrtEngineAndContext TensorRTBuilder::BuildEngine(
     config_->setFlag(nvinfer1::BuilderFlag::kFP16);
   }
   // Add profiles.
-  auto profile = builder_->createOptimizationProfile();
-  for (int i = 0; i < network_->getNbInputs(); ++i) {
-    auto name = network_->getInput(i)->getName();
-    auto dims = network_->getInput(i)->getDimensions();
-    profile->setDimensions(name, nvinfer1::OptProfileSelector::kMIN, dims);
-    profile->setDimensions(name, nvinfer1::OptProfileSelector::kOPT, dims);
-    profile->setDimensions(name, nvinfer1::OptProfileSelector::kMAX, dims);
+  if (!use_implicit_batch_) {
+    auto profile = builder_->createOptimizationProfile();
+    for (int i = 0; i < network_->getNbInputs(); ++i) {
+      auto name = network_->getInput(i)->getName();
+      auto dims = network_->getInput(i)->getDimensions();
+      profile->setDimensions(name, nvinfer1::OptProfileSelector::kMIN, dims);
+      profile->setDimensions(name, nvinfer1::OptProfileSelector::kOPT, dims);
+      profile->setDimensions(name, nvinfer1::OptProfileSelector::kMAX, dims);
+    }
+    config_->addOptimizationProfile(profile);
   }
-  config_->addOptimizationProfile(profile);
   nvinfer1::ICudaEngine* engine =
       builder_->buildEngineWithConfig(*network_, *config_);
 #else
@@ -313,7 +320,7 @@ void TensorRTBuilder::VisitExpr_(const TupleNode* op) {
 nvinfer1::ITensor* TensorRTBuilder::AddInput(const std::string& tensor_name, const Type& type) {
   auto shape = GetShape(type);
   // Remove batch dim when not in explicit batch mode.
-  if (TRT_HAS_IMPLICIT_BATCH && shape.size() > 1) {
+  if (use_implicit_batch_ && shape.size() > 1) {
     shape.erase(shape.begin());
   }
   DLOG(INFO) << "Added TRT network input: " << tensor_name << " "
@@ -373,7 +380,7 @@ void TensorRTBuilder::VisitExpr_(const ConstantNode* node) {
   nvinfer1::Weights weight = GetNdArrayAsWeights(node->data, kDLCPU);
   auto shape = node->data.Shape();
   // Remove batch dim when not in explicit batch mode.
-  if (TRT_HAS_IMPLICIT_BATCH && shape.size() > 1 && shape[0] == 1) {
+  if (use_implicit_batch_ && shape.size() > 1 && shape[0] == 1) {
     shape.erase(shape.begin());
   }
   nvinfer1::Dims dims = VectorToTrtDims(shape);
@@ -444,7 +451,9 @@ void TensorRTBuilder::VisitExpr_(const CallNode* call) {
 
 void TensorRTBuilder::CleanUp() {
   network_->destroy();
+#if TRT_VERSION_GE(6, 0, 1)
   config_->destroy();
+#endif
   builder_->destroy();
   for (auto weight : trt_weights_) {
     if (weight.type == nvinfer1::DataType::kFLOAT) {
