@@ -154,7 +154,7 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
     # Since this is going away in the impending switch to on-device runtime,
     # add a constant to hopefully absorb these relocations.
     if section_size > 0:
-        section_size += 32
+        section_size += 64
 
     return section_size
 
