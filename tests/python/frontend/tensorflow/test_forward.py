@@ -3167,7 +3167,7 @@ def test_forward_isinf():
 def test_forward_isfinite():
     _verify_infiniteness_ops(tf.is_finite, "isfinite")
 
-def test_spop_placeholder_one():
+def _test_spop_placeholder_one():
     print("Inside placeholder function")
     tf.reset_default_graph()
     g = tf.Graph()
@@ -3190,7 +3190,7 @@ def test_spop_placeholder_one():
         compare_tf_with_tvm([data, data2, data3], ['pl1:0', 'pl2:0', 'pl3:0'],
                             ['StatefulPartitionedCall:0',z2.name],  mode='vm', init_global_variables=True)
 
-def test_spop_placeholder_two():
+def _test_spop_placeholder_two():
 
     with tf.Graph().as_default():
         data = np.ones([1], dtype=int).astype(np.int32)
@@ -3205,7 +3205,7 @@ def test_spop_placeholder_two():
         z = gen_functional_ops.StatefulPartitionedCall(args=[tpl], Tout=[tf.int32], f=pl_with_default)
         compare_tf_with_tvm(data, ['pl1:0'], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
-def test_spop_placeholder_three():
+def _test_spop_placeholder_three():
     tf.disable_eager_execution()
     t1 = tf.placeholder(tf.int32, (3, 3, 3), "t1")
     t1_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
@@ -3221,7 +3221,7 @@ def test_spop_placeholder_three():
     t3 = add(t1, t2)
     compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
 
-def test_spop_placeholder_four():
+def _test_spop_placeholder_four():
     tf.disable_eager_execution()
     t1_data = np.array([[-1, 1, 3], [2, -2, 4], [2, -3, 14]], dtype=np.int32)
     t2_data = np.array([[-2, 1, 2], [12, -2, 14], [12, -3, 4]], dtype=np.int32)
@@ -3236,7 +3236,7 @@ def test_spop_placeholder_four():
     t3 = add(t1, t2)
     compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
 
-def test_spop_function_invocation():
+def _test_spop_function_invocation():
     tf.reset_default_graph()
     with tf.Graph().as_default():
 
@@ -3257,7 +3257,7 @@ def test_spop_function_invocation():
                                                         Tout=[dtypes.float32], f=fun3, name="SpopFnInvocation")
         compare_tf_with_tvm([],[], 'SpopFnInvocation:0', mode='vm', init_global_variables=True)
 
-def test_spop_arithmetic():
+def _test_spop_arithmetic():
     tf.reset_default_graph()
     with tf.Graph().as_default():
         @function.Defun(*[dtypes.int32]*3)
@@ -3272,7 +3272,7 @@ def test_spop_arithmetic():
 
         compare_tf_with_tvm([],[],'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
-def test_spop_control_flow():
+def _test_spop_control_flow():
     tf.reset_default_graph()
     with tf.Graph().as_default():
 
@@ -3291,7 +3291,7 @@ def test_spop_control_flow():
         op = gen_functional_ops.StatefulPartitionedCall(args=[constant_op.constant(32.), constant_op.constant(100.)], Tout=[dtypes.float32], f=Body1)
         compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
-def test_spop_variables():
+def _test_spop_variables():
     tf.reset_default_graph()
     g = tf.Graph()
     with g.as_default():
@@ -3308,7 +3308,7 @@ def test_spop_variables():
         z = gen_functional_ops.StatefulPartitionedCall(args=[var1,var2],Tout=[tf.int32], f=Forward)
         compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', init_global_variables=True, mode="vm")
 
-def test_spop_constants():
+def _test_spop_constants():
     tf.reset_default_graph()
     with tf.Graph().as_default():
         @function.Defun(*[dtypes.int32] * 2)
@@ -3322,26 +3322,26 @@ def test_spop_constants():
 
         compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
-def test_spop_placeholder():
-    test_spop_placeholder_one()
-    test_spop_placeholder_two()
-    test_spop_placeholder_three()
-    test_spop_placeholder_four()
+def _test_spop_placeholder():
+    _test_spop_placeholder_one()
+    _test_spop_placeholder_two()
+    _test_spop_placeholder_three()
+    _test_spop_placeholder_four()
 
-def test_spop_positive():
-    test_spop_placeholder()
-    test_spop_function_invocation()
-    test_spop_arithmetic()
-    test_spop_control_flow()
-    test_spop_variables()
-    test_spop_constants()
+def test_forward_spop_positive():
+    _test_spop_placeholder()
+    _test_spop_function_invocation()
+    _test_spop_arithmetic()
+    _test_spop_control_flow()
+    _test_spop_variables()
+    _test_spop_constants()
 
 #######################################################################
 # Main
 # ----
 if __name__ == '__main__':
     # StatefulPartitionedOp
-    test_spop_positive()
+    test_forward_spop_positive()
     # Transforms
     test_forward_slice()
     test_forward_transpose()
