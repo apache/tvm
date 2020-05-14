@@ -61,6 +61,37 @@ class DFPatternCallback : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(DFPatternCallback, ObjectRef, DFPatternCallbackNode);
 };
 
+/*!
+ * \brief Determine if a pattern matches an expression
+ *
+ * \param pattern The pattern to match
+ * \param expr The expression to match
+ *
+ * \return Return true if the pattern and the expression match, return false otherwise.
+ */
+bool MatchPattern(DFPattern pattern, Expr expr);
+
+/*!
+ * \brief Rewrite an expression based on some number of DFPatternCallbacks
+ *
+ * \param callbacks An array of DFPatternCallback Nodes
+ * \param expr The expression to rewrite
+ *
+ * \return Return An Expr with every match of the pattern inside the callbacks rewritten by the
+ * functions inside the callbacks
+ */
+Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr);
+
+/*!
+ * \brief Partition all matches of a DFPattern inside an Expr into separate Function calls
+ *
+ * \param pattern The pattern to match
+ * \param expr The expression to patition
+ *
+ * \return Return the paritioned Expr.
+ */
+Expr PartitionPattern(DFPattern pattern, Expr expr);
+
 }  // namespace relay
 }  // namespace tvm
 

@@ -64,7 +64,6 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   std::unordered_map<DFPattern, Array<Expr>, ObjectHash, ObjectEqual> memo_;
   std::vector<DFPattern> matched_nodes_;
   IndexedGraph<Expr> expr_graph_;
-  IndexedGraph<DFPattern> pattern_graph_;
   bool memoize_ = true;
 };
 
@@ -298,7 +297,6 @@ bool DFPatternMatcher::DominatesParent(const DominatorPatternNode* op, const Exp
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) {
-  pattern_graph_ = CreateIndexedGraph(GetRef<DFPattern>(op));
   if (VisitDFPattern(op->child, expr)) {
     bool matches_path = MatchesPath(op, expr);
     memoize_ = true;
@@ -367,10 +365,11 @@ bool DFPatternMatcher::VisitDFPattern_(const WildcardPatternNode* op, const Expr
   return true;
 }
 
-TVM_REGISTER_GLOBAL("relay.dataflow_pattern.match")
-    .set_body_typed([](DFPattern pattern, Expr expr) {
-      return DFPatternMatcher(expr).Match(pattern, expr);
-    });
+bool MatchPattern(DFPattern pattern, Expr expr) {
+  return DFPatternMatcher(expr).Match(pattern, expr);
+}
+
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.match").set_body_typed(MatchPattern);
 
 /* \brief PatternGrouper does pre-rewriting pattern matching and analysis
  *
@@ -391,15 +390,12 @@ class PatternGrouper : protected MixedModeVisitor {
     Array<Expr> args;
   };
 
-  /* \brief Return the discovered groups */
-  const std::vector<Group>& GetGroups() { return this->groups_; }
-
   /* \brief Return the group assignments of expressions */
   const std::unordered_map<Expr, int, ObjectHash, ObjectEqual>& GetGIDAssignments() {
     return gid_assignments_;
   }
   /* \brief Group expressions that match the pattern */
-  void GroupMatches(const DFPattern& pattern, const Expr& pre) {
+  const std::vector<Group>& GroupMatches(const DFPattern& pattern, const Expr& pre) {
     groups_ = {Group()};
     gid_assignments_.clear();
     visit_counter_.clear();
@@ -409,6 +405,7 @@ class PatternGrouper : protected MixedModeVisitor {
     auto matcher = DFPatternMatcher(pre);
     matcher_ = &matcher;
     this->VisitExpr(pre);
+    return this->groups_;
   }
 
  protected:
@@ -438,7 +435,7 @@ class PatternGrouper : protected MixedModeVisitor {
 
   /* \brief Create a group based on a matched expression */
   void CreateGroup(const Expr& expr) {
-    var_number_ = 0;
+    int var_number = 0;
 
     auto node_map = matcher_->GetMemo();
 
@@ -468,12 +465,12 @@ class PatternGrouper : protected MixedModeVisitor {
           for (auto match : matches) {
             if (fuzzy_matches.count(match) == 0 && match.as<OpNode>() == nullptr &&
                 match.as<FunctionNode>() == nullptr && match.as<ConstantNode>() == nullptr) {
-              inputs[match] = Var("FunctionVar_" + std::to_string(graph_number_) + "_" +
-                                      std::to_string(var_number_),
-                                  NullValue<Type>());
+              inputs[match] = Var(
+                  "FunctionVar_" + std::to_string(graph_number_) + "_" + std::to_string(var_number),
+                  NullValue<Type>());
               group.args.push_back(match);
               params.push_back(inputs[match]);
-              var_number_++;
+              var_number++;
             }
           }
         }
@@ -525,7 +522,6 @@ class PatternGrouper : protected MixedModeVisitor {
   DFPatternMatcher* matcher_ = nullptr;
   IndexedGraph<DFPattern> pattern_graph_;
   int gid_ = 0;
-  int var_number_ = 0;
   int graph_number_ = 0;
 };
 
@@ -565,8 +561,7 @@ class PatternRewriter : protected MixedModeMutator {
       for (auto callback : callbacks) {
         callback_ = callback;
         auto grouper = PatternGrouper();
-        grouper.GroupMatches(callback_->pattern_, post);
-        groups_ = grouper.GetGroups();
+        groups_ = grouper.GroupMatches(callback_->pattern_, post);
         gid_assignments_ = grouper.GetGIDAssignments();
         memo_.clear();
         post = this->VisitExpr(post);
@@ -619,8 +614,7 @@ class PatternPartitioner : protected MixedModeMutator {
  public:
   Expr Partition(const DFPattern& pattern, const Expr& pre) {
     auto grouper = PatternGrouper();
-    grouper.GroupMatches(pattern, pre);
-    groups_ = grouper.GetGroups();
+    groups_ = grouper.GroupMatches(pattern, pre);
     gid_assignments_ = grouper.GetGIDAssignments();
     return this->VisitExpr(pre);
   }

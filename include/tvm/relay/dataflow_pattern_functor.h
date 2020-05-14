@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file tvm/relay/dataflow_matcher.h
- * \brief A pattern matcher for matching dataflow properties.
+ * \file tvm/relay/dataflow_pattern_functor.h
+ * \brief A set of passes for operating on pattern graphs.
  */
 #ifndef TVM_RELAY_DATAFLOW_PATTERN_FUNCTOR_H_
 #define TVM_RELAY_DATAFLOW_PATTERN_FUNCTOR_H_
