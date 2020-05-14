@@ -299,7 +299,7 @@ class StorageCoalesce(ExprMutator):
         )
 
 class LiftConst(ExprMutator):
-    """A internal pass to lift constants to the top level of function."""
+    """An internal pass to lift constants to the top level of function."""
     def __init__(self):
         self.i = 0
         self.constants = []
@@ -330,7 +330,7 @@ class LiftConst(ExprMutator):
 
 @function_pass(opt_level=0)
 class MemoryPlan:
-    """An explicit pass wrapper around ManifestAlloc."""
+    """An explicit pass wrapper around StorageCoalesce."""
 
     def transform_function(self, func, mod, _):
         mod.import_from_std("core.rly")
@@ -342,7 +342,7 @@ register_func("relay.transform.MemoryPlan", MemoryPlan)
 
 @function_pass(opt_level=0)
 class LiftConstants:
-    """An explicit pass wrapper around LiftConstants."""
+    """An explicit pass wrapper around LiftConst."""
 
     def transform_function(self, func, mod, _):
         mod.import_from_std("core.rly")

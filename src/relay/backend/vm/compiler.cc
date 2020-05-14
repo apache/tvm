@@ -69,7 +69,7 @@ Pass MemoryPlan() {
 
 Pass LiftConstants() {
   auto f = tvm::runtime::Registry::Get("relay.transform.LiftConstants");
-  CHECK(f != nullptr) << "unable to load the memory planning pass";
+  CHECK(f != nullptr) << "unable to load the constant lifting pass";
   return (*f)();
 }
 
