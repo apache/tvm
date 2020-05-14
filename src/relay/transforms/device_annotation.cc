@@ -90,15 +90,6 @@ class ValidateAnnotation : private ExprVisitor {
         annotation_map_.insert({node, GetDeviceId(call_node)});
       }
 
-      // FIXME(zhanghao): find a better way
-      // here assume there are max two device types
-      if (device_type == fallback_device_ && extra_device_ && extra_device_ != fallback_device_) {
-        const auto* child = GetRef<Expr>(node).as<CallNode>()->args[0].operator->();
-        // here we mark as negative to indicate this is for copy from only
-        int ext_dev = -extra_device_;
-        annotation_map_.insert({child, ext_dev});
-      }
-
       if (device_type != fallback_device_) extra_device_ = device_type;
     }
   }
@@ -261,11 +252,7 @@ class RewriteAnnotation : public ExprMutator {
       if (annotation_map_.count(dst)) {
         return src_dev_type != annotation_map_.at(dst);
       } else {
-        // TODO(zhanghao): for now, we only make a device_copy when dst is "on_device" marked
-        // This allows us to do a start-end mark (mark two points)
-        // to mark all the middle ops with a device_type
-        return false;
-        // return src_dev_type != fallback_device_;
+        return src_dev_type != fallback_device_;
       }
     } else {
       // if annotation value < 0, it means this is for "copy from" only
@@ -408,22 +395,38 @@ class DeviceInfo {
     }
 
     void VisitExpr_(const ConstantNode* cn) final {
-      post_dfs_order_.push_back(std::make_pair(cn, has_copy_));
+      device_tag_[cn] = dev_type_;
     }
 
     void VisitExpr_(const CallNode* call) final {
       // Skip annotation nodes.
       if (!IsOnDeviceNode(call)) {
-        if (GetDeviceCopyNode(call)) {
+        if (const auto* node = GetDeviceCopyNode(call)) {
+          CHECK(node->IsInstance<CallNode>());
+          const auto* call_node = static_cast<const CallNode*>(node);
+          auto attrs = call_node->attrs.as<DeviceCopyAttrs>();
+
           num_device_copy_ops_++;
           bool has_copy_prev = has_copy_;
           has_copy_ = true;
-          ExprVisitor::VisitExpr_(call);
-          post_dfs_order_.push_back(std::make_pair(call, has_copy_));
+          dev_type_ = attrs->src_dev_type;
+          for (auto& arg : call->args) {
+            Visit(arg);
+            // restore the type for remaining arguments
+            dev_type_ = attrs->src_dev_type;
+          }
+          device_tag_[call] = attrs->dst_dev_type;
+          // update the out_dev_type_, which should be the dst_dev_type of last copy
+          out_dev_type_ = attrs->dst_dev_type;
           has_copy_ = has_copy_prev;
         } else {
-          ExprVisitor::VisitExpr_(call);
-          post_dfs_order_.push_back(std::make_pair(call, has_copy_));
+          for (auto& arg : call->args) {
+            int cur_dev_type = dev_type_;
+            Visit(arg);
+            // restore the type for remaining arguments
+            dev_type_ = cur_dev_type;
+          }
+          device_tag_[call] = dev_type_;
         }
       }
     }
@@ -436,22 +439,24 @@ class DeviceInfo {
     void VisitExpr_(const TupleGetItemNode* op) final { ExprVisitor::VisitExpr_(op); }
 
     void VisitExpr_(const VarNode* vn) final {
-      post_dfs_order_.push_back(std::make_pair(vn, has_copy_));
+      device_tag_[vn] = dev_type_;
     }
 
     void VisitExpr_(const LetNode* ln) final {
       ExprVisitor::VisitExpr_(ln);
-      post_dfs_order_.push_back(std::make_pair(ln, has_copy_));
+      device_tag_[ln] = dev_type_;
     }
 
     void VisitExpr_(const IfNode* in) final {
       ExprVisitor::VisitExpr_(in);
-      post_dfs_order_.push_back(std::make_pair(in, has_copy_));
+      device_tag_[in] = dev_type_;
     }
 
     int num_device_copy_ops_{0};
     bool has_copy_ = false;
-    std::vector<std::pair<const ExprNode*, bool>> post_dfs_order_;
+    int dev_type_ = -1;
+    int out_dev_type_ = -1;
+    std::unordered_map<const ExprNode*, int> device_tag_;
     friend DeviceInfo;
   };
 
@@ -477,38 +482,13 @@ class DeviceInfo {
   }
 
   void PropagateDeviceId() {
-    // Bottom-up propagation.
-    int out_dev_type = BottomUpPropagation();
-    // propagation for remained nodes.
-    FillPropagation(out_dev_type);
-  }
-
-  int BottomUpPropagation() {
-    const CallNode* last_copy_node = nullptr;
-    int cur_dev_type = -1;
-    int out_dev_type = -1;
-    for (auto it = post_visitor_.post_dfs_order_.crbegin();
-         it != post_visitor_.post_dfs_order_.crend(); ++it) {
-      if (const auto* node = GetDeviceCopyNode(it->first)) {
-        CHECK(node->IsInstance<CallNode>());
-        last_copy_node = static_cast<const CallNode*>(node);
-        const auto* attrs = last_copy_node->attrs.as<DeviceCopyAttrs>();
-        cur_dev_type = attrs->src_dev_type;
-        if (out_dev_type == -1) out_dev_type = attrs->dst_dev_type;
-        if (it->second) device_map_.Set(GetRef<Expr>(it->first), attrs->dst_dev_type);
-      } else if (last_copy_node) {
-        Expr expr = GetRef<Expr>(it->first);
-        CHECK_EQ(device_map_.count(expr), 0U);
-        if (it->second) device_map_.Set(expr, cur_dev_type);
+    int out_dev_type = post_visitor_.out_dev_type_;
+    for (auto& it : post_visitor_.device_tag_) {
+      if (it.second != -1) {
+        device_map_.Set(GetRef<Expr>(it.first), it.second);
+      } else {
+        device_map_.Set(GetRef<Expr>(it.first), out_dev_type);
       }
-    }
-    return out_dev_type;
-  }
-
-  void FillPropagation(int out_dev_type) {
-    for (const auto& it : post_visitor_.post_dfs_order_) {
-      Expr expr = GetRef<Expr>(it.first);
-      if (!it.second) device_map_.Set(expr, out_dev_type);
     }
   }
 
@@ -517,6 +497,7 @@ class DeviceInfo {
 };
 
 
+// TODO(zhanghao): consider to remove this as I think it is not necessary for now
 class AddDeviceCopy : public ExprMutator {
  public:
   Expr Rewrite(const Expr& expr) {
@@ -558,7 +539,6 @@ class AddDeviceCopy : public ExprMutator {
         auto attrs = make_object<DeviceCopyAttrs>();
         attrs->src_dev_type = src_dev_type;
         attrs->dst_dev_type = dst_dev_type;
-        attrs->used_for_propagate = false;
         static const Op& op = Op::Get("device_copy");
         Call device_copy = CallNode::make(op, {this->Mutate(arg)}, Attrs(attrs), {});
         device_copy->checked_type_ = arg->checked_type_;

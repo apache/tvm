@@ -193,6 +193,7 @@ class ExprDeviceAnnot(ExprMutator):
     def __init__(self, start=-1, end=-1):
         self.ext_ctx = tvm.context("ext_dev")
         self.cpu_ctx = tvm.context("cpu")
+        self.cast = op.op.get("cast")
         self.counter = -1
         self.start = start
         self.end = end
@@ -210,33 +211,40 @@ class ExprDeviceAnnot(ExprMutator):
         if self.counter == self.start:
             ret = relay.Call(call.op, args, call.attrs)
             ret = relay.annotation.on_device(ret, self.ext_ctx)
-            eprint("add on_device {}: {}".format("ext", ret))
             return ret
         elif self.counter == self.end:
             ret = relay.Call(call.op, args, call.attrs)
             ret = relay.annotation.on_device(ret, self.cpu_ctx)
-            eprint("add on_device {}: {}".format("cpu", ret))
             return ret
+        elif self.counter > self.start and self.counter < self.end:
+            ret = relay.Call(call.op, args, call.attrs)
 
-#        if call.op == self.global_avg_pool2d:
-#            eprint("graphpack call = ", call)
-#            eprint("graphpack call annot relu, ", args[0])
-#            ret = relay.Call(call.op, args, call.attrs)
-#            ret = relay.annotation.on_device(ret, self.cpu_ctx)
-#            return ret
-#
-#        if call.op == self.conv2d and odtype == 'int32':
-#            if not self.first_conv2d:
-#                ret = relay.Call(call.op, args, call.attrs)
-#                ret = relay.annotation.on_device(ret, self.ext_ctx)
-#                eprint("graphpack call conv2d", type(ret.op), ret.op, type(ret), ret)
-#                self.first_conv2d = True
-#                return ret
+            # skip the float op, i.e., float->int cast
+            if self.is_float_op(call):
+                return ret
 
-        return relay.Call(
-            self.visit(call.op),
-            args,
-            call.attrs)
+            return relay.annotation.on_device(ret, self.ext_ctx)
+
+        return relay.Call(self.visit(call.op), args, call.attrs)
+
+    def is_float_op(self, call):
+        """check if this op belongs to a float op
+        in general, float op's odtype is float;
+        a special case is float->int cast, which follow this op sequence:
+        multiply(float) -> round(float) -> clip(float) -> cast(int);
+        """
+        args = call.args
+        odtype = _get_tensor_type(call)
+        op = call.op
+
+        if odtype == "float32":
+            return True
+        elif op == self.cast:
+            idtype = _get_tensor_type(args[0])
+            if idtype == "float32":
+                return True
+
+        return False
 
 
 class ExprLocater(ExprMutator):
