@@ -2744,8 +2744,7 @@ class GraphProto(object):
         self._loop_var_order = {}
         self._hash2tfnode = {}
         self._while_loop_name_set = set()
-        self._subgraphs = {}
-        self._subgraphFunctions = []
+        self._graphLibraryFunctions = []
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
