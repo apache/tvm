@@ -23,7 +23,7 @@ namespace tvm {
 namespace runtime {
 
 TargetDataLayoutEncoder::Alloc::Alloc(TargetDataLayoutEncoder* parent, size_t start_offset,
-                                    size_t size, TargetPtr start_addr)
+                                      size_t size, TargetPtr start_addr)
     : parent_(parent),
       start_offset_(start_offset),
       curr_offset_(0),
@@ -44,20 +44,14 @@ TargetDataLayoutEncoder::Alloc::~Alloc() {
 }
 
 void TargetDataLayoutEncoder::Alloc::CheckUnfilled() {
-  CHECK(curr_offset_ == size_) << "unwritten space in alloc 0x"
-                               << std::hex
-                               << start_addr_.value().uint64()
-                               << "; curr_offset=0x" << curr_offset_
+  CHECK(curr_offset_ == size_) << "unwritten space in alloc 0x" << std::hex
+                               << start_addr_.value().uint64() << "; curr_offset=0x" << curr_offset_
                                << ", size=0x" << size_;
 }
 
-TargetPtr TargetDataLayoutEncoder::Alloc::start_addr() {
-  return start_addr_;
-}
+TargetPtr TargetDataLayoutEncoder::Alloc::start_addr() { return start_addr_; }
 
-size_t TargetDataLayoutEncoder::Alloc::size() {
-  return size_;
-}
+size_t TargetDataLayoutEncoder::Alloc::size() { return size_; }
 
 void TargetDataLayoutEncoder::CheckUnfilledAllocs() {
   CHECK(live_unchecked_allocs_.size() > 0) << "No allocs to check";

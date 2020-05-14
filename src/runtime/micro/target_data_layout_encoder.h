@@ -127,10 +127,8 @@ class TargetDataLayoutEncoder {
     CHECK(buf_.size() < capacity_) << "out of space in data encoder";
     size_t alloc_start_offset = curr_offset_;
     curr_offset_ += size;
-    class Alloc* alloc = new class Alloc(this,
-                                         alloc_start_offset,
-                                         size,
-                                         start_addr() + alloc_start_offset);
+    class Alloc* alloc =
+        new class Alloc(this, alloc_start_offset, size, start_addr() + alloc_start_offset);
     return std::unique_ptr<class Alloc>(alloc);
   }
 
