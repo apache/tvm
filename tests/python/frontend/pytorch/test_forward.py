@@ -534,6 +534,17 @@ def test_forward_maxpool2d():
                                     stride=2).eval(),
                  input_data)
 
+    class MaxPool2DWithIndices(Module):
+        def __init__(self):
+            super(MaxPool2DWithIndices, self).__init__()
+            self.pool = torch.nn.MaxPool2d(kernel_size=[1, 1], return_indices=True)
+
+        def forward(self, *args):
+            output, indices = self.pool(args[0])
+            return output
+
+    verify_model(MaxPool2DWithIndices().float().eval(), input_data=input_data)
+
 def test_forward_maxpool1d():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10]
