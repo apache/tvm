@@ -2855,26 +2855,37 @@ class GraphProto(object):
                 if node.op == "Exit":
                     self._while_loop_name_set.add(node_name_prefix)
                 control_flow_nodes.append(node)
+            elif node.op in ["PartitionedCall", "StatefulPartitionedCall"]:
+                node_fname = node.attr.get('f').func.name
+                f1 = next((func for func in graph.library.function if func.signature.name == node_fname), None)
+                if f1 and f1.signature.name not in self._subgraphs:
+                    from tensorflow.python.framework import function_def_to_graph
+                        f1_input_shapes = f1.attr["_input_shapes"].list.shape
+                        subgraph, flat_tensor_name = function_def_to_graph.function_def_to_graph_def(f1, f1_input_shapes)
+                        subgraph_shape_dict = {f_arg.name: _infer_shape(self._nodes[node_input][0]) for f_arg, node_input in zip(f1.signature.input_arg, node.input)}
+                        tf_graph = self.from_tensorflow(subgraph, shape=subgraph_shape_dict)
+                        self._subgraphs.update({f1.signature.name: tf_graph})
+                        self._backtrack_construct(node.name)
 
-        if graph.library.function:
-            f1 = graph.library.function[0]
-            if f1.signature.name not in self._subgraphs:
-                from tensorflow.python.framework import function_def_to_graph
-                # sub, nested_to_flat_tensor_name = function_def_to_graph.function_def_to_graph_def(f1, f1.attr[
-                #     "_input_shapes"].list.shape)
-                sub = function_def_to_graph.function_def_to_graph_def(f1)
-                #FOR MAHESH: Below is new logic which is failing when we can't deduce shapes for input data(tensor)
-                # subgraph_shape_dict = {f_arg.name: self._in_shape[node_input] for f_arg, node_input in
-                #                        zip(f1.signature.input_arg, node.input)}
-                #FOR MAHESH: The following hack works for placeholders and variables if in_shape has all shapes info
-                i = 0
-                newshape = {}
-                for key,value in self._in_shape.items():
-                    newshape[sub[0].node[i].name] = value
-                    i+=1
-                self._subgraphs.update({f1.signature.name: 'started adding'})
-                self._subgraphs.update({f1.signature.name: self.from_tensorflow(sub[0], shape=newshape)})
-                # self._subgraphs.update({f1.signature.name: self.from_tensorflow(sub)})
+        # if graph.library.function:
+        #     f1 = graph.library.function[0]
+        #     if f1.signature.name not in self._subgraphs:
+        #         from tensorflow.python.framework import function_def_to_graph
+        #         # sub, nested_to_flat_tensor_name = function_def_to_graph.function_def_to_graph_def(f1, f1.attr[
+        #         #     "_input_shapes"].list.shape)
+        #         sub = function_def_to_graph.function_def_to_graph_def(f1)
+        #         #FOR MAHESH: Below is new logic which is failing when we can't deduce shapes for input data(tensor)
+        #         # subgraph_shape_dict = {f_arg.name: self._in_shape[node_input] for f_arg, node_input in
+        #         #                        zip(f1.signature.input_arg, node.input)}
+        #         #FOR MAHESH: The following hack works for placeholders and variables if in_shape has all shapes info
+        #         i = 0
+        #         newshape = {}
+        #         for key,value in self._in_shape.items():
+        #             newshape[sub[0].node[i].name] = value
+        #             i+=1
+        #         self._subgraphs.update({f1.signature.name: 'started adding'})
+        #         self._subgraphs.update({f1.signature.name: self.from_tensorflow(sub[0], shape=newshape)})
+        #         # self._subgraphs.update({f1.signature.name: self.from_tensorflow(sub)})
 
         # if graph.library.function and not self.libFuncs:
         #     for func in graph.library.function:
