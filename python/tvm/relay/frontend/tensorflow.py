@@ -2797,9 +2797,6 @@ class GraphProto(object):
         self._layout = layout
         self._graph = graph
 
-        # ToDo: need _subgraphFunctions as self._graph gets updated on recursive calls
-        self._subgraphFunctions += graph.library.function
-
         if missing_operators:
             freezed_ops = [op for op in missing_operators if op in _freezed_graph_pruned_op_list]
             if freezed_ops:
@@ -3277,31 +3274,6 @@ class GraphProto(object):
                         in_op = in_op[0]
 
                     inputs.append(in_op)
-            if node.op in ["PartitionedCall", "StatefulPartitionedCall"]:
-                node_fname = node.attr.get('f').func.name
-                f1 = next((func for func in self._subgraphFunctions if func.signature.name == node_fname), None)
-                if f1 and f1.signature.name not in self._subgraphs:
-                    from tensorflow.python.framework import function_def_to_graph
-                    f1_input_shapes = f1.attr["_input_shapes"].list.shape
-                    subgraph, flat_tensor_name = function_def_to_graph.function_def_to_graph_def(f1, f1_input_shapes)
-
-                    subgraph_shape_dict = {}
-                    for f_arg, node_input in zip(f1.signature.input_arg, node.input):
-                        input_tensor = self._nodes.get(node_input, None)
-                        if input_tensor:
-                            subgraph_shape_dict[f_arg.name] = _infer_shape(input_tensor[0])
-                    tf_graph = self.from_tensorflow(subgraph, shape=subgraph_shape_dict)
-                    self._subgraphs.update({f1.signature.name: tf_graph})
-
-                f1 = self._subgraphs[attr["f"].name][0]["main"]
-                wl = tvm.relay.var('partitioned_call')
-                sb = tvm.relay.scope_builder.ScopeBuilder()
-                sb.let(wl, f1)
-
-                sb.ret(wl(*inputs))
-                op = sb.get()
-                print(op)
-            else:
                 op = self._convert_operator(node.op, inputs, attr, self._graph)
 
             if isinstance(op, np.ndarray):
