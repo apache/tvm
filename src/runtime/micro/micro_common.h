@@ -133,7 +133,7 @@ class TargetVal {
     return *this;
   }
 
-private:
+ private:
   friend std::ostream& operator<<(std::ostream& os, const TargetVal& v);
 };
 
