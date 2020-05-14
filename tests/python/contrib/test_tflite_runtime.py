@@ -24,6 +24,19 @@ from tvm.contrib import util, tflite_runtime
 
 
 def _create_tflite_model():
+    if not tvm.runtime.enabled("tflite"):
+        print("skip because tflite runtime is not enabled...")
+        return
+    if not tvm.get_global_func("tvm.tflite_runtime.create", True):
+        print("skip because tflite runtime is not enabled...")
+        return
+
+    try:
+        import tensorflow as tf
+    except ImportError:
+        print('skip because tensorflow not installed...')
+        return
+
     root = tf.Module()
     root.const = tf.constant([1., 2.], tf.float32)
     root.f = tf.function(lambda x: root.const * x)
