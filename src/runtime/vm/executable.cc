@@ -570,7 +570,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       return Instruction::AllocTensor(storage_reg, offset, shape, dtype, dst);
     }
     case Opcode::AllocTensorReg: {
-      // Number of fields = 5
+      // Number of fields = 7
       DCHECK_EQ(instr.fields.size(), 7U);
 
       RegName storage_reg = instr.fields[0];
