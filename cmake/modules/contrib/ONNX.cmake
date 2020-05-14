@@ -14,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Converters for Relay to others IRs
-Contain the converters for converting the Relay to other IRs
-"""
 
-from .onnx import to_onnx
+if(USE_ONNX_CODEGEN)
+  message(STATUS "Build with contrib.codegen_onnx")
+  file(GLOB ONNX_CONTRIB_SRC src/target/source/onnx_module.cc)
+  list(APPEND RUNTIME_SRCS ${ONNX_CONTRIB_SRC})
+endif(USE_ONNX_CODEGEN)

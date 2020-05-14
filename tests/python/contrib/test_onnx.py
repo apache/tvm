@@ -19,7 +19,7 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.converter import to_onnx
+from tvm.contrib.codegen_onnx import to_onnx
 import onnxruntime as rt
 
 
@@ -381,7 +381,6 @@ def test_binary_op():
                         ]:
         for dtype in ['float32']:
             check_binary_op(opfunc, dtype)
-
 
 if __name__ == '__main__':
     test_add()

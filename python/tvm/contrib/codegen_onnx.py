@@ -17,11 +17,14 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines, redefined-builtin
 """Relay to ONNX serialization """
 
+import os
+import struct
 import numpy
 import onnx
 import onnx.utils
 from onnx import numpy_helper, OperatorSetIdProto, defs
 import tvm
+import tvm._ffi
 from tvm.autotvm.graph_tuner.utils.traverse_graph import _expr2graph_impl
 from tvm.relay.expr import Call, TupleGetItem, Var, Constant, Tuple
 
@@ -658,12 +661,12 @@ class RelayToONNXConverter(object):
         self._mc.add_outputs([output])
 
 
-def to_onnx(relay_module, params, name, opset_version=11, path=None):
+def to_onnx(relay_ir, params, name, opset_version=11, path=None):
     """Convert a Relay Function Module into an equivalent ONNX and serialize it to the path
 
     Parameters
     ----------
-    relay_module : tvm.relay.Module
+    relay_ir : tvm.ir.IRModule or tvm.relay.Function
         The relay module object
 
     params : dict
@@ -689,10 +692,61 @@ def to_onnx(relay_module, params, name, opset_version=11, path=None):
 
     node_list = []  # ONNX needs a topologically sorted list of nodes
     node_dict = {}
-    _expr2graph_impl(relay_module["main"], [], node_dict, node_list)
+    func = relay_ir["main"] if isinstance(relay_ir, tvm.ir.IRModule) else relay_ir
+    _expr2graph_impl(func, [], node_dict, node_list)
     converter = RelayToONNXConverter(name, node_list, params, opset_version)
     onnx_model = converter.convert_to_onnx()
 
     if path:
         onnx.save(onnx_model, path)
     return onnx_model
+
+
+@tvm._ffi.register_func("relay.ext.onnx")
+def onnx_compiler(ref):
+    """Create a runtime module for ONNX from IRModule
+
+    :param ref: IRModule subgraphs for onnx codegen
+    :return: runtime module for ONNX
+    """
+    data = b''
+    if isinstance(ref, tvm.ir.module.IRModule):
+        for var, func in ref.functions.items():
+            name = var.name_hint
+            model = to_onnx(func, {}, name)
+            name_bytes = bytes(name, 'utf-8')
+            name_size = struct.pack('I', len(name_bytes))
+            model_serialized = model.SerializeToString()
+            model_size = struct.pack('I', model.ByteSize())
+
+            data += name_size + name_bytes + model_size + model_serialized
+
+    runtime_func = "runtime.ONNXModuleCreate"
+    fcreate = tvm._ffi.get_global_func(runtime_func)
+    return fcreate(data.hex())
+
+
+@tvm._ffi.register_func("relay.ext.onnx.save_to_file")
+def save_to_file(hex_str, path=None, fmt="onnx"):
+    """ Store the ONNX subgraphs in the path folder
+
+    :param hex_str: Subgrah names and corresponding serialized onnx hex string
+    :param path: path to which ONNX files to be stored
+                It is assumed that path exists
+    :param fmt: extension of the files to be stored
+    """
+    onnx_ir = bytes.fromhex(hex_str)
+
+    offset = 0
+    while offset < len(onnx_ir):
+        stop = offset + 4
+        (name_size,) = struct.unpack('I', onnx_ir[offset:stop])
+        name = onnx_ir[stop :  stop + name_size].decode("utf-8")
+        stop = stop + name_size
+        (model_size,) = struct.unpack('I', onnx_ir[stop:stop + 4])
+        stop = stop + 4
+        model_serialized = onnx_ir[stop:stop + model_size]
+        offset = stop + model_size
+
+        model_onnx = onnx.load_model_from_string(model_serialized)
+        onnx.save(model_onnx, "{}{}{}.{}".format(path, os.path.sep, name, fmt))

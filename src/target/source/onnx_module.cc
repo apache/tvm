@@ -1,0 +1,85 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file onnx_module.cc
+ * \brief ONNX Module without runtime support
+ */
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
+#include "codegen_source_base.h"
+#include "../../runtime/file_util.h"
+#include "../../runtime/meta_data.h"
+
+namespace tvm {
+namespace codegen {
+
+using runtime::TVMArgs;
+using runtime::TVMRetValue;
+using runtime::PackedFunc;
+
+using runtime::GetFileFormat;
+using runtime::GetMetaFilePath;
+using runtime::FunctionInfo;
+using runtime::SaveBinaryToFile;
+
+class ONNXSourceModuleNode : public runtime::ModuleNode {
+ public:
+  explicit ONNXSourceModuleNode(String code)
+      : code_(code) {}
+
+  const char* type_key() const {
+    return "onnx";
+  }
+
+  PackedFunc GetFunction(
+      const std::string& name,
+      const ObjectPtr<Object>& sptr_to_self) final {
+       LOG(FATAL) << "ONNX Source module cannot execute, to get executable module"
+              << " build TVM with onnx runtime support";
+       return PackedFunc();
+  }
+
+  std::string GetSource(const std::string& format) final {
+    return code_;
+  }
+
+  void SaveToFile(const std::string& path,
+                  const std::string& format) final {
+    CHECK_EQ(format, "onnx")
+          << "Can only save to onnx format";
+    CHECK_NE(code_.length(), 0);
+    const PackedFunc* to_onnx_ = runtime::Registry::Get("relay.ext.onnx.save_to_file");
+    (*to_onnx_)(code_, path, format);
+  }
+
+ protected:
+  String code_;
+};
+
+runtime::Module ONNXSourceModuleNodeCreate(String code) {
+  auto n = make_object<ONNXSourceModuleNode>(code);
+  return runtime::Module(n);
+}
+
+TVM_REGISTER_GLOBAL("runtime.ONNXModuleCreate")
+.set_body_typed(ONNXSourceModuleNodeCreate);
+
+}  // namespace codegen
+}  // namespace tvm
