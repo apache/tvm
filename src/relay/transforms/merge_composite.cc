@@ -46,7 +46,8 @@ class MergeCompositeWrapper : public ExprMutator {
     if (var_map->find(pattern->name_hint()) == var_map->end()) {
       // if we haven't encountered this var yet, make a new free var and associate
       // it with the value at 'root'
-      auto free_var = Var(pattern->name_hint(), Type());
+      auto free_var = Var(pattern->name_hint(), root->checked_type());
+      free_var->checked_type_ = root->checked_type();
       var_map->Set(pattern->name_hint(), Array<Expr>({free_var, root}));
       return std::move(free_var);
     } else {
@@ -147,7 +148,9 @@ class MergeCompositeWrapper : public ExprMutator {
       new_args.push_back(new_arg);
       i++;
     }
-    return Call(root->op, new_args, root->attrs);
+    Call new_call = Call(root->op, new_args, root->attrs);
+    new_call->checked_type_ = root->checked_type();
+    return std::move(new_call);
   }
 
   Expr VisitExpr_(const CallNode* cn) {
@@ -163,12 +166,15 @@ class MergeCompositeWrapper : public ExprMutator {
           auto new_e = this->Mutate(arg);
           new_args.push_back(new_e);
         }
-        return Call(call->op, new_args, call->attrs);
+        Call new_call = Call(call->op, new_args, call->attrs);
+        new_call->checked_type_ = call->checked_type();
+        return std::move(new_call);
       }
     }
 
     Expr expr = ExprMutator::VisitExpr_(cn);
     call = Downcast<Call>(expr);
+    call->checked_type_ = cn->checked_type();
     if (!call->op->IsInstance<OpNode>()) return std::move(call);
 
     // only call patterns are supported
@@ -189,6 +195,7 @@ class MergeCompositeWrapper : public ExprMutator {
         args.push_back(args_map[free_var->name_hint()][1]);
       }
       auto new_call = Call(f, args);
+      new_call->checked_type_ = call->checked_type();
       return std::move(new_call);
     }
     return std::move(call);
