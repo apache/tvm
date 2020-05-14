@@ -343,6 +343,17 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
     args_list = target_str.split()
     return _ffi_api.TargetCreate("hexagon", *args_list)
 
+def amd_gpu(model='unknown', options=None):
+    """Return an AMD integrated GPU target.
+
+    Parameters
+    ----------
+    options : str or list of str
+        Additional options
+    """
+    opts = ["-device=amd_gpu", '-model=%s' % model]
+    opts = _merge_opts(opts, options)
+    return _ffi_api.TargetCreate("vulkan", *opts)
 
 def create(target_str):
     """Get a target given target string.

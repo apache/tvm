@@ -194,6 +194,10 @@ class RPCSession(object):
         """Construct WebGPU device."""
         return self.context(15, dev_id)
 
+    def amd_gpu(self, dev_id=0):
+        """Construct WebGPU device."""
+        return self.context(7, dev_id)
+
 
 class LocalSession(RPCSession):
     """RPCSession interface backed by local environment.

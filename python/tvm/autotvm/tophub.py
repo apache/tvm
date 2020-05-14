@@ -68,6 +68,7 @@ def _alias(name):
         'metal': 'opencl',
         'webgpu': 'opencl',
         'vulkan': 'opencl',
+        'amd_gpu': 'opencl',
         'nvptx': 'cuda',
     }
     return table.get(name, name)

@@ -124,5 +124,10 @@ TVM_REGISTER_GLOBAL("target.build.webgpu").set_body_typed([](IRModule mod, std::
   return BuildSPIRV(mod, target, true);
 });
 
+TVM_REGISTER_GLOBAL("target.build.amd_gpu").set_body_typed([](IRModule mod, std::string target) {
+  return BuildSPIRV(mod, target, false);
+});    
+    
+
 }  // namespace codegen
 }  // namespace tvm

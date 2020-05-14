@@ -34,6 +34,10 @@ def rocm_func(data):
 def rocm_func(data):
     return data + 10
 
+@mygeneric.register("amd_gpu")
+def amd_gpu_func(data):
+    return data + 11;
+
 
 def test_target_dispatch():
     with tvm.target.cuda():
@@ -51,6 +55,9 @@ def test_target_dispatch():
     with tvm.target.create("metal"):
         assert mygeneric(1) == 3
 
+    with tvm.target.amd_gpu():
+        assert mygeneric(1) == 12
+
     assert tvm.target.Target.current() is None
 
 
@@ -66,6 +73,7 @@ def test_target_string_parse():
     assert tvm.target.intel_graphics().device_name == "intel_graphics"
     assert tvm.target.mali().device_name == "mali"
     assert tvm.target.arm_cpu().device_name == "arm_cpu"
+    assert tvm.target.amd_gpu().device_name == "amd_gpu"
 
 if __name__ == "__main__":
     test_target_dispatch()

@@ -47,7 +47,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
  * \brief Construct a Target node from the given name and options.
  * \param target_name The major target name. Should be one of
  * {"aocl", "aocl_sw_emu", "c", "cuda", "ext_dev", "hexagon", "hybrid", "llvm",
- *  "metal", "nvptx", "opencl", "rocm", "sdaccel", "stackvm", "vulkan"}
+ *  "metal", "nvptx", "opencl", "rocm", "sdaccel", "stackvm", "vulkan", "amd_gpu"}
  * \param options Additional options appended to the target
  * \return The constructed Target
  */
@@ -107,13 +107,13 @@ Target CreateTarget(const std::string& target_name, const std::vector<std::strin
     if (t->device_name == "intel_graphics") {
       t->thread_warp_size = 16;
     }
-  } else if (target_name == "metal" || target_name == "vulkan" || target_name == "webgpu") {
+  } else if (target_name == "metal" || target_name == "vulkan" || target_name == "webgpu" || target_name == "amd_gpu") {
     if (target_name == "metal") {
       t->device_type = kDLMetal;
-    } else if (target_name == "vulkan") {
-      t->device_type = kDLVulkan;
+    } else if (target_name == "webgpu") {
+        t->device_type = kDLWebGPU;
     } else {
-      t->device_type = kDLWebGPU;
+        t->device_type = kDLVulkan;
     }
     t->keys_array.push_back(target_name);
     t->keys_array.push_back("gpu");
@@ -312,6 +312,12 @@ Target stackvm(const std::vector<std::string>& options) { return CreateTarget("s
 Target ext_dev(const std::vector<std::string>& options) { return CreateTarget("ext_dev", options); }
 
 Target hexagon(const std::vector<std::string>& options) { return CreateTarget("hexagon", options); }
+
+Target amd_gpu(const std::vector<std::string>& options) {
+  return CreateTarget("vulkan", MergeOptions(options, {
+    "-device=amd_gpu"
+  }));
+}    
 }  // namespace target
 
 BuildConfig BuildConfig::Create() { return BuildConfig(make_object<BuildConfigNode>()); }

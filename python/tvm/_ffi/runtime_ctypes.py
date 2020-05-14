@@ -171,6 +171,7 @@ class TVMContext(ctypes.Structure):
         'micro_dev': 13,
         'hexagon': 14,
         'webgpu': 15,
+        'amd_gpu': 7,
     }
     def __init__(self, device_type, device_id):
         super(TVMContext, self).__init__()

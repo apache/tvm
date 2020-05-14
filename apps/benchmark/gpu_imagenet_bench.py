@@ -57,12 +57,12 @@ if __name__ == "__main__":
                          'mobilenet', 'squeezenet_v1.0', 'squeezenet_v1.1'],
                         help='The name of neural network')
     parser.add_argument("--model", type=str,
-                        choices=['1080ti', 'titanx', 'tx2', 'gfx900'], default='1080ti',
+                        choices=['1080ti', 'titanx', 'tx2', 'gfx900', 'v1000'], default='1080ti',
                         help="The model of the test device. If your device is not listed in "
                              "the choices list, pick the most similar one as argument.")
     parser.add_argument("--repeat", type=int, default=600)
     parser.add_argument("--target", type=str,
-                        choices=['cuda', 'opencl', 'rocm', 'nvptx', 'metal'], default='cuda',
+                        choices=['cuda', 'opencl', 'rocm', 'nvptx', 'metal', 'vulkan', 'amd_gpu'], default='cuda',
                         help="The tvm compilation target")
     parser.add_argument("--thread", type=int, default=1, help="The number of threads to be run.")
     args = parser.parse_args()
