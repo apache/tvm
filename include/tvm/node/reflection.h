@@ -225,7 +225,11 @@ class ReflectionVTable::Registry {
  *  // Example SEQualReduce traits for runtime StringObj.
  *
  *  struct StringObjTrait {
- *     static constexpr const std::nullptr_t VisitAttrs = nullptr;
+ *    static constexpr const std::nullptr_t VisitAttrs = nullptr;
+ *
+ *    static void SHashReduce(const runtime::StringObj* key, SHashReducer hash_reduce) {
+ *      hash_reduce->SHashReduceHashedValue(runtime::String::HashBytes(key->data, key->size));
+ *    }
  *
  *    static bool SEqualReduce(const runtime::StringObj* lhs,
  *                             const runtime::StringObj* rhs,
