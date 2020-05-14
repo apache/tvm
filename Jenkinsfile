@@ -254,7 +254,6 @@ stage('Integration Test') {
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh"
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_converter.sh"
         }
       }
     }
