@@ -116,7 +116,7 @@ std::ostream& operator<<(std::ostream& os, const TargetVal& v) {
       os << v.uint64();
       break;
     default:
-      os << (v.uint64() & ((1 << v.width_bits())) - 1);
+      os << (v.uint64() & ((1 << v.width_bits()) - 1));
   }
   os.flags(f);
   return os;
