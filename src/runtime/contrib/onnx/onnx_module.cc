@@ -23,21 +23,11 @@
  */
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include "codegen_source_base.h"
-#include "../../runtime/file_util.h"
-#include "../../runtime/meta_data.h"
+#include <tvm/runtime/container.h>
 
 namespace tvm {
 namespace codegen {
-
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
-using runtime::PackedFunc;
-
-using runtime::GetFileFormat;
-using runtime::GetMetaFilePath;
-using runtime::FunctionInfo;
-using runtime::SaveBinaryToFile;
+using namespace tvm::runtime;
 
 class ONNXSourceModuleNode : public runtime::ModuleNode {
  public:
@@ -49,11 +39,11 @@ class ONNXSourceModuleNode : public runtime::ModuleNode {
   }
 
   PackedFunc GetFunction(
-      const std::string& name,
-      const ObjectPtr<Object>& sptr_to_self) final {
-       LOG(FATAL) << "ONNX Source module cannot execute, to get executable module"
-              << " build TVM with onnx runtime support";
-       return PackedFunc();
+    const std::string& name,
+    const ObjectPtr<Object>& sptr_to_self) final {
+    LOG(FATAL) << "ONNX Source module cannot execute, to get executable module"
+              << " build TVM with 'onnx' runtime support";
+    return PackedFunc();
   }
 
   std::string GetSource(const std::string& format) final {
@@ -73,9 +63,9 @@ class ONNXSourceModuleNode : public runtime::ModuleNode {
   String code_;
 };
 
-runtime::Module ONNXSourceModuleNodeCreate(String code) {
+Module ONNXSourceModuleNodeCreate(String code) {
   auto n = make_object<ONNXSourceModuleNode>(code);
-  return runtime::Module(n);
+  return Module(n);
 }
 
 TVM_REGISTER_GLOBAL("runtime.ONNXModuleCreate")
