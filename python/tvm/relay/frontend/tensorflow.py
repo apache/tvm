@@ -3280,7 +3280,7 @@ class GraphProto(object):
 
                     inputs.append(in_op)
             if node.op in ["PartitionedCall", "StatefulPartitionedCall"]:
-                tf_graph = None
+                ir_mod = None
                 node_func_name = node.attr.get('f').func.name
                 func = next((f for f in self._graphLibraryFunctions if f.signature.name == node_func_name), None)
                 if func:
