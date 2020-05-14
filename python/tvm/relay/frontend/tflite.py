@@ -112,7 +112,8 @@ def convert_wrapper(name,
                     # Assumes single output tensor
                     output_tensor = op_converter.get_output_tensors(op)[0]
                     if not output_tensor.qnn_params:
-                        out = op_converter.convert_fused_activation_function(out, fused_activation_fn)
+                        out = op_converter.\
+                            convert_fused_activation_function(out, fused_activation_fn)
                     else:
                         raise tvm.error.OpNotImplemented(
                             'TFLite quantized {} operator\
