@@ -134,10 +134,9 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, in_dtype
 
     batch, in_height, in_width, in_channels= get_const_tuple(Input.shape)
     if in_dtype == 'int4':
-        kernel_h, kernel_w, _, num_filter, _, _ = get_const_tuple(Filter.shape)
+        kernel_h, kernel_w, num_filter, _ = get_const_tuple(Filter.shape)
     else:
         kernel_h, kernel_w, _, num_filter, _, _ = get_const_tuple(Filter.shape)
-    num_filter = num_filter * wmma_n
     # if in_dtype == 'int4':
     #     pass
     #     # assert (batch % 8 == 0 and in_channels % 32 == 0 and num_filter % 8 == 0)
@@ -157,12 +156,6 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, in_dtype
     out_channels = num_filter
     out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
     out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
-    pad_before = [0, pad_top, pad_left, 0]
-    pad_after = [0, pad_down, pad_right, 0]
-    PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
-    TransPaddedInput = te.compute(
-        PaddedInput.shape,
-        lambda n, h, w, c: PaddedInput[n, h, w, c].astype(in_dtype))
     # Input feature map: (N, H, W, IC, n, ic)
     data_shape = (batch // wmma_m,
                 in_height,
@@ -170,17 +163,17 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, in_dtype
                 in_channels // wmma_k,
                 wmma_m,
                 wmma_k)
-    # Kernel: (H, W, IC, OC, ic, oc)
+    # Kernel: (H, W, OC, IC, ic, oc)
     kernel_shape = (kernel_h,
                     kernel_w,
-                    in_channels // wmma_k,
                     out_channels // wmma_n,
+                    in_channels // wmma_k,
                     wmma_n,
                     wmma_k)
     output_shape = (batch,
                     out_height,
                     out_width,
-                    out_channels)   
+                    out_channels)
     # Reduction axes
     kh = te.reduce_axis((0, kernel_h), name='kh')
     kw = te.reduce_axis((0, kernel_w), name='kw')
@@ -190,9 +183,9 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, in_dtype
     A_transpose = te.compute(data_shape, 
         lambda n, h, w, i, nn, ii: Input[n * wmma_m + nn, h, w, i * wmma_k + ii].astype(in_dtype)
     )
-    # Filter_transpose = te.compute(kernel_shape, 
-    #     lambda kh, kw, i, o, oo, ii: Filter[kh, kw, o * wmma_n + oo, i * wmma_k + ii]
-    # )
+    Filter_transpose = te.compute(kernel_shape, 
+        lambda kh, kw, o, i, oo, ii: Filter[kh, kw, o * wmma_n + oo, i * wmma_k + ii].astype(in_dtype)
+    )
     Apad_transpose = te.compute(
         (batch // wmma_m, in_height + 2 * padding, in_width + 2 * padding, in_channels // wmma_k, wmma_m,
         wmma_k),
@@ -204,7 +197,7 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, in_dtype
     Conv = te.compute((batch // wmma_m, out_height, out_width, out_channels // wmma_n, wmma_m, wmma_n),
                     lambda n, h, w, o, nn, oo: te.sum(
                         Apad_transpose[n, h * stride_h + kh, w * stride_w + kw, ic, nn, ii].astype("int32") *
-                        Filter[kh, kw, ic, o, oo, ii].astype("int32"),
+                        Filter_transpose[kh, kw, o, ic, oo, ii].astype("int32"),
                         axis=[ic, kh, kw, ii]),
                     name="Conv")
     Out = te.compute(output_shape,
@@ -221,13 +214,13 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
     # trans_paddata, kernel = s[Conv].op.input_tensors
     Apad, kernel = s[Conv].op.input_tensors
     A_transpose = s[Apad].op.input_tensors[0]
-
+    
     in_dtype = Apad.dtype
     batch, _, _, _, _, _ = get_const_tuple(Conv.shape)
-    if in_dtype == 'int4':
-        _, _, out_channels, _, _, _  = get_const_tuple(kernel.shape)
-    else:
-        _, _, out_channels, _, _, _  = get_const_tuple(kernel.shape)
+    # if in_dtype == 'int4':
+    #     _, _, _, out_channels, _, _  = get_const_tuple(kernel.shape)
+    # else:
+    #     _, _, out_channels, _, _, _  = get_const_tuple(kernel.shape)
     # inline the pad and dtype transform
 
     block_x = te.thread_axis('blockIdx.x')
@@ -247,11 +240,11 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
     # Schedule for autotvm
     cfg.define_knob("block_row_warps", [1, 2])
     cfg.define_knob("block_col_warps", [1, 2])
-    cfg.define_knob("warp_row_tiles", [1, 2, 4, 8])
-    cfg.define_knob("warp_col_tiles", [1, 2, 4, 8])
+    cfg.define_knob("warp_row_tiles", [1, 2, 4, 8, 16])
+    cfg.define_knob("warp_col_tiles", [1, 2, 4, 8, 16])
     cfg.define_knob("chunk", [1, 2, 4, 8])
     cfg.define_knob("vector_ws", [1, 8])
-    # cfg.define_knob("inline_pad", [1, 2])
+    cfg.define_knob("inline_pad", [0, 1])
     cfg.define_knob("vector_as", [1, 4, 8, 16])
     cfg.define_knob("split_block_k", [1, 2, 4, 8])
 
@@ -271,26 +264,30 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
     vector_ws = cfg["vector_ws"].val
     vector_as = cfg["vector_as"].val
     split_block_k = cfg["split_block_k"].val
-    block_row_warps = 1
-    block_col_warps = 1
-    warp_row_tiles = 8
-    warp_col_tiles = 4
-    chunk = 4
-    vector_ws = 1
-    vector_as = 16
-    split_block_k = 8
+    inline_pad = cfg["inline_pad"].val
+    # block_row_warps = 1
+    # block_col_warps = 2
+    # warp_row_tiles = 32
+    # warp_col_tiles = 16
+    # chunk = 8
+    # vector_ws = 1
+    # inline_pad = 1
+    # vector_as = 1
+    # split_block_k = 1
 
-    inline_pad = 2
+    # inline_pad = 0
 
     with tvm.target.create('cuda'):
         schedule_injective_from_existing(s, Out)
+        schedule_injective_from_existing(s, kernel)
         # schedule_injective_from_existing(s, Apad)
         # schedule_injective_from_existing(s, A_transpose)
+    # s[kernel].compute_inline()
     # s[Apad].compute_inline()
     s[A_transpose].compute_inline()
     # s[Out].compute_inline()
 
-    if inline_pad == 1:
+    if inline_pad:
         s[Apad].compute_inline()
     else:
         with tvm.target.create('cuda'):
