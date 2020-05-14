@@ -65,14 +65,14 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
         batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
 
     # choose dtype from int4, int8 and float16
-    dtype = 'int4'
+    dtype = 'int8'
     out_dtype = 'int32'
     if dtype == 'int4':
         wmma_n = wmma_m = 8
         wmma_k = 32
     else:
-        wmma_m = 16
-        wmma_n = 16
+        wmma_m = 32
+        wmma_n = 8
         wmma_k = 16
     in_height = in_width = in_size
 
@@ -109,7 +109,7 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
             a_np = np.random.randint(low=1, high=7, size=a_shape).astype(dtype)
             w_np = np.random.randint(low=1, high=7, size=w_shape).astype(dtype)
             b_np = np.random.randint(low=1, high=7, size=bias_shape).astype(dtype)
-            dw_np = topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
+            dw_np = topi.testing.dilate_python(w_np, (1, 1, dilation, dilation)).transpose((0, 1, 3, 2))
 
         c_np = topi.testing.conv2d_nhwc_python(a_np, dw_np, stride, padding)
         if add_bias:
@@ -200,50 +200,50 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
             print('Time cost of this operator: %f ms' % (evaluator(a, w, c).mean * 1000))
 
         rtol = 1e-3
-        print(c.asnumpy().sum(), c_np.sum())
+        # print(c.asnumpy().sum(), c_np.sum())
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=rtol)
 
         # # #Tuning the performance 
-        import logging, sys
-        logging.getLogger('autotvm').setLevel(logging.DEBUG)
-        logging.getLogger('autotvm').addHandler(logging.StreamHandler(sys.stdout))
+        # import logging, sys
+        # logging.getLogger('autotvm').setLevel(logging.DEBUG)
+        # logging.getLogger('autotvm').addHandler(logging.StreamHandler(sys.stdout))
 
-        log_filename = "conv2d_int4_nhwc_tensorcore_kernel_shape_%d_%d_%d_%d_%d_%d_%d_%d.log" % (batch, in_channel, in_size, num_filter, kernel, stride,
-                       padding, dilation)
-        tmp_log_file = log_filename + '.temp'
-        num_trial = 1000
-        task_name = "conv2d_nhwc_tensorcore_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride,
-                       padding, dilation)
-        task = autotvm.create('conv2d_nhwc_tensorcore_int4.cuda', args=[A, W, stride, padding, dilation, dtype, out_dtype], target=device)
-        print(task.config_space)
+        # log_filename = "conv2d_" + dtype +"_nhwc_tensorcore_kernel_shape_%d_%d_%d_%d_%d_%d_%d_%d.log" % (batch, in_channel, in_size, num_filter, kernel, stride,
+        #                padding, dilation)
+        # tmp_log_file = log_filename + '.temp'
+        # num_trial = 1000
+        # task_name = "conv2d_nhwc_tensorcore_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride,
+        #                padding, dilation)
+        # task = autotvm.create('conv2d_nhwc_tensorcore_int4.cuda', args=[A, W, stride, padding, dilation, dtype, out_dtype], target=device)
+        # print(task.config_space)
         
-        measure_option = autotvm.measure_option(
-            builder='local',
-            runner=autotvm.LocalRunner(number=5))
+        # measure_option = autotvm.measure_option(
+        #     builder='local',
+        #     runner=autotvm.LocalRunner(number=5))
 
-        tuner = autotvm.tuner.XGBTuner(task, feature_type='knob')
-        num_trial = min(num_trial, len(task.config_space))
-        with tvm.target.build_config():
-            tuner.tune(n_trial=num_trial,
-                       measure_option=measure_option,
-                       callbacks=[autotvm.callback.progress_bar(num_trial, prefix=task_name),
-                                  autotvm.callback.log_to_file(tmp_log_file)])
+        # tuner = autotvm.tuner.XGBTuner(task, feature_type='knob')
+        # num_trial = min(num_trial, len(task.config_space))
+        # with tvm.target.build_config():
+        #     tuner.tune(n_trial=num_trial,
+        #                measure_option=measure_option,
+        #                callbacks=[autotvm.callback.progress_bar(num_trial, prefix=task_name),
+        #                           autotvm.callback.log_to_file(tmp_log_file)])
 
-        dispatch_context = autotvm.apply_history_best(tmp_log_file)
-        best_config = dispatch_context.query(task.target, task.workload)
-        print("\nBest config:")
-        print(best_config)
+        # dispatch_context = autotvm.apply_history_best(tmp_log_file)
+        # best_config = dispatch_context.query(task.target, task.workload)
+        # print("\nBest config:")
+        # print(best_config)
 
-        #pick the best record to a cache file
-        autotvm.record.pick_best(tmp_log_file, log_filename)
-        os.remove(tmp_log_file)
+        # #pick the best record to a cache file
+        # autotvm.record.pick_best(tmp_log_file, log_filename)
+        # os.remove(tmp_log_file)
         
-        with autotvm.apply_graph_best(log_filename):
-            with tvm.target.create(device):
-                func = tvm.build(s, [A, W, C], device, name="conv2d_nhwc_tensorcore_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride,
-                       padding, dilation))
-                evaluator = func.time_evaluator(func.entry_name, ctx, number=50, repeat=20)
-                print('Time cost of this operator after tuning: %f ms' % (evaluator(a, w, c).mean * 1000))
+        # with autotvm.apply_graph_best(log_filename):
+        #     with tvm.target.create(device):
+        #         func = tvm.build(s, [A, W, C], device, name="conv2d_nhwc_tensorcore_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride,
+        #                padding, dilation))
+        #         evaluator = func.time_evaluator(func.entry_name, ctx, number=50, repeat=20)
+        #         print('Time cost of this operator after tuning: %f ms' % (evaluator(a, w, c).mean * 1000))
 
     check_device(devices)
 
@@ -262,31 +262,31 @@ def test_conv2d_nhwc_tensorcore():
     # verify_conv2d_nhwc(64, 256, 14, 512, 1, 2, 0)
     # verify_conv2d_nhwc(64, 512, 7, 512, 3, 1, 1)
 
-    verify_conv2d_nhwc(32, 64, 56, 64, 3, 1, 1)
-    verify_conv2d_nhwc(32, 64, 56, 64, 1, 1, 0)
-    verify_conv2d_nhwc(32, 64, 56, 128, 3, 2, 1)
-    verify_conv2d_nhwc(32, 64, 56, 64, 1, 2, 0)
-    verify_conv2d_nhwc(32, 128, 28, 128, 3, 1, 1)
-    verify_conv2d_nhwc(32, 128, 28, 256, 3, 2, 1)
-    verify_conv2d_nhwc(32, 128, 28, 256, 1, 2, 0)
-    verify_conv2d_nhwc(32, 256, 14, 256, 3, 1, 1)
-    verify_conv2d_nhwc(32, 256, 14, 512, 3, 2, 1)
-    verify_conv2d_nhwc(32, 256, 14, 512, 1, 2, 0)
-    verify_conv2d_nhwc(32, 512, 7, 512, 3, 1, 1)
+    # verify_conv2d_nhwc(32, 64, 56, 64, 3, 1, 1)
+    # verify_conv2d_nhwc(32, 64, 56, 64, 1, 1, 0)
+    # verify_conv2d_nhwc(32, 64, 56, 128, 3, 2, 1)
+    # verify_conv2d_nhwc(32, 64, 56, 64, 1, 2, 0)
+    # verify_conv2d_nhwc(32, 128, 28, 128, 3, 1, 1)
+    # verify_conv2d_nhwc(32, 128, 28, 256, 3, 2, 1)
+    # verify_conv2d_nhwc(32, 128, 28, 256, 1, 2, 0)
+    # verify_conv2d_nhwc(32, 256, 14, 256, 3, 1, 1)
+    # verify_conv2d_nhwc(32, 256, 14, 512, 3, 2, 1)
+    # verify_conv2d_nhwc(32, 256, 14, 512, 1, 2, 0)
+    # verify_conv2d_nhwc(32, 512, 7, 512, 3, 1, 1)
 
-    verify_conv2d_nhwc(16, 64, 56, 64, 3, 1, 1)
-    verify_conv2d_nhwc(16, 64, 56, 64, 1, 1, 0)
-    verify_conv2d_nhwc(16, 64, 56, 128, 3, 2, 1)
-    verify_conv2d_nhwc(16, 64, 56, 64, 1, 2, 0)
-    verify_conv2d_nhwc(16, 128, 28, 128, 3, 1, 1)
-    verify_conv2d_nhwc(16, 128, 28, 256, 3, 2, 1)
-    verify_conv2d_nhwc(16, 128, 28, 256, 1, 2, 0)
-    verify_conv2d_nhwc(16, 256, 14, 256, 3, 1, 1)
-    verify_conv2d_nhwc(16, 256, 14, 512, 3, 2, 1)
-    verify_conv2d_nhwc(16, 256, 14, 512, 1, 2, 0)
-    verify_conv2d_nhwc(16, 512, 7, 512, 3, 1, 1)
+    # verify_conv2d_nhwc(16, 64, 56, 64, 3, 1, 1)
+    # verify_conv2d_nhwc(16, 64, 56, 64, 1, 1, 0)
+    # verify_conv2d_nhwc(16, 64, 56, 128, 3, 2, 1)
+    # verify_conv2d_nhwc(16, 64, 56, 64, 1, 2, 0)
+    # verify_conv2d_nhwc(16, 128, 28, 128, 3, 1, 1)
+    # verify_conv2d_nhwc(16, 128, 28, 256, 3, 2, 1)
+    # verify_conv2d_nhwc(16, 128, 28, 256, 1, 2, 0)
+    # verify_conv2d_nhwc(16, 256, 14, 256, 3, 1, 1)
+    # verify_conv2d_nhwc(16, 256, 14, 512, 3, 2, 1)
+    # verify_conv2d_nhwc(16, 256, 14, 512, 1, 2, 0)
+    # verify_conv2d_nhwc(16, 512, 7, 512, 3, 1, 1)
 
-    # verify_conv2d_nhwc(8, 64, 56, 64, 3, 1, 1)
+    verify_conv2d_nhwc(8, 64, 56, 64, 3, 1, 1)
     # verify_conv2d_nhwc(8, 64, 56, 64, 1, 1, 0)
     # verify_conv2d_nhwc(8, 64, 56, 128, 3, 2, 1)
     # verify_conv2d_nhwc(8, 64, 56, 64, 1, 2, 0)

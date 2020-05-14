@@ -37,8 +37,8 @@ def intrin_wmma_load_matrix(scope, m, n, l, in_dtype):
     else:
         A = tvm.te.placeholder((n, l), name='A', dtype=in_dtype)
         C = tvm.te.compute((n, l), lambda i, j: A[i, j], name='C')
-    BA = tvm.tir.decl_buffer(A.shape, A.dtype, scope='shared', data_alignment=32, offset_factor=256)
-    BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope=scope, data_alignment=32, offset_factor=256)
+    BA = tvm.tir.decl_buffer(A.shape, A.dtype, scope='shared', data_alignment=32, offset_factor=8)
+    BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope=scope, data_alignment=32, offset_factor=8)
     def intrin_func(ins, outs):
         ib = tvm.tir.ir_builder.create()
 
@@ -46,11 +46,11 @@ def intrin_wmma_load_matrix(scope, m, n, l, in_dtype):
         BC = outs[0]
         if scope == "wmma.matrix_a":
             ib.emit(tvm.tir.call_intrin('handle', 'tvm_load_matrix_sync',
-                                    BC.data, n, m, l, BC.elem_offset // 256,
+                                    BC.data, m, n, l, BC.elem_offset // (m * l),
                                     BA.access_ptr('r'), l, 'row_major'))
         elif scope == "wmma.matrix_b":
             ib.emit(tvm.tir.call_intrin('handle', 'tvm_load_matrix_sync',
-                                    BC.data, n, m, l, BC.elem_offset // 256,
+                                    BC.data, m, n, l, BC.elem_offset // (n * l),
                                     BA.access_ptr('r'), l, 'col_major'))                                    
         return ib.get()
 
@@ -65,9 +65,9 @@ def intrin_wmma_gemm(m, n, l, in_dtype):
                     lambda ii, jj:
                     te.sum(A[ii, k].astype('int32') * B[jj, k].astype('int32'), axis=k),
                     name='C')
-    BA = tvm.tir.decl_buffer(A.shape, A.dtype, name='BA', scope='wmma.matrix_a', data_alignment=32, offset_factor=256)
-    BB = tvm.tir.decl_buffer(B.shape, B.dtype, name='BB', scope='wmma.matrix_b', data_alignment=32, offset_factor=256)
-    BC = tvm.tir.decl_buffer(C.shape, C.dtype, name='BC', scope='wmma.accumulator', data_alignment=32, offset_factor=64)
+    BA = tvm.tir.decl_buffer(A.shape, A.dtype, name='BA', scope='wmma.matrix_a', data_alignment=32, offset_factor=8)
+    BB = tvm.tir.decl_buffer(B.shape, B.dtype, name='BB', scope='wmma.matrix_b', data_alignment=32, offset_factor=8)
+    BC = tvm.tir.decl_buffer(C.shape, C.dtype, name='BC', scope='wmma.accumulator', data_alignment=32, offset_factor=8)
 
     def intrin_func(ins, outs):
         BA, BB = ins
@@ -75,16 +75,16 @@ def intrin_wmma_gemm(m, n, l, in_dtype):
 
         def init():
             ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_intrin('handle', 'tvm_fill_fragment', BC.data, n, m, l, BC.elem_offset // n * n, 0.0))
+            ib.emit(tvm.tir.call_intrin('handle', 'tvm_fill_fragment', BC.data, m, n, l, BC.elem_offset, 0.0))
             return ib.get()
 
         def update():
             ib = tvm.tir.ir_builder.create()
             ib.emit(tvm.tir.call_intrin('handle', 'tvm_mma_sync',
-                                    BC.data, BC.elem_offset // 64,
-                                    BA.data, BA.elem_offset // 256,
-                                    BB.data, BB.elem_offset // 256,
-                                    BC.data, BC.elem_offset // 64))
+                                    BC.data, BC.elem_offset // (m * n),
+                                    BA.data, BA.elem_offset // (m * l),
+                                    BB.data, BB.elem_offset // (n * l),
+                                    BC.data, BC.elem_offset // (m * n)))
             return ib.get()
 
         return update(), init(), update()
@@ -94,16 +94,16 @@ def intrin_wmma_gemm(m, n, l, in_dtype):
 
 def intrin_wmma_store_matrix(m, n, l):
     A = te.placeholder((m, n), name='A', dtype='int32')
-    BA = tvm.tir.decl_buffer(A.shape, A.dtype, scope='wmma.accumulator', data_alignment=32, offset_factor=64)
+    BA = tvm.tir.decl_buffer(A.shape, A.dtype, scope='wmma.accumulator', data_alignment=32, offset_factor=8)
     C = te.compute((m, n), lambda i, j: A[i, j], name='C')
-    BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope='global', data_alignment=32, offset_factor=64)
+    BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope='global', data_alignment=32, offset_factor=8)
 
     def intrin_func(ins, outs):
         ib = tvm.tir.ir_builder.create()
         BA = ins[0]
         BC = outs[0]
         ib.emit(tvm.tir.call_intrin('handle', 'tvm_store_matrix_sync',
-                                BA.data, n, m, l, BA.elem_offset // 64,
+                                BA.data, m, n, l, BA.elem_offset // (m * n),
                                 BC.access_ptr('w'), n, 'row_major'))
         return ib.get()
 
@@ -128,12 +128,12 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, in_dtype
         wmma_n = wmma_m = 8
         wmma_k = 32
     else:
-        wmma_m = 16
-        wmma_n = 16
+        wmma_m = 8
+        wmma_n = 32
         wmma_k = 16
 
     batch, in_height, in_width, in_channels= get_const_tuple(Input.shape)
-    if in_dtype == 'int4':
+    if in_dtype == 'int4' or in_dtype == 'int8':
         kernel_h, kernel_w, num_filter, _ = get_const_tuple(Filter.shape)
     else:
         kernel_h, kernel_w, _, num_filter, _, _ = get_const_tuple(Filter.shape)
@@ -265,15 +265,15 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
     vector_as = cfg["vector_as"].val
     split_block_k = cfg["split_block_k"].val
     inline_pad = cfg["inline_pad"].val
-    # block_row_warps = 1
-    # block_col_warps = 2
-    # warp_row_tiles = 32
-    # warp_col_tiles = 16
-    # chunk = 8
-    # vector_ws = 1
-    # inline_pad = 1
-    # vector_as = 1
-    # split_block_k = 1
+    block_row_warps = 1
+    block_col_warps = 1
+    warp_row_tiles = 8
+    warp_col_tiles = 4
+    chunk = 2
+    vector_ws = 1
+    inline_pad = 0
+    vector_as = 16
+    split_block_k = 1
 
     # inline_pad = 0
 
@@ -304,7 +304,7 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
         # elif (batch % 32 == 0 and out_channels % 8 == 0):
         #     cfg.define_knob("wmma_m", [32, 16, 8])
         # wmma_m = cfg["wmma_m"].val
-        wmma_m = 16
+        wmma_m = 8
         wmma_k = 16
         if wmma_m == 16:
             wmma_n = 16
@@ -353,7 +353,7 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
     s[AS].vectorize(_t)
 
     # Schedule for W's share memory
-    s[WS].compute_at(s[ConvF], kh)
+    s[WS].compute_at(s[ConvF], kw)
     kh, kw, ic, o, ii, oo = WS.op.axis
     tx, xo = s[WS].split(o, nparts=block_row_warps)
     ty, yo = s[WS].split(xo, nparts=block_col_warps)
@@ -369,6 +369,41 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
     s[WF].tensorize(WF.op.axis[-2], intrin_wmma_load_matrix('wmma.matrix_b', wmma_m, wmma_n, wmma_k, in_dtype))
     s[Conv].tensorize(nnc, intrin_wmma_store_matrix(wmma_m, wmma_n, wmma_k))
     s[ConvF].tensorize(nnf, intrin_wmma_gemm(wmma_m, wmma_n, wmma_k, in_dtype))
+
+    # shape = (wmma_m, wmma_n, wmma_k)
+
+    # AS_shape = (wmma_m, wmma_k)
+    # AL_shape = (wmma_m, wmma_k)
+    # WS_shape = (wmma_n, wmma_k)
+    # WL_shape = (wmma_n, wmma_k)
+    # # else:
+    # #     WS_shape = (wmma_k, wmma_n)
+    # #     WL_shape = (wmma_k, wmma_n)
+    # CL_shape = (wmma_m, wmma_n)
+    # CS_shape = (wmma_m, wmma_n)
+
+    # AL_gemm = te.placeholder(AL_shape, name='A', dtype=in_dtype)
+    # WL_gemm = te.placeholder(WL_shape, name='B', dtype=in_dtype)
+    # k_gemm = te.reduce_axis((0, wmma_k), name="k")
+    # CL_compute = te.compute(CL_shape, lambda ii, jj:
+    #                 te.sum(AL_gemm[ii, k_gemm].astype(out_dtype) * \
+    #                         WL_gemm[jj, k_gemm].astype(out_dtype), axis=k_gemm),
+    #                 name='C')
+    # AL_strides = [wmma_k, 1]
+    # AS_strides = [wmma_k, 1]
+    # WL_strides = [wmma_k, 1]
+    # WS_strides = [wmma_k, 1]
+    # CL_strides = [wmma_n, 1]
+    # CS_strides = [wmma_n, 1]
+
+    # s[AF].tensorize(AF.op.axis[-2], intrin_wmma_load_matrix_A(AL_strides, AS_strides, shape,
+    #                                                 "row_major", AS_shape, AL_shape, in_dtype))
+    # s[WF].tensorize(WF.op.axis[-2], intrin_wmma_load_matrix_W(WL_strides, WS_strides, shape,
+    #                                                 "col_major", WS_shape, WL_shape, in_dtype))
+    # s[Conv].tensorize(nnc, intrin_wmma_store_matrix(CS_strides, CL_strides,
+    #                                               shape, out_dtype, CL_shape, CS_shape))
+    # s[ConvF].tensorize(nnf, intrin_wmma_gemm(AL_gemm, WL_gemm, CL_compute, AL_strides,
+    #                                          WL_strides, CL_strides, shape))
 
 
     N, OH, OW, CO, nn, mm = get_const_tuple(Conv.shape)
