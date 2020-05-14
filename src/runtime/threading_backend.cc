@@ -34,6 +34,9 @@
 #if defined(__linux__)
 #include <sched.h>
 #endif
+#if defined(__hexagon__)
+#include <dlfcn.h>
+#endif
 
 namespace tvm {
 namespace runtime {
@@ -177,6 +180,11 @@ class ThreadGroup::Impl {
 
   void InitSortedOrder() {
     unsigned int threads = std::thread::hardware_concurrency();
+#if defined(__hexagon__)
+    // With unsigned PDs, getting the number of available hardware threads
+    // is not supported in earlier versions of QuRT. In such cases assume 4.
+    if (threads == 0) threads = 4;
+#endif
     std::vector<std::pair<unsigned int, int64_t> > max_freqs;
 
     for (unsigned int i = 0; i < threads; ++i) {
