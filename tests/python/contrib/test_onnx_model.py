@@ -16,6 +16,10 @@
 # under the License.
 
 """Relay to ONNX serialization test cases"""
+import pytest
+pytest.importorskip('onnx')
+pytest.importorskip('onnxruntime')
+
 from collections import OrderedDict
 import numpy as np
 import onnxruntime as rt
@@ -159,4 +163,5 @@ def skipped_test_partition():
 if __name__ == '__main__':
     test_resnet()
     test_squeezenet()
+    # test_partition need USE_ONNX_CODEGEN enabled
     # skipped_test_partition()

@@ -16,6 +16,10 @@
 # under the License.
 
 """Relay to ONNX serialization test cases"""
+import pytest
+pytest.importorskip('onnx')
+pytest.importorskip('onnxruntime')
+
 import numpy as np
 import tvm
 from tvm import relay
