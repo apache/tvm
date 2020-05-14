@@ -318,7 +318,9 @@ class LiftConst(ExprMutator):
 
         outer_constant = self.constants
         self.constants = []
-        body = mk_let(self.constants, self.visit(fn.body))
+        # Populates self.constants.
+        body = self.visit(fn.body)
+        body = mk_let(self.constants, body)
         self.constants = outer_constant
 
         return Function(
