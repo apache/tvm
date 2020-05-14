@@ -178,6 +178,6 @@ TVM_REGISTER_GLOBAL("tvm.tflite_runtime.create").set_body([](TVMArgs args, TVMRe
   *rv = TFLiteRuntimeCreate(args[0], args[1]);
 });
 
-TVM_REGISTER_GLOBAL("target.runtime.tflite").set_body_typed(TFLiteRuntime);
+TVM_REGISTER_GLOBAL("target.runtime.tflite").set_body_typed(TFLiteRuntimeCreate);
 }  // namespace runtime
 }  // namespace tvm
