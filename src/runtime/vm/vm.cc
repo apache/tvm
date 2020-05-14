@@ -631,8 +631,7 @@ std::vector<int64_t> ToShape(NDArray shape_tensor) {
 
   // Otherwise we should be rank-1, and we will extract the number of dimensions
   // for the output vector.
-  CHECK_EQ(rank, 1U)
-      << "shape tensor should be a k-length vector, found " << rank;
+  CHECK_EQ(rank, 1U) << "shape tensor should be a k-length vector, found " << rank;
   int64_t ndim = shape_tensor.Shape().at(0);
   shape.resize(ndim);
 
