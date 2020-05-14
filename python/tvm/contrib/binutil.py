@@ -147,25 +147,15 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
                 section_size += entry_size
                 break
 
-    # NOTE: For some reason, the size of the BSS section on the RISC-V
-    # GCC is sometimes reported to be smaller than it is, so we need to adjust
-    # for this.
-    if "riscv" in toolchain_prefix and section_name == "bss":
-        # TODO(weberlo): Figure out why 32 is the minimum constant that works.
-        #
-        # The current hypothesis is that the last symbols in the ".bss" and
-        # ".sbss" sections may have size zero, since the symbols in these
-        # sections are uninitialized and there's no address that follows that
-        # would enforce a particular size.
-        #
-        # If this is the case, then 32 just happens to be a safe amount of
-        # padding for most cases, but symbols can be arbitrarily large, so this
-        # isn't bulletproof.
-        return section_size + 32
-
     # NOTE: in the past, section_size has been wrong on x86. it may be
     # inconsistent. TODO: maybe stop relying on `*size` to give us the size and
     # instead read the section with `*objcopy` and count the bytes.
+    # NOTE(areusch): I think the problem is due to alignment ops in the linker.
+    # Since this is going away in the impending switch to on-device runtime,
+    # add a constant to hopefully absorb these relocations.
+    if section_size > 0:
+        section_size += 64
+
     return section_size
 
 
