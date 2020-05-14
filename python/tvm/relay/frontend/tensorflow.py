@@ -1931,26 +1931,34 @@ def _add_n():
     return _impl
 
 def _partitioned_call():
-    def _impl(inputs, attr, params):
-        if not isinstance(inputs, tuple):
-            inputs = list(inputs)
-        assert len(inputs) > 0, "add_n take >=1 inputs, but 0 given."
-        _res = inputs[0]
-        for each in inputs[1:]:
-            _res = _op.add(_res, each)
-        return  _res
+    def _impl(inputs, attr, params, mod, graph):
+        node_func_name = attr.get('f').name
+        func = next((f for f in graph.library.function if f.signature.name == node_func_name), None)
+        if func:
+            from tensorflow.python.framework import function_def_to_graph
+
+            # Convert function definition to graph
+            func_input_shapes = func.attr["_input_shapes"].list.shape
+            subgraph, flat_tensor_name = function_def_to_graph.function_def_to_graph_def(func, func_input_shapes)
+
+            # Computing subgraph's input shape dictionary
+            subgraph_shape_dict = {}
+            for f_arg, input in zip(func.signature.input_arg, inputs):
+                subgraph_shape_dict[f_arg.name] = _infer_shape(input)
+
+            # Construct relay nodes from the subgraph
+            g = GraphProto()
+            mod, params = g.from_tensorflow(subgraph, shape=subgraph_shape_dict)
+            wl = tvm.relay.var('partitioned_call')
+            sb = tvm.relay.scope_builder.ScopeBuilder()
+            sb.let(wl, mod["main"])
+            sb.ret(wl(*inputs))
+            op = sb.get()
+            return op
     return _impl
 
 def _stateful_partitioned_call():
-    def _impl(inputs, attr, params):
-        if not isinstance(inputs, tuple):
-            inputs = list(inputs)
-        assert len(inputs) > 0, "add_n take >=1 inputs, but 0 given."
-        _res = inputs[0]
-        for each in inputs[1:]:
-            _res = _op.add(_res, each)
-        return  _res
-    return _impl
+    return _partitioned_call()
 
 
 # compatible operators that do NOT require any conversion.
@@ -2057,7 +2065,6 @@ _convert_map = {
     'OneHot'                            : _one_hot(),
     'Pack'                              : _pack(),
     'PartitionedCall'                   : _partitioned_call(),
-    'StatefulPartitionedCall'           : _stateful_partitioned_call(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
     'Pow'                               : _elemwise('power'),
@@ -2094,6 +2101,7 @@ _convert_map = {
     'Square'                            : _square(),
     'SquaredDifference'                 : _squared_difference(),
     'Squeeze'                           : _squeeze(),
+    'StatefulPartitionedCall'           : _stateful_partitioned_call(),
     'StopGradient'                      : _identity(),
     'StridedSlice'                      : _stridedSlice(),
     'Sub'                               : _elemwise('subtract'),
@@ -2744,8 +2752,6 @@ class GraphProto(object):
         self._loop_var_order = {}
         self._hash2tfnode = {}
         self._while_loop_name_set = set()
-        self._subgraphs = {}
-        self._subgraphFunctions = []
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
@@ -2796,9 +2802,6 @@ class GraphProto(object):
         self._in_shape = shape
         self._layout = layout
         self._graph = graph
-
-        # ToDo: need _subgraphFunctions as self._graph gets updated on recursive calls
-        self._subgraphFunctions += graph.library.function
 
         if missing_operators:
             freezed_ops = [op for op in missing_operators if op in _freezed_graph_pruned_op_list]
@@ -3219,7 +3222,9 @@ class GraphProto(object):
         if op_name in identity_list:
             sym = get_relay_op(op_name)(*inputs, **attrs)
         elif op_name in convert_map:
-            if _need_prelude_for_shape_inference(op_name):
+            if op_name in ["PartitionedCall", "StatefulPartitionedCall"]:
+                sym = convert_map[op_name](inputs, attrs, self._params, self._mod, self._graph)
+            elif _need_prelude_for_shape_inference(op_name):
                 sym = convert_map[op_name](inputs, attrs, self._params, self._prelude)
             else:
                 sym = convert_map[op_name](inputs, attrs, self._params, self._mod)
@@ -3277,31 +3282,6 @@ class GraphProto(object):
                         in_op = in_op[0]
 
                     inputs.append(in_op)
-            if node.op in ["PartitionedCall", "StatefulPartitionedCall"]:
-                node_fname = node.attr.get('f').func.name
-                f1 = next((func for func in self._subgraphFunctions if func.signature.name == node_fname), None)
-                if f1 and f1.signature.name not in self._subgraphs:
-                    from tensorflow.python.framework import function_def_to_graph
-                    f1_input_shapes = f1.attr["_input_shapes"].list.shape
-                    subgraph, flat_tensor_name = function_def_to_graph.function_def_to_graph_def(f1, f1_input_shapes)
-
-                    subgraph_shape_dict = {}
-                    for f_arg, node_input in zip(f1.signature.input_arg, node.input):
-                        input_tensor = self._nodes.get(node_input, None)
-                        if input_tensor:
-                            subgraph_shape_dict[f_arg.name] = _infer_shape(input_tensor[0])
-                    tf_graph = self.from_tensorflow(subgraph, shape=subgraph_shape_dict)
-                    self._subgraphs.update({f1.signature.name: tf_graph})
-
-                f1 = self._subgraphs[attr["f"].name][0]["main"]
-                wl = tvm.relay.var('partitioned_call')
-                sb = tvm.relay.scope_builder.ScopeBuilder()
-                sb.let(wl, f1)
-
-                sb.ret(wl(*inputs))
-                op = sb.get()
-                print(op)
-            else:
                 op = self._convert_operator(node.op, inputs, attr, self._graph)
 
             if isinstance(op, np.ndarray):
