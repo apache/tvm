@@ -181,7 +181,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
             sess.run(variables.global_variables_initializer())
         final_graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
-        # file_writer = tf.summary.FileWriter("/home/deepak/tfgraphsoutput/", sess.graph)
+
         for device in ["llvm", "cuda"]:
             ctx = tvm.context(device, 0)
             if not ctx.exist:
@@ -3167,26 +3167,28 @@ def test_forward_isinf():
 def test_forward_isfinite():
     _verify_infiniteness_ops(tf.is_finite, "isfinite")
 
-def test_spop_function_invocation():
+def test_spop_placeholder_one():
+    print("Inside placeholder function")
     tf.reset_default_graph()
-    with tf.Graph().as_default():
+    g = tf.Graph()
+    with g.as_default():
 
-        def fun1(a):
-            return tf.multiply(a,a)
-
-        def fun2(b):
-            return tf.multiply(b,10)
-
-        @function.Defun(dtypes.float32, dtypes.float32, func_name="Fun3")
-        def fun3(x,y):
-            x = fun2(x)
-            y = fun1(y)
-            z = tf.add(x,y)
-            return z
-
-        op = gen_functional_ops.StatefulPartitionedCall(args=[tf.constant(10.5),tf.constant(20.4)],
-                                                        Tout=[dtypes.float32], f=fun3, name="SpopFnInvocation")
-        compare_tf_with_tvm([],[], 'SpopFnInvocation:0', mode='vm', init_global_variables=True)
+        @function.Defun(*[tf.int32]*2)
+        def Forward(x,y):
+            print(x.name)
+            print(y.name)
+            b = tf.add(x, y)
+            return b
+        pl1 = tf.placeholder(tf.int32,name="pl1")
+        pl2 = tf.placeholder(tf.int32,name="pl2")
+        pl3 = tf.placeholder(tf.int32, name="pl3")
+        data = np.array([[-1, 1], [2, -2]], dtype=np.int32)
+        data2 = np.array([[-2, 3], [4, -6]], dtype=np.int32)
+        data3 = np.array([[-2, 3], [4, -6]], dtype=np.int32)
+        z1 = gen_functional_ops.StatefulPartitionedCall(args=[pl1,pl2], Tout=[tf.int32],f=Forward)
+        z2 = z1 + pl3
+        compare_tf_with_tvm([data, data2, data3], ['pl1:0', 'pl2:0', 'pl3:0'],
+                            ['StatefulPartitionedCall:0',z2.name],  mode='vm', init_global_variables=True)
 
 def test_spop_placeholder_two():
 
@@ -3212,55 +3214,48 @@ def test_spop_placeholder_three():
 
     # @tf.function(input_signature=[tf.TensorSpec(shape=(3, 3, 3), dtype=tf.int32),
     #                               tf.TensorSpec(shape=(3, 3, 3), dtype=tf.int32)])
-    @tf.function()
+    @tf.function
     def add(x, y):
         return tf.add(x, y, "add_t1_t2")
+
     t3 = add(t1, t2)
     compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
 
 def test_spop_placeholder_four():
     tf.disable_eager_execution()
-    t1 = tf.placeholder(tf.int32,name="t1")
     t1_data = np.array([[-1, 1, 3], [2, -2, 4], [2, -3, 14]], dtype=np.int32)
-    t2 = tf.placeholder(tf.int32, name="t2")
     t2_data = np.array([[-2, 1, 2], [12, -2, 14], [12, -3, 4]], dtype=np.int32)
+    tf.reset_default_graph()
+    t1 = tf.placeholder(tf.int32, name="t1")
+    t2 = tf.placeholder(tf.int32, name="t2")
 
-    @tf.function(input_signature=[tf.TensorSpec(shape=(3, 3, 3), dtype=tf.int32),
-                                  tf.TensorSpec(shape=(3, 3, 3), dtype=tf.int32)])
+    @tf.function
     def add(x, y):
         return tf.add(x, y, "add_t1_t2")
+
     t3 = add(t1, t2)
     compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
 
-def test_spop_placeholder_one():
-    print("Inside placeholder function")
+def test_spop_function_invocation():
     tf.reset_default_graph()
-    g = tf.Graph()
-    with g.as_default():
-        # @function.Defun(tf.TensorSpec(shape=(3,3,3), dtype=tf.int32), tf.TensorSpec(shape=(3,3,3), dtype=tf.int32))
-        @function.Defun(*[tf.int32]*2)
-        def Forward(x,y):
-            #Do not create placeholders in Defun methods..placeholders should be created outside of Defun()..and can be passed inside it
-            print(x.name)
-            print(y.name)
-            b = tf.add(x, y)
-            return b
-        pl1 = tf.placeholder(tf.int32,name="pl1")
-        pl2 = tf.placeholder(tf.int32,name="pl2")
-        pl3 = tf.placeholder(tf.int32, name="pl3")
-        data = np.array([[-1, 1], [2, -2]], dtype=np.int32)
-        data2 = np.array([[-2, 3], [4, -6]], dtype=np.int32)
-        data3 = np.array([[-2, 3], [4, -6]], dtype=np.int32)
-        z1 = gen_functional_ops.StatefulPartitionedCall(args=[pl1,pl2], Tout=[tf.int32],f=Forward)
-        z2 = z1 + pl3
-        compare_tf_with_tvm([data, data2], ['pl1:0', 'pl2:0'],
-                            'StatefulPartitionedCall:0',
-                            mode='vm',
-                            init_global_variables=True)
-        # compare_tf_with_tvm([data, data2, data3], ['pl1:0', 'pl2:0', 'pl3:0'],
-        #                     ['StatefulPartitionedCall:0',z2.name],
-        #                     mode='vm',
-        #                     init_global_variables=True)
+    with tf.Graph().as_default():
+
+        def fun1(a):
+            return tf.multiply(a,a)
+
+        def fun2(b):
+            return tf.multiply(b,10)
+
+        @function.Defun(dtypes.float32, dtypes.float32, func_name="Fun3")
+        def fun3(x,y):
+            x = fun2(x)
+            y = fun1(y)
+            z = tf.add(x,y)
+            return z
+
+        op = gen_functional_ops.StatefulPartitionedCall(args=[tf.constant(10.5),tf.constant(20.4)],
+                                                        Tout=[dtypes.float32], f=fun3, name="SpopFnInvocation")
+        compare_tf_with_tvm([],[], 'SpopFnInvocation:0', mode='vm', init_global_variables=True)
 
 def test_spop_arithmetic():
     tf.reset_default_graph()
@@ -3277,14 +3272,13 @@ def test_spop_arithmetic():
 
         compare_tf_with_tvm([],[],'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
-def test_spop_control_flow_one():
+def test_spop_control_flow():
     tf.reset_default_graph()
     with tf.Graph().as_default():
-        # WSTART
+
         @function.Defun(*[dtypes.float32] * 2)
         def Body1(x, y):
             with ops.device("/job:localhost/replica:0/task:0/device:CPU:0"):
-                # z = Body2
                 z = math_ops.multiply(x, y)
                 i = 0
                 while i<10 :
@@ -3297,60 +3291,22 @@ def test_spop_control_flow_one():
         op = gen_functional_ops.StatefulPartitionedCall(args=[constant_op.constant(32.), constant_op.constant(100.)], Tout=[dtypes.float32], f=Body1)
         compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
-def test_spop_control_flow_two():
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        @function.Defun()
-        def vanilla_loop():
-            i = tf.constant(0)
-
-            def c(i): return tf.less(i, 10)
-
-            def b(i): return tf.add(i, 1)
-            r = tf.while_loop(c, b, [i])
-            return r
-        z = gen_functional_ops.StatefulPartitionedCall(args=[], Tout=[tf.int32], f=vanilla_loop)
-        compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
-
-def test_spop_control_flow():
-    test_spop_control_flow_one()
-    # test_spop_control_flow_two()
-
 def test_spop_variables():
     tf.reset_default_graph()
     g = tf.Graph()
     with g.as_default():
 
-        @function.Defun(tf.int32,tf.int32)
-        def Forward(x,y):
-            #create variables outside Defun() method, you can pass variables inside Defun method though
-            return tf.multiply(x,y)
         const1 = tf.constant(10)
         const2 = tf.constant(20)
         var1 = tf.Variable(const1, dtype=tf.int32)
         var2 = tf.Variable(const2, dtype=tf.int32)
 
+        @function.Defun(tf.int32,tf.int32)
+        def Forward(x,y):
+            return tf.multiply(x,y)
+
         z = gen_functional_ops.StatefulPartitionedCall(args=[var1,var2],Tout=[tf.int32], f=Forward)
         compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', init_global_variables=True, mode="vm")
-
-def test_spop_variables_one():
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        data = np.random.uniform(size=(32, 100)).astype('float32')
-
-        @function.Defun()
-        def variableFn():
-            input_op = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-            input_tensor = array_ops.reshape(input_op, data.shape)
-
-            size = input_tensor.shape.dims[1]
-            with variable_scope.variable_scope("linear", reuse=None):
-                w = variable_scope.get_variable("w", shape=[size, size], dtype=input_tensor.dtype)
-            ret = math_ops.matmul(input_tensor, w)
-            return ret
-
-        z = gen_functional_ops.StatefulPartitionedCall(args=[], Tout=[dtypes.float32], f=variableFn)
-        compare_tf_with_tvm(data, 'Placeholder:0', 'StatefulPartitionedCall:0', init_global_variables=True, mode="vm")
 
 def test_spop_constants():
     tf.reset_default_graph()
@@ -3370,23 +3326,22 @@ def test_spop_placeholder():
     test_spop_placeholder_one()
     test_spop_placeholder_two()
     test_spop_placeholder_three()
-    # test_spop_placeholder_four()
+    test_spop_placeholder_four()
 
-def test_spop():
+def test_spop_positive():
+    test_spop_placeholder()
     test_spop_function_invocation()
     test_spop_arithmetic()
     test_spop_control_flow()
     test_spop_variables()
     test_spop_constants()
-    test_spop_placeholder()
-
 
 #######################################################################
 # Main
 # ----
 if __name__ == '__main__':
     # StatefulPartitionedOp
-    # test_spop()
+    test_spop_positive()
     # Transforms
     test_forward_slice()
     test_forward_transpose()
