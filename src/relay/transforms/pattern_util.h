@@ -344,6 +344,65 @@ inline bool IsEqualScalar(const Expr& a, const Expr& b) {
   return tvm::StructuralEqual()(a, b);
 }
 
+/*!
+ * \brief Convert an element of a NDArray with type int or float to scalar.
+ * \param array Input NDArray
+ * \param i element index
+ * \return Converted scalar value.
+ */
+static inline double ToScalar(const runtime::NDArray& array, size_t i = 0) {
+  if (array->dtype.code == kDLInt) {
+    if (array->dtype.bits == 8) {
+      return reinterpret_cast<int8_t*>(array->data)[i];
+    } else if (array->dtype.bits == 16) {
+      return reinterpret_cast<int16_t*>(array->data)[i];
+    } else if (array->dtype.bits == 32) {
+      return reinterpret_cast<int32_t*>(array->data)[i];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<int64_t*>(array->data)[i];
+    }
+  } else if (array->dtype.code == kDLUInt) {
+    if (array->dtype.bits == 8) {
+      return reinterpret_cast<uint8_t*>(array->data)[i];
+    } else if (array->dtype.bits == 16) {
+      return reinterpret_cast<uint16_t*>(array->data)[i];
+    } else if (array->dtype.bits == 32) {
+      return reinterpret_cast<uint32_t*>(array->data)[i];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<uint64_t*>(array->data)[i];
+    }
+  } else if (array->dtype.code == kDLFloat) {
+#if (__ARM_FP16_FORMAT_IEEE == 1)
+    if (array->dtype.bits == 16) {
+      return reinterpret_cast<__fp16*>(array->data)[i];
+    }
+#endif
+    if (array->dtype.bits == 32) {
+      return reinterpret_cast<float*>(array->data)[i];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<double*>(array->data)[i];
+    }
+  }
+  LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
+  // make compiler happy
+  return -std::numeric_limits<double>::infinity();
+}
+
+/*!
+ * \brief Convert a NDArray with type int or float to Array<Integer>.
+ * \param array Input NDArray
+ * \return Converted Array.
+ */
+static inline Array<Integer> ToVector(const runtime::NDArray& array) {
+  size_t len = array.Shape().front();
+  Array<Integer> out;
+  for (size_t i = 0; i < len; ++i) {
+    double elem_val = ToScalar(array, i);
+    out.push_back(Integer(static_cast<int>(elem_val)));
+  }
+  return out;
+}
+
 inline Expr GetField(Expr t, size_t i) { return TupleGetItem(t, i); }
 
 inline Expr Pair(Expr l, Expr r) { return Tuple({l, r}); }

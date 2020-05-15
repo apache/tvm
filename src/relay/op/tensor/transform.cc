@@ -47,66 +47,6 @@ namespace tvm {
 namespace relay {
 using tir::IntImmNode;
 
-int64_t* ToVector(const runtime::NDArray& array) {
-  size_t len = array.Shape().front();
-  int64_t* rel_vec = new int64_t[len];
-  if (array->dtype.code == kDLInt) {
-    if (array->dtype.bits == 8) {
-      int8_t* init_array = reinterpret_cast<int8_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    } else if (array->dtype.bits == 16) {
-      int16_t* init_array = reinterpret_cast<int16_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    } else if (array->dtype.bits == 32) {
-      int32_t* init_array = reinterpret_cast<int32_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    } else if (array->dtype.bits == 64) {
-      int64_t* init_array = reinterpret_cast<int64_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    }
-  } else if (array->dtype.code == kDLUInt) {
-    if (array->dtype.bits == 8) {
-      uint8_t* init_array = reinterpret_cast<uint8_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    } else if (array->dtype.bits == 16) {
-      uint16_t* init_array = reinterpret_cast<uint16_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    } else if (array->dtype.bits == 32) {
-      uint32_t* init_array = reinterpret_cast<uint32_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    } else if (array->dtype.bits == 64) {
-      uint64_t* init_array = reinterpret_cast<uint64_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    }
-  }
-  LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
-  return rel_vec;
-}
-
 // relay.cast
 TVM_REGISTER_NODE_TYPE(CastAttrs);
 
@@ -507,44 +447,6 @@ RELAY_REGISTER_OP("transpose")
 /* relay.reshape */
 TVM_REGISTER_NODE_TYPE(ReshapeAttrs);
 
-double ToScalar(const runtime::NDArray& array, int i = 0) {
-  if (array->dtype.code == kDLInt) {
-    if (array->dtype.bits == 8) {
-      return reinterpret_cast<int8_t*>(array->data)[i];
-    } else if (array->dtype.bits == 16) {
-      return reinterpret_cast<int16_t*>(array->data)[i];
-    } else if (array->dtype.bits == 32) {
-      return reinterpret_cast<int32_t*>(array->data)[i];
-    } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<int64_t*>(array->data)[i];
-    }
-  } else if (array->dtype.code == kDLUInt) {
-    if (array->dtype.bits == 8) {
-      return reinterpret_cast<uint8_t*>(array->data)[i];
-    } else if (array->dtype.bits == 16) {
-      return reinterpret_cast<uint16_t*>(array->data)[i];
-    } else if (array->dtype.bits == 32) {
-      return reinterpret_cast<uint32_t*>(array->data)[i];
-    } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<uint64_t*>(array->data)[i];
-    }
-  } else if (array->dtype.code == kDLFloat) {
-#if (__ARM_FP16_FORMAT_IEEE == 1)
-    if (array->dtype.bits == 16) {
-      return reinterpret_cast<__fp16*>(array->data)[i];
-    }
-#endif
-    if (array->dtype.bits == 32) {
-      return reinterpret_cast<float*>(array->data)[i];
-    } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<double*>(array->data)[i];
-    }
-  }
-  LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
-  // make compiler happy
-  return -std::numeric_limits<double>::infinity();
-}
-
 bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                 const TypeReporter& reporter) {
   const auto* param = attrs.as<ReshapeAttrs>();
@@ -723,11 +625,7 @@ Expr MakeReshape(Expr data, Expr newshape) {
   auto attrs = make_object<ReshapeAttrs>();
   if (const ConstantNode* c = newshape.as<ConstantNode>()) {
     CHECK_EQ(c->data->ndim, 1);
-    Array<Integer> newshape;
-    for (int i = 0; i < c->data->shape[0]; i++) {
-      newshape.push_back(Integer(static_cast<int>(ToScalar(c->data, i))));
-    }
-    attrs->newshape = newshape;
+    attrs->newshape = ToVector(c->data);
   }
   attrs->reverse = false;
   static const Op& op = Op::Get("reshape");
@@ -1032,12 +930,7 @@ Array<te::Tensor> FullCompute(const Attrs& attrs, const Array<te::Tensor>& input
 Expr MakeFull(Expr fill_value, Expr shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
   if (const auto* cshape = shape.as<ConstantNode>()) {
-    int64_t* shape_val = ToVector(cshape->data);
-    Array<Integer> cshape_array;
-    for (int i = 0; i < cshape->data.Shape().front(); ++i) {
-      cshape_array.push_back(tvm::Integer(shape_val[i]));
-    }
-    attrs->shape = cshape_array;
+    attrs->shape = ToVector(cshape->data);
   }
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("full");
@@ -1087,12 +980,7 @@ bool InitOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 Expr MakeZeros(Expr shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
   if (const auto* cshape = shape.as<ConstantNode>()) {
-    int64_t* shape_val = ToVector(cshape->data);
-    Array<Integer> cshape_array;
-    for (int i = 0; i < cshape->data.Shape().front(); ++i) {
-      cshape_array.push_back(tvm::Integer(shape_val[i]));
-    }
-    attrs->shape = cshape_array;
+    attrs->shape = ToVector(cshape->data);
   }
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("zeros");
@@ -1114,12 +1002,7 @@ RELAY_REGISTER_OP("zeros")
 Expr MakeOnes(Expr shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
   if (const auto* cshape = shape.as<ConstantNode>()) {
-    int64_t* shape_val = ToVector(cshape->data);
-    Array<Integer> cshape_array;
-    for (int i = 0; i < cshape->data.Shape().front(); ++i) {
-      cshape_array.push_back(tvm::Integer(shape_val[i]));
-    }
-    attrs->shape = cshape_array;
+    attrs->shape = ToVector(cshape->data);
   }
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("ones");
@@ -1721,12 +1604,7 @@ Expr MakeBroadCastTo(Expr data, Expr shape) {
   static const Op& op = Op::Get("broadcast_to");
   auto attrs = make_object<InitOpAttrs>();
   if (const auto* cshape = shape.as<ConstantNode>()) {
-    int64_t* shape_val = ToVector(cshape->data);
-    Array<Integer> cshape_array;
-    for (int i = 0; i < cshape->data.Shape().front(); ++i) {
-      cshape_array.push_back(tvm::Integer(shape_val[i]));
-    }
-    attrs->shape = cshape_array;
+    attrs->shape = ToVector(cshape->data);
   }
   return Call(op, {data, shape}, Attrs(attrs), {});
 }

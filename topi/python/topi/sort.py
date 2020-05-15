@@ -133,7 +133,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     assert ret_type in ["both", "values", "indices"]
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
     out_shape = list(get_const_tuple(data.shape))
-    kvar = tvm.te.var("k")
+    kvar = tvm.te.size_var("k")
     if not isinstance(k, int):
         out_shape[axis] = kvar
     elif k >= 1:
