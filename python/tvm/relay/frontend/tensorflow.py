@@ -2898,6 +2898,12 @@ class GraphProto(object):
         """
         missing_operators = set()
         for node in graph.node:
+            try:
+                from tensorflow.python.framework import op_def_registry
+            except ImportError as e:
+                raise ImportError(
+                    "Unable to import tensorflow which is required {}".format(e))
+            op_def = op_def_registry._registered_ops.get(node.op)
             if node.op == "Placeholder" or node.op == 'PlaceholderWithDefault':
                 pass
             elif node.op == "Const":
@@ -2909,6 +2915,9 @@ class GraphProto(object):
                                                _convert_map_rnn,
                                                _control_flow_nodes]]):
                     pass
+                elif op_def is not None and op_def.is_stateful:
+                    raise Exception("Found {} stateful operator in this graph. "
+                                    "Rejecting the graph as TVM does not support stateful operations ".format(node.op))
                 else:
                     missing_operators.add(node.op)
 
@@ -3160,11 +3169,11 @@ class GraphProto(object):
         return op
 
     def _partition_call_operator(self, inputs, attr):
+        from tensorflow.python.framework import function_def_to_graph
+
         node_func_name = attr.get('f').name
         func = next((f for f in self._graph.library.function if f.signature.name == node_func_name), None)
         if func:
-            from tensorflow.python.framework import function_def_to_graph
-
             # Convert function definition to graph
             func_input_shapes = func.attr["_input_shapes"].list.shape
             subgraph, flat_tensor_name = function_def_to_graph.function_def_to_graph_def(func, func_input_shapes)
@@ -3175,33 +3184,28 @@ class GraphProto(object):
                 subgraph_shape_dict[f_arg.name] = _infer_shape(input)
                 input_expr_dict[f_arg.name] = input
 
-            outputs =  [out.name for out in func.signature.output_arg]
             # Construct relay nodes from the subgraph
             g = GraphProto()
-            sub_mod, sub_params = g.from_tensorflow(subgraph, shape=subgraph_shape_dict, outputs=['Add_1'])
+            sub_mod, sub_params = g.from_tensorflow(subgraph, shape=subgraph_shape_dict)
             self._params.update(sub_params)
 
             param_exprs = []
-            free_vars = []
             for param_expr in sub_mod["main"].params:
                 # sub_params is subset of mod["main"].params
                 param_name = param_expr.vid.name_hint
                 if param_name in sub_params.keys():
                     param_exprs.append(param_expr)
-                    self._nodes[param_name] = param_expr
-                    free_vars.append(param_expr)
                 elif param_name in input_expr_dict.keys():
                     param_exprs.append(input_expr_dict[param_name])
                 else:
                     raise Exception("Input parameter {} not found".format(param_name))
 
-            wl = tvm.relay.var('func_{}'.format(func.signature.name))
             sb = tvm.relay.scope_builder.ScopeBuilder()
             func_expr = _function.Function(sub_mod["main"].params, sub_mod["main"].body)
 
-            g1 = tvm.relay.GlobalVar("g1")
-            self._mod[g1] = func_expr
-            loop_ret = g1(*param_exprs)
+            global_func = tvm.relay.GlobalVar('func_{}'.format(func.signature.name))
+            self._mod[global_func] = func_expr
+            loop_ret = global_func(*param_exprs)
             sb.ret(loop_ret)
             ret = sb.get()
 
