@@ -404,6 +404,66 @@ IRModule RemoveDefaultAnnotations(IRModule module) {
   return module;
 }
 
+/*! \brief There can be regions with multiple outputs where each output
+ *  could be a tuple output. Such tuple outputs needs to be flattened
+ *  otherwise the function would create tuples of tuples.
+ */
+
+// New annotations would be required to be added for each flattened output
+const PackedFunc* make_end_op = runtime::Registry::Get("relay.op.annotation._make.compiler_end");
+
+IRModule FlattenTupleOutputs(IRModule module) {
+  class TupleOutFlattener : public ExprRewriter {
+   public:
+    TupleOutFlattener() = default;
+
+    Expr InsertAnnotation(const Expr& expr, const std::string& target, const PackedFunc* ann_op) {
+      Expr new_op = (*ann_op)(expr, target);
+      new_op->checked_type_ = expr->checked_type_;
+      return new_op;
+    }
+
+    Expr Rewrite_(const CallNode* call, const Expr& post) final {
+      if (call->op == compiler_end_op) {
+        std::string target = call->attrs.as<CompilerAttrs>()->compiler;
+        // Arguments of annotation ops should be 1
+        CHECK_EQ(call->args.size(), 1U);
+        auto annotated_op = Downcast<Call>(post)->args[0];
+        if (annotated_op->IsInstance<TupleNode>()) {
+          auto tn = annotated_op.as<TupleNode>();
+          Array<Expr> new_fields;
+
+          // Here each input of the tuple will be annotated with compiler_ends
+          for (auto& tn_arg : tn->fields) {
+            auto nf = InsertAnnotation(tn_arg, target, make_end_op);
+            new_fields.push_back(nf);
+          }
+
+          // Return a tuple of compiler_ends in the place of the tuple that was
+          // annotated with a compiler_end.
+          auto out = Tuple(new_fields);
+          return std::move(out);
+        }
+      }
+      return post;
+    }
+  };
+
+  auto glob_funcs = module->functions;
+  // module is mutable, hence, we make a copy of it.
+  module.CopyOnWrite();
+  for (const auto& pair : glob_funcs) {
+    if (auto* fn = pair.second.as<FunctionNode>()) {
+      auto func = GetRef<Function>(fn);
+      TupleOutFlattener to_flattener;
+      auto removed = PostOrderRewrite(func->body, &to_flattener);
+      func = Function(func->params, removed, func->ret_type, func->type_params, func->attrs);
+      module->Update(pair.first, func);
+    }
+  }
+  return module;
+}
+
 }  // namespace partitioning
 
 namespace transform {
@@ -411,11 +471,18 @@ namespace transform {
 Pass PartitionGraph() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func = [=](IRModule m,
                                                                             PassContext pc) {
+    // There could be compiler_end annotations on tuples
+    // If the corresponding region is having multiple compiler_ends,
+    // this would lead to creation of tuples of tuples.
+    // Thus, we flatten the tuples by transfering the compiler_end to
+    // the tuple inputs.
+    auto _m = partitioning::FlattenTupleOutputs(m);
+
     // TODO(@comaniac, @zhiics): We should also handle the annotation with "default" attribute
     // by treating them as un-annotated, but we don't have it yet. This workaround pass removes
     // all "default" annotations and should be deleted in the future.
-    auto new_m = partitioning::RemoveDefaultAnnotations(m);
-    return partitioning::Partitioner(new_m).Partition();
+    auto __m = partitioning::RemoveDefaultAnnotations(_m);
+    return partitioning::Partitioner(__m).Partition();
   };
   auto partitioned = CreateModulePass(part_func, 0, "PartitionGraph", {});
   return Sequential({partitioned, InferType()});
