@@ -16,19 +16,52 @@
 # under the License.
 """Common system utilities"""
 import atexit
+import contextlib
+import datetime
 import os
 import tempfile
+import threading
 import shutil
 try:
     import fcntl
 except ImportError:
     fcntl = None
 
+
+class DirectoryCreatedPastAtExit(Exception):
+    """Raised when a TempDirectory is created after the atexit hook runs."""
+
 class TempDirectory(object):
     """Helper object to manage temp directory during testing.
 
     Automatically removes the directory when it went out of scope.
     """
+
+    # When True, all TempDirectory are *NOT* deleted and instead live inside a predicable directory
+    # tree.
+    _KEEP_FOR_DEBUG = False
+
+    # In debug mode, each tempdir is named after the sequence
+    _NUM_TEMPDIR_CREATED = 0
+    _NUM_TEMPDIR_CREATED_LOCK = threading.Lock()
+    @classmethod
+    def _increment_num_tempdir_created(cls):
+        with cls._NUM_TEMPDIR_CREATED_LOCK:
+            to_return = cls._NUM_TEMPDIR_CREATED
+            cls._NUM_TEMPDIR_CREATED += 1
+
+        return to_return
+
+    _DEBUG_PARENT_DIR = None
+    @classmethod
+    def _get_debug_parent_dir(cls):
+        if cls._DEBUG_PARENT_DIR is None:
+            all_parents = f'{tempfile.gettempdir()}/tvm-debug-mode-tempdirs'
+            if not os.path.isdir(all_parents):
+                os.makedirs(all_parents)
+            cls._DEBUG_PARENT_DIR = tempfile.mkdtemp(
+                prefix=datetime.datetime.now().strftime('%Y-%m-%dT%H-%M-%S___'), dir=all_parents)
+        return cls._DEBUG_PARENT_DIR
 
     TEMPDIRS = set()
     @classmethod
@@ -42,20 +75,42 @@ class TempDirectory(object):
 
         cls.TEMPDIRS = None
 
+    @classmethod
+    @contextlib.contextmanager
+    def set_keep_for_debug(cls, set_to=True):
+        """Keep temporary directories past program exit for debugging."""
+        old_keep_for_debug = cls._KEEP_FOR_DEBUG
+        try:
+            cls._KEEP_FOR_DEBUG = set_to
+            yield
+        finally:
+            cls._KEEP_FOR_DEBUG = old_keep_for_debug
+
     def __init__(self, custom_path=None):
+        if self.TEMPDIRS is None:
+            raise DirectoryCreatedPastAtExit()
+
+        self._created_with_keep_for_debug = self._KEEP_FOR_DEBUG
         if custom_path:
             os.mkdir(custom_path)
             self.temp_dir = custom_path
         else:
-            self.temp_dir = tempfile.mkdtemp()
+            if self._created_with_keep_for_debug:
+                parent_dir = self._get_debug_parent_dir()
+                self.temp_dir = f'{parent_dir}/{self._increment_num_tempdir_created():05d}'
+                os.mkdir(self.temp_dir)
+            else:
+                self.temp_dir = tempfile.mkdtemp()
 
-        self.TEMPDIRS.add(self.temp_dir)
+        if not self._created_with_keep_for_debug:
+            self.TEMPDIRS.add(self.temp_dir)
 
     def remove(self):
         """Remote the tmp dir"""
         if self.temp_dir:
-            shutil.rmtree(self.temp_dir, ignore_errors=True)
-            self.TEMPDIRS.remove(self.temp_dir)
+            if not self._created_with_keep_for_debug:
+                shutil.rmtree(self.temp_dir, ignore_errors=True)
+                self.TEMPDIRS.remove(self.temp_dir)
             self.temp_dir = None
 
     def __del__(self):
