@@ -1931,8 +1931,12 @@ def _add_n():
     return _impl
 
 def _partitioned_call():
-    from tensorflow.python.framework import function_def_to_graph
-    from tensorflow.python.framework import ops
+    try:
+        from tensorflow.python.framework import function_def_to_graph
+        from tensorflow.python.framework import ops
+    except  ImportError as e:
+            raise ImportError(
+                "Unable to import tensorflow which is required {}".format(e))
 
     def _impl(inputs, attr, params, mod):
         node_func_name = attr.get('f').name

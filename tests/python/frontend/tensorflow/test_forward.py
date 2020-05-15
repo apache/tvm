@@ -3386,7 +3386,7 @@ def _test_spop_function_invocation():
     _test_spop_function_invocation_autograph()
     _test_spop_function_invocation_defun()
 
-def _test_spop_stateful_test():
+def _test_spop_stateful():
 
     tf.reset_default_graph()
     with tf.Graph().as_default():
@@ -3454,7 +3454,7 @@ def _test_spop_device_assignment():
                 raise Exception("Device assignment is not consistent. Rejecting the graph")
         compare_tf_with_tvm([],[], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
-def _test_spop_resource_variables_test():
+def _test_spop_resource_variables():
     pass
 
 def _test_forward_spop_positive():
@@ -3469,9 +3469,9 @@ def _test_forward_spop_negative():
     #Uncomment the following test case to test that TVM rejects any TF stateful operations
     # except StatefulPartitionedCall/PartitionedCall(as these two operators can still be used
     # as container graphs to execute "stateless" operations internally
-    # _test_spop_stateful_test()
+    # _test_spop_stateful()
     _test_spop_device_assignment()
-    _test_spop_resource_variables_test()
+    _test_spop_resource_variables()
 
 def test_forward_spop():
     _test_forward_spop_positive()
