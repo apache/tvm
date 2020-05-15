@@ -315,16 +315,13 @@ struct MicroDevSpace {
 struct TVMArray32 {
   TVMArray32(TargetVal data, DLContext ctx, int32_t ndim, DLDataType dtype, TargetVal shape,
              TargetVal strides, TargetVal byte_offset)
-      : data(data.uint32()),
-        ctx(ctx),
-        ndim(ndim),
-        pad0(0),
-        dtype(dtype),
-        shape(shape.uint32()),
-        strides(strides.uint32()),
-        pad1(0),
-        byte_offset(byte_offset.uint32()),
-        pad2(0) {}
+      : data{data.uint32()},
+        ctx{ctx},
+        ndim{ndim},
+        dtype{dtype},
+        shape{shape.uint32()},
+        strides{strides.uint32()},
+        byte_offset{byte_offset.uint32()} {}
 
   /*!
    * \brief The opaque data pointer points to the allocated data.
@@ -336,8 +333,6 @@ struct TVMArray32 {
   DLContext ctx;
   /*! \brief Number of dimensions */
   int32_t ndim;
-  /*! \brief Padding to enforce struct alignment */
-  uint32_t pad0;
   /*! \brief The data type of the pointer */
   DLDataType dtype;
   /*! \brief The shape of the tensor */
@@ -347,12 +342,8 @@ struct TVMArray32 {
    *  can be NULL, indicating tensor is compact.
    */
   uint32_t strides;
-  /*! \brief Padding to enforce struct alignment */
-  uint32_t pad1;
   /*! \brief The offset in bytes to the beginning pointer to data */
   uint32_t byte_offset;
-  /*! \brief Padding to enforce struct alignment */
-  uint32_t pad2;
 };
 
 /*! \brief TVM array for serialization to 64-bit devices */
@@ -362,7 +353,6 @@ struct TVMArray64 {
       : data(data.uint64()),
         ctx(ctx),
         ndim(ndim),
-        pad0(0),
         dtype(dtype),
         shape(shape.uint64()),
         strides(strides.uint64()),
@@ -377,8 +367,6 @@ struct TVMArray64 {
   DLContext ctx;
   /*! \brief Number of dimensions */
   int32_t ndim;
-  /*! \brief Padding to enforce struct alignment */
-  uint32_t pad0;
   /*! \brief The data type of the pointer */
   DLDataType dtype;
   /*! \brief The shape of the tensor */
