@@ -3252,9 +3252,9 @@ def _test_spop_function_invocation_basic():
 
 def _test_spop_function_invocation_nested():
     with tf.Graph().as_default():
-        t1 = tf.compat.v1.placeholder(tf.int32, (3, 3, 3), name="t1")
+        t1 = tf.placeholder(tf.int32, (3, 3, 3), name="t1")
         t1_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
-        t2 = tf.compat.v1.placeholder(tf.int32, name="t2")
+        t2 = tf.placeholder(tf.int32, name="t2")
         t2_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
 
         @tf.function
@@ -3386,49 +3386,6 @@ def _test_spop_function_invocation():
     _test_spop_function_invocation_autograph()
     _test_spop_function_invocation_defun()
 
-def _get_attr(self, buf):
-    """Returns the value of the attr of this buf with the given `name`.
-
-    Args:
-      buf: attrvalue protobuf.
-
-    Returns:
-      The value of the attr, as a Python object.
-
-    Raises:
-      ValueError: If this op does not have an attr with the given `name`.
-    """
-    fields = ["s", "i", "f", "b", "type", "shape", "tensor", "func"]
-
-    x = buf
-
-    ret = []
-
-    try:
-        from tensorflow.python.framework import dtypes
-    except ImportError as e:
-        raise ImportError(
-            "Unable to import tensorflow which is required {}".format(e))
-
-    # Treat an empty oneof value as an empty list.
-    if not x.WhichOneof("value"):
-        return ret
-    if x.HasField("list"):
-        for f in fields:
-            if getattr(x.list, f):
-                if f == "type":
-                    ret += [dtypes.as_dtype(x) for x in list(getattr(x.list, f))]
-                else:
-                    ret += list(getattr(x.list, f))
-    else:
-        for f in fields:
-            if x.HasField(f):
-                if f == "type":
-                    ret = dtypes.as_dtype(getattr(x, f))
-                else:
-                    ret = getattr(x, f)
-    return ret
-
 def _test_spop_stateful_test():
 
     tf.reset_default_graph()
@@ -3497,7 +3454,7 @@ def _test_spop_device_assignment():
 def _test_spop_resource_variables_test():
     pass
 
-def test_forward_spop_positive():
+def _test_forward_spop_positive():
     _test_spop_placeholder()
     _test_spop_function_invocation()
     _test_spop_arithmetic()
@@ -3505,18 +3462,25 @@ def test_forward_spop_positive():
     _test_spop_variables()
     _test_spop_constants()
 
-def test_forward_spop_negative():
+def _test_forward_spop_negative():
     #Uncomment the following test case to test that TVM rejects any TF stateful operations
     # except StatefulPartitionedCall/PartitionedCall(as these two operators can still be used
     # as container graphs to execute "stateless" operations internally
     # _test_spop_stateful_test()
     _test_spop_device_assignment()
     _test_spop_resource_variables_test()
+
+def test_forward_spop():
+    _test_forward_spop_positive()
+    _test_forward_spop_negative()
+
+
 #######################################################################
 # Main
 # ----
 if __name__ == '__main__':
     # StatefulPartitionedOp
+    test_forward_spop()
     test_forward_spop_positive()
     test_forward_spop_negative()
     # Transforms
