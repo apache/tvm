@@ -45,6 +45,7 @@
 #include "../../op/op_common.h"
 #include "../../transforms/pass_util.h"
 #include "../utils.h"
+#include "compiler.h"
 
 namespace tvm {
 namespace relay {
@@ -56,8 +57,20 @@ Pass InlinePrimitives();
 
 Pass ManifestAlloc(Target target_host) {
   auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
-  CHECK(f != nullptr) << "could not load memory allocation pass";
+  CHECK(f != nullptr) << "unable to load allocation manifestation pass";
   return (*f)(target_host);
+}
+
+Pass MemoryPlan() {
+  auto f = tvm::runtime::Registry::Get("relay.transform.MemoryPlan");
+  CHECK(f != nullptr) << "unable to load the memory planning pass";
+  return (*f)();
+}
+
+Pass LiftConstants() {
+  auto f = tvm::runtime::Registry::Get("relay.transform.LiftConstants");
+  CHECK(f != nullptr) << "unable to load the constant lifting pass";
+  return (*f)();
 }
 
 }  // namespace transform
@@ -281,6 +294,15 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   void VisitExpr_(const ConstantNode* const_node) {
+    // Check the shape is valid
+    NDArray data = const_node->data;
+    const DLTensor* tensor = data.operator->();
+    if (tensor->ndim > 0) {
+      int64_t* shapes = reinterpret_cast<int64_t*>(tensor->shape);
+      for (auto i = 0; i < tensor->ndim; i++) {
+        CHECK_GT(shapes[i], 0U);
+      }
+    }
     size_t konst_idx = context_->constants.size();
     context_->constants.push_back(const_node->data);
     Emit(Instruction::LoadConst(konst_idx, NewRegister()));
@@ -501,37 +523,41 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                    CHECK_EQ(args.size(), 3);
                    EmitInvokeTVMOp(Downcast<Function>(args[0]), args[1], args[2]);
                  })
-          .Match(
-              "memory.alloc_tensor",
-              [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
-                CHECK_EQ(args.size(), 2);
+          .Match("memory.alloc_tensor",
+                 [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+                   CHECK_EQ(args.size(), 3);
 
-                // Get the attributes.
-                auto alloc_attrs = attrs.as<AllocTensorAttrs>();
-                CHECK(alloc_attrs != nullptr) << "must be the alloc tensor attrs";
-                auto dtype = alloc_attrs->dtype;
+                   // Get the attributes.
+                   auto alloc_attrs = attrs.as<AllocTensorAttrs>();
+                   CHECK(alloc_attrs != nullptr) << "must be the alloc tensor attrs";
+                   auto dtype = alloc_attrs->dtype;
 
-                // The storage will be passed dynamically.
-                this->VisitExpr(args[0]);
-                auto storage_register = last_register_;
+                   // The storage will be passed dynamically.
+                   this->VisitExpr(args[0]);
+                   auto storage_register = last_register_;
 
-                // If the shape is constant then we will emit a static tensor allocation
-                // instruction.
-                auto const_shape = args[1].as<ConstantNode>();
+                   // The storage will be passed dynamically.
+                   this->VisitExpr(args[1]);
+                   auto offset_register = last_register_;
 
-                if (const_shape) {
-                  NDArray shape = const_shape->data;
-                  // TODO(@jroesch): we need to get an RFC done to standarize shape dtype
-                  std::vector<int64_t> raw_shape = ToAllocTensorShape(shape);
-                  // Add context field.
-                  Emit(Instruction::AllocTensor(storage_register, raw_shape, dtype, NewRegister()));
-                } else {
-                  this->VisitExpr(args[1]);
-                  auto shape_register = last_register_;
-                  Emit(Instruction::AllocTensorReg(storage_register, shape_register, dtype,
-                                                   NewRegister()));
-                }
-              })
+                   // If the shape is constant then we will emit a static tensor allocation
+                   // instruction.
+                   auto const_shape = args[2].as<ConstantNode>();
+
+                   if (const_shape) {
+                     NDArray shape = const_shape->data;
+                     // TODO(@jroesch): we need to get an RFC done to standarize shape dtype
+                     std::vector<int64_t> raw_shape = ToAllocTensorShape(shape);
+                     // Add context field.
+                     Emit(Instruction::AllocTensor(storage_register, offset_register, raw_shape,
+                                                   dtype, NewRegister()));
+                   } else {
+                     this->VisitExpr(args[2]);
+                     auto shape_register = last_register_;
+                     Emit(Instruction::AllocTensorReg(storage_register, offset_register,
+                                                      shape_register, dtype, NewRegister()));
+                   }
+                 })
           .Match("memory.alloc_storage",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
                    CHECK_EQ(args.size(), 2);
@@ -830,6 +856,44 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
   }
 }
 
+transform::Sequential MemoryOpt(tvm::Target host_target) {
+  Array<Pass> pass_seqs;
+  // Manifest the allocations.
+  pass_seqs.push_back(transform::ManifestAlloc(host_target));
+
+  // Compute away possibly introduced constant computation.
+  pass_seqs.push_back(transform::FoldConstant());
+
+  // Fuse the shape functions.
+  pass_seqs.push_back(transform::FuseOps());
+
+  // Manifest the allocations needed for the shape functions.
+  pass_seqs.push_back(transform::ManifestAlloc(host_target));
+
+  // Fuse the shape functions.
+  pass_seqs.push_back(transform::FuseOps());
+
+  // Perform memory planning in order to coalesce/reduce allocations.
+  pass_seqs.push_back(transform::MemoryPlan());
+
+  // Compute away constant computation introduced by coalescing allocations.
+  pass_seqs.push_back(transform::FoldConstant());
+
+  // Fuse the shape functions.
+  pass_seqs.push_back(transform::FuseOps());
+
+  // Create allocations for math introduced by dynamic region math.
+  pass_seqs.push_back(transform::ManifestAlloc(host_target));
+
+  // Compute away possibly introduced constant computation.
+  pass_seqs.push_back(transform::FoldConstant());
+
+  // Lift constants to the top-level of the block to simplify VM code generation.
+  pass_seqs.push_back(transform::LiftConstants());
+
+  return transform::Sequential(pass_seqs);
+}
+
 IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets) {
   Array<Pass> pass_seqs;
   Array<runtime::String> entry_functions{"main"};
@@ -890,15 +954,7 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
   // external codegen.
   pass_seqs.push_back(transform::Inline());
 
-  // Manifest the allocations.
-  pass_seqs.push_back(transform::ManifestAlloc(this->target_host_));
-  // Compute away possibly introduced constant computation.
-  pass_seqs.push_back(transform::FoldConstant());
-  // Fuse the shape functions.
-  pass_seqs.push_back(transform::FuseOps());
-
-  // Manifest the allocations needed for the shape functions.
-  pass_seqs.push_back(transform::ManifestAlloc(this->target_host_));
+  pass_seqs.push_back(MemoryOpt(this->target_host_));
 
   transform::Sequential seq(pass_seqs);
   transform::PassContext pass_ctx = PassContext::Current();

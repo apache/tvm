@@ -504,6 +504,7 @@ def const(value, dtype=None):
 
     if not isinstance(value, _nd.NDArray):
         raise ValueError("value has to be scalar or NDArray")
+
     return Constant(value)
 
 

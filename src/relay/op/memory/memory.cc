@@ -92,7 +92,7 @@ RELAY_REGISTER_OP("memory.alloc_storage")
                            });
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor")
-    .set_body_typed([](Expr storage, tvm::relay::Expr shape, DataType dtype,
+    .set_body_typed([](Expr storage, Expr offset, tvm::relay::Expr shape, DataType dtype,
                        Array<IndexExpr> assert_shape) {
       auto attrs = make_object<AllocTensorAttrs>();
       attrs->dtype = dtype;
@@ -102,7 +102,7 @@ TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor")
         attrs->const_shape = Downcast<Constant>(shape);
       }
       static const Op& op = Op::Get("memory.alloc_tensor");
-      return Call(op, {storage, shape}, Attrs(attrs), {});
+      return Call(op, {storage, offset, shape}, Attrs(attrs), {});
     });
 
 std::vector<int64_t> FromConstShape(Constant konst) {
@@ -132,7 +132,7 @@ std::vector<int64_t> FromConstShape(Constant konst) {
 
 bool AllocTensorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3u);
+  CHECK_EQ(types.size(), 4u);
   auto alloc_attrs = attrs.as<AllocTensorAttrs>();
   CHECK(alloc_attrs != nullptr) << "must be alloc_tensor attributes";
   // First argument should be storage.
@@ -141,18 +141,28 @@ bool AllocTensorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   auto storage_name = mod->GetGlobalTypeVar("Storage");
   auto storage = relay::TypeCall(storage_name, {});
   reporter->Assign(types[0], storage);
-  // Second argument should be shape tensor.
-  auto tt = types[1].as<TensorTypeNode>();
+  // Second argument should be the offset.
+  auto offset_type = types[1].as<TensorTypeNode>();
+  CHECK(offset_type != nullptr) << "must be a scalar type";
+
+  // Third argument should be shape tensor.
+  auto tt = types[2].as<TensorTypeNode>();
   CHECK(tt != nullptr) << "must be tensor type";
-  auto rank = tt->shape[0].as<tvm::IntImmNode>();
-  CHECK(rank != nullptr);
-  auto dims = rank->value;
+
+  // Be careful about having to allocate scalars.
+  int64_t dims = 0;
+  if (tt->shape.size() != 0) {
+    auto rank = tt->shape[0].as<tvm::IntImmNode>();
+    CHECK(rank != nullptr);
+    dims = rank->value;
+  }
 
   // Constant node case.
   Type alloc_type;
   if (alloc_attrs->const_shape.defined()) {
     auto con = alloc_attrs->const_shape;
     auto sh = FromConstShape(con);
+    CHECK_EQ(sh.size(), dims);
     Array<IndexExpr> out_shape;
     for (auto i = 0u; i < dims; i++) {
       out_shape.push_back(tvm::Integer(sh[i]));
@@ -165,14 +175,15 @@ bool AllocTensorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     return true;
   }
 
-  reporter->Assign(types[2], alloc_type);
+  reporter->Assign(types[3], alloc_type);
   return true;
 }
 
 RELAY_REGISTER_OP("memory.alloc_tensor")
     .describe(R"code(Explicitly allocate storage to be used by tensors.)code" TVM_ADD_FILELINE)
-    .set_num_inputs(2)
+    .set_num_inputs(3)
     .add_argument("storage", "Storage", "The storage to allocate from.")
+    .add_argument("offset", "Tensor", "The offset into the backing storage.")
     .add_argument("shape", "Tensor", "The shape of the tensor to allocate.")
     .add_type_rel("AllocTensor", AllocTensorRel)
     .set_support_level(10)

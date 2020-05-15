@@ -85,6 +85,7 @@ Instruction::Instruction(const Instruction& instr) {
       return;
     case Opcode::AllocTensor:
       this->alloc_tensor.storage = instr.alloc_tensor.storage;
+      this->alloc_tensor.offset = instr.alloc_tensor.offset;
       this->alloc_tensor.ndim = instr.alloc_tensor.ndim;
       this->alloc_tensor.shape =
           Duplicate<int64_t>(instr.alloc_tensor.shape, instr.alloc_tensor.ndim);
@@ -92,6 +93,7 @@ Instruction::Instruction(const Instruction& instr) {
       return;
     case Opcode::AllocTensorReg:
       this->alloc_tensor_reg.storage = instr.alloc_tensor_reg.storage;
+      this->alloc_tensor_reg.offset = instr.alloc_tensor_reg.offset;
       this->alloc_tensor_reg.shape_register = instr.alloc_tensor_reg.shape_register;
       this->alloc_tensor_reg.dtype = instr.alloc_tensor_reg.dtype;
       return;
@@ -174,7 +176,8 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->result = instr.result;
       return *this;
     case Opcode::AllocTensor:
-      this->alloc_tensor.storage = instr.alloc_tensor.storage;
+      this->alloc_tensor.storage = this->alloc_tensor.storage;
+      this->alloc_tensor.offset = instr.alloc_tensor.offset;
       this->alloc_tensor.ndim = instr.alloc_tensor.ndim;
       this->alloc_tensor.shape =
           Duplicate<int64_t>(instr.alloc_tensor.shape, instr.alloc_tensor.ndim);
@@ -182,6 +185,7 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       return *this;
     case Opcode::AllocTensorReg:
       this->alloc_tensor_reg.storage = instr.alloc_tensor_reg.storage;
+      this->alloc_tensor_reg.offset = instr.alloc_tensor_reg.offset;
       this->alloc_tensor_reg.shape_register = instr.alloc_tensor_reg.shape_register;
       this->alloc_tensor_reg.dtype = instr.alloc_tensor_reg.dtype;
       return *this;
@@ -307,12 +311,14 @@ Instruction Instruction::InvokePacked(Index packed_index, Index arity, Index out
   return instr;
 }
 
-Instruction Instruction::AllocTensor(RegName storage, const std::vector<int64_t>& shape,
-                                     DLDataType dtype, Index dst) {
+Instruction Instruction::AllocTensor(RegName storage, RegName offset,
+                                     const std::vector<int64_t>& shape, DLDataType dtype,
+                                     Index dst) {
   Instruction instr;
   instr.op = Opcode::AllocTensor;
   instr.dst = dst;
   instr.alloc_tensor.storage = storage;
+  instr.alloc_tensor.offset = offset;
   instr.alloc_tensor.ndim = shape.size();
   instr.alloc_tensor.shape = new int64_t[shape.size()];
   for (size_t i = 0; i < shape.size(); ++i) {
@@ -322,12 +328,13 @@ Instruction Instruction::AllocTensor(RegName storage, const std::vector<int64_t>
   return instr;
 }
 
-Instruction Instruction::AllocTensorReg(RegName storage, RegName shape_register, DLDataType dtype,
-                                        Index dst) {
+Instruction Instruction::AllocTensorReg(RegName storage, RegName offset, RegName shape_register,
+                                        DLDataType dtype, Index dst) {
   Instruction instr;
   instr.op = Opcode::AllocTensorReg;
   instr.dst = dst;
   instr.alloc_tensor_reg.storage = storage;
+  instr.alloc_tensor_reg.offset = offset;
   instr.alloc_tensor_reg.shape_register = shape_register;
   instr.alloc_tensor_reg.dtype = dtype;
   return instr;
@@ -514,13 +521,15 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::AllocTensor: {
-      os << "alloc_tensor $" << instr.dst << " $" << instr.alloc_tensor.storage << " ["
+      os << "alloc_tensor $" << instr.dst << " $" << instr.alloc_tensor.storage << " $"
+         << instr.alloc_tensor.offset << " ["
          << StrJoin<int64_t>(instr.alloc_tensor.shape, 0, instr.alloc_tensor.ndim) << "] ";
       DLDatatypePrint(os, instr.alloc_tensor.dtype);
       break;
     }
     case Opcode::AllocTensorReg: {
       os << "alloc_tensor_reg $" << instr.dst << " $" << instr.alloc_tensor_reg.storage << " $"
+         << instr.alloc_tensor_reg.storage << " $" << instr.alloc_tensor_reg.offset << " $"
          << instr.alloc_tensor_reg.shape_register << " ";
       DLDatatypePrint(os, instr.alloc_tensor_reg.dtype);
       break;
@@ -608,6 +617,36 @@ inline ObjectRef CopyTo(ObjectRef src, const DLContext& ctx) {
     }
   }
   return src;
+}
+
+std::vector<int64_t> ToShape(NDArray shape_tensor) {
+  std::vector<int64_t> shape;
+  auto rank = shape_tensor.Shape().size();
+  auto dtype = shape_tensor.DataType();
+
+  // For 0-rank shapes we need to allocate a single scalar.
+  if (rank == 0) {
+    return shape;
+  }
+
+  // Otherwise we should be rank-1, and we will extract the number of dimensions
+  // for the output vector.
+  CHECK_EQ(rank, 1U) << "shape tensor should be a k-length vector, found " << rank;
+  int64_t ndim = shape_tensor.Shape().at(0);
+  shape.resize(ndim);
+
+  const DLTensor* dl_tensor = shape_tensor.operator->();
+  if (dtype.is_int() && dtype.bits() == 32 && dtype.lanes() == 1) {
+    int32_t* dims = reinterpret_cast<int32_t*>(dl_tensor->data);
+    shape.assign(dims, dims + ndim);
+  } else if (dtype.is_int() && dtype.bits() == 64 && dtype.lanes() == 1) {
+    int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
+    shape.assign(dims, dims + ndim);
+  } else {
+    LOG(FATAL) << "invalid shape tensor datatype: " << dtype;
+  }
+
+  return shape;
 }
 
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
@@ -945,8 +984,9 @@ void VirtualMachine::RunLoop() {
         }
 
         auto storage_obj = ReadRegister(instr.alloc_tensor.storage);
+        auto offset = LoadScalarInt(instr.alloc_tensor.offset);
         auto storage = Downcast<Storage>(storage_obj);
-        auto obj = storage->AllocNDArray(0, shape, instr.alloc_tensor.dtype);
+        auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor.dtype);
 
         WriteRegister(instr.dst, obj);
         pc_++;
@@ -959,17 +999,11 @@ void VirtualMachine::RunLoop() {
         auto shape_tensor_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
         const auto shape_arr = Downcast<NDArray>(shape_tensor_obj);
         NDArray shape_tensor = shape_arr.CopyTo(cpu_ctx);
-        const DLTensor* dl_tensor = shape_tensor.operator->();
-        CHECK_EQ(dl_tensor->dtype.code, 0u);
-        CHECK_LE(dl_tensor->dtype.bits, 64);
-        int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
-        auto num_dims = shape_tensor->shape[0];
-        auto shape = std::vector<int64_t>(num_dims);
-        shape.assign(dims, dims + num_dims);
-
+        auto shape = ToShape(shape_tensor);
         auto storage_obj = ReadRegister(instr.alloc_tensor_reg.storage);
         auto storage = Downcast<Storage>(storage_obj);
-        auto obj = storage->AllocNDArray(0, shape, instr.alloc_tensor_reg.dtype);
+        auto offset = LoadScalarInt(instr.alloc_tensor.offset);
+        auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor_reg.dtype);
 
         WriteRegister(instr.dst, obj);
         pc_++;

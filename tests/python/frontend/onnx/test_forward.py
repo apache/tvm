@@ -64,6 +64,7 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
     input_names, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
     mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
+
     with relay.build_config(opt_level=1):
         graph, lib, params = relay.build(mod,
                                          target,
@@ -1667,7 +1668,7 @@ def test_prelu():
         onnx_out = get_onnxruntime_output(model, [indata, slopedata])
 
         for target, ctx in [('llvm', tvm.cpu())]:
-            tvm_out = get_tvm_output(model, [indata, slopedata], target, ctx, list(x_shape), 
+            tvm_out = get_tvm_output(model, [indata, slopedata], target, ctx, list(x_shape),
                     output_dtype='float32')
             tvm.testing.assert_allclose(onnx_out[0], tvm_out, rtol=1e-05, atol=1e-05)
 
@@ -2572,7 +2573,7 @@ def test_topk():
                                   inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(input_dims)),
                                           helper.make_tensor_value_info("K", TensorProto.INT64, [1,])],
                                   initializer=[helper.make_tensor("K", TensorProto.INT64, [1], [K])],
-                                  outputs=[helper.make_tensor_value_info("Values", TensorProto.FLOAT, output_dims), 
+                                  outputs=[helper.make_tensor_value_info("Values", TensorProto.FLOAT, output_dims),
                                            helper.make_tensor_value_info("Indicies", TensorProto.INT64, output_dims)])
 
         model = helper.make_model(graph, producer_name='topk_test')
@@ -2581,10 +2582,10 @@ def test_topk():
         onnx_out = get_onnxruntime_output(model, [indata, k])
 
         for target, ctx in [('llvm', tvm.cpu())]:
-            tvm_out = get_tvm_output(model, indata, target, ctx, [output_dims, output_dims], 
+            tvm_out = get_tvm_output(model, indata, target, ctx, [output_dims, output_dims],
                     output_dtype=['float32', 'int64'])
             tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
-    
+
     for n in [12, 32]:
         for shape in [[n], [n, n], [n, n, n]]:
             for k in [1, 5, 10]:
@@ -2593,7 +2594,7 @@ def test_topk():
         verify_topk([n, n, n], 5, 0)
         verify_topk([n, n, n], 5, 1)
         verify_topk([n, n, n], 5, 2)
-    
+
 
 def test_roi_align():
     def verify_roi_align(input_dims, num_roi, output_height, output_width, sampling_ratio=0, spatial_scale=1.0):
