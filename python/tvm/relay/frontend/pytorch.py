@@ -1007,6 +1007,13 @@ def _numtotensor():
         return arr
     return _impl
 
+
+def _tensortonum():
+    def _impl(inputs, input_types):
+        return inputs[0]
+    return _impl
+
+
 def _view():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -1699,6 +1706,7 @@ def _get_convert_map(prelude):
         "aten::expand"                          : _expand(),
         "aten::Int"                             : _int(),
         "prim::NumToTensor"                     : _numtotensor(),
+        "prim::ImplicitTensorToNum"             : _tensortonum(),
         "aten::constant_pad_nd"                 : _pad(),
         "aten::permute"                         : _transpose(prelude),
         "aten::sum"                             : _reduce("sum"),
