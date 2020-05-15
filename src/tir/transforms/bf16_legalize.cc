@@ -55,7 +55,7 @@ class BF16PromoteRewriter : public StmtExprMutator {
       *is_bf16 = true;
     }
 
-    if (is_bf16) {
+    if (*is_bf16) {
       DataType fp32ty(kDLFloat, 32, 1);
       a = CastNode::make(fp32ty, a);
       b = CastNode::make(fp32ty, b);
