@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file narrow_datatype.cc
- * \brief narrow the datatype of indexing vars
+ * \file bf16_legalize.cc
+ * \brief legalize bf16 type by adding cast_to_fp32 
  */
 
 #include <tvm/runtime/registry.h>
@@ -125,7 +125,7 @@ DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(GENode, operator>=)  // NOLINT(*
  *  bf16((float32(bf16((float32(X[i]) + float32(Y[i])))) + float32(T[i])))
  * After this pass:
  *  bf16(float32(X[i]) + float32(Y[i]) + float32(T[i]))
-*/
+ */
 class BF16CastEliminationRewriter : public StmtExprMutator {
  public:
   BF16CastEliminationRewriter() {}
