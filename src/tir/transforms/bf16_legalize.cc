@@ -22,9 +22,10 @@
  * \brief narrow the datatype of indexing vars
  */
 
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
-#include <tvm/runtime/registry.h>
+
 #include <tuple>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
@@ -44,8 +45,7 @@ class BF16PromoteRewriter : public StmtExprMutator {
     return VisitStmt(s);
   }
 
-  std::tuple<PrimExpr, PrimExpr> DoCast(PrimExpr orig_a,
-        PrimExpr orig_b, bool* is_bf16) {
+  std::tuple<PrimExpr, PrimExpr> DoCast(PrimExpr orig_a, PrimExpr orig_b, bool* is_bf16) {
     auto a = this->VisitExpr(orig_a);
     auto b = this->VisitExpr(orig_b);
     *is_bf16 = false;
@@ -77,36 +77,33 @@ class BF16PromoteRewriter : public StmtExprMutator {
   PrimExpr VisitExpr_(const GENode* op) final;
 };
 
-
-#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)               \
-  PrimExpr BF16PromoteRewriter::VisitExpr_(const OP* op) {              \
-    PrimExpr a, b;                                                      \
-    bool is_bf16;                                                       \
-    std::tie(a, b) = DoCast(op->a, op->b, &is_bf16);                     \
-    if (a.same_as(op->a) &&                                             \
-        b.same_as(op->b)) {                                             \
-        return GetRef<PrimExpr>(op);                                    \
-    } else {                                                            \
-        auto ret = FUNC(a, b);                                          \
-        if (!is_bf16)                                                   \
-            return ret;                                                 \
-        else                                                            \
-            return CastNode::make(DataType(kTVMBFloat, 16, 1), ret);    \
-    }                                                                   \
+#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)        \
+  PrimExpr BF16PromoteRewriter::VisitExpr_(const OP* op) {       \
+    PrimExpr a, b;                                               \
+    bool is_bf16;                                                \
+    std::tie(a, b) = DoCast(op->a, op->b, &is_bf16);             \
+    if (a.same_as(op->a) && b.same_as(op->b)) {                  \
+      return GetRef<PrimExpr>(op);                               \
+    } else {                                                     \
+      auto ret = FUNC(a, b);                                     \
+      if (!is_bf16)                                              \
+        return ret;                                              \
+      else                                                       \
+        return CastNode::make(DataType(kTVMBFloat, 16, 1), ret); \
+    }                                                            \
   }
 
-#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(OP, FUNC)       \
-  PrimExpr BF16PromoteRewriter::VisitExpr_(const OP* op) {              \
-    PrimExpr a, b;                                                      \
-    bool is_bf16;                                                       \
-    std::tie(a, b) = DoCast(op->a, op->b, &is_bf16);                     \
-    if (a.same_as(op->a) &&                                             \
-        b.same_as(op->b)) {                                             \
-        return GetRef<PrimExpr>(op);                                    \
-    } else {                                                            \
-        auto ret = FUNC(a, b);                                          \
-        return ret;                                                     \
-    }                                                                   \
+#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(OP, FUNC) \
+  PrimExpr BF16PromoteRewriter::VisitExpr_(const OP* op) {        \
+    PrimExpr a, b;                                                \
+    bool is_bf16;                                                 \
+    std::tie(a, b) = DoCast(op->a, op->b, &is_bf16);              \
+    if (a.same_as(op->a) && b.same_as(op->b)) {                   \
+      return GetRef<PrimExpr>(op);                                \
+    } else {                                                      \
+      auto ret = FUNC(a, b);                                      \
+      return ret;                                                 \
+    }                                                             \
   }
 
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(AddNode, operator+)
@@ -142,15 +139,14 @@ class BF16CastEliminationRewriter : public StmtExprMutator {
   PrimExpr VisitExpr_(const CastNode* op) {
     auto op_val = StmtExprMutator::VisitExpr(op->value);
     if (op->dtype.is_float() && op->dtype.bits() == 32) {
-        // if is cast_to_fp32, check if op->value is cast_to_fp16
-        // and op->value->value is a float32
-        if (auto innercast = op_val.as<CastNode>()) {
-            if (innercast->dtype.is_bf16()
-            && innercast->value->dtype.is_float()
-            && innercast->value->dtype.bits() == 32) {
-                return innercast->value;
-            }
+      // if is cast_to_fp32, check if op->value is cast_to_fp16
+      // and op->value->value is a float32
+      if (auto innercast = op_val.as<CastNode>()) {
+        if (innercast->dtype.is_bf16() && innercast->value->dtype.is_float() &&
+            innercast->value->dtype.bits() == 32) {
+          return innercast->value;
         }
+      }
     }
     if (op->value.same_as(op_val))
         return GetRef<PrimExpr>(op);

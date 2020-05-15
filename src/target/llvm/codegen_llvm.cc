@@ -559,10 +559,8 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
 }
 
 static llvm::Value* GetInt32VectorOrScalar(
-                                          llvm::IRBuilder<llvm::ConstantFolder,
-                                            llvm::IRBuilderDefaultInserter>* builder,
-                                          uint32_t v,
-                                          int lanes) {
+    llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>* builder, uint32_t v,
+    int lanes) {
   if (lanes == 1) {
     return builder->getInt32(v);
   } else {
@@ -597,8 +595,8 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
       llvm::VectorType::get(builder_->getInt32Ty(), to.lanes());
     auto v = builder_->CreateBitCast(value, extended_type);
     auto bias = builder_->CreateLShr(v, 16);
-    bias = builder_->CreateAnd(bias, GetInt32VectorOrScalar(builder_, 1, to.lanes()));
-    bias = builder_->CreateAdd(bias, GetInt32VectorOrScalar(builder_, 0x7fff, to.lanes()));
+    bias = builder_->CreateAnd(bias, GetInt32VectorOrScalar(builder_.get(), 1, to.lanes()));
+    bias = builder_->CreateAdd(bias, GetInt32VectorOrScalar(builder_.get(), 0x7fff, to.lanes()));
     v = builder_->CreateAdd(v, bias);
     v = builder_->CreateLShr(v, 16);
     return builder_->CreateTrunc(v, target);
