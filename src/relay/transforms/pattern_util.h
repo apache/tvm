@@ -40,6 +40,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <limits>
 
 namespace tvm {
 namespace relay {
