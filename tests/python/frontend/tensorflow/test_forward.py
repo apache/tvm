@@ -3441,7 +3441,7 @@ def _test_spop_device_assignment():
 
         run_options = config_pb2.RunOptions(trace_level=config_pb2.RunOptions.FULL_TRACE)
         run_metadata = config_pb2.RunMetadata()
-        with tf.Session(config=config_pb2.ConfigProto(device_count={"CPU": 3, "GPU": 2})) as sess:
+        with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             print("The output of device assignment run is = ",
                   sess.run(op, options=run_options, run_metadata=run_metadata))
@@ -3455,7 +3455,47 @@ def _test_spop_device_assignment():
         compare_tf_with_tvm([],[], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
 def _test_spop_resource_variables():
-    pass
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+
+        const1 = tf.constant(10)
+        const2 = tf.constant(20)
+        var1 = tf.Variable(const1, dtype=tf.int32, use_resource=True)
+        var2 = tf.Variable(const2, dtype=tf.int32, use_resource=True)
+
+        @tf.function
+        def resourceVariablesTest(x, y):
+            return tf.multiply(x, y)
+
+        op = resourceVariablesTest(var1,var2)
+
+        def isResourceVariable(var):
+            try:
+                from tensorflow.python.ops.variables import RefVariable
+                from tensorflow.python.ops.resource_variable_ops import ResourceVariable
+            except ImportError as e:
+                raise ImportError(
+                    "Unable to import tensorflow which is required {}".format(e))
+            return bool(not issubclass(var.__class__,RefVariable)
+                        and issubclass(var.__class__,ResourceVariable))
+
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+            sess.run(op)
+            mylist = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+            resVarFound, resVarCnt = False, 0
+            for var in mylist:
+                if isResourceVariable(var):
+                    resVarFound = True
+                    resVarCnt += 1
+            print(resVarFound)
+            for var in mylist:
+                print(var, var.__class__)
+            if(resVarCnt > 0):
+                print("Graph contains {} many resource variables ".format(resVarCnt))
+                raise Exception("Graph contains Resource variables, so rejecting the graph")
+
+        compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
 def _test_forward_spop_positive():
     _test_spop_placeholder()
@@ -3471,6 +3511,8 @@ def _test_forward_spop_negative():
     # as container graphs to execute "stateless" operations internally
     # _test_spop_stateful()
     _test_spop_device_assignment()
+    #Uncomment the following test case to test that TVM rejects any graph containing resource variables with
+    #StatefulPartitionedOp
     _test_spop_resource_variables()
 
 def test_forward_spop():
