@@ -19,7 +19,7 @@
 
 /*!
  * \file bf16_legalize.cc
- * \brief legalize bf16 type by adding cast_to_fp32 
+ * \brief legalize bf16 type by adding cast_to_fp32
  */
 
 #include <tvm/runtime/registry.h>
