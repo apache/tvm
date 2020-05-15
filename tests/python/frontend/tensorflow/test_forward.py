@@ -3233,7 +3233,7 @@ def _test_spop_placeholder_four():
     t3 = add(t1, t2)
     compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
 
-def _test_spop_function_invocation_one():
+def _test_spop_function_invocation_basic():
     tf.disable_eager_execution()
     tf.reset_default_graph()
     with tf.Graph().as_default():
@@ -3255,7 +3255,7 @@ def _test_spop_function_invocation_one():
 
         compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
 
-def _test_spop_function_invocation_callable_graph():
+def _test_spop_function_invocation_autograph():
     tf.disable_eager_execution()
     tf.reset_default_graph()
     with tf.Graph().as_default():
@@ -3276,42 +3276,6 @@ def _test_spop_function_invocation_callable_graph():
             return z
 
         t3 = fun3(tf.constant(10.5), tf.constant(20.4))
-
-        compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
-
-def _test_spop_function_invocation_simple():
-    tf.disable_eager_execution()
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-
-        @tf.function()
-        def fun2():
-            return tf.constant(1)
-
-        @tf.function()
-        def fun3():
-            return fun2()
-
-        t3 = fun3()
-
-        compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
-
-def _test_spop_function_invocation_params():
-    tf.disable_eager_execution()
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-
-        @tf.function()
-        def fun2(x):
-            return tf.multiply(x,x)
-
-        @tf.function()
-        def fun3(x):
-            y = fun2(x)
-            z = tf.add(x, y)
-            return z
-
-        t3 = fun3(tf.constant(10))
 
         compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
 
@@ -3408,10 +3372,8 @@ def _test_spop_placeholder():
     _test_spop_placeholder_four()
 
 def _test_spop_function_invocation():
-    _test_spop_function_invocation_simple()
-    _test_spop_function_invocation_params()
-    _test_spop_function_invocation_one()
-    _test_spop_function_invocation_callable_graph()
+    _test_spop_function_invocation_basic()
+    _test_spop_function_invocation_autograph()
     _test_spop_function_invocation_defun()
 
 def test_forward_spop_positive():
