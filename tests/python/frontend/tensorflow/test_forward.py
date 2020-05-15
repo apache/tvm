@@ -3508,12 +3508,17 @@ def _test_forward_spop_positive():
 def _test_forward_spop_negative():
     #Uncomment the following test case to test that TVM rejects any TF stateful operations
     # except StatefulPartitionedCall/PartitionedCall(as these two operators can still be used
-    # as container graphs to execute "stateless" operations internally
+    # as container graphs to execute "stateless" operations internally.
     # _test_spop_stateful()
+
+    # Uncomment the following test case to test that TVM rejects inconsistent device assignment
+    # while using StatefulPartitionedCall/PartitionedCall operators which in case of TVM will
+    # be used as container graphs to internally execute "stateless" operations.
     _test_spop_device_assignment()
+
     #Uncomment the following test case to test that TVM rejects any graph containing resource variables with
-    #StatefulPartitionedOp
-    _test_spop_resource_variables()
+    #StatefulPartitionedOp.
+    # _test_spop_resource_variables()
 
 def test_forward_spop():
     _test_forward_spop_positive()
