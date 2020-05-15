@@ -156,6 +156,21 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   builder_->SetInsertPoint(entry);
   this->VisitStmt(f->body);
 
+  // Add alignment attribute if needed.
+#if TVM_LLVM_VERSION >= 50
+  for (size_t i = 0; i < f->params.size(); ++i) {
+    const Var& var = f->params[i];
+    auto f = alloc_storage_info_.find(var.get());
+    if (f != alloc_storage_info_.end()) {
+      unsigned align = f->second.alignment;
+      if (align > 1) {
+        auto attr = llvm::Attribute::get(*ctx_, llvm::Attribute::Alignment, align);
+        function_->addParamAttr(i, attr);
+      }
+    }
+  }
+#endif
+
   if (ret_void) {
     builder_->CreateRetVoid();
   } else {
@@ -1250,6 +1265,10 @@ void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     alloc_storage_info_[v].alignment = static_cast<int>(op->value.as<IntImmNode>()->value);
+    if (var_map_.count(v) && alloc_storage_info_[v].alignment > 1) {
+      builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
+                                          alloc_storage_info_[v].alignment);
+    }
   } else if (op->attr_key == tir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
@@ -1264,14 +1283,19 @@ void CodeGenLLVM::VisitStmt_(const AssertStmtNode* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const LetStmtNode* op) {
-  CHECK(!var_map_.count(op->var.get()));
-  if (op->var.dtype().is_handle()) {
+  const VarNode* v = op->var.get();
+  CHECK(!var_map_.count(v));
+  if (v->dtype.is_handle()) {
     if (!is_restricted_) {
-      alias_var_set_.insert(op->var.get());
+      alias_var_set_.insert(v);
     }
   }
-  var_map_[op->var.get()] = MakeValue(op->value);
+  var_map_[v] = MakeValue(op->value);
   analyzer_->Bind(op->var, op->value);
+  if (alloc_storage_info_.count(v) && alloc_storage_info_[v].alignment > 1) {
+    builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
+                                        alloc_storage_info_[v].alignment);
+  }
   this->VisitStmt(op->body);
 }
 
