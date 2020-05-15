@@ -3229,7 +3229,6 @@ def _test_spop_placeholder_four():
         t3 = add(t1, t2)
         compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
 
-
 def _test_spop_function_invocation_basic():
     with tf.Graph().as_default():
 
@@ -3315,6 +3314,29 @@ def _test_spop_function_invocation_defun():
                                                         Tout=[dtypes.float32], f=fun3, name="SpopFnInvocation")
         compare_tf_with_tvm([],[], 'SpopFnInvocation:0', mode='vm', init_global_variables=True)
 
+def _test_spop_function_invocation_2():
+    with tf.Graph().as_default():
+        t1 = tf.compat.v1.placeholder(tf.int32, (3, 3, 3), name="t1")
+        t1_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
+        t2 = tf.compat.v1.placeholder(tf.int32, name="t2")
+        t2_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
+
+        @tf.function
+        def myfunc(x, y):
+            return tf.add(x, y, "myfunc")
+
+        @tf.function
+        def myfunc2(x, y):
+            z = myfunc(x, y)
+            l = myfunc(z, y)
+            m = myfunc(l,z)
+            return tf.add(l, m, "myfunc2")
+
+        res1 = myfunc(t1, t2)
+        res2 = myfunc2(res1, t1)
+
+        compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [res2.name], mode='vm', init_global_variables=True)
+
 def _test_spop_arithmetic():
     with tf.Graph().as_default():
         @function.Defun(*[dtypes.int32]*3)
@@ -3389,6 +3411,7 @@ def _test_spop_function_invocation():
 def test_forward_spop_positive():
     _test_spop_placeholder()
     _test_spop_function_invocation()
+    _test_spop_function_invocation_2()
     _test_spop_arithmetic()
     _test_spop_control_flow()
     _test_spop_variables()
