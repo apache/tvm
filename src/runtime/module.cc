@@ -129,6 +129,8 @@ bool RuntimeEnabled(const std::string& target) {
     f_name = "device_api.opencl";
   } else if (target == "mtl" || target == "metal") {
     f_name = "device_api.metal";
+  } else if (target == "tflite") {
+    f_name = "target.runtime.tflite";
   } else if (target == "vulkan") {
     f_name = "device_api.vulkan";
   } else if (target == "stackvm") {

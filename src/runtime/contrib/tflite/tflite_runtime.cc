@@ -93,8 +93,12 @@ DataType TfLiteDType2TVMDType(TfLiteType dtype) {
 void TFLiteRuntime::Init(const std::string& tflite_model_bytes, TVMContext ctx) {
   const char* buffer = tflite_model_bytes.c_str();
   size_t buffer_size = tflite_model_bytes.size();
+  // The buffer used to construct the model must be kept alive for
+  // dependent interpreters to be used.
+  flatBuffersBuffer_ = std::unique_ptr<char[]>(new char[buffer_size]);
+  std::memcpy(flatBuffersBuffer_.get(), buffer, buffer_size);
   std::unique_ptr<tflite::FlatBufferModel> model =
-      tflite::FlatBufferModel::BuildFromBuffer(buffer, buffer_size);
+      tflite::FlatBufferModel::BuildFromBuffer(flatBuffersBuffer_.get(), buffer_size);
   tflite::ops::builtin::BuiltinOpResolver resolver;
   // Build interpreter
   TfLiteStatus status = tflite::InterpreterBuilder(*model, resolver)(&interpreter_);
@@ -173,5 +177,7 @@ Module TFLiteRuntimeCreate(const std::string& tflite_model_bytes, TVMContext ctx
 TVM_REGISTER_GLOBAL("tvm.tflite_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = TFLiteRuntimeCreate(args[0], args[1]);
 });
+
+TVM_REGISTER_GLOBAL("target.runtime.tflite").set_body_typed(TFLiteRuntimeCreate);
 }  // namespace runtime
 }  // namespace tvm
