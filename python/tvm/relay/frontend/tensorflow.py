@@ -1931,30 +1931,37 @@ def _add_n():
     return _impl
 
 def _partitioned_call():
-    def _impl(inputs, attr, params, mod, graph):
-        node_func_name = attr.get('f').name
-        func = next((f for f in graph.library.function if f.signature.name == node_func_name), None)
-        if func:
-            from tensorflow.python.framework import function_def_to_graph
+    from tensorflow.python.framework import function_def_to_graph
+    from tensorflow.python.framework import ops
 
+    def _impl(inputs, attr, params, mod):
+        node_func_name = attr.get('f').name
+
+        outer_graph = ops.get_default_graph()
+        outer_graph_def = outer_graph.as_graph_def(add_shapes=True)
+
+        func = next((f for f in outer_graph_def.library.function if f.signature.name == node_func_name), None)
+        if func:
             # Convert function definition to graph
             func_input_shapes = func.attr["_input_shapes"].list.shape
-            subgraph, flat_tensor_name = function_def_to_graph.function_def_to_graph_def(func, func_input_shapes)
+            subgraph = function_def_to_graph.function_def_to_graph(func, func_input_shapes)
+            subgraph_def = subgraph.as_graph_def(add_shapes=True)
 
             # Computing subgraph's input shape dictionary
             subgraph_shape_dict = {}
             for f_arg, input in zip(func.signature.input_arg, inputs):
                 subgraph_shape_dict[f_arg.name] = _infer_shape(input)
 
-            # Construct relay nodes from the subgraph
+            # Construct relay nodes from the subgraph_def
             g = GraphProto()
-            mod, params = g.from_tensorflow(subgraph, shape=subgraph_shape_dict)
+            mod, params = g.from_tensorflow(subgraph_def, shape=subgraph_shape_dict)
             wl = tvm.relay.var('partitioned_call')
             sb = tvm.relay.scope_builder.ScopeBuilder()
             sb.let(wl, mod["main"])
             sb.ret(wl(*inputs))
             op = sb.get()
             return op
+
     return _impl
 
 def _stateful_partitioned_call():
@@ -3222,9 +3229,7 @@ class GraphProto(object):
         if op_name in identity_list:
             sym = get_relay_op(op_name)(*inputs, **attrs)
         elif op_name in convert_map:
-            if op_name in ["PartitionedCall", "StatefulPartitionedCall"]:
-                sym = convert_map[op_name](inputs, attrs, self._params, self._mod, self._graph)
-            elif _need_prelude_for_shape_inference(op_name):
+            if _need_prelude_for_shape_inference(op_name):
                 sym = convert_map[op_name](inputs, attrs, self._params, self._prelude)
             else:
                 sym = convert_map[op_name](inputs, attrs, self._params, self._mod)
