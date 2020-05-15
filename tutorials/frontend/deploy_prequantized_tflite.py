@@ -65,7 +65,7 @@ model_url = "https://storage.googleapis.com/download.tensorflow.org/models/" \
 
 # Download model tar file and extract it to get mobilenet_v2_1.0_224.tflite
 model_path = download_testdata(model_url, "mobilenet_v2_1.0_224_quant.tgz",
-                                 module=['tf', 'official'])
+                               module=['tf', 'official'])
 model_dir = os.path.dirname(model_path)
 
 
@@ -235,6 +235,10 @@ print("Elapsed average ms:", np.mean(prof_res))
 #   This includes support for the VNNI 8 bit dot product instruction (CascadeLake or newer).
 #   For EC2 C5.12x large instance, TVM latency for this tutorial is ~2 ms.
 #
+#   Intel conv2d NCHWc schedule on ARM gives better end-to-end latency compared to ARM NCHW
+#   conv2d spatial pack schedule for many TFLite networks. ARM winograd performance is higher but
+#   it has a high memory footprint.
+#
 #   Moreover, the following general tips for CPU performance equally applies:
 #
 #    * Set the environment variable TVM_NUM_THREADS to the number of physical cores
@@ -242,3 +246,6 @@ print("Elapsed average ms:", np.mean(prof_res))
 #      "llvm -mcpu=cascadelake" (more CPUs with AVX512 would come in the future)
 #    * Perform autotuning - `Auto-tuning a convolution network for x86 CPU
 #      <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html>`_.
+#    * To get best inference performance on ARM CPU, change target argument according to your
+#      device and follow `Auto-tuning a convolution network for ARM CPU
+#      <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_arm.html>`_.
