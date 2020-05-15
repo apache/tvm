@@ -26,9 +26,9 @@
 #include <tvm/tir/transform.h>
 #include <tvm/runtime/registry.h>
 #include <tuple>
+
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../arith/ir_visitor_with_analyzer.h"
-#include <iostream>
 
 namespace tvm {
 namespace tir {
@@ -38,23 +38,23 @@ using arith::IRMutatorWithAnalyzer;
 
 class BF16PromoteRewriter : public StmtExprMutator {
  public:
-  explicit BF16PromoteRewriter() {}
+  BF16PromoteRewriter() {}
 
   Stmt operator()(Stmt s) {
     return VisitStmt(s);
   }
 
   std::tuple<PrimExpr, PrimExpr> DoCast(PrimExpr orig_a,
-        PrimExpr orig_b, bool& is_bf16) {
+        PrimExpr orig_b, bool* is_bf16) {
     auto a = this->VisitExpr(orig_a);
     auto b = this->VisitExpr(orig_b);
-    is_bf16 = false;
+    *is_bf16 = false;
     if (a->dtype.is_bf16()) {
         CHECK(b->dtype.is_bf16());
-        is_bf16 = true;
+        *is_bf16 = true;
     } else if (b->dtype.is_bf16()) {
         CHECK(a->dtype.is_bf16());
-        is_bf16 = true;
+        *is_bf16 = true;
     }
 
     if (is_bf16) {
@@ -82,7 +82,7 @@ class BF16PromoteRewriter : public StmtExprMutator {
   PrimExpr BF16PromoteRewriter::VisitExpr_(const OP* op) {              \
     PrimExpr a, b;                                                      \
     bool is_bf16;                                                       \
-    std::tie(a, b) = DoCast(op->a, op->b, is_bf16);                     \
+    std::tie(a, b) = DoCast(op->a, op->b, &is_bf16);                     \
     if (a.same_as(op->a) &&                                             \
         b.same_as(op->b)) {                                             \
         return GetRef<PrimExpr>(op);                                    \
@@ -99,7 +99,7 @@ class BF16PromoteRewriter : public StmtExprMutator {
   PrimExpr BF16PromoteRewriter::VisitExpr_(const OP* op) {              \
     PrimExpr a, b;                                                      \
     bool is_bf16;                                                       \
-    std::tie(a, b) = DoCast(op->a, op->b, is_bf16);                     \
+    std::tie(a, b) = DoCast(op->a, op->b, &is_bf16);                     \
     if (a.same_as(op->a) &&                                             \
         b.same_as(op->b)) {                                             \
         return GetRef<PrimExpr>(op);                                    \
@@ -133,7 +133,7 @@ DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(GENode, operator>=)
 */
 class BF16CastEliminationRewriter : public StmtExprMutator {
  public:
-  explicit BF16CastEliminationRewriter() {}
+  BF16CastEliminationRewriter() {}
 
   Stmt operator()(Stmt s) {
     return VisitStmt(s);
@@ -145,7 +145,7 @@ class BF16CastEliminationRewriter : public StmtExprMutator {
         // if is cast_to_fp32, check if op->value is cast_to_fp16
         // and op->value->value is a float32
         if (auto innercast = op_val.as<CastNode>()) {
-            if (innercast->dtype.is_bf16() 
+            if (innercast->dtype.is_bf16()
             && innercast->value->dtype.is_float()
             && innercast->value->dtype.bits() == 32) {
                 return innercast->value;
