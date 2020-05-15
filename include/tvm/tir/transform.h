@@ -330,7 +330,6 @@ TVM_DLL Pass CombineContextCall();
  */
 TVM_DLL Pass NarrowDataType(int target_bits);
 
-
 /*!
  * \brief Legalize bf16 typed Ops. Add a cast to fp32
  *   before Ops, then add a cast back to bf16.

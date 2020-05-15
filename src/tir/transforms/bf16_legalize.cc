@@ -41,26 +41,24 @@ class BF16PromoteRewriter : public StmtExprMutator {
  public:
   BF16PromoteRewriter() {}
 
-  Stmt operator()(Stmt s) {
-    return VisitStmt(s);
-  }
+  Stmt operator()(Stmt s) { return VisitStmt(s); }
 
   std::tuple<PrimExpr, PrimExpr> DoCast(PrimExpr orig_a, PrimExpr orig_b, bool* is_bf16) {
     auto a = this->VisitExpr(orig_a);
     auto b = this->VisitExpr(orig_b);
     *is_bf16 = false;
     if (a->dtype.is_bf16()) {
-        CHECK(b->dtype.is_bf16());
-        *is_bf16 = true;
+      CHECK(b->dtype.is_bf16());
+      *is_bf16 = true;
     } else if (b->dtype.is_bf16()) {
-        CHECK(a->dtype.is_bf16());
-        *is_bf16 = true;
+      CHECK(a->dtype.is_bf16());
+      *is_bf16 = true;
     }
 
     if (is_bf16) {
-        DataType fp32ty(kDLFloat, 32, 1);
-        a = CastNode::make(fp32ty, a);
-        b = CastNode::make(fp32ty, b);
+      DataType fp32ty(kDLFloat, 32, 1);
+      a = CastNode::make(fp32ty, a);
+      b = CastNode::make(fp32ty, b);
     }
     return std::make_tuple(a, b);
   }
@@ -112,9 +110,9 @@ DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MulNode, operator*)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(DivNode, div)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MinNode, min)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MaxNode, max)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(LTNode, operator <)
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(LTNode, operator<)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(LENode, operator<=)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(GTNode, operator >)
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(GTNode, operator>)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(GENode, operator>=)
 
 /*
@@ -132,9 +130,7 @@ class BF16CastEliminationRewriter : public StmtExprMutator {
  public:
   BF16CastEliminationRewriter() {}
 
-  Stmt operator()(Stmt s) {
-    return VisitStmt(s);
-  }
+  Stmt operator()(Stmt s) { return VisitStmt(s); }
 
   PrimExpr VisitExpr_(const CastNode* op) {
     auto op_val = StmtExprMutator::VisitExpr(op->value);
@@ -148,12 +144,10 @@ class BF16CastEliminationRewriter : public StmtExprMutator {
         }
       }
     }
-    if (op->value.same_as(op_val))
-        return GetRef<PrimExpr>(op);
+    if (op->value.same_as(op_val)) return GetRef<PrimExpr>(op);
     return CastNode::make(op->dtype, op_val);
   }
 };
-
 
 namespace transform {
 
@@ -163,12 +157,10 @@ Pass BF16Promote() {
     n->body = BF16PromoteRewriter()(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(
-      pass_func, 0, "tir.BF16Promote", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.BF16Promote", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.BF16Promote")
-.set_body_typed(BF16Promote);
+TVM_REGISTER_GLOBAL("tir.transform.BF16Promote").set_body_typed(BF16Promote);
 
 Pass BF16CastElimination() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
@@ -176,20 +168,16 @@ Pass BF16CastElimination() {
     n->body = BF16CastEliminationRewriter()(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(
-      pass_func, 0, "tir.BF16CastElimination", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.BF16CastElimination", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.BF16CastElimination")
-.set_body_typed(BF16CastElimination);
+TVM_REGISTER_GLOBAL("tir.transform.BF16CastElimination").set_body_typed(BF16CastElimination);
 
 Pass BF16Legalize() {
-  return Sequential({BF16Promote(), BF16CastElimination()},
-      "tir.BF16Legalize");
+  return Sequential({BF16Promote(), BF16CastElimination()}, "tir.BF16Legalize");
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.BF16Legalize")
-.set_body_typed(BF16Legalize);
+TVM_REGISTER_GLOBAL("tir.transform.BF16Legalize").set_body_typed(BF16Legalize);
 
 }  // namespace transform
 }  // namespace tir

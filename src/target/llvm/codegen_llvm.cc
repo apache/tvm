@@ -581,18 +581,18 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
   } else if (to.is_float() && from.is_bfloat()) {
     CHECK_EQ(from.bits(), 16);
     CHECK_EQ(to.bits(), 32);
-    llvm::Type* extended_type = (from.lanes() == 1) ?
-      static_cast<llvm::Type*>(builder_->getInt32Ty()) :
-      llvm::VectorType::get(builder_->getInt32Ty(), from.lanes());
+    llvm::Type* extended_type = (from.lanes() == 1)
+                                    ? static_cast<llvm::Type*>(builder_->getInt32Ty())
+                                    : llvm::VectorType::get(builder_->getInt32Ty(), from.lanes());
     auto v = builder_->CreateZExt(value, extended_type);
     v = builder_->CreateShl(v, 16);
     return builder_->CreateBitCast(v, target);
   } else if (to.is_bfloat() && from.is_float()) {
     CHECK_EQ(to.bits(), 16);
     CHECK_EQ(from.bits(), 32);
-    llvm::Type* extended_type = (from.lanes() == 1) ?
-      static_cast<llvm::Type*>(builder_->getInt32Ty()) :
-      llvm::VectorType::get(builder_->getInt32Ty(), to.lanes());
+    llvm::Type* extended_type = (from.lanes() == 1)
+                                    ? static_cast<llvm::Type*>(builder_->getInt32Ty())
+                                    : llvm::VectorType::get(builder_->getInt32Ty(), to.lanes());
     auto v = builder_->CreateBitCast(value, extended_type);
     auto bias = builder_->CreateLShr(v, 16);
     bias = builder_->CreateAnd(bias, GetInt32VectorOrScalar(builder_.get(), 1, to.lanes()));
@@ -912,11 +912,11 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const FloatImmNode* op) {
   if (op->dtype.is_bf16()) {
     auto fp = static_cast<float>(op->value);
     auto p = reinterpret_cast<uint16_t*>(&fp);
-    #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-      return this->builder_->getInt16(p[0]);
-    #else
-      return this->builder_->getInt16(p[1]);
-    #endif
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    return this->builder_->getInt16(p[0]);
+#else
+    return this->builder_->getInt16(p[1]);
+#endif
   }
   return llvm::ConstantFP::get(DTypeToLLVMType(op->dtype), op->value);
 }
