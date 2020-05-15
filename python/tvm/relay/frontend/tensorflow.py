@@ -2931,6 +2931,12 @@ class GraphProto(object):
         """
         missing_operators = set()
         for node in graph.node:
+            try:
+                from tensorflow.python.framework import op_def_registry
+            except ImportError as e:
+                raise ImportError(
+                    "Unable to import tensorflow which is required {}".format(e))
+            op_def = op_def_registry._registered_ops.get(node.op)
             if node.op == "Placeholder" or node.op == 'PlaceholderWithDefault':
                 pass
             elif node.op == "Const":
@@ -2940,6 +2946,9 @@ class GraphProto(object):
                                                _convert_map_rnn,
                                                _control_flow_nodes]]):
                     pass
+                elif op_def is not None and op_def.is_stateful:
+                    raise Exception("Found {} stateful operator in this graph. "
+                                    "Rejecting the graph as TVM does not support stateful operations ".format(node.op))
                 else:
                     missing_operators.add(node.op)
 

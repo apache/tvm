@@ -40,6 +40,7 @@ from tensorflow.python.framework import function
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import dtypes
 from tensorflow.python.ops import gen_functional_ops
+from tensorflow.python.framework import op_def_registry
 from distutils.version import LooseVersion
 import tvm
 from tvm import te
@@ -3376,6 +3377,117 @@ def _test_spop_function_invocation():
     _test_spop_function_invocation_autograph()
     _test_spop_function_invocation_defun()
 
+def _get_attr(self, buf):
+    """Returns the value of the attr of this buf with the given `name`.
+
+    Args:
+      buf: attrvalue protobuf.
+
+    Returns:
+      The value of the attr, as a Python object.
+
+    Raises:
+      ValueError: If this op does not have an attr with the given `name`.
+    """
+    fields = ["s", "i", "f", "b", "type", "shape", "tensor", "func"]
+
+    x = buf
+
+    ret = []
+
+    try:
+        from tensorflow.python.framework import dtypes
+    except ImportError as e:
+        raise ImportError(
+            "Unable to import tensorflow which is required {}".format(e))
+
+    # Treat an empty oneof value as an empty list.
+    if not x.WhichOneof("value"):
+        return ret
+    if x.HasField("list"):
+        for f in fields:
+            if getattr(x.list, f):
+                if f == "type":
+                    ret += [dtypes.as_dtype(x) for x in list(getattr(x.list, f))]
+                else:
+                    ret += list(getattr(x.list, f))
+    else:
+        for f in fields:
+            if x.HasField(f):
+                if f == "type":
+                    ret = dtypes.as_dtype(getattr(x, f))
+                else:
+                    ret = getattr(x, f)
+    return ret
+
+def _test_spop_stateful_test():
+
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+
+        @tf.function
+        def FunctionWithStatefulOp_One(i):
+            b = tf.random.uniform(shape=[2, 4], maxval=10, dtype=tf.float32, seed=10)
+            y = tf.multiply(b, i)
+            return y
+
+        @tf.function
+        def FunctionWithStatefulOp(m, n):
+            a = tf.random.uniform(shape=[2, 4], maxval=10, dtype=tf.float32, seed = 10)
+            x = tf.multiply(a,m)
+            y = FunctionWithStatefulOp_One(n)
+            z = tf.multiply(x,y)
+            return z
+
+        op = FunctionWithStatefulOp(constant_op.constant(1.), constant_op.constant(2.))
+        compare_tf_with_tvm([], [], [op.name], init_global_variables=True, mode="vm")
+
+def _test_spop_device_assignment():
+
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+
+        def fun1(a):
+            with ops.device("/job:localhost/replica:0/task:0/device:CPU:1"):
+                return tf.multiply(a,a)
+
+        def fun2(b):
+            with ops.device("/job:localhost/replica:0/task:0/device:CPU:2"):
+                return tf.multiply(b,b)
+
+        @function.Defun(dtypes.float32, dtypes.float32, func_name="Fun3")
+        def fun3(x,y):
+            with ops.device("/GPU:2"):
+                x = fun2(x)
+                y = fun1(y)
+                z = tf.add(x,y)
+                return z
+
+        op = gen_functional_ops.StatefulPartitionedCall(args=[tf.constant(10.5),tf.constant(20.4)],
+                                                        Tout=[dtypes.float32], f=fun3)
+        try:
+            from tensorflow.core.protobuf import config_pb2
+        except ImportError as e:
+            raise ImportError(
+                "Unable to import tensorflow which is required {}".format(e))
+
+        run_options = config_pb2.RunOptions(trace_level=config_pb2.RunOptions.FULL_TRACE)
+        run_metadata = config_pb2.RunMetadata()
+        with tf.Session(config=config_pb2.ConfigProto(device_count={"CPU": 2, "GPU": 2})) as sess:
+            sess.run(tf.global_variables_initializer())
+            print("The output of device assignment run is = ",
+                  sess.run(op, options=run_options, run_metadata=run_metadata))
+            assignedDevicesSet = set()
+            for func in run_metadata.step_stats.dev_stats:
+                print("device used: ", repr(func.device))
+                assignedDevicesSet.add(func.device)
+            if (len(assignedDevicesSet) > 1):
+                raise Exception("Device assignment is not consistent. Rejecting the graph")
+        compare_tf_with_tvm([],[], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
+
+def _test_spop_resource_variables_test():
+    pass
+
 def test_forward_spop_positive():
     _test_spop_placeholder()
     _test_spop_function_invocation()
@@ -3384,12 +3496,20 @@ def test_forward_spop_positive():
     _test_spop_variables()
     _test_spop_constants()
 
+def test_forward_spop_negative():
+    #Uncomment the following test case to test that TVM rejects any TF stateful operations
+    # except StatefulPartitionedCall/PartitionedCall(as these two operators can still be used
+    # as container graphs to execute "stateless" operations internally
+    # _test_spop_stateful_test()
+    _test_spop_device_assignment()
+    _test_spop_resource_variables_test()
 #######################################################################
 # Main
 # ----
 if __name__ == '__main__':
     # StatefulPartitionedOp
     test_forward_spop_positive()
+    test_forward_spop_negative()
     # Transforms
     test_forward_slice()
     test_forward_transpose()
