@@ -426,6 +426,17 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
 #endif
       fcompute->addFnAttr(llvm::Attribute::NoInline);
     }
+    // Add alignment attribute if needed.
+#if TVM_LLVM_VERSION >= 50
+    auto f = alloc_storage_info_.find(var.get());
+    if (f != alloc_storage_info_.end()) {
+      unsigned align = f->second.alignment;
+      if (align > 1) {
+        auto attr = llvm::Attribute::get(*ctx_, llvm::Attribute::Alignment, align);
+        fcompute->addParamAttr(idx, attr);
+      }
+    }
+#endif
   }
   std::swap(function_, fcompute);
   std::swap(new_vmap, var_map_);
