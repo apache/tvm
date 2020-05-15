@@ -3168,9 +3168,7 @@ def test_forward_isfinite():
     _verify_infiniteness_ops(tf.is_finite, "isfinite")
 
 def _test_spop_placeholder_one():
-    tf.reset_default_graph()
-    g = tf.Graph()
-    with g.as_default():
+    with tf.Graph().as_default():
 
         @function.Defun(*[tf.int32]*2)
         def Forward(x,y):
@@ -3190,7 +3188,6 @@ def _test_spop_placeholder_one():
                             ['StatefulPartitionedCall:0',z2.name],  mode='vm', init_global_variables=True)
 
 def _test_spop_placeholder_two():
-
     with tf.Graph().as_default():
         data = np.ones([1], dtype=int).astype(np.int32)
         dataVar = tf.Variable(data, shape=data.shape)
@@ -3205,37 +3202,35 @@ def _test_spop_placeholder_two():
         compare_tf_with_tvm(data, ['pl1:0'], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
 def _test_spop_placeholder_three():
-    tf.disable_eager_execution()
-    t1 = tf.placeholder(tf.int32, (3, 3, 3), "t1")
-    t1_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
-    t2 = tf.placeholder(tf.int32, (3, 3, 3), "t2")
-    t2_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
+    with tf.Graph().as_default():
+        t1 = tf.placeholder(tf.int32, (3, 3, 3), "t1")
+        t1_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
+        t2 = tf.placeholder(tf.int32, (3, 3, 3), "t2")
+        t2_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
 
-    @tf.function
-    def add(x, y):
-        return tf.add(x, y, "add_t1_t2")
+        @tf.function
+        def add(x, y):
+            return tf.add(x, y, "add_t1_t2")
 
-    t3 = add(t1, t2)
-    compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
+        t3 = add(t1, t2)
+        compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
 
 def _test_spop_placeholder_four():
-    tf.disable_eager_execution()
-    t1_data = np.array([[-1, 1, 3], [2, -2, 4], [2, -3, 14]], dtype=np.int32)
-    t2_data = np.array([[-2, 1, 2], [12, -2, 14], [12, -3, 4]], dtype=np.int32)
-    tf.reset_default_graph()
-    t1 = tf.placeholder(tf.int32, name="t1")
-    t2 = tf.placeholder(tf.int32, name="t2")
+    with tf.Graph().as_default():
+        t1_data = np.array([[-1, 1, 3], [2, -2, 4], [2, -3, 14]], dtype=np.int32)
+        t2_data = np.array([[-2, 1, 2], [12, -2, 14], [12, -3, 4]], dtype=np.int32)
+        t1 = tf.placeholder(tf.int32, name="t1")
+        t2 = tf.placeholder(tf.int32, name="t2")
 
-    @tf.function
-    def add(x, y):
-        return tf.add(x, y, "add_t1_t2")
+        @tf.function
+        def add(x, y):
+            return tf.add(x, y, "add_t1_t2")
 
-    t3 = add(t1, t2)
-    compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
+        t3 = add(t1, t2)
+        compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
+
 
 def _test_spop_function_invocation_basic():
-    tf.disable_eager_execution()
-    tf.reset_default_graph()
     with tf.Graph().as_default():
 
         def fun1(a):
@@ -3255,9 +3250,30 @@ def _test_spop_function_invocation_basic():
 
         compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
 
+def _test_spop_function_invocation_basic2():
+    with tf.Graph().as_default():
+        t1 = tf.compat.v1.placeholder(tf.int32, (3, 3, 3), name="t1")
+        t1_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
+        t2 = tf.compat.v1.placeholder(tf.int32, name="t2")
+        t2_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
+
+        @tf.function
+        def myfunc(x, y):
+            return tf.add(x, y, "myfunc")
+
+        @tf.function
+        def myfunc2(x, y):
+            z = myfunc(x, y)
+            l = myfunc(z, y)
+            m = myfunc(l,z)
+            return tf.add(l, m, "myfunc2")
+
+        res1 = myfunc(t1, t2)
+        res2 = myfunc2(res1, t1)
+
+        compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [res2.name], mode='vm', init_global_variables=True)
+
 def _test_spop_function_invocation_autograph():
-    tf.disable_eager_execution()
-    tf.reset_default_graph()
     with tf.Graph().as_default():
 
         @tf.function
@@ -3280,7 +3296,6 @@ def _test_spop_function_invocation_autograph():
         compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
 
 def _test_spop_function_invocation_defun():
-    tf.reset_default_graph()
     with tf.Graph().as_default():
 
         def fun1(a):
@@ -3301,7 +3316,6 @@ def _test_spop_function_invocation_defun():
         compare_tf_with_tvm([],[], 'SpopFnInvocation:0', mode='vm', init_global_variables=True)
 
 def _test_spop_arithmetic():
-    tf.reset_default_graph()
     with tf.Graph().as_default():
         @function.Defun(*[dtypes.int32]*3)
         def arithmetic(m,x,c):
@@ -3316,7 +3330,6 @@ def _test_spop_arithmetic():
         compare_tf_with_tvm([],[],'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
 def _test_spop_control_flow():
-    tf.reset_default_graph()
     with tf.Graph().as_default():
 
         @function.Defun(*[dtypes.float32] * 2)
@@ -3335,10 +3348,7 @@ def _test_spop_control_flow():
         compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
 def _test_spop_variables():
-    tf.reset_default_graph()
-    g = tf.Graph()
-    with g.as_default():
-
+    with tf.Graph().as_default():
         const1 = tf.constant(10)
         const2 = tf.constant(20)
         var1 = tf.Variable(const1, dtype=tf.int32)
@@ -3352,7 +3362,6 @@ def _test_spop_variables():
         compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', init_global_variables=True, mode="vm")
 
 def _test_spop_constants():
-    tf.reset_default_graph()
     with tf.Graph().as_default():
         @function.Defun(*[dtypes.int32] * 2)
         def constantsFn(x, y):
@@ -3373,6 +3382,7 @@ def _test_spop_placeholder():
 
 def _test_spop_function_invocation():
     _test_spop_function_invocation_basic()
+    _test_spop_function_invocation_basic2()
     _test_spop_function_invocation_autograph()
     _test_spop_function_invocation_defun()
 
