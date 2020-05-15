@@ -142,7 +142,8 @@ void MixedModeVisitor::VisitExpr_(const TupleGetItemNode* op) {}
 
 void MixedModeMutator::VisitLeaf(const Expr& expr) {
   if (!memo_.count(expr)) {
-    this->DispatchVisitExpr(expr);
+    Expr ret = this->DispatchVisitExpr(expr);
+    memo_[expr] = ret;
   }
 }
 
@@ -163,9 +164,7 @@ Expr MixedModeMutator::VisitExpr(const Expr& expr) {
     return memo_[expr];
   } else {
     ExpandDataflow(expr, fcheck_visited, fvisit_leaf);
-    Expr ret = this->DispatchVisitExpr(expr);
-    memo_[expr] = ret;
-    return ret;
+    return memo_[expr];
   }
 }
 
