@@ -3414,18 +3414,20 @@ def _test_spop_device_assignment():
     with tf.Graph().as_default():
 
         def fun1(a):
-            with ops.device("/job:localhost/replica:0/task:0/device:CPU:1"):
+            with ops.device("/GPU:0"):
                 return tf.multiply(a,a)
 
         def fun2(b):
-            with ops.device("/job:localhost/replica:0/task:0/device:CPU:2"):
+            with ops.device("/job:localhost/replica:0/task:0/device:CPU:1"):
                 return tf.multiply(b,b)
 
         @function.Defun(dtypes.float32, dtypes.float32, func_name="Fun3")
         def fun3(x,y):
-            with ops.device("/GPU:2"):
+            with ops.device("/CPU:0"):
                 x = fun2(x)
+            with ops.device("/job:localhost/replica:0/task:0/device:CPU:1"):
                 y = fun1(y)
+            with ops.device("/job:localhost/replica:0/task:0/device:CPU:2"):
                 z = tf.add(x,y)
                 return z
 
@@ -3439,7 +3441,7 @@ def _test_spop_device_assignment():
 
         run_options = config_pb2.RunOptions(trace_level=config_pb2.RunOptions.FULL_TRACE)
         run_metadata = config_pb2.RunMetadata()
-        with tf.Session(config=config_pb2.ConfigProto(device_count={"CPU": 2, "GPU": 2})) as sess:
+        with tf.Session(config=config_pb2.ConfigProto(device_count={"CPU": 3, "GPU": 2})) as sess:
             sess.run(tf.global_variables_initializer())
             print("The output of device assignment run is = ",
                   sess.run(op, options=run_options, run_metadata=run_metadata))
@@ -3448,6 +3450,7 @@ def _test_spop_device_assignment():
                 print("device used: ", repr(func.device))
                 assignedDevicesSet.add(func.device)
             if (len(assignedDevicesSet) > 1):
+                print("no of devices used are: ",len(assignedDevicesSet))
                 raise Exception("Device assignment is not consistent. Rejecting the graph")
         compare_tf_with_tvm([],[], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
