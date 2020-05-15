@@ -37,10 +37,10 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/data_layout.h>
 
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
-#include <limits>
 
 namespace tvm {
 namespace relay {
