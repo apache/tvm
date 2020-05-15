@@ -3356,14 +3356,16 @@ def _test_spop_constants():
     with tf.Graph().as_default():
         @function.Defun(*[dtypes.int32] * 2)
         def constantsFn(x, y):
-            z = tf.add(x,y)
+            vv = tf.constant([2, 3, 4], name="vv")
+            z = tf.add(vv + x, y)
             return z
 
-        a = tf.constant(20, name = "a")
-        b = tf.constant(40, name = "b")
+        a = tf.constant(20000, name = "a")
+        b = tf.constant(40000, name = "b")
         spopFn = gen_functional_ops.StatefulPartitionedCall(args=[a, b], Tout=[tf.int32], f=constantsFn)
 
         compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
+
 
 def _test_spop_placeholder():
     _test_spop_placeholder_one()

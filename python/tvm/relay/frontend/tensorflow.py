@@ -1930,37 +1930,6 @@ def _add_n():
         return  _res
     return _impl
 
-def _partitioned_call():
-    def _impl(inputs, attr, params, mod, graph):
-        node_func_name = attr.get('f').name
-        func = next((f for f in graph.library.function if f.signature.name == node_func_name), None)
-        if func:
-            from tensorflow.python.framework import function_def_to_graph
-
-            # Convert function definition to graph
-            func_input_shapes = func.attr["_input_shapes"].list.shape
-            subgraph, flat_tensor_name = function_def_to_graph.function_def_to_graph_def(func, func_input_shapes)
-
-            # Computing subgraph's input shape dictionary
-            subgraph_shape_dict = {}
-            for f_arg, input in zip(func.signature.input_arg, inputs):
-                subgraph_shape_dict[f_arg.name] = _infer_shape(input)
-
-            # Construct relay nodes from the subgraph
-            g = GraphProto()
-            mod, params = g.from_tensorflow(subgraph, shape=subgraph_shape_dict)
-            wl = tvm.relay.var('partitioned_call')
-            sb = tvm.relay.scope_builder.ScopeBuilder()
-            sb.let(wl, mod["main"])
-            sb.ret(wl(*inputs))
-            op = sb.get()
-            return op
-    return _impl
-
-def _stateful_partitioned_call():
-    return _partitioned_call()
-
-
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -2064,7 +2033,6 @@ _convert_map = {
     'NotEqual'                          : _broadcast('not_equal'),
     'OneHot'                            : _one_hot(),
     'Pack'                              : _pack(),
-    'PartitionedCall'                   : _partitioned_call(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
     'Pow'                               : _elemwise('power'),
@@ -2101,7 +2069,6 @@ _convert_map = {
     'Square'                            : _square(),
     'SquaredDifference'                 : _squared_difference(),
     'Squeeze'                           : _squeeze(),
-    'StatefulPartitionedCall'           : _stateful_partitioned_call(),
     'StopGradient'                      : _identity(),
     'StridedSlice'                      : _stridedSlice(),
     'Sub'                               : _elemwise('subtract'),
@@ -2935,6 +2902,8 @@ class GraphProto(object):
                 pass
             elif node.op == "Const":
                 pass
+            elif node.op in ["PartitionedCall", "StatefulPartitionedCall"]:
+                pass
             else:
                 if any([node.op in t for t in [_identity_list, _convert_map,
                                                _convert_map_rnn,
@@ -3190,6 +3159,54 @@ class GraphProto(object):
 
         return op
 
+    def _partition_call_operator(self, inputs, attr):
+        node_func_name = attr.get('f').name
+        func = next((f for f in self._graph.library.function if f.signature.name == node_func_name), None)
+        if func:
+            from tensorflow.python.framework import function_def_to_graph
+
+            # Convert function definition to graph
+            func_input_shapes = func.attr["_input_shapes"].list.shape
+            subgraph, flat_tensor_name = function_def_to_graph.function_def_to_graph_def(func, func_input_shapes)
+
+            # Computing subgraph's input shape dictionary
+            subgraph_shape_dict, input_expr_dict = {}, {}
+            for f_arg, input in zip(func.signature.input_arg, inputs):
+                subgraph_shape_dict[f_arg.name] = _infer_shape(input)
+                input_expr_dict[f_arg.name] = input
+
+            outputs =  [out.name for out in func.signature.output_arg]
+            # Construct relay nodes from the subgraph
+            g = GraphProto()
+            sub_mod, sub_params = g.from_tensorflow(subgraph, shape=subgraph_shape_dict, outputs=['Add_1'])
+            self._params.update(sub_params)
+
+            param_exprs = []
+            free_vars = []
+            for param_expr in sub_mod["main"].params:
+                # sub_params is subset of mod["main"].params
+                param_name = param_expr.vid.name_hint
+                if param_name in sub_params.keys():
+                    param_exprs.append(param_expr)
+                    self._nodes[param_name] = param_expr
+                    free_vars.append(param_expr)
+                elif param_name in input_expr_dict.keys():
+                    param_exprs.append(input_expr_dict[param_name])
+                else:
+                    raise Exception("Input parameter {} not found".format(param_name))
+
+            wl = tvm.relay.var('func_{}'.format(func.signature.name))
+            sb = tvm.relay.scope_builder.ScopeBuilder()
+            func_expr = _function.Function(sub_mod["main"].params, sub_mod["main"].body)
+
+            g1 = tvm.relay.GlobalVar("g1")
+            self._mod[g1] = func_expr
+            loop_ret = g1(*param_exprs)
+            sb.ret(loop_ret)
+            ret = sb.get()
+
+            return ret
+
     def _convert_operator(self, op_name, inputs, attrs,
                           graph, identity_list=None, convert_map=None):
         """Convert from Tensorflow operator to relay operator.
@@ -3222,9 +3239,7 @@ class GraphProto(object):
         if op_name in identity_list:
             sym = get_relay_op(op_name)(*inputs, **attrs)
         elif op_name in convert_map:
-            if op_name in ["PartitionedCall", "StatefulPartitionedCall"]:
-                sym = convert_map[op_name](inputs, attrs, self._params, self._mod, self._graph)
-            elif _need_prelude_for_shape_inference(op_name):
+            if _need_prelude_for_shape_inference(op_name):
                 sym = convert_map[op_name](inputs, attrs, self._params, self._prelude)
             else:
                 sym = convert_map[op_name](inputs, attrs, self._params, self._mod)
@@ -3233,6 +3248,9 @@ class GraphProto(object):
             sym = self._convert_rnn_operator(op_name, inputs, attrs,
                                              self._params, graph,
                                              convert_map_rnn)
+
+        elif op_name in ["PartitionedCall", "StatefulPartitionedCall"]:
+                sym = self._partition_call_operator(inputs, attrs)
         else:
             raise NotImplementedError("Operator {} not implemented.".format(op_name))
         return sym
