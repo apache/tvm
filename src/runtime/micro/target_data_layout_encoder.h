@@ -26,7 +26,7 @@
 
 #include <vector>
 
-#include "host_driven/utvm_runtime.h"
+#include "host_driven/utvm_runtime_enum.h"
 
 namespace tvm {
 namespace runtime {

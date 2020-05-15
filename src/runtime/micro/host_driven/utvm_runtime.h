@@ -32,21 +32,7 @@ extern "C" {
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/c_runtime_api.h>
 
-/*!
- * \brief TODO
- */
-enum UTVMReturnCode {
-  UTVM_ERR_OK = 0,
-  UTVM_ERR_NOT_FINISHED = -1,
-  UTVM_ERR_TIMER_NOT_IMPLEMENTED = -2,
-  UTVM_ERR_TIMER_OVERFLOW = -3,
-  UTVM_ERR_WS_DOUBLE_FREE = -4,
-  UTVM_ERR_WS_OUT_OF_SPACE = -5,
-  UTVM_ERR_WS_TOO_MANY_ALLOCS = -6,
-  UTVM_ERR_WS_ZERO_SIZE_ALLOC = -7,
-  UTVM_ERR_WS_UNALIGNED_START = -8,
-  UTVM_ERR_WS_UNALIGNED_ALLOC_SIZE = -9,
-};
+#include "utvm_runtime_enum.h"
 
 /*!
  * \brief Task structure for uTVM

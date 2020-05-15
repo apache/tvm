@@ -99,5 +99,33 @@ size_t GetSectionSize(const std::string& binary_path, SectionKind section,
   return UpperAlignValue(size, word_size.bytes());
 }
 
+std::ostream& operator<<(std::ostream& os, const TargetVal& v) {
+  std::ios_base::fmtflags f(os.flags());
+  os << std::dec << "0x";
+  switch (v.width_bits()) {
+    case 8:
+      os << uint8_t(v.uint32());
+      break;
+    case 16:
+      os << uint16_t(v.uint32());
+      break;
+    case 32:
+      os << v.uint32();
+      break;
+    case 64:
+      os << v.uint64();
+      break;
+    default:
+      os << (v.uint64() & ((1 << v.width_bits()) - 1));
+  }
+  os.flags(f);
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const TargetPtr& v) {
+  os << "*" << v.value_;
+  return os;
+}
+
 }  // namespace runtime
 }  // namespace tvm
