@@ -733,29 +733,30 @@ def np_bf16_cast_and_cast_back(arr):
     ''' Convert a numpy array of float to bf16 and cast back'''
     return np_bf162np_float(np_float2np_bf16(arr))
 
-def test_llvm_bf16(do_vectorize):
-    np.random.seed(122)
-    A = te.placeholder((32, ), dtype='bf16')
-    B = te.placeholder((32, ), dtype='bf16')
-    d = te.compute((32, ), lambda x: A[x] + B[x])
-    sch = te.create_schedule(d.op)
-    if do_vectorize:
-        sch[d].vectorize(d.op.axis[0])
-    module = tvm.build(sch, [A, B, d])
-    npa = np.random.rand(32).astype('float32')
-    npb = np.random.rand(32).astype('float32')
-    va = np_bf16_cast_and_cast_back(npa)
-    vb = np_bf16_cast_and_cast_back(npb)
-    res = np_bf16_cast_and_cast_back(va + vb)
-    a_ = np_float2tvm_bf16(npa)
-    b_ = np_float2tvm_bf16(npb)
-    c_ = tvm.nd.empty((32,), 'bf16')
-    module(a_, b_, c_)
-    tvm.testing.assert_allclose(np_bf162np_float(c_.asnumpy()), res)
-
+def test_llvm_bf16():
+    def dotest(do_vectorize):
+        np.random.seed(122)
+        A = te.placeholder((32, ), dtype='bf16')
+        B = te.placeholder((32, ), dtype='bf16')
+        d = te.compute((32, ), lambda x: A[x] + B[x])
+        sch = te.create_schedule(d.op)
+        if do_vectorize:
+            sch[d].vectorize(d.op.axis[0])
+        module = tvm.build(sch, [A, B, d])
+        npa = np.random.rand(32).astype('float32')
+        npb = np.random.rand(32).astype('float32')
+        va = np_bf16_cast_and_cast_back(npa)
+        vb = np_bf16_cast_and_cast_back(npb)
+        res = np_bf16_cast_and_cast_back(va + vb)
+        a_ = np_float2tvm_bf16(npa)
+        b_ = np_float2tvm_bf16(npb)
+        c_ = tvm.nd.empty((32,), 'bf16')
+        module(a_, b_, c_)
+        tvm.testing.assert_allclose(np_bf162np_float(c_.asnumpy()), res)
+    dotest(true)
+    dotest(false)
+    
 if __name__ == "__main__":
-    test_llvm_bf16(do_vectorize=True)
-    test_llvm_bf16(do_vectorize=False)
     test_multiple_func()
     test_llvm_large_uintimm()
     test_llvm_import()
@@ -777,3 +778,4 @@ if __name__ == "__main__":
     test_llvm_fp_math()
     test_dwarf_debug_information()
     test_llvm_shuffle()
+    test_llvm_bf16()
