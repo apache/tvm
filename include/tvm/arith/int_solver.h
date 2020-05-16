@@ -265,6 +265,8 @@ class IntConstraintsTransform : public ObjectRef {
 
 Map<Var, Range> ConvertGroupedBoundToRange(Map<Var, IntGroupedBounds> bounds);
 
+typedef std::pair<IntConstraints, Map<Var, IntGroupedBounds> > PartialSolvedInequalities;
+
 /*!
  * \brief Obtain Smith Normal Form of linear equation A x = y.
  *        Smith Normal Form of matrix A_{mxn} is S_{mxn} = U_{mxm} A_{mxn} V_{nxn},

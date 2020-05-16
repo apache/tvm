@@ -379,6 +379,65 @@ IntConstraints SolveLinearInequalities(const IntConstraints& system_to_solve) {
   return res;
 }
 
+IntConstraints SolveInequalitiesRange(const IntConstraints& inequalities) {
+  // Resulting ranges will contain ranges for the new variables and for the variables that are
+  // not in the inequalities->variables but are in inequalities->ranges (jac_xxx)
+  Map<Var, IntGroupedBounds> res_ranges;
+  // we get a set of equality, lower, upper bound of each variable.
+  auto solved_system = SolveLinearInequalities(inequalities);
+  LOG(INFO) << "solved system = " << solved_system;
+
+  Array<Var> res_variables;
+  Array<PrimExpr> res_relations;
+
+  // this keeps being updated during determining the range of each variable.
+  Map<Var, Range> vranges = ConvertGroupedBoundToRange(inequalities->ranges);
+
+  // We process variables in the reverse direction to start with the most independent one.
+  // This order is needed to compute new ranges.
+  for (auto it = inequalities->variables.rbegin(); it != inequalities->variables.rend(); ++it) {
+    arith::Analyzer analyzer;
+    analyzer.Bind(vranges);
+
+    const Var& var = *it;
+    auto bnd = solved_system->ranges[var];
+    if (is_one(bnd->coef) && !bnd->equal.empty()) {
+      // There is an equation of the form `v == expr`, so this variable can be completely removed.
+      // Note that we use the 0-th expression because they are ordered by complexity, so it must be
+      // the simplest one.
+      Range best_range(bnd->equal[0], analyzer.Simplify(bnd->equal[0] + 1));
+      res_ranges.Set(var, IntGroupedBounds::range(best_range));
+      vranges.Set(var, best_range);
+    } else {
+      if (vranges.count(var) > 0) {
+        bnd = bnd + vranges[var];
+      }
+      LOG(INFO) << "bnd = " << bnd;
+      LOG(INFO) << "vranges = " << vranges;
+
+      auto best_range = bnd.FindBestRange(vranges);
+      LOG(INFO) << "best range for " << var << " = " << best_range;
+
+      res_ranges.Set(var, IntGroupedBounds::range(best_range));
+      vranges.Set(var, best_range);
+    }
+  }
+
+  // Add the original conditions (with variables substituted) to the resulting conditions
+  arith::Analyzer analyzer;
+  analyzer.Bind(vranges);
+  for (const PrimExpr& old_cond : solved_system.as_conditions()) {
+    if (!analyzer.CanProve(old_cond)) {
+      // those not represented in vranges (res_ranges)
+      res_relations.push_back(old_cond);
+    }
+  }
+
+  IntConstraints system(inequalities->variables, res_ranges, res_relations);
+
+  return system;
+}
+
 // Deskew the given domain
 IntConstraintsTransform DeskewRange(const IntConstraints& inequalities) {
   // Resulting ranges will contain ranges for the new variables and for the variables that are
@@ -396,7 +455,6 @@ IntConstraintsTransform DeskewRange(const IntConstraints& inequalities) {
   Array<PrimExpr> res_relations;
 
   // this keeps being updated during determining the range of each variable.
-  // TODO: vrange must be non-empty ?
   Map<Var, Range> vranges = ConvertGroupedBoundToRange(inequalities->ranges);
   analyzer.Bind(vranges);
 
@@ -474,6 +532,18 @@ TVM_REGISTER_GLOBAL("arith.SolveLinearInequalities")
       *ret = SolveLinearInequalities(problem);
     } else {
       LOG(FATAL) << "arith.SolveLinearInequalities expects 1 or 3 arguments, gets " << args.size();
+    }
+  });
+
+TVM_REGISTER_GLOBAL("arith.SolveInequalitiesRange")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    if (args.size() == 1) {
+      *ret = SolveInequalitiesRange(args[0]);
+    } else if (args.size() == 3) {
+      IntConstraints problem(args[0], args[1], args[2]);
+      *ret = SolveInequalitiesRange(problem);
+    } else {
+      LOG(FATAL) << "arith.SolveInequalitiesRange expects 1 or 3 arguments, gets " << args.size();
     }
   });
 

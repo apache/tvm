@@ -143,3 +143,13 @@ def solve_linear_inequalities(equations, variables=None, ranges=None):
         ranges = {v: r if isinstance(r, IntGroupedBounds) else IntGroupedBounds.make_by_range(r)
                   for (v, r) in ranges.items()}
     return _ffi_api.DeskewRange(variables, ranges, equations)
+
+
+def solve_linear_inequalities2(equations, variables=None, ranges=None):
+    if isinstance(equations, IntConstraints):
+        return _ffi_api.SolveInequalitiesRange(equations)
+    if ranges is not None:
+        assert isinstance(ranges, dict)
+        ranges = {v: r if isinstance(r, IntGroupedBounds) else IntGroupedBounds.make_by_range(r)
+                  for (v, r) in ranges.items()}
+    return _ffi_api.SolveInequalitiesRange(variables, ranges, equations)

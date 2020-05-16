@@ -115,6 +115,12 @@ def test_simple():
     assert ir.structural_equal(solution.dst_to_src[x_new], x - y - 10)
     assert ir.structural_equal(solution.dst_to_src[y_new], y)
 
+    sol = arith.solve_linear_inequalities2([
+        tvm.tir.LE(x + y, 20),
+        tvm.tir.GE(x - y, 10),
+    ], [x, y], ranges)
+    print(sol)
+
 
 def test_equal():
     x, y = te.var("x"), te.var("y")
@@ -126,6 +132,13 @@ def test_equal():
     ], [x, y])
 
     print(solution)
+
+    sol = arith.solve_linear_inequalities2([
+        tvm.tir.GE(x + y, 10),
+        tvm.tir.GE(x - y, 2),
+        tvm.tir.LE(x, 6),
+    ], [x, y])
+    print(sol)
 
 
 def test_multi_equal():
@@ -145,4 +158,4 @@ if __name__ == "__main__":
     # test_solve_system_of_inequalities()
     test_simple()
     test_equal()
-    test_multi_equal()
+    # test_multi_equal()
