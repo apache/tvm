@@ -26,8 +26,10 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <unordered_map>
 #include <vector>
+#include "analyzer.h"
 
 namespace tvm {
 namespace arith {
@@ -35,6 +37,73 @@ namespace arith {
 using tir::Var;
 using tir::VarNode;
 using tir::IterVar;
+
+class IntGroupedBoundsNode : public Object {
+ public:
+  PrimExpr coef;
+  Array<PrimExpr> lower;
+  Array<PrimExpr> equal;
+  Array<PrimExpr> upper;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("coef", &coef);
+    v->Visit("lower", &lower);
+    v->Visit("equal", &equal);
+    v->Visit("upper", &upper);
+  }
+
+  bool SEqualReduce(const IntGroupedBoundsNode* other, SEqualReducer eq) const {
+    return
+        eq(coef, other->coef) &&
+        eq(lower, other->lower) &&
+        eq(equal, other->equal) &&
+        eq(upper, other->upper);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(coef);
+    hash_reduce(lower);
+    hash_reduce(equal);
+    hash_reduce(upper);
+  }
+
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const char* _type_key = "arith.IntGroupedBounds";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IntGroupedBoundsNode, Object);
+};
+
+/*!
+ * \brief Managed reference to IntGroupedBoundsNode.
+ * \sa IntGroupedBoundsNode
+ */
+class IntGroupedBounds : public ObjectRef {
+ public:
+  /*! TODO: comments
+   * \brief Constructor by fields
+   */
+  TVM_DLL IntGroupedBounds(PrimExpr coef,
+                           Array<PrimExpr> lower,
+                           Array<PrimExpr> equal,
+                           Array<PrimExpr> upper);
+
+  /*!
+   * \brief Construct bounds from a range.
+   * \param r The range
+   * \return constructed bounds.
+   */
+  static IntGroupedBounds range(const Range& r);
+
+  /*!
+   * \brief Perform substitution on all components of the struct.
+   */
+  IntGroupedBounds Substitute(const Map<Var, PrimExpr>& subst) const;
+
+  Range FindBestRange(const Map<Var, Range>& vranges_addl = {}) const;
+
+  IntGroupedBounds operator+(const Range& r);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(IntGroupedBounds, ObjectRef, IntGroupedBoundsNode);
+};
 
 /*!
  * \brief Represent integer constrains including (integer) variables, their ranges and
@@ -48,7 +117,7 @@ class IntConstraintsNode : public Object {
   // e.g., 1 <= \alpha <= N, etc.
   // it is absolutely ok to include ranges for parameters
   // (variables that are not in this->variables) in this map
-  Map<Var, Range> ranges;
+  Map<Var, IntGroupedBounds> ranges;
   // linear equalities or inequalities
   // e.g., A \alpha = \beta or A \alpha <= \beta
   Array<PrimExpr> relations;
@@ -91,8 +160,33 @@ class IntConstraints : public ObjectRef {
    *                  (either equations or inequalities)
    */
   TVM_DLL IntConstraints(Array<Var> variables,
-                         Map<Var, Range> ranges,
+                         Map<Var, IntGroupedBounds> ranges,
                          Array<PrimExpr> relations);
+
+  /*!
+   * \brief Combine the information into an array of (in)equalities.
+   */
+  Array<PrimExpr> as_conditions() const {
+    Array<PrimExpr> res;
+    for (const Var& v : operator->()->variables) {
+      CHECK(operator->()->ranges.count(v) > 0);
+      const auto& bnds = operator->()->ranges[v];
+      PrimExpr lhs = bnds->coef * v;
+      for (const PrimExpr& rhs : bnds->equal) {
+        res.push_back(tir::EQNode::make(lhs, rhs));
+      }
+      for (const PrimExpr& rhs : bnds->lower) {
+        res.push_back(tir::GENode::make(lhs, rhs));
+      }
+      for (const PrimExpr& rhs : bnds->upper) {
+        res.push_back(tir::LENode::make(lhs, rhs));
+      }
+    }
+    for (const PrimExpr& e : operator->()->relations) {
+      res.push_back(e);
+    }
+    return res;
+  }
 
   TVM_DEFINE_OBJECT_REF_METHODS(IntConstraints, ObjectRef, IntConstraintsNode);
 };
@@ -168,6 +262,8 @@ class IntConstraintsTransform : public ObjectRef {
 
   TVM_DEFINE_OBJECT_REF_METHODS(IntConstraintsTransform, ObjectRef, IntConstraintsTransformNode);
 };
+
+Map<Var, Range> ConvertGroupedBoundToRange(Map<Var, IntGroupedBounds> bounds);
 
 /*!
  * \brief Obtain Smith Normal Form of linear equation A x = y.

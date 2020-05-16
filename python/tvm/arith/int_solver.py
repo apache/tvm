@@ -20,6 +20,38 @@ from tvm.runtime import Object
 from . import _ffi_api
 
 
+@tvm._ffi.register_object("arith.IntGroupedBounds")
+class IntGroupedBounds(Object):
+    # TODO: doc
+    def __init__(self, coef, lower, equal, upper):
+        self.__init_handle_by_constructor__(
+            _ffi_api.IntGroupedBounds, coef, lower, equal, upper)
+
+    @staticmethod
+    def make_by_range(r):
+        """Construct a IntGroupedBounds by Range.
+
+        Parameters TODO
+        ----------
+        min_value : PrimExpr
+            The minimum value of the range.
+
+        extent : PrimExpr
+            The extent of the range.
+
+        Returns
+        -------
+        rng : Range
+            The constructed range.
+        """
+        return _ffi_api.int_grouped_bounds_by_range(r)
+
+    def find_best_range(self):
+        """Return the best range from the grouped bounds.
+        """
+        return _ffi_api.IntGroupedBounds_FindBestRange(self)
+
+
 @tvm._ffi.register_object("arith.IntConstraints")
 class IntConstraints(Object):
     """Represent a set of integer constraints including variables, their ranges and
@@ -96,10 +128,18 @@ def solve_linear_equations(equations, variables=None, ranges=None):
     """
     if isinstance(equations, IntConstraints):
         return _ffi_api.SolveLinearEquations(equations)
+    if ranges is not None:
+        assert isinstance(ranges, dict)
+        ranges = {v: r if isinstance(r, IntGroupedBounds) else IntGroupedBounds.make_by_range(r)
+                  for (v, r) in ranges.items()}
     return _ffi_api.SolveLinearEquations(variables, ranges, equations)
 
 
 def solve_linear_inequalities(equations, variables=None, ranges=None):
     if isinstance(equations, IntConstraints):
-        return _ffi_api.SolveLinearInequalities(equations)
-    return _ffi_api.SolveLinearInequalities(variables, ranges, equations)
+        return _ffi_api.DeskewRange(equations)
+    if ranges is not None:
+        assert isinstance(ranges, dict)
+        ranges = {v: r if isinstance(r, IntGroupedBounds) else IntGroupedBounds.make_by_range(r)
+                  for (v, r) in ranges.items()}
+    return _ffi_api.DeskewRange(variables, ranges, equations)

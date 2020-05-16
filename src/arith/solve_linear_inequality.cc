@@ -44,59 +44,6 @@ namespace arith {
 using namespace tvm::runtime;
 using namespace tvm::te;
 
-struct VarBounds {
-  PrimExpr coef;
-  Array<PrimExpr> lower;
-  Array<PrimExpr> equal;
-  Array<PrimExpr> upper;
-
- /*!
-  * \brief Perform substitution on all components of the struct.
-  */
-  VarBounds substitute(const Map<Var, PrimExpr>& subst) const {
-      auto apply_fun = [&subst](const PrimExpr& e) { return Substitute(e, subst); };
-      return {Substitute(coef, subst),
-          tir::UpdateArray(lower, apply_fun),
-          tir::UpdateArray(equal, apply_fun),
-          tir::UpdateArray(upper, apply_fun)};
-  }
-};
-
-// TODO
-struct SolveSystemOfInequalitiesResult {
-  Array<Var> variables;
-  std::unordered_map<const VarNode*, VarBounds> bounds;
-  Array<PrimExpr> other_conditions;
-
-  /*!
-   * \brief Combine the information into an array of (in)equalities.
-   */
-  Array<PrimExpr> as_conditions() const {
-    Array<PrimExpr> res;
-    for (const Var& v : variables) {
-      auto it = bounds.find(v.get());
-      CHECK(it != bounds.end());
-      const VarBounds& bnds = it->second;
-      PrimExpr lhs = bnds.coef * v;
-      for (const PrimExpr& rhs : bnds.equal) {
-        res.push_back(EQNode::make(lhs, rhs));
-      }
-      for (const PrimExpr& rhs : bnds.lower) {
-        res.push_back(GENode::make(lhs, rhs));
-      }
-      for (const PrimExpr& rhs : bnds.upper) {
-        res.push_back(LENode::make(lhs, rhs));
-      }
-    }
-    for (const PrimExpr& e : other_conditions) {
-      res.push_back(e);
-    }
-    return res;
-  }
-};
-
-////////////////////////////////////////////////////
-
 /*
 struct ExprLess {
   bool operator()(const PrimExpr& l, const PrimExpr& r) const {
@@ -189,13 +136,13 @@ void AddInequality(std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>
   inequality_set.insert(new_ineq);
 }
 
-void ClassifyPolarity(const Var& var,
-                      std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>& current_ineq_set,
-                      std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>& next_ineq_set,
-                      std::vector<PrimExpr>& rest,
-                      std::vector<std::pair<int64_t, PrimExpr> >& coef_pos,
-                      std::vector<std::pair<int64_t, PrimExpr> >& coef_neg,
-                      Analyzer &analyzer) {
+void ClassifyByPolarity(const Var &var,
+                        std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> &current_ineq_set,
+                        std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> &next_ineq_set,
+                        std::vector<PrimExpr> &rest,
+                        std::vector<std::pair<int64_t, PrimExpr> > &coef_pos,
+                        std::vector<std::pair<int64_t, PrimExpr> > &coef_neg,
+                        Analyzer &analyzer) {
   // Take formulas from current_ineq_set and classify them according to polarity wrt var
   // and store to coef_pos and coef_neg respectively.
   for (const PrimExpr& ineq : current_ineq_set) {
@@ -253,16 +200,13 @@ void MoveEquality(std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>&
   }
 }
 
-SolveSystemOfInequalitiesResult SolveLinearInequalities(const IntConstraints& system_to_solve) {
+IntConstraints SolveLinearInequalities(const IntConstraints& system_to_solve) {
   LOG(INFO) << "solving inequalities " << system_to_solve;
 
-  arith::Analyzer analyzer;
-  for (auto kv : system_to_solve->ranges) {
-    analyzer.Bind(kv.first, kv.second);
-  }
+  Map<Var, Range> vranges = ConvertGroupedBoundToRange(system_to_solve->ranges);
 
-  SolveSystemOfInequalitiesResult res;
-  res.variables = system_to_solve->variables;
+  arith::Analyzer analyzer;
+  analyzer.Bind(vranges);
 
   // The algorithm consists in doing the following things for each variable v
   // - Take formulas from `current_ineq_set_to_solve` and classify them according to polarity wrt v
@@ -294,10 +238,9 @@ SolveSystemOfInequalitiesResult SolveLinearInequalities(const IntConstraints& sy
              coef_pos,
              coef_neg);
 
+  Map<Var, IntGroupedBounds> res_bounds;
   for (const Var& v : system_to_solve->variables) {
-    std::cout << "Working on " << v << "\n";
-    // TODO:
-    CHECK(!res.bounds.count(v.get())) <<
+    CHECK(!res_bounds.count(v)) <<
       "Variable " << v << " appears more than one time in the `variables` which might be a bug";
 
     next_ineq_set_to_solve.clear();
@@ -306,14 +249,14 @@ SolveSystemOfInequalitiesResult SolveLinearInequalities(const IntConstraints& sy
 
     // Add bounds from vranges
     if (system_to_solve->ranges.count(v)) {
-      const Range& range = (system_to_solve->ranges)[v];
+      const Range& range = vranges[v];
       PrimExpr range_lbound = analyzer.Simplify(range->min);
       PrimExpr range_ubound = analyzer.Simplify(range->min + range->extent - 1);
       coef_neg.push_back({-1, range_lbound});
       coef_pos.push_back({1, -range_ubound});
     }
 
-    ClassifyPolarity(v, current_ineq_set_to_solve, next_ineq_set_to_solve, rest, coef_pos, coef_neg, analyzer);
+    ClassifyByPolarity(v, current_ineq_set_to_solve, next_ineq_set_to_solve, rest, coef_pos, coef_neg, analyzer);
 
     DebugPrint(current_ineq_set_to_solve,
                next_ineq_set_to_solve,
@@ -330,7 +273,6 @@ SolveSystemOfInequalitiesResult SolveLinearInequalities(const IntConstraints& sy
         // eliminate the current variable
         PrimExpr new_lhs = c_neg*neg.second - c_pos*pos.second;
         PrimExpr new_ineq = LENode::make(new_lhs, make_zero(pos.second.dtype()));
-        LOG(INFO) << "get new ineq " << new_ineq;
         // it helps to simplify (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // otherwise it's (y*2) - 10 <= 0
         new_ineq = NormalizeComparisons()(analyzer.rewrite_simplify(analyzer.Simplify(new_ineq)));
@@ -373,13 +315,6 @@ SolveSystemOfInequalitiesResult SolveLinearInequalities(const IntConstraints& sy
           ++iter;
         }
       }
-      /*
-      upper_bounds.erase(
-        std::remove_if(upper_bounds.begin(), upper_bounds.end(),
-                       [&bound, &analyzer](const PrimExpr& o)
-                       { return analyzer.CanProve(o - bound >= 0); }),
-        upper_bounds.end());
-      */
       // Add the upper bound
       upper_bounds.insert(bound);
     }
@@ -400,11 +335,6 @@ SolveSystemOfInequalitiesResult SolveLinearInequalities(const IntConstraints& sy
           ++iter;
         }
       }
-//      lower_bounds.erase(
-//        std::remove_if(lower_bounds.begin(), lower_bounds.end(),
-//                       [&bound, &analyzer](const PrimExpr& o)
-//                       { return analyzer.CanProve(o - bound <= 0); }),
-//        lower_bounds.end());
       // Add the lower bound
       lower_bounds.insert(bound);
     }
@@ -414,48 +344,49 @@ SolveSystemOfInequalitiesResult SolveLinearInequalities(const IntConstraints& sy
     MoveEquality(upper_bounds, lower_bounds, equal);
 
     // Write it to the result.
-    auto& bnds = res.bounds[v.get()];
-    bnds.coef = make_const(v.dtype(), coef_lcm);
-    bnds.equal = Array<PrimExpr>(equal.begin(), equal.end());
-    bnds.lower = Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end());
-    bnds.upper = Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end());
-    LOG(INFO) << "Bound of " << v << " coef = " << bnds.coef
-              << " EQUAL: " << bnds.equal
-              << " LOWER: " << bnds.lower
-              << " UPPER: " << bnds.upper;
+    IntGroupedBounds bnds(make_const(v.dtype(), coef_lcm),
+        Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end()),
+        Array<PrimExpr>(equal.begin(), equal.end()),
+        Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end())
+    );
+    res_bounds.Set(v, bnds);
+    LOG(INFO) << "Bound of " << v << bnds;
 
     std::swap(current_ineq_set_to_solve, next_ineq_set_to_solve);
   }
 
-  // Everything that is left goes to res.other_conditions
+  // Everything that is left goes to res.relations
+  Array<PrimExpr> other_conditions;
   for (const PrimExpr& e : current_ineq_set_to_solve) {
     PrimExpr e_simp = analyzer.Simplify(e);
     if (is_const_int(e_simp, 0)) {
       // contradiction detected
-      res.other_conditions = {const_false()};
-      return res;
+      other_conditions = {const_false()};
+      break;
     } else if (is_const_int(e_simp, 1)) {
       continue;
     } else {
-      res.other_conditions.push_back(e_simp);
+      other_conditions.push_back(e_simp);
     }
   }
 
   for (const PrimExpr& e : rest) {
-    res.other_conditions.push_back(e);
+    other_conditions.push_back(e);
   }
+
+  IntConstraints res(system_to_solve->variables, res_bounds, other_conditions);
 
   return res;
 }
 
 // Deskew the given domain
-IntConstraintsTransform DeskewDomain(const IntConstraints& inequalities) {
+IntConstraintsTransform DeskewRange(const IntConstraints& inequalities) {
   // Resulting ranges will contain ranges for the new variables and for the variables that are
   // not in the inequalities->variables but are in inequalities->ranges (jac_xxx)
-  Map<Var, Range> res_ranges;
+  Map<Var, IntGroupedBounds> res_ranges;
   // we get a set of equality, lower, upper bound of each variable.
   auto solved_system = SolveLinearInequalities(inequalities);
-  LOG(INFO) << "solved system = " << solved_system.as_conditions();
+  LOG(INFO) << "solved system = " << solved_system;
 
   arith::Analyzer analyzer;
 
@@ -463,110 +394,52 @@ IntConstraintsTransform DeskewDomain(const IntConstraints& inequalities) {
   Map<Var, PrimExpr> res_new_to_old;
   Array<Var> res_variables;
   Array<PrimExpr> res_relations;
-  std::unordered_map<const VarNode*, IntSet> new_var_intsets;
 
   // this keeps being updated during determining the range of each variable.
   // TODO: vrange must be non-empty ?
-  Map<Var, Range> vranges = inequalities->ranges;
-  // Initialize new_var_intsets with the old var intsets
-  for (const auto& pair : inequalities->ranges) {
-    new_var_intsets[pair.first.get()] = IntSet::range(pair.second);
-    analyzer.Bind(pair.first, pair.second);
-  }
+  Map<Var, Range> vranges = ConvertGroupedBoundToRange(inequalities->ranges);
+  analyzer.Bind(vranges);
 
   // We process variables in the reverse direction to start with the most independent one.
   // This order is needed to compute new ranges.
   for (auto it = inequalities->variables.rbegin(); it != inequalities->variables.rend(); ++it) {
     const Var& var = *it;
-    auto& bnd = solved_system.bounds[var.get()];
+    auto bnd = solved_system->ranges[var];
     // Note that we replace old vars with new ones
-    bnd = bnd.substitute(res_old_to_new);
+    bnd = bnd.Substitute(res_old_to_new);
 
-    if (is_one(bnd.coef) && !bnd.equal.empty()) {
+    if (is_one(bnd->coef) && !bnd->equal.empty()) {
       // There is an equation of the form `v == expr`, so this variable can be completely removed.
       // Note that we use the 0-th expression because they are ordered by complexity, so it must be
       // the simplest one.
       // TODO
-      res_old_to_new.Set(var, bnd.equal[0]);
+      res_old_to_new.Set(var, bnd->equal[0]);
     } else {
-      std::vector<PrimExpr> lowers(bnd.equal.begin(), bnd.equal.end());
-      std::vector<PrimExpr> uppers(bnd.equal.begin(), bnd.equal.end());
-      for (const auto& expr : bnd.lower) lowers.push_back(expr);
-      for (const auto& expr : bnd.upper) uppers.push_back(expr);
-
-      // TODO: remove following
-//      std::sort(lowers.begin(), lowers.end(), ExprLess());
-//      std::sort(uppers.begin(), uppers.end(), ExprLess());
-
-      // Here we will try all pairs of lower and upper bounds and find the best pair, that is, the
-      // pair with the minimal difference between the upper and the lower.
-      // Note that the bounds are for v, not for v*coef, because we will need bounds for v anyway
-
-      // The lower bound of the best pair so far
-      PrimExpr best_lower;
       if (vranges.count(var) > 0) {
-        best_lower = vranges[var]->min;
-      }
-      // The difference between the upper and the lower of the best pair, maybe overapproximation
-      PrimExpr best_diff_over;
-      if (vranges.count(var) > 0) {
-        best_diff_over = vranges[var]->extent - 1;
+        bnd = bnd + vranges[var];
       }
 
-      for (const PrimExpr& low : lowers) {
-        for (const PrimExpr& upp : uppers) {
-          PrimExpr diff_1 = analyzer.Simplify(floordiv(upp - low, bnd.coef));
-          // Since diff may depend on some other variables, we compute its overapproximation
-          PrimExpr diff_over_1 = analyzer.Simplify(EvalSet(diff_1, new_var_intsets).max());
+      auto best_range = bnd.FindBestRange(vranges);
+      LOG(INFO) << "best range for " << var << " = " << best_range;
 
-          // low is the lower bound for v*coef, but we need the lower bound for v.
-          // We use rounding-up division to compute it. Since we want to use a single formula
-          PrimExpr low_divided = analyzer.Simplify(floordiv(low + bnd.coef - 1, bnd.coef));
-
-          // Compute another difference which may be more precise (or not).
-          PrimExpr diff_2 = analyzer.Simplify(floordiv(upp, bnd.coef) - low_divided);
-          PrimExpr diff_over_2 = analyzer.Simplify(EvalSet(diff_2, new_var_intsets).max());
-
-          PrimExpr diff_over = analyzer.CanProve(diff_over_2 - diff_over_1 < 0)
-                               ? diff_over_2 : diff_over_1;
-
-          // If it is provable that the new one is strictly better than the current best one,
-          // then replace it. Note that we are biased towards earlier pairs which should be simpler.
-          if (!best_diff_over.defined() || analyzer.CanProve(diff_over - best_diff_over < 0)) {
-            best_lower = low_divided;
-            best_diff_over = diff_over_1;
-          }
-        }
-      }
-      LOG(INFO) << var << " DONE for each low - upp best lower = " << best_lower;
-      if (!best_lower.defined()) {
-        continue;
-      }
-
-      // TODO:
-//      std::string suffix = ExprDeepEqual()(best_lower, vranges[var]->min) ? "" : ".shifted";
       std::string suffix = ".shifted";
       Var new_var = var.copy_with_suffix(suffix);
 
-      PrimExpr diff = analyzer.Simplify(best_diff_over);
-
-      if (is_const_int(diff, 0)) {
+      if (is_const_int(best_range->extent, 1)) {
         // Don't create an itervar, just replace it everywhere with its min
-        res_old_to_new.Set(var, best_lower);
+        res_old_to_new.Set(var, best_range->min);
       } else {
         // created new_var starts from 0
-        res_old_to_new.Set(var, new_var + best_lower);
+        res_old_to_new.Set(var, new_var + best_range->min);
         // Note that we are substituting old with new, so best_lower contains new var,
         // that is we have to substitute new with old in best_lower here
         res_new_to_old.Set(new_var,
-                           analyzer.Simplify(var - Substitute(best_lower, res_new_to_old)));
-
-        new_var_intsets[new_var.get()] = IntSet::interval(make_zero(new_var.dtype()), diff);
+                           analyzer.Simplify(var - Substitute(best_range->min, res_new_to_old)));
 
         // Add the new var to the resulting axis
-        auto range = Range(make_zero(new_var.dtype()), analyzer.Simplify(diff + 1));
+        auto range = Range(make_zero(new_var.dtype()), best_range->extent);
         res_variables.push_back(new_var);
-        res_ranges.Set(new_var, range);
+        res_ranges.Set(new_var, IntGroupedBounds::range(range));
 
         vranges.Set(new_var, range);
         analyzer.Bind(new_var, range);
@@ -595,12 +468,24 @@ IntConstraintsTransform DeskewDomain(const IntConstraints& inequalities) {
 TVM_REGISTER_GLOBAL("arith.SolveLinearInequalities")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args.size() == 1) {
-      *ret = DeskewDomain(args[0]);
+      *ret = SolveLinearInequalities(args[0]);
     } else if (args.size() == 3) {
       IntConstraints problem(args[0], args[1], args[2]);
-      *ret = DeskewDomain(problem);
+      *ret = SolveLinearInequalities(problem);
     } else {
       LOG(FATAL) << "arith.SolveLinearInequalities expects 1 or 3 arguments, gets " << args.size();
+    }
+  });
+
+TVM_REGISTER_GLOBAL("arith.DeskewRange")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  if (args.size() == 1) {
+      *ret = DeskewRange(args[0]);
+    } else if (args.size() == 3) {
+      IntConstraints problem(args[0], args[1], args[2]);
+      *ret = DeskewRange(problem);
+    } else {
+      LOG(FATAL) << "arith.DeskewRange expects 1 or 3 arguments, gets " << args.size();
     }
   });
 

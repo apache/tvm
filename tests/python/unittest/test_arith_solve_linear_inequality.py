@@ -82,10 +82,10 @@ def test_solve_system_of_inequalities():
 def test_simple():
     x, y = te.var("x"), te.var("y")
     # TODO: following will hang forever
-    ranges = {
-        x: tvm.ir.Range(-100, 0),
-        y: tvm.ir.Range(0, 100),
-    }
+    # ranges = {
+    #     x: tvm.ir.Range(-100, 0),
+    #     y: tvm.ir.Range(0, 100),
+    # }
 
     ranges = {
         x: tvm.ir.Range(-100, 100),
@@ -99,7 +99,50 @@ def test_simple():
 
     print(solution)
 
+    [x_new, y_new] = solution.dst.variables
+    [rel] = solution.dst.relations
+
+    assert ir.structural_equal(rel, (y_new*2) + x_new <= 10)
+
+    assert ir.structural_equal(solution.dst.ranges[x_new].find_best_range().min, 0)
+    assert ir.structural_equal(solution.dst.ranges[x_new].find_best_range().extent, 11)
+
+    assert ir.structural_equal(solution.dst.ranges[y_new].find_best_range().min, 0)
+    assert ir.structural_equal(solution.dst.ranges[y_new].find_best_range().extent, 6)
+
+    assert ir.structural_equal(solution.src_to_dst[x], x_new + (y_new + 10))
+    assert ir.structural_equal(solution.src_to_dst[y], y_new)
+    assert ir.structural_equal(solution.dst_to_src[x_new], x - y - 10)
+    assert ir.structural_equal(solution.dst_to_src[y_new], y)
+
+
+def test_equal():
+    x, y = te.var("x"), te.var("y")
+
+    solution = arith.solve_linear_inequalities([
+        tvm.tir.GE(x + y, 10),
+        tvm.tir.GE(x - y, 2),
+        tvm.tir.LE(x, 6),
+    ], [x, y])
+
+    print(solution)
+
+
+def test_multi_equal():
+    x, y = te.var("x"), te.var("y")
+
+    solution = arith.solve_linear_inequalities([
+        tvm.tir.LE(x, 6),
+        tvm.tir.GE(x, 6),
+        tvm.tir.GE(x - 2 * y, 0),
+        tvm.tir.LE(x - 2 * y, 0),
+    ], [x, y])
+
+    print(solution)
+
 
 if __name__ == "__main__":
     # test_solve_system_of_inequalities()
     test_simple()
+    test_equal()
+    test_multi_equal()
