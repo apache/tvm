@@ -129,12 +129,19 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    */
   int NumInputs() const;
   /*!
-   * \brief Get the number of the index-th input.
+   * \brief Get the name of the index-th input.
    * \param index The input index.
    *
    * \return The name of the index-th input.
    */
   std::string GetInputName(int index) const;
+  /*!
+   * \brief Get the type of the index-th input.
+   * \param index The input index.
+   *
+   * \return The type of the index-th input.
+   */
+  std::string GetInputType(int index) const;
    /*!
    * \brief set index-th input to the graph without copying the data
    * \param index The input index.
