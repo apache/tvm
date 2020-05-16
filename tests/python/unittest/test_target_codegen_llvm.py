@@ -753,8 +753,8 @@ def test_llvm_bf16():
         c_ = tvm.nd.empty((32,), 'bf16')
         module(a_, b_, c_)
         tvm.testing.assert_allclose(np_bf162np_float(c_.asnumpy()), res)
-    dotest(true)
-    dotest(false)
+    dotest(True)
+    dotest(False)
     
 if __name__ == "__main__":
     test_multiple_func()
