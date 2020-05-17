@@ -436,7 +436,7 @@ bool IsDynamic(const Type& ty) {
 TVM_REGISTER_GLOBAL("relay.ir.IsDynamic").set_body_typed(IsDynamic);
 
 bool IsDataDependant(const CallNode* call) {
-  static auto tshape_data_dependant = Op::GetAttr<TShapeDataDependant>("TShapeDataDependant");
+  static auto tshape_data_dependant = Op::GetAttrMap<TShapeDataDependant>("TShapeDataDependant");
   Op op = Downcast<Op>(call->op);
 
   if (!tshape_data_dependant.count(op)) {

@@ -178,7 +178,7 @@ class MacCounter : private ExprVisitor {
 
  private:
   void VisitExpr_(const CallNode* call_node) final {
-    static const auto& fprep = Op::GetAttr<FMacCount>("FMacCount");
+    static const auto& fprep = Op::GetAttrMap<FMacCount>("FMacCount");
     auto f = fprep.get(call_node->op, nullptr);
     if (f != nullptr) count_ += f(GetRef<Call>(call_node));
     ExprVisitor::VisitExpr_(call_node);
