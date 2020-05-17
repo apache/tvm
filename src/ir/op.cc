@@ -28,12 +28,8 @@
 #include <tvm/runtime/packed_func.h>
 
 #include <memory>
-#include <mutex>
 
-namespace dmlc {
-// enable registry
-DMLC_REGISTRY_ENABLE(::tvm::OpRegistry);
-}  // namespace dmlc
+#include "../node/attr_registry.h"
 
 namespace tvm {
 
@@ -41,104 +37,45 @@ using runtime::PackedFunc;
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
 
-::dmlc::Registry<OpRegistry>* OpRegistry::Registry() { return ::dmlc::Registry<OpRegistry>::Get(); }
-
-// single manager of operator information.
-struct OpManager {
-  // mutex to avoid registration from multiple threads.
-  std::mutex mutex;
-  // global operator counter
-  std::atomic<int> op_counter{0};
-  // storage of additional attribute table.
-  std::unordered_map<std::string, std::unique_ptr<GenericOpMap>> attr;
-  // frontend functions
-  std::vector<PackedFunc*> frontend_funcs;
-  // get singleton of the op manager
-  static OpManager* Global() {
-    static OpManager* inst = new OpManager();
-    return inst;
-  }
-};
+using OpRegistry = AttrRegistry<OpRegEntry, Op>;
 
 // find operator by name
 const Op& Op::Get(const String& name) {
-  const OpRegistry* reg = dmlc::Registry<OpRegistry>::Find(name);
+  const OpRegEntry* reg = OpRegistry::Global()->Get(name);
   CHECK(reg != nullptr) << "Operator " << name << " is not registered";
   return reg->op();
 }
 
-OpRegistry::OpRegistry() {
-  OpManager* mgr = OpManager::Global();
+OpRegEntry::OpRegEntry(uint32_t reg_index) {
   ObjectPtr<OpNode> n = make_object<OpNode>();
-  n->index_ = mgr->op_counter++;
+  n->index_ = reg_index;
   op_ = Op(n);
 }
 
+OpRegEntry& OpRegEntry::RegisterOrGet(const String& name) {
+  return OpRegistry::Global()->RegisterOrGet(name);
+}
+
 // Get attribute map by key
-const GenericOpMap& Op::GetGenericAttr(const String& key) {
-  OpManager* mgr = OpManager::Global();
-  std::lock_guard<std::mutex> lock(mgr->mutex);
-  auto it = mgr->attr.find(key);
-  if (it == mgr->attr.end()) {
-    LOG(FATAL) << "Operator attribute \'" << key << "\' is not registered";
-  }
-  return *it->second.get();
+const AttrRegistryMapContainerMap<Op>& Op::GetAttrMapContainer(const String& attr_name) {
+  return OpRegistry::Global()->GetAttrMap(attr_name);
 }
 
 // Check if a key is present in the registry.
-bool Op::HasGenericAttr(const String& key) {
-  OpManager* mgr = OpManager::Global();
-  std::lock_guard<std::mutex> lock(mgr->mutex);
-  auto it = mgr->attr.find(key);
-  if (it == mgr->attr.end()) {
-    return false;
-  }
-  return true;
+bool Op::HasAttrMap(const String& attr_name) { return OpRegistry::Global()->HasAttrMap(attr_name); }
+
+// Resets attr of the OpAttrMap.
+void OpRegEntry::reset_attr(const std::string& attr_name) {
+  OpRegistry::Global()->ResetAttr(attr_name, op_);
 }
 
-// Resets attr of the OpMap.
-void OpRegistry::reset_attr(const std::string& key) {
-  OpManager* mgr = OpManager::Global();
-  std::lock_guard<std::mutex> lock(mgr->mutex);
-  std::unique_ptr<GenericOpMap>& op_map = mgr->attr[key];
-  if (op_map == nullptr) {
-    return;
-  }
-  uint32_t index = op_->index_;
-  if (op_map->data_.size() > index) {
-    op_map->data_[index] = std::make_pair(TVMRetValue(), 0);
-  }
-}
-
-void OpRegistry::UpdateAttr(const String& key, TVMRetValue value, int plevel) {
-  OpManager* mgr = OpManager::Global();
-  std::lock_guard<std::mutex> lock(mgr->mutex);
-  std::unique_ptr<GenericOpMap>& op_map = mgr->attr[key];
-  if (op_map == nullptr) {
-    op_map.reset(new GenericOpMap());
-    op_map->attr_name_ = key;
-  }
-  uint32_t index = op_->index_;
-  if (op_map->data_.size() <= index) {
-    op_map->data_.resize(index + 1, std::make_pair(TVMRetValue(), 0));
-  }
-  std::pair<TVMRetValue, int>& p = op_map->data_[index];
-  CHECK(p.second != plevel) << "Attribute " << key << " of operator " << this->name
-                            << " is already registered with same plevel=" << plevel;
-  CHECK(value.type_code() != kTVMNullptr)
-      << "Registered packed_func is Null for " << key << " of operator " << this->name;
-  if (p.second < plevel && value.type_code() != kTVMNullptr) {
-    op_map->data_[index] = std::make_pair(value, plevel);
-  }
+void OpRegEntry::UpdateAttr(const String& key, TVMRetValue value, int plevel) {
+  OpRegistry::Global()->UpdateAttr(key, op_, value, plevel);
 }
 
 // Frontend APIs
 TVM_REGISTER_GLOBAL("relay.op._ListOpNames").set_body_typed([]() {
-  Array<runtime::String> ret;
-  for (const std::string& name : dmlc::Registry<OpRegistry>::ListAllNames()) {
-    ret.push_back(name);
-  }
-  return ret;
+  return OpRegistry::Global()->ListAllNames();
 });
 
 TVM_REGISTER_GLOBAL("relay.op._GetOp").set_body_typed([](String name) -> Op {
@@ -148,7 +85,7 @@ TVM_REGISTER_GLOBAL("relay.op._GetOp").set_body_typed([](String name) -> Op {
 TVM_REGISTER_GLOBAL("relay.op._OpGetAttr").set_body([](TVMArgs args, TVMRetValue* rv) {
   Op op = args[0];
   std::string attr_name = args[1];
-  auto op_map = Op::GetAttr<TVMRetValue>(attr_name);
+  auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
   if (op_map.count(op)) {
     *rv = op_map[op];
   }
@@ -159,14 +96,14 @@ TVM_REGISTER_GLOBAL("relay.op._OpSetAttr").set_body([](TVMArgs args, TVMRetValue
   std::string attr_name = args[1];
   runtime::TVMArgValue value = args[2];
   int plevel = args[3];
-  auto& reg = OpRegistry::Registry()->__REGISTER_OR_GET__(op->name).set_name();
+  auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
   reg.set_attr(attr_name, value, plevel);
 });
 
 TVM_REGISTER_GLOBAL("relay.op._OpResetAttr").set_body([](TVMArgs args, TVMRetValue* rv) {
   Op op = args[0];
   std::string attr_name = args[1];
-  auto& reg = OpRegistry::Registry()->__REGISTER_OR_GET__(op->name);
+  auto& reg = OpRegistry::Global()->RegisterOrGet(op->name);
   reg.reset_attr(attr_name);
 });
 
@@ -175,7 +112,7 @@ TVM_REGISTER_GLOBAL("relay.op._Register").set_body([](TVMArgs args, TVMRetValue*
   std::string attr_key = args[1];
   runtime::TVMArgValue value = args[2];
   int plevel = args[3];
-  auto& reg = OpRegistry::Registry()->__REGISTER_OR_GET__(op_name).set_name();
+  auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
   // enable resgiteration and override of certain properties
   if (attr_key == "num_inputs" && plevel > 128) {
     reg.set_num_inputs(value);
@@ -187,8 +124,8 @@ TVM_REGISTER_GLOBAL("relay.op._Register").set_body([](TVMArgs args, TVMRetValue*
       // do an eager copy of the PackedFunc
       PackedFunc f = args[2];
       // If we get a function from frontend, avoid deleting it.
-      OpManager::Global()->frontend_funcs.push_back(new PackedFunc(f));
-      reg.set_attr(attr_key, f, plevel);
+      auto* fcopy = new PackedFunc(f);
+      reg.set_attr(attr_key, *fcopy, plevel);
     } else {
       reg.set_attr(attr_key, args[2], plevel);
     }
