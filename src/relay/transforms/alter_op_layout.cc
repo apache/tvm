@@ -72,7 +72,7 @@ class AlterTransformMemorizer : public TransformMemorizer {
    * \return The new Call after calling the packed func.
    */
   Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) override {
-    static auto falter_layout = Op::GetAttr<FTVMAlterOpLayout>("FTVMAlterOpLayout");
+    static auto falter_layout = Op::GetAttrMap<FTVMAlterOpLayout>("FTVMAlterOpLayout");
     Op op = Downcast<Op>(ref_call->op);
 
     Expr new_e;

@@ -109,7 +109,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
     for (auto kv : attributes) {
       auto attr_name = kv.first;
       auto attr_value = kv.second;
-      auto op_map = Op::GetAttr<TVMRetValue>(attr_name);
+      auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
       if (op_map.count(op)) {
         switch (op_map[op].type_code()) {
           case kDLInt:

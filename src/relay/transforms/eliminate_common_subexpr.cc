@@ -42,7 +42,7 @@ class CommonSubexprEliminator : public ExprMutator {
   explicit CommonSubexprEliminator(runtime::TypedPackedFunc<bool(Expr)> fskip) : fskip_(fskip) {}
 
   Expr VisitExpr_(const CallNode* call) final {
-    static auto op_stateful = Op::GetAttr<TOpIsStateful>("TOpIsStateful");
+    static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
     Expr new_expr = ExprMutator::VisitExpr_(call);
     const CallNode* new_call = new_expr.as<CallNode>();
     CHECK(new_call);

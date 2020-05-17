@@ -511,7 +511,7 @@ PStatic NoStatic(const Expr& dynamic) { return PStatic(make_object<PStaticNode>(
 enum struct MatchStatus { Match, NoMatch, Unknown };
 
 bool StatefulOp(const Expr& e) {
-  static auto op_stateful = Op::GetAttr<TOpIsStateful>("TOpIsStateful");
+  static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
   struct StatefulOpVisitor : ExprVisitor {
     bool stateful = false;
     void VisitExpr_(const OpNode* op) {

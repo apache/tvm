@@ -292,7 +292,7 @@ pointed to by ``op->index``. The reason we need to check is because
 .. code:: c
 
     Expr VisitExpr_(const CallNode* call) final {
-      static auto op_stateful = Op::GetAttr<TOpIsStateful>("TOpIsStateful");
+      static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
       Expr res = ExprMutator::VisitExpr_(call);
       call = res.as<CallNode>();
       // We don't constant fold function with zero arguments.

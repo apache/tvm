@@ -104,7 +104,7 @@ class ConstantFolder : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call) final {
-    static auto op_stateful = Op::GetAttr<TOpIsStateful>("TOpIsStateful");
+    static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
 
     std::unordered_set<std::string> skip_list{"zeros_like", "ones_like", "full_like", "full"};
 
