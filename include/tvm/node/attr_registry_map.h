@@ -33,7 +33,7 @@ namespace tvm {
  * \tparam KeyType the type of the key.
  */
 template <typename KeyType>
-class GenericAttrRegistryMap {
+class AttrRegistryMapContainerMap {
  public:
   /*!
    * \brief Check if the map has key.
@@ -84,7 +84,7 @@ class GenericAttrRegistryMap {
   /*! \brief The internal data. */
   std::vector<std::pair<runtime::TVMRetValue, int>> data_;
   /*! \brief The constructor */
-  GenericAttrRegistryMap() = default;
+  AttrRegistryMapContainerMap() = default;
   template <typename, typename>
   friend class AttrRegistry;
   friend class OpRegEntry;
@@ -102,7 +102,7 @@ class AttrRegistryMap {
    * \brief constructor
    * \param map The internal map.
    */
-  explicit AttrRegistryMap(const GenericAttrRegistryMap<KeyType>& map) : map_(map) {}
+  explicit AttrRegistryMap(const AttrRegistryMapContainerMap<KeyType>& map) : map_(map) {}
   /*!
    * \brief Check if the map has op as key.
    * \param key The key to the map
@@ -125,7 +125,7 @@ class AttrRegistryMap {
 
  protected:
   /*! \brief The internal map field */
-  const GenericAttrRegistryMap<KeyType>& map_;
+  const AttrRegistryMapContainerMap<KeyType>& map_;
 };
 
 }  // namespace tvm

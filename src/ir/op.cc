@@ -57,14 +57,12 @@ OpRegEntry& OpRegEntry::RegisterOrGet(const String& name) {
 }
 
 // Get attribute map by key
-const GenericAttrRegistryMap<Op>& Op::GetGenericAttrMap(const String& attr_name) {
+const AttrRegistryMapContainerMap<Op>& Op::GetAttrMapContainer(const String& attr_name) {
   return OpRegistry::Global()->GetAttrMap(attr_name);
 }
 
 // Check if a key is present in the registry.
-bool Op::HasGenericAttrMap(const String& attr_name) {
-  return OpRegistry::Global()->HasAttrMap(attr_name);
-}
+bool Op::HasAttrMap(const String& attr_name) { return OpRegistry::Global()->HasAttrMap(attr_name); }
 
 // Resets attr of the OpAttrMap.
 void OpRegEntry::reset_attr(const std::string& attr_name) {

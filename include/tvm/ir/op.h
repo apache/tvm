@@ -132,7 +132,7 @@ class OpNode : public RelayExprNode {
 
   // friend class
   template <typename>
-  friend class GenericAttrRegistryMap;
+  friend class AttrRegistryMapContainerMap;
   template <typename, typename>
   friend class AttrRegistry;
   friend class OpRegEntry;
@@ -186,7 +186,7 @@ class Op : public RelayExpr {
    * \param attr_name The name of the attribute.
    * \return bool True if the attr is present.
    */
-  inline static bool HasAttrMap(const std::string& attr_name);
+  TVM_DLL static bool HasAttrMap(const String& attr_name);
   /*!
    * \brief Get an Op for a given operator name.
    *  Will raise an error if the op has not been registered.
@@ -204,13 +204,7 @@ class Op : public RelayExpr {
    * \param key The attribute key
    * \return The attr map.
    */
-  TVM_DLL static const GenericAttrRegistryMap<Op>& GetGenericAttrMap(const String& key);
-  /*!
-   * \brief Checks if the key is present in the registry
-   * \param key The attribute key
-   * \return bool True if the key is present
-   */
-  TVM_DLL static bool HasGenericAttrMap(const String& key);
+  TVM_DLL static const AttrRegistryMapContainerMap<Op>& GetAttrMapContainer(const String& key);
 };
 
 /*!
@@ -343,7 +337,7 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
  private:
   friend class Op;
   // constructor
-  explicit OpAttrMap(const GenericAttrRegistryMap<Op>& map) : TParent(map) {}
+  explicit OpAttrMap(const AttrRegistryMapContainerMap<Op>& map) : TParent(map) {}
 };
 
 #define TVM_STRINGIZE_DETAIL(x) #x
@@ -381,10 +375,8 @@ inline const OpNode* Op::operator->() const { return static_cast<const OpNode*>(
 
 template <typename ValueType>
 inline OpAttrMap<ValueType> Op::GetAttrMap(const std::string& key) {
-  return OpAttrMap<ValueType>(Op::GetGenericAttrMap(key));
+  return OpAttrMap<ValueType>(Op::GetAttrMapContainer(key));
 }
-
-inline bool Op::HasAttrMap(const std::string& key) { return Op::HasGenericAttrMap(key); }
 
 inline OpNode* OpRegEntry::get() { return const_cast<OpNode*>(op_.operator->()); }
 

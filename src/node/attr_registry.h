@@ -99,7 +99,7 @@ class AttrRegistry {
     std::lock_guard<std::mutex> lock(mutex_);
     auto& op_map = attrs_[attr_name];
     if (op_map == nullptr) {
-      op_map.reset(new GenericAttrRegistryMap<KeyType>());
+      op_map.reset(new AttrRegistryMapContainerMap<KeyType>());
       op_map->attr_name_ = attr_name;
     }
 
@@ -139,7 +139,7 @@ class AttrRegistry {
    * \param attr_name The name of the attribute.
    * \return The result attribute map.
    */
-  const GenericAttrRegistryMap<KeyType>& GetAttrMap(const String& attr_name) {
+  const AttrRegistryMapContainerMap<KeyType>& GetAttrMap(const String& attr_name) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = attrs_.find(attr_name);
     if (it == attrs_.end()) {
@@ -174,7 +174,7 @@ class AttrRegistry {
   // map from name to entries.
   std::unordered_map<String, EntryType*> entry_map_;
   // storage of additional attribute table.
-  std::unordered_map<String, std::unique_ptr<GenericAttrRegistryMap<KeyType>>> attrs_;
+  std::unordered_map<String, std::unique_ptr<AttrRegistryMapContainerMap<KeyType>>> attrs_;
 };
 
 }  // namespace tvm
