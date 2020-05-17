@@ -153,18 +153,18 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
   // tensor. Depending on the quantization type, the fixed point multiplication routing is called.
   auto scaled_int32_t = tensor;
   auto out_scale_dtype = GetDataTypeFromConstant(output_scale);
-  double output_scale_val = -1;
+  double output_scale_val = -1.0f;
   if (out_scale_dtype == DataType::Float(64)) {
     output_scale_val = GetScalarFromConstant<double>(output_scale);
   } else if (out_scale_dtype == DataType::Float(32)) {
     output_scale_val = GetScalarFromConstant<float>(output_scale);
   }
-  CHECK_GE(output_scale_val, 0);
+  CHECK_GE(output_scale_val, 0.0f);
 
   auto in_scale_dtype = GetDataTypeFromConstant(input_scale);
   if (IsConstScalar(input_scale)) {
     // This is per-tensor quantization. Single scale.
-    double input_scale_val = -1;
+    double input_scale_val = -1.0f;
     if (in_scale_dtype == DataType::Float(64)) {
       input_scale_val = GetScalarFromConstant<double>(input_scale);
     } else if (in_scale_dtype == DataType::Float(32)) {
