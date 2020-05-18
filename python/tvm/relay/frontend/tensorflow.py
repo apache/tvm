@@ -2911,7 +2911,9 @@ class GraphProto(object):
             except ImportError as e:
                 raise ImportError(
                     "Unable to import tensorflow which is required {}".format(e))
-            op_def = op_def_registry._registered_ops.get(node.op)
+            getOpDef = op_def_registry._registered_ops.get if hasattr(op_def_registry,
+                                                                      "_registered_ops") else op_def_registry.get
+            op_def = getOpDef(node.op)
             if node.op == "Placeholder" or node.op == 'PlaceholderWithDefault':
                 pass
             elif node.op == "Const":
@@ -3180,14 +3182,14 @@ class GraphProto(object):
 
         try:
             from tensorflow.python.framework import function_def_to_graph
-            from tensorflow.python.framework import ops
         except ImportError as e:
             raise ImportError(
                 "Unable to import tensorflow which is required {}".format(e))
 
         main_graph = self.main
-        node_func_name = attr.get('f').name
         outer_graph_def = main_graph._graph
+
+        node_func_name = attr.get('f').name
         func = next((f for f in outer_graph_def.library.function
                      if f.signature.name == node_func_name), None)
         if func:
