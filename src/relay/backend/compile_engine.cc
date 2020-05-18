@@ -581,6 +581,9 @@ class CompileEngineImpl : public CompileEngineNode {
         CHECK(symbol_name.defined()) << "No external symbol is set for:\n"
                                      << AsText(src_func, false);
         auto gv = GlobalVar(std::string(symbol_name.value()));
+        // No need to keep compiler attribute at this point, functions have been
+        // extracted for specific codegen.
+        src_func = WithAttr(std::move(src_func), attr::kCompiler, NullValue<ObjectRef>());
         ext_mods[code_gen_name]->Add(gv, src_func);
         cached_ext_funcs.push_back(it.first);
       }
