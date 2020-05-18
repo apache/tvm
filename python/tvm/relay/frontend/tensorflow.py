@@ -2720,9 +2720,9 @@ class GraphProto(object):
         self._loop_var_order = {}
         self._hash2tfnode = {}
         self._while_loop_name_set = set()
-        self.main = self
+        self._main_graph_proto = self
 
-    def _get_func(self, graph, layout="NHWC", shape=None, outputs=None):
+    def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
 
         Follow the tensorflow graph definition to parse and convert it to Relay.
@@ -2891,12 +2891,13 @@ class GraphProto(object):
         func = _function.Function(analysis.free_vars(out), out)
         return func
 
-
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
-            func = self._get_func(graph, layout=layout, shape=shape, outputs=outputs)
-            self._mod["main"] = func
-            return self._mod, self._params
-
+        """ Wrapper to _get_func which converts Tensorflow graph to Relay function.
+        Relay module is created using the function
+        """
+        func = self._get_relay_func(graph, layout=layout, shape=shape, outputs=outputs)
+        self._mod["main"] = func
+        return self._mod, self._params
 
     def _parse_import_prerequisites(self, graph):
         """ Calculate the named preconditions from TensorFlow `graph`.
@@ -3177,6 +3178,27 @@ class GraphProto(object):
         return op
 
     def _partition_call_operator(self, inputs, attr):
+        """
+        Convert the Relay Partition call ops into Relay Function calls and
+        function definitions from Tensorflow graph library attribute to Relay global
+        functions
+
+        Parameters
+        ----------
+        node: TensorFlow graph node object.
+            A TensorFlow graph node object.
+
+        inputs : List[tvm.relay.Expr]
+            List of input symbols.
+
+        attrs : Dict[tvm.Attrs]
+            Dict of operator attributes.
+
+        Returns
+        -------
+        op : tvm.relay.Expr
+            Converted relay expression.
+        """
 
         try:
             from tensorflow.python.framework import function_def_to_graph
@@ -3185,9 +3207,9 @@ class GraphProto(object):
             raise ImportError(
                 "Unable to import tensorflow which is required {}".format(e))
 
-        main_graph = self.main
+        main_graph_proto = self._main_graph_proto
         node_func_name = attr.get('f').name
-        outer_graph_def = main_graph._graph
+        outer_graph_def = main_graph_proto._graph
         func = next((f for f in outer_graph_def.library.function
                      if f.signature.name == node_func_name), None)
         if func:
@@ -3200,22 +3222,21 @@ class GraphProto(object):
             subgraph_shape_dict, input_expr_dict = {}, {}
             for f_arg, input in zip(func.signature.input_arg, inputs):
                 input_expr_dict[f_arg.name] = input
-                subgraph_shape_dict[f_arg.name] = _infer_shape(input, main_graph._mod)
+                subgraph_shape_dict[f_arg.name] = _infer_shape(input, main_graph_proto._mod)
 
             func_name = 'func_{}'.format(func.signature.name)
             try:
-                global_func = main_graph._mod[func_name]
+                global_func = main_graph_proto._mod[func_name]
                 sub_func = global_func
-                sub_params = self.main._params
+                sub_params = main_graph_proto._params
             except ValueError:
                 # Construct relay nodes from the subgraph
-                g1 = SubGraphProto(self.main)
+                g1 = SubGraphProto(main_graph_proto)
                 sub_func, sub_params = g1.from_tensorflow(subgraph, shape=subgraph_shape_dict)
-                self.main._params.update(sub_params)
+                main_graph_proto._params.update(sub_params)
                 func_expr = _function.Function(sub_func.params, sub_func.body)
                 global_func = tvm.relay.GlobalVar(func_name)
-                main_graph._mod[global_func] = func_expr
-
+                main_graph_proto._mod[global_func] = func_expr
 
             param_exprs = []
             for param_expr in sub_func.params:
@@ -3349,12 +3370,16 @@ class GraphProto(object):
 class SubGraphProto(GraphProto):
     """ A helper class for handling relay subgraph copying from Tensorflow GraphDef.
     """
-    def __init__(self, main):
+    def __init__(self, main_graph_proto):
         super().__init__()
-        self.main = main  # main graph proto
+        self._main_graph_proto = main_graph_proto  # holds main graph proto object
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
-        func = self._get_func(graph, layout=layout, shape=shape, outputs=outputs)
+        """ Wrapper to _get_func which converts Tensorflow graph to Relay function.
+        Relay module is created using the function
+        """
+
+        func = self._get_relay_func(graph, layout=layout, shape=shape, outputs=outputs)
         return func, self._params
 
 
