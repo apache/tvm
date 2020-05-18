@@ -993,15 +993,11 @@ inline Tensor tile(const Tensor& x, Array<Integer> reps, std::string name = "T_t
  *
  * \return A Tensor whose op member is the gather_nd operation
  */
-inline Tensor gather_nd(const Tensor& data, const Tensor& indices, bool one_dim_support = false,
-                        std::string name = "T_gather_nd", std::string tag = kInjective) {
+inline Tensor gather_nd(const Tensor& data, const Tensor& indices, std::string name = "T_gather_nd",
+                        std::string tag = kInjective) {
   size_t ndim_d = data->shape.size();
   size_t ndim_i = indices->shape.size();
-  if (one_dim_support) {
-    CHECK_GE(ndim_i, 1) << "indices tensor must have at least 1 dimensions";
-  } else {
-    CHECK_GT(ndim_i, 1) << "indices tensor must have at least 2 dimensions";
-  }
+  CHECK_GE(ndim_i, 1) << "indices tensor must have at least 1 dimensions";
   size_t indices_dim0 = static_cast<size_t>(GetConstInt(indices->shape[0]));
   CHECK_LE(indices_dim0, ndim_d) << "dim 0 of indices tensor must be no more "
                                  << "than dimensions of data tensor";

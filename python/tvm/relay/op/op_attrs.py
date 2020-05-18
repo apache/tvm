@@ -189,10 +189,6 @@ class TransposeAttrs(Attrs):
 class ReshapeAttrs(Attrs):
     """Attributes for transform.reshape"""
 
-@tvm._ffi.register_object("relay.attrs.GatherNDAttrs")
-class GatherNDAttrs(Attrs):
-    """Attributes for transform.gather_nd"""
-
 @tvm._ffi.register_object("relay.attrs.TakeAttrs")
 class TakeAttrs(Attrs):
     """Attributes for transform.take"""

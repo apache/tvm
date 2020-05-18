@@ -2223,9 +2223,6 @@ example below::
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
-/* relay.gather_nd */
-TVM_REGISTER_NODE_TYPE(GatherNDAttrs);
-
 // gather_nd operator
 bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
@@ -2260,19 +2257,12 @@ bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 Array<te::Tensor> GatherNDCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                   const Type& out_type) {
-  const auto* param = attrs.as<GatherNDAttrs>();
-  if (param != nullptr) {
-    return {topi::gather_nd(inputs[0], inputs[1], param->one_dim_support)};
-  } else {
-    return {topi::gather_nd(inputs[0], inputs[1])};
-  }
+  return {topi::gather_nd(inputs[0], inputs[1])};
 }
 
-Expr MakeGatherND(Expr data, Expr indices, bool one_dim_support) {
-  auto attrs = make_object<GatherNDAttrs>();
-  attrs->one_dim_support = std::move(one_dim_support);
+Expr MakeGatherND(Expr data, Expr indices) {
   static const Op& op = Op::Get("gather_nd");
-  return Call(op, {data, indices}, Attrs(attrs), {});
+  return Call(op, {data, indices}, {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.gather_nd").set_body_typed(MakeGatherND);
@@ -2287,7 +2277,6 @@ shape (M, Y_0, ..., Y_{K-1}), the output will have shape
 output shape will simply be (Y_0, ..., Y_{K-1}).
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
-    .set_attrs_type<GatherNDAttrs>()
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(3)
     .add_type_rel("GatherND", GatherNDRel)
