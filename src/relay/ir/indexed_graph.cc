@@ -191,10 +191,12 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
 
    protected:
     void VisitDFPattern(const DFPattern& pattern) override {
-      DFPatternVisitor::VisitDFPattern(pattern);
-      auto node = std::make_shared<IndexedGraph<DFPattern>::Node>(pattern, index_++);
-      graph_.node_map_[pattern] = node;
-      graph_.topological_order_.push_back(node);
+      if (this->visited_.count(pattern.get()) == 0) {
+        DFPatternVisitor::VisitDFPattern(pattern);
+        auto node = std::make_shared<IndexedGraph<DFPattern>::Node>(pattern, index_++);
+        graph_.node_map_[pattern] = node;
+        graph_.topological_order_.push_back(node);
+      }
     }
     IndexedGraph<DFPattern> graph_;
     size_t index_ = 0;
