@@ -534,6 +534,17 @@ def test_forward_maxpool2d():
                                     stride=2).eval(),
                  input_data)
 
+    class MaxPool2DWithIndices(Module):
+        def __init__(self):
+            super(MaxPool2DWithIndices, self).__init__()
+            self.pool = torch.nn.MaxPool2d(kernel_size=[1, 1], return_indices=True)
+
+        def forward(self, *args):
+            output, indices = self.pool(args[0])
+            return output
+
+    verify_model(MaxPool2DWithIndices().float().eval(), input_data=input_data)
+
 def test_forward_maxpool1d():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10]
@@ -902,14 +913,23 @@ def test_forward_mean():
 
 def test_forward_expand():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 10, 10]
 
     class Expand1(Module):
         def forward(self, *args):
             return args[0].expand((3, -1, -1, -1))
 
+    input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(Expand1().float().eval(), input_data=input_data)
+
+    class Expand2(Module):
+        def forward(self, *args):
+            return args[0].expand((3, 3, 3, 1))
+
+    input_shape = [3, 1]
+    input_data = torch.rand(input_shape).float()
+    verify_model(Expand2().float().eval(), input_data=input_data)
+
 
 def test_forward_pow():
     torch.set_grad_enabled(False)
@@ -2044,11 +2064,45 @@ def test_forward_addcmul():
     verify_model(Addcmul2().float().eval(), input_data=[input_data, t1, t2])
 
 
+def test_forward_matmul():
+    torch.set_grad_enabled(False)
+
+    class MatMul1(Module):
+        def forward(self, *args):
+            return torch.matmul(args[0], args[1])
+
+    # matrix x vector
+    tensor1 = torch.randn(3, 4)
+    tensor2 = torch.randn(4)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+
+    # matrix x matrix
+    tensor1 = torch.randn(10, 4)
+    tensor2 = torch.randn(4, 10)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+
+    # batched matrix x batched matrix
+    tensor1 = torch.randn(10, 3, 4)
+    tensor2 = torch.randn(10, 4, 5)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+
+    # batched matrix x broadcasted matrix
+    tensor1 = torch.randn(10, 3, 4)
+    tensor2 = torch.randn(4, 5)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+
+    # batched matrix x batched matrix
+    tensor1 = torch.randn(1, 12, 14, 64)
+    tensor2 = torch.randn(1, 12, 64, 14)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_add()
     test_forward_subtract()
     test_forward_multiply()
+    test_forward_matmul()
     test_forward_rsub()
     test_forward_onehot()
     test_forward_embedding()

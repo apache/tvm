@@ -152,12 +152,14 @@ using FTVMAlterOpLayout =
  * \param inputs The input symbols of the original node.
  * \param tinfos An array of placeholders, use for getting the inferred shape
  *               and dtype of the inputs.
- * \param desired_layout The desired layout.
+ * \param desired_layouts Specify an array of desired layouts for each input.
+ *                        For example a conv2d op: Array("NHWC", "OHWI"), this
+ *                        specifies the desired layout for data then kernel.
  * \return new_expr The modified expression.
  */
 using FTVMConvertOpLayout = runtime::TypedPackedFunc<Expr(
     const Attrs& attrs, const Array<Expr>& args, const Array<te::Tensor>& tinfos,
-    const std::string& desired_layout)>;
+    const Array<String>& desired_layouts)>;
 /*!
  * \brief Legalizes an expression with another expression. This function will be
  *  invoked in Legalize pass. It is a target-dependent pass.

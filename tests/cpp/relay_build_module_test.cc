@@ -59,7 +59,7 @@ TVM_REGISTER_GLOBAL("test.strategy")
 TVM_REGISTER_GLOBAL("relay.backend.lower_call")
     .set_body_typed([](const relay::Call& call, const Array<te::Tensor>& inputs,
                        const Target& target) {
-      static auto fstrategy = Op::GetAttr<relay::FTVMStrategy>("FTVMStrategy");
+      static auto fstrategy = Op::GetAttrMap<relay::FTVMStrategy>("FTVMStrategy");
       Op op = Downcast<Op>(call->op);
       auto out_type = call->checked_type();
       OpStrategy strategy = fstrategy[op](call->attrs, inputs, out_type, target);
@@ -105,6 +105,7 @@ TEST(Relay, BuildModule) {
   }
   auto fgeneric = GenericFunc::Get("test.strategy_generic").set_default(*fs);
   (*reg)("add", "FTVMStrategy", fgeneric, 10);
+  (*reg)("add", "TShapeDataDependant", false, 10);
   // build
   auto pfb = tvm::runtime::Registry::Get("relay.build_module._BuildModule");
   tvm::runtime::Module build_mod = (*pfb)();

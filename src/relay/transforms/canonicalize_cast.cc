@@ -66,7 +66,7 @@ class CastCanonicalizer : public ExprMutator {
   CastCanonicalizer() : cast_op_(Op::Get("cast")) {}
 
   Expr VisitExpr_(const CallNode* call) {
-    static auto fpattern = Op::GetAttr<TOpPattern>("TOpPattern");
+    static auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
 
     if (const OpNode* opnode = call->op.as<OpNode>()) {
       auto pattern = fpattern[GetRef<Op>(opnode)];
