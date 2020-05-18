@@ -3187,8 +3187,7 @@ class GraphProto(object):
 
         main_graph = self.main
         node_func_name = attr.get('f').name
-        outer_graph = ops.get_default_graph()
-        outer_graph_def = outer_graph.as_graph_def(add_shapes=True)
+        outer_graph_def = main_graph._graph
         func = next((f for f in outer_graph_def.library.function
                      if f.signature.name == node_func_name), None)
         if func:
@@ -3203,10 +3202,20 @@ class GraphProto(object):
                 input_expr_dict[f_arg.name] = input
                 subgraph_shape_dict[f_arg.name] = _infer_shape(input, main_graph._mod)
 
-            # Construct relay nodes from the subgraph
-            g1 = SubGraphProto(self.main)
-            sub_func, sub_params = g1.from_tensorflow(subgraph, shape=subgraph_shape_dict)
-            self.main._params.update(sub_params)
+            func_name = 'func_{}'.format(func.signature.name)
+            try:
+                global_func = main_graph._mod[func_name]
+                sub_func = global_func
+                sub_params = self.main._params
+            except ValueError:
+                # Construct relay nodes from the subgraph
+                g1 = SubGraphProto(self.main)
+                sub_func, sub_params = g1.from_tensorflow(subgraph, shape=subgraph_shape_dict)
+                self.main._params.update(sub_params)
+                func_expr = _function.Function(sub_func.params, sub_func.body)
+                global_func = tvm.relay.GlobalVar(func_name)
+                main_graph._mod[global_func] = func_expr
+
 
             param_exprs = []
             for param_expr in sub_func.params:
@@ -3220,16 +3229,6 @@ class GraphProto(object):
                     raise Exception("Input parameter {} not found".format(param_name))
 
             sb = tvm.relay.scope_builder.ScopeBuilder()
-            func_expr = _function.Function(sub_func.params, sub_func.body)
-            func_name = 'func_{}'.format(func.signature.name)
-
-            try:
-                global_func = main_graph._mod[func_name]
-            except ValueError:
-                import traceback
-                global_func = tvm.relay.GlobalVar(func_name)
-                main_graph._mod[global_func] = func_expr
-
             loop_ret = global_func(*param_exprs)
             sb.ret(loop_ret)
             ret = sb.get()
