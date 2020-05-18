@@ -221,7 +221,7 @@ class Var(ExprWithOp):
     @property
     def name_hint(self):
         """Get name hint of the current var."""
-        name = self.vid.name_hint
+        name = str(self.vid.name_hint)
         return name
 
 

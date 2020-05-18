@@ -281,7 +281,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 // Positional relay function to create qnn requantize operator
 // used by frontend FFI.
 Expr MakeRequantize(Expr data, Expr input_scale, Expr input_zero_point, Expr output_scale,
-                    Expr output_zero_point, int axis, std::string rounding, DataType out_dtype) {
+                    Expr output_zero_point, int axis, String rounding, DataType out_dtype) {
   auto attrs = make_object<RequantizeAttrs>();
   attrs->axis = axis;
   attrs->rounding = std::move(rounding);

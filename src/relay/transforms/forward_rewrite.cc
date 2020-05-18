@@ -172,7 +172,7 @@ class ForwardRewriter : private MixedModeMutator {
   }
 };
 
-Expr ForwardRewrite(const Expr& expr, const std::string& rewrite_map_name,
+Expr ForwardRewrite(const Expr& expr, const String& rewrite_map_name,
                     std::function<ObjectRef(const Call&)> fcontext,
                     std::function<Expr(const Expr&)> fmulti_ref_trigger) {
   auto rewrite_map = Op::GetAttrMap<FForwardRewrite>(rewrite_map_name);

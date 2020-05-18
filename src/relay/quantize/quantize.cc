@@ -67,7 +67,7 @@ RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 
 TVM_REGISTER_GLOBAL("relay._quantize.simulated_quantize")
     .set_body_typed([](Expr data, Expr dom_scale, Expr clip_min, Expr clip_max, int kind, bool sign,
-                       std::string rounding) {
+                       String rounding) {
       auto attrs = make_object<SimulatedQuantizeAttrs>();
       attrs->kind = kind;
       attrs->sign = sign;

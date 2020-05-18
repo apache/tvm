@@ -118,7 +118,7 @@ class OpSpecialization : public ObjectRef {
    * \param name Name of the implementation
    * \param plevel Priority level of the implementation
    */
-  TVM_DLL void AddImplementation(FTVMCompute fcompute, FTVMSchedule fschedule, std::string name,
+  TVM_DLL void AddImplementation(FTVMCompute fcompute, FTVMSchedule fschedule, String name,
                                  int plevel);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(OpSpecialization, ObjectRef, OpSpecializationNode);
@@ -150,7 +150,7 @@ class OpStrategy : public ObjectRef {
    * \param name Name of the implementation
    * \param plevel Priority level of the implementation
    */
-  TVM_DLL void AddImplementation(FTVMCompute fcompute, FTVMSchedule fschedule, std::string name,
+  TVM_DLL void AddImplementation(FTVMCompute fcompute, FTVMSchedule fschedule, String name,
                                  int plevel);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(OpStrategy, ObjectRef, OpStrategyNode);

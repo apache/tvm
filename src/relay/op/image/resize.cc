@@ -64,8 +64,8 @@ bool ResizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 // Positional relay function to create image operator
 // used by frontend FFI.
-Expr MakeResize(Expr data, Array<IndexExpr> size, std::string layout, std::string method,
-                std::string coordinate_transformation_mode, DataType out_dtype) {
+Expr MakeResize(Expr data, Array<IndexExpr> size, String layout, String method,
+                String coordinate_transformation_mode, DataType out_dtype) {
   auto attrs = make_object<ResizeAttrs>();
   attrs->size = std::move(size);
   attrs->layout = std::move(layout);
@@ -133,7 +133,7 @@ bool CropAndResizeRel(const Array<Type>& types, int num_inputs, const Attrs& att
 }
 
 Expr MakeCropAndResize(Expr data, Expr boxes, Expr box_indices, Array<IndexExpr> crop_size,
-                       std::string layout, std::string method, double extrapolation_value,
+                       String layout, String method, double extrapolation_value,
                        DataType out_dtype) {
   auto attrs = make_object<CropAndResizeAttrs>();
   attrs->crop_size = std::move(crop_size);

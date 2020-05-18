@@ -882,7 +882,7 @@ Array<te::Tensor> TakeCompute(const Attrs& attrs, const Array<te::Tensor>& input
   }
 }
 
-Expr MakeTake(Expr data, Expr indices, Integer axis, std::string mode) {
+Expr MakeTake(Expr data, Expr indices, Integer axis, String mode) {
   auto attrs = make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
   attrs->mode = std::move(mode);
@@ -2166,7 +2166,7 @@ bool LayoutTransformRel(const Array<Type>& types, int num_inputs, const Attrs& a
   return true;
 }
 
-Expr MakeLayoutTransform(Expr data, std::string src_layout, std::string dst_layout) {
+Expr MakeLayoutTransform(Expr data, String src_layout, String dst_layout) {
   auto attrs = make_object<LayoutTransformAttrs>();
   attrs->src_layout = std::move(src_layout);
   attrs->dst_layout = std::move(dst_layout);

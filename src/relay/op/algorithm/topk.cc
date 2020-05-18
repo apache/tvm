@@ -64,7 +64,7 @@ bool TopKRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Expr MakeTopK(Expr data, int k, int axis, std::string ret_type, bool is_ascend, DataType dtype) {
+Expr MakeTopK(Expr data, int k, int axis, String ret_type, bool is_ascend, DataType dtype) {
   auto attrs = make_object<TopKAttrs>();
   attrs->k = k;
   attrs->axis = axis;

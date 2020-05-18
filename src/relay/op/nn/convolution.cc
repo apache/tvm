@@ -134,8 +134,8 @@ TVM_REGISTER_NODE_TYPE(Conv1DAttrs);
 TVM_REGISTER_GLOBAL("relay.op.nn._make.conv1d")
     .set_body_typed([](Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
                        Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                       Array<IndexExpr> kernel_size, std::string data_layout,
-                       std::string kernel_layout, std::string out_layout, DataType out_dtype) {
+                       Array<IndexExpr> kernel_size, String data_layout, String kernel_layout,
+                       String out_layout, DataType out_dtype) {
       return MakeConv<Conv1DAttrs>(data, weight, strides, padding, dilation, groups, channels,
                                    kernel_size, data_layout, kernel_layout, out_layout, out_dtype,
                                    "nn.conv1d");
@@ -168,8 +168,8 @@ TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d")
     .set_body_typed([](Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
                        Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                       Array<IndexExpr> kernel_size, std::string data_layout,
-                       std::string kernel_layout, std::string out_layout, DataType out_dtype) {
+                       Array<IndexExpr> kernel_size, String data_layout, String kernel_layout,
+                       String out_layout, DataType out_dtype) {
       return MakeConv<Conv2DAttrs>(data, weight, strides, padding, dilation, groups, channels,
                                    kernel_size, data_layout, kernel_layout, out_layout, out_dtype,
                                    "nn.conv2d");
@@ -202,8 +202,8 @@ TVM_REGISTER_NODE_TYPE(Conv3DAttrs);
 TVM_REGISTER_GLOBAL("relay.op.nn._make.conv3d")
     .set_body_typed([](Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
                        Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                       Array<IndexExpr> kernel_size, std::string data_layout,
-                       std::string kernel_layout, std::string out_layout, DataType out_dtype) {
+                       Array<IndexExpr> kernel_size, String data_layout, String kernel_layout,
+                       String out_layout, DataType out_dtype) {
       return MakeConv<Conv3DAttrs>(data, weight, strides, padding, dilation, groups, channels,
                                    kernel_size, data_layout, kernel_layout, out_layout, out_dtype,
                                    "nn.conv3d");
@@ -237,9 +237,8 @@ TVM_REGISTER_NODE_TYPE(Conv2DTransposeAttrs);
 TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d_transpose")
     .set_body_typed([](Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
                        Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                       Array<IndexExpr> kernel_size, std::string data_layout,
-                       std::string kernel_layout, std::string out_layout,
-                       Array<IndexExpr> output_padding, DataType out_dtype) {
+                       Array<IndexExpr> kernel_size, String data_layout, String kernel_layout,
+                       String out_layout, Array<IndexExpr> output_padding, DataType out_dtype) {
       return MakeConvTranspose<Conv2DTransposeAttrs>(
           data, weight, strides, padding, dilation, groups, channels, kernel_size, data_layout,
           kernel_layout, out_layout, output_padding, out_dtype, "nn.conv2d_transpose");
@@ -282,9 +281,8 @@ TVM_REGISTER_NODE_TYPE(Conv1DTransposeAttrs);
 TVM_REGISTER_GLOBAL("relay.op.nn._make.conv1d_transpose")
     .set_body_typed([](Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
                        Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                       Array<IndexExpr> kernel_size, std::string data_layout,
-                       std::string kernel_layout, std::string out_layout,
-                       Array<IndexExpr> output_padding, DataType out_dtype) {
+                       Array<IndexExpr> kernel_size, String data_layout, String kernel_layout,
+                       String out_layout, Array<IndexExpr> output_padding, DataType out_dtype) {
       return MakeConvTranspose<Conv1DTransposeAttrs>(
           data, weight, strides, padding, dilation, groups, channels, kernel_size, data_layout,
           kernel_layout, out_layout, output_padding, out_dtype, "nn.conv1d_transpose");
@@ -324,8 +322,8 @@ TVM_REGISTER_NODE_TYPE(Conv2DWinogradAttrs);
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_without_weight_transform")
     .set_body_typed([](Expr data, Expr weight, int tile_size, Array<IndexExpr> strides,
                        Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
-                       IndexExpr channels, Array<IndexExpr> kernel_size, std::string data_layout,
-                       std::string kernel_layout, std::string out_layout, DataType out_dtype) {
+                       IndexExpr channels, Array<IndexExpr> kernel_size, String data_layout,
+                       String kernel_layout, String out_layout, DataType out_dtype) {
       return MakeConvWinograd<Conv2DWinogradAttrs>(
           data, weight, tile_size, strides, padding, dilation, groups, channels, kernel_size,
           data_layout, kernel_layout, out_layout, out_dtype,
@@ -382,8 +380,8 @@ TVM_REGISTER_NODE_TYPE(Conv3DWinogradAttrs);
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv3d_winograd_without_weight_transform")
     .set_body_typed([](Expr data, Expr weight, int tile_size, Array<IndexExpr> strides,
                        Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
-                       IndexExpr channels, Array<IndexExpr> kernel_size, std::string data_layout,
-                       std::string kernel_layout, std::string out_layout, DataType out_dtype) {
+                       IndexExpr channels, Array<IndexExpr> kernel_size, String data_layout,
+                       String kernel_layout, String out_layout, DataType out_dtype) {
       return MakeConvWinograd<Conv3DWinogradAttrs>(
           data, weight, tile_size, strides, padding, dilation, groups, channels, kernel_size,
           data_layout, kernel_layout, out_layout, out_dtype,
@@ -466,8 +464,8 @@ weight transformation in advance.
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_NCHWc")
     .set_body_typed([](Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
                        Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                       Array<IndexExpr> kernel_size, std::string data_layout,
-                       std::string kernel_layout, std::string out_layout, DataType out_dtype) {
+                       Array<IndexExpr> kernel_size, String data_layout, String kernel_layout,
+                       String out_layout, DataType out_dtype) {
       return MakeConv<Conv2DAttrs>(data, weight, strides, padding, dilation, groups, channels,
                                    kernel_size, data_layout, kernel_layout, out_layout, out_dtype,
                                    "nn.contrib_conv2d_NCHWc");
@@ -493,8 +491,8 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc")
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_depthwise_conv2d_NCHWc")
     .set_body_typed([](Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
                        Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                       Array<IndexExpr> kernel_size, std::string data_layout,
-                       std::string kernel_layout, std::string out_layout, DataType out_dtype) {
+                       Array<IndexExpr> kernel_size, String data_layout, String kernel_layout,
+                       String out_layout, DataType out_dtype) {
       return MakeConv<Conv2DAttrs>(data, weight, strides, padding, dilation, groups, channels,
                                    kernel_size, data_layout, kernel_layout, out_layout, out_dtype,
                                    "nn.contrib_depthwise_conv2d_NCHWc");
@@ -550,9 +548,8 @@ by concating all the *g* results.
 TVM_REGISTER_GLOBAL("relay.op.nn._make.deformable_conv2d")
     .set_body_typed([](Expr data, Expr offset, Expr weight, Array<IndexExpr> strides,
                        Array<IndexExpr> padding, Array<IndexExpr> dilation, int deformable_groups,
-                       int groups, int channels, Array<IndexExpr> kernel_size,
-                       std::string data_layout, std::string kernel_layout, std::string out_layout,
-                       DataType out_dtype) {
+                       int groups, int channels, Array<IndexExpr> kernel_size, String data_layout,
+                       String kernel_layout, String out_layout, DataType out_dtype) {
       return MakeDeformableConv<DeformableConv2DAttrs>(
           data, offset, weight, strides, padding, dilation, deformable_groups, groups, channels,
           kernel_size, data_layout, kernel_layout, out_layout, out_dtype, "nn.deformable_conv2d");

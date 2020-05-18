@@ -54,7 +54,7 @@ RELAY_REGISTER_OP("debug")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<FTVMCompute>("FTVMCompute", DebugCompute);
 
-Expr MakeDebug(Expr expr, std::string name) {
+Expr MakeDebug(Expr expr, String name) {
   auto dattrs = make_object<DebugAttrs>();
   if (name.size() > 0) {
     dattrs->debug_func = EnvFunc::Get(name);
