@@ -587,7 +587,7 @@ class CompileEngineImpl : public CompileEngineNode {
         auto symbol_name = src_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
         CHECK(symbol_name.defined()) << "No external symbol is set for:\n"
                                      << AsText(src_func, false);
-        auto gv = GlobalVar(std::string(symbol_name.value()));
+        auto gv = GlobalVar(symbol_name.value());
         // No need to keep compiler attribute at this point, functions have been
         // extracted for specific codegen.
         src_func = WithAttr(std::move(src_func), attr::kCompiler, NullValue<ObjectRef>());

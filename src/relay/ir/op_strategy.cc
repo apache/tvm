@@ -42,7 +42,7 @@ te::Schedule OpImplementation::Schedule(const Attrs& attrs, const Array<te::Tens
 }
 
 void OpSpecialization::AddImplementation(tvm::relay::FTVMCompute fcompute,
-                                         tvm::relay::FTVMSchedule fschedule, std::string name,
+                                         tvm::relay::FTVMSchedule fschedule, String name,
                                          int plevel) {
   auto n = make_object<OpImplementationNode>();
   n->fcompute = fcompute;
@@ -52,7 +52,7 @@ void OpSpecialization::AddImplementation(tvm::relay::FTVMCompute fcompute,
   (*this)->implementations.push_back(OpImplementation(n));
 }
 
-void OpStrategy::AddImplementation(FTVMCompute fcompute, FTVMSchedule fschedule, std::string name,
+void OpStrategy::AddImplementation(FTVMCompute fcompute, FTVMSchedule fschedule, String name,
                                    int plevel) {
   auto curr_cond = te::SpecializedCondition::Current();
   auto self = this->operator->();
