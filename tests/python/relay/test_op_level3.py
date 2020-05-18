@@ -686,7 +686,7 @@ def test_scatter():
 
         data_np = np.random.uniform(size=dshape).astype("float32")
         updates_np = np.random.uniform(size=ishape).astype("float32")
-        indices_np = np.random.randint(0, dshape[axis] - 1, ishape)
+        indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape)
 
         ref_res = ref_scatter(data_np, indices_np, updates_np, axis)
 
