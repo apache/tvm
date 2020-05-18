@@ -39,6 +39,7 @@ from .reduction import *
 from .transform import *
 from .broadcast import *
 from .sort import *
+from .scatter import *
 from .argwhere import *
 from . import generic
 from . import nn

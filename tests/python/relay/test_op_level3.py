@@ -664,60 +664,51 @@ def test_reverse():
 
 
 def test_scatter():
-    # The below Scatter's numpy implementation is from https://stackoverflow.com/a/46204790/11767360
-    def scatter(data, indices, updates, axis=0):  # type: ignore
-        if axis < 0:
-            axis = data.ndim + axis
 
-        idx_xsection_shape = indices.shape[:axis] + indices.shape[axis + 1:]
+    def ref_scatter(data, indices, updates, axis=0):
+        idx = np.indices(indices.shape).reshape(indices.ndim, -1)
 
-        def make_slice(arr, axis, i):  # type: ignore
-            slc = [slice(None)] * arr.ndim
-            slc[axis] = i
-            return slc
-
-        def unpack(packed):  # type: ignore
-            unpacked = packed[0]
-            for i in range(1, len(packed)):
-                unpacked = unpacked, packed[i]
-            return unpacked
-
-        # We use indices and axis parameters to create idx
-        # idx is in a form that can be used as a NumPy advanced indices for scattering of updates param. in data
-        idx = [[unpack(np.indices(idx_xsection_shape).reshape(indices.ndim - 1, -1)),
-            indices[tuple(make_slice(indices, axis, i))].reshape(1, -1)[0]] for i in range(indices.shape[axis])]
-        idx = list(np.concatenate(idx, axis=1))
-        idx.insert(axis, idx.pop())
-
-        # updates_idx is a NumPy advanced indices for indexing of elements in the updates
-        updates_idx = list(idx)
-        updates_idx.pop(axis)
-        updates_idx.insert(axis, np.repeat(np.arange(indices.shape[axis]), np.prod(idx_xsection_shape)))
-
+        updated_idx = np.copy(idx)
+        indices = indices.reshape(-1)
+        for i in range(len(indices)):
+            updated_idx[axis, i] = indices[i]
         scattered = np.copy(data)
-        scattered[tuple(idx)] = updates[tuple(updates_idx)]
+        scattered[tuple(updated_idx)] = updates[tuple(idx)]
         return scattered
 
     def verify_scatter(dshape, ishape, axis=0):
         d = relay.var("d", relay.TensorType(dshape, "float32"))
         i = relay.var("i", relay.TensorType(ishape, "int64"))
         u = relay.var("u", relay.TensorType(ishape, "float32"))
-        z = relay.scatter(d, i, u, axis)
+        z = relay.op.scatter(d, i, u, axis)
 
         func = relay.Function([d, i, u], z)
 
         data_np = np.random.uniform(size=dshape).astype("float32")
         updates_np = np.random.uniform(size=ishape).astype("float32")
-        idices_np = np.random.randint(-dshape[axis], dshape[axis] - 1 , ishape)
+        indices_np = np.random.randint(0, dshape[axis] - 1, ishape)
 
-        ref_res = scatter(data_np, idices_np, updates, axis)
+        ref_res = ref_scatter(data_np, indices_np, updates_np, axis)
 
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(data_np, updates_np, indices_np)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-    verify_scatter((10,), (5,), 0)
+                op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
+                tvm.testing.assert_allclose(
+                    op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    verify_scatter((10, ), (10, ), 0)
+    verify_scatter((10, 5), (10, 5), -2)
+    verify_scatter((10, 5), (10, 5), -1)
+    verify_scatter((10, 5), (3, 5), 0)
+    verify_scatter((12, 4), (7, 2), 1)
+    verify_scatter((2, 3, 4), (1, 3, 4), 0)
+    verify_scatter((2, 3, 4), (2, 1, 4), 1)
+    verify_scatter((2, 3, 4), (2, 3, 1), 2)
+    verify_scatter((2, 3, 4, 5), (1, 3, 4, 5), 0)
+    verify_scatter((6, 3, 4, 5), (2, 3, 4, 5), 1)
+    verify_scatter((2, 3, 8, 5), (2, 3, 1, 1), 2)
+    verify_scatter((16, 16, 4, 5), (16, 16, 4, 5), 3)
 
 
 def test_gather_nd():

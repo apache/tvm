@@ -20,9 +20,7 @@
 
 from . import _make
 from ..expr import TupleWrapper, const
-from tvm.ir import structural_equal
-from tvm.tir import IntImm
-from tvm.te.hybrid import script
+
 
 def cast(data, dtype):
     """Cast input tensor to data type.
@@ -239,6 +237,30 @@ def argwhere(condition):
         relay.argwhere(condition) = [[0, 0], [1, 1]]
     """
     return _make.argwhere(condition)
+
+def scatter(data, indices, updates, axis):
+    """Update data at positions defined by indices with values in updates
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    indices : relay.Expr
+        The index locations to update.
+
+    updates : relay.Expr
+        The values to update.
+
+    axis : int
+        The axis to scatter on
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    return _make.scatter(data, indices, updates, axis)
 
 def reshape_like(data, shape_like):
     """Reshapes the input array by the size of another array.
@@ -798,109 +820,6 @@ def gather_nd(data, indices):
         relay.gather_nd(data, indices) = [[3, 4], [5, 6]]
     """
     return _make.gather_nd(data, indices)
-
-
-@script
-def _scatter_1d(data, indices, updates):
-    out = output_tensor(data.shape, data.dtype)
-    for i in range(data.shape[0]):
-        out[i] = data[i]
-    for i in range(indices.shape[0]):
-        out[indices[i]] = updates[i]
-    return out
-
-@script
-def _scatter_2d(data, indices, updates, axis=IntImm("int64", 0)):
-    out = output_tensor(data.shape, data.dtype)
-    for i in const_range(data.shape[0]):
-        for j in const_range(data.shape[1]):
-            out[i, j] = data[i, j]
-    return out
-
-
-@script
-def _scatter_3d(data, indices, updates, axis=IntImm("int64", 0)):
-    out = output_tensor(data.shape, data.type)
-    for i in const_range(data.shape[0]):
-        for j in const_range(data.shape[1]):
-            for k in const_range(data.shape[2]):
-                out[i, j, k] = data[i, j, k]
-    return out
-
-
-@script
-def _scatter_4d(data, indices, updates, axis=IntImm("int64", 0)):
-    out = output_tensor(data.shape, data.type)
-    for i in const_range(data.shape[0]):
-        for j in const_range(data.shape[1]):
-            for k in const_range(data.shape[2]):
-                for l in const_range(data.shape[3]):
-                    out[i, j, k, l] = data[i, j, k, l]
-
-    return out
-
-
-def scatter(data, indices, updates, axis=0):
-    """Gather elements or slices from data and store to a tensor whose shape is
-    defined by indices.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data to the operator.
-
-    indices : relay.Expr
-        The index locations to update.
-
-    updates : relay.Expr
-        The values to update.
-    
-    axis : int
-        The axis to scatter on
-
-    Returns
-    -------
-    ret : relay.Expr
-        The computed result.
-
-    Examples
-    --------
-    .. code-block:: python
-
-        data = [[0, 1], [2, 3]]
-        indices = [[1, 1, 0], [0, 1, 0]]
-        relay.gather_nd(data, indices) = [2, 3, 0]
-
-        data = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]
-        indices = [[0, 1], [1, 0]]
-        relay.gather_nd(data, indices) = [[3, 4], [5, 6]]
-    """
-    from tvm.relay import Call
-    from tvm.ir import structural_equal
-    from tvm.te import placeholder, size_var
-    i = size_var('i')
-    j = size_var('j')
-    k = size_var('k')
-    l = size_var('l')
-    ip = size_var('ip')
-    jp = size_var('jp')
-    kp = size_var('kp')
-    lp = size_var('lp')
-    dshape = (i, j, k, l)
-    ishape = (ip, jp, kp, lp)
-    if len(data.type_annotation.shape) == 1:
-        data_p = placeholder(dshape[:1], name='data')
-        indices_p = placeholder(ishape[:1], name='indices')
-        updates_p = placeholder(ishape[:1], name='updates')
-        op = _scatter_1d(data_p, indices_p, updates_p)
-        return Call(op, (data, indices, updates))
-    #if len(dshape) == 2:
-    #    return _scatter_2d(data_p, indices_p, updates_p, IntImm("int64", axis))(data, indices, updates)
-    #if len(dshape) == 3:
-    #    return _scatter_3d(data_p, indices_p, updates_p, IntImm("int64", axis))(data, indices, updates)
-    #if len(dshape) == 4:
-    #    return _scatter_4d(data_p, indices_p, updates_p, IntImm("int64", axis))(data, indices, updates)
-    raise ValueError("scatter only support for 1-4 dimensions")
 
 
 def sequence_mask(data, valid_length, mask_value=0, axis=0):
