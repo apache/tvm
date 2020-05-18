@@ -281,9 +281,8 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
   // Conditions we don't know what to do with
   std::vector<PrimExpr> rest;
 
-  Map<Var, Range> vranges = ConvertGroupedBoundToRange(system_to_solve->ranges);
   Analyzer analyzer_problem;
-  analyzer_problem.Bind(vranges);
+  analyzer_problem.Bind(system_to_solve->ranges);
 
   size_t num_vars = system_to_solve->variables.size();
 
@@ -429,13 +428,13 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
 
   // The resulting ranges
   Map<Var, Range> new_ranges = InferRange(
-      new_to_old_map, system_to_solve->variables, vranges);
+      new_to_old_map, system_to_solve->variables, system_to_solve->ranges);
   Analyzer analyzer_solution;
   analyzer_solution.Bind(new_ranges);
 
   // We have to transform ranges of the old variables into relations over new variables because
   // new ranges are not enough usually.
-  for (const auto& p : vranges) {
+  for (const auto& p : system_to_solve->ranges) {
     const Var& old_var = p.first;
     const Range& old_range = p.second;
     if (old_to_new_map.count(old_var)) {
@@ -458,11 +457,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
     new_relations.push_back(Substitute(cond, old_to_new_map));
   }
 
-  Map<Var, IntGroupedBounds> new_bounds;
-  for (const auto& kv : new_ranges) {
-    new_bounds.Set(kv.first, IntGroupedBounds::range(kv.second));
-  }
-  IntConstraints solution(new_vars, new_bounds, new_relations);
+  IntConstraints solution(new_vars, new_ranges, new_relations);
   IntConstraintsTransform transform(
       system_to_solve, solution, old_to_new_map, new_to_old_map);
 

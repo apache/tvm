@@ -117,7 +117,7 @@ class IntConstraintsNode : public Object {
   // e.g., 1 <= \alpha <= N, etc.
   // it is absolutely ok to include ranges for parameters
   // (variables that are not in this->variables) in this map
-  Map<Var, IntGroupedBounds> ranges;
+  Map<Var, Range> ranges;
   // linear equalities or inequalities
   // e.g., A \alpha = \beta or A \alpha <= \beta
   Array<PrimExpr> relations;
@@ -160,33 +160,8 @@ class IntConstraints : public ObjectRef {
    *                  (either equations or inequalities)
    */
   TVM_DLL IntConstraints(Array<Var> variables,
-                         Map<Var, IntGroupedBounds> ranges,
+                         Map<Var, Range> ranges,
                          Array<PrimExpr> relations);
-
-  /*!
-   * \brief Combine the information into an array of (in)equalities.
-   */
-  Array<PrimExpr> as_conditions() const {
-    Array<PrimExpr> res;
-    for (const Var& v : operator->()->variables) {
-      CHECK(operator->()->ranges.count(v) > 0);
-      const auto& bnds = operator->()->ranges[v];
-      PrimExpr lhs = bnds->coef * v;
-      for (const PrimExpr& rhs : bnds->equal) {
-        res.push_back(tir::EQNode::make(lhs, rhs));
-      }
-      for (const PrimExpr& rhs : bnds->lower) {
-        res.push_back(tir::GENode::make(lhs, rhs));
-      }
-      for (const PrimExpr& rhs : bnds->upper) {
-        res.push_back(tir::LENode::make(lhs, rhs));
-      }
-    }
-    for (const PrimExpr& e : operator->()->relations) {
-      res.push_back(e);
-    }
-    return res;
-  }
 
   TVM_DEFINE_OBJECT_REF_METHODS(IntConstraints, ObjectRef, IntConstraintsNode);
 };
@@ -265,7 +240,7 @@ class IntConstraintsTransform : public ObjectRef {
 
 Map<Var, Range> ConvertGroupedBoundToRange(Map<Var, IntGroupedBounds> bounds);
 
-typedef std::pair<IntConstraints, Map<Var, IntGroupedBounds> > PartialSolvedInequalities;
+typedef std::pair<Map<Var, IntGroupedBounds>, Array<PrimExpr> > PartialSolvedInequalities;
 
 /*!
  * \brief Obtain Smith Normal Form of linear equation A x = y.

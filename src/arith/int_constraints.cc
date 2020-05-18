@@ -199,14 +199,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 
 IntConstraints::IntConstraints(Array<Var> variables,
-                               Map<Var, IntGroupedBounds> ranges,
+                               Map<Var, Range> ranges,
                                Array<PrimExpr> relations) {
   ObjectPtr<IntConstraintsNode> node = make_object<IntConstraintsNode>();
   if (!variables.defined()) {
     variables = Array<Var>();
   }
   if (!ranges.defined()) {
-    ranges = Map<Var, IntGroupedBounds>();
+    ranges = Map<Var, Range>();
   }
   CHECK(relations.defined());
   for (const auto& var : variables) {
@@ -223,7 +223,7 @@ TVM_REGISTER_NODE_TYPE(IntConstraintsNode);
 
 TVM_REGISTER_GLOBAL("arith.IntConstraints")
 .set_body_typed([](Array<Var> variables,
-                   Map<Var, IntGroupedBounds> ranges,
+                   Map<Var, Range> ranges,
                    Array<PrimExpr> relations) {
   return IntConstraints(variables, ranges, relations);
 });

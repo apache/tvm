@@ -104,11 +104,11 @@ def test_simple():
 
     assert ir.structural_equal(rel, (y_new*2) + x_new <= 10)
 
-    assert ir.structural_equal(solution.dst.ranges[x_new].find_best_range().min, 0)
-    assert ir.structural_equal(solution.dst.ranges[x_new].find_best_range().extent, 11)
+    assert ir.structural_equal(solution.dst.ranges[x_new].min, 0)
+    assert ir.structural_equal(solution.dst.ranges[x_new].extent, 11)
 
-    assert ir.structural_equal(solution.dst.ranges[y_new].find_best_range().min, 0)
-    assert ir.structural_equal(solution.dst.ranges[y_new].find_best_range().extent, 6)
+    assert ir.structural_equal(solution.dst.ranges[y_new].min, 0)
+    assert ir.structural_equal(solution.dst.ranges[y_new].extent, 6)
 
     assert ir.structural_equal(solution.src_to_dst[x], x_new + (y_new + 10))
     assert ir.structural_equal(solution.src_to_dst[y], y_new)
