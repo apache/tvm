@@ -155,6 +155,13 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    */
   int NumOutputs() const;
   /*!
+   * \brief Get the type of the index-th output.
+   * \param index The output index.
+   *
+   * \return The type of the index-th output.
+   */
+  std::string GetOutputType(int index) const;
+  /*!
    * \brief Get the names of weight inputs.
    *
    * \return The names fo the weight inputs.

@@ -175,6 +175,17 @@ int GraphRuntime::NumOutputs() const {
   return outputs_.size();
 }
 /*!
+ * \brief Get the type of the index-th output.
+ * \param index The output index.
+ *
+ * \return The type of the index-th output.
+ */
+std::string GraphRuntime::GetOutputType(int index) const {
+  CHECK_LT(static_cast<size_t>(index), outputs_.size())
+      << "The index is out of range.";
+  return attrs_.dltype[outputs_[index].node_id];
+}
+/*!
  * \brief Return NDArray for given input index.
  * \param index The input index.
  *
