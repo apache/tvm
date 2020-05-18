@@ -111,6 +111,7 @@ def create_updater_06_to_07():
         "EnvFunc": _update_global_key,
         "relay.Op": _update_global_key,
         "relay.TypeVar": [_ftype_var, _update_from_std_str("name_hint")],
+        "relay.Id": [_update_from_std_str("name_hint")],
         "relay.GlobalTypeVar": [_ftype_var, _update_from_std_str("name_hint")],
         "relay.Type": _rename("Type"),
         "relay.TupleType": _rename("TupleType"),
