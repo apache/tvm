@@ -1559,14 +1559,13 @@ def test_forward_squeeze():
 def _test_quantize_dequantize(data):
     """ One iteration of quantize and dequantize """
 
-    import tensorflow as tf2
     # Define a dummy model
-    data_in = tf2.keras.layers.Input(shape=data.shape[1:])
-    act_func =  tf2.keras.layers.Activation('linear')
-    keras_model = tf2.keras.models.Model(data_in, act_func(data_in))
+    data_in = tf.keras.layers.Input(shape=data.shape[1:])
+    act_func =  tf.keras.layers.Activation('linear')
+    keras_model = tf.keras.models.Model(data_in, act_func(data_in))
 
     # Load the model
-    converter = tf2.lite.TFLiteConverter.from_keras_model(keras_model)
+    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
 
     # To create quantized values with dynamic range of activations, needs representative dataset
     def representative_data_gen():
@@ -1591,7 +1590,8 @@ def _test_quantize_dequantize(data):
 def test_forward_quantize_dequantize():
     """ Quantize Dequantize """
     data = np.random.uniform(0, 1, (1, 4, 4, 3)).astype("float32")
-    _test_quantize_dequantize(data)
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.0.0'):
+        _test_quantize_dequantize(data)
 
 
 #######################################################################
