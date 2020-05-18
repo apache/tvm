@@ -440,6 +440,12 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.cuda.schedule_dense_large_batch),
                 name="dense_large_batch.cuda",
                 plevel=5)
+        with SpecializedCondition((b >= 65536) and (i <= 16)):
+            strategy.add_implementation(
+                wrap_compute_dense(topi.cuda.dense_super_large_batch_small_inner),
+                wrap_topi_schedule(topi.cuda.schedule_dense_super_large_batch_small_inner),
+                name="dense_super_large_batch_small_inner.cuda",
+                plevel=3)
         if target.target_name == "cuda":
             if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
                 if(i % 16 == 0 and b % 16 == 0 and o % 16 == 0) \

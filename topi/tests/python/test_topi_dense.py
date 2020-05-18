@@ -135,6 +135,8 @@ def test_dense():
     verify_dense(2, 1024, 1000, use_bias=True)
     verify_dense(128, 1024, 1000, use_bias=False)
     verify_dense(128, 1024, 1000, use_bias=True)
+    verify_dense(215296, 1, 4, use_bias=False)
+    verify_dense(215296, 1, 4, use_bias=True)
 
 
 def test_dense_int8():

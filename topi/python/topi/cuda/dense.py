@@ -220,6 +220,49 @@ def _schedule_dense_large_batch(cfg, s, C):
     s[BB].double_buffer()
 
 
+@autotvm.register_topi_compute("dense_super_large_batch_small_inner.cuda")
+def dense_super_large_batch_small_inner(cfg, data, weight, bias=None, out_dtype=None):
+    """Dense operator on CUDA"""
+    return nn.dense(data, weight, bias, out_dtype)
+
+
+@autotvm.register_topi_schedule("dense_super_large_batch_small_inner.cuda")
+def schedule_dense_super_large_batch_small_inner(cfg, outs):
+    """Schedule float32/64 dense with super large batch size larger than 65535,
+       which is maximum size of block dimension of a grid, 
+       and the inner size is also very small"""
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if op.tag == 'dense':
+            _schedule_dense_super_large_batch_small_inner(cfg, s, op.output(0))
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+def _schedule_dense_super_large_batch_small_inner(cfg, s, C):
+    A, _ = C.op.input_tensors
+    batch_dim, in_dim = get_const_tuple(A.shape)
+    cfg.define_split('tile_b', batch_dim, num_outputs=2)
+    if cfg.is_fallback:
+        cfg["tile_b"] = SplitEntity([-1, 512])
+
+    b_outer, b_inner = cfg['tile_b'].apply(s, C, C.op.axis[0])
+
+    if C.op in s.outputs:
+        Out = C
+    else:
+        Out = s.outputs[0].output(0)
+        s[C].compute_at(s[Out], s[Out].op.axis[1])
+    s[Out].bind(b_outer, te.thread_axis("blockIdx.x"))
+    s[Out].bind(b_inner, te.thread_axis("blockIdx.y"))
+    s[Out].bind(s[Out].op.axis[1], te.thread_axis("threadIdx.x"))
+
+
+
+
 @autotvm.register_topi_compute("dense_int8.cuda")
 def dense_int8(cfg, data, weight, bias=None, out_dtype=None):
     """Dense operator for int8 on CUDA"""
