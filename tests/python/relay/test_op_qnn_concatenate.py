@@ -27,8 +27,8 @@ def test_same_io_qnn_params():
     axis = 0
     x_data = np.arange(-32, 32, 1).reshape(1, 64).astype(data_dtype)
     y_data = np.arange(-64, 64, 2).reshape(1, 64).astype(data_dtype)
-    x_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
-    y_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
+    x_scale = relay.const(2.933666e-8, 'float32')
+    y_scale = relay.const(2.933666e-8, 'float32')
     zero = relay.const(0, 'int32')
 
     x = relay.var("x", shape=(1, 64), dtype=data_dtype)
@@ -57,8 +57,8 @@ def test_different_io_qnn_params():
     x_data = np.arange(-32, 32, 1).reshape(1, 64).astype(data_dtype)
     y_data = np.arange(-64, 64, 2).reshape(1, 64).astype(data_dtype)
 
-    x_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
-    y_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
+    x_scale = relay.const(2.933666e-8, 'float32')
+    y_scale = relay.const(2.933666e-8, 'float32')
     x_zero_point = relay.const(3, 'int32')
     y_zero_point = relay.const(4, 'int32')
 
@@ -88,8 +88,8 @@ def test_few_same_io_qnn_params():
     x_data = np.arange(-32, 32, 1).reshape(1, 64).astype(data_dtype)
     y_data = np.arange(-64, 64, 2).reshape(1, 64).astype(data_dtype)
 
-    x_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
-    y_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
+    x_scale = relay.const(2.933666e-8, 'float32')
+    y_scale = relay.const(2.933666e-8, 'float32')
     x_zero_point = relay.const(0, 'int32')
     y_zero_point = relay.const(1, 'int32')
 
