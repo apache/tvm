@@ -425,6 +425,35 @@ def test_rewrite():
     out = rewrite(TestRewrite(), x + y)
     assert sub_pattern.match(out)
 
+def test_nested_rewrite():
+    class PatternCallback(DFPatternCallback):
+        def __init__(self, pattern):
+            self.pattern = pattern
+
+        def callback(self, pre, post, node_map):
+            return post
+
+    def gen():
+        x = relay.var('x')
+        y = relay.var('y')
+        y_add = relay.add(y, y)
+        n0 = relay.add(x, y_add)
+        n1 = relay.add(x, n0)
+        return relay.add(n1, n0)
+
+    def pattern():
+        a = wildcard()
+        b = wildcard()
+        n0 = is_op('add')(a, b)
+        n1 = is_op('add')(n0, a)
+        return is_op('add')(n0, n1)
+
+    out = gen()
+    pat = pattern()
+    new_out = rewrite(PatternCallback(pat), out)
+
+    assert tvm.ir.structural_equal(out, new_out)
+
 def test_not_fuse_multi_diamond():
     # Pattern
     is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
@@ -838,6 +867,7 @@ if __name__ == "__main__":
     test_no_match_diamond()
     test_match_fake_diamond()
     test_rewrite()
+    test_nested_rewrite()
     test_fuse_batchnorm()
     test_no_fuse_batchnorm()
     test_fuse_double_batchnorm()
