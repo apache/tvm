@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, redefined-builtin
 """TF: Tensorflow frontend."""
 import warnings
 from collections import defaultdict
@@ -43,6 +43,7 @@ from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
 
 __all__ = ['from_tensorflow']
+
 
 
 def _get_pad_pair(input1d, kernel1d, stride1d):
@@ -2719,8 +2720,9 @@ class GraphProto(object):
         self._loop_var_order = {}
         self._hash2tfnode = {}
         self._while_loop_name_set = set()
+        self.main = self
 
-    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
+    def _get_func(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
 
         Follow the tensorflow graph definition to parse and convert it to Relay.
@@ -2887,8 +2889,14 @@ class GraphProto(object):
 
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
         func = _function.Function(analysis.free_vars(out), out)
-        self._mod["main"] = func
-        return self._mod, self._params
+        return func
+
+
+    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
+            func = self._get_func(graph, layout=layout, shape=shape, outputs=outputs)
+            self._mod["main"] = func
+            return self._mod, self._params
+
 
     def _parse_import_prerequisites(self, graph):
         """ Calculate the named preconditions from TensorFlow `graph`.
@@ -3169,42 +3177,59 @@ class GraphProto(object):
         return op
 
     def _partition_call_operator(self, inputs, attr):
-        from tensorflow.python.framework import function_def_to_graph
 
+        try:
+            from tensorflow.python.framework import function_def_to_graph
+            from tensorflow.python.framework import ops
+        except ImportError as e:
+            raise ImportError(
+                "Unable to import tensorflow which is required {}".format(e))
+
+        main_graph = self.main
         node_func_name = attr.get('f').name
-        func = next((f for f in self._graph.library.function if f.signature.name == node_func_name), None)
+        outer_graph = ops.get_default_graph()
+        outer_graph_def = outer_graph.as_graph_def(add_shapes=True)
+        func = next((f for f in outer_graph_def.library.function
+                     if f.signature.name == node_func_name), None)
         if func:
             # Convert function definition to graph
             func_input_shapes = func.attr["_input_shapes"].list.shape
-            subgraph, flat_tensor_name = function_def_to_graph.function_def_to_graph_def(func, func_input_shapes)
+            subgraph, _ = function_def_to_graph.\
+                function_def_to_graph_def(func, func_input_shapes)
 
             # Computing subgraph's input shape dictionary
             subgraph_shape_dict, input_expr_dict = {}, {}
             for f_arg, input in zip(func.signature.input_arg, inputs):
-                subgraph_shape_dict[f_arg.name] = _infer_shape(input)
                 input_expr_dict[f_arg.name] = input
+                subgraph_shape_dict[f_arg.name] = _infer_shape(input, main_graph._mod)
 
             # Construct relay nodes from the subgraph
-            g = GraphProto()
-            sub_mod, sub_params = g.from_tensorflow(subgraph, shape=subgraph_shape_dict)
-            self._params.update(sub_params)
+            g1 = SubGraphProto(self.main)
+            sub_func, sub_params = g1.from_tensorflow(subgraph, shape=subgraph_shape_dict)
+            self.main._params.update(sub_params)
 
             param_exprs = []
-            for param_expr in sub_mod["main"].params:
-                # sub_params is subset of mod["main"].params
+            for param_expr in sub_func.params:
+                # sub_params is subset of sub_func.params
                 param_name = param_expr.vid.name_hint
-                if param_name in sub_params.keys():
-                    param_exprs.append(param_expr)
-                elif param_name in input_expr_dict.keys():
+                if param_name in input_expr_dict.keys():
                     param_exprs.append(input_expr_dict[param_name])
+                elif param_name in sub_params.keys():
+                    param_exprs.append(param_expr)
                 else:
                     raise Exception("Input parameter {} not found".format(param_name))
 
             sb = tvm.relay.scope_builder.ScopeBuilder()
-            func_expr = _function.Function(sub_mod["main"].params, sub_mod["main"].body)
+            func_expr = _function.Function(sub_func.params, sub_func.body)
+            func_name = 'func_{}'.format(func.signature.name)
 
-            global_func = tvm.relay.GlobalVar('func_{}'.format(func.signature.name))
-            self._mod[global_func] = func_expr
+            try:
+                global_func = main_graph._mod[func_name]
+            except ValueError:
+                import traceback
+                global_func = tvm.relay.GlobalVar(func_name)
+                main_graph._mod[global_func] = func_expr
+
             loop_ret = global_func(*param_exprs)
             sb.ret(loop_ret)
             ret = sb.get()
@@ -3254,7 +3279,7 @@ class GraphProto(object):
                                              convert_map_rnn)
 
         elif op_name in ["PartitionedCall", "StatefulPartitionedCall"]:
-                sym = self._partition_call_operator(inputs, attrs)
+            sym = self._partition_call_operator(inputs, attrs)
         else:
             raise NotImplementedError("Operator {} not implemented.".format(op_name))
         return sym
@@ -3321,6 +3346,19 @@ class GraphProto(object):
 
         return self._nodes[node_name]
 
+
+class SubGraphProto(GraphProto):
+    """ A helper class for handling relay subgraph copying from Tensorflow GraphDef.
+    """
+    def __init__(self, main):
+        super().__init__()
+        self.main = main  # main graph proto
+
+    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
+        func = self._get_func(graph, layout=layout, shape=shape, outputs=outputs)
+        return func, self._params
+
+
 def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
     """Load tensorflow graph which is a python tensorflow graph object into relay.
     The companion parameters will be handled automatically.
@@ -3347,6 +3385,7 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
     params : dict of str to tvm.nd.NDArray
         Dict of converted parameters stored in tvm.nd.NDArray format
     """
+
     g = GraphProto()
     mod, params = g.from_tensorflow(graph, layout, shape, outputs)
     return mod, params
