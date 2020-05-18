@@ -3504,8 +3504,7 @@ def test_forward_spop():
 # Main
 # ----
 if __name__ == '__main__':
-    # StatefulPartitionedCall
-    test_forward_spop()
+
     # Transforms
     test_forward_slice()
     test_forward_transpose()
@@ -3630,3 +3629,6 @@ if __name__ == '__main__':
 
     # Sharing params case using Mean ops
     test_sharing_node()
+
+    # StatefulPartitionedCall
+    test_forward_spop()
