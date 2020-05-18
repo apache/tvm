@@ -69,7 +69,7 @@ class IndexedGraph {
     std::vector<Node*> outputs_;
 
     /*! \brief The depth of the node in the dominator tree */
-    size_t depth_;
+    size_t depth_ = 0;
     /*! \brief The dominator parent/final user of the outputs of this node */
     Node* dominator_parent_;
     /*! \brief The nodes this node dominates */
@@ -115,6 +115,8 @@ class IndexedGraph {
       return nullptr;
     }
     while (lhs != rhs) {
+      CHECK(lhs);
+      CHECK(rhs);
       if (lhs->depth_ < rhs->depth_) {
         rhs = rhs->dominator_parent_;
       } else if (lhs->depth_ > rhs->depth_) {
