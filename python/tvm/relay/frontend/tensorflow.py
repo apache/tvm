@@ -45,7 +45,6 @@ from .common import infer_value_simulated as _infer_value_simulated
 __all__ = ['from_tensorflow']
 
 
-
 def _get_pad_pair(input1d, kernel1d, stride1d):
     if input1d % stride1d == 0:
         pad = max(kernel1d - stride1d, 0)

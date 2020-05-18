@@ -40,7 +40,6 @@ from tensorflow.python.framework import function
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import dtypes
 from tensorflow.python.ops import gen_functional_ops
-from tensorflow.python.framework import op_def_registry
 from distutils.version import LooseVersion
 import tvm
 from tvm import te
@@ -3466,18 +3465,18 @@ def _test_spop_resource_variables():
         assert execinfo.value.args[0].startswith("Found a stateful operator in this graph")
 
 def test_forward_spop():
-    #Uncomment the following test case to test that TVM rejects any TF stateful operations
+    # This test case is to test that TVM rejects any TF stateful operations
     # (including Resource Variables) except StatefulPartitionedCall/PartitionedCall
     # (as these two operators can still be used as container graphs to execute
     # "stateless" operations internally.
     _test_spop_stateful()
 
-    # Uncomment the following test case to test that TVM rejects inconsistent device assignment
+    # This test case is to test that TVM rejects inconsistent device assignment
     # while using StatefulPartitionedCall/PartitionedCall operators which in case of TVM will
     # be used as container graphs to internally execute "stateless" operations.
     _test_spop_device_assignment()
 
-    #Uncomment the following test case to test that TVM rejects any graph containing
+    # This test case is to test that TVM rejects any graph containing
     # resource variables with StatefulPartitionedOp.
     _test_spop_resource_variables()
 
