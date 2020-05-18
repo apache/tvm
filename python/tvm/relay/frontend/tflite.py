@@ -86,6 +86,7 @@ class OperatorConverter(object):
             'FLOOR': self.convert_floor,
             'FULLY_CONNECTED': self.convert_fully_connected,
             'GATHER': self.convert_gather,
+            'GATHER_ND' : self.convert_gather_nd,
             'GREATER_EQUAL': self.convert_greater_equal,
             'GREATER': self.convert_greater,
             'HARD_SWISH': self.convert_hard_swish,
@@ -1111,6 +1112,31 @@ class OperatorConverter(object):
 
         # Use mode 'fast' since indices are already checked within bounds.
         out = _op.take(data, indices, axis=axis, mode="fast")
+        return out
+
+    def convert_gather_nd(self, op):
+        """Method to Convert TFLite GATHER_ND operator"""
+        try:
+            from tflite.TensorType import TensorType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        for t in input_tensors:
+            assert not t.qnn_params, "Quantized input is not expected."
+
+        data = self.get_tensor_expr(input_tensors[0])
+        indices = self.get_tensor_expr(input_tensors[1])
+
+        indices_type = input_tensors[1].tensor.Type()
+        assert indices_type in (TensorType.INT32, TensorType.INT64)
+
+        indices_dims = len(_infer_shape(indices))
+        indices_t = _op.transpose(indices, axes=[-1] + list(range(indices_dims-1)))
+
+        out = _op.gather_nd(data, indices_t)
         return out
 
     def convert_strided_slice(self, op):
