@@ -119,8 +119,8 @@ def test_same_i_qnn_params():
     x_data = np.arange(-32, 32, 1).reshape(1, 64).astype(data_dtype)
     y_data = np.arange(-64, 64, 2).reshape(1, 64).astype(data_dtype)
 
-    x_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
-    y_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
+    x_scale = relay.const(2.933666e-8, 'float32')
+    y_scale = relay.const(2.933666e-8, 'float32')
     x_zero_point = relay.const(0, 'int32')
     y_zero_point = relay.const(0, 'int32')
 
