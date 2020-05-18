@@ -1128,13 +1128,13 @@ def test_read_variable_op():
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
 
         shape_dict = {e: i.shape for e, i in zip(in_name, in_data)}
-        with pytest.raises(Exception) as exexcinfo:
+        with pytest.raises(Exception) as execinfo:
             mod, params = relay.frontend.from_tensorflow(final_graph_def,
                                                          layout=None,
                                                          shape=shape_dict,
                                                          outputs=None)
 
-        assert exexcinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph.")
+        assert execinfo.value.args[0].startswith("Found a stateful operator in this graph")
 
         # Now convert the variables to constant and run inference on the converted graph
         final_graph_def = tf.graph_util.convert_variables_to_constants(
@@ -3168,6 +3168,7 @@ def test_forward_isinf():
 def test_forward_isfinite():
     _verify_infiniteness_ops(tf.is_finite, "isfinite")
 
+
 def _test_spop_placeholder_one():
     with tf.Graph().as_default():
 
@@ -3188,6 +3189,7 @@ def _test_spop_placeholder_one():
         compare_tf_with_tvm([data, data2, data3], ['pl1:0', 'pl2:0', 'pl3:0'],
                             ['StatefulPartitionedCall:0',z2.name],  mode='vm', init_global_variables=True)
 
+
 def _test_spop_placeholder_two():
     with tf.Graph().as_default():
         data = np.ones([1], dtype=int).astype(np.int32)
@@ -3201,6 +3203,7 @@ def _test_spop_placeholder_two():
 
         z = gen_functional_ops.StatefulPartitionedCall(args=[tpl], Tout=[tf.int32], f=pl_with_default)
         compare_tf_with_tvm(data, ['pl1:0'], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
+
 
 def _test_spop_placeholder_three():
     with tf.Graph().as_default():
@@ -3216,6 +3219,7 @@ def _test_spop_placeholder_three():
         t3 = add(t1, t2)
         compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
 
+
 def _test_spop_placeholder_four():
     with tf.Graph().as_default():
         t1_data = np.array([[-1, 1, 3], [2, -2, 4], [2, -3, 14]], dtype=np.int32)
@@ -3229,6 +3233,7 @@ def _test_spop_placeholder_four():
 
         t3 = add(t1, t2)
         compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
+
 
 def _test_spop_function_invocation_basic():
     with tf.Graph().as_default():
@@ -3249,6 +3254,7 @@ def _test_spop_function_invocation_basic():
         t3 = fun3(tf.constant(10.5), tf.constant(20.4))
 
         compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
+
 
 def _test_spop_function_invocation_nested():
     with tf.Graph().as_default():
@@ -3273,14 +3279,15 @@ def _test_spop_function_invocation_nested():
 
         compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [res2.name], mode='vm', init_global_variables=True)
 
-def _test_spop_function_invocation_autograph():
+
+def _test_spop_function_invocation_no_autograph():
     with tf.Graph().as_default():
 
-        @tf.function
+        @tf.function(autograph=False)
         def fun1(a):
             return tf.multiply(a,a)
 
-        @tf.function
+        @tf.function(autograph=False)
         def fun2(b):
             return tf.multiply(b,10)
 
@@ -3294,6 +3301,7 @@ def _test_spop_function_invocation_autograph():
         t3 = fun3(tf.constant(10.5), tf.constant(20.4))
 
         compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
+
 
 def _test_spop_function_invocation_defun():
     with tf.Graph().as_default():
@@ -3315,6 +3323,7 @@ def _test_spop_function_invocation_defun():
                                                         Tout=[dtypes.float32], f=fun3, name="SpopFnInvocation")
         compare_tf_with_tvm([],[], 'SpopFnInvocation:0', mode='vm', init_global_variables=True)
 
+
 def _test_spop_arithmetic():
     with tf.Graph().as_default():
         @function.Defun(*[dtypes.int32]*3)
@@ -3328,6 +3337,7 @@ def _test_spop_arithmetic():
         spopFn = gen_functional_ops.StatefulPartitionedCall(args=[m,x,c],Tout=[tf.int32], f=arithmetic)
 
         compare_tf_with_tvm([],[],'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
+
 
 def _test_spop_control_flow():
     with tf.Graph().as_default():
@@ -3344,8 +3354,11 @@ def _test_spop_control_flow():
                     z = math_ops.multiply(x, y*i)
             return z
 
-        op = gen_functional_ops.StatefulPartitionedCall(args=[constant_op.constant(32.), constant_op.constant(100.)], Tout=[dtypes.float32], f=Body1)
+        op = gen_functional_ops.StatefulPartitionedCall(
+            args=[constant_op.constant(32.), constant_op.constant(100.)],
+            Tout=[dtypes.float32], f=Body1)
         compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
+
 
 def _test_spop_variables():
     with tf.Graph().as_default():
@@ -3361,6 +3374,7 @@ def _test_spop_variables():
         z = gen_functional_ops.StatefulPartitionedCall(args=[var1,var2],Tout=[tf.int32], f=Forward)
         compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', init_global_variables=True, mode="vm")
 
+
 def _test_spop_constants():
     with tf.Graph().as_default():
         @function.Defun(*[dtypes.int32] * 2)
@@ -3375,18 +3389,6 @@ def _test_spop_constants():
 
         compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
-
-def _test_spop_placeholder():
-    _test_spop_placeholder_one()
-    _test_spop_placeholder_two()
-    _test_spop_placeholder_three()
-    _test_spop_placeholder_four()
-
-def _test_spop_function_invocation():
-    _test_spop_function_invocation_basic()
-    _test_spop_function_invocation_nested()
-    _test_spop_function_invocation_autograph()
-    _test_spop_function_invocation_defun()
 
 def _test_spop_stateful():
 
@@ -3408,7 +3410,10 @@ def _test_spop_stateful():
             return z
 
         op = FunctionWithStatefulOp(constant_op.constant(1.), constant_op.constant(2.))
-        compare_tf_with_tvm([], [], [op.name], init_global_variables=True, mode="vm")
+        with pytest.raises(Exception) as execinfo:
+            compare_tf_with_tvm([], [], [op.name], init_global_variables=True, mode="vm")
+        assert execinfo.value.args[0].startswith("Found a stateful operator in this graph")
+
 
 def _test_spop_device_assignment():
 
@@ -3427,34 +3432,19 @@ def _test_spop_device_assignment():
         def fun3(x,y):
             with ops.device("/CPU:0"):
                 x = fun2(x)
-            with ops.device("/job:localhost/replica:0/task:0/device:CPU:1"):
-                y = fun1(y)
             with ops.device("/job:localhost/replica:0/task:0/device:CPU:2"):
+                y = fun1(y)
+            with ops.device("/job:localhost/replica:0/task:0/device:CPU:3"):
                 z = tf.add(x,y)
                 return z
 
         op = gen_functional_ops.StatefulPartitionedCall(args=[tf.constant(10.5),tf.constant(20.4)],
                                                         Tout=[dtypes.float32], f=fun3)
-        try:
-            from tensorflow.core.protobuf import config_pb2
-        except ImportError as e:
-            raise ImportError(
-                "Unable to import tensorflow which is required {}".format(e))
+        with pytest.raises(Exception) as execinfo:
+            compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0',
+                                mode='vm', init_global_variables=True)
+        assert execinfo.value.args[0].startswith("Found inconsistent Device assignment")
 
-        run_options = config_pb2.RunOptions(trace_level=config_pb2.RunOptions.FULL_TRACE)
-        run_metadata = config_pb2.RunMetadata()
-        with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
-            print("The output of device assignment run is = ",
-                  sess.run(op, options=run_options, run_metadata=run_metadata))
-            assignedDevicesSet = set()
-            for func in run_metadata.step_stats.dev_stats:
-                print("device used: ", repr(func.device))
-                assignedDevicesSet.add(func.device)
-            if (len(assignedDevicesSet) > 1):
-                print("no of devices used are: ",len(assignedDevicesSet))
-                raise Exception("Device assignment is not consistent. Rejecting the graph")
-        compare_tf_with_tvm([],[], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
 def _test_spop_resource_variables():
     tf.reset_default_graph()
@@ -3470,71 +3460,52 @@ def _test_spop_resource_variables():
             return tf.multiply(x, y)
 
         op = resourceVariablesTest(var1,var2)
+        with pytest.raises(Exception) as execinfo:
+            compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0',
+                                mode='vm', init_global_variables=True)
+        assert execinfo.value.args[0].startswith("Found a stateful operator in this graph")
 
-        def isResourceVariable(var):
-            try:
-                from tensorflow.python.ops.variables import RefVariable
-                from tensorflow.python.ops.resource_variable_ops import ResourceVariable
-            except ImportError as e:
-                raise ImportError(
-                    "Unable to import tensorflow which is required {}".format(e))
-            return bool(not issubclass(var.__class__,RefVariable)
-                        and issubclass(var.__class__,ResourceVariable))
-
-        with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
-            sess.run(op)
-            mylist = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-            resVarFound, resVarCnt = False, 0
-            for var in mylist:
-                if isResourceVariable(var):
-                    resVarFound = True
-                    resVarCnt += 1
-            print(resVarFound)
-            for var in mylist:
-                print(var, var.__class__)
-            if(resVarCnt > 0):
-                print("Graph contains {} many resource variables ".format(resVarCnt))
-                raise Exception("Graph contains Resource variables, so rejecting the graph")
-
-        compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
-
-def _test_forward_spop_positive():
-    _test_spop_placeholder()
-    _test_spop_function_invocation()
-    _test_spop_arithmetic()
-    _test_spop_control_flow()
-    _test_spop_variables()
-    _test_spop_constants()
-
-def _test_forward_spop_negative():
+def test_forward_spop():
     #Uncomment the following test case to test that TVM rejects any TF stateful operations
-    # except StatefulPartitionedCall/PartitionedCall(as these two operators can still be used
-    # as container graphs to execute "stateless" operations internally.
-    # _test_spop_stateful()
+    # (including Resource Variables) except StatefulPartitionedCall/PartitionedCall
+    # (as these two operators can still be used as container graphs to execute
+    # "stateless" operations internally.
+    _test_spop_stateful()
 
     # Uncomment the following test case to test that TVM rejects inconsistent device assignment
     # while using StatefulPartitionedCall/PartitionedCall operators which in case of TVM will
     # be used as container graphs to internally execute "stateless" operations.
     _test_spop_device_assignment()
 
-    #Uncomment the following test case to test that TVM rejects any graph containing resource variables with
-    #StatefulPartitionedOp.
-    # _test_spop_resource_variables()
+    #Uncomment the following test case to test that TVM rejects any graph containing
+    # resource variables with StatefulPartitionedOp.
+    _test_spop_resource_variables()
 
-def test_forward_spop():
-    _test_forward_spop_positive()
-    _test_forward_spop_negative()
+    #Placeholder test cases
+    _test_spop_placeholder_one()
+    _test_spop_placeholder_two()
+    _test_spop_placeholder_three()
+    _test_spop_placeholder_four()
+
+    #Function Invocation test cases
+    _test_spop_function_invocation_basic()
+    _test_spop_function_invocation_nested()
+    _test_spop_function_invocation_no_autograph()
+    _test_spop_function_invocation_defun()
+
+    #Test cases for various other TF constructs
+    _test_spop_arithmetic()
+    _test_spop_control_flow()
+    _test_spop_variables()
+    _test_spop_constants()
 
 
 #######################################################################
 # Main
 # ----
 if __name__ == '__main__':
-    # StatefulPartitionedOp
+    # StatefulPartitionedCall
     test_forward_spop()
-    test_forward_spop_positive()
-    test_forward_spop_negative()
     # Transforms
     test_forward_slice()
     test_forward_transpose()

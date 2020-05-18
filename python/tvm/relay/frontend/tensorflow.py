@@ -2926,7 +2926,7 @@ class GraphProto(object):
                                                _control_flow_nodes]]):
                     pass
                 elif op_def is not None and op_def.is_stateful:
-                    raise Exception("Found {} stateful operator in this graph. "\
+                    raise Exception("Found a stateful operator in this graph {}. "\
                         "Rejecting the graph as TVM does not support stateful operations "\
                         .format(node.op))
                 else:
@@ -3194,6 +3194,11 @@ class GraphProto(object):
         func = next((f for f in outer_graph_def.library.function
                      if f.signature.name == node_func_name), None)
         if func:
+            devices = set(node.device for node in func.node_def)
+            if len(devices) > 1:
+                raise Exception("Found inconsistent Device assignment in the "\
+                                "Stateful Partitioned SubGraph. Rejecting "\
+                                "the subgraph ")
             # Convert function definition to graph
             func_input_shapes = func.attr["_input_shapes"].list.shape
             subgraph, _ = function_def_to_graph.\
