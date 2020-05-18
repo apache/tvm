@@ -208,7 +208,7 @@ inline Array<Array<Layout>> BinaryBroadcastLayout(const Attrs& attrs,
 static inline std::tuple<Array<Layout>, Array<Layout>, bool> InferCorrectLayouts(
     const Call& call, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
     const Array<tvm::relay::Type>& old_in_types) {
-  static auto finfer_layout = Op::GetAttr<FInferCorrectLayout>("FInferCorrectLayout");
+  static auto finfer_layout = Op::GetAttrMap<FInferCorrectLayout>("FInferCorrectLayout");
   if (!call->op.as<OpNode>()) {
     return std::make_tuple<>(Array<Layout>(nullptr), Array<Layout>(nullptr), false);
   }

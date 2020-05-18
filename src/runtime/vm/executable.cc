@@ -307,9 +307,9 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       break;
     }
     case Opcode::AllocTensor: {
-      // Number of fields = 5 + instr.alloc_tensor.ndim
+      // Number of fields = 7 + instr.alloc_tensor.ndim
       fields.push_back(instr.alloc_tensor.storage);
-
+      fields.push_back(instr.alloc_tensor.offset);
       // Save `DLDataType` and the dst register.
       const auto& dtype = instr.alloc_tensor.dtype;
       fields.push_back(dtype.code);
@@ -330,8 +330,9 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       break;
     }
     case Opcode::AllocTensorReg: {
-      // Number of fields = 6
+      // Number of fields = 7
       fields.push_back(instr.alloc_tensor_reg.storage);
+      fields.push_back(instr.alloc_tensor_reg.offset);
       fields.push_back(instr.alloc_tensor_reg.shape_register);
       // Save `DLDataType` and the dst register.
       const auto& dtype = instr.alloc_tensor_reg.dtype;
@@ -549,39 +550,41 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       return Instruction::InvokePacked(packed_index, arity, output_size, args);
     }
     case Opcode::AllocTensor: {
-      // Number of fields = 6 + instr.alloc_tensor.ndim
-      DCHECK_GE(instr.fields.size(), 6U);
-      DCHECK_EQ(instr.fields.size(), 6U + static_cast<size_t>(instr.fields[4]));
+      // Number of fields = 7 + instr.alloc_tensor.ndim
+      DCHECK_GE(instr.fields.size(), 7U);
+      DCHECK_EQ(instr.fields.size(), 7U + static_cast<size_t>(instr.fields[4]));
 
       RegName storage_reg = instr.fields[0];
-
-      DLDataType dtype;
-      dtype.code = instr.fields[1];
-      dtype.bits = instr.fields[2];
-      dtype.lanes = instr.fields[3];
-
-      Index ndim = instr.fields[4];
-      RegName dst = instr.fields[5];
-
-      std::vector<Index> shape = ExtractFields(instr.fields, 6, ndim);
-
-      return Instruction::AllocTensor(storage_reg, shape, dtype, dst);
-    }
-    case Opcode::AllocTensorReg: {
-      // Number of fields = 5
-      DCHECK_EQ(instr.fields.size(), 6U);
-
-      RegName storage_reg = instr.fields[0];
-      Index shape_register = instr.fields[1];
+      RegName offset = instr.fields[1];
 
       DLDataType dtype;
       dtype.code = instr.fields[2];
       dtype.bits = instr.fields[3];
       dtype.lanes = instr.fields[4];
 
-      RegName dst = instr.fields[5];
+      Index ndim = instr.fields[5];
+      RegName dst = instr.fields[6];
 
-      return Instruction::AllocTensorReg(storage_reg, shape_register, dtype, dst);
+      std::vector<Index> shape = ExtractFields(instr.fields, 7, ndim);
+
+      return Instruction::AllocTensor(storage_reg, offset, shape, dtype, dst);
+    }
+    case Opcode::AllocTensorReg: {
+      // Number of fields = 7
+      DCHECK_EQ(instr.fields.size(), 7U);
+
+      RegName storage_reg = instr.fields[0];
+      RegName offset = instr.fields[1];
+      Index shape_register = instr.fields[2];
+
+      DLDataType dtype;
+      dtype.code = instr.fields[3];
+      dtype.bits = instr.fields[4];
+      dtype.lanes = instr.fields[5];
+
+      RegName dst = instr.fields[6];
+
+      return Instruction::AllocTensorReg(storage_reg, offset, shape_register, dtype, dst);
     }
     case Opcode::AllocADT: {
       // Number of fields = 3 + instr.num_fields

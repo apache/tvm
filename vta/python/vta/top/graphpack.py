@@ -345,9 +345,9 @@ class ExprPack(ExprMutator):
                                         method,
                                         align_corners)
             elif call.op == self.reshape and len(input_types[0].shape) == 4:
-                data, = args
+                data, _ = args
                 data = op.transpose(data, axes=(0, 4, 1, 5, 2, 3))
-                return op.reshape(data, input_types[0].shape)
+                return op.reshape(data, [int(x) for x in input_types[0].shape])
 
         return relay.Call(
             self.visit(call.op),

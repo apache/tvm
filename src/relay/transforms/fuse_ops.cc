@@ -31,6 +31,7 @@
 #include <tvm/tir/op.h>
 
 #include "../../support/arena.h"
+#include "pass_util.h"
 #include "pattern_util.h"
 
 namespace tvm {
@@ -225,7 +226,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void VisitExpr_(const CallNode* call) final {
     CHECK(graph_.node_map.count(call));
     Node* node = graph_.node_map.at(call);
-    static auto fpattern = Op::GetAttr<TOpPattern>("TOpPattern");
+    static auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
     // Now we set the pattern of this call.
     //
     // If we see a call mentioning an operator we should mark it with its
@@ -237,7 +238,13 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     // need to call Update, as it may be an arbitrary expression.
     OpPatternKind op_pattern = kOpaque;
     if (const OpNode* opnode = call->op.as<OpNode>()) {
-      op_pattern = static_cast<OpPatternKind>(fpattern[GetRef<Op>(opnode)]);
+      auto op = GetRef<Op>(opnode);
+      if (IsDynamic(call->checked_type()) && IsDataDependant(call)) {
+        // output of a shape func can't be fed to a data-dependent shape func
+        op_pattern = kOpaque;
+      } else {
+        op_pattern = static_cast<OpPatternKind>(fpattern[op]);
+      }
     } else {
       this->Update(call->op, node, kOpaque);
     }
@@ -817,7 +824,7 @@ class FuseMutator : private ExprMutator {
   // Transform calls.
   Expr VisitExpr_(const CallNode* call) {
     if (call->op.as<OpNode>()) {
-      static auto fnoncomputational = Op::GetAttr<TNonComputational>("TNonComputational");
+      static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
 
       if (fnoncomputational.get(Downcast<Op>(call->op), false)) {
         return ExprMutator::VisitExpr_(call);

@@ -398,8 +398,8 @@ std::tuple<TargetPtr, TargetPtr> MicroSession::EncoderAppend(TargetDataLayoutEnc
   const int* type_codes = args.type_codes;
   int num_args = args.num_args;
 
-  auto tvm_vals_slot = encoder->Alloc<TVMValue>(num_args);
-  auto type_codes_slot = encoder->Alloc<const int>(num_args);
+  auto tvm_vals_alloc = encoder->Alloc<TVMValue>(num_args);
+  auto type_codes_alloc = encoder->Alloc<const int>(num_args);
 
   for (int i = 0; i < num_args; i++) {
     switch (type_codes[i]) {
@@ -425,7 +425,7 @@ std::tuple<TargetPtr, TargetPtr> MicroSession::EncoderAppend(TargetDataLayoutEnc
 
         TVMValue val;
         val.v_handle = arr_ptr;
-        tvm_vals_slot.WriteValue(val);
+        tvm_vals_alloc->WriteValue(val);
         break;
       }
       // TODO(weberlo): Implement `double` and `int64` case.
@@ -437,25 +437,24 @@ std::tuple<TargetPtr, TargetPtr> MicroSession::EncoderAppend(TargetDataLayoutEnc
         break;
     }
   }
-  type_codes_slot.WriteArray(type_codes, num_args);
-  return std::make_tuple(tvm_vals_slot.start_addr(), type_codes_slot.start_addr());
+  type_codes_alloc->WriteArray(type_codes, num_args);
+  encoder->CheckUnfilledAllocs();
+  return std::make_tuple(tvm_vals_alloc->start_addr(), type_codes_alloc->start_addr());
 }
 
 template <typename T>
 TargetPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const DLTensor& arr) {
-  auto tvm_arr_slot = encoder->Alloc<T>();
-  auto shape_slot = encoder->Alloc<int64_t>(arr.ndim);
-
   // `shape` and `strides` are stored on the host, so we need to write them to
   // the device first. The `data` field is already allocated on the device and
   // is a device pointer, so we don't need to write it.
-  shape_slot.WriteArray(arr.shape, arr.ndim);
-  TargetPtr shape_dev_addr = shape_slot.start_addr();
+  auto shape_alloc = encoder->Alloc<int64_t>(arr.ndim);
+  shape_alloc->WriteArray(arr.shape, arr.ndim);
+  TargetPtr shape_dev_addr = shape_alloc->start_addr();
   TargetPtr strides_dev_addr = TargetPtr(word_size_, nullptr);
   if (arr.strides != nullptr) {
-    auto stride_slot = encoder->Alloc<int64_t>(arr.ndim);
-    stride_slot.WriteArray(arr.strides, arr.ndim);
-    strides_dev_addr = stride_slot.start_addr();
+    auto stride_alloc = encoder->Alloc<int64_t>(arr.ndim);
+    stride_alloc->WriteArray(arr.strides, arr.ndim);
+    strides_dev_addr = stride_alloc->start_addr();
   }
 
   T dev_arr(TargetVal{word_size_.bits(), reinterpret_cast<uint64_t>(arr.data)}, arr.ctx, arr.ndim,
@@ -466,8 +465,10 @@ TargetPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const DL
   // Update the device type to CPU, because from the microcontroller's
   // perspective, it is.
   dev_arr.ctx.device_type = DLDeviceType::kDLCPU;
-  tvm_arr_slot.WriteValue(dev_arr);
-  return tvm_arr_slot.start_addr();
+
+  auto tvm_arr_alloc = encoder->Alloc<T>();
+  tvm_arr_alloc->WriteValue(dev_arr);
+  return tvm_arr_alloc->start_addr();
 }
 
 // TODO(weberlo): switch over entirely to error codes that expand to error

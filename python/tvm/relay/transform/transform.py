@@ -324,7 +324,7 @@ def AlterOpLayout():
     return _ffi_api.AlterOpLayout()
 
 
-def ConvertLayout(desired_layout):
+def ConvertLayout(desired_layouts):
     """ Given a dest layout, this pass transforms the expr such that most of the ops input data
     layout is changed to the dest layout. In ideal situation, there are only 2 layout transforms,
     one at the start and one at the end.
@@ -341,15 +341,18 @@ def ConvertLayout(desired_layout):
 
     Parameters
     ----------
-    desired_layout : str
-      The desired layout for the transformed expr.
+    desired_layouts : map of op_name to list of layouts
+        Specify a mapping of operator names to a list of layouts to convert to, in the order
+        defined by the operator. An example for nn.conv2d could be: {"nn.conv2d", ["NHWC", "OHWI]},
+        where the first item in the list specifies the data layout and the second specifies the
+        kernel layout.
 
     Returns
     -------
     pass: FunctionPass
       The pass.
     """
-    return _ffi_api.ConvertLayout(desired_layout)
+    return _ffi_api.ConvertLayout(desired_layouts)
 
 
 def Legalize(legalize_map_attr_name="FTVMLegalize"):

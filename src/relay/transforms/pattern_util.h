@@ -283,6 +283,34 @@ static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> s
 }
 
 /*!
+ * \brief Create a Constant with a tensor.
+ *
+ * \param dtype The data type.
+ * \param value The array of the tensor values.
+ * \return A Constant.
+ */
+template <typename T>
+static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> shape,
+                                          Array<T> value) {
+  runtime::NDArray arr = runtime::NDArray::Empty(shape, dtype, {kDLCPU, 0});
+  TVM_DTYPE_DISPATCH(dtype, DType, {
+    for (size_t i = 0; i < value.size(); i++) {
+      if (dtype == DataType::Float(16)) {
+        // convert to float16
+        // storage is uint16_t
+        // Similar handling as that in MakeConstantScalar
+        *(static_cast<DType*>(arr->data) + i) =
+            __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(
+                static_cast<float>(value[i]));
+      } else {
+        *(static_cast<DType*>(arr->data) + i) = value[i];
+      }
+    }
+  })
+  return Constant(arr);
+}
+
+/*!
  * \brief Check if two expressions are equal scalars.
  * \param a The expression to be checked.
  * \param b The expression to be checked
@@ -519,12 +547,12 @@ static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclu
   return Call(op, {data}, Attrs(attrs), {});
 }
 
+Expr MakeReshape(Expr data, Expr newshape);
+
 static inline Expr Reshape(Expr data, Array<Integer> newshape) {
-  auto attrs = make_object<ReshapeAttrs>();
-  attrs->newshape = std::move(newshape);
-  attrs->reverse = false;
-  static const Op& op = Op::Get("reshape");
-  return Call(op, {data}, Attrs(attrs), {});
+  auto newshape_tensor =
+      MakeConstantTensor(DataType::Int(32), {static_cast<int64_t>(newshape.size())}, newshape);
+  return MakeReshape(data, newshape_tensor);
 }
 
 static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,

@@ -365,7 +365,9 @@ def test_forward_elemwise_ops():
 
 
 def test_forward_unary_ops():
-    for op in ["cos", "sin", "tan",
+    for op in ["abs", "sqrt", "ceil", "floor", "round", "reciprocal",
+               "softsign", "hard_sigmoid",
+               "cos", "sin", "tan",
                "cosh", "sinh", "tanh",
                "arccos", "arcsin", "arctan",
                "arccosh", "arcsinh", "arctanh"]:
