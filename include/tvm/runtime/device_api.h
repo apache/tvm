@@ -177,7 +177,7 @@ class TVM_DLL DeviceAPI {
   virtual void FreeWorkspace(TVMContext ctx, void* ptr);
 
   /*!
-   * \brief Get device API base don context.
+   * \brief Get device API based on context.
    * \param ctx The context
    * \param allow_missing Whether allow missing
    * \return The corresponding device API.
