@@ -86,7 +86,7 @@ struct TypeIndex {
  *       The unique string identifier of tyep type.
  * - _type_final:
  *       Whether the type is terminal type(there is no subclass of the type in the object system).
- *       This field is automatically set by marco TVM_DECLARE_FINAL_OBJECT_INFO
+ *       This field is automatically set by macro TVM_DECLARE_FINAL_OBJECT_INFO
  *       It is still OK to sub-class a terminal object type T and construct it using make_object.
  *       But IsInstance check will only show that the object type is T(instead of the sub-class).
  *
