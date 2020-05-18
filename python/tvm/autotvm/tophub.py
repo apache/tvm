@@ -38,6 +38,7 @@ AUTOTVM_TOPHUB_LOC_VAR = "TOPHUB_LOCATION"
 # default location of TopHub
 AUTOTVM_TOPHUB_DEFAULT_LOC = "https://raw.githubusercontent.com/uwsampl/tvm-distro/master/tophub"
 
+
 # value of AUTOTVM_TOPHUB_LOC_VAR to specify to not read from TopHub
 AUTOTVM_TOPHUB_NONE_LOC = "NONE"
 
@@ -56,6 +57,7 @@ PACKAGE_VERSION = {
     'intel_graphics':   "v0.02",
 
     'vta':              "v0.08",
+    'amd_gpu':          "v0.01",
 }
 
 logger = logging.getLogger('autotvm')
@@ -68,7 +70,6 @@ def _alias(name):
         'metal': 'opencl',
         'webgpu': 'opencl',
         'vulkan': 'opencl',
-        'amd_gpu': 'opencl',
         'nvptx': 'cuda',
     }
     return table.get(name, name)
