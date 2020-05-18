@@ -1437,7 +1437,7 @@ def test_forward_gather_nd():
     _test_gather_nd((2, 2, 2), [[1, 0, 0], [0, 0, 0]], 'float32')
     _test_gather_nd((4,), [1], 'float32')
     _test_gather_nd((4,), [1], 'int32')
-    _test_gather_nd((1, 4), [0], 'int32')
+    _test_gather_nd((1, 4), [0, 3], 'int32')
     _test_gather_nd((2, 2), [[[1, 0], [0, 1]]], 'int32')
     _test_gather_nd((2, 2), [[[1, 0], [0, 1]]], 'float32')
     _test_gather_nd((3, 3, 3),  [[[1, 0]]], 'int32')

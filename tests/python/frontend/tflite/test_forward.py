@@ -389,7 +389,11 @@ def test_forward_gather_nd():
     )
     _test_gather_nd(
         np.reshape(np.arange(4), [1, 4]).astype('float32'),
-        np.asarray([3]).astype('int32')
+        np.asarray([0]).astype('int32')
+    )
+    _test_gather_nd(
+        np.reshape(np.arange(4), [1, 4]).astype('float32'),
+        np.asarray([0, 3]).astype('int32')
     )
 
 #######################################################################
