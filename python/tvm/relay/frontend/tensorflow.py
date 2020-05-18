@@ -2888,8 +2888,8 @@ class GraphProto(object):
         return func
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
-        """ Wrapper to _get_func which converts Tensorflow graph to Relay function.
-        Relay module is created using the function
+        """ Wrapper to _get_relay_func which converts Tensorflow graph to Relay function
+        which is used as main function for the Relay module
         """
         func = self._get_relay_func(graph, layout=layout, shape=shape, outputs=outputs)
         self._mod["main"] = func
@@ -3329,7 +3329,6 @@ class GraphProto(object):
             Converted relay expression
         """
         node_name = node_name.split(':')[0].split("^")[-1]
-        inputs = []
 
         if node_name not in self._nodes:
             node = self._tf_node_map[node_name]
@@ -3344,6 +3343,7 @@ class GraphProto(object):
                 attr["_output_shapes"] = self._output_shapes[node_name]
                 attr["_node_name"] = node.name
                 attr["_target_layout"] = self._layout
+                inputs = []
                 for iname in node.input:
                     in_op = self._backtrack_construct(iname)
                     if isinstance(in_op, _expr.TupleWrapper):
@@ -3380,10 +3380,9 @@ class SubGraphProto(GraphProto):
         self._main_graph_proto = main_graph_proto  # holds main graph proto object
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
-        """ Wrapper to _get_func which converts Tensorflow graph to Relay function.
-        Relay module is created using the function
+        """ Wrapper to _get_relay_func which converts Tensorflow graph to Relay function.
+        Return Relay function and params
         """
-
         func = self._get_relay_func(graph, layout=layout, shape=shape, outputs=outputs)
         return func, self._params
 
