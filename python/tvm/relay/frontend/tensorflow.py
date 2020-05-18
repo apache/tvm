@@ -2893,9 +2893,9 @@ class GraphProto(object):
 
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
-            func = self._get_func(graph, layout=layout, shape=shape, outputs=outputs)
-            self._mod["main"] = func
-            return self._mod, self._params
+        func = self._get_func(graph, layout=layout, shape=shape, outputs=outputs)
+        self._mod["main"] = func
+        return self._mod, self._params
 
 
     def _parse_import_prerequisites(self, graph):
@@ -2911,8 +2911,8 @@ class GraphProto(object):
             except ImportError as e:
                 raise ImportError(
                     "Unable to import tensorflow which is required {}".format(e))
-            getOpDef = op_def_registry._registered_ops.get if hasattr(op_def_registry,
-                                                                      "_registered_ops") else op_def_registry.get
+            getOpDef = op_def_registry._registered_ops.get if hasattr(op_def_registry,\
+                        "_registered_ops") else op_def_registry.get
             op_def = getOpDef(node.op)
             if node.op == "Placeholder" or node.op == 'PlaceholderWithDefault':
                 pass
@@ -2926,8 +2926,9 @@ class GraphProto(object):
                                                _control_flow_nodes]]):
                     pass
                 elif op_def is not None and op_def.is_stateful:
-                    raise Exception("Found {} stateful operator in this graph. "
-                                    "Rejecting the graph as TVM does not support stateful operations ".format(node.op))
+                    raise Exception("Found {} stateful operator in this graph. "\
+                        "Rejecting the graph as TVM does not support stateful operations "\
+                        .format(node.op))
                 else:
                     missing_operators.add(node.op)
 
@@ -3234,8 +3235,9 @@ class GraphProto(object):
             loop_ret = global_func(*param_exprs)
             sb.ret(loop_ret)
             ret = sb.get()
-
-            return ret
+        else:
+            raise Exception("Function not found - {}".format(node_func_name))
+        return ret
 
     def _convert_operator(self, op_name, inputs, attrs,
                           graph, identity_list=None, convert_map=None):
