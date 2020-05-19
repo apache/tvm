@@ -417,26 +417,18 @@ IRModule FlattenTupleOutputs(IRModule module) {
    public:
     TupleOutFlattener() = default;
 
-    Expr InsertAnnotation(const Expr& expr, const std::string& target, const PackedFunc* ann_op) {
-      Expr new_op = (*ann_op)(expr, target);
-      new_op->checked_type_ = expr->checked_type_;
-      return new_op;
-    }
-
     Expr Rewrite_(const CallNode* call, const Expr& post) final {
       if (call->op == compiler_end_op) {
         std::string target = call->attrs.as<CompilerAttrs>()->compiler;
         // Arguments of annotation ops should be 1
         CHECK_EQ(call->args.size(), 1U);
         auto annotated_op = Downcast<Call>(post)->args[0];
-        if (annotated_op->IsInstance<TupleNode>()) {
-          auto tn = annotated_op.as<TupleNode>();
+        if (const auto* tn = annotated_op.as<TupleNode>()) {
           Array<Expr> new_fields;
 
           // Here each input of the tuple will be annotated with compiler_ends
           for (auto& tn_arg : tn->fields) {
-            auto nf = InsertAnnotation(tn_arg, target, make_end_op);
-            new_fields.push_back(nf);
+            new_fields.push_back((*make_end_op)(tn_arg, target));
           }
 
           // Return a tuple of compiler_ends in the place of the tuple that was
