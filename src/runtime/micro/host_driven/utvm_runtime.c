@@ -101,7 +101,7 @@ void UTVMMain() {
 
 // We use a dummy function to signal execution is finished for device
 // backends which require breakpoints.
-void __attribute__((noinline)) UTVMDone() { utvm_done = 1; }
+void __attribute__((noinline,noreturn)) UTVMDone() { utvm_done = 1; for (;;) ; }
 
 #define ALIGNED_UP(x, word_size) \
   ((((word_size) - (((uintptr_t)(x)) % (word_size))) % (word_size)) + (x))
