@@ -71,7 +71,7 @@ TVM_DLL int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr);
 /*!
  * \brief Backend function to allocate temporal workspace.
  *
- * \note The result allocate spaced is ensured to be aligned to kTempAllocaAlignment.
+ * \note The result allocated space is ensured to be aligned to kTempAllocaAlignment.
  *
  * \param nbytes The size of the space requested.
  * \param device_type The device type which the space will be allocated.
@@ -142,8 +142,8 @@ TVM_DLL int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv);
  *  Run f once and set handle to be not null.
  *  This function is mainly used for test purpose.
  *
- * \param handle An global address to indicate f
- * \param f The function to be ran
+ * \param handle A global address to indicate f
+ * \param f The function to be run
  * \param cdata The closure data to pass to the function.
  * \param nbytes Number of bytes in the closure data.
  * \return 0 when no error is thrown, -1 when failure happens
