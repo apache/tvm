@@ -15,20 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import pytest
 import tvm.ir._ffi_api
 
 def test_make_attrs():
-    try:
+    with pytest.raises(AttributeError):
         x = tvm.ir.make_node("attrs.TestAttrs", unknown_key=1, name="xx")
-        assert False
-    except tvm.error.TVMError as e:
-        assert str(e).find("unknown_key") != -1
 
-    try:
+    with pytest.raises(AttributeError):
         x = tvm.ir.make_node("attrs.TestAttrs", axis=100, name="xx")
-        assert False
-    except tvm.error.TVMError as e:
-        assert str(e).find("upper bound") != -1
 
     x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3,4))
     assert x.name == "xx"

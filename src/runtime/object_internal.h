@@ -47,6 +47,15 @@ class ObjectInternal {
     }
   }
   /*!
+   * \brief Check of obj derives from the type indicated by type index.
+   * \param obj The original object.
+   * \param type_index The type index of interest.
+   * \return The derivation checking result.
+   */
+  static bool DerivedFrom(const Object* obj, uint32_t type_index) {
+    return obj->DerivedFrom(type_index);
+  }
+  /*!
    * \brief Expose TypeKey2Index
    * \param type_key The original type key.
    * \return the corresponding index.
