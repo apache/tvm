@@ -98,7 +98,11 @@ namespace TVMRuntime
         public IntPtr AsHandle()
         {
             if (!IsHandleValue()) throw new NotSupportedException();
-            return (IntPtr)_value;
+
+            if (_typeCode.Equals(TVMTypeCode.TVMModuleHandle)) return ((Module)_value).ModuleHandle;
+            else if (_typeCode.Equals(TVMTypeCode.TVMPackedFuncHandle)) return ((PackedFunction)_value).FuncHandle;
+            else if (_typeCode.Equals(TVMTypeCode.TVMDLTensorHandle) || _typeCode.Equals(TVMTypeCode.TVMNDArrayHandle)) return ((NDArray)_value).NDArrayHandle;
+            else return (IntPtr)_value;
         }
 
         public void DisposeTVMValue()

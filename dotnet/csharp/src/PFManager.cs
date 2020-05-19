@@ -27,11 +27,6 @@ namespace TVMRuntime
             Utils.CheckSuccess(0, result);
         }
 
-        // TODO: String marshalling is tricky, currently assume only input has
-        //       so divided the func call to two types,
-        //       and there is no return value as string.
-        //       Later based on need add the functionality.
-
         /// <summary>
         /// Runs the packed func.
         /// </summary>
@@ -43,94 +38,119 @@ namespace TVMRuntime
             int[] typeCodes = new int[numArgs];
             TVMValueStruct[] args = new TVMValueStruct[numArgs];
 
-            for (int i = 0; i < numArgs; i++)
+            // Temporary Marshalling Pointers
+            IntPtr strValuePtr = IntPtr.Zero;
+            IntPtr[] byteArrayPtr = new IntPtr[] { IntPtr.Zero };
+
+            try
             {
-                Type t = inputArgs[i].GetType();
-                if (t.Equals(typeof(byte)) || t.Equals(typeof(sbyte))
-                    || t.Equals(typeof(int)) || t.Equals(typeof(long)))
+                for (int i = 0; i < numArgs; i++)
                 {
-                    long value = 0;
-                    if (t.Equals(typeof(byte))) value = (long)((byte)inputArgs[i]);
-                    else if (t.Equals(typeof(sbyte))) value = (long)((sbyte)inputArgs[i]);
-                    else if (t.Equals(typeof(int))) value = (long)((int)inputArgs[i]);
-                    else if (t.Equals(typeof(long))) value = (long)(inputArgs[i]);
+                    Type t = inputArgs[i].GetType();
+                    if (t.Equals(typeof(byte)) || t.Equals(typeof(sbyte))
+                        || t.Equals(typeof(int)) || t.Equals(typeof(long)))
+                    {
+                        long value = 0;
+                        if (t.Equals(typeof(byte))) value = (long)((byte)inputArgs[i]);
+                        else if (t.Equals(typeof(sbyte))) value = (long)((sbyte)inputArgs[i]);
+                        else if (t.Equals(typeof(int))) value = (long)((int)inputArgs[i]);
+                        else if (t.Equals(typeof(long))) value = (long)(inputArgs[i]);
 
-                    args[i].vInt64 = value;
-                    typeCodes[i] = (int)TVMDataTypeCode.Int;
-                }
-                else if (t.Equals(typeof(uint)))
-                {
-                    args[i].vInt64 = (long)((uint)inputArgs[i]);
-                    typeCodes[i] = (int)TVMDataTypeCode.UInt;
-                }
-                else if (t.Equals(typeof(float))
-                    || t.Equals(typeof(double)))
-                {
-                    double value = 0;
-                    if (t.Equals(typeof(float))) value = (double)((float)inputArgs[i]);
-                    else if (t.Equals(typeof(double))) value = (double)(inputArgs[i]);
+                        args[i].vInt64 = value;
+                        typeCodes[i] = (int)TVMDataTypeCode.Int;
+                    }
+                    else if (t.Equals(typeof(uint)))
+                    {
+                        args[i].vInt64 = (long)((uint)inputArgs[i]);
+                        typeCodes[i] = (int)TVMDataTypeCode.UInt;
+                    }
+                    else if (t.Equals(typeof(float))
+                        || t.Equals(typeof(double)))
+                    {
+                        double value = 0;
+                        if (t.Equals(typeof(float))) value = (double)((float)inputArgs[i]);
+                        else if (t.Equals(typeof(double))) value = (double)(inputArgs[i]);
 
-                    args[i].vFloat64 = value;
-                    typeCodes[i] = (int)TVMDataTypeCode.Float;
+                        args[i].vFloat64 = value;
+                        typeCodes[i] = (int)TVMDataTypeCode.Float;
+                    }
+                    else if (t.Equals(typeof(string)))
+                    {
+                        // NOTE: String Marshalling is tricky as it can not go
+                        //       in common structure as string, so send it as
+                        //       pointer.
+                        strValuePtr = Marshal.StringToHGlobalAuto((string)inputArgs[i]);
+                        args[i].handle = strValuePtr;
+                        typeCodes[i] = (int)TVMTypeCode.TVMStr;
+                    }
+                    else if (t.Equals(typeof(byte [])))
+                    {
+                        byteArrayPtr = GetByteArrayPtr((byte[])inputArgs[i]);
+                        args[i].handle = byteArrayPtr[0];
+                        typeCodes[i] = (int)TVMTypeCode.TVMBytes;
+                    }
+                    else if (t.Equals(typeof(NDArray)))
+                    {
+                        args[i].handle = ((NDArray)inputArgs[i]).NDArrayHandle;
+                        typeCodes[i] = (int)TVMTypeCode.TVMNDArrayHandle;
+                    }
+                    else if (t.Equals(typeof(PackedFunction)))
+                    {
+                        args[i].handle = ((PackedFunction)inputArgs[i]).FuncHandle;
+                        typeCodes[i] = (int)TVMTypeCode.TVMPackedFuncHandle;
+                    }
+                    else if (t.Equals(typeof(Module)))
+                    {
+                        args[i].handle = ((Module)inputArgs[i]).ModuleHandle;
+                        typeCodes[i] = (int)TVMTypeCode.TVMModuleHandle;
+                    }
+                    else
+                    {
+                        throw new System.ArgumentException(t + " not supported!");
+                    }
                 }
-                else if (t.Equals(typeof(NDArray)))
+
+                TVMValueStruct retVal = new TVMValueStruct();
+                int retTypeCode = 0;
+                int result = NativeImport.TVMFuncCall(funcHandle,
+                    args, typeCodes, numArgs, ref retVal, ref retTypeCode);
+                Utils.CheckSuccess(0, result);
+
+                return GetTVMValueFromReturn(retVal, (TVMRuntime.TVMTypeCode)retTypeCode);
+            }
+            finally
+            {
+                // Free The Temporary Marshalling Pointers.
+                if (!IntPtr.Zero.Equals(strValuePtr)) Marshal.FreeHGlobal(strValuePtr);
+                foreach (IntPtr ptr in byteArrayPtr)
                 {
-                    args[i].handle = ((NDArray)inputArgs[i]).NDArrayHandle;
-                    typeCodes[i] = (int)TVMTypeCode.TVMNDArrayHandle;
-                }
-                else if (t.Equals(typeof(PackedFunction)))
-                {
-                    args[i].handle = ((PackedFunction)inputArgs[i]).FuncHandle;
-                    typeCodes[i] = (int)TVMTypeCode.TVMPackedFuncHandle;
-                }
-                else if (t.Equals(typeof(Module)))
-                {
-                    args[i].handle = ((Module)inputArgs[i]).ModuleHandle;
-                    typeCodes[i] = (int)TVMTypeCode.TVMModuleHandle;
-                }
-                else
-                {
-                    throw new System.ArgumentException(t + " not supported!");
+                    if (!IntPtr.Zero.Equals(ptr)) Marshal.FreeHGlobal(ptr);
                 }
             }
-
-            TVMValueStruct retVal = new TVMValueStruct();
-            int retTypeCode = 0;
-
-            int result = NativeImport.TVMFuncCall(funcHandle,
-                args, typeCodes, numArgs, ref retVal, ref retTypeCode);
-            Utils.CheckSuccess(0, result);
-
-            return GetTVMValueFromReturn(retVal, (TVMRuntime.TVMTypeCode)retTypeCode);
         }
 
         /// <summary>
-        /// Runs the packed func.
+        /// Gets the byte array pointer.
         /// </summary>
-        /// <param name="funcHandle">Func handle.</param>
-        /// <param name="inputArgs">Input arguments.</param>
-        public static TVMValue RunPackedFunc(IntPtr funcHandle, string[] inputArgs)
+        /// <returns>The byte array ptr.</returns>
+        /// <param name="input">Input.</param>
+        private static IntPtr[] GetByteArrayPtr(byte[] input)
         {
-            int numArgs = inputArgs.Length;
-            int[] typeCodes = new int[numArgs];
+            // Initialize unmanged memory to hold the struct.
+            int lengthArray = Marshal.SizeOf(input[0]) * input.Length;
+            IntPtr pnt = Marshal.AllocHGlobal(lengthArray);
 
-            for (int i = 0; i < numArgs; i++)
-            {
-                typeCodes[i] = (int)TVMTypeCode.TVMStr;
-            }
+            TVMRuntimeByteArray loadParamsArgs = new TVMRuntimeByteArray();
+            loadParamsArgs.paramPtr = pnt;
+            loadParamsArgs.size = input.Length;
+            IntPtr pnt1 = Marshal.AllocHGlobal(Marshal.SizeOf(loadParamsArgs));
 
-            TVMValueStruct retVal = new TVMValueStruct();
-            int retTypeCode = 0;
-
-            int result = NativeImport.TVMFuncCall(funcHandle,
-                inputArgs, typeCodes, numArgs, ref retVal, ref retTypeCode);
-            Utils.CheckSuccess(0, result);
-
-            return GetTVMValueFromReturn(retVal, (TVMRuntime.TVMTypeCode)retTypeCode);
-
+            // Copy the struct to unmanaged memory.
+            Marshal.Copy(input, 0, pnt, lengthArray);
+            Marshal.StructureToPtr(loadParamsArgs, pnt1, false);
+            return new IntPtr[] { pnt1, pnt };
         }
 
-        //TODO: TVM String as return value need to be handled, currently no need
         /// <summary>
         /// Gets the TVMValue from return.
         /// </summary>
@@ -147,6 +167,7 @@ namespace TVMRuntime
                 case TVMTypeCode.TVMFloat:
                     return new TVMValue(retTypeCode, retVal.vFloat64);
                 case TVMTypeCode.TVMOpaqueHandle:
+                case TVMTypeCode.TVMObjectHandle:
                     return new TVMValue(retTypeCode, retVal.handle);
                 case TVMTypeCode.TVMModuleHandle:
                     return new TVMValue(retTypeCode, new Module(retVal.handle));
@@ -162,6 +183,8 @@ namespace TVMRuntime
                     byte[] array = new byte[byteArray.size];
                     Marshal.Copy(byteArray.paramPtr, array, 0, array.Length);
                     return new TVMValue(retTypeCode, array);
+                case TVMTypeCode.TVMStr:
+                    return new TVMValue(retTypeCode, Marshal.PtrToStringAuto(retVal.handle));
                 case TVMTypeCode.TVMNullptr:
                     return new TVMValue(retTypeCode, null);
                 default:

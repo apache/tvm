@@ -13,7 +13,7 @@ namespace Native
     /// being passed through API and function calls.
     /// </remarks>
     [StructLayout(LayoutKind.Explicit)]
-    public partial struct TVMValueStruct
+    public struct TVMValueStruct
     {
         [FieldOffset(0)]
         public long vInt64;
@@ -47,7 +47,6 @@ namespace Native
         public IntPtr paramPtr;
         public long size;
     }
-
 
     internal static class NativeImport
     {
@@ -116,6 +115,7 @@ namespace Native
         internal static extern int TVMModFree(IntPtr mod);
 
         // Packed Function related imports
+
         /// <summary>
         ///
         /// </summary>
@@ -158,64 +158,8 @@ namespace Native
             ref TVMValueStruct retVal,
             ref int retTypeCode);
 
-        /// <summary>
-        /// TVM func call.
-        /// </summary>
-        /// <returns>The func call.</returns>
-        /// <param name="funcHandle">Func.</param>
-        /// <param name="args">Arguments.</param>
-        /// <param name="argTypeCodes">Argument type codes.</param>
-        /// <param name="numArgs">Number arguments.</param>
-        /// <param name="retVal">Ret value.</param>
-        /// <param name="retTypeCode">Ret type code.</param>
-        [DllImport(Utils.libName)]
-        internal static extern int TVMFuncCall(IntPtr funcHandle,
-            [MarshalAs(UnmanagedType.LPArray)] string[] args,
-            [MarshalAs(UnmanagedType.LPArray)] int[] argTypeCodes,
-            int numArgs,
-            ref TVMValueStruct retVal,
-            ref int retTypeCode);
-
-
-        // Runtime specific customized imports
-
-        /// <summary>
-        /// TVM func call.
-        /// </summary>
-        /// <returns>The func call.</returns>
-        /// <param name="funcHandle">Func handle.</param>
-        /// <param name="args">Arguments.</param>
-        /// <param name="argTypeCodes">Argument type codes.</param>
-        /// <param name="numArgs">Number arguments.</param>
-        /// <param name="retVal">Ret value.</param>
-        /// <param name="retTypeCode">Ret type code.</param>
-        [DllImport(Utils.libName)]
-        internal static extern int TVMFuncCall(IntPtr funcHandle,
-            IntPtr args,
-            [MarshalAs(UnmanagedType.LPArray)] int[] argTypeCodes,
-            int numArgs,
-            ref IntPtr retVal,
-            ref int retTypeCode);
-
-        /// <summary>
-        /// TVM func call.
-        /// </summary>
-        /// <returns>The unc call.</returns>
-        /// <param name="funcHandle">Func handle.</param>
-        /// <param name="args">Arguments.</param>
-        /// <param name="argTypeCodes">Argument type codes.</param>
-        /// <param name="numArgs">Number arguments.</param>
-        /// <param name="retVal">Ret value.</param>
-        /// <param name="retTypeCode">Ret type code.</param>
-        [DllImport(Utils.libName)]
-        internal static extern int TVMFuncCall(IntPtr funcHandle,
-            ref IntPtr args,
-            [MarshalAs(UnmanagedType.LPArray)] int[] argTypeCodes,
-            int numArgs,
-            ref IntPtr retVal,
-            ref int retTypeCode);
-
         // NDArray specific imports
+
         /// <summary>
         /// TVM Array alloc.
         /// </summary>

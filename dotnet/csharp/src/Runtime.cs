@@ -109,7 +109,7 @@ namespace TVMRuntime
             _graphJsonString = Utils.ReadStringFromFile(runtimeParam.graphJsonPath);
 
             // Create Runtime
-            CreateTVMRuntime(module.ModuleHandle, _graphJsonString, runtimeParam.context);
+            CreateTVMRuntime(module, _graphJsonString, runtimeParam.context);
 
             // Release Module as, we no longer need it
             module.DisposeModule();
@@ -158,8 +158,7 @@ namespace TVMRuntime
         {
             if (!_isInstantiated) { throw new System.NullReferenceException("Runtime not initialized"); }
 
-            InvokeRuntimeSetInputFunc(_funcDict["set_input"].FuncHandle,
-                inputName, inputTensor.NDArrayHandle);
+            _funcDict["set_input"].Invoke(inputName, inputTensor);
         }
 
         /// <summary>
@@ -169,8 +168,7 @@ namespace TVMRuntime
         {
             if (!_isInstantiated) { throw new System.NullReferenceException("Runtime not initialized"); }
 
-            InvokeRuntimeLoadParamFunc(_funcDict["load_params"].FuncHandle,
-                _paramsDict);
+            _funcDict["load_params"].Invoke(_paramsDict);
         }
 
         /// <summary>
