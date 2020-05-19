@@ -890,18 +890,17 @@ def _tensor_array_scatter():
             values = unstack_function(inputs[2])
             tensor_array_scatter_func = prelude.get_var('tensor_array_scatter', dtype_str)
         else:
-            input_t_shape = _get_more_static_shape(input_t_shape, input_shape)
-            values_shape = (values_shape[0],) + input_t_shape
+            values_shape = (values_shape[0],) + input_shape
             static_tensor_array_ops = StaticTensorArrayOps(prelude,
                                                            dtype_str,
-                                                           input_t_shape)
+                                                           input_shape)
             static_tensor_array_ops.register()
             # Register static indices shape
             if isinstance(indices_shape[0], int):
                 static_tensor_array_ops.define_tensor_array_scatter(indices_shape, True)
             tensor_array_scatter_func = prelude.get_var_static('tensor_array_scatter',
                                                                dtype_str,
-                                                               input_t_shape)
+                                                               input_shape)
 
             static_tensor_array_ops = StaticTensorArrayOps(prelude,
                                                            dtype_str,
