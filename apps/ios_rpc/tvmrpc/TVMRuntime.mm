@@ -37,13 +37,13 @@
 #include "../../../src/runtime/workspace_pool.cc"
 
 // RPC server
+#include "../../../src/runtime/rpc/rpc_channel.cc"
+#include "../../../src/runtime/rpc/rpc_endpoint.cc"
+#include "../../../src/runtime/rpc/rpc_local_session.cc"
 #include "../../../src/runtime/rpc/rpc_module.cc"
 #include "../../../src/runtime/rpc/rpc_server_env.cc"
 #include "../../../src/runtime/rpc/rpc_session.cc"
 #include "../../../src/runtime/rpc/rpc_socket_impl.cc"
-#include "../../../src/runtime/rpc/rpc_endpoint.cc"
-#include "../../../src/runtime/rpc/rpc_local_session.cc"
-#include "../../../src/runtime/rpc/rpc_channel.cc"
 // Graph runtime
 #include "../../../src/runtime/graph/graph_runtime.cc"
 // Metal
