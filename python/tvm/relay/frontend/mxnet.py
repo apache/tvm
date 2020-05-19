@@ -693,6 +693,10 @@ def _mx_take(inputs, attrs):
     axis = attrs.get_int("axis", 0)
     return _op.take(inputs[0], inputs[1].astype("int32"), axis, mode)
 
+def _mx_gather_nd(inputs, attrs):
+    assert len(inputs) == 2
+    assert len(_infer_shape(inputs[1])) > 1, "index tensor to have at least 2 dimensions"
+    return _op.gather_nd(inputs[0], inputs[1])
 
 def _mx_reverse(inputs, attrs):
     assert len(inputs) == 1
@@ -1770,7 +1774,6 @@ _identity_list = [
     "zeros_like",
     "ones_like",
     "where",
-    "gather_nd",
     "cos",
     "cosh",
     "sin",
@@ -1918,6 +1921,7 @@ _convert_map = {
     "pad"           : _mx_pad,
     "Pad"           : _mx_pad,
     "take"          : _mx_take,
+    "gather_nd"     : _mx_gather_nd,
     "reverse"       : _mx_reverse,
     "squeeze"       : _mx_squeeze,
     "broadcast_axis": _mx_broadcast_axis,
