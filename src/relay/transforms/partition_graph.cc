@@ -469,23 +469,31 @@ IRModule FlattenTupleOutputs(IRModule module) {
 namespace transform {
 
 Pass PartitionGraph() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func = [=](IRModule m,
-                                                                            PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> flatten_tuples = [=](IRModule m,
+                                                                                 PassContext pc) {
     // There could be compiler_end annotations on tuples
     // If the corresponding region is having multiple compiler_ends,
     // this would lead to creation of tuples of tuples.
     // Thus, we flatten the tuples by transfering the compiler_end to
     // the tuple inputs.
-    auto _m = partitioning::FlattenTupleOutputs(m);
+    return partitioning::FlattenTupleOutputs(m);
+  };
 
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> remove_defaults = [=](IRModule m,
+                                                                                  PassContext pc) {
     // TODO(@comaniac, @zhiics): We should also handle the annotation with "default" attribute
     // by treating them as un-annotated, but we don't have it yet. This workaround pass removes
     // all "default" annotations and should be deleted in the future.
-    auto __m = partitioning::RemoveDefaultAnnotations(_m);
-    return partitioning::Partitioner(__m).Partition();
+    return partitioning::RemoveDefaultAnnotations(m);
   };
-  auto partitioned = CreateModulePass(part_func, 0, "PartitionGraph", {});
-  return Sequential({partitioned, InferType()});
+
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func =
+      [=](IRModule m, PassContext pc) { return partitioning::Partitioner(m).Partition(); };
+
+  auto flatten_tuples_pass = CreateModulePass(flatten_tuples, 0, "FlattenNestedTuples", {});
+  auto remove_default_pass = CreateModulePass(remove_defaults, 0, "RemoveDefaultAnnotations", {});
+  auto partition_pass = CreateModulePass(part_func, 0, "PartitionGraph", {});
+  return Sequential({flatten_tuples_pass, remove_default_pass, partition_pass, InferType()});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.PartitionGraph").set_body_typed(transform::PartitionGraph);
