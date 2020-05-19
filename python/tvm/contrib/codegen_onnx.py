@@ -118,7 +118,7 @@ class MaxPool(OpConverter):
     @classmethod
     def convert_attributes(cls, attrs):
         return {
-            'pads': attrs.get_int_tuple("padding") + attrs.get_int_tuple("padding"),
+            'pads': attrs.get_int_tuple("padding"),
             'strides': attrs.get_int_tuple("strides"),
             'kernel_shape': attrs.get_int_tuple("pool_size"),
         }
