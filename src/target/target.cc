@@ -107,13 +107,14 @@ Target CreateTarget(const std::string& target_name, const std::vector<std::strin
     if (t->device_name == "intel_graphics") {
       t->thread_warp_size = 16;
     }
-  } else if (target_name == "metal" || target_name == "vulkan" || target_name == "webgpu" || target_name == "amd_gpu") {
+  } else if (target_name == "metal" || target_name == "vulkan" || target_name == "webgpu" ||
+             target_name == "amd_gpu") {
     if (target_name == "metal") {
       t->device_type = kDLMetal;
     } else if (target_name == "webgpu") {
-        t->device_type = kDLWebGPU;
+      t->device_type = kDLWebGPU;
     } else {
-        t->device_type = kDLVulkan;
+      t->device_type = kDLVulkan;
     }
     t->keys_array.push_back(target_name);
     t->keys_array.push_back("gpu");
@@ -314,10 +315,8 @@ Target ext_dev(const std::vector<std::string>& options) { return CreateTarget("e
 Target hexagon(const std::vector<std::string>& options) { return CreateTarget("hexagon", options); }
 
 Target amd_gpu(const std::vector<std::string>& options) {
-  return CreateTarget("vulkan", MergeOptions(options, {
-    "-device=amd_gpu"
-  }));
-}    
+  return CreateTarget("vulkan", MergeOptions(options, {"-device=amd_gpu"}));
+}
 }  // namespace target
 
 BuildConfig BuildConfig::Create() { return BuildConfig(make_object<BuildConfigNode>()); }

@@ -97,7 +97,8 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.webgpu.tanh").set_body(DispatchGLSLPureIntr
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.floor")
     .set_body(DispatchGLSLPureIntrin<GLSLstd450Floor>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.ceil").set_body(DispatchGLSLPureIntrin<GLSLstd450Ceil>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.ceil")
+    .set_body(DispatchGLSLPureIntrin<GLSLstd450Ceil>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.round")
     .set_body(DispatchGLSLPureIntrin<GLSLstd450Round>);
@@ -105,18 +106,20 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.round")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.trunc")
     .set_body(DispatchGLSLPureIntrin<GLSLstd450Trunc>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.fabs").set_body(DispatchGLSLPureIntrin<GLSLstd450FAbs>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.fabs")
+    .set_body(DispatchGLSLPureIntrin<GLSLstd450FAbs>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.exp").set_body(DispatchGLSLPureIntrin<GLSLstd450Exp>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.log").set_body(DispatchGLSLPureIntrin<GLSLstd450Log>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.sqrt").set_body(DispatchGLSLPureIntrin<GLSLstd450Sqrt>);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.sqrt")
+    .set_body(DispatchGLSLPureIntrin<GLSLstd450Sqrt>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.pow").set_body(DispatchGLSLPureIntrin<GLSLstd450Pow>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.tanh").set_body(DispatchGLSLPureIntrin<GLSLstd450Tanh>);
-    
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.amd_gpu.tanh")
+    .set_body(DispatchGLSLPureIntrin<GLSLstd450Tanh>);
 
 }  // namespace spirv
 }  // namespace codegen
