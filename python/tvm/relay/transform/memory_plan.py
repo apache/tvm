@@ -331,16 +331,18 @@ class LiftConst(ExprMutator):
             fn.attrs)
 
     def visit_let(self, let):
-        def _each_binding(var, val):
+        bindings = []
+        i = 0
+        while isinstance(let, expr.Let):
+            print(i)
             new_var = self.visit(let.var)
             new_val = self.visit(let.value)
-            return new_var, new_val
+            bindings.append((new_var, new_val))
+            let = let.body
+            i += 1
 
-        def _after(bindings, body):
-            new_body = self.visit(let.body)
-            return mk_let(bindings, new_body)
-
-        return iterative_let(let, _each_binding, _after)
+        new_body = self.visit(let)
+        return mk_let(bindings, new_body)
 
 @function_pass(opt_level=0)
 class MemoryPlan:
