@@ -672,7 +672,6 @@ def test_any_strided_slice():
     verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70))
     verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70), ignore_end=True)
 
-
 def test_recursive_concat():
     """
     fn @concat_loop(%i: int32, %st: (any, 1)) -> (any, 1) {

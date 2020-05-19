@@ -17,7 +17,6 @@
 """Unit tests for converting TensorFlow debugging ops to Relay."""
 try:
     import tensorflow.compat.v1 as tf
-
     tf.disable_v2_behavior()
 except ImportError:
     import tensorflow as tf
@@ -25,14 +24,12 @@ import numpy as np
 from tvm import relay
 from tvm.relay.frontend.tensorflow import from_tensorflow
 
-
 def run_relay(graph, shape_dict=None, *vars):
     mod, params = from_tensorflow(
         graph.as_graph_def(add_shapes=True),
         shape=shape_dict)
     ex = relay.create_executor('debug', mod=mod)
     return ex.evaluate()(*vars)
-
 
 def test_assert_true():
     g = tf.Graph()
@@ -77,7 +74,6 @@ def test_assert_true_var_capture():
         np.testing.assert_allclose(True,
                                    run_relay(g, None, x_value).asnumpy())
 
-
 def test_assert_false():
     g = tf.Graph()
     with g.as_default():
@@ -95,7 +91,6 @@ def test_assert_false():
         # reason, there should not be an error here, even though the assertion
         # argument is false.
         np.testing.assert_allclose(0, run_relay(g).asnumpy())
-
 
 if __name__ == "__main__":
     test_assert_true()

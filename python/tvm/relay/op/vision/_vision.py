@@ -19,9 +19,7 @@
 from __future__ import absolute_import
 
 import topi
-
 from tvm.te.hybrid import script
-
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern

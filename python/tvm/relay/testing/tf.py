@@ -77,7 +77,7 @@ def AddShapesToGraphDef(session, out_node):
 
     Parameters
     ----------
-    session : tf.compat.v1.Session
+    session : tf.Session
         Tensorflow session
     out_node : String or List
         Final output node of the graph.

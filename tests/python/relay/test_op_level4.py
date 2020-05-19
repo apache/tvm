@@ -323,7 +323,6 @@ def test_strided_slice():
         assert "begin=" in text
         assert "end=" in text
 
-
         if output:
             assert func.body.checked_type == relay.ty.TensorType(output, "float32")
 
@@ -400,4 +399,3 @@ if __name__ == "__main__":
     test_where()
     test_reduce_functions()
     test_mean_var_std()
-

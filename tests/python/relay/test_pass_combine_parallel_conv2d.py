@@ -17,7 +17,6 @@
 import tvm
 from tvm import relay
 from tvm.relay import transform
-import numpy as np
 
 
 def run_combine_parallel(expr, min_num_branches=3):
@@ -132,7 +131,7 @@ def test_combine_parallel_conv2d_scale_relu():
                          transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w1, w2, scale1, scale2, bias, channels1, channels2)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
+        assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
 
     check((1, 4, 16, 16), 4, 8)
 
@@ -177,7 +176,7 @@ def test_combine_parallel_conv2d_scale():
                          transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w1, w2, scale1, scale2, channels1, channels2)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
+        assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
 
     check((1, 4, 16, 16), 4, 8)
 
@@ -219,7 +218,7 @@ def test_combine_parallel_conv2d_multiple_blocks():
                          transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w, out_c, repeat)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
+        assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
 
     check((1, 4, 16, 16), 4)
 

@@ -2530,7 +2530,7 @@ class LoopBound(ExprVisitor):
     .. code-block:: python
 
         i = tf.constant(0)
-        data = tf.placeholder(tf.float32, shape=(1024, 1024))
+        data = tf.compat.v1.placeholder(tf.float32, shape=(1024, 1024))
         slice = tf.strided_slice(data, 0, 512)
         def c(i): return tf.less(i, 10)
         def b(i): return [tf.add(i, 1), tf.add(i, 1) + slice]
