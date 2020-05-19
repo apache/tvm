@@ -97,19 +97,9 @@ bool NMSRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-
-Expr MakeNMS(Expr data,
-             Expr valid_count,
-             Expr indices,
-             int max_output_size,
-             double iou_threshold,
-             bool force_suppress,
-             int top_k,
-             int coord_start,
-             int score_index,
-             int id_index,
-             bool return_indices,
-             bool invalid_to_bottom) {
+Expr MakeNMS(Expr data, Expr valid_count, Expr indices, int max_output_size, double iou_threshold,
+             bool force_suppress, int top_k, int coord_start, int score_index, int id_index,
+             bool return_indices, bool invalid_to_bottom) {
   auto attrs = make_object<NonMaximumSuppressionAttrs>();
   attrs->max_output_size = max_output_size;
   attrs->iou_threshold = iou_threshold;
@@ -124,11 +114,10 @@ Expr MakeNMS(Expr data,
   return Call(op, {data, valid_count, indices}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.vision._make.non_max_suppression")
-.set_body_typed(MakeNMS);
+TVM_REGISTER_GLOBAL("relay.op.vision._make.non_max_suppression").set_body_typed(MakeNMS);
 
 RELAY_REGISTER_OP("vision.non_max_suppression")
-.describe(R"doc(Non-maximum suppression. The input boxes should
+    .describe(R"doc(Non-maximum suppression. The input boxes should
 be in the format of [class_id, score, left, top, right, bottom]
 or [score, left, top, right, bottom]. Set id_index to be -1 to
 ignore class_id axis.

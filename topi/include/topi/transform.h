@@ -520,6 +520,7 @@ inline Array<Tensor> split(const Tensor& x, Array<Integer> split_indices, int ax
  * \param begin The indices to begin with in the slicing
  * \param end Indicies indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
+ * \param ignore_end Specifies whether to ignore input end
  * in that case, the input tensor will be reversed in that particular axis
  * \param name The name of the operation
  * \param tag The tag to mark the operation

@@ -71,15 +71,12 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     const auto shape_b =
         tir::BijectiveLayout(Layout(attrs_b->kernel_layout), kOIHW).ForwardShape(tweight_b->shape);
 
-    return eq(attrs_a->strides, attrs_b->strides) &&
-           eq(attrs_a->padding, attrs_b->padding) &&
-           eq(attrs_a->dilation, attrs_b->dilation) &&
-           eq(attrs_a->groups, attrs_b->groups) &&
+    return eq(attrs_a->strides, attrs_b->strides) && eq(attrs_a->padding, attrs_b->padding) &&
+           eq(attrs_a->dilation, attrs_b->dilation) && eq(attrs_a->groups, attrs_b->groups) &&
            eq(attrs_a->data_layout, attrs_b->data_layout) &&
            eq(attrs_a->kernel_layout, attrs_b->kernel_layout) &&
            eq(attrs_a->out_dtype, attrs_b->out_dtype) &&
-           eq(attrs_a->out_layout, attrs_b->out_layout) &&
-           eq(shape_a[2], shape_b[2]) &&
+           eq(attrs_a->out_layout, attrs_b->out_layout) && eq(shape_a[2], shape_b[2]) &&
            eq(shape_a[3], shape_b[3]);
   }
 
@@ -183,12 +180,10 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       DLContext ctx;
       ctx.device_type = kDLCPU;
       ctx.device_id = 0;
-      auto begin_ndarray = runtime::NDArray::Empty({int64_t(begin.size())},
-                                                   DataType::Int(64), ctx);
-      auto end_ndarray = runtime::NDArray::Empty({int64_t(begin.size())},
-                                                 DataType::Int(64), ctx);
-      auto strides_ndarray = runtime::NDArray::Empty({int64_t(begin.size())},
-                                                     DataType::Int(64), ctx);
+      auto begin_ndarray = runtime::NDArray::Empty({int64_t(begin.size())}, DataType::Int(64), ctx);
+      auto end_ndarray = runtime::NDArray::Empty({int64_t(begin.size())}, DataType::Int(64), ctx);
+      auto strides_ndarray =
+          runtime::NDArray::Empty({int64_t(begin.size())}, DataType::Int(64), ctx);
 
       auto* begin_data = static_cast<int64_t*>(begin_ndarray->data);
       auto* end_data = static_cast<int64_t*>(end_ndarray->data);
@@ -200,11 +195,8 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
         strides_data[i] = 1;
       }
 
-      auto slice = MakeStridedSlice(data,
-                                    Constant(begin_ndarray),
-                                    Constant(end_ndarray),
-                                    Constant(strides_ndarray),
-                                    false);
+      auto slice = MakeStridedSlice(data, Constant(begin_ndarray), Constant(end_ndarray),
+                                    Constant(strides_ndarray), false);
       subst_map->insert({GetRef<Expr>(branch[depth]), slice});
     }
   }
