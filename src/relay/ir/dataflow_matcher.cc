@@ -409,12 +409,17 @@ class PatternGrouper : protected MixedModeVisitor {
   }
 
  protected:
+  using ExprVisitor::VisitExpr_;
   void VisitLeaf(const Expr& pre) override {
     if (matcher_->Match(pattern_, pre)) {
       CreateGroup(pre);
     }
   }
-
+  void VisitExpr_(const FunctionNode* op) override {
+    if (op->attrs->dict.count("Partitioned") == 0) {
+      ExprVisitor::VisitExpr_(op);
+    }
+  }
   /* \brief Creates a new set of nodes based on Group inputs, used to create functions and perform
    * group overlap analysis */
   class MatchExtractor : public ExprMutator {
@@ -612,10 +617,12 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.rewrite").set_body_typed(RewritePatt
  */
 class PatternPartitioner : protected MixedModeMutator {
  public:
-  Expr Partition(const DFPattern& pattern, const Expr& pre) {
+  Expr Partition(const DFPattern& pattern, const Expr& pre,
+                 const Map<std::string, ObjectRef>& attrs) {
     auto grouper = PatternGrouper();
     groups_ = grouper.GroupMatches(pattern, pre);
     gid_assignments_ = grouper.GetGIDAssignments();
+    attrs_ = attrs;
     return this->VisitExpr(pre);
   }
 
@@ -625,7 +632,13 @@ class PatternPartitioner : protected MixedModeMutator {
     for (size_t i = 0; i < group.args.size(); ++i) {
       args.push_back(memo_[group.args[i]]);
     }
-    return Call(group.function, args);
+    Function func = WithAttr(group.function, "Partitioned", String(""));
+    if (!attrs_.empty()) {
+      for (auto kv : attrs_) {
+        func = WithAttr(std::move(func), kv.first, kv.second);
+      }
+    }
+    return Call(func, args);
   }
 
   Expr DispatchVisitExpr(const Expr& pre) override {
@@ -636,15 +649,19 @@ class PatternPartitioner : protected MixedModeMutator {
     return post;
   }
 
+  Map<std::string, ObjectRef> attrs_;
   std::vector<PatternGrouper::Group> groups_;
   std::unordered_map<Expr, int, ObjectHash, ObjectEqual> gid_assignments_;
 };
 
-Expr PartitionPattern(DFPattern pattern, Expr expr) {
-  return PatternPartitioner().Partition(pattern, expr);
+Expr PartitionPattern(DFPattern pattern, Expr expr, Map<std::string, ObjectRef> attrs) {
+  return PatternPartitioner().Partition(pattern, expr, attrs);
 }
 
-TVM_REGISTER_GLOBAL("relay.dataflow_pattern.partition").set_body_typed(PartitionPattern);
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.partition")
+    .set_body_typed([](DFPattern pattern, Expr expr, Map<std::string, ObjectRef> attrs) {
+      return PartitionPattern(pattern, expr, attrs);
+    });
 
 }  // namespace relay
 }  // namespace tvm
