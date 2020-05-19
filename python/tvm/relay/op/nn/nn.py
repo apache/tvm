@@ -2692,3 +2692,72 @@ def adaptive_avg_pool3d(data,
     """
     output_size = [] or output_size
     return _make.adaptive_avg_pool3d(data, output_size, layout)
+
+
+def global_max_pool3d(data,
+                      layout="NCDHW"):
+    r"""3D global maximum pooling operator.
+
+    This operator takes data as input and does 3D max value calculation
+    across each window represented by DxWxH.
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
+    to produce an output Tensor with the following rule:
+
+    with data of shape (b, c, d, h, w)
+    .. math::
+
+        \mbox{out}(b, c, 1, 1, 1)  =  \max_{l=0, \ldots, d},  \max_{m=0, \ldots, h},
+             \max_{n=0, \ldots, w} \mbox{data}(b, c, l, m, n)
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [1, 1, 1]
+    return _make.adaptive_max_pool3d(data, output_size, layout)
+
+
+def global_avg_pool3d(data,
+                      layout="NCDHW"):
+    r"""3D global average pooling operator.
+
+    This operator takes data as input and does 3D average value calculation
+    across each window represented by DxWxH.
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
+    to produce an output Tensor with the following rule:
+
+    with data of shape (b, c, d, h, w)
+
+    .. math::
+
+        \mbox{out}(b, c, 1, 1, 1)  = \frac{1}{d * h * w} \sum_{l=0}^{d-1}  \sum_{m=0}^{h-1}
+             \sum_{n=0}^{w-1} \mbox{data}(b, c, l, m, n)
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [1, 1, 1]
+    return _make.adaptive_avg_pool3d(data, output_size, layout)
