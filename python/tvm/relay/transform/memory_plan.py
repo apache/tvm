@@ -330,6 +330,18 @@ class LiftConst(ExprMutator):
             fn.type_params,
             fn.attrs)
 
+    def visit_let(self, let):
+        def _each_binding(var, val):
+            new_var = self.visit(let.var)
+            new_val = self.visit(let.value)
+            return new_var, new_val
+
+        def _after(bindings, body):
+            new_body = self.visit(let.body)
+            return mk_let(bindings, new_body)
+
+        return iterative_let(let, _each_binding, _after)
+
 @function_pass(opt_level=0)
 class MemoryPlan:
     """An explicit pass wrapper around StorageCoalesce."""
