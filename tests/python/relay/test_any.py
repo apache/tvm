@@ -583,14 +583,21 @@ def test_any_softmax():
     verify_any_softmax(any_dims(3), -1, (1, 2, 3), (1, 2, 3))
     verify_any_softmax(any_dims(4), 2, (13, 11, 3, 1), (13, 11, 3, 1))
 
-def verify_any_topk(data_shape, kval, np_dshape, dtype):
-    k = relay.var('k', shape=(), dtype="int32")
-    data = relay.var('data', shape=data_shape, dtype=dtype)
-    out = relay.topk(data, k, ret_type="indices")
+def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
     mod = tvm.IRModule()
-    mod["main"] = relay.Function([data, k], out)
-
+    data = relay.var('data', shape=data_shape, dtype=dtype)
     np_data = np.random.uniform(size=np_dshape).astype(dtype)
+    if const_k:
+        k = relay.const(kval)
+        args = [data]
+        in_vals = [np_data]
+    else:
+        k = relay.var('k', shape=(), dtype="int32")
+        args = [data, k]
+        in_vals = [np_data, kval]
+    out = relay.topk(data, k, ret_type="indices")
+    mod["main"] = relay.Function(args, out)
+
     sorted = np.argsort(-np_data)
     if len(np_dshape) == 2:
         ref_out = sorted[:, 0:kval]
@@ -599,12 +606,13 @@ def verify_any_topk(data_shape, kval, np_dshape, dtype):
 
     for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(np_data, kval)
+        result = ex.evaluate()(*in_vals)
         tvm.testing.assert_allclose(result.asnumpy(), ref_out)
 
 def test_any_topk():
     verify_any_topk(any_dims(1), 5, (10,), "float32")
     verify_any_topk(any_dims(2), 2, (6, 3), "int32")
+    verify_any_topk(any_dims(2), 3, (6, 3), "float32", True)
 
 def test_fused_ops():
     x = relay.var('x', shape=(relay.Any(), relay.Any()), dtype='float32')
@@ -793,4 +801,3 @@ if __name__ == "__main__":
     test_recursive_concat_with_wrong_annotation()
     test_tuple_get_item()
     test_mixed_input_type()
-

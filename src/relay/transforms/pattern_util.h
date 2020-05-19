@@ -395,6 +395,8 @@ static inline double ToScalar(const runtime::NDArray& array, size_t i = 0) {
  * \return Converted Array.
  */
 static inline Array<Integer> ToVector(const runtime::NDArray& array) {
+  size_t ndim = array.Shape().size();
+  CHECK_EQ(ndim, 1) << "This function should only used for shape tensor.";
   size_t len = array.Shape().front();
   Array<Integer> out;
   for (size_t i = 0; i < len; ++i) {

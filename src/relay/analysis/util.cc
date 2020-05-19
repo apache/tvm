@@ -29,6 +29,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/pattern_functor.h>
+#include <tvm/relay/attrs/algorithm.h>
 
 #include "../transforms/pass_util.h"
 
@@ -447,6 +448,13 @@ bool IsDataDependant(const CallNode* call) {
     if (const auto* attrs = call->attrs.as<ReshapeAttrs>()) {
       if (attrs->newshape) {
         // If newshape attribute exists, it isn't data dependant.
+        return false;
+      }
+    }
+  } else if (op->name == "topk") {
+    if (const auto* attrs = call->attrs.as<TopKAttrs>()) {
+      if (attrs->k) {
+        // If k attribute exists, it isn't data dependant.
         return false;
       }
     }
