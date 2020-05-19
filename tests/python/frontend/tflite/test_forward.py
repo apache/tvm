@@ -383,6 +383,18 @@ def test_forward_gather_nd():
         np.reshape(np.arange(12), [2, 3, 2]).astype('int32'),
         np.asarray([[[0, 0], [0, 1]], [[1, 0], [1, 1]]]).astype('int32')
     )
+    _test_gather_nd(
+        np.reshape(np.arange(4), [4]).astype('float32'),
+        np.asarray([1]).astype('int32')
+    )
+    _test_gather_nd(
+        np.reshape(np.arange(4), [1, 4]).astype('float32'),
+        np.asarray([0]).astype('int32')
+    )
+    _test_gather_nd(
+        np.reshape(np.arange(4), [1, 4]).astype('float32'),
+        np.asarray([0, 3]).astype('int32')
+    )
 
 #######################################################################
 # StridedSlice

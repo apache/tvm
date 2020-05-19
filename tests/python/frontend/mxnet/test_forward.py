@@ -608,7 +608,7 @@ def test_forward_take():
     verify((3,4), [-1, 5], 1, mode="wrap")
 
 def test_forward_gather_nd():
-    def verify(xshape, yshape, y_data):
+    def verify(xshape, yshape, y_data, error=False):
         x_data = np.random.uniform(size=xshape).astype("float32")
         ref_res = mx.nd.gather_nd(mx.nd.array(x_data), mx.nd.array(y_data))
         mx_sym = mx.sym.gather_nd(mx.sym.var("x_data"), mx.sym.var("y_data"))
@@ -618,10 +618,12 @@ def test_forward_gather_nd():
                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
                 op_res = intrp.evaluate()(x_data, y_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+
     verify((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
     verify((2, 2, 2), (2, 2), [[0, 1], [1, 0]])
     verify((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
     verify((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
+    verify((1, 4), (1, 1), [[0]])
 
 def test_forward_bilinear_resize():
     # add tests including scale_height and scale_width when mxnet is updated to version 1.5

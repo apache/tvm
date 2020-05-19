@@ -996,7 +996,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, std::string n
                         std::string tag = kInjective) {
   size_t ndim_d = data->shape.size();
   size_t ndim_i = indices->shape.size();
-  CHECK_GT(ndim_i, 1) << "indices tensor must have at least 2 dimensions";
+  CHECK_GE(ndim_i, 1) << "indices tensor must have at least 1 dimensions";
   size_t indices_dim0 = static_cast<size_t>(GetConstInt(indices->shape[0]));
   CHECK_LE(indices_dim0, ndim_d) << "dim 0 of indices tensor must be no more "
                                  << "than dimensions of data tensor";
@@ -1026,6 +1026,9 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, std::string n
           } else {
             real_indices.push_back(tvm::cast(tvm::DataType::Int(32), indices(indices_position)));
           }
+        }
+        if (real_indices.size() == ndim_d) {
+          return data(real_indices);
         }
         for (size_t i = ndim_i - 1; i < out_index.size(); ++i) {
           real_indices.push_back(out_index[i]);
