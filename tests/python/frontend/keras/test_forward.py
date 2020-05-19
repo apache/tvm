@@ -483,6 +483,17 @@ class TestKeras:
         keras_model = keras.models.Model(data, x)
         verify_keras_frontend(keras_model, need_transpose=False)
 
+    def test_forward_global_pool3d(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 1))
+        pool_funcs = [# global maxpool
+                      keras.layers.GlobalMaxPooling3D(),
+                      # global avgpool
+                      keras.layers.GlobalAveragePooling3D()
+                     ]
+        for pool_func in pool_funcs:
+            x = pool_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout='NDHWC')
 
 if __name__ == '__main__':
     for k in [keras, tf_keras]:
@@ -513,6 +524,7 @@ if __name__ == '__main__':
         sut.test_forward_mobilenet(keras=k, layout='NHWC')
         sut.test_forward_conv3d(keras=k)
         sut.test_forward_pool3d(keras=k)
+        sut.test_forward_global_pool3d(keras=k)
         sut.test_forward_upsample3d(keras=k)
         sut.test_forward_zero_padding3d(keras=k)
         sut.test_forward_embedding(keras=k)
