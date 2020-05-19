@@ -25,11 +25,11 @@
  */
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/algorithm.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/pattern_functor.h>
-#include <tvm/relay/attrs/algorithm.h>
 
 #include "../transforms/pass_util.h"
 
