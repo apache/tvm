@@ -210,9 +210,9 @@ struct SplitAttrs : public tvm::AttrsNode<SplitAttrs> {
 
 /*! \brief Attributes for StridedSlice operator */
 struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
-  Expr begin;
-  Expr end;
-  Expr strides;
+  Optional<Array<Integer>> begin;
+  Optional<Array<Integer>> end;
+  Optional<Array<Integer>> strides;
   bool ignore_end;
 
   TVM_DECLARE_ATTRS(StridedSliceAttrs, "relay.attrs.StridedSliceAttrs") {

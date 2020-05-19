@@ -1750,42 +1750,39 @@ bool StridedSliceRel(const Array<Type>& types,
 
   // calculate output shape
   std::vector<IndexExpr> oshape(num_axis);
-  const ConstantNode *cbegin, *cend, *cstrides;
-  if ((cbegin = param->begin.as<ConstantNode>()) &&
-      (cend = param->end.as<ConstantNode>()) &&
-      (cstrides = param->strides.as<ConstantNode>())) {
+  if (param->begin && param->end && param->strides) {
     std::vector<int64_t> stride_vec;
-    int64_t* strides_val = ToVector(cstrides->data);
-    for (int64_t i = 0; i < cstrides->data.Shape().front(); ++i) {
-      stride_vec.push_back(strides_val[i]);
+    for (Integer i : param->strides.value()) {
+      CHECK(i.defined());
+      stride_vec.push_back(i->value);
     }
     for (int64_t i = stride_vec.size(); i < num_axis; ++i) {
       stride_vec.push_back(1);
     }
     const int64_t max_range = std::numeric_limits<int64_t>::max();
     std::vector<int64_t> begin_vec;
-    int64_t* begin_val = ToVector(cbegin->data);
-    for (int64_t i = 0; i < cbegin->data.Shape().front(); ++i) {
-      begin_vec.push_back(begin_val[i]);
+    for (size_t i = 0; i < param->begin.value().size(); ++i) {
+      if (!param->begin.value()[i].defined()) {
+        begin_vec.push_back(stride_vec[i] > 0 ? 0 : max_range);
+      } else {
+        begin_vec.push_back(param->begin.value()[i]->value);
+      }
     }
-    for (int64_t i = begin_vec.size(); i < num_axis; ++i) {
+    for (size_t i = begin_vec.size(); i < num_axis; ++i) {
       begin_vec.push_back(stride_vec[i] > 0 ? 0 : max_range);
     }
+
     std::vector<int64_t> end_vec;
-    int64_t* end_val = ToVector(cend->data);
-    for (int64_t i = 0; i < cend->data.Shape().front(); ++i) {
-      if (param->ignore_end) {
-        end_vec.push_back(max_range);
+    for (size_t i = 0; i < param->end.value().size(); ++i) {
+      // allow end to be None
+      if (param->ignore_end || (!param->end.value()[i].defined())) {
+        end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
       } else {
-        end_vec.push_back(end_val[i]);
+        end_vec.push_back(param->end.value()[i]->value);
       }
     }
-    for (int64_t i = end_vec.size(); i < num_axis; ++i) {
-      if (param->ignore_end) {
-        end_vec.push_back(max_range);
-      } else {
-        end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
-      }
+    for (size_t i = end_vec.size(); i < num_axis; ++i) {
+      end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
     }
 
     for (int64_t i = 0; i < num_axis; ++i) {
@@ -1839,6 +1836,7 @@ bool StridedSliceRel(const Array<Type>& types,
       oshape[i] = Any::make();
     }
   }
+
   reporter->Assign(types[4], TensorType(oshape, data->dtype));
   return true;
 }
@@ -1868,22 +1866,19 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
     auto *params = const_cast<StridedSliceAttrs*>(attrs.as<StridedSliceAttrs>());
     CHECK(params != nullptr);
     Array<Integer> begin, end, strides;
-    const ConstantNode *cbegin, *cend, *cstrides;
-    cbegin = params->begin.as<ConstantNode>();
-    cend = params->end.as<ConstantNode>();
-    cstrides = params->strides.as<ConstantNode>();
-    if (cbegin && cend && cstrides) {
-      int64_t* strides_val = ToVector(cstrides->data);
-      for (int64_t i = 0; i < cstrides->data.Shape().front(); ++i) {
-        strides.push_back(strides_val[i]);
+    if (params->begin && params->end && params->strides) {
+      for (Integer i : params->strides.value()) {
+        CHECK(i.defined());
+        strides.push_back(i->value);
       }
-      int64_t* begin_val = ToVector(cbegin->data);
-      for (int64_t i = 0; i < cbegin->data.Shape().front(); ++i) {
-        begin.push_back(begin_val[i]);
+
+      for (Integer i : params->begin.value()) {
+        CHECK(i.defined());
+        begin.push_back(i->value);
       }
-      int64_t* end_val = ToVector(cend->data);
-      for (int64_t i = 0; i < cend->data.Shape().front(); ++i) {
-        end.push_back(end_val[i]);
+      for (Integer i : params->end.value()) {
+        CHECK(i.defined());
+        end.push_back(i->value);
       }
     }
 
@@ -1920,27 +1915,8 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
     }
 
     layout = new_layout;
-
-    DLContext ctx;
-    ctx.device_type = kDLCPU;
-    ctx.device_id = 0;
-    auto begin_ndarray = runtime::NDArray::Empty({int64_t(new_begin.size())},
-                                                 DataType::Int(64), ctx);
-    auto end_ndarray = runtime::NDArray::Empty({int64_t(new_begin.size())},
-                                               DataType::Int(64), ctx);
-    auto strides_ndarray = runtime::NDArray::Empty({int64_t(new_begin.size())},
-                                                   DataType::Int(64), ctx);
-    int64_t* begin_data = static_cast<int64_t*>(begin_ndarray->data);
-    int64_t* end_data = static_cast<int64_t*>(end_ndarray->data);
-    int64_t* strides_data = static_cast<int64_t*>(strides_ndarray->data);
-    for (size_t i = 0; i < new_begin.size(); ++i) {
-      begin_data[i] = new_begin[i];
-      end_data[i] = new_end[i];
-      strides_data[i] = 1;
-    }
-    params->begin = Constant(begin_ndarray);
-    params->end = Constant(end_ndarray);
-    params->strides = Constant(strides_ndarray);
+    params->begin = new_begin;
+    params->end = new_end;
   }
   return {{layout, Layout("C"), Layout("C"), Layout("C")}, {layout}};
 }
@@ -1949,6 +1925,7 @@ inline te::Tensor DynamicStridedSlice(const te::Tensor& input,
                                       const te::Tensor& begin,
                                       const te::Tensor& end,
                                       const te::Tensor& strides,
+                                      const bool& ignore_end,
                                       std::string name = "T_strided_slice_dynamic",
                                       std::string tag = topi::kInjective) {
   int64_t src_tensor_dim = input->shape.size();
@@ -1970,25 +1947,13 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
                                       const Type& out_type) {
   const StridedSliceAttrs* param = attrs.as<StridedSliceAttrs>();
   CHECK(param != nullptr);
-  const ConstantNode *cbegin, *cend, *cstrides;
-  if ((cbegin = param->begin.as<ConstantNode>()) &&
-      (cend = param->end.as<ConstantNode>()) &&
-      (cstrides = param->strides.as<ConstantNode>())) {
+  if (param->begin && param->end && param->strides) {
     Array<Integer> begin, end, strides;
-    int64_t* strides_val = ToVector(cstrides->data);
-    for (int64_t i = 0; i < cstrides->data.Shape().front(); ++i) {
-      strides.push_back(strides_val[i]);
-    }
-    int64_t* begin_val = ToVector(cbegin->data);
-    for (int64_t i = 0; i < cbegin->data.Shape().front(); ++i) {
-      begin.push_back(begin_val[i]);
-    }
-    int64_t* end_val = ToVector(cend->data);
-    for (int64_t i = 0; i < cend->data.Shape().front(); ++i) {
-      end.push_back(end_val[i]);
-    }
+    begin = param->begin.value();
+    end = param->end.value();
+    strides = param->strides.value();
     return Array<te::Tensor>{
-      topi::strided_slice(inputs[0], begin, end, strides)
+      topi::strided_slice(inputs[0], begin, end, strides, param->ignore_end)
     };
   } else {
     te::Tensor data = inputs[0];
@@ -2002,7 +1967,7 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
           << "begin, end, and strides are required to have the same length"
           << " if they are non-constant.";
     return Array<te::Tensor>{
-      DynamicStridedSlice(data, begin, end, strides)
+      DynamicStridedSlice(data, begin, end, strides, param->ignore_end)
     };
   }
 }
@@ -2014,9 +1979,27 @@ Expr MakeStridedSlice(Expr data,
                       Expr strides,
                       bool ignore_end) {
   auto attrs = make_object<StridedSliceAttrs>();
-  attrs->begin = begin;
-  attrs->end = end;
-  attrs->strides = strides;
+  const ConstantNode *cbegin, *cend, *cstrides;
+  if ((cbegin = begin.as<ConstantNode>()) &&
+      (cend = end.as<ConstantNode>()) &&
+      (cstrides = strides.as<ConstantNode>())) {
+    CHECK_EQ(cbegin->data->ndim, 1);
+    CHECK_EQ(cend->data->ndim, 1);
+    CHECK_EQ(cstrides->data->ndim, 1);
+    Array<Integer> begin, end, strides;
+    for (int i = 0; i < cbegin->data->shape[0]; i++) {
+      begin.push_back(Integer(static_cast<int>(ToScalar(cbegin->data, i))));
+    }
+    for (int i = 0; i < cend->data->shape[0]; i++) {
+      end.push_back(Integer(static_cast<int>(ToScalar(cend->data, i))));
+    }
+    for (int i = 0; i < cstrides->data->shape[0]; i++) {
+      strides.push_back(Integer(static_cast<int>(ToScalar(cstrides->data, i))));
+    }
+    attrs->begin = begin;
+    attrs->end = end;
+    attrs->strides = strides;
+  }
   attrs->ignore_end = ignore_end;
   static const Op& op = Op::Get("strided_slice");
   return Call(op, {data, begin, end, strides}, Attrs(attrs), {});
@@ -2315,7 +2298,7 @@ Array<te::Tensor> SliceLikeCompute(const Attrs& attrs, const Array<te::Tensor>& 
     }
   }
   return Array<te::Tensor>{topi::strided_slice(inputs[0], GetIntArray(begin_idx),
-                                               GetIntArray(end_idx), GetIntArray(strides))};
+                                               GetIntArray(end_idx), GetIntArray(strides), false)};
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.slice_like").set_body_typed(MakeSliceLike);

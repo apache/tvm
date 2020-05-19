@@ -527,8 +527,8 @@ inline Array<Tensor> split(const Tensor& x, Array<Integer> split_indices, int ax
  * \return A Tensor whose op member is the split operation
  */
 inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const Array<Integer>& end,
-                            const Array<Integer>& strides, std::string name = "T_strided_slice",
-                            std::string tag = kInjective) {
+                            const Array<Integer>& strides, const bool& ignore_end,
+                            std::string name = "T_strided_slice", std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
   // Setup the ranges.
   // NOTE: this code duplicates the shape inference logic relay.op
@@ -559,7 +559,7 @@ inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const 
   std::vector<int64_t> end_vec;
   for (size_t i = 0; i < end.size(); ++i) {
     // allow end to be None
-    if (!end[i].defined()) {
+    if (ignore_end || (!end[i].defined())) {
       end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
     } else {
       end_vec.push_back(end[i]->value);
