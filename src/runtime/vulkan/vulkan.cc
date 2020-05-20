@@ -1001,7 +1001,8 @@ VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size
 }
 
 VulkanThreadEntry::VulkanThreadEntry()
-    : pool(std::make_unique<WorkspacePool>(static_cast<DLDeviceType>(kDLVulkan), VulkanDeviceAPI::Global())) {
+    : pool(std::make_unique<WorkspacePool>(static_cast<DLDeviceType>(kDLVulkan),
+                                           VulkanDeviceAPI::Global())) {
   ctx.device_id = 0;
   ctx.device_type = static_cast<DLDeviceType>(kDLVulkan);
 }
