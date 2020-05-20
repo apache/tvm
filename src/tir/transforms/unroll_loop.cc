@@ -39,6 +39,31 @@
 namespace tvm {
 namespace tir {
 
+struct LoopUnrollConfig : public tvm::AttrsNode<LoopUnrollConfig> {
+  int auto_max_step;
+  int auto_max_depth;
+  int auto_max_extent;
+  int explicit_unroll;
+
+  TVM_DECLARE_ATTRS(LoopUnrollConfig, "tir.transform.LoopUnrollConfig") {
+    TVM_ATTR_FIELD(auto_max_step)
+        .describe("Threshold of number of steps in the loop to be automatically unrolled")
+        .set_default(0);
+    TVM_ATTR_FIELD(auto_max_depth)
+        .describe("The maximum nested level of loops that can be automatically unrolled.")
+        .set_default(8);
+    TVM_ATTR_FIELD(auto_max_extent)
+        .describe("The maximum extent of loop that will be unrolled.")
+        .set_default(0);
+    TVM_ATTR_FIELD(explicit_unroll)
+        .describe("Whether to explicitly unroll the loop instead of setting a pragma")
+        .set_default(true);
+  }
+};
+
+TVM_REGISTER_NODE_TYPE(LoopUnrollConfig);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.UnrollLoop", LoopUnrollConfig);
+
 class LoopUnroller : public StmtExprMutator {
  public:
   explicit LoopUnroller(int auto_max_step, int auto_max_depth, int auto_max_extent,

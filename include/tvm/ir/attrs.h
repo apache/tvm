@@ -97,7 +97,7 @@ struct AttrError : public dmlc::Error {
    * \brief constructor
    * \param msg error message
    */
-  explicit AttrError(const std::string& msg) : dmlc::Error(msg) {}
+  explicit AttrError(std::string msg) : dmlc::Error("AttributeError:" + msg) {}
 };
 
 /*!
