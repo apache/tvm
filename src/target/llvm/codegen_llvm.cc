@@ -309,8 +309,7 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
       default:
         LOG(FATAL) << "do not support " << dtype;
     }
-  } else if (dtype.is_bfloat()) {
-    CHECK_EQ(dtype.bits(), 16);
+  } else if (dtype.is_bfloat16()) {
     etype = llvm::Type::getInt16Ty(*ctx_);
   }
   if (dtype.lanes() != 1) {
@@ -578,8 +577,7 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
   if (value->getType() == target) return value;
   if (to.is_handle()) {
     return builder_->CreateBitCast(value, target);
-  } else if (to.is_float() && from.is_bfloat()) {
-    CHECK_EQ(from.bits(), 16);
+  } else if (to.is_float() && from.is_bfloat16()) {
     CHECK_EQ(to.bits(), 32);
     llvm::Type* extended_type = (from.lanes() == 1)
                                     ? static_cast<llvm::Type*>(builder_->getInt32Ty())
@@ -587,8 +585,7 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
     auto v = builder_->CreateZExt(value, extended_type);
     v = builder_->CreateShl(v, 16);
     return builder_->CreateBitCast(v, target);
-  } else if (to.is_bfloat() && from.is_float()) {
-    CHECK_EQ(to.bits(), 16);
+  } else if (to.is_bfloat16() && from.is_float()) {
     CHECK_EQ(from.bits(), 32);
     llvm::Type* extended_type = (from.lanes() == 1)
                                     ? static_cast<llvm::Type*>(builder_->getInt32Ty())
@@ -909,7 +906,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const IntImmNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const FloatImmNode* op) {
-  if (op->dtype.is_bf16()) {
+  if (op->dtype.is_bfloat16()) {
     auto fp = static_cast<float>(op->value);
     auto p = reinterpret_cast<uint16_t*>(&fp);
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
@@ -954,7 +951,7 @@ DEFINE_CODEGEN_BINARY_OP(Mul);
   llvm::Value* CodeGenLLVM::Create##Op(DataType t, llvm::Value* a, llvm::Value* b) { \
     if (t.is_int()) {                                                                \
       return builder_->CreateICmpS##Op(a, b);                                        \
-    } else if (t.is_uint() || t.is_bfloat()) {                                       \
+    } else if (t.is_uint() || t.is_bfloat16()) {                                       \
       return builder_->CreateICmpU##Op(a, b);                                        \
     } else {                                                                         \
       CHECK(t.is_float());                                                           \

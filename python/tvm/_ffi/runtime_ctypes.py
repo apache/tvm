@@ -59,7 +59,7 @@ class DataType(ctypes.Structure):
         1 : 'uint',
         2 : 'float',
         4 : 'handle',
-        65: 'bf'
+        65: 'bfloat'
     }
     def __init__(self, type_str):
         super(DataType, self).__init__()
@@ -86,9 +86,9 @@ class DataType(ctypes.Structure):
         elif head.startswith("float"):
             self.type_code = 2
             head = head[5:]
-        elif head.startswith("bf"):
+        elif head.startswith("bfloat"):
             self.type_code = 65
-            head = head[2:]
+            head = head[6:]
         elif head.startswith("handle"):
             self.type_code = 4
             bits = 64

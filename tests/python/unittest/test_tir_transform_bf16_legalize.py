@@ -30,22 +30,22 @@ def lower_stmt(sche, params, passfunc):
 def to32(v):
     return topi.cast(v, 'float')
 def to16(v):
-    return topi.cast(v, 'bf16')
+    return topi.cast(v, 'bfloat16')
 
 def test_promote():
     def runpass(op, passfunc):
-        a = te.placeholder((100,), dtype='bf16')
-        b = te.placeholder((100,), dtype='bf16')
+        a = te.placeholder((100,), dtype='bfloat16')
+        b = te.placeholder((100,), dtype='bfloat16')
         c = te.compute((100,), lambda i: op(a[i], b[i]))
         s = te.create_schedule(c.op)
         return lower_stmt(s, [a, b, c], passfunc)
     
     def get_promoted(op):
-        a = te.placeholder((100,), dtype='bf16')
-        b = te.placeholder((100,), dtype='bf16')
+        a = te.placeholder((100,), dtype='bfloat16')
+        b = te.placeholder((100,), dtype='bfloat16')
         c = te.compute((100,), lambda i:
                 topi.cast(op(topi.cast(a[i],'float'),
-                    topi.cast(b[i],'float')), 'bf16')
+                    topi.cast(b[i],'float')), 'bfloat16')
                 )
         s = te.create_schedule(c.op)
         func = tvm.driver.build_module.form_irmodule(s, [a,b,c], "main", None)["main"]
@@ -61,8 +61,8 @@ def test_promote():
 
 def test_eliminate():
     def get_eliminated():
-        a = te.placeholder((100,), dtype='bf16')
-        b = te.placeholder((100,), dtype='bf16')
+        a = te.placeholder((100,), dtype='bfloat16')
+        b = te.placeholder((100,), dtype='bfloat16')
         c = te.compute((100,), lambda i: to16(
             topi.add(
                 to32(
@@ -88,8 +88,8 @@ def test_eliminate():
         return stmt
 
     def get_target():
-        a = te.placeholder((100,), dtype='bf16')
-        b = te.placeholder((100,), dtype='bf16')
+        a = te.placeholder((100,), dtype='bfloat16')
+        b = te.placeholder((100,), dtype='bfloat16')
         c = te.compute((100,), lambda i: to16(
             topi.add(topi.add(
                         to32(a[i]),
@@ -109,14 +109,14 @@ def test_eliminate():
 
 def test_legalize():
     def check(fcompute_before, fcompute_after):
-        a = te.placeholder((100,), dtype='bf16')
-        b = te.placeholder((100,), dtype='bf16')
+        a = te.placeholder((100,), dtype='bfloat16')
+        b = te.placeholder((100,), dtype='bfloat16')
         c = te.compute((100,), fcompute_before(a,b))
         s = te.create_schedule(c.op)
         stmt = lower_stmt(s, [a, b, c], tvm.tir.transform.BF16Legalize)
 
-        a = te.placeholder((100,), dtype='bf16')
-        b = te.placeholder((100,), dtype='bf16')
+        a = te.placeholder((100,), dtype='bfloat16')
+        b = te.placeholder((100,), dtype='bfloat16')
         c = te.compute((100,), fcompute_after(a,b))
         s = te.create_schedule(c.op)
         func = tvm.driver.build_module.form_irmodule(s, [a,b,c], "main", None)["main"]
@@ -126,12 +126,13 @@ def test_legalize():
         return lambda i: a[i]+b[i]+a[99-i]+b[99-i]
     def after1(a,b):
         return lambda i: to16(to32(a[i])+to32(b[i])+to32(a[99-i])+to32(b[99-i]))
-    def orig1(a,b):
+    def orig2(a,b):
         return lambda i: a[i]*b[i]+a[99-i]*b[99-i]+a[i]
-    def after1(a,b):
+    def after2(a,b):
         return lambda i: to16(to32(a[i])*to32(b[i])+to32(a[99-i])*to32(b[99-i])+to32(a[i]))
 
     check(orig1, after1)
+    check(orig2, after2)
 
 if __name__ == "__main__":
     test_promote()

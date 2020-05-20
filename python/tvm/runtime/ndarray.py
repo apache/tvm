@@ -138,7 +138,7 @@ class NDArray(NDArrayBase):
         if source_array.shape != shape:
             raise ValueError("array shape do not match the shape of NDArray {0} vs {1}".format(
                 source_array.shape, shape))
-        if dtype == 'bf16':
+        if dtype == 'bfloat16':
             source_array = np.ascontiguousarray(source_array, dtype='uint16')
         else:
             source_array = np.ascontiguousarray(source_array, dtype=dtype)
@@ -170,7 +170,7 @@ class NDArray(NDArrayBase):
             shape = shape + (t.lanes,)
             t.lanes = 1
             dtype = str(t)
-        if dtype == 'bf16':
+        if dtype == 'bfloat16':
             np_arr = np.empty(shape, dtype='uint16')
         else:
             np_arr = np.empty(shape, dtype=dtype)
