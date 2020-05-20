@@ -728,15 +728,13 @@ def test_double_partition():
     inpf = relay.var("input")
     weightf = relay.var("weight")
     biasf = relay.var("bias")
-    func0 = relay.Function([inpf, weightf, biasf], relay.op.nn.relu(relay.op.nn.bias_add(relay.op.nn.conv2d(inpf, weightf), biasf))).with_attr("Composite", "conv_bias_relu").with_attr("Partitioned","")
+    func0 = relay.Function([inpf, weightf, biasf], relay.op.nn.relu(relay.op.nn.bias_add(relay.op.nn.conv2d(inpf, weightf), biasf))).with_attr("Composite", "conv_bias_relu").with_attr("Partitioned","nn.conv2d_nn.bias_add_nn.relu_")
     inpf = relay.var("input")
     weightf = relay.var("weight")
     biasf = relay.var("bias")
-    func1 = relay.Function([inpf, weightf, biasf], relay.op.nn.bias_add(relay.op.nn.conv2d(inpf, weightf), biasf)).with_attr("Composite", "conv_bias").with_attr("Partitioned","")
+    func1 = relay.Function([inpf, weightf, biasf], relay.op.nn.bias_add(relay.op.nn.conv2d(inpf, weightf), biasf)).with_attr("Composite", "conv_bias").with_attr("Partitioned","nn.conv2d_nn.bias_add_")
 
     expected = func1(func0(x, w, b), w2, b2)
-    print(partitioned)
-    print(expected)
     assert tvm.ir.structural_equal(partitioned, expected)
 
 def test_partition_dominator():
@@ -758,10 +756,10 @@ def test_partition_dominator():
     out = generate_diamond(inp*inp, weight*weight)
     # Check
     partitioned = diamond.partition(out)
-
+    
     i = relay.Var("input")
     w = relay.Var("weight")
-    f = relay.Function([i, w], generate_diamond(i, w)).with_attr("Partitioned","")
+    f = relay.Function([i, w], generate_diamond(i, w)).with_attr("Partitioned","nn.conv2d_nn.relu_nn.relu_nn.leaky_relu_add_")
     assert tvm.ir.structural_equal(partitioned, f(inp*inp, weight*weight))
 
 def test_quadruple_partition_dominator():
@@ -820,10 +818,16 @@ def test_quadruple_partition_dominator():
                 )
 
     functions = []
-    for f in [classic_diamond, deeper_diamond, single_branch, nested_diamond]:
+    partition_names = [
+        "nn.conv2d_nn.relu_nn.relu_nn.leaky_relu_add_",
+        "nn.conv2d_nn.relu_nn.relu_tanh_nn.leaky_relu_add_",
+        "nn.conv2d_nn.relu_nn.relu_tanh_add_",
+        "nn.conv2d_nn.relu_add_tanh_nn.leaky_relu_add_"
+    ]
+    for i, f in enumerate([classic_diamond, deeper_diamond, single_branch, nested_diamond]):
         inpf = relay.var("input")
         weightf = relay.var("weight")
-        functions.append(relay.Function([inpf, weightf], f(inpf, weightf)).with_attr("Partitioned",""))
+        functions.append(relay.Function([inpf, weightf], f(inpf, weightf)).with_attr("Partitioned", partition_names[i]))
 
     reference = functions[3](
                     functions[2](
@@ -853,7 +857,7 @@ def test_parition_batchnorm():
     betaf = relay.var('betaf')
     gammaf = relay.var('gammaf')
     # Put the arguments in toplogological order for the reference
-    f = relay.Function([gammaf, xf, meanf, varf, betaf], get_BN(xf, varf, meanf, betaf, gammaf)).with_attr("Partitioned","")
+    f = relay.Function([gammaf, xf, meanf, varf, betaf], get_BN(xf, varf, meanf, betaf, gammaf)).with_attr("Partitioned","subtract_multiply_add_sqrt_divide_add_")
 
     partitioned = BatchnormCallback().pattern.partition(BN)
     assert tvm.ir.structural_equal(partitioned, f(gamma, x, mean, var, beta))
@@ -873,14 +877,14 @@ def test_parition_double_batchnorm():
     meanf = relay.var('meanf')
     betaf = relay.var('betaf')
     gammaf = relay.var('gammaf')
-    f1 = relay.Function([gammaf, xf, meanf, varf, betaf], get_BN(xf, varf, meanf, betaf, gammaf)).with_attr("Partitioned","")
+    f1 = relay.Function([gammaf, xf, meanf, varf, betaf], get_BN(xf, varf, meanf, betaf, gammaf)).with_attr("Partitioned","subtract_multiply_add_sqrt_divide_add_")
     # The paritioner doesn't replace duplicates, so we use two copies of the function
     xf2 = relay.var('xf2')
     varf2 = relay.var('varf2')
     meanf2 = relay.var('meanf2')
     betaf2 = relay.var('betaf2')
     gammaf2 = relay.var('gammaf2')
-    f2 = relay.Function([gammaf2, xf2, meanf2, varf2, betaf2], get_BN(xf2, varf2, meanf2, betaf2, gammaf2)).with_attr("Partitioned","")
+    f2 = relay.Function([gammaf2, xf2, meanf2, varf2, betaf2], get_BN(xf2, varf2, meanf2, betaf2, gammaf2)).with_attr("Partitioned","subtract_multiply_add_sqrt_divide_add_")
 
     partitioned = BatchnormCallback().pattern.partition(BN2)
     reference = f2(gamma, f1(gamma, x, mean, var, beta), mean, var, beta)

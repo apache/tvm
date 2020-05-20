@@ -386,6 +386,7 @@ class PatternGrouper : protected MixedModeVisitor {
     Expr root_node;
     int gid;
     Map<DFPattern, Array<Expr>> matched_nodes;
+    std::string name;
     Function function;
     Array<Expr> args;
   };
@@ -427,6 +428,7 @@ class PatternGrouper : protected MixedModeVisitor {
     explicit MatchExtractor(const std::unordered_map<Expr, Var, ObjectHash, ObjectEqual>& inputs)
         : inputs_(inputs) {}
     const std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>& GetMemo() { return this->memo_; }
+    const std::string& GetName() { return name_; }
 
    protected:
     Expr VisitExpr(const Expr& pre) override {
@@ -435,6 +437,46 @@ class PatternGrouper : protected MixedModeVisitor {
       }
       return ExprMutator::VisitExpr(pre);
     }
+    Expr VisitExpr_(const TupleNode* op) override {
+      auto out = ExprMutator::VisitExpr_(op);
+      name_ += "Tuple_";
+      return out;
+    };
+    Expr VisitExpr_(const FunctionNode* op) override {
+      auto out = ExprMutator::VisitExpr_(op);
+      name_ += "Function";
+      return out;
+    };
+    Expr VisitExpr_(const CallNode* call_node) override {
+      auto out = ExprMutator::VisitExpr_(call_node);
+      if (auto operation = call_node->op.as<OpNode>()) {
+        name_ += operation->name + "_";
+      } else {
+        name_ += "Call_";
+      }
+      return out;
+    };
+    Expr VisitExpr_(const LetNode* op) override {
+      auto out = ExprMutator::VisitExpr_(op);
+      name_ += "Let_";
+      return out;
+    };
+    Expr VisitExpr_(const IfNode* op) override {
+      auto out = ExprMutator::VisitExpr_(op);
+      name_ += "If_";
+      return out;
+    };
+    Expr VisitExpr_(const TupleGetItemNode* op) override {
+      auto out = ExprMutator::VisitExpr_(op);
+      name_ += "TupleGetItem" + std::to_string(op->index) + "_";
+      return out;
+    };
+    Expr VisitExpr_(const MatchNode* op) override {
+      auto out = ExprMutator::VisitExpr_(op);
+      name_ += "Match_";
+      return out;
+    };
+    std::string name_;
     const std::unordered_map<Expr, Var, ObjectHash, ObjectEqual> inputs_;
   };
 
@@ -492,7 +534,7 @@ class PatternGrouper : protected MixedModeVisitor {
     // Verify the pattern still holds
     CHECK(DFPatternMatcher(body).Match(pattern_, body));
     group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
-
+    group.name = extractor.GetName();
     // Check to make sure we aren't overlapping with another group
     // The MatchExtractor will create a new graph by replacing nodes that match the inputs of the
     // pattern with the input FunctionVar* Variables. The resulting memoization map will only
@@ -632,7 +674,7 @@ class PatternPartitioner : protected MixedModeMutator {
     for (size_t i = 0; i < group.args.size(); ++i) {
       args.push_back(memo_[group.args[i]]);
     }
-    Function func = WithAttr(group.function, "Partitioned", String(""));
+    Function func = WithAttr(group.function, "Partitioned", String(group.name));
     if (!attrs_.empty()) {
       for (auto kv : attrs_) {
         func = WithAttr(std::move(func), kv.first, kv.second);
