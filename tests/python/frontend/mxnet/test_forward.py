@@ -179,6 +179,14 @@ def test_forward_pooling():
     mx_sym = mx.sym.Pooling(data, kernel=(3, 3), pad=(1, 1), pool_type='max')
     verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8), (1, 20, 8, 8))
 
+def test_forward_pooling3d():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.Pooling(data, kernel=(3, 3, 3), pad=(1, 1, 1), pool_type='avg')
+    verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8, 8), (1, 20, 8, 8, 8))
+
+    mx_sym = mx.sym.Pooling(data, kernel=(3, 3, 3), pad=(1, 1, 1), pool_type='max')
+    verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8, 8), (1, 20, 8, 8, 8))
+
 def test_forward_adaptive_pooling():
     data = mx.sym.var('data')
     mx_sym = mx.sym.contrib.AdaptiveAvgPooling2D(data, output_size=(1,))
@@ -1123,6 +1131,7 @@ if __name__ == '__main__':
     test_forward_pad()
     test_forward_slice()
     test_forward_pooling()
+    test_forward_pooling3d()
     test_forward_adaptive_pooling()
     test_forward_lrn()
     test_forward_ones()
