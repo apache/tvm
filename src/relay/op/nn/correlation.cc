@@ -55,9 +55,9 @@ Expr MakeCorrelation(Expr data1, Expr data2, int kernel_size, int max_displaceme
   attrs->max_displacement = max_displacement;
   attrs->stride1 = stride1;
   attrs->stride2 = stride2;
-  attrs->padding = padding;
+  attrs->padding = std::move(padding);
   attrs->is_multiply = is_multiply;
-  attrs->layout = layout;
+  attrs->layout = std::move(layout);
   static const Op& op = Op::Get("nn.correlation");
   return Call(op, {data1, data2}, Attrs(attrs), {});
 }
