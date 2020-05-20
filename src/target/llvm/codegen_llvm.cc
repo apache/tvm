@@ -951,7 +951,7 @@ DEFINE_CODEGEN_BINARY_OP(Mul);
   llvm::Value* CodeGenLLVM::Create##Op(DataType t, llvm::Value* a, llvm::Value* b) { \
     if (t.is_int()) {                                                                \
       return builder_->CreateICmpS##Op(a, b);                                        \
-    } else if (t.is_uint() || t.is_bfloat16()) {                                       \
+    } else if (t.is_uint() || t.is_bfloat16()) {                                     \
       return builder_->CreateICmpU##Op(a, b);                                        \
     } else {                                                                         \
       CHECK(t.is_float());                                                           \
