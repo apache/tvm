@@ -188,7 +188,7 @@ struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
             "If `axis = None`, all axis of dimension 1 get squeezed;"
             "Else, the dimension in axes get squeezed."
             "It is an error if an axis does not has dimension 1.")
-        .set_default(NullValue<Array<Integer> >());
+        .set_default(NullValue<Array<Integer>>());
   }
 };  // struct SqueezeAttrs
 

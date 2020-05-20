@@ -135,9 +135,9 @@ inline Array<Array<Layout>> BinaryBroadcastLayout(const Attrs& attrs,
   }
 
   if (new_in_layouts.defined()) {
-    layouts.assign(new_in_layouts.begin(), new_in_layouts.end());
+    layouts.Assign(new_in_layouts.begin(), new_in_layouts.end());
   } else {
-    layouts.assign(old_in_layouts.begin(), old_in_layouts.end());
+    layouts.Assign(old_in_layouts.begin(), old_in_layouts.end());
   }
 
   if (!layouts[0].defined() && !layouts[1].defined()) {
