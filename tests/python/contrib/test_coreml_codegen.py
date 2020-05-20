@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import numpy as np
 
 import tvm
@@ -39,6 +40,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-3, target="llvm",
 
     check_graph_runtime_result()
 
+@pytest.mark.skip('skip because coremltools is not available in CI')
 def test_coreml_codegen():
     shape = (1,)
     x = relay.var('x', shape=shape)
