@@ -77,7 +77,7 @@ def test_TypePattern():
     assert ty_pat.type == ttype
 
 def test_AttrPattern():
-    op = is_op('add').has_attr("TOpPattern", K_ELEMWISE)
+    op = is_op('add').has_attr({"TOpPattern": K_ELEMWISE})
     assert isinstance(op, AttrPattern)
     assert op.attrs["TOpPattern"] == K_ELEMWISE
 
@@ -225,19 +225,36 @@ def test_no_match_type():
     ty_pat = has_type(relay.TensorType((10, 10), "float32"))
     assert not ty_pat.match(x)
 
-def test_match_attr():
-    op = is_op('add').has_attr("TOpPattern", K_BROADCAST)
+def test_match_op_attr():
+    op = is_op('add').has_attr({"TOpPattern": K_BROADCAST})
     op_pat = op(wildcard(), wildcard())
     x = relay.var('x')
     y = relay.var('y')
     assert op_pat.match(x + y)
 
-def test_no_match_attr():
-    op = is_op('nn.dense').has_attr("TOpPattern", K_ELEMWISE)
+def test_no_match_op_attr():
+    op = is_op('nn.dense').has_attr({"TOpPattern": K_ELEMWISE})
     op_pat = op(wildcard(), wildcard())
     x = relay.var('x')
     y = relay.var('y')
     assert not op_pat.match(relay.op.nn.dense(x, y))
+    op = is_op('add').has_attr({"TOpPattern": K_BROADCAST})
+    op_pat = op(wildcard(), wildcard())
+    x = relay.var('x')
+    y = relay.var('y')
+    assert not op_pat.match(x - y)
+
+def test_match_call_attr():
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard()).has_attr({"data_layout": "NCHW"})
+    x = relay.var('x')
+    y = relay.var('y')
+    assert is_conv2d.match(relay.op.nn.conv2d(x, y))
+
+def test_no_match_call_attr():
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard()).has_attr({"data_layout": "NHWC"})
+    x = relay.var('x')
+    y = relay.var('y')
+    assert not is_conv2d.match(relay.op.nn.conv2d(x, y))
 
 def test_match_diamond():
     # Pattern
@@ -301,7 +318,7 @@ def test_match_fake_diamond():
 def test_match_dominator():
     # Pattern
     is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
-    is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard())
+    is_unary_elemwise = (wildcard().has_attr({"TOpPattern": K_ELEMWISE}))(wildcard())
     reduction = is_op('add')(wildcard(), wildcard())
     diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
 
@@ -344,7 +361,7 @@ def test_match_dominator():
     
     # Fuzzy path/nested Diamond
     is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
-    is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard()) | is_op('add')(wildcard(), wildcard())
+    is_unary_elemwise = (wildcard().has_attr({"TOpPattern": K_ELEMWISE}))(wildcard()) | is_op('add')(wildcard(), wildcard())
     reduction = is_op('add')(wildcard(), wildcard())
     diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
 
@@ -361,7 +378,7 @@ def test_match_dominator():
 
 def test_not_match_dominator():
     is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
-    is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard())
+    is_unary_elemwise = (wildcard().has_attr({"TOpPattern": K_ELEMWISE}))(wildcard())
     reduction = is_op('add')(wildcard(), wildcard())
     diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
 
@@ -578,7 +595,7 @@ def test_quadruple_rewrite_dominator():
             self.weight = wildcard()
             
             is_conv2d = is_op('nn.conv2d')(self.inp, self.weight)
-            is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard()) | is_op('add')(wildcard(), wildcard())
+            is_unary_elemwise = (wildcard().has_attr({"TOpPattern": K_ELEMWISE}))(wildcard()) | is_op('add')(wildcard(), wildcard())
             reduction = is_op('add')(wildcard(), wildcard())
             self.pattern = dominates(is_conv2d, is_unary_elemwise, reduction)
 
@@ -705,7 +722,7 @@ def test_algebraic_simplify():
 def test_partition_dominator():
     # Pattern
     is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
-    is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard())
+    is_unary_elemwise = (wildcard().has_attr({"TOpPattern": K_ELEMWISE}))(wildcard())
     reduction = is_op('add')(wildcard(), wildcard())
     diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
 
@@ -730,7 +747,7 @@ def test_partition_dominator():
 def test_quadruple_partition_dominator():
     # Pattern
     is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
-    is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard()) | is_op('add')(wildcard(), wildcard())
+    is_unary_elemwise = (wildcard().has_attr({"TOpPattern": K_ELEMWISE}))(wildcard()) | is_op('add')(wildcard(), wildcard())
     reduction = is_op('add')(wildcard(), wildcard())
     diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
 
