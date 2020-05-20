@@ -417,7 +417,7 @@ class PatternGrouper : protected MixedModeVisitor {
     }
   }
   void VisitExpr_(const FunctionNode* op) override {
-    if (op->attrs->dict.count("Partitioned") == 0) {
+    if (op->attrs->dict.count("PartitionedFromPattern") == 0) {
       ExprVisitor::VisitExpr_(op);
     }
   }
@@ -674,7 +674,7 @@ class PatternPartitioner : protected MixedModeMutator {
     for (size_t i = 0; i < group.args.size(); ++i) {
       args.push_back(memo_[group.args[i]]);
     }
-    Function func = WithAttr(group.function, "Partitioned", String(group.name));
+    Function func = WithAttr(group.function, "PartitionedFromPattern", String(group.name));
     if (!attrs_.empty()) {
       for (auto kv : attrs_) {
         func = WithAttr(std::move(func), kv.first, kv.second);

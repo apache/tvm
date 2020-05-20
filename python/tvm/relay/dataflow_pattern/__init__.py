@@ -120,7 +120,7 @@ class DFPattern(Node):
         ----------
         expr : tvm.relay.Expr
             The expression to match.
-        attrs : dict[str->Object]
+        attrs : Optional[Dict[str, Object]]
             A dictionary of Attribute name/values to add to the paritioned function
 
         Returns
@@ -574,7 +574,7 @@ def partition(pattern: DFPattern, expr: Expr, attrs=None) -> Expr:
         The pattern to match
     expr : tvm.relay.Expr
         The expression to split into functions
-    expr : dict[str->Object]
+    expr : Optional[Dict[str, Object]]
         A dict of attributes to apply to the partitioned function
 
     Returns
