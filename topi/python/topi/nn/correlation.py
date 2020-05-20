@@ -71,7 +71,7 @@ def correlation_nchw(data1, data2, kernel_size, max_displacement, stride1, strid
         else:
             raise ValueError("invalid padding")
     elif isinstance(padding, int):
-        pad_before_h, pad_after_h, pad_before_w, pad_after_w = padding
+        pad_before_h = pad_after_h = pad_before_w = pad_after_w = padding
     else:
         raise ValueError("invalid padding")
     pad_before = [0, 0, pad_before_h, pad_before_w]

@@ -29,7 +29,7 @@ from common import get_all_backend
 
 _correlation_implement = {
     "generic": (topi.nn.correlation_nchw, topi.generic.schedule_correlation_nchw),
-    "cuda": (topi.cuda.correlation_nchw, topi.cuda.schedule_correalation_nchw),
+    "cuda": (topi.cuda.correlation_nchw, topi.cuda.schedule_correlation_nchw),
 }
 
 
