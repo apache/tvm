@@ -1020,6 +1020,15 @@ def test_adaptive_pool3d():
         verify_model(torch.nn.AdaptiveMaxPool3d((7, 8, 9)).eval(), inp)
 
 
+def test_forward_reflection_pad2d():
+    inp = torch.rand((1, 1, 3, 3))
+    verify_model(torch.nn.ReflectionPad2d(2).eval(), inp)
+    verify_model(torch.nn.ReflectionPad2d((1, 1, 2, 0)).eval(), inp)
+
+    inp = torch.rand((2, 4, 5, 6))
+    verify_model(torch.nn.ReflectionPad2d((1, 3, 2, 4)).eval(), inp)
+
+
 def test_conv3d():
     for ishape in [(1, 32, 16, 16, 16),
                    (1, 32, 9, 15, 15),
@@ -2183,6 +2192,7 @@ if __name__ == "__main__":
     test_forward_split()
     test_upsample()
     test_to()
+    test_forward_reflection_pad2d()
     test_adaptive_pool3d()
     test_conv3d()
 
