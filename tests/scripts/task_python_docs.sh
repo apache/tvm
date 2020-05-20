@@ -56,6 +56,7 @@ cd ..
 rm -rf _docs
 mv docs/_build/html _docs
 rm -f _docs/.buildinfo
+mkdir -p _docs/api
 mv docs/doxygen/html _docs/api/doxygen
 mv jvm/core/target/site/apidocs _docs/api/javadoc
 mv web/dist/docs _docs/api/typedoc
