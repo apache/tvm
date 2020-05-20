@@ -48,7 +48,7 @@ cat /tmp/$$.logclean.txt
 echo "-----------------------------"
 if grep --quiet -E "WARN" < /tmp/$$.logclean.txt; then
     echo "WARNINIG found in the log, please fix them."
-    echo "You can reproduce locally by running ./tests/script/task_sphinx_precheck.sh"
+    echo "You can reproduce locally by running ./tests/scripts/task_sphinx_precheck.sh"
     exit 1
 fi
 echo "No WARNINGS to be fixed."
