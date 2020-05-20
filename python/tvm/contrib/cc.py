@@ -90,7 +90,8 @@ create_shared.get_target_triple = get_target_by_dump_machine(
 def cross_compiler(compile_func,
                    options=None,
                    output_format=None,
-                   get_target_triple=None):
+                   get_target_triple=None,
+                   add_files=None):
     """Create a cross compiler function by specializing compile_func with options.
 
     This function can be used to construct compile functions that
@@ -110,6 +111,10 @@ def cross_compiler(compile_func,
 
     get_target_triple: Optional[Callable]
         Function that can target triple according to dumpmachine option of compiler.
+
+    add_files: Optional[List[str]]
+        List of paths to additional object, source, library files
+        to pass as part of the compilation.
 
     Returns
     -------
@@ -133,6 +138,7 @@ def cross_compiler(compile_func,
     """
     base_options = [] if options is None else options
     kwargs = {}
+    add_files = [] if add_files is None else add_files
 
     # handle case where compile_func is the name of the cc
     if isinstance(compile_func, str):
@@ -144,7 +150,7 @@ def cross_compiler(compile_func,
         all_options = base_options
         if options is not None:
             all_options += options
-        compile_func(outputs, objects, options=all_options, **kwargs)
+        compile_func(outputs, objects + add_files, options=all_options, **kwargs)
 
     if not output_format and hasattr(compile_func, "output_format"):
         output_format = compile_func.output_format

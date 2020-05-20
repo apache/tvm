@@ -25,9 +25,10 @@
 #ifndef TVM_RELAY_TRANSFORMS_PASS_UTIL_H_
 #define TVM_RELAY_TRANSFORMS_PASS_UTIL_H_
 
-#include <tvm/relay/op.h>
-#include <tvm/relay/expr.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/expr.h>
+#include <tvm/relay/op.h>
+
 #include <memory>
 #include <unordered_map>
 
@@ -76,6 +77,20 @@ Type TypeSubst(const Type& type, const tvm::Map<TypeVar, Type>& subst_map);
 Expr TypeSubst(const Expr& expr, const tvm::Map<TypeVar, Type>& subst_map);
 
 /*!
+ * \brief Check if type is dynamic.
+ * \param ty The type to be checked.
+ * \return Whether the type is dynamic.
+ */
+bool IsDynamic(const Type& ty);
+
+/*!
+ * \brief Check if call is data dependant.
+ * \param call The call to be checked.
+ * \return Whether the call is data dependant.
+ */
+bool IsDataDependant(const CallNode* call);
+
+/*!
  * \brief Make arbitrary transformation preserve the out most function.
  * \param func The transformation.
  * \param e The expression
@@ -100,41 +115,37 @@ inline bool IsAtomic(const Expr& e) {
   return e.as<VarNode>() || e.as<OpNode>() || e.as<ConstructorNode>() || e.as<GlobalVarNode>();
 }
 
-template<typename ConditionObjectPtr>
+template <typename ConditionObjectPtr>
 struct TreeNode {
   typedef std::shared_ptr<TreeNode<ConditionObjectPtr>> pointer;
   virtual ~TreeNode() {}
 };
 
-template<typename ConditionObjectPtr>
+template <typename ConditionObjectPtr>
 struct TreeLeafNode : TreeNode<ConditionObjectPtr> {
   using TreeObjectPtr = typename TreeNode<ConditionObjectPtr>::pointer;
 
   Expr body;
 
-  explicit TreeLeafNode(Expr body): body(body) {}
+  explicit TreeLeafNode(Expr body) : body(body) {}
 
-  static TreeObjectPtr Make(Expr body) {
-    return std::make_shared<TreeLeafNode>(body);
-  }
+  static TreeObjectPtr Make(Expr body) { return std::make_shared<TreeLeafNode>(body); }
 
   ~TreeLeafNode() {}
 };
 
-template<typename ConditionObjectPtr>
+template <typename ConditionObjectPtr>
 struct TreeLeafFatalNode : TreeNode<ConditionObjectPtr> {
   using TreeObjectPtr = typename TreeNode<ConditionObjectPtr>::pointer;
 
   TreeLeafFatalNode() = default;
 
-  static TreeObjectPtr Make() {
-    return std::make_shared<TreeLeafFatalNode>();
-  }
+  static TreeObjectPtr Make() { return std::make_shared<TreeLeafFatalNode>(); }
 
   ~TreeLeafFatalNode() {}
 };
 
-template<typename ConditionObjectPtr>
+template <typename ConditionObjectPtr>
 struct TreeBranchNode : TreeNode<ConditionObjectPtr> {
   using TreeObjectPtr = typename TreeNode<ConditionObjectPtr>::pointer;
 
@@ -142,15 +153,11 @@ struct TreeBranchNode : TreeNode<ConditionObjectPtr> {
   TreeObjectPtr then_branch;
   TreeObjectPtr else_branch;
 
-  TreeBranchNode(ConditionObjectPtr cond,
-                 TreeObjectPtr then_branch,
-                 TreeObjectPtr else_branch)
-  : cond(cond), then_branch(then_branch), else_branch(else_branch) {}
+  TreeBranchNode(ConditionObjectPtr cond, TreeObjectPtr then_branch, TreeObjectPtr else_branch)
+      : cond(cond), then_branch(then_branch), else_branch(else_branch) {}
 
-
-  static TreeObjectPtr Make(ConditionObjectPtr cond,
-                          TreeObjectPtr then_branch,
-                          TreeObjectPtr else_branch) {
+  static TreeObjectPtr Make(ConditionObjectPtr cond, TreeObjectPtr then_branch,
+                            TreeObjectPtr else_branch) {
     return std::make_shared<TreeBranchNode>(cond, then_branch, else_branch);
   }
 

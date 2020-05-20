@@ -29,6 +29,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt.h>
+
 #include <string>
 
 namespace tvm {
@@ -75,8 +76,7 @@ TVM_DLL bool HasSideEffect(const PrimExpr& expr);
  * \param vset_contains The check function to see if var is in the vset.
  * \return Whether e uses vset.
  */
-TVM_DLL bool ExprUseVar(const PrimExpr& expr,
-                        std::function<bool(const VarNode*)> vset_contains);
+TVM_DLL bool ExprUseVar(const PrimExpr& expr, std::function<bool(const VarNode*)> vset_contains);
 
 /*!
  * \brief Whether e expression used var.
@@ -85,11 +85,8 @@ TVM_DLL bool ExprUseVar(const PrimExpr& expr,
  * \return Whether e uses v.
  */
 inline bool ExprUseVar(const PrimExpr& expr, const Var& var) {
-  return ExprUseVar(expr, [&](const VarNode* node) {
-    return var.get() == node;
-  });
+  return ExprUseVar(expr, [&](const VarNode* node) { return var.get() == node; });
 }
-
 
 /*!
  * \brief Verifies whether the IR stmt or Expr is in SSA form.
@@ -133,8 +130,7 @@ TVM_DLL bool VerifyMemory(const PrimFunc& func);
  * \return valid Whether it is a valid GPU code
  *
  */
-TVM_DLL bool VerifyGPUCode(const PrimFunc& func,
-                           Map<std::string, PrimExpr> constraints);
+TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<std::string, PrimExpr> constraints);
 
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.

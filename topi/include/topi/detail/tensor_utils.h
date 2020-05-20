@@ -24,7 +24,6 @@
 #ifndef TOPI_DETAIL_TENSOR_UTILS_H_
 #define TOPI_DETAIL_TENSOR_UTILS_H_
 
-
 #include <tvm/te/operation.h>
 
 namespace topi {
@@ -63,7 +62,7 @@ inline bool is_empty_shape(const Array<PrimExpr>& x) {
  * \return The interpolated value in the given index.
  */
 inline PrimExpr bilinear_sample_nchw(const Tensor& input, const Array<PrimExpr>& indices,
-                                 const PrimExpr max_y, const PrimExpr max_x) {
+                                     const PrimExpr max_y, const PrimExpr max_x) {
   auto in_y = indices[2];
   auto yf = tvm::floor(in_y);
   auto yc = tvm::cast(DataType::Int(32), tvm::ceil(in_y));
@@ -85,9 +84,7 @@ inline PrimExpr bilinear_sample_nchw(const Tensor& input, const Array<PrimExpr>&
   auto C = input(indices[0], indices[1], y1, x0);
   auto D = input(indices[0], indices[1], y1, x1);
 
-  return A * ( 1 - x_lerp) * ( 1 - y_lerp) +
-         B * x_lerp * (1 - y_lerp) +
-         C * (1 - x_lerp) * y_lerp +
+  return A * (1 - x_lerp) * (1 - y_lerp) + B * x_lerp * (1 - y_lerp) + C * (1 - x_lerp) * y_lerp +
          D * x_lerp * y_lerp;
 }
 

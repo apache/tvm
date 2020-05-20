@@ -43,19 +43,23 @@ cd ..
 make doc
 rm -f docs/doxygen/html/*.map docs/doxygen/html/*.md5
 
-# JS doc
-jsdoc -c web/.jsdoc_conf.json web/tvm_runtime.js web/README.md
-
 # Java doc
 make javadoc
+
+# type doc
+cd web
+npm install
+npm run typedoc
+cd ..
 
 # Prepare the doc dir
 rm -rf _docs
 mv docs/_build/html _docs
 rm -f _docs/.buildinfo
-mv docs/doxygen/html _docs/doxygen
-mv out _docs/jsdoc
-mv jvm/core/target/site/apidocs _docs/javadoc
+mkdir -p _docs/api
+mv docs/doxygen/html _docs/api/doxygen
+mv jvm/core/target/site/apidocs _docs/api/javadoc
+mv web/dist/docs _docs/api/typedoc
 
 echo "Start creating the docs tarball.."
 # make the tarball

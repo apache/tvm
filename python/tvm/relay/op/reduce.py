@@ -18,7 +18,7 @@
 # pylint: disable=redefined-builtin
 
 from . import _make
-from .tensor import sqrt
+from .tensor import sqrt, log, exp
 from .transform import squeeze
 from ..expr import Tuple, TupleWrapper
 
@@ -475,3 +475,40 @@ def prod(data, axis=None, keepdims=False, exclude=False):
     """
     axis = [axis] if isinstance(axis, int) else axis
     return _make.prod(data, axis, keepdims, exclude)
+
+
+def logsumexp(data, axis=None, keepdims=False):
+    """Compute the log of the sum of exponentials of input elements over given axes.
+
+       This function is more numerically stable than log(sum(exp(input))).
+       It avoids overflows caused by taking the exp of large inputs and underflows
+       caused by taking the log of small inputs.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    axis : None or int or tuple of int
+        Axis or axes along which a standard deviation operation is performed.
+        The default, axis=None, will compute the log of the sum of exponentials of all elements
+        in the input array. If axis is negative it counts from the last to the first axis.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as dimensions
+        with size one.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+
+    axis = [axis] if isinstance(axis, int) else axis
+    max_x = max(data, axis, True)
+    exp_x = exp(data - max_x)
+    sum_x = sum(exp_x, axis, True)
+    out_x = log(sum_x) + max_x
+    if not keepdims:
+        out_x = squeeze(out_x, axis)
+    return out_x

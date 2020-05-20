@@ -145,10 +145,10 @@ class AnnotateTargetRewriter : public ExprRewriter {
       Op op = Downcast<Op>(pre->op);
       CHECK(op.defined());
       for (const auto& target : this->targets_) {
-        if (!Op::HasAttr("target." + std::string(target))) {
+        if (!Op::HasAttrMap("target." + std::string(target))) {
           continue;
         }
-        auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + std::string(target));
+        auto fannotate = Op::GetAttrMap<FTVMAnnotateTarget>("target." + std::string(target));
         if (fannotate.count(op) && fannotate[op](pre->attrs, pre->args)) {
           supported_targets.push_back(target);
         }
@@ -299,8 +299,7 @@ Pass AnnotateTarget(const Array<runtime::String>& targets) {
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(relay::annotate_target::AnnotateTarget(f, targets));
       };
-  auto func_pass = CreateFunctionPass(pass_func, 0, "AnnotateTargetFunc",
-                                      {"InferType"});
+  auto func_pass = CreateFunctionPass(pass_func, 0, "AnnotateTargetFunc", {"InferType"});
   return transform::Sequential({func_pass, InferType()}, "AnnotateTarget");
 }
 

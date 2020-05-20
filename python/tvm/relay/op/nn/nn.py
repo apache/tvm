@@ -19,7 +19,7 @@
 from tvm.relay import expr
 
 from . import _make
-from .util import get_pad_tuple2d, get_pad_tuple3d
+from .util import get_pad_tuple1d, get_pad_tuple2d, get_pad_tuple3d
 
 
 def conv1d(data,
@@ -601,10 +601,11 @@ def max_pool1d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size,)
     if isinstance(strides, int):
         strides = (strides,)
-    if isinstance(padding, int):
-        padding = (padding,)
+    padding = get_pad_tuple1d(padding)
     return _make.max_pool1d(data, pool_size, strides, padding,
                             layout, ceil_mode)
 
@@ -661,6 +662,11 @@ def max_pool2d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides)
+    padding = get_pad_tuple2d(padding)
     return _make.max_pool2d(data, pool_size, strides, padding,
                             layout, ceil_mode)
 
@@ -709,6 +715,11 @@ def max_pool3d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    padding = get_pad_tuple3d(padding)
     return _make.max_pool3d(data, pool_size, strides, padding,
                             layout, ceil_mode)
 
@@ -761,10 +772,11 @@ def avg_pool1d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size,)
     if isinstance(strides, int):
         strides = (strides,)
-    if isinstance(padding, int):
-        padding = (padding,)
+    padding = get_pad_tuple1d(padding)
     return _make.avg_pool1d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
 
@@ -826,6 +838,11 @@ def avg_pool2d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides)
+    padding = get_pad_tuple2d(padding)
     return _make.avg_pool2d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
 
@@ -878,6 +895,11 @@ def avg_pool3d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    padding = get_pad_tuple3d(padding)
     return _make.avg_pool3d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
 
@@ -2669,4 +2691,73 @@ def adaptive_avg_pool3d(data,
         The computed result.
     """
     output_size = [] or output_size
+    return _make.adaptive_avg_pool3d(data, output_size, layout)
+
+
+def global_max_pool3d(data,
+                      layout="NCDHW"):
+    r"""3D global maximum pooling operator.
+
+    This operator takes data as input and does 3D max value calculation
+    across each window represented by DxWxH.
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
+    to produce an output Tensor with the following rule:
+
+    with data of shape (b, c, d, h, w)
+    .. math::
+
+        \mbox{out}(b, c, 1, 1, 1)  =  \max_{l=0, \ldots, d},  \max_{m=0, \ldots, h},
+             \max_{n=0, \ldots, w} \mbox{data}(b, c, l, m, n)
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [1, 1, 1]
+    return _make.adaptive_max_pool3d(data, output_size, layout)
+
+
+def global_avg_pool3d(data,
+                      layout="NCDHW"):
+    r"""3D global average pooling operator.
+
+    This operator takes data as input and does 3D average value calculation
+    across each window represented by DxWxH.
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
+    to produce an output Tensor with the following rule:
+
+    with data of shape (b, c, d, h, w)
+
+    .. math::
+
+        \mbox{out}(b, c, 1, 1, 1)  = \frac{1}{d * h * w} \sum_{l=0}^{d-1}  \sum_{m=0}^{h-1}
+             \sum_{n=0}^{w-1} \mbox{data}(b, c, l, m, n)
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [1, 1, 1]
     return _make.adaptive_avg_pool3d(data, output_size, layout)

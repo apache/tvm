@@ -1155,14 +1155,11 @@ def _reshape():
                 shape_arg = tuple(params_new.asnumpy().astype('int64').flatten())
             except Exception:
                 # Deal with symbolic shape case.
-                # Currently only shape_of can be the direct ancestor.
-                if not isinstance(pop_node, tvm.relay.expr.Call) or \
-                        "shape_of" not in str(pop_node.op):
-                    raise RuntimeError("If shape operator is used in reshape to "
-                                       "express reshape_like, shape_of must be "
-                                       "the direct ancestor of reshape when input "
-                                       "shape is symbolic.")
-                return _op.reshape_like(inputs[0], pop_node.args[0])
+                if isinstance(pop_node, _expr.Call) and \
+                        "shape_of" in str(pop_node.op):
+                    # shape_of is the direct ancestor.
+                    return _op.reshape_like(inputs[0], pop_node.args[0])
+                shape_arg = pop_node
         return AttrCvt(
             op_name="reshape",
             extras={'newshape': shape_arg},
@@ -1947,6 +1944,8 @@ _freezed_graph_pruned_op_list = ['ReadVariableOp', 'ResourceGather', 'Variable',
 # for N to 1 mapping, currently not supported(?)
 _convert_map = {
     'Abs'                               : AttrCvt('abs'),
+    'Acos'                              : AttrCvt('acos'),
+    'Acosh'                             : AttrCvt('acosh'),
     'Add'                               : _elemwise('add'),
     'AddN'                              : _add_n(),
     'AddV2'                             : _elemwise('add'),
@@ -1954,8 +1953,11 @@ _convert_map = {
     'Any'                               : _reduce('any'),
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
+    'Asin'                              : AttrCvt('asin'),
+    'Asinh'                             : AttrCvt('asinh'),
     'Assert'                            : _assert(),
     'Atan'                              : AttrCvt('atan'),
+    'Atanh'                             : AttrCvt('atanh'),
     'Atan2'                             : _atan2(),
     'AvgPool'                           : _pooling('avg_pool'),
     'AvgPool3D'                         : _pool3d('avg_pool3d'),
@@ -1975,6 +1977,7 @@ _convert_map = {
     'Conv2DBackpropInput'               : _conv('conv_transpose'),
     'Conv3D'                            : _conv3d('conv'),
     'Cos'                               : AttrCvt('cos'),
+    'Cosh'                              : AttrCvt('cosh'),
     'CropAndResize'                     : _crop_and_resize(),
     'DecodeJpeg'                        : _decode_image(),
     'DepthToSpace'                      : _depth_to_space(),
@@ -2051,6 +2054,7 @@ _convert_map = {
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Sign'                              : AttrCvt('sign'),
     'Sin'                               : AttrCvt('sin'),
+    'Sinh'                              : AttrCvt('sinh'),
     'Size'                              : _size(),
     'Slice'                             : _slice(),
     'Softmax'                           : _softmax(),

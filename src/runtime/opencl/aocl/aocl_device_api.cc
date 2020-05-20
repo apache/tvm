@@ -20,17 +20,16 @@
 /*!
  * \file aocl_device_api.cc
  */
-#include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
+#include <tvm/runtime/registry.h>
+
 #include "aocl_common.h"
 
 namespace tvm {
 namespace runtime {
 namespace cl {
 
-OpenCLThreadEntry* AOCLWorkspace::GetThreadEntry() {
-  return AOCLThreadEntry::ThreadLocal();
-}
+OpenCLThreadEntry* AOCLWorkspace::GetThreadEntry() { return AOCLThreadEntry::ThreadLocal(); }
 
 const std::shared_ptr<OpenCLWorkspace>& AOCLWorkspace::Global() {
   static std::shared_ptr<OpenCLWorkspace> inst = std::make_shared<AOCLWorkspace>();
@@ -47,15 +46,12 @@ bool AOCLWorkspace::IsOpenCLDevice(TVMContext ctx) {
 
 typedef dmlc::ThreadLocalStore<AOCLThreadEntry> AOCLThreadStore;
 
-AOCLThreadEntry* AOCLThreadEntry::ThreadLocal() {
-  return AOCLThreadStore::Get();
-}
+AOCLThreadEntry* AOCLThreadEntry::ThreadLocal() { return AOCLThreadStore::Get(); }
 
-TVM_REGISTER_GLOBAL("device_api.aocl")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    DeviceAPI* ptr = AOCLWorkspace::Global().get();
-    *rv = static_cast<void*>(ptr);
-  });
+TVM_REGISTER_GLOBAL("device_api.aocl").set_body([](TVMArgs args, TVMRetValue* rv) {
+  DeviceAPI* ptr = AOCLWorkspace::Global().get();
+  *rv = static_cast<void*>(ptr);
+});
 
 }  // namespace cl
 }  // namespace runtime

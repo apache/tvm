@@ -24,18 +24,18 @@
 #ifndef TOPI_REDUCTION_H_
 #define TOPI_REDUCTION_H_
 
-#include <tvm/te/operation.h>
 #include <topi/broadcast.h>
+#include <topi/detail/constant_utils.h>
+#include <topi/detail/ravel_unravel.h>
 #include <topi/elemwise.h>
 #include <topi/tags.h>
 #include <topi/transform.h>
-#include <topi/detail/ravel_unravel.h>
-#include <topi/detail/constant_utils.h>
+#include <tvm/te/operation.h>
 
 #include <algorithm>
+#include <iterator>
 #include <string>
 #include <vector>
-#include <iterator>
 
 namespace topi {
 using namespace tvm;
@@ -45,21 +45,21 @@ using namespace tvm::te;
 using FReduce = std::function<PrimExpr(PrimExpr source, const Array<IterVar>& axis)>;
 
 /*! \brief The operation to use for CommReduceIdx */
-using FCommReduce = std::function<
-  Array<PrimExpr>(Array<PrimExpr> exprs, const Array<IterVar>& axis, PrimExpr* condition)>;
+using FCommReduce = std::function<Array<PrimExpr>(Array<PrimExpr> exprs, const Array<IterVar>& axis,
+                                                  PrimExpr* condition)>;
 
 /*!
-* \brief Convert a reduction axis which could be empty or have negative
-* elements into a real axis with valid dimension indices.
-*
-* \param ndim Number of dimensions in the target.
-* \param axis The axis parameter.
-*
-* \return A non-empty sorted array of valid dimension indices, with no duplicates.
-* If the input axis is empty, the result will be an axis including all dimensions.
-* If any input element is negative, it will be treated as an offset from the
-* last dimension (same as python indexing rules).
-*/
+ * \brief Convert a reduction axis which could be empty or have negative
+ * elements into a real axis with valid dimension indices.
+ *
+ * \param ndim Number of dimensions in the target.
+ * \param axis The axis parameter.
+ *
+ * \return A non-empty sorted array of valid dimension indices, with no duplicates.
+ * If the input axis is empty, the result will be an axis including all dimensions.
+ * If any input element is negative, it will be treated as an offset from the
+ * last dimension (same as python indexing rules).
+ */
 inline std::vector<int> GetRealAxis(int ndim, const Array<Integer>& axis) {
   std::vector<int> real_axis;
   if (!axis.defined() || axis.size() == 0) {
@@ -78,8 +78,7 @@ inline std::vector<int> GetRealAxis(int ndim, const Array<Integer>& axis) {
       real_axis.push_back(static_cast<int>(val));
     }
     std::sort(real_axis.begin(), real_axis.end());
-    real_axis.resize(
-        std::unique(real_axis.begin(), real_axis.end()) - real_axis.begin());
+    real_axis.resize(std::unique(real_axis.begin(), real_axis.end()) - real_axis.begin());
   }
   return real_axis;
 }
@@ -89,17 +88,14 @@ inline Array<IterVar> MakeReduceAxes(const std::vector<int>& real_axis, const Te
   Array<IterVar> reduce_axes;
   for (auto i : real_axis) {
     std::string name = "k" + std::to_string(i);
-    reduce_axes.push_back(
-      tvm::te::reduce_axis(Range(0, data->shape[i]), name));
+    reduce_axes.push_back(tvm::te::reduce_axis(Range(0, data->shape[i]), name));
   }
   return reduce_axes;
 }
 
 /*! \brief Calculate the target shape for a reduce op */
-inline Array<PrimExpr> MakeReduceTargetShape(const std::vector<int>& real_axis,
-                                         const Tensor& data,
-                                         bool keepdims,
-                                         bool atleast1d) {
+inline Array<PrimExpr> MakeReduceTargetShape(const std::vector<int>& real_axis, const Tensor& data,
+                                             bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
   Array<PrimExpr> target_shape;
   if (keepdims) {
@@ -137,9 +133,7 @@ inline Array<PrimExpr> MakeReduceTargetShape(const std::vector<int>& real_axis,
  *
  * \return The result tensor.
  */
-inline Tensor DoCommReduce(const Tensor& data,
-                           FReduce func,
-                           const Array<PrimExpr>& target_shape,
+inline Tensor DoCommReduce(const Tensor& data, FReduce func, const Array<PrimExpr>& target_shape,
                            const std::vector<int>& reduce_axes,
                            const std::vector<int>& squeeze_axes) {
   auto r_axes = MakeReduceAxes(reduce_axes, data);
@@ -182,45 +176,39 @@ inline Tensor DoCommReduce(const Tensor& data,
  *
  * \return The result tensor.
  */
-inline Tensor CommReduce(const Tensor& data,
-                         const Array<Integer>& axis,
-                         FReduce func,
-                         bool keepdims,
-                         bool atleast1d) {
+inline Tensor CommReduce(const Tensor& data, const Array<Integer>& axis, FReduce func,
+                         bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
   auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims, atleast1d);
   return DoCommReduce(data, func, target_shape, real_axis,
-      keepdims ? std::vector<int>() : real_axis);
+                      keepdims ? std::vector<int>() : real_axis);
 }
 
 /*!
-* \brief Create an index reduction operation.
-*
-* \param data The input tensor.
-* \param axis The axes along which the reduction is performed.
-* \param func The reduction function
-* \param keepdims If this is set to true, the axes which are reduced are
-* left in the result as dimensions with size one. This enables the result
-* to broadcast correctly against the input array.
-* \param atleast1d Whether the output need to be atleast1d.
-*
-* \return The result tensor.
-*/
-inline Tensor CommReduceIdx(const Tensor& data,
-                            const Array<Integer>& axis,
-                            FCommReduce func,
-                            bool keepdims,
-                            bool atleast1d) {
+ * \brief Create an index reduction operation.
+ *
+ * \param data The input tensor.
+ * \param axis The axes along which the reduction is performed.
+ * \param func The reduction function
+ * \param keepdims If this is set to true, the axes which are reduced are
+ * left in the result as dimensions with size one. This enables the result
+ * to broadcast correctly against the input array.
+ * \param atleast1d Whether the output need to be atleast1d.
+ *
+ * \return The result tensor.
+ */
+inline Tensor CommReduceIdx(const Tensor& data, const Array<Integer>& axis, FCommReduce func,
+                            bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
   auto reduce_axes = MakeReduceAxes(real_axis, data);
   auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims, atleast1d);
 
-  auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func, &data]
-  (const Array<Var>& indices) {
+  auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func,
+                  &data](const Array<Var>& indices) {
     Array<PrimExpr> eval_range;
     Array<PrimExpr> eval_indices;
     int arg_counter = 0;
@@ -247,18 +235,16 @@ inline Tensor CommReduceIdx(const Tensor& data,
       ravel_shape.push_back(data->shape[i]);
     }
     auto idx = detail::RavelIndex(eval_indices, ravel_shape);
-    return func({ idx, data(eval_range) }, reduce_axes, nullptr);
+    return func({idx, data(eval_range)}, reduce_axes, nullptr);
   };
 
-  auto temp_idx_val = tvm::te::compute(target_shape, compute,
-                                   data->op->name + "_red_temp", kCommReduceIdx);
+  auto temp_idx_val =
+      tvm::te::compute(target_shape, compute, data->op->name + "_red_temp", kCommReduceIdx);
   auto temp_idx = temp_idx_val[0];
   auto temp_val = temp_idx_val[1];
   return tvm::te::compute(
-    target_shape,
-    [&temp_idx](const Array<Var>& indices) { return temp_idx(indices); },
-    data->op->name + "_red",
-    kCommReduceIdx);
+      target_shape, [&temp_idx](const Array<Var>& indices) { return temp_idx(indices); },
+      data->op->name + "_red", kCommReduceIdx);
 }
 
 /*! \brief A combiner function for a reduction */
@@ -276,11 +262,10 @@ using FIdentity = std::function<Array<PrimExpr>(std::vector<DataType> types)>;
  *
  * \return A reducer function which creates a reduce expression over an axis.
  */
-inline FCommReduce MakeCommReducer(FCombine fcombine,
-                                   FIdentity fidentity,
+inline FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity,
                                    std::string name = "reduce") {
-  return [fcombine, fidentity, name]
-  (Array<PrimExpr> exprs, const Array<IterVar>& axis, PrimExpr* condition) {
+  return [fcombine, fidentity, name](Array<PrimExpr> exprs, const Array<IterVar>& axis,
+                                     PrimExpr* condition) {
     Array<Var> lhs, rhs;
     std::vector<DataType> dtypes;
 
@@ -299,16 +284,14 @@ inline FCommReduce MakeCommReducer(FCombine fcombine,
     Array<PrimExpr> outputs;
     for (size_t i = 0; i < exprs.size(); ++i) {
       outputs.push_back(
-        tvm::tir::ReduceNode::make(combiner, exprs, axis, cond, static_cast<int>(i)));
+          tvm::tir::ReduceNode::make(combiner, exprs, axis, cond, static_cast<int>(i)));
     }
     return outputs;
   };
 }
 
 /*! \brief Wrap tvm::min to ensure we get the correct overload */
-inline PrimExpr MinOp(PrimExpr source, Array<IterVar> axis) {
-  return tvm::min(source, axis);
-}
+inline PrimExpr MinOp(PrimExpr source, Array<IterVar> axis) { return tvm::min(source, axis); }
 
 /*! \brief Wrap tvm::max to ensure we get the correct overload */
 inline PrimExpr MaxOp(PrimExpr source, Array<IterVar> axis) {
@@ -321,21 +304,19 @@ inline PrimExpr ProdOp(PrimExpr source, Array<IterVar> axis) {
 }
 
 /*!
-* \brief Creates an operation that sums array elements over a given axis
-*
-* \param data The input tensor
-* \param axis The axis to sum over. If axis is empty, the operation will
-* sum over all elements of the array.
-* \param keepdims If this is set to true, the axes which are reduced are
-* left in the result as dimensions with size one. This enables the result
-* to broadcast correctly against the input array.
-* \param atleast1d Whether the output need to be atleast1d.
-*
-* \return A Tensor whose op member is the sum operation
-*/
-inline Tensor sum(const Tensor& data,
-                  const Array<Integer>& axis,
-                  bool keepdims = false,
+ * \brief Creates an operation that sums array elements over a given axis
+ *
+ * \param data The input tensor
+ * \param axis The axis to sum over. If axis is empty, the operation will
+ * sum over all elements of the array.
+ * \param keepdims If this is set to true, the axes which are reduced are
+ * left in the result as dimensions with size one. This enables the result
+ * to broadcast correctly against the input array.
+ * \param atleast1d Whether the output need to be atleast1d.
+ *
+ * \return A Tensor whose op member is the sum operation
+ */
+inline Tensor sum(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
                   bool atleast1d = false) {
   return CommReduce(data, axis, tvm::sum, keepdims, atleast1d);
 }
@@ -347,8 +328,7 @@ inline Tensor collapse_sum(const Tensor& data, Array<PrimExpr> target_shape) {
 
   std::vector<int> reduce_axes;
   std::vector<int> squeeze_axes;
-  for (int i_ax = ishape.size() - 1,
-      o_ax = oshape.size() - 1; i_ax >= 0; --i_ax) {
+  for (int i_ax = ishape.size() - 1, o_ax = oshape.size() - 1; i_ax >= 0; --i_ax) {
     if (o_ax >= 0 && ishape[i_ax] == oshape[o_ax]) {
       --o_ax;
       continue;
@@ -369,106 +349,96 @@ inline Tensor collapse_sum(const Tensor& data, Array<PrimExpr> target_shape) {
 }
 
 /*!
-* \brief Creates an operation that computes the logical AND of elements
-* over a given axis
-*
-* \param data The input boolean tensor
-* \param axis The axes to reduce. If axis is empty, the operation will
-* perform logical AND over all elements of the array.
-* \param keepdims If this is set to true, the axes which are reduced are
-* left in the result as dimensions with size one. This enables the result
-* to broadcast correctly against the input array.
-* \param atleast1d Whether the output need to be atleast1d.
-*
-* \return A Tensor whose op member is the all operation
-*/
-inline Tensor all(const Tensor& data,
-                  const Array<Integer>& axis,
-                  bool keepdims = false,
+ * \brief Creates an operation that computes the logical AND of elements
+ * over a given axis
+ *
+ * \param data The input boolean tensor
+ * \param axis The axes to reduce. If axis is empty, the operation will
+ * perform logical AND over all elements of the array.
+ * \param keepdims If this is set to true, the axes which are reduced are
+ * left in the result as dimensions with size one. This enables the result
+ * to broadcast correctly against the input array.
+ * \param atleast1d Whether the output need to be atleast1d.
+ *
+ * \return A Tensor whose op member is the all operation
+ */
+inline Tensor all(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
                   bool atleast1d = false) {
   return CommReduce(data, axis, tvm::all, keepdims, atleast1d);
 }
 
 /*!
-* \brief Creates an operation that computes the logical OR of elements
-* over a given axis
-*
-* \param data The input boolean tensor
-* \param axis The axes to reduce. If axis is empty, the operation will
-* perform logical OR over all elements of the array.
-* \param keepdims If this is set to true, the axes which are reduced are
-* left in the result as dimensions with size one. This enables the result
-* to broadcast correctly against the input array.
-* \param atleast1d Whether the output need to be atleast1d.
-*
-* \return A Tensor whose op member is the all operation
-*/
-inline Tensor any(const Tensor& data,
-                  const Array<Integer>& axis,
-                  bool keepdims = false,
+ * \brief Creates an operation that computes the logical OR of elements
+ * over a given axis
+ *
+ * \param data The input boolean tensor
+ * \param axis The axes to reduce. If axis is empty, the operation will
+ * perform logical OR over all elements of the array.
+ * \param keepdims If this is set to true, the axes which are reduced are
+ * left in the result as dimensions with size one. This enables the result
+ * to broadcast correctly against the input array.
+ * \param atleast1d Whether the output need to be atleast1d.
+ *
+ * \return A Tensor whose op member is the all operation
+ */
+inline Tensor any(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
                   bool atleast1d = false) {
   return CommReduce(data, axis, tvm::any, keepdims, atleast1d);
 }
 
 /*!
-* \brief Creates an operation that finds the minimum of elements over
-* a given axis.
-*
-* \param data The input tensor
-* \param axis The axis to find the minimum over. If axis is empty, the
-* operation will find the minimum over all elements of the array.
-* \param keepdims If this is set to true, the axes which are reduced are
-* left in the result as dimensions with size one. This enables the result
-* to broadcast correctly against the input array.
-* \param atleast1d Whether the output need to be atleast1d.
-*
-* \return A Tensor whose op member is the min operation
-*/
-inline Tensor min(const Tensor& data,
-                  const Array<Integer>& axis,
-                  bool keepdims = false,
+ * \brief Creates an operation that finds the minimum of elements over
+ * a given axis.
+ *
+ * \param data The input tensor
+ * \param axis The axis to find the minimum over. If axis is empty, the
+ * operation will find the minimum over all elements of the array.
+ * \param keepdims If this is set to true, the axes which are reduced are
+ * left in the result as dimensions with size one. This enables the result
+ * to broadcast correctly against the input array.
+ * \param atleast1d Whether the output need to be atleast1d.
+ *
+ * \return A Tensor whose op member is the min operation
+ */
+inline Tensor min(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
                   bool atleast1d = false) {
   return CommReduce(data, axis, MinOp, keepdims, atleast1d);
 }
 
 /*!
-* \brief Creates an operation that finds the maximum of elements over
-* a given axis.
-*
-* \param data The input tensor
-* \param axis The axis to find the maximum over. If axis is empty, the
-* operation will find the maximum over all elements of the array.
-* \param keepdims If this is set to true, the axes which are reduced are
-* left in the result as dimensions with size one. This enables the result
-* to broadcast correctly against the input array.
-* \param atleast1d Whether the output need to be atleast1d.
-*
-* \return A Tensor whose op member is the max operation
-*/
-inline Tensor max(const Tensor& data,
-                  const Array<Integer>& axis,
-                  bool keepdims = false,
+ * \brief Creates an operation that finds the maximum of elements over
+ * a given axis.
+ *
+ * \param data The input tensor
+ * \param axis The axis to find the maximum over. If axis is empty, the
+ * operation will find the maximum over all elements of the array.
+ * \param keepdims If this is set to true, the axes which are reduced are
+ * left in the result as dimensions with size one. This enables the result
+ * to broadcast correctly against the input array.
+ * \param atleast1d Whether the output need to be atleast1d.
+ *
+ * \return A Tensor whose op member is the max operation
+ */
+inline Tensor max(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
                   bool atleast1d = false) {
   return CommReduce(data, axis, MaxOp, keepdims, atleast1d);
 }
 
 /*!
-* \brief Creates an operation that finds the indices of the minimum
-* values over a given axis.
-*
-* \param data The input tensor
-* \param axis The axis along which the argmin is performed. If axis is empty,
-* the operation will find the minimum index over all elements of the array.
-* \param keepdims If this is set to true, the axes which are reduced are
-* left in the result as dimensions with size one. This enables the result
-* to broadcast correctly against the input array.
-* \param atleast1d Whether the output need to be atleast1d.
-*
-* \return A Tensor whose op member is the argmin operation
-*/
-inline Tensor argmin(const Tensor& data,
-                     const Array<Integer>& axis,
-                     bool keepdims = false,
+ * \brief Creates an operation that finds the indices of the minimum
+ * values over a given axis.
+ *
+ * \param data The input tensor
+ * \param axis The axis along which the argmin is performed. If axis is empty,
+ * the operation will find the minimum index over all elements of the array.
+ * \param keepdims If this is set to true, the axes which are reduced are
+ * left in the result as dimensions with size one. This enables the result
+ * to broadcast correctly against the input array.
+ * \param atleast1d Whether the output need to be atleast1d.
+ *
+ * \return A Tensor whose op member is the argmin operation
+ */
+inline Tensor argmin(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
                      bool atleast1d = false) {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
     Array<PrimExpr> result;
@@ -479,7 +449,7 @@ inline Tensor argmin(const Tensor& data,
   auto fidentity = [](std::vector<DataType> types) {
     Array<PrimExpr> result;
     result.push_back(tvm::tir::make_const(types[0], -1));  // idx
-    result.push_back(tvm::max_value(types[1]));  // val
+    result.push_back(tvm::max_value(types[1]));            // val
     return result;
   };
   auto func = MakeCommReducer(fcombine, fidentity, "argmin");
@@ -496,50 +466,46 @@ inline FCommReduce MakeArgmaxReducer() {
   auto fidentity = [](std::vector<DataType> types) {
     Array<PrimExpr> result;
     result.push_back(tvm::tir::make_const(types[0], -1));  // idx
-    result.push_back(tvm::min_value(types[1]));  // val
+    result.push_back(tvm::min_value(types[1]));            // val
     return result;
   };
   return MakeCommReducer(fcombine, fidentity, "argmax");
 }
 
 /*!
-* \brief Creates an operation that finds the indices of the maximum
-* values over a given axis.
-*
-* \param data The input tensor
-* \param axis The axis along which the argmax is performed. If axis is empty,
-* the operation will find the maximum index over all elements of the array.
-* \param keepdims If this is set to true, the axes which are reduced are
-* left in the result as dimensions with size one. This enables the result
-* to broadcast correctly against the input array.
-* \param atleast1d Whether the output need to be atleast1d.
-*
-* \return A Tensor whose op member is the argmax operation
-*/
-inline Tensor argmax(const Tensor& data,
-                     const Array<Integer>& axis,
-                     bool keepdims = false,
+ * \brief Creates an operation that finds the indices of the maximum
+ * values over a given axis.
+ *
+ * \param data The input tensor
+ * \param axis The axis along which the argmax is performed. If axis is empty,
+ * the operation will find the maximum index over all elements of the array.
+ * \param keepdims If this is set to true, the axes which are reduced are
+ * left in the result as dimensions with size one. This enables the result
+ * to broadcast correctly against the input array.
+ * \param atleast1d Whether the output need to be atleast1d.
+ *
+ * \return A Tensor whose op member is the argmax operation
+ */
+inline Tensor argmax(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
                      bool atleast1d = false) {
   auto reducer = MakeArgmaxReducer();
   return CommReduceIdx(data, axis, reducer, keepdims, atleast1d);
 }
 
 /*!
-* \brief Creates product operation over given axis.
-*
-* \param data The input tensor
-* \param axis The axis to do product over. If axis is empty, the
-* operation will do the product over all elements of the array.
-* \param keepdims If this is set to true, the axes which are reduced are
-* left in the result as dimensions with size one. This enables the result
-* to broadcast correctly against the input array.
-* \param atleast1d Whether the output need to be atleast1d.
-*
-* \return A Tensor whose op member is the prod operation
-*/
-inline Tensor prod(const Tensor& data,
-                   const Array<Integer>& axis,
-                   bool keepdims = false,
+ * \brief Creates product operation over given axis.
+ *
+ * \param data The input tensor
+ * \param axis The axis to do product over. If axis is empty, the
+ * operation will do the product over all elements of the array.
+ * \param keepdims If this is set to true, the axes which are reduced are
+ * left in the result as dimensions with size one. This enables the result
+ * to broadcast correctly against the input array.
+ * \param atleast1d Whether the output need to be atleast1d.
+ *
+ * \return A Tensor whose op member is the prod operation
+ */
+inline Tensor prod(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
                    bool atleast1d = false) {
   return CommReduce(data, axis, ProdOp, keepdims, atleast1d);
 }

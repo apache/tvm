@@ -221,7 +221,7 @@ class Var(ExprWithOp):
     @property
     def name_hint(self):
         """Get name hint of the current var."""
-        name = self.vid.name_hint
+        name = str(self.vid.name_hint)
         return name
 
 
@@ -504,6 +504,7 @@ def const(value, dtype=None):
 
     if not isinstance(value, _nd.NDArray):
         raise ValueError("value has to be scalar or NDArray")
+
     return Constant(value)
 
 

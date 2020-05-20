@@ -28,21 +28,66 @@ namespace tvm {
 namespace te {
 using namespace tir;
 
-Stmt MakeCrossThreadReduction(
-    const ComputeOpNode* self,
-    const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
-    bool debug_keep_trivial_loop) {
-  Array<PrimExpr>  args;
+//
+// Cross thread reduction transformation.
+//
+// The input loop nest in generic form (single reduction/thread case)
+//
+// let m be the reduction extent
+// let N be the thread extent
+// let input_pred be the predicate on the reduction
+//
+// B[..] = 0
+// for (tid, 0, N)
+//   for (i, 0, floordiv(m+N-1, N))
+//     if (i + tid * floordiv(m+N-1, N) < m)
+//       if (input_pred)
+//         B[..] = op(B[..], A[i + tid  * floordiv(m+N-1,N)])
+//
+// The threaded reduction looks like
+//
+// (1) normal reductions (leaves)
+// for (i, 0, floordiv(m+N-1, N))
+//   if (i + tid * floordiv(m+N-1, N) < m)
+//     if (input_pred)
+//       B_temp[0] = op(B_temp[0], A[i + tid  * floordiv(m+N-1,N)])
+//
+// (2) threaded reduction does not require predicates as an identity
+//     element will be filled if out of bounds.
+//
+// tvm_thread_allreduce(size, B_temp, (bool)1, tid)
+//
+// The last step is to write the final reduction variable,
+// which should be predicated by the existing input_pred if any
+// The consequence is that input_pred should be independent of
+// the reduction axis. Otherwise, we need to seperate it into
+// dependent part and independent one.
+//
+// (3) write back
+// if (input_pred)
+//    B[..] = B_temp[0]
+//
+// In summary, we are going to need two predicates
+//
+// * the original input_pred from reduction itself
+//
+// * the normal reduction axis predicate
+//     normal_pred = (i + tid * floordiv(m+N-1,N)) < m
+//   this predicate depends on the normal reduction variable.
+//
+// input_pred will be applied to both normal reduction and
+// the writeback step.
+//
+Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
+                              const std::unordered_map<IterVar, Range>& dom_map,
+                              bool debug_keep_trivial_loop) {
+  Array<PrimExpr> args;
   for (IterVar iv : self->axis) {
     args.push_back(iv->var);
   }
   std::unordered_map<IterVar, PrimExpr> value_map;
-  auto nest = MakeLoopNest(
-      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map, debug_keep_trivial_loop);
-  auto conds = MakeBoundCheck(
-      stage, dom_map, value_map, false,
-      std::unordered_set<IterVar>());
+  auto nest = MakeLoopNest(stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map,
+                           debug_keep_trivial_loop);
 
   size_t size = self->body.size();
   CHECK_GT(size, 0);
@@ -52,10 +97,17 @@ Stmt MakeCrossThreadReduction(
     CHECK(reduce);
     reduces[i] = reduce;
   }
-  PrimExpr cond = reduces[0]->condition;
-  for (PrimExpr v : conds) {
-    cond = cond && v;
-  }
+
+  // This computes the bound checking predicates in normal reduction.
+  auto normal_preds =
+      MakeBoundCheck(stage, dom_map, value_map, false, std::unordered_set<IterVar>());
+
+  // normal_pred = input_pred && normal_pred
+  PrimExpr input_pred = reduces[0]->condition;
+  normal_preds.push_back(input_pred);
+  normal_preds.erase(std::remove_if(normal_preds.begin(), normal_preds.end(),
+                                    [](const PrimExpr& e) { return !e.defined(); }),
+                     normal_preds.end());
 
   std::vector<std::vector<Stmt>> common, normal_red;
   for (size_t i = 0, n = stage->leaf_iter_vars.size(); i < n; ++i) {
@@ -96,10 +148,10 @@ Stmt MakeCrossThreadReduction(
     Array<PrimExpr> update_value = (*combiner)(lhs, reduces[0]->source);
     for (size_t i = 0; i < size; ++i) {
       DataType t = reduces[i]->dtype;
-      normal_init.emplace_back(StoreNode::make(
-            normal_res_handles[i], init_value[i], 0, const_true(t.lanes())));
-      normal_update.emplace_back(StoreNode::make(
-            normal_res_handles[i], update_value[i], 0, const_true(t.lanes())));
+      normal_init.emplace_back(
+          StoreNode::make(normal_res_handles[i], init_value[i], 0, const_true(t.lanes())));
+      normal_update.emplace_back(
+          StoreNode::make(normal_res_handles[i], update_value[i], 0, const_true(t.lanes())));
     }
   }
 
@@ -108,13 +160,15 @@ Stmt MakeCrossThreadReduction(
   for (size_t i = 0; i < size; ++i) {
     if (!normal_red.empty()) {
       DataType t = reduces[i]->dtype;
-      freduce_args.push_back(LoadNode::make(
-            t, normal_res_handles[i], 0, const_true(t.lanes())));
+      freduce_args.push_back(LoadNode::make(t, normal_res_handles[i], 0, const_true(t.lanes())));
     } else {
       freduce_args.push_back(reduces[0]->source[i]);
     }
   }
-  freduce_args.push_back(cond);
+
+  // No constraints on the thread reduction step. It may have redundent
+  // computation for rare cases. TODO(tvm-team): revisit this.
+  freduce_args.push_back(const_true(1));
   std::vector<Var> res_handles(size);
   for (size_t idx = 0; idx < size; ++idx) {
     res_handles[idx] = Var("reduce_temp" + std::to_string(idx), DataType::Handle());
@@ -124,58 +178,54 @@ Stmt MakeCrossThreadReduction(
   for (IterVar iv : stage->leaf_iter_vars) {
     if (iv->iter_type == kCommReduce) {
       auto it = stage->iter_var_attrs.find(iv);
-      if (it != stage->iter_var_attrs.end() &&
-          (*it).second->bind_thread.defined()) {
+      if (it != stage->iter_var_attrs.end() && (*it).second->bind_thread.defined()) {
         IterVar tv = (*it).second->bind_thread;
         freduce_args.push_back(tv->var);
       }
     }
   }
+
   // Checks for the thread.
-  std::vector<PrimExpr> thread_head_check;
+  std::vector<PrimExpr> output_preds;
   if (stage->store_predicate.defined()) {
-    thread_head_check.emplace_back(stage->store_predicate);
+    output_preds.emplace_back(stage->store_predicate);
   }
 
+  // Apply the existing input predicate if any.
+  output_preds.push_back(input_pred);
+
   Stmt reduce_body = EvaluateNode::make(CallNode::make(
-      DataType::Handle(),
-      tir::intrinsic::tvm_thread_allreduce,
-      freduce_args, CallNode::Intrinsic));
-  reduce_body = AttrStmtNode::make(
-      reduces[0]->combiner,
-      tir::attr::reduce_scope,
-      make_zero(DataType::Handle()),
-      reduce_body);
+      DataType::Handle(), tir::intrinsic::tvm_thread_allreduce, freduce_args, CallNode::Intrinsic));
+  reduce_body = AttrStmtNode::make(reduces[0]->combiner, tir::attr::reduce_scope,
+                                   make_zero(DataType::Handle()), reduce_body);
 
   if (!normal_red.empty()) {
     Stmt init_body = SeqStmt::Flatten(normal_init);
     Stmt update_body = SeqStmt::Flatten(normal_update);
+    update_body = MergeNest(MakeIfNest(normal_preds), update_body);
     update_body = MergeNest(normal_red, update_body);
     reduce_body = SeqStmt::Flatten(init_body, update_body, reduce_body);
-    reduce_body = MergeNest(MakeIfNest(conds), reduce_body);
   }
 
   std::vector<Stmt> assigns(size);
   for (size_t idx = 0; idx < size; ++idx) {
     DataType t = reduces[idx]->dtype;
     assigns[idx] = ProvideNode::make(
-      stage->op, idx,
-      LoadNode::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
+        stage->op, idx, LoadNode::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
   }
   Stmt assign_body = SeqStmt::Flatten(assigns);
-  assign_body = MergeNest(MakeIfNest(thread_head_check), assign_body);
-  assign_body = MergeNest(MakeIfNest(conds), assign_body);
+  assign_body = MergeNest(MakeIfNest(output_preds), assign_body);
   Stmt body = SeqStmt::Flatten(reduce_body, assign_body);
   for (size_t idx = size; idx != 0; --idx) {
-    body = AllocateNode::make(
-      res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
-    body = AttrStmtNode::make(
-      res_handles[idx - 1], tir::attr::storage_scope, StringImmNode::make("local"), body);
+    body =
+        AllocateNode::make(res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
+    body = AttrStmtNode::make(res_handles[idx - 1], tir::attr::storage_scope,
+                              StringImmNode::make("local"), body);
     if (!normal_red.empty()) {
-      body = AllocateNode::make(
-        normal_res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
-      body = AttrStmtNode::make(
-        normal_res_handles[idx - 1], tir::attr::storage_scope, StringImmNode::make("local"), body);
+      body = AllocateNode::make(normal_res_handles[idx - 1], reduces[idx - 1]->dtype, {1},
+                                const_true(), body);
+      body = AttrStmtNode::make(normal_res_handles[idx - 1], tir::attr::storage_scope,
+                                StringImmNode::make("local"), body);
     }
   }
   body = Substitute(body, value_map);

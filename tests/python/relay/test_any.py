@@ -138,23 +138,36 @@ def test_any_concat():
         result = ex.evaluate()(x_np, y_np)
         tvm.testing.assert_allclose(result.asnumpy(), ref)
 
-def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape):
+def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newshape=False):
     x = relay.var('x', shape=x_shape, dtype="float32")
-    y = relay.reshape(x, newshape=newshape)
-    mod = tvm.IRModule()
-    mod["main"] = relay.Function([x], y)
+    relu_x = relay.nn.relu(x)
     data = np.random.uniform(size=x_np_shape).astype('float32')
+    params = [x]
+    args = [data]
+
+    if variable_newshape:
+        newshape_var = relay.var('newshape', shape=(len(newshape),), dtype='int64')
+        params.append(newshape_var)
+        args.append(np.array(newshape, dtype='int64'))
+        newshape = newshape_var
+
+    y = relay.reshape(relu_x, newshape=newshape)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function(params, y)
+
     for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data).asnumpy()
+        result = ex.evaluate()(*args).asnumpy()
         assert result.shape == out_shape
         tvm.testing.assert_allclose(result.flatten(), data.flatten())
 
 def test_any_reshape():
-    verify_any_reshape(any_dims(3), (1, -1), (2, 3, 4), (1, 24))
-    verify_any_reshape(any_dims(3), (0, -1), (2, 3, 4), (2, 12))
+    for variable_newshape in [False, True]:
+        # Variable newshape only supports that output rank is the same as newshape
+        verify_any_reshape(any_dims(3), (1, -1), (2, 3, 4), (1, 24), variable_newshape)
+        verify_any_reshape(any_dims(3), (0, -1), (2, 3, 4), (2, 12), variable_newshape)
+        verify_any_reshape(any_dims(3), (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4), variable_newshape)
     verify_any_reshape(any_dims(3), (0, -2), (2, 3, 4), (2, 3, 4))
-    verify_any_reshape(any_dims(3), (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4))
     verify_any_reshape(any_dims(3), (-4, -1, 2, -3), (6, 3, 4), (3, 2, 12))
 
 def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
@@ -667,6 +680,47 @@ def test_recursive_concat_with_wrong_annotation():
     except Exception as e:
         assert "in particular dimension 0 conflicts 2 does not match 1" in str(e)
 
+def test_tuple_get_item():
+    mod = tvm.IRModule()
+    dtype = "float32"
+    static_data_shape = (9, 4)
+    data_shape = (relay.Any(), 4)
+    indices_or_sections = 2
+    axis = 1
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = relay.split(data, indices_or_sections, axis)
+    y = relay.expr.TupleGetItem(y.astuple(), 0)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    ref_out_shape = (9, 2)
+    for kind in ["vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(ret.asnumpy().shape))
+
+def test_mixed_input_type():
+    mod = tvm.IRModule()
+    dtype = "float32"
+    static_data_shape = (9, 4)
+    data_shape = (relay.Any(), 4)
+    tensor_type = relay.TensorType(data_shape, dtype)
+    tuple_type = relay.TupleType([tensor_type, tensor_type])
+    data0 = relay.var("d0", type_annotation=relay.TupleType([tuple_type, tensor_type]))
+    data1 = relay.var("d1", shape=(relay.Any(), 4), dtype=dtype)
+    data_tuple = relay.expr.TupleWrapper(data0, 2)
+    nested_data_tuple = relay.expr.TupleWrapper(data_tuple[0], 2)
+    y = nested_data_tuple[1] * data_tuple[1] + data1
+    mod["main"] = relay.Function([data0, data1], y)
+    data_np0 = np.random.uniform(size=static_data_shape).astype(dtype)
+    data_np1 = np.random.uniform(size=static_data_shape).astype(dtype)
+    ref_out_shape = (9, 4)
+    for kind in ["vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()([[data_np0, data_np0], data_np0], data_np1)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(ret.asnumpy().shape))
+
 if __name__ == "__main__":
     test_any_full()
     test_any_broadcast()
@@ -695,3 +749,6 @@ if __name__ == "__main__":
     test_arange_with_dynamic_shape()
     test_recursive_concat()
     test_recursive_concat_with_wrong_annotation()
+    test_tuple_get_item()
+    test_mixed_input_type()
+

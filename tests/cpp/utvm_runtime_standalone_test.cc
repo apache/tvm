@@ -17,11 +17,11 @@
  * under the License.
  */
 
-#include <random>
-
 #include <dlpack/dlpack.h>
 #include <gtest/gtest.h>
+
 #include <map>
+#include <random>
 #include <vector>
 
 #ifdef USE_MICRO_STANDALONE_RUNTIME
@@ -30,9 +30,10 @@
 #if defined(__APPLE__) && defined(__MACH__)
 
 #include <gtest/gtest.h>
+#include <spawn.h>
+#include <sys/wait.h>
 #include <topi/generic/injective.h>
 #include <tvm/driver/driver_api.h>
-#include <tvm/te/operation.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
@@ -41,9 +42,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-
-#include <spawn.h>
-#include <sys/wait.h>
+#include <tvm/te/operation.h>
 
 TVM_REGISTER_GLOBAL("test.sch").set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
   *rv = topi::generic::schedule_injective(args[0], args[1]);

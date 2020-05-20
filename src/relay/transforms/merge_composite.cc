@@ -113,6 +113,7 @@ class MergeCompositeWrapper : public ExprMutator {
   Expr ExtractPattern(const Call& pattern, const Call& root, Map<std::string, Array<Expr>>* var_map,
                       Map<Expr, Expr>* call_map) {
     // check to make sure both calls are to operators (not functions)
+    if (!root.defined()) return Expr();
     if (!pattern->op->IsInstance<OpNode>() || !root->op->IsInstance<OpNode>()) return Expr();
     if (pattern->op.as<OpNode>()->name != root->op.as<OpNode>()->name) return Expr();
 
@@ -120,18 +121,13 @@ class MergeCompositeWrapper : public ExprMutator {
     Array<Expr> new_args;
     for (const auto& arg : pattern->args) {
       Expr new_arg;
-      if (arg->IsInstance<CallNode>()) {
+      if (arg->IsInstance<CallNode>() && root->args[i]->IsInstance<CallNode>()) {
+        new_arg =
+            ExtractPattern(Downcast<Call>(arg), Downcast<Call>(root->args[i]), var_map, call_map);
         // if we've already processed this call node, return the previous result
-        if (call_map->find(arg) != call_map->end()) {
+        if (call_map->find(arg) != call_map->end() && new_arg.defined()) {
           new_arg = (*call_map)[arg];
         } else {
-          // fail if the root argument is not also a call node
-          if (!root->args[i]->IsInstance<CallNode>()) {
-            return Expr();
-          }
-          // if it's a call node, recursively call this function
-          new_arg =
-              ExtractPattern(Downcast<Call>(arg), Downcast<Call>(root->args[i]), var_map, call_map);
           call_map->Set(arg, new_arg);
         }
       } else if (arg->IsInstance<VarNode>()) {
@@ -234,8 +230,7 @@ Pass MergeComposite(const tvm::Array<runtime::String>& pattern_names,
   return func_pass;
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.MergeComposite")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("relay._transform.MergeComposite").set_body([](TVMArgs args, TVMRetValue* rv) {
   tvm::Array<runtime::String> pattern_names = args[0];
   tvm::Array<Expr> patterns = args[1];
   std::vector<PackedFunc> checks;

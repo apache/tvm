@@ -30,11 +30,12 @@
  *        (3) and sum them together to get the adjoint of the input itself.
  *        The three steps are computed recursively.
  */
+#include <topi/elemwise.h>
+#include <topi/transform.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/autodiff.h>
 #include <tvm/tir/stmt_functor.h>
-#include <topi/transform.h>
-#include <topi/elemwise.h>
+
 #include <memory>
 #include <vector>
 
@@ -47,27 +48,25 @@ Tensor Identity(const Tensor& output) {
     // add extra dimension for Jacobian
     shape.push_back(e);
   }
-  auto func =
-    [&output](const Array<Var>& input_indices) {
-      PrimExpr res = const_true();
-      for (size_t i = 0; i < output->shape.size(); ++i) {
-        res = res && (PrimExpr(input_indices[i]) ==
-                      PrimExpr(input_indices[output->shape.size() + i]));
-      }
-      return CastNode::make(output->dtype, res);
-    };
+  auto func = [&output](const Array<Var>& input_indices) {
+    PrimExpr res = const_true();
+    for (size_t i = 0; i < output->shape.size(); ++i) {
+      res =
+          res && (PrimExpr(input_indices[i]) == PrimExpr(input_indices[output->shape.size() + i]));
+    }
+    return CastNode::make(output->dtype, res);
+  };
   return te::compute(shape, func, "identity");
 }
 
-Tensor VectorJacobianProduct(const Tensor &output, const Tensor &input, const Tensor &head) {
+Tensor VectorJacobianProduct(const Tensor& output, const Tensor& input, const Tensor& head) {
   Tensor jac = Jacobian(output, input);
   Tensor result = topi::tensordot(head, jac, /*axes=*/output->shape.size(),
                                   output->op->name + "." + input->op->name + ".grad");
   return result;
 }
 
-Array<Tensor> Gradient(const Tensor& output,
-                       const Array<Tensor>& inputs,
+Array<Tensor> Gradient(const Tensor& output, const Array<Tensor>& inputs,
                        const Tensor& head_or_null) {
   // Diagonal identity tensor
   Tensor head = head_or_null.get() ? head_or_null : Identity(output);
@@ -95,41 +94,40 @@ Array<Tensor> Gradient(const Tensor& output,
   // This is a recursive function that does all the work. It computes the adjoint for a given
   // tensor, adds it to the map, and returns it
   std::function<Tensor(const Tensor&)> compute_adjoint;
-  compute_adjoint =
-    [&compute_adjoint, &adjoints, &reverse_dependencies, &head, &output]
-    (const Tensor& tensor) {
-      if (!adjoints.count(tensor)) {
-        // Here the adjoint hasn't been computed yet
-        Tensor res_adjoint;
-        std::vector<Tensor> direct_consumers = reverse_dependencies[tensor];
-        if (direct_consumers.empty()) {
-          // No reverse dependencies means that the output does not depend on this tensor,
-          // return a zero tensor of the appropriate shape
-          // (i.e., output shape + tensor shape, aka shape of Jacobian)
-          Array<PrimExpr> result_shape(head->shape.begin(),
-                                       head->shape.end() + (-output->shape.size()));
-          for (auto e : tensor->shape) {
-            result_shape.push_back(e);
-          }
-          res_adjoint = topi::full(result_shape, output->dtype, make_zero(output->dtype));
-        } else {
-          // The new adjoint is computed as a sum of the reverse dependencies' adjoints multiplied
-          // by the corresponding "local" jacobians (dDep/dTensor). The computation of the jacobian
-          // and the multiplication is done in the function VectorJacobianProduct
-          for (const Tensor& direct_consumer : direct_consumers) {
-            // part = (adjoint of direct_consumer) * Jacobian(direct_consumer, tensor)
-            Tensor part = VectorJacobianProduct(
-                direct_consumer, tensor, compute_adjoint(direct_consumer));
-            res_adjoint = res_adjoint.get() ? topi::add(res_adjoint, part) : part;
-          }
+  compute_adjoint = [&compute_adjoint, &adjoints, &reverse_dependencies, &head,
+                     &output](const Tensor& tensor) {
+    if (!adjoints.count(tensor)) {
+      // Here the adjoint hasn't been computed yet
+      Tensor res_adjoint;
+      std::vector<Tensor> direct_consumers = reverse_dependencies[tensor];
+      if (direct_consumers.empty()) {
+        // No reverse dependencies means that the output does not depend on this tensor,
+        // return a zero tensor of the appropriate shape
+        // (i.e., output shape + tensor shape, aka shape of Jacobian)
+        Array<PrimExpr> result_shape(head->shape.begin(),
+                                     head->shape.end() + (-output->shape.size()));
+        for (auto e : tensor->shape) {
+          result_shape.push_back(e);
         }
-
-        adjoints[tensor] = res_adjoint;
-        return res_adjoint;
+        res_adjoint = topi::full(result_shape, output->dtype, make_zero(output->dtype));
       } else {
-        return adjoints[tensor];
+        // The new adjoint is computed as a sum of the reverse dependencies' adjoints multiplied
+        // by the corresponding "local" jacobians (dDep/dTensor). The computation of the jacobian
+        // and the multiplication is done in the function VectorJacobianProduct
+        for (const Tensor& direct_consumer : direct_consumers) {
+          // part = (adjoint of direct_consumer) * Jacobian(direct_consumer, tensor)
+          Tensor part =
+              VectorJacobianProduct(direct_consumer, tensor, compute_adjoint(direct_consumer));
+          res_adjoint = res_adjoint.get() ? topi::add(res_adjoint, part) : part;
+        }
       }
-    };
+
+      adjoints[tensor] = res_adjoint;
+      return res_adjoint;
+    } else {
+      return adjoints[tensor];
+    }
+  };
 
   // Adjoints corresponding to inputs
   Array<Tensor> result;
@@ -141,15 +139,14 @@ Array<Tensor> Gradient(const Tensor& output,
   return result;
 }
 
-TVM_REGISTER_GLOBAL("te.Gradient")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    LOG(WARNING) << "te.Gradient is an experimental feature.";
-    if (args.size() == 2) {
-      *ret = Gradient(args[0], args[1]);
-    } else if (args.size() == 3) {
-      *ret = Gradient(args[0], args[1], args[2]);
-    }
-  });
+TVM_REGISTER_GLOBAL("te.Gradient").set_body([](TVMArgs args, TVMRetValue* ret) {
+  LOG(WARNING) << "te.Gradient is an experimental feature.";
+  if (args.size() == 2) {
+    *ret = Gradient(args[0], args[1]);
+  } else if (args.size() == 3) {
+    *ret = Gradient(args[0], args[1], args[2]);
+  }
+});
 
 }  // namespace te
 }  // namespace tvm

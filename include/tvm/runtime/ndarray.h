@@ -25,12 +25,13 @@
 #define TVM_RUNTIME_NDARRAY_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/serializer.h>
 
 #include <atomic>
-#include <vector>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -53,8 +54,7 @@ class NDArray : public ObjectRef {
    * \brief constructor.
    * \param data ObjectPtr to the data container.
    */
-  explicit NDArray(ObjectPtr<Object> data)
-      : ObjectRef(data) {}
+  explicit NDArray(ObjectPtr<Object> data) : ObjectRef(data) {}
 
   /*! \brief reset the content of NDArray to be nullptr */
   inline void reset();
@@ -76,13 +76,13 @@ class NDArray : public ObjectRef {
   inline void CopyFrom(const DLTensor* other);
   inline void CopyFrom(const NDArray& other);
   /*!
- * \brief Copy data content from a byte buffer.
- * \param data The source bytes to be copied from.
- * \param nbytes The size of the buffer in bytes
- *        Must be equal to the size of the NDArray.
- * \note The copy may happen asynchronously if it involves a GPU context.
- *       TVMSynchronize is necessary.
- */
+   * \brief Copy data content from a byte buffer.
+   * \param data The source bytes to be copied from.
+   * \param nbytes The size of the buffer in bytes
+   *        Must be equal to the size of the NDArray.
+   * \note The copy may happen asynchronously if it involves a GPU context.
+   *       TVMSynchronize is necessary.
+   */
   TVM_DLL void CopyFromBytes(const void* data, size_t nbytes);
   /*!
    * \brief Copy data content into another array.
@@ -124,8 +124,7 @@ class NDArray : public ObjectRef {
    * \param dtype The data type of the new array.
    * \note The memory size of new array must be smaller than the current one.
    */
-  TVM_DLL NDArray CreateView(
-      std::vector<int64_t> shape, DLDataType dtype);
+  TVM_DLL NDArray CreateView(std::vector<int64_t> shape, DLDataType dtype);
   /*!
    * \brief Create a reference view of NDArray that
    *  represents as DLManagedTensor.
@@ -139,9 +138,7 @@ class NDArray : public ObjectRef {
    * \param ctx The context of the Array.
    * \return The created Array
    */
-  TVM_DLL static NDArray Empty(std::vector<int64_t> shape,
-                               DLDataType dtype,
-                               DLContext ctx);
+  TVM_DLL static NDArray Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx);
   /*!
    * \brief Create a NDArray backed by a dlpack tensor.
    *
@@ -160,10 +157,11 @@ class NDArray : public ObjectRef {
    * \param to The target array.
    * \param stream The stream used in copy.
    */
-  TVM_DLL static void CopyFromTo(
-      const DLTensor* from, DLTensor* to, TVMStreamHandle stream = nullptr);
+  TVM_DLL static void CopyFromTo(const DLTensor* from, DLTensor* to,
+                                 TVMStreamHandle stream = nullptr);
 
   TVM_DLL std::vector<int64_t> Shape() const;
+  TVM_DLL runtime::DataType DataType() const;
   // internal namespace
   struct Internal;
 
@@ -244,9 +242,7 @@ class NDArray::ContainerBase {
  * \brief Object container class that backs NDArray.
  * \note do not use this function directly, use NDArray.
  */
-class NDArray::Container :
-      public Object,
-      public NDArray::ContainerBase {
+class NDArray::Container : public Object, public NDArray::ContainerBase {
  public:
   /*! \brief default constructor */
   Container() {
@@ -259,10 +255,7 @@ class NDArray::Container :
     dl_tensor.byte_offset = 0;
   }
 
-  Container(void* data,
-            std::vector<int64_t> shape,
-            DLDataType dtype,
-            DLContext ctx) {
+  Container(void* data, std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {
     // Initialize the type index.
     type_index_ = Container::RuntimeTypeIndex();
     dl_tensor.data = data;
@@ -278,9 +271,7 @@ class NDArray::Container :
    * \brief Set the deleter field.
    * \param deleter The deleter.
    */
-  void SetDeleter(FDeleter deleter) {
-    deleter_ = deleter;
-  }
+  void SetDeleter(FDeleter deleter) { deleter_ = deleter; }
 
   // Expose DecRef and IncRef as public function
   // NOTE: they are only for developer purposes only.
@@ -360,53 +351,44 @@ inline void NDArray::CopyTo(const NDArray& other) const {
 inline NDArray NDArray::CopyTo(const DLContext& ctx) const {
   CHECK(data_ != nullptr);
   const DLTensor* dptr = operator->();
-  NDArray ret = Empty(std::vector<int64_t>(dptr->shape, dptr->shape + dptr->ndim),
-                      dptr->dtype, ctx);
+  NDArray ret =
+      Empty(std::vector<int64_t>(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, ctx);
   this->CopyTo(ret);
   return ret;
 }
 
-inline int NDArray::use_count() const {
-  return data_.use_count();
-}
+inline int NDArray::use_count() const { return data_.use_count(); }
 
-inline const DLTensor* NDArray::operator->() const {
-  return &(get_mutable()->dl_tensor);
-}
+inline const DLTensor* NDArray::operator->() const { return &(get_mutable()->dl_tensor); }
 
 inline NDArray::Container* NDArray::get_mutable() const {
   return static_cast<NDArray::Container*>(data_.get());
 }
 
 inline ObjectPtr<Object> NDArray::FFIDataFromHandle(TVMArrayHandle handle) {
-  return GetObjectPtr<Object>(static_cast<NDArray::Container*>(
-      reinterpret_cast<NDArray::ContainerBase*>(handle)));
+  return GetObjectPtr<Object>(
+      static_cast<NDArray::Container*>(reinterpret_cast<NDArray::ContainerBase*>(handle)));
 }
 
 inline TVMArrayHandle NDArray::FFIGetHandle(const ObjectRef& nd) {
   // NOTE: it is necessary to cast to container then to base
   //       so that the FFI handle uses the ContainerBase address.
-  return reinterpret_cast<TVMArrayHandle>(
-          static_cast<NDArray::ContainerBase*>(
-              static_cast<NDArray::Container*>(
-                  const_cast<Object*>(nd.get()))));
+  return reinterpret_cast<TVMArrayHandle>(static_cast<NDArray::ContainerBase*>(
+      static_cast<NDArray::Container*>(const_cast<Object*>(nd.get()))));
 }
 
 inline void NDArray::FFIDecRef(TVMArrayHandle handle) {
-  static_cast<NDArray::Container*>(
-      reinterpret_cast<NDArray::ContainerBase*>(handle))->DecRef();
+  static_cast<NDArray::Container*>(reinterpret_cast<NDArray::ContainerBase*>(handle))->DecRef();
 }
 
 inline Object* TVMArrayHandleToObjectHandle(TVMArrayHandle handle) {
-  return static_cast<NDArray::Container*>(
-      reinterpret_cast<NDArray::ContainerBase*>(handle));
+  return static_cast<NDArray::Container*>(reinterpret_cast<NDArray::ContainerBase*>(handle));
 }
 
 /*! \brief Magic number for NDArray file */
 constexpr uint64_t kTVMNDArrayMagic = 0xDD5E40F096B4A13F;
 
-inline bool SaveDLTensor(dmlc::Stream* strm,
-                         const DLTensor* tensor) {
+inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
   uint64_t header = kTVMNDArrayMagic, reserved = 0;
   strm->Write(header);
   strm->Write(reserved);
@@ -435,16 +417,15 @@ inline bool SaveDLTensor(dmlc::Stream* strm,
   int64_t data_byte_size = type_bytes * num_elems;
   strm->Write(data_byte_size);
 
-  if (DMLC_IO_NO_ENDIAN_SWAP &&
-      tensor->ctx.device_type == kDLCPU &&
-      tensor->strides == nullptr &&
+  if (DMLC_IO_NO_ENDIAN_SWAP && tensor->ctx.device_type == kDLCPU && tensor->strides == nullptr &&
       tensor->byte_offset == 0) {
     // quick path
     strm->Write(tensor->data, data_byte_size);
   } else {
     std::vector<uint8_t> bytes(data_byte_size);
-    CHECK_EQ(TVMArrayCopyToBytes(
-        const_cast<DLTensor*>(tensor), dmlc::BeginPtr(bytes), data_byte_size), 0)
+    CHECK_EQ(
+        TVMArrayCopyToBytes(const_cast<DLTensor*>(tensor), dmlc::BeginPtr(bytes), data_byte_size),
+        0)
         << TVMGetLastError();
     if (!DMLC_IO_NO_ENDIAN_SWAP) {
       dmlc::ByteSwap(dmlc::BeginPtr(bytes), type_bytes, num_elems);
@@ -454,33 +435,23 @@ inline bool SaveDLTensor(dmlc::Stream* strm,
   return true;
 }
 
-inline void NDArray::Save(dmlc::Stream* strm) const {
-  SaveDLTensor(strm, operator->());
-}
+inline void NDArray::Save(dmlc::Stream* strm) const { SaveDLTensor(strm, operator->()); }
 
 inline bool NDArray::Load(dmlc::Stream* strm) {
   uint64_t header, reserved;
-  CHECK(strm->Read(&header))
-      << "Invalid DLTensor file format";
-  CHECK(strm->Read(&reserved))
-      << "Invalid DLTensor file format";
-  CHECK(header == kTVMNDArrayMagic)
-      << "Invalid DLTensor file format";
+  CHECK(strm->Read(&header)) << "Invalid DLTensor file format";
+  CHECK(strm->Read(&reserved)) << "Invalid DLTensor file format";
+  CHECK(header == kTVMNDArrayMagic) << "Invalid DLTensor file format";
   DLContext ctx;
   int ndim;
   DLDataType dtype;
-  CHECK(strm->Read(&ctx))
-      << "Invalid DLTensor file format";
-  CHECK(strm->Read(&ndim))
-      << "Invalid DLTensor file format";
-  CHECK(strm->Read(&dtype))
-      << "Invalid DLTensor file format";
-  CHECK_EQ(ctx.device_type, kDLCPU)
-      << "Invalid DLTensor context: can only save as CPU tensor";
+  CHECK(strm->Read(&ctx)) << "Invalid DLTensor file format";
+  CHECK(strm->Read(&ndim)) << "Invalid DLTensor file format";
+  CHECK(strm->Read(&dtype)) << "Invalid DLTensor file format";
+  CHECK_EQ(ctx.device_type, kDLCPU) << "Invalid DLTensor context: can only save as CPU tensor";
   std::vector<int64_t> shape(ndim);
   if (ndim != 0) {
-    CHECK(strm->ReadArray(&shape[0], ndim))
-        << "Invalid DLTensor file format";
+    CHECK(strm->ReadArray(&shape[0], ndim)) << "Invalid DLTensor file format";
   }
   NDArray ret = NDArray::Empty(shape, dtype, ctx);
   int64_t num_elems = 1;
@@ -489,12 +460,9 @@ inline bool NDArray::Load(dmlc::Stream* strm) {
     num_elems *= ret->shape[i];
   }
   int64_t data_byte_size;
-  CHECK(strm->Read(&data_byte_size))
-      << "Invalid DLTensor file format";
-  CHECK(data_byte_size == num_elems * elem_bytes)
-      << "Invalid DLTensor file format";
-  CHECK(strm->Read(ret->data, data_byte_size))
-      << "Invalid DLTensor file format";
+  CHECK(strm->Read(&data_byte_size)) << "Invalid DLTensor file format";
+  CHECK(data_byte_size == num_elems * elem_bytes) << "Invalid DLTensor file format";
+  CHECK(strm->Read(ret->data, data_byte_size)) << "Invalid DLTensor file format";
   if (!DMLC_IO_NO_ENDIAN_SWAP) {
     dmlc::ByteSwap(ret->data, elem_bytes, num_elems);
   }

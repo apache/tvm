@@ -24,10 +24,10 @@
 #ifndef TVM_RELAY_BASE_H_
 #define TVM_RELAY_BASE_H_
 
-
 #include <tvm/ir/span.h>
-#include <tvm/tir/expr.h>
 #include <tvm/node/node.h>
+#include <tvm/tir/expr.h>
+
 #include <string>
 #include <vector>
 
@@ -42,17 +42,19 @@ namespace tvm {
  */
 namespace relay {
 
-#define RELAY_DEBUG(...) \
-{ auto fdebug = runtime::Registry::Get("relay.debug"); \
-  CHECK(fdebug) << "Could not find Relay Python debugger function."; \
-  (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__); \
-}
+#define RELAY_DEBUG(...)                                               \
+  {                                                                    \
+    auto fdebug = runtime::Registry::Get("relay.debug");               \
+    CHECK(fdebug) << "Could not find Relay Python debugger function."; \
+    (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__);         \
+  }
 
-#define RELAY_DEBUG_INTERP(...) \
-{ auto fdebug = runtime::Registry::Get("relay.debug_interp"); \
-  CHECK(fdebug) << "Could not find Relay Python debugger function."; \
-  (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__); \
-}
+#define RELAY_DEBUG_INTERP(...)                                        \
+  {                                                                    \
+    auto fdebug = runtime::Registry::Get("relay.debug_interp");        \
+    CHECK(fdebug) << "Could not find Relay Python debugger function."; \
+    (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__);         \
+  }
 
 /*!
  * \brief Symbolic expression for tensor shape.
@@ -91,11 +93,9 @@ class IdNode : public Object {
    *  this only acts as a hint to the user,
    *  and is not used for equality.
    */
-  std::string name_hint;
+  String name_hint;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name_hint", &name_hint);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("name_hint", &name_hint); }
 
   static constexpr const char* _type_key = "relay.Id";
   TVM_DECLARE_FINAL_OBJECT_INFO(IdNode, Object);
@@ -107,7 +107,7 @@ class Id : public ObjectRef {
    * \brief The constructor
    * \param name_hint The name of the variable.
    */
-  TVM_DLL explicit Id(std::string name_hint);
+  TVM_DLL explicit Id(String name_hint);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
 };

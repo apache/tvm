@@ -25,16 +25,16 @@
 #ifndef TVM_RELAY_PATTERN_FUNCTOR_H_
 #define TVM_RELAY_PATTERN_FUNCTOR_H_
 
-#include <tvm/node/functor.h>
 #include <tvm/ir/error.h>
+#include <tvm/node/functor.h>
 
 #include <string>
-#include <utility>
 #include <unordered_map>
+#include <utility>
 
+#include "./adt.h"
 #include "./expr.h"
 #include "./op.h"
-#include "./adt.h"
 
 namespace tvm {
 namespace relay {
@@ -54,15 +54,13 @@ template <typename FType>
 class PatternFunctor;
 
 // functions to be overriden.
-#define PATTERN_FUNCTOR_DEFAULT                                      \
+#define PATTERN_FUNCTOR_DEFAULT \
   { return VisitPatternDefault_(op, std::forward<Args>(args)...); }
 
-#define RELAY_PATTERN_FUNCTOR_DISPATCH(OP)                                \
-  vtable.template set_dispatch<OP>(                                       \
-      [](const ObjectRef& n, TSelf* self, Args... args) {                   \
-        return self->VisitPattern_(static_cast<const OP*>(n.get()), \
-                                   std::forward<Args>(args)...);          \
-      });
+#define RELAY_PATTERN_FUNCTOR_DISPATCH(OP)                                                    \
+  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {        \
+    return self->VisitPattern_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
+  });
 
 template <typename R, typename... Args>
 class PatternFunctor<R(const Pattern& n, Args...)> {
@@ -96,14 +94,10 @@ class PatternFunctor<R(const Pattern& n, Args...)> {
     return vtable(n, this, std::forward<Args>(args)...);
   }
   // Functions that can be overriden by subclass
-  virtual R VisitPattern_(const PatternWildcardNode* op,
-                          Args... args) PATTERN_FUNCTOR_DEFAULT;
-  virtual R VisitPattern_(const PatternVarNode* op,
-                          Args... args) PATTERN_FUNCTOR_DEFAULT;
-  virtual R VisitPattern_(const PatternConstructorNode* op,
-                          Args... args) PATTERN_FUNCTOR_DEFAULT;
-  virtual R VisitPattern_(const PatternTupleNode* op,
-                          Args... args) PATTERN_FUNCTOR_DEFAULT;
+  virtual R VisitPattern_(const PatternWildcardNode* op, Args... args) PATTERN_FUNCTOR_DEFAULT;
+  virtual R VisitPattern_(const PatternVarNode* op, Args... args) PATTERN_FUNCTOR_DEFAULT;
+  virtual R VisitPattern_(const PatternConstructorNode* op, Args... args) PATTERN_FUNCTOR_DEFAULT;
+  virtual R VisitPattern_(const PatternTupleNode* op, Args... args) PATTERN_FUNCTOR_DEFAULT;
   virtual R VisitPatternDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     throw;
@@ -144,8 +138,7 @@ class PatternVisitor : public ::tvm::relay::PatternFunctor<void(const Pattern& n
  * ExprMutator uses memoization and self return in order to amortize
  * the cost of using functional updates.
  */
-class PatternMutator
-    : public ::tvm::relay::PatternFunctor<Pattern(const Pattern&)> {
+class PatternMutator : public ::tvm::relay::PatternFunctor<Pattern(const Pattern&)> {
  public:
   Pattern Mutate(const Pattern& pat);
   Pattern VisitPattern_(const PatternWildcardNode* op) override;
@@ -163,6 +156,7 @@ class PatternMutator
   virtual Var VisitVar(const Var& v);
   /*! \brief Used to visit the vars inside of patterns. */
   virtual Constructor VisitConstructor(const Constructor& c);
+
  private:
   std::unordered_map<Var, Var, ObjectHash, ObjectEqual> var_map_;
 };

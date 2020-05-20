@@ -1,0 +1,79 @@
+<html>
+  <!--- Licensed to the Apache Software Foundation (ASF) under one -->
+  <!--- or more contributor license agreements.  See the NOTICE file -->
+  <!--- distributed with this work for additional information -->
+  <!--- regarding copyright ownership.  The ASF licenses this file -->
+  <!--- to you under the Apache License, Version 2.0 (the -->
+  <!--- "License"); you may not use this file except in compliance -->
+  <!--- with the License.  You may obtain a copy of the License at -->
+
+  <!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+  <!--- Unless required by applicable law or agreed to in writing, -->
+  <!--- software distributed under the License is distributed on an -->
+  <!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+  <!--- KIND, either express or implied.  See the License for the -->
+  <!--- specific language governing permissions and limitations -->
+  <!--- under the License. -->
+
+  <head>
+    <title>TVM RPC Test Page</title>
+  </head>
+  <script src="tvmjs_runtime.wasi.js"></script>
+  <script src="tvmjs.bundle.js"></script>
+  <script>
+
+    function customLog(message) {
+      console.log(message);
+      const d = document.createElement("div");
+      d.innerHTML = message;
+      document.getElementById("log").appendChild(d);
+    };
+    function clearLog() {
+      const node = document.getElementById("log");
+      while (node.hasChildNodes()) {
+        node.removeChild(node.lastChild);
+      }
+    }
+    function connectRPC() {
+      const proxyUrl = document.getElementById("proxyURL").value;
+      const key = document.getElementById("proxyKey").value;
+      // only works for once.
+      const getImports = () => {
+        return new EmccWASI();
+      };
+
+      new tvmjs.RPCServer(proxyUrl, key, getImports, customLog);
+    }
+  </script>
+  <body>
+    <h1>TVM WebSocket RPC Server</h1>
+    To use this page
+    <ul>
+      <li>Run "make" and "npm run bundle" to create the libraries.</li>
+      <li>
+        run "python -m tvm.exec.rpc_proxy --example-rpc=1" to start proxy.
+      </li>
+      <li>Click Connect to proxy.</li>
+      <li>run "python tests/python/websock_rpc_test.py" to run the rpc client.</li>
+    </ul>
+
+    <h2>Options</h2>
+    Proxy URL<input
+      name="proxyurl"
+      id="proxyURL"
+      type="text"
+      value="ws://localhost:8888/ws"
+    /><br />
+    RPC Server Key<input
+      name="serverkey"
+      id="proxyKey"
+      type="text"
+      value="wasm"
+    /><br />
+    <button onclick="connectRPC()">Connect To Proxy</button>
+    <button onclick="clearLog()">Clear Log</button>
+    <div id="log"></div>
+    <canvas id="canvas" width="224" height="224"></canvas>
+  </body>
+</html>

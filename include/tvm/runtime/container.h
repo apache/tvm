@@ -39,8 +39,7 @@
 // string_view:
 // https://isocpp.org/std/standing-documents/sd-6-sg10-feature-test-recommendations
 // https://en.cppreference.com/w/User:D41D8CD98F/feature_testing_macros
-#if defined(__cpp_lib_experimental_string_view) && \
-    __cpp_lib_experimental_string_view >= 201411
+#if defined(__cpp_lib_experimental_string_view) && __cpp_lib_experimental_string_view >= 201411
 #define TVM_USE_CXX14_STRING_VIEW_HASH 1
 #else
 #define TVM_USE_CXX14_STRING_VIEW_HASH 0
@@ -135,8 +134,7 @@ class InplaceArrayBase {
    * \brief Destroy the Inplace Array Base object
    */
   ~InplaceArrayBase() {
-    if (!(std::is_standard_layout<ElemType>::value &&
-          std::is_trivial<ElemType>::value)) {
+    if (!(std::is_standard_layout<ElemType>::value && std::is_trivial<ElemType>::value)) {
       size_t size = Self()->GetSize();
       for (size_t i = 0; i < size; ++i) {
         ElemType* fp = reinterpret_cast<ElemType*>(AddressOf(i));
@@ -179,10 +177,10 @@ class InplaceArrayBase {
    * \return Raw pointer to the element.
    */
   void* AddressOf(size_t idx) const {
-    static_assert(alignof(ArrayType) % alignof(ElemType) == 0 &&
-                      sizeof(ArrayType) % alignof(ElemType) == 0,
-                  "The size and alignment of ArrayType should respect "
-                  "ElemType's alignment.");
+    static_assert(
+        alignof(ArrayType) % alignof(ElemType) == 0 && sizeof(ArrayType) % alignof(ElemType) == 0,
+        "The size and alignment of ArrayType should respect "
+        "ElemType's alignment.");
 
     size_t kDataStart = sizeof(ArrayType);
     ArrayType* self = Self();
@@ -242,8 +240,7 @@ class ADT : public ObjectRef {
    * \param fields The fields of the ADT object.
    * \return The constructed ADT object reference.
    */
-  ADT(int32_t tag, std::vector<ObjectRef> fields)
-      : ADT(tag, fields.begin(), fields.end()){};
+  ADT(int32_t tag, std::vector<ObjectRef> fields) : ADT(tag, fields.begin(), fields.end()){};
 
   /*!
    * \brief construct an ADT object reference.
@@ -267,8 +264,7 @@ class ADT : public ObjectRef {
    * \param init The initializer list of fields.
    * \return The constructed ADT object reference.
    */
-  ADT(int32_t tag, std::initializer_list<ObjectRef> init)
-      : ADT(tag, init.begin(), init.end()){};
+  ADT(int32_t tag, std::initializer_list<ObjectRef> init) : ADT(tag, init.begin(), init.end()){};
 
   /*!
    * \brief Access element at index.
@@ -276,9 +272,7 @@ class ADT : public ObjectRef {
    * \param idx The array index
    * \return const ObjectRef
    */
-  const ObjectRef& operator[](size_t idx) const {
-    return operator->()->operator[](idx);
-  }
+  const ObjectRef& operator[](size_t idx) const { return operator->()->operator[](idx); }
 
   /*!
    * \brief Return the ADT tag.
@@ -390,9 +384,7 @@ class String : public ObjectRef {
    *
    * \return the comparison result
    */
-  bool operator==(const std::string& other) const {
-    return this->compare(other) == 0;
-  }
+  bool operator==(const std::string& other) const { return this->compare(other) == 0; }
 
   /*!
    * \brief Compare is not equal to other std::string
@@ -512,11 +504,9 @@ class String : public ObjectRef {
     // This function falls back to string copy with c++11 compiler and is
     // recommended to be compiled with c++14
 #if TVM_USE_CXX17_STRING_VIEW_HASH
-    return std::hash<std::string_view>()(
-        std::string_view(data, size));
+    return std::hash<std::string_view>()(std::string_view(data, size));
 #elif TVM_USE_CXX14_STRING_VIEW_HASH
-    return std::hash<std::experimental::string_view>()(
-        std::experimental::string_view(data, size));
+    return std::hash<std::experimental::string_view>()(std::experimental::string_view(data, size));
 #else
     return std::hash<std::string>()(std::string(data, size));
 #endif
@@ -538,8 +528,7 @@ class String : public ObjectRef {
    * \return int zero if both char sequences compare equal. negative if this
    * appear before other, positive otherwise.
    */
-  static int memncmp(const char* lhs, const char* rhs, size_t lhs_count,
-                     size_t rhs_count);
+  static int memncmp(const char* lhs, const char* rhs, size_t lhs_count, size_t rhs_count);
 };
 
 /*! \brief An object representing string moved from std::string. */
@@ -575,8 +564,16 @@ inline String String::operator=(std::string other) {
   return Downcast<String>(*this);
 }
 
-inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count,
-                           size_t rhs_count) {
+inline String operator+(const std::string lhs, const String& rhs) {
+  return lhs + rhs.operator std::string();
+}
+
+inline std::ostream& operator<<(std::ostream& out, const String& input) {
+  out.write(input.data(), input.size());
+  return out;
+}
+
+inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count, size_t rhs_count) {
   if (lhs == rhs && lhs_count == rhs_count) return 0;
 
   for (size_t i = 0; i < lhs_count && i < rhs_count; ++i) {
@@ -592,7 +589,7 @@ inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count,
   }
 }
 
-template<>
+template <>
 struct PackedFuncValueConverter<::tvm::runtime::String> {
   static String From(const TVMArgValue& val) {
     if (val.IsObjectRef<tvm::runtime::String>()) {
@@ -612,8 +609,7 @@ struct PackedFuncValueConverter<::tvm::runtime::String> {
 };
 
 /*! \brief Helper to represent nullptr for optional. */
-struct NullOptType {
-};
+struct NullOptType {};
 
 /*!
  * \brief Optional container that to represent to a Nullable variant of T.
@@ -628,12 +624,11 @@ struct NullOptType {
  *
  * \endcode
  */
-template<typename T>
+template <typename T>
 class Optional : public ObjectRef {
  public:
   using ContainerType = typename T::ContainerType;
-  static_assert(std::is_base_of<ObjectRef, T>::value,
-                "Optional is only defined for ObjectRef.");
+  static_assert(std::is_base_of<ObjectRef, T>::value, "Optional is only defined for ObjectRef.");
   // default constructors.
   Optional() = default;
   Optional(const Optional<T>&) = default;
@@ -656,9 +651,8 @@ class Optional : public ObjectRef {
     return *this;
   }
   // normal value handling.
-  Optional(T other)             // NOLINT(*)
-      : ObjectRef(std::move(other)) {
-  }
+  Optional(T other)  // NOLINT(*)
+      : ObjectRef(std::move(other)) {}
   Optional<T>& operator=(T other) {
     ObjectRef::operator=(std::move(other));
     return *this;
@@ -680,20 +674,12 @@ class Optional : public ObjectRef {
    * \return The contained value if the Optional is not null
    *         otherwise return the default_value.
    */
-  T value_or(T default_value) const {
-    return data_ != nullptr ? T(data_) : default_value;
-  }
+  T value_or(T default_value) const { return data_ != nullptr ? T(data_) : default_value; }
   /*! \return Whether the container is not nullptr.*/
-  explicit operator bool() const {
-    return *this != nullptr;
-  }
+  explicit operator bool() const { return *this != nullptr; }
   // operator overloadings
-  bool operator==(std::nullptr_t) const {
-    return data_ == nullptr;
-  }
-  bool operator!=(std::nullptr_t) const {
-    return data_ != nullptr;
-  }
+  bool operator==(std::nullptr_t) const { return data_ == nullptr; }
+  bool operator!=(std::nullptr_t) const { return data_ != nullptr; }
   auto operator==(const Optional<T>& other) const {
     // support case where sub-class returns a symbolic ref type.
     using RetType = decltype(value() == other.value());
@@ -722,16 +708,14 @@ class Optional : public ObjectRef {
     if (*this != nullptr) return value() == other;
     return RetType(false);
   }
-  auto operator!=(const T& other) const {
-    return !(*this == other);
-  }
-  template<typename U>
+  auto operator!=(const T& other) const { return !(*this == other); }
+  template <typename U>
   auto operator==(const U& other) const {
     using RetType = decltype(value() == other);
     if (*this == nullptr) return RetType(false);
     return value() == other;
   }
-  template<typename U>
+  template <typename U>
   auto operator!=(const U& other) const {
     using RetType = decltype(value() != other);
     if (*this == nullptr) return RetType(true);
@@ -740,7 +724,7 @@ class Optional : public ObjectRef {
   static constexpr bool _type_is_nullable = true;
 };
 
-template<typename T>
+template <typename T>
 struct PackedFuncValueConverter<Optional<T>> {
   static Optional<T> From(const TVMArgValue& val) {
     if (val.type_code() == kTVMNullptr) return Optional<T>(nullptr);
@@ -755,8 +739,8 @@ struct PackedFuncValueConverter<Optional<T>> {
 }  // namespace runtime
 
 // expose the functions to the root namespace.
-using runtime::String;
 using runtime::Optional;
+using runtime::String;
 constexpr runtime::NullOptType NullOpt{};
 }  // namespace tvm
 

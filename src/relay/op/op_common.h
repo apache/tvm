@@ -28,11 +28,13 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
-#include <vector>
+
 #include <string>
 #include <unordered_map>
-#include "type_relations.h"
+#include <vector>
+
 #include "../transforms/infer_layout_util.h"
+#include "type_relations.h"
 
 namespace tvm {
 namespace relay {
@@ -47,21 +49,18 @@ namespace relay {
 
  * \param OpName the name of registry.
  */
-#define RELAY_REGISTER_UNARY_OP(OpName)                     \
-  TVM_REGISTER_GLOBAL("relay.op._make." OpName)             \
-  .set_body_typed([](Expr data) {                           \
-    static const Op& op = Op::Get(OpName);                  \
-    return Call(op, {data}, Attrs(), {});                   \
-  });                                                       \
-  RELAY_REGISTER_OP(OpName)                                 \
-  .set_num_inputs(1)                                        \
-  .add_argument("data", "Tensor", "The input tensor.")      \
-  .add_type_rel("Identity", IdentityRel)                    \
-  .set_attr<TOpPattern>("TOpPattern", kElemWise)            \
-  .set_attr<TOpIsStateful>("TOpIsStateful", false)          \
-  .set_attr<FInferCorrectLayout>("FInferCorrectLayout",     \
-                                 ElemwiseArbitraryLayout)   \
-
+#define RELAY_REGISTER_UNARY_OP(OpName)                                        \
+  TVM_REGISTER_GLOBAL("relay.op._make." OpName).set_body_typed([](Expr data) { \
+    static const Op& op = Op::Get(OpName);                                     \
+    return Call(op, {data}, Attrs(), {});                                      \
+  });                                                                          \
+  RELAY_REGISTER_OP(OpName)                                                    \
+      .set_num_inputs(1)                                                       \
+      .add_argument("data", "Tensor", "The input tensor.")                     \
+      .add_type_rel("Identity", IdentityRel)                                   \
+      .set_attr<TOpPattern>("TOpPattern", kElemWise)                           \
+      .set_attr<TOpIsStateful>("TOpIsStateful", false)                         \
+      .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 
 /*! Quick helper macro
  * - Expose a positional make function to construct the node.
@@ -73,42 +72,37 @@ namespace relay {
  *
  * \param OpName the name of registry.
  */
-#define RELAY_REGISTER_BINARY_OP(OpName)                             \
-  TVM_REGISTER_GLOBAL("relay.op._make." OpName)                      \
-  .set_body_typed([](Expr lhs, Expr rhs) {                           \
-    static const Op& op = Op::Get(OpName);                           \
-    return Call(op, {lhs, rhs}, Attrs(), {});                        \
-  });                                                                \
-  RELAY_REGISTER_OP(OpName)                                          \
-  .set_num_inputs(2)                                                 \
-  .add_argument("lhs", "Tensor", "The left hand side tensor.")       \
-  .add_argument("rhs", "Tensor", "The right hand side tensor.")      \
-  .add_type_rel("Broadcast", BroadcastRel)                           \
-  .set_attr<TOpPattern>("TOpPattern", kBroadcast)                    \
-  .set_attr<TOpIsStateful>("TOpIsStateful", false)                   \
-  .set_attr<FInferCorrectLayout>("FInferCorrectLayout",              \
-                                 BinaryBroadcastLayout)
+#define RELAY_REGISTER_BINARY_OP(OpName)                                                \
+  TVM_REGISTER_GLOBAL("relay.op._make." OpName).set_body_typed([](Expr lhs, Expr rhs) { \
+    static const Op& op = Op::Get(OpName);                                              \
+    return Call(op, {lhs, rhs}, Attrs(), {});                                           \
+  });                                                                                   \
+  RELAY_REGISTER_OP(OpName)                                                             \
+      .set_num_inputs(2)                                                                \
+      .add_argument("lhs", "Tensor", "The left hand side tensor.")                      \
+      .add_argument("rhs", "Tensor", "The right hand side tensor.")                     \
+      .add_type_rel("Broadcast", BroadcastRel)                                          \
+      .set_attr<TOpPattern>("TOpPattern", kBroadcast)                                   \
+      .set_attr<TOpIsStateful>("TOpIsStateful", false)                                  \
+      .set_attr<FInferCorrectLayout>("FInferCorrectLayout", BinaryBroadcastLayout)
 
 // Comparisons
-#define RELAY_REGISTER_CMP_OP(OpName)                                \
-  TVM_REGISTER_GLOBAL("relay.op._make." OpName)                      \
-  .set_body_typed([](Expr lhs, Expr rhs) {                           \
-    static const Op& op = Op::Get(OpName);                           \
-    return Call(op, {lhs, rhs}, Attrs(), {});                        \
-  });                                                                \
-  RELAY_REGISTER_OP(OpName)                                          \
-  .set_num_inputs(2)                                                 \
-  .add_argument("lhs", "Tensor", "The left hand side tensor.")       \
-  .add_argument("rhs", "Tensor", "The right hand side tensor.")      \
-  .add_type_rel("BroadcastComp", BroadcastCompRel)                   \
-  .set_attr<TOpPattern>("TOpPattern", kBroadcast)                    \
-  .set_attr<TOpIsStateful>("TOpIsStateful", false)                   \
-  .set_attr<FInferCorrectLayout>("FInferCorrectLayout",              \
-                                 BinaryBroadcastLayout)
-
+#define RELAY_REGISTER_CMP_OP(OpName)                                                   \
+  TVM_REGISTER_GLOBAL("relay.op._make." OpName).set_body_typed([](Expr lhs, Expr rhs) { \
+    static const Op& op = Op::Get(OpName);                                              \
+    return Call(op, {lhs, rhs}, Attrs(), {});                                           \
+  });                                                                                   \
+  RELAY_REGISTER_OP(OpName)                                                             \
+      .set_num_inputs(2)                                                                \
+      .add_argument("lhs", "Tensor", "The left hand side tensor.")                      \
+      .add_argument("rhs", "Tensor", "The right hand side tensor.")                     \
+      .add_type_rel("BroadcastComp", BroadcastCompRel)                                  \
+      .set_attr<TOpPattern>("TOpPattern", kBroadcast)                                   \
+      .set_attr<TOpIsStateful>("TOpIsStateful", false)                                  \
+      .set_attr<FInferCorrectLayout>("FInferCorrectLayout", BinaryBroadcastLayout)
 
 /*! \brief A helper class for matching and rewriting operators. */
-template<typename R>
+template <typename R>
 class OpMatch {
  public:
   using MatchFunc =
@@ -157,8 +151,7 @@ inline void GetPaddingWidth(const Array<IndexExpr>& padding, IndexExpr* pad_w) {
   } else if (padding.size() == 2) {
     *pad_w = padding[0] + padding[1];
   } else {
-    CHECK_EQ(padding.size(), 4) << " Expected padding size of 1 or 2, found "
-        << padding.size();
+    CHECK_EQ(padding.size(), 4) << " Expected padding size of 1 or 2, found " << padding.size();
   }
 }
 
@@ -175,8 +168,7 @@ inline void GetPaddingHeightWidth(const Array<IndexExpr>& padding, IndexExpr* pa
     *pad_h = padding[0] + padding[2];
     *pad_w = padding[1] + padding[3];
   } else {
-    CHECK_EQ(padding.size(), 4) << " Padding size should be 1, 2 or 4, but got "
-        << padding.size();
+    CHECK_EQ(padding.size(), 4) << " Padding size should be 1, 2 or 4, but got " << padding.size();
   }
 }
 
@@ -196,8 +188,7 @@ inline void GetPaddingDepthHeightWidth(const Array<IndexExpr>& padding, IndexExp
     *pad_h = padding[1] + padding[4];
     *pad_w = padding[2] + padding[5];
   } else {
-    CHECK_EQ(padding.size(), 6) << " Padding size should be 1, 3 or 6, but got "
-        << padding.size();
+    CHECK_EQ(padding.size(), 6) << " Padding size should be 1, 3 or 6, but got " << padding.size();
   }
 }
 

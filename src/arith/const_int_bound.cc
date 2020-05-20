@@ -20,10 +20,12 @@
 /*!
  * \file tvm/arith/const_int_bound.cc
  */
-#include <tvm/runtime/registry.h>
 #include <tvm/arith/analyzer.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr_functor.h>
+
 #include <algorithm>
+
 #include "int_operator.h"
 #include "pattern_match.h"
 
@@ -34,8 +36,7 @@ using namespace tir;
 
 TVM_REGISTER_NODE_TYPE(ConstIntBoundNode);
 
-ConstIntBound::ConstIntBound(
-    int64_t min_value, int64_t max_value) {
+ConstIntBound::ConstIntBound(int64_t min_value, int64_t max_value) {
   auto node = make_object<ConstIntBoundNode>();
   node->min_value = min_value;
   node->max_value = max_value;
@@ -46,8 +47,7 @@ ConstIntBound MakeConstIntBound(int64_t min_value, int64_t max_value) {
   return ConstIntBound(min_value, max_value);
 }
 
-TVM_REGISTER_GLOBAL("arith.ConstIntBound")
-.set_body_typed(MakeConstIntBound);
+TVM_REGISTER_GLOBAL("arith.ConstIntBound").set_body_typed(MakeConstIntBound);
 
 inline void PrintBoundValue(std::ostream& os, int64_t val) {
   if (val == ConstIntBound::kPosInf) {
@@ -60,31 +60,29 @@ inline void PrintBoundValue(std::ostream& os, int64_t val) {
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<ConstIntBoundNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const ConstIntBoundNode*>(node.get());
-    p->stream << "ConstIntBound[";
-    PrintBoundValue(p->stream, op->min_value);
-    p->stream << ',';
-    PrintBoundValue(p->stream, op->max_value);
-    p->stream << ']';
-  });
+    .set_dispatch<ConstIntBoundNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const ConstIntBoundNode*>(node.get());
+      p->stream << "ConstIntBound[";
+      PrintBoundValue(p->stream, op->min_value);
+      p->stream << ',';
+      PrintBoundValue(p->stream, op->max_value);
+      p->stream << ']';
+    });
 
 // internal entry for const int bound
 struct ConstIntBoundAnalyzer::Entry {
   int64_t min_value;
   int64_t max_value;
 
-  bool is_const(int64_t value) const {
-    return min_value == max_value && min_value == value;
-  }
+  bool is_const(int64_t value) const { return min_value == max_value && min_value == value; }
 
   bool operator==(const Entry& other) const {
     return min_value == other.min_value && max_value == other.max_value;
   }
 };
 
-class ConstIntBoundAnalyzer::Impl :
-      public ExprFunctor<ConstIntBoundAnalyzer::Entry(const PrimExpr&)> {
+class ConstIntBoundAnalyzer::Impl
+    : public ExprFunctor<ConstIntBoundAnalyzer::Entry(const PrimExpr&)> {
  public:
   /*! \brief additional bound info about expr \in bound */
   struct BoundInfo {
@@ -94,9 +92,7 @@ class ConstIntBoundAnalyzer::Impl :
     Entry bound;
 
     BoundInfo() {}
-    BoundInfo(PrimExpr expr, Entry bound)
-        : expr(expr), bound(bound) {
-    }
+    BoundInfo(PrimExpr expr, Entry bound) : expr(expr), bound(bound) {}
   };
 
   void Bind(const Var& var, const Range& range, bool override) {
@@ -108,32 +104,27 @@ class ConstIntBoundAnalyzer::Impl :
     Update(var, ret, override);
   }
 
-  void Update(const Var& var,
-              const Entry& info,
-              bool override) {
+  void Update(const Var& var, const Entry& info, bool override) {
     if (!override) {
       auto it = var_map_.find(var);
       if (it != var_map_.end()) {
-        CHECK(it->second == info)
-            << "Trying to update var \'" << var << "\'"
-            << " with a different const bound: "
-            << "original=" << ConstIntBound(it->second.min_value, it->second.max_value)
-            << ", new=" << ConstIntBound(info.min_value, info.max_value);
+        CHECK(it->second == info) << "Trying to update var \'" << var << "\'"
+                                  << " with a different const bound: "
+                                  << "original="
+                                  << ConstIntBound(it->second.min_value, it->second.max_value)
+                                  << ", new=" << ConstIntBound(info.min_value, info.max_value);
       }
     }
     var_map_[var] = info;
   }
 
-  void Update(const Var& var,
-              const ConstIntBound& info,
-              bool override) {
+  void Update(const Var& var, const ConstIntBound& info, bool override) {
     Update(var, MakeBound(info->min_value, info->max_value), override);
   }
 
   // Override visitor behaviors
   Entry VisitExprDefault_(const Object* op) final {
-    return Everything(
-        static_cast<const PrimExprNode*>(op)->dtype);
+    return Everything(static_cast<const PrimExprNode*>(op)->dtype);
   }
 
   Entry VisitExpr(const PrimExpr& expr) final {
@@ -147,17 +138,16 @@ class ConstIntBoundAnalyzer::Impl :
       }
     }
     if (bound_) {
-      const PrimExprNode* op = expr.as<PrimExprNode>();
-      auto val = bound_->find(op);
+      auto val = bound_->find(expr);
       if (val != bound_->end()) {
-        auto everything = Everything(op->dtype);
+        auto everything = Everything(expr->dtype);
         CHECK(
             (val->second->min_value == res.min_value && val->second->max_value == res.max_value) ||
             (val->second->min_value == everything.min_value &&
              val->second->max_value == everything.max_value))
             << "Detected bound for " << expr << "conflicts with memorization";
       }
-      (*bound_)[op] = ConstIntBound(res.min_value, res.max_value);
+      (*bound_)[expr] = ConstIntBound(res.min_value, res.max_value);
     }
     return res;
   }
@@ -178,9 +168,7 @@ class ConstIntBoundAnalyzer::Impl :
     return Intersect(a, b);
   }
 
-  Entry VisitExpr_(const IntImmNode* op) final {
-    return MakeBound(op->value, op->value);
-  }
+  Entry VisitExpr_(const IntImmNode* op) final { return MakeBound(op->value, op->value); }
 
   Entry VisitExpr_(const AddNode* op) final {
     Entry a = VisitExpr(op->a);
@@ -225,8 +213,7 @@ class ConstIntBoundAnalyzer::Impl :
         // 0 <= [a_min, a_max] < b_min
         if (a.max_value < b.min_value) return a;
         // other case, we can get close to 0
-        return MakeBound(0,
-                         std::min(a.max_value, b_max_cap));
+        return MakeBound(0, std::min(a.max_value, b_max_cap));
       } else {
         return MakeBound(std::max(a.min_value, -b_max_cap),
                          std::min(std::max(a.max_value, (int64_t)0), b_max_cap));
@@ -369,7 +356,7 @@ class ConstIntBoundAnalyzer::Impl :
   // additional bound info
   std::vector<BoundInfo> additional_info_;
   // look up table for memorization
-  std::unordered_map<const PrimExprNode*, ConstIntBound>* bound_{nullptr};
+  BoundMapType* bound_{nullptr};
   // constants: the limit value means umlimited
   // NOTE: kNegInf/kPosInf are used to represent infinity.
   static const constexpr int64_t kNegInf = ConstIntBound::kNegInf;
@@ -384,7 +371,7 @@ class ConstIntBoundAnalyzer::Impl :
    * \tparam F the operator function type.
    * \return The result.
    */
-  template<typename F>
+  template <typename F>
   static Entry BinaryOpBoundry(Entry a, Entry b, const F& op) {
     Entry ret;
     // The boundary point must be shihft of the original boundary.
@@ -562,17 +549,14 @@ ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr) {
   return ConstIntBound(ret.min_value, ret.max_value);
 }
 
-ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr,
-  std::unordered_map<const PrimExprNode*, ConstIntBound>* bound) {
+ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr, BoundMapType* bound) {
   impl_->bound_ = bound;
   Entry ret = impl_->VisitExpr(expr);
   impl_->bound_ = nullptr;
   return ConstIntBound(ret.min_value, ret.max_value);
 }
 
-void ConstIntBoundAnalyzer::Update(const Var& var,
-                                   const ConstIntBound& info,
-                                   bool override) {
+void ConstIntBoundAnalyzer::Update(const Var& var, const ConstIntBound& info, bool override) {
   impl_->Update(var, info, override);
 }
 
@@ -584,13 +568,9 @@ std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& con
   return impl_->EnterConstraint(constraint);
 }
 
-ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(Analyzer* parent)
-    : impl_(new Impl()) {
-}
+ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(Analyzer* parent) : impl_(new Impl()) {}
 
-ConstIntBoundAnalyzer::~ConstIntBoundAnalyzer() {
-  delete impl_;
-}
+ConstIntBoundAnalyzer::~ConstIntBoundAnalyzer() { delete impl_; }
 
 }  // namespace arith
 }  // namespace tvm

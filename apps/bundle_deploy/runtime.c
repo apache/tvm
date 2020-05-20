@@ -58,9 +58,9 @@
 /*! \brief Page size for virtual memory allocation */
 #define TVM_CRT_PAGE_BYTES 4096
 
-#include "../../src/runtime/crt/crt_runtime_api.c"
 #include "../../src/runtime/crt/crt_backend_api.c"
+#include "../../src/runtime/crt/crt_runtime_api.c"
 #include "../../src/runtime/crt/graph_runtime.c"
 #include "../../src/runtime/crt/load_json.c"
-#include "../../src/runtime/crt/ndarray.c"
 #include "../../src/runtime/crt/memory.c"
+#include "../../src/runtime/crt/ndarray.c"

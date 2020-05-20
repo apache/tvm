@@ -58,6 +58,11 @@ register_error("KeyError", KeyError)
 
 
 @register_error
+class RPCError(RuntimeError):
+    """Error thrown by the remote server handling the RPC call."""
+
+
+@register_error
 class OpError(TVMError):
     """Base class of all operator errors in frontends."""
 

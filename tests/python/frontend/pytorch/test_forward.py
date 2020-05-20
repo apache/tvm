@@ -534,6 +534,17 @@ def test_forward_maxpool2d():
                                     stride=2).eval(),
                  input_data)
 
+    class MaxPool2DWithIndices(Module):
+        def __init__(self):
+            super(MaxPool2DWithIndices, self).__init__()
+            self.pool = torch.nn.MaxPool2d(kernel_size=[1, 1], return_indices=True)
+
+        def forward(self, *args):
+            output, indices = self.pool(args[0])
+            return output
+
+    verify_model(MaxPool2DWithIndices().float().eval(), input_data=input_data)
+
 def test_forward_maxpool1d():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10]
@@ -902,14 +913,23 @@ def test_forward_mean():
 
 def test_forward_expand():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 10, 10]
 
     class Expand1(Module):
         def forward(self, *args):
             return args[0].expand((3, -1, -1, -1))
 
+    input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(Expand1().float().eval(), input_data=input_data)
+
+    class Expand2(Module):
+        def forward(self, *args):
+            return args[0].expand((3, 3, 3, 1))
+
+    input_shape = [3, 1]
+    input_data = torch.rand(input_shape).float()
+    verify_model(Expand2().float().eval(), input_data=input_data)
+
 
 def test_forward_pow():
     torch.set_grad_enabled(False)
@@ -998,6 +1018,15 @@ def test_adaptive_pool3d():
         verify_model(torch.nn.AdaptiveAvgPool3d((2, 2, 2)).eval(), inp)
         verify_model(torch.nn.AdaptiveAvgPool3d((4, 8, 8)).eval(), inp)
         verify_model(torch.nn.AdaptiveMaxPool3d((7, 8, 9)).eval(), inp)
+
+
+def test_forward_reflection_pad2d():
+    inp = torch.rand((1, 1, 3, 3))
+    verify_model(torch.nn.ReflectionPad2d(2).eval(), inp)
+    verify_model(torch.nn.ReflectionPad2d((1, 1, 2, 0)).eval(), inp)
+
+    inp = torch.rand((2, 4, 5, 6))
+    verify_model(torch.nn.ReflectionPad2d((1, 3, 2, 4)).eval(), inp)
 
 
 def test_conv3d():
@@ -1895,7 +1924,15 @@ def test_forward_unary():
         def forward(self, *args):
             return torch.tanh(args[0])
 
-    class ATanh1(Module):
+    class Acos1(Module):
+        def forward(self, *args):
+            return torch.acos(args[0])
+
+    class Asin1(Module):
+        def forward(self, *args):
+            return torch.asin(args[0])
+
+    class Atan1(Module):
         def forward(self, *args):
             return torch.atan(args[0])
 
@@ -1956,7 +1993,9 @@ def test_forward_unary():
     verify_model(Sinh1().float().eval(), input_data=input_data)
     verify_model(Tan1().float().eval(), input_data=input_data)
     verify_model(Tanh1().float().eval(), input_data=input_data)
-    verify_model(ATanh1().float().eval(), input_data=input_data)
+    verify_model(Acos1().float().eval(), input_data=input_data)
+    verify_model(Asin1().float().eval(), input_data=input_data)
+    verify_model(Atan1().float().eval(), input_data=input_data)
     verify_model(Log1().float().eval(), input_data=input_data)
     verify_model(Log2_1().float().eval(), input_data=input_data)
     verify_model(Log10_1().float().eval(), input_data=input_data)
@@ -2034,11 +2073,45 @@ def test_forward_addcmul():
     verify_model(Addcmul2().float().eval(), input_data=[input_data, t1, t2])
 
 
+def test_forward_matmul():
+    torch.set_grad_enabled(False)
+
+    class MatMul1(Module):
+        def forward(self, *args):
+            return torch.matmul(args[0], args[1])
+
+    # matrix x vector
+    tensor1 = torch.randn(3, 4)
+    tensor2 = torch.randn(4)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+
+    # matrix x matrix
+    tensor1 = torch.randn(10, 4)
+    tensor2 = torch.randn(4, 10)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+
+    # batched matrix x batched matrix
+    tensor1 = torch.randn(10, 3, 4)
+    tensor2 = torch.randn(10, 4, 5)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+
+    # batched matrix x broadcasted matrix
+    tensor1 = torch.randn(10, 3, 4)
+    tensor2 = torch.randn(4, 5)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+
+    # batched matrix x batched matrix
+    tensor1 = torch.randn(1, 12, 14, 64)
+    tensor2 = torch.randn(1, 12, 64, 14)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_add()
     test_forward_subtract()
     test_forward_multiply()
+    test_forward_matmul()
     test_forward_rsub()
     test_forward_onehot()
     test_forward_embedding()
@@ -2119,6 +2192,7 @@ if __name__ == "__main__":
     test_forward_split()
     test_upsample()
     test_to()
+    test_forward_reflection_pad2d()
     test_adaptive_pool3d()
     test_conv3d()
 

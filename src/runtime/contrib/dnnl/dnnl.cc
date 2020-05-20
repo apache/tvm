@@ -22,8 +22,6 @@
  * \brief TVM compatible wrappers for dnnl kernels.
  */
 
-#include "dnnl_kernel.h"
-
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,6 +31,8 @@
 #include <numeric>
 #include <string>
 #include <vector>
+
+#include "dnnl_kernel.h"
 
 namespace tvm {
 namespace runtime {
@@ -133,8 +133,7 @@ extern "C" void dnnl_fused_conv2d_bias_relu(float* data, float* weights, float* 
                             p_Pw_, p_Kh_, p_Kw_, p_Sh_, p_Sw_, create_attr_with_relu_post_op());
 }
 
-extern "C" void dnnl_dense(float* data, float* weight, float* out, int p_B_,
-                           int p_I_, int p_O_) {
+extern "C" void dnnl_dense(float* data, float* weight, float* out, int p_B_, int p_I_, int p_O_) {
   using tag = memory::format_tag;
   using dt = memory::data_type;
 
@@ -157,8 +156,8 @@ extern "C" void dnnl_dense(float* data, float* weight, float* out, int p_B_,
   auto bias_memory = memory(bias_md, eng, bias.data());
   auto dst_memory = memory(dst_md, eng);
 
-  auto dense_desc = inner_product_forward::desc(
-      prop_kind::forward_inference, data_md, weight_md, bias_md, dst_md);
+  auto dense_desc = inner_product_forward::desc(prop_kind::forward_inference, data_md, weight_md,
+                                                bias_md, dst_md);
   auto dense_prim_desc = inner_product_forward::primitive_desc(dense_desc, eng);
   assert(dst_md == dense_prim_desc.dst_desc());
 
@@ -171,8 +170,7 @@ extern "C" void dnnl_dense(float* data, float* weight, float* out, int p_B_,
   read_from_dnnl_memory(out, dst_memory);
 }
 
-extern "C" void dnnl_relu(float* data, float* out, int p_N_, int p_C_, int p_H_,
-                          int p_W_) {
+extern "C" void dnnl_relu(float* data, float* out, int p_N_, int p_C_, int p_H_, int p_W_) {
   using tag = memory::format_tag;
   using dt = memory::data_type;
 
@@ -186,8 +184,8 @@ extern "C" void dnnl_relu(float* data, float* out, int p_N_, int p_C_, int p_H_,
   auto data_memory = memory(data_md, eng, data);
   auto dst_memory = memory(data_md, eng);
 
-  auto relu_desc = eltwise_forward::desc(prop_kind::forward_inference,
-                                         algorithm::eltwise_relu, data_md, 0);
+  auto relu_desc =
+      eltwise_forward::desc(prop_kind::forward_inference, algorithm::eltwise_relu, data_md, 0);
   auto relu_prim_desc = eltwise_forward::primitive_desc(relu_desc, eng);
   assert(data_md == relu_prim_desc.dst_desc());
 
@@ -215,8 +213,7 @@ extern "C" void dnnl_bn(float* data, float* gamma, float* beta, float* mean, flo
 
   auto bn_desc = batch_normalization_forward::desc(
       prop_kind::forward_inference, data_md, p_E_,
-      normalization_flags::use_global_stats |
-          normalization_flags::use_scale_shift);
+      normalization_flags::use_global_stats | normalization_flags::use_scale_shift);
   auto bn_prim_desc = batch_normalization_forward::primitive_desc(bn_desc, eng);
   assert(data_md == bn_prim_desc.dst_desc());
 
@@ -239,8 +236,8 @@ extern "C" void dnnl_bn(float* data, float* gamma, float* beta, float* mean, flo
   free(weight);
 }
 
-extern "C" void dnnl_add(float* data, float* weight, float* out, int p_N_,
-                         int p_C_, int p_H_, int p_W_) {
+extern "C" void dnnl_add(float* data, float* weight, float* out, int p_N_, int p_C_, int p_H_,
+                         int p_W_) {
   using tag = memory::format_tag;
   using dt = memory::data_type;
 
@@ -257,15 +254,14 @@ extern "C" void dnnl_add(float* data, float* weight, float* out, int p_N_,
   auto weight_memory = memory(weight_md, eng, weight);
   auto dst_memory = memory(dst_md, eng);
 
-  auto add_desc =
-      binary::desc(algorithm::binary_add, data_md, weight_md, dst_md);
+  auto add_desc = binary::desc(algorithm::binary_add, data_md, weight_md, dst_md);
   auto add_prim_desc = binary::primitive_desc(add_desc, eng);
   assert(dst_md == add_prim_desc.dst_desc());
 
   auto add = binary(add_prim_desc);
-  add.execute(s, {{DNNL_ARG_SRC_0, data_memory},
-                  {DNNL_ARG_SRC_1, weight_memory},
-                  {DNNL_ARG_DST, dst_memory}});
+  add.execute(
+      s,
+      {{DNNL_ARG_SRC_0, data_memory}, {DNNL_ARG_SRC_1, weight_memory}, {DNNL_ARG_DST, dst_memory}});
   s.wait();
   read_from_dnnl_memory(out, dst_memory);
 }

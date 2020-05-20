@@ -64,6 +64,7 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
     input_names, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
     mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
+
     with relay.build_config(opt_level=1):
         graph, lib, params = relay.build(mod,
                                          target,
@@ -859,21 +860,22 @@ def _test_upsample_bilinear_opset9():
     in_shape = (1, 1, 3, 3)
     out_shape = (1, 1, 3*scale, 3*scale)
     y = helper.make_node("Upsample", ['in', 'scales'], ['out'], mode='linear')
-    scales = [1.0, 1.0, 2.0, 2.0]
+    scales = [1, 1, 2, 2]
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
     out_array = topi.testing.bilinear_resize_python(
         in_array, (3*scale, 3*scale), "NCHW")
 
-    ref_array = np.array(scales)
     ref_node = helper.make_node('Constant',
                                 inputs=[],
-                                outputs=['scales'],
+                                outputs=['const'],
                                 value=onnx.helper.make_tensor(name='const_tensor',
                                                               data_type=TensorProto.FLOAT,
-                                                              dims=ref_array.shape,
-                                                              vals=ref_array.flatten().astype(float)))
+                                                              dims=scales,
+                                                              vals=np.random.random(scales).flatten().astype(float)))
 
-    graph = helper.make_graph([ref_node, y],
+    shape_node = helper.make_node("Shape", ['const'], ['scales'])
+
+    graph = helper.make_graph([ref_node, shape_node, y],
                               'upsample_bilinear_opset9_test',
                               inputs=[helper.make_tensor_value_info(
                                   "in", TensorProto.FLOAT, list(in_shape))],
@@ -1278,7 +1280,63 @@ def verify_pad(indata, pads, mode='constant', value=0.0):
     #  tvm result
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(
-            model, indata, target, ctx, outdata.shape, 'float32')
+            model, indata, target, ctx, outdata.shape, 'float32', opset=2)
+    tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def verify_pad_v11(indata, pads, mode='constant', value=0.0):
+    indata = np.array(indata).astype(np.float32)
+    #  numpy expect result
+    len_dim = len(pads) // 2
+    np_pads = [(pads[i], pads[i+len_dim]) for i in range(len_dim)]
+    pads = np.array(pads)
+    #  onnx graph
+    if mode in ['edge', 'reflect']:
+        inputs = [indata, pads]
+        outdata = np.pad(indata, pad_width=np_pads, mode=mode)
+        node = helper.make_node(
+            'Pad',
+            inputs=['input', 'pads'],
+            outputs=['output'],
+            mode=mode
+        )
+        graph = helper.make_graph([node],
+                                  'pad_test',
+                                  inputs=[helper.make_tensor_value_info("input",
+                                                                        TensorProto.FLOAT, list(indata.shape)),
+                                          helper.make_tensor_value_info("pads",
+                                                                        TensorProto.INT64,(len(pads),))],
+                                  initializer=[helper.make_tensor("pads", TensorProto.INT64, (len(pads),), pads)],
+                                  outputs=[helper.make_tensor_value_info("output",
+                                                                         TensorProto.FLOAT, list(outdata.shape))])
+    else:
+        inputs = [indata, pads, np.array([value])]
+        outdata = np.pad(indata, pad_width=np_pads,
+                         mode='constant', constant_values=value)
+        node = helper.make_node(
+            'Pad',
+            inputs=['input', 'pads', 'constant_value'],
+            outputs=['output'],
+            mode='constant'
+        )
+        graph = helper.make_graph([node],
+                                  'pad_test',
+                                  inputs=[helper.make_tensor_value_info("input",
+                                                                        TensorProto.FLOAT, list(indata.shape)),
+                                          helper.make_tensor_value_info("pads",
+                                                                        TensorProto.INT64,(len(pads),)),
+                                          helper.make_tensor_value_info("constant_value",
+                                                                        TensorProto.INT64,(1,)),
+                                          ],
+                                  initializer=[helper.make_tensor("pads", TensorProto.INT64, (len(pads),), pads),
+                                               helper.make_tensor("constant_value", TensorProto.FLOAT, (1,), [value])],
+                                  outputs=[helper.make_tensor_value_info("output",
+                                                                         TensorProto.FLOAT, list(outdata.shape))])
+    model = helper.make_model(graph, producer_name='pad_test')
+    #  tvm result
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(
+            model, inputs, target, ctx, outdata.shape, 'float32', opset=11)
     tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
 
 
@@ -1294,6 +1352,17 @@ def test_pad():
     verify_pad(np.random.randn(1, 3, 4, 5).astype(
         np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'reflect')
 
+    verify_pad_v11(np.random.randn(2, 2).astype(
+        np.float32), [0, 1, 0, 0], 'constant', 0.0)
+    verify_pad_v11(np.random.randn(2, 3).astype(
+        np.float32), [1, 0, 0, 1], 'constant', 0.0)
+    verify_pad_v11(np.random.randn(3, 2).astype(
+        np.float32), [0, 0, 1, 0], 'constant', 5.0)
+    verify_pad_v11(np.random.randn(1, 3, 4, 5).astype(
+        np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'edge')
+    verify_pad_v11(np.random.randn(1, 3, 4, 5).astype(
+        np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'reflect')
+
 
 def verify_reduce_x(name, indata, axis, keepdims):
     indata = np.array(indata).astype(np.float32)
@@ -1306,6 +1375,15 @@ def verify_reduce_x(name, indata, axis, keepdims):
         outdata = np.sum(indata, axis=axis, keepdims=keepdims == 1)
     elif name == 'ReduceMean':
         outdata = np.mean(indata, axis=axis, keepdims=keepdims == 1)
+    elif name == 'ReduceLogSumExp':
+        def _np_log_sum_exp(x, axis, keepdims=False):
+            max_x = np.max(x, axis=axis, keepdims=True)
+            x = np.log(np.sum(np.exp(x - max_x), axis=axis, keepdims=True))
+            x = x + max_x
+            if not keepdims:
+                x = np.squeeze(x, axis=axis)
+            return x
+        outdata = _np_log_sum_exp(indata, axis=axis, keepdims=keepdims == 1)
     else:
         raise Exception('unsupport op: {}'.format(name))
     if len(np.asarray(outdata).shape) == 0:
@@ -1377,6 +1455,34 @@ def test_reduce_mean():
     verify_reduce_x("ReduceMean",
                     np.random.randn(3, 3, 3).astype(np.float32),
                     axis=(1,), keepdims=1)
+
+
+def test_reduce_logsumexp():
+
+    for keepdims in [True, False]:
+        verify_reduce_x("ReduceLogSumExp",
+                        np.random.randn(3, 2, 2).astype(np.float32),
+                        axis=None, keepdims=keepdims)
+
+        verify_reduce_x("ReduceLogSumExp",
+                        np.random.randn(3, 2, 3).astype(np.float32),
+                        axis=None, keepdims=keepdims)
+
+        verify_reduce_x("ReduceLogSumExp",
+                        np.random.randn(3, 3, 3).astype(np.float32),
+                        axis=(1,), keepdims=keepdims)
+
+        verify_reduce_x("ReduceLogSumExp",
+                        np.random.randn(3, 3, 3, 1).astype(np.float32),
+                        axis=(1, 2), keepdims=keepdims)
+
+        verify_reduce_x("ReduceLogSumExp",
+                        np.random.randn(3, 3, 3, 1).astype(np.float32),
+                        axis=(1), keepdims=keepdims)
+
+        verify_reduce_x("ReduceLogSumExp",
+                        np.random.randn(1, 3, 4, 1).astype(np.float32),
+                        axis=(1), keepdims=keepdims)
 
 
 def verify_split(indata, outdatas, split, axis=0):
@@ -1493,6 +1599,17 @@ def test_single_ops():
     verify_single_ops("Exp", x, np.exp(x))
     verify_single_ops("Log", x, np.log(x))
     verify_single_ops("Log", x, np.log(x))
+    verify_single_ops("ACos", x, np.arccos(x))
+    verify_single_ops("ACosh", x, np.arccosh(x))
+    verify_single_ops("ASin", x, np.arcsin(x))
+    verify_single_ops("ASinh", x, np.arcsinh(x))
+    verify_single_ops("ATan", x, np.arctan(x))
+    verify_single_ops("ATanh", x, np.arctanh(x))
+    verify_single_ops("Cos", x, np.cos(x))
+    verify_single_ops("Cosh", x, np.cosh(x))
+    verify_single_ops("Sin", x, np.sin(x))
+    verify_single_ops("Sinh", x, np.sinh(x))
+    verify_single_ops("Tan", x, np.tan(x))
     verify_single_ops("Tanh", x, np.tanh(x))
     verify_single_ops("Sigmoid", x, 1 / (1 + np.exp(-x)))
     verify_single_ops("Softsign", x, x / (1 + np.abs(x)))
@@ -1530,6 +1647,34 @@ def test_selu():
                               'float32',
                               'Selu',
                               {'alpha': 0.25, 'gamma': 0.3})
+
+
+def test_prelu():
+    def verify_prelu(x_shape, a_shape):
+        node = helper.make_node('PRelu',
+                                inputs=['X', 'slope'],
+                                outputs=['Y'])
+
+        graph = helper.make_graph([node],
+                                  "prelu_test",
+                                  inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(x_shape)),
+                                          helper.make_tensor_value_info("slope", TensorProto.FLOAT, list(a_shape))],
+                                  outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(x_shape))])
+
+        model = helper.make_model(graph, producer_name='prelu_test')
+
+        indata = np.random.uniform(-10, 10, x_shape).astype(np.float32)
+        slopedata = np.random.uniform(-10, 10, a_shape).astype(np.float32)
+        onnx_out = get_onnxruntime_output(model, [indata, slopedata])
+
+        for target, ctx in [('llvm', tvm.cpu())]:
+            tvm_out = get_tvm_output(model, [indata, slopedata], target, ctx, list(x_shape),
+                    output_dtype='float32')
+            tvm.testing.assert_allclose(onnx_out[0], tvm_out, rtol=1e-05, atol=1e-05)
+
+    verify_prelu([3,4,5,6], [1, 4, 1, 1])
+    verify_prelu([1,8,5,6], [1, 8, 1, 1])
+    verify_prelu([2,12,16,16], [1, 12, 1, 1])
 
 
 def test_ThresholdedRelu():
@@ -1895,8 +2040,18 @@ def test_or():
     verify_or(indata=[x, y], dtype=bool)
 
 
-def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilations, auto_pad="NOTSET"):
-    if padding is None:
+def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilations, auto_pad="NOTSET", unset_pad=False):
+    if unset_pad:
+        node = helper.make_node('Conv',
+                                inputs=['x', 'W'],
+                                outputs=['y'],
+                                kernel_shape=kernel_shape,
+                                # Default values for other attributes:
+                                strides=strides,
+                                dilations=dilations,
+                                # groups=1
+                                )
+    elif padding is None:
         node = helper.make_node('Conv',
                                 inputs=['x', 'W'],
                                 outputs=['y'],
@@ -1962,6 +2117,15 @@ def test_conv():
                     repeat(1, D),
                     repeat(1, D),
                     auto_pad="SAME_UPPER")
+        # Convolution with unset padding
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(3, D),
+                    2 * repeat(0, D),
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(1, D),
+                    True)
         # Convolution with non uniform stride
         verify_conv((1, 1) + repeat(5, D),
                     (1, 1) + repeat(3, D),
@@ -2409,7 +2573,7 @@ def test_topk():
                                   inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(input_dims)),
                                           helper.make_tensor_value_info("K", TensorProto.INT64, [1,])],
                                   initializer=[helper.make_tensor("K", TensorProto.INT64, [1], [K])],
-                                  outputs=[helper.make_tensor_value_info("Values", TensorProto.FLOAT, output_dims), 
+                                  outputs=[helper.make_tensor_value_info("Values", TensorProto.FLOAT, output_dims),
                                            helper.make_tensor_value_info("Indicies", TensorProto.INT64, output_dims)])
 
         model = helper.make_model(graph, producer_name='topk_test')
@@ -2418,10 +2582,10 @@ def test_topk():
         onnx_out = get_onnxruntime_output(model, [indata, k])
 
         for target, ctx in [('llvm', tvm.cpu())]:
-            tvm_out = get_tvm_output(model, indata, target, ctx, [output_dims, output_dims], 
+            tvm_out = get_tvm_output(model, indata, target, ctx, [output_dims, output_dims],
                     output_dtype=['float32', 'int64'])
             tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
-    
+
     for n in [12, 32]:
         for shape in [[n], [n, n], [n, n, n]]:
             for k in [1, 5, 10]:
@@ -2430,7 +2594,7 @@ def test_topk():
         verify_topk([n, n, n], 5, 0)
         verify_topk([n, n, n], 5, 1)
         verify_topk([n, n, n], 5, 2)
-    
+
 
 def test_roi_align():
     def verify_roi_align(input_dims, num_roi, output_height, output_width, sampling_ratio=0, spatial_scale=1.0):
@@ -2528,6 +2692,7 @@ if __name__ == '__main__':
     test_reduce_min()
     test_reduce_sum()
     test_reduce_mean()
+    test_reduce_logsumexp()
     test_pad()
     test_split()
     test_binary_ops()
@@ -2535,6 +2700,7 @@ if __name__ == '__main__':
     test_leaky_relu()
     test_elu()
     test_selu()
+    test_prelu()
     test_ThresholdedRelu()
     test_ScaledTanh()
     test_ParametricSoftplus()

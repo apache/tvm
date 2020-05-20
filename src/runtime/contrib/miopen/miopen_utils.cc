@@ -21,20 +21,22 @@
  * \file Use external miopen utils function
  */
 #include "miopen_utils.h"
+
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
-#include <vector>
+
 #include <string>
+#include <vector>
 
 namespace tvm {
 namespace contrib {
 namespace miopen {
 
 std::string miopenGetErrorString(int error_code) {
-  const std::vector<std::string> mio_err{
-      "StatusSuccess        ", "StatusNotInitialized ", "StatusInvalidValue   ",
-      "StatusBadParm        ", "StatusAllocFailed    ", "StatusInternalError  ",
-      "StatusNotImplemented ", "StatusUnknownError   "};
+  const std::vector<std::string> mio_err{"StatusSuccess        ", "StatusNotInitialized ",
+                                         "StatusInvalidValue   ", "StatusBadParm        ",
+                                         "StatusAllocFailed    ", "StatusInternalError  ",
+                                         "StatusNotImplemented ", "StatusUnknownError   "};
   return mio_err[error_code];
 }
 
@@ -42,22 +44,18 @@ std::string miopenGetErrorString(int error_code) {
 MIOpenThreadEntry::MIOpenThreadEntry() {
   auto stream = runtime::ROCMThreadEntry::ThreadLocal()->stream;
   auto func = runtime::Registry::Get("device_api.rocm");
-  void *ret = (*func)();
+  void* ret = (*func)();
   rocm_api = static_cast<runtime::DeviceAPI*>(ret);
   MIOPEN_CALL(miopenCreate(&handle));
   MIOPEN_CALL(miopenSetStream(handle, stream));
   conv_entry.rocm_api = rocm_api;
 }
 
-MIOpenThreadEntry::~MIOpenThreadEntry() {
-  MIOPEN_CALL(miopenDestroy(handle));
-}
+MIOpenThreadEntry::~MIOpenThreadEntry() { MIOPEN_CALL(miopenDestroy(handle)); }
 
 typedef dmlc::ThreadLocalStore<MIOpenThreadEntry> MIOpenThreadStore;
 
-MIOpenThreadEntry* MIOpenThreadEntry::ThreadLocal() {
-  return MIOpenThreadStore::Get();
-}
+MIOpenThreadEntry* MIOpenThreadEntry::ThreadLocal() { return MIOpenThreadStore::Get(); }
 
 // ConvEntry
 

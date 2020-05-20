@@ -26,14 +26,16 @@
 #ifndef TVM_RELAY_TRANSFORMS_TRANSFORM_LAYOUT_H_
 #define TVM_RELAY_TRANSFORMS_TRANSFORM_LAYOUT_H_
 
-#include <tvm/tir/data_layout.h>
 #include <tvm/relay/expr.h>
+#include <tvm/tir/data_layout.h>
+
 #include <string>
-#include <unordered_map>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
-#include "pattern_util.h"
+
 #include "infer_layout_util.h"
+#include "pattern_util.h"
 
 namespace tvm {
 namespace relay {
@@ -49,8 +51,8 @@ class TransformMemorizerNode : public Object {
   struct key_hash : public std::function<std::size_t(TransformKey)> {
     std::size_t operator()(const TransformKey& k) const {
       return dmlc::HashCombine<std::string>(
-          dmlc::HashCombine<std::string>(
-              std::hash<const Object*>()(std::get<0>(k)), std::get<1>(k)),
+          dmlc::HashCombine<std::string>(std::hash<const Object*>()(std::get<0>(k)),
+                                         std::get<1>(k)),
           (std::get<2>(k)));
     }
   };
@@ -300,8 +302,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   // new_in2, new_out = op.infer(new_in)
   if (new_call->op->IsInstance<OpNode>()) {
     success = false;
-    std::tie(new_in2, new_out, success) =
-        InferCorrectLayouts(new_call, new_in, old_in, types);
+    std::tie(new_in2, new_out, success) = InferCorrectLayouts(new_call, new_in, old_in, types);
     if (!success) {
       return Expr(nullptr);
     }

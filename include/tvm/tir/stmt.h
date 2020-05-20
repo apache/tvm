@@ -26,10 +26,10 @@
 
 #include <tvm/tir/expr.h>
 
-#include <type_traits>
 #include <string>
-#include <vector>
+#include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace tir {
@@ -69,10 +69,8 @@ class LetStmtNode : public StmtNode {
   }
 
   bool SEqualReduce(const LetStmtNode* other, SEqualReducer equal) const {
-    return
-        equal.DefEqual(var, other->var) &&
-        equal(value, other->value) &&
-        equal(body, other->body);
+    return equal.DefEqual(var, other->var) && equal(value, other->value) &&
+           equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -116,11 +114,8 @@ class AttrStmtNode : public StmtNode {
   }
 
   bool SEqualReduce(const AttrStmtNode* other, SEqualReducer equal) const {
-    return
-        equal(node, other->node) &&
-        equal(attr_key, other->attr_key) &&
-        equal(value, other->value) &&
-        equal(body, other->body);
+    return equal(node, other->node) && equal(attr_key, other->attr_key) &&
+           equal(value, other->value) && equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -130,10 +125,7 @@ class AttrStmtNode : public StmtNode {
     hash_reduce(body);
   }
 
-  TVM_DLL static Stmt make(ObjectRef node,
-                           std::string type_key,
-                           PrimExpr value,
-                           Stmt body);
+  TVM_DLL static Stmt make(ObjectRef node, std::string type_key, PrimExpr value, Stmt body);
 
   static constexpr const char* _type_key = "AttrStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrStmtNode, StmtNode);
@@ -161,10 +153,8 @@ class AssertStmtNode : public StmtNode {
   }
 
   bool SEqualReduce(const AssertStmtNode* other, SEqualReducer equal) const {
-    return
-        equal(condition, other->condition) &&
-        equal(message, other->message) &&
-        equal(body, other->body);
+    return equal(condition, other->condition) && equal(message, other->message) &&
+           equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -216,11 +206,8 @@ class StoreNode : public StmtNode {
   }
 
   bool SEqualReduce(const StoreNode* other, SEqualReducer equal) const {
-    return
-        equal(buffer_var, other->buffer_var) &&
-        equal(value, other->value) &&
-        equal(index, other->index) &&
-        equal(predicate, other->predicate);
+    return equal(buffer_var, other->buffer_var) && equal(value, other->value) &&
+           equal(index, other->index) && equal(predicate, other->predicate);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -230,10 +217,7 @@ class StoreNode : public StmtNode {
     hash_reduce(predicate);
   }
 
-  TVM_DLL static Stmt make(Var buffer_var,
-                           PrimExpr value,
-                           PrimExpr index,
-                           PrimExpr predicate);
+  TVM_DLL static Stmt make(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate);
 
   static constexpr const char* _type_key = "Store";
   TVM_DECLARE_FINAL_OBJECT_INFO(StoreNode, StmtNode);
@@ -265,10 +249,8 @@ class BufferStoreNode : public StmtNode {
   }
 
   bool SEqualReduce(const BufferStoreNode* other, SEqualReducer equal) const {
-    return
-        equal(buffer, other->buffer) &&
-        equal(value, other->value) &&
-        equal(indices, other->indices);
+    return equal(buffer, other->buffer) && equal(value, other->value) &&
+           equal(indices, other->indices);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -287,9 +269,7 @@ class BufferStoreNode : public StmtNode {
  */
 class BufferStore : public Stmt {
  public:
-  TVM_DLL explicit BufferStore(Buffer buffer,
-                               PrimExpr value,
-                               Array<PrimExpr> indices);
+  TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
   TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
 };
 
@@ -323,11 +303,8 @@ class BufferRealizeNode : public StmtNode {
   }
 
   bool SEqualReduce(const BufferRealizeNode* other, SEqualReducer equal) const {
-    return
-        equal(buffer, other->buffer) &&
-        equal(bounds, other->bounds) &&
-        equal(condition, other->condition) &&
-        equal(body, other->body);
+    return equal(buffer, other->buffer) && equal(bounds, other->bounds) &&
+           equal(condition, other->condition) && equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -338,12 +315,8 @@ class BufferRealizeNode : public StmtNode {
   }
 
   BufferRealizeNode() = default;
-  BufferRealizeNode(Buffer buffer,
-                    Array<Range> bounds,
-                    PrimExpr condition,
-                    Stmt body)
-      : buffer(buffer), bounds(bounds),
-        condition(condition), body(body) {}
+  BufferRealizeNode(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body)
+      : buffer(buffer), bounds(bounds), condition(condition), body(body) {}
 
   static constexpr const char* _type_key = "BufferRealize";
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferRealizeNode, StmtNode);
@@ -355,10 +328,7 @@ class BufferRealizeNode : public StmtNode {
  */
 class BufferRealize : public Stmt {
  public:
-  TVM_DLL explicit BufferRealize(Buffer buffer,
-                                 Array<Range> bounds,
-                                 PrimExpr condition,
-                                 Stmt body);
+  TVM_DLL explicit BufferRealize(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body);
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BufferRealize, Stmt, BufferRealizeNode);
 };
@@ -387,11 +357,8 @@ class ProvideNode : public StmtNode {
   }
 
   bool SEqualReduce(const ProvideNode* other, SEqualReducer equal) const {
-    return
-        equal(func, other->func) &&
-        equal(value_index, other->value_index) &&
-        equal(value, other->value) &&
-        equal(args, other->args);
+    return equal(func, other->func) && equal(value_index, other->value_index) &&
+           equal(value, other->value) && equal(args, other->args);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -401,10 +368,7 @@ class ProvideNode : public StmtNode {
     hash_reduce(args);
   }
 
-  TVM_DLL static Stmt make(FunctionRef func,
-                           int value_index,
-                           PrimExpr value,
-                           Array<PrimExpr> args);
+  TVM_DLL static Stmt make(FunctionRef func, int value_index, PrimExpr value, Array<PrimExpr> args);
 
   static constexpr const char* _type_key = "Provide";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProvideNode, StmtNode);
@@ -435,12 +399,9 @@ class AllocateNode : public StmtNode {
   }
 
   bool SEqualReduce(const AllocateNode* other, SEqualReducer equal) const {
-    return
-        equal.DefEqual(buffer_var, other->buffer_var) &&
-        equal(dtype, other->dtype) &&
-        equal(extents, other->extents) &&
-        equal(condition, other->condition) &&
-        equal(body, other->body);
+    return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
+           equal(extents, other->extents) && equal(condition, other->condition) &&
+           equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -451,28 +412,22 @@ class AllocateNode : public StmtNode {
     hash_reduce(body);
   }
 
-  TVM_DLL static Stmt make(Var buffer_var,
-                           DataType dtype,
-                           Array<PrimExpr> extents,
-                           PrimExpr condition,
-                           Stmt body);
+  TVM_DLL static Stmt make(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
+                           PrimExpr condition, Stmt body);
 
   /*!
    * \brief If the buffer size is constant, return the size.
    *        Otherwise return 0.
    * \return The result.
    */
-  int32_t constant_allocation_size() const {
-    return constant_allocation_size(extents);
-  }
+  int32_t constant_allocation_size() const { return constant_allocation_size(extents); }
   /*!
    * \brief If the buffer size is constant, return the size.
    *        Otherwise return 0.
    * \param extents The extents of the buffer.
    * \return The result.
    */
-  TVM_DLL static int32_t constant_allocation_size(
-      const Array<PrimExpr>& extents);
+  TVM_DLL static int32_t constant_allocation_size(const Array<PrimExpr>& extents);
 
   static constexpr const char* _type_key = "Allocate";
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateNode, StmtNode);
@@ -484,18 +439,13 @@ class FreeNode : public StmtNode {
   /*! \brief The buffer variable. */
   Var buffer_var;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer_var", &buffer_var);
-  }
+  void VisitAttrs(AttrVisitor* v) { v->Visit("buffer_var", &buffer_var); }
 
   bool SEqualReduce(const FreeNode* other, SEqualReducer equal) const {
-    return
-        equal(buffer_var, other->buffer_var);
+    return equal(buffer_var, other->buffer_var);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer_var);
-  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(buffer_var); }
 
   TVM_DLL static Stmt make(Var buffer_var);
 
@@ -533,21 +483,13 @@ class RealizeNode : public StmtNode {
     v->Visit("body", &body);
   }
 
-  TVM_DLL static Stmt make(FunctionRef func,
-                           int value_index,
-                           DataType dtype,
-                           Region bounds,
-                           PrimExpr condition,
-                           Stmt body);
+  TVM_DLL static Stmt make(FunctionRef func, int value_index, DataType dtype, Region bounds,
+                           PrimExpr condition, Stmt body);
 
   bool SEqualReduce(const RealizeNode* other, SEqualReducer equal) const {
-    return
-        equal(func, other->func) &&
-        equal(value_index, other->value_index) &&
-        equal(dtype, other->dtype) &&
-        equal(bounds, other->bounds) &&
-        equal(condition, other->condition) &&
-        equal(body, other->body);
+    return equal(func, other->func) && equal(value_index, other->value_index) &&
+           equal(dtype, other->dtype) && equal(bounds, other->bounds) &&
+           equal(condition, other->condition) && equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -573,27 +515,19 @@ class SeqStmtNode : public StmtNode {
   Array<Stmt> seq;
 
   /*! \return get the size of the sequence */
-  size_t size() const {
-    return seq.size();
-  }
+  size_t size() const { return seq.size(); }
   /*!
    * \brief Get the index-th element in the sequence.
    */
-  Stmt operator[](size_t index) const {
-    return seq[index];
-  }
+  Stmt operator[](size_t index) const { return seq[index]; }
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("seq", &seq);
-  }
+  void VisitAttrs(AttrVisitor* v) { v->Visit("seq", &seq); }
 
   bool SEqualReduce(const SeqStmtNode* other, SEqualReducer equal) const {
     return equal(seq, other->seq);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(seq);
-  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(seq); }
 
   static constexpr const char* _type_key = "SeqStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(SeqStmtNode, StmtNode);
@@ -609,15 +543,11 @@ class SeqStmt : public Stmt {
   TVM_DLL explicit SeqStmt(Array<Stmt> seq);
 
   /*! \return get the size of the sequence */
-  size_t size() const {
-    return operator->()->size();
-  }
+  size_t size() const { return operator->()->size(); }
   /*!
    * \brief Get the index-th element in the sequence.
    */
-  Stmt operator[](size_t index) const {
-    return (*(operator->()))[index];
-  }
+  Stmt operator[](size_t index) const { return (*(operator->()))[index]; }
   /*!
    * \brief Construct a sequence statement by flattening
    *        all the arrays and sequences in the arguments
@@ -634,19 +564,17 @@ class SeqStmt : public Stmt {
    * \tparam Args arguments
    * \return The constructed statement
    */
-  template<typename ...Args>
+  template <typename... Args>
   static Stmt Flatten(Args&&... seq_args) {
     Array<Stmt> seq;
-    runtime::detail::for_each(
-        Flattener(&seq), std::forward<Args>(seq_args)...);
+    runtime::detail::for_each(Flattener(&seq), std::forward<Args>(seq_args)...);
     if (seq.size() == 1) return seq[0];
     return SeqStmt(seq);
   }
   /*! \brief Helper class to flatten sequence of arguments into Array. */
   class Flattener {
    public:
-    explicit Flattener(Array<Stmt>* seq)
-        : seq_(seq) {}
+    explicit Flattener(Array<Stmt>* seq) : seq_(seq) {}
 
     void operator()(size_t i, const Stmt& stmt) const {
       if (!stmt.defined()) return;
@@ -657,7 +585,7 @@ class SeqStmt : public Stmt {
       }
     }
 
-    template<typename T>
+    template <typename T>
     void operator()(size_t i, const T& seq) const {
       for (auto v : seq) {
         this->operator()(0, v);
@@ -690,10 +618,8 @@ class IfThenElseNode : public StmtNode {
   }
 
   bool SEqualReduce(const IfThenElseNode* other, SEqualReducer equal) const {
-    return
-        equal(condition, other->condition) &&
-        equal(then_case, other->then_case) &&
-        equal(else_case, other->else_case);
+    return equal(condition, other->condition) && equal(then_case, other->then_case) &&
+           equal(else_case, other->else_case);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -719,17 +645,13 @@ class EvaluateNode : public StmtNode {
   /*! \brief The expression to be evaluated. */
   PrimExpr value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("value", &value);
-  }
+  void VisitAttrs(AttrVisitor* v) { v->Visit("value", &value); }
 
   bool SEqualReduce(const EvaluateNode* other, SEqualReducer equal) const {
     return equal(value, other->value);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(value);
-  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
 
   TVM_DLL static Stmt make(PrimExpr v);
 
@@ -752,9 +674,7 @@ enum class ForType : int {
 // Kevice api of for loop
 // kept for backward compatibility
 // consider refactor and remove later.
-enum class DeviceAPI: int {
-  None = 0
-};
+enum class DeviceAPI : int { None = 0 };
 
 /*!
  * \brief A for loop, with poissible type annotations.
@@ -784,12 +704,8 @@ class ForNode : public StmtNode {
   /*! \brief The body of the for loop. */
   Stmt body;
 
-  TVM_DLL static Stmt make(Var loop_var,
-                           PrimExpr min,
-                           PrimExpr extent,
-                           ForType for_type,
-                           DeviceAPI device_api,
-                           Stmt body);
+  TVM_DLL static Stmt make(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type,
+                           DeviceAPI device_api, Stmt body);
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("loop_var", &loop_var);
@@ -801,13 +717,9 @@ class ForNode : public StmtNode {
   }
 
   bool SEqualReduce(const ForNode* other, SEqualReducer equal) const {
-    return
-        equal.DefEqual(loop_var, other->loop_var) &&
-        equal(min, other->min) &&
-        equal(extent, other->extent) &&
-        equal(for_type, other->for_type) &&
-        equal(device_api, other->device_api) &&
-        equal(body, other->body);
+    return equal.DefEqual(loop_var, other->loop_var) && equal(min, other->min) &&
+           equal(extent, other->extent) && equal(for_type, other->for_type) &&
+           equal(device_api, other->device_api) && equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -818,7 +730,6 @@ class ForNode : public StmtNode {
     hash_reduce(device_api);
     hash_reduce(body);
   }
-
 
   static constexpr const char* _type_key = "For";
   TVM_DECLARE_FINAL_OBJECT_INFO(ForNode, StmtNode);
@@ -840,9 +751,7 @@ class PrefetchNode : public StmtNode {
   }
 
   bool SEqualReduce(const PrefetchNode* other, SEqualReducer equal) const {
-    return
-        equal(buffer, other->buffer) &&
-        equal(bounds, other->bounds);
+    return equal(buffer, other->buffer) && equal(bounds, other->bounds);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -851,8 +760,7 @@ class PrefetchNode : public StmtNode {
   }
 
   PrefetchNode() = default;
-  PrefetchNode(Buffer buffer, Array<Range> bounds)
-      : buffer(buffer), bounds(bounds) {}
+  PrefetchNode(Buffer buffer, Array<Range> bounds) : buffer(buffer), bounds(bounds) {}
 
   static constexpr const char* _type_key = "Prefetch";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrefetchNode, StmtNode);
@@ -985,13 +893,6 @@ constexpr const char* channel_write_advance = "channel_write_advance";
 constexpr const char* pipeline_stage_scope = "pipeline_stage_scope";
 /*! \brief pipeline execution scope, implies the scope can be pipelined. */
 constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
-/*!
- * \brief Mark that this stage is an OpenGL shader. Since OpenGL shader only
- * allows writing out to one element of the output texture, the Provide node
- * gets translated to a special Call::glsl_texture_store statement instead of a
- * Store statement.
- */
-constexpr const char* opengl_stage_scope = "opengl_stage_scope";
 
 /*!
  * \brief Mark that it is in the device scope.
@@ -1024,9 +925,7 @@ inline bool IsPragmaKey(const std::string& attr_key) {
  * \return Expr a expression with dtype.
  */
 inline PrimExpr TypeAnnotation(DataType dtype) {
-  return tir::CallNode::make(dtype,
-                        "type_annotation", {},
-                        tir::CallNode::PureIntrinsic);
+  return tir::CallNode::make(dtype, "type_annotation", {}, tir::CallNode::PureIntrinsic);
 }
 
 // overload printing of for type.

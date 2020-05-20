@@ -1,0 +1,11 @@
+{
+    "out": "dist/docs",
+    "readme": "none",
+    "mode": "file",
+    "excludeNotExported": true,
+    "excludePrivate": true,
+    "listInvalidSymbolLinks": true,
+    "module": "umd",
+    "includes": ["src"],
+    "exclude": ["node_modules"]
+}

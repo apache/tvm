@@ -40,16 +40,15 @@ class VirtualMachineDebug : public VirtualMachine {
  public:
   VirtualMachineDebug() : VirtualMachine() {}
 
-  PackedFunc GetFunction(const std::string& name,
-                         const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   void LoadExecutable(const Executable* exec) final;
 
   ~VirtualMachineDebug() {}
 
  private:
-  void InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
-                    Index output_size, const std::vector<ObjectRef>& args) final;
+  void InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count, Index output_size,
+                    const std::vector<ObjectRef>& args) final;
 
   std::unordered_map<Index, std::string> packed_index_map_;
   std::unordered_map<Index, std::vector<double>> op_durations_;

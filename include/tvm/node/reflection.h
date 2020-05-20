@@ -23,18 +23,18 @@
 #ifndef TVM_NODE_REFLECTION_H_
 #define TVM_NODE_REFLECTION_H_
 
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/object.h>
-#include <tvm/runtime/memory.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/data_type.h>
+#include <tvm/runtime/memory.h>
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 
-#include <vector>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 namespace tvm {
 
@@ -51,7 +51,7 @@ using runtime::ObjectRef;
  */
 class AttrVisitor {
  public:
-//! \cond Doxygen_Suppress
+  //! \cond Doxygen_Suppress
   TVM_DLL virtual ~AttrVisitor() = default;
   TVM_DLL virtual void Visit(const char* key, double* value) = 0;
   TVM_DLL virtual void Visit(const char* key, int64_t* value) = 0;
@@ -63,14 +63,13 @@ class AttrVisitor {
   TVM_DLL virtual void Visit(const char* key, DataType* value) = 0;
   TVM_DLL virtual void Visit(const char* key, runtime::NDArray* value) = 0;
   TVM_DLL virtual void Visit(const char* key, runtime::ObjectRef* value) = 0;
-  template<typename ENum,
-           typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
+  template <typename ENum, typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
   void Visit(const char* key, ENum* ptr) {
     static_assert(std::is_same<int, typename std::underlying_type<ENum>::type>::value,
                   "declare enum to be enum int to use visitor");
     this->Visit(key, reinterpret_cast<int*>(ptr));
   }
-//! \endcond
+  //! \endcond
 };
 
 /*!
@@ -166,7 +165,7 @@ class ReflectionVTable {
   TVM_DLL static ReflectionVTable* Global();
 
   class Registry;
-  template<typename T, typename TraitName>
+  template <typename T, typename TraitName>
   inline Registry Register();
 
  private:
@@ -174,7 +173,7 @@ class ReflectionVTable {
   std::vector<FVisitAttrs> fvisit_attrs_;
   /*! \brief Structural equal function. */
   std::vector<FSEqualReduce> fsequal_reduce_;
-    /*! \brief Structural hash function. */
+  /*! \brief Structural hash function. */
   std::vector<FSHashReduce> fshash_reduce_;
   /*! \brief Creation function. */
   std::vector<FCreate> fcreate_;
@@ -186,7 +185,7 @@ class ReflectionVTable {
 class ReflectionVTable::Registry {
  public:
   Registry(ReflectionVTable* parent, uint32_t type_index)
-      : parent_(parent), type_index_(type_index) { }
+      : parent_(parent), type_index_(type_index) {}
   /*!
    * \brief Set fcreate function.
    * \param f The creator function.
@@ -213,10 +212,8 @@ class ReflectionVTable::Registry {
   uint32_t type_index_;
 };
 
-
-#define TVM_REFLECTION_REG_VAR_DEF                                     \
-  static TVM_ATTRIBUTE_UNUSED ::tvm::ReflectionVTable::Registry        \
-  __make_reflectiion
+#define TVM_REFLECTION_REG_VAR_DEF \
+  static TVM_ATTRIBUTE_UNUSED ::tvm::ReflectionVTable::Registry __make_reflectiion
 
 /*!
  * \brief Directly register reflection VTable.
@@ -228,7 +225,11 @@ class ReflectionVTable::Registry {
  *  // Example SEQualReduce traits for runtime StringObj.
  *
  *  struct StringObjTrait {
- *     static constexpr const std::nullptr_t VisitAttrs = nullptr;
+ *    static constexpr const std::nullptr_t VisitAttrs = nullptr;
+ *
+ *    static void SHashReduce(const runtime::StringObj* key, SHashReducer hash_reduce) {
+ *      hash_reduce->SHashReduceHashedValue(runtime::String::HashBytes(key->data, key->size));
+ *    }
  *
  *    static bool SEqualReduce(const runtime::StringObj* lhs,
  *                             const runtime::StringObj* rhs,
@@ -247,122 +248,108 @@ class ReflectionVTable::Registry {
  * \note This macro can be called in different place as TVM_REGISTER_OBJECT_TYPE.
  *       And can be used to register the related reflection functions for runtime objects.
  */
-#define TVM_REGISTER_REFLECTION_VTABLE(TypeName, TraitName)             \
-  TVM_STR_CONCAT(TVM_REFLECTION_REG_VAR_DEF, __COUNTER__) =             \
-      ::tvm::ReflectionVTable::Global()->Register<TypeName, TraitName>() \
+#define TVM_REGISTER_REFLECTION_VTABLE(TypeName, TraitName) \
+  TVM_STR_CONCAT(TVM_REFLECTION_REG_VAR_DEF, __COUNTER__) = \
+      ::tvm::ReflectionVTable::Global()->Register<TypeName, TraitName>()
 
 /*!
  * \brief Register a node type to object registry and reflection registry.
  * \param TypeName The name of the type.
  * \note This macro will call TVM_REGISTER_OBJECT_TYPE for the type as well.
  */
-#define TVM_REGISTER_NODE_TYPE(TypeName)                                \
-  TVM_REGISTER_OBJECT_TYPE(TypeName);                                   \
+#define TVM_REGISTER_NODE_TYPE(TypeName)                                             \
+  TVM_REGISTER_OBJECT_TYPE(TypeName);                                                \
   TVM_REGISTER_REFLECTION_VTABLE(TypeName, ::tvm::detail::ReflectionTrait<TypeName>) \
-  .set_creator([](const std::string&) -> ObjectPtr<Object> {            \
-      return ::tvm::runtime::make_object<TypeName>();                   \
-    })
-
+      .set_creator([](const std::string&) -> ObjectPtr<Object> {                     \
+        return ::tvm::runtime::make_object<TypeName>();                              \
+      })
 
 // Implementation details
 namespace detail {
 
-template<typename T,
-         bool = T::_type_has_method_visit_attrs>
+template <typename T, bool = T::_type_has_method_visit_attrs>
 struct ImplVisitAttrs {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 };
 
-template<typename T>
+template <typename T>
 struct ImplVisitAttrs<T, true> {
-  static void VisitAttrs(T* self, AttrVisitor* v) {
-    self->VisitAttrs(v);
-  }
+  static void VisitAttrs(T* self, AttrVisitor* v) { self->VisitAttrs(v); }
 };
 
-template<typename T,
-         bool = T::_type_has_method_sequal_reduce>
+template <typename T, bool = T::_type_has_method_sequal_reduce>
 struct ImplSEqualReduce {
   static constexpr const std::nullptr_t SEqualReduce = nullptr;
 };
 
-template<typename T>
+template <typename T>
 struct ImplSEqualReduce<T, true> {
   static bool SEqualReduce(const T* self, const T* other, SEqualReducer equal) {
     return self->SEqualReduce(other, equal);
   }
 };
 
-template<typename T,
-         bool = T::_type_has_method_shash_reduce>
+template <typename T, bool = T::_type_has_method_shash_reduce>
 struct ImplSHashReduce {
   static constexpr const std::nullptr_t SHashReduce = nullptr;
 };
 
-template<typename T>
+template <typename T>
 struct ImplSHashReduce<T, true> {
   static void SHashReduce(const T* self, SHashReducer hash_reduce) {
     self->SHashReduce(hash_reduce);
   }
 };
 
-template<typename T>
-struct ReflectionTrait :
-      public ImplVisitAttrs<T>,
-      public ImplSEqualReduce<T>,
-      public ImplSHashReduce<T> {
-};
+template <typename T>
+struct ReflectionTrait : public ImplVisitAttrs<T>,
+                         public ImplSEqualReduce<T>,
+                         public ImplSHashReduce<T> {};
 
-template<typename T, typename TraitName,
-         bool = std::is_null_pointer<decltype(TraitName::VisitAttrs)>::value>
+template <typename T, typename TraitName,
+          bool = std::is_null_pointer<decltype(TraitName::VisitAttrs)>::value>
 struct SelectVisitAttrs {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 };
 
-template<typename T, typename TraitName>
+template <typename T, typename TraitName>
 struct SelectVisitAttrs<T, TraitName, false> {
   static void VisitAttrs(Object* self, AttrVisitor* v) {
     TraitName::VisitAttrs(static_cast<T*>(self), v);
   }
 };
 
-template<typename T, typename TraitName,
-         bool = std::is_null_pointer<decltype(TraitName::SEqualReduce)>::value>
+template <typename T, typename TraitName,
+          bool = std::is_null_pointer<decltype(TraitName::SEqualReduce)>::value>
 struct SelectSEqualReduce {
   static constexpr const std::nullptr_t SEqualReduce = nullptr;
 };
 
-template<typename T, typename TraitName>
+template <typename T, typename TraitName>
 struct SelectSEqualReduce<T, TraitName, false> {
-  static bool SEqualReduce(const Object* self,
-                           const Object* other,
-                           SEqualReducer equal) {
-    return TraitName::SEqualReduce(static_cast<const T*>(self),
-                                   static_cast<const T*>(other),
+  static bool SEqualReduce(const Object* self, const Object* other, SEqualReducer equal) {
+    return TraitName::SEqualReduce(static_cast<const T*>(self), static_cast<const T*>(other),
                                    equal);
   }
 };
 
-template<typename T, typename TraitName,
-         bool = std::is_null_pointer<decltype(TraitName::SHashReduce)>::value>
+template <typename T, typename TraitName,
+          bool = std::is_null_pointer<decltype(TraitName::SHashReduce)>::value>
 struct SelectSHashReduce {
   static constexpr const std::nullptr_t SHashReduce = nullptr;
 };
 
-template<typename T, typename TraitName>
+template <typename T, typename TraitName>
 struct SelectSHashReduce<T, TraitName, false> {
-  static void SHashReduce(const Object* self,
-                          SHashReducer hash_reduce) {
-    return TraitName::SHashReduce(static_cast<const T*>(self),
-                                  hash_reduce);
+  static void SHashReduce(const Object* self, SHashReducer hash_reduce) {
+    return TraitName::SHashReduce(static_cast<const T*>(self), hash_reduce);
   }
 };
 
 }  // namespace detail
 
-template<typename T, typename TraitName>
-inline ReflectionVTable::Registry
-ReflectionVTable::Register() {
+template <typename T, typename TraitName>
+inline ReflectionVTable::Registry ReflectionVTable::Register() {
   uint32_t tindex = T::RuntimeTypeIndex();
   if (tindex >= fvisit_attrs_.size()) {
     fvisit_attrs_.resize(tindex + 1, nullptr);
@@ -372,20 +359,16 @@ ReflectionVTable::Register() {
     fshash_reduce_.resize(tindex + 1, nullptr);
   }
   // functor that implemnts the redirection.
-  fvisit_attrs_[tindex] =
-      ::tvm::detail::SelectVisitAttrs<T, TraitName>::VisitAttrs;
+  fvisit_attrs_[tindex] = ::tvm::detail::SelectVisitAttrs<T, TraitName>::VisitAttrs;
 
-  fsequal_reduce_[tindex] =
-      ::tvm::detail::SelectSEqualReduce<T, TraitName>::SEqualReduce;
+  fsequal_reduce_[tindex] = ::tvm::detail::SelectSEqualReduce<T, TraitName>::SEqualReduce;
 
-  fshash_reduce_[tindex] =
-      ::tvm::detail::SelectSHashReduce<T, TraitName>::SHashReduce;
+  fshash_reduce_[tindex] = ::tvm::detail::SelectSHashReduce<T, TraitName>::SHashReduce;
 
   return Registry(this, tindex);
 }
 
-inline void ReflectionVTable::
-VisitAttrs(Object* self, AttrVisitor* visitor) const {
+inline void ReflectionVTable::VisitAttrs(Object* self, AttrVisitor* visitor) const {
   uint32_t tindex = self->type_index();
   if (tindex >= fvisit_attrs_.size() || fvisit_attrs_[tindex] == nullptr) {
     LOG(FATAL) << "TypeError: " << self->GetTypeKey()
@@ -394,8 +377,7 @@ VisitAttrs(Object* self, AttrVisitor* visitor) const {
   fvisit_attrs_[tindex](self, visitor);
 }
 
-inline bool ReflectionVTable::GetReprBytes(const Object* self,
-                                           std::string* repr_bytes) const {
+inline bool ReflectionVTable::GetReprBytes(const Object* self, std::string* repr_bytes) const {
   uint32_t tindex = self->type_index();
   if (tindex < frepr_bytes_.size() && frepr_bytes_[tindex] != nullptr) {
     if (repr_bytes != nullptr) {
