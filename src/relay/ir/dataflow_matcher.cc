@@ -151,6 +151,9 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
       if (matches &&
           std::find(attr_names.begin(), attr_names.end(), kv.first) != attr_names.end()) {
         matches &= MatchRetValue(kv.second, reflection->GetAttr(attrs_node, kv.first));
+      } else {
+        matches = false;
+        break;
       }
     }
   } else if (auto* op = expr.as<FunctionNode>()) {
@@ -160,6 +163,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
         matches &= StructuralEqual()(kv.second, op->attrs->dict[kv.first]);
       } else {
         matches = false;
+        break;
       }
     }
   }
