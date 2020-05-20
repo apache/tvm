@@ -20,6 +20,7 @@ import numpy as np
 from tvm import rpc
 from tvm.contrib import util, xcode, coreml_runtime
 
+import pytest
 import os
 
 proxy_host = os.environ.get("TVM_IOS_RPC_PROXY_HOST", "localhost")
@@ -27,7 +28,8 @@ proxy_port = os.environ.get("TVM_IOS_RPC_PROXY_PORT", 9090)
 destination = os.environ.get("TVM_IOS_RPC_DESTINATION", "")
 key = "iphone"
 
-def skipped_test_coreml_runtime():
+@pytest.mark.skip('skip because coremltools is not available in CI')
+def test_coreml_runtime():
 
     import coremltools
     from coremltools.models.neural_network import NeuralNetworkBuilder
@@ -102,5 +104,4 @@ def skipped_test_coreml_runtime():
 
 
 if __name__ == "__main__":
-    # skipped_test_coreml_runtime()
-    pass
+    test_coreml_runtime()

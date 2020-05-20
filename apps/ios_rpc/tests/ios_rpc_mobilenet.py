@@ -23,6 +23,7 @@ from tvm.relay import transform
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.quantize.quantize import prerequisite_optimize
 from tvm.contrib import util, xcode, graph_runtime, coreml_runtime
+from tvm.contrib import coreml as _coreml
 
 import os
 import re
