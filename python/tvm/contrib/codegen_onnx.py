@@ -441,9 +441,9 @@ class ConstantOfShapeZeros(OpConverter):
     def convert(cls, node, model_container, node_list):
         attrs = cls.convert_attributes(node['node'].attrs)
         input_node = node_list[node['inputs'][0][0]]
-        shape = input_node['types'][0].shape
-        dtype = input_node['types'][0].dtype
+        dtype = input_node['node'].type_annotation.dtype
         input_shape_name = 'shape_{}'.format(node['output_names'][0])
+        shape = [val.value for val in input_node['node'].type_annotation.shape]
         shape = numpy.asarray(shape).astype(numpy.int64)
         add_input(shape, input_shape_name, model_container)
 
