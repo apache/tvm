@@ -1203,6 +1203,36 @@ struct SubPixelAttrs : public tvm::AttrsNode<SubPixelAttrs> {
   }
 };  // struct SubPixelAttrs
 
+/*! \brief Attributes used in correlation operators */
+struct CorrelationAttrs : public tvm::AttrsNode<CorrelationAttrs> {
+  int kernel_size;
+  int max_displacement;
+  int stride1;
+  int stride2;
+  Array<IndexExpr> padding;
+  bool is_multiply;
+  String layout;
+
+  TVM_DECLARE_ATTRS(CorrelationAttrs, "relay.attrs.CorrelationAttrs") {
+    TVM_ATTR_FIELD(kernel_size)
+        .describe("Kernel size for correlation, must be an odd number.")
+        .set_default(1);
+    TVM_ATTR_FIELD(max_displacement).describe("Max displacement of Correlation.").set_default(1);
+    TVM_ATTR_FIELD(stride1).describe("Stride for data1.").set_default(1);
+    TVM_ATTR_FIELD(stride2).describe("Stride for data2.").set_default(1);
+    TVM_ATTR_FIELD(padding)
+        .describe("Padding for data1 and data2.")
+        .set_default(Array<IndexExpr>{0, 0});
+    TVM_ATTR_FIELD(is_multiply)
+        .describe("Operation type is either multiplication or substraction.")
+        .set_default(true);
+    TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
+        "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+        "dimensions respectively.");
+  }
+};  // struct CorrelationAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_NN_H_

@@ -672,3 +672,20 @@ def schedule_batch_matmul(outs):
         The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+
+def schedule_correlation_nchw(outs):
+    """Schedule for correlation_nchw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of correlation_nchw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
