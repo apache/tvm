@@ -42,7 +42,7 @@ cd docs
 make clean
 TVM_TUTORIAL_EXEC_PATTERN=none make html 2>/tmp/$$.log.txt
 
-grep -v -E "__mro__|UserWarning|FutureWarning|tensorflow|Keras|pytorch|TensorFlow" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
+grep -v -E "__mro__|UserWarning|FutureWarning|tensorflow|Keras|pytorch|TensorFlow|403" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
 echo "---------Sphinx Log----------"
 cat /tmp/$$.logclean.txt
 echo "-----------------------------"

@@ -56,9 +56,10 @@ cd ..
 rm -rf _docs
 mv docs/_build/html _docs
 rm -f _docs/.buildinfo
-mv docs/doxygen/html _docs/doxygen
-mv jvm/core/target/site/apidocs _docs/javadoc
-mv web/dist/docs _docs/typedoc
+mkdir -p _docs/api
+mv docs/doxygen/html _docs/api/doxygen
+mv jvm/core/target/site/apidocs _docs/api/javadoc
+mv web/dist/docs _docs/api/typedoc
 
 echo "Start creating the docs tarball.."
 # make the tarball
