@@ -1191,6 +1191,75 @@ def test_constant_tuples():
     assert type(concat.args[3]) == relay.Constant
     assert type(concat.args[4]) == relay.Constant
 
+def test_flatten_tuple_output():
+    target = "test_flatten_tuple_output"
+
+    @reg.register("split", "target." + target)
+    def foo(attrs, args): # pylint: disable=unused-variable
+        return True
+
+    @reg.register("abs", "target." + target)
+    def foo(attrs, args): # pylint: disable=unused-variable
+        return True
+
+    def create_graph():
+        a = relay.var('a', shape=(10, 10), dtype="uint8")
+
+        a_split = relay.split(a, 2)
+        a_split_0 = relay.TupleGetItem(a_split.astuple(),0)
+        a_split_0_abs = relay.abs(a_split_0)
+
+        a_con = relay.concatenate(a_split, 0)
+        a_split_0_relu = relay.nn.relu(a_split_0_abs)
+
+        out = relay.Tuple((a_con, a_split_0_relu))
+        f = relay.Function([a], out)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    def expected():
+        mod = tvm.IRModule()
+
+        # function 0
+        f0_i0 = relay.var(target + "_0_i0", shape=(10, 10), dtype="uint8")
+        a_split = relay.split(f0_i0, 2)
+        a_split_0 = relay.TupleGetItem(a_split.astuple(), 0)
+        a_split_1 = relay.TupleGetItem(a_split.astuple(), 1)
+        a_split_abs_in = relay.TupleGetItem(a_split.astuple(), 0)
+        abs = relay.abs(a_split_abs_in)
+        tuple_out = relay.Tuple((a_split_0, a_split_1, abs))
+        func0 = relay.Function([f0_i0], tuple_out)
+
+        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Compiler", target)
+        func0 = func0.with_attr("global_symbol", target + "_0")
+        gv0 = relay.GlobalVar(target + "_0")
+        mod[gv0] = func0
+
+        #body
+        data = relay.var('a', shape=(10, 10), dtype="uint8")
+        f_out = gv0(data)
+        f_out_0 = relay.TupleGetItem(f_out, 0)
+        f_out_1 = relay.TupleGetItem(f_out, 1)
+        tuple = relay.Tuple((f_out_0, f_out_1))
+        concat = relay.concatenate(tuple,0)
+        f_out_2 = relay.TupleGetItem(f_out, 2)
+        relu = relay.nn.relu(f_out_2)
+        ret_tuple = relay.Tuple((concat, relu))
+        mod["main"] = relay.Function([data], ret_tuple)
+        return mod
+
+    seq = tvm.transform.Sequential([
+        transform.AnnotateTarget(target),
+        transform.MergeCompilerRegions(),
+        transform.PartitionGraph(),
+    ])
+
+    partitioned = seq(create_graph())
+    assert tvm.ir.structural_equal(partitioned, expected(), map_free_vars=True)
+
+
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
@@ -1208,3 +1277,4 @@ if __name__ == "__main__":
     test_duplicate_outputs()
     test_duplicate_merge_and_tuplegetitem()
     test_constant_tuples()
+    test_flatten_tuple_output()
