@@ -244,6 +244,23 @@ def test_no_match_op_attr():
     y = relay.var('y')
     assert not op_pat.match(x - y)
 
+def test_match_func_attr():
+    pattern = wildcard().has_attr({"Composite": "add"})
+    x = relay.var('x')
+    y = relay.var('y')
+    f = relay.Function([x, y], x + y).with_attr("Composite", "add")
+    assert pattern.match(f)
+
+def test_no_match_func_attr():
+    pattern = wildcard().has_attr({"Composite": "add"})
+    x = relay.var('x')
+    y = relay.var('y')
+
+    f = relay.Function([x, y], x + y).with_attr("RandomTest", "add")
+    assert not pattern.match(f)
+    f = relay.Function([x, y], x + y).with_attr("Composite", "conv_bias")
+    assert not pattern.match(f)
+
 def test_match_call_attr():
     is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard()).has_attr({"data_layout": "NCHW"})
     x = relay.var('x')
@@ -251,9 +268,13 @@ def test_match_call_attr():
     assert is_conv2d.match(relay.op.nn.conv2d(x, y))
 
 def test_no_match_call_attr():
-    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard()).has_attr({"data_layout": "NHWC"})
     x = relay.var('x')
     y = relay.var('y')
+
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard()).has_attr({"data_layout": "NHWC"})
+    assert not is_conv2d.match(relay.op.nn.conv2d(x, y))
+
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard()).has_attr({"RandomAttr": "NCHW"})
     assert not is_conv2d.match(relay.op.nn.conv2d(x, y))
 
 def test_match_diamond():
