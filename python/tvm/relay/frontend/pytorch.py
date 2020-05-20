@@ -1426,6 +1426,32 @@ def _upsample(method):
 
     return _impl
 
+
+def _upsample3d(method):
+    def _impl(inputs, input_types):
+        if isinstance(inputs[1], _expr.Var):
+            out_size = _infer_shape(inputs[1])
+        elif isinstance(inputs[1], list):
+            infer_res = [_infer_value(size, {}) for size in inputs[1]]
+            out_size = [np.asscalar(res.asnumpy().astype(np.int))
+                        for res in infer_res]
+
+        data = inputs[0]
+
+        if len(inputs) > 2:
+            align_corners = inputs[2]
+        else:
+            align_corners = False
+
+        if align_corners:
+            coord_trans = "align_corners"
+        else:
+            coord_trans = "half_pixel"
+
+        return _op.image.resize3d(data, out_size, "NCDHW", method, coord_trans)
+    return _impl
+
+
 def _expand_as():
     def _impl(inputs, input_types):
         # TODO: maybe fix this
@@ -1796,6 +1822,8 @@ def _get_convert_map(prelude):
         "aten::detach"                          : _identity(),
         "aten::upsample_bilinear2d"             : _upsample("bilinear"),
         "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
+        "aten::upsample_trilinear3d"            : _upsample3d("trilinear"),
+        "aten::upsample_nearest3d"              : _upsample3d("nearest_neighbor"),
         "aten::expand_as"                       : _expand_as(),
         "aten::lt"                              : _elemwise("less"),
         "aten::gt"                              : _elemwise("greater"),
