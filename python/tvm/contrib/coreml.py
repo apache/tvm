@@ -20,20 +20,10 @@
 import os
 import shutil
 
-import coremltools
-from coremltools.models.neural_network import NeuralNetworkBuilder
-from coremltools.proto.Model_pb2 import ArrayFeatureType
-
 import tvm._ffi
 from ..relay.expr_functor import ExprVisitor
 from ..relay.expr import Constant
 from . import xcode, coreml_runtime
-
-FEATURE_TYPE_MAP = {
-    "float32": ArrayFeatureType.FLOAT32,
-    "float64": ArrayFeatureType.DOUBLE,
-    "int32": ArrayFeatureType.INT32,
-}
 
 def _convert_add(builder, name, inputs, outputs, args, attrs):
     builder.add_elementwise(
@@ -136,6 +126,9 @@ class CodegenCoreML(ExprVisitor):
     A visitor to traverse subgraphs and build Core ML models.
     """
     def __init__(self, model_name, function):
+        import coremltools
+        from coremltools.models.neural_network import NeuralNetworkBuilder
+
         ExprVisitor.__init__(self)
         self.model_name = model_name
         self.function = function
@@ -190,6 +183,15 @@ class CodegenCoreML(ExprVisitor):
         """
         Build a Core ML model and compile it with Xcode toolchain.
         """
+        import coremltools
+        from coremltools.proto.Model_pb2 import ArrayFeatureType
+
+        FEATURE_TYPE_MAP = {
+            "float32": ArrayFeatureType.FLOAT32,
+            "float64": ArrayFeatureType.DOUBLE,
+            "int32": ArrayFeatureType.INT32,
+        }
+
         input_names, input_dims, input_dtypes = zip(*self.model_inputs_)
         self.builder.set_input(input_names, input_dims)
         for i, dtype in enumerate(input_dtypes):
