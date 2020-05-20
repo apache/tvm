@@ -17,6 +17,7 @@
 # pylint: disable=redefined-builtin, wildcard-import
 """TVM: Open Deep Learning Compiler Stack."""
 import multiprocessing
+import os
 import sys
 import traceback
 
@@ -62,7 +63,8 @@ from . import arith
 
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
-from .contrib import coreml as _coreml
+if not os.environ.get("TVM_USE_RUNTIME_LIB", False):
+    from .contrib import coreml as _coreml
 
 def tvm_wrap_excepthook(exception_hook):
     """Wrap given excepthook with TVM additional work."""
