@@ -182,9 +182,10 @@ struct ReverseSequenceAttrs : public tvm::AttrsNode<ReverseSequenceAttrs> {
   Integer batch_axis;
 
   TVM_DECLARE_ATTRS(ReverseSequenceAttrs, "relay.attrs.ReverseSequenceAttrs") {
-    TVM_ATTR_FIELD(seq_axis).set_default(1)
-        .describe("The seq axis along which to reverse elements.");
-    TVM_ATTR_FIELD(batch_axis).set_default(0)
+    TVM_ATTR_FIELD(seq_axis).set_default(1).describe(
+        "The seq axis along which to reverse elements.");
+    TVM_ATTR_FIELD(batch_axis)
+        .set_default(0)
         .describe("The batch axis along which to slice the tensor.");
   }
 };  // struct ReverseSequenceAttrs
