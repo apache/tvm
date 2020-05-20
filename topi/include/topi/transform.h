@@ -151,23 +151,21 @@ inline Tensor transpose(const Tensor& x, Array<Integer> axes, std::string name =
 
 /*!
  * \brief Reverse the tensor for variable length slices.
-* Input is first sliced along batch axis and then elements are reversed along seq axis.
+ * Input is first sliced along batch axis and then elements are reversed along seq axis.
  *
  * \param x The input tensor
  * \param seq_lengths A 1D Tensor with length x.dims[batch_axis]. Optional Tensor() can be passed.
-* If not defined batch axis is ignored and tensor is reversed along seq_axis.
-* \param seq_axis The axis along which the elements will be reveresed
+ * If not defined batch axis is ignored and tensor is reversed along seq_axis.
+ * \param seq_axis The axis along which the elements will be reveresed
  * \param batch_axis The axis along which the tensor will be sliced
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
  * \return A Tensor whose op member is the reverse_sequence operation
  */
-inline Tensor reverse_sequence(const Tensor& x,
-                   const Tensor& seq_lengths,
-                   int seq_axis = 1,
-                   int batch_axis = 0, std::string name = "T_reverse_sequence",
-                   std::string tag = kInjective) {
+inline Tensor reverse_sequence(const Tensor& x, const Tensor& seq_lengths, int seq_axis = 1,
+                               int batch_axis = 0, std::string name = "T_reverse_sequence",
+                               std::string tag = kInjective) {
   size_t src_tensor_dim = x->shape.size();
   int seq_axis_inp = seq_axis;
 
@@ -195,7 +193,7 @@ inline Tensor reverse_sequence(const Tensor& x,
     seq_axis = static_cast<int>(x->shape.size()) + seq_axis;
   }
   CHECK((0 <= seq_axis) && (seq_axis < static_cast<int>(x->shape.size())))
-    << "seq_axis=" << seq_axis_inp << " is invalid for the " << static_cast<int>(x->shape.size())
+      << "seq_axis=" << seq_axis_inp << " is invalid for the " << static_cast<int>(x->shape.size())
       << "-dimensional input tensor";
 
   auto func = [&](const Array<Var>& indices) {
