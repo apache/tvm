@@ -406,7 +406,9 @@ IRModule RemoveDefaultAnnotations(IRModule module) {
 
 /*! \brief There can be regions with multiple outputs where each output
  *  could be a tuple output. Such tuple outputs needs to be flattened
- *  otherwise the function would create tuples of tuples.
+ *  otherwise the function would create tuples of tuples. Moreover, tuple
+ *  of tuples are valid relay, however they are not currently supported by
+ *  graph runtime or relay VM.
  */
 
 // New annotations would be required to be added for each flattened output
