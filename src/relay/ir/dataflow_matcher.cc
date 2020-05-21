@@ -101,39 +101,73 @@ bool DFPatternMatcher::VisitDFPattern_(const AltPatternNode* op, const Expr& exp
   return VisitDFPattern(op->left, expr) || VisitDFPattern(op->right, expr);
 }
 
+bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
+  switch (rhs.type_code()) {
+    case kDLInt:
+      if (auto* val = lhs.as<IntImmNode>()) {
+        return val->value == rhs.operator int64_t();
+      }
+      break;
+    case kDLFloat:
+      if (auto* val = lhs.as<FloatImmNode>()) {
+        return val->value == rhs.operator double();
+      }
+      break;
+    case kTVMStr:
+      std::cout << lhs << std::endl;
+      if (auto* val = lhs.as<tir::StringImmNode>()) {
+        return val->value == rhs.operator std::string();
+      } else if (auto* val = lhs.as<StringObj>()) {
+        return val->data == rhs.operator std::string();
+      }
+      break;
+    default:
+      CHECK(false) << "Unsupported type code in Pattern Node " << rhs.type_code();
+  }
+  return false;
+}
+
 bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, const Expr& expr) {
   bool matches = false;
+  auto attributes = attr_pattern->attrs.as<DictAttrsNode>()->dict;
   if (const auto* op_node = expr.as<OpNode>()) {
     Op op = GetRef<Op>(op_node);
-    auto attributes = attr_pattern->attrs.as<DictAttrsNode>()->dict;
     for (auto kv : attributes) {
       auto attr_name = kv.first;
       auto attr_value = kv.second;
       auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
       if (op_map.count(op)) {
-        switch (op_map[op].type_code()) {
-          case kDLInt:
-            if (auto* val = kv.second.as<IntImmNode>()) {
-              matches = val->value == op_map[op].operator int64_t();
-            }
-            break;
-          case kDLFloat:
-            if (auto* val = kv.second.as<FloatImmNode>()) {
-              matches = val->value == op_map[op].operator double();
-            }
-            break;
-          case kTVMStr:
-            if (auto* val = kv.second.as<tir::StringImmNode>()) {
-              matches = val->value == op_map[op].operator std::string();
-            }
-            break;
-          default:
-            CHECK(false) << "Unsupported type in Type Pattern Node";
-        }
+        matches = MatchRetValue(attr_value, op_map[op]);
+      }
+    }
+  } else if (auto* op = expr.as<CallNode>()) {
+    matches = true;
+    // TODO(mbrookhart): When OpNode Attrs move from TVMRetValue to the Object system, remove this
+    // and replace the whole thing with a Visitor-based approach
+    ReflectionVTable* reflection = ReflectionVTable::Global();
+    auto attrs_node = const_cast<Object*>(op->attrs.get());
+    auto attr_names = reflection->ListAttrNames(attrs_node);
+    for (auto kv : attributes) {
+      if (matches &&
+          std::find(attr_names.begin(), attr_names.end(), kv.first) != attr_names.end()) {
+        matches &= MatchRetValue(kv.second, reflection->GetAttr(attrs_node, kv.first));
+      } else {
+        matches = false;
+        break;
+      }
+    }
+  } else if (auto* op = expr.as<FunctionNode>()) {
+    matches = true;
+    for (auto kv : attributes) {
+      if (matches && op->attrs->dict.count(kv.first)) {
+        matches &= StructuralEqual()(kv.second, op->attrs->dict[kv.first]);
+      } else {
+        matches = false;
+        break;
       }
     }
   }
-  return matches;
+  return matches && VisitDFPattern(attr_pattern->pattern, expr);
 }
 
 Array<DFPattern> reverse(const Array<DFPattern>& args) {

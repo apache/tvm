@@ -41,7 +41,7 @@ There are quite a few properties that are worth matching of operators below we e
 The next example is a dense operation with any operator that is marked element-wise::
 
     def test_no_match_attr():
-        op = is_op('nn.dense').has_attr("TOpPattern", K_ELEMWISE)
+        op = is_op('nn.dense').has_attr({"TOpPattern": K_ELEMWISE})
         op_pat = op(wildcard(), wildcard())
         x = relay.var('x')
         y = relay.var('y')
@@ -97,7 +97,7 @@ The high level design is to introduce a language of patterns for now we propose 
             | *
             | pattern(pattern1, ... patternN)
             | has_type(pattern, type)
-            | has_attr(pattern, attr, attr_value)
+            | has_attr(pattern, attrs)
             | is_input(name)
             | pattern1 `|` pattern2
             | dominates(parent_pattern, path_pattern, child_pattern)
