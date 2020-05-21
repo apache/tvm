@@ -202,8 +202,7 @@ stage('Unit Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          // TODO(trevmorr): neo-ai/tvm disable sphinx due to missing PRs from upstream
-          // sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration.sh"
         }
@@ -258,10 +257,10 @@ stage('Integration Test') {
         }
       }
     }
-  }
+  },
   // TODO: Fix the doc
   // 'docs: GPU': {
-  //   node('GPU') {
+  //   node('TensorCore') {
   //     ws(per_exec_ws("tvm/docs-python-gpu")) {
   //       init_git()
   //       unpack_lib('gpu', tvm_multilib)
