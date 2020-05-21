@@ -660,19 +660,19 @@ class Array : public ObjectRef {
   bool empty() const { return size() == 0; }
 
   /*! \return The first element of the array */
-  const T& front() const {
+  const T front() const {
     ArrayNode* p = GetArrayNode();
     CHECK(p != nullptr) << "ValueError: cannot index a null array";
     CHECK_GT(p->size_, 0) << "IndexError: cannot index an empty array";
-    return *p->begin();
+    return DowncastNoCheck<T>(*(p->begin()));
   }
 
   /*! \return The last element of the array */
-  const T& back() const {
+  const T back() const {
     ArrayNode* p = GetArrayNode();
     CHECK(p != nullptr) << "ValueError: cannot index a null array";
     CHECK_GT(p->size_, 0) << "IndexError: cannot index an empty array";
-    return *(p->end() - 1);
+    return DowncastNoCheck<T>(*(p->end() - 1));
   }
 
  public:
