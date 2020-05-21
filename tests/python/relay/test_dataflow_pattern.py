@@ -880,7 +880,7 @@ def test_quadruple_partition_dominator():
 def get_BN(x, var, mean, beta, gamma, eps = 1e-5):
     return gamma * (x - mean)/relay.op.sqrt(var + relay.const(eps)) + beta
 
-def test_parition_batchnorm():
+def test_partition_batchnorm():
     x = relay.var('x')
     var = relay.var('var')
     mean = relay.var('mean')
@@ -900,7 +900,7 @@ def test_parition_batchnorm():
     partitioned = BatchnormCallback().pattern.partition(BN)
     assert tvm.ir.structural_equal(partitioned, f(gamma, x, mean, var, beta))
 
-def test_parition_double_batchnorm():
+def test_partition_double_batchnorm():
     x = relay.var('x')
     var = relay.var('var')
     mean = relay.var('mean')
@@ -916,7 +916,7 @@ def test_parition_double_batchnorm():
     betaf = relay.var('betaf')
     gammaf = relay.var('gammaf')
     f1 = relay.Function([gammaf, xf, meanf, varf, betaf], get_BN(xf, varf, meanf, betaf, gammaf)).with_attr("PartitionedFromPattern","subtract_multiply_add_sqrt_divide_add_")
-    # The paritioner doesn't replace duplicates, so we use two copies of the function
+    # The partitioner doesn't replace duplicates, so we use two copies of the function
     xf2 = relay.var('xf2')
     varf2 = relay.var('varf2')
     meanf2 = relay.var('meanf2')
@@ -982,7 +982,7 @@ if __name__ == "__main__":
     test_algebraic_simplify()
     test_partition_dominator()
     test_quadruple_partition_dominator()
-    test_parition_batchnorm()
-    test_parition_double_batchnorm()
-    test_parition_check()
+    test_partition_batchnorm()
+    test_partition_double_batchnorm()
+    test_partition_check()
 
