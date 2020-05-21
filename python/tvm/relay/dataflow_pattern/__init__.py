@@ -112,7 +112,7 @@ class DFPattern(Node):
         """
         return match(self, expr)
 
-    def partition(self, expr: Expr) -> bool:
+    def partition(self, expr: Expr, attrs=None) -> Expr:
         """
         Parition the expression into functions defined by this pattern
 
@@ -120,13 +120,15 @@ class DFPattern(Node):
         ----------
         expr : tvm.relay.Expr
             The expression to match.
+        attrs : Optional[Dict[str, Object]]
+            A dictionary of Attribute name/values to add to the paritioned function
 
         Returns
         -------
         result : tvm.relay.Expr
             The Expression with matched subgraphs replaced by function calls to that subgraph
         """
-        return partition(self, expr)
+        return partition(self, expr, attrs)
 
     def dominates(self, parent, path=None):
         """
@@ -562,7 +564,7 @@ def rewrite(callbacks, expr: Expr) -> Expr:
 
     return ffi.rewrite(tmp, expr)
 
-def partition(pattern: DFPattern, expr: Expr) -> Expr:
+def partition(pattern: DFPattern, expr: Expr, attrs=None) -> Expr:
     """
     Parition the expression into a series of functions that match the pattern
 
@@ -572,10 +574,12 @@ def partition(pattern: DFPattern, expr: Expr) -> Expr:
         The pattern to match
     expr : tvm.relay.Expr
         The expression to split into functions
+    expr : Optional[Dict[str, Object]]
+        A dict of attributes to apply to the partitioned function
 
     Returns
     -------
     result : tvm.relay.Expr
         The Expression with matched subgraphs replaced by function calls to that subgraph
     """
-    return ffi.partition(pattern, expr)
+    return ffi.partition(pattern, expr, attrs)
