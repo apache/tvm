@@ -271,7 +271,6 @@ TEST(Array, InsertEraseRange) {
   }
 }
 
-
 TEST(Map, Expr) {
   using namespace tvm;
   Var x("x");
