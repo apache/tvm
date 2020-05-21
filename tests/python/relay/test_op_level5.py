@@ -68,6 +68,48 @@ def test_resize():
         for layout in ["NHWC", "NCHW"]:
             verify_resize((1, 4, 4, 4), 2, method, layout)
 
+def test_resize3d_infer_type():
+    n, c, d, h, w = te.size_var("n"), te.size_var("c"), te.size_var("d"), te.size_var("h"), te.size_var("w")
+    x = relay.var("x", relay.TensorType((n, c, d, h, w), "int8"))
+    td, th, tw = te.var("td"), te.var("th"), te.var("tw")
+    z = relay.image.resize3d(x, (td, th, tw))
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((n, c, td, th, tw), "int8")
+
+    x = relay.var("x", relay.TensorType((n, c, d, h, w), "int8"))
+    z= relay.image.resize3d(x, (10, 10, 20), "NCDHW", "trilinear", "align_corners")
+    assert "size=" in z.astext()
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((n, c, 10, 10, 20), "int8")
+
+def test_resize3d():
+    def verify_resize(dshape, scale, method, layout):
+        if layout == "NDHWC":
+            size = (dshape[1] * scale, dshape[2] * scale, dshape[3] * scale)
+        else:
+            size = (dshape[2] * scale, dshape[3] * scale, dshape[4] * scale)
+
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        if method == "trilinear":
+            ref_res = topi.testing.trilinear_resize3d_python(x_data, size, layout)
+        else:
+            ref_res = topi.testing.upsampling3d_python(x_data, (scale, scale, scale), layout)
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.image.resize3d(x, size, layout, method, "align_corners")
+        assert "size=" in z.astext()
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
+        func = relay.Function([x], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+    for method in ["trilinear", "nearest_neighbor"]:
+        for layout in ["NDHWC", "NCDHW"]:
+            verify_resize((1, 4, 4, 4, 4), 2, method, layout)
+
 def test_crop_and_resize():
     def verify_crop_and_resize(img_shape, boxes, box_indices, crop_size,
                                layout, method, extrapolation_value=0.0):
@@ -784,6 +826,8 @@ def test_dilation2d_run():
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
+    test_resize3d_infer_type()
+    test_resize3d()
     test_crop_and_resize()
     test_multibox_prior()
     test_multibox_transform_loc()

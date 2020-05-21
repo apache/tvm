@@ -1029,6 +1029,13 @@ def test_forward_reflection_pad2d():
     verify_model(torch.nn.ReflectionPad2d((1, 3, 2, 4)).eval(), inp)
 
 
+def test_forward_upsample3d():
+    inp = torch.arange(1, 9, dtype=torch.float32).view(1, 1, 2, 2, 2)
+    verify_model(torch.nn.Upsample(scale_factor=2, mode='nearest').eval(), inp)
+    verify_model(torch.nn.Upsample(scale_factor=2, mode='trilinear').eval(), inp)
+    verify_model(torch.nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True).eval(), inp)
+
+
 def test_conv3d():
     for ishape in [(1, 32, 16, 16, 16),
                    (1, 32, 9, 15, 15),
@@ -2191,6 +2198,7 @@ if __name__ == "__main__":
     test_forward_chunk()
     test_forward_split()
     test_upsample()
+    test_forward_upsample3d()
     test_to()
     test_forward_reflection_pad2d()
     test_adaptive_pool3d()

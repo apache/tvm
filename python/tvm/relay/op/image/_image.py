@@ -37,6 +37,18 @@ def compute_resize(attrs, inputs, out_type):
 reg.register_injective_schedule("image.resize")
 
 
+@reg.register_compute("image.resize3d")
+def compute_resize3d(attrs, inputs, out_type):
+    size = attrs.size
+    layout = attrs.layout
+    method = attrs.method
+    coord_trans = attrs.coordinate_transformation_mode
+    out_dtype = attrs.out_dtype
+    return [topi.image.resize3d(inputs[0], size, layout, method, coord_trans, out_dtype)]
+
+reg.register_injective_schedule("image.resize3d")
+
+
 # crop and resize
 @reg.register_compute("image.crop_and_resize")
 def compute_crop_and_resize(attrs, inputs, out_type):
