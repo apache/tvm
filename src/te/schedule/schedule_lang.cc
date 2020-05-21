@@ -37,17 +37,17 @@ namespace te {
 template <typename T>
 size_t FindNodeRef(ArrayNode* array_node, const T& v) {
   const Object* n = v.get();
-  for (size_t i = 0; i < array_node->data.size(); ++i) {
-    if (array_node->data[i].get() == n) return i;
+  for (size_t i = 0; i < array_node->size(); ++i) {
+    if (array_node->at(i).get() == n) return i;
   }
-  return array_node->data.size();
+  return array_node->size();
 }
 
 size_t FindLeafVar(ArrayNode* all_vars, ArrayNode* leaf_vars, const IterVar& v) {
   size_t pos = FindNodeRef(leaf_vars, v);
-  if (pos < leaf_vars->data.size()) return pos;
+  if (pos < leaf_vars->size()) return pos;
 
-  if (FindNodeRef(all_vars, v) < all_vars->data.size()) {
+  if (FindNodeRef(all_vars, v) < all_vars->size()) {
     LOG(FATAL) << "Operate on iter var " << v << "that has already been split";
   } else {
     LOG(FATAL) << "Operate on iter var " << v << "that is not part of the schedule";
@@ -68,17 +68,17 @@ void Split(StageNode* self, IterVar parent, PrimExpr factor, PrimExpr nparts, It
   *p_outer = outer;
   *p_inner = inner;
   // The splits
-  ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
-  ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
-  size_t pos = FindLeafVar(all_vars, leaf_vars, parent);
+  Array<IterVar>& all_vars = self->all_iter_vars;
+  Array<IterVar>& leaf_vars = self->leaf_iter_vars;
+  size_t pos = FindLeafVar(all_vars.GetArrayNode(), leaf_vars.GetArrayNode(), parent);
   self->relations.push_back(SplitNode::make(parent, outer, inner, factor, nparts));
   // add vars to all vars
-  all_vars->data.push_back(outer);
-  all_vars->data.push_back(inner);
+  all_vars.push_back(outer);
+  all_vars.push_back(inner);
   // replace the position.
-  leaf_vars->data.erase(leaf_vars->data.begin() + pos);
-  leaf_vars->data.insert(leaf_vars->data.begin() + pos, inner);
-  leaf_vars->data.insert(leaf_vars->data.begin() + pos, outer);
+  leaf_vars.erase(leaf_vars.begin() + pos);
+  leaf_vars.insert(leaf_vars.begin() + pos, inner);
+  leaf_vars.insert(leaf_vars.begin() + pos, outer);
 }
 
 Stage::Stage(Operation op) {
@@ -188,14 +188,14 @@ Stage& Stage::env_threads(Array<IterVar> threads) {
   CHECK(self->op.defined() && self->op.as<ScanOpNode>())
       << "env_threads is only valid for composite ops such as ScanOp";
   CHECK_EQ(self->env_threads.size(), 0U) << "Already set env_threads";
-  ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
-  ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
+  Array<IterVar>& leaf_vars = self->leaf_iter_vars;
+  Array<IterVar>& all_vars = self->all_iter_vars;
   std::vector<ObjectRef> temp;
   for (IterVar iv : threads) {
     temp.push_back(iv);
   }
-  leaf_vars->data.insert(leaf_vars->data.begin(), temp.begin(), temp.end());
-  all_vars->data.insert(all_vars->data.end(), temp.begin(), temp.end());
+  leaf_vars.insert(leaf_vars.begin(), temp.begin(), temp.end());
+  all_vars.insert(all_vars.end(), temp.begin(), temp.end());
   self->env_threads = threads;
   return *this;
 }
@@ -233,11 +233,11 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
 
   IterVar fused = IterVarNode::make(Range(), Var(fused_name, outer->var.dtype()), iter_type);
 
-  ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
-  ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
+  Array<IterVar>& all_vars = self->all_iter_vars;
+  Array<IterVar>& leaf_vars = self->leaf_iter_vars;
 
-  size_t pos_inner = FindLeafVar(all_vars, leaf_vars, inner);
-  size_t pos_outer = FindLeafVar(all_vars, leaf_vars, outer);
+  size_t pos_inner = FindLeafVar(all_vars.GetArrayNode(), leaf_vars.GetArrayNode(), inner);
+  size_t pos_outer = FindLeafVar(all_vars.GetArrayNode(), leaf_vars.GetArrayNode(), outer);
   if (pos_inner + 1 == pos_outer) {
     std::swap(outer, inner);
     std::swap(pos_inner, pos_outer);
@@ -245,10 +245,9 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
   CHECK_EQ(pos_inner, pos_outer + 1)
       << "Can only fuse iterations that are consecutive between each other";
   self->relations.push_back(FuseNode::make(outer, inner, fused));
-  all_vars->data.push_back(fused);
-  leaf_vars->data.erase(leaf_vars->data.begin() + pos_outer,
-                        leaf_vars->data.begin() + pos_inner + 1);
-  leaf_vars->data.insert(leaf_vars->data.begin() + pos_outer, fused);
+  all_vars.push_back(fused);
+  leaf_vars.erase(leaf_vars.begin() + pos_outer, leaf_vars.begin() + pos_inner + 1);
+  leaf_vars.insert(leaf_vars.begin() + pos_outer, fused);
   *p_target = fused;
   return *this;
 }
@@ -267,10 +266,10 @@ Stage& Stage::fuse(const Array<IterVar>& axes, IterVar* p_target) {  // NOLINT(*
     IterVar singleton = IterVarNode::make(Range::make_by_min_extent(0, 1),
                                           Var("singleton", DataType::Int(32)), kDataPar);
     self->relations.push_back(SingletonNode::make(singleton));
-    ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
-    ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
-    all_vars->data.push_back(singleton);
-    leaf_vars->data.insert(leaf_vars->data.begin(), singleton);
+    Array<IterVar>& all_vars = self->all_iter_vars;
+    Array<IterVar>& leaf_vars = self->leaf_iter_vars;
+    all_vars.push_back(singleton);
+    leaf_vars.insert(leaf_vars.begin(), singleton);
     *p_target = singleton;
   }
   return *this;
@@ -296,11 +295,11 @@ Stage& Stage::reorder(const Array<IterVar>& order) {  // NOLINT(*)
   }
   std::vector<ObjectRef> temp;
   for (size_t i = 0; i < pos.size(); ++i) {
-    temp.emplace_back(leaf_vars->data[pos[i]]);
+    temp.emplace_back(leaf_vars->at(pos[i]));
   }
   std::sort(pos.begin(), pos.end());
   for (size_t i = 0; i < pos.size(); ++i) {
-    leaf_vars->data[pos[i]] = temp[i];
+    leaf_vars->SetItem(pos[i], temp[i]);
   }
   return *this;
 }

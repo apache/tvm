@@ -509,8 +509,8 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (param->newshape) {
     auto temp = param->newshape.value();
     if (param->reverse) {
-      data_shape.assign(data->shape.rbegin(), data->shape.rend());
-      newshape.assign(temp.rbegin(), temp.rend());
+      data_shape.Assign(data->shape.rbegin(), data->shape.rend());
+      newshape.Assign(temp.rbegin(), temp.rend());
     } else {
       data_shape = data->shape;
       newshape = temp;
@@ -1938,7 +1938,7 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
     reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   } else {
-    auto indices = param->indices_or_sections.as<ArrayNode>()->data;
+    auto indices = Downcast<Array<ObjectRef>>(param->indices_or_sections);
     auto begin = IndexExpr(tir::make_zero(DataType::Int(32)));
     std::vector<Type> fields;
     for (unsigned int i = 0; i < indices.size(); ++i) {

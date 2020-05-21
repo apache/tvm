@@ -116,7 +116,7 @@ void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
     IterVar iv = Downcast<IterVar>(op->node);
     env_threads_.push_back(iv);
     StmtExprVisitor::VisitStmt_(op);
-    env_threads_.CopyOnWrite()->data.pop_back();
+    env_threads_.pop_back();
   } else if (op->attr_key == attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     env_threads_.push_back(iv);
@@ -131,7 +131,7 @@ void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
     } else {
       StmtExprVisitor::VisitStmt_(op);
     }
-    env_threads_.CopyOnWrite()->data.pop_back();
+    env_threads_.pop_back();
   } else {
     StmtExprVisitor::VisitStmt_(op);
   }

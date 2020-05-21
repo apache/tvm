@@ -171,6 +171,106 @@ TEST(Array, Iterator) {
   CHECK(vector[1].as<IntImmNode>()->value == 2);
 }
 
+TEST(Array, PushPop) {
+  using namespace tvm;
+  Array<Integer> a;
+  std::vector<int> b;
+  for (int i = 0; i < 10; ++i) {
+    a.push_back(i);
+    b.push_back(i);
+    ASSERT_EQ(a.front(), b.front());
+    ASSERT_EQ(a.back(), b.back());
+    ASSERT_EQ(a.size(), b.size());
+    int n = a.size();
+    for (int j = 0; j < n; ++j) {
+      ASSERT_EQ(a[j], b[j]);
+    }
+  }
+  for (int i = 9; i >= 0; --i) {
+    ASSERT_EQ(a.front(), b.front());
+    ASSERT_EQ(a.back(), b.back());
+    ASSERT_EQ(a.size(), b.size());
+    a.pop_back();
+    b.pop_back();
+    int n = a.size();
+    for (int j = 0; j < n; ++j) {
+      ASSERT_EQ(a[j], b[j]);
+    }
+  }
+  ASSERT_EQ(a.empty(), true);
+}
+
+TEST(Array, ResizeReserveClear) {
+  using namespace tvm;
+  for (size_t n = 0; n < 10; ++n) {
+    Array<Integer> a;
+    Array<Integer> b;
+    a.resize(n);
+    b.reserve(n);
+    ASSERT_EQ(a.size(), n);
+    ASSERT_GE(a.capacity(), n);
+    a.clear();
+    b.clear();
+    ASSERT_EQ(a.size(), 0);
+    ASSERT_EQ(b.size(), 0);
+  }
+}
+
+TEST(Array, InsertErase) {
+  using namespace tvm;
+  Array<Integer> a;
+  std::vector<int> b;
+  for (int n = 1; n <= 10; ++n) {
+    a.insert(a.end(), n);
+    b.insert(b.end(), n);
+    for (int pos = 0; pos <= n; ++pos) {
+      a.insert(a.begin() + pos, pos);
+      b.insert(b.begin() + pos, pos);
+      ASSERT_EQ(a.front(), b.front());
+      ASSERT_EQ(a.back(), b.back());
+      ASSERT_EQ(a.size(), n + 1);
+      ASSERT_EQ(b.size(), n + 1);
+      for (int k = 0; k <= n; ++k) {
+        ASSERT_EQ(a[k], b[k]);
+      }
+      a.erase(a.begin() + pos);
+      b.erase(b.begin() + pos);
+    }
+    ASSERT_EQ(a.front(), b.front());
+    ASSERT_EQ(a.back(), b.back());
+    ASSERT_EQ(a.size(), n);
+  }
+}
+
+TEST(Array, InsertEraseRange) {
+  using namespace tvm;
+  Array<Integer> range_a{-1, -2, -3, -4};
+  std::vector<int> range_b{-1, -2, -3, -4};
+  Array<Integer> a;
+  std::vector<int> b;
+  for (size_t n = 1; n <= 10; ++n) {
+    a.insert(a.end(), n);
+    b.insert(b.end(), n);
+    for (size_t pos = 0; pos <= n; ++pos) {
+      a.insert(a.begin() + pos, range_a.begin(), range_a.end());
+      b.insert(b.begin() + pos, range_b.begin(), range_b.end());
+      ASSERT_EQ(a.front(), b.front());
+      ASSERT_EQ(a.back(), b.back());
+      ASSERT_EQ(a.size(), n + range_a.size());
+      ASSERT_EQ(b.size(), n + range_b.size());
+      size_t m = n + range_a.size();
+      for (size_t k = 0; k < m; ++k) {
+        ASSERT_EQ(a[k], b[k]);
+      }
+      a.erase(a.begin() + pos, a.begin() + pos + range_a.size());
+      b.erase(b.begin() + pos, b.begin() + pos + range_b.size());
+    }
+    ASSERT_EQ(a.front(), b.front());
+    ASSERT_EQ(a.back(), b.back());
+    ASSERT_EQ(a.size(), n);
+  }
+}
+
 TEST(Map, Expr) {
   using namespace tvm;
   Var x("x");
