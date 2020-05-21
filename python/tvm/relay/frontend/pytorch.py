@@ -1342,10 +1342,31 @@ def _none():
 def _pad():
     def _impl(inputs, input_types):
         data = inputs[0]
-        padding = inputs[1]
-        pad_width = list(zip(padding, padding))
+        if isinstance(inputs[1], list):
+            pad_list = inputs[1]
+        else:
+            pad_list = list(_infer_shape(inputs[1]))
+
+        # initialize paddings based on input len
+        pad_len = len(_infer_shape(data)) * 2
+        paddings = [0] * pad_len
+
+        if len(pad_list) >= 2:
+            paddings[-1] = pad_list[1]
+            paddings[-2] = pad_list[0]
+        if len(pad_list) >= 4:
+            paddings[-3] = pad_list[3]
+            paddings[-4] = pad_list[2]
+        if len(pad_list) >= 6:
+            paddings[-5] = pad_list[5]
+            paddings[-6] = pad_list[4]
+
+        # group into tuple of 2 ints
+        paddings = [paddings[i:i + 2] for i in range(0, len(paddings), 2)]
+
         pad_value = inputs[2]
-        return _op.nn.pad(data, pad_width, pad_value)
+
+        return _op.nn.pad(data, paddings, pad_value)
     return _impl
 
 
