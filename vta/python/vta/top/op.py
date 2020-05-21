@@ -20,6 +20,7 @@ from __future__ import absolute_import as _abs
 
 import tvm
 from tvm import te
+from tvm import autotvm
 import topi
 
 from tvm.relay.op import op as reg
@@ -62,6 +63,157 @@ def clip_strategy_vta(attrs, inputs, out_type, target):
     return strategy
 
 reg.get("clip").get_attr("FTVMStrategy").register(clip_strategy_vta, "vta")
+
+
+@autotvm.register_topi_compute("add.vta")
+def add_packed(cfg, lhs, rhs):
+    ret = topi.add(lhs, rhs)
+    return ret
+
+
+@autotvm.register_topi_compute("multiply.vta")
+def multiply_packed(cfg, lhs, rhs):
+    return topi.multiply(lhs, rhs)
+
+
+@autotvm.register_topi_compute("copy.vta")
+def copy_packed(cfg, i):
+    return topi.identify(i)
+
+
+def schedule_alu_packed(cfg, outs):
+    assert len(outs) == 1
+
+    def is_cast_op(op):
+        # return op.same_as(Op.op.get("cast"))
+        # FIXME(zhanghao): find a better way to do compare
+        return op.name == 'T_cast'
+
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    output = outs[0]
+    s = te.create_schedule([x.op for x in outs])
+    te.schedule.AutoInlineInjective(s)
+    # s[output].fuse(s[output].op.axis)
+
+    # only put the int-related ops to vta
+    if "int" in output.dtype and len(output.shape) == 6:
+        ewise_inputs = []
+        ewise_ops = []
+        const_ops = []
+
+        def _traverse(op):
+            if topi.tag.is_broadcast(op.tag):
+                if not op.same_as(output.op):
+                    if not op.axis:
+                        const_ops.append(op)
+                    elif not is_cast_op(op):
+                        ewise_ops.append(op)
+
+                for tensor in op.input_tensors:
+                    if isinstance(tensor.op, tvm.te.PlaceholderOp):
+                        ewise_inputs.append((op, tensor))
+                    elif is_cast_op(tensor.op) and not op.same_as(output.op):
+                        ewise_inputs.append((op, tensor))
+                    else:
+                        _traverse(tensor.op)
+            else:
+                for tensor in op.input_tensors:
+                    if (not isinstance(tensor.op, tvm.te.PlaceholderOp)) \
+                            and (not is_cast_op(tensor.op)):
+                        _traverse(tensor.op)
+
+        op = output.op
+        _traverse(op)
+        for _, t in ewise_inputs:
+            if t.dtype == 'float32':
+                return s
+
+        x_bo, x_co, x_i, x_j, x_bi, x_ci = s[output].op.axis
+
+        cfg.define_split('tile_co', x_co, num_outputs=2)
+        cfg.define_split('tile_h', x_i, num_outputs=2)
+        cfg.define_split('tile_w', x_j, num_outputs=2)
+
+        x_co_max = topi.util.get_const_int(x_bo.dom.extent)
+        x_i_max = topi.util.get_const_int(x_i.dom.extent)
+        x_j_max = topi.util.get_const_int(x_j.dom.extent)
+
+        x_co0, x_co1 = cfg['tile_co'].apply(s, output, x_co)
+        x_i0, x_i1 = cfg['tile_h'].apply(s, output, x_i)
+        x_j0, x_j1 = cfg['tile_w'].apply(s, output, x_j)
+        s[output].reorder(x_bo, x_i0, x_co0, x_j0, x_co1, x_i1, x_j1, x_bi, x_ci)
+        store_pt = x_j0
+
+        env = get_env()
+        for eo in ewise_ops:
+            s[eo].set_scope(env.acc_scope)
+            s[eo].pragma(s[eo].op.axis[0], env.alu)
+            s[eo].compute_at(s[output], store_pt)
+
+        # cache read input
+        cache_read_ewise = []
+        for consumer, tensor in ewise_inputs:
+            cache_read_ewise.append(
+                s.cache_read(tensor, env.acc_scope, [consumer]))
+
+        for tensor in cache_read_ewise:
+            if s[tensor].op.axis:
+                s[tensor].pragma(s[tensor].op.axis[0], env.dma_copy)
+            s[tensor].compute_at(s[output], store_pt)
+
+        for op in const_ops:
+            s[op].compute_inline()
+
+        s[output].pragma(x_co1, env.dma_copy)
+
+    return s
+
+
+@autotvm.register_topi_schedule("add.vta")
+def schedule_add_packed(cfg, outs):
+    return schedule_alu_packed(cfg, outs)
+
+
+@autotvm.register_topi_schedule("multiply.vta")
+def schedule_multiply_packed(cfg, outs):
+    return schedule_alu_packed(cfg, outs)
+
+
+@autotvm.register_topi_schedule("copy.vta")
+def schedule_copy_packed(cfg, outs):
+    return schedule_alu_packed(cfg, outs)
+
+
+def add_strategy_vta(attrs, inputs, out_type, target):
+    strategy = OpStrategy()
+    strategy.add_implementation(
+        _strategy.wrap_topi_compute(add_packed),
+        _strategy.wrap_topi_schedule(schedule_add_packed),
+        name="add.vta")
+    return strategy
+
+
+def multiply_strategy_vta(attrs, inputs, out_type, target):
+    strategy = OpStrategy()
+    strategy.add_implementation(
+        _strategy.wrap_topi_compute(multiply_packed),
+        _strategy.wrap_topi_schedule(schedule_multiply_packed),
+        name="multiply.vta")
+    return strategy
+
+
+def copy_strategy_vta(attrs, inputs, out_type, target):
+    strategy = OpStrategy()
+    strategy.add_implementation(
+        _strategy.wrap_topi_compute(copy_packed),
+        _strategy.wrap_topi_schedule(schedule_copy_packed),
+        name="copy.vta")
+    return strategy
+
+
+reg.get("add").get_attr("FTVMStrategy").register(add_strategy_vta, "vta")
+reg.get("multiply").get_attr("FTVMStrategy").register(multiply_strategy_vta, "vta")
+reg.get("copy").get_attr("FTVMStrategy").register(copy_strategy_vta, "vta")
 
 @_strategy.conv2d_strategy.register("vta")
 def conv2d_strategy_vta(attrs, inputs, out_type, target):

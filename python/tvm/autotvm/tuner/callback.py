@@ -137,7 +137,7 @@ def progress_bar(total, prefix='', si_prefix='G'):
     format_si_prefix(0, si_prefix)
 
     if logger.level < logging.DEBUG:  # only print progress bar in non-debug mode
-        sys.stdout.write('\r%s Current/Best: %7.2f/%7.2f GFLOPS | Progress: (%d/%d) '
+        sys.stdout.write('\r%s Current/Best: %7.4f/%7.4f GFLOPS | Progress: (%d/%d) '
                          '| %.2f s' % (prefix, 0, 0, 0, total, time.time() - tic))
         sys.stdout.flush()
 
@@ -153,7 +153,7 @@ def progress_bar(total, prefix='', si_prefix='G'):
             ctx.cur_flops = flops
             ctx.best_flops = tuner.best_flops
 
-            sys.stdout.write('\r%s Current/Best: %7.2f/%7.2f %sFLOPS | Progress: (%d/%d) '
+            sys.stdout.write('\r%s Current/Best: %7.4f/%7.4f %sFLOPS | Progress: (%d/%d) '
                              '| %.2f s' %
                              (prefix, format_si_prefix(ctx.cur_flops, si_prefix),
                               format_si_prefix(ctx.best_flops, si_prefix), si_prefix,

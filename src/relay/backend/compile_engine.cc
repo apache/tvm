@@ -230,7 +230,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
           << "Two complicated op in a primitive function "
           << " master=" << master_op_ << " current=" << op;
     }
-    if (op_pattern >= master_op_pattern_) {
+    if (op_pattern > master_op_pattern_) {
       master_op_ = op;
       master_attrs_ = call_node->attrs;
       master_op_pattern_ = op_pattern;
@@ -288,7 +288,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
   tvm::Target target_;
   Op master_op_;
   Attrs master_attrs_;
-  int master_op_pattern_{0};
+  int master_op_pattern_{-1};
   OpImplementation master_implementation_;
   std::ostringstream readable_name_stream_;
   Array<te::Operation> scalars_;

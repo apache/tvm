@@ -240,20 +240,6 @@ def register_injective_schedule(op_name, level=10):
     return register_schedule(op_name, _schedule_injective, level)
 
 
-def register_add_schedule(op_name, level=10):
-    """Register schedule function for add.
-
-    Parameters
-    ----------
-    op_name : str
-        The name of the op.
-
-    level : int
-        The priority level
-    """
-    return register_schedule(op_name, _schedule_add, level)
-
-
 def register_broadcast_schedule(op_name, level=10):
     """Register broadcast schedule function for an op.
 
@@ -407,12 +393,6 @@ def register_external_compiler(op_name, fexternal=None, level=10):
     """
     return tvm.ir.register_op_attr(op_name, "FTVMExternalCompiler", fexternal, level)
 
-
-
-def schedule_add(attrs, outputs, target):
-    """Generic schedule for add."""
-    with target:
-        return topi.generic.schedule_add(outputs)
 
 
 @tvm._ffi.register_func("relay.op.compiler._lower")

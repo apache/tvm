@@ -33,6 +33,14 @@ def wrap_topi_schedule(topi_schedule):
             return topi_schedule(outs)
     return wrapper
 
+
+def wrap_topi_compute(topi_compute):
+    """Wrap TOPI schedule which doesn't use attrs"""
+    def wrapper(attrs, inputs, out_type):
+        return [topi_compute(*inputs)]
+    return wrapper
+
+
 def get_conv2d_in_channels(data_shape, data_layout):
     """Get conv2d input channels"""
     data_shape = get_const_tuple(data_shape)
@@ -70,12 +78,6 @@ def schedule_injective(attrs, outs, target):
         return topi.generic.schedule_injective(outs)
 
 @generic_func
-def schedule_add(attrs, outputs, target):
-    """Generic schedule for add."""
-    with target:
-        return topi.generic.schedule_add(outputs)
-
-@generic_func
 def schedule_reduce(attrs, outs, target):
     """Schedule reduction ops"""
     with target:
@@ -83,7 +85,6 @@ def schedule_reduce(attrs, outs, target):
 
 _op._schedule_injective = schedule_injective
 _op._schedule_reduce = schedule_reduce
-_op._schedule_add = schedule_add
 
 # concatenate
 @generic_func
