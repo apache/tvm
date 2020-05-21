@@ -23,11 +23,7 @@ source tests/scripts/setup-pytest-env.sh
 
 cleanup()
 {
-    # cat error log if non zero exit
-    if [ $? ]; then
-        cat /tmp/$$.log.txt
-    fi
-    rm -rf /tmp/$$.*
+    rm -rf /tmp/$$.log.txt
 }
 trap cleanup 0
 
@@ -50,6 +46,7 @@ cd docs
 PYTHONPATH=`pwd`/../python make html 2>/tmp/$$.log.txt
 if grep -E "failed to execute" < /tmp/$$.log.txt; then
     echo "Some of sphinx-gallery item example failed to execute."
+    cat /tmp/$$.log.txt
     exit 1
 fi
 cd ..
