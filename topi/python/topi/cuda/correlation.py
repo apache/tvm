@@ -66,7 +66,7 @@ def correlation_nchw(cfg, data1, data2, kernel_size, max_displacement, stride1, 
                                padding, is_multiply)
 
 
-def _schedule_direct_correlation_nchw(cfg, s, correlation):
+def _schedule_correlation_nchw(cfg, s, correlation):
     """Schedule correlation_nchw direct template"""
     # pylint: disable=invalid-name
     ##### space definition begin #####
@@ -142,7 +142,7 @@ def _schedule_direct_correlation_nchw(cfg, s, correlation):
         s[load].bind(ty, te.thread_axis("threadIdx.y"))
         s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
-    # unrcorrelationl
+    # unroll
     s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
     s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
 
@@ -157,20 +157,20 @@ def schedule_correlation_nchw(cfg, outs):
         The config for this template
 
     outs: Array of Tensor
-        The computation graph description of conv2d
+        The computation graph description of correlation
         in the format of an array of tensors.
 
     Returns
     -------
     s: Schedule
-        The computation schedule for conv2d.
+        The computation schedule for correlation.
     """
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == 'correlation_nchw':
-            _schedule_direct_correlation_nchw(cfg, s, op.output(0))
+            _schedule_correlation_nchw(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
     return s
