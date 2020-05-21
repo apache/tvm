@@ -22,7 +22,7 @@ from tvm.runtime.container import getitem_helper
 from tvm.runtime import _ffi_node_api
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("Array")
 class Array(Object):
     """Array container of TVM.
 

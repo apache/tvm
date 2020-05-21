@@ -37,10 +37,10 @@ namespace te {
 template <typename T>
 size_t FindNodeRef(ArrayNode* array_node, const T& v) {
   const Object* n = v.get();
-  for (size_t i = 0; i < array_node->data.size(); ++i) {
-    if (array_node->data[i].get() == n) return i;
+  for (size_t i = 0; i < array_node->size(); ++i) {
+    if (array_node->at(i).get() == n) return i;
   }
-  return array_node->data.size();
+  return array_node->size();
 }
 
 // The replacer of cache.
@@ -158,13 +158,13 @@ Tensor Schedule::cache_read(const Tensor& tensor, const std::string& scope,
     s->op = repl_op;
   }
   ReplaceDataFlow((*this)->stages, &vmap, &rvmap);
-  ArrayNode* stages = (*this)->stages.CopyOnWrite();
+  Array<Stage>& stages = (*this)->stages;
   Stage op_stage = operator[](tensor->op);
-  size_t pos = FindNodeRef(stages, op_stage);
+  size_t pos = FindNodeRef(stages.GetArrayNode(), op_stage);
   Stage cache_stage = Stage(cache->op);
   cache_stage.set_scope(scope);
-  CHECK_LT(pos, stages->data.size());
-  stages->data.insert(stages->data.begin() + pos + 1, cache_stage);
+  CHECK_LT(pos, stages.size());
+  stages.insert(stages.begin() + pos + 1, cache_stage);
   (*this)->stage_map.Set(cache->op, cache_stage);
   // Update group
   cache_stage->group = op_stage->group;
@@ -251,12 +251,12 @@ Array<Tensor> ReplaceOriginalOp(Schedule sch, Stage orig_stage, const std::strin
   orig_stage->leaf_iter_vars = orig_stage->all_iter_vars;
   orig_stage->relations = Array<IterVarRelation>();
   // create schedule for new cached stage.
-  ArrayNode* stages = sch->stages.CopyOnWrite();
-  size_t pos = FindNodeRef(stages, orig_stage);
+  Array<Stage>& stages = sch->stages;
+  size_t pos = FindNodeRef(stages.GetArrayNode(), orig_stage);
   Stage cache_stage = Stage(cache_op);
   cache_stage.set_scope(scope);
-  CHECK_LT(pos, stages->data.size());
-  stages->data.insert(stages->data.begin() + pos, cache_stage);
+  CHECK_LT(pos, stages.size());
+  stages.insert(stages.begin() + pos, cache_stage);
   sch->stage_map.Set(cache_op, cache_stage);
   // Update group
   cache_stage->group = orig_stage->group;
@@ -465,14 +465,14 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
       if (it != s->iter_var_attrs.end() && (*it).second->bind_thread.defined()) {
         continue;
       }
-      if (idx < leaf_vars->data.size()) {
+      if (idx < leaf_vars->size()) {
         // insert rebase
         IterVar rebased = IterVarNode::make(Range(), iv->var.copy_with_suffix(""), iv->iter_type);
         s->relations.push_back(RebaseNode::make(iv, rebased));
         if (s->iter_var_attrs.count(iv)) {
           s->iter_var_attrs.Set(rebased, s->iter_var_attrs.at(iv));
         }
-        leaf_vars->data[idx] = rebased;
+        leaf_vars->SetItem(idx, rebased);
         rebase_map[iv] = rebased;
       }
     }
@@ -635,8 +635,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor, const IterVar& axis, int f
   ArrayNode* leaf_vars = reduce_stage->leaf_iter_vars.CopyOnWrite();
   {
     size_t axis_pos = FindNodeRef(leaf_vars, axis);
-    CHECK_NE(axis_pos, leaf_vars->data.size())
-        << "Cannot find IterVar " << axis << " in leaf iter vars";
+    CHECK_NE(axis_pos, leaf_vars->size()) << "Cannot find IterVar " << axis << " in leaf iter vars";
   }
   // Find touched reduction axis.
   std::unordered_map<IterVar, int> touch_map;
@@ -762,12 +761,12 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor, const IterVar& axis, int f
   }
   // initialize the factored stage.
   Operation factor_op(n);
-  ArrayNode* stages = (*this)->stages.CopyOnWrite();
-  size_t stage_pos = FindNodeRef(stages, reduce_stage);
+  Array<Stage>& stages = (*this)->stages;
+  size_t stage_pos = FindNodeRef(stages.GetArrayNode(), reduce_stage);
   Stage factor_stage = Stage(factor_op);
   factor_stage->relations = rels;
-  CHECK_LT(stage_pos, stages->data.size());
-  stages->data.insert(stages->data.begin() + stage_pos, factor_stage);
+  CHECK_LT(stage_pos, stages.size());
+  stages.insert(stages.begin() + stage_pos, factor_stage);
   (*this)->stage_map.Set(factor_op, factor_stage);
   factor_stage->group = reduce_stage->group;
   if (factor_stage->group.defined()) {
