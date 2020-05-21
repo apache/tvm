@@ -61,23 +61,20 @@ class DFPattern(Node):
     def __truediv__(self, other):
         return is_op("divide")(self, other)
 
-    def has_attr(self, attr_name: str, attr_value):
+    def has_attr(self, attrs):
         """
         Add an attribute constraint to this pattern
 
         Parameters
         ----------
-        attr_name: str
-            The name of the attribute to match
-        attr_value: Any
-            The value of the attribute to match
+        attrs: Dict[str, Object]
 
         Returns
         -------
         result: tvm.relay.dataflow_pattern.DFPattern
             The resulting AttrPattern
         """
-        attrs = make_node("DictAttrs", **{attr_name: attr_value})
+        attrs = make_node("DictAttrs", **attrs)
         return AttrPattern(self, attrs)
 
     def has_type(self, ttype):
@@ -237,17 +234,17 @@ def has_type(ttype, pattern: DFPattern = None) -> DFPattern:
     return TypePattern(pattern, ttype)
 
 
-def has_attr(attr_name: DFPattern, attr_value, pattern=None) -> DFPattern:
+def has_attr(attrs, pattern=None) -> DFPattern:
     """
     Syntatic sugar for creating an AttrPattern
 
     Parameters
     ----------
-    pattern: tvm.relay.dataflow_pattern.DFPattern
-        The input pattern.
-
-    attrs: tvm.Attrs
+    attrs: Dict[str, Object]
         The attributes to match
+
+    pattern: Optional[tvm.relay.dataflow_pattern.DFPattern]
+        The input pattern.
 
     Returns
     -------
@@ -256,7 +253,7 @@ def has_attr(attr_name: DFPattern, attr_value, pattern=None) -> DFPattern:
     """
     if pattern is None:
         pattern = wildcard()
-    return pattern.has_attr(attr_name, attr_value)
+    return pattern.has_attr(attrs)
 
 
 def dominates(parent: DFPattern, path: DFPattern, child: DFPattern) -> DFPattern:
