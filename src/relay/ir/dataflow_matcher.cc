@@ -114,7 +114,6 @@ bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
       }
       break;
     case kTVMStr:
-      std::cout << lhs << std::endl;
       if (auto* val = lhs.as<tir::StringImmNode>()) {
         return val->value == rhs.operator std::string();
       } else if (auto* val = lhs.as<StringObj>()) {
