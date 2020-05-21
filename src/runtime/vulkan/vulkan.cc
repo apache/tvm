@@ -407,7 +407,7 @@ void VulkanDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
       dims[1] = phy_prop.limits.maxComputeWorkGroupSize[1];
       dims[2] = phy_prop.limits.maxComputeWorkGroupSize[2];
       std::stringstream ss;  // use json string to return multiple int values;
-      ss << "[" << dims[0] <<", " << dims[1] << ", " << dims[2] << "]";
+      ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
       *rv = ss.str();
       break;
     }
