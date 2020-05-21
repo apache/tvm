@@ -38,7 +38,6 @@ AUTOTVM_TOPHUB_LOC_VAR = "TOPHUB_LOCATION"
 # default location of TopHub
 AUTOTVM_TOPHUB_DEFAULT_LOC = "https://raw.githubusercontent.com/uwsampl/tvm-distro/master/tophub"
 
-
 # value of AUTOTVM_TOPHUB_LOC_VAR to specify to not read from TopHub
 AUTOTVM_TOPHUB_NONE_LOC = "NONE"
 
