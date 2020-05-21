@@ -1020,6 +1020,50 @@ def test_adaptive_pool3d():
         verify_model(torch.nn.AdaptiveMaxPool3d((7, 8, 9)).eval(), inp)
 
 
+def test_forward_functional_pad():
+    torch.set_grad_enabled(False)
+    pad = (0, 0)
+    class Pad1(Module):
+        def forward(self, *args):
+            return torch.nn.functional.pad(args[0], pad, "constant", 0)
+
+    input_data = torch.rand((3, 3, 4, 2))
+    pad = (1, 1)
+    verify_model(Pad1().float().eval(), input_data=input_data)
+
+    pad = (1, 1, 2, 2)
+    verify_model(Pad1().float().eval(), input_data=input_data)
+
+    pad = (0, 1, 2, 1, 3, 3)
+    verify_model(Pad1().float().eval(), input_data=input_data)
+
+
+def test_forward_zero_pad2d():
+    inp = torch.rand((1, 1, 3, 3))
+    verify_model(torch.nn.ZeroPad2d(2).eval(), inp)
+    verify_model(torch.nn.ZeroPad2d((1, 1, 2, 0)).eval(), inp)
+
+
+def test_forward_constant_pad1d():
+    inp = torch.rand((1, 2, 4))
+    verify_model(torch.nn.ConstantPad2d(2, 3.5).eval(), inp)
+
+    inp = torch.rand((1, 2, 3))
+    verify_model(torch.nn.ConstantPad2d((3, 1), 3.5).eval(), inp)
+
+
+def test_forward_constant_pad2d():
+    inp = torch.rand((1, 2, 2, 2))
+    verify_model(torch.nn.ConstantPad2d(2, 3.5).eval(), inp)
+    verify_model(torch.nn.ConstantPad2d((3, 0, 2, 1), 3.5).eval(), inp)
+
+
+def test_forward_constant_pad3d():
+    inp = torch.rand((1, 3, 2, 2, 2))
+    verify_model(torch.nn.ConstantPad3d(3, 3.5).eval(), inp)
+    verify_model(torch.nn.ConstantPad3d((3, 4, 5, 6, 0, 1), 3.5).eval(), inp)
+
+
 def test_forward_reflection_pad2d():
     inp = torch.rand((1, 1, 3, 3))
     verify_model(torch.nn.ReflectionPad2d(2).eval(), inp)
@@ -2200,6 +2244,11 @@ if __name__ == "__main__":
     test_upsample()
     test_forward_upsample3d()
     test_to()
+    test_forward_functional_pad()
+    test_forward_zero_pad2d()
+    test_forward_constant_pad1d()
+    test_forward_constant_pad2d()
+    test_forward_constant_pad3d()
     test_forward_reflection_pad2d()
     test_adaptive_pool3d()
     test_conv3d()
