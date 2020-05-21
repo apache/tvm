@@ -158,11 +158,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ArrayNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const ArrayNode*>(node.get());
       p->stream << '[';
-      for (size_t i = 0; i < op->data.size(); ++i) {
+      for (size_t i = 0; i < op->size(); ++i) {
         if (i != 0) {
           p->stream << ", ";
         }
-        p->Print(op->data[i]);
+        p->Print(op->at(i));
       }
       p->stream << ']';
     });
