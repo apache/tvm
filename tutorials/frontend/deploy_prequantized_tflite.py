@@ -114,8 +114,13 @@ data = get_real_image(224, 224)
 tflite_model_file = os.path.join(model_dir, "mobilenet_v2_1.0_224_quant.tflite")
 tflite_model_buf = open(tflite_model_file, "rb").read()
 
-tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
-
+# Get TFLite model from buffer
+try:
+    import tflite
+    tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+except AttributeError:
+    import tflite.Model
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
 
 ###############################################################################
 # Lets run TFLite pre-quantized model inference and get the TFLite prediction.
