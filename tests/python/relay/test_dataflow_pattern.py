@@ -928,6 +928,31 @@ def test_parition_double_batchnorm():
     reference = f2(gamma, f1(gamma, x, mean, var, beta), mean, var, beta)
     assert tvm.ir.structural_equal(partitioned, reference)
 
+def test_partition_check():
+    pattern = is_op("nn.relu")(is_op("nn.conv2d")(wildcard(), wildcard()))
+    def check(pre):
+        return pre.args[0].attrs.data_layout == "NCHW"
+
+    x = relay.var('input')
+    w = relay.var('weight')
+    conv2d = relay.op.nn.conv2d(x, w)
+    relu = relay.op.nn.relu(conv2d)
+
+    xf = relay.var('input')
+    wf = relay.var('weight')
+    conv2df = relay.op.nn.conv2d(xf, wf)
+    reluf = relay.op.nn.relu(conv2df)
+    func = relay.Function([xf, wf], reluf).with_attr("PartitionedFromPattern", "nn.conv2d_nn.relu_")
+
+    reference = func(x, w)
+    partitioned = pattern.partition(relu, check=check)
+    assert tvm.ir.structural_equal(partitioned, reference)
+
+    conv2d = relay.op.nn.conv2d(x, w, data_layout="NHWC")
+    relu = relay.op.nn.relu(conv2d)
+    assert relu == pattern.partition(relu, check=check)
+
+
 if __name__ == "__main__":
     test_match_op()
     test_no_match_op()
@@ -959,4 +984,5 @@ if __name__ == "__main__":
     test_quadruple_partition_dominator()
     test_parition_batchnorm()
     test_parition_double_batchnorm()
+    test_parition_check()
 
