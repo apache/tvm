@@ -299,7 +299,7 @@ void MicroSession::FlushTaskQueuePriv() {
     if (rv.type_code() == kTVMNullptr) {
       did_debug = true;
     } else {
-      did_debug = bool(rv);
+      did_debug = static_cast<bool>(rv);
     }
 
     if (did_debug && !use_device_timer_) {
@@ -310,13 +310,13 @@ void MicroSession::FlushTaskQueuePriv() {
 
   if (!did_debug) {
     std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin,
-      tend;
+        tend;
     tbegin = std::chrono::high_resolution_clock::now();
     low_level_device()->Execute(utvm_init_addr, utvm_done_addr);
     tend = std::chrono::high_resolution_clock::now();
     if (!use_device_timer_) {
       last_batch_time_ +=
-        std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() * 1000;
+          std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() * 1000;
     }
   }
 
