@@ -126,7 +126,8 @@ class Session:
             self.thumb_mode,
             self.use_device_timer,
             server_addr,
-            server_port)
+            server_port,
+            config.get("debug_func"))
         self._enter = self.module["enter"]
         self._exit = self.module["exit"]
         self.get_last_batch_time = self.module["get_last_batch_time"]

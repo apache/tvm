@@ -107,7 +107,7 @@ class MicroSession : public ModuleNode {
                uint64_t heap_start, size_t heap_size, uint64_t workspace_start,
                size_t workspace_size, uint64_t stack_start, size_t stack_size,
                TargetWordSize word_size, bool thumb_mode, bool use_device_timer,
-               const std::string& server_addr, int port);
+               const std::string& server_addr, int port, PackedFunc debug_func);
 
   /*!
    * \brief destructor
@@ -244,6 +244,8 @@ class MicroSession : public ModuleNode {
   double last_batch_time_;
   /*! \brief TODO hack */
   double last_batch_cycles_;
+  /*! \brief the debug function invoked to launch gdb */
+  PackedFunc debug_func_;
 
   /*!
    * \brief patches a function pointer in this module to an implementation
