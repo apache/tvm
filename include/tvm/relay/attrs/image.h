@@ -172,8 +172,7 @@ struct AffineGridAttrs : public tvm::AttrsNode<AffineGridAttrs> {
   Array<IndexExpr> target_shape;
 
   TVM_DECLARE_ATTRS(AffineGridAttrs, "relay.attrs.AffineGridAttrs") {
-    TVM_ATTR_FIELD(target_shape)
-        .describe("Specifies the output shape (H, W).");
+    TVM_ATTR_FIELD(target_shape).describe("Specifies the output shape (H, W).");
   }
 };
 

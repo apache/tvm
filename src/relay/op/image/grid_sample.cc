@@ -21,9 +21,10 @@
  * \file grid_sample.cc
  * \brief affine_grid and grid_sample operator
  */
-#include <tvm/tir/data_layout.h>
-#include <tvm/relay/op.h>
 #include <tvm/relay/attrs/image.h>
+#include <tvm/relay/op.h>
+#include <tvm/tir/data_layout.h>
+
 #include "../op_common.h"
 
 namespace tvm {
@@ -33,7 +34,7 @@ namespace relay {
 TVM_REGISTER_NODE_TYPE(AffineGridAttrs);
 
 bool AffineGridRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                      const TypeReporter& reporter) {
+                   const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
@@ -95,7 +96,7 @@ transformation is then applied on the sampling grid.
 TVM_REGISTER_NODE_TYPE(GridSampleAttrs);
 
 bool GridSampleRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                        const TypeReporter& reporter) {
+                   const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* grid = types[1].as<TensorTypeNode>();
@@ -117,8 +118,8 @@ bool GridSampleRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 // used by frontend FFI.
 Expr MakeGridSample(Expr data, Expr grid, String method, String layout) {
   auto attrs = make_object<GridSampleAttrs>();
-  attrs->method = method;
-  attrs->layout = layout;
+  attrs->method = std::move(method);
+  attrs->layout = std::move(layout);
   static const Op& op = Op::Get("image.grid_sample");
   return Call(op, {data, grid}, Attrs(attrs), {});
 }
