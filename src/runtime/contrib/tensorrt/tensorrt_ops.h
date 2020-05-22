@@ -364,6 +364,23 @@ class Conv2DOpConverter : public TrtOpConverter {
     CHECK(conv2d_attr->out_layout == "" || conv2d_attr->out_layout == "NCHW");
     CHECK_EQ(conv2d_attr->kernel_layout, "OIHW");
 
+    // TRT conv2d op doesn't support asymmetric padding before 5.1, so we
+    // workaround by adding a padding layer before the pooling op.
+    nvinfer1::DimsHW prepadding, postpadding;
+    bool use_asymmetric_padding;
+    GetPadding(conv2d_attr->padding, &use_asymmetric_padding, &prepadding, &postpadding);
+#if !TRT_VERSION_GE(5, 1, 5)
+    if (use_asymmetric_padding) {
+      auto pad_layer =
+          params->network->addPadding(*input_tensor, prepadding, postpadding);
+      CHECK(pad_layer != nullptr);
+      input_tensor = pad_layer->getOutput(0);
+      // No need for conv op to do any padding.
+      use_asymmetric_padding = false;
+      prepadding = nvinfer1::DimsHW(0, 0);
+    }
+#endif
+
     // Could use conv2d_attr->channels.as<IntImmNode>()->value
     const int num_outputs = weight_shape[0];
     const auto kernel_size = nvinfer1::DimsHW(weight_shape[2], weight_shape[3]);
@@ -372,12 +389,11 @@ class Conv2DOpConverter : public TrtOpConverter {
         params->network->addConvolution(*input_tensor, num_outputs, kernel_size,
                                         params->inputs.at(1).weight, bias);
     CHECK(conv_layer != nullptr);
-    nvinfer1::DimsHW prepadding, postpadding;
-    bool use_asymmetric_padding;
-    GetPadding(conv2d_attr->padding, &use_asymmetric_padding, &prepadding, &postpadding);
     if (use_asymmetric_padding) {
+#if TRT_VERSION_GE(5, 1, 5)
       conv_layer->setPrePadding(prepadding);
       conv_layer->setPostPadding(postpadding);
+#endif
     } else {
       conv_layer->setPadding(prepadding);
     }
@@ -788,6 +804,23 @@ class Conv2DTransposeOpConverter : public TrtOpConverter {
     CHECK(conv2d_attr->dilation[0].as<IntImmNode>()->value == 1 &&
           conv2d_attr->dilation[1].as<IntImmNode>()->value == 1);
 
+    // TRT deconv op doesn't support asymmetric padding before 5.1, so we
+    // workaround by adding a padding layer before the pooling op.
+    nvinfer1::DimsHW prepadding, postpadding;
+    bool use_asymmetric_padding;
+    GetPadding(conv2d_attr->padding, &use_asymmetric_padding, &prepadding, &postpadding);
+#if !TRT_VERSION_GE(5, 1, 5)
+    if (use_asymmetric_padding) {
+      auto pad_layer =
+          params->network->addPadding(*input_tensor, prepadding, postpadding);
+      CHECK(pad_layer != nullptr);
+      input_tensor = pad_layer->getOutput(0);
+      // No need for conv op to do any padding.
+      use_asymmetric_padding = false;
+      prepadding = nvinfer1::DimsHW(0, 0);
+    }
+#endif
+
     // Could use conv2d_attr->channels.as<IntImmNode>()->value
     const int num_outputs = weight_shape[1];
     const auto kernel_size = nvinfer1::DimsHW(weight_shape[2], weight_shape[3]);
@@ -796,12 +829,11 @@ class Conv2DTransposeOpConverter : public TrtOpConverter {
         *input_tensor, num_outputs, kernel_size, params->inputs.at(1).weight,
         bias);
     CHECK(deconv_layer != nullptr);
-    nvinfer1::DimsHW prepadding, postpadding;
-    bool use_asymmetric_padding;
-    GetPadding(conv2d_attr->padding, &use_asymmetric_padding, &prepadding, &postpadding);
     if (use_asymmetric_padding) {
+#if TRT_VERSION_GE(5, 1, 5)
       deconv_layer->setPrePadding(prepadding);
       deconv_layer->setPostPadding(postpadding);
+#endif
     } else {
       deconv_layer->setPadding(prepadding);
     }
