@@ -74,10 +74,7 @@ def make_add_sub_mul_pattern():
     """
     x = wildcard()
     y = wildcard()
-    add_node = is_op('add')(x, y)
-    sub_node = is_op('subtract')(x, y)
-    mul_node = is_op('multiply')(add_node, sub_node)
-    return mul_node
+    return (x + y) * (x - y)
 
 
 def make_add_relu_pattern():
@@ -87,7 +84,7 @@ def make_add_relu_pattern():
          |
        relu
     """
-    add_node = is_op('add')(wildcard(), wildcard())
+    add_node = wildcard() + wildcard()
     r = is_op('nn.relu')(add_node)
     return r
 
