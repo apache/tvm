@@ -96,8 +96,11 @@ FeatureSet DetectFeature(const IRModule& mod) {
   return fs;
 }
 
-Array<Integer> PyDetectFeature(const Expr& expr, const IRModule& mod) {
-  FeatureSet fs = DetectFeature(expr) + DetectFeature(mod);
+Array<Integer> PyDetectFeature(const Expr& expr, const Optional<IRModule>& mod) {
+  FeatureSet fs = DetectFeature(expr);
+  if (mod.defined()) {
+    fs = fs + DetectFeature(mod.value());
+  }
   return static_cast<Array<Integer>>(fs);
 }
 

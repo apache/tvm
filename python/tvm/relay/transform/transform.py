@@ -656,7 +656,8 @@ def to_cps(func, mod=None):
     result: tvm.relay.Function
       The output function.
     """
-    return _ffi_api.to_cps(func, mod)
+    use_mod = mod if mod is not None else tvm.ir.IRModule()
+    return _ffi_api.to_cps(func, use_mod)
 
 
 def un_cps(func):
