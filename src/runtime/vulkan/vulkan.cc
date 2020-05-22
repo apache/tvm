@@ -368,7 +368,7 @@ void VulkanDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
     case kMaxThreadsPerBlock: {
       VkPhysicalDeviceProperties phy_prop;
       vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
-      int64_t value = phy_prop.limits.maxComputeWorkGroupSize[0];
+      int64_t value = phy_prop.limits.maxComputeWorkGroupInvocations;
       *rv = value;
       break;
     }
@@ -401,8 +401,18 @@ void VulkanDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
       return;
     case kExist:
       break;
-    case kMaxThreadDimensions:
+    case kMaxThreadDimensions: {
+      VkPhysicalDeviceProperties phy_prop;
+      vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
+      int64_t dims[3];
+      dims[0] = phy_prop.limits.maxComputeWorkGroupSize[0];
+      dims[1] = phy_prop.limits.maxComputeWorkGroupSize[1];
+      dims[2] = phy_prop.limits.maxComputeWorkGroupSize[2];
+      std::stringstream ss;  // use json string to return multiple int values;
+      ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
+      *rv = ss.str();
       break;
+    }
     case kGcnArch:
       return;
   }
