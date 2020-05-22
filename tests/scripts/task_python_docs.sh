@@ -20,6 +20,13 @@ set -e
 set -u
 
 source tests/scripts/setup-pytest-env.sh
+
+cleanup()
+{
+    rm -rf /tmp/$$.log.txt
+}
+trap cleanup 0
+
 # cleanup old states
 rm -rf docs/_build
 mkdir -p docs/_build/html
@@ -36,7 +43,12 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 cd docs
-PYTHONPATH=`pwd`/../python make html
+PYTHONPATH=`pwd`/../python make html 2>/tmp/$$.log.txt
+if grep -E "failed to execute" < /tmp/$$.log.txt; then
+    echo "Some of sphinx-gallery item example failed to execute."
+    cat /tmp/$$.log.txt
+    exit 1
+fi
 cd ..
 
 # C++ doc
