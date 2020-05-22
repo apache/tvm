@@ -56,7 +56,6 @@ def get_binds(args, compact=False, binds=None):
         The list of symbolic buffers of arguments.
     """
     binds = {} if binds is None else binds.copy()
-    cfg = BuildConfig.current()
     arg_list = []
     for x in args:
         if isinstance(x, tensor.Tensor):
@@ -66,9 +65,6 @@ def get_binds(args, compact=False, binds=None):
                 buf = tvm.tir.decl_buffer(
                     x.shape,
                     dtype=x.dtype,
-                    name=x.name,
-                    data_alignment=cfg.data_alignment,
-                    offset_factor=cfg.offset_factor,
                     buffer_type=buffer_type)
                 binds[x] = buf
                 arg_list.append(buf)
@@ -157,8 +153,6 @@ def lower(sch,
     """
     cfg = BuildConfig.current()
     add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
-    if cfg.dump_pass_ir:
-        add_lower_pass = BuildConfig._dump_ir.decorate_custompass(add_lower_pass)
     lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
     lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
     lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]

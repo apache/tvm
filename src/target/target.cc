@@ -357,8 +357,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<BuildConfigNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const BuildConfigNode*>(node.get());
       p->stream << "build_config(";
-      p->stream << "data_alignment=" << op->data_alignment << ", ";
-      p->stream << "offset_factor=" << op->offset_factor << ", ";
       p->stream << "double_buffer_split_loop=" << op->double_buffer_split_loop << ", ";
       p->stream << "auto_unroll_max_step=" << op->auto_unroll_max_step << ", ";
       p->stream << "auto_unroll_max_depth=" << op->auto_unroll_max_depth << ", ";
@@ -367,7 +365,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "restricted_func=" << op->restricted_func << ", ";
       p->stream << "detect_global_barrier=" << op->detect_global_barrier << ", ";
       p->stream << "partition_const_loop=" << op->partition_const_loop << ", ";
-      p->stream << "dump_pass_ir=" << op->dump_pass_ir << ", ";
       p->stream << "instrument_bound_checkers=" << op->instrument_bound_checkers << ", ";
       p->stream << "disable_select_rewriting=" << op->disable_select_rewriting;
       p->stream << "disable_vectorize=" << op->disable_vectorize;
