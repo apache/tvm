@@ -1114,6 +1114,38 @@ def test_forward_space_to_depth():
     verify((1, 1, 9, 9), 3)
 
 
+def test_forward_correlation():
+    def verify(data_shape, kernel_size, max_displacement, stride1, stride2, pad_size,
+               is_multiply):
+        data1 = np.random.uniform(size=data_shape).astype("float32")
+        data2 = np.random.uniform(size=data_shape).astype("float32")
+        ref_res = mx.nd.Correlation(data1=mx.nd.array(data1), data2=mx.nd.array(data2),
+                                    kernel_size=kernel_size, max_displacement=max_displacement,
+                                    stride1=stride1, stride2=stride2, pad_size=pad_size,
+                                    is_multiply=is_multiply)
+        mx_sym = mx.sym.Correlation(data1=mx.sym.var('data1'), data2=mx.sym.var('data2'),
+                                    kernel_size=kernel_size, max_displacement=max_displacement,
+                                    stride1=stride1, stride2=stride2, pad_size=pad_size,
+                                    is_multiply=is_multiply)
+        shape_dict = {"data1": data1.shape, "data2": data2.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(data1, data2)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
+
+    verify((1, 3, 10, 10), kernel_size = 1, max_displacement = 4, stride1 = 1, stride2 = 1, pad_size = 4, is_multiply = False)
+    verify((5, 1, 15, 15), kernel_size = 1, max_displacement = 5, stride1 = 1, stride2 = 1, pad_size = 5, is_multiply = False)
+    verify((5, 1, 15, 15), kernel_size = 1, max_displacement = 5, stride1 = 1, stride2 = 1, pad_size = 5, is_multiply = True)
+    verify((5, 1, 15, 15), kernel_size = 1, max_displacement = 10, stride1 = 1, stride2 = 2, pad_size = 10, is_multiply = True)
+    verify((5, 1, 4, 4), kernel_size = 3, max_displacement = 1, stride1 = 1, stride2 = 1, pad_size = 2, is_multiply = True)
+    verify((5, 1, 4, 4), kernel_size = 3, max_displacement = 1, stride1 = 2, stride2 = 1, pad_size = 2, is_multiply = True)
+    verify((5, 1, 4, 4), kernel_size = 3, max_displacement = 1, stride1 = 2, stride2 = 1, pad_size = 2, is_multiply = False)
+    verify((5, 1, 6, 4), kernel_size = 3, max_displacement = 1, stride1 = 2, stride2 = 1, pad_size = 2, is_multiply = False)
+    verify((5, 1, 11, 11), kernel_size = 5, max_displacement = 1, stride1 = 1, stride2 = 1, pad_size = 2, is_multiply = False)
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -1178,3 +1210,4 @@ if __name__ == '__main__':
     test_forward_make_loss()
     test_forward_unravel_index()
     test_forward_swap_axis()
+    test_forward_correlation()

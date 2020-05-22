@@ -357,3 +357,8 @@ class DilateAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.SubPixelAttrs")
 class SubPixelAttrs(Attrs):
     """Attributes used in depth to space and space to depth operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.CorrelationAttrs")
+class CorrelationAttrs(Attrs):
+    """Attributes used in correlation operators"""

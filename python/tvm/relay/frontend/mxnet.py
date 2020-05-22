@@ -1133,6 +1133,19 @@ def _mx_space_to_depth(inputs, attrs):
     return _op.nn.space_to_depth(*inputs, **new_attrs)
 
 
+def _mx_correlation(inputs, attrs):
+    assert len(inputs) == 2
+    new_attrs = {}
+    new_attrs["kernel_size"] = attrs.get_int("kernel_size", 1)
+    new_attrs["max_displacement"] = attrs.get_int("max_displacement", 1)
+    new_attrs["stride1"] = attrs.get_int("stride1", 1)
+    new_attrs["stride2"] = attrs.get_int("stride2", 1)
+    new_attrs["padding"] = attrs.get_int("pad_size", 0)
+    new_attrs["is_multiply"] = attrs.get_bool("is_multiply", True)
+    new_attrs["layout"] = "NCHW"
+    return _op.nn.correlation(*inputs, **new_attrs)
+
+
 def _mx_contrib_fifo_buffer(inputs, attrs):
     new_attrs = {}
     new_attrs['axis'] = attrs.get_int('axis')
@@ -1971,6 +1984,7 @@ _convert_map = {
     "one_hot"           : _mx_one_hot,
     "depth_to_space"    : _mx_depth_to_space,
     "space_to_depth"    : _mx_space_to_depth,
+    "Correlation"       : _mx_correlation,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
