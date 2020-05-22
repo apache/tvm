@@ -64,6 +64,7 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=N
     options.append("-O0")
     if sys.maxsize > 2**32 and sys.platform.startswith("linux"):
         options += ["-mcmodel=large"]
+    options.append('-DUTVM_TARGET_HOST')
     create_micro_lib_base(
         obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options,
         lib_src_paths=lib_src_paths)

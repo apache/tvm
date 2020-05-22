@@ -101,10 +101,12 @@ void UTVMMain() {
 
 // We use a dummy function to signal execution is finished for device
 // backends which require breakpoints.
-void __attribute__((noinline, noreturn)) UTVMDone() {
+void __attribute__((noinline)) UTVMDone() {
   utvm_done = 1;
+#ifndef UTVM_TARGET_HOST
   for (;;) {
   }
+#endif
 }
 
 #define ALIGNED_UP(x, word_size) \
