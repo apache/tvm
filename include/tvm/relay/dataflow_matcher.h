@@ -27,6 +27,7 @@
 #include <tvm/relay/dataflow_pattern.h>
 #include <tvm/relay/dataflow_pattern_functor.h>
 
+#include <string>
 #include <unordered_map>
 #include <utility>
 
@@ -87,10 +88,14 @@ Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr);
  *
  * \param pattern The pattern to match
  * \param expr The expression to patition
+ * \param attrs A set of parameter names and values to apply to the partitioned function
+ * \param check A callback function for checking more complicated properties of the matched
+ * expressions, returns true if the match is accepted and false otherwise
  *
  * \return Return the paritioned Expr.
  */
-Expr PartitionPattern(DFPattern pattern, Expr expr);
+Expr PartitionPattern(DFPattern pattern, Expr expr, Map<std::string, ObjectRef> attrs,
+                      PackedFunc check);
 
 }  // namespace relay
 }  // namespace tvm
