@@ -72,7 +72,7 @@ def verify_correlation_nchw(data_shape, kernel_size, max_displacement, stride1, 
             func(a, b, c)
             tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in ['llvm']:
+    for device in get_all_backend():
         check_device(device)
 
 
