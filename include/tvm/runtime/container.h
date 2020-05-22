@@ -491,10 +491,10 @@ class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, ObjectRef> {
   int64_t capacity_;
 
   /*! \brief Initial size of ArrayNode */
-  static const constexpr int64_t kInitSize = 4;
+  static constexpr int64_t kInitSize = 4;
 
   /*! \brief Expansion factor of the Array */
-  static const constexpr int64_t kIncFactor = 2;
+  static constexpr int64_t kIncFactor = 2;
 
   // CRTP parent class
   friend InplaceArrayBase<ArrayNode, ObjectRef>;
@@ -929,7 +929,9 @@ class Array : public ObjectRef {
   ArrayNode* CopyOnWrite(int64_t reserve_extra) {
     ArrayNode* p = GetArrayNode();
     if (p == nullptr) {
-      return SwitchContainer(std::max(ArrayNode::kInitSize, reserve_extra));
+      // necessary to get around the constexpr address issue before c++17
+      const int64_t kInitSize = ArrayNode::kInitSize;
+      return SwitchContainer(std::max(kInitSize, reserve_extra));
     }
     if (p->capacity_ >= p->size_ + reserve_extra) {
       return CopyOnWrite();
