@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """The Relay Pattern Language and tooling."""
-from tvm.relay import Expr
+from tvm.relay.expr import RelayExpr as Expr
 import tvm._ffi
 from ...ir.base import Node
 from ...ir import make_node
