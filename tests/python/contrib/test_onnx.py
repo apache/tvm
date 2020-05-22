@@ -218,19 +218,6 @@ def test_batch_flatten():
     verify_test_batch_flatten((1, 8))
 
 
-def test_bias_add():
-    def verify_bias_add():
-        data = relay.var("data", relay.TensorType((1, 16), "float32"))
-        bias = relay.var("bias", relay.TensorType((16,), "float32"))
-        func = relay.Function([data, bias], relay.nn.bias_add(data, bias))
-
-        x_data = np.random.uniform(size=(1, 16)).astype("float32")
-        bias = np.random.uniform(size=(16,)).astype("float32")
-        verify_results(func, [x_data, bias], 'test_bias_add', rtol=1e-5, atol=1e-5)
-
-    verify_bias_add()
-
-
 def test_batch_norm():
     def verify_batch_norm(axis=1):
         for dtype in ['float16', 'float32']:

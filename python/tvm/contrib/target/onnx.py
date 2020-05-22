@@ -143,7 +143,7 @@ class MatMul(OpConverter):
         transpose_node = onnx.helper.make_node(Transpose.__name__,
                                                [node['input_names'][1]],
                                                [output_name],
-                                               **{'perm': (1, 0)})
+                                               perm=(1, 0))
         model_container.add_nodes([transpose_node])
 
         inputs = [node['input_names'][0], output_name]
@@ -188,21 +188,21 @@ class BatchNormalization(OpConverter):
             node_transposed = onnx.helper.make_node(Transpose.__name__,
                                                     [node['input_names'][0]],
                                                     [transpose_out_name],
-                                                    **{'perm': [0, 3, 1, 2]})
+                                                    perm=[0, 3, 1, 2])
             model_container.add_nodes([node_transposed])
             output_names = ['batch_norm_{}'.format(node['output_names'][0])]
 
         batch_norm_node = onnx.helper.make_node(cls.__name__,
                                                 [transpose_out_name] + node['input_names'][1:],
                                                 output_names,
-                                                **{'epsilon': attrs['epsilon']})
+                                                epsilon=attrs['epsilon'])
         model_container.add_nodes([batch_norm_node])
 
         if attrs['axis'] == 3:
             node_transposed = onnx.helper.make_node(Transpose.__name__,
                                                     output_names,
                                                     node['output_names'],
-                                                    **{'perm': [0, 2, 3, 1]})
+                                                    perm=[0, 2, 3, 1])
             model_container.add_nodes([node_transposed])
 
 
@@ -250,7 +250,7 @@ class BiasAdd(OpConverter):
             unsqueeze_node = onnx.helper.make_node('Unsqueeze',
                                                    [node['input_names'][1]],
                                                    [output_name],
-                                                   **{'axes': tuple(range(1, new_axes + 1))})
+                                                   axes=tuple(range(1, new_axes + 1)))
             model_container.add_nodes([unsqueeze_node])
         else:
             output_name = node['input_names'][1]
@@ -286,8 +286,8 @@ class ReduceMean(OpConverter):
         node = onnx.helper.make_node(cls.__name__,
                                      node['input_names'],
                                      node['output_names'],
-                                     **{"axes": axis,
-                                        "keepdims": keepdims})
+                                     axes=axis,
+                                     keepdims=keepdims)
         model_container.add_nodes([node])
 
 
@@ -367,7 +367,7 @@ class Squeeze(OpConverter):
         node = onnx.helper.make_node(cls.__name__,
                                      node['input_names'],
                                      node['output_names'],
-                                     **{"axes": axis})
+                                     axes=axis)
         model_container.add_nodes([node])
 
 
@@ -454,7 +454,7 @@ class ConstantOfShapeZeros(OpConverter):
         node = onnx.helper.make_node('ConstantOfShape',
                                      [input_shape_name],
                                      node['output_names'],
-                                     **{'value': tensor_value})
+                                     value=tensor_value)
         model_container.add_nodes([node])
 
 
@@ -672,13 +672,16 @@ def to_onnx(relay_ir, params, name, opset_version=11, path=None):
     params : dict
         dict of the parameter names and NDarray values
 
+    name : str
+        name of the output ONNX graph
+
     path : str
         The path where ONNX model will be saved
 
     Returns
     -------
-    inferred_model : tvm.relay.Module
-        The relay module
+    onnx_model : onnx.ModelProto
+        converted ONNX model as a ModelProto.
 
     """
 
