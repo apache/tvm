@@ -823,6 +823,56 @@ def test_dilation2d_run():
                         data_layout='NHWC', kernel_layout='HWI')
 
 
+def test_affine_grid():
+    def verify_affine_grid(num_batch, target_shape):
+        dtype = 'float32'
+        data_shape = (num_batch, 2, 3)
+        data = relay.var("data", relay.ty.TensorType(data_shape, dtype))
+        y = relay.image.affine_grid(data, target_shape)
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.ty.TensorType((num_batch, len(target_shape), *target_shape), dtype)
+
+        func = relay.Function([data], y)
+        data_np = np.random.uniform(size=data_shape).astype(dtype)
+        ref_res = topi.testing.affine_grid_python(data_np, target_shape)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp1 = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res1 = intrp1.evaluate(func)(data_np)
+                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    verify_affine_grid(1, (16, 32))
+    verify_affine_grid(4, (16, 32))
+
+
+def test_grid_sample():
+    def verify_grid_sample(data_shape, grid_shape):
+        dtype = 'float32'
+        batch, channel, _, _ = data_shape
+        _, _, out_height, out_width = grid_shape
+        data = relay.var("data", relay.ty.TensorType(data_shape, dtype))
+        grid = relay.var("grid", relay.ty.TensorType(grid_shape, dtype))
+        y = relay.image.grid_sample(data, grid, method='bilinear', layout='NCHW')
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType((batch, channel, out_height, out_width), dtype)
+        func = relay.Function([data, grid], y)
+
+        data_np = np.random.uniform(size=data_shape).astype(dtype)
+        grid_np = np.random.uniform(size=grid_shape, low=-1.5, high=1.5).astype(dtype)
+        ref_res = topi.testing.grid_sample_nchw_python(data_np, grid_np, method='bilinear')
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp1 = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res1 = intrp1.evaluate(func)(data_np, grid_np)
+                tvm.testing.assert_allclose(
+                    op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))
+
+
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
@@ -843,3 +893,5 @@ if __name__ == "__main__":
     test_space_to_depth()
     test_dilation2d_infer_type()
     test_dilation2d_run()
+    test_affine_grid()
+    test_grid_sample()
