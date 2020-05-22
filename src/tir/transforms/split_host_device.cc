@@ -275,7 +275,7 @@ Pass SplitHostDevice() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
     IRModuleNode* mod_ptr = mod.CopyOnWrite();
     auto* func_dict = mod_ptr->functions.CopyOnWrite();
-    IRModule device_mod = IRModule::Empty();
+    IRModule device_mod = IRModule();
 
     for (auto& kv : func_dict->data) {
       if (kv.second->IsInstance<PrimFuncNode>()) {
