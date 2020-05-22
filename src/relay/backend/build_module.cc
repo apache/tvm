@@ -445,7 +445,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         ret_.mod = tvm::codegen::CSourceModuleCreate(";", "");
       }
     } else {
-      ret_.mod = tvm::build(lowered_funcs, target_host_, BuildConfig::Current());
+      ret_.mod = tvm::build(lowered_funcs, target_host_);
     }
 
     Array<tvm::runtime::Module> ext_mods = graph_codegen_->GetExternalModules();

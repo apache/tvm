@@ -530,6 +530,7 @@ def _tracer(module, info, is_before):
     if bool(is_before):
         __TRACE_COUNTER__ += 1
 
+
 def test_print_debug_callback():
     global __TRACE_COUNTER__
     shape = (1, 2, 3)
@@ -551,7 +552,7 @@ def test_print_debug_callback():
     with relay.build_config(opt_level=3, trace=_tracer):
         mod = seq(mod)
 
-    assert __TRACE_COUNTER__ == 4
+    assert __TRACE_COUNTER__ == 3
 
 
 if __name__ == "__main__":
