@@ -16,9 +16,10 @@
 # under the License.
 """Unit tests for merge composite."""
 import tvm
-from tvm import relay
-from tvm import tir
+from tvm import relay, tir
+from tvm.relay.dataflow_pattern import TupleGetItemPattern, is_op, wildcard
 from tvm.relay.testing import run_opt_pass
+
 
 """
 The merge composite pass is designed to merge multiple relay operators, that
@@ -64,37 +65,35 @@ codegen function.
 
 
 def make_add_sub_mul_pattern():
-    """Create a pattern to match the following graph.
+    r"""Create a pattern to match the following graph.
 
         add  sub
          \   /
           \ /
           mul
     """
-    x = relay.var('x')
-    y = relay.var('y')
-    add_node = relay.add(x, y)
-    sub_node = relay.subtract(x, y)
-    mul_node = relay.multiply(add_node, sub_node)
+    x = wildcard()
+    y = wildcard()
+    add_node = is_op('add')(x, y)
+    sub_node = is_op('subtract')(x, y)
+    mul_node = is_op('multiply')(add_node, sub_node)
     return mul_node
 
 
 def make_add_relu_pattern():
-    """Create a pattern to match the following graph.
+    r"""Create a pattern to match the following graph.
 
         add
          |
        relu
     """
-    x = relay.var('x')
-    y = relay.var('y')
-    add_node = relay.add(x, y)
-    r = relay.nn.relu(add_node)
+    add_node = is_op('add')(wildcard(), wildcard())
+    r = is_op('nn.relu')(add_node)
     return r
 
 
 def make_conv_bias_relu_pattern():
-    """Create a pattern to match the following graph.
+    r"""Create a pattern to match the following graph.
 
        conv2d
          |
@@ -102,17 +101,17 @@ def make_conv_bias_relu_pattern():
          |
        relu
     """
-    x = relay.var('x')
-    y = relay.var('y')
-    z = relay.var('z')
-    conv_node = relay.nn.conv2d(x, y)
-    bias_node = relay.nn.bias_add(conv_node, z)
-    r = relay.nn.relu(bias_node)
+    x = wildcard()
+    y = wildcard()
+    z = wildcard()
+    conv_node = is_op('nn.conv2d')(x, y)
+    bias_node = is_op('nn.bias_add')(conv_node, z)
+    r = is_op('nn.relu')(bias_node)
     return r
 
 
 def make_add_add_add_pattern():
-    """Create a pattern to match the following graph.
+    r"""Create a pattern to match the following graph.
        Useful for testing re-using a call node.
 
         x    y
@@ -123,15 +122,15 @@ def make_add_add_add_pattern():
           | /
          add
     """
-    x = relay.var('x')
-    y = relay.var('y')
-    add_node = relay.add(x, y)
-    add_node_1 = relay.add(x, add_node)
-    r = relay.add(add_node_1, add_node)
+    x = wildcard()
+    y = wildcard()
+    add_node = is_op('add')(x, y)
+    add_node_1 = is_op('add')(x, add_node)
+    r = is_op('add')(add_node_1, add_node)
     return r
 
 def make_bn_relu_pattern():
-    """Create a pattern to match the following graph.
+    r"""Create a pattern to match the following graph.
 
      batch_norm
          |
@@ -139,19 +138,19 @@ def make_bn_relu_pattern():
          |
        relu
     """
-    x = relay.var('x')
-    gamma = relay.var("gamma")
-    beta = relay.var("beta")
-    moving_mean = relay.var("moving_mean")
-    moving_var = relay.var("moving_var")
-    bn_node = relay.nn.batch_norm(x, gamma, beta, moving_mean, moving_var)
-    tuple_get_item_node = bn_node[0]
-    r = relay.nn.relu(tuple_get_item_node)
+    x = wildcard()
+    gamma = wildcard()
+    beta = wildcard()
+    moving_mean = wildcard()
+    moving_var = wildcard()
+    bn_node = is_op('nn.batch_norm')(x, gamma, beta, moving_mean, moving_var)
+    tuple_get_item_node = TupleGetItemPattern(bn_node, 0)
+    r = is_op('nn.relu')(tuple_get_item_node)
     return r
 
 
 def test_simple_merge():
-    """Test composite function is correctly produced from simple graph.
+    r"""Test composite function is correctly produced from simple graph.
 
     We could expect the pattern `make_add_relu_pattern` to be merged
     into a single op `add_relu`.
@@ -185,6 +184,7 @@ def test_simple_merge():
         relu_node = relay.nn.relu(add_node)
         add_relu = relay.Function([in_1, in_2], relu_node)
         add_relu = add_relu.with_attr("Composite", "add_relu")
+        add_relu = add_relu.with_attr("PartitionedFromPattern", "add_nn.relu_")
 
         # merged function
         r = relay.Call(add_relu, [a, b])
@@ -197,7 +197,7 @@ def test_simple_merge():
 
 
 def test_branch_merge():
-    """Test composite function is correctly produced from branching graph.
+    r"""Test composite function is correctly produced from branching graph.
 
     We would expect the pattern `make_add_sub_mul_pattern` to be merged
     into a single op `add_sub_mul`.
@@ -250,6 +250,7 @@ def test_branch_merge():
         mul_node = relay.multiply(add_node, sub_node)
         add_sub_mul = relay.Function([in_1, in_2], mul_node)
         add_sub_mul = add_sub_mul.with_attr("Composite", "add_sub_mul")
+        add_sub_mul = add_sub_mul.with_attr("PartitionedFromPattern", "add_subtract_multiply_")
 
         # add_sub_mul1 function
         in_3 = relay.var('in_3', shape=(10, 10))
@@ -259,6 +260,7 @@ def test_branch_merge():
         mul_node_1 = relay.multiply(add_node_1, sub_node_1)
         add_sub_mul_1 = relay.Function([in_3, in_4], mul_node_1)
         add_sub_mul_1 = add_sub_mul_1.with_attr("Composite", "add_sub_mul")
+        add_sub_mul_1 = add_sub_mul_1.with_attr("PartitionedFromPattern", "add_subtract_multiply_")
 
         # merged function
         m_add_sub_mul_1 = relay.Call(add_sub_mul, [a, b])
@@ -273,7 +275,7 @@ def test_branch_merge():
 
 
 def test_reuse_call_merge():
-    """Test composite function is correctly produced from simple graph
+    r"""Test composite function is correctly produced from simple graph
        which re-uses call nodes.
 
     We could expect the pattern `make_add_add_add` to be merged
@@ -318,6 +320,7 @@ def test_reuse_call_merge():
         add_node_2 = relay.add(add_node_1, add_node)
         add_add_add = relay.Function([in_1, in_2], add_node_2)
         add_add_add = add_add_add.with_attr("Composite", "add_add_add")
+        add_add_add = add_add_add.with_attr("PartitionedFromPattern", "add_add_add_")
 
         # merged function
         sub_node = relay.subtract(a, b)
@@ -331,7 +334,7 @@ def test_reuse_call_merge():
 
 
 def test_multiple_patterns():
-    """Test different patterns are merged correctly in the graph.
+    r"""Test different patterns are merged correctly in the graph.
 
     We would expect the pattern `make_conv_bias_relu_pattern` to be merged
     into a single op `conv_bias_relu`. We would also expect `make_add_relu_pattern`
@@ -402,6 +405,8 @@ def test_multiple_patterns():
         conv_bias_add_relu = relay.Function([in_1, in_2, in_3], r)
         conv_bias_add_relu = conv_bias_add_relu.with_attr("Composite",
                                                           "conv2d_bias_relu")
+        conv_bias_add_relu = conv_bias_add_relu.with_attr("PartitionedFromPattern",
+                                                          "nn.conv2d_nn.bias_add_nn.relu_")
 
         # add_relu function
         in_4 = relay.var('in_4', shape=(1, 256, 28, 28))
@@ -410,6 +415,7 @@ def test_multiple_patterns():
         r = relay.nn.relu(add_node)
         add_relu = relay.Function([in_4, in_5], r)
         add_relu = add_relu.with_attr("Composite", "add_relu")
+        add_relu = add_relu.with_attr("PartitionedFromPattern", "add_nn.relu_")
 
         # merged function
         conv_bias_add_relu_1 = relay.Call(conv_bias_add_relu, [data, kernel, bias])
@@ -424,7 +430,7 @@ def test_multiple_patterns():
 
 
 def test_merge_order():
-    """Test that patterns are merged in the order they exist in the pattern table.
+    r"""Test that patterns are merged in the order they exist in the pattern table.
 
     There can be cases where one pattern is a subgraph of another, in which case
     it is not clear which match should take priority. The priority should come
@@ -441,24 +447,24 @@ def test_merge_order():
     """
 
     def pattern_A():
-        x = relay.var('x')
-        y = relay.var('y')
-        out = relay.add(x, y)
-        out = relay.abs(out)
-        out = relay.nn.relu(out)
+        x = wildcard()
+        y = wildcard()
+        out = is_op('add')(x, y)
+        out = is_op('abs')(out)
+        out = is_op('nn.relu')(out)
         return out
 
     def pattern_B():
-        x = relay.var('x')
-        y = relay.var('y')
-        out = relay.add(x, y)
-        out = relay.abs(out)
+        x = wildcard()
+        y = wildcard()
+        out = is_op('add')(x, y)
+        out = is_op('abs')(out)
         return out
 
     def pattern_C():
-        x = relay.var('x')
-        out = relay.abs(x)
-        out = relay.nn.relu(x)
+        x = wildcard()
+        out = is_op('abs')(x)
+        out = is_op('nn.relu')(out)
         return out
 
     def before():
@@ -469,7 +475,7 @@ def test_merge_order():
         out = relay.nn.relu(out)
         return relay.Function([input_1, input_2], out)
 
-    def after_A_priority(composite_name):
+    def after_A_priority():
         input_1 = relay.var('input_1', shape=(10, 10))
         input_2 = relay.var('input_2', shape=(10, 10))
         x = relay.var('x')
@@ -478,8 +484,36 @@ def test_merge_order():
         out = relay.abs(out)
         out = relay.nn.relu(out)
         merged_func = relay.Function([x, y], out)
-        merged_func = merged_func.with_attr('Composite', composite_name)
+        merged_func = merged_func.with_attr('Composite', 'A')
+        merged_func = merged_func.with_attr('PartitionedFromPattern', 'add_abs_nn.relu_')
         ret = relay.Call(merged_func, [input_1, input_2])
+        return relay.Function([input_1, input_2], ret)
+
+    def after_B_priority():
+        input_1 = relay.var('input_1', shape=(10, 10))
+        input_2 = relay.var('input_2', shape=(10, 10))
+        x = relay.var('x')
+        y = relay.var('y')
+        out = relay.add(x, y)
+        out = relay.abs(out)
+        merged_func = relay.Function([x, y], out)
+        merged_func = merged_func.with_attr('Composite', 'B')
+        merged_func = merged_func.with_attr('PartitionedFromPattern', 'add_abs_')
+        out = relay.Call(merged_func, [input_1, input_2])
+        ret = relay.nn.relu(out)
+        return relay.Function([input_1, input_2], ret)
+
+    def after_C_priority():
+        input_1 = relay.var('input_1', shape=(10, 10))
+        input_2 = relay.var('input_2', shape=(10, 10))
+        x = relay.var('x')
+        out = relay.abs(x)
+        out = relay.nn.relu(out)
+        merged_func = relay.Function([x], out)
+        merged_func = merged_func.with_attr('Composite', 'C')
+        merged_func = merged_func.with_attr('PartitionedFromPattern', 'abs_nn.relu_')
+        out = relay.add(input_1, input_2)
+        ret = relay.Call(merged_func, [out])
         return relay.Function([input_1, input_2], ret)
 
     # check A highest priority
@@ -490,34 +524,34 @@ def test_merge_order():
     ]
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(after_A_priority("A"), relay.transform.InferType())
+    expected = run_opt_pass(after_A_priority(), relay.transform.InferType())
     assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
 
     # check B highest priority
     pattern_table = [
-        ("B", pattern_A()),
-        ("C", pattern_B()),
-        ("A", pattern_C()),
+        ("B", pattern_B()),
+        ("C", pattern_C()),
+        ("A", pattern_A()),
     ]
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(after_A_priority("B"), relay.transform.InferType())
+    expected = run_opt_pass(after_B_priority(), relay.transform.InferType())
     assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
 
     # check C highest priority
     pattern_table = [
-        ("C", pattern_A()),
-        ("A", pattern_B()),
-        ("B", pattern_C()),
+        ("C", pattern_C()),
+        ("A", pattern_A()),
+        ("B", pattern_B()),
     ]
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(after_A_priority("C"), relay.transform.InferType())
+    expected = run_opt_pass(after_C_priority(), relay.transform.InferType())
     assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
 
 
 def test_parallel_merge():
-    """Tests that parallel patterns relying on the same inputs are correctly merged.
+    r"""Tests that parallel patterns relying on the same inputs are correctly merged.
 
     The test graph is difficult to draw out as ascii art. It is essentially two parallel
     add-sub-mul units which both consume input_1 and input_2 with their results being multiplied
@@ -544,12 +578,14 @@ def test_parallel_merge():
         branch_1 = relay.multiply(relay.add(x, y), relay.subtract(x, y))
         func_1 = relay.Function([x, y], branch_1)
         func_1 = func_1.with_attr('Composite', "add_sub_mul")
+        func_1 = func_1.with_attr('PartitionedFromPattern', "add_subtract_multiply_")
         call_1 = relay.Call(func_1, [input_1, input_2])
         x1 = relay.var('x1')
         y1 = relay.var('y1')
         branch_2 = relay.multiply(relay.add(x1, y1), relay.subtract(x1, y1))
         func_2 = relay.Function([x1, y1], branch_2)
         func_2 = func_2.with_attr('Composite', "add_sub_mul")
+        func_2 = func_2.with_attr('PartitionedFromPattern', "add_subtract_multiply_")
         call_2 = relay.Call(func_2, [input_1, input_2])
         out = relay.multiply(call_1, call_2)
         return relay.Function([input_1, input_2], out)
@@ -564,7 +600,7 @@ def test_parallel_merge():
 
 
 def test_multiple_input_subgraphs():
-    """Test the case when multiple input subgraphs feed into another subgraph.
+    r"""Test the case when multiple input subgraphs feed into another subgraph.
 
      (1)    (2)    (3)    (4)
     add    add    add    add
@@ -629,6 +665,7 @@ def test_multiple_input_subgraphs():
         add_relu_1 = relay.nn.relu(add_relu_1)
         add_relu_1 = relay.Function([x, y], add_relu_1)
         add_relu_1 = add_relu_1.with_attr('Composite', 'add_relu')
+        add_relu_1 = add_relu_1.with_attr('PartitionedFromPattern', 'add_nn.relu_')
         add_relu_call_1 = relay.Call(add_relu_1, [inputs[0], inputs[1]])
         x1 = relay.var('x1')
         y1 = relay.var('y1')
@@ -636,6 +673,7 @@ def test_multiple_input_subgraphs():
         add_relu_2 = relay.nn.relu(add_relu_2)
         add_relu_2 = relay.Function([x1, y1], add_relu_2)
         add_relu_2 = add_relu_2.with_attr('Composite', 'add_relu')
+        add_relu_2 = add_relu_2.with_attr('PartitionedFromPattern', 'add_nn.relu_')
         add_relu_call_2 = relay.Call(add_relu_2, [inputs[2], inputs[3]])
         x2 = relay.var('x2')
         y2 = relay.var('y2')
@@ -644,6 +682,7 @@ def test_multiple_input_subgraphs():
         add_sub_mul = relay.multiply(add, sub)
         add_sub_mul = relay.Function([x2, y2], add_sub_mul)
         add_sub_mul = add_sub_mul.with_attr('Composite', 'add_sub_mul')
+        add_sub_mul = add_sub_mul.with_attr('PartitionedFromPattern', 'add_subtract_multiply_')
         add_sub_mul_call = relay.Call(add_sub_mul, [add_relu_call_1, add_relu_call_2])
         return relay.Function(inputs, add_sub_mul_call)
 
@@ -657,6 +696,7 @@ def test_multiple_input_subgraphs():
             add_relu = relay.nn.relu(add_relu)
             add_relu = relay.Function([x, y], add_relu)
             add_relu = add_relu.with_attr('Composite', 'add_relu')
+            add_relu = add_relu.with_attr('PartitionedFromPattern', 'add_nn.relu_')
             add_relu_call = relay.Call(add_relu, [inputs[i*2], inputs[i*2+1]])
             add_relu_calls.append(add_relu_call)
 
@@ -717,6 +757,8 @@ def test_tuple_get_item_merge():
         relu_node = relay.nn.relu(tuple_get_item_node)
         bn_relu = relay.Function([in_1, in_2, in_3, in_4, in_5], relu_node)
         bn_relu = bn_relu.with_attr("Composite", "bn_relu")
+        bn_relu = bn_relu.with_attr("PartitionedFromPattern",
+                                    "nn.batch_norm_TupleGetItem0_nn.relu_")
 
         # merged function
         r = relay.Call(bn_relu, [x, gamma, beta, moving_mean, moving_var])
@@ -766,7 +808,7 @@ def test_pattern_with_check():
 
 
 def test_diamond_not_merge():
-    """
+    r"""
     The pattern on the left shouldn't match the structure on the right
 
     relu             relu
@@ -779,8 +821,8 @@ def test_diamond_not_merge():
     """
     def get_pattern():
         conv = make_conv_bias_relu_pattern()
-        clip = relay.op.clip(conv, 0, 255)
-        return relay.op.multiply(conv, clip)
+        clip = is_op('clip')(conv, wildcard(), wildcard())
+        return is_op('multiply')(conv, clip)
 
     def get_net():
         data = relay.var('data', shape=(1, 512, 28, 28))
