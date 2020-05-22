@@ -109,7 +109,7 @@ class DFPattern(Node):
         """
         return match(self, expr)
 
-    def partition(self, expr: Expr, attrs=None) -> Expr:
+    def partition(self, expr: Expr, attrs=None, check=lambda x: True) -> Expr:
         """
         Parition the expression into functions defined by this pattern
 
@@ -119,13 +119,16 @@ class DFPattern(Node):
             The expression to match.
         attrs : Optional[Dict[str, Object]]
             A dictionary of Attribute name/values to add to the paritioned function
+        check : Function
+            A function to perform more complicated checks on the matched expression.
+            Returns true if partitioning should proceed, false otherwise.
 
         Returns
         -------
         result : tvm.relay.Expr
             The Expression with matched subgraphs replaced by function calls to that subgraph
         """
-        return partition(self, expr, attrs)
+        return partition(self, expr, attrs, check)
 
     def dominates(self, parent, path=None):
         """
@@ -561,7 +564,7 @@ def rewrite(callbacks, expr: Expr) -> Expr:
 
     return ffi.rewrite(tmp, expr)
 
-def partition(pattern: DFPattern, expr: Expr, attrs=None) -> Expr:
+def partition(pattern: DFPattern, expr: Expr, attrs=None, check=lambda x: True) -> Expr:
     """
     Parition the expression into a series of functions that match the pattern
 
@@ -571,12 +574,15 @@ def partition(pattern: DFPattern, expr: Expr, attrs=None) -> Expr:
         The pattern to match
     expr : tvm.relay.Expr
         The expression to split into functions
-    expr : Optional[Dict[str, Object]]
+    attrs : Optional[Dict[str, Object]]
         A dict of attributes to apply to the partitioned function
+    check : Function
+        A function to perform more complicated checks on the matched expression.
+        Returns true if partitioning should proceed, false otherwise.
 
     Returns
     -------
     result : tvm.relay.Expr
         The Expression with matched subgraphs replaced by function calls to that subgraph
     """
-    return ffi.partition(pattern, expr, attrs)
+    return ffi.partition(pattern, expr, attrs, check)

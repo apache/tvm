@@ -693,11 +693,12 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.rewrite").set_body_typed(RewritePatt
 class PatternPartitioner : protected MixedModeMutator {
  public:
   Expr Partition(const DFPattern& pattern, const Expr& pre,
-                 const Map<std::string, ObjectRef>& attrs) {
+                 const Map<std::string, ObjectRef>& attrs, PackedFunc check) {
     auto grouper = PatternGrouper();
     groups_ = grouper.GroupMatches(pattern, pre);
     gid_assignments_ = grouper.GetGIDAssignments();
     attrs_ = attrs;
+    check_ = check;
     return this->VisitExpr(pre);
   }
 
@@ -718,7 +719,8 @@ class PatternPartitioner : protected MixedModeMutator {
 
   Expr DispatchVisitExpr(const Expr& pre) override {
     auto post = MixedModeMutator::DispatchVisitExpr(pre);
-    if (gid_assignments_.count(pre) && pre == groups_[gid_assignments_[pre]].root_node) {
+    if (gid_assignments_.count(pre) && pre == groups_[gid_assignments_[pre]].root_node &&
+        static_cast<bool>(check_(pre))) {
       post = RewritePartition(groups_[gid_assignments_[pre]]);
     }
     return post;
@@ -727,16 +729,17 @@ class PatternPartitioner : protected MixedModeMutator {
   Map<std::string, ObjectRef> attrs_;
   std::vector<PatternGrouper::Group> groups_;
   std::unordered_map<Expr, int, ObjectHash, ObjectEqual> gid_assignments_;
+  PackedFunc check_;
 };
 
-Expr PartitionPattern(DFPattern pattern, Expr expr, Map<std::string, ObjectRef> attrs) {
-  return PatternPartitioner().Partition(pattern, expr, attrs);
+Expr PartitionPattern(DFPattern pattern, Expr expr, Map<std::string, ObjectRef> attrs,
+                      PackedFunc check) {
+  return PatternPartitioner().Partition(pattern, expr, attrs, check);
 }
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.partition")
-    .set_body_typed([](DFPattern pattern, Expr expr, Map<std::string, ObjectRef> attrs) {
-      return PartitionPattern(pattern, expr, attrs);
-    });
+    .set_body_typed([](DFPattern pattern, Expr expr, Map<std::string, ObjectRef> attrs,
+                       PackedFunc check) { return PartitionPattern(pattern, expr, attrs, check); });
 
 }  // namespace relay
 }  // namespace tvm
