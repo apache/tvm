@@ -442,6 +442,14 @@ class PatternGrouper {
   }
 
  protected:
+  /* \brief Iteratively traverse the Expression in pre-order to find subgraphs
+   *
+   * If we traverse the graph in post-order, we can run into situtations where a small subgraph will
+   * match the pattern. Due to options like AltPattern, a larger subgraph with more nodes later in
+   * the graph may also match the pattern. With post-order traversal, we mark the smaller subgraph
+   * as matched and fail to catch the larger subgraph. This problem is fixed by using pre-order
+   * traversal.
+   */
   void VisitExprs() {
     std::unordered_set<Expr, ObjectHash, ObjectEqual> pre_partitioned;
     for (size_t i = matcher_->expr_graph_.topological_order_.size(); i != 0; --i) {
