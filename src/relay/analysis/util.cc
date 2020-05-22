@@ -338,13 +338,13 @@ bool IsNDArrayAllGreaterEqual(const runtime::NDArray& tensor, T value) {
   return true;
 }
 
-// Cache the operators that are checked recursively to reduce lookup overhead.
-static const auto& expand_dims_op = Op::Get("expand_dims");
-static const auto& reshape_op = Op::Get("reshape");
-static const auto& transpose_op = Op::Get("transpose");
-static const auto& squeeze_op = Op::Get("squeeze");
-
 bool IsAllPositiveConstant(const Expr& expr) {
+  // Cache the operators that are checked recursively to reduce lookup overhead.
+  static const auto& expand_dims_op = Op::Get("expand_dims");
+  static const auto& reshape_op = Op::Get("reshape");
+  static const auto& transpose_op = Op::Get("transpose");
+  static const auto& squeeze_op = Op::Get("squeeze");
+
   // peel through a few common transform ops.
   if (const auto* constant = expr.as<ConstantNode>()) {
     const auto& tensor = constant->data;

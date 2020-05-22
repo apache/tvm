@@ -24,6 +24,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 
+#include <iostream>
 #include <mutex>
 #include <string>
 #include <unordered_map>

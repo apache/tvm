@@ -44,15 +44,11 @@
 
 #include "../analysis/annotated_region_set.h"
 #include "../backend/utils.h"
+#include "pass_util.h"
 
 namespace tvm {
 namespace relay {
 namespace partitioning {
-
-// Cache compiler_begin and compiler_end annotation ops for equivalence check to
-// reduce registry lookup overhead.
-static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
-static const Op& compiler_end_op = Op::Get("annotation.compiler_end");
 
 /*! \brief This struct maintains the required metadata for a region to generate a corresponding
  * global function and function call. Global function will be passed to the target specific codegen
@@ -123,8 +119,7 @@ class Partitioner : public MixedModeMutator {
       BaseFunc f_func = f.second;
 
       // Creating regionset per function in the module.
-      auto region_set = AnnotatedRegionSet::Create(f_func, partitioning::compiler_begin_op,
-                                                   partitioning::compiler_end_op);
+      auto region_set = AnnotatedRegionSet::Create(f_func, CompilerBeginOp(), CompilerEndOp());
       regions_sets_[region_set] = f_func;
     }
   }
@@ -133,7 +128,7 @@ class Partitioner : public MixedModeMutator {
     auto op_node = call->op.as<OpNode>();
     if (op_node == nullptr || call->attrs.as<CompilerAttrs>() == nullptr) {
       return post;
-    } else if (call->op == compiler_begin_op) {
+    } else if (call->op == CompilerBeginOp()) {
       // The annotation node is inserted on edge so it must have only one argument.
       CHECK_EQ(call->args.size(), 1U);
 
@@ -143,7 +138,7 @@ class Partitioner : public MixedModeMutator {
 
       // Backtrace the parent to find the first ancestor node that is not a begin or end op
       while (const auto* parent_call = parent.as<CallNode>()) {
-        if (parent_call->op == compiler_begin_op || parent_call->op == compiler_end_op) {
+        if (parent_call->op == CompilerBeginOp() || parent_call->op == CompilerEndOp()) {
           parent = parent_call->args[0];
         } else {
           break;
@@ -174,7 +169,7 @@ class Partitioner : public MixedModeMutator {
         return std::move(var);
       }
     } else {
-      CHECK_EQ(call->op, compiler_end_op);
+      CHECK_EQ(call->op, CompilerEndOp());
       // The annotation node is inserted on edge so it must have only one
       // argument.
       CHECK_EQ(call->args.size(), 1U);
@@ -420,7 +415,7 @@ IRModule FlattenTupleOutputs(IRModule module) {
     TupleOutFlattener() = default;
 
     Expr Rewrite_(const CallNode* call, const Expr& post) final {
-      if (call->op == compiler_end_op) {
+      if (call->op == CompilerEndOp()) {
         std::string target = call->attrs.as<CompilerAttrs>()->compiler;
         // Arguments of annotation ops should be 1
         CHECK_EQ(call->args.size(), 1U);

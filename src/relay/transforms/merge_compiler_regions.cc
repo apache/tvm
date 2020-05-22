@@ -43,22 +43,18 @@
 #include <vector>
 
 #include "../analysis/annotated_region_set.h"
+#include "pass_util.h"
 
 namespace tvm {
 namespace relay {
 namespace merge_compiler_region {
-
-// Cache compiler_begin and compiler_end annotation ops for equivalence check to
-// reduce registry lookup overhead.
-static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
-static const Op& compiler_end_op = Op::Get("annotation.compiler_end");
 
 class RegionMerger : public MixedModeVisitor {
  public:
   explicit RegionMerger(AnnotatedRegionSet regions) : regions_(regions) {}
 
   void VisitExpr_(const CallNode* call) final {
-    if (call->op == compiler_end_op) {
+    if (call->op == CompilerEndOp()) {
       auto region = regions_->GetRegion(GetRef<Call>(call));
 
       // Skip this region if it has been merged to the other region.
@@ -75,7 +71,7 @@ class RegionMerger : public MixedModeVisitor {
         // Region inputs must be begin annotation, and the region of
         // the begin annotation's argument is the parent region.
         auto begin = Downcast<Call>(arg);
-        CHECK_EQ(begin->op, compiler_begin_op);
+        CHECK_EQ(begin->op, CompilerBeginOp());
         auto parent_region = regions_->GetRegion(begin->args[0]);
 
         // Skip this region if it has been merged.
@@ -90,7 +86,7 @@ class RegionMerger : public MixedModeVisitor {
       std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual> mergeable_regions;
       for (const auto& arg : region->GetInputs()) {
         auto begin = Downcast<Call>(arg);
-        CHECK_EQ(begin->op, compiler_begin_op);
+        CHECK_EQ(begin->op, CompilerBeginOp());
         auto parent_region = regions_->GetRegion(begin->args[0]);
         if (parent_region.defined()) {
           mergeable_regions.insert(parent_region);
@@ -147,9 +143,9 @@ class MergeAnnotations : public ExprRewriter {
     // Merge annotations which are now internal to a region.
     // This happens if we see a compiler begin next to a
     // compiler end and they're both in the same region.
-    if (call->op == compiler_begin_op && call->args[0]->IsInstance<CallNode>()) {
+    if (call->op == CompilerBeginOp() && call->args[0]->IsInstance<CallNode>()) {
       auto arg = Downcast<Call>(call->args[0]);
-      if (arg->op == compiler_end_op) {
+      if (arg->op == CompilerEndOp()) {
         auto region1 = regions_->GetRegion(GetRef<Call>(call));
         auto region2 = regions_->GetRegion(arg);
         if (region1 == region2) {
@@ -167,7 +163,7 @@ class MergeAnnotations : public ExprRewriter {
 
 Expr MergeCompilerRegions(const Expr& expr) {
   // Create regions using the annotations.
-  AnnotatedRegionSet regions = AnnotatedRegionSet::Create(expr, compiler_begin_op, compiler_end_op);
+  AnnotatedRegionSet regions = AnnotatedRegionSet::Create(expr, CompilerBeginOp(), CompilerEndOp());
 
   // Analyze the graph to explore the opportunities of merging regions.
   RegionMerger merger(regions);
