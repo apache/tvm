@@ -25,7 +25,7 @@ import numpy as np
 import onnxruntime as rt
 import tvm
 from tvm import relay
-from tvm.contrib.codegen_onnx import to_onnx
+from tvm.contrib.target.onnx import to_onnx
 import tvm.relay.testing
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.ir import IRModule

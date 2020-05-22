@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines, redefined-builtin
-"""Relay to ONNX serialization """
+"""Relay to ONNX codegen """
 
 import os
 import struct

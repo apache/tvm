@@ -23,7 +23,7 @@ pytest.importorskip('onnxruntime')
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.contrib.codegen_onnx import to_onnx
+from tvm.contrib.target.onnx import to_onnx
 import onnxruntime as rt
 
 
