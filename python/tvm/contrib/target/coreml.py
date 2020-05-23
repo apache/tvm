@@ -23,6 +23,7 @@ import shutil
 import tvm._ffi
 from ...relay.expr_functor import ExprVisitor
 from ...relay.expr import Constant
+from ...relay import op as _op
 from .. import xcode, coreml_runtime
 
 def _convert_add(builder, name, inputs, outputs, args, attrs):
@@ -66,9 +67,6 @@ def _convert_softmax(builder, name, inputs, outputs, args, attrs):
     )
 
 def _convert_conv2d(builder, name, inputs, outputs, args, attrs):
-    assert isinstance(args[1], Constant)
-    assert attrs['kernel_layout'] in ['HWIO', 'OIHW']
-
     weight = args[1].data.asnumpy()
     if attrs['kernel_layout'] == 'OIHW':
         # convert to 'HWIO'
@@ -228,3 +226,27 @@ def coreml_compiler(ref):
 
     ctx = tvm.cpu(0)
     return coreml_runtime.create(model_dir, ctx).module
+
+
+def _register_coreml_op(op_name):
+    """Register a function to check the given operator is supported by Core ML.
+
+    Paramters
+    ---------
+    op_name : Str
+        The name of operator that will be registered.
+
+    """
+    def _check_supported(attrs, args):
+        if op_name == 'nn.conv2d':
+            if not isinstance(args[1], Constant):
+                return False
+            if attrs['kernel_layout'] not in ['HWIO', 'OIHW']:
+                return False
+        return True
+
+    _op.register(op_name, "target.coremlcompiler", _check_supported)
+
+
+for op in _convert_map:
+    _register_coreml_op(op)

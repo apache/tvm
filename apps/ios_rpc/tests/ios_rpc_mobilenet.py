@@ -90,37 +90,6 @@ def get_model(model_name, data_shape):
     return func, params
 
 
-@transform.function_pass(opt_level=0)
-class WholeGraphAnnotator:
-    """
-    An annotator that creates a compiler for an entire graph.
-    """
-    def __init__(self, compiler):
-        self.compiler = compiler
-        self.last_call = True
-
-    def transform_function(self, func, mod, ctx):
-        annotator = self
-        class WholeGraphAnnotator(ExprMutator):
-            def visit_call(self, call):
-                curr_last = annotator.last_call
-                annotator.last_call = False
-
-                params = []
-                for arg in call.args:
-                    param = super().visit(arg)
-                    if isinstance(param, (relay.expr.Var, relay.expr.Constant)):
-                        param = compiler_begin(param, annotator.compiler)
-                    params.append(param)
-
-                new_call = relay.Call(call.op, params, call.attrs)
-                if curr_last:
-                    new_call = compiler_end(new_call, annotator.compiler)
-                return new_call
-
-        return WholeGraphAnnotator().visit(func)
-
-
 def test_mobilenet():
     temp = util.tempdir()
     image, synset = prepare_input()
@@ -181,7 +150,8 @@ def test_mobilenet():
             transform.SimplifyInference(),
             transform.FoldConstant(),
             transform.FoldScaleAxis(),
-            WholeGraphAnnotator(compiler),
+            transform.AnnotateTarget(compiler),
+            transform.MergeCompilerRegions(),
             transform.PartitionGraph()
         ])
 
