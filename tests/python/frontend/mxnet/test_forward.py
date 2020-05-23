@@ -639,6 +639,42 @@ def test_forward_bilinear_resize():
     mx_sym = mx.sym.contrib.BilinearResize2D(data, height=5, width=10)
     verify_mxnet_frontend_impl(mx_sym, (1, 2, 3, 4), (1, 2, 5, 10))
 
+def test_forward_grid_generator():
+    def verify(shape, transform_type, target_shape):
+        x = np.random.uniform(size=shape).astype("float32")
+        ref_res = mx.nd.GridGenerator(mx.nd.array(x), transform_type, target_shape)
+        mx_sym = mx.sym.GridGenerator(mx.sym.var("x"), transform_type, target_shape)
+        shape_dict = {"x": x.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(
+                    kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x)
+                tvm.testing.assert_allclose(
+                    op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5)
+    verify((4, 6), 'affine', (16, 32))
+    verify((4, 2, 16, 16), 'warp', None)
+    verify((1, 2, 16, 16), 'warp', None)
+
+def test_forward_bilinear_sampler():
+    def verify(data_shape, grid_shape):
+        data = np.random.uniform(size=data_shape).astype("float32")
+        grid = np.random.uniform(low=-1.5, high=1.5, size=grid_shape).astype("float32")
+        ref_res = mx.nd.BilinearSampler(mx.nd.array(data), mx.nd.array(grid))
+        mx_sym = mx.sym.BilinearSampler(mx.sym.var("data"), mx.sym.var("grid"))
+        shape_dict = {"data": data.shape, "grid": grid.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(
+                    kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(data, grid)
+                tvm.testing.assert_allclose(
+                    op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5)
+    verify((4, 4, 16, 32), (4, 2, 8, 8))
+    verify((4, 4, 16, 32), (4, 2, 32, 32))
+
 def test_forward_rnn_layer():
     def verify(mode, seq_len, input_size, hidden_size, num_layers,
                batch=1, init_states=True, bidirectional=False):
@@ -1211,3 +1247,5 @@ if __name__ == '__main__':
     test_forward_unravel_index()
     test_forward_swap_axis()
     test_forward_correlation()
+    test_forward_grid_generator()
+    test_forward_bilinear_sampler()
