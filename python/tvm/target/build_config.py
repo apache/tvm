@@ -45,11 +45,8 @@ class BuildConfig(Object):
         "unroll_explicit": True,
         "detect_global_barrier": False,
         "partition_const_loop": False,
-        "offset_factor": 0,
-        "data_alignment": -1,
         "restricted_func": True,
         "double_buffer_split_loop": 1,
-        "dump_pass_ir": False,
         "instrument_bound_checkers": False,
         "disable_select_rewriting": False,
         "disable_vectorize": False,
@@ -129,14 +126,6 @@ def build_config(**kwargs):
     partition_const_loop: bool, default=False
         Whether partition const loop
 
-    data_alignment: int, optional
-        The alignment of data pointer in bytes.
-        If -1 is passed, the alignment will be set to TVM's internal default.
-
-    offset_factor: int, default=0
-        The factor used in default buffer declaration.
-        If specified as 0, offset field is not used.
-
     restricted_func: bool, default=True
         Whether build restricted function.
         That is each buffer argument to the function are guaranteed
@@ -151,8 +140,6 @@ def build_config(**kwargs):
     add_lower_pass: list of tuple (phase, function(Stmt->Stmt)), default=None
         phase contains an integer on which optimization pass we apply the pass.
         Additional lowering passes to be applied before make_api.
-
-    dump_pass_ir: dump ir of each pass into file idx_passname_ir.cc, default=False
 
     Returns
     -------

@@ -91,8 +91,7 @@ void GetBinds(const Array<te::Tensor>& args, bool compact,
 
   for (const auto& x : args) {
     if (out_binds->find(x) == out_binds->end()) {
-      auto buf = BufferWithOffsetAlignment(x->shape, x->dtype, x->op->name, config->data_alignment,
-                                           config->offset_factor, compact);
+      auto buf = BufferWithOffsetAlignment(x->shape, x->dtype, x->op->name, -1, 0, compact);
       out_binds->Set(x, buf);
       out_arg_list->push_back(buf);
     } else {
