@@ -20,7 +20,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay import transform
-from tvm.contrib import coreml as _coreml
+from tvm.contrib.target import coreml as _coreml
 
 def check_result(mod, map_inputs, out_shape, result, tol=1e-3, target="llvm",
                  ctx=tvm.cpu(), params=None):

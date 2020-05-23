@@ -21,9 +21,9 @@ import os
 import shutil
 
 import tvm._ffi
-from ..relay.expr_functor import ExprVisitor
-from ..relay.expr import Constant
-from . import xcode, coreml_runtime
+from ...relay.expr_functor import ExprVisitor
+from ...relay.expr import Constant
+from .. import xcode, coreml_runtime
 
 def _convert_add(builder, name, inputs, outputs, args, attrs):
     builder.add_elementwise(
