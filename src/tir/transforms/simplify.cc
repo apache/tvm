@@ -54,7 +54,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return Parent::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const LetStmtNode* op) {
+  Stmt VisitStmt_(const LetStmtNode* op) override {
     PrimExpr value = this->VisitExpr(op->value);
     if (!tir::HasSideEffect(value)) {
       // it is fine to discard the let binding
@@ -84,6 +84,24 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
       }
     }
     return GetRef<Stmt>(op);
+  }
+
+  // eliminate useless ifs
+  Stmt VisitStmt_(const IfThenElseNode* op) override {
+    Stmt stmt = Parent::VisitStmt_(op);
+    if (auto op = stmt.as<IfThenElseNode>()) {  // can be removed IRMutatorWithAnalyzer
+      if (analyzer_->CanProve(op->condition)) {
+        return op->then_case;
+      }
+      if (analyzer_->CanProve(NotNode::make(op->condition))) {
+        if (op->else_case.defined()) {
+          return op->else_case;
+        } else {
+          return EvaluateNode::make(0);
+        }
+      }
+    }
+    return stmt;
   }
 };
 

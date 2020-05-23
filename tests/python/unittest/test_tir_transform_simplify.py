@@ -52,6 +52,24 @@ def test_thread_extent_simplify():
     assert isinstance(body.body.body.body, tvm.tir.Store)
 
 
+def test_stmt_useless_if():
+    ib = tvm.tir.ir_builder.create()
+    A = ib.pointer("float32", name="A")
+    C = ib.pointer("float32", name="C")
+    n = te.size_var("n")
+    with ib.for_range(0, n, name="i") as i:
+        with ib.if_scope(i < 12):
+            with ib.if_scope(i < 15):
+                A[i] = C[i]
+
+    body = ib.get()
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A, C, n], body))
+    body = tvm.tir.transform.Simplify()(mod)["main"].body
+    assert isinstance(body.body, tvm.tir.IfThenElse)
+    assert not isinstance(body.body.then_case, tvm.tir.IfThenElse)
+
+
 def test_basic_likely_elimination():
     n = te.size_var('n')
     X = te.placeholder(shape=(n,), name="x")
@@ -110,5 +128,6 @@ def test_complex_likely_elimination():
 if __name__ == "__main__":
     test_stmt_simplify()
     test_thread_extent_simplify()
+    test_stmt_useless_if()
     test_basic_likely_elimination()
     test_complex_likely_elimination()
