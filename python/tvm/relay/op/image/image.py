@@ -215,3 +215,67 @@ def dilation2d(data,
 
     return _make.dilation2d(data, weight, strides, padding, dilations, data_layout,
                             kernel_layout, out_dtype)
+
+
+def affine_grid(data, target_shape=None):
+    """affine_grid operator that generates 2D sampling grid.
+
+    This operation is described in https://arxiv.org/pdf/1506.02025.pdf. It generates a uniform
+    sampling grid within the target shape and normalizes it to [-1, 1]. The provided affine
+    transformation is then applied on the sampling grid.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        3-D with shape [batch, 2, 3]. The affine matrix.
+
+    target_shape: list/tuple of two int
+        Specifies the output shape (H, W).
+
+    Returns
+    -------
+    Output : tvm.Tensor
+        4-D with shape [batch, 2, target_height, target_width]
+    """
+    return _make.affine_grid(data, target_shape)
+
+def grid_sample(data, grid, method='bilinear', layout='NCHW'):
+    """Applies bilinear sampling to input feature map.
+
+    Given :math:`data` and :math:`grid`, then the output is computed by
+
+    .. math::
+
+        x_{src} = grid[batch, 0, y_{dst}, x_{dst}] \\
+        y_{src} = grid[batch, 1, y_{dst}, x_{dst}] \\
+        output[batch, channel, y_{dst}, x_{dst}] = G(data[batch, channel, y_{src}, x_{src})
+
+    :math:`x_{dst}`, :math:`y_{dst}` enumerate all spatial locations in :math:`output`, and
+    :math:`G()` denotes the interpolation function.
+    The out-boundary points will be padded with zeros. The shape of the output will be
+    (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3]).
+
+    The operator assumes that :math:`grid` has been normalized to [-1, 1].
+
+    grid_sample often cooperates with affine_grid which generates sampling grids for grid_sample.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        4-D with shape [batch, in_channel, in_height, in_width]
+
+    grid : tvm.Tensor
+        4-D with shape [batch, 2, out_height, out_width]
+
+    method : str
+        The interpolation method. Only 'bilinear' is supported.
+
+    layout : str
+        The layout of input data and the output.
+
+    Returns
+    -------
+    Output : tvm.Tensor
+        4-D with shape [batch, 2, out_height, out_width]
+    """
+    return _make.grid_sample(data, grid, method, layout)

@@ -757,6 +757,26 @@ def _mx_resize(inputs, attrs):
     return _op.image.resize(inputs[0], size,
                             coordinate_transformation_mode="align_corners")
 
+def _mx_grid_generator(inputs, attrs):
+    transform_type = attrs.get_str("transform_type")
+    if transform_type == 'affine':
+        target_shape = attrs.get_int_tuple("target_shape")
+        return _op.image.affine_grid(_op.reshape(inputs[0], (0, 2, 3)), target_shape)
+    if transform_type == 'warp':
+        checked_type = _infer_type(inputs[0]).checked_type
+        batch, _, height, width = get_const_tuple(checked_type.shape)
+        dtype = checked_type.dtype
+        identity_affine = relay.const(np.array([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]], dtype=dtype))
+        identity_affine = _op.broadcast_to(identity_affine, (batch, 2, 3))
+        normalizer = (2.0 / np.array([width - 1, height - 1])).reshape(1, -1, 1, 1).astype(dtype)
+        normalized_flow = inputs[0] * relay.const(normalizer)
+        grid = _op.image.affine_grid(identity_affine, (height, width))
+        return grid + normalized_flow
+    raise ValueError("unknown transform type" + transform_type)
+
+def _mx_bilinear_sampler(inputs, attrs):
+    return _op.image.grid_sample(inputs[0], inputs[1], 'bilinear', 'NCHW')
+
 def _mx_roi_pooling(inputs, attrs):
     new_attrs = {}
     new_attrs["pooled_size"] = attrs.get_int_tuple("pooled_size")
@@ -1996,6 +2016,8 @@ _convert_map = {
     "_contrib_box_nms" : _mx_box_nms,
     "_contrib_DeformableConvolution" : _mx_deformable_convolution,
     "_contrib_AdaptiveAvgPooling2D" : _mx_adaptive_avg_pooling,
+    "GridGenerator"                 : _mx_grid_generator,
+    "BilinearSampler"               : _mx_bilinear_sampler,
     # NLP
     "RNN"               : _mx_rnn_layer,
     "_rnn_param_concat" : _mx_rnn_param_concat,

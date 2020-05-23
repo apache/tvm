@@ -167,6 +167,34 @@ struct Dilation2DAttrs : public tvm::AttrsNode<Dilation2DAttrs> {
   }
 };
 
+/*! \brief Attributes used in image affine_grid operator */
+struct AffineGridAttrs : public tvm::AttrsNode<AffineGridAttrs> {
+  Array<IndexExpr> target_shape;
+
+  TVM_DECLARE_ATTRS(AffineGridAttrs, "relay.attrs.AffineGridAttrs") {
+    TVM_ATTR_FIELD(target_shape).describe("Specifies the output shape (H, W).");
+  }
+};
+
+/*! \brief Attributes used in image grid_sample operator */
+struct GridSampleAttrs : public tvm::AttrsNode<GridSampleAttrs> {
+  String method;
+  String layout;
+
+  TVM_DECLARE_ATTRS(GridSampleAttrs, "relay.attrs.GridSampleAttrs") {
+    TVM_ATTR_FIELD(method)
+        .set_default("bilinear")
+        .describe(
+            "Specify the mode to use for scaling."
+            "bilinear - Bilinear Interpolation");
+    TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
+        "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+        "dimensions respectively. Resize is applied on the 'H' and"
+        "'W' dimensions.");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_IMAGE_H_
