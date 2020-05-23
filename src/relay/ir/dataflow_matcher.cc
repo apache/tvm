@@ -43,6 +43,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   explicit DFPatternMatcher(const Expr& root_expr) : expr_graph_(CreateIndexedGraph(root_expr)) {}
   bool Match(const DFPattern& pattern, const Expr& expr);
   Map<DFPattern, Array<Expr>> GetMemo() { return Map<DFPattern, Array<Expr>>(memo_); }
+  const IndexedGraph<Expr> expr_graph_;
 
  protected:
   bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override;
@@ -63,7 +64,6 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
 
   std::unordered_map<DFPattern, Array<Expr>, ObjectHash, ObjectEqual> memo_;
   std::vector<DFPattern> matched_nodes_;
-  IndexedGraph<Expr> expr_graph_;
   bool memoize_ = true;
 };
 
@@ -291,7 +291,7 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
 // Recursively find the Dominator parent along all inputs paths.
 bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& expr) {
   auto call_node = expr.as<CallNode>();
-  for (auto node : expr_graph_.node_map_[expr]->inputs_) {
+  for (auto node : expr_graph_.node_map_.at(expr)->inputs_) {
     if (!(call_node && node->ref_ == call_node->op)) {
       memoize_ = true;
       if (VisitDFPattern(op->parent, node->ref_)) {
@@ -315,7 +315,7 @@ bool DFPatternMatcher::DominatesParent(const DominatorPatternNode* op, const Exp
   while (!stack.empty()) {
     Expr current = stack.top();
     stack.pop();
-    for (auto node : expr_graph_.node_map_[current]->dominator_children_) {
+    for (auto node : expr_graph_.node_map_.at(current)->dominator_children_) {
       if (visited.count(node->ref_) == 0) {
         if (VisitDFPattern(op->parent, node->ref_)) {
           return true;
@@ -412,7 +412,7 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.match").set_body_typed(MatchPattern)
  * This is primarily needed to support the post-dominator analysis required for dominator pattern
  * matching.
  */
-class PatternGrouper : protected MixedModeVisitor {
+class PatternGrouper {
  public:
   /* \brief Internal Group class for storing analysis */
   struct Group {
@@ -432,26 +432,39 @@ class PatternGrouper : protected MixedModeVisitor {
   const std::vector<Group>& GroupMatches(const DFPattern& pattern, const Expr& pre) {
     groups_ = {Group()};
     gid_assignments_.clear();
-    visit_counter_.clear();
 
     pattern_ = pattern;
     pattern_graph_ = CreateIndexedGraph(pattern_);
     auto matcher = DFPatternMatcher(pre);
     matcher_ = &matcher;
-    this->VisitExpr(pre);
+    this->VisitExprs();
     return this->groups_;
   }
 
  protected:
-  using ExprVisitor::VisitExpr_;
-  void VisitLeaf(const Expr& pre) override {
-    if (matcher_->Match(pattern_, pre)) {
-      CreateGroup(pre);
-    }
-  }
-  void VisitExpr_(const FunctionNode* op) override {
-    if (op->attrs->dict.count(attr::kPartitionedFromPattern) == 0) {
-      ExprVisitor::VisitExpr_(op);
+  /* \brief Iteratively traverse the Expression in pre-order to find subgraphs
+   *
+   * If we traverse the graph in post-order, we can run into situtations where a small subgraph will
+   * match the pattern. Due to options like AltPattern, a larger subgraph with more nodes later in
+   * the graph may also match the pattern. With post-order traversal, we mark the smaller subgraph
+   * as matched and fail to catch the larger subgraph. This problem is fixed by using pre-order
+   * traversal.
+   */
+  void VisitExprs() {
+    std::unordered_set<Expr, ObjectHash, ObjectEqual> pre_partitioned;
+    for (size_t i = matcher_->expr_graph_.topological_order_.size(); i != 0; --i) {
+      size_t index = i - 1;
+      Expr current = matcher_->expr_graph_.topological_order_.at(index)->ref_;
+      if (auto op = current.as<FunctionNode>()) {
+        if (op->attrs->dict.count(attr::kPartitionedFromPattern) != 0) {
+          pre_partitioned.insert(current);
+          PostOrderVisit(op->body,
+                         [&pre_partitioned](const Expr& expr) { pre_partitioned.insert(expr); });
+        }
+      }
+      if (pre_partitioned.count(current) == 0 && matcher_->Match(pattern_, current)) {
+        CreateGroup(current);
+      }
     }
   }
   /* \brief Creates a new set of nodes based on Group inputs, used to create functions and perform
