@@ -901,8 +901,6 @@ def test_partition_batchnorm():
     f = relay.Function([gammaf, xf, meanf, varf, epsf, betaf], get_BN(xf, varf, meanf, betaf, gammaf, epsf)).with_attr("PartitionedFromPattern","subtract_multiply_add_sqrt_divide_add_")
 
     partitioned = BatchnormCallback().pattern.partition(BN)
-    print(partitioned)
-    print(f(gamma, x, mean, var, beta))
     assert tvm.ir.structural_equal(partitioned, f(gamma, x, mean, var, eps, beta))
 
 def test_partition_double_batchnorm():
@@ -934,8 +932,6 @@ def test_partition_double_batchnorm():
 
     partitioned = BatchnormCallback().pattern.partition(BN2)
     reference = f2(gamma, f1(gamma, x, mean, var, eps, beta), mean, var, eps, beta)
-    print(partitioned)
-    print(reference)
     assert tvm.ir.structural_equal(partitioned, reference)
 
 def test_partition_check():
