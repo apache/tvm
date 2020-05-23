@@ -178,17 +178,6 @@ TVM_DLL Target hexagon(const std::vector<std::string>& options = std::vector<std
 class BuildConfigNode : public Object {
  public:
   /*!
-   * \brief The data alignment to use when constructing buffers. If this is set to
-   * -1, then TVM's internal default will be used
-   */
-  int data_alignment = -1;
-  /*!
-   * \brief The offset factor to use when constructing buffers. If this is set to
-   * 0, then the offset field is not used.
-   */
-  int offset_factor = 0;
-
-  /*!
    * \brief Splitting factor for loop splitting. If this is set to zero, no splitting will be
    * done. Otherwise, a split will be done with this factor and the inner loop will be unrolled.
    */
@@ -217,9 +206,6 @@ class BuildConfigNode : public Object {
   /*! \brief List of passes to be injected into the low-level pipeline. */
   std::vector<std::pair<int, transform::Pass>> add_lower_pass;
 
-  /*! \brief Whether to dump the IR of each pass (only when building from python) */
-  bool dump_pass_ir = false;
-
   /*! \brief Whether to instrument loads and stores with check for out of the bounds. */
   bool instrument_bound_checkers = false;
 
@@ -233,8 +219,6 @@ class BuildConfigNode : public Object {
   bool disable_assert = false;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("data_alignment", &data_alignment);
-    v->Visit("offset_factor", &offset_factor);
     v->Visit("double_buffer_split_loop", &double_buffer_split_loop);
     v->Visit("auto_unroll_max_step", &auto_unroll_max_step);
     v->Visit("auto_unroll_max_depth", &auto_unroll_max_depth);
@@ -243,7 +227,6 @@ class BuildConfigNode : public Object {
     v->Visit("restricted_func", &restricted_func);
     v->Visit("detect_global_barrier", &detect_global_barrier);
     v->Visit("partition_const_loop", &partition_const_loop);
-    v->Visit("dump_pass_ir", &dump_pass_ir);
     v->Visit("instrument_bound_checkers", &instrument_bound_checkers);
     v->Visit("disable_select_rewriting", &disable_select_rewriting);
     v->Visit("disable_vectorize", &disable_vectorize);

@@ -20,7 +20,6 @@ import tvm.tir
 
 from tvm.runtime import Object, convert
 from tvm.ir import Range
-from tvm.target import BuildConfig
 from .tensor import PlaceholderOp
 
 from . import tensor as _tensor
@@ -68,7 +67,9 @@ class TensorIntrin(Object):
 def decl_tensor_intrin(op,
                        fcompute,
                        name="tensor_intrin",
-                       binds=None, scalar_params=None):
+                       binds=None,
+                       scalar_params=None,
+                       default_buffer_params=None):
     """Declare a tensor intrinsic function.
 
     Parameters
@@ -104,6 +105,9 @@ def decl_tensor_intrin(op,
     scalar_params: a list of variables used by op, whose values will be passed
                    as scalar_inputs when the tensor intrinsic is called.
 
+    default_buffer_params: Optional[dict]
+        Dictionary of buffer arguments to be passed when constructing a buffer.
+
     Returns
     -------
     intrin: TensorIntrin
@@ -122,12 +126,11 @@ def decl_tensor_intrin(op,
         if not isinstance(t.op, PlaceholderOp):
             raise ValueError("Do not yet support composition op")
 
-    cfg = BuildConfig.current()
+    default_buffer_params = {} if default_buffer_params is None else default_buffer_params
     for t in tensors:
         buf = (binds[t] if t in binds else
                tvm.tir.decl_buffer(t.shape, t.dtype, t.op.name,
-                                   data_alignment=cfg.data_alignment,
-                                   offset_factor=cfg.offset_factor))
+                                   **default_buffer_params))
         binds_list.append(buf)
 
     if scalar_params:

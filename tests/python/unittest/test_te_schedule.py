@@ -115,7 +115,6 @@ def test_fuse_with_split():
     assert any(isinstance(x, tvm.te.schedule.Fuse) for x in s[T].relations)
     assert tuple(s[T].leaf_iter_vars) == (xo, fused)
 
-@pytest.mark.xfail
 def test_fuse_with_out_of_order_axis():
     m = te.size_var('m')
     n = te.size_var('n')
@@ -125,9 +124,10 @@ def test_fuse_with_out_of_order_axis():
     s = te.create_schedule(T.op)
     y = T.op.axis[1]
     xo, xi = s[T].split(T.op.axis[0], factor=10)
-    fused = s[T].fuse(xo, y) # should throw here
 
-@pytest.mark.xfail
+    with pytest.raises(RuntimeError):
+            fused = s[T].fuse(xo, y) # should throw here
+
 def test_fuse_with_out_of_order_axis_with_reorder():
     m = te.size_var('m')
     n = te.size_var('n')
@@ -144,23 +144,21 @@ def test_fuse_with_out_of_order_axis_with_reorder():
     y = T.op.axis[1]
     xo, xi = s[T].split(T.op.axis[0], factor=10)
     s[T].reorder(y, xo, xi)
-    fused = s[T].fuse(y, xi) # should throw here
+
+    with pytest.raises(RuntimeError):
+        fused = s[T].fuse(y, xi) # should throw here
 
 def test_singleton():
-    print("test singleton")
     A = te.placeholder((), name='A')
     T = te.compute((), lambda : A() + 1)
     s = te.create_schedule(T.op)
-    print("test singleton fin1")
     fused = s[T].fuse()
     assert any(isinstance(x, tvm.te.schedule.Singleton) for x in s[T].relations)
     assert tuple(s[T].leaf_iter_vars) == (fused,)
     dump = pkl.dumps(s)
-    print("test singleton fin3")
     s_loaded = pkl.loads(dump)
-    print("test singleton fin2")
     assert isinstance(s_loaded, tvm.te.schedule.Schedule)
-    print("test singleton fin")
+
 
 def test_vectorize():
     m = te.size_var('m')
@@ -177,13 +175,14 @@ def test_vectorize():
     assert s[T].iter_var_attrs[xi].iter_type == UNROLL
     assert s[T].iter_var_attrs[yi].iter_type == VECTORIZE
 
-@pytest.mark.xfail
+
 def test_vectorize_commreduce():
     V = te.placeholder((128,), name='V')
     ax = te.reduce_axis((0, 128), name='ax')
     O = te.compute((1,), lambda _: te.sum(V[ax], axis=[ax]))
     s = te.create_schedule(O.op)
-    s[O].vectorize(ax) # should throw here
+    with pytest.raises(RuntimeError):
+        s[O].vectorize(ax) # should throw here
 
 def test_pragma():
     m = 100
@@ -271,8 +270,9 @@ def test_tensor_intrin_scalar_params():
         assert(sp[1] == w)
         return tvm.tir.call_packed("hw_func", ins[0].data, outs[0].data, sp[0], sp[1])
 
-    with tvm.target.build_config(offset_factor=1):
-      intrin = te.decl_tensor_intrin(z.op, intrin_func, scalar_params=[v, w])
+    intrin = te.decl_tensor_intrin(z.op, intrin_func, scalar_params=[v, w], default_buffer_params={
+        "offset_factor": 1
+    })
     assert intrin.op == z.op
     assert intrin.reduce_init is None
     assert tuple(intrin.inputs) == tuple(z.op.input_tensors)
