@@ -126,8 +126,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
         // floor(a / b)
         auto fdtype = DataType::Float(dtype.bits() * 2, dtype.lanes());
-        auto div = tir::CastNode::make(fdtype, op->a)
-              / tir::CastNode::make(fdtype, op->b);
+        auto div = tir::CastNode::make(fdtype, op->a) / tir::CastNode::make(fdtype, op->b);
         auto f = tvm::floor(div);
         return tir::CastNode::make(dtype, VisitExpr_(f.as<CallNode>()));
       } else {
@@ -138,7 +137,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         PrimExpr rdiv = truncdiv(op->a, op->b);
         PrimExpr rmod = truncmod(op->a, op->b);
         return tir::SelectNode::make((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
-                                    rdiv - make_const(dtype, 1));
+                                     rdiv - make_const(dtype, 1));
       }
 >>>>>>> Improved uncommon case of floormod and floordiv. Removed dependence on np floor_div and fmod.
     }
@@ -199,8 +198,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
         // a - floor(a / b) * b
         auto fdtype = DataType::Float(dtype.bits() * 2, dtype.lanes());
-        auto div = tir::CastNode::make(fdtype, op->a)
-              / tir::CastNode::make(fdtype, op->b);
+        auto div = tir::CastNode::make(fdtype, op->a) / tir::CastNode::make(fdtype, op->b);
         auto f = tvm::floor(div);
         auto floor_lowered = tir::CastNode::make(dtype, VisitExpr_(f.as<CallNode>()));
 
@@ -214,7 +212,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         // b < 0 && rmod < 0 -> rmod
         // b < 0 && rmod > 0 -> rmod + b
         return tir::SelectNode::make((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod,
-                                    rmod + op->b);
+                                     rmod + op->b);
       }
 >>>>>>> Improved uncommon case of floormod and floordiv. Removed dependence on np floor_div and fmod.
     }
