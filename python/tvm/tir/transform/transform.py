@@ -257,7 +257,7 @@ def RemoveNoOp():
 
 def BF16Legalize():
     """Legalize bf16 typed Ops.
-    Runs BF16Promote and BF16CastElimination
+    Runs BF16Promote, BF16CastElimination and BF16TypeLowering
 
     Returns
     -------
@@ -294,6 +294,17 @@ def BF16CastElimination():
         The result pass
     """
     return _ffi_api.BF16CastElimination()
+
+def BF16TypeLowering():
+    """Replace all bf16 type with uint16. Also lower the casting
+    between fp32 and bf16
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.BF16TypeLowering()
 
 def RewriteUnsafeSelect():
     """Detect and rewrite unsafe select that contains memory access.

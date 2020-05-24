@@ -309,8 +309,6 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
       default:
         LOG(FATAL) << "do not support " << dtype;
     }
-  } else if (dtype.is_bfloat16()) {
-    etype = llvm::Type::getInt16Ty(*ctx_);
   }
   if (dtype.lanes() != 1) {
     return llvm::VectorType::get(etype, dtype.lanes());
@@ -557,46 +555,12 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
   builder_->SetInsertPoint(for_end);
 }
 
-static llvm::Value* GetInt32VectorOrScalar(
-    llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>* builder, uint32_t v,
-    int lanes) {
-  if (lanes == 1) {
-    return builder->getInt32(v);
-  } else {
-    std::vector<llvm::Constant*> consts;
-    for (int i = 0; i < lanes; i++) {
-      consts.emplace_back(builder->getInt32(v));
-    }
-    return llvm::ConstantVector::get(consts);
-  }
-}
-
 // cast operatpr
 llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* value) {
   llvm::Type* target = DTypeToLLVMType(to);
   if (value->getType() == target) return value;
   if (to.is_handle()) {
     return builder_->CreateBitCast(value, target);
-  } else if (to.is_float() && from.is_bfloat16()) {
-    CHECK_EQ(to.bits(), 32);
-    llvm::Type* extended_type = (from.lanes() == 1)
-                                    ? static_cast<llvm::Type*>(builder_->getInt32Ty())
-                                    : llvm::VectorType::get(builder_->getInt32Ty(), from.lanes());
-    auto v = builder_->CreateZExt(value, extended_type);
-    v = builder_->CreateShl(v, 16);
-    return builder_->CreateBitCast(v, target);
-  } else if (to.is_bfloat16() && from.is_float()) {
-    CHECK_EQ(from.bits(), 32);
-    llvm::Type* extended_type = (from.lanes() == 1)
-                                    ? static_cast<llvm::Type*>(builder_->getInt32Ty())
-                                    : llvm::VectorType::get(builder_->getInt32Ty(), to.lanes());
-    auto v = builder_->CreateBitCast(value, extended_type);
-    auto bias = builder_->CreateLShr(v, 16);
-    bias = builder_->CreateAnd(bias, GetInt32VectorOrScalar(builder_.get(), 1, to.lanes()));
-    bias = builder_->CreateAdd(bias, GetInt32VectorOrScalar(builder_.get(), 0x7fff, to.lanes()));
-    v = builder_->CreateAdd(v, bias);
-    v = builder_->CreateLShr(v, 16);
-    return builder_->CreateTrunc(v, target);
   } else if (to.is_uint() && to.bits() == 1) {
     if (from.is_float()) {
       llvm::Constant* zero = llvm::ConstantFP::get(DTypeToLLVMType(from), 0.);
@@ -906,15 +870,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const IntImmNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const FloatImmNode* op) {
-  if (op->dtype.is_bfloat16()) {
-    auto fp = static_cast<float>(op->value);
-    auto p = reinterpret_cast<uint16_t*>(&fp);
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-    return this->builder_->getInt16(p[0]);
-#else
-    return this->builder_->getInt16(p[1]);
-#endif
-  }
   return llvm::ConstantFP::get(DTypeToLLVMType(op->dtype), op->value);
 }
 
@@ -951,7 +906,7 @@ DEFINE_CODEGEN_BINARY_OP(Mul);
   llvm::Value* CodeGenLLVM::Create##Op(DataType t, llvm::Value* a, llvm::Value* b) { \
     if (t.is_int()) {                                                                \
       return builder_->CreateICmpS##Op(a, b);                                        \
-    } else if (t.is_uint() || t.is_bfloat16()) {                                     \
+    } else if (t.is_uint()) {                                                        \
       return builder_->CreateICmpU##Op(a, b);                                        \
     } else {                                                                         \
       CHECK(t.is_float());                                                           \
