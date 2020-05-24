@@ -27,10 +27,6 @@ def lower_stmt(sche, params, passfunc):
     stmt = func.body
     return stmt
 
-def to32(v):
-    return topi.cast(v, 'float')
-def to16(v):
-    return topi.cast(v, 'bfloat16')
 
 def test_promote():
     def runpass(op, passfunc):
@@ -60,6 +56,10 @@ def test_promote():
     test_promoted(topi.divide)
 
 def test_eliminate():
+    def to32(v):
+        return topi.cast(v, 'float')
+    def to16(v):
+        return topi.cast(v, 'bfloat16')
     def get_eliminated():
         a = te.placeholder((100,), dtype='bfloat16')
         b = te.placeholder((100,), dtype='bfloat16')
@@ -104,23 +104,43 @@ def test_eliminate():
         s = te.create_schedule(c.op)
         func = tvm.driver.build_module.form_irmodule(s, [a,b,c], "main", None)["main"]
         return func.body
-
     tvm.ir.assert_structural_equal(get_eliminated(), get_target())
 
 def test_legalize():
+    def to32(v):
+        uint32_v = topi.cast(v, "uint32")
+        uint32_v = tvm.tir.call_pure_intrin("uint32", "shift_left", uint32_v, tvm.tir.const(16, "uint32"))
+        return tvm.tir.call_pure_intrin("float32", "reinterpret", uint32_v)
+    def to16(v):
+        uint32_v = tvm.tir.call_pure_intrin("uint32", "reinterpret", v)
+        rounding_bias = tvm.tir.call_pure_intrin("uint32", "shift_right", uint32_v, tvm.tir.const(16, "uint32"))
+        rounding_bias = tvm.tir.call_pure_intrin("uint32", "bitwise_and", rounding_bias, tvm.tir.const(1, "uint32"))
+        rounding_bias = rounding_bias + tvm.tir.const(0x7FFF, "uint16")
+        uint32_v = uint32_v + rounding_bias
+        uint32_v = tvm.tir.call_pure_intrin("uint32", "shift_right", uint32_v, tvm.tir.const(16, "uint32"))
+        return topi.cast(uint32_v, 'uint16')
+
     def check(fcompute_before, fcompute_after):
-        a = te.placeholder((100,), dtype='bfloat16')
-        b = te.placeholder((100,), dtype='bfloat16')
-        c = te.compute((100,), fcompute_before(a,b))
+        a = te.placeholder((100,), dtype='bfloat16', name = 'A')
+        b = te.placeholder((100,), dtype='bfloat16', name = 'B')
+        c = te.compute((100,), fcompute_before(a,b), name = 'C')
         s = te.create_schedule(c.op)
         stmt = lower_stmt(s, [a, b, c], tvm.tir.transform.BF16Legalize)
 
-        a = te.placeholder((100,), dtype='bfloat16')
-        b = te.placeholder((100,), dtype='bfloat16')
-        c = te.compute((100,), fcompute_after(a,b))
+        a = te.placeholder((100,), dtype='uint16', name = 'A')
+        b = te.placeholder((100,), dtype='uint16', name = 'B')
+        c = te.compute((100,), fcompute_after(a,b), name = 'C')
         s = te.create_schedule(c.op)
         func = tvm.driver.build_module.form_irmodule(s, [a,b,c], "main", None)["main"]
-        tvm.ir.assert_structural_equal(stmt, func.body)
+
+        stmt_str = str(stmt)
+        func_str = str(func.body)
+
+        stmt_str = stmt_str[stmt_str.find("realize_scope"):]
+        func_str = func_str[func_str.find("realize_scope"):]
+
+        assert(func_str == stmt_str)
+        # tvm.ir.assert_structural_equal(stmt, func.body)
 
     def orig1(a,b):
         return lambda i: a[i]+b[i]+a[99-i]+b[99-i]
