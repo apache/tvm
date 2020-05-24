@@ -133,7 +133,7 @@ class BF16CastEliminationRewriter : public StmtExprMutator {
 
   Stmt operator()(Stmt s) { return VisitStmt(s); }
 
-  PrimExpr VisitExpr_(const CastNode* op) {
+  PrimExpr VisitExpr_(const CastNode* op) final {
     auto op_val = StmtExprMutator::VisitExpr(op->value);
     if (op->dtype.is_float() && op->dtype.bits() == 32) {
       // if is cast_to_fp32, check if op->value is cast_to_fp16
@@ -185,7 +185,7 @@ class BF16LowerRewriter : StmtExprMutator {
 
   Stmt operator()(Stmt s) { return VisitStmt(s); }
 
-  PrimExpr VisitExpr_(const CastNode* op) {
+  PrimExpr VisitExpr_(const CastNode* op) final {
     auto op_val = StmtExprMutator::VisitExpr(op->value);
     if (op->value->dtype.is_bfloat16()) {
       // if is cast_from_bf16, check if is to fp32
@@ -211,7 +211,7 @@ class BF16LowerRewriter : StmtExprMutator {
     return CastNode::make(op->dtype, op_val);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     auto itr = var_remap.find(op);
     if (itr != var_remap.end()) {
       return itr->second;
@@ -220,12 +220,12 @@ class BF16LowerRewriter : StmtExprMutator {
       CHECK(!op->type_annotation.defined());
       auto ret = Var(op->name_hint, op->dtype);
       var_remap[op] = ret;
-      return ret;
+      return std::move(ret);
     }
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  Stmt VisitStmt_(const AllocateNode* op) {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     Stmt node_holder;
     const AllocateNode* newop;
     if (op->dtype.is_bfloat16()) {
@@ -239,7 +239,7 @@ class BF16LowerRewriter : StmtExprMutator {
     return StmtExprMutator::VisitStmt_(newop);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) {
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
     auto itr = buffer_remap.find(op->buffer.operator->());
     const BufferStoreNode* newop;
     BufferStore newop_holder;
@@ -252,7 +252,7 @@ class BF16LowerRewriter : StmtExprMutator {
     return StmtExprMutator::VisitStmt_(newop);
   }
 
-  Stmt VisitStmt_(const BufferRealizeNode* op) {
+  Stmt VisitStmt_(const BufferRealizeNode* op) final {
     auto itr = buffer_remap.find(op->buffer.operator->());
     const BufferRealizeNode* newop;
     Stmt newop_holder;
@@ -266,7 +266,7 @@ class BF16LowerRewriter : StmtExprMutator {
     return StmtExprMutator::VisitStmt_(newop);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) override {
+  PrimExpr VisitExpr_(const BufferLoadNode* op) override final {
     auto itr = buffer_remap.find(op->buffer.operator->());
     const BufferLoadNode* newop;
     BufferLoad newop_holder;
@@ -279,7 +279,7 @@ class BF16LowerRewriter : StmtExprMutator {
     return StmtExprMutator::VisitExpr_(newop);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) override {
+  PrimExpr VisitExpr_(const LoadNode* op) override final {
     bool is_bf16 = false;
     if (op->dtype.is_bfloat16()) {
       is_bf16 = true;
@@ -294,7 +294,7 @@ class BF16LowerRewriter : StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const FloatImmNode* op) override {
+  PrimExpr VisitExpr_(const FloatImmNode* op) override final {
     if (op->dtype.is_bfloat16()) {
       return IntImm(DataType::UInt(16, op->dtype.lanes()),
                     round_to_nearest_even(static_cast<float>(op->value)));
