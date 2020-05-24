@@ -132,15 +132,7 @@ def test_legalize():
         c = te.compute((100,), fcompute_after(a,b), name = 'C')
         s = te.create_schedule(c.op)
         func = tvm.driver.build_module.form_irmodule(s, [a,b,c], "main", None)["main"]
-
-        stmt_str = str(stmt)
-        func_str = str(func.body)
-
-        stmt_str = stmt_str[stmt_str.find("realize_scope"):]
-        func_str = func_str[func_str.find("realize_scope"):]
-
-        assert(func_str == stmt_str)
-        # tvm.ir.assert_structural_equal(stmt, func.body)
+        tvm.ir.assert_structural_equal(stmt, func.body)
 
     def orig1(a,b):
         return lambda i: a[i]+b[i]+a[99-i]+b[99-i]

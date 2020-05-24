@@ -252,6 +252,25 @@ class BF16LowerRewriter : StmtExprMutator {
     return StmtExprMutator::VisitStmt_(newop);
   }
 
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    const AttrStmtNode* newop = op;
+    Stmt newop_holder;
+    if (auto buffer = op->node.as<BufferNode>()) {
+      auto itr = buffer_remap.find(buffer);
+      if (itr != buffer_remap.end()) {
+        newop_holder = AttrStmtNode::make(itr->second, op->attr_key, op->value, op->body);
+        newop = newop_holder.as<AttrStmtNode>();
+      }
+    } else if (auto buffer = op->node.as<VarNode>()) {
+      auto itr = var_remap.find(buffer);
+      if (itr != var_remap.end()) {
+        newop_holder = AttrStmtNode::make(itr->second, op->attr_key, op->value, op->body);
+        newop = newop_holder.as<AttrStmtNode>();
+      }
+    }
+    return StmtExprMutator::VisitStmt_(newop);
+  }
+
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
     auto itr = buffer_remap.find(op->buffer.operator->());
     const BufferRealizeNode* newop;
@@ -266,7 +285,7 @@ class BF16LowerRewriter : StmtExprMutator {
     return StmtExprMutator::VisitStmt_(newop);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) override final {
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     auto itr = buffer_remap.find(op->buffer.operator->());
     const BufferLoadNode* newop;
     BufferLoad newop_holder;
@@ -279,7 +298,7 @@ class BF16LowerRewriter : StmtExprMutator {
     return StmtExprMutator::VisitExpr_(newop);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) override final {
+  PrimExpr VisitExpr_(const LoadNode* op) final {
     bool is_bf16 = false;
     if (op->dtype.is_bfloat16()) {
       is_bf16 = true;
@@ -294,7 +313,7 @@ class BF16LowerRewriter : StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const FloatImmNode* op) override final {
+  PrimExpr VisitExpr_(const FloatImmNode* op) final {
     if (op->dtype.is_bfloat16()) {
       return IntImm(DataType::UInt(16, op->dtype.lanes()),
                     round_to_nearest_even(static_cast<float>(op->value)));
