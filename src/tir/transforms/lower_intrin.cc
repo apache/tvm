@@ -106,6 +106,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         }
       }
     } else {
+<<<<<<< HEAD
       // uncommon case
       DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divisor";
       // b >= 0 => (rmod >=0 ? rdiv : rdiv - 1)
@@ -114,6 +115,32 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       PrimExpr rmod = truncmod(op->a, op->b);
       return tir::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
                          rdiv - make_const(dtype, 1));
+=======
+      if (dtype.bits() <= 32) {
+        /* NOTE:
+        This must be restricted to int32 or less since floats can losslessly represent integers
+        only if the number of bits in the mantissa exceeds the number of bits in the integer.
+        Therefore a double (53 bit mantissa) for int32, float (24 bit mantissa) for int16, etc.
+        Since TVM is unaware of a float128 type, int64 is not supported.
+        */
+
+        // floor(a / b)
+        auto fdtype = DataType::Float(dtype.bits() * 2, dtype.lanes());
+        auto div = tir::CastNode::make(fdtype, op->a)
+              / tir::CastNode::make(fdtype, op->b);
+        auto f = tvm::floor(div);
+        return tir::CastNode::make(dtype, VisitExpr_(f.as<CallNode>()));
+      } else {
+        // uncommon case
+        DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divisor";
+        // b >= 0 => (rmod >=0 ? rdiv : rdiv - 1)
+        // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
+        PrimExpr rdiv = truncdiv(op->a, op->b);
+        PrimExpr rmod = truncmod(op->a, op->b);
+        return tir::SelectNode::make((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
+                                    rdiv - make_const(dtype, 1));
+      }
+>>>>>>> Improved uncommon case of floormod and floordiv. Removed dependence on np floor_div and fmod.
     }
   }
 
@@ -152,6 +179,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         }
       }
     } else {
+<<<<<<< HEAD
       // uncommon case
       DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divsor and divident";
       PrimExpr rmod = truncmod(op->a, op->b);
@@ -160,6 +188,35 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // b < 0 && rmod < 0 -> rmod
       // b < 0 && rmod > 0 -> rmod + b
       return tir::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod, rmod + op->b);
+=======
+      if (dtype.bits() <= 32) {
+        /* NOTE:
+        This must be restricted to int32 or less since floats can losslessly represent integers
+        only if the number of bits in the mantissa exceeds the number of bits in the integer.
+        Therefore a double (53 bit mantissa) for int32, float (24 bit mantissa) for int16, etc.
+        Since there is no float128 type, int64 is not supported.
+        */
+
+        // a - floor(a / b) * b
+        auto fdtype = DataType::Float(dtype.bits() * 2, dtype.lanes());
+        auto div = tir::CastNode::make(fdtype, op->a)
+              / tir::CastNode::make(fdtype, op->b);
+        auto f = tvm::floor(div);
+        auto floor_lowered = tir::CastNode::make(dtype, VisitExpr_(f.as<CallNode>()));
+
+        return op->a - (floor_lowered * op->b);
+      } else {
+        // uncommon case
+        DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divsor and divident";
+        PrimExpr rmod = truncmod(op->a, op->b);
+        // b > 0 && rmod >= 0 -> rmod
+        // b > 0 && rmod < 0  -> rmod + b
+        // b < 0 && rmod < 0 -> rmod
+        // b < 0 && rmod > 0 -> rmod + b
+        return tir::SelectNode::make((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod,
+                                    rmod + op->b);
+      }
+>>>>>>> Improved uncommon case of floormod and floordiv. Removed dependence on np floor_div and fmod.
     }
   }
 
