@@ -153,11 +153,7 @@ class BF16CastEliminationRewriter : public StmtExprMutator {
 // implementation from
 // https://github.com/pytorch/pytorch/blob/master/c10/util/BFloat16.h
 inline uint16_t round_to_nearest_even(float src) {
-#if defined(_MSC_VER)
-  if (isnan(src)) {
-#else
   if (std::isnan(src)) {
-#endif
     return UINT16_C(0x7FC0);
   } else {
     union {
