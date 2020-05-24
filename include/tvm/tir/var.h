@@ -178,7 +178,7 @@ enum IterVarType : int {
   /*!
    * \brief The IterVar itself is a thread-index
    *  of a fixed thread launching group.
-   *  Note that this is already assumed to be paralellized.
+   *  Note that this is already assumed to be parallelized.
    *
    *  Disallow: split/fuse/vectorize/parallel
    */

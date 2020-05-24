@@ -127,9 +127,9 @@ Layout::Layout(const std::string& name) {  // NOLINT(*)
   // validate layout
   std::vector<bool> exist_axis(256, false);
   for (const IterVar& v : node->axes) {
-    auto axis_str = v->var.get()->name_hint;
+    auto axis_str = v->var.get()->name_hint.operator std::string();
     CHECK_EQ(axis_str.size(), 1);
-    char axis = axis_str.operator std::string()[0];
+    char axis = axis_str[0];
     CHECK((axis >= 'a' && axis <= 'z') || (axis >= 'A' && axis <= 'Z'));
     CHECK(!exist_axis[axis]) << "Invalid layout " << name << ": duplicate axis " << axis;
     exist_axis[axis] = true;
