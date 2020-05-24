@@ -319,7 +319,7 @@ class BF16LowerRewriter : StmtExprMutator {
       op->buffer_map.assign(changes.begin(), changes.end());
     }
   }
-  };
+};
 
 namespace transform {
 
