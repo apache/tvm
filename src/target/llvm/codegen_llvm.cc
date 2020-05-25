@@ -736,7 +736,40 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
 #endif  // TVM_LLVM_VERSION
 }
 
+// Check if this is a warp shuffle intrinsic call and match its
+// corresponding nvvm intrinsic. Return true if the match is successful.
+static bool GetWarpShuffleIntrinsic(const CallNode* op, llvm::Intrinsic::ID* id) {
+  // Only 32 bit data type is supported.
+  if (op->dtype.is_vector() || op->dtype.bits() != 32) {
+    return false;
+  }
+
+  // Intrinsic lookup table.
+  // It is difficult to emit _sync verion that works on Pascal.
+  // We ignore the mask and only emit the non-sync version for nvptx.
+  llvm::Intrinsic::ID ids[] = {
+      llvm::Intrinsic::nvvm_shfl_idx_i32,  llvm::Intrinsic::nvvm_shfl_idx_f32,
+      llvm::Intrinsic::nvvm_shfl_up_i32,   llvm::Intrinsic::nvvm_shfl_up_f32,
+      llvm::Intrinsic::nvvm_shfl_down_i32, llvm::Intrinsic::nvvm_shfl_down_f32};
+
+  int offset = 0;
+  if (op->is_intrinsic(intrinsic::tvm_warp_shuffle)) {
+    offset = 0;
+  } else if (op->is_intrinsic(intrinsic::tvm_warp_shuffle_up)) {
+    offset = 2;
+  } else if (op->is_intrinsic(intrinsic::tvm_warp_shuffle_down)) {
+    offset = 4;
+  } else {
+    return false;
+  }
+
+  *id = ids[offset + op->dtype.is_float()];
+  return true;
+}
+
 llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
+  llvm::Intrinsic::ID id = llvm::Intrinsic::not_intrinsic;
+
   if (op->is_intrinsic("llvm_intrin")) {
     CHECK_GE(op->args.size(), 2U);
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(Downcast<IntImm>(op->args[0])->value);
@@ -781,6 +814,25 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     }
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
     return CreateStorageSync(op);
+  } else if (GetWarpShuffleIntrinsic(op, &id)) {
+    std::vector<llvm::Value*> arg_value;
+    std::vector<llvm::Type*> arg_type;
+    // Ignore the first mask operand and remove the last
+    // redundant warp_size..
+    size_t n_args = op->args.size() - 1;
+    for (size_t i = 1; i < n_args; ++i) {
+      arg_value.push_back(MakeValue(op->args[i]));
+      arg_type.push_back(arg_value.back()->getType());
+    }
+    llvm::Type* return_type = arg_type[0];
+    llvm::Function* func = GetIntrinsicDecl(id, return_type, arg_type);
+    return builder_->CreateCall(func, arg_value);
+  } else if (op->is_intrinsic(intrinsic::tvm_warp_activemask)) {
+    // Only nvptx target may keep this intrinsic at this point.
+    // PTX assembly: asm "activemask.b32 r1;"
+    auto fty = llvm::FunctionType::get(t_int32_, false);
+    auto val = llvm::InlineAsm::get(fty, "activemask.b32 %0", "=r", true);
+    return builder_->CreateCall(val);
   } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
     const LoadNode* l = op->args[0].as<LoadNode>();
     CHECK(op->args.size() == 1 && l);
