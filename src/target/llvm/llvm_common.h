@@ -28,6 +28,7 @@
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Bitcode/BitcodeWriter.h>
 #include <llvm/ExecutionEngine/MCJIT.h>
+#include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/Value.h>
 #include <llvm/Support/SourceMgr.h>
