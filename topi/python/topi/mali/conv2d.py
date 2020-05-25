@@ -138,15 +138,22 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
         s[data_vec].unroll(vw)
 
     if isinstance(kernel_vec.op, tvm.te.ComputeOp) and kernel_vec.name == 'kernel_vec':
-        max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
-        co, ci, kh, kw, vc = s[kernel_vec].op.axis
-        fused = s[kernel_vec].fuse(co, ci, kh, kw, vc)
-        fused, vec = s[kernel_vec].split(fused, VC)
-        bb, tt = s[kernel_vec].split(fused, max_threads)
-        s[kernel_vec].bind(bb, te.thread_axis("blockIdx.x"))
-        s[kernel_vec].bind(tt, te.thread_axis("threadIdx.x"))
-        if VC in vec_size:
-            s[kernel_vec].vectorize(vec)
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            # Directly use modified data layout placeholder.
+            co, ci, kh, kw, vc = s[kernel_vec].op.axis
+            kvshape = (co // vc, ci, kh, kw, vc)
+            kernel_vec = tvm.te.placeholder(kvshape, kernel_vec.dtype, name="kernel")
+            s[kernel_vec] = kernel_vec
+        else:
+            max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
+            co, ci, kh, kw, vc = s[kernel_vec].op.axis
+            fused = s[kernel_vec].fuse(co, ci, kh, kw, vc)
+            fused, vec = s[kernel_vec].split(fused, VC)
+            bb, tt = s[kernel_vec].split(fused, max_threads)
+            s[kernel_vec].bind(bb, te.thread_axis("blockIdx.x"))
+            s[kernel_vec].bind(tt, te.thread_axis("threadIdx.x"))
+            if VC in vec_size:
+                s[kernel_vec].vectorize(vec)
 
     # schedule convolution
     n, c, h, w, vh, vw, vc = s[conv].op.axis
