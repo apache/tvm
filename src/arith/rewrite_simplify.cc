@@ -211,7 +211,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
 
 std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& constraint) {
   size_t old_literal_size = literal_constraints_.size();
-  literal_constraints_.push_back(constraint);
+  // we will compare the already simplified result with the constraint,
+  // so simplify the constarint as well
+  literal_constraints_.push_back(operator()(constraint));
   size_t new_literal_size = literal_constraints_.size();
   auto frecover = [old_literal_size, new_literal_size, this]() {
     CHECK_EQ(literal_constraints_.size(), new_literal_size);

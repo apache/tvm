@@ -52,6 +52,26 @@ def test_thread_extent_simplify():
     assert isinstance(body.body.body.body, tvm.tir.Store)
 
 
+def test_if_likely():
+    ib = tvm.tir.ir_builder.create()
+    A = ib.pointer("float32", name="A")
+    C = ib.pointer("float32", name="C")
+    n = te.size_var("n")
+    tx = te.thread_axis("threadIdx.x")
+    ty = te.thread_axis("threadIdx.y")
+    ib.scope_attr(tx, "thread_extent", 32)
+    ib.scope_attr(ty, "thread_extent", 32)
+    with ib.if_scope(ib.likely(tx * 32 + ty < n)):
+        with ib.if_scope(ib.likely(tx * 32 + ty < n)):
+            A[tx] = C[tx * 32 + ty]
+    body = ib.get()
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A, C, n], body))
+    body = tvm.tir.transform.Simplify()(mod)["main"].body
+    assert isinstance(body.body.body, tvm.tir.IfThenElse)
+    assert not isinstance(body.body.body.then_case, tvm.tir.IfThenElse)
+
+
 def test_basic_likely_elimination():
     n = te.size_var('n')
     X = te.placeholder(shape=(n,), name="x")
@@ -110,5 +130,6 @@ def test_complex_likely_elimination():
 if __name__ == "__main__":
     test_stmt_simplify()
     test_thread_extent_simplify()
+    test_if_likely()
     test_basic_likely_elimination()
     test_complex_likely_elimination()
