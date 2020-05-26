@@ -39,13 +39,13 @@
 namespace tvm {
 namespace tir {
 
-struct LoopUnrollConfig : public tvm::AttrsNode<LoopUnrollConfig> {
+struct UnrollLoopConfigNode : public tvm::AttrsNode<UnrollLoopConfigNode> {
   int auto_max_step;
   int auto_max_depth;
   int auto_max_extent;
   int explicit_unroll;
 
-  TVM_DECLARE_ATTRS(LoopUnrollConfig, "tir.transform.LoopUnrollConfig") {
+  TVM_DECLARE_ATTRS(UnrollLoopConfigNode, "tir.transform.UnrollLoopConfig") {
     TVM_ATTR_FIELD(auto_max_step)
         .describe("Threshold of number of steps in the loop to be automatically unrolled")
         .set_default(0);
@@ -61,8 +61,13 @@ struct LoopUnrollConfig : public tvm::AttrsNode<LoopUnrollConfig> {
   }
 };
 
-TVM_REGISTER_NODE_TYPE(LoopUnrollConfig);
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.UnrollLoop", LoopUnrollConfig);
+class UnrollLoopConfig : public Attrs {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(UnrollLoopConfig, Attrs, UnrollLoopConfigNode);
+};
+
+TVM_REGISTER_NODE_TYPE(UnrollLoopConfigNode);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.UnrollLoop", UnrollLoopConfig);
 
 class LoopUnroller : public StmtExprMutator {
  public:
@@ -204,9 +209,9 @@ class LoopUnroller : public StmtExprMutator {
   arith::Analyzer analyzer_;
 };
 
-Stmt UnrollLoop(Stmt stmt, int auto_max_step, int auto_max_depth, int auto_max_extent,
-                bool explicit_unroll) {
-  Stmt ret = LoopUnroller(auto_max_step, auto_max_depth, auto_max_extent, explicit_unroll)(stmt);
+Stmt UnrollLoop(Stmt stmt, UnrollLoopConfig cfg) {
+  Stmt ret = LoopUnroller(cfg->auto_max_step, cfg->auto_max_depth, cfg->auto_max_extent,
+                          cfg->explicit_unroll)(stmt);
   if (!ret.same_as(stmt)) {
     return ConvertSSA(ret);
   } else {
@@ -216,11 +221,14 @@ Stmt UnrollLoop(Stmt stmt, int auto_max_step, int auto_max_depth, int auto_max_e
 
 namespace transform {
 
-Pass UnrollLoop(int auto_max_step, int auto_max_depth, int auto_max_extent, bool explicit_unroll) {
+Pass UnrollLoop() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = UnrollLoop(std::move(f->body), auto_max_step, auto_max_depth, auto_max_extent,
-                         explicit_unroll);
+    auto cfg = ctx->GetConfig<UnrollLoopConfig>("tir.UnrollLoop");
+    if (!cfg.defined()) {
+      cfg = AttrsWithDefaultValues<UnrollLoopConfig>();
+    }
+    n->body = UnrollLoop(std::move(f->body), cfg.value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.UnrollLoop", {});
