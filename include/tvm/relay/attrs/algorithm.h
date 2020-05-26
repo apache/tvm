@@ -26,6 +26,7 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/base.h>
+#include <tvm/relay/expr.h>
 
 #include <string>
 
@@ -52,14 +53,14 @@ struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
 };
 
 struct TopKAttrs : public tvm::AttrsNode<TopKAttrs> {
-  int k;
+  Optional<Integer> k;
   int axis;
   bool is_ascend;
   std::string ret_type;
   DataType dtype;
 
   TVM_DECLARE_ATTRS(TopKAttrs, "relay.attrs.TopkAttrs") {
-    TVM_ATTR_FIELD(k).set_default(1).describe("Number of top elements to select");
+    TVM_ATTR_FIELD(k).describe("Number of top elements to select");
     TVM_ATTR_FIELD(axis).set_default(-1).describe("Axis along which to sort the input tensor.");
     TVM_ATTR_FIELD(ret_type).set_default("both").describe(
         "The return type [both, values, indices]."
