@@ -458,6 +458,13 @@ bool IsDataDependant(const CallNode* call) {
         return false;
       }
     }
+  } else if (op->name == "strided_slice") {
+    if (const auto* attrs = call->attrs.as<StridedSliceAttrs>()) {
+      if (attrs->begin && attrs->end && attrs->strides) {
+        // not data dependant if begin, end and strides exist
+        return false;
+      }
+    }
   }
 
   return tshape_data_dependant[op];

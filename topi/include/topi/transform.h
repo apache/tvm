@@ -560,7 +560,7 @@ inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const 
   std::vector<int64_t> end_vec;
   for (size_t i = 0; i < end.size(); ++i) {
     // allow end to be None
-    if (ignore_end || (!end[i].defined())) {
+    if (!end[i].defined() || (ignore_end && end[i]->value < 0)) {
       end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
     } else {
       end_vec.push_back(end[i]->value);

@@ -1674,66 +1674,6 @@ Array<Integer> GetIntArray(Array<IndexExpr> arr) {
 // strided_slice
 TVM_REGISTER_NODE_TYPE(StridedSliceAttrs);
 
-int64_t* ToVector(const runtime::NDArray& array) {
-  size_t len = array.Shape().front();
-  int64_t* rel_vec = new int64_t[len];
-  if (array->dtype.code == kDLInt) {
-    if (array->dtype.bits == 8) {
-      int8_t* init_array = reinterpret_cast<int8_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    } else if (array->dtype.bits == 16) {
-      int16_t* init_array = reinterpret_cast<int16_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    } else if (array->dtype.bits == 32) {
-      int32_t* init_array = reinterpret_cast<int32_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    } else if (array->dtype.bits == 64) {
-      int64_t* init_array = reinterpret_cast<int64_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    }
-  } else if (array->dtype.code == kDLUInt) {
-    if (array->dtype.bits == 8) {
-      uint8_t* init_array = reinterpret_cast<uint8_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    } else if (array->dtype.bits == 16) {
-      uint16_t* init_array = reinterpret_cast<uint16_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    } else if (array->dtype.bits == 32) {
-      uint32_t* init_array = reinterpret_cast<uint32_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    } else if (array->dtype.bits == 64) {
-      uint64_t* init_array = reinterpret_cast<uint64_t*>(array->data);
-      for (size_t i = 0; i < len; ++i) {
-        rel_vec[i] = int64_t(init_array[i]);
-      }
-      return rel_vec;
-    }
-  }
-  LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
-  return rel_vec;
-}
-
 bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 5);
@@ -1771,7 +1711,8 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
     std::vector<int64_t> end_vec;
     for (size_t i = 0; i < param->end.value().size(); ++i) {
       // allow end to be None
-      if (param->ignore_end || (!param->end.value()[i].defined())) {
+      if (!param->end.value()[i].defined() ||
+          (param->ignore_end && param->end.value()[i]->value < 0)) {
         end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
       } else {
         end_vec.push_back(param->end.value()[i]->value);
@@ -1894,6 +1835,9 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
         }
         int64_t bg = begin[i].defined() ? begin[i]->value : 0;
         int64_t ed = end[i].defined() ? end[i]->value : shape[i].as<IntImmNode>()->value;
+        if (params->ignore_end && end[i].defined() && end[i]->value < 0) {
+          ed = shape[i].as<IntImmNode>()->value;
+        }
         if (bg % factor || ed % factor) {
           // transform to original layout
           return {{Layout::Undef()}, {Layout::Undef()}};
@@ -1912,7 +1856,6 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
 
 inline te::Tensor DynamicStridedSlice(const te::Tensor& input, const te::Tensor& begin,
                                       const te::Tensor& end, const te::Tensor& strides,
-                                      const bool& ignore_end,
                                       std::string name = "T_strided_slice_dynamic",
                                       std::string tag = topi::kInjective) {
   int64_t src_tensor_dim = input->shape.size();
@@ -1956,7 +1899,7 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
           strides->shape[0].as<IntImmNode>()->value == attr_size)
         << "begin, end, and strides are required to have the same length"
         << " if they are non-constant.";
-    return Array<te::Tensor>{DynamicStridedSlice(data, begin, end, strides, param->ignore_end)};
+    return Array<te::Tensor>{DynamicStridedSlice(data, begin, end, strides)};
   }
 }
 

@@ -296,25 +296,34 @@ def test_mean_var_std():
 
 
 def test_strided_slice():
-    def verify(dshape, begin, end, strides, output,
-               ignore_end=False, test_ref=True, dtype="int32"):
+    def verify(dshape, begin, end, strides, output, ignore_end=False,
+               attr_const=True, test_ref=True, dtype="int32"):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         ndim = len(dshape)
         begin = begin if begin else [0] * ndim
         end = end if end else list(dshape)
-        begin_expr = relay.const(begin, dtype=dtype)
-        end_expr = relay.const(end, dtype=dtype)
+
+        # target numpy result
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        ref_res = topi.testing.strided_slice_python(
+            x_data, begin, end, strides, ignore_end)
+
+        if attr_const:
+            begin = relay.const(begin, dtype=dtype)
+            end = relay.const(end, dtype=dtype)
+
         if strides:
-            strides_expr = relay.const(strides, dtype=dtype)
+            if attr_const:
+                strides = relay.const(strides, dtype=dtype)
             z = relay.strided_slice(x,
-                                    begin=begin_expr,
-                                    end=end_expr,
-                                    strides=strides_expr,
+                                    begin=begin,
+                                    end=end,
+                                    strides=strides,
                                     ignore_end=ignore_end)
         else:
             z = relay.strided_slice(x,
-                                    begin=begin_expr,
-                                    end=end_expr,
+                                    begin=begin,
+                                    end=end,
                                     ignore_end=ignore_end)
         func = relay.Function([x], z)
 
@@ -328,26 +337,26 @@ def test_strided_slice():
 
         if not test_ref:
             return
-        x_data = np.random.uniform(size=dshape).astype("float32")
-        ref_res = topi.testing.strided_slice_python(
-            x_data, begin, end, strides)
         for target, ctx in ctx_list():
             intrp = relay.create_executor("graph", ctx=ctx, target=target)
             op_res = intrp.evaluate(func)(x_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
-    verify((1, 224, 224, 3), [0, 20, 20, 0], [1, 140, 140, 3], [1, 1, 1, 1],
-           (1, 120, 120, 3), dtype="int64")
+    verify((1, 224, 224, 3), [0, 20, 20, 0], [1, 140, 140, 3],
+           [1, 1, 1, 1], (1, 120, 120, 3), dtype="int64")
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3), dtype="int16")
     verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
-    verify((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2], (2, 4, 2),
-           ignore_end=True, test_ref=False)
+    verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2), attr_const=False)
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 1000, 3], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 4], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1], [4, 4, 3], None, (2, 3, 3))
     verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
     verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
+    verify((3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 2],
+           (2, 4, 2), ignore_end=True, test_ref=False)
+    verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 2],
+           (2, 2, 2), ignore_end=True, test_ref=True)
 
 def test_strided_set():
     def verify(dshape, begin, end, strides, vshape, test_ref=True):

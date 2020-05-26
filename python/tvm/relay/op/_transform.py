@@ -99,10 +99,14 @@ def _arange_shape_func(start, stop, step):
 
 @_reg.register_shape_func("arange", True)
 def arange_shape_func(attrs, inputs, _):
+    """
+    Shape func for arange
+    """
     return [_arange_shape_func(*inputs)]
 
 @script
-def _strided_slice_shape_func(data, begin, end, strides, ignore_end):
+def _strided_slice_shape_func_input_data(data, begin, end, strides,
+                                         ignore_end):
     ndim = len(data.shape)
     out = output_tensor((ndim,), "int64")
     for i in const_range(ndim):
@@ -119,10 +123,37 @@ def _strided_slice_shape_func(data, begin, end, strides, ignore_end):
         out[i] = int64(ceil_div((int64(cend) - int64(cbegin)), int64(cstride)))
     return out
 
+@script
+def _strided_slice_shape_func_input_shape(data_shape, begin, end, strides, ignore_end):
+    ndim = data_shape.shape[0]
+    assert ndim == 2, "not correct"
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        cbegin = int64(0)
+        cend = int64(data_shape[i])
+        cstride = int64(1)
+        if len(begin) > i:
+            cbegin = int64(begin[i])
+        if len(end) > i:
+            cend = int64(end[i])
+        if ignore_end != 0 and len(strides) > i:
+            cstride = int64(strides[i])
+        assert cstride != 0, "Strides can't be zero."
+        out[i] = int64(ceil_div((int64(cend) - int64(cbegin)), int64(cstride)))
+    return out
+
+
 @_reg.register_shape_func("strided_slice", True)
 def strided_slice_shape_func(attrs, inputs, _):
-    ignore_end = attrs.ignore_end
-    return [_strided_slice_shape_func(*inputs, convert(get_const_int(ignore_end)))]
+    """
+    Shape func for strided_slice
+    """
+    ignore_end = convert(get_const_int(attrs.ignore_end))
+    # data independent if begin, end and strides exist
+    if attrs.begin and attrs.end and attrs.strides:
+        return [_strided_slice_shape_func_input_shape(inputs[0], attrs.begin, attrs.end,
+                                                      attrs.strides, ignore_end)]
+    return [_strided_slice_shape_func_input_data(*inputs, ignore_end)]
 
 @script
 def _concatenate_shape_func(inputs, axis):

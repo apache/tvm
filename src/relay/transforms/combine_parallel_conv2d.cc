@@ -172,7 +172,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       Array<Integer> end;
       for (size_t i = 0; i < channel_pos_; i++) {
         begin.push_back(0);
-        end.push_back(channels);
+        end.push_back(-1);
       }
       begin.push_back(index);
       index += channels;
@@ -196,7 +196,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       }
 
       auto slice = MakeStridedSlice(data, Constant(begin_ndarray), Constant(end_ndarray),
-                                    Constant(strides_ndarray), false);
+                                    Constant(strides_ndarray), true);
       subst_map->insert({GetRef<Expr>(branch[depth]), slice});
     }
   }
