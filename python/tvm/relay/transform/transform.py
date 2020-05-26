@@ -380,7 +380,7 @@ def MergeComposite(pattern_table):
 
     Parameters
     ----------
-    pattern_table : list(tuple)
+    pattern_table : List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Function]]
         A list of (pattern_name, pattern, check) tuples.
         The order of the patterns in the list will determine the order
         of priority in which they are matched.
