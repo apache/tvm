@@ -158,7 +158,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
   } else if (auto* op = expr.as<FunctionNode>()) {
     matches = true;
     for (auto kv : attributes) {
-      if (matches && op->attrs->dict.count(kv.first)) {
+      if (matches && op->attrs.defined() && op->attrs->dict.count(kv.first)) {
         matches &= StructuralEqual()(kv.second, op->attrs->dict[kv.first]);
       } else {
         matches = false;
@@ -456,7 +456,7 @@ class PatternGrouper {
       size_t index = i - 1;
       Expr current = matcher_->expr_graph_.topological_order_.at(index)->ref_;
       if (auto op = current.as<FunctionNode>()) {
-        if (op->attrs->dict.count(attr::kPartitionedFromPattern) != 0) {
+        if (op->attrs.defined() && op->attrs->dict.count(attr::kPartitionedFromPattern) != 0) {
           pre_partitioned.insert(current);
           PostOrderVisit(op->body,
                          [&pre_partitioned](const Expr& expr) { pre_partitioned.insert(expr); });
