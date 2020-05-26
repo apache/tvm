@@ -689,8 +689,8 @@ def test_scatter():
         indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape)
 
         ref_res = ref_scatter(data_np, indices_np, updates_np, axis)
-
-        for target, ctx in ctx_list():
+        # TODO(mbrookhart): expand testing when adding more backend schedules
+        for target, ctx in [("llvm", tvm.cpu())]:
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
