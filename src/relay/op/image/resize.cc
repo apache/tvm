@@ -194,12 +194,12 @@ bool CropAndResizeRel(const Array<Type>& types, int num_inputs, const Attrs& att
   const Layout in_layout(param->layout);
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
   auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(0, box_indices->shape[0]);
+  oshape.Set(0, boxes->shape[0]);
   oshape.Set(2, crop_size[0]);
   oshape.Set(3, crop_size[1]);
   auto bshape = layout_converter.BackwardShape(oshape);
   // assign output type
-  reporter->Assign(types[3], TensorType(layout_converter.BackwardShape(oshape), out_dtype));
+  reporter->Assign(types[3], TensorType(bshape, out_dtype));
   return true;
 }
 

@@ -111,7 +111,7 @@ struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
 
 /*! \brief Attributes that specify a tensor */
 struct InitOpAttrs : public tvm::AttrsNode<InitOpAttrs> {
-  Array<IndexExpr> shape;
+  Optional<Array<Integer>> shape;
   DataType dtype;
 
   TVM_DECLARE_ATTRS(InitOpAttrs, "relay.attrs.InitOpAttrs") {
