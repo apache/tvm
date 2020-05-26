@@ -878,8 +878,8 @@ def test_quadruple_partition_dominator():
                 )
     assert tvm.ir.structural_equal(partitioned, reference)
 
-def get_BN(x, var, mean, beta, gamma, eps = 1e-5):
-    return gamma * (x - mean)/relay.op.sqrt(var + relay.const(eps)) + beta
+def get_BN(x, var, mean, beta, gamma, eps):
+    return gamma * (x - mean)/relay.op.sqrt(var + eps) + beta
 
 def test_partition_batchnorm():
     x = relay.var('x')
@@ -887,7 +887,8 @@ def test_partition_batchnorm():
     mean = relay.var('mean')
     beta = relay.var('beta')
     gamma = relay.var('gamma')
-    BN = get_BN(x, var, mean, beta, gamma)
+    eps = relay.const(1e-5)
+    BN = get_BN(x, var, mean, beta, gamma, eps)
 
     
     xf = relay.var('xf')
@@ -895,11 +896,12 @@ def test_partition_batchnorm():
     meanf = relay.var('meanf')
     betaf = relay.var('betaf')
     gammaf = relay.var('gammaf')
+    epsf = relay.var('epsf')
     # Put the arguments in toplogological order for the reference
-    f = relay.Function([gammaf, xf, meanf, varf, betaf], get_BN(xf, varf, meanf, betaf, gammaf)).with_attr("PartitionedFromPattern","subtract_multiply_add_sqrt_divide_add_")
+    f = relay.Function([gammaf, xf, meanf, varf, epsf, betaf], get_BN(xf, varf, meanf, betaf, gammaf, epsf)).with_attr("PartitionedFromPattern","subtract_multiply_add_sqrt_divide_add_")
 
     partitioned = BatchnormCallback().pattern.partition(BN)
-    assert tvm.ir.structural_equal(partitioned, f(gamma, x, mean, var, beta))
+    assert tvm.ir.structural_equal(partitioned, f(gamma, x, mean, var, eps, beta))
 
 def test_partition_double_batchnorm():
     x = relay.var('x')
@@ -907,26 +909,29 @@ def test_partition_double_batchnorm():
     mean = relay.var('mean')
     beta = relay.var('beta')
     gamma = relay.var('gamma')
+    eps = relay.const(1e-5)
     
-    BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
-    BN2 = gamma * (BN - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
+    BN = gamma * (x - mean)/relay.op.sqrt(var + eps) + beta
+    BN2 = gamma * (BN - mean)/relay.op.sqrt(var + eps) + beta
 
     xf = relay.var('xf')
     varf = relay.var('varf')
     meanf = relay.var('meanf')
     betaf = relay.var('betaf')
     gammaf = relay.var('gammaf')
-    f1 = relay.Function([gammaf, xf, meanf, varf, betaf], get_BN(xf, varf, meanf, betaf, gammaf)).with_attr("PartitionedFromPattern","subtract_multiply_add_sqrt_divide_add_")
+    epsf = relay.var('epsf')
+    f1 = relay.Function([gammaf, xf, meanf, varf, epsf, betaf], get_BN(xf, varf, meanf, betaf, gammaf, epsf)).with_attr("PartitionedFromPattern","subtract_multiply_add_sqrt_divide_add_")
     # The partitioner doesn't replace duplicates, so we use two copies of the function
     xf2 = relay.var('xf2')
     varf2 = relay.var('varf2')
     meanf2 = relay.var('meanf2')
     betaf2 = relay.var('betaf2')
     gammaf2 = relay.var('gammaf2')
-    f2 = relay.Function([gammaf2, xf2, meanf2, varf2, betaf2], get_BN(xf2, varf2, meanf2, betaf2, gammaf2)).with_attr("PartitionedFromPattern","subtract_multiply_add_sqrt_divide_add_")
+    epsf2 = relay.var('epsf2')
+    f2 = relay.Function([gammaf2, xf2, meanf2, varf2, epsf2, betaf2], get_BN(xf2, varf2, meanf2, betaf2, gammaf2, epsf2)).with_attr("PartitionedFromPattern","subtract_multiply_add_sqrt_divide_add_")
 
     partitioned = BatchnormCallback().pattern.partition(BN2)
-    reference = f2(gamma, f1(gamma, x, mean, var, beta), mean, var, beta)
+    reference = f2(gamma, f1(gamma, x, mean, var, eps, beta), mean, var, eps, beta)
     assert tvm.ir.structural_equal(partitioned, reference)
 
 def test_partition_check():
