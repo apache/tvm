@@ -63,14 +63,17 @@ from . import arith
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
 
-PREV_EXCEPTHOOK = sys.excepthook
+# Wrap given excepthook with TVM additional work.
+def tvm_wrap_excepthook(exception_hook):
 
-# Clean subprocesses when TVM is interrupted
-def tvm_excepthook(exctype, value, trbk):
-    PREV_EXCEPTHOOK(exctype, value, trbk)
-    if hasattr(multiprocessing, 'active_children'):
-        # pylint: disable=not-callable
-        for p in multiprocessing.active_children():
-            p.terminate()
+    # Clean subprocesses when TVM is interrupted
+    def wrapper(exctype, value, trbk):
+        exception_hook(exctype, value, trbk)
+        if hasattr(multiprocessing, 'active_children'):
+            # pylint: disable=not-callable
+            for p in multiprocessing.active_children():
+                p.terminate()
 
-sys.excepthook = tvm_excepthook
+    return wrapper
+
+sys.excepthook = tvm_wrap_excepthook(sys.excepthook)
