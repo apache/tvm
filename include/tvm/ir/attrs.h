@@ -237,7 +237,7 @@ class DictAttrs : public Attrs {
 };
 
 /*!
- * \brief Create a Attr object with all default values.
+ * \brief Create an Attr object with all default values.
  * \tparam TAttrNode the type to be created.
  * \return A instance that will represent None.
  */
