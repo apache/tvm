@@ -151,7 +151,7 @@ def strided_slice(a, begin, end, strides=None, ignore_end=False):
         in that particular axis.
 
     ignore_end: boolean, optional
-        Specifies whether to ignore input end.
+        Specifies whether to ignore negative elements of input end.
 
     Returns
     -------

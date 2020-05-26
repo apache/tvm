@@ -678,12 +678,14 @@ def verify_any_strided_slice(data_shape, begin_shape, end_shape, strides_shape,
         result = ex.evaluate()(*np_inputs)
         tvm.testing.assert_allclose(result.asnumpy(), ref_res)
 
+
 def test_any_strided_slice():
+    verify_any_strided_slice(any_dims(2), (2,), (2,), (2,), (15, 21))
     verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (15, 17, 21))
     verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (23, 29, 41))
     verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70))
     verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70), ignore_end=True)
-    verify_any_strided_slice(any_dims(2), (2,), (2,), (2,), (6, 7))
+
 
 def test_recursive_concat():
     """
@@ -810,7 +812,7 @@ def test_mixed_input_type():
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()([[data_np0, data_np0], data_np0], data_np1)
         assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(ret.asnumpy().shape))
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
 
 if __name__ == "__main__":
     test_any_full()

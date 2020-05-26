@@ -1962,7 +1962,7 @@ Examples::
     .add_argument("begin", "Tensor", "The indices to begin with in the slicing.")
     .add_argument("end", "Tensor", "Indices indicating end of the slice.")
     .add_argument("strides", "Tensor", "The stride values.")
-    .add_argument("ignore_end", "Tensor", "Whether to ignore end.")
+    .add_argument("ignore_end", "Tensor", "Whether to ignore negative elements of input end.")
     .set_support_level(4)
     .set_attrs_type<StridedSliceAttrs>()
     .add_type_rel("StridedSlice", StridedSliceRel)

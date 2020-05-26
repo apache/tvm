@@ -630,7 +630,8 @@ def strided_slice(data, begin, end, strides=None, ignore_end=False):
         the input tensor will be reversed in that particular axis.
 
     ignore_end: boolean, optional
-        Whether to ignore input end.
+        Whether to ignore the negative elements in input end,
+        will slice to the end of data for the ignored element.
 
     Returns
     -------

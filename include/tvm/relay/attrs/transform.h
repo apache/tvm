@@ -221,7 +221,7 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
     TVM_ATTR_FIELD(strides).describe("Stride values of the slice");
     TVM_ATTR_FIELD(ignore_end)
         .set_default(false)
-        .describe("Whether to ignore the input end and infer value of end from input data");
+        .describe("Whether to ignore the negative elements in input end.");
   }
 };
 

@@ -35,7 +35,7 @@ def strided_slice_python(data, begin, end, strides, ignore_end=False):
         The stride of each slice.
 
     ignore_end : boolean
-        Whether to ignore input end
+        Whether to ignore negative elements of input end
 
     Returns
     -------
@@ -45,15 +45,15 @@ def strided_slice_python(data, begin, end, strides, ignore_end=False):
     strides = [] if strides is None else strides
     slices = []
     for i in range(len(data.shape)):
-        bg = begin[i] if i < len(begin) else None
+        new_begin = begin[i] if i < len(begin) else None
         if i >= len(end) or (ignore_end and end[i] < 0):
-            ed = None
+            new_end = None
         else:
-            ed = end[i]
-        sd = strides[i] if i < len(strides) else None
-        slices.append(slice(bg,
-                            ed,
-                            sd))
+            new_end = end[i]
+        new_stride = strides[i] if i < len(strides) else None
+        slices.append(slice(new_begin,
+                            new_end,
+                            new_stride))
     return data[tuple(slices)]
 
 
