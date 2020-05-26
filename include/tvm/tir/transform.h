@@ -108,11 +108,9 @@ TVM_DLL Pass LiftAttrScope(std::string attr_key);
 /*!
  * \brief partition loops in the stmt.
  *
- * \param split_const_loop flag to enable partition for const loop
- *
  * \return The pass.
  */
-TVM_DLL Pass LoopPartition(bool split_const_loop);
+TVM_DLL Pass LoopPartition();
 
 /*!
  * \brief Lower vectorization loops.
@@ -133,10 +131,9 @@ TVM_DLL Pass InjectVirtualThread();
 /*!
  * \brief Inject double buffer statements.
  *
- * \param split_loop_factor Loop splitting factor.
  * \return The pass.
  */
-TVM_DLL Pass InjectDoubleBuffer(int split_loop_factor);
+TVM_DLL Pass InjectDoubleBuffer();
 
 /*!
  * \brief Rewrite storage allocation pattern.
@@ -152,15 +149,9 @@ TVM_DLL Pass StorageRewrite();
  * \brief unroll the constant loop marked by unroll.
  * This pass also automatically attach pragma unroll tag to loops which meets the standard.
  *
- * \param auto_max_step The maximum step before stop attach automatic unroll
- * \param auto_max_depth The maximum depth before stop attach automatic unroll
- * \param auto_max_extent The maximum extent of the loop we can unroll,
- *        this is an legacy option that do not take the loop total steps into account.
- * \param explicit_unroll Whether explicitly unroll the loop, or leave unroll annotation to codegen.
  * \return The pass.
  */
-TVM_DLL Pass UnrollLoop(int auto_max_step, int auto_max_depth, int auto_max_extent,
-                        bool explicit_unroll);
+TVM_DLL Pass UnrollLoop();
 
 /*!
  * \brief Remove No Op from the Stmt.

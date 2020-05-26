@@ -99,6 +99,7 @@ class PassContext(tvm.runtime.Object):
             raise TypeError("disabled_pass is expected to be the type of " +
                             "list/tuple/set.")
 
+        config = config if config else None
         self.__init_handle_by_constructor__(_ffi_transform_api.PassContext, opt_level,
                                             fallback_device, required,
                                             disabled, trace, config)
