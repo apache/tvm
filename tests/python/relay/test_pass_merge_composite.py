@@ -107,6 +107,24 @@ def make_conv_bias_relu_pattern():
     return r
 
 
+def make_pattern_with_optional():
+    r"""Create a pattern to match the following graph. Note that relu is optinal.
+
+       conv2d
+         |
+      bias_add
+         |
+       (relu)
+    """
+    x = wildcard()
+    y = wildcard()
+    z = wildcard()
+    conv_node = is_op('nn.conv2d')(x, y)
+    bias_node = is_op('nn.bias_add')(conv_node, z)
+    r = bias_node.optional(lambda x: is_op('nn.relu')(x))
+    return r
+
+
 def make_add_add_add_pattern():
     r"""Create a pattern to match the following graph.
        Useful for testing re-using a call node.
@@ -145,6 +163,14 @@ def make_bn_relu_pattern():
     r = is_op('nn.relu')(tuple_get_item_node)
     return r
 
+def check_result(pattern_table, graph, expected_graph):
+    """Utility function to check merge composite results."""
+    result = run_opt_pass(graph, relay.transform.MergeComposite(pattern_table))
+    assert not relay.analysis.free_vars(result), \
+        "Found free vars in the result graph: {0}".format(str(result))
+    expected = run_opt_pass(expected_graph, relay.transform.InferType())
+    assert tvm.ir.structural_equal(result, expected, map_free_vars=True), \
+        "Graph mismatch: output vs. expected\n{0}\n=====\n{1}".format(str(result), str(expected))
 
 def test_simple_merge():
     r"""Test composite function is correctly produced from simple graph.
@@ -187,10 +213,7 @@ def test_simple_merge():
         r = relay.Call(add_relu, [a, b])
         return relay.Function([a, b], r)
 
-    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
-    assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(expected(), relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
+    check_result(pattern_table, before(), expected())
 
 
 def test_branch_merge():
@@ -265,10 +288,7 @@ def test_branch_merge():
         r = relay.nn.relu(m_add_sub_mul_2)
         return relay.Function([a, b, c], r)
 
-    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
-    assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(expected(), relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
+    check_result(pattern_table, before(), expected())
 
 
 def test_reuse_call_merge():
@@ -324,10 +344,7 @@ def test_reuse_call_merge():
         call = relay.Call(add_add_add, [sub_node, b])
         return relay.Function([a, b], call)
 
-    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
-    assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(expected(), relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
+    check_result(pattern_table, before(), expected())
 
 
 def test_multiple_patterns():
@@ -420,10 +437,75 @@ def test_multiple_patterns():
         r = relay.multiply(add_relu_1, b)
         return relay.Function([data, kernel, bias, a, b], r)
 
-    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
-    assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(expected(), relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
+    check_result(pattern_table, before(), expected())
+
+
+def test_optional_pattern():
+    r"""Test the pattern with optional operators. We can define a pattern with some operators
+    optional. The merge composite pass will create composite functions for all matched patterns,
+    but with different "PartitionedFromPattern" attribute. We expect the backend codegen to
+    analyze that attribute and determine the corresponding action.
+
+    Pattern:    Matched Case A:    Matched Case B:
+
+     conv2d        conv2d             conv2d
+       |             |                  |
+    bias_add      bias_add           bias_add
+       |             |
+     (relu)         relu
+
+    In the above example, the composite function for matched case A would have
+    PartitionedFromPattern="nn.conv2d_nn.bias_add_nn.relu_" while the one for matched case B
+    woud be "nn.conv2d_nn.bias_add_".
+    """
+    pattern_table = [("layer", make_pattern_with_optional())]
+
+    def before():
+        x = relay.var('x', shape=(1, 3, 7, 7))
+        w1 = relay.var('w', shape=(3, 3, 1, 1))
+        b1 = relay.var('b', shape=(3, ))
+        w2 = relay.var('w', shape=(3, 3, 1, 1))
+        b2 = relay.var('b', shape=(3, ))
+        conv = relay.nn.conv2d(x, w1, kernel_size=(1, 1))
+        bias = relay.nn.bias_add(conv, b1)
+        relu = relay.nn.relu(bias)
+        conv = relay.nn.conv2d(relu, w2, kernel_size=(1, 1))
+        bias = relay.nn.bias_add(conv, b2)
+        return relay.Function([x, w1, w2, b1, b2], bias)
+
+    def expected():
+        # Matched composite function A
+        x = relay.var('x')
+        w = relay.var('w')
+        b = relay.var('b')
+        conv = relay.nn.conv2d(x, w, kernel_size=(1, 1))
+        bias = relay.nn.bias_add(conv, b)
+        relu = relay.nn.relu(bias)
+        func1 = relay.Function([x, w, b], relu)
+        func1 = func1.with_attr("Composite", "layer")
+        func1 = func1.with_attr("PartitionedFromPattern", "nn.conv2d_nn.bias_add_nn.relu_")
+
+        # Matched composite function B
+        x = relay.var('x')
+        w = relay.var('w')
+        b = relay.var('b')
+        conv = relay.nn.conv2d(x, w, kernel_size=(1, 1))
+        bias = relay.nn.bias_add(conv, b)
+        func2 = relay.Function([x, w, b], bias)
+        func2 = func2.with_attr("Composite", "layer")
+        func2 = func2.with_attr("PartitionedFromPattern", "nn.conv2d_nn.bias_add_")
+
+        # Main function
+        x = relay.var('x', shape=(1, 3, 7, 7))
+        w1 = relay.var('w', shape=(3, 3, 1, 1))
+        b1 = relay.var('b', shape=(3, ))
+        w2 = relay.var('w', shape=(3, 3, 1, 1))
+        b2 = relay.var('b', shape=(3, ))
+        out1 = func1(x, w1, b1)
+        out2 = func2(out1, w2, b2)
+        return relay.Function([x, w1, w2, b1, b2], out2)
+
+    check_result(pattern_table, before(), expected())
 
 
 def test_merge_order():
@@ -519,10 +601,7 @@ def test_merge_order():
         ("B", pattern_B()),
         ("C", pattern_C()),
     ]
-    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
-    assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(after_A_priority(), relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
+    check_result(pattern_table, before(), after_A_priority())
 
     # check B highest priority
     pattern_table = [
@@ -530,10 +609,7 @@ def test_merge_order():
         ("C", pattern_C()),
         ("A", pattern_A()),
     ]
-    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
-    assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(after_B_priority(), relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
+    check_result(pattern_table, before(), after_B_priority())
 
     # check C highest priority
     pattern_table = [
@@ -541,10 +617,7 @@ def test_merge_order():
         ("A", pattern_A()),
         ("B", pattern_B()),
     ]
-    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
-    assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(after_C_priority(), relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
+    check_result(pattern_table, before(), after_C_priority())
 
 
 def test_parallel_merge():
@@ -567,7 +640,7 @@ def test_parallel_merge():
         out = relay.multiply(branch_1, branch_2)
         return relay.Function([input_1, input_2], out)
 
-    def after():
+    def expected():
         input_1 = relay.var('input_1', shape=(10, 10))
         input_2 = relay.var('input_2', shape=(10, 10))
         x = relay.var('x')
@@ -590,10 +663,7 @@ def test_parallel_merge():
     pattern_table = [
         ("add_sub_mul", make_add_sub_mul_pattern())
     ]
-    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
-    assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(after(), relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
+    check_result(pattern_table, before(), expected())
 
 
 def test_multiple_input_subgraphs():
@@ -706,17 +776,8 @@ def test_multiple_input_subgraphs():
         ("add_sub_mul", make_add_sub_mul_pattern()),
         ("add_relu", make_add_relu_pattern())
     ]
-    # check case 'A'
-    result = run_opt_pass(before()['A'], relay.transform.MergeComposite(pattern_table))
-    assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(after_A(), relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
-
-    # check case 'B'
-    result = run_opt_pass(before()['B'], relay.transform.MergeComposite(pattern_table))
-    assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(after_B(), relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
+    check_result(pattern_table, before()['A'], after_A())
+    check_result(pattern_table, before()['B'], after_B())
 
 
 def test_tuple_get_item_merge():
@@ -761,10 +822,7 @@ def test_tuple_get_item_merge():
         r = relay.Call(bn_relu, [x, gamma, beta, moving_mean, moving_var])
         return relay.Function([x, gamma, beta, moving_mean, moving_var], r)
 
-    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
-    assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(expected(), relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
+    check_result(pattern_table, before(), expected())
 
 
 def test_pattern_with_check():
@@ -789,19 +847,31 @@ def test_pattern_with_check():
         conv = extract.args[0].args[0]
         return conv.attrs.data_layout == "NCHW"
 
-    pattern_table_true = [
-        ("conv_bias_relu", make_conv_bias_relu_pattern(), _check_true)
-    ]
+    def expected():
+        x = relay.var('x')
+        w = relay.var('w')
+        b = relay.var('b')
+        conv = relay.nn.conv2d(x, w, kernel_size=(3, 3), kernel_layout="OIHW", data_layout="NHWC")
+        bias = relay.nn.bias_add(conv, b)
+        relu = relay.nn.relu(bias)
+        func = relay.Function([x, w, b], relu)
+        func = func.with_attr("Composite", "conv_bias_relu")
+        func = func.with_attr("PartitionedFromPattern", "nn.conv2d_nn.bias_add_nn.relu_")
+
+        x = relay.var('x', shape=(1, 10, 10, 10))
+        w = relay.var('w', shape=(10, 10, 3, 3))
+        b = relay.var('b', shape=(8,))
+        return relay.Function([x, w, b], func(x, w, b))
+
     pattern_table_false = [
         ("conv_bias_relu", make_conv_bias_relu_pattern(), _check_false)
     ]
+    check_result(pattern_table_false, before(), before())
 
-    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table_false))
-    expected = run_opt_pass(before(), relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
-
-    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table_true))
-    assert result.body.op.attrs["Composite"] == "conv_bias_relu"
+    pattern_table_true = [
+        ("conv_bias_relu", make_conv_bias_relu_pattern(), _check_true)
+    ]
+    check_result(pattern_table_true, before(), expected())
 
 
 def test_diamond_not_merge():
@@ -835,11 +905,9 @@ def test_diamond_not_merge():
         mul = relay.op.multiply(relu, clip2)
         return relay.Function(relay.analysis.free_vars(mul), mul)
 
-    pat_table = [("pat", get_pattern())]
+    pattern_table = [("pat", get_pattern())]
     net = get_net()
-    result = run_opt_pass(net, relay.transform.MergeComposite(pat_table))
-    expected = run_opt_pass(net, relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
+    check_result(pattern_table, net, net)
 
 
 def test_type_check():
@@ -857,6 +925,23 @@ def test_type_check():
         relu = relay.nn.relu(bias)
         return relay.Function([x, w, b], relu)
 
+    def expected():
+        x = relay.var('x')
+        w = relay.var('w')
+        b = relay.var('b')
+        conv = relay.nn.conv2d(x, w, kernel_size=(3, 3), kernel_layout="OIHW", data_layout="NHWC")
+        bias = relay.nn.bias_add(conv, b)
+        relu = relay.nn.relu(bias)
+        func = relay.Function([x, w, b], relu)
+        func = func.with_attr("Composite", "conv_bias_relu")
+        func = func.with_attr("PartitionedFromPattern", "nn.conv2d_nn.bias_add_nn.relu_")
+
+        x = relay.var('x', shape=(1, 10, 10, 10))
+        w = relay.var('w', shape=(10, 10, 3, 3))
+        b = relay.var('b', shape=(8, ))
+        return relay.Function([x, w, b], func(x, w, b))
+
+
     def _check_type_true(extract):
         conv = extract.args[0].args[0]
         typ = conv.checked_type
@@ -867,25 +952,22 @@ def test_type_check():
         typ = conv.checked_type
         return bool(typ.shape[0] != 1)
 
-    pattern_table_true = [
-        ("conv_bias_relu", make_conv_bias_relu_pattern(), _check_type_true)
-    ]
     pattern_table_false = [
         ("conv_bias_relu", make_conv_bias_relu_pattern(), _check_type_false)
     ]
+    check_result(pattern_table_false, before(), before())
 
-    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table_false))
-    expected = run_opt_pass(before(), relay.transform.InferType())
-    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
-
-    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table_true))
-    assert result.body.op.attrs["Composite"] == "conv_bias_relu"
+    pattern_table_true = [
+        ("conv_bias_relu", make_conv_bias_relu_pattern(), _check_type_true)
+    ]
+    check_result(pattern_table_true, before(), expected())
 
 
 if __name__ == "__main__":
     test_simple_merge()
     test_branch_merge()
     test_multiple_patterns()
+    test_optional_pattern()
     test_merge_order()
     test_parallel_merge()
     test_multiple_input_subgraphs()
