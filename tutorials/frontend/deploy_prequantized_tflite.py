@@ -18,6 +18,7 @@
 Deploy a Framework-prequantized Model with TVM - Part 3 (TFLite)
 ================================================================
 **Author**: `Siju Samuel <https://github.com/siju-samuel>`_
+
 Welcome to part 3 of the Deploy Framework-Prequantized Model with TVM tutorial.
 In this part, we will start with a Quantized TFLite graph and then compile and execute it via TVM.
 
