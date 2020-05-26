@@ -16,7 +16,7 @@
     under the License.
 
 tvm.micro
-------
+---------
 .. automodule:: tvm.micro
    :members:
    :imported-members:
