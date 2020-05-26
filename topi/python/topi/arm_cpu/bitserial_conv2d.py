@@ -270,8 +270,9 @@ def _intrin_popcount(m, k_i, w_b, x_b, unipolar):
             return irb.get()
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
-    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
-        return te.decl_tensor_intrin(z.op, _intrin_func, binds={w: Wb, x:Xb, z:Zb})
+    buffer_params = {"offset_factor": 1}
+    return te.decl_tensor_intrin(
+        z.op, _intrin_func, binds={w: Wb, x:Xb, z:Zb}, default_buffer_params=buffer_params)
 
 # ARM specific schedule that using custom microkernel
 def _schedule_spatial_conv2d_nhwc(cfg, s, data_pad, data_vec, kernel_vec,

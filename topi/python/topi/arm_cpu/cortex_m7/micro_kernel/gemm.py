@@ -102,10 +102,10 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
                                         cc.strides[0]))
             return ib.get()
         return _body(), _reduce_reset(), _reduce_update()
-    with tvm.target.build_config(offset_factor=1):
-        intrin_decl = te.decl_tensor_intrin(
-            C.op, intrin_func, binds={A: A_buf, B: B_buf, C: C_buf})
-        return intrin_decl, uniq_id
+
+    intrin_decl = te.decl_tensor_intrin(
+        C.op, intrin_func, binds={A: A_buf, B: B_buf, C: C_buf})
+    return intrin_decl, uniq_id
 
 
 def gemm_MxKxN_impl(M, K, N, uniq_id):

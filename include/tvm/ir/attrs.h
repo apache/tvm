@@ -236,6 +236,19 @@ class DictAttrs : public Attrs {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
 };
 
+/*!
+ * \brief Create an Attr object with all default values.
+ * \tparam TAttrNode the type to be created.
+ * \return A instance that will represent None.
+ */
+template <typename TAttrs>
+inline TAttrs AttrsWithDefaultValues() {
+  static_assert(std::is_base_of<Attrs, TAttrs>::value, "Can only take attr nodes");
+  auto n = make_object<typename TAttrs::ContainerType>();
+  n->InitByPackedArgs(runtime::TVMArgs(nullptr, nullptr, 0), false);
+  return TAttrs(n);
+}
+
 // Namespace containing detail implementations
 namespace detail {
 using runtime::TVMArgValue;

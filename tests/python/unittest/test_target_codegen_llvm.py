@@ -191,8 +191,7 @@ def test_llvm_add_pipeline():
         tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-    with tvm.target.build_config(offset_factor=4):
-        check_llvm()
+    check_llvm()
 
 
 def test_llvm_persist_parallel():
@@ -306,7 +305,8 @@ def test_llvm_madd_pipeline():
             c.asnumpy(), a.asnumpy()[base:] + 1)
     check_llvm(64, 0, 2)
     check_llvm(4, 0, 1)
-    with tvm.target.build_config(restricted_func=False):
+
+    with tvm.transform.PassContext(config={"tir.noalias": False}):
         check_llvm(4, 0, 3)
 
 
@@ -435,7 +435,7 @@ def test_rank_zero_bound_checkers():
     def check_llvm(n):
         if not tvm.runtime.enabled("llvm"):
             return
-        with tvm.target.build_config(instrument_bound_checkers=True):
+        with tvm.transform.PassContext(config={"tir.instrument_bound_checkers": True}):
             A = te.placeholder((n, ), name='A')
             scale = te.placeholder((), name='scale')
             k = te.reduce_axis((0, n), name="k")
@@ -728,7 +728,7 @@ def test_llvm_shuffle():
 
         return tvm.tir.transform.prim_func_pass(_transform, opt_level=0, name="my_vectorize")
 
-    with tvm.target.build_config(add_lower_pass=[(1, my_vectorize())]):
+    with tvm.transform.PassContext(config={"tir.add_lower_pass": [(1, my_vectorize())]}):
         ir = tvm.lower(sch, [a, b, c], simple_mode=True)
         module = tvm.build(sch, [a, b, c])
         a_ = tvm.nd.array(np.arange(1, 9, dtype='int32'))

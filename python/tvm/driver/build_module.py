@@ -25,7 +25,8 @@ import tvm.tir
 from tvm.runtime import ndarray
 from tvm.ir import container
 from tvm.ir import CallingConv
-from tvm.target import codegen, BuildConfig
+from tvm.ir.transform import PassContext
+from tvm.target import codegen
 from tvm.te import tensor
 from tvm.te import schedule
 from tvm import target as _target
@@ -102,7 +103,7 @@ def form_irmodule(sch, args, name, binds):
     The body formed according to the given schedule
     """
     # normalize schedule first
-    cfg = BuildConfig.current()
+    pass_ctx = PassContext.current()
     sch = sch.normalize()
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
@@ -114,7 +115,8 @@ def form_irmodule(sch, args, name, binds):
     func = schedule.SchedulePostProcToPrimFunc(arg_list, stmt, binds)
 
     func = func.with_attr("global_symbol", name)
-    if cfg.restricted_func:
+
+    if pass_ctx.config.get("tir.noalias", True):
         func = func.with_attr("tir.noalias", True)
     return tvm.IRModule({name: func})
 
@@ -152,8 +154,12 @@ def lower(sch,
        The result IRModule, if simple_mode=False
        Then the Stmt before make api is returned.
     """
-    cfg = BuildConfig.current()
-    add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
+    # config setup
+    pass_ctx = PassContext.current()
+    instrument_bound_checkers = bool(pass_ctx.config.get("tir.instrument_bound_checkers", False))
+    disable_vectorize = bool(pass_ctx.config.get("tir.disable_vectorize", False))
+    add_lower_pass = pass_ctx.config.get("tir.add_lower_pass", [])
+
     lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
     lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
     lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
@@ -169,7 +175,7 @@ def lower(sch,
     # Phase 1
     pass_list += [
         tvm.tir.transform.InjectPrefetch(),
-        tvm.tir.transform.StorageFlatten(64, cfg.instrument_bound_checkers),
+        tvm.tir.transform.StorageFlatten(64, instrument_bound_checkers),
         tvm.tir.transform.NarrowDataType(32),
         tvm.tir.transform.Simplify(),
     ]
@@ -177,18 +183,14 @@ def lower(sch,
 
     # Phase 2
     if not simple_mode:
-        pass_list += [(tvm.tir.transform.LoopPartition(cfg.partition_const_loop))]
+        pass_list += [(tvm.tir.transform.LoopPartition())]
 
     pass_list += [
-        tvm.tir.transform.VectorizeLoop(not cfg.disable_vectorize),
+        tvm.tir.transform.VectorizeLoop(not disable_vectorize),
         tvm.tir.transform.InjectVirtualThread(),
-        tvm.tir.transform.InjectDoubleBuffer(cfg.double_buffer_split_loop),
+        tvm.tir.transform.InjectDoubleBuffer(),
         tvm.tir.transform.StorageRewrite(),
-        tvm.tir.transform.UnrollLoop(
-            cfg.auto_unroll_max_step,
-            cfg.auto_unroll_max_depth,
-            cfg.auto_unroll_max_extent,
-            cfg.unroll_explicit),
+        tvm.tir.transform.UnrollLoop()
     ]
     pass_list += lower_phase2
 
@@ -198,12 +200,11 @@ def lower(sch,
         tvm.tir.transform.RemoveNoOp(),
     ]
 
-    if not cfg.disable_select_rewriting:
-        pass_list += [tvm.tir.transform.RewriteUnsafeSelect()]
+    pass_list += [tvm.tir.transform.RewriteUnsafeSelect()]
     pass_list += lower_phase3
 
     # Instrument BoundCheckers
-    if cfg.instrument_bound_checkers:
+    if instrument_bound_checkers:
         pass_list += [tvm.tir.transform.InstrumentBoundCheckers()]
 
     optimize = tvm.transform.Sequential(pass_list)
@@ -244,7 +245,8 @@ def _build_for_device(input_mod, target, target_host):
     opt_mixed = [tvm.tir.transform.VerifyMemory()]
     if len(mod_mixed.functions) == 1:
         opt_mixed += [tvm.tir.transform.Apply(lambda f: f.with_attr("tir.is_entry_func", True))]
-    if BuildConfig.current().detect_global_barrier:
+
+    if PassContext.current().config.get("tir.detect_global_barrier", False):
         opt_mixed += [tvm.tir.transform.ThreadSync("global")]
     opt_mixed += [tvm.tir.transform.ThreadSync("shared"),
                   tvm.tir.transform.ThreadSync("warp"),
