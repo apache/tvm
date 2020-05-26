@@ -138,13 +138,14 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
         s[data_vec].unroll(vw)
 
     if isinstance(kernel_vec.op, tvm.te.ComputeOp) and kernel_vec.name == 'kernel_vec':
+        co, ci, kh, kw, vc = s[kernel_vec].op.axis
         if autotvm.GLOBAL_SCOPE.in_tuning:
-            # kernel packing will be pre-computed during compilation, so we skip
-            # this part to make tuning records correct
-            s[kernel_vec].pragma(s[kernel_vec].op.axis[0], 'debug_skip_region')
+            # Directly use modified data layout placeholder.
+            kvshape = (co // vc, ci, kh, kw, vc)
+            kernel_vec = tvm.te.placeholder(kvshape, kernel_vec.dtype, name="kernel")
+            s[kernel_vec] = kernel_vec
         else:
             max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
-            co, ci, kh, kw, vc = s[kernel_vec].op.axis
             fused = s[kernel_vec].fuse(co, ci, kh, kw, vc)
             fused, vec = s[kernel_vec].split(fused, VC)
             bb, tt = s[kernel_vec].split(fused, max_threads)
@@ -345,11 +346,7 @@ def _schedule_winograd(cfg, s, op):
         kernel, G = s[U].op.input_tensors
         s[G].compute_inline()
         eps, nu, co, ci, vco, = s[U].op.axis
-        if autotvm.GLOBAL_SCOPE.in_tuning:
-            # kernel transformation will be pre-computed during compilation, so we skip
-            # this part to make tuning records correct
-            s[U].pragma(eps, 'debug_skip_region')
-        else:
+        if not autotvm.GLOBAL_SCOPE.in_tuning:
             r_kh, r_kw = s[U].op.reduce_axis
             s[U].reorder(co, ci, eps, nu, r_kh, r_kw, vco)
             _ = [s[U].unroll(x) for x in [eps, nu, r_kh, r_kw]]
