@@ -170,8 +170,10 @@ def test_in_bounds_const_loop_partition_ir():
     s = te.create_schedule(T.op)
     xo, xi = s[T].split(T.op.axis[0], factor=4)
 
-    with tvm.target.build_config(instrument_bound_checkers=True,
-                                 partition_const_loop=True):
+    with tvm.transform.PassContext(config={
+        "tir.instrument_bound_checkers": True,
+        "tir.LoopPartition": {"partition_const_loop": True}
+    }):
         mod = tvm.driver.lower(s, [A, B, T], name="main")
 
     stmt = mod["main"].body
@@ -185,8 +187,10 @@ def test_in_bounds_const_loop_partition_ir():
 
 
 def test_in_bounds_const_loop_partition_llvm():
-    with tvm.target.build_config(instrument_bound_checkers=True,
-                                 partition_const_loop=True):
+    with tvm.transform.PassContext(config={
+        "tir.instrument_bound_checkers": True,
+        "tir.LoopPartition": {"partition_const_loop": True}
+    }):
         n = 21
         A = te.placeholder((n, ), name='A')
         B = te.placeholder((n, ), name='B')
@@ -205,7 +209,10 @@ def test_in_bounds_const_loop_partition_llvm():
 
 @pytest.mark.xfail
 def test_out_of_bounds_const_loop_partition_llvm(index_a, index_b):
-    with tvm.target.build_config(instrument_bound_checkers=True, partition_const_loop=True):
+    with tvm.transform.PassContext(config={
+        "tir.instrument_bound_checkers": True,
+        "tir.LoopPartition": {"partition_const_loop": True}
+    }):
         n = 21
         A = te.placeholder((n, ), name='A')
         B = te.placeholder((n, ), name='B')
@@ -439,7 +446,9 @@ def test_out_of_bounds_tensors_with_zero_shape_op_with_not_zero_shape_llvm():
     tvm.testing.assert_allclose(d.asnumpy(), d_np)
 
 if __name__ == "__main__":
-    with tvm.target.build_config(instrument_bound_checkers=True):
+    with tvm.transform.PassContext(config={
+        "tir.instrument_bound_checkers": True,
+    }):
         # zero scale
         test_out_of_bounds_tensors_with_zero_shape_op_with_not_zero_shape_llvm()
         # in bound

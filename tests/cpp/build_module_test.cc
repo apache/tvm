@@ -50,11 +50,10 @@ TEST(BuildModule, Basic) {
   auto args = Array<Tensor>({A, B, C});
   std::unordered_map<Tensor, Buffer> binds;
 
-  auto config = BuildConfig::Create();
   auto target = target::llvm();
 
-  auto lowered = lower(s, args, "func", binds, config);
-  auto module = build(lowered, target, Target(), config);
+  auto lowered = lower(s, args, "func", binds);
+  auto module = build(lowered, target, Target());
 
   auto mali_target = Target::Create("opencl -model=Mali-T860MP4@800Mhz -device=mali");
   CHECK_EQ(mali_target->str(), "opencl -model=Mali-T860MP4@800Mhz -device=mali");
@@ -106,15 +105,14 @@ TEST(BuildModule, Heterogeneous) {
   With<Target> llvm_scope(target_llvm);
   auto s2 = create_schedule({elemwise_sub->op});
 
-  auto config = BuildConfig::Create();
   auto args1 = Array<Tensor>({A, B, elemwise_add});
   auto args2 = Array<Tensor>({copy, C, elemwise_sub});
 
   std::unordered_map<Tensor, Buffer> binds;
-  auto lowered_s1 = lower(s1, args1, "elemwise_add", binds, config);
-  auto lowered_s2 = lower(s2, args2, "elemwise_sub", binds, config);
+  auto lowered_s1 = lower(s1, args1, "elemwise_add", binds);
+  auto lowered_s2 = lower(s2, args2, "elemwise_sub", binds);
   Map<tvm::Target, IRModule> inputs = {{target_cuda, lowered_s1}, {target_llvm, lowered_s2}};
-  auto module = build(inputs, Target(), config);
+  auto module = build(inputs, Target());
 
   // Assertion for build.
   CHECK_EQ(module->imports().size(), 1);

@@ -106,10 +106,14 @@ def test_flatten_double_buffer():
     mod = tvm.IRModule.from_expr(
         tvm.tir.PrimFunc([A, C], stmt))
 
-    mod = tvm.transform.Sequential([
-        tvm.tir.transform.StorageFlatten(64),
-        tvm.tir.transform.InjectDoubleBuffer(2),
-        tvm.tir.transform.Simplify()])(mod)
+
+    with tvm.transform.PassContext(config={
+        "tir.InjectDoubleBuffer" : {"split_loop" : 2}
+    }):
+        mod = tvm.transform.Sequential([
+            tvm.tir.transform.StorageFlatten(64),
+            tvm.tir.transform.InjectDoubleBuffer(),
+            tvm.tir.transform.Simplify()])(mod)
 
     stmt = mod["main"].body
     assert isinstance(stmt.body.body, tvm.tir.Allocate)
