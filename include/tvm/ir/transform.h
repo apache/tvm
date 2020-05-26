@@ -208,10 +208,11 @@ class PassContext : public ObjectRef {
    * \brief Register a valid configuration option and its ValueType for validation.
    *
    * \param key The configuration key.
-   * \tparam ValueNodeType The value type to be registered
+   * \tparam ValueType The value type to be registered
    */
-  template <typename ValueNodeType>
+  template <typename ValueType>
   static uint32_t RegisterConfigOption(const char* key) {
+    using ValueNodeType = typename ValueType::ContainerType;
     // NOTE: we could further update the function later.
     uint32_t tindex = ValueNodeType::_GetOrAllocRuntimeTypeIndex();
     RegisterConfigOption(key, tindex);

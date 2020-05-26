@@ -61,4 +61,3 @@ from .generic_func import generic_func, get_native_generic_func, override_native
 from . import datatype
 from . import codegen
 from .intrin import register_intrin_rule
-from .build_config import BuildConfig, build_config

@@ -1008,7 +1008,7 @@ void VMCompiler::Codegen() {
   auto ext_mods = compile_engine->LowerExternalFunctions();
   runtime::Module mod;
   if (funcs.size() > 0) {
-    mod = tvm::build(funcs, target_host_, tvm::BuildConfig::Current());
+    mod = tvm::build(funcs, target_host_);
     CHECK(mod.operator->());
   } else {
     CHECK_EQ(ext_mods.size(), 1U)

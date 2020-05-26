@@ -217,7 +217,7 @@ def test_cuda_shuffle():
                 tvm.tir.stmt_functor.ir_transform(f.body, None, vectorizer, ['For']))
         return tvm.tir.transform.prim_func_pass(_transform, opt_level=0, name="MyVectorize")
 
-    with tvm.target.build_config(add_lower_pass=[(1, MyVectorize())]):
+    with tvm.transform.PassContext(config={"tir.add_lower_pass": [(1, MyVectorize())]}):
         module = tvm.build(sch, [a, b, c], target='cuda')
         a_ = np.array(list(range(64)), dtype='int32')
         b_ = np.array((list(range(4))[::-1]) * 16, dtype='int32')

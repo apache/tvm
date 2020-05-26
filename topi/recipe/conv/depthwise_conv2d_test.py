@@ -129,10 +129,10 @@ def test_depthwise_conv2d_nchw():
         print("success")
 
     for device in ['cuda', 'opencl', 'rocm']:
-        with tvm.target.build_config(auto_unroll_max_step=128,
-                              unroll_explicit=device == 'rocm',
-                              detect_global_barrier=False,
-                              restricted_func=True):
+        with tvm.transform.PassContext(config={"tir.UnrollLoop": {
+            "auto_max_step": 128,
+            "explicit_unroll": device != "rocm"
+        }}):
             check_device(device)
 
 def test_depthwise_conv2d_nhwc():
@@ -218,9 +218,10 @@ def test_depthwise_conv2d_nhwc():
         print("success")
 
     for device in ['cuda', 'opencl', 'rocm']:
-        with tvm.target.build_config(auto_unroll_max_step=128,
-                              detect_global_barrier=False,
-                              restricted_func=True):
+        with tvm.transform.PassContext(config={"tir.UnrollLoop": {
+            "auto_max_step": 128,
+            "explicit_unroll": device != "cuda"
+        }}):
             check_device(device)
 
 if __name__ == "__main__":

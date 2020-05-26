@@ -146,8 +146,10 @@ def test_gemm():
         print("average time cost of %d runs = %g ms, %g GFLOPS." % (num_runs, t * 1e3, GFLOPS))
 
     for device in ["cuda", "opencl", "rocm", "nvptx", "vulkan"]:
-        with tvm.target.build_config(auto_unroll_max_step=128,
-                              unroll_explicit=(device != "cuda")):
+        with tvm.transform.PassContext(config={"tir.UnrollLoop": {
+            "auto_max_step": 128,
+            "explicit_unroll": device != "cuda"
+        }}):
             check_device(device)
 
 if __name__ == "__main__":

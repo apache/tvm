@@ -533,10 +533,12 @@ DLContext CPUContext() {
 }
 
 FInterpreter CPUInterpreter() {
+  using tvm::transform::PassContext;
+
   Target target = Target::Create("llvm");
   // use a fresh build context
   // in case we are already in a build context.
-  With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
+  With<PassContext> fresh_build_ctx(PassContext::Create());
 
   return CreateInterpreter(IRModule(nullptr), CPUContext(), target);
 }
