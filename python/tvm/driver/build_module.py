@@ -65,6 +65,7 @@ def get_binds(args, compact=False, binds=None):
                 buf = tvm.tir.decl_buffer(
                     x.shape,
                     dtype=x.dtype,
+                    name=x.name,
                     buffer_type=buffer_type)
                 binds[x] = buf
                 arg_list.append(buf)
