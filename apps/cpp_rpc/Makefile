@@ -47,7 +47,7 @@ all: tvm_rpc
 # Build rule for all in one TVM package library
 tvm_rpc: *.cc
 	@mkdir -p $(@D)
-	$(CXX) $(PKG_CFLAGS) -o $@ $(filter %.cc %.o %.a, $^) $(PKG_LDFLAGS)
+	$(CXX) $(PKG_CFLAGS) -o $@ $(filter-out win32_process.cc, $(filter %.cc %.o %.a, $^)) $(PKG_LDFLAGS)
 
 clean:
 	-rm -f tvm_rpc
