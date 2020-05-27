@@ -40,7 +40,8 @@ for more use cases.
 Matching One of Two Ops
 ***********************
 
-The first example is a simple case where we want to match one operator with a single input OR another operator with a single input, see the below diagram for a graphical representation and corresponding code:
+The first example is a simple case where we want to match one operator with a single input OR
+another operator with a single input:
 
 .. code-block:: python
 
@@ -293,7 +294,7 @@ Pattern Partitioning
 ********************
 
 If you would like to perform a more complex processing for matched subgraphs and you are not
-satisfy with ``rewrite``, you may consider partitioning the matched subgraphs to a separate
+satisfied with ``rewrite``, you may consider partitioning the matched subgraphs to a separate
 Relay function and perform other processes to the function. Here we use ``pattern.partition``
 to create a new Relay function for each matched subgraph. The functionality is similar to
 the op fusion pass in TVM:
