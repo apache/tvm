@@ -147,6 +147,23 @@ class ReflectionVTable {
   TVM_DLL ObjectPtr<Object> CreateInitObject(const std::string& type_key,
                                              const std::string& repr_bytes = "") const;
   /*!
+   * \brief Create an object by giving kwargs about its fields.
+   *
+   * \param type_key The type key.
+   * \param kwargs the arguments in format key1, value1, ..., key_n, value_n.
+   * \return The created object.
+   */
+  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const runtime::TVMArgs& kwargs);
+  /*!
+   * \brief Create an object by giving kwargs about its fields.
+   *
+   * \param type_key The type key.
+   * \param kwargs The field arguments.
+   * \return The created object.
+   */
+  TVM_DLL ObjectRef CreateObject(const std::string& type_key,
+                                 const Map<std::string, ObjectRef>& kwargs);
+  /*!
    * \brief Get an field object by the attr name.
    * \param self The pointer to the object.
    * \param attr_name The name of the field.

@@ -44,13 +44,13 @@ class Legalizer : public ExprRewriter {
     // Get the new_call node without any changes to current call node.
     Call new_call = Downcast<Call>(post);
 
-    // Check if the string is registered in the OpRegistry.
-    if (!Op::HasAttr(legalize_map_attr_name_)) {
+    // Check if the string is registered.
+    if (!Op::HasAttrMap(legalize_map_attr_name_)) {
       return post;
     }
 
     // Collect the registered legalize function.
-    auto fop_legalize = Op::GetAttr<FTVMLegalize>(legalize_map_attr_name_);
+    auto fop_legalize = Op::GetAttrMap<FTVMLegalize>(legalize_map_attr_name_);
     auto call_op = call_node->op;
     if (call_op.as<OpNode>()) {
       Op op = Downcast<Op>(call_node->op);
@@ -96,7 +96,7 @@ Expr Legalize(const Expr& expr, const std::string& legalize_map_attr_name) {
 
 namespace transform {
 
-Pass Legalize(const std::string& legalize_map_attr_name) {
+Pass Legalize(const String& legalize_map_attr_name) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(relay::legalize::Legalize(f, legalize_map_attr_name));

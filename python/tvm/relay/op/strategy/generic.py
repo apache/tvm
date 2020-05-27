@@ -598,7 +598,9 @@ def argsort_strategy(attrs, inputs, out_type, target):
 def wrap_compute_topk(topi_compute):
     """Wrap topk compute"""
     def _compute_topk(attrs, inputs, out_type):
-        k = get_const_int(attrs.k)
+        k = inputs[1]
+        if attrs.k is not None:
+            k = attrs.k
         axis = get_const_int(attrs.axis)
         ret_type = attrs.ret_type
         is_ascend = bool(get_const_int(attrs.is_ascend))
@@ -828,4 +830,31 @@ def bitserial_dense_strategy(attrs, inputs, out_type, target):
         wrap_compute_bitserial_dense(topi.nn.bitserial_dense),
         wrap_topi_schedule(topi.generic.schedule_bitserial_dense),
         name="bitserial_dense.generic")
+    return strategy
+
+# correlation
+def wrap_compute_correlation(topi_compute):
+    """wrap correlation topi compute"""
+    def _compute_correlation(attrs, inputs, out_type):
+        kernel_size = attrs.kernel_size
+        max_displacement = attrs.max_displacement
+        stride1 = attrs.stride1
+        stride2 = attrs.stride2
+        padding = get_const_tuple(attrs.padding)
+        is_multiply = attrs.is_multiply
+        return [topi_compute(inputs[0], inputs[1], kernel_size, max_displacement, stride1, stride2,
+                             padding, is_multiply)]
+    return _compute_correlation
+
+@override_native_generic_func("correlation_strategy")
+def correlation_strategy(attrs, inputs, out_type, target):
+    """correlation generic strategy"""
+    logger.warning("correlation is not optimized for this platform.")
+    layout = attrs.layout
+    assert layout == "NCHW", "Only support NCHW layout"
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_correlation(topi.nn.correlation_nchw),
+        wrap_topi_schedule(topi.generic.schedule_correlation_nchw),
+        name="correlation.generic")
     return strategy

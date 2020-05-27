@@ -48,23 +48,20 @@ namespace tvm {
  * \param args The arguments to the function.
  * \param name The name of the lowered function.
  * \param binds Buffer assignments.
- * \param config The build configuration.
  * \return The result module.
  */
 TVM_DLL IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-                       const BuildConfig& config);
+                       const std::unordered_map<te::Tensor, tir::Buffer>& binds);
 
 /*!
  * \brief Build a device and host module for a specific target from an IRModule.
  * \param funcs The functions to be built.
  * \param target The target device to build for.
  * \param target_host The target for building host code. To use the default, pass Target()
- * \param config The build configuration.
  * \return The built module.
  */
 TVM_DLL runtime::Module build(const IRModule& funcs, const Target& target,
-                              const Target& target_host, const BuildConfig& config);
+                              const Target& target_host);
 
 /*!
  * \brief Build a device and host module for a specific target from a map
@@ -73,11 +70,9 @@ TVM_DLL runtime::Module build(const IRModule& funcs, const Target& target,
  * \param input The map contains target to an IRModule.
  * \param target_host The target for building host code. To use the default,
  *        pass Target().
- * \param config The build configuration.
  * \return The built module that contains code for different processors.
  */
-TVM_DLL runtime::Module build(const Map<Target, IRModule>& input, const Target& target_host,
-                              const BuildConfig& config);
+TVM_DLL runtime::Module build(const Map<Target, IRModule>& input, const Target& target_host);
 
 /*!
  * \brief Build a device and host module for a specific target from a map
@@ -86,11 +81,9 @@ TVM_DLL runtime::Module build(const Map<Target, IRModule>& input, const Target& 
  * \param input The map contains target string to an  IRModule.
  * \param target_host The target for building host code. To use the default,
  *        pass Target().
- * \param config The build configuration.
  * \return The built module that contains code for different processors.
  */
-TVM_DLL runtime::Module build(const Map<std::string, IRModule>& input, const Target& target_host,
-                              const BuildConfig& config);
+TVM_DLL runtime::Module build(const Map<std::string, IRModule>& input, const Target& target_host);
 }  // namespace tvm
 
 #endif  // TVM_DRIVER_DRIVER_API_H_

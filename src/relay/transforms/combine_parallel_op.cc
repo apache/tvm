@@ -81,7 +81,7 @@ std::vector<Group> BranchGroupFinder::Find(const Expr& expr) {
 
 // Create a branch starting from op.
 Branch BranchGroupFinder::CreateBranch(const CallNode* op) {
-  auto fpattern = Op::GetAttr<TOpPattern>("TOpPattern");
+  auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
   // each branch has at least one element, the first element is always op
   Branch branch{op};
   auto it = children_map_.find(GetRef<Expr>(branch.back()));

@@ -179,6 +179,14 @@ def test_forward_pooling():
     mx_sym = mx.sym.Pooling(data, kernel=(3, 3), pad=(1, 1), pool_type='max')
     verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8), (1, 20, 8, 8))
 
+def test_forward_pooling3d():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.Pooling(data, kernel=(3, 3, 3), pad=(1, 1, 1), pool_type='avg')
+    verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8, 8), (1, 20, 8, 8, 8))
+
+    mx_sym = mx.sym.Pooling(data, kernel=(3, 3, 3), pad=(1, 1, 1), pool_type='max')
+    verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8, 8), (1, 20, 8, 8, 8))
+
 def test_forward_adaptive_pooling():
     data = mx.sym.var('data')
     mx_sym = mx.sym.contrib.AdaptiveAvgPooling2D(data, output_size=(1,))
@@ -608,7 +616,7 @@ def test_forward_take():
     verify((3,4), [-1, 5], 1, mode="wrap")
 
 def test_forward_gather_nd():
-    def verify(xshape, yshape, y_data):
+    def verify(xshape, yshape, y_data, error=False):
         x_data = np.random.uniform(size=xshape).astype("float32")
         ref_res = mx.nd.gather_nd(mx.nd.array(x_data), mx.nd.array(y_data))
         mx_sym = mx.sym.gather_nd(mx.sym.var("x_data"), mx.sym.var("y_data"))
@@ -618,16 +626,54 @@ def test_forward_gather_nd():
                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
                 op_res = intrp.evaluate()(x_data, y_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+
     verify((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
     verify((2, 2, 2), (2, 2), [[0, 1], [1, 0]])
     verify((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
     verify((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
+    verify((1, 4), (1, 1), [[0]])
 
 def test_forward_bilinear_resize():
     # add tests including scale_height and scale_width when mxnet is updated to version 1.5
     data = mx.sym.var('data')
     mx_sym = mx.sym.contrib.BilinearResize2D(data, height=5, width=10)
     verify_mxnet_frontend_impl(mx_sym, (1, 2, 3, 4), (1, 2, 5, 10))
+
+def test_forward_grid_generator():
+    def verify(shape, transform_type, target_shape):
+        x = np.random.uniform(size=shape).astype("float32")
+        ref_res = mx.nd.GridGenerator(mx.nd.array(x), transform_type, target_shape)
+        mx_sym = mx.sym.GridGenerator(mx.sym.var("x"), transform_type, target_shape)
+        shape_dict = {"x": x.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(
+                    kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x)
+                tvm.testing.assert_allclose(
+                    op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5)
+    verify((4, 6), 'affine', (16, 32))
+    verify((4, 2, 16, 16), 'warp', None)
+    verify((1, 2, 16, 16), 'warp', None)
+
+def test_forward_bilinear_sampler():
+    def verify(data_shape, grid_shape):
+        data = np.random.uniform(size=data_shape).astype("float32")
+        grid = np.random.uniform(low=-1.5, high=1.5, size=grid_shape).astype("float32")
+        ref_res = mx.nd.BilinearSampler(mx.nd.array(data), mx.nd.array(grid))
+        mx_sym = mx.sym.BilinearSampler(mx.sym.var("data"), mx.sym.var("grid"))
+        shape_dict = {"data": data.shape, "grid": grid.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(
+                    kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(data, grid)
+                tvm.testing.assert_allclose(
+                    op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5, atol=1e-5)
+    verify((4, 4, 16, 32), (4, 2, 8, 8))
+    verify((4, 4, 16, 32), (4, 2, 32, 32))
 
 def test_forward_rnn_layer():
     def verify(mode, seq_len, input_size, hidden_size, num_layers,
@@ -1104,6 +1150,38 @@ def test_forward_space_to_depth():
     verify((1, 1, 9, 9), 3)
 
 
+def test_forward_correlation():
+    def verify(data_shape, kernel_size, max_displacement, stride1, stride2, pad_size,
+               is_multiply):
+        data1 = np.random.uniform(size=data_shape).astype("float32")
+        data2 = np.random.uniform(size=data_shape).astype("float32")
+        ref_res = mx.nd.Correlation(data1=mx.nd.array(data1), data2=mx.nd.array(data2),
+                                    kernel_size=kernel_size, max_displacement=max_displacement,
+                                    stride1=stride1, stride2=stride2, pad_size=pad_size,
+                                    is_multiply=is_multiply)
+        mx_sym = mx.sym.Correlation(data1=mx.sym.var('data1'), data2=mx.sym.var('data2'),
+                                    kernel_size=kernel_size, max_displacement=max_displacement,
+                                    stride1=stride1, stride2=stride2, pad_size=pad_size,
+                                    is_multiply=is_multiply)
+        shape_dict = {"data1": data1.shape, "data2": data2.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(data1, data2)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
+
+    verify((1, 3, 10, 10), kernel_size = 1, max_displacement = 4, stride1 = 1, stride2 = 1, pad_size = 4, is_multiply = False)
+    verify((5, 1, 15, 15), kernel_size = 1, max_displacement = 5, stride1 = 1, stride2 = 1, pad_size = 5, is_multiply = False)
+    verify((5, 1, 15, 15), kernel_size = 1, max_displacement = 5, stride1 = 1, stride2 = 1, pad_size = 5, is_multiply = True)
+    verify((5, 1, 15, 15), kernel_size = 1, max_displacement = 10, stride1 = 1, stride2 = 2, pad_size = 10, is_multiply = True)
+    verify((5, 1, 4, 4), kernel_size = 3, max_displacement = 1, stride1 = 1, stride2 = 1, pad_size = 2, is_multiply = True)
+    verify((5, 1, 4, 4), kernel_size = 3, max_displacement = 1, stride1 = 2, stride2 = 1, pad_size = 2, is_multiply = True)
+    verify((5, 1, 4, 4), kernel_size = 3, max_displacement = 1, stride1 = 2, stride2 = 1, pad_size = 2, is_multiply = False)
+    verify((5, 1, 6, 4), kernel_size = 3, max_displacement = 1, stride1 = 2, stride2 = 1, pad_size = 2, is_multiply = False)
+    verify((5, 1, 11, 11), kernel_size = 5, max_displacement = 1, stride1 = 1, stride2 = 1, pad_size = 2, is_multiply = False)
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -1121,6 +1199,7 @@ if __name__ == '__main__':
     test_forward_pad()
     test_forward_slice()
     test_forward_pooling()
+    test_forward_pooling3d()
     test_forward_adaptive_pooling()
     test_forward_lrn()
     test_forward_ones()
@@ -1167,3 +1246,6 @@ if __name__ == '__main__':
     test_forward_make_loss()
     test_forward_unravel_index()
     test_forward_swap_axis()
+    test_forward_correlation()
+    test_forward_grid_generator()
+    test_forward_bilinear_sampler()

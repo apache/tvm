@@ -43,6 +43,44 @@ def test_type_var():
     assert isinstance(tvar, tvm.ir.GlobalTypeVar)
     assert tvar.name_hint == "in0"
 
+def test_var():
+    # type var in 0.6
+    nodes = [
+        {"type_key": ""},
+        {"type_key": "relay.Var",
+         "attrs": {
+             "_checked_type_": "0",
+             "span": "0",
+             "type_annotation": "0",
+             "vid": "2"
+         }
+        },
+        {"type_key": "relay.Id",
+         "attrs": {"name_hint": "a3"}},
+        {"type_key": "relay.TensorType",
+         "attrs": {
+             "dtype": "float32",
+             "shape": "4",
+             "span": "0"
+         }
+        },
+        {"type_key": "Array",
+         "data": [5, 6]
+        },
+        {"type_key": "IntImm",
+         "attrs": {"dtype": "int32", "value": "16"}},
+        {"type_key": "IntImm",
+         "attrs": {"dtype": "int32", "value": "8"}}
+        ]
+    data = {
+        "root" : 1,
+        "nodes": nodes,
+        "attrs": {"tvm_version": "0.6.0"},
+        "b64ndarrays": [],
+    }
+    tvar = tvm.ir.load_json(json.dumps(data))
+    assert isinstance(tvar, relay.Var)
+    assert tvar.name_hint == "a3"
 
 def test_incomplete_type():
     nodes = [
@@ -151,6 +189,7 @@ def test_tir_var():
 if __name__ == "__main__":
     test_op()
     test_type_var()
+    test_var()
     test_incomplete_type()
     test_func_tuple_type()
     test_global_var()

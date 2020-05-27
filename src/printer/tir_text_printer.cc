@@ -164,11 +164,11 @@ Doc TIRTextPrinter::PrintIRModule(const IRModule& module) {
 Doc TIRTextPrinter::PrintArray(const ArrayNode* op) {
   Doc doc;
   doc << '[';
-  for (size_t i = 0; i < op->data.size(); ++i) {
+  for (size_t i = 0; i < op->size(); ++i) {
     if (i != 0) {
       doc << ", ";
     }
-    doc << Print(op->data[i]);
+    doc << Print(op->at(i));
   }
   doc << ']';
   return doc;

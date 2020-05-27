@@ -16,11 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, trailing-whitespace
 """Schedule for softmax operator"""
+from tvm import target as target_
 from tvm import te
 from tvm.contrib import cudnn
 from .. import generic
 from .injective import schedule_injective_from_existing
-
 
 def schedule_softmax(outs):
     """Schedule for softmax op.
@@ -39,6 +39,7 @@ def schedule_softmax(outs):
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
     softmax = outs[0]
+    tgt = target_.Target.current(allow_none=False)
 
     op_tag = softmax.op.tag
     if op_tag == 'softmax_output':
@@ -53,6 +54,14 @@ def schedule_softmax(outs):
         raise ValueError('Tag is expected to be softmax_output or log_softmax_output. \
                          Got {0}'.format(op_tag))
 
+    # The nvptx backend only supports 32-bits warp shuffle instructions.
+    #
+    # TODO(tvm-team) Fix nvptx codegen or deprecate nvptx backend.
+    def sched_warp_softmax():
+        if tgt.target_name == "nvptx":
+            return softmax.dtype == "float32" or softmax.dtype == "int32"
+        return True
+
     if len(softmax.shape) > 2:
         ops = [max_elem.op, expsum.op, softmax.op]
         if exp is not None:
@@ -60,6 +69,46 @@ def schedule_softmax(outs):
 
         for op in ops:
             s = schedule_injective_from_existing(s, op.output(0))
+
+    elif sched_warp_softmax():
+        # A warp of 32 threads performs a row reduction.
+        num_thread = tgt.thread_warp_size
+        block_x = te.thread_axis("blockIdx.x")
+        thread_x = te.thread_axis((0, num_thread), "threadIdx.x")
+
+        # (4) softmax
+        xo, xi = s[softmax].split(softmax.op.axis[1], nparts=num_thread)
+        _, xii = s[softmax].split(xi, factor=4)
+        s[softmax].vectorize(xii)
+        s[softmax].bind(xo, thread_x)
+        s[softmax].bind(softmax.op.axis[0], block_x)
+
+        # (3) expsum
+        k = expsum.op.reduce_axis[0]
+        ko, _ = s[expsum].split(k, nparts=num_thread)
+        s[expsum].bind(ko, thread_x)
+        s[expsum].compute_at(s[softmax], xo)
+
+        # (2) exp
+        if exp is not None:
+            xo, xi = s[exp].split(exp.op.axis[1], nparts=num_thread)
+            _, xii = s[exp].split(xi, factor=4)
+            s[exp].vectorize(xii)
+            s[exp].bind(xo, thread_x)
+            s[exp].compute_at(s[expsum], expsum.op.axis[0])
+            s[exp].compute_at(s[softmax], softmax.op.axis[0])
+            s[exp].set_scope("warp")
+
+        # (1) max_elem
+        k = max_elem.op.reduce_axis[0]
+        ko, _ = s[max_elem].split(k, nparts=num_thread)
+        s[max_elem].bind(ko, thread_x)
+        if exp is not None:
+            s[max_elem].compute_at(s[exp], xo)
+        else:
+            s[max_elem].bind(ko, thread_x)
+            s[max_elem].bind(max_elem.op.axis[0], block_x)
+
     else:
         num_thread = 64
         block_x = te.thread_axis("blockIdx.x")

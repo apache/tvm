@@ -20,7 +20,7 @@ from tvm.runtime import ndarray as _nd
 from tvm.runtime import TVMContext as _TVMContext
 
 from . import _make
-from ..expr import Tuple
+from ..expr import Tuple, const
 
 
 # We create a wrapper function for each operator in the
@@ -928,7 +928,7 @@ def zeros(shape, dtype):
 
     Parameters
     ----------
-    shape : tuple of int
+    shape : tuple of int or relay.Expr
         The shape of the target.
 
     dtype : data type
@@ -939,6 +939,8 @@ def zeros(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, (list, tuple)):
+        shape = const(list(shape), "int32")
     return _make.zeros(shape, dtype)
 
 
@@ -963,7 +965,7 @@ def ones(shape, dtype):
 
     Parameters
     ----------
-    shape : tuple of int
+    shape : tuple of int or relay.Expr
         The shape of the target.
 
     dtype : data type
@@ -974,6 +976,8 @@ def ones(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, (list, tuple)):
+        shape = const(list(shape), "int32")
     return _make.ones(shape, dtype)
 
 

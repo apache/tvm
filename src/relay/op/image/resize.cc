@@ -64,8 +64,8 @@ bool ResizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 // Positional relay function to create image operator
 // used by frontend FFI.
-Expr MakeResize(Expr data, Array<IndexExpr> size, std::string layout, std::string method,
-                std::string coordinate_transformation_mode, DataType out_dtype) {
+Expr MakeResize(Expr data, Array<IndexExpr> size, String layout, String method,
+                String coordinate_transformation_mode, DataType out_dtype) {
   auto attrs = make_object<ResizeAttrs>();
   attrs->size = std::move(size);
   attrs->layout = std::move(layout);
@@ -99,6 +99,77 @@ RELAY_REGISTER_OP("image.resize")
     .add_type_rel("Resize", ResizeRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+TVM_REGISTER_NODE_TYPE(Resize3dAttrs);
+
+bool Resize3dRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                 const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  static const Layout kNCDHW("NCDHW");
+
+  const Resize3dAttrs* param = attrs.as<Resize3dAttrs>();
+  CHECK(param != nullptr);
+  const Layout in_layout(param->layout);
+  auto layout_converter = tir::BijectiveLayout(in_layout, kNCDHW);
+  CHECK(layout_converter.defined())
+      << "Resize3d only support input layouts that are convertible from NCDHW."
+      << " But got " << in_layout;
+
+  auto oshape = layout_converter.ForwardShape(data->shape);
+  oshape.Set(2, param->size[0]);
+  oshape.Set(3, param->size[1]);
+  oshape.Set(4, param->size[2]);
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+
+  // assign output type
+  reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), out_dtype));
+  return true;
+}
+
+// Positional relay function to create image operator
+// used by frontend FFI.
+Expr MakeResize3d(Expr data, Array<IndexExpr> size, String layout, String method,
+                  String coordinate_transformation_mode, DataType out_dtype) {
+  auto attrs = make_object<Resize3dAttrs>();
+  attrs->size = std::move(size);
+  attrs->layout = std::move(layout);
+  attrs->method = std::move(method);
+  attrs->coordinate_transformation_mode = coordinate_transformation_mode;
+  attrs->out_dtype = out_dtype;
+  static const Op& op = Op::Get("image.resize3d");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.image._make.resize3d").set_body_typed(MakeResize3d);
+
+RELAY_REGISTER_OP("image.resize3d")
+    .describe(R"code(
+Perform resize3d to input array with nearest neighbour or bilinear interpolation.
+
+- **data**: data is 5D array of shape
+            (batch_size, channels, in_depth, in_height, in_width) for NCDHW
+            (batch_size, in_depth, in_height, in_width, channels) for NDHWC
+
+- **out**: Output is 5D array of shape
+           for layout NCDHW
+           (batch_size, channels, size[0], size[1], size[2])
+
+           for layout NDHWC
+           (batch_size, size[0], size[1], size[2], channels)
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<Resize3dAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(5)
+    .add_type_rel("Resize3d", Resize3dRel)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
 TVM_REGISTER_NODE_TYPE(CropAndResizeAttrs);
 
 bool CropAndResizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -123,17 +194,17 @@ bool CropAndResizeRel(const Array<Type>& types, int num_inputs, const Attrs& att
   const Layout in_layout(param->layout);
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
   auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(0, box_indices->shape[0]);
+  oshape.Set(0, boxes->shape[0]);
   oshape.Set(2, crop_size[0]);
   oshape.Set(3, crop_size[1]);
   auto bshape = layout_converter.BackwardShape(oshape);
   // assign output type
-  reporter->Assign(types[3], TensorType(layout_converter.BackwardShape(oshape), out_dtype));
+  reporter->Assign(types[3], TensorType(bshape, out_dtype));
   return true;
 }
 
 Expr MakeCropAndResize(Expr data, Expr boxes, Expr box_indices, Array<IndexExpr> crop_size,
-                       std::string layout, std::string method, double extrapolation_value,
+                       String layout, String method, double extrapolation_value,
                        DataType out_dtype) {
   auto attrs = make_object<CropAndResizeAttrs>();
   attrs->crop_size = std::move(crop_size);

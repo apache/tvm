@@ -46,7 +46,7 @@ Array<Array<Layout> > Dilation2DInferCorrectLayout(const Attrs& attrs,
 // Positional relay function to create dilation2d operator
 // used by frontend FFI.
 Expr MakeDilation2D(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
-                    Array<IndexExpr> dilations, std::string data_layout, std::string kernel_layout,
+                    Array<IndexExpr> dilations, String data_layout, String kernel_layout,
                     DataType out_dtype) {
   auto attrs = make_object<Dilation2DAttrs>();
   attrs->strides = std::move(strides);

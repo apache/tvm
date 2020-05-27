@@ -21,6 +21,7 @@ from tvm.contrib import util, clang
 import numpy as np
 import ctypes
 import math
+import re
 
 
 def test_llvm_intrin():
@@ -190,8 +191,7 @@ def test_llvm_add_pipeline():
         tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-    with tvm.target.build_config(offset_factor=4):
-        check_llvm()
+    check_llvm()
 
 
 def test_llvm_persist_parallel():
@@ -305,7 +305,8 @@ def test_llvm_madd_pipeline():
             c.asnumpy(), a.asnumpy()[base:] + 1)
     check_llvm(64, 0, 2)
     check_llvm(4, 0, 1)
-    with tvm.target.build_config(restricted_func=False):
+
+    with tvm.transform.PassContext(config={"tir.noalias": False}):
         check_llvm(4, 0, 3)
 
 
@@ -434,7 +435,7 @@ def test_rank_zero_bound_checkers():
     def check_llvm(n):
         if not tvm.runtime.enabled("llvm"):
             return
-        with tvm.target.build_config(instrument_bound_checkers=True):
+        with tvm.transform.PassContext(config={"tir.instrument_bound_checkers": True}):
             A = te.placeholder((n, ), name='A')
             scale = te.placeholder((), name='scale')
             k = te.reduce_axis((0, n), name="k")
@@ -462,11 +463,38 @@ def test_alignment():
     s = te.create_schedule(B.op)
     bx, tx = s[B].split(B.op.axis[0], factor=8)
     s[B].vectorize(tx)
-    f = tvm.build(s, [A, B], "llvm")
+    f = tvm.build(s, [A, B], "llvm", name="test_alignment")
 
-    for l in f.get_source().split("\n"):
+    lines = f.get_source().split("\n")
+
+    # Check alignment on load/store.
+    for l in lines:
         if "align" in l and "4 x float" in l:
             assert "align 32" in l
+
+    # Check parameter alignment. This looks for the definition of the
+    # outlined "compute_" function to see if there is an "align" attribute
+    # listed there.
+    def has_param_alignment():
+        for l in lines:
+            if re.search(r'test_alignment_compute_\([^(]*align [0-9]', l):
+                return True
+        return False
+
+    if tvm.target.codegen.llvm_version_major() >= 5:
+        assert has_param_alignment()
+
+    # Check for assume intrinsics. This isn't 100% accurate, since it just
+    # checks if the llvm.assume is there, but detailed check would require
+    # a much more detailed analysis of the LLVM IR.
+    def has_call_to_assume():
+        for l in lines:
+            if re.search(r'call.*llvm.assume', l):
+                return True
+        return False
+
+    assert has_call_to_assume()
+
 
 def test_llvm_div():
     """Check that the semantics of div and mod is correct"""
@@ -625,7 +653,6 @@ def test_dwarf_debug_information():
         temp = util.tempdir()
         o_path = temp.relpath("temp.o")
         m.save(o_path)
-        import re
         import shutil
         import subprocess
         import sys
@@ -701,7 +728,7 @@ def test_llvm_shuffle():
 
         return tvm.tir.transform.prim_func_pass(_transform, opt_level=0, name="my_vectorize")
 
-    with tvm.target.build_config(add_lower_pass=[(1, my_vectorize())]):
+    with tvm.transform.PassContext(config={"tir.add_lower_pass": [(1, my_vectorize())]}):
         ir = tvm.lower(sch, [a, b, c], simple_mode=True)
         module = tvm.build(sch, [a, b, c])
         a_ = tvm.nd.array(np.arange(1, 9, dtype='int32'))

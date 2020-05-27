@@ -136,30 +136,32 @@ def test_lower_warp_memory_cuda_half_a_warp():
             print("Skip because gpu does not have fp16 support")
             return
 
-        m = 16
-        A = te.placeholder((m,), name='A', dtype=dtype)
-        B = te.compute((m,), lambda i: A[(i + 1) % m], name='B')
+        n, m = 16, 16
+        A = te.placeholder((n, m,), name='A', dtype=dtype)
+        B = te.compute((n, m,), lambda j, i: A[j, (i + 1) % m], name='B')
 
         cuda_target = tvm.target.create("cuda")
         assert cuda_target.thread_warp_size == 2 * m
         with cuda_target:
             s = te.create_schedule(B.op)
             tx = te.thread_axis("threadIdx.x")
+            ty = te.thread_axis("threadIdx.y")
             bx = te.thread_axis("blockIdx.x")
 
             AA = s.cache_read(A, "warp", [B])
-            xo, xi = s[B].split(B.op.axis[0], nparts=1)
-            s[B].bind(xi, tx)
-            s[B].bind(xo, bx)
-            s[AA].compute_at(s[B], xo)
-            xo, xi = s[AA].split(s[AA].op.axis[0], nparts=1)
-            s[AA].bind(xo, bx)
-            s[AA].bind(xi, tx)
+            y, x = B.op.axis
+            z, y = s[B].split(y, nparts=2)
+            s[B].bind(x, tx)
+            s[B].bind(y, ty)
+            s[B].bind(z, bx)
+            s[AA].compute_at(s[B], y)
+            _, x = AA.op.axis
+            s[AA].bind(x, tx)
 
             ctx = tvm.gpu(0)
             func = tvm.build(s, [A, B], "cuda")
-            A_np = np.array(list(range(m)), dtype=dtype)
-            B_np = np.array(list(range(1, m)) + [0], dtype=dtype)
+            A_np = np.array([list(range(i, m + i)) for i in range(n)], dtype=dtype)
+            B_np = np.array([list(range(1 + i, m + i)) + [i] for i in range(n)], dtype=dtype)
             A_nd = tvm.nd.array(A_np, ctx)
             B_nd = tvm.nd.array(np.zeros(B_np.shape, dtype=B_np.dtype), ctx)
             func(A_nd, B_nd)
@@ -216,9 +218,45 @@ def test_lower_warp_memory_cuda_2_buffers():
     check_cuda("float32")
     check_cuda("float16")
 
+def test_lower_warp_memory_roundup():
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+        print("skip because cuda is not enabled..")
+        return
+
+    def check(m):
+        A = te.placeholder((m,), name='A')
+        B = te.compute((m,), lambda i: A[i] + 1, name='B')
+
+        with tvm.target.create("cuda"):
+            s = te.create_schedule(B.op)
+            xo, xi = s[B].split(B.op.axis[0], factor=32)
+            tx = te.thread_axis("threadIdx.x")
+            s[B].bind(xo, te.thread_axis("blockIdx.x"))
+            s[B].bind(xi, tx)
+
+            AA = s.cache_read(A, "warp", [B])
+            _, yi = s[AA].split(s[AA].op.axis[0], factor=32)
+            s[AA].bind(yi, tx)
+            s[AA].compute_at(s[B], xo)
+
+            ctx = tvm.gpu(0)
+            func = tvm.build(s, [A, B], "cuda")
+            A_np = np.random.uniform(size=(m,)).astype(A.dtype)
+            B_np = np.zeros(shape=(m,)).astype(B.dtype)
+            A_nd = tvm.nd.array(A_np, ctx)
+            B_nd = tvm.nd.array(B_np, ctx)
+            func(A_nd, B_nd)
+            B_np = A_np + 1
+            tvm.testing.assert_allclose(B_nd.asnumpy(), B_np)
+
+    check(m=31)
+    check(m=32)
+    check(m=33)
+
 if __name__ == "__main__":
     test_lower_warp_memory_local_scope()
     test_lower_warp_memory_correct_indices()
     test_lower_warp_memory_cuda_end_to_end()
     test_lower_warp_memory_cuda_half_a_warp()
     test_lower_warp_memory_cuda_2_buffers()
+    test_lower_warp_memory_roundup()

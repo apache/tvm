@@ -105,7 +105,7 @@ def test_with_params():
     mod.run()
     res = mod.get_output(0).asnumpy()
     ref_res = np.exp(y_data + x_data)
-    tvm.testing.assert_allclose(res, ref_res)
+    tvm.testing.assert_allclose(res, ref_res, atol=1e-5, rtol=1e-5)
 
 
 def test_plan_memory():

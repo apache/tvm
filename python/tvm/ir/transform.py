@@ -70,13 +70,17 @@ class PassContext(tvm.runtime.Object):
 
     disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
         The list of passes that are disabled.
+
+    config : Optional[Dict[str, Object]]
+        Additional configurations for specific passes.
     """
     def __init__(self,
                  opt_level=2,
                  fallback_device=_nd.cpu(),
                  required_pass=None,
                  disabled_pass=None,
-                 trace=None):
+                 trace=None,
+                 config=None):
         if isinstance(fallback_device, str):
             fallback_device = _nd.context(fallback_device).device_type
         elif isinstance(fallback_device, tvm.runtime.TVMContext):
@@ -95,9 +99,10 @@ class PassContext(tvm.runtime.Object):
             raise TypeError("disabled_pass is expected to be the type of " +
                             "list/tuple/set.")
 
+        config = config if config else None
         self.__init_handle_by_constructor__(_ffi_transform_api.PassContext, opt_level,
                                             fallback_device, required,
-                                            disabled, trace)
+                                            disabled, trace, config)
 
     def __enter__(self):
         _ffi_transform_api.EnterPassContext(self)

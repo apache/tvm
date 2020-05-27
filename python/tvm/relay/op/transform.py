@@ -299,7 +299,7 @@ def full(fill_value, shape=(), dtype=""):
     fill_value : relay.Expr
         The value to fill. Must be a scalar.
 
-    shape : tuple of int
+    shape : tuple of int or relay.Expr
         The shape of the target.
 
     dtype : data type, optional (defaults to data type of the fill value)
@@ -310,6 +310,8 @@ def full(fill_value, shape=(), dtype=""):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, (list, tuple)):
+        shape = const(list(shape), "int32")
     return _make.full(fill_value, shape, dtype)
 
 
@@ -527,7 +529,7 @@ def broadcast_to(data, shape):
     data : relay.Expr
         The input tensor.
 
-    shape : shape
+    shape : tuple of int or relay.Expr
         Provide the shape to broadcast to.
 
     Returns
@@ -535,6 +537,8 @@ def broadcast_to(data, shape):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, (list, tuple)):
+        shape = const(list(shape), "int32")
     return _make.broadcast_to(data, shape)
 
 def broadcast_to_like(data, broadcast_type):

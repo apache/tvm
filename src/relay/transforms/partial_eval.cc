@@ -511,7 +511,7 @@ PStatic NoStatic(const Expr& dynamic) { return PStatic(make_object<PStaticNode>(
 enum struct MatchStatus { Match, NoMatch, Unknown };
 
 bool StatefulOp(const Expr& e) {
-  static auto op_stateful = Op::GetAttr<TOpIsStateful>("TOpIsStateful");
+  static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
   struct StatefulOpVisitor : ExprVisitor {
     bool stateful = false;
     void VisitExpr_(const OpNode* op) {
@@ -533,10 +533,12 @@ DLContext CPUContext() {
 }
 
 FInterpreter CPUInterpreter() {
+  using tvm::transform::PassContext;
+
   Target target = Target::Create("llvm");
   // use a fresh build context
   // in case we are already in a build context.
-  With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
+  With<PassContext> fresh_build_ctx(PassContext::Create());
 
   return CreateInterpreter(IRModule(nullptr), CPUContext(), target);
 }

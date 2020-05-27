@@ -373,7 +373,7 @@ def _convert_convolution3d(inexpr, keras_layer, etab):
         pad_d3 = _get_pad_pair(in_d3, dilated_kernel_d3, stride_d3)
         params['padding'] = [pad_d1[0], pad_d2[0], pad_d3[0], pad_d1[1], pad_d2[1], pad_d3[1]]
     else:
-        msg = 'Padding with {} is not supported for operator Convolution ' \
+        msg = 'Padding with {} is not supported for operator Convolution3D ' \
               'in frontend Keras.'
         raise tvm.error.OpAttributeUnImplemented(msg.format(keras_layer.padding))
     out = _op.nn.conv3d(data=inexpr, **params)
@@ -542,6 +542,23 @@ def _convert_pooling3d(inexpr, keras_layer, etab):
         out = _op.nn.avg_pool3d(out, **params)
 
     return _op.transpose(out, axes=(0, 2, 3, 4, 1))
+
+
+def _convert_global_pooling3d(inexpr, keras_layer, etab):
+    _check_data_format(keras_layer)
+    pool_type = type(keras_layer).__name__
+
+    global_pool_params = {'layout': etab.data_layout}
+    if pool_type == 'GlobalMaxPooling3D':
+        out = _op.nn.global_max_pool3d(inexpr, **global_pool_params)
+    elif pool_type == 'GlobalAveragePooling3D':
+        out = _op.nn.global_avg_pool3d(inexpr, **global_pool_params)
+    else:
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported for frontend Keras.'.format(keras_layer))
+
+    return _convert_flatten(out, keras_layer, etab)
+
 
 def _convert_upsample(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
@@ -885,8 +902,8 @@ _convert_map = {
     # 'SeparableConv3D'        : _convert_convolution3d,
     'MaxPooling3D'             : _convert_pooling3d,
     'AveragePooling3D'         : _convert_pooling3d,
-    # 'GlobalMaxPooling3D'     : _convert_pooling3d,
-    # 'GlobalAveragePooling3D' : _convert_pooling3d,
+    'GlobalMaxPooling3D'       : _convert_global_pooling3d,
+    'GlobalAveragePooling3D'   : _convert_global_pooling3d,
     'UpSampling3D'             : _convert_upsample3d,
     'ZeroPadding3D'            : _convert_padding3d,
 

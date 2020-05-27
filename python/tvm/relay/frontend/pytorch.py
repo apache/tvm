@@ -1007,6 +1007,13 @@ def _numtotensor():
         return arr
     return _impl
 
+
+def _tensortonum():
+    def _impl(inputs, input_types):
+        return inputs[0]
+    return _impl
+
+
 def _view():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -1242,13 +1249,47 @@ def _chunk(prelude):
         return chunks
     return _impl
 
-def _matmul():
+def _matmul(prelude):
     def _impl(inputs, input_types):
-        data0 = inputs[0]
-        data1 = inputs[1]
-        data1_t = _op.transpose(data1, axes=(1, 0))
 
-        return _op.nn.dense(data0, data1_t)
+        inputs_0 = inputs[0]
+        inputs_1 = inputs[1]
+
+        # Need to check input shape as batch matmul must be supported.
+        a_shape = _infer_shape(inputs_0, prelude.mod)
+        b_shape = _infer_shape(inputs_1, prelude.mod)
+
+        # When performing a batch matmul, we need to properly handle N-dim shapes.
+        if len(a_shape) > 2 or len(b_shape) > 2:
+            # Convert a and b into 3 dimensional tensors.
+            a = _op.reshape(inputs_0, [-1, a_shape[-2], a_shape[-1]])
+            b = _op.reshape(inputs_1, [-1, b_shape[-2], b_shape[-1]])
+            # Broadcast b to match batch size of a
+            new_b_shape = list(_infer_shape(b, prelude.mod))
+            new_a_shape = _infer_shape(a, prelude.mod)
+            if new_a_shape[0] > new_b_shape[0]:
+                new_b_shape[0] = new_a_shape[0]
+                b = _op.broadcast_to(b, new_b_shape)
+            # Transpose matrix dimensions of b.
+            b = _op.transpose(b, [0, 2, 1])
+            # Perform a batch matmul.
+            output = _op.nn.batch_matmul(a, b)
+            # Reshape output to original dimensions.
+            return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
+
+        # Otherwise a simple dense op will get the job done.
+        if len(b_shape) == 1:
+            input_1 = _op.expand_dims(inputs_1, 0, 1)
+        else:
+            input_1 = _op.transpose(inputs_1, axes=(1, 0))
+
+        out = _op.nn.dense(inputs_0, input_1)
+
+        if len(b_shape) == 1:
+            out = _op.squeeze(out, axis=[-1])
+
+        return out
+
     return _impl
 
 
@@ -1301,10 +1342,31 @@ def _none():
 def _pad():
     def _impl(inputs, input_types):
         data = inputs[0]
-        padding = inputs[1]
-        pad_width = list(zip(padding, padding))
+        if isinstance(inputs[1], list):
+            pad_list = inputs[1]
+        else:
+            pad_list = list(_infer_shape(inputs[1]))
+
+        # initialize paddings based on input len
+        pad_len = len(_infer_shape(data)) * 2
+        paddings = [0] * pad_len
+
+        if len(pad_list) >= 2:
+            paddings[-1] = pad_list[1]
+            paddings[-2] = pad_list[0]
+        if len(pad_list) >= 4:
+            paddings[-3] = pad_list[3]
+            paddings[-4] = pad_list[2]
+        if len(pad_list) >= 6:
+            paddings[-5] = pad_list[5]
+            paddings[-6] = pad_list[4]
+
+        # group into tuple of 2 ints
+        paddings = [paddings[i:i + 2] for i in range(0, len(paddings), 2)]
+
         pad_value = inputs[2]
-        return _op.nn.pad(data, pad_width, pad_value)
+
+        return _op.nn.pad(data, paddings, pad_value)
     return _impl
 
 
@@ -1384,6 +1446,32 @@ def _upsample(method):
         return func(data)
 
     return _impl
+
+
+def _upsample3d(method):
+    def _impl(inputs, input_types):
+        if isinstance(inputs[1], _expr.Var):
+            out_size = _infer_shape(inputs[1])
+        elif isinstance(inputs[1], list):
+            infer_res = [_infer_value(size, {}) for size in inputs[1]]
+            out_size = [np.asscalar(res.asnumpy().astype(np.int))
+                        for res in infer_res]
+
+        data = inputs[0]
+
+        if len(inputs) > 2:
+            align_corners = inputs[2]
+        else:
+            align_corners = False
+
+        if align_corners:
+            coord_trans = "align_corners"
+        else:
+            coord_trans = "half_pixel"
+
+        return _op.image.resize3d(data, out_size, "NCDHW", method, coord_trans)
+    return _impl
+
 
 def _expand_as():
     def _impl(inputs, input_types):
@@ -1536,6 +1624,22 @@ def _one_hot():
     return _impl
 
 
+def _reflection_pad2d():
+    def _impl(inputs, input_types):
+        if isinstance(inputs[1], list):
+            pad_list = inputs[1]
+        else:
+            pad_list = list(_infer_shape(inputs[1]))
+        padding_left = pad_list[0]
+        padding_right = pad_list[1]
+        padding_top = pad_list[2]
+        padding_bottom = pad_list[3]
+        paddings = [[0, 0], [0, 0], [padding_top, padding_bottom], [padding_left, padding_right]]
+
+        return _op.nn.mirror_pad(inputs[0], paddings, mode='REFLECT')
+    return _impl
+
+
 # Helper functions for operator implementation
 def _convert_dtype_value(val):
     convert_torch_dtype_map = {7:"torch.float64",
@@ -1654,6 +1758,7 @@ def _get_convert_map(prelude):
         "aten::prelu"                           : _prelu(),
         "aten::leaky_relu"                      : _leaky_relu(),
         "aten::elu"                             : _elu(),
+        "aten::elu_"                            : _elu(),
         "aten::celu"                            : _celu(),
         "aten::gelu"                            : _gelu(),
         "aten::selu"                            : _selu(),
@@ -1695,10 +1800,11 @@ def _get_convert_map(prelude):
         "aten::alpha_dropout"                   : _dropout(),
         "aten::mean"                            : _mean(),
         "aten::chunk"                           : _chunk(prelude),
-        "aten::matmul"                          : _matmul(),
+        "aten::matmul"                          : _matmul(prelude),
         "aten::expand"                          : _expand(),
         "aten::Int"                             : _int(),
         "prim::NumToTensor"                     : _numtotensor(),
+        "prim::ImplicitTensorToNum"             : _tensortonum(),
         "aten::constant_pad_nd"                 : _pad(),
         "aten::permute"                         : _transpose(prelude),
         "aten::sum"                             : _reduce("sum"),
@@ -1737,6 +1843,8 @@ def _get_convert_map(prelude):
         "aten::detach"                          : _identity(),
         "aten::upsample_bilinear2d"             : _upsample("bilinear"),
         "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
+        "aten::upsample_trilinear3d"            : _upsample3d("trilinear"),
+        "aten::upsample_nearest3d"              : _upsample3d("nearest_neighbor"),
         "aten::expand_as"                       : _expand_as(),
         "aten::lt"                              : _elemwise("less"),
         "aten::gt"                              : _elemwise("greater"),
@@ -1755,7 +1863,8 @@ def _get_convert_map(prelude):
         "aten::rsub"                            : _rsub(),
         "aten::embedding"                       : _embedding(),
         "aten::one_hot"                         : _one_hot(),
-        "aten::mm"                              : _matmul(),
+        "aten::mm"                              : _matmul(prelude),
+        "aten::reflection_pad2d"                : _reflection_pad2d(),
         "relay::tensor_array_stack"             : _tensor_array_stack(prelude),
         "aten::add"                             : _add(prelude),
         "aten::add_"                            : _add(prelude),

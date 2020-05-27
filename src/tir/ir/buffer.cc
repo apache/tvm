@@ -34,7 +34,7 @@
 
 namespace tvm {
 namespace tir {
-// TODO(tqchen): change to floormod/div
+
 using IndexMod = tir::FloorModNode;
 using IndexDiv = tir::FloorDivNode;
 

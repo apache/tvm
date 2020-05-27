@@ -136,6 +136,8 @@ struct Instruction {
     struct /* AllocTensor Operands */ {
       /*! \brief The storage to allocate from. */
       RegName storage;
+      /*! \brief The offset into the storage to allocate from. */
+      Index offset;
       /*! \brief The number of dimensions. */
       uint32_t ndim;
       /*! \brief The shape of tensor. */
@@ -146,6 +148,8 @@ struct Instruction {
     struct /* AllocTensorReg Operands */ {
       /*! \brief The storage to allocate from. */
       RegName storage;
+      /*! \brief The offset into the storage to allocate from. */
+      Index offset;
       /*! \brief The register to read the shape out of. */
       RegName shape_register;
       /*! \brief The datatype of tensor to be allocated. */
@@ -267,23 +271,25 @@ struct Instruction {
   /*!
    * \brief Construct an allocate tensor instruction with constant shape.
    * \param storage The storage to allocate out of.
+   * \param offset The offset to allocate at.
    * \param shape The shape of the tensor.
    * \param dtype The dtype of the tensor.
    * \param dst The destination register.
    * \return The allocate tensor instruction.
    */
-  static Instruction AllocTensor(RegName storage, const std::vector<int64_t>& shape,
+  static Instruction AllocTensor(RegName storage, Index offset, const std::vector<int64_t>& shape,
                                  DLDataType dtype, RegName dst);
   /*!
    * \brief Construct an allocate tensor instruction with register.
    * \param storage The storage to allocate out of.
+   * \param offset The offset into the storage to allocate from.
    * \param shape_register The register containing the shape.
    * \param dtype The dtype of the tensor.
    * \param dst The destination register.
    * \return The allocate tensor instruction.
    */
-  static Instruction AllocTensorReg(RegName storage, RegName shape_register, DLDataType dtype,
-                                    RegName dst);
+  static Instruction AllocTensorReg(RegName storage, Index offset, RegName shape_register,
+                                    DLDataType dtype, RegName dst);
   /*!
    * \brief Construct an allocate datatype instruction.
    * \param tag The datatype tag.

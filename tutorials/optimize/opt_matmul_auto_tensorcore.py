@@ -287,10 +287,9 @@ def tune_and_evaluate(M, N, L, dtype, layout):
   print(best_config)
   with autotvm.apply_history_best('matmul.log'):
     with tvm.target.create("cuda"):
-        with tvm.target.build_config():
-            s, arg_bufs = test_gemm(N, L, M, dtype, layout)
-            print(tvm.lower(s, arg_bufs, simple_mode=True))
-            func = tvm.build(s, arg_bufs)
+          s, arg_bufs = test_gemm(N, L, M, dtype, layout)
+          print(tvm.lower(s, arg_bufs, simple_mode=True))
+          func = tvm.build(s, arg_bufs)
   dev_module = func.imported_modules[0]
   print(dev_module.get_source())
 

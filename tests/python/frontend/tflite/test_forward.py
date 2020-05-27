@@ -355,6 +355,48 @@ def test_forward_gather():
         _test_gather((1, 3, 3), [20, 20], 2, 'float32', quantized, oob=True)
 
 #######################################################################
+# Gather_ND
+# ---------
+
+def _test_gather_nd(data, indices):
+    """ One iteration of GATHER_ND """
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(shape=data.shape, dtype=data.dtype, name="data")
+        indices_data = tf.placeholder(shape=indices.shape, dtype=indices.dtype,
+                                        name="indices")
+        out = tf.gather_nd(in_data, indices_data)
+
+        compare_tflite_with_tvm([data, indices], ['data:0', 'indices:0'],
+                                  [in_data, indices_data], [out])
+
+def test_forward_gather_nd():
+    """ GATHER_ND """
+    _test_gather_nd(
+        np.array([[[1.2, 2.0], [3.1, 4.1]], [[5.1, 6.1], [7.1, 8.1]]]).astype('float32'),
+        np.asarray([[0, 1], [1, 0]]).astype('int32')
+    )
+    _test_gather_nd(
+        np.reshape(np.arange(30), [5, 6]).astype('int32'),
+        np.asarray([[1, 2]]).astype('int32')
+    )
+    _test_gather_nd(
+        np.reshape(np.arange(12), [2, 3, 2]).astype('int32'),
+        np.asarray([[[0, 0], [0, 1]], [[1, 0], [1, 1]]]).astype('int32')
+    )
+    _test_gather_nd(
+        np.reshape(np.arange(4), [4]).astype('float32'),
+        np.asarray([1]).astype('int32')
+    )
+    _test_gather_nd(
+        np.reshape(np.arange(4), [1, 4]).astype('float32'),
+        np.asarray([0]).astype('int32')
+    )
+    _test_gather_nd(
+        np.reshape(np.arange(4), [1, 4]).astype('float32'),
+        np.asarray([0, 3]).astype('int32')
+    )
+
+#######################################################################
 # StridedSlice
 # ------------
 
@@ -2217,6 +2259,7 @@ if __name__ == '__main__':
     test_forward_slice()
     test_forward_topk()
     test_forward_gather()
+    test_forward_gather_nd()
     test_forward_stridedslice()
     test_forward_depthtospace()
     test_forward_spacetodepth()

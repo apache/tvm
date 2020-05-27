@@ -82,7 +82,7 @@ class ConvertTransformMemorizer : public TransformMemorizer {
    * \return The new Call after calling the packed func.
    */
   Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) override {
-    static auto fconvert_layout = Op::GetAttr<FTVMConvertOpLayout>("FTVMConvertOpLayout");
+    static auto fconvert_layout = Op::GetAttrMap<FTVMConvertOpLayout>("FTVMConvertOpLayout");
     Op op = Downcast<Op>(ref_call->op);
 
     Expr new_e;

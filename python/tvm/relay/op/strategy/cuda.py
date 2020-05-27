@@ -590,3 +590,15 @@ def winograd_judge(N, H, W, KH, KW, CI, CO, padding, stride_h,
                               stride_h == 1 and stride_w == 1 and \
                               dilation_h == 1 and dilation_w == 1
     return judge_winograd_tensorcore, judge_winograd_shape
+
+@correlation_strategy.register(["cuda", "gpu"])
+def correlation_strategy_cuda(attrs, inputs, out_type, target):
+    """correlation cuda strategy"""
+    layout = attrs.layout
+    assert layout == "NCHW", "Only support NCHW layout"
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_correlation(topi.cuda.correlation_nchw),
+        wrap_topi_schedule(topi.cuda.schedule_correlation_nchw),
+        name="correlation.cuda")
+    return strategy

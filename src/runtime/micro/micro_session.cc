@@ -71,12 +71,13 @@ MicroSession::MicroSession(const std::string& comms_method, const std::string& b
                            uint64_t heap_start, size_t heap_size, uint64_t workspace_start,
                            size_t workspace_size, uint64_t stack_start, size_t stack_size,
                            TargetWordSize word_size, bool thumb_mode, bool use_device_timer,
-                           const std::string& server_addr, int port)
+                           const std::string& server_addr, int port, PackedFunc debug_func)
     : toolchain_prefix_(toolchain_prefix),
       word_size_(word_size),
       thumb_mode_(thumb_mode),
       use_device_timer_(use_device_timer),
-      batch_args_encoder_(args_size, word_size) {
+      batch_args_encoder_(args_size, word_size),
+      debug_func_{debug_func} {
   if (comms_method == "host") {
     // TODO(weberlo): move checks to python
     CHECK(text_start == 0 && rodata_start == 0 && data_start == 0 && bss_start == 0 &&
@@ -292,23 +293,32 @@ void MicroSession::FlushTaskQueuePriv() {
     utvm_init_addr += 1;
   }
 
-  std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin,
-      tend;
-  tbegin = std::chrono::high_resolution_clock::now();
-  // std::string tmp;
-  // while (tmp[0] != 'd' && tmp[0] != 'e') {
-  //   std::cout << "How to proceed? [Debug / Execute] ";
-  //   getline(std::cin, tmp);
-  //   CHECK(std::cin.good()) << "Stdin closed";
-  //   tmp[0] = std::tolower(tmp[0]);
-  // }
-  // if (tmp[0] == 'd') {
-  //   std::cout << "Launch debugger; [Enter] to resume automated execution";
-  //   getline(std::cin, tmp);
-  // } else {
-  low_level_device()->Execute(utvm_init_addr, utvm_done_addr);
-  // }
-  tend = std::chrono::high_resolution_clock::now();
+  bool did_debug = false;
+  if (debug_func_ != nullptr) {
+    TVMRetValue rv = debug_func_();
+    if (rv.type_code() == kTVMNullptr) {
+      did_debug = true;
+    } else {
+      did_debug = static_cast<bool>(rv);
+    }
+
+    if (did_debug && !use_device_timer_) {
+      LOG(INFO) << "NOTE: when debugging and use_device_timer == false, reported execution time "
+                << "will be inaccurate!";
+    }
+  }
+
+  if (!did_debug) {
+    std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin,
+        tend;
+    tbegin = std::chrono::high_resolution_clock::now();
+    low_level_device()->Execute(utvm_init_addr, utvm_done_addr);
+    tend = std::chrono::high_resolution_clock::now();
+    if (!use_device_timer_) {
+      last_batch_time_ +=
+          std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() * 1000;
+    }
+  }
 
   // Check if there was an error during execution.  If so, log it.
   CheckDeviceError();
@@ -326,8 +336,6 @@ void MicroSession::FlushTaskQueuePriv() {
     }
     last_batch_time_ += static_cast<double>(sum) / 1e3;
   } else {
-    last_batch_time_ +=
-        std::chrono::duration_cast<std::chrono::duration<double>>(tend - tbegin).count() * 1000;
     // TODO(weberlo): Reading internal data structure is hacky.
     uint64_t sum = 0;
     std::vector<uint32_t> times;
@@ -398,8 +406,8 @@ std::tuple<TargetPtr, TargetPtr> MicroSession::EncoderAppend(TargetDataLayoutEnc
   const int* type_codes = args.type_codes;
   int num_args = args.num_args;
 
-  auto tvm_vals_slot = encoder->Alloc<TVMValue>(num_args);
-  auto type_codes_slot = encoder->Alloc<const int>(num_args);
+  auto tvm_vals_alloc = encoder->Alloc<TVMValue>(num_args);
+  auto type_codes_alloc = encoder->Alloc<const int>(num_args);
 
   for (int i = 0; i < num_args; i++) {
     switch (type_codes[i]) {
@@ -425,7 +433,7 @@ std::tuple<TargetPtr, TargetPtr> MicroSession::EncoderAppend(TargetDataLayoutEnc
 
         TVMValue val;
         val.v_handle = arr_ptr;
-        tvm_vals_slot.WriteValue(val);
+        tvm_vals_alloc->WriteValue(val);
         break;
       }
       // TODO(weberlo): Implement `double` and `int64` case.
@@ -437,25 +445,24 @@ std::tuple<TargetPtr, TargetPtr> MicroSession::EncoderAppend(TargetDataLayoutEnc
         break;
     }
   }
-  type_codes_slot.WriteArray(type_codes, num_args);
-  return std::make_tuple(tvm_vals_slot.start_addr(), type_codes_slot.start_addr());
+  type_codes_alloc->WriteArray(type_codes, num_args);
+  encoder->CheckUnfilledAllocs();
+  return std::make_tuple(tvm_vals_alloc->start_addr(), type_codes_alloc->start_addr());
 }
 
 template <typename T>
 TargetPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const DLTensor& arr) {
-  auto tvm_arr_slot = encoder->Alloc<T>();
-  auto shape_slot = encoder->Alloc<int64_t>(arr.ndim);
-
   // `shape` and `strides` are stored on the host, so we need to write them to
   // the device first. The `data` field is already allocated on the device and
   // is a device pointer, so we don't need to write it.
-  shape_slot.WriteArray(arr.shape, arr.ndim);
-  TargetPtr shape_dev_addr = shape_slot.start_addr();
+  auto shape_alloc = encoder->Alloc<int64_t>(arr.ndim);
+  shape_alloc->WriteArray(arr.shape, arr.ndim);
+  TargetPtr shape_dev_addr = shape_alloc->start_addr();
   TargetPtr strides_dev_addr = TargetPtr(word_size_, nullptr);
   if (arr.strides != nullptr) {
-    auto stride_slot = encoder->Alloc<int64_t>(arr.ndim);
-    stride_slot.WriteArray(arr.strides, arr.ndim);
-    strides_dev_addr = stride_slot.start_addr();
+    auto stride_alloc = encoder->Alloc<int64_t>(arr.ndim);
+    stride_alloc->WriteArray(arr.strides, arr.ndim);
+    strides_dev_addr = stride_alloc->start_addr();
   }
 
   T dev_arr(TargetVal{word_size_.bits(), reinterpret_cast<uint64_t>(arr.data)}, arr.ctx, arr.ndim,
@@ -466,8 +473,10 @@ TargetPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const DL
   // Update the device type to CPU, because from the microcontroller's
   // perspective, it is.
   dev_arr.ctx.device_type = DLDeviceType::kDLCPU;
-  tvm_arr_slot.WriteValue(dev_arr);
-  return tvm_arr_slot.start_addr();
+
+  auto tvm_arr_alloc = encoder->Alloc<T>();
+  tvm_arr_alloc->WriteValue(dev_arr);
+  return tvm_arr_alloc->start_addr();
 }
 
 // TODO(weberlo): switch over entirely to error codes that expand to error
@@ -664,11 +673,12 @@ TVM_REGISTER_GLOBAL("micro._CreateSession").set_body([](TVMArgs args, TVMRetValu
   bool use_device_timer = args[21];
   const std::string& server_addr = args[22];
   int port = args[23];
+  PackedFunc debug_func = args[24];
   ObjectPtr<MicroSession> session = make_object<MicroSession>(
       comms_method, binary_path, toolchain_prefix, text_start, text_size, rodata_start, rodata_size,
       data_start, data_size, bss_start, bss_size, args_start, args_size, heap_start, heap_size,
       workspace_start, workspace_size, stack_start, stack_size, word_size, thumb_mode,
-      use_device_timer, server_addr, port);
+      use_device_timer, server_addr, port, debug_func);
   *rv = Module(session);
 });
 

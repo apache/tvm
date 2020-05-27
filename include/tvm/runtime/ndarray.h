@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_NDARRAY_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/serializer.h>
 
@@ -160,6 +161,7 @@ class NDArray : public ObjectRef {
                                  TVMStreamHandle stream = nullptr);
 
   TVM_DLL std::vector<int64_t> Shape() const;
+  TVM_DLL runtime::DataType DataType() const;
   // internal namespace
   struct Internal;
 
@@ -460,7 +462,11 @@ inline bool NDArray::Load(dmlc::Stream* strm) {
   int64_t data_byte_size;
   CHECK(strm->Read(&data_byte_size)) << "Invalid DLTensor file format";
   CHECK(data_byte_size == num_elems * elem_bytes) << "Invalid DLTensor file format";
-  CHECK(strm->Read(ret->data, data_byte_size)) << "Invalid DLTensor file format";
+  auto read_ret = strm->Read(ret->data, data_byte_size);
+  // Only check non-empty data
+  if (ndim > 0 && shape[0] != 0) {
+    CHECK(read_ret) << "Invalid DLTensor file format";
+  }
   if (!DMLC_IO_NO_ENDIAN_SWAP) {
     dmlc::ByteSwap(ret->data, elem_bytes, num_elems);
   }
