@@ -51,6 +51,11 @@ def _load_lib():
     lib.TVMGetLastError.restype = ctypes.c_char_p
     return lib, os.path.basename(lib_path[0])
 
+try:
+    import readline  # pylint: disable=unused-import
+except ImportError:
+    pass
+
 # version number
 __version__ = libinfo.__version__
 # library instance
