@@ -8,824 +8,7 @@
 namespace tvm {
 namespace ansor {
 
-TVM_REGISTER_OBJECT_TYPE(StepNode);
 TVM_REGISTER_NODE_TYPE(StateNode);
-
-inline std::string CleanName(const std::string& str) {
-  // to make the name valid in python code
-  std::string ret = str;
-  StrReplace(&ret, ".", "_");
-  StrReplace(&ret, "@", "_");
-  StrReplace(&ret, "outer", "o");
-  StrReplace(&ret, "inner", "i");
-  return ret;
-}
-
-/********** Reorder **********/
-ReorderStep ReorderStepNode::make(int stage_id, const std::vector<int>& after_ids) {
-  auto node = make_object<ReorderStepNode>();
-  node->stage_id = stage_id;
-  node->after_ids = after_ids;
-  return ReorderStep(node);
-}
-
-void ReorderStepNode::ApplyToSchedule(std::vector<te::Stage> *stages,
-                                      StageToAxesMap *stage_to_axes) const {
-  te::Stage& stage = (*stages)[stage_id];
-  const std::vector<IterVar>& axes = (*stage_to_axes)[stage];
-  CHECK_EQ(after_ids.size(), axes.size());
-
-  std::vector<IterVar> new_axes;
-  new_axes.reserve(axes.size());
-  for (auto i : after_ids) {
-    new_axes.push_back(axes[i]);
-  }
-  stage.reorder(new_axes);
-  (*stage_to_axes)[stage] = std::move(new_axes);
-}
-
-std::string ReorderStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                                              StageToAxesMap *stage_to_axes,
-                                              te::Schedule *schedule,
-                                              const std::vector<Step>& transform_steps) const {
-  const te::Stage& stage = (*stages)[stage_id];
-  std::stringstream ss;
-
-  ss << "s[" << CleanName(stage->op->func_name()) << "].reorder(";
-  for (size_t i = 0; i < after_ids.size(); ++i) {
-    ss << CleanName((*stage_to_axes)[stage][after_ids[i]]->var->name_hint);
-    if (i != after_ids.size() - 1) {
-      ss << ", ";
-    }
-  }
-  ss << ")\n";
-
-  ApplyToSchedule(stages, stage_to_axes);
-  return ss.str();
-}
-
-/********** Split **********/
-std::vector<IterVar> ApplySplitToSchedule(std::vector<te::Stage> *stages,
-                                          StageToAxesMap *stage_to_axes,
-                                          int stage_id,
-                                          int iter_id,
-                                          const std::vector<PrimExpr>& lengths,
-                                          bool inner_to_outer) {
-  te::Stage& stage = (*stages)[stage_id];
-  const std::vector<IterVar>& axes = (*stage_to_axes)[stage];
-
-  std::vector<IterVar> outs;
-  if (inner_to_outer) {
-    IterVar outer = axes[iter_id], inner;
-    for (int i = static_cast<int>(lengths.size()) - 1; i >= 0; i--) {
-      IterVar to_split = outer;
-      stage.split(to_split, lengths[i], &outer, &inner);
-      outs.push_back(inner);
-    }
-    outs.push_back(outer);
-  } else {
-    IterVar outer, inner = axes[iter_id];
-    for (size_t i = 0; i < lengths.size(); i++) {
-      IterVar to_split = inner;
-      stage.split_by_nparts(to_split, lengths[i], &outer, &inner);
-      outs.push_back(outer);
-    }
-    outs.push_back(inner);
-  }
-
-  std::vector<IterVar> new_axes;
-  new_axes.insert(new_axes.end(), axes.begin(), axes.begin() + iter_id);
-  if (inner_to_outer) {
-    new_axes.insert(new_axes.end(), outs.rbegin(), outs.rend());
-  } else {
-    new_axes.insert(new_axes.end(), outs.begin(), outs.end());
-  }
-  new_axes.insert(new_axes.end(), axes.begin() + iter_id + 1, axes.end());
-  (*stage_to_axes)[stage] = std::move(new_axes);
-
-  return outs;
-}
-
-std::string PrintSplitAsPythonAPI(std::vector<te::Stage> *stages,
-                                  StageToAxesMap *stage_to_axes,
-                                  int stage_id,
-                                  int iter_id,
-                                  const std::vector<PrimExpr>& lengths,
-                                  bool inner_to_outer) {
-  te::Stage& stage = (*stages)[stage_id];
-  auto to_split = (*stage_to_axes)[stage][iter_id];
-  const auto& func_name = CleanName(stage->op->func_name());
-  const auto& outs = ApplySplitToSchedule(stages, stage_to_axes, stage_id,
-                                          iter_id, lengths, inner_to_outer);
-
-  std::stringstream ss;
-  int size = static_cast<int>(lengths.size());
-  if (inner_to_outer) {
-    for (int i = size - 1; i >= 0; i--) {
-      ss << CleanName(outs[size - i]->var->name_hint) << ", "
-        << CleanName(outs[size - i - 1]->var->name_hint)
-        << " = s[" << func_name << "].split("
-        << CleanName(to_split->var->name_hint)
-        << ", factor=" << lengths[i] << ")\n";
-      to_split = outs[size - i];
-    }
-  } else {
-    for (int i = 0; i < size; i++) {
-      ss << CleanName(outs[i]->var->name_hint) << ", "
-        << CleanName(outs[i + 1]->var->name_hint)
-        << " = s[" << func_name << "].split("
-        << CleanName(to_split->var->name_hint)
-        << ", nparts=" << lengths[i] << ")\n";
-      to_split = outs[i + 1];
-    }
-  }
-
-  return ss.str();
-}
-
-SplitStep SplitStepNode::make(int stage_id, int iter_id,
-                              PrimExpr extent, const std::vector<PrimExpr>& lengths,
-                              bool inner_to_outer) {
-  auto node = make_object<SplitStepNode>();
-  node->stage_id = stage_id;
-  // Extent can be a unreducible expression in some special cases
-  if (extent->IsInstance<IntImmNode>()) {
-    node->extent = std::move(extent);
-  }
-  node->iter_id = iter_id;
-  node->lengths = lengths;
-  node->inner_to_outer = inner_to_outer;
-  return SplitStep(node);
-}
-
-std::vector<IterVar> SplitStepNode::ApplyToSchedule(
-    std::vector<te::Stage> *stages, StageToAxesMap *stage_to_axes) const {
-  return ApplySplitToSchedule(stages, stage_to_axes, stage_id, iter_id,
-                              lengths, inner_to_outer);
-}
-
-std::string SplitStepNode::PrintAsPythonAPI(
-    std::vector<te::Stage> *stages, StageToAxesMap *stage_to_axes,
-    te::Schedule *schedule, const std::vector<Step>& transform_steps) const {
-  return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id,
-                               lengths, inner_to_outer);
-}
-
-/********** Follow Split **********/
-FollowSplitStep FollowSplitStepNode::make(int stage_id, int iter_id,
-                                          int src_step_id, int n_split) {
-  auto node = make_object<FollowSplitStepNode>();
-  node->stage_id = stage_id;
-  node->iter_id = iter_id;
-  node->src_step_id = src_step_id;
-  node->n_split = n_split;
-  return FollowSplitStep(node);
-}
-
-void FollowSplitStepNode::ExtractSplitLengths(const std::vector<Step>& transform_steps,
-                                              std::vector<PrimExpr>* lengths) const {
-  CHECK_LT(src_step_id, transform_steps.size());
-  auto ps = transform_steps[src_step_id].as<SplitStepNode>();
-  CHECK(ps != nullptr);
-
-  // get lengths from src step
-  lengths->reserve(n_split);
-  int j = 0;
-  for (; j < n_split - 1; ++j) {
-    lengths->push_back(ps->lengths[j]);
-  }
-  PrimExpr last_factor = 1;
-  for (; j < static_cast<int>(ps->lengths.size()); ++j) {
-    if (ps->lengths[j].defined()) {
-      last_factor *= ps->lengths[j];
-    } else {
-      last_factor = PrimExpr();
-      break;
-    }
-  }
-  lengths->push_back(std::move(last_factor));
-}
-
-std::vector<IterVar> FollowSplitStepNode::ApplyToSchedule(
-    std::vector<te::Stage> *stages, StageToAxesMap *stage_to_axes,
-    const std::vector<Step>& transform_steps) const {
-  std::vector<PrimExpr> lengths;
-  ExtractSplitLengths(transform_steps, &lengths);
-  return ApplySplitToSchedule(stages, stage_to_axes, stage_id, iter_id,
-                              lengths, true);
-}
-
-std::string FollowSplitStepNode::PrintAsPythonAPI(
-    std::vector<te::Stage> *stages, StageToAxesMap *stage_to_axes,
-    te::Schedule *schedule, const std::vector<Step>& transform_steps) const {
-  std::vector<PrimExpr> lengths;
-  ExtractSplitLengths(transform_steps, &lengths);
-  return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id,
-                               lengths, true);
-}
-
-/********** Follow Fused Split **********/
-FollowFusedSplitStep FollowFusedSplitStepNode::make(int stage_id, int iter_id,
-          const std::vector<int>& src_step_ids, int level, bool factor_or_nparts) {
-  auto node = make_object<FollowFusedSplitStepNode>();
-  node->stage_id = stage_id;
-  node->iter_id = iter_id;
-  node->src_step_ids = src_step_ids;;
-  node->level = level;
-  node->factor_or_nparts = factor_or_nparts;
-  return FollowFusedSplitStep(node);
-}
-
-PrimExpr FollowFusedSplitStepNode::ExtractSplitLength(const std::vector<Step>& transform_steps) const {
-  PrimExpr ret(1);
-
-  for (int src_step_id : src_step_ids) {
-    CHECK_LT(src_step_id, transform_steps.size());
-    auto ps = transform_steps[src_step_id].as<SplitStepNode>();
-    CHECK(ps != nullptr);
-    if (ps->lengths[level].defined() && ret.defined()) {
-      ret *= ps->lengths[level];
-    } else {
-      return PrimExpr();
-    }
-  }
-
-  return ret;
-}
-
-std::vector<IterVar> FollowFusedSplitStepNode::ApplyToSchedule(
-    std::vector<te::Stage> *stages, StageToAxesMap *stage_to_axes,
-    const std::vector<Step>& transform_steps) const {
-  const PrimExpr& length = ExtractSplitLength(transform_steps);
-  return ApplySplitToSchedule(stages, stage_to_axes, stage_id, iter_id,
-                              {length}, factor_or_nparts);
-}
-
-std::string FollowFusedSplitStepNode::PrintAsPythonAPI(
-    std::vector<te::Stage> *stages, StageToAxesMap *stage_to_axes,
-    te::Schedule *schedule, const std::vector<Step>& transform_steps) const {
-  const PrimExpr& length = ExtractSplitLength(transform_steps);
-  return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id,
-                              {length}, factor_or_nparts);
-}
-
-
-/********** Fuse **********/
-FuseStep FuseStepNode::make(int stage_id, const std::vector<int>& fused_ids) {
-  auto node = make_object<FuseStepNode>();
-  node->stage_id = stage_id;
-  node->fused_ids = fused_ids;
-  return FuseStep(node);
-}
-
-IterVar FuseStepNode::ApplyToSchedule(std::vector<te::Stage> *stages,
-                                      StageToAxesMap *stage_to_axes) const {
-  te::Stage& stage = (*stages)[stage_id];
-  const std::vector<IterVar>& axes = (*stage_to_axes)[stage];
-
-  Array<IterVar> to_fuse;
-  for (auto i : fused_ids) {
-    to_fuse.push_back(axes[i]);
-  }
-  IterVar fused_axis;
-  stage.fuse(to_fuse, &fused_axis);
-  std::vector<IterVar> new_axes;
-  new_axes.insert(new_axes.end(), axes.begin(), axes.begin() + fused_ids[0]);
-  new_axes.push_back(fused_axis);
-  new_axes.insert(new_axes.end(), axes.begin() + fused_ids.back() + 1,
-      axes.end());
-  (*stage_to_axes)[stage] = std::move(new_axes);
-
-  return fused_axis;
-}
-
-std::string FuseStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                                           StageToAxesMap *stage_to_axes,
-                                           te::Schedule *schedule,
-                                           const std::vector<Step>& transform_steps) const {
-  const auto& stage = (*stages)[stage_id];
-  std::stringstream to_fuse;
-
-  for (size_t i = 0; i < fused_ids.size(); ++i) {
-    to_fuse << CleanName((*stage_to_axes)[stage][fused_ids[i]]->var->name_hint);
-    if (i != fused_ids.size() - 1) {
-      to_fuse << ", ";
-    }
-  }
-
-  std::stringstream ss;
-  const auto& fused = ApplyToSchedule(stages, stage_to_axes);
-
-  ss << CleanName(fused->var->name_hint) << " = s["
-     << CleanName(stage->op->func_name()) << "].fuse("
-     << to_fuse.str() << ")\n";
-
-  return ss.str();
-}
-
-/********** Annotation **********/
-AnnotationStep AnnotationStepNode::make(int stage_id, int iter_id, IteratorAnnotation ann) {
-  auto node = make_object<AnnotationStepNode>();
-  node->stage_id = stage_id;
-  node->iter_id = iter_id;
-  node->annotation = ann;
-  return AnnotationStep(node);
-}
-
-void AnnotationStepNode::ApplyToSchedule(std::vector<te::Stage> *stages,
-                                         StageToAxesMap *stage_to_axes) const {
-  te::Stage& stage = (*stages)[stage_id];
-  const std::vector<IterVar>& axes = (*stage_to_axes)[stage];
-
-  switch (annotation) {
-    case kUnroll:    stage.unroll(axes[iter_id]); break;
-    case kVectorize: stage.vectorize(axes[iter_id]); break;
-    case kParallel:  stage.parallel(axes[iter_id]); break;
-    case kVThread:   stage.bind(axes[iter_id], te::thread_axis(Range(), "vthread")); break;
-    case kBlockX:    stage.bind(axes[iter_id], te::thread_axis(Range(), "blockIdx.x")); break;
-    case kBlockY:    stage.bind(axes[iter_id], te::thread_axis(Range(), "blockIdx.y")); break;
-    case kThreadX:
-      if (axes[iter_id]->iter_type == kCommReduce) {
-        const auto &thread_x = te::thread_axis(Range(), "threadIdx.x");
-        stage.bind(axes[iter_id], thread_x);
-        stage.set_store_predicate(thread_x->var == 0);
-      } else {
-        stage.bind(axes[iter_id], te::thread_axis(Range(), "threadIdx.x"));
-      }
-      break;
-    case kThreadY:   stage.bind(axes[iter_id], te::thread_axis(Range(), "threadIdx.y")); break;
-    case kNone: break;
-    default: LOG(FATAL) << "Invalid Annotation " << annotation; break;
-  }
-}
-
-std::string AnnotationStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                                                 StageToAxesMap *stage_to_axes,
-                                                 te::Schedule *schedule,
-                                                 const std::vector<Step>& transform_steps) const {
-  std::stringstream ss;
-  const auto& stage = (*stages)[stage_id];
-  const auto& iter = (*stage_to_axes)[stage][iter_id];
-
-  bool bind_reduce_iter = iter->iter_type == kCommReduce && annotation == kThreadX;
-  if (bind_reduce_iter) {
-    ss << "thread_x = tvm.thread_axis(\"threadIdx.x\")\n";
-  }
-
-  ss << "s[" << CleanName(stage->op->func_name()) << "].";
-  switch (annotation) {
-    case kUnroll:    ss << "unroll("; break;
-    case kVectorize: ss << "vectorize("; break;
-    case kParallel:  ss << "parallel("; break;
-    case kVThread:
-    case kBlockX:
-    case kBlockY:
-    case kThreadX:
-    case kThreadY:   ss << "bind("; break;
-    case kNone:      break;
-    default:
-      LOG(FATAL) << "Invalid annotation " << annotation; break;
-  }
-  ss << CleanName(iter->var->name_hint);
-  switch (annotation) {
-    case kVThread:   ss << ", tvm.thread_axis(\"vthread\")"; break;
-    case kBlockX:    ss << ", tvm.thread_axis(\"blockIdx.x\")"; break;
-    case kBlockY:    ss << ", tvm.thread_axis(\"blockIdy.y\")"; break;
-    case kThreadX:
-      if (bind_reduce_iter) {
-        ss << ", thread_x";
-      } else {
-        ss << ", tvm.thread_axis(\"threadIdx.x\")";
-      }
-      break;
-    case kThreadY:   ss << ", tvm.thread_axis(\"threadIdx.y\")"; break;
-    default:         break;
-  }
-  ss << ")\n";
-
-  if (bind_reduce_iter) {
-    ss << "s[" << CleanName(stage->op->func_name()) << "]"
-       << ".set_store_predicate(thread_x.var.equal(0))\n";
-  }
-
-  ApplyToSchedule(stages, stage_to_axes);
-  return ss.str();
-}
-
-/********** Compute at **********/
-ComputeAtStep ComputeAtStepNode::make(int stage_id, int target_stage_id, int target_iter_id) {
-  auto node = make_object<ComputeAtStepNode>();
-  node->stage_id = stage_id;
-  node->target_stage_id = target_stage_id;
-  node->target_iter_id = target_iter_id;
-  return ComputeAtStep(node);
-}
-
-void ComputeAtStepNode::ApplyToSchedule(std::vector<te::Stage> *stages,
-                                        StageToAxesMap *stage_to_axes) const {
-  te::Stage& stage = (*stages)[stage_id];
-  const IterVar& target_axis =
-      (*stage_to_axes)[(*stages)[target_stage_id]][target_iter_id];
-  stage.compute_at((*stages)[target_stage_id], target_axis);
-}
-
-std::string ComputeAtStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                                                StageToAxesMap *stage_to_axes,
-                                                te::Schedule *schedule,
-                                                const std::vector<Step>& transform_steps) const {
-  std::stringstream ss;
-  const auto& stage = (*stages)[stage_id];
-  const auto& target_stage = (*stages)[target_stage_id];
-
-  ss << "s[" << CleanName(stage->op->func_name()) << "].compute_at(s["
-      << CleanName(target_stage->op->func_name()) << "], "
-      << CleanName((*stage_to_axes)[target_stage][target_iter_id]->var->name_hint);
-
-  ss << ")\n";
-  ApplyToSchedule(stages, stage_to_axes);
-  return ss.str();
-}
-
-/********** Compute Root **********/
-ComputeRootStep ComputeRootStepNode::make(int stage_id) {
-  auto node = make_object<ComputeRootStepNode>();
-  node->stage_id = stage_id;
-  return ComputeRootStep(node);
-}
-
-void ComputeRootStepNode::ApplyToSchedule(std::vector<te::Stage> *stages,
-                                          StageToAxesMap *stage_to_axes) const {
-  (*stages)[stage_id].compute_root();
-}
-
-std::string ComputeRootStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                                                  StageToAxesMap *stage_to_axes,
-                                                  te::Schedule *schedule,
-                                                  const std::vector<Step>& transform_steps) const {
-  std::stringstream ss;
-  const auto& stage = (*stages)[stage_id];
-
-  ss << "s[" << CleanName(stage->op->func_name()) << "].compute_root()\n";
-  ApplyToSchedule(stages, stage_to_axes);
-
-  return ss.str();
-}
-
-/********** Compute Inline **********/
-ComputeInlineStep ComputeInlineStepNode::make(int stage_id) {
-  auto node = make_object<ComputeInlineStepNode>();
-  node->stage_id = stage_id;
-  return ComputeInlineStep(node);
-}
-
-void ComputeInlineStepNode::ApplyToSchedule(std::vector<te::Stage> *stages,
-                                            StageToAxesMap *stage_to_axes) const {
-  (*stages)[stage_id].compute_inline();
-}
-
-std::string ComputeInlineStepNode::PrintAsPythonAPI(
-    std::vector<te::Stage> *stages,
-    StageToAxesMap *stage_to_axes,
-    te::Schedule *schedule,
-    const std::vector<Step>& transform_steps) const {
-  std::stringstream ss;
-  const auto& stage = (*stages)[stage_id];
-
-  ss << "s[" << CleanName(stage->op->func_name()) << "].compute_inline()\n";
-  ApplyToSchedule(stages, stage_to_axes);
-
-  return ss.str();
-}
-
-/********** Pack for vec **********/
-PackForVecStep PackForVecStepNode::make(int stage_id, int iter_id, int vec_size) {
-  auto node = make_object<PackForVecStepNode>();
-  node->stage_id = stage_id;
-  node->iter_id = iter_id;
-  node->vec_size = vec_size;
-  return PackForVecStep(node);
-}
-
-void PackForVecStepNode::ApplyToSchedule(std::vector<te::Stage> *stages,
-    StageToAxesMap *stage_to_axes, te::Schedule *schedule) const {
-  LOG(FATAL) << "Not implemented";
-}
-
-std::string PackForVecStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                                                 StageToAxesMap *stage_to_axes,
-                                                 te::Schedule *schedule,
-                                                 const std::vector<Step>& transform_steps) const {
-  LOG(FATAL) << "Not implemented";
-  return "";
-}
-
-/********** Cache read **********/
-CacheReadStep CacheReadStepNode::make(int stage_id, std::string scope_name,
-                                      const std::vector<int>& reader_stage_ids) {
-  auto node = make_object<CacheReadStepNode>();
-  node->stage_id = stage_id;
-  node->scope_name = std::move(scope_name);
-  node->reader_stage_ids = reader_stage_ids;
-  return CacheReadStep(node);
-}
-
-te::Tensor CacheReadStepNode::ApplyToSchedule(std::vector<te::Stage>* stages,
-    StageToAxesMap *stage_to_axes, te::Schedule *schedule) const {
-  te::Stage& stage = (*stages)[stage_id];
-
-  Array<te::Operation> readers;
-  for (const auto& i : reader_stage_ids) {
-    readers.push_back((*stages)[i]->origin_op);
-  }
-  auto out = schedule->cache_read(stage->origin_op.output(0), scope_name, readers);
-
-  const auto& new_stage = (*schedule)[out->op];
-  UpdateStageAxis(new_stage, stage_to_axes);
-  stages->insert(stages->begin() + stage_id + 1, new_stage);
-
-  return out;
-}
-
-std::string CacheReadStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                                                StageToAxesMap *stage_to_axes,
-                                                te::Schedule *schedule,
-                                                const std::vector<Step>& transform_steps) const {
-  std::stringstream ss;
-  // copy stage here, for the original stage will change after apply
-  auto stage = (*stages)[stage_id];
-  std::vector<te::Stage> reader_stages;
-  for (size_t i = 0; i < reader_stage_ids.size(); ++i) {
-    reader_stages.push_back((*stages)[reader_stage_ids[i]]);
-  }
-
-  auto out = ApplyToSchedule(stages, stage_to_axes, schedule);
-
-  ss << CleanName(out->op->func_name()) << " = "
-      << "s.cache_read(" << CleanName(stage->op->func_name()) << ", \""
-      << scope_name << "\", ["
-      << CleanName(reader_stages[0]->op->func_name());
-  for (size_t i = 1; i < reader_stage_ids.size(); ++i) {
-    ss << ", " << CleanName(reader_stages[i]->op->func_name());
-  }
-  ss << "])\n";
-
-  const auto& iters = out->op->root_iter_vars();
-  for (size_t i = 0; i < iters.size(); ++i) {
-    ss << CleanName(iters[i]->var->name_hint);
-    if (i != iters.size() - 1) {
-      ss << ", ";
-    }
-  }
-  ss << " = " << "tuple(" << CleanName(out->op->func_name())
-      << ".op.axis)\n";
-
-  return ss.str();
-}
-
-/********** Cache write **********/
-CacheWriteStep CacheWriteStepNode::make(int stage_id, std::string scope_name) {
-  auto node = make_object<CacheWriteStepNode>();
-  node->stage_id = stage_id;
-  node->scope_name = std::move(scope_name);
-  return CacheWriteStep(node);
-}
-
-Array<te::Tensor> CacheWriteStepNode::ApplyToSchedule(
-    std::vector<te::Stage> *stages, StageToAxesMap *stage_to_axes,
-    te::Schedule *schedule) const {
-  te::Stage& stage = (*stages)[stage_id];
-
-  Array<te::Tensor> tensor_array;
-  // If the target stage has multi outputs, TVM requires to cache_write
-  // all of them or schedule.cache_write will raise an error
-  for (auto i = 0; i < stage->op->num_outputs(); ++i) {
-    tensor_array.push_back(stage->origin_op.output(i));
-  }
-  auto outs = schedule->cache_write(tensor_array, scope_name);
-
-  UpdateStageAxis(stage, stage_to_axes);
-  // Even if there is multi outputs, TVM schedule only generate one
-  // new stage
-  const auto& new_stage = (*schedule)[outs[0]->op];
-  UpdateStageAxis(new_stage, stage_to_axes);
-  stages->insert(stages->begin() + stage_id, new_stage);
-
-  return outs;
-}
-
-std::string CacheWriteStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                                                 StageToAxesMap *stage_to_axes,
-                                                 te::Schedule *schedule,
-                                                 const std::vector<Step>& transform_steps) const {
-  std::stringstream ss;
-  // copy stage here, for the original stage will change after apply
-  te::Stage stage = (*stages)[stage_id];
-
-  auto outs = ApplyToSchedule(stages, stage_to_axes, schedule);
-
-  for (size_t i = 0; i < outs.size(); ++i) {
-    ss << CleanName(outs[i]->op->func_name()) << ", ";
-  }
-  ss << "= " << "s.cache_write(["
-     << CleanName(stage->op.output(0)->op->name);
-  for (auto i = 1; i < stage->op->num_outputs(); ++i) {
-    ss << ", " << CleanName(stage->op.output(i)->op->name);
-  }
-  ss << "], \"" << scope_name << "\")\n";
-
-  for (const auto& out : outs) {
-    const auto& iters = out->op->root_iter_vars();
-    for (size_t i = 0; i < iters.size(); ++i) {
-      ss << CleanName(iters[i]->var->name_hint);
-      if (i != iters.size() - 1) {
-        ss << ", ";
-      }
-    }
-    ss << " = " << "tuple(" << CleanName(out->op->func_name())
-      << ".op.axis)"
-      << " + " << "tuple(" << CleanName(out->op->func_name())
-      << ".op.reduce_axis)\n";
-  }
-
-  return ss.str();
-}
-
-/********** Pragma **********/
-PragmaStep PragmaStepNode::make(int stage_id, int iter_id,
-                                std::string pragma_type) {
-  auto node = make_object<PragmaStepNode>();
-  node->stage_id = stage_id;
-  node->iter_id = iter_id;
-  node->pragma_type = std::move(pragma_type);
-  return PragmaStep(node);
-}
-
-void PragmaStepNode::ApplyToSchedule(std::vector<te::Stage> *stages,
-                                     StageToAxesMap *stage_to_axes) const {
-  te::Stage& stage = (*stages)[stage_id];
-  const std::vector<IterVar>& axes = (*stage_to_axes)[stage];
-  if (StrStartsWith(pragma_type, "auto_unroll_max_step")) {
-    size_t pos = pragma_type.find('$');
-    int value = atoi(pragma_type.c_str() + pos + 1);
-    stage.pragma(axes[iter_id], "auto_unroll_max_step", value);
-    stage.pragma(axes[iter_id], "unroll_explicit", true);
-  } else {
-    stage.pragma(axes[iter_id], pragma_type);
-  }
-}
-
-std::string PragmaStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                                             StageToAxesMap *stage_to_axes,
-                                             te::Schedule *schedule,
-                                             const std::vector<Step>& transform_steps) const {
-  std::stringstream ss;
-  const auto& stage = (*stages)[stage_id];
-
-  if (StrStartsWith(pragma_type, "auto_unroll_max_step")) {
-    size_t pos = pragma_type.find('$');
-    int value = atoi(pragma_type.c_str() + pos + 1);
-    ss << "s[" << CleanName(stage->op->func_name()) << "].pragma("
-       << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint)
-       << ", \"auto_unroll_max_step\", " << value << ")\n";
-    ss << "s[" << CleanName(stage->op->func_name()) << "].pragma("
-       << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint)
-       << ", \"unroll_explicit\", True)\n";
-  } else {
-    ss << "s[" << CleanName(stage->op->func_name()) << "].pragma("
-       << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint) << ", \""
-       << pragma_type << "\")\n";
-  }
-
-  ApplyToSchedule(stages, stage_to_axes);
-  return ss.str();
-}
-
-/********** Rfactor **********/
-RfactorStep RfactorStepNode::make(int stage_id, int iter_id, int factor_iter_id) {
-  auto node = make_object<RfactorStepNode>();
-  node->stage_id = stage_id;
-  node->iter_id = iter_id;
-  node->factor_iter_id = factor_iter_id;
-  return RfactorStep(node);
-}
-
-Array<te::Tensor> RfactorStepNode::ApplyToSchedule(std::vector<te::Stage> *stages,
-    StageToAxesMap *stage_to_axes, te::Schedule *schedule) const {
-  const auto& stage = (*stages)[stage_id];
-  const std::vector<IterVar>& axes = (*stage_to_axes)[stage];
-
-  const te::Tensor& tensor = stage->origin_op.output(0);
-  const IterVar& axis = axes[iter_id];
-  auto outs = schedule->rfactor(tensor, axis, factor_iter_id);
-
-  UpdateStageAxis(stage, stage_to_axes);
-
-  const auto& new_stage = (*schedule)[outs[0]->op];
-  UpdateStageAxis(new_stage, stage_to_axes);
-  stages->insert(stages->begin() + stage_id, new_stage);
-
-  return outs;
-}
-
-std::string RfactorStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                               StageToAxesMap *stage_to_axes,
-                               te::Schedule *schedule,
-                               const std::vector<Step>& transform_steps) const {
-  std::stringstream ss;
-  const auto& stage = (*stages)[stage_id];
-
-  const auto& tensor_name = CleanName(stage->origin_op.output(0)->op->name);
-  const auto& axis_name = CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint);
-
-  const auto& outs = ApplyToSchedule(stages, stage_to_axes, schedule);
-
-  for (size_t i = 0; i < outs.size(); ++i) {
-    ss << CleanName(outs[i]->op->func_name());
-    if (i != outs.size() - 1) {
-      ss << ", ";
-    }
-  }
-  ss << " = " << "s.rfactor("
-     << tensor_name << ", "
-     << axis_name << ", "
-     << factor_iter_id << ")\n";
-
-  for (const auto& out : outs) {
-    const auto& iters = out->op->root_iter_vars();
-    for (size_t i = 0; i < iters.size(); ++i) {
-      ss << CleanName(iters[i]->var->name_hint);
-      if (i != iters.size() - 1) {
-        ss << ", ";
-      }
-    }
-    ss << " = " << "tuple(" << CleanName(out->op->func_name())
-      << ".op.axis)"
-      << " + " << "tuple(" << CleanName(out->op->func_name())
-      << ".op.reduce_axis)\n";
-  }
-
-  const auto& output = (*stages)[stage_id + 1]->op.output(0);
-  const auto& iters = output->op->root_iter_vars();
-  for (size_t i = 0; i < iters.size(); ++i) {
-    ss << CleanName(iters[i]->var->name_hint);
-    if (i != iters.size() - 1) {
-      ss << ", ";
-    }
-  }
-  ss << " = " << "tuple(s[" << CleanName(output->op->func_name())
-    << "].op.axis)"
-    << " + " << "tuple(s[" << CleanName(output->op->func_name())
-    << "].op.reduce_axis)\n";
-
-  return ss.str();
-}
-
-/********** StorageAlign **********/
-
-StorageAlignStep StorageAlignStepNode::make(int stage_id, int iter_id,
-                                            int factor, int offset) {
-  auto node = make_object<StorageAlignStepNode>();
-  node->stage_id = stage_id;
-  node->iter_id = iter_id;
-  node->factor = factor;
-  node->offset = offset;
-  return StorageAlignStep(node);
-}
-
-void StorageAlignStepNode::ApplyToSchedule(std::vector<te::Stage> *stages,
-    StageToAxesMap *stage_to_axes) const {
-  te::Stage& stage = (*stages)[stage_id];
-  const std::vector<IterVar>& axes = (*stage_to_axes)[stage];
-  stage.storage_align(axes[iter_id], factor, offset);
-}
-
-std::string StorageAlignStepNode::PrintAsPythonAPI(
-    std::vector<te::Stage> *stages, StageToAxesMap *stage_to_axes,
-    te::Schedule *schedule, const std::vector<Step>& transform_steps) const {
-  std::stringstream ss;
-  const auto& stage = (*stages)[stage_id];
-  ss << "s[" << CleanName(stage->op->func_name()) << "].storage_align("
-     << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint) << ", "
-     << factor << ", " << offset << ")\n";
-
-  ApplyToSchedule(stages, stage_to_axes);
-  return ss.str();
-}
-
-// Maker for other classes
-Iterator IteratorNode::make(std::string name, Range range,
-                            IteratorType iter_type, IteratorAnnotation annotation,
-                            const std::vector<Iterator>* ori_iters) {
-  auto node = make_object<IteratorNode>();
-  node->name = std::move(name);
-  node->range = std::move(range);
-  node->iter_type = iter_type;
-  node->annotation = annotation;
-  if (ori_iters != nullptr) {
-    node->ori_iters = *ori_iters;
-  }
-  return Iterator(node);
-}
 
 Stage StageNode::make(te::Operation op) {
   auto node = make_object<StageNode>();
@@ -854,8 +37,10 @@ Stage StageNode::make(te::Operation op) {
   return Stage(node);
 }
 
-Stage StageNode::make(te::Operation op, StageType op_type, const std::vector<Iterator>& iters,
-                      ComputeAtType compute_at, int16_t auto_unroll_max_step, int storage_offset) {
+Stage StageNode::make(te::Operation op, StageType op_type,
+                      const std::vector<Iterator>& iters,
+                      ComputeAtType compute_at, int16_t auto_unroll_max_step,
+                      int storage_offset) {
   auto node = make_object<StageNode>();
   node->op = std::move(op);
   node->op_type = op_type;
@@ -866,8 +51,10 @@ Stage StageNode::make(te::Operation op, StageType op_type, const std::vector<Ite
   return Stage(node);
 }
 
-Stage StageNode::make(te::Operation op, StageType op_type, std::vector<Iterator>&& iters,
-                      ComputeAtType compute_at, int16_t auto_unroll_max_step, int storage_offset) {
+Stage StageNode::make(te::Operation op, StageType op_type,
+                      std::vector<Iterator>&& iters,
+                      ComputeAtType compute_at, int16_t auto_unroll_max_step,
+                      int storage_offset) {
   auto node = make_object<StageNode>();
   node->op = std::move(op);
   node->op_type = op_type;
@@ -927,8 +114,9 @@ void State::reorder(int stage_id, const std::vector<Iterator>& order) {
   DoReorderStep(step);
 }
 
-std::vector<Iterator> State::split(int stage_id,
-    const Iterator& it, const std::vector<PrimExpr>& lengths, bool inner_to_outer) {
+std::vector<Iterator> State::split(int stage_id, const Iterator& it,
+                                   const std::vector<PrimExpr>& lengths,
+                                   bool inner_to_outer) {
   const Stage& stage = operator->()->stages[stage_id];
 
   SplitStep step = SplitStepNode::make(stage_id, GetIndex(stage->iters, it),
@@ -949,8 +137,9 @@ std::vector<Iterator> State::follow_split(int stage_id,
 }
 
 
-std::vector<Iterator> State::follow_fused_split(int stage_id, const Iterator& it,
-        const std::vector<int>& src_step_ids, int level, bool factor_or_nparts) {
+std::vector<Iterator> State::follow_fused_split(
+    int stage_id, const Iterator& it, const std::vector<int>& src_step_ids,
+    int level, bool factor_or_nparts) {
   const Stage& stage = operator->()->stages[stage_id];
 
   FollowFusedSplitStep step = FollowFusedSplitStepNode::make(stage_id,
@@ -970,24 +159,24 @@ Iterator State::fuse(int stage_id, const std::vector<Iterator>& iters) {
 
 Iterator State::vectorize(int stage_id, const Iterator& it) {
   const Stage& stage = operator->()->stages[stage_id];
-  AnnotationStep step = AnnotationStepNode::make(stage_id, GetIndex(stage->iters, it),
-      kVectorize);
+  AnnotationStep step = AnnotationStepNode::make(
+      stage_id, GetIndex(stage->iters, it), kVectorize);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoAnnotationStep(step);
 }
 
 Iterator State::parallel(int stage_id, const Iterator& it) {
   const Stage& stage = operator->()->stages[stage_id];
-  AnnotationStep step = AnnotationStepNode::make(stage_id, GetIndex(stage->iters, it),
-                                                 kParallel);
+  AnnotationStep step = AnnotationStepNode::make(
+      stage_id, GetIndex(stage->iters, it), kParallel);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoAnnotationStep(step);
 }
 
 Iterator State::unroll(int stage_id, const Iterator& it, int max_unroll) {
   const Stage& stage = operator->()->stages[stage_id];
-  AnnotationStep step = AnnotationStepNode::make(stage_id, GetIndex(stage->iters, it),
-                                                 kUnroll);
+  AnnotationStep step = AnnotationStepNode::make(stage_id,
+      GetIndex(stage->iters, it), kUnroll);
 
   // don't unroll if the extent is larger than max_unroll
   if (max_unroll != -1 && it->range.defined()) {
@@ -1002,7 +191,8 @@ Iterator State::unroll(int stage_id, const Iterator& it, int max_unroll) {
   return DoAnnotationStep(step);
 }
 
-void State::compute_at(int stage_id, int target_stage_id, const Iterator& target_iter) {
+void State::compute_at(int stage_id, int target_stage_id,
+                       const Iterator& target_iter) {
   const Stage& target_stage = operator->()->stages[target_stage_id];
   ComputeAtStep step = ComputeAtStepNode::make(stage_id, target_stage_id,
       GetIndex(target_stage->iters, target_iter));
@@ -1022,7 +212,8 @@ void State::compute_inline(int stage_id) {
   return DoComputeInlineStep(step);
 }
 
-void State::pack_for_vec(int stage_id, const Iterator& target_iter, int vec_size) {
+void State::pack_for_vec(int stage_id, const Iterator& target_iter,
+                         int vec_size) {
   const Stage& stage = operator->()->stages[stage_id];
   PackForVecStep step = PackForVecStepNode::make(stage_id,
       GetIndex(stage->iters, target_iter), vec_size);
@@ -1044,8 +235,10 @@ Iterator State::bind_thread(int stage_id, const Iterator& it,
 }
 
 int State::cache_read(int stage_id, const std::string& scope_name,
-                      const std::vector<int>& reader_stage_ids, const ComputeDAG& task_dag) {
-  CacheReadStep step = CacheReadStepNode::make(stage_id, scope_name, reader_stage_ids);
+                      const std::vector<int>& reader_stage_ids,
+                      const ComputeDAG& task_dag) {
+  CacheReadStep step = CacheReadStepNode::make(stage_id, scope_name,
+                                               reader_stage_ids);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoCacheReadStep(step, task_dag);
 }
@@ -1057,7 +250,8 @@ int State::cache_write(int stage_id, const std::string& scope_name,
   return DoCacheWriteStep(step, task_dag);
 }
 
-void State::pragma(int stage_id, const Iterator& it, const std::string& pragma_type) {
+void State::pragma(int stage_id, const Iterator& it,
+                   const std::string& pragma_type) {
   const Stage& stage = operator->()->stages[stage_id];
   PragmaStep step = PragmaStepNode::make(stage_id, GetIndex(stage->iters, it),
                                          pragma_type);
@@ -1068,7 +262,8 @@ void State::pragma(int stage_id, const Iterator& it, const std::string& pragma_t
 int State::rfactor(int stage_id, const Iterator& it, int factor_iter_id,
     const ComputeDAG& task_dag) {
   const Stage& stage = operator->()->stages[stage_id];
-  RfactorStep step = RfactorStepNode::make(stage_id, GetIndex(stage->iters, it), factor_iter_id);
+  RfactorStep step = RfactorStepNode::make(stage_id, GetIndex(stage->iters, it),
+                                           factor_iter_id);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoRfactorStep(step, task_dag);
 }
@@ -1093,15 +288,16 @@ void State::DoReorderStep(const ReorderStep& step) {
 
   StateNode* pstate = CopyOnWrite();
   pstate->stages[step->stage_id] = StageNode::make(stage->op, stage->op_type,
-                                                   std::move(iters), stage->compute_at,
+                                                   std::move(iters),
+                                                   stage->compute_at,
                                                    stage->auto_unroll_max_step,
                                                    stage->storage_offset);
 }
 
 // common part for DoSplitStep, DoFollowSplitStep, and DoFollowFusedSplitStep
-std::vector<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id,
-                                               const std::vector<PrimExpr>& lengths,
-                                               bool inner_to_outer) {
+std::vector<Iterator> State::DoSplitStepCommon(
+    int stage_id, int iter_id, const std::vector<PrimExpr>& lengths,
+    bool inner_to_outer) {
   const Stage& stage = operator->()->stages[stage_id];
   const Iterator& it = stage->iters[iter_id];
   size_t old_iter_size = stage->iters.size();
@@ -1142,24 +338,29 @@ std::vector<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id,
     range = Range::make_by_min_extent(tosplit_min, tosplit_extent);
   }
   if (inner_to_outer) {
-    outs.push_back(IteratorNode::make(it->name + ".0", range, it->iter_type, kNone));
+    outs.push_back(IteratorNode::make(it->name + ".0", range, it->iter_type,
+                                      kNone));
     std::reverse(outs.begin(), outs.end());
   } else {
-    outs.push_back(IteratorNode::make(it->name + "." + std::to_string(lengths.size()),
-                                      range, it->iter_type, kNone));
+    outs.push_back(IteratorNode::make(
+        it->name + "." + std::to_string(lengths.size()), range, it->iter_type,
+        kNone));
   }
 
   std::vector<Iterator> new_iters;
-  new_iters.insert(new_iters.end(), stage->iters.begin(), stage->iters.begin() + iter_id);
+  new_iters.insert(new_iters.end(), stage->iters.begin(),
+                   stage->iters.begin() + iter_id);
   new_iters.insert(new_iters.end(), outs.begin(), outs.end());
-  new_iters.insert(new_iters.end(), stage->iters.begin() + iter_id+1, stage->iters.end());
+  new_iters.insert(new_iters.end(), stage->iters.begin() + iter_id+1,
+                   stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
   pstate->stages[stage_id] = StageNode::make(stage->op, stage->op_type,
           std::move(new_iters), stage->compute_at, stage->auto_unroll_max_step,
           stage->storage_offset);
 
-  // we have to replace the iterators in attach map, these two vectors keep the replacement mapping
+  // we have to replace the iterators in attach map,
+  // these two vectors keep the replacement mapping
   std::vector<AttachMap::IterKey> from_iters;
   std::vector<AttachMap::IterKey> to_iters;
   for (size_t i = iter_id; i < old_iter_size; ++i) {
@@ -1181,9 +382,12 @@ std::vector<Iterator> State::DoFollowSplitStep(const FollowSplitStep& step) {
   return DoSplitStepCommon(step->stage_id, step->iter_id, lengths, true);
 }
 
-std::vector<Iterator> State::DoFollowFusedSplitStep(const FollowFusedSplitStep& step) {
-  const PrimExpr& length = step->ExtractSplitLength(operator->()->transform_steps);
-  return DoSplitStepCommon(step->stage_id, step->iter_id, {length}, step->factor_or_nparts);
+std::vector<Iterator> State::DoFollowFusedSplitStep(
+    const FollowFusedSplitStep& step) {
+  const PrimExpr& length = step->ExtractSplitLength(
+      operator->()->transform_steps);
+  return DoSplitStepCommon(step->stage_id, step->iter_id, {length},
+                           step->factor_or_nparts);
 }
 
 Iterator State::DoFuseStep(const FuseStep& step) {
@@ -1202,8 +406,10 @@ Iterator State::DoFuseStep(const FuseStep& step) {
     }
 
     if (i != step->fused_ids.size() - 1) {
-      const auto& iter_to_attached_stage = operator->()->attach_map->iter_to_attached_stages;
-      if (iter_to_attached_stage.find(std::make_pair(stage_id, step->fused_ids[i]))
+      const auto& iter_to_attached_stage =
+          operator->()->attach_map->iter_to_attached_stages;
+      if (iter_to_attached_stage.find(std::make_pair(stage_id,
+                                                     step->fused_ids[i]))
          != iter_to_attached_stage.end()) {
         LOG(FATAL) << "Invalid Fuse. Because you want to fuse iterators "
                       "that have been attached by some stages";
@@ -1233,20 +439,23 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   if (new_extent.defined()) {
     range = Range::make_by_min_extent(0, new_extent);
   }
-  Iterator new_it = IteratorNode::make(new_name, range, new_iter_type, kNone, &ori_iters);
+  Iterator new_it = IteratorNode::make(new_name, range, new_iter_type, kNone,
+                                       &ori_iters);
   std::vector<Iterator> new_iters;
   new_iters.insert(new_iters.end(), stage->iters.begin(),
-                                    stage->iters.begin() + step->fused_ids.front());
+                   stage->iters.begin() + step->fused_ids.front());
   new_iters.push_back(new_it);
-  new_iters.insert(new_iters.end(), stage->iters.begin() + step->fused_ids.back() + 1,
-                                    stage->iters.end());
+  new_iters.insert(new_iters.end(),
+                   stage->iters.begin() + step->fused_ids.back() + 1,
+                   stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
   pstate->stages[stage_id] = StageNode::make(stage->op, stage->op_type,
           std::move(new_iters), stage->compute_at, stage->auto_unroll_max_step,
           stage->storage_offset);
 
-  // we have to replace the iterators in attach map, these two vectors keep the replacement mapping
+  // we have to replace the iterators in attach map,
+  // these two vectors keep the replacement mapping
   std::vector<AttachMap::IterKey> from_iters;
   std::vector<AttachMap::IterKey> to_iters;
   const int begin_id = step->fused_ids.front(), end_id = step->fused_ids.back();
@@ -1282,15 +491,18 @@ void State::DoComputeAtStep(const ComputeAtStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
 
   // after compute_at, we don't know the accurate length information any more
-  // If we do want to know the accurate lengths, we can call ComputeDAG::ReplayAndInferBound
+  // If we do want to know the accurate lengths, we can call
+  // ComputeDAG::ReplayAndInferBound
   std::vector<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
     size_t s = it->name.size();
-    if (s >= 2 && it->name[s-2] == '.' && it->name[s-1] >= '1' && it->name[s-1] <= '4') {
-      // We use a dangerous heuristic rule here : For multi level splitted iterators, we assume
-      // their length does not change after compute_at.
-      // Reason: These iterators are generated in MultiStagePolicy by multi level tiling, they will
-      // be carefully compute_at their consumers. In this case, their lengths do not change.
+    if (s >= 2 && it->name[s-2] == '.' && it->name[s-1] >= '1' &&
+        it->name[s-1] <= '4') {
+      // We use a dangerous heuristic rule here : For multi level splitted
+      // iterators, we assume their length does not change after compute_at.
+      // Reason: These iterators are generated in MultiStagePolicy by multi
+      // level tiling, they will be carefully compute_at their consumers.
+      // In this case, their lengths do not change.
       // We do this to keep the AnnotateCPU pass to annotate more efficiently.
       new_iters.push_back(it);
     } else {
@@ -1303,14 +515,16 @@ void State::DoComputeAtStep(const ComputeAtStep& step) {
   pstate->stages[step->stage_id] = StageNode::make(stage->op, stage->op_type,
           std::move(new_iters), kIter, stage->auto_unroll_max_step,
           stage->storage_offset);
-  pstate->attach_map.SetComputeAtIter(step->stage_id, step->target_stage_id, step->target_iter_id);
+  pstate->attach_map.SetComputeAtIter(step->stage_id, step->target_stage_id,
+                                      step->target_iter_id);
 }
 
 void State::DoComputeRootStep(const ComputeRootStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
 
   // after compute_root, we don't know the accurate length information any more
-  // If we do want to know the accurate lengths, we can call ComputeDAG::ReplayAndInferBound
+  // If we do want to know the accurate lengths, we can call
+  // ComputeDAG::ReplayAndInferBound
   std::vector<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
     new_iters.push_back(IteratorNode::make(it->name, Range(), it->iter_type,
@@ -1331,7 +545,8 @@ void State::DoComputeInlineStep(const ComputeInlineStep& step) {
   StateNode* pstate = CopyOnWrite();
 
   // CHECK the validity of compute_inline
-  const auto& iter_to_attached_stages = pstate->attach_map->iter_to_attached_stages;
+  const auto& iter_to_attached_stages =
+      pstate->attach_map->iter_to_attached_stages;
   for (size_t i = 0; i < stage->iters.size(); ++i) {
     CHECK_EQ(iter_to_attached_stages.count(std::make_pair(step->stage_id, i)), 0)
       << "Invalid compute_inline: Because there are some other stages "
@@ -1346,15 +561,18 @@ void State::DoPackForVecStep(const PackForVecStep& step) {
   LOG(FATAL) << "Not implemented";
 }
 
-// Common part for steps that add new stages (e.g. CacheReadStep, CacheWriteStep, RfactorStep)
-void AddStageModificationSteps(size_t step_id, const std::vector<Step>& transform_steps,
-    std::vector<Step>* replay_steps) {
+// Common part for steps that add new stages
+// (e.g. CacheReadStep, CacheWriteStep, RfactorStep)
+void AddStageModificationSteps(size_t step_id,
+    const std::vector<Step>& transform_steps, std::vector<Step>* replay_steps) {
   const Step& step = transform_steps[step_id];
-  if (step->IsInstance<CacheWriteStepNode>() || step->IsInstance<CacheReadStepNode>()) {
+  if (step->IsInstance<CacheWriteStepNode>() ||
+      step->IsInstance<CacheReadStepNode>()) {
     replay_steps->push_back(step);
   } else if (step->IsInstance<RfactorStepNode>()) {
     // add FuseStepNode required by rfactor
-    if (step_id >= 2 && transform_steps[step_id - 2]->IsInstance<FuseStepNode>()) {
+    if (step_id >= 2 &&
+        transform_steps[step_id - 2]->IsInstance<FuseStepNode>()) {
       const Step& fuse_step = transform_steps[step_id - 2];
       if (fuse_step->stage_id == step->stage_id) {
         replay_steps->push_back(fuse_step);
@@ -1406,7 +624,12 @@ int State::DoCacheWriteStep(const CacheWriteStep& step, const ComputeDAG& dag) {
       break;
     }
   }
+
+  int last_dag_op_size = pstate->task_dag.defined() ?
+      pstate->task_dag->ops.size() : dag->ops.size();
   dag.ReplayAndGetDAG(replay_steps, &(pstate->task_dag));
+  int added_ops = pstate->task_dag->ops.size() - last_dag_op_size;
+  CHECK_GE(added_ops, 1);
 
   // target -> target_compute + target
   // Assume target stage has never been applied any steps before cache_write
@@ -1415,11 +638,24 @@ int State::DoCacheWriteStep(const CacheWriteStep& step, const ComputeDAG& dag) {
       StageNode::make(operator->()->task_dag->ops[step->stage_id]));
   pstate->stages[step->stage_id + 1] =
       StageNode::make(operator->()->task_dag->ops[step->stage_id + 1]);
-  for (size_t i = step->stage_id + 2; i < operator->()->stages.size(); ++i) {
+  int next_stage_id = step->stage_id + 2;
+  // Notice: added_ops should actually assert to be 1
+  // branch of 2 here is somehow a hack to TVM's cache_write bug with
+  // multi outputs, see test/cpp/ansor_test.cc: CacheReadWrite test
+  // for more information
+  // TODO(jcf94): Fix this
+  if (added_ops == 2) {
+    pstate->stages.insert(pstate->stages.begin() + next_stage_id,
+        StageNode::make(operator->()->task_dag->ops[next_stage_id]));
+    next_stage_id++;
+  } else if (added_ops > 2) {
+    LOG(ERROR) << "Unexpected behavior of CacheWrite.";
+  }
+  for (size_t i = next_stage_id; i < operator->()->task_dag->ops.size(); ++i) {
     pstate->stages[i].CopyOnWrite()->op = operator->()->task_dag->ops[i];
   }
   pstate->attach_map =
-      operator->()->attach_map.ApplyStageIdOfffset(step->stage_id, 1);
+      operator->()->attach_map.ApplyStageIdOfffset(step->stage_id, added_ops);
 
   return step->stage_id;
 }
@@ -1530,8 +766,8 @@ void State::DoSteps(const std::vector<Step>& steps, const ComputeDAG& dag) {
 }
 
 
-void PrintStage(std::ostream* os, int stage_id, const StateNode* state, size_t base_indent,
-                bool delete_trivial_loop) {
+void PrintStage(std::ostream* os, int stage_id, const StateNode* state,
+                size_t base_indent, bool delete_trivial_loop) {
   const Stage& stage = state->stages[stage_id];
 
   if (stage->auto_unroll_max_step != 0) {
@@ -1553,7 +789,8 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state, size_t b
   for (size_t i = 0; i < stage->iters.size(); ++i) {
     const Iterator& iter = stage->iters[i];
 
-    if (!(delete_trivial_loop && iter->range.defined() && is_one(iter->range->extent))) {
+    if (!(delete_trivial_loop && iter->range.defined() &&
+        is_one(iter->range->extent))) {
       for (size_t j = 0; j < base_indent + indent; ++j) {
         *os << " ";
       }
@@ -1569,7 +806,8 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state, size_t b
         case kThreadY:   *os << "gpu.threadIdx.y "; break;
       }
       if (iter->range.defined()) {
-        *os << iter->name << " (" << iter->range->min << "," << iter->range->extent << ")" << "\n";
+        *os << iter->name << " (" << iter->range->min << ","
+            << iter->range->extent << ")" << "\n";
       } else {
         *os << iter->name << " (None)" << "\n";
       }
@@ -1582,7 +820,8 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state, size_t b
       auto pair = state->attach_map->iter_to_attached_stages.find(iter_key);
       if (pair != state->attach_map->iter_to_attached_stages.end()) {
         for (const auto& attach_stage_id : pair->second) {
-          PrintStage(os, attach_stage_id, state, base_indent + indent, delete_trivial_loop);
+          PrintStage(os, attach_stage_id, state, base_indent + indent,
+                     delete_trivial_loop);
         }
       }
     }
@@ -1594,7 +833,8 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state, size_t b
   *os << stage->op->func_name() << " = ...\n";
 }
 
-void PrintState(std::ostream* os, const StateNode* node, bool delete_trivial_loop) {
+void PrintState(std::ostream* os, const StateNode* node,
+                bool delete_trivial_loop) {
   // Gather placeholders
   std::vector<std::string> placeholders;
   for (const auto& stage : node->stages) {
@@ -1633,7 +873,8 @@ std::string State::ToStr(bool delete_trivial_loop) const {
   return os.str();
 }
 
-void AttachMap::SetComputeAtIter(int stage_id, int target_stage_id, int target_iter_id) {
+void AttachMap::SetComputeAtIter(int stage_id, int target_stage_id,
+                                 int target_iter_id) {
   AttachMapNode* pnode = CopyOnWrite();
 
   // delete the current entry of stage
@@ -1641,7 +882,8 @@ void AttachMap::SetComputeAtIter(int stage_id, int target_stage_id, int target_i
 
   // store the new relation
   IterKey iter_key(target_stage_id, target_iter_id);
-  pnode->stage_to_attach_iter[stage_id] = std::make_pair(target_stage_id, target_iter_id);
+  pnode->stage_to_attach_iter[stage_id] = std::make_pair(target_stage_id,
+                                                         target_iter_id);
   pnode->iter_to_attached_stages[iter_key].push_back(stage_id);
 }
 

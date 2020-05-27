@@ -14,7 +14,7 @@
 #include <string>
 #include <set>
 #include <vector>
-// #include "loop_state.h"
+#include "loop_state.h"
 #include "utils.h"
 // #include "../relay/pass/kernel_layout_transform.h"
 
@@ -347,30 +347,30 @@ void AccessAnalyzer::GetProducers(const State& state, const te::Operation& op,
   }
 }
 
-// void AccessAnalyzer::GetConsumers(const State& state, const te::Operation& op,
-//                                   OperationSet* consumers) const {
-//   OperationSet inlined_ops;
+void AccessAnalyzer::GetConsumers(const State& state, const te::Operation& op,
+                                  OperationSet* consumers) const {
+  OperationSet inlined_ops;
 
-//   for (const auto& stage : state->stages) {
-//     if (stage->compute_at == kInlined) {
-//       inlined_ops.insert(stage->op);
-//     }
-//   }
-//   std::function<void(const Operation& op)> collect;
+  for (const auto& stage : state->stages) {
+    if (stage->compute_at == kInlined) {
+      inlined_ops.insert(stage->op);
+    }
+  }
+  std::function<void(const te::Operation& op)> collect;
 
-//   collect = [this, &collect, &inlined_ops, &consumers](const Operation& op) {
-//     for (const auto& iter : operator->()->read_by.at(op)) {
-//       if (inlined_ops.count(iter.first)) {
-//         collect(iter.first);
-//       } else {
-//         consumers->insert(iter.first);
-//       }
-//     }
-//   };
+  collect = [this, &collect, &inlined_ops, &consumers](const te::Operation& op) {
+    for (const auto& iter : operator->()->read_by.at(op)) {
+      if (inlined_ops.count(iter.first)) {
+        collect(iter.first);
+      } else {
+        consumers->insert(iter.first);
+      }
+    }
+  };
 
-//   consumers->clear();
-//   collect(op);
-// }
+  consumers->clear();
+  collect(op);
+}
 
 bool IntArrayEqual(const Array<PrimExpr>& arr1, const Array<PrimExpr>& arr2) {
   if (arr1.size() != arr2.size()) {
@@ -547,9 +547,9 @@ void UpdateStageAxis(const te::Stage& stage, StageToAxesMap *stage_to_axes) {
   }
 }
 
-// State ComputeDAG::GetInitState() const {
-//   return Downcast<State>(operator->()->init_state);
-// }
+State ComputeDAG::GetInitState() const {
+  return Downcast<State>(operator->()->init_state);
+}
 
 ComputeDAG ComputeDAGNode::make(Array<te::Tensor> tensors) {
   auto node = make_object<ComputeDAGNode>();
@@ -559,7 +559,7 @@ ComputeDAG ComputeDAGNode::make(Array<te::Tensor> tensors) {
   node->access_analyzer = AccessAnalyzerNode::make(node->tensors);
   node->ops = Array<te::Operation>(node->access_analyzer->ops_topo_order);
   node->flop_ct = estimator.EstimateFlop(node->ops);
-//   node->init_state = StateNode::make(node->ops);
+  node->init_state = StateNode::make(node->ops);
 
   return ComputeDAG(node);
 }
@@ -580,8 +580,8 @@ void ComputeDAGNode::VisitAttrs(tvm::AttrVisitor* v) {
   v->Visit("ops", &ops);
   v->Visit("flop_ct", &flop_ct);
   v->Visit("access_analyzer", &access_analyzer);
-//   State s = Downcast<State>(init_state);
-//   v->Visit("init_state", &s);
+  State s = Downcast<State>(init_state);
+  v->Visit("init_state", &s);
 }
 
 // Implemented in multi_stage_policy.cc
@@ -1075,79 +1075,79 @@ void ComputeDAG::ReplayAndGetDAG(const std::vector<Step> &transform_steps,
 //   }
 // }
 
-// std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
-//     const std::vector<Step> &transform_steps,
-//     std::vector<te::Stage> *stages,
-//     StageToAxesMap *stage_to_axes) const {
-//   std::vector<te::Operation> ops;
-//   for (const auto& op : operator->()->ops) {
-//     if (!op->IsInstance<te::PlaceholderOpNode>()) {
-//       ops.push_back(op);
-//     }
-//   }
+std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
+    const std::vector<Step> &transform_steps,
+    std::vector<te::Stage> *stages,
+    StageToAxesMap *stage_to_axes) const {
+  std::vector<te::Operation> ops;
+  for (const auto& op : operator->()->ops) {
+    if (!op->IsInstance<te::PlaceholderOpNode>()) {
+      ops.push_back(op);
+    }
+  }
 
-//   te::Schedule schedule = te::create_schedule({ops.back()});
+  te::Schedule schedule = te::create_schedule({ops.back()});
 
-//   // init axes
-//   stages->reserve(operator->()->ops.size());
-//   for (const auto& x : operator->()->ops) {
-//     const te::Stage& stage = schedule.operator[](x);
-//     stages->push_back(stage);
-//     UpdateStageAxis(stage, stage_to_axes);
-//   }
+  // init axes
+  stages->reserve(operator->()->ops.size());
+  for (const auto& x : operator->()->ops) {
+    const te::Stage& stage = schedule.operator[](x);
+    stages->push_back(stage);
+    UpdateStageAxis(stage, stage_to_axes);
+  }
 
-//   // todo(lmzheng): should we maintain the attach_map and keep the validity of compute_at
-//   // an splitted axis?
+  // todo(lmzheng): should we maintain the attach_map and keep the validity of compute_at
+  // an splitted axis?
 
-//   // Use complete rate for the study in the paper
-//   const char* complete_rate_str = getenv("ANSOR_PROGRAM_COMPLETE_RATE");
-//   double complete_rate = -1.0;
-//   if (complete_rate_str) {
-//     complete_rate = std::stod(complete_rate_str);
-//   }
-//   size_t ct = 0;
+  // Use complete rate for the study in the paper
+  const char* complete_rate_str = getenv("ANSOR_PROGRAM_COMPLETE_RATE");
+  double complete_rate = -1.0;
+  if (complete_rate_str) {
+    complete_rate = std::stod(complete_rate_str);
+  }
+  size_t ct = 0;
 
-//   // replay history
-//   for (const auto& step : transform_steps) {
-//     if (complete_rate >= 0 && ct++ > transform_steps.size() * complete_rate) {
-//       break;
-//     }
+  // replay history
+  for (const auto& step : transform_steps) {
+    if (complete_rate >= 0 && ct++ > transform_steps.size() * complete_rate) {
+      break;
+    }
 
-//     if (auto ps = step.as<ReorderStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes);
-//     } else if (auto ps = step.as<SplitStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes);
-//     } else if (auto ps = step.as<FollowSplitStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes, transform_steps);
-//     } else if (auto ps = step.as<FollowFusedSplitStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes, transform_steps);
-//     } else if (auto ps = step.as<FuseStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes);
-//     } else if (auto ps = step.as<AnnotationStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes);
-//     } else if (auto ps = step.as<ComputeAtStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes);
-//     } else if (auto ps = step.as<ComputeRootStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes);
-//     } else if (auto ps = step.as<ComputeInlineStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes);
-//     } else if (auto ps = step.as<CacheReadStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes, &schedule);
-//     } else if (auto ps = step.as<CacheWriteStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes, &schedule);
-//     } else if (auto ps = step.as<PragmaStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes);
-//     } else if (auto ps = step.as<RfactorStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes, &schedule);
-//     } else if (auto ps = step.as<StorageAlignStepNode>()) {
-//       ps->ApplyToSchedule(stages, stage_to_axes);
-//     } else {
-//       LOG(FATAL) << "Invalid Step";
-//     }
-//   }
+    if (auto ps = step.as<ReorderStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<SplitStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<FollowSplitStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes, transform_steps);
+    } else if (auto ps = step.as<FollowFusedSplitStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes, transform_steps);
+    } else if (auto ps = step.as<FuseStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<AnnotationStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<ComputeAtStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<ComputeRootStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<ComputeInlineStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<CacheReadStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes, &schedule);
+    } else if (auto ps = step.as<CacheWriteStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes, &schedule);
+    } else if (auto ps = step.as<PragmaStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<RfactorStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes, &schedule);
+    } else if (auto ps = step.as<StorageAlignStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else {
+      LOG(FATAL) << "Invalid Step";
+    }
+  }
 
-//   return std::make_pair(schedule, operator->()->tensors);
-// }
+  return std::make_pair(schedule, operator->()->tensors);
+}
 
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

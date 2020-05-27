@@ -148,7 +148,7 @@ class ComputeDAG: public ObjectRef {
   // Internal common parts for replaying steps
   std::pair<te::Schedule, Array<te::Tensor> > ReplaySteps(
       const std::vector<Step>& transform_steps, std::vector<te::Stage>* stages,
-      StageToAxesMap* stage_to_axes) const {};
+      StageToAxesMap* stage_to_axes) const;
   static constexpr const char* _layout_free_placeholders_key = "layout_free_placeholders";
 
   // Internal common parts for inferring bound
