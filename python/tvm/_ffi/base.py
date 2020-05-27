@@ -52,7 +52,7 @@ def _load_lib():
     return lib, os.path.basename(lib_path[0])
 
 try:
-    import readline
+    import readline  # pylint: disable=unused-import
 except ImportError:
     pass
 
