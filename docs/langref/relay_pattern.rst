@@ -31,7 +31,7 @@ In the backend world, we could use the same machinery to build a higher level AP
 Pattern Examples
 ================
 
-There are quite a few properties that are worth matching of operators below we examine how to match tree properties, and expand on some use cases that are not fully explored in the prototype. This section
+There are quite a few properties of operators that are worth matching. Below we examine how to match tree properties, and expand on some use cases that are not fully explored in the prototype. This section
 demonstrates how to write patterns. It is recommended to check `tests/python/relay/test_dataflow_pattern.py`_
 for more use cases.
 
@@ -241,9 +241,8 @@ Match child pattern, find a match for the parent pattern, insuring that the chil
 Applications
 ============
 
-The pattern language provides not only the pattern matching but also pattern processing. The later
-one helps you process the subgraphs that match patterns to a desire form. Here we introduce two
-pattern processing approaches and provide some examples.
+The pattern language provides not only the pattern matching but also pattern processing.
+Here we introduce two pattern processing approaches and provide some examples.
 
 Pattern Rewriting
 *****************
