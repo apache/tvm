@@ -43,7 +43,8 @@ def atomic_add(x, y):
     return tvm.tir.call_pure_intrin(y.dtype, "atomic_add", x, y)
 
 
-def get_valid_counts_ir(data, valid_count, out, score_threshold, id_index, score_index):
+def get_valid_counts_ir(data, valid_count, out, out_indices,
+                        score_threshold, id_index, score_index):
     """Low level IR to get valid count of bounding boxes
     given a score threshold. Also prepares to move valid boxes to the
     top of input data.
@@ -83,6 +84,7 @@ def get_valid_counts_ir(data, valid_count, out, score_threshold, id_index, score
 
     valid_count = ib.buffer_ptr(valid_count)
     out = ib.buffer_ptr(out)
+    out_indices = ib.buffer_ptr(out_indices)
     atomic_add_return = ib.allocate(
         valid_count.dtype, (1,), name='atomic_add_return', scope='local')
     one_count = tvm.tir.const(1, dtype=valid_count.dtype)
@@ -115,9 +117,11 @@ def get_valid_counts_ir(data, valid_count, out, score_threshold, id_index, score
                                                                        valid_count[i]), one_count)
             with ib.for_range(0, elem_length) as k:
                 out[tid * elem_length + k] = data[tid * elem_length + k]
+                out_indices[tid + k] = tid + k
         with ib.else_scope():
             with ib.for_range(0, elem_length) as k:
                 out[tid * elem_length + k] = -one
+                out_indices[tid + k] = -one_count
 
     return ib.get()
 
@@ -149,24 +153,27 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
         Rearranged data tensor.
     """
     batch_size = data.shape[0]
+    num_anchors = data.shape[1]
     data_buf = tvm.tir.decl_buffer(
         data.shape, data.dtype, "data_buf", data_alignment=8)
     valid_count_buf = tvm.tir.decl_buffer(
         (batch_size,), "int32", "valid_count_buf", data_alignment=8)
     out_buf = tvm.tir.decl_buffer(
         data.shape, data.dtype, "out_buf", data_alignment=8)
+    out_indices_buf = tvm.tir.decl_buffer(
+        (batch_size, num_anchors), "int32", "out_buf", data_alignment=8)
 
-    valid_count, out = \
-        te.extern([(batch_size,), data.shape], [data],
+    valid_count, out, out_indices = \
+        te.extern([(batch_size,), data.shape, (batch_size, num_anchors)], [data],
                   lambda ins, outs: get_valid_counts_ir(
-            ins[0], outs[0], outs[1], score_threshold, id_index, score_index),
+            ins[0], outs[0], outs[1], outs[2], score_threshold, id_index, score_index),
             dtype=["int32", data.dtype],
             in_buffers=[data_buf],
-            out_buffers=[valid_count_buf, out_buf],
+            out_buffers=[valid_count_buf, out_buf, out_indices_buf],
             name="get_valid_counts",
             tag="get_valid_counts_gpu")
 
-    return [valid_count, out]
+    return [valid_count, out, out_indices]
 
 
 def nms_ir(data, sorted_index, valid_count, out, box_indices,

@@ -612,6 +612,7 @@ def _conv3d(opname):
             out = _op.transpose(out, axes=(0, 2, 3, 4, 1))
 
         return out
+    return _impl
 
 def _nms():
     def _impl(inputs, attr, params, mod):

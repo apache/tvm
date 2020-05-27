@@ -469,7 +469,7 @@ def test_forward_convolution():
 
 #######################################################################
 # Convolution3D
-# -----------
+# -------------
 
 
 def _test_convolution3d(opname, tensor_in_sizes, filter_in_sizes,
@@ -3313,6 +3313,7 @@ if __name__ == '__main__':
 
     # NN
     test_forward_convolution()
+    test_forward_convolution3d()
     test_forward_pooling()
     test_forward_concat_v2()
     test_forward_lrn()

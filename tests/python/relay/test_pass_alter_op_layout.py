@@ -644,7 +644,7 @@ def test_alter_layout_strided_slice():
 
         y = relay.strided_slice(y,
                                 begin=relay.const([0, 4], "int32"),
-                                end=relay.const([1, 21], "int32"), # [1, 8]
+                                end=relay.const([1, 21], "int32"),
                                 strides=relay.const([1, 1], "int32"))
 
         y = relay.layout_transform(y, "NCHW4c", "NCHW")

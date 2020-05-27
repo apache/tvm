@@ -317,11 +317,13 @@ def test_non_max_suppression():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(x0_data, x1_data, x2_data)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
-            op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data)
-            tvm.testing.assert_allclose(op_indices_res1[0].asnumpy(), ref_indices_res, rtol=1e-5)
             intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
             op_res2 = intrp2.evaluate(func)(x0_data, x1_data, x2_data)
             tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+            if target == 'cuda':
+                return
+            op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data)
+            tvm.testing.assert_allclose(op_indices_res1[0].asnumpy(), ref_indices_res, rtol=1e-5)
             op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data, x2_data)
             tvm.testing.assert_allclose(op_indices_res2[0].asnumpy(), ref_indices_res, rtol=1e-5)
 
