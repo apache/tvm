@@ -40,6 +40,7 @@ from tensorflow.python.framework import function
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import dtypes
 from tensorflow.python.ops import gen_functional_ops
+from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
 from distutils.version import LooseVersion
 import tvm
 from tvm import te
@@ -180,6 +181,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
         final_graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
+
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
 
         for device in ["llvm", "cuda"]:
@@ -1148,7 +1150,7 @@ def test_read_variable_op():
                                                          shape=shape_dict,
                                                          outputs=None)
 
-        assert execinfo.value.args[0].startswith("Found a stateful operator in this graph")
+        assert execinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph")
 
         # Now convert the variables to constant and run inference on the converted graph
         final_graph_def = tf.graph_util.convert_variables_to_constants(
@@ -3183,7 +3185,7 @@ def test_forward_isfinite():
     _verify_infiniteness_ops(tf.is_finite, "isfinite")
 
 
-def _test_spop_placeholder_one():
+def _test_spop_placeholder_without_shape_info():
     with tf.Graph().as_default():
 
         @function.Defun(*[tf.int32]*2)
@@ -3204,7 +3206,7 @@ def _test_spop_placeholder_one():
                             ['StatefulPartitionedCall:0',z2.name],  mode='vm', init_global_variables=True)
 
 
-def _test_spop_placeholder_two():
+def _test_spop_placeholder_with_shape_and_default_value():
     with tf.Graph().as_default():
         data = np.ones([1], dtype=int).astype(np.int32)
         dataVar = tf.Variable(data, shape=data.shape)
@@ -3219,7 +3221,7 @@ def _test_spop_placeholder_two():
         compare_tf_with_tvm(data, ['pl1:0'], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
 
-def _test_spop_placeholder_three():
+def _test_spop_placeholder_numpy_arange_feed():
     with tf.Graph().as_default():
         t1 = tf.placeholder(tf.int32, (3, 3, 3), "t1")
         t1_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
@@ -3234,7 +3236,7 @@ def _test_spop_placeholder_three():
         compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
 
 
-def _test_spop_placeholder_four():
+def _test_spop_placeholder_numpy_array_feed():
     with tf.Graph().as_default():
         t1_data = np.array([[-1, 1, 3], [2, -2, 4], [2, -3, 14]], dtype=np.int32)
         t2_data = np.array([[-2, 1, 2], [12, -2, 14], [12, -3, 4]], dtype=np.int32)
@@ -3405,7 +3407,10 @@ def _test_spop_constants():
 
 
 def _test_spop_stateful():
-
+    # This test case is to test that TVM rejects any TF stateful operations
+    # (including Resource Variables) except StatefulPartitionedCall/PartitionedCall
+    # (as these two operators can still be used as container graphs to execute
+    # "stateless" operations internally.
     tf.reset_default_graph()
     with tf.Graph().as_default():
 
@@ -3426,10 +3431,13 @@ def _test_spop_stateful():
         op = FunctionWithStatefulOp(constant_op.constant(1.), constant_op.constant(2.))
         with pytest.raises(Exception) as execinfo:
             compare_tf_with_tvm([], [], [op.name], init_global_variables=True, mode="vm")
-        assert execinfo.value.args[0].startswith("Found a stateful operator in this graph")
+        assert execinfo.value.args[0].startswith("Found stateful operators in this graph")
 
 
 def _test_spop_device_assignment():
+    # This test case is to test that TVM rejects inconsistent device assignment
+    # while using StatefulPartitionedCall/PartitionedCall operators which in case of TVM will
+    # be used as container graphs to internally execute "stateless" operations.
 
     tf.reset_default_graph()
     with tf.Graph().as_default():
@@ -3461,6 +3469,9 @@ def _test_spop_device_assignment():
 
 
 def _test_spop_resource_variables():
+    # This test case is to test that TVM rejects any graph containing
+    # resource variables with StatefulPartitionedOp.
+
     tf.reset_default_graph()
     with tf.Graph().as_default():
 
@@ -3477,29 +3488,18 @@ def _test_spop_resource_variables():
         with pytest.raises(Exception) as execinfo:
             compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0',
                                 mode='vm', init_global_variables=True)
-        assert execinfo.value.args[0].startswith("Found a stateful operator in this graph")
+        assert execinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph.")
 
 def test_forward_spop():
-    # This test case is to test that TVM rejects any TF stateful operations
-    # (including Resource Variables) except StatefulPartitionedCall/PartitionedCall
-    # (as these two operators can still be used as container graphs to execute
-    # "stateless" operations internally.
     _test_spop_stateful()
-
-    # This test case is to test that TVM rejects inconsistent device assignment
-    # while using StatefulPartitionedCall/PartitionedCall operators which in case of TVM will
-    # be used as container graphs to internally execute "stateless" operations.
     _test_spop_device_assignment()
-
-    # This test case is to test that TVM rejects any graph containing
-    # resource variables with StatefulPartitionedOp.
     _test_spop_resource_variables()
 
     #Placeholder test cases
-    _test_spop_placeholder_one()
-    _test_spop_placeholder_two()
-    _test_spop_placeholder_three()
-    _test_spop_placeholder_four()
+    _test_spop_placeholder_without_shape_info()
+    _test_spop_placeholder_with_shape_and_default_value()
+    _test_spop_placeholder_numpy_arange_feed()
+    _test_spop_placeholder_numpy_array_feed()
 
     #Function Invocation test cases
     _test_spop_function_invocation_basic()
