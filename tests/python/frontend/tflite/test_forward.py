@@ -1565,6 +1565,48 @@ def test_forward_squeeze():
 
 
 #######################################################################
+# Quantize/DeQuantize
+# -------------------
+
+def _test_quantize_dequantize(data):
+    """ One iteration of quantize and dequantize """
+
+    # Define a dummy model
+    data_in = tf.keras.layers.Input(shape=data.shape[1:])
+    act_func =  tf.keras.layers.Activation('linear')
+    keras_model = tf.keras.models.Model(data_in, act_func(data_in))
+
+    # Load the model
+    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
+
+    # To create quantized values with dynamic range of activations, needs representative dataset
+    def representative_data_gen():
+        for i in range(100):
+            yield [data]
+
+    converter.optimizations = [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
+    converter.representative_dataset = representative_data_gen
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    converter.inference_input_type = tf.uint8
+    converter.inference_output_type = tf.uint8
+
+    # Convert the model to TensorFlow Lite format
+    tflite_model_quant = converter.convert()
+
+    tflite_output = run_tflite_graph(tflite_model_quant, data)
+    tvm_output = run_tvm_graph(tflite_model_quant, data, 'input_1')
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-5, atol=1e-5)
+
+
+def test_forward_quantize_dequantize():
+    """ Quantize Dequantize """
+    data = np.random.uniform(0, 1, (1, 4, 4, 3)).astype("float32")
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.0.0'):
+        _test_quantize_dequantize(data)
+
+
+#######################################################################
 # Pad
 # ---
 
@@ -2264,6 +2306,7 @@ if __name__ == '__main__':
     test_forward_depthtospace()
     test_forward_spacetodepth()
     test_forward_select()
+    test_forward_quantize_dequantize()
 
     # NN
     test_forward_convolution()
