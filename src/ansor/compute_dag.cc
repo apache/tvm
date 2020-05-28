@@ -3,6 +3,7 @@
  */
 #include "compute_dag.h"
 #include <tvm/te/schedule.h>
+#include <tvm/te/schedule_pass.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/runtime/registry.h>
@@ -32,7 +33,8 @@ using OperationSet = std::unordered_set<te::Operation, ObjectHash, ObjectEqual>;
 
 // Topo-sort ops from tensors according to their read-write relations.
 // Results are stored in ops
-void TopoSortOps(const Array<te::Tensor>& tensors, std::vector<te::Operation>* ops) {
+void TopoSortOps(const Array<te::Tensor>& tensors,
+                 std::vector<te::Operation>* ops) {
   std::unordered_map<const te::OperationNode*, int> degree;
   std::unordered_map<const te::OperationNode*, std::vector<const te::OperationNode*> > edge_set;
   std::unordered_map<const te::OperationNode*, int> priority;
@@ -193,7 +195,8 @@ bool IsInjective(const te::Operation& op,  const std::vector<PrimExpr>& index,
 }
 
 // Gather all VarNodes in an expr
-static void GatherVars(const PrimExpr& expr, std::unordered_set<const VarNode*>* vars) {
+static void GatherVars(const PrimExpr& expr,
+                       std::unordered_set<const VarNode*>* vars) {
   PostOrderVisit(expr, [&vars](const ObjectRef &node) {
     if (const VarNode* op = node.as<VarNode>()) {
       vars->insert(op);
@@ -206,7 +209,8 @@ static bool HasExpensiveOp(const PrimExpr& expr) {
   bool found = false;
   PostOrderVisit(expr, [&found](const ObjectRef &node) {
     if (const CallNode* op = node.as<CallNode>()) {
-      if (op->call_type == CallNode::CallType::PureIntrinsic && op->name == "exp") {
+      if (op->call_type == CallNode::CallType::PureIntrinsic &&
+          op->name == "exp") {
         found = true;
       }
     }
@@ -224,7 +228,8 @@ AccessAnalyzer AccessAnalyzerNode::make(const Array<te::Tensor>& tensors) {
   // build read & write access map
   for (const auto& op : node->ops_topo_order) {
     if (op->IsInstance<te::PlaceholderOpNode>()) {
-      node->read_from[op] = OperationMap<std::vector<std::vector<PrimExpr> > >();
+      node->read_from[op] =
+          OperationMap<std::vector<std::vector<PrimExpr> > >();
     } else if (auto cop = op.as<te::ComputeOpNode>()) {
       TensorAccessExtractor extractor;
       for (const auto& exp : cop->body) {
@@ -232,8 +237,10 @@ AccessAnalyzer AccessAnalyzerNode::make(const Array<te::Tensor>& tensors) {
       }
 
       for (const auto& iter : extractor.buf_accesses) {
-        std::vector<std::vector<PrimExpr> >& accesses = node->read_by[iter.first][op];
-        accesses.insert(accesses.begin(), iter.second.begin(), iter.second.end());
+        std::vector<std::vector<PrimExpr> >& accesses =
+            node->read_by[iter.first][op];
+        accesses.insert(accesses.begin(), iter.second.begin(),
+                        iter.second.end());
       }
 
       node->read_from[op] = std::move(extractor.buf_accesses);
@@ -251,7 +258,8 @@ AccessAnalyzer AccessAnalyzerNode::make(const Array<te::Tensor>& tensors) {
       node->is_strict_inlineable[op] = false;
       node->is_output[op] = false;
     } else if (auto pop = op.as<te::ComputeOpNode>()) {
-      // check whether is element-wise and strict-inlineable (see definition in compute_dag.h)
+      // check whether is element-wise and strict-inlineable
+      // (see definition in compute_dag.h)
       bool is_injective = true;
       bool is_strict_inlineable = true;
 
@@ -259,12 +267,14 @@ AccessAnalyzer AccessAnalyzerNode::make(const Array<te::Tensor>& tensors) {
       for (const auto& pair : node->read_from[op]) {
         const std::vector<std::vector<PrimExpr> >& access = pair.second;
         for (const auto& index : access) {
-          if (!IsInjective(op, index, &axis_missing, &axis_duplicated, &same_order)) {
+          if (!IsInjective(op, index, &axis_missing, &axis_duplicated,
+                           &same_order)) {
             is_injective = false;
             is_strict_inlineable = false;
             break;
           }
-          if (!same_order || axis_duplicated) {  // do not strictly inline transpose
+          if (!same_order || axis_duplicated) {
+            // do not strictly inline transpose
             is_strict_inlineable = false;
           }
         }
@@ -281,9 +291,11 @@ AccessAnalyzer AccessAnalyzerNode::make(const Array<te::Tensor>& tensors) {
       }
 
       node->is_injective[op] = is_injective;
-      node->is_strict_inlineable[op] = is_strict_inlineable && !has_expensive_op;
+      node->is_strict_inlineable[op] = is_strict_inlineable &&
+                                       !has_expensive_op;
 
-      // check whether the op needs multi-level tiling (see definition in compute_dag.h)
+      // check whether the op needs multi-level tiling
+      // (see definition in compute_dag.h)
       bool needs_multi_level_tiling = false;
       int n_missing = 0;
 
@@ -297,7 +309,8 @@ AccessAnalyzer AccessAnalyzerNode::make(const Array<te::Tensor>& tensors) {
         }
         bool missing = false;
         for (const auto& axis : pop->axis) {
-          if (GetIntImm(axis->dom->extent) > 1 &&  vars.count(axis->var.get()) == 0) {
+          if (GetIntImm(axis->dom->extent) > 1 &&
+              vars.count(axis->var.get()) == 0) {
             missing = true;
           }
         }
@@ -928,89 +941,90 @@ std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ApplySteps(
   }
 }
 
-// std::string ComputeDAG::PrintStepsAsPython(
-//     const std::vector<Step>& transform_steps) const {
-//   std::vector<te::Stage> stages;
-//   StageToAxesMap stage_to_axes;
-//   Array<te::Operation> ops;
-//   for (const auto& op : operator->()->ops) {
-//     if (!op->IsInstance<te::PlaceholderOpNode>()) {
-//       ops.push_back(op);
-//     }
-//   }
-//   te::Schedule schedule = te::create_schedule({ops.back()});
+std::string ComputeDAG::PrintStepsAsPython(const std::vector<Step>& transform_steps) const {
+  std::vector<te::Stage> stages;
+  StageToAxesMap stage_to_axes;
+  Array<te::Operation> ops;
+  for (const auto& op : operator->()->ops) {
+    if (!op->IsInstance<te::PlaceholderOpNode>()) {
+      ops.push_back(op);
+    }
+  }
+  te::Schedule schedule = te::create_schedule({ops.back()});
 
-//   // init axes
-//   for (const auto& x : operator->()->ops) {
-//     const te::Stage& stage = schedule.operator[](x);
-//     stages.push_back(stage);
-//     UpdateStageAxis(stage, &stage_to_axes);
-//   }
+  // init axes
+  for (const auto& x : operator->()->ops) {
+    const te::Stage& stage = schedule.operator[](x);
+    stages.push_back(stage);
+    UpdateStageAxis(stage, &stage_to_axes);
+  }
 
-//   std::stringstream ss;
+  std::stringstream ss;
 
-//   for (const auto& stage : stages) {
-//     if (stage->op->IsInstance<te::ComputeOpNode>()) {
-//       for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
-//         ss << stage->leaf_iter_vars[i]->var->name_hint;
-//         if (i != stage->leaf_iter_vars.size() - 1) {
-//           ss << ", ";
-//         }
-//       }
-//       ss << " = " << "tuple(" << stage->op->func_name() << ".op.axis)"
-//          << " + " << "tuple(" << stage->op->func_name() << ".op.reduce_axis)\n";
-//     }
-//   }
+  for (const auto& stage : stages) {
+    if (stage->op->IsInstance<te::ComputeOpNode>()) {
+      for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
+        ss << stage->leaf_iter_vars[i]->var->name_hint;
+        if (i != stage->leaf_iter_vars.size() - 1) {
+          ss << ", ";
+        }
+      }
+      ss << " = " << "tuple(" << stage->op->func_name() << ".op.axis)"
+         << " + " << "tuple(" << stage->op->func_name() << ".op.reduce_axis)\n";
+    }
+  }
 
-//   for (const auto& step : transform_steps) {
-//     ss << step->PrintAsPythonAPI(&stages, &stage_to_axes, &schedule, transform_steps);
-//   }
+  for (const auto& step : transform_steps) {
+    ss << step->PrintAsPythonAPI(&stages, &stage_to_axes, &schedule,
+                                 transform_steps);
+  }
 
-//   return ss.str();
-// }
+  return ss.str();
+}
 
-// State ComputeDAG::ReplayAndInferBound(const std::vector<Step>& transform_steps) const {
-//   State ret_state = GetInitState();
-//   StateNode* pstate = ret_state.CopyOnWrite();
-//   pstate->transform_steps = transform_steps;
-//   ret_state.DoSteps(transform_steps, *this);
+State ComputeDAG::ReplayAndInferBound(
+    const std::vector<Step>& transform_steps) const {
+  State ret_state = GetInitState();
+  StateNode* pstate = ret_state.CopyOnWrite();
+  pstate->transform_steps = transform_steps;
+  ret_state.DoSteps(transform_steps, *this);
 
-//   InferBoundCommon(pstate);
+  InferBoundCommon(pstate);
 
-//   return ret_state;
-// }
+  return ret_state;
+}
 
-// State ComputeDAG::InferBound(const State& state) const {
-//   State ret_state = state;
-//   StateNode* pstate = ret_state.CopyOnWrite();
+State ComputeDAG::InferBound(const State& state) const {
+  State ret_state = state;
+  StateNode* pstate = ret_state.CopyOnWrite();
 
-//   InferBoundCommon(pstate);
+  InferBoundCommon(pstate);
 
-//   return ret_state;
-// }
+  return ret_state;
+}
 
-// void ComputeDAG::InferBound(std::vector<State>* states) const {
-//   std::vector<State> out_states(states->size(), State());
+void ComputeDAG::InferBound(std::vector<State>* states) const {
+  std::vector<State> out_states(states->size(), State());
 
-//   auto worker_func = [&states, &out_states, this](int idx) {
-//     try {
-//       out_states[idx] = this->InferBound((*states)[idx]);
-//     } catch (dmlc::Error &e) {
-//       LOG(WARNING) << "InferBound fails on the state:\n" << (*states)[idx]
-//                    << "\n" << e.what() << std::endl;
-//     }
-//   };
+  auto worker_func = [&states, &out_states, this](int idx) {
+    try {
+      out_states[idx] = this->InferBound((*states)[idx]);
+    } catch (dmlc::Error &e) {
+      LOG(WARNING) << "InferBound fails on the state:\n" << (*states)[idx]
+                   << "\n" << e.what() << std::endl;
+    }
+  };
 
-//   // Lower states in parallel
-//   ThreadPool& pool = ThreadPool::Global();
-//   pool.BeginBatch(states->size());
-//   for (size_t i = 0; i < states->size(); ++i) {
-//     pool.Enqueue(worker_func, i);
-//   }
-//   pool.WaitBatch();
+  // Lower states in parallel
+  ThreadPool& pool = ThreadPool::Global();
+  pool.BeginBatch(states->size());
+  for (size_t i = 0; i < states->size(); ++i) {
+    pool.Enqueue(worker_func, i);
+  }
+  pool.WaitBatch();
 
-//   *states = std::move(out_states);
-// }
+  *states = std::move(out_states);
+}
 
 void ComputeDAG::ReplayAndGetDAG(const std::vector<Step> &transform_steps,
                                  ComputeDAG *task_dag) const {
@@ -1019,7 +1033,8 @@ void ComputeDAG::ReplayAndGetDAG(const std::vector<Step> &transform_steps,
   te::Schedule sch;
   Array<te::Tensor> old_tensors;
 
-  std::tie(sch, old_tensors) = ReplaySteps(transform_steps, &stages, &stage_to_axes);
+  std::tie(sch, old_tensors) = ReplaySteps(transform_steps, &stages,
+                                           &stage_to_axes);
 
   Array<te::Tensor> new_tensors;
   for (auto stage : sch->stages) {
@@ -1035,45 +1050,47 @@ void ComputeDAG::ReplayAndGetDAG(const std::vector<Step> &transform_steps,
 }
 
 
-// void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
-//   std::vector<te::Stage> stages;
-//   StageToAxesMap stage_to_axes;
-//   te::Schedule sch;
-//   Array<te::Tensor> tensors;
-//   Map<IterVar, Range> bounds;
+void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
+  std::vector<te::Stage> stages;
+  StageToAxesMap stage_to_axes;
+  te::Schedule sch;
+  Array<te::Tensor> tensors;
+  Map<IterVar, Range> bounds;
 
-//   std::tie(sch, tensors) = ReplaySteps(pstate->transform_steps, &stages, &stage_to_axes);
-//   sch = sch.normalize();
-//   bounds = schedule::InferBound(sch);
+  std::tie(sch, tensors) = ReplaySteps(pstate->transform_steps, &stages,
+                                       &stage_to_axes);
+  sch = sch.normalize();
+  bounds = te::InferBound(sch);
 
-//   for (size_t i = 0; i < pstate->stages.size(); ++i) {
-//     const Stage& stage = pstate->stages[i];
+  for (size_t i = 0; i < pstate->stages.size(); ++i) {
+    const Stage& stage = pstate->stages[i];
 
-//     if (stage->compute_at == kInlined) {
-//       continue;
-//     }
+    if (stage->compute_at == kInlined) {
+      continue;
+    }
 
-//     std::vector<Iterator> new_iters;
-//     new_iters.reserve(stage->iters.size());
-//     for (size_t j = 0; j < stage->iters.size(); ++j) {
-//       const Iterator& iter = stage->iters[j];
-//       const IterVar& axis = stage_to_axes.at(stages[i])[j];
+    std::vector<Iterator> new_iters;
+    new_iters.reserve(stage->iters.size());
+    for (size_t j = 0; j < stage->iters.size(); ++j) {
+      const Iterator& iter = stage->iters[j];
+      const IterVar& axis = stage_to_axes.at(stages[i])[j];
 
-//       auto find_res = bounds.find(axis);
-//       if (find_res != bounds.end()) {
-//         new_iters.push_back(IteratorNode::make(iter->name, (*find_res).second,
-//                                                iter->iter_type, iter->annotation,
-//                                                &iter->ori_iters));
-//       } else {
-//         LOG(FATAL) << "Infer bound fails";
-//       }
-//     }
+      auto find_res = bounds.find(axis);
+      if (find_res != bounds.end()) {
+        new_iters.push_back(IteratorNode::make(iter->name, (*find_res).second,
+                                               iter->iter_type,
+                                               iter->annotation,
+                                               &iter->ori_iters));
+      } else {
+        LOG(FATAL) << "Infer bound fails";
+      }
+    }
 
-//     pstate->stages[i] = StageNode::make(stage->op, stage->op_type,
-//             std::move(new_iters), stage->compute_at, stage->auto_unroll_max_step,
-//             stage->storage_offset);
-//   }
-// }
+    pstate->stages[i] = StageNode::make(stage->op, stage->op_type,
+            std::move(new_iters), stage->compute_at,
+            stage->auto_unroll_max_step, stage->storage_offset);
+  }
+}
 
 std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
     const std::vector<Step> &transform_steps,
@@ -1096,8 +1113,8 @@ std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
     UpdateStageAxis(stage, stage_to_axes);
   }
 
-  // todo(lmzheng): should we maintain the attach_map and keep the validity of compute_at
-  // an splitted axis?
+  // todo(lmzheng): should we maintain the attach_map and keep the validity of
+  // compute_at an splitted axis?
 
   // Use complete rate for the study in the paper
   const char* complete_rate_str = getenv("ANSOR_PROGRAM_COMPLETE_RATE");
@@ -1183,8 +1200,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
           } else if (combiner->IsInstance<SelectNode>()) {
             const auto& select = combiner.as<SelectNode>();
             ss << " select(" << select->condition << ", " << select->true_value
-               << ", " << select->false_value << ")= "
-               << '(' << preduce->source[0] << ',' << preduce->source[1] << ")\n";
+               << ", " << select->false_value << ")= " << '('
+               << preduce->source[0] << ',' << preduce->source[1] << ")\n";
           } else {
             LOG(FATAL) << "Unsupported reduction operator" << combiner;
           }
@@ -1208,7 +1225,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     p->stream << "is_injective:\t" << node->is_injective.at(op) << "\t\t";
     p->stream << "needs_multi_level_tiling:\t"
               << node->needs_multi_level_tiling.at(op) << std::endl;
-    p->stream << "is_strict_inlinable:\t" << node->is_strict_inlineable.at(op) << "\t";
+    p->stream << "is_strict_inlinable:\t" << node->is_strict_inlineable.at(op)
+              << "\t";
     p->stream << "is_output:\t" << node->is_output.at(op) << std::endl;
     p->stream << "Read from:\t";
     for (const auto& pair : node->read_from.at(op)) {
@@ -1233,7 +1251,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   for (size_t i = 0; i < node->ops_topo_order.size(); ++i) {
     for (size_t j = 0; j < node->ops_topo_order.size(); ++j) {
       if (i == j) { continue; }
-      if (ana.ElementWiseMatch(node->ops_topo_order[i], node->ops_topo_order[j])) {
+      if (ana.ElementWiseMatch(node->ops_topo_order[i],
+                               node->ops_topo_order[j])) {
         p->stream << node->ops_topo_order[i]->func_name() << " -> "
                   << node->ops_topo_order[j]->func_name() << "\n";
       }

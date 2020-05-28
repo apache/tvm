@@ -23,6 +23,7 @@
 #include <tvm/te/operation.h>
 #include <topi/nn.h>
 #include "../../src/ansor/loop_state.h"
+#include "../../src/ansor/serialization.h"
 
 tvm::Array<tvm::te::Tensor> matmul_func(int n, int m, int k) {
   using namespace tvm;
@@ -155,6 +156,63 @@ TEST(ComputeDAG, GetProducersConsumers) {
       }
     }
   }
+}
+
+TEST(ComputeDAG, InferBoundSerialization) {
+  using namespace tvm::ansor;
+
+  const auto& tensors = matmul_func(512, 512, 512);
+  const auto& dag = ComputeDAGNode::make(tensors);
+  int A = 0, B = 1, C = 2;
+
+  State s0 = dag.GetInitState();
+  int C_global = s0.cache_write(C, "global", dag);
+  C++;
+  const auto& its0 = s0.split(C, s0->stages[C]->iters[0], {4, 8, 8});
+  const auto& its1 = s0.split(C, s0->stages[C]->iters[4], {8, 4, 4});
+  s0.reorder(C, {its0[0], its1[0], its0[1], its1[1], its0[2], its1[2],
+                 its0[3], its1[3]});
+  s0.compute_at(C_global, C, s0->stages[C]->iters[3]);
+  s0.split(C_global, s0->stages[C_global]->iters[2], {16});
+  int B_global = s0.cache_read(B, "global", {C_global}, dag);
+  C++; C_global++;
+  s0.compute_at(B_global, C_global, s0->stages[C_global]->iters[0]);
+  int A_global = s0.cache_read(A, "global", {C_global}, dag);
+  B++; B_global++; C++; C_global++;
+  s0.compute_at(A_global, C_global, s0->stages[C_global]->iters[2]);
+
+  const auto& s1 = dag.InferBound(s0);
+  std::vector<State> s2 = {s0};
+  dag.InferBound(&s2);
+  const auto& s3 = dag.ReplayAndInferBound(s0->transform_steps);
+
+  CHECK_EQ(s1->stages[B_global]->iters[0]->range->extent.as<IntImmNode>()->value,
+           512);
+  CHECK_EQ(s1->stages[B_global]->iters[1]->range->extent.as<IntImmNode>()->value,
+           16);
+  CHECK_EQ(s1->stages[A_global]->iters[0]->range->extent.as<IntImmNode>()->value,
+           1);
+  CHECK_EQ(s1->stages[A_global]->iters[1]->range->extent.as<IntImmNode>()->value,
+           16);
+  CHECK_EQ(s1->stages[C_global]->iters[0]->range->extent.as<IntImmNode>()->value,
+           64);
+  CHECK(std::equal_to<State>()(s1, s2[0]));
+  CHECK(std::equal_to<State>()(s1, s3));
+
+  const auto& minp0 = MeasureInputNode::make(
+      SearchTaskNode::make(dag, "test", tvm::target::llvm(),
+                           tvm::target::llvm(),
+                           HardwareParams()),
+      s0);
+  const auto& mres0 = MeasureResultNode::make({0.1}, 0, "", 0.1, 0.1);
+  std::stringstream ss;
+  WriteMeasureRecords(&ss, {minp0}, {mres0});
+  auto minp1 = tvm::make_object<MeasureInputNode>();
+  auto mres1 = tvm::make_object<MeasureResultNode>();
+  std::string log_version;
+  ReadMeasureRecords(ss.str(), minp1.get(), mres1.get(), &log_version);
+  const auto& s4 = dag.ReplayAndInferBound(minp1->state->transform_steps);
+  CHECK(std::equal_to<State>()(s1, s4));
 }
 
 TEST(Step, SplitFuseReorder) {
@@ -533,7 +591,69 @@ TEST(Step, CacheReadWrite) {
 }
 
 TEST(Step, FollowSplitFollowFusedSplit) {
-  // todo
+  using namespace tvm::ansor;
+
+  const auto& tensors = matmul_func(512, 512, 512);
+  const auto& dag = ComputeDAGNode::make(tensors);
+
+  State s0 = dag.GetInitState();
+  int C = 2;
+
+  int C_global = s0.cache_write(C, "global", dag);
+  C++;
+
+  // FollowSplitStep currently only support `inner_to_outer = true`
+  const auto& its0 = s0.split(C, s0->stages[C]->iters[0], {4, 2, 8, 4}, true);
+  int split_step0 = s0->transform_steps.size() - 1;
+  // const auto& its1 = s0.split(C, s0->stages[C]->iters[5], {4, 2, 8, 4}, false);
+  // int split_step1 = s0->transform_steps.size() - 1;
+  for (int level = 1; level <= 5; level++) {
+    State tmp = s0;
+    tmp.follow_split(C_global, s0->stages[C_global]->iters[0], split_step0,
+                     level);
+    // tmp.follow_split(C_global, s0->stages[C_global]->iters[5], split_step1,
+    //                  level);
+    const auto& stage_C = tmp->stages[C];
+    const auto& stage_C_global = tmp->stages[C_global];
+    for (int i = 0; i < level; i++) {
+      CHECK_EQ(stage_C->iters[i]->range->extent.as<IntImmNode>()->value,
+          stage_C_global->iters[i]->range->extent.as<IntImmNode>()->value);
+    }
+    // for (int i = 0; i < level; i++) {
+    //   CHECK(stage_C->iters[i+5]->range->extent.as<IntImmNode>()->value ==
+    //       stage_C_global->iters[i+5]->range->extent.as<IntImmNode>()->value);
+    // }
+  }
+
+  const auto& its1 = s0.split(C, s0->stages[C]->iters[5], {2, 2, 4, 8});
+  int split_step1 = s0->transform_steps.size() - 1;
+  std::vector<Iterator> its;
+  for (int i = 0; i < 5; i++) {
+    its.push_back(its0[i]);
+    its.push_back(its1[i]);
+  }
+  s0.reorder(C, its);
+  for (int i = 0; i < 5; i++) {
+    s0.fuse(C, {s0->stages[C]->iters[i], s0->stages[C]->iters[i+1]});
+  }
+  for (int level = 0; level < 4; level++) {
+    State tmp = s0;
+    tmp.follow_fused_split(C_global, tmp->stages[C_global]->iters[0],
+                           {split_step0, split_step1}, level, false);
+    const auto& stage_C = tmp->stages[C];
+    const auto& stage_C_global = tmp->stages[C_global];
+    CHECK_EQ(stage_C->iters[level+1]->range->extent.as<IntImmNode>()->value,
+        stage_C_global->iters[0]->range->extent.as<IntImmNode>()->value);
+  }
+  for (int level = 0; level < 4; level++) {
+    State tmp = s0;
+    tmp.follow_fused_split(C_global, tmp->stages[C_global]->iters[0],
+                           {split_step0, split_step1}, level, true);
+    const auto& stage_C = tmp->stages[C];
+    const auto& stage_C_global = tmp->stages[C_global];
+    CHECK_EQ(stage_C->iters[level+1]->range->extent.as<IntImmNode>()->value,
+        stage_C_global->iters[1]->range->extent.as<IntImmNode>()->value);
+  }
 }
 
 TEST(Step, Rfactor) {

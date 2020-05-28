@@ -61,6 +61,13 @@ struct hash<std::vector<T> > {
 namespace tvm {
 namespace ansor {
 
+/*! \brief Macro to make it easy to define node ref type given node */
+#define TVM_DEFINE_NODE_REF(TypeName, NodeName)                     \
+  class TypeName : public ObjectRef {                               \
+   public:                                                          \
+    TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ObjectRef, NodeName);   \
+  };                                                                \
+
 /*! \brief Macro to make it easy to define mutable node ref type given node */
 #define TVM_DEFINE_MUTABLE_NODE_REF(TypeName, NodeName)                      \
   class TypeName : public ObjectRef {                                        \
