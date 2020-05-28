@@ -20,7 +20,7 @@
  * \file tvm/tir/stmt.h
  * \brief TIR statements.
  */
-// Acknowledgement: Mnay low-level stmts originate from Halide.
+// Acknowledgement: Many low-level stmts originate from Halide.
 #ifndef TVM_TIR_STMT_H_
 #define TVM_TIR_STMT_H_
 

@@ -82,7 +82,7 @@ Layout::Layout(const Array<IterVar>& axes) {
     }
     CHECK_EQ(axis->var.get()->name_hint.size(), 1)
         << "Invalid layout axis " << axis->var.get()->name_hint;
-    char c = axis->var.get()->name_hint[0];
+    char c = axis->var.get()->name_hint.operator std::string()[0];
     CHECK((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) << "Invalid layout axis " << c;
     repr << axis->var.get()->name_hint;
   }
@@ -127,7 +127,7 @@ Layout::Layout(const std::string& name) {  // NOLINT(*)
   // validate layout
   std::vector<bool> exist_axis(256, false);
   for (const IterVar& v : node->axes) {
-    auto axis_str = v->var.get()->name_hint;
+    auto axis_str = v->var.get()->name_hint.operator std::string();
     CHECK_EQ(axis_str.size(), 1);
     char axis = axis_str[0];
     CHECK((axis >= 'a' && axis <= 'z') || (axis >= 'A' && axis <= 'Z'));
@@ -135,7 +135,7 @@ Layout::Layout(const std::string& name) {  // NOLINT(*)
     exist_axis[axis] = true;
   }
   for (const IterVar& v : node->axes) {
-    char axis = v->var.get()->name_hint[0];
+    char axis = v->var.get()->name_hint.operator std::string()[0];
     if (axis >= 'a' && axis <= 'z') {
       CHECK(exist_axis[axis - 'a' + 'A'])
           << "Invalid layout " << name << ": missing axis " << std::toupper(axis);

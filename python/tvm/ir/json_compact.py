@@ -130,8 +130,8 @@ def create_updater_06_to_07():
         "relay.ModulePass": _rename("transform.ModulePass"),
         "relay.Sequential": _rename("transform.Sequential"),
         # TIR
-        "Variable": _update_tir_var("tir.Var"),
-        "SizeVar": _update_tir_var("tir.SizeVar"),
+        "Variable": [_update_tir_var("tir.Var"), _update_from_std_str("name")],
+        "SizeVar": [_update_tir_var("tir.SizeVar"), _update_from_std_str("name")],
     }
     return create_updater(node_map, "0.6", "0.7")
 

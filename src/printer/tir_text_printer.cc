@@ -567,7 +567,7 @@ Doc TIRTextPrinter::AllocVar(const Var& var) {
   if (it != memo_var_.end()) {
     return it->second;
   }
-  std::string name = var->name_hint;
+  std::string name = var->name_hint.operator std::string();
   if (name.length() == 0 || !std::isalpha(name[0])) {
     name = "v" + name;
   }
