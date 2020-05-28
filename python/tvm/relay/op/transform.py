@@ -891,7 +891,7 @@ def unravel_index(indices, shape):
 
     return _make.unravel_index(indices, shape)
 
-def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value = 0):
+def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0):
     """Converts a sparse representation into a dense tensor.
 
     Example::
