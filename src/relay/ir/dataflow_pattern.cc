@@ -69,6 +69,18 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << ")";
     });
 
+TVM_REGISTER_NODE_TYPE(ConstantPatternNode);
+
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.ConstantPattern").set_body_typed([]() {
+  auto c = ConstantPattern(make_object<ConstantPatternNode>());
+  return c;
+});
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ConstantPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      p->stream << "ConstantPattern()";
+    });
+
 CallPattern::CallPattern(DFPattern op, Array<DFPattern> args, Attrs attrs, Array<Type> type_args) {
   ObjectPtr<CallPatternNode> n = make_object<CallPatternNode>();
   n->op = std::move(op);

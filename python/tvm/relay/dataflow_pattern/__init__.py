@@ -332,6 +332,14 @@ class VarPattern(DFPattern):
 
 
 @register_df_node
+class ConstantPattern(DFPattern):
+    """A pattern matching a Relay Constant.
+    """
+    def __init__(self):
+        self.__init_handle_by_constructor__(ffi.ConstantPattern)
+
+
+@register_df_node
 class CallPattern(DFPattern):
     """A pattern matching a function call node in Relay.
 

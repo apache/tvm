@@ -37,6 +37,11 @@ for more use cases.
 
 .. _tests/python/relay/test_dataflow_pattern.py: https://github.com/apache/incubator-tvm/blob/master/tests/python/relay/test_dataflow_pattern.py
 
+.. note::
+
+    If you cannot find the corresponding pattern node to match the Relay node you want,
+    you are welcome to raise an issue or submit a PR to add it.
+
 Matching One of Two Ops
 ***********************
 
@@ -130,6 +135,44 @@ The next example is matching a pattern of batch_norm -> get(0) -> relu:
         tuple_get_item_node = bn_node[0]
         out = relay.nn.relu(tuple_get_item_node)
         pat.match(out)
+
+The next example is matching a constant node regarding its values. This is useful to check
+if a specific parameter in a subgraph has been bind or not.
+
+.. code-block:: python
+
+    def test_match_constant():
+        conv2d = is_op('nn.conv2d')(wildcard(), ConstantPattern())
+        pattern = is_op('nn.bias_add')(conv2d, wildcard())
+
+        x = relay.var('x', shape=(1, 3, 224, 224))
+        w = relay.var('w', shape=(3, 3, 3, 3))
+        b = relay.var('b', shape=(3, ))
+        conv2d = relay.op.nn.conv2d(x, w)
+        out = relay.op.nn.bias_add(conv2d, b)
+        func = relay.Function([x, w, b], out)
+        mod = tvm.IRModule.from_expr(func)
+
+        # Two inputs of the conv2d in the graph are VarNode by default, so no match.
+        assert not pattern.match(mod['main'].body)
+
+        # The second input (weight) has been bind with constant values so it is now a constant node.
+        mod["main"] = bind_params_by_name(mod["main"],
+                                        {'w': tvm.nd.array(np.ones(shape=(3, 3, 3, 3)))})
+        assert pattern.match(mod['main'].body)
+
+On the other hand, if you need to match the constant with a specific value, you can directly
+use ``ExprPattern``. This could be useful for algebraic simplify.
+
+.. code-block:: python
+
+    def test_match_plus_zero():
+        zero = (ExprPattern(relay.const(0)) | ExprPattern(relay.const(0.0)))
+        pattern = wildcard() + zero
+        
+        x = relay.Var('x')
+        y = x + relay.const(0)
+        assert pattern.match(y)
 
 The next example is matching function nodes with a specific attribute:
 
