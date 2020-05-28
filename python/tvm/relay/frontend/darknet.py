@@ -637,12 +637,12 @@ class GraphProto(object):
             attr.update({'coords' : layer.coords})
             attr.update({'background' : layer.background})
             attr.update({'softmax' : layer.softmax})
-            attr.update({'shape' : (1, layer.c, layer.h, layer.w)})
+            attr.update({'shape' : (-1, layer.c, layer.h, layer.w)})
 
         elif LAYERTYPE.YOLO == layer_type:
             attr.update({'n' : layer.n})
             attr.update({'classes' : layer.classes})
-            attr.update({'shape' : (1, layer.c, layer.h, layer.w)})
+            attr.update({'shape' : (-1, layer.c, layer.h, layer.w)})
 
         elif LAYERTYPE.UPSAMPLE == layer_type:
             attr.update({'scale' : layer.stride})
