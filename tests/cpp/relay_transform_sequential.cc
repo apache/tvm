@@ -70,7 +70,7 @@ TEST(Relay, Sequential) {
   auto mod = IRModule::FromExpr(func);
   auto pass_ctx = relay::transform::PassContext::Create();
   pass_ctx->opt_level = 3;
-  pass_ctx->fallback_device = 1;
+  pass_ctx->config.Set("relay.fallback_device_type", IntImm(DataType::Int(32), 1));
   {
     tvm::With<relay::transform::PassContext> ctx_scope(pass_ctx);
     tvm::With<tvm::Target> tctx(tvm::Target::Create("llvm"));

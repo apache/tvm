@@ -454,12 +454,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(PassContextNode);
 
 TVM_REGISTER_GLOBAL("transform.PassContext")
-    .set_body_typed([](int opt_level, int fallback_device, Array<String> required,
-                       Array<String> disabled, TraceFunc trace_func,
-                       Optional<Map<std::string, ObjectRef>> config) {
+    .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
+                       TraceFunc trace_func, Optional<Map<std::string, ObjectRef>> config) {
       auto pctx = PassContext::Create();
       pctx->opt_level = opt_level;
-      pctx->fallback_device = fallback_device;
 
       pctx->required_pass = std::move(required);
       pctx->disabled_pass = std::move(disabled);
@@ -477,7 +475,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "Pass context information: "
                 << "\n";
       p->stream << "\topt_level: " << node->opt_level << "\n";
-      p->stream << "\tfallback device: " << runtime::DeviceName(node->fallback_device) << "\n";
 
       p->stream << "\trequired passes: [";
       for (const auto& it : node->required_pass) {

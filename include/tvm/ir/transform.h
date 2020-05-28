@@ -92,9 +92,6 @@ class PassContextNode : public Object {
   /*! \brief The default optimization level. */
   int opt_level{2};
 
-  /*! \brief CPU is the default fallback device for heterogeneous execution. */
-  int fallback_device{static_cast<int>(kDLCPU)};
-
   /*! \brief The list of required passes. */
   Array<String> required_pass;
   /*! \brief The list of disabled passes. */
@@ -139,7 +136,6 @@ class PassContextNode : public Object {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("opt_level", &opt_level);
-    v->Visit("fallback_device", &fallback_device);
     v->Visit("required_pass", &required_pass);
     v->Visit("disabled_pass", &disabled_pass);
     v->Visit("config", &config);
@@ -157,7 +153,6 @@ class PassContextNode : public Object {
  *
  *  auto new_ctx = PassContext::Create();
  *  ctx->opt_level = 2;
- *  ctx->fallback_device = kDLCPU;
  *  With<PassContext> scope(ctx);
  *  // pass context in effect.
  *
