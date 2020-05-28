@@ -112,6 +112,24 @@ class VarPattern : public DFPattern {
 };
 
 /*!
+ * \brief A Pattern to Match a Relay Constant
+ */
+class ConstantPattern;
+/*! \brief Container for Constant */
+class ConstantPatternNode : public DFPatternNode {
+ public:
+  void VisitAttrs(tvm::AttrVisitor* v) {}
+
+  static constexpr const char* _type_key = "relay.dataflow_pattern.ConstantPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstantPatternNode, DFPatternNode);
+};
+
+class ConstantPattern : public DFPattern {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(ConstantPattern, DFPattern, ConstantPatternNode);
+};
+
+/*!
  * \brief Call corresponds to operator invocation.
  *  Corresponds to the operator in computational graph terminology.
  */
