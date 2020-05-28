@@ -644,14 +644,14 @@ def test_arange_with_dynamic_shape():
         tvm.testing.assert_allclose(result.asnumpy(), np.array(range(10)).astype("int32")+1)
 
 def verify_any_strided_slice(data_shape, begin_shape, end_shape, strides_shape,
-                             data_np_shape, ignore_end=False, const_attrs=False, dtype="int32"):
+                             data_np_shape, slice_mode=False, const_attrs=False, dtype="int32"):
     # Generate random numpy input data
     np_data = np.random.uniform(size=data_np_shape).astype('float32')
     np_begin = np.random.randint(2, size=begin_shape, dtype=dtype)
     np_end = np.random.randint(5, 15, size=end_shape, dtype=dtype)
     np_strides = np.random.randint(1, 3, size=strides_shape, dtype=dtype)
     # target numpy result
-    ref_res = topi.testing.strided_slice_python(np_data, np_begin, np_end, np_strides, ignore_end)
+    ref_res = topi.testing.strided_slice_python(np_data, np_begin, np_end, np_strides, slice_mode)
 
     # Relay Module
     mod = tvm.IRModule()
@@ -670,7 +670,7 @@ def verify_any_strided_slice(data_shape, begin_shape, end_shape, strides_shape,
         np_inputs = [np_data, np_begin, np_end, np_strides]
 
     y = relay.strided_slice(data, begin=begin, end=end,
-                            strides=strides, ignore_end=ignore_end)
+                            strides=strides, slice_mode=slice_mode)
     mod["main"] = relay.Function(args, y)
 
     for kind in ["debug", "vm"]:
@@ -684,7 +684,7 @@ def test_any_strided_slice():
     verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (15, 17, 21))
     verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (23, 29, 41))
     verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70))
-    verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70), ignore_end=True)
+    verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70), slice_mode=True)
 
 
 def test_recursive_concat():

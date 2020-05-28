@@ -213,13 +213,13 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
   Optional<Array<Integer>> begin;
   Optional<Array<Integer>> end;
   Optional<Array<Integer>> strides;
-  bool ignore_end;
+  bool slice_mode;
 
   TVM_DECLARE_ATTRS(StridedSliceAttrs, "relay.attrs.StridedSliceAttrs") {
     TVM_ATTR_FIELD(begin).describe("Indices for begin of slice, begin index is also inclusive");
     TVM_ATTR_FIELD(end).describe("Indices for end of slice, end index is exclusive");
     TVM_ATTR_FIELD(strides).describe("Stride values of the slice");
-    TVM_ATTR_FIELD(ignore_end)
+    TVM_ATTR_FIELD(slice_mode)
         .set_default(false)
         .describe("Whether to ignore the negative elements in input end.");
   }

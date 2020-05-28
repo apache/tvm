@@ -1711,9 +1711,16 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
     std::vector<int64_t> end_vec;
     for (size_t i = 0; i < param->end.value().size(); ++i) {
       // allow end to be None
-      if (!param->end.value()[i].defined() ||
-          (param->ignore_end && param->end.value()[i]->value < 0)) {
+      if (!param->end.value()[i].defined()) {
         end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
+      } else if (param->slice_mode) {
+          if (param->end.value()[i]->value < 0) {
+            end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
+          } else if (stride_vec[i] < 0) {
+              end_vec.push_back(begin_vec[i] - param->end.value()[i]->value);
+          } else {
+              end_vec.push_back(begin_vec[i] + param->end.value()[i]->value);
+          }
       } else {
         end_vec.push_back(param->end.value()[i]->value);
       }
@@ -1834,10 +1841,19 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
           }
         }
         int64_t bg = begin[i].defined() ? begin[i]->value : 0;
-        int64_t ed = end[i].defined() ? end[i]->value : shape[i].as<IntImmNode>()->value;
-        if (params->ignore_end && end[i].defined() && end[i]->value < 0) {
+        int64_t ed;
+        if (!end[i].defined()) {
           ed = shape[i].as<IntImmNode>()->value;
+        } else if (params->slice_mode) {
+          if (end[i]->value < 0) {
+            ed = shape[i].as<IntImmNode>()->value;
+          } else {
+            ed = bg + end[i]->value;
+          }
+        } else {
+          ed = end[i]->value;
         }
+
         if (bg % factor || ed % factor) {
           // transform to original layout
           return {{Layout::Undef()}, {Layout::Undef()}};
@@ -1886,7 +1902,7 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
     end = param->end.value();
     strides = param->strides.value();
     return Array<te::Tensor>{
-        topi::strided_slice(inputs[0], begin, end, strides, param->ignore_end)};
+        topi::strided_slice(inputs[0], begin, end, strides, param->slice_mode)};
   } else {
     te::Tensor data = inputs[0];
     te::Tensor begin = inputs[1];
@@ -1904,7 +1920,7 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
 }
 
 // Positional relay function to create StridedSlice operator used by frontend FFI.
-Expr MakeStridedSlice(Expr data, Expr begin, Expr end, Expr strides, bool ignore_end) {
+Expr MakeStridedSlice(Expr data, Expr begin, Expr end, Expr strides, bool slice_mode) {
   auto attrs = make_object<StridedSliceAttrs>();
   const ConstantNode *cbegin, *cend, *cstrides;
   if ((cbegin = begin.as<ConstantNode>()) && (cend = end.as<ConstantNode>()) &&
@@ -1926,7 +1942,7 @@ Expr MakeStridedSlice(Expr data, Expr begin, Expr end, Expr strides, bool ignore
     attrs->end = end;
     attrs->strides = strides;
   }
-  attrs->ignore_end = ignore_end;
+  attrs->slice_mode = slice_mode;
   static const Op& op = Op::Get("strided_slice");
   return Call(op, {data, begin, end, strides}, Attrs(attrs), {});
 }
@@ -1962,7 +1978,7 @@ Examples::
     .add_argument("begin", "Tensor", "The indices to begin with in the slicing.")
     .add_argument("end", "Tensor", "Indices indicating end of the slice.")
     .add_argument("strides", "Tensor", "The stride values.")
-    .add_argument("ignore_end", "Tensor", "Whether to ignore negative elements of input end.")
+    .add_argument("slice_mode", "Tensor", "Whether to ignore negative elements of input end.")
     .set_support_level(4)
     .set_attrs_type<StridedSliceAttrs>()
     .add_type_rel("StridedSlice", StridedSliceRel)
