@@ -50,7 +50,7 @@ class VarNode : public PrimExprNode {
    * \brief The hint to the variable name.
    * \note Each variable is uniquely identified by its address.
    */
-  std::string name_hint;
+  String name_hint;
   /*!
    * \brief type annotaion of the variable.
    *
@@ -92,19 +92,19 @@ class Var : public PrimExpr {
    * \param name_hint variable name
    * \param dtype data type
    */
-  TVM_DLL explicit Var(std::string name_hint = "v", DataType dtype = DataType::Int(32));
+  TVM_DLL explicit Var(String name_hint = "v", DataType dtype = DataType::Int(32));
   /*!
    * \brief Constructor which provides a more detailed type annotation.
    * \param name_hint variable name.
    * \param type_annotation The type annotation.
    */
-  TVM_DLL explicit Var(std::string name_hint, Type type_annotation);
+  TVM_DLL explicit Var(String name_hint, Type type_annotation);
   /*!
    * \brief Make a new copy of var with same type, append suffix
    * \param suffix The suffix to be appended.
    * \return the new Var copy
    */
-  TVM_DLL Var copy_with_suffix(const std::string& suffix) const;
+  TVM_DLL Var copy_with_suffix(const String& suffix) const;
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
@@ -138,7 +138,7 @@ class SizeVar : public Var {
    * \param name_hint variable name
    * \param t data type
    */
-  TVM_DLL explicit SizeVar(std::string name_hint = "s", DataType t = DataType::Int(32));
+  TVM_DLL explicit SizeVar(String name_hint = "s", DataType t = DataType::Int(32));
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
@@ -178,7 +178,7 @@ enum IterVarType : int {
   /*!
    * \brief The IterVar itself is a thread-index
    *  of a fixed thread launching group.
-   *  Note that this is already assumed to be paralellized.
+   *  Note that this is already assumed to be parallelized.
    *
    *  Disallow: split/fuse/vectorize/parallel
    */
