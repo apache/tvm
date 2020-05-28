@@ -2292,9 +2292,9 @@ class OperatorConverter(object):
 
         out = _op.sparse_to_dense(
             self.get_tensor_expr(indices),
+            list(self.get_tensor_value(output_shape)),
             self.get_tensor_expr(values),
-            self.get_tensor_expr(default_value),
-            list(self.get_tensor_value(output_shape))
+            self.get_tensor_expr(default_value)
         )
 
         return out

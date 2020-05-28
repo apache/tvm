@@ -1871,16 +1871,24 @@ def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_s
             indices = tf.placeholder(shape=sparse_indices.shape, dtype=str(sparse_indices.dtype), name="indices")
             values = tf.placeholder(shape=sparse_values.shape, dtype=str(sparse_values.dtype), name="values")
             oshape = tf.constant(output_shape, shape=output_shape.shape, dtype=str(output_shape.dtype))
-            dv = tf.placeholder(shape=(), dtype=str(default_value.dtype), name="default_value")
 
-            output = tf.sparse_to_dense(indices, oshape, values, dv)
-
-            compare_tflite_with_tvm(
-                [sparse_indices, sparse_values, default_value],
-                ["indices", "values", "default_value"],
-                [indices, values, dv],
-                [output]
-            )
+            if default_value == None:
+                output = tf.sparse_to_dense(indices, oshape, values)
+                compare_tflite_with_tvm(
+                    [sparse_indices, sparse_values],
+                    ["indices", "values"],
+                    [indices, values],
+                    [output]
+                )
+            else:
+                dv = tf.placeholder(shape=(), dtype=str(default_value.dtype), name="default_value")
+                output = tf.sparse_to_dense(indices, oshape, values, dv)
+                compare_tflite_with_tvm(
+                    [sparse_indices, sparse_values, default_value],
+                    ["indices", "values", "default_value"],
+                    [indices, values, dv],
+                    [output]
+                )
 
 def test_forward_sparse_to_dense():
     '''
@@ -1899,7 +1907,6 @@ def test_forward_sparse_to_dense():
         np.int32(0),
         np.array([5]).astype("int32")
     )
-
     # vector nXd
     _test_sparse_to_dense(
         np.array([[0, 0], [1, 2]]).astype("int32"),
@@ -1907,19 +1914,24 @@ def test_forward_sparse_to_dense():
         np.int32(0),
         np.array([3, 4]).astype("int32")
     )
-
     _test_sparse_to_dense(
         np.array([[0, 0, 0], [1, 2, 3]]).astype("int32"),
         np.array([1, 2]).astype("int32"),
         np.int32(4),
         np.array([2, 3, 4]).astype("int32")
     )
-
     # floats
     _test_sparse_to_dense(
         np.array([0, 1, 4]).astype("int32"),
         np.array([3.1, 3.1, 3.1]).astype("float32"),
         np.float32(3.5),
+        np.array([5]).astype("int32")
+    )
+    # default value not specified
+    _test_sparse_to_dense(
+        np.array([0, 1, 4]).astype("int32"),
+        np.array([3.1, 3.1, 3.1]).astype("float32"),
+        None,
         np.array([5]).astype("int32")
     )
 

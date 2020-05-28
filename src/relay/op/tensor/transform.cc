@@ -2566,11 +2566,11 @@ Array<te::Tensor> SparseToDenseCompute(const Attrs& attrs,
   CHECK_EQ(inputs.size(), 3);
   const auto* param = attrs.as<SparseToDenseAttrs>();
   CHECK(param != nullptr);
-  return {topi::sparse_to_dense(inputs[0], inputs[1], inputs[2], param->output_shape)};
+  return {topi::sparse_to_dense(inputs[0], param->output_shape, inputs[1], inputs[2]())};
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.sparse_to_dense")
-.set_body_typed([](Expr indices, Expr values, Expr default_value, Array<Integer> output_shape) {
+.set_body_typed([](Expr indices, Array<Integer> output_shape, Expr values, Expr default_value) {
   auto attrs = make_object<SparseToDenseAttrs>();
   attrs->output_shape = std::move(output_shape);
   static const Op& op = Op::Get("sparse_to_dense");
@@ -2582,14 +2582,14 @@ RELAY_REGISTER_OP("sparse_to_dense")
 
 - **sparse_indices**: A 0-D, 1-D, or 2-D tensor of integers containing location of sparse values
 
+- **output_shape**: A list of integers. Shape of the dense output tensor.
+
 - **sparse_values**: A 0-D or 1-D tensor containing the sparse values for the sparse indices.
 
 - **default_value**: A 0-D tensor containing the default value for the remaining locations. Defaults to 0.
 
-- **output_shape**: A list of integers. Shape of the dense output tensor.
-
   Example::
-    -  sparse_to_dense([0, 0], [1, 2]], [1, 2], 0, [3, 4]) = [[1, 0, 0, 0], [0, 0, 2, 0], [0, 0, 0, 0]]
+    -  sparse_to_dense([0, 0], [1, 2]], [3, 4], [1, 2], 0) = [[1, 0, 0, 0], [0, 0, 2, 0], [0, 0, 0, 0]]
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(3)

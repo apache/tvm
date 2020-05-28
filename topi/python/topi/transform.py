@@ -677,16 +677,19 @@ def unravel_index(indices, shape):
 
     return cpp.unravel_index(indices, shape)
 
-def sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape):
+def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value = 0):
     """Converts a sparse representation into a dense tensor.
 
     Example::
-    -   sparse_to_dense([[0, 0], [1, 1]], [3, 3], 0, [2, 2]) = [[3, 0], [0, 3]]
+    -   sparse_to_dense([[0, 0], [1, 1]], [2, 2], [3, 3], 0) = [[3, 0], [0, 3]]
 
     Parameters
     ----------
     sparse_indices : tvm.te.Tensor
         A 0-D, 1-D, or 2-D tensor of integers containing location of sparse values.
+
+    output_shape : A list of integers
+        Shape of the dense output tensor.
 
     sparse_values : tvm.te.Tensor
         A 0-D or 1-D tensor containing the sparse values for the sparse indices.
@@ -695,13 +698,10 @@ def sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape):
         A 0-D tensor containing the default value for the remaining locations.
         Defaults to 0.
 
-    output_shape : A list of integers
-        Shape of the dense output tensor.
-
     Returns
     -------
     result : tvm.te.Tensor
         Dense tensor of shape output_shape. Has the same type as sparse_values.
     """
 
-    return cpp.sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape)
+    return cpp.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)

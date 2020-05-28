@@ -1315,17 +1315,17 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
 /*!
  * \brief Get a dense tensor.
  * \param sparse_indices sparse_indices[i] contains the complete index where sparse_values[i] will be placed.
+ * \param output_shape is the shape of the dense output tensor
  * \param sparse_values is a 0-D or 1-D tensor. Values corresponding to each row of sparse_indices
  * \param default_value is a 0-D tensor. Defaults to zero.
- * \param output_shape is the shape of the dense output tensor
  * \param name output tensor name.
  * \param tag output tensor tag.
  * \return Tensor of output_shape.
  */
 inline Tensor sparse_to_dense(const Tensor& sparse_indices,
-                              const Tensor& sparse_values,
-                              const Tensor& default_value,
                               const Array<Integer>& output_shape,
+                              const Tensor& sparse_values,
+                              const PrimExpr& default_value,
                               const std::string name = "T_sparse_to_dense",
                               const std::string tag = kInjective) {
   CHECK(sparse_indices->dtype.is_int())
@@ -1343,7 +1343,7 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices,
     oshape.push_back(l);
   }
   return compute(oshape, [&](const Array<Var>& indices) {
-    PrimExpr ret = default_value[0];
+    PrimExpr ret = default_value;
     if (0 == rank_sparse_indices) {
       ret = if_then_else(indices[0] == sparse_indices[0], sparse_values[0],  ret);
     } else if (1 == rank_sparse_indices) {
