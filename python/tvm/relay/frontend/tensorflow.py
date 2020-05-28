@@ -2775,7 +2775,8 @@ class GraphProto(object):
             if freezed_ops:
                 raise Exception("Graph is not frozen. Provide a frozen graph. "
                                 "Found operators {}".format(freezed_ops))
-            stateful_ops = [op for op in missing_operators if op in self._main_graph_proto._stateful_ops_list]
+            stateful_ops = [op for op in missing_operators
+                            if op in self._main_graph_proto._stateful_ops_list]
             if stateful_ops:
                 raise Exception("Found stateful operators in this graph {}. " \
                                 "Rejecting the graph as TVM does not support stateful operations " \
