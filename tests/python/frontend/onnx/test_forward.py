@@ -2304,6 +2304,76 @@ def test_pooling():
                        auto_pad='SAME_UPPER')
 
 
+def verify_lppool(x_shape, kernel_shape, p, strides, pads, out_shape, auto_pad="NOTSET"):
+    x_np = np.random.uniform(size=x_shape).astype('float32')
+
+    if pads is None:
+        pool_node = helper.make_node("LpPool",
+                                    inputs=["x"],
+                                    outputs=["y"],
+                                    kernel_shape=kernel_shape,
+                                    p = p,
+                                    auto_pad=auto_pad,
+                                    strides=strides)
+    else:
+        pool_node = helper.make_node("LpPool",
+                                    inputs=["x"],
+                                    outputs=["y"],
+                                    kernel_shape=kernel_shape,
+                                    p = p,
+                                    pads=pads,
+                                    strides=strides)
+
+    graph = helper.make_graph([pool_node],
+                              "lppool_test",
+                              inputs=[helper.make_tensor_value_info("x",
+                                                                    TensorProto.FLOAT, list(x_shape))],
+                              outputs=[helper.make_tensor_value_info("y",
+                                                                     TensorProto.FLOAT, list(out_shape))])
+
+    model = helper.make_model(graph, producer_name='lppool_test')
+
+    for target, ctx in ctx_list():
+        onnx_out = get_onnxruntime_output(model, x_np, 'float32')
+        tvm_out = get_tvm_output(
+            model, [x_np], target, ctx, out_shape)
+        tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def test_lppool():
+    # Pool1D
+    verify_lppool(x_shape=[1, 1, 32], kernel_shape=[3], p=2, strides=[1], pads=[1, 1],
+                  out_shape=[1, 1, 32])
+
+    # Pool2D
+    verify_lppool(x_shape=[1, 1, 32, 32], kernel_shape=[3, 3], p=2, strides=[1, 1],
+                  pads=[1, 1, 1, 1], out_shape=[1, 1, 32, 32])
+
+    # Pool1D with stride
+    verify_lppool(x_shape=[1, 1, 32], kernel_shape=[3], p=2, strides=[2], pads=[1, 1],
+                  out_shape=[1, 1, 16])
+
+    # Pool2D with stride
+    verify_lppool(x_shape=[1, 1, 32, 32], kernel_shape=[3, 3], p=2, strides=[2, 2],
+                  pads=[1, 1, 1, 1], out_shape=[1, 1, 16, 16])
+
+    # Pool1D with stride and autopadding
+    verify_lppool(x_shape=[1, 1, 32], kernel_shape=[3], p=2, strides=[2], pads=None,
+                  out_shape=[1, 1, 16], auto_pad='SAME_UPPER')
+
+    # Pool2D with stride and autopadding
+    verify_lppool(x_shape=[1, 1, 32, 32], kernel_shape=[3, 3], p=2, strides=[2, 2],
+                  pads=None, out_shape=[1, 1, 16, 16], auto_pad='SAME_UPPER')
+
+    # Pool3D with stride
+    verify_lppool(x_shape=[1, 1, 32, 32, 32], kernel_shape=[3, 3, 3], p=2, strides=[2, 2, 2],
+                  pads=[1, 1, 1, 1, 1, 1], out_shape=[1, 1, 16, 16, 16])
+
+    # Pool3D with stride and autopadding
+    verify_lppool(x_shape=[1, 1, 32, 32, 32], kernel_shape=[3, 3, 3], p=2, strides=[2, 2, 2],
+                  pads=None, out_shape=[1, 1, 16, 16, 16], auto_pad='SAME_UPPER')
+
+
 def verify_lstm(seq_length,
                 batch_size,
                 input_size,
@@ -2722,6 +2792,7 @@ if __name__ == '__main__':
     test_convtranspose()
     test_unsqueeze_constant()
     test_pooling()
+    test_lppool()
     test_lstm()
     test_resize()
     test_nonzero()
