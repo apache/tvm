@@ -21,9 +21,7 @@ import inspect
 import functools
 
 import tvm._ffi
-
 import tvm.runtime
-from tvm.runtime import ndarray as _nd
 
 from . import _ffi_transform_api
 
