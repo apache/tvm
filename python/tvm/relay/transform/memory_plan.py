@@ -243,7 +243,7 @@ class StorageCoalesce(ExprMutator):
         def _mk_let(bindings, body):
             for var, value in reversed(bindings):
                 assert var
-                assert value
+                assert value is not None
                 assert body
                 body = expr.Let(var, value, body)
                 if var in dynamic_regions:
