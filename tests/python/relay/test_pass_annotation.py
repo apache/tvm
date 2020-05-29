@@ -344,10 +344,10 @@ def run_fusible_network(dev, tgt):
     def test_runtime(target, device, func, fallback_device=None,
                      expected_index=None):
         params = {"x": x_data, "y": y_data}
-        config = {"opt_level": 1}
+        config = {}
         if fallback_device:
-            config["fallback_device"] = fallback_device
-        with relay.build_config(**config):
+            config["relay.fallback_device_type"] = fallback_device.device_type
+        with tvm.transform.PassContext(opt_level=1, config=config):
             graph, lib, params = relay.build(
                 func,
                 target,
@@ -538,9 +538,9 @@ def run_unpropagatable_graph(dev, tgt):
     expected_index = [2, 2, 2, 1, 1, 1, 2, 2]
     check_annotated_graph(annotated_func, expected_func)
     params = {"a": a_data, "b": b_data, "c": c_data, "d": d_data}
-    config = {"opt_level": 0}
-    config["fallback_device"] = fallback_device
-    with relay.build_config(**config):
+    with tvm.transform.PassContext(opt_level=0,
+                                   config={"relay.fallback_device_type":
+                                           fallback_device.device_type}):
         graph, lib, params = relay.build(annotated_func, target, params=params)
         contexts = [tvm.cpu(0), tvm.context(dev)]
         graph_json = json.loads(graph)
