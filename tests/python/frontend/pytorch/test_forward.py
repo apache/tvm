@@ -2209,6 +2209,134 @@ def test_forward_matmul():
     verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
 
 
+def test_forward_pretrained_bert_base_uncased():
+    ######################################################################
+    # This is an example how to run BERT models using TVM
+    # ---------------------------------------------------
+    """
+    Refer the bert example given in https://pypi.org/project/pytorch-pretrained-bert
+
+    # To get started, pretrained bert package needs to be installed as prerequisite.
+
+    .. code-block:: bash
+
+        # install bert package
+        pip install pytorch_pretrained_bert==0.6.2 --user
+    """
+
+    try:
+        from pytorch_pretrained_bert import BertTokenizer, BertForMaskedLM
+    except:
+        print("Torch pretrained bert package must be installed to run this script.")
+        return
+
+    ######################################################################
+    # Load the tokenizer and tokenize the input
+    # -----------------------------------------
+
+    # Load pre-trained model tokenizer (vocabulary)
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+    # Tokenized input
+    text = "[CLS] Who was Jim Henson ? [SEP] Jim Henson was a puppeteer [SEP]"
+    tokenized_text = tokenizer.tokenize(text)
+
+    # Mask a token that we will try to predict back with `BertForMaskedLM`
+    masked_index = 8
+    tokenized_text[masked_index] = '[MASK]'
+    assert tokenized_text == ['[CLS]', 'who', 'was', 'jim', 'henson', '?', '[SEP]', 'jim', '[MASK]', 'was', 'a', 'puppet',
+                              '##eer', '[SEP]']
+
+    # Convert token to vocabulary indices
+    indexed_tokens = tokenizer.convert_tokens_to_ids(tokenized_text)
+    # Define sentence A and B indices associated to 1st and 2nd sentences (see paper)
+    segments_ids = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1]
+
+    # Convert inputs to PyTorch tensors
+    tokens_tensor = torch.tensor([indexed_tokens])
+    segments_tensors = torch.tensor([segments_ids])
+
+    ######################################################################
+    # Load a pretrained PyTorch model bert-base-uncased
+    # -------------------------------------------------
+
+    # Bert Model with a language modeling
+    model = BertForMaskedLM.from_pretrained('bert-base-uncased')
+    model.eval()
+
+    ######################################################################
+    # Predict all tokens with pytorch
+    # -------------------------------
+
+    with torch.no_grad():
+        torch_preds = model(tokens_tensor, segments_tensors)
+
+    ######################################################################
+    # Make TorchScripted model via jit trace
+    # --------------------------------------
+
+    scripted_model = torch.jit.trace(model, (tokens_tensor, segments_tensors)).eval()
+
+    ######################################################################
+    # Import the graph to Relay
+    # -------------------------
+    # Convert PyTorch graph to Relay graph. The input name can be arbitrary.
+
+    input_1 = 'input_ids'
+    input_2 = 'input.2'
+    shape_list = [(input_1, list(tokens_tensor.shape)),
+                  (input_2, list(segments_tensors.shape))]
+
+    mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
+
+    ######################################################################
+    # Compile the model with relay
+    # ----------------------------
+
+    target = 'llvm'
+    with relay.build_config(opt_level=3):
+        relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
+
+    ######################################################################
+    # Execute on TVM
+    # --------------
+
+    ctx = tvm.context(target, 0)
+    relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
+    relay_model.set_input(**relay_params)
+    relay_model.set_input(input_1, tokens_tensor)
+    relay_model.set_input(input_2, segments_tensors)
+    relay_model.run()
+    compiled_output = relay_model.get_output(0).asnumpy()
+
+    ######################################################################
+    # Validate the outputs
+    # --------------------
+    # Compare the torch and tvm outputs
+
+    tvm.testing.assert_allclose(torch_preds, compiled_output, rtol=1e-3, atol=1e-3)
+
+    ######################################################################
+    # Process the output
+    # ------------------
+    # Process the model output to token.
+
+    # Torch output to token
+    torch_pred_idx = torch.argmax(torch_preds[0, masked_index]).item()
+    torch_pred_token = tokenizer.convert_ids_to_tokens([torch_pred_idx])[0]
+
+    # TVM output to token
+    tvm_pred_idx = compiled_output[0, masked_index].argmax()
+    tvm_pred_token = tokenizer.convert_ids_to_tokens([tvm_pred_idx])[0]
+
+    assert torch_pred_idx == tvm_pred_idx
+    assert torch_pred_token == tvm_pred_token
+
+    # Print the outputs
+    print('Torch top-1 id: {}, token: {}'.format(torch_pred_idx, torch_pred_token))
+    print('TVM   top-1 id: {}, token: {}'.format(tvm_pred_idx, tvm_pred_token))
+
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_add()
@@ -2336,3 +2464,6 @@ if __name__ == "__main__":
     from lstm_test import custom_lstm_test
 
     custom_lstm_test()
+
+    # Test bert model
+    test_forward_pretrained_bert_base_uncased()
