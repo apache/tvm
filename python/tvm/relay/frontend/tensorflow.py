@@ -20,11 +20,6 @@
 """TF: Tensorflow frontend."""
 import warnings
 from collections import defaultdict
-try:
-    import tensorflow.compat.v1 as tf
-except ImportError:
-    import tensorflow as tf
-from tensorflow.python.framework import op_def_registry
 
 # Numpy support
 import numpy as np
@@ -2914,6 +2909,7 @@ class GraphProto(object):
                 which are not supported
         """
         missing_operators = set()
+        from tensorflow.python.framework import op_def_registry
         for node in graph.node:
             getOpDef = op_def_registry._registered_ops.get if hasattr(op_def_registry,\
                         "_registered_ops") else op_def_registry.get

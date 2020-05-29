@@ -40,7 +40,6 @@ from tensorflow.python.framework import function
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import dtypes
 from tensorflow.python.ops import gen_functional_ops
-from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
 from distutils.version import LooseVersion
 import tvm
 from tvm import te
