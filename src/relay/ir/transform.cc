@@ -30,6 +30,8 @@ namespace tvm {
 namespace relay {
 namespace transform {
 
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.fallback_device_type", IntImm);
+
 class FunctionPass;
 
 /*!
