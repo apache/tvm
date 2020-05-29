@@ -188,6 +188,7 @@ class BF16LowerRewriter : StmtExprMutator {
       CHECK(op->dtype.is_float() && op->dtype.bits() == 32);
       auto uint32_dtype = DataType(kDLUInt, 32, op_val->dtype.lanes());
       auto uint32_v = CastNode::make(uint32_dtype, op_val);
+      // to be endian invariant. 
       return CallNode::make(op->dtype, CallNode::reinterpret, {uint32_v << 16},
                             CallNode::PureIntrinsic);
 
@@ -198,9 +199,11 @@ class BF16LowerRewriter : StmtExprMutator {
       auto uint32_v =
           CallNode::make(uint32_dtype, CallNode::reinterpret, {op_val}, CallNode::PureIntrinsic);
       auto uint16_dtype = DataType(kDLUInt, 16, op_val->dtype.lanes());
-      // uint32_t rounding_bias = ((U32 >> 16) & 1) + UINT32_C(0x7FFF);
-      // return static_cast<uint16_t>((U32 + rounding_bias) >> 16);
+      /* the following TIR is equivalent to the C++ code below:
+      uint32_t rounding_bias = ((U32 >> 16) & 1) + UINT32_C(0x7FFF);
+      return static_cast<uint16_t>((U32 + rounding_bias) >> 16);*/
       auto rounding_bias = ((uint32_v >> 16) & 1) + make_const(uint16_dtype, 0x7FFF);
+      // to be endian invariant. 
       return CastNode::make(uint16_dtype, {(uint32_v + rounding_bias) >> 16});
     }
     if (op->value.same_as(op_val)) return GetRef<PrimExpr>(op);
