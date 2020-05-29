@@ -24,6 +24,8 @@
 #include <topi/nn.h>
 #include "../../src/ansor/loop_state.h"
 #include "../../src/ansor/serialization.h"
+#include "../../src/ansor/feature.h"
+#include "../../src/ansor/search_policy/meta_tile_rewrite_policy.h"
 
 tvm::Array<tvm::te::Tensor> matmul_func(int n, int m, int k) {
   using namespace tvm;
@@ -84,11 +86,13 @@ tvm::Array<tvm::te::Tensor> conv2d_nchw_bn_relu_func(int N, int H, int W,
   return {data, kernel, bias, bn_scale, bn_offset, out};
 }
 
+using namespace tvm::ansor;
+
 TEST(ComputeDAG, Basic) {
   const auto& tensors = conv2d_nchw_bn_relu_func(1, 224, 224, 3, 64, 7, 2, 3);
-  const auto& dag = tvm::ansor::ComputeDAGNode::make(tensors);
-  const auto& state = tvm::ansor::StateNode::make(dag->ops);
-  CHECK(std::equal_to<tvm::ansor::State>()(state, dag.GetInitState()));
+  const auto& dag = ComputeDAGNode::make(tensors);
+  const auto& state = StateNode::make(dag->ops);
+  CHECK(std::equal_to<State>()(state, dag.GetInitState()));
 
   LOG(INFO) << "\n" << state;
   LOG(INFO) << "\n" << dag;
@@ -96,8 +100,6 @@ TEST(ComputeDAG, Basic) {
 }
 
 TEST(ComputeDAG, GetProducersConsumers) {
-  using namespace tvm::ansor;
-
   const auto& tensors = conv2d_nchw_bn_relu_func(1, 224, 224, 3, 64, 7, 2, 3);
   const auto& dag = tvm::ansor::ComputeDAGNode::make(tensors);
   int data = 0, padding = 1, kernel = 2, conv = 3, bias = 4, bias_add = 5;
@@ -159,8 +161,6 @@ TEST(ComputeDAG, GetProducersConsumers) {
 }
 
 TEST(ComputeDAG, InferBoundSerialization) {
-  using namespace tvm::ansor;
-
   const auto& tensors = matmul_func(512, 512, 512);
   const auto& dag = ComputeDAGNode::make(tensors);
   int A = 0, B = 1, C = 2;
@@ -216,8 +216,6 @@ TEST(ComputeDAG, InferBoundSerialization) {
 }
 
 TEST(Step, SplitFuseReorder) {
-  using namespace tvm::ansor;
-
   const auto& tensors = matmul_func(512, 512, 512);
   const auto& dag = ComputeDAGNode::make(tensors);
 
@@ -257,8 +255,6 @@ TEST(Step, SplitFuseReorder) {
 }
 
 TEST(Step, ComputeAtRootInline) {
-  using namespace tvm::ansor;
-
   const auto& tensors = conv2d_nchw_bn_relu_func(1, 224, 224, 3, 64, 7, 2, 3);
   const auto& dag = tvm::ansor::ComputeDAGNode::make(tensors);
   // int data = 0, padding = 1, kernel = 2;
@@ -334,7 +330,6 @@ TEST(Step, ComputeAtRootInline) {
 TEST(Step, CacheReadWrite) {
   using namespace tvm;
   using namespace tvm::te;
-  using namespace tvm::ansor;
 
   const auto& test_func = []() -> Array<Tensor> {
     int N = 4, H = 7, W = 7, CO = 512, CI = 512, KH = 3, KW = 3, stride = 1;
@@ -591,8 +586,6 @@ TEST(Step, CacheReadWrite) {
 }
 
 TEST(Step, FollowSplitFollowFusedSplit) {
-  using namespace tvm::ansor;
-
   const auto& tensors = matmul_func(512, 512, 512);
   const auto& dag = ComputeDAGNode::make(tensors);
 
@@ -658,6 +651,84 @@ TEST(Step, FollowSplitFollowFusedSplit) {
 
 TEST(Step, Rfactor) {
   // todo
+}
+
+TEST(Feature, ExtractionMatmul) {
+  const auto& tensors = matmul_func(512, 512, 512);
+  const auto& dag = ComputeDAGNode::make(tensors);
+  State s0 = dag.GetInitState();
+
+  Iterator ti = s0->stages[2]->iters[0];
+  Iterator tj = s0->stages[2]->iters[1];
+  Iterator tk = s0->stages[2]->iters[2];
+  std::vector<Iterator> its;
+  its = s0.split(2, ti, {16});
+  Iterator tio = its[0], tii = its[1];
+  its = s0.split(2, tj, {8});
+  Iterator tjo = its[0], tji = its[1];
+  s0.reorder(2, {tio, tjo, tk, tji, tii});
+  s0.vectorize(2, tji);
+  s0.parallel(2, tio);
+  s0.parallel(2, tjo);
+  s0.unroll(2, tk);
+
+  int max_n_bufs = 5;
+  std::vector<std::vector<float>> features;
+  std::vector<std::string> feature_names;
+  GetPerStmtFeatureName(max_n_bufs, &feature_names);
+  GetPerStmtFeaturesFromStates({s0},
+      SearchTaskNode::make(dag, "test", tvm::target::llvm(),
+                           tvm::target::llvm(),
+                           HardwareParams()),
+      max_n_bufs, 0, &features);
+  int num_states = 1;
+  CHECK_EQ(feature_names.size(), (features[0].size() - 1) / num_states);
+  // TODO(...): Add feature check here
+}
+
+namespace tvm {
+namespace ansor {
+class MetaTileRewritePolicyNodeTest {
+ public:
+  MetaTileRewritePolicyNodeTest(CostModel cost_model, SearchTask task) {
+    policy = make_object<MetaTileRewritePolicyNode>();
+    policy->program_cost_model = std::move(cost_model);
+    policy->rand_gen_ = std::mt19937(0);
+    policy->params.Set("cpu_multi_level_tiling_structure",
+                       te::StringImmNode::make("SSRSRS"));
+    policy->params.Set("disable_change_compute_location",
+                       IntImm(DataType::Int(32), 0));
+    policy->cur_task_ = task;
+  }
+  void SynthesizeMetaStructure(std::vector<State>* meta_structures) {
+    policy->SynthesizeMetaStructure(meta_structures);
+  }
+  void SampleInitPopulation(const std::vector<State>& meta_structures,
+      int out_size, std::vector<State>* out_states) {
+    policy->SampleInitPopulation(meta_structures, out_size, out_states);
+  }
+  tvm::runtime::ObjectPtr<tvm::ansor::MetaTileRewritePolicyNode> policy;
+};
+}  // namespace ansor
+}  // namespace tvm
+
+TEST(MetaTileRewritePolicy, Basic) {
+  const auto& tensors = matmul_func(512, 512, 512);
+  const auto& dag = ComputeDAGNode::make(tensors);
+  const auto& task = SearchTaskNode::make(
+      dag, "test", tvm::target::llvm(), tvm::target::llvm(), HardwareParams());
+  const auto& cost_model = RandomModelNode::make();
+  MetaTileRewritePolicyNodeTest test(cost_model, task);
+
+  std::vector<State> meta_structures, init_population;
+  test.SynthesizeMetaStructure(&meta_structures);
+  CHECK_GE(meta_structures.size(), 0);
+  LOG(INFO) << "SynthesizeMetaStructure get " << meta_structures.size()
+            << " states.";
+  test.SampleInitPopulation(meta_structures, 100, &init_population);
+  CHECK_GE(init_population.size(), 0);
+  LOG(INFO) << "SampleInitPopulation get " << init_population.size()
+            << " states.";
 }
 
 int main(int argc, char** argv) {
