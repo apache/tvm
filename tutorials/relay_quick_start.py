@@ -96,7 +96,7 @@ print(mod.astext(show_meta_data=False))
 
 opt_level = 3
 target = tvm.target.cuda()
-with relay.build_config(opt_level=opt_level):
+with tvm.transform.PassContext(opt_level=opt_level):
     graph, lib, params = relay.build(mod, target, params=params)
 
 #####################################################################

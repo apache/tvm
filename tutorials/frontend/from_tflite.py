@@ -135,7 +135,7 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 
 # Build the module against to x86 CPU
 target = "llvm"
-with relay.build_config(opt_level=3):
+with tvm.transform.PassContext(opt_level=3):
     graph, lib, params = relay.build(mod, target, params=params)
 
 ######################################################################

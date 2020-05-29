@@ -505,7 +505,7 @@ def infer_value(input_val, params, mod=None):
         assert all(var.name_hint in params.keys() for var in analysis.free_vars(
             input_val)), "All inputs to infer must be available in params."
         func = _function.Function(analysis.free_vars(input_val), input_val)
-        with tvm.relay.build_config(opt_level=0):
+        with tvm.transform.PassContext(opt_level=0):
             graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
         ctx = tvm.cpu(0)
         m = graph_runtime.create(graph, lib, ctx)

@@ -33,7 +33,7 @@ from util import get_network
 def benchmark(network, target):
     net, params, input_shape, output_shape = get_network(network, batch_size=1)
 
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(net, target=target, params=params)
 
     # create runtime

@@ -74,7 +74,7 @@ shape_dict = {'image': x.shape}
 # Parse CoreML model and convert into Relay computation graph
 mod, params = relay.frontend.from_coreml(mlmodel, shape_dict)
 
-with relay.build_config(opt_level=3):
+with tvm.transform.PassContext(opt_level=3):
     graph, lib, params = relay.build(mod,
                                      target,
                                      params=params)

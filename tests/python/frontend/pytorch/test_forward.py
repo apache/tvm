@@ -176,7 +176,7 @@ def verify_model(model_name, input_data=[],
     compiled_input = dict(zip(input_names,
                               [inp.cpu().numpy() for inp in baseline_input]))
 
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         for target, ctx in ctx_list:
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
             relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
@@ -2294,7 +2294,7 @@ def test_forward_pretrained_bert_base_uncased():
     # ----------------------------
 
     target = 'llvm'
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
 
     ######################################################################

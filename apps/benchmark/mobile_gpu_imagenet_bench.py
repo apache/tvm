@@ -38,7 +38,7 @@ def evaluate_network(network, target, target_host, dtype, repeat):
     net, params, input_shape, output_shape = get_network(network, batch_size=1, dtype=dtype)
 
     print_progress("%-20s building..." % network)
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(
             net, target=target, target_host=target_host, params=params)
 

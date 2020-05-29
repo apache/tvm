@@ -87,7 +87,7 @@ block = model_zoo.get_model(model_name, pretrained=True)
 
 def build(target):
     mod, params = relay.frontend.from_mxnet(block, {"data": dshape})
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(mod, target, params=params)
     return graph, lib, params
 

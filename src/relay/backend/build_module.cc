@@ -304,9 +304,8 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Handle heterogeneous compilation.
     transform::PassContext pass_ctx = PassContext::Current();
     if (targets_.size() > 1) {
-      Optional<IntImm> opt_fallback_dev =
-          pass_ctx->GetConfig("relay.fallback_device_type",
-                              IntImm(runtime::DataType::Int(32), static_cast<int>(kDLCPU)));
+      Optional<Integer> opt_fallback_dev =
+          pass_ctx->GetConfig("relay.fallback_device_type", Integer(static_cast<int>(kDLCPU)));
       auto fallback_dev = opt_fallback_dev.value();
       CHECK_GT(fallback_dev->value, 0U);
       relay_module = RunDeviceAnnotationPass(relay_module, fallback_dev->value);

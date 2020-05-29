@@ -92,7 +92,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 
     # Perform quantization in Relay
     # Note: We set opt_level to 3 in order to fold batch norm
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         with relay.quantize.qconfig(global_scale=8.0, skip_conv_layers=[0]):
             mod = relay.quantize.quantize(mod, params=params)
 
