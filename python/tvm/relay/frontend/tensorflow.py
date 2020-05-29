@@ -20,6 +20,10 @@
 """TF: Tensorflow frontend."""
 import warnings
 from collections import defaultdict
+try:
+    import tensorflow.compat.v1 as tf
+except ImportError:
+    import tensorflow as tf
 from tensorflow.python.framework import op_def_registry
 
 # Numpy support
