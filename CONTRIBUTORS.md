@@ -43,7 +43,7 @@ We do encourage everyone to work anything they are interested in.
 - [Tianqi Chen](https://github.com/tqchen) (PPMC): @tqchen - topi, compiler, relay, docs
 - [Liangfu Chen](https://github.com/liangfu): @liangfu - vta, chisel, intel FPGA, c runtime
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
-- [Zhi Chen](https://github.com/zhiics): @zhiics - relay, quantization, pass manager
+- [Zhi Chen](https://github.com/zhiics) (PPMC): @zhiics - relay, quantization, pass manager
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Animesh Jain](https://github.com/anijain2305): @anijain2305 - quantization, relay
