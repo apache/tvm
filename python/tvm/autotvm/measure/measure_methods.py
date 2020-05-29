@@ -34,9 +34,9 @@ import tempfile
 import numpy as np
 
 import tvm._ffi
+import tvm.ir.transform
 from tvm import nd, rpc as _rpc, target as _target
 from tvm.error import TVMError
-from tvm.target import build_config
 from tvm.driver import build
 from tvm.contrib import nvcc, ndk, tar
 
@@ -231,7 +231,7 @@ class RPCRunner(Runner):
     def get_build_kwargs(self):
         kwargs = {}
         if 'cuda' in self.task.target.keys or 'opencl' in self.task.target.keys or \
-           'rocm' in self.task.target.keys:
+           'rocm' in self.task.target.keys or 'vulkan' in self.task.target.keys:
             remote = request_remote(self.key, self.host, self.port)
             ctx = remote.context(str(self.task.target), 0)
             max_dims = ctx.max_thread_dimensions
@@ -246,7 +246,7 @@ class RPCRunner(Runner):
             if 'cuda' in self.task.target.keys:
                 kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split('.'))
         if self.task.target.device_name == 'micro_dev':
-            kwargs.setdefault('build_option', {})['disable_vectorize'] = True
+            kwargs.setdefault('build_option', {})['tir.disable_vectorize'] = True
 
         return kwargs
 
@@ -360,7 +360,7 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
 
         opts = build_option or {}
         if check_gpu:  # Add verify pass to filter out invalid configs in advance.
-            opts["add_lower_pass"] = [(2, gpu_verify_pass(**check_gpu))]
+            opts["tir.add_lower_pass"] = [(2, gpu_verify_pass(**check_gpu))]
         if cuda_arch:
             set_cuda_target_arch(cuda_arch)
 
@@ -371,7 +371,7 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
             import vta
             func = vta.build(s, args, target_host=task.target_host)
         else:
-            with build_config(**opts):
+            with tvm.ir.transform.PassContext(config=opts):
                 func = build(s, args, target_host=task.target_host)
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 

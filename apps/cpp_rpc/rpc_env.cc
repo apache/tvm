@@ -69,7 +69,7 @@ namespace runtime {
 RPCEnv::RPCEnv() {
 #ifndef _WIN32
   char cwd[PATH_MAX];
-  if (char* rc = getcwd(cwd, sizeof(cwd))) {
+  if (getcwd(cwd, sizeof(cwd))) {
     base_ = std::string(cwd) + "/rpc";
   } else {
     base_ = "./rpc";

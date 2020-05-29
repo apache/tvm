@@ -93,7 +93,7 @@ class IdNode : public Object {
    *  this only acts as a hint to the user,
    *  and is not used for equality.
    */
-  std::string name_hint;
+  String name_hint;
 
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("name_hint", &name_hint); }
 
@@ -107,7 +107,7 @@ class Id : public ObjectRef {
    * \brief The constructor
    * \param name_hint The name of the variable.
    */
-  TVM_DLL explicit Id(std::string name_hint);
+  TVM_DLL explicit Id(String name_hint);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
 };

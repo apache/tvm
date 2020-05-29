@@ -44,15 +44,11 @@
 
 #include "../analysis/annotated_region_set.h"
 #include "../backend/utils.h"
+#include "pass_util.h"
 
 namespace tvm {
 namespace relay {
 namespace partitioning {
-
-// Cache compiler_begin and compiler_end annotation ops for equivalence check to
-// reduce registry lookup overhead.
-static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
-static const Op& compiler_end_op = Op::Get("annotation.compiler_end");
 
 /*! \brief This struct maintains the required metadata for a region to generate a corresponding
  * global function and function call. Global function will be passed to the target specific codegen
@@ -123,8 +119,7 @@ class Partitioner : public MixedModeMutator {
       BaseFunc f_func = f.second;
 
       // Creating regionset per function in the module.
-      auto region_set = AnnotatedRegionSet::Create(f_func, partitioning::compiler_begin_op,
-                                                   partitioning::compiler_end_op);
+      auto region_set = AnnotatedRegionSet::Create(f_func, CompilerBeginOp(), CompilerEndOp());
       regions_sets_[region_set] = f_func;
     }
   }
@@ -133,7 +128,7 @@ class Partitioner : public MixedModeMutator {
     auto op_node = call->op.as<OpNode>();
     if (op_node == nullptr || call->attrs.as<CompilerAttrs>() == nullptr) {
       return post;
-    } else if (call->op == compiler_begin_op) {
+    } else if (call->op == CompilerBeginOp()) {
       // The annotation node is inserted on edge so it must have only one argument.
       CHECK_EQ(call->args.size(), 1U);
 
@@ -143,7 +138,7 @@ class Partitioner : public MixedModeMutator {
 
       // Backtrace the parent to find the first ancestor node that is not a begin or end op
       while (const auto* parent_call = parent.as<CallNode>()) {
-        if (parent_call->op == compiler_begin_op || parent_call->op == compiler_end_op) {
+        if (parent_call->op == CompilerBeginOp() || parent_call->op == CompilerEndOp()) {
           parent = parent_call->args[0];
         } else {
           break;
@@ -174,7 +169,7 @@ class Partitioner : public MixedModeMutator {
         return std::move(var);
       }
     } else {
-      CHECK_EQ(call->op, compiler_end_op);
+      CHECK_EQ(call->op, CompilerEndOp());
       // The annotation node is inserted on edge so it must have only one
       // argument.
       CHECK_EQ(call->args.size(), 1U);
@@ -404,21 +399,90 @@ IRModule RemoveDefaultAnnotations(IRModule module) {
   return module;
 }
 
+/*! \brief There can be regions with multiple outputs where each output
+ *  could be a tuple output. Such tuple outputs needs to be flattened
+ *  otherwise the function would create tuples of tuples. Moreover, tuple
+ *  of tuples are valid relay, however they are not currently supported by
+ *  graph runtime or relay VM.
+ */
+
+// New annotations would be required to be added for each flattened output
+const PackedFunc* make_end_op = runtime::Registry::Get("relay.op.annotation._make.compiler_end");
+
+IRModule FlattenTupleOutputs(IRModule module) {
+  class TupleOutFlattener : public ExprRewriter {
+   public:
+    TupleOutFlattener() = default;
+
+    Expr Rewrite_(const CallNode* call, const Expr& post) final {
+      if (call->op == CompilerEndOp()) {
+        std::string target = call->attrs.as<CompilerAttrs>()->compiler;
+        // Arguments of annotation ops should be 1
+        CHECK_EQ(call->args.size(), 1U);
+        auto annotated_op = Downcast<Call>(post)->args[0];
+        if (const auto* tn = annotated_op.as<TupleNode>()) {
+          Array<Expr> new_fields;
+
+          // Here each input of the tuple will be annotated with compiler_ends
+          for (auto& tn_arg : tn->fields) {
+            new_fields.push_back((*make_end_op)(tn_arg, target));
+          }
+
+          // Return a tuple of compiler_ends in the place of the tuple that was
+          // annotated with a compiler_end.
+          auto out = Tuple(new_fields);
+          return std::move(out);
+        }
+      }
+      return post;
+    }
+  };
+
+  auto glob_funcs = module->functions;
+  // module is mutable, hence, we make a copy of it.
+  module.CopyOnWrite();
+  for (const auto& pair : glob_funcs) {
+    if (auto* fn = pair.second.as<FunctionNode>()) {
+      auto func = GetRef<Function>(fn);
+      TupleOutFlattener to_flattener;
+      auto removed = PostOrderRewrite(func->body, &to_flattener);
+      func = Function(func->params, removed, func->ret_type, func->type_params, func->attrs);
+      module->Update(pair.first, func);
+    }
+  }
+  return module;
+}
+
 }  // namespace partitioning
 
 namespace transform {
 
 Pass PartitionGraph() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func = [=](IRModule m,
-                                                                            PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> flatten_tuples = [=](IRModule m,
+                                                                                 PassContext pc) {
+    // There could be compiler_end annotations on tuples
+    // If the corresponding region is having multiple compiler_ends,
+    // this would lead to creation of tuples of tuples.
+    // Thus, we flatten the tuples by transfering the compiler_end to
+    // the tuple inputs.
+    return partitioning::FlattenTupleOutputs(m);
+  };
+
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> remove_defaults = [=](IRModule m,
+                                                                                  PassContext pc) {
     // TODO(@comaniac, @zhiics): We should also handle the annotation with "default" attribute
     // by treating them as un-annotated, but we don't have it yet. This workaround pass removes
     // all "default" annotations and should be deleted in the future.
-    auto new_m = partitioning::RemoveDefaultAnnotations(m);
-    return partitioning::Partitioner(new_m).Partition();
+    return partitioning::RemoveDefaultAnnotations(m);
   };
-  auto partitioned = CreateModulePass(part_func, 0, "PartitionGraph", {});
-  return Sequential({partitioned, InferType()});
+
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func =
+      [=](IRModule m, PassContext pc) { return partitioning::Partitioner(m).Partition(); };
+
+  auto flatten_tuples_pass = CreateModulePass(flatten_tuples, 0, "FlattenNestedTuples", {});
+  auto remove_default_pass = CreateModulePass(remove_defaults, 0, "RemoveDefaultAnnotations", {});
+  auto partition_pass = CreateModulePass(part_func, 0, "PartitionGraph", {});
+  return Sequential({flatten_tuples_pass, remove_default_pass, partition_pass, InferType()});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.PartitionGraph").set_body_typed(transform::PartitionGraph);

@@ -384,23 +384,22 @@ def test_gemm_bound():
 
 def test_bound_tensor_compute_op():
     def intrin_test():
-      m1 = te.var("m1")
-      n1 = te.var("n1")
-      a = te.placeholder((m1, n1), name='a')
-      c = te.compute((1, n1), lambda i, j : a[0, j] + a[1, j] + a[2, j], name='c')
+        m1 = te.var("m1")
+        n1 = te.var("n1")
+        a = te.placeholder((m1, n1), name='a')
+        c = te.compute((1, n1), lambda i, j : a[0, j] + a[1, j] + a[2, j], name='c')
 
-      Ab = tvm.tir.decl_buffer(a.shape, name="Abuf", offset_factor=1)
-      Cb = tvm.tir.decl_buffer(c.shape, name="Cbuf", offset_factor=1)
+        Ab = tvm.tir.decl_buffer(a.shape, name="Abuf", offset_factor=1)
+        Cb = tvm.tir.decl_buffer(c.shape, name="Cbuf", offset_factor=1)
 
-      def intrin_func(ins, outs):
-        aa = ins[0]
-        cc = outs[0]
-        def _body():
-          ib = tvm.tir.ir_builder.create()
-          ib.emit(tvm.tir.call_extern("int32", "test", cc.access_ptr("w"), aa.access_ptr("r")))
-          return ib.get()
-        return _body()
-      with tvm.target.build_config(offset_factor=1):
+        def intrin_func(ins, outs):
+            aa = ins[0]
+            cc = outs[0]
+            def _body():
+                ib = tvm.tir.ir_builder.create()
+                ib.emit(tvm.tir.call_extern("int32", "test", cc.access_ptr("w"), aa.access_ptr("r")))
+                return ib.get()
+            return _body()
         return te.decl_tensor_intrin(c.op, intrin_func, binds={a : Ab, c : Cb})
 
     test_func = intrin_test()

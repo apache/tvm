@@ -86,7 +86,7 @@ bool BitPackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 Expr MakeBitPack(Expr data, int bits, int pack_axis, int bit_axis, DataType pack_type,
-                 std::string name) {
+                 String name) {
   auto attrs = make_object<BitPackAttrs>();
   attrs->bits = bits;
   attrs->pack_axis = pack_axis;
@@ -150,7 +150,7 @@ bool BinaryConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 // used by frontend FFI.
 Expr MakeBinaryConv2D(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
                       IndexExpr channels, Array<IndexExpr> kernel_size, int activation_bits,
-                      int weight_bits, std::string data_layout, std::string kernel_layout,
+                      int weight_bits, String data_layout, String kernel_layout,
                       DataType pack_dtype, DataType out_dtype, bool unipolar) {
   auto attrs = make_object<BinaryConv2DAttrs>();
   attrs->strides = std::move(strides);

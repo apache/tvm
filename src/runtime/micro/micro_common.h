@@ -132,6 +132,9 @@ class TargetVal {
     value_ = other.value_ & Bitmask();
     return *this;
   }
+
+ private:
+  friend std::ostream& operator<<(std::ostream& os, const TargetVal& v);
 };
 
 // TODO(weberlo, areusch): just get rid of `TargetPtr`.
@@ -201,6 +204,8 @@ class TargetPtr {
  private:
   /*! \brief raw value storing the pointer */
   TargetVal value_;
+
+  friend std::ostream& operator<<(std::ostream& os, const TargetPtr& v);
 };
 
 /*!

@@ -368,12 +368,23 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   auto tuple = TupleType(func_type->arg_types);
   auto in_types = FlattenTupleType(tuple);
   auto out_types = FlattenTupleType(func_type->ret_type);
+  Array<Integer> is_input;
+  for (size_t i = 0; i < func_type->arg_types.size(); ++i) {
+    auto const& aty = func_type->arg_types[i];
+    size_t num_types = 1;
+    if (aty.as<TupleTypeNode>()) {
+      num_types = FlattenTupleType(aty).size();
+    }
+    for (size_t j = 0; j < num_types; ++j) {
+      is_input.push_back(shape_func_attrs->is_input[i]);
+    }
+  }
 
   Array<Type> shape_func_ins, shape_func_outs;
   for (size_t i = 0; i < in_types.size(); i++) {
     auto in_type = in_types[i];
 
-    if (shape_func_attrs->is_input[i]) {
+    if (is_input[i]) {
       shape_func_ins.push_back(in_type);
     } else {
       auto shape = RankShape(in_type->shape);

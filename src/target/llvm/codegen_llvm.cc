@@ -156,6 +156,21 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   builder_->SetInsertPoint(entry);
   this->VisitStmt(f->body);
 
+  // Add alignment attribute if needed.
+#if TVM_LLVM_VERSION >= 50
+  for (size_t i = 0; i < f->params.size(); ++i) {
+    const Var& var = f->params[i];
+    auto f = alloc_storage_info_.find(var.get());
+    if (f != alloc_storage_info_.end()) {
+      unsigned align = f->second.alignment;
+      if (align > 1) {
+        auto attr = llvm::Attribute::get(*ctx_, llvm::Attribute::Alignment, align);
+        function_->addParamAttr(i, attr);
+      }
+    }
+  }
+#endif
+
   if (ret_void) {
     builder_->CreateRetVoid();
   } else {
@@ -721,7 +736,40 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
 #endif  // TVM_LLVM_VERSION
 }
 
+// Check if this is a warp shuffle intrinsic call and match its
+// corresponding nvvm intrinsic. Return true if the match is successful.
+static bool GetWarpShuffleIntrinsic(const CallNode* op, llvm::Intrinsic::ID* id) {
+  // Only 32 bit data type is supported.
+  if (op->dtype.is_vector() || op->dtype.bits() != 32) {
+    return false;
+  }
+
+  // Intrinsic lookup table.
+  // It is difficult to emit _sync verion that works on Pascal.
+  // We ignore the mask and only emit the non-sync version for nvptx.
+  llvm::Intrinsic::ID ids[] = {
+      llvm::Intrinsic::nvvm_shfl_idx_i32,  llvm::Intrinsic::nvvm_shfl_idx_f32,
+      llvm::Intrinsic::nvvm_shfl_up_i32,   llvm::Intrinsic::nvvm_shfl_up_f32,
+      llvm::Intrinsic::nvvm_shfl_down_i32, llvm::Intrinsic::nvvm_shfl_down_f32};
+
+  int offset = 0;
+  if (op->is_intrinsic(intrinsic::tvm_warp_shuffle)) {
+    offset = 0;
+  } else if (op->is_intrinsic(intrinsic::tvm_warp_shuffle_up)) {
+    offset = 2;
+  } else if (op->is_intrinsic(intrinsic::tvm_warp_shuffle_down)) {
+    offset = 4;
+  } else {
+    return false;
+  }
+
+  *id = ids[offset + op->dtype.is_float()];
+  return true;
+}
+
 llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
+  llvm::Intrinsic::ID id = llvm::Intrinsic::not_intrinsic;
+
   if (op->is_intrinsic("llvm_intrin")) {
     CHECK_GE(op->args.size(), 2U);
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(Downcast<IntImm>(op->args[0])->value);
@@ -766,6 +814,25 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     }
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
     return CreateStorageSync(op);
+  } else if (GetWarpShuffleIntrinsic(op, &id)) {
+    std::vector<llvm::Value*> arg_value;
+    std::vector<llvm::Type*> arg_type;
+    // Ignore the first mask operand and remove the last
+    // redundant warp_size..
+    size_t n_args = op->args.size() - 1;
+    for (size_t i = 1; i < n_args; ++i) {
+      arg_value.push_back(MakeValue(op->args[i]));
+      arg_type.push_back(arg_value.back()->getType());
+    }
+    llvm::Type* return_type = arg_type[0];
+    llvm::Function* func = GetIntrinsicDecl(id, return_type, arg_type);
+    return builder_->CreateCall(func, arg_value);
+  } else if (op->is_intrinsic(intrinsic::tvm_warp_activemask)) {
+    // Only nvptx target may keep this intrinsic at this point.
+    // PTX assembly: asm "activemask.b32 r1;"
+    auto fty = llvm::FunctionType::get(t_int32_, false);
+    auto val = llvm::InlineAsm::get(fty, "activemask.b32 %0", "=r", true);
+    return builder_->CreateCall(val);
   } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
     const LoadNode* l = op->args[0].as<LoadNode>();
     CHECK(op->args.size() == 1 && l);
@@ -1250,6 +1317,10 @@ void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     alloc_storage_info_[v].alignment = static_cast<int>(op->value.as<IntImmNode>()->value);
+    if (var_map_.count(v) && alloc_storage_info_[v].alignment > 1) {
+      builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
+                                          alloc_storage_info_[v].alignment);
+    }
   } else if (op->attr_key == tir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
@@ -1264,14 +1335,19 @@ void CodeGenLLVM::VisitStmt_(const AssertStmtNode* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const LetStmtNode* op) {
-  CHECK(!var_map_.count(op->var.get()));
-  if (op->var.dtype().is_handle()) {
+  const VarNode* v = op->var.get();
+  CHECK(!var_map_.count(v));
+  if (v->dtype.is_handle()) {
     if (!is_restricted_) {
-      alias_var_set_.insert(op->var.get());
+      alias_var_set_.insert(v);
     }
   }
-  var_map_[op->var.get()] = MakeValue(op->value);
+  var_map_[v] = MakeValue(op->value);
   analyzer_->Bind(op->var, op->value);
+  if (alloc_storage_info_.count(v) && alloc_storage_info_[v].alignment > 1) {
+    builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
+                                        alloc_storage_info_[v].alignment);
+  }
   this->VisitStmt(op->body);
 }
 

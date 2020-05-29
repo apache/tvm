@@ -355,6 +355,48 @@ def test_forward_gather():
         _test_gather((1, 3, 3), [20, 20], 2, 'float32', quantized, oob=True)
 
 #######################################################################
+# Gather_ND
+# ---------
+
+def _test_gather_nd(data, indices):
+    """ One iteration of GATHER_ND """
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(shape=data.shape, dtype=data.dtype, name="data")
+        indices_data = tf.placeholder(shape=indices.shape, dtype=indices.dtype,
+                                        name="indices")
+        out = tf.gather_nd(in_data, indices_data)
+
+        compare_tflite_with_tvm([data, indices], ['data:0', 'indices:0'],
+                                  [in_data, indices_data], [out])
+
+def test_forward_gather_nd():
+    """ GATHER_ND """
+    _test_gather_nd(
+        np.array([[[1.2, 2.0], [3.1, 4.1]], [[5.1, 6.1], [7.1, 8.1]]]).astype('float32'),
+        np.asarray([[0, 1], [1, 0]]).astype('int32')
+    )
+    _test_gather_nd(
+        np.reshape(np.arange(30), [5, 6]).astype('int32'),
+        np.asarray([[1, 2]]).astype('int32')
+    )
+    _test_gather_nd(
+        np.reshape(np.arange(12), [2, 3, 2]).astype('int32'),
+        np.asarray([[[0, 0], [0, 1]], [[1, 0], [1, 1]]]).astype('int32')
+    )
+    _test_gather_nd(
+        np.reshape(np.arange(4), [4]).astype('float32'),
+        np.asarray([1]).astype('int32')
+    )
+    _test_gather_nd(
+        np.reshape(np.arange(4), [1, 4]).astype('float32'),
+        np.asarray([0]).astype('int32')
+    )
+    _test_gather_nd(
+        np.reshape(np.arange(4), [1, 4]).astype('float32'),
+        np.asarray([0, 3]).astype('int32')
+    )
+
+#######################################################################
 # StridedSlice
 # ------------
 
@@ -1523,6 +1565,48 @@ def test_forward_squeeze():
 
 
 #######################################################################
+# Quantize/DeQuantize
+# -------------------
+
+def _test_quantize_dequantize(data):
+    """ One iteration of quantize and dequantize """
+
+    # Define a dummy model
+    data_in = tf.keras.layers.Input(shape=data.shape[1:])
+    act_func =  tf.keras.layers.Activation('linear')
+    keras_model = tf.keras.models.Model(data_in, act_func(data_in))
+
+    # Load the model
+    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
+
+    # To create quantized values with dynamic range of activations, needs representative dataset
+    def representative_data_gen():
+        for i in range(100):
+            yield [data]
+
+    converter.optimizations = [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
+    converter.representative_dataset = representative_data_gen
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    converter.inference_input_type = tf.uint8
+    converter.inference_output_type = tf.uint8
+
+    # Convert the model to TensorFlow Lite format
+    tflite_model_quant = converter.convert()
+
+    tflite_output = run_tflite_graph(tflite_model_quant, data)
+    tvm_output = run_tvm_graph(tflite_model_quant, data, 'input_1')
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-5, atol=1e-5)
+
+
+def test_forward_quantize_dequantize():
+    """ Quantize Dequantize """
+    data = np.random.uniform(0, 1, (1, 4, 4, 3)).astype("float32")
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.0.0'):
+        _test_quantize_dequantize(data)
+
+
+#######################################################################
 # Pad
 # ---
 
@@ -2217,10 +2301,12 @@ if __name__ == '__main__':
     test_forward_slice()
     test_forward_topk()
     test_forward_gather()
+    test_forward_gather_nd()
     test_forward_stridedslice()
     test_forward_depthtospace()
     test_forward_spacetodepth()
     test_forward_select()
+    test_forward_quantize_dequantize()
 
     # NN
     test_forward_convolution()

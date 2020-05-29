@@ -447,44 +447,6 @@ RELAY_REGISTER_OP("transpose")
 /* relay.reshape */
 TVM_REGISTER_NODE_TYPE(ReshapeAttrs);
 
-double ToScalar(const runtime::NDArray& array, int i = 0) {
-  if (array->dtype.code == kDLInt) {
-    if (array->dtype.bits == 8) {
-      return reinterpret_cast<int8_t*>(array->data)[i];
-    } else if (array->dtype.bits == 16) {
-      return reinterpret_cast<int16_t*>(array->data)[i];
-    } else if (array->dtype.bits == 32) {
-      return reinterpret_cast<int32_t*>(array->data)[i];
-    } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<int64_t*>(array->data)[i];
-    }
-  } else if (array->dtype.code == kDLUInt) {
-    if (array->dtype.bits == 8) {
-      return reinterpret_cast<uint8_t*>(array->data)[i];
-    } else if (array->dtype.bits == 16) {
-      return reinterpret_cast<uint16_t*>(array->data)[i];
-    } else if (array->dtype.bits == 32) {
-      return reinterpret_cast<uint32_t*>(array->data)[i];
-    } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<uint64_t*>(array->data)[i];
-    }
-  } else if (array->dtype.code == kDLFloat) {
-#if (__ARM_FP16_FORMAT_IEEE == 1)
-    if (array->dtype.bits == 16) {
-      return reinterpret_cast<__fp16*>(array->data)[i];
-    }
-#endif
-    if (array->dtype.bits == 32) {
-      return reinterpret_cast<float*>(array->data)[i];
-    } else if (array->dtype.bits == 64) {
-      return reinterpret_cast<double*>(array->data)[i];
-    }
-  }
-  LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
-  // make compiler happy
-  return -std::numeric_limits<double>::infinity();
-}
-
 bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                 const TypeReporter& reporter) {
   const auto* param = attrs.as<ReshapeAttrs>();
@@ -509,8 +471,8 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (param->newshape) {
     auto temp = param->newshape.value();
     if (param->reverse) {
-      data_shape.assign(data->shape.rbegin(), data->shape.rend());
-      newshape.assign(temp.rbegin(), temp.rend());
+      data_shape.Assign(data->shape.rbegin(), data->shape.rend());
+      newshape.Assign(temp.rbegin(), temp.rend());
     } else {
       data_shape = data->shape;
       newshape = temp;
@@ -663,11 +625,7 @@ Expr MakeReshape(Expr data, Expr newshape) {
   auto attrs = make_object<ReshapeAttrs>();
   if (const ConstantNode* c = newshape.as<ConstantNode>()) {
     CHECK_EQ(c->data->ndim, 1);
-    Array<Integer> newshape;
-    for (int i = 0; i < c->data->shape[0]; i++) {
-      newshape.push_back(Integer(static_cast<int>(ToScalar(c->data, i))));
-    }
-    attrs->newshape = newshape;
+    attrs->newshape = ToVector(c->data);
   }
   attrs->reverse = false;
   static const Op& op = Op::Get("reshape");
@@ -882,7 +840,7 @@ Array<te::Tensor> TakeCompute(const Attrs& attrs, const Array<te::Tensor>& input
   }
 }
 
-Expr MakeTake(Expr data, Expr indices, Integer axis, std::string mode) {
+Expr MakeTake(Expr data, Expr indices, Integer axis, String mode) {
   auto attrs = make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
   attrs->mode = std::move(mode);
@@ -929,9 +887,10 @@ TVM_REGISTER_NODE_TYPE(InitOpAttrs);
 
 bool FullRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
              const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
+  CHECK_EQ(types.size(), 3);
   const InitOpAttrs* param = attrs.as<InitOpAttrs>();
   const auto* fill_value = types[0].as<TensorTypeNode>();
+  const auto* fill_shape = types[1].as<TensorTypeNode>();
   if (fill_value == nullptr) {
     return false;
   }
@@ -944,7 +903,21 @@ bool FullRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK_EQ(fill_value->shape.size(), 0)
       << "Fill value should be a scalar but has dimension " << fill_value->shape.size() << ".";
 
-  reporter->Assign(types[1], TensorType(param->shape, out_dtype));
+  const IntImmNode* shape_shape = fill_shape->shape[0].as<IntImmNode>();
+  CHECK(shape_shape) << "Parameter shape must have static shape";
+
+  std::vector<IndexExpr> oshape;
+  if (param->shape) {
+    const Array<Integer>& cshape_array = param->shape.value();
+    for (size_t i = 0; i < cshape_array.size(); ++i) {
+      oshape.push_back(cshape_array[i]);
+    }
+  } else {
+    for (int i = 0; i < shape_shape->value; ++i) {
+      oshape.push_back(Any::make());
+    }
+  }
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 
@@ -954,12 +927,14 @@ Array<te::Tensor> FullCompute(const Attrs& attrs, const Array<te::Tensor>& input
   return {topi::full(out_ttype->shape, out_ttype->dtype, inputs[0]())};
 }
 
-Expr MakeFull(Expr fill_value, Array<IndexExpr> shape, DataType dtype) {
+Expr MakeFull(Expr fill_value, Expr shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
-  attrs->shape = std::move(shape);
+  if (const auto* cshape = shape.as<ConstantNode>()) {
+    attrs->shape = ToVector(cshape->data);
+  }
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("full");
-  return Call(op, {fill_value}, Attrs(attrs), {});
+  return Call(op, {fill_value, shape}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.full").set_body_typed(MakeFull);
@@ -969,8 +944,9 @@ RELAY_REGISTER_OP("full")
 
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<InitOpAttrs>()
-    .set_num_inputs(1)
+    .set_num_inputs(2)
     .add_argument("fill_value", "double", "The value to fill.")
+    .add_argument("shape", "Tensor", "Target shape.")
     .set_support_level(3)
     .add_type_rel("Full", FullRel)
     .set_attr<FTVMCompute>("FTVMCompute", FullCompute)
@@ -978,19 +954,37 @@ RELAY_REGISTER_OP("full")
 
 bool InitOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 1);
+  CHECK_EQ(types.size(), 2);
   const InitOpAttrs* param = attrs.as<InitOpAttrs>();
+  const auto* fill_shape = types[0].as<TensorTypeNode>();
+  DataType out_dtype = param->dtype;
 
-  reporter->Assign(types[0], TensorType(param->shape, param->dtype));
+  const IntImmNode* shape_shape = fill_shape->shape[0].as<IntImmNode>();
+  CHECK(shape_shape) << "Parameter shape must have static shape";
+
+  std::vector<IndexExpr> oshape;
+  if (param->shape) {
+    const Array<Integer>& cshape_array = param->shape.value();
+    for (size_t i = 0; i < cshape_array.size(); ++i) {
+      oshape.push_back(cshape_array[i]);
+    }
+  } else {
+    for (int i = 0; i < shape_shape->value; ++i) {
+      oshape.push_back(Any::make());
+    }
+  }
+  reporter->Assign(types[1], TensorType(oshape, out_dtype));
   return true;
 }
 
-Expr MakeZeros(Array<IndexExpr> shape, DataType dtype) {
+Expr MakeZeros(Expr shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
-  attrs->shape = std::move(shape);
+  if (const auto* cshape = shape.as<ConstantNode>()) {
+    attrs->shape = ToVector(cshape->data);
+  }
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("zeros");
-  return Call(op, {}, Attrs(attrs), {});
+  return Call(op, {shape}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.zeros").set_body_typed(MakeZeros);
@@ -1000,16 +994,19 @@ RELAY_REGISTER_OP("zeros")
 
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<InitOpAttrs>()
-    .set_num_inputs(0)
+    .set_num_inputs(1)
+    .add_argument("shape", "Tensor", "Target shape.")
     .set_support_level(3)
     .add_type_rel("InitOp", InitOpRel);
 
-Expr MakeOnes(Array<IndexExpr> shape, DataType dtype) {
+Expr MakeOnes(Expr shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
-  attrs->shape = std::move(shape);
+  if (const auto* cshape = shape.as<ConstantNode>()) {
+    attrs->shape = ToVector(cshape->data);
+  }
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("ones");
-  return Call(op, {}, Attrs(attrs), {});
+  return Call(op, {shape}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.ones").set_body_typed(MakeOnes);
@@ -1019,7 +1016,8 @@ RELAY_REGISTER_OP("ones")
 
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<InitOpAttrs>()
-    .set_num_inputs(0)
+    .set_num_inputs(1)
+    .add_argument("shape", "Tensor", "Target shape.")
     .set_support_level(3)
     .add_type_rel("InitOp", InitOpRel);
 
@@ -1579,30 +1577,42 @@ RELAY_REGISTER_OP("collapse_sum_like")
 // BroadCastTo: <A, B> -> B where BroadCast(A, B) = B
 bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
-  auto ioattrs = attrs.as<InitOpAttrs>();
-  CHECK(ioattrs);
-  auto intt = types[0].as<TensorTypeNode>();
-  if (intt == nullptr) {
-    return false;
+  CHECK_EQ(types.size(), 3);
+  const InitOpAttrs* param = attrs.as<InitOpAttrs>();
+  const auto* target_shape = types[1].as<TensorTypeNode>();
+  DataType out_dtype = types[0].as<TensorTypeNode>()->dtype;
+
+  const IntImmNode* shape_shape = target_shape->shape[0].as<IntImmNode>();
+  CHECK(shape_shape) << "Parameter shape must have static shape";
+
+  std::vector<IndexExpr> oshape;
+  if (param->shape) {
+    const Array<Integer>& cshape_array = param->shape.value();
+    for (size_t i = 0; i < cshape_array.size(); ++i) {
+      oshape.push_back(cshape_array[i]);
+    }
+  } else {
+    for (int i = 0; i < shape_shape->value; ++i) {
+      oshape.push_back(Any::make());
+    }
   }
-  auto type = TensorType(ioattrs->shape, intt->dtype);
-  reporter->Assign(types[1], type);
-  return BroadcastRel({types[0], types[1], types[1]}, 2, Attrs(), reporter);
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return BroadcastRel({types[0], types[2], types[2]}, 2, Attrs(), reporter);
 }
 
-Expr MakeBroadCastTo(Expr data, Array<IndexExpr> shape) {
+Expr MakeBroadCastTo(Expr data, Expr shape) {
   static const Op& op = Op::Get("broadcast_to");
   auto attrs = make_object<InitOpAttrs>();
-  attrs->shape = std::move(shape);
-  return Call(op, {data}, Attrs(attrs), {});
+  if (const auto* cshape = shape.as<ConstantNode>()) {
+    attrs->shape = ToVector(cshape->data);
+  }
+  return Call(op, {data, shape}, Attrs(attrs), {});
 }
 
 Array<te::Tensor> BroadCastToCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                      const Type& out_type) {
-  auto ioattrs = attrs.as<InitOpAttrs>();
-  CHECK(ioattrs != nullptr);
-  return {topi::broadcast_to(inputs[0], ioattrs->shape)};
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  return {topi::broadcast_to(inputs[0], out_ttype->shape)};
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.broadcast_to").set_body_typed(MakeBroadCastTo);
@@ -1610,8 +1620,9 @@ TVM_REGISTER_GLOBAL("relay.op._make.broadcast_to").set_body_typed(MakeBroadCastT
 RELAY_REGISTER_OP("broadcast_to")
     .describe(R"code(Broadcast the first input to match the shape argument.
 )code" TVM_ADD_FILELINE)
-    .set_num_inputs(1)
+    .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("shape", "Tensor", "Target shape.")
     .set_support_level(4)
     .add_type_rel("BroadCastTo", BroadCastToRel)
     .set_attr<FTVMCompute>("FTVMCompute", BroadCastToCompute)
@@ -1938,7 +1949,7 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
     reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   } else {
-    auto indices = param->indices_or_sections.as<ArrayNode>()->data;
+    auto indices = Downcast<Array<ObjectRef>>(param->indices_or_sections);
     auto begin = IndexExpr(tir::make_zero(DataType::Int(32)));
     std::vector<Type> fields;
     for (unsigned int i = 0; i < indices.size(); ++i) {
@@ -2166,7 +2177,7 @@ bool LayoutTransformRel(const Array<Type>& types, int num_inputs, const Attrs& a
   return true;
 }
 
-Expr MakeLayoutTransform(Expr data, std::string src_layout, std::string dst_layout) {
+Expr MakeLayoutTransform(Expr data, String src_layout, String dst_layout) {
   auto attrs = make_object<LayoutTransformAttrs>();
   attrs->src_layout = std::move(src_layout);
   attrs->dst_layout = std::move(dst_layout);
@@ -2248,6 +2259,9 @@ bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   Array<IndexExpr> oshape;
   for (size_t i = 1; i < kdim + 1; ++i) oshape.push_back(indices->shape[i]);
   for (size_t i = mdim->value; i < ndim; ++i) oshape.push_back(data->shape[i]);
+  if (oshape.size() == 0) {
+    oshape.push_back(tir::make_const(DataType::Int(32), 1));
+  }
   reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }

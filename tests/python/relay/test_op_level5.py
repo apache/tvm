@@ -68,6 +68,48 @@ def test_resize():
         for layout in ["NHWC", "NCHW"]:
             verify_resize((1, 4, 4, 4), 2, method, layout)
 
+def test_resize3d_infer_type():
+    n, c, d, h, w = te.size_var("n"), te.size_var("c"), te.size_var("d"), te.size_var("h"), te.size_var("w")
+    x = relay.var("x", relay.TensorType((n, c, d, h, w), "int8"))
+    td, th, tw = te.var("td"), te.var("th"), te.var("tw")
+    z = relay.image.resize3d(x, (td, th, tw))
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((n, c, td, th, tw), "int8")
+
+    x = relay.var("x", relay.TensorType((n, c, d, h, w), "int8"))
+    z= relay.image.resize3d(x, (10, 10, 20), "NCDHW", "trilinear", "align_corners")
+    assert "size=" in z.astext()
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((n, c, 10, 10, 20), "int8")
+
+def test_resize3d():
+    def verify_resize(dshape, scale, method, layout):
+        if layout == "NDHWC":
+            size = (dshape[1] * scale, dshape[2] * scale, dshape[3] * scale)
+        else:
+            size = (dshape[2] * scale, dshape[3] * scale, dshape[4] * scale)
+
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        if method == "trilinear":
+            ref_res = topi.testing.trilinear_resize3d_python(x_data, size, layout)
+        else:
+            ref_res = topi.testing.upsampling3d_python(x_data, (scale, scale, scale), layout)
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.image.resize3d(x, size, layout, method, "align_corners")
+        assert "size=" in z.astext()
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
+        func = relay.Function([x], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+    for method in ["trilinear", "nearest_neighbor"]:
+        for layout in ["NDHWC", "NCDHW"]:
+            verify_resize((1, 4, 4, 4, 4), 2, method, layout)
+
 def test_crop_and_resize():
     def verify_crop_and_resize(img_shape, boxes, box_indices, crop_size,
                                layout, method, extrapolation_value=0.0):
@@ -781,9 +823,61 @@ def test_dilation2d_run():
                         data_layout='NHWC', kernel_layout='HWI')
 
 
+def test_affine_grid():
+    def verify_affine_grid(num_batch, target_shape):
+        dtype = 'float32'
+        data_shape = (num_batch, 2, 3)
+        data = relay.var("data", relay.ty.TensorType(data_shape, dtype))
+        y = relay.image.affine_grid(data, target_shape)
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.ty.TensorType((num_batch, len(target_shape), *target_shape), dtype)
+
+        func = relay.Function([data], y)
+        data_np = np.random.uniform(size=data_shape).astype(dtype)
+        ref_res = topi.testing.affine_grid_python(data_np, target_shape)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp1 = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res1 = intrp1.evaluate(func)(data_np)
+                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    verify_affine_grid(1, (16, 32))
+    verify_affine_grid(4, (16, 32))
+
+
+def test_grid_sample():
+    def verify_grid_sample(data_shape, grid_shape):
+        dtype = 'float32'
+        batch, channel, _, _ = data_shape
+        _, _, out_height, out_width = grid_shape
+        data = relay.var("data", relay.ty.TensorType(data_shape, dtype))
+        grid = relay.var("grid", relay.ty.TensorType(grid_shape, dtype))
+        y = relay.image.grid_sample(data, grid, method='bilinear', layout='NCHW')
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType((batch, channel, out_height, out_width), dtype)
+        func = relay.Function([data, grid], y)
+
+        data_np = np.random.uniform(size=data_shape).astype(dtype)
+        grid_np = np.random.uniform(size=grid_shape, low=-1.5, high=1.5).astype(dtype)
+        ref_res = topi.testing.grid_sample_nchw_python(data_np, grid_np, method='bilinear')
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp1 = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res1 = intrp1.evaluate(func)(data_np, grid_np)
+                tvm.testing.assert_allclose(
+                    op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))
+
+
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
+    test_resize3d_infer_type()
+    test_resize3d()
     test_crop_and_resize()
     test_multibox_prior()
     test_multibox_transform_loc()
@@ -799,3 +893,5 @@ if __name__ == "__main__":
     test_space_to_depth()
     test_dilation2d_infer_type()
     test_dilation2d_run()
+    test_affine_grid()
+    test_grid_sample()

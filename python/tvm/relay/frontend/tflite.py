@@ -75,6 +75,7 @@ class OperatorConverter(object):
             'COS': self.convert_cos,
             'DEPTH_TO_SPACE': self.convert_depth_to_space,
             'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
+            'DEQUANTIZE': self.convert_dequantize,
             'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
             'DIV': self.convert_div,
             'ELU': self.convert_elu,
@@ -86,6 +87,7 @@ class OperatorConverter(object):
             'FLOOR': self.convert_floor,
             'FULLY_CONNECTED': self.convert_fully_connected,
             'GATHER': self.convert_gather,
+            'GATHER_ND' : self.convert_gather_nd,
             'GREATER_EQUAL': self.convert_greater_equal,
             'GREATER': self.convert_greater,
             'HARD_SWISH': self.convert_hard_swish,
@@ -111,6 +113,7 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'POW': self.convert_pow,
             'PRELU': self.convert_prelu,
+            'QUANTIZE': self.convert_quantize,
             'REDUCE_ANY': self.convert_reduce_any,
             'REDUCE_MAX': self.convert_reduce_max,
             'REDUCE_MIN': self.convert_reduce_min,
@@ -276,6 +279,8 @@ class OperatorConverter(object):
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
+        if tensor_type == TensorType.INT8:
+            return "int8"
         if tensor_type == TensorType.UINT8:
             return "uint8"
         if tensor_type == TensorType.FLOAT32:
@@ -1111,6 +1116,31 @@ class OperatorConverter(object):
 
         # Use mode 'fast' since indices are already checked within bounds.
         out = _op.take(data, indices, axis=axis, mode="fast")
+        return out
+
+    def convert_gather_nd(self, op):
+        """Method to Convert TFLite GATHER_ND operator"""
+        try:
+            from tflite.TensorType import TensorType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        for t in input_tensors:
+            assert not t.qnn_params, "Quantized input is not expected."
+
+        data = self.get_tensor_expr(input_tensors[0])
+        indices = self.get_tensor_expr(input_tensors[1])
+
+        indices_type = input_tensors[1].tensor.Type()
+        assert indices_type in (TensorType.INT32, TensorType.INT64)
+
+        indices_dims = len(_infer_shape(indices))
+        indices_t = _op.transpose(indices, axes=[-1] + list(range(indices_dims-1)))
+
+        out = _op.gather_nd(data, indices_t)
         return out
 
     def convert_strided_slice(self, op):
@@ -2326,6 +2356,40 @@ class OperatorConverter(object):
                                       data_layout="NHWC",
                                       kernel_layout="OIHW",
                                       out_dtype=output_tensor_type_str)
+
+        return out
+
+    def convert_quantize(self, op):
+        """Convert TFLite Quantize"""
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        # The output must be quantized
+        assert output_tensor.qnn_params
+        # Quantize the input
+        out = self.quantize(in_expr, output_tensor)
+
+        return out
+
+    def convert_dequantize(self, op):
+        """Convert TFLite Dequantize"""
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        # The input must be quantized
+        assert input_tensor.qnn_params
+        # Dequantize the input.
+        out = self.dequantize(in_expr, input_tensor)
 
         return out
 

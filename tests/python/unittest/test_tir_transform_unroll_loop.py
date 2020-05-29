@@ -35,14 +35,20 @@ def test_unroll_loop():
 
     assert isinstance(stmt, tvm.tir.For)
 
-    ret = tvm.tir.transform.UnrollLoop(16, 8, 0, True)(mod)["main"].body
+    with tvm.transform.PassContext(config={"tir.UnrollLoop": {"auto_max_step": 16}}):
+        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
+        assert not isinstance(ret, tvm.tir.For)
 
-    assert not isinstance(ret, tvm.tir.For)
-    ret = tvm.tir.transform.UnrollLoop(15, 8, 0, True)(mod)["main"].body
-    assert isinstance(ret, tvm.tir.For)
-    ret = tvm.tir.transform.UnrollLoop(16, 8, 0, False)(mod)["main"].body
-    assert isinstance(ret, tvm.tir.For)
-    assert ret.for_type == tvm.tir.For.Unrolled
+    with tvm.transform.PassContext(config={"tir.UnrollLoop": {"auto_max_step": 15}}):
+        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
+        assert isinstance(ret, tvm.tir.For)
+
+    with tvm.transform.PassContext(config={
+            "tir.UnrollLoop": {"auto_max_step": 16, "explicit_unroll": False}
+    }):
+        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
+        assert isinstance(ret, tvm.tir.For)
+        assert ret.for_type == tvm.tir.For.Unrolled
 
     ib = tvm.tir.ir_builder.create()
     ib.scope_attr(tvm.tir.const(0, "int32"), "pragma_auto_unroll_max_step", 16)
@@ -51,12 +57,15 @@ def test_unroll_loop():
     wrapped = tvm.tir.SeqStmt([wrapped, stmt])
     assert isinstance(ret, tvm.tir.For)
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], wrapped))
-    ret = tvm.tir.transform.UnrollLoop(0, 8, 0, False)(mod)["main"].body
 
-    assert isinstance(ret[0], tvm.tir.For)
-    assert ret[0].for_type == tvm.tir.For.Unrolled
-    assert isinstance(ret[1], tvm.tir.For)
-    assert ret[1].for_type != tvm.tir.For.Unrolled
+    with tvm.transform.PassContext(config={
+            "tir.UnrollLoop": {"auto_max_depth": 8, "explicit_unroll": False}
+    }):
+        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
+        assert isinstance(ret[0], tvm.tir.For)
+        assert ret[0].for_type == tvm.tir.For.Unrolled
+        assert isinstance(ret[1], tvm.tir.For)
+        assert ret[1].for_type != tvm.tir.For.Unrolled
 
 def test_unroll_fake_loop():
     ib = tvm.tir.ir_builder.create()
@@ -73,8 +82,15 @@ def test_unroll_fake_loop():
     stmt = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt))
-    ret = tvm.tir.transform.UnrollLoop(8, 0, 1, False)(mod)["main"].body
-    assert isinstance(ret[0], tvm.tir.Store)
+
+    with tvm.transform.PassContext(config={
+            "tir.UnrollLoop": {
+                "auto_max_depth": 8,
+                "auto_max_extent": 1,
+                "explicit_unroll": False
+            }}):
+        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
+        assert isinstance(ret[0], tvm.tir.Store)
 
 def test_unroll_single_count_loops():
     n = te.size_var('n')
@@ -87,9 +103,12 @@ def test_unroll_single_count_loops():
     # all parameters to UnrolLoops are default values except for
     # auto_unroll_max_extent which has been set to 1 (default:0)
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    ret = tvm.tir.transform.UnrollLoop(0, 8, 1, True)(mod)["main"].body
 
-    assert ret == stmt
+    with tvm.transform.PassContext(config={
+            "tir.UnrollLoop": {"auto_max_step": 1}
+    }):
+        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
+        assert ret == stmt
 
 if __name__ == "__main__":
     test_unroll_loop()

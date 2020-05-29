@@ -118,7 +118,7 @@ class XGBoostCostModel(CostModel):
         else:
             raise RuntimeError("Invalid loss type: " + loss_type)
 
-        self.xgb_params['silent'] = 1
+        self.xgb_params['verbosity'] = 0
         if num_threads:
             self.xgb_params['nthread'] = num_threads
         self.bst = None

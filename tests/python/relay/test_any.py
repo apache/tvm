@@ -96,31 +96,48 @@ def test_any_broadcast_fail():
     check_fail((relay.Any(),), (3, 2), (2), (4, 2), relay.add, np.add)
 
 
-def verify_any_full(x_shape, x_np_shape, relay_op, np_op, dtype='float32'):
+def verify_any_full_like(x_shape, x_np_shape, relay_op, np_op, dtype='float32'):
     x = relay.var('x', shape=x_shape, dtype=dtype)
     mod = tvm.IRModule()
-    mod['main'] = relay.Function([x], relay.zeros_like(x))
+    mod['main'] = relay.Function([x], relay_op(x))
     x_np = np.random.uniform(size=x_np_shape).astype(dtype)
-    res_np = np.zeros_like(x_np)
+    res_np = np_op(x_np)
+    for kind in ['debug', 'vm']:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target='llvm')
+        result = ex.evaluate()(x_np).asnumpy()
+        tvm.testing.assert_allclose(result, res_np)
+
+def test_any_full_like():
+    # zeros_like, ones_like
+    verify_any_full_like(any_dims(3), (2, 3, 5), relay.zeros_like, np.zeros_like, "float32")
+    verify_any_full_like(any_dims(3), (225, 115, 15), relay.zeros_like, np.zeros_like, "float32")
+    verify_any_full_like(any_dims(5), (10, 11, 12, 13, 14), relay.zeros_like, np.zeros_like, "int32")
+    verify_any_full_like(any_dims(3), (2, 3, 5), relay.ones_like, np.ones_like, "float32")
+    verify_any_full_like(any_dims(3), (225, 115, 15), relay.ones_like, np.ones_like, "float32")
+    verify_any_full_like(any_dims(5), (10, 11, 12, 13, 14), relay.ones_like, np.ones_like, "int32")
+
+def verify_any_full(x_np_shape, relay_op, np_op, dtype='float32', value=None):
+    x = relay.var('x', shape=(len(x_np_shape),), dtype="int32")
+    mod = tvm.IRModule()
+    out = relay_op(x, dtype) if value is None else relay_op(relay.expr.const(value), x, dtype)
+    mod['main'] = relay.Function([x], out)
+    res_np = np_op(x_np_shape) if value is None else np_op(x_np_shape, value)
+    x_np = np.array(x_np_shape).astype("int32")
     for kind in ['debug', 'vm']:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target='llvm')
         result = ex.evaluate()(x_np).asnumpy()
         tvm.testing.assert_allclose(result, res_np)
 
 def test_any_full():
-    # zeros, zeros_like, ones, ones_like
-    verify_any_full(any_dims(3), (2, 3, 5), relay.zeros, np.zeros, "float32")
-    verify_any_full(any_dims(3), (225, 115, 15), relay.zeros, np.zeros, "float32")
-    verify_any_full(any_dims(5), (10, 11, 12, 13, 14), relay.zeros, np.zeros, "int32")
-    verify_any_full(any_dims(3), (2, 3, 5), relay.zeros_like, np.zeros_like, "float32")
-    verify_any_full(any_dims(3), (225, 115, 15), relay.zeros_like, np.zeros_like, "float32")
-    verify_any_full(any_dims(5), (10, 11, 12, 13, 14), relay.zeros_like, np.zeros_like, "int32")
-    verify_any_full(any_dims(3), (2, 3, 5), relay.ones, np.ones, "float32")
-    verify_any_full(any_dims(3), (225, 115, 15), relay.ones, np.ones, "float32")
-    verify_any_full(any_dims(5), (10, 11, 12, 13, 14), relay.ones, np.ones, "int32")
-    verify_any_full(any_dims(3), (2, 3, 5), relay.ones_like, np.ones_like, "float32")
-    verify_any_full(any_dims(3), (225, 115, 15), relay.ones_like, np.ones_like, "float32")
-    verify_any_full(any_dims(5), (10, 11, 12, 13, 14), relay.ones_like, np.ones_like, "int32")
+    # zeros, ones, full
+    verify_any_full((2, 3, 5), relay.zeros, np.zeros, "float32")
+    verify_any_full((225, 115, 15), relay.zeros, np.zeros, "float32")
+    verify_any_full((10, 11, 12, 13, 14), relay.zeros, np.zeros, "int32")
+    verify_any_full((2, 3, 5), relay.ones, np.ones, "float32")
+    verify_any_full((225, 115, 15), relay.ones, np.ones, "float32")
+    verify_any_full((10, 11, 12, 13, 14), relay.ones, np.ones, "int32")
+    verify_any_full((10, 11, 12, 13, 14), relay.full, np.full, "float32", 2.0)
+    verify_any_full((1, 2, 3, 4), relay.full, np.full, "int32", -2)
 
 def test_any_concat():
     x = relay.var('x', shape=(relay.Any(), 2), dtype="float32")
@@ -566,6 +583,37 @@ def test_any_softmax():
     verify_any_softmax(any_dims(3), -1, (1, 2, 3), (1, 2, 3))
     verify_any_softmax(any_dims(4), 2, (13, 11, 3, 1), (13, 11, 3, 1))
 
+def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
+    mod = tvm.IRModule()
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    np_data = np.random.uniform(size=np_dshape).astype(dtype)
+    if const_k:
+        k = relay.const(kval)
+        args = [data]
+        in_vals = [np_data]
+    else:
+        k = relay.var('k', shape=(), dtype="int32")
+        args = [data, k]
+        in_vals = [np_data, kval]
+    out = relay.topk(data, k, ret_type="indices")
+    mod["main"] = relay.Function(args, out)
+
+    sorted = np.argsort(-np_data)
+    if len(np_dshape) == 2:
+        ref_out = sorted[:, 0:kval]
+    else:
+        ref_out = sorted[0:kval]
+
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(*in_vals)
+        tvm.testing.assert_allclose(result.asnumpy(), ref_out)
+
+def test_any_topk():
+    verify_any_topk(any_dims(1), 5, (10,), "float32")
+    verify_any_topk(any_dims(2), 2, (6, 3), "int32")
+    verify_any_topk(any_dims(2), 3, (6, 3), "float32", True)
+
 def test_fused_ops():
     x = relay.var('x', shape=(relay.Any(), relay.Any()), dtype='float32')
     y0 = x + relay.const(1.0, 'float32')
@@ -680,8 +728,50 @@ def test_recursive_concat_with_wrong_annotation():
     except Exception as e:
         assert "in particular dimension 0 conflicts 2 does not match 1" in str(e)
 
+def test_tuple_get_item():
+    mod = tvm.IRModule()
+    dtype = "float32"
+    static_data_shape = (9, 4)
+    data_shape = (relay.Any(), 4)
+    indices_or_sections = 2
+    axis = 1
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = relay.split(data, indices_or_sections, axis)
+    y = relay.expr.TupleGetItem(y.astuple(), 0)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    ref_out_shape = (9, 2)
+    for kind in ["vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(ret.asnumpy().shape))
+
+def test_mixed_input_type():
+    mod = tvm.IRModule()
+    dtype = "float32"
+    static_data_shape = (9, 4)
+    data_shape = (relay.Any(), 4)
+    tensor_type = relay.TensorType(data_shape, dtype)
+    tuple_type = relay.TupleType([tensor_type, tensor_type])
+    data0 = relay.var("d0", type_annotation=relay.TupleType([tuple_type, tensor_type]))
+    data1 = relay.var("d1", shape=(relay.Any(), 4), dtype=dtype)
+    data_tuple = relay.expr.TupleWrapper(data0, 2)
+    nested_data_tuple = relay.expr.TupleWrapper(data_tuple[0], 2)
+    y = nested_data_tuple[1] * data_tuple[1] + data1
+    mod["main"] = relay.Function([data0, data1], y)
+    data_np0 = np.random.uniform(size=static_data_shape).astype(dtype)
+    data_np1 = np.random.uniform(size=static_data_shape).astype(dtype)
+    ref_out_shape = (9, 4)
+    for kind in ["vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()([[data_np0, data_np0], data_np0], data_np1)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(ret.asnumpy().shape))
+
 if __name__ == "__main__":
     test_any_full()
+    test_any_full_like()
     test_any_broadcast()
     test_any_elemwise()
     test_any_broadcast_fail()
@@ -704,7 +794,10 @@ if __name__ == "__main__":
     test_any_dense()
     test_any_pad()
     test_any_softmax()
+    test_any_topk()
     test_fused_ops()
     test_arange_with_dynamic_shape()
     test_recursive_concat()
     test_recursive_concat_with_wrong_annotation()
+    test_tuple_get_item()
+    test_mixed_input_type()

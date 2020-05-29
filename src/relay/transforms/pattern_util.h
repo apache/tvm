@@ -37,6 +37,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/data_layout.h>
 
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -311,6 +312,25 @@ static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> s
 }
 
 /*!
+ * \brief Check whether a shape is static and create corresponding Constant.
+ *
+ * \param shape The Array of the shape values.
+ * \return A Constant.
+ */
+static inline Constant CheckConstantShape(const Array<IndexExpr>& shape) {
+  auto shape_array =
+      runtime::NDArray::Empty({int64_t(shape.size())}, DataType::Int(64), {kDLCPU, 0});
+  auto* shape_data = static_cast<int64_t*>(shape_array->data);
+  for (size_t i = 0; i < shape.size(); ++i) {
+    const auto& dim_val = shape[i].as<IntImmNode>();
+    CHECK(dim_val) << "Do not support symbolic shape for "
+                      "Array format. Pass shape as Expr instead.";
+    shape_data[i] = dim_val->value;
+  }
+  return Constant(shape_array);
+}
+
+/*!
  * \brief Check if two expressions are equal scalars.
  * \param a The expression to be checked.
  * \param b The expression to be checked
@@ -323,6 +343,67 @@ inline bool IsEqualScalar(const Expr& a, const Expr& b) {
     return false;
   }
   return tvm::StructuralEqual()(a, b);
+}
+
+/*!
+ * \brief Convert an element of a NDArray with type int or float to scalar.
+ * \param array Input NDArray
+ * \param i element index
+ * \return Converted scalar value.
+ */
+static inline double ToScalar(const runtime::NDArray& array, size_t i = 0) {
+  if (array->dtype.code == kDLInt) {
+    if (array->dtype.bits == 8) {
+      return reinterpret_cast<int8_t*>(array->data)[i];
+    } else if (array->dtype.bits == 16) {
+      return reinterpret_cast<int16_t*>(array->data)[i];
+    } else if (array->dtype.bits == 32) {
+      return reinterpret_cast<int32_t*>(array->data)[i];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<int64_t*>(array->data)[i];
+    }
+  } else if (array->dtype.code == kDLUInt) {
+    if (array->dtype.bits == 8) {
+      return reinterpret_cast<uint8_t*>(array->data)[i];
+    } else if (array->dtype.bits == 16) {
+      return reinterpret_cast<uint16_t*>(array->data)[i];
+    } else if (array->dtype.bits == 32) {
+      return reinterpret_cast<uint32_t*>(array->data)[i];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<uint64_t*>(array->data)[i];
+    }
+  } else if (array->dtype.code == kDLFloat) {
+#if (__ARM_FP16_FORMAT_IEEE == 1)
+    if (array->dtype.bits == 16) {
+      return reinterpret_cast<__fp16*>(array->data)[i];
+    }
+#endif
+    if (array->dtype.bits == 32) {
+      return reinterpret_cast<float*>(array->data)[i];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<double*>(array->data)[i];
+    }
+  }
+  LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
+  // make compiler happy
+  return -std::numeric_limits<double>::infinity();
+}
+
+/*!
+ * \brief Convert a NDArray with type int or float to Array<Integer>.
+ * \param array Input NDArray
+ * \return Converted Array.
+ */
+static inline Array<Integer> ToVector(const runtime::NDArray& array) {
+  size_t ndim = array.Shape().size();
+  CHECK_EQ(ndim, 1) << "This function should only used for shape tensor.";
+  size_t len = array.Shape().front();
+  Array<Integer> out;
+  for (size_t i = 0; i < len; ++i) {
+    double elem_val = ToScalar(array, i);
+    out.push_back(Integer(static_cast<int>(elem_val)));
+  }
+  return out;
 }
 
 inline Expr GetField(Expr t, size_t i) { return TupleGetItem(t, i); }
@@ -432,12 +513,10 @@ inline Expr ZerosLike(Expr e) {
   return Call(op, {e});
 }
 
+Expr MakeZeros(Expr shape, DataType dtype);
+
 inline Expr Zeros(Array<IndexExpr> shape, DataType dtype) {
-  auto attrs = make_object<InitOpAttrs>();
-  attrs->shape = std::move(shape);
-  attrs->dtype = std::move(dtype);
-  static const Op& op = Op::Get("zeros");
-  return Call(op, {}, Attrs(attrs), {});
+  return MakeZeros(CheckConstantShape(shape), dtype);
 }
 
 inline Expr OnesLike(Expr e) {
@@ -503,12 +582,10 @@ static inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
   return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
+Expr MakeFull(Expr fill_value, Expr shape, DataType dtype);
+
 static inline Expr Full(Expr fill_value, Array<IndexExpr> shape, DataType dtype) {
-  auto attrs = make_object<InitOpAttrs>();
-  attrs->shape = std::move(shape);
-  attrs->dtype = std::move(dtype);
-  static const Op& op = Op::Get("full");
-  return Call(op, {fill_value}, Attrs(attrs), {});
+  return MakeFull(fill_value, CheckConstantShape(shape), dtype);
 }
 
 static inline Expr Conv2D(Expr data, Expr weight, Array<IndexExpr> strides,
@@ -586,7 +663,11 @@ static inline Expr Tile(Expr data, Array<Integer> reps) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-Expr MakeBroadCastTo(Expr data, Array<IndexExpr> shape);
+Expr MakeBroadCastTo(Expr data, Expr shape);
+
+static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
+  return MakeBroadCastTo(data, CheckConstantShape(shape));
+}
 
 Expr MakeConcatenate(Expr data, int axis);
 
@@ -602,7 +683,7 @@ Expr MakeSqueeze(Expr data, Array<Integer> axis);
 
 Expr MakeExpandDims(Expr data, int axis, int num_newaxis);
 
-Expr MakeLayoutTransform(Expr data, std::string src_layout, std::string dst_layout);
+Expr MakeLayoutTransform(Expr data, String src_layout, String dst_layout);
 
 Expr StopFusion(Expr data);
 

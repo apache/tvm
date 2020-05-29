@@ -117,8 +117,9 @@ def test_tensor_compute1():
             ib.emit(tvm.tir.call_extern(outs[0].dtype, 'vadd', ins[0].access_ptr("r"), ins[1].access_ptr('r'), outs[0].access_ptr('wr')))
             return ib.get()
 
-        with tvm.target.build_config(offset_factor=n):
-            return te.decl_tensor_intrin(z.op, intrin_func)
+        return te.decl_tensor_intrin(z.op, intrin_func, default_buffer_params={
+            "offset_factor": n
+        })
 
     vadd = intrin_vadd(factor)
 
@@ -159,8 +160,8 @@ def test_tensor_compute2():
                 "gemv_add", x_ptr, y_ptr, z_ptr, m, n, l)
             return body, reset, update
 
-        with tvm.target.build_config(offset_factor=n):
-            return te.decl_tensor_intrin(z.op, intrin_func)
+        return te.decl_tensor_intrin(z.op, intrin_func,
+                                     default_buffer_params={"offset_factor": n})
 
     vgemm = intrin_gemm(factor1, factor2, factor)
 
@@ -290,8 +291,8 @@ def test_tensor_pool():
             dout = outs[0]
             return tvm.tir.call_packed("op", dinp, dout)
 
-        with tvm.target.build_config(offset_factor=1):
-            return te.decl_tensor_intrin(P.op, intrin_func)
+        return te.decl_tensor_intrin(P.op, intrin_func,
+                                     default_buffer_params={"offset_factor": 1})
 
     A = te.placeholder((1, 64, 16, 16), name='A')
     P = pool(data=A, kernel=(3, 3), stride=(1, 1), padding=(0, 0, 0, 0),

@@ -217,7 +217,7 @@ def test_cuda_shuffle():
                 tvm.tir.stmt_functor.ir_transform(f.body, None, vectorizer, ['For']))
         return tvm.tir.transform.prim_func_pass(_transform, opt_level=0, name="MyVectorize")
 
-    with tvm.target.build_config(add_lower_pass=[(1, MyVectorize())]):
+    with tvm.transform.PassContext(config={"tir.add_lower_pass": [(1, MyVectorize())]}):
         module = tvm.build(sch, [a, b, c], target='cuda')
         a_ = np.array(list(range(64)), dtype='int32')
         b_ = np.array((list(range(4))[::-1]) * 16, dtype='int32')
@@ -227,6 +227,85 @@ def test_cuda_shuffle():
         module(nda, ndb, ndc)
         tvm.testing.assert_allclose(ndc.asnumpy(), ref)
 
+def test_crossthread_reduction1():
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+        print("skip because cuda is not enabled..")
+        return
+
+    n = te.var("n")
+    m = te.var("m")
+    A = te.placeholder((n, m), name='A')
+    k = te.reduce_axis((0, m), "m")
+    B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
+
+    def sched(nthd):
+        s = te.create_schedule(B.op)
+        ko, _ = s[B].split(B.op.reduce_axis[0], nparts=nthd)
+        s[B].bind(ko, te.thread_axis("threadIdx.x"))
+        s[B].bind(B.op.axis[0], te.thread_axis("blockIdx.x"))
+        func = tvm.build(s, [A, B], "cuda")
+        return func
+
+    def verify(nthd):
+        func = sched(nthd)
+        nn = 3
+        # checks three typical cases
+        vals = [nthd-1, nthd, nthd+1]
+        for kk in [x for x in vals]:
+            size = (nn, kk)
+            ctx = tvm.context("cuda", 0)
+            a = tvm.nd.array(np.random.uniform(size=size).astype(A.dtype), ctx)
+            b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), ctx)
+            func(a, b)
+            tvm.testing.assert_allclose(b.asnumpy(), \
+                np.sum(a.asnumpy(), axis=1), rtol=1e-3)
+
+    verify(16)
+    verify(32)
+    verify(64)
+
+def test_crossthread_reduction2():
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+        print("skip because cuda is not enabled..")
+        return
+
+    n = te.var("n")
+    k0 = te.var("k0")
+    k1 = te.var("k1")
+    A = te.placeholder((n, k0, k1), name='A')
+    k0 = te.reduce_axis((0, k0), "k0")
+    k1 = te.reduce_axis((0, k1), "k1")
+    B = te.compute((n,), lambda i: te.sum(A[i, k0, k1], axis=(k0, k1)), name="B")
+
+    def sched(nthdx, nthdy):
+        s = te.create_schedule(B.op)
+        k0o, _ = s[B].split(B.op.reduce_axis[0], nparts=nthdx)
+        k1o, _ = s[B].split(B.op.reduce_axis[1], nparts=nthdy)
+        s[B].bind(k0o, te.thread_axis("threadIdx.x"))
+        s[B].bind(k1o, te.thread_axis("threadIdx.y"))
+        s[B].bind(B.op.axis[0], te.thread_axis("blockIdx.x"))
+        func = tvm.build(s, [A, B], "cuda")
+        return func
+
+    def verify(nthdx, nthdy):
+        func = sched(nthdx, nthdy)
+        nn = 3
+        # checks three typical cases
+        vx = [nthdx-1, nthdx, nthdx+1]
+        vy = [nthdy-1, nthdy, nthdy+1]
+        for kk0, kk1 in [(x, y) for x in vx for y in vy]:
+            size = (nn, kk0, kk1)
+            ctx = tvm.context("cuda", 0)
+            a = tvm.nd.array(np.random.uniform(size=size).astype(A.dtype), ctx)
+            b = tvm.nd.array(np.zeros(nn, dtype=B.dtype), ctx)
+            func(a, b)
+            tvm.testing.assert_allclose(b.asnumpy(), \
+                np.sum(a.asnumpy(), axis=(1, 2)), rtol=1e-3)
+
+    verify(16, 16)
+    verify(32, 32)
+    verify(16, 32)
+    verify(32, 16)
 
 def test_cuda_reducition_binding():
     if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
@@ -609,6 +688,8 @@ if __name__ == "__main__":
     test_cuda_shuffle()
     test_vectorized_casts()
     test_cuda_reducition_binding()
+    test_crossthread_reduction1()
+    test_crossthread_reduction2()
     test_rfactor_predicates()
     test_cuda_const_float_to_half()
     test_cuda_reduction()

@@ -120,6 +120,8 @@ def _concatenate_shape_func(inputs, axis):
 @_reg.register_shape_func("concatenate", False)
 def concatenate_shape_func(attrs, inputs, _):
     axis = get_const_int(attrs.axis)
+    if axis < 0:
+        axis += inputs[0].shape[0]
     return [_concatenate_shape_func(inputs, convert(axis))]
 
 @script

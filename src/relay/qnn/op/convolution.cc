@@ -662,8 +662,8 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 Expr MakeQnnConv2D(Expr data, Expr weight, Expr input_zero_point, Expr kernel_zero_point,
                    Expr input_scale, Expr kernel_scale, Array<IndexExpr> strides,
                    Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
-                   IndexExpr channels, Array<IndexExpr> kernel_size, std::string data_layout,
-                   std::string kernel_layout, std::string out_layout, DataType out_dtype) {
+                   IndexExpr channels, Array<IndexExpr> kernel_size, String data_layout,
+                   String kernel_layout, String out_layout, DataType out_dtype) {
   auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);

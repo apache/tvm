@@ -331,7 +331,9 @@ print(tvm.lower(s, [A, W, Conv], simple_mode=True))
 
 ctx = tvm.gpu(0)
 if nvcc.have_tensorcore(ctx.compute_version):
-    with tvm.target.build_config(auto_unroll_max_step=16):
+    with tvm.transform.PassContext(config={"tir.UnrollLoop": {
+        "auto_max_step": 16
+    }}):
         func = tvm.build(s, [A, W, Conv], 'cuda')
     a_np = np.random.uniform(size=data_shape).astype(A.dtype)
     w_np = np.random.uniform(size=kernel_shape).astype(W.dtype)

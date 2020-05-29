@@ -202,8 +202,8 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
     round_scalar = exp_pos_rounding_value_expr;
   } else if (rounding == "TONEAREST") {
     // To satisfy where op shape requirements, the rounding values are broadcasted.
-    auto pos_rounder = MakeBroadCastTo(exp_pos_rounding_value_expr, input_shape);
-    auto neg_rounder = MakeBroadCastTo(exp_neg_rounding_value_expr, input_shape);
+    auto pos_rounder = BroadCastTo(exp_pos_rounding_value_expr, input_shape);
+    auto neg_rounder = BroadCastTo(exp_neg_rounding_value_expr, input_shape);
 
     auto zero_t = Zeros(input_shape, hp_dtype);
     round_scalar = Where(GreaterEqual(tensor, zero_t), pos_rounder, neg_rounder);

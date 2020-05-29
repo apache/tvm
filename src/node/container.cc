@@ -137,16 +137,16 @@ struct ArrayNodeTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
   static void SHashReduce(const ArrayNode* key, SHashReducer hash_reduce) {
-    hash_reduce(static_cast<uint64_t>(key->data.size()));
-    for (size_t i = 0; i < key->data.size(); ++i) {
-      hash_reduce(key->data[i]);
+    hash_reduce(static_cast<uint64_t>(key->size()));
+    for (size_t i = 0; i < key->size(); ++i) {
+      hash_reduce(key->at(i));
     }
   }
 
   static bool SEqualReduce(const ArrayNode* lhs, const ArrayNode* rhs, SEqualReducer equal) {
-    if (lhs->data.size() != rhs->data.size()) return false;
-    for (size_t i = 0; i < lhs->data.size(); ++i) {
-      if (!equal(lhs->data[i], rhs->data[i])) return false;
+    if (lhs->size() != rhs->size()) return false;
+    for (size_t i = 0; i < lhs->size(); ++i) {
+      if (!equal(lhs->at(i), rhs->at(i))) return false;
     }
     return true;
   }
@@ -167,9 +167,7 @@ TVM_REGISTER_GLOBAL("node.Array").set_body([](TVMArgs args, TVMRetValue* ret) {
       data.push_back(ObjectRef(nullptr));
     }
   }
-  auto node = make_object<ArrayNode>();
-  node->data = std::move(data);
-  *ret = Array<ObjectRef>(node);
+  *ret = Array<ObjectRef>(data);
 });
 
 TVM_REGISTER_GLOBAL("node.ArrayGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -178,15 +176,15 @@ TVM_REGISTER_GLOBAL("node.ArrayGetItem").set_body([](TVMArgs args, TVMRetValue* 
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
   CHECK(ptr->IsInstance<ArrayNode>());
   auto* n = static_cast<const ArrayNode*>(ptr);
-  CHECK_LT(static_cast<size_t>(i), n->data.size()) << "out of bound of array";
-  *ret = n->data[static_cast<size_t>(i)];
+  CHECK_LT(static_cast<size_t>(i), n->size()) << "out of bound of array";
+  *ret = n->at(i);
 });
 
 TVM_REGISTER_GLOBAL("node.ArraySize").set_body([](TVMArgs args, TVMRetValue* ret) {
   CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
   CHECK(ptr->IsInstance<ArrayNode>());
-  *ret = static_cast<int64_t>(static_cast<const ArrayNode*>(ptr)->data.size());
+  *ret = static_cast<int64_t>(static_cast<const ArrayNode*>(ptr)->size());
 });
 
 struct MapNodeTrait {
@@ -368,20 +366,20 @@ TVM_REGISTER_GLOBAL("node.MapItems").set_body([](TVMArgs args, TVMRetValue* ret)
 
   if (ptr->IsInstance<MapNode>()) {
     auto* n = static_cast<const MapNode*>(ptr);
-    auto rkvs = make_object<ArrayNode>();
+    Array<ObjectRef> rkvs;
     for (const auto& kv : n->data) {
-      rkvs->data.push_back(kv.first);
-      rkvs->data.push_back(kv.second);
+      rkvs.push_back(kv.first);
+      rkvs.push_back(kv.second);
     }
-    *ret = Array<ObjectRef>(rkvs);
+    *ret = std::move(rkvs);
   } else {
     auto* n = static_cast<const StrMapNode*>(ptr);
-    auto rkvs = make_object<ArrayNode>();
+    Array<ObjectRef> rkvs;
     for (const auto& kv : n->data) {
-      rkvs->data.push_back(tir::StringImmNode::make(kv.first));
-      rkvs->data.push_back(kv.second);
+      rkvs.push_back(tir::StringImmNode::make(kv.first));
+      rkvs.push_back(kv.second);
     }
-    *ret = Array<ObjectRef>(rkvs);
+    *ret = std::move(rkvs);
   }
 });
 }  // namespace tvm

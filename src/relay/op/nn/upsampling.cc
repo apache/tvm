@@ -91,8 +91,8 @@ bool UpSamplingRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 // Positional relay function to create upsampling operator
 // used by frontend FFI.
-Expr MakeUpSampling(Expr data, double scale_h, double scale_w, std::string layout,
-                    std::string method, bool align_corners) {
+Expr MakeUpSampling(Expr data, double scale_h, double scale_w, String layout, String method,
+                    bool align_corners) {
   auto attrs = make_object<UpSamplingAttrs>();
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
@@ -160,8 +160,8 @@ bool UpSampling3DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 
 // Positional relay function to create upsampling3d operator
 // used by frontend FFI.
-Expr MakeUpSampling3D(Expr data, double scale_d, double scale_h, double scale_w, std::string layout,
-                      std::string method, std::string coordinate_transformation_mode) {
+Expr MakeUpSampling3D(Expr data, double scale_d, double scale_h, double scale_w, String layout,
+                      String method, String coordinate_transformation_mode) {
   auto attrs = make_object<UpSampling3DAttrs>();
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);

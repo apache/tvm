@@ -40,6 +40,7 @@ Python API
    relay/testing
    autotvm
    rpc
+   micro
    contrib
    graph_runtime
    vta/index

@@ -164,11 +164,11 @@ Doc TIRTextPrinter::PrintIRModule(const IRModule& module) {
 Doc TIRTextPrinter::PrintArray(const ArrayNode* op) {
   Doc doc;
   doc << '[';
-  for (size_t i = 0; i < op->data.size(); ++i) {
+  for (size_t i = 0; i < op->size(); ++i) {
     if (i != 0) {
       doc << ", ";
     }
-    doc << Print(op->data[i]);
+    doc << Print(op->at(i));
   }
   doc << ']';
   return doc;
@@ -567,7 +567,7 @@ Doc TIRTextPrinter::AllocVar(const Var& var) {
   if (it != memo_var_.end()) {
     return it->second;
   }
-  std::string name = var->name_hint;
+  std::string name = var->name_hint.operator std::string();
   if (name.length() == 0 || !std::isalpha(name[0])) {
     name = "v" + name;
   }

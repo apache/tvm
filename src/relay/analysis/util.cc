@@ -25,6 +25,7 @@
  */
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/algorithm.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
@@ -338,13 +339,13 @@ bool IsNDArrayAllGreaterEqual(const runtime::NDArray& tensor, T value) {
   return true;
 }
 
-// Cache the operators that are checked recursively to reduce lookup overhead.
-static const auto& expand_dims_op = Op::Get("expand_dims");
-static const auto& reshape_op = Op::Get("reshape");
-static const auto& transpose_op = Op::Get("transpose");
-static const auto& squeeze_op = Op::Get("squeeze");
-
 bool IsAllPositiveConstant(const Expr& expr) {
+  // Cache the operators that are checked recursively to reduce lookup overhead.
+  static const auto& expand_dims_op = Op::Get("expand_dims");
+  static const auto& reshape_op = Op::Get("reshape");
+  static const auto& transpose_op = Op::Get("transpose");
+  static const auto& squeeze_op = Op::Get("squeeze");
+
   // peel through a few common transform ops.
   if (const auto* constant = expr.as<ConstantNode>()) {
     const auto& tensor = constant->data;
@@ -436,7 +437,7 @@ bool IsDynamic(const Type& ty) {
 TVM_REGISTER_GLOBAL("relay.ir.IsDynamic").set_body_typed(IsDynamic);
 
 bool IsDataDependant(const CallNode* call) {
-  static auto tshape_data_dependant = Op::GetAttr<TShapeDataDependant>("TShapeDataDependant");
+  static auto tshape_data_dependant = Op::GetAttrMap<TShapeDataDependant>("TShapeDataDependant");
   Op op = Downcast<Op>(call->op);
 
   if (!tshape_data_dependant.count(op)) {
@@ -447,6 +448,13 @@ bool IsDataDependant(const CallNode* call) {
     if (const auto* attrs = call->attrs.as<ReshapeAttrs>()) {
       if (attrs->newshape) {
         // If newshape attribute exists, it isn't data dependant.
+        return false;
+      }
+    }
+  } else if (op->name == "topk") {
+    if (const auto* attrs = call->attrs.as<TopKAttrs>()) {
+      if (attrs->k) {
+        // If k attribute exists, it isn't data dependant.
         return false;
       }
     }

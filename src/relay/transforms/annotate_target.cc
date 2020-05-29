@@ -29,12 +29,11 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/container.h>
 
+#include "pass_util.h"
+
 namespace tvm {
 namespace relay {
 namespace annotate_target {
-
-static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
-static const Op& compiler_end_op = Op::Get("annotation.compiler_end");
 
 const PackedFunc* make_begin_op =
     runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
@@ -66,12 +65,12 @@ class AnnotateTargetRewriter : public ExprRewriter {
       std::string arg_target = "default";
       const CallNode* call = arg.as<CallNode>();
 
-      if (call && call->op == compiler_begin_op) {
+      if (call && call->op == CompilerBeginOp()) {
         // Argument is already compiler begin node meaning that this is not the first time
         // running this pass, so we simply remove it and will add a new one later.
         CHECK_EQ(call->args.size(), 1U);
         const CallNode* end = call->args[0].as<CallNode>();
-        if (end->op == compiler_end_op) {
+        if (end->op == CompilerEndOp()) {
           arg_target = end->attrs.as<CompilerAttrs>()->compiler;
         }
         compiler_ends.push_back(call->args[0]);
@@ -115,12 +114,12 @@ class AnnotateTargetRewriter : public ExprRewriter {
     auto op_node = pre->op.as<OpNode>();
 
     // This graph has annotations, meaning that this is not the first time running this pass.
-    if (op_node && pre->op == compiler_begin_op) {
+    if (op_node && pre->op == CompilerBeginOp()) {
       // Bypass compiler begin due to lack of target information. It will be processed
       // when the following op handling arguments.
       CHECK_EQ(pre->args.size(), 1U);
       return post.as<CallNode>()->args[0];
-    } else if (op_node && pre->op == compiler_end_op) {
+    } else if (op_node && pre->op == CompilerEndOp()) {
       // Override compiler end with the new target.
       CHECK_EQ(pre->args.size(), 1U);
       auto input_expr = post.as<CallNode>()->args[0];
@@ -131,7 +130,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
     // Peek the first argument. If it is compiler begin then this node had annotated by
     // another target before, so we also consider that target as a supported target.
     const CallNode* first_arg_call = pre->args[0].as<CallNode>();
-    if (first_arg_call && first_arg_call->op == compiler_begin_op) {
+    if (first_arg_call && first_arg_call->op == CompilerBeginOp()) {
       std::string arg_target = first_arg_call->attrs.as<CompilerAttrs>()->compiler;
       if (arg_target != "default") {
         supported_targets.push_back(arg_target);
@@ -145,10 +144,10 @@ class AnnotateTargetRewriter : public ExprRewriter {
       Op op = Downcast<Op>(pre->op);
       CHECK(op.defined());
       for (const auto& target : this->targets_) {
-        if (!Op::HasAttr("target." + std::string(target))) {
+        if (!Op::HasAttrMap("target." + std::string(target))) {
           continue;
         }
-        auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + std::string(target));
+        auto fannotate = Op::GetAttrMap<FTVMAnnotateTarget>("target." + std::string(target));
         if (fannotate.count(op) && fannotate[op](pre->attrs, pre->args)) {
           supported_targets.push_back(target);
         }

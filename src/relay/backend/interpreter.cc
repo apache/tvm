@@ -380,7 +380,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
       m = (*f)(cfunc->funcs, cfunc->target);
     } else {
-      m = build(cfunc->funcs, cfunc->target, Target(nullptr), BuildConfig::Current());
+      m = build(cfunc->funcs, cfunc->target, Target(nullptr));
     }
     shape_func = m.GetFunction(cfunc->func_name);
     shape_func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);

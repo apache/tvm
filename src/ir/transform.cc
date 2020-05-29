@@ -28,11 +28,10 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 
-// TODO(tqchen): Update to use String container after it is merged.
-#include <tvm/tir/expr.h>
-
 #include <stack>
 #include <unordered_set>
+
+#include "../runtime/object_internal.h"
 
 namespace tvm {
 namespace transform {
@@ -73,6 +72,70 @@ PassContext PassContext::Current() {
   } else {
     return entry->default_context;
   }
+}
+
+class PassConfigManager {
+ public:
+  void Register(std::string key, uint32_t value_type_index) {
+    CHECK_EQ(key2vtype_.count(key), 0U);
+    ValueTypeInfo info;
+    info.type_index = value_type_index;
+    info.type_key = runtime::Object::TypeIndex2Key(value_type_index);
+    key2vtype_[key] = info;
+  }
+
+  // Trying to validate and legalize a config.
+  void Legalize(Map<std::string, ObjectRef>* config) {
+    std::vector<std::pair<std::string, ObjectRef>> update;
+    auto* reflection = ReflectionVTable::Global();
+
+    for (auto kv : *config) {
+      auto it = key2vtype_.find(kv.first);
+      if (it == key2vtype_.end()) {
+        std::ostringstream os;
+        os << "AttributeError: Invalid config option \'" << kv.first << "\' candidates are:";
+        int counter = 0;
+        for (const auto& kv : key2vtype_) {
+          os << ' ';
+          if (counter++ != 0) os << ',';
+          os << kv.first;
+        }
+        LOG(FATAL) << os.str();
+      }
+      const auto& info = it->second;
+      CHECK(kv.second.defined()) << "AttributeError: " << kv.first << " is None";
+      if (kv.second->IsInstance<Map<std::string, ObjectRef>::ContainerType>()) {
+        ObjectRef converted = reflection->CreateObject(
+            info.type_key, Downcast<Map<std::string, ObjectRef>>(kv.second));
+        update.emplace_back(kv.first, converted);
+      } else {
+        if (!runtime::ObjectInternal::DerivedFrom(kv.second.get(), info.type_index)) {
+          LOG(FATAL) << "AttributeError: expect config " << kv.first << " to have type "
+                     << info.type_key << " but get " << kv.second->GetTypeKey();
+        }
+      }
+    }
+    for (auto&& kv : update) {
+      config->Set(kv.first, kv.second);
+    }
+  }
+
+  static PassConfigManager* Global() {
+    static auto* inst = new PassConfigManager();
+    return inst;
+  }
+
+ private:
+  struct ValueTypeInfo {
+    std::string type_key;
+    uint32_t type_index;
+  };
+
+  std::unordered_map<std::string, ValueTypeInfo> key2vtype_;
+};
+
+void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_index) {
+  PassConfigManager::Global()->Register(key, value_type_index);
 }
 
 PassContext PassContext::Create() { return PassContext(make_object<PassContextNode>()); }
@@ -390,20 +453,23 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(PassContextNode);
 
-TVM_REGISTER_GLOBAL("transform.PassContext").set_body([](TVMArgs args, TVMRetValue* ret) {
-  auto pctx = PassContext::Create();
-  int opt_level = args[0];
-  int fallback_device = args[1];
-  tvm::Array<runtime::String> required = args[2];
-  tvm::Array<runtime::String> disabled = args[3];
-  TraceFunc trace_func = args[4];
-  pctx->opt_level = opt_level;
-  pctx->fallback_device = fallback_device;
-  pctx->required_pass = std::move(required);
-  pctx->disabled_pass = std::move(disabled);
-  pctx->trace_func = std::move(trace_func);
-  *ret = pctx;
-});
+TVM_REGISTER_GLOBAL("transform.PassContext")
+    .set_body_typed([](int opt_level, int fallback_device, Array<String> required,
+                       Array<String> disabled, TraceFunc trace_func,
+                       Optional<Map<std::string, ObjectRef>> config) {
+      auto pctx = PassContext::Create();
+      pctx->opt_level = opt_level;
+      pctx->fallback_device = fallback_device;
+
+      pctx->required_pass = std::move(required);
+      pctx->disabled_pass = std::move(disabled);
+      pctx->trace_func = std::move(trace_func);
+      if (config.defined()) {
+        pctx->config = config.value();
+      }
+      PassConfigManager::Global()->Legalize(&(pctx->config));
+      return pctx;
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PassContextNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -413,17 +479,18 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "\topt_level: " << node->opt_level << "\n";
       p->stream << "\tfallback device: " << runtime::DeviceName(node->fallback_device) << "\n";
 
-      p->stream << "\trequired passes: [" << node->opt_level;
+      p->stream << "\trequired passes: [";
       for (const auto& it : node->required_pass) {
         p->stream << it << " ";
       }
       p->stream << "]\n";
 
-      p->stream << "\tdisabled passes: [" << node->opt_level;
+      p->stream << "\tdisabled passes: [";
       for (const auto& it : node->disabled_pass) {
         p->stream << it << " ";
       }
-      p->stream << "]";
+      p->stream << "]\n";
+      p->stream << "\tconfig: " << node->config;
     });
 
 class PassContext::Internal {

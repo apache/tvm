@@ -22,7 +22,7 @@ from tvm.runtime.container import getitem_helper
 from tvm.runtime import _ffi_node_api
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("Array")
 class Array(Object):
     """Array container of TVM.
 
@@ -60,6 +60,24 @@ class Map(Object):
 
     def __len__(self):
         return _ffi_node_api.MapSize(self)
+
+    def get(self, key, default=None):
+        """Get an element with a default value.
+
+        Parameters
+        ----------
+        key : object
+            The attribute key.
+
+        default : object
+            The default object.
+
+        Returns
+        -------
+        value: object
+            The result value.
+        """
+        return self[key] if key in self else default
 
 
 @tvm._ffi.register_object

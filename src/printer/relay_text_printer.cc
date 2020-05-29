@@ -732,7 +732,7 @@ Doc RelayTextPrinter::VisitAttr_(const ArrayNode* op) {
   Doc doc;
   doc << "[";
   std::vector<Doc> arr_vals;
-  for (auto val : op->data) {
+  for (auto val : *op) {
     arr_vals.push_back(PrintAttr(val));
   }
   doc << Doc::Concat(arr_vals);
