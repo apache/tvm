@@ -203,7 +203,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         vm = runtime.vm.VirtualMachine(exe)
         vm.init(ctx)
         outs = vm.run(**map_inputs)
-        outs = outs if len(outs) > 1 else [outs]
+        outs = outs if isinstance(outs, runtime.container.ADT) else [outs]
         results = result if isinstance(result, list) else [result]
         for out, ref in zip(outs, results):
             tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=tol, atol=tol)
