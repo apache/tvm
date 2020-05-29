@@ -45,6 +45,7 @@ import tvm
 from tvm import te
 from tvm import relay
 import tvm.relay.testing.tf as tf_testing
+from tvm.runtime.vm import VirtualMachine
 from packaging import version as package_version
 
 #######################################################################
@@ -98,21 +99,21 @@ def vmobj_to_list(o):
 
 def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
                   target='llvm', out_names=None, opt_level=3, mode='graph_runtime',
-                  cuda_layout="NCHW"):
+                  layout=None, disabled_pass=None):
     """ Generic function to compile on relay and execute on tvm """
     input_data = convert_to_list(input_data)
     input_node = convert_to_list(input_node)
-    layout = None
     if target == "cuda":
-        layout = cuda_layout
+        layout = "NCHW"
     target_host = None
     shape_dict = {e: i.shape for e, i in zip(input_node, input_data)}
     mod, params = relay.frontend.from_tensorflow(graph_def,
                                                  layout=layout,
                                                  shape=shape_dict,
                                                  outputs=out_names)
-    if mode in ['debug', 'vm']:
-        ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target="llvm")
+    ctx = tvm.context(target, 0)
+    if mode == 'debug':
+        ex = relay.create_executor(mode, mod=mod, ctx=ctx, target="llvm")
         inputs = []
         for param in mod['main'].params:
             found = False
@@ -126,11 +127,18 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
                 inputs.append(tvm.nd.array(params[param.name_hint]))
         result = ex.evaluate()(*inputs)
         return vmobj_to_list(result)
+    elif mode == 'vm':
+        with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
+            vm_exec = relay.vm.compile(mod, target=target, params=params)
+        vm = VirtualMachine(vm_exec)
+        vm.init(ctx)
+        inputs = {}
+        for e, i in zip(input_node, input_data):
+            inputs[e] = i
+        return vm.invoke("main", **inputs)
     else:
-        with tvm.transform.PassContext(opt_level=opt_level):
+        with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
             graph, lib, params = relay.build(mod, target, target_host, params)
-
-        ctx = tvm.context(target, 0)
         from tvm.contrib import graph_runtime
         m = graph_runtime.create(graph, lib, ctx)
         # set inputs
@@ -888,10 +896,15 @@ def test_tensor_array_scatter():
     def run(dtype_str, infer_shape):
         with tf.Graph().as_default():
             dtype =  tf_dtypes[dtype_str]
+            if infer_shape:
+                element_shape = tf.TensorShape([tf.Dimension(None)])
+            else:
+                element_shape = None
             t = tf.constant(np.array([[1.0], [2.0], [3.0]]).astype(dtype_str), dtype=dtype)
             indices = tf.constant([2, 1, 0])
             ta1 = tf.TensorArray(dtype=dtype, size=3,
-                                 infer_shape=infer_shape)
+                                 infer_shape=infer_shape,
+                                 element_shape=element_shape)
             ta2 = ta1.scatter(indices, t)
             out0 = ta2.read(0)
             out1 = ta2.read(1)
@@ -2272,6 +2285,40 @@ def test_forward_resnetv2():
                                                target=device)
                     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]),
                                                 rtol=1e-5, atol=1e-5)
+
+#######################################################################
+# SSD
+# ---
+
+
+def test_forward_ssd():
+    '''test resnet model'''
+    if is_gpu_available():
+        with tf.Graph().as_default():
+            graph_def = tf_testing.get_workload(
+                "object_detection/ssd_mobilenet_v1_ppn_shared_"
+                "box_predictor_300x300_coco14_sync_2018_07_03.pb")
+            # Call the utility to import the graph definition into default graph.
+            graph_def = tf_testing.ProcessGraphDefParam(graph_def)
+
+            data = np.random.uniform(0.0, 255.0, size=(1, 512, 512, 3)).astype('float32')
+            in_node = "image_tensor"
+            out_node = ['detection_boxes', "detection_scores", "detection_classes"]
+
+            with tf.Session() as sess:
+                tf_output = run_tf_graph(
+                    sess, data, '{}:0'.format(in_node), ["{}:0".format(oname) for oname in out_node])
+                # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
+                for device in ["llvm"]:
+                    ctx = tvm.context(device, 0)
+                    if not ctx.exist:
+                        print("Skip because %s is not enabled" % device)
+                        continue
+                    tvm_output = run_tvm_graph(graph_def, data, in_node, len(out_node),
+                                               target=device, layout="NCHW", mode="vm")
+                    for i in range(len(out_node)):
+                        tvm.testing.assert_allclose(tvm_output[i], tf_output[i],
+                                                    rtol=1e-3, atol=1e-3)
 
 #######################################################################
 # Placeholder
@@ -3670,6 +3717,7 @@ if __name__ == '__main__':
     test_forward_inception_v1()
     test_forward_mobilenet()
     test_forward_resnetv2()
+    test_forward_ssd()
     test_forward_placeholder()
     test_forward_ptb()
 

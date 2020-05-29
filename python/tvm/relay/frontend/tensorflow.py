@@ -1420,7 +1420,7 @@ def _stridedSlice():
         # We need this since in some cases we want to do strided_slice on
         # a partial symbolic shape, such as (1, ?), and get a static shape
         # (1,). Directly slice on shape_of will result in fully dynamic shape.
-        # TODO(kevinthesun): Can we generalize this process?
+        # TODO(kevinthesun): Can we generalize this process with partial eval?
         if isinstance(inputs[0], _expr.Call) and "shape_of" in str(inputs[0].op):
             bg = begin[0]
             ed = end[0]
@@ -2397,12 +2397,6 @@ class RecurrentNetworks(object):
 # 1.x.
 _control_flow_nodes = ['Merge', 'Switch', 'NextIteration', 'Exit', 'Enter', 'LoopCond']
 
-# A map to record first node to be written into static tensor array
-_tensor_array_shape_nodes = {}
-
-# A map to record all static tensor array shapes
-_tensor_array_shapes = {}
-
 # A map to record tensor array write ops and input ta/tensor indices
 _tensor_array_write_ops = {
     "TensorArrayWrite"   : (3, 2),
@@ -2684,6 +2678,8 @@ class GraphProto(object):
         self._sorted_cf_node_names = []
         self._while_loop_name_set = set()
         self._main_graph_proto = self
+        self._tensor_array_shapes = {}
+        self._tensor_array_shape_nodes = {}
 
     def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
@@ -2821,7 +2817,7 @@ class GraphProto(object):
                         elem_shape.append(Any())
                     else:
                         elem_shape.append(int(dim))
-                _tensor_array_shapes[input_ta_node.name] = elem_shape
+                self._tensor_array_shapes[input_ta_node.name] = elem_shape
 
         # Fetch node contains static tensor array shape
         for item in ta_write_nodes:
@@ -2837,11 +2833,11 @@ class GraphProto(object):
                 elif cnode.name != wnode.name:
                     if cnode.op.startswith("TensorArrayV"):
                         inode = self._tf_node_map[wnode.input[inode_idx].split(":")[0]]
-                        _tensor_array_shape_nodes[cnode.name] = (inode, wnode.op)
+                        self._tensor_array_shape_nodes[cnode.name] = (inode, wnode.op)
                     break
 
         for ta in ta_construct_nodes:
-            assert ta.name in _tensor_array_shape_nodes, "Shape node of {} not found.".format(ta.name)
+            assert ta.name in self._tensor_array_shape_nodes, "Shape node of {} not found.".format(ta.name)
 
         # First, parse all control flow nodes.
         # Convert tf.cond to Branch and tf.while_loop to Loop.
@@ -3345,20 +3341,12 @@ class GraphProto(object):
         out : relay.Expr or relay.Var
             Converted relay expression or loop var.
         """
-        snode_name = node_name.split(':')
-        node_name = snode_name[0]
-        tuple_idx = snode_name[1] if len(snode_name) > 1 else -1
+        actual_expr = self._backtrack_construct(node_name)
+        tn = node_name.split(':')
+        node_name = tn[0]
         cloop_name = find_parent_loop_name(node_name, self._while_loop_name_set)
-        self._backtrack_construct(node_name)
-        actual_expr = self._nodes[node_name]
-        if not isinstance(actual_expr, _expr.TupleWrapper):
-            actual_expr = actual_expr[0]
-            ret_expr = actual_expr
-        else:
-            assert tuple_idx >= 0
-            ret_expr = actual_expr[tuple_idx]
 
-        if not cloop_name.startswith(loop_name):
+        if loop_name in self._while_loop_name_set and not cloop_name.startswith(loop_name):
             if loop_name not in self._lvar2expr:
                 self._lvar2expr[loop_name] = {}
             if loop_name not in self._lname_map:
@@ -3375,14 +3363,11 @@ class GraphProto(object):
                     pass
                 self._lvar2expr[loop_name][loop_var] = actual_expr
                 self._lname_map[loop_name][node_name] = loop_var
-                if isinstance(actual_expr, _expr.Tuple):
-                    ret = _expr.TupleGetItem(loop_var, tuple_idx)
-                else:
-                    ret = loop_var
+                ret = loop_var
             else:
                 ret = self._lname_map[loop_name][node_name]
         else:
-            ret = ret_expr
+            ret = actual_expr
 
         return ret
 
@@ -3444,16 +3429,16 @@ class GraphProto(object):
                     if elem_shape:
                         attr["shape"] = elem_shape
                     elif attr['identical_element_shapes']:
-                        shape_node, wnode_op = _tensor_array_shape_nodes[node.name]
-                        converted = self._backtrack_construct(shape_node.name)[0]
+                        shape_node, wnode_op = self._tensor_array_shape_nodes[node.name]
+                        converted = self._backtrack_construct(shape_node.name)
                         shape = _infer_shape(converted, self._mod)
                         if wnode_op.startswith("TensorArraySplit"):
                             shape = (Any(),) + shape[1:]
                         elif wnode_op.startswith("TensorArrayScatter"):
                             shape = shape[1:]
 
-                        if node.name in _tensor_array_shapes:
-                            preset_shape = _tensor_array_shapes[node.name]
+                        if node.name in self._tensor_array_shapes:
+                            preset_shape = self._tensor_array_shapes[node.name]
                             shape = _get_more_static_shape(shape, preset_shape)
 
                         attr["shape"] = shape
@@ -3462,8 +3447,6 @@ class GraphProto(object):
                 if plname in self._while_loop_name_set:
                     for i, iname in enumerate(node.input):
                         actual_input = self._licm_construct(plname, iname)
-                        if not isinstance(actual_input, _expr.Tuple):
-                            actual_input = actual_input[0]
                         inputs[i] = actual_input
 
                 op = self._convert_operator(node.op, inputs, attr, self._graph)
