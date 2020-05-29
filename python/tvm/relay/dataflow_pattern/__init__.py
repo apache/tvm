@@ -319,7 +319,7 @@ class VarPattern(DFPattern):
     ----------
     name_hint: str
         The name of the variable. Optional, if not provided,
-        the pattern will match any VarNode
+        the pattern will match any VarNode.
 
     type_annotation: tvm.relay.Type, optional
         The type annotation on the variable.

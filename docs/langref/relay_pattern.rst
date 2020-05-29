@@ -269,7 +269,7 @@ Check that the operator matched by the pattern has an attribute with a particula
 Variable Pattern
 ****************
 
-Check that the expression is a relay Variable, and optional provide a name to match to the Variable name
+Check that the expression is a relay Variable, and optional provide a name to match to the Variable name.
 
 
 Alternate

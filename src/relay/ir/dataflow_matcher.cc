@@ -613,6 +613,17 @@ class PatternGrouper {
     CHECK_EQ(groups_[gid_].gid, gid_);
   }
 
+  /* \brief EmbedConst implements rules for embedding constants into partitioned functions or
+   * lifting them into the function arguments.
+   *
+   * The rules depend on what pattern the ConstantNode matched.
+   *
+   * The basic rules are:
+   *  If the constant matches ExprPattern(relay.const(*)) or a ConstantPattern(), embed the constant
+   * in the partitioned function. If the constant matched an AltPattern, recursively check the
+   * matched side of the pattern. For any other matching pattern (i.e, wildcard, VarPattern, etc),
+   * lift the constant into the arguments of the partitioned function.
+   */
   bool EmbedConst(const Expr& expr, const DFPattern pattern) {
     bool embed = false;
     if (expr.as<ConstantNode>()) {
