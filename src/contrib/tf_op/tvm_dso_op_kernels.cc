@@ -97,12 +97,29 @@ class TensorAsBuf {
 
 tensorflow::Status GetDLPackDtype(const tensorflow::Tensor& tf_tensor, DLDataType* res) {
   auto dtype = tf_tensor.dtype();
-  if (dtype == tensorflow::DT_FLOAT) {
+
+  if (dtype == tensorflow::DT_HALF) {
+    *res = {kDLFloat, 16, 1};
+  } else if (dtype == tensorflow::DT_FLOAT) {
     *res = {kDLFloat, 32, 1};
-  } else if (dtype == tensorflow::DT_INT64) {
-    *res = {kDLInt, 64, 1};
+  } else if (dtype == tensorflow::DT_DOUBLE) {
+    *res = {kDLFloat, 64, 1};
+  } else if (dtype == tensorflow::DT_INT8) {
+    *res = {kDLInt, 8, 1};
+  } else if (dtype == tensorflow::DT_INT16) {
+    *res = {kDLInt, 16, 1};
   } else if (dtype == tensorflow::DT_INT32) {
     *res = {kDLInt, 32, 1};
+  } else if (dtype == tensorflow::DT_INT64) {
+    *res = {kDLInt, 64, 1};
+  } else if (dtype == tensorflow::DT_UINT8) {
+    *res = {kDLUInt, 8, 1};
+  } else if (dtype == tensorflow::DT_UINT16) {
+    *res = {kDLUInt, 16, 1};
+  } else if (dtype == tensorflow::DT_UINT32) {
+    *res = {kDLUInt, 32, 1};
+  } else if (dtype == tensorflow::DT_UINT64) {
+    *res = {kDLUInt, 64, 1};
   } else {
     return tensorflow::Status(tensorflow::error::INTERNAL, "Fail to get dlpack datatype");
   }
