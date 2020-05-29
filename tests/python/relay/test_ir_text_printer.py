@@ -240,6 +240,15 @@ def @main[A]() -> fn (A, List[A]) -> List[A] {
     assert main_def_str.strip() in mod_str
 
 
+def test_null_attribute():
+    x = relay.var("x")
+    y = relay.var("y")
+    z = relay.Function([x], y)
+    z = z.with_attr("TestAttribute", None)
+    txt = astext(z)
+    assert "TestAttribute=(nullptr)" in txt
+
+
 if __name__ == "__main__":
     do_print[0] = True
     test_lstm()
@@ -262,3 +271,4 @@ if __name__ == "__main__":
     test_variable_name()
     test_call_node_order()
     test_unapplied_constructor()
+    test_null_attribute()
