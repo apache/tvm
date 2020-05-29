@@ -113,13 +113,13 @@ tensorflow::Status GetDLPackDtype(const tensorflow::Tensor& tf_tensor, DLDataTyp
   } else if (dtype == tensorflow::DT_INT64) {
     *res = {kDLInt, 64, 1};
   } else if (dtype == tensorflow::DT_UINT8) {
-    *res = {kDLUInt, 8, 1}
+    *res = {kDLUInt, 8, 1};
   } else if (dtype == tensorflow::DT_UINT16) {
-    *res = {kDLUInt, 16, 1}
+    *res = {kDLUInt, 16, 1};
   } else if (dtype == tensorflow::DT_UINT32) {
-    *res = {kDLUInt, 32, 1}
+    *res = {kDLUInt, 32, 1};
   } else if (dtype == tensorflow::DT_UINT64) {
-    *res = {kDLUInt, 64, 1}
+    *res = {kDLUInt, 64, 1};
   } else {
     return tensorflow::Status(tensorflow::error::INTERNAL, "Fail to get dlpack datatype");
   }
