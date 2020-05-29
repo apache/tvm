@@ -1140,6 +1140,18 @@ def test_partition_option():
     assert pattern2.match(relu)
     assert tvm.ir.structural_equal(func(x, w, b), pattern2.partition(relu))
 
+def test_match_match():
+    add_pattern = is_op('add')(wildcard(), wildcard())
+    class TestRewrite(DFPatternCallback):
+        def __init__(self):
+            self.pattern = add_pattern
+        def callback(self, pre, post, node_map):
+            return post.args[0] - post.args[1]
+    mod = tvm.IRModule({})
+    tvm.relay.prelude.Prelude(mod)
+    # Apply rewrite on IR including relay.Match
+    out = rewrite(TestRewrite(), mod['tensor_concatenate_int64'])
+    assert tvm.ir.structural_equal(mod['tensor_concatenate_int64'], out)
 
 if __name__ == "__main__":
     test_expr_pattern()
@@ -1196,3 +1208,4 @@ if __name__ == "__main__":
     test_partition_check()
     test_partition_check_types()
     test_partition_option()
+    test_match_match()
