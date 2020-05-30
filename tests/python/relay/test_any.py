@@ -648,8 +648,8 @@ def verify_any_strided_slice(data_shape, begin_shape, end_shape, strides_shape,
     # Generate random numpy input data
     np_data = np.random.uniform(size=data_np_shape).astype('float32')
     np_begin = np.random.randint(2, size=begin_shape, dtype=dtype)
-    np_end = np.random.randint(5, 15, size=end_shape, dtype=dtype)
-    np_strides = np.random.randint(1, 3, size=strides_shape, dtype=dtype)
+    np_end = np.random.randint(5, 10, size=end_shape, dtype=dtype)
+    np_strides = np.random.randint(1, 2 if slice_mode else 3, size=strides_shape, dtype=dtype)
     # target numpy result
     ref_res = topi.testing.strided_slice_python(np_data, np_begin, np_end, np_strides, slice_mode)
 
@@ -684,7 +684,7 @@ def test_any_strided_slice():
     verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (15, 17, 21))
     verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (23, 29, 41))
     verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70))
-    verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70), slice_mode=True)
+    verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (15, 17, 21), slice_mode=True)
 
 
 def test_recursive_concat():

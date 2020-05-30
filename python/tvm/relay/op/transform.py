@@ -619,19 +619,21 @@ def strided_slice(data, begin, end, strides=None, slice_mode=False):
     data : relay.Expr
         The source array to be sliced.
 
-    begin: relay.Expr or List[int]
+    begin: relay.Expr, Tuple[int], or List[int]
         The indices to begin with in the slicing.
 
-    end: relay.Expr or List[int]
+    end: relay.Expr, Tuple[int], or List[int]
         Indices indicating end of the slice.
 
-    strides: relay.Expr or List[int], optional
+    strides: relay.Expr, Tuple[int], or List[int], optional
         Specifies the stride values, it can be negative in that case,
         the input tensor will be reversed in that particular axis.
 
     slice_mode: boolean, optional
-        Whether to ignore the negative elements in input end,
-        will slice to the end of data for the ignored element.
+        Specifies whether to enable slice mode. In slice mode,
+        strides will be ignored, end indicates the size of a slice
+        starting at the location specified by begin. If end[i] is -1,
+        all remaining elements in that dimension are included in the slice
 
     Returns
     -------
@@ -639,11 +641,11 @@ def strided_slice(data, begin, end, strides=None, slice_mode=False):
         The computed result.
     """
     strides = strides or const([1], dtype="int32")
-    if isinstance(begin, list):
+    if isinstance(begin, (tuple, list)):
         begin = const(list(begin))
-    if isinstance(end, list):
+    if isinstance(end, (tuple, list)):
         end = const(list(end))
-    if isinstance(strides, list):
+    if isinstance(strides, (tuple, list)):
         strides = const(list(strides))
     return _make.strided_slice(data, begin, end, strides, slice_mode)
 
@@ -659,13 +661,13 @@ def strided_set(data, v, begin, end, strides=None):
     v : relay.Expr
         The data to be set.
 
-    begin: relay.Expr or List[int]
+    begin: relay.Expr, Tuple[int], or List[int]
         The indices to begin with in the slicing.
 
-    end: relay.Expr or List[int]
+    end: relay.Expr, Tuple[int], or List[int]
         Indices indicating end of the slice.
 
-    strides: relay.Expr or List[int], optional
+    strides: relay.Expr, Tuple[int], or List[int], optional
         Specifies the stride values, it can be negative in that case,
         the input tensor will be reversed in that particular axis.
 
@@ -675,11 +677,11 @@ def strided_set(data, v, begin, end, strides=None):
         The computed result.
     """
     strides = strides or const([1], dtype="int32")
-    if isinstance(begin, list):
+    if isinstance(begin, (tuple, list)):
         begin = const(list(begin))
-    if isinstance(end, list):
+    if isinstance(end, (tuple, list)):
         end = const(list(end))
-    if isinstance(strides, list):
+    if isinstance(strides, (tuple, list)):
         strides = const(list(strides))
     return _make.strided_set(data, v, begin, end, strides)
 

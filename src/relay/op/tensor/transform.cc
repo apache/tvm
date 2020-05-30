@@ -1687,13 +1687,13 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   // calculate output shape
   std::vector<IndexExpr> oshape(num_axis);
   if (param->begin && param->end && param->strides) {
-    std::vector<int64_t> stride_vec;
-    for (Integer i : param->strides.value()) {
-      CHECK(i.defined());
-      stride_vec.push_back(i->value);
-    }
-    for (int64_t i = stride_vec.size(); i < num_axis; ++i) {
-      stride_vec.push_back(1);
+    // stride will be set as 1 if slice mode is enabled
+    std::vector<int64_t> stride_vec(num_axis, 1);
+    if (!param->slice_mode) {
+      for (size_t i = 0; i < param->strides.value().size(); ++i) {
+        CHECK(param->strides.value()[i].defined());
+        stride_vec[i] = param->strides.value()[i]->value;
+      }
     }
     const int64_t max_range = std::numeric_limits<int64_t>::max();
     std::vector<int64_t> begin_vec;
@@ -1714,13 +1714,11 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
       if (!param->end.value()[i].defined()) {
         end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
       } else if (param->slice_mode) {
-          if (param->end.value()[i]->value < 0) {
-            end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
-          } else if (stride_vec[i] < 0) {
-              end_vec.push_back(begin_vec[i] - param->end.value()[i]->value);
-          } else {
-              end_vec.push_back(begin_vec[i] + param->end.value()[i]->value);
-          }
+        if (param->end.value()[i]->value < 0) {
+          end_vec.push_back(max_range);
+        } else {
+          end_vec.push_back(begin_vec[i] + param->end.value()[i]->value);
+        }
       } else {
         end_vec.push_back(param->end.value()[i]->value);
       }
@@ -1762,7 +1760,7 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
       } else {
         if (begin_v < 0) begin_v = 0;
         CHECK_GE(stride_v, 0);
-        CHECK_LT(begin_v, end_v) << "strided_slice get empty slice at axis " << i;
+        CHECK_LE(begin_v, end_v) << "strided_slice get invalid slice at axis " << i;
         end_v = std::min(dim_size, end_v);
         slice_range = end_v - begin_v;
         step = stride_v;
@@ -1807,7 +1805,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
     if (params->begin && params->end && params->strides) {
       for (Integer i : params->strides.value()) {
         CHECK(i.defined());
-        strides.push_back(i->value);
+        strides.push_back(params->slice_mode ? 1 : i->value);
       }
 
       for (Integer i : params->begin.value()) {
@@ -1978,7 +1976,7 @@ Examples::
     .add_argument("begin", "Tensor", "The indices to begin with in the slicing.")
     .add_argument("end", "Tensor", "Indices indicating end of the slice.")
     .add_argument("strides", "Tensor", "The stride values.")
-    .add_argument("slice_mode", "Tensor", "Whether to ignore negative elements of input end.")
+    .add_argument("slice_mode", "Tensor", "Whether to enable slice mode.")
     .set_support_level(4)
     .set_attrs_type<StridedSliceAttrs>()
     .add_type_rel("StridedSlice", StridedSliceRel)

@@ -192,6 +192,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       for (size_t i = 0; i < begin.size(); ++i) {
         begin_data[i] = begin[i];
         end_data[i] = end[i];
+        end_data[i] -= begin_data[i];
         strides_data[i] = 1;
       }
 

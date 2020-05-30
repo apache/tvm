@@ -652,11 +652,12 @@ def _nms():
                                                       invalid_to_bottom=False)
 
         # squeeze it, TF NMS is not batched
-        end = get_relay_op("squeeze")(nms_ret[1], axis=[1])
+        size = get_relay_op("squeeze")(nms_ret[1], axis=[1])
         data_slice = get_relay_op("squeeze")(nms_ret[0], axis=[0])
 
         # slice to get the dynamic result
-        ret = get_relay_op("strided_slice")(data_slice, _expr.const([0]), end, _expr.const([1]))
+        ret = get_relay_op("strided_slice")(data_slice, begin=_expr.const([0]),
+                                            end=size, slice_mode=True)
         return ret
     return _impl
 
@@ -1165,7 +1166,11 @@ def _slice():
         try:
             begin = _get_list_param(params, inputs[1])
         except (IndexError, KeyError, AttributeError):
-            begin = _infer_value(inputs[1], params).asnumpy().tolist()[0]
+            # Handle symbolic begin
+            try:
+                begin = _infer_value(inputs[1], params).asnumpy().tolist()[0]
+            except Exception:
+                begin = inputs[1]
         try:
             size = _get_list_param(params, inputs[2])
         except (IndexError, KeyError, AttributeError):
@@ -1174,16 +1179,7 @@ def _slice():
                 size = _infer_value(inputs[2], params).asnumpy().tolist()[0]
             except Exception:
                 size = inputs[2]
-        data_shape = _infer_shape(inputs[0], mod)
-        data_dim = len(data_shape)
-        end = size
-        if not isinstance(end, (_expr.Call, _expr.Var)):
-            for i in range(data_dim):
-                if size[i] == -1:
-                    end[i] = data_shape[i]
-                else:
-                    end[i] += begin[i]
-        return _op.strided_slice(inputs[0], begin=begin, end=end)
+        return _op.strided_slice(inputs[0], begin=begin, end=size, slice_mode=True)
     return _impl
 
 

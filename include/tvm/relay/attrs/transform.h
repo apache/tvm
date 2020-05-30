@@ -221,7 +221,11 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
     TVM_ATTR_FIELD(strides).describe("Stride values of the slice");
     TVM_ATTR_FIELD(slice_mode)
         .set_default(false)
-        .describe("Whether to ignore the negative elements in input end.");
+        .describe(
+            "Specifies whether to enable slice mode. In slice mode,"
+            "strides will be ignored, end indicates the size of a slice"
+            "starting at the location specified by begin. If end[i] is -1,"
+            "all remaining elements in that dimension are included in the slice");
   }
 };
 

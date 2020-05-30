@@ -520,7 +520,7 @@ inline Array<Tensor> split(const Tensor& x, Array<Integer> split_indices, int ax
  * \param begin The indices to begin with in the slicing
  * \param end Indicies indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
- * \param slice_mode Specifies whether to ignore negative elements of input end
+ * \param slice_mode Specifies whether to enable slice mode
  * in that case, the input tensor will be reversed in that particular axis
  * \param name The name of the operation
  * \param tag The tag to mark the operation
@@ -534,14 +534,12 @@ inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const 
   // Setup the ranges.
   // NOTE: this code duplicates the shape inference logic relay.op
   // Consider to refactor in the future.
-  std::vector<int64_t> stride_vec;
-  for (Integer i : strides) {
-    CHECK(i.defined());
-    stride_vec.push_back(i->value);
+  std::vector<int64_t> stride_vec(src_tensor_dim, 1);
+  for (size_t i = 0; i < strides.size(); ++i) {
+    CHECK(strides[i].defined());
+    stride_vec[i] = strides[i]->value;
   }
-  for (size_t i = stride_vec.size(); i < src_tensor_dim; ++i) {
-    stride_vec.push_back(1);
-  }
+
   const int64_t max_range = std::numeric_limits<int64_t>::max();
 
   std::vector<int64_t> begin_vec;
@@ -566,10 +564,8 @@ inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const 
     } else if (slice_mode) {
       if (end[i]->value < 0) {
         end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
-      } else if (stride_vec[i] > 0) {
-        end_vec.push_back(begin_vec[i] + end[i]->value);
       } else {
-        end_vec.push_back(begin_vec[i] - end[i]->value);
+        end_vec.push_back(begin_vec[i] + end[i]->value);
       }
     } else {
       end_vec.push_back(end[i]->value);

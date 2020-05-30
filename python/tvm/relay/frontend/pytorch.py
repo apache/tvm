@@ -243,7 +243,11 @@ def _slice():
             end[dim] = inputs[3]
 
         strides.append(int(inputs[4]))
-        return _op.transform.strided_slice(data, begin, end, strides)
+        return _op.transform.strided_slice(data,
+                                           begin=_expr.const(begin),
+                                           end=_expr.const(end),
+                                           strides=_expr.const(strides),
+                                           slice_mode=True)
     return _impl
 
 def _split():
@@ -1233,7 +1237,10 @@ def _chunk(prelude):
             end[axis] = i + unif_size
             stride = [1] * len(shape)
 
-            chunk_out = _op.transform.strided_slice(data, begin, end, stride)
+            chunk_out = _op.transform.strided_slice(data,
+                                                    begin=_expr.const(begin),
+                                                    end=_expr.const(end),
+                                                    strides=_expr.const(stride))
             chunks.append(chunk_out)
 
         if dim % num_chunks:
@@ -1243,7 +1250,10 @@ def _chunk(prelude):
             end[axis] = dim
             stride = [1] * len(shape)
 
-            chunk_out = _op.transform.strided_slice(data, begin, end, stride)
+            chunk_out = _op.transform.strided_slice(data,
+                                                    begin=_expr.const(begin),
+                                                    end=_expr.const(end),
+                                                    strides=_expr.const(stride))
             chunks.append(chunk_out)
 
         return chunks

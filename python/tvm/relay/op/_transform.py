@@ -120,10 +120,9 @@ def _strided_slice_shape_func_input_data(data, begin, end, strides,
         if end.shape[0] <= i:
             cend = data.shape[i]
         elif slice_mode != 0:
+            cstride = 1
             if end[i] < 0:
                 cend = data.shape[i]
-            elif cstride < 0:
-                cend = cbegin - end[i]
             else:
                 cend = cbegin + end[i]
         else:
@@ -148,10 +147,9 @@ def _strided_slice_shape_func_input_shape(data_shape, begin, end, strides, slice
         if len(end) <= i:
             cend = int64(data_shape[i])
         elif slice_mode != 0:
+            cstride = int64(1)
             if end[i] < 0:
                 cend = int64(data_shape[i])
-            elif cstride < 0:
-                cend = cbegin - int64(end[i])
             else:
                 cend = cbegin + int64(end[i])
         else:

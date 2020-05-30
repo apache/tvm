@@ -35,7 +35,10 @@ def strided_slice_python(data, begin, end, strides, slice_mode=False):
         The stride of each slice.
 
     slice_mode : boolean
-        Whether to ignore negative elements of input end
+        Specifies whether to enable slice mode.
+        In slice mode, strides will be ignored,
+        end indicates the size of a slice starting
+        at the location specified by begin.
 
     Returns
     -------
@@ -45,7 +48,9 @@ def strided_slice_python(data, begin, end, strides, slice_mode=False):
     strides = [] if strides is None else strides
     slices = []
     for i in range(len(data.shape)):
-        new_stride = strides[i] if i < len(strides) else None
+        new_stride = None
+        if not slice_mode and i < len(strides):
+            new_stride = strides[i]
 
         new_begin = begin[i] if i < len(begin) else None
         if i >= len(end):
@@ -53,8 +58,6 @@ def strided_slice_python(data, begin, end, strides, slice_mode=False):
         elif slice_mode:
             if end[i] < 0:
                 new_end = None
-            elif new_stride and new_stride < 0:
-                new_end = new_begin - end[i]
             else:
                 new_end = new_begin + end[i]
         else:
