@@ -123,7 +123,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
         result = ex.evaluate()(*inputs)
         return vmobj_to_list(result)
     else:
-        with relay.build_config(opt_level=opt_level):
+        with tvm.transform.PassContext(opt_level=opt_level):
             graph, lib, params = relay.build(mod, target, target_host, params)
 
         ctx = tvm.context(target, 0)
@@ -2307,7 +2307,7 @@ def test_forward_ptb():
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c': 'float32',
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h': 'float32'}
         target = 'llvm'
-        with relay.build_config(opt_level=0):
+        with tvm.transform.PassContext(opt_level=0):
             graph, lib, params = relay.build(mod,
                                              target,
                                              params=params)

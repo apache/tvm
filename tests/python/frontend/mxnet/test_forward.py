@@ -66,7 +66,7 @@ def verify_mxnet_frontend_impl(mx_symbol,
                                                     shape_dict,
                                                     arg_params=args,
                                                     aux_params=auxs)
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build(mod, target, params=params)
         m = graph_runtime.create(graph, lib, ctx)
         # set inputs

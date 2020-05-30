@@ -33,7 +33,7 @@ import model_zoo
 
 def get_tvm_output(func, x, params, target, ctx,
                    out_shape=(1, 1000), input_name='image', dtype='float32'):
-    with relay.transform.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(func, target, params=params)
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
@@ -76,7 +76,7 @@ def run_tvm_graph(coreml_model, target, ctx, input_data, input_name, output_shap
         dtype_dict = {input_name: input_data.dtype}
 
     mod, params = relay.frontend.from_coreml(coreml_model, shape_dict)
-    with relay.transform.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(mod, target, params=params)
 
     from tvm.contrib import graph_runtime

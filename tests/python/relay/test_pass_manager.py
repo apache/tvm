@@ -382,7 +382,7 @@ def test_sequential_pass():
     def test_only_module_pass():
         passes = [module_pass]
         sequential = tvm.transform.Sequential(opt_level=1, passes=passes)
-        with relay.build_config(required_pass=["mod_transform"]):
+        with tvm.transform.PassContext(required_pass=["mod_transform"]):
             ret_mod = sequential(mod)
         # Check the subtract function.
         sub_var, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
@@ -397,7 +397,7 @@ def test_sequential_pass():
         # Check the subtract function.
         passes = [function_pass]
         sequential = tvm.transform.Sequential(opt_level=1, passes=passes)
-        with relay.build_config(required_pass=["func_transform"]):
+        with tvm.transform.PassContext(required_pass=["func_transform"]):
             ret_mod = sequential(mod)
         _, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, get_ref_sub())
@@ -413,7 +413,7 @@ def test_sequential_pass():
         passes = [module_pass, function_pass]
         sequential = tvm.transform.Sequential(opt_level=1, passes=passes)
         required = ["mod_transform", "func_transform"]
-        with relay.build_config(required_pass=required):
+        with tvm.transform.PassContext(required_pass=required):
             ret_mod = sequential(mod)
 
         # Check the abs function is added.
@@ -490,7 +490,7 @@ def test_sequential_with_scoping():
     ])
 
     mod = tvm.IRModule({"main": before()})
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         with tvm.target.create("llvm"):
             mod = seq(mod)
 
@@ -515,7 +515,7 @@ def test_print_ir(capfd):
     ])
 
     mod = tvm.IRModule({"main": func})
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
 
     out = capfd.readouterr().err
@@ -549,7 +549,7 @@ def test_print_debug_callback():
     assert __TRACE_COUNTER__ == 0
     mod = tvm.IRModule({"main": func})
 
-    with relay.build_config(opt_level=3, trace=_tracer):
+    with tvm.transform.PassContext(opt_level=3, trace=_tracer):
         mod = seq(mod)
 
     assert __TRACE_COUNTER__ == 3

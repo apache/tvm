@@ -127,7 +127,7 @@ def compile_network(opt, env, target):
 
     # Perform quantization in Relay
     # Note: We set opt_level to 3 in order to fold batch norm
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         with relay.quantize.qconfig(global_scale=8.0,
                                     skip_conv_layers=[0]):
             relay_prog = relay.quantize.quantize(mod["main"], params=params)
@@ -272,7 +272,7 @@ if __name__ == '__main__':
         # Compile network
         print("Compiling network with best tuning parameters...")
         if target.device_name != "vta":
-            with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
+            with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
                 graph, lib, params = relay.build(
                     relay_prog, target=target,
                     params=params, target_host=env.target_host)

@@ -33,7 +33,7 @@ def build_module(opts):
     func = mod["main"]
     func = relay.Function(func.params, relay.nn.softmax(func.body), None, func.type_params, func.attrs)
 
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(
             func, 'llvm --system-lib', params=params)
 

@@ -41,7 +41,7 @@ def get_tvm_runtime(script_module, input_name, ishape):
     input_shapes = [(input_name, ishape)]
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         # test on only cpu for now, torch cannot run quant models on cuda
         # also not to make CI too slow
         json, lib, params = relay.build(mod, target="llvm", params=params)

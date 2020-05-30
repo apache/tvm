@@ -195,7 +195,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
 
     def check_vm_result():
         compile_engine.get().clear()
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         lib = update_lib(lib)
@@ -210,7 +210,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
 
     def check_graph_runtime_result():
         compile_engine.get().clear()
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             json, lib, param = relay.build(mod, target=target, params=params)
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
@@ -512,7 +512,7 @@ def test_function_lifting():
             transform.AlterOpLayout(),
         ])
 
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             mod = opt_pass(mod)
 
         return mod
@@ -595,7 +595,7 @@ def test_function_lifting_inline():
             transform.Inline(),
         ])
 
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             mod = opt_pass(mod)
 
         return mod
@@ -885,7 +885,8 @@ def test_dnnl_fuse():
             transform.PartitionGraph()
         ])
 
-        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with tvm.transform.PassContext(opt_level=3,
+                                       disabled_pass=["AlterOpLayout"]):
             return composite_partition(mod)
 
     def test_detect_pattern(pattern_table, include_bn, include_sigmoid,

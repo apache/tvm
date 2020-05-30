@@ -213,7 +213,7 @@ def test_fold_batch_norm():
     mod, params = create_workload(bn_output[0], initializer)
     mod["main"] = bind_params_by_name(mod["main"], params)
 
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         mod = remove_bn_pass(mod)
 
     expect = run_infer_type(expected())

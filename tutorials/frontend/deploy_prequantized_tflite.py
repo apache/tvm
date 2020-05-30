@@ -198,7 +198,7 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 # Lets now the compile the Relay module. We use the "llvm" target here. Please replace it with the
 # target platform that you are interested in.
 target = 'llvm'
-with relay.build_config(opt_level=3):
+with tvm.transform.PassContext(opt_level=3):
     graph, lib, params = relay.build_module.build(mod, target=target,
                                                   params=params)
 
