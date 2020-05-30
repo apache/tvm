@@ -65,7 +65,7 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
 
     mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
 
-    with relay.build_config(opt_level=1):
+    with tvm.transform.PassContext(opt_level=1):
         graph, lib, params = relay.build(mod,
                                          target,
                                          params=params)

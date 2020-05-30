@@ -184,7 +184,7 @@ def test_compile_placeholder_bypass():
     z = relay.var("z", shape=(2, 3))
     result = relay.Tuple([x, relay.op.concatenate([y, z], axis=0)])
     func = relay.Function(relay.analysis.free_vars(result), result)
-    with relay.build_config(opt_level=0):
+    with tvm.transform.PassContext(opt_level=0):
        graph, lib, params = relay.build(tvm.IRModule.from_expr(func), 'llvm')
 
 

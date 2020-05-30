@@ -262,7 +262,7 @@ def test_conv2d_run():
         with open(temp.relpath("temp.log"), "w") as log_file:
             log_file.write(test_schedule)
         with autotvm.apply_history_best(temp.relpath("temp.log")):
-            with relay.build_config(opt_level=3):
+            with tvm.transform.PassContext(opt_level=3):
                 print('Compiling...')
                 graph_json, mod, params = tvm.relay.build(mod, target="llvm -device=arm_cpu")
 
@@ -356,7 +356,7 @@ def test_conv2d_winograd():
             data.astype(out_dtype), kernel.astype(out_dtype), 1, padding,
             groups=groups)
 
-        with WinogradFallback(), relay.build_config(opt_level=3):
+        with WinogradFallback(), tvm.transform.PassContext(opt_level=3):
             for target, ctx in ctx_list():
                 if target != 'cuda':
                     continue
@@ -578,7 +578,7 @@ def test_conv3d_winograd():
             data.astype(out_dtype), kernel.astype(out_dtype), 1, padding,
             groups=groups)
 
-        with WinogradFallback(), relay.build_config(opt_level=3):
+        with WinogradFallback(), tvm.transform.PassContext(opt_level=3):
             for target, ctx in ctx_list():
                 if target != 'cuda':
                     continue
@@ -1199,7 +1199,7 @@ def test_conv2d_int8_intrinsics():
         wdata = np.random.rand(*kernel_shape) * 10
         parameters = {"weight": tvm.nd.array(wdata.astype(weight_dtype))}
 
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build(func, target, params=parameters)
 
         assembly = lib.get_source("asm")
@@ -1314,7 +1314,7 @@ def test_depthwise_conv2d_int8():
     llvm_version = tvm.target.codegen.llvm_version_major()
     for target in targets:
         if llvm_version >= 8:
-            with relay.build_config(opt_level=3):
+            with tvm.transform.PassContext(opt_level=3):
                 graph, lib, params = relay.build(func, target, params=parameters)
 
 

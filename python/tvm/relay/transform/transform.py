@@ -21,6 +21,7 @@ Relay pass transformation infrastructure.
 import types
 import inspect
 import functools
+import warnings
 
 import tvm.ir
 from tvm import te
@@ -34,7 +35,9 @@ def build_config(opt_level=2,
                  required_pass=None,
                  disabled_pass=None,
                  trace=None):
-    """Configure the build behavior by setting config variables.
+    """Configure the build behavior by setting config variables. This function
+    will be deprecated in TVM v0.7. Instead, we should directly use
+    tvm.transform.PassContext.
 
     Parameters
     ----------
@@ -72,8 +75,9 @@ def build_config(opt_level=2,
     pass_context: PassContext
         The pass context for optimizations.
     """
-    return tvm.ir.transform.PassContext(opt_level, required_pass,
-                                        disabled_pass, trace)
+    warnings.warn("relay.build_config will be deprecated. Please use \
+                  tvm.transform.PassContext directly", DeprecationWarning)
+    return tvm.transform.PassContext(opt_level, required_pass, disabled_pass, trace)
 
 
 @tvm._ffi.register_object("relay.FunctionPass")
