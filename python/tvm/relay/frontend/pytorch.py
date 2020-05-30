@@ -1760,6 +1760,7 @@ def _get_convert_map(prelude):
         "aten::arange"                          : _arange(),
         "aten::div"                             : _elemwise("divide"),
         "aten::div_"                            : _elemwise("divide"),
+        "aten::floor_divide"                    : _elemwise("floor_divide"),
         "aten::addcdiv"                         : _addcdiv(),
         "aten::addcmul"                         : _addcmul(),
         "aten::ones"                            : _ones(),
