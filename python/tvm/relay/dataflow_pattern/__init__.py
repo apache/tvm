@@ -318,15 +318,14 @@ class VarPattern(DFPattern):
     Parameters
     ----------
     name_hint: str
-        The name of the variable.
-        This name only acts as a hint, and is not used
-        for equality.
+        The name of the variable. Optional, if not provided,
+        the pattern will match any VarNode.
 
     type_annotation: tvm.relay.Type, optional
         The type annotation on the variable.
     """
 
-    def __init__(self, name_hint: str, type_annotation=None):
+    def __init__(self, name_hint="", type_annotation=None):
         self.__init_handle_by_constructor__(
             ffi.VarPattern, name_hint, type_annotation)
 
