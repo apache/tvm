@@ -462,6 +462,10 @@ class Gemm(OnnxOpConverter):
         inputs[0] = _op.nn.batch_flatten(inputs[0])
         out = _op.nn.dense(_expr.const(alpha) * inputs[0],
                            inputs[1], units=channels)
+        # skip (beta * C) if zero
+        C_array = params[inputs[2].name_hint].asnumpy()
+        if (beta == 0.0) or np.array_equal(C_array, np.array([0])):
+            return out
         return _op.nn.bias_add(out, _expr.const(beta) * inputs[2])
 
 
