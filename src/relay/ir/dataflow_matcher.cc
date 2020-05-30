@@ -562,7 +562,7 @@ class PatternGrouper {
           auto matches = node_map[node->ref_];
           for (auto match : matches) {
             if (fuzzy_matches.count(match) == 0 && match.as<OpNode>() == nullptr &&
-                match.as<FunctionNode>() == nullptr) {
+                match.as<FunctionNode>() == nullptr && !EmbedConst(match, node->ref_)) {
               inputs[match] = Var(
                   "FunctionVar_" + std::to_string(graph_number_) + "_" + std::to_string(var_number),
                   NullValue<Type>());
@@ -582,8 +582,8 @@ class PatternGrouper {
     auto extractor = MatchExtractor(inputs);
     auto body = extractor.Mutate(expr);
 
-    // Verify the pattern still holds, no longer valid if we're not embedding constants in the
-    // graph, keep here for future debug CHECK(DFPatternMatcher(body).Match(pattern_, body));
+    // Verify the pattern still holds
+    CHECK(DFPatternMatcher(body).Match(pattern_, body));
     group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
     group.name = extractor.GetName();
     // Check to make sure we aren't overlapping with another group
@@ -613,6 +613,36 @@ class PatternGrouper {
     CHECK_EQ(groups_[gid_].gid, gid_);
   }
 
+  /* \brief EmbedConst implements rules for embedding constants into partitioned functions or
+   * lifting them into the function arguments.
+   *
+   * The rules depend on what pattern the ConstantNode matched.
+   *
+   * The basic rules are:
+   *  If the constant matches ExprPattern(relay.const(*)) or a ConstantPattern(), embed the constant
+   * in the partitioned function. If the constant matched an AltPattern, recursively check the
+   * matched side of the pattern. For any other matching pattern (i.e, wildcard, VarPattern, etc),
+   * lift the constant into the arguments of the partitioned function.
+   */
+  bool EmbedConst(const Expr& expr, const DFPattern pattern) {
+    bool embed = false;
+    if (expr.as<ConstantNode>()) {
+      if (pattern.as<ConstantPatternNode>() != nullptr) {
+        embed = true;
+      } else if (auto expr_pat = pattern.as<ExprPatternNode>()) {
+        if (expr_pat->expr.as<ConstantNode>()) {
+          embed = true;
+        }
+      } else if (auto alt_pat = pattern.as<AltPatternNode>()) {
+        if (matcher_->Match(alt_pat->left, expr)) {
+          embed = EmbedConst(expr, alt_pat->left);
+        } else {
+          embed = EmbedConst(expr, alt_pat->right);
+        }
+      }
+    }
+    return embed;
+  }
   // Internal State
   DFPattern pattern_;
   std::vector<Group> groups_;

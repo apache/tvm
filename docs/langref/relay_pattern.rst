@@ -137,7 +137,7 @@ The next example is matching a pattern of batch_norm -> get(0) -> relu:
         pat.match(out)
 
 The next example is matching a constant node regarding its values. This is useful to check
-if a specific parameter in a subgraph has been bind or not.
+if a specific parameter in a subgraph has been bound or not.
 
 .. code-block:: python
 
@@ -266,10 +266,10 @@ Attribute Pattern
 
 Check that the operator matched by the pattern has an attribute with a particular value.
 
-Input
-*****
+Variable Pattern
+****************
 
-Check that the expression is an input, i.e has no parents and is a variable.
+Check that the expression is a relay Variable, and optional provide a name to match to the Variable name.
 
 
 Alternate
