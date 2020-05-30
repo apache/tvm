@@ -142,14 +142,9 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
         s[data_vec].unroll(vw)
 
     if isinstance(kernel_vec.op, tvm.te.ComputeOp) and kernel_vec.name == 'kernel_vec':
-        co, ci, kh, kw, vc = s[kernel_vec].op.axis
-        if autotvm.GLOBAL_SCOPE.in_tuning:
-            # Directly use modified data layout placeholder.
-            kvshape = (co // vc, ci, kh, kw, vc)
-            kernel_vec = tvm.te.placeholder(kvshape, kernel_vec.dtype, name="kernel")
-            s[kernel_vec] = kernel_vec
-        else:
+        if not autotvm.GLOBAL_SCOPE.in_tuning:
             max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
+            co, ci, kh, kw, vc = s[kernel_vec].op.axis
             fused = s[kernel_vec].fuse(co, ci, kh, kw, vc)
             fused, vec = s[kernel_vec].split(fused, VC)
             bb, tt = s[kernel_vec].split(fused, max_threads)

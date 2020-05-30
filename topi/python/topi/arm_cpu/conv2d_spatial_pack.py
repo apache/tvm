@@ -109,12 +109,15 @@ def conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding, dilation,
                               data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw],
                               name='data_vec')
 
-    if pre_packed:
-        kernel_vec = kernel
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        kernel_vec = tvm.te.placeholder(kvshape, kernel.dtype, name="kernel")
     else:
-        kernel_vec = te.compute(kvshape, lambda co, ci, kh, kw, vc:
-                                kernel[co*VC+vc][ci][kh][kw],
-                                name='kernel_vec')
+        if pre_packed:
+            kernel_vec = kernel
+        else:
+            kernel_vec = te.compute(kvshape, lambda co, ci, kh, kw, vc:
+                                    kernel[co*VC+vc][ci][kh][kw],
+                                    name='kernel_vec')
 
     ci = te.reduce_axis((0, CI), name='ci')
     kh = te.reduce_axis((0, KH), name='kh')
@@ -267,9 +270,13 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
         data_vec = te.compute(dvshape, lambda n, oho, owo, ohi, owi, ic:
                               data_pad[n][oho*OHI*HSTR+ohi][owo*OWI*WSTR+owi][ic],
                               name='data_vec')
-    kernel_vec = te.compute(kvshape, lambda oco, kh, kw, ic, oci: \
-                            kernel[kh][kw][ic][oco*OCI+oci],
-                            name='kernel_vec')
+
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        kernel_vec = tvm.te.placeholder(kvshape, kernel.dtype, name="kernel")
+    else:
+        kernel_vec = te.compute(kvshape, lambda oco, kh, kw, ic, oci: \
+                                kernel[kh][kw][ic][oco*OCI+oci],
+                                name='kernel_vec')
 
     ic = te.reduce_axis((0, IC), name='ic')
     kh = te.reduce_axis((0, KH), name='kh')
