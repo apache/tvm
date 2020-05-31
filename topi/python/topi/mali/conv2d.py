@@ -287,7 +287,8 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
             r_kh = te.reduce_axis((0, KH), 'r_kh')
             r_kw = te.reduce_axis((0, KW), 'r_kw')
             U = te.compute((alpha, alpha, CO // bna, CI, bna), lambda eps, nu, co, ci, vco:
-                           te.sum(kernel[co * bna + vco][ci][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw],
+                           te.sum(kernel[co * bna + vco][ci][r_kh][r_kw] *
+                                  G[eps][r_kh] * G[nu][r_kw],
                                   axis=[r_kh, r_kw]), name='U')
 
     # transform image
