@@ -309,10 +309,15 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
                             data_pad[n][c][h][w],
                             name='d')
 
-    if pre_computed:
-        U = kernel
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        VC = cfg['tile_k'].size[-1]
+        kvshape = (KH + tile_size - 1, KW + tile_size - 1, tvm.tir.indexdiv(CO, VC), CI, VC)
+        U = tvm.te.placeholder(kvshape, kernel.dtype, name="U")
     else:
-        U = _decl_winograd_kernel_transform(kernel, tile_size, G)
+        if pre_computed:
+            U = kernel
+        else:
+            U = _decl_winograd_kernel_transform(kernel, tile_size, G)
 
     # V [alpha * alpha, C, P_round)
     # Perform the image transform

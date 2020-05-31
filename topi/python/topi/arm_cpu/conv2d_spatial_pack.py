@@ -190,12 +190,8 @@ def schedule_conv2d_spatial_pack_nchw(cfg, s, data_vec, kernel_vec,
     s[data_vec].parallel(h)
 
     if kernel_vec.op.name == 'kernel_vec':
-        co, _, _, _, _ = s[kernel_vec].op.axis
-        if autotvm.GLOBAL_SCOPE.in_tuning:
-            # kernel packing will be pre-computed during compilation, so we skip
-            # this part to make tuning records correct
-            s[kernel_vec].pragma(co, 'debug_skip_region')
-        else:
+        if not autotvm.GLOBAL_SCOPE.in_tuning:
+            co, _, _, _, _ = s[kernel_vec].op.axis
             s[kernel_vec].parallel(co)
     elif kernel_vec.op.name == 'kernel_vec_conv2d_transpose':  # for conv2d transpose
         co, _, _, _, _ = s[kernel_vec].op.axis
@@ -346,12 +342,13 @@ def schedule_conv2d_spatial_pack_nhwc(cfg, s, op, output):
         s[kernel_vec].compute_at(s[conv], compat_axis)
         s[data_vec].compute_at(s[conv], compat_axis)
 
-    # schedule kernel pack
-    oco, kh, kw, ic, oci = kernel_vec.op.axis
-    s[kernel_vec].vectorize(oci)
-    s[kernel_vec].unroll(ic)
-    if cfg['compat'].val == 2:
-        s[kernel_vec].parallel(oco)
+    if not autotvm.GLOBAL_SCOPE.in_tuning:
+        # schedule kernel pack
+        oco, kh, kw, ic, oci = kernel_vec.op.axis
+        s[kernel_vec].vectorize(oci)
+        s[kernel_vec].unroll(ic)
+        if cfg['compat'].val == 2:
+            s[kernel_vec].parallel(oco)
 
     # schedule data pack
     if data_vec.op.name == 'data_vec_undilated':
