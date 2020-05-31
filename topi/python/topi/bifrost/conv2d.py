@@ -142,11 +142,7 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
         s[data_vec].unroll(vw)
 
     if isinstance(kernel_vec.op, tvm.te.ComputeOp) and kernel_vec.name == 'kernel_vec':
-        if autotvm.GLOBAL_SCOPE.in_tuning:
-            # kernel packing will be pre-computed during compilation, so we skip
-            # this part to make tuning records correct
-            s[kernel_vec].pragma(s[kernel_vec].op.axis[0], 'debug_skip_region')
-        else:
+        if not autotvm.GLOBAL_SCOPE.in_tuning:
             max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
             co, ci, kh, kw, vc = s[kernel_vec].op.axis
             fused = s[kernel_vec].fuse(co, ci, kh, kw, vc)
@@ -313,10 +309,15 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
                             data_pad[n][c][h][w],
                             name='d')
 
-    if pre_computed:
-        U = kernel
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        VC = cfg['tile_k'].size[-1]
+        kvshape = (KH + tile_size - 1, KW + tile_size - 1, tvm.tir.indexdiv(CO, VC), CI, VC)
+        U = tvm.te.placeholder(kvshape, kernel.dtype, name="U")
     else:
-        U = _decl_winograd_kernel_transform(kernel, tile_size, G)
+        if pre_computed:
+            U = kernel
+        else:
+            U = _decl_winograd_kernel_transform(kernel, tile_size, G)
 
     # V [alpha * alpha, C, P_round)
     # Perform the image transform
@@ -370,12 +371,7 @@ def _schedule_winograd(cfg, s, op):
         s[G].compute_inline()
         eps, _, _, _ = s[U].op.axis
         y, _, _, _ = s[padded_kernel].op.axis
-        if autotvm.GLOBAL_SCOPE.in_tuning:
-            # Kernel transformation will be pre-computed during compilation, so we skip
-            # this part to make tuning records correct
-            s[U].pragma(eps, 'debug_skip_region')
-            s[padded_kernel].pragma(y, 'debug_skip_region')
-        else:
+        if not autotvm.GLOBAL_SCOPE.in_tuning:
             # Pad kernel
             y, x, ky, kx = s[padded_kernel].op.axis
             s[padded_kernel].unroll(ky)

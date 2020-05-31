@@ -109,12 +109,15 @@ def conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding, dilation,
                               data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw],
                               name='data_vec')
 
-    if pre_packed:
-        kernel_vec = kernel
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        kernel_vec = tvm.te.placeholder(kvshape, kernel.dtype, name="kernel")
     else:
-        kernel_vec = te.compute(kvshape, lambda co, ci, kh, kw, vc:
-                                kernel[co*VC+vc][ci][kh][kw],
-                                name='kernel_vec')
+        if pre_packed:
+            kernel_vec = kernel
+        else:
+            kernel_vec = te.compute(kvshape, lambda co, ci, kh, kw, vc:
+                                    kernel[co*VC+vc][ci][kh][kw],
+                                    name='kernel_vec')
 
     ci = te.reduce_axis((0, CI), name='ci')
     kh = te.reduce_axis((0, KH), name='kh')
@@ -187,12 +190,8 @@ def schedule_conv2d_spatial_pack_nchw(cfg, s, data_vec, kernel_vec,
     s[data_vec].parallel(h)
 
     if kernel_vec.op.name == 'kernel_vec':
-        co, _, _, _, _ = s[kernel_vec].op.axis
-        if autotvm.GLOBAL_SCOPE.in_tuning:
-            # kernel packing will be pre-computed during compilation, so we skip
-            # this part to make tuning records correct
-            s[kernel_vec].pragma(co, 'debug_skip_region')
-        else:
+        if not autotvm.GLOBAL_SCOPE.in_tuning:
+            co, _, _, _, _ = s[kernel_vec].op.axis
             s[kernel_vec].parallel(co)
     elif kernel_vec.op.name == 'kernel_vec_conv2d_transpose':  # for conv2d transpose
         co, _, _, _, _ = s[kernel_vec].op.axis
@@ -267,9 +266,13 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
         data_vec = te.compute(dvshape, lambda n, oho, owo, ohi, owi, ic:
                               data_pad[n][oho*OHI*HSTR+ohi][owo*OWI*WSTR+owi][ic],
                               name='data_vec')
-    kernel_vec = te.compute(kvshape, lambda oco, kh, kw, ic, oci: \
-                            kernel[kh][kw][ic][oco*OCI+oci],
-                            name='kernel_vec')
+
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        kernel_vec = tvm.te.placeholder(kvshape, kernel.dtype, name="kernel")
+    else:
+        kernel_vec = te.compute(kvshape, lambda oco, kh, kw, ic, oci: \
+                                kernel[kh][kw][ic][oco*OCI+oci],
+                                name='kernel_vec')
 
     ic = te.reduce_axis((0, IC), name='ic')
     kh = te.reduce_axis((0, KH), name='kh')
@@ -339,12 +342,13 @@ def schedule_conv2d_spatial_pack_nhwc(cfg, s, op, output):
         s[kernel_vec].compute_at(s[conv], compat_axis)
         s[data_vec].compute_at(s[conv], compat_axis)
 
-    # schedule kernel pack
-    oco, kh, kw, ic, oci = kernel_vec.op.axis
-    s[kernel_vec].vectorize(oci)
-    s[kernel_vec].unroll(ic)
-    if cfg['compat'].val == 2:
-        s[kernel_vec].parallel(oco)
+    if not autotvm.GLOBAL_SCOPE.in_tuning:
+        # schedule kernel pack
+        oco, kh, kw, ic, oci = kernel_vec.op.axis
+        s[kernel_vec].vectorize(oci)
+        s[kernel_vec].unroll(ic)
+        if cfg['compat'].val == 2:
+            s[kernel_vec].parallel(oco)
 
     # schedule data pack
     if data_vec.op.name == 'data_vec_undilated':
