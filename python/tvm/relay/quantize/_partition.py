@@ -19,14 +19,11 @@
 import tvm
 from .. import expr as _expr
 from .. import analysis as _analysis
-from ..op import op as _reg
 from . import _quantize
 from .quantize import _forward_op
 
 def register_partition_function(op_name, frewrite=None, level=10):
-    def _register(func):
-        return _reg._Register(op_name, "FQPartitionRewrite", func, level)
-    return _register(frewrite) if frewrite is not None else _register
+    return tvm.ir.register_op_attr(op_name, "FQPartitionRewrite", frewrite, level)
 
 
 @tvm._ffi.register_object("relay.QPartitionExpr")

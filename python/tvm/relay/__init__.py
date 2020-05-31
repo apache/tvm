@@ -40,7 +40,6 @@ from . import param_dict
 from .backend import vm
 
 # Root operators
-from .op import Op
 from .op import nn
 from .op import image
 from .op import annotation

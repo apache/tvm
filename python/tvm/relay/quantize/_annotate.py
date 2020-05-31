@@ -19,17 +19,16 @@
 import warnings
 import topi
 import tvm._ffi
-
+from tvm.relay.op import op as _reg
 from .. import expr as _expr
 from .. import analysis as _analysis
 from .. import op as _op
-from ..op import op as _reg
 from . import _quantize
 from .quantize import QAnnotateKind, current_qconfig, quantize_context
 from .quantize import _forward_op
 
 
-@_reg.register_compute("relay.op.annotation.simulated_quantize")
+@_op.register_compute("relay.op.annotation.simulated_quantize")
 def simulated_quantize_compute(attrs, inputs, out_type):
     """Compiler for simulated_quantize."""
     assert len(inputs) == 4
@@ -106,8 +105,8 @@ def register_annotate_function(op_name, frewrite=None, level=10):
             if not current_qconfig().guard(ref_call):
                 return default_rewrite(ref_call, new_args, ctx)
             return func(ref_call, new_args, ctx)
-        _reg._Register(op_name, "FQAnnotateRewrite", frewrite_with_guard, level)
-        return frewrite_with_guard
+
+        return tvm.ir.register_op_attr(op_name, "FQAnnotateRewrite", frewrite_with_guard, level)
 
     return _register(frewrite) if frewrite is not None else _register
 

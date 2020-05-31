@@ -1034,7 +1034,7 @@ def test_multiple_use_of_an_output():
 def test_duplicate_outputs():
     target = "test_duplicate_outputs"
 
-    @reg.register("abs", "target." + target)
+    @tvm.ir.register_op_attr("abs", "target." + target)
     def abs(attrs, args): # pylint: disable=unused-variable
         return True
 
@@ -1090,11 +1090,11 @@ def test_duplicate_outputs():
 def test_duplicate_merge_and_tuplegetitem():
     target = "test_duplicate_merge_and_tuplegetitem"
 
-    @reg.register("nn.batch_norm", "target." + target)
+    @tvm.ir.register_op_attr("nn.batch_norm", "target." + target)
     def batch_norm(attrs, args): # pylint: disable=unused-variable
         return True
 
-    @reg.register("nn.relu", "target." + target)
+    @tvm.ir.register_op_attr("nn.relu", "target." + target)
     def relu(attrs, args): # pylint: disable=unused-variable
         return True
 
@@ -1165,7 +1165,7 @@ def test_duplicate_merge_and_tuplegetitem():
     assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 def test_constant_tuples():
-    @reg.register("qnn.concatenate", "target.const_tuples")
+    @tvm.ir.register_op_attr("qnn.concatenate", "target.const_tuples")
     def add(attrs, args):  # pylint: disable=unused-variable
         return True
 
@@ -1203,11 +1203,11 @@ def test_constant_tuples():
 def test_flatten_tuple_output():
     target = "test_flatten_tuple_output"
 
-    @reg.register("split", "target." + target)
+    @tvm.ir.register_op_attr("split", "target." + target)
     def split(attrs, args): # pylint: disable=unused-variable
         return True
 
-    @reg.register("abs", "target." + target)
+    @tvm.ir.register_op_attr("abs", "target." + target)
     def abs(attrs, args): # pylint: disable=unused-variable
         return True
 

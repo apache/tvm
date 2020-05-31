@@ -376,7 +376,7 @@ def get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, cou
         if isinstance(anf, relay.expr.Let):
             value = anf.value
             if isinstance(value, relay.expr.Call):
-                if isinstance(value.op, relay.op.Op):
+                if isinstance(value.op, tvm.ir.Op):
                     if value.op.name == start_name and not start_found:
                         if operator_current_idx == start_name_idx or start_name_idx is None:
                             value = relay.expr.Call(bitpack_start, [value])
