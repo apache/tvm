@@ -2717,7 +2717,6 @@ class GraphProto(object):
         self._hash2tfnode = {}
         self._while_loop_name_set = set()
         self._main_graph_proto = self
-        self._stateful_ops_list = []
 
     def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
@@ -2774,12 +2773,6 @@ class GraphProto(object):
             if freezed_ops:
                 raise Exception("Graph is not frozen. Provide a frozen graph. "
                                 "Found operators {}".format(freezed_ops))
-            stateful_ops = [op for op in missing_operators
-                            if op in self._main_graph_proto._stateful_ops_list]
-            if stateful_ops:
-                raise Exception("Found stateful operators in this graph {}. " \
-                                "Rejecting the graph as TVM does not support stateful operations " \
-                                .format(stateful_ops))
 
             raise NotImplementedError(
                 "The following operators are not implemented: {}".format(missing_operators))
@@ -2926,7 +2919,6 @@ class GraphProto(object):
                                                _control_flow_nodes]]):
                     pass
                 elif op_def is not None and op_def.is_stateful:
-                    self._main_graph_proto._stateful_ops_list.append(node.op)
                     missing_operators.add(node.op)
                 else:
                     missing_operators.add(node.op)

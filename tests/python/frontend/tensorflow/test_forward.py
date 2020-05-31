@@ -3430,7 +3430,8 @@ def _test_spop_stateful():
         op = FunctionWithStatefulOp(constant_op.constant(1.), constant_op.constant(2.))
         with pytest.raises(Exception) as execinfo:
             compare_tf_with_tvm([], [], [op.name], init_global_variables=True, mode="vm")
-        assert execinfo.value.args[0].startswith("Found stateful operators in this graph")
+        assert execinfo.value.args[0].startswith(
+            "The following operators are not implemented")
 
 
 def _test_spop_device_assignment():
@@ -3487,7 +3488,8 @@ def _test_spop_resource_variables():
         with pytest.raises(Exception) as execinfo:
             compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0',
                                 mode='vm', init_global_variables=True)
-        assert execinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph.")
+        assert execinfo.value.args[0].startswith("Graph is not frozen."
+                                                 " Provide a frozen graph")
 
 def test_forward_spop():
     _test_spop_stateful()
