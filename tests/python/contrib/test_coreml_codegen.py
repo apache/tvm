@@ -46,20 +46,55 @@ def test_coreml_codegen():
         print("skip because coremltools is not available")
         return
     shape = (1,)
-    x = relay.var('x', shape=shape)
-    y = relay.var('y', shape=shape)
-    _x = relay.annotation.compiler_begin(x, "coremlcompiler")
-    _y = relay.annotation.compiler_begin(y, "coremlcompiler")
-    z = _x + _x
-    p = _y * _y
-    p = relay.annotation.compiler_end(p, "coremlcompiler")
-    z = relay.annotation.compiler_end(z, "coremlcompiler")
-    f = relay.Function([x, y], p - z)
+
+    def create_graph():
+        x = relay.var('x', shape=shape)
+        y = relay.var('y', shape=shape)
+        z = x + x
+        p = y * y
+        return relay.Function([x, y], p - z)
+
+    def expected():
+        target = "coremlcompiler"
+        mod = tvm.IRModule()
+
+        # function 0
+        f0_i0 = relay.var(target + "_0_i0", shape=shape)
+        func0 = relay.Function([f0_i0], f0_i0 * f0_i0)
+
+        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Compiler", target)
+        func0 = func0.with_attr("global_symbol", target + "_0")
+        gv0 = relay.GlobalVar(target + "_0")
+        mod[gv0] = func0
+
+        # function 2
+        f2_i0 = relay.var(target + "_2_i0", shape=shape)
+        func2 = relay.Function([f2_i0], f2_i0 + f2_i0)
+
+        func2 = func2.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func2 = func2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func2 = func2.with_attr("Compiler", target)
+        func2 = func2.with_attr("global_symbol", target + "_2")
+        gv2 = relay.GlobalVar(target + "_2")
+        mod[gv2] = func2
+
+        # body
+        x = relay.var('x', shape=shape)
+        y = relay.var('y', shape=shape)
+        func = relay.Function([x, y], gv0(y) - gv2(x))
+        mod["main"] = func
+        return mod
+
     x_data = np.random.rand(*shape).astype('float32')
     y_data = np.random.rand(*shape).astype('float32')
     mod = tvm.IRModule()
-    mod["main"] = f
+    mod["main"] = create_graph()
+    mod = transform.AnnotateTarget("coremlcompiler")(mod)
     mod = transform.PartitionGraph()(mod)
+
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
     check_result(mod, {"x": x_data, "y": y_data}, shape, (y_data * y_data) - (x_data + x_data))
 
