@@ -686,7 +686,7 @@ def test_scatter():
 
         data_np = np.random.uniform(size=dshape).astype("float32")
         updates_np = np.random.uniform(size=ishape).astype("float32")
-        indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape)
+        indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
 
         ref_res = ref_scatter(data_np, indices_np, updates_np, axis)
         # TODO(mbrookhart): expand testing when adding more backend schedules
