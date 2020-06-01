@@ -19,3 +19,4 @@
 from .register import get_pattern_table, register_pattern_table
 
 from .dnnl import *
+from .coreml import *
