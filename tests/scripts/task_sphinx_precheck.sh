@@ -23,10 +23,6 @@ set -o pipefail
 
 cleanup()
 {
-    # cat error log if non zero exit
-    if [ $? ]; then
-        cat /tmp/$$.log.txt
-    fi
     rm -rf /tmp/$$.*
 }
 trap cleanup 0
@@ -40,7 +36,7 @@ make cython3
 echo "PreCheck sphinx doc generation WARNINGS.."
 cd docs
 make clean
-TVM_TUTORIAL_EXEC_PATTERN=none make html 2>/tmp/$$.log.txt
+TVM_TUTORIAL_EXEC_PATTERN=none make html |& tee /tmp/$$.log.txt
 
 grep -v -E "__mro__|UserWarning|FutureWarning|tensorflow|Keras|pytorch|TensorFlow|403" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
 echo "---------Sphinx Log----------"

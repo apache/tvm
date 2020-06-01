@@ -121,7 +121,7 @@ class OpNode : public RelayExprNode {
     return is_primitive_ != 0;
   }
 
-  static constexpr const char* _type_key = "relay.Op";
+  static constexpr const char* _type_key = "Op";
   TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, RelayExprNode);
 
  private:
@@ -180,7 +180,7 @@ class Op : public RelayExpr {
    * \tparam ValueType The type of the attribute.
    */
   template <typename ValueType>
-  inline static OpAttrMap<ValueType> GetAttrMap(const std::string& attr_name);
+  inline static OpAttrMap<ValueType> GetAttrMap(const String& attr_name);
   /*!
    * \brief Checks if an attr map is present in the registry.
    * \param attr_name The name of the attribute.
@@ -374,7 +374,7 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
 inline const OpNode* Op::operator->() const { return static_cast<const OpNode*>(get()); }
 
 template <typename ValueType>
-inline OpAttrMap<ValueType> Op::GetAttrMap(const std::string& key) {
+inline OpAttrMap<ValueType> Op::GetAttrMap(const String& key) {
   return OpAttrMap<ValueType>(Op::GetAttrMapContainer(key));
 }
 
