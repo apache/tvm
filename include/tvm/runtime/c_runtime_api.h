@@ -94,7 +94,7 @@ typedef enum {
   // The next few fields are extension types
   // that is used by TVM API calls.
   kTVMOpaqueHandle = 3U,
-  kTVMNullptr = 4U,
+  // 4 is for kDLBfloat
   kTVMDataType = 5U,
   kTVMContext = 6U,
   kTVMDLTensorHandle = 7U,
@@ -112,9 +112,9 @@ typedef enum {
   kTVMExtBegin = 15U,
   kTVMNNVMFirst = 16U,
   kTVMNNVMLast = 20U,
+  kTVMNullptr = 21U,
   // The following section of code is used for non-reserved types.
   kTVMExtReserveEnd = 64U,
-  kTVMBFloat = 65U,
   kTVMExtEnd = 128U,
   // The rest of the space is used for custom, user-supplied datatypes
   kTVMCustomBegin = 129U,

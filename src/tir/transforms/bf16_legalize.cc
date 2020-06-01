@@ -88,7 +88,7 @@ class BF16PromoteRewriter : public StmtExprMutator {
       if (!is_bfloat16)                                          \
         return ret;                                              \
       else                                                       \
-        return CastNode::make(DataType(kTVMBFloat, 16, 1), ret); \
+        return CastNode::make(DataType(kDLBfloat, 16, 1), ret); \
     }                                                            \
   }
 
@@ -320,7 +320,7 @@ class BF16LowerRewriter : StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  void alter_buffers(PrimFuncNode* op) {
+  void AlterBuffers(PrimFuncNode* op) {
     std::vector<std::pair<Var, Buffer>> changes;
     for (auto& itr : op->buffer_map) {
       auto oldbuf = itr.second;
@@ -367,7 +367,7 @@ Pass BF16TypeLowering() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     BF16LowerRewriter lowerer;
-    lowerer.alter_buffers(n);
+    lowerer.AlterBuffers(n);
     n->body = lowerer(std::move(n->body));
     return f;
   };

@@ -45,8 +45,8 @@ class DataType {
     kInt = kDLInt,
     kUInt = kDLUInt,
     kFloat = kDLFloat,
+    kBFloat = kDLBfloat,
     kHandle = TVMTypeCode::kTVMOpaqueHandle,
-    kBFloat = kTVMBFloat,
   };
   /*! \brief default constructor */
   DataType() {}
@@ -303,7 +303,7 @@ inline const char* TypeCode2Str(int type_code) {
       return "Object";
     case kTVMObjectRValueRefArg:
       return "ObjectRValueRefArg";
-    case kTVMBFloat:
+    case kDLBfloat:
       return "bfloat";
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
@@ -372,7 +372,7 @@ inline DLDataType String2DLDataType(std::string s) {
     t.lanes = 1;
     return t;
   } else if (s.substr(0, 6) == "bfloat") {
-    t.code = kTVMBFloat;
+    t.code = kDLBfloat;
     scan = s.c_str() + 6;
   } else if (s.substr(0, 6) == "custom") {
     t.code = ParseCustomDatatype(s, &scan);

@@ -29,7 +29,8 @@ class TypeCode(object):
     UINT = 1
     FLOAT = 2
     HANDLE = 3
-    NULL = 4
+    BFLOAT = 4
+    NULL = 21
     TVM_TYPE = 5
     TVM_CONTEXT = 6
     DLTENSOR_HANDLE = 7
@@ -58,8 +59,8 @@ class DataType(ctypes.Structure):
         0 : 'int',
         1 : 'uint',
         2 : 'float',
-        4 : 'handle',
-        65: 'bfloat'
+        3 : 'handle',
+        4 : 'bfloat'
     }
     def __init__(self, type_str):
         super(DataType, self).__init__()
@@ -86,13 +87,13 @@ class DataType(ctypes.Structure):
         elif head.startswith("float"):
             self.type_code = 2
             head = head[5:]
-        elif head.startswith("bfloat"):
-            self.type_code = 65
-            head = head[6:]
         elif head.startswith("handle"):
-            self.type_code = 4
+            self.type_code = 3
             bits = 64
             head = ""
+        elif head.startswith("bfloat"):
+            self.type_code = 4
+            head = head[6:]
         elif head.startswith("custom"):
             # pylint: disable=import-outside-toplevel
             import tvm.runtime._ffi_api
