@@ -76,20 +76,20 @@ class BF16PromoteRewriter : public StmtExprMutator {
   PrimExpr VisitExpr_(const GENode* op) final;
 };
 
-#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)        \
-  PrimExpr BF16PromoteRewriter::VisitExpr_(const OP* op) {       \
-    PrimExpr a, b;                                               \
-    bool is_bfloat16;                                            \
-    std::tie(a, b) = DoCast(op->a, op->b, &is_bfloat16);         \
-    if (a.same_as(op->a) && b.same_as(op->b)) {                  \
-      return GetRef<PrimExpr>(op);                               \
-    } else {                                                     \
-      auto ret = FUNC(a, b);                                     \
-      if (!is_bfloat16)                                          \
-        return ret;                                              \
-      else                                                       \
+#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)       \
+  PrimExpr BF16PromoteRewriter::VisitExpr_(const OP* op) {      \
+    PrimExpr a, b;                                              \
+    bool is_bfloat16;                                           \
+    std::tie(a, b) = DoCast(op->a, op->b, &is_bfloat16);        \
+    if (a.same_as(op->a) && b.same_as(op->b)) {                 \
+      return GetRef<PrimExpr>(op);                              \
+    } else {                                                    \
+      auto ret = FUNC(a, b);                                    \
+      if (!is_bfloat16)                                         \
+        return ret;                                             \
+      else                                                      \
         return CastNode::make(DataType(kDLBfloat, 16, 1), ret); \
-    }                                                            \
+    }                                                           \
   }
 
 #define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(OP, FUNC) \
