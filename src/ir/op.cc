@@ -74,63 +74,53 @@ void OpRegEntry::UpdateAttr(const String& key, TVMRetValue value, int plevel) {
 }
 
 // Frontend APIs
-TVM_REGISTER_GLOBAL("relay.op._ListOpNames").set_body_typed([]() {
+TVM_REGISTER_GLOBAL("ir.ListOpNames").set_body_typed([]() {
   return OpRegistry::Global()->ListAllNames();
 });
 
-TVM_REGISTER_GLOBAL("relay.op._GetOp").set_body_typed([](String name) -> Op {
-  return Op::Get(name);
-});
+TVM_REGISTER_GLOBAL("ir.GetOp").set_body_typed([](String name) -> Op { return Op::Get(name); });
 
-TVM_REGISTER_GLOBAL("relay.op._OpGetAttr").set_body([](TVMArgs args, TVMRetValue* rv) {
-  Op op = args[0];
-  std::string attr_name = args[1];
+TVM_REGISTER_GLOBAL("ir.OpGetAttr").set_body_typed([](Op op, String attr_name) -> TVMRetValue {
   auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
+  TVMRetValue rv;
   if (op_map.count(op)) {
-    *rv = op_map[op];
+    rv = op_map[op];
   }
+  return rv;
 });
 
-TVM_REGISTER_GLOBAL("relay.op._OpSetAttr").set_body([](TVMArgs args, TVMRetValue* rv) {
-  Op op = args[0];
-  std::string attr_name = args[1];
-  runtime::TVMArgValue value = args[2];
-  int plevel = args[3];
-  auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
-  reg.set_attr(attr_name, value, plevel);
-});
+TVM_REGISTER_GLOBAL("ir.OpSetAttr")
+    .set_body_typed([](Op op, String attr_name, runtime::TVMArgValue value, int plevel) {
+      auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+      reg.set_attr(attr_name, value, plevel);
+    });
 
-TVM_REGISTER_GLOBAL("relay.op._OpResetAttr").set_body([](TVMArgs args, TVMRetValue* rv) {
-  Op op = args[0];
-  std::string attr_name = args[1];
+TVM_REGISTER_GLOBAL("ir.OpResetAttr").set_body_typed([](Op op, String attr_name) {
   auto& reg = OpRegistry::Global()->RegisterOrGet(op->name);
   reg.reset_attr(attr_name);
 });
 
-TVM_REGISTER_GLOBAL("relay.op._Register").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::string op_name = args[0];
-  std::string attr_key = args[1];
-  runtime::TVMArgValue value = args[2];
-  int plevel = args[3];
-  auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
-  // enable resgiteration and override of certain properties
-  if (attr_key == "num_inputs" && plevel > 128) {
-    reg.set_num_inputs(value);
-  } else if (attr_key == "attrs_type_key" && plevel > 128) {
-    LOG(FATAL) << "attrs type key no longer supported";
-  } else {
-    // normal attr table override.
-    if (args[2].type_code() == kTVMPackedFuncHandle) {
-      // do an eager copy of the PackedFunc
-      PackedFunc f = args[2];
-      // If we get a function from frontend, avoid deleting it.
-      auto* fcopy = new PackedFunc(f);
-      reg.set_attr(attr_key, *fcopy, plevel);
-    } else {
-      reg.set_attr(attr_key, args[2], plevel);
-    }
-  }
-});
+TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
+    .set_body_typed([](String op_name, String attr_key, runtime::TVMArgValue value, int plevel) {
+      auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
+      // enable resgiteration and override of certain properties
+      if (attr_key == "num_inputs" && plevel > 128) {
+        reg.set_num_inputs(value);
+      } else if (attr_key == "attrs_type_key" && plevel > 128) {
+        LOG(FATAL) << "attrs type key no longer supported";
+      } else {
+        // normal attr table override.
+        if (value.type_code() == kTVMPackedFuncHandle) {
+          // do an eager copy of the PackedFunc
+          PackedFunc f = value;
+          // If we get a function from frontend, avoid deleting it.
+          auto* fcopy = new PackedFunc(f);
+          reg.set_attr(attr_key, *fcopy, plevel);
+        } else {
+          reg.set_attr(attr_key, value, plevel);
+        }
+      }
+    });
 
 // helper to get internal dev function in objectref.
 struct Op2ObjectPtr : public ObjectRef {
