@@ -21,4 +21,5 @@ tvm.relay.dataflow_pattern
 .. automodule:: tvm.relay.dataflow_pattern
     :members:
     :imported-members:
+    :exclude-members: Object, Node
     :autosummary:
