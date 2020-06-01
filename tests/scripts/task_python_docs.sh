@@ -23,7 +23,6 @@ source tests/scripts/setup-pytest-env.sh
 
 cleanup()
 {
-    cat /tmp/$$.log.txt
     rm -rf /tmp/$$.log.txt
 }
 trap cleanup 0
@@ -44,7 +43,7 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 cd docs
-PYTHONPATH=`pwd`/../python make html 2>/tmp/$$.log.txt
+PYTHONPATH=`pwd`/../python make html |& tee /tmp/$$.log.txt
 if grep -E "failed to execute" < /tmp/$$.log.txt; then
     echo "Some of sphinx-gallery item example failed to execute."
     exit 1
