@@ -170,11 +170,11 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   /*! \brief Stack of docs to implement scoped GNFing. */
   std::vector<Doc> doc_stack_{};
   /*! \brief Map from Expr to Doc */
-  std::unordered_map<Expr, Doc, ObjectHash, ObjectEqual> memo_;
+  std::unordered_map<Expr, Doc, ObjectPtrHash, ObjectPtrEqual> memo_;
   /*! \brief Map from Type to Doc */
-  std::unordered_map<Type, Doc, ObjectHash, ObjectEqual> memo_type_;
+  std::unordered_map<Type, Doc, ObjectPtrHash, ObjectPtrEqual> memo_type_;
   /*! \brief Map from Type to Doc */
-  std::unordered_map<Pattern, Doc, ObjectHash, ObjectEqual> memo_pattern_;
+  std::unordered_map<Pattern, Doc, ObjectPtrHash, ObjectPtrEqual> memo_pattern_;
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
   /*! \brief meta data context */
@@ -253,9 +253,9 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   /*! \brief meta collector */
   MetaCollector meta_collector_;
   /*! \brief Map from Var to Doc */
-  std::unordered_map<Var, Doc, ObjectHash, ObjectEqual> memo_var_;
+  std::unordered_map<Var, Doc, ObjectPtrHash, ObjectPtrEqual> memo_var_;
   /*! \brief Map from Buffer to Doc */
-  std::unordered_map<Buffer, Doc, ObjectHash, ObjectEqual> memo_buf_;
+  std::unordered_map<Buffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_buf_;
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
 

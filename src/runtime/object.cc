@@ -217,8 +217,8 @@ uint32_t Object::TypeKey2Index(const std::string& key) {
   return TypeContext::Global()->TypeKey2Index(key);
 }
 
-TVM_REGISTER_GLOBAL("runtime.ObjectHash").set_body_typed([](ObjectRef obj) {
-  return static_cast<int64_t>(ObjectHash()(obj));
+TVM_REGISTER_GLOBAL("runtime.ObjectPtrHash").set_body_typed([](ObjectRef obj) {
+  return static_cast<int64_t>(ObjectPtrHash()(obj));
 });
 
 TVM_REGISTER_GLOBAL("runtime.DumpTypeTable").set_body_typed([](int min_child_count) {

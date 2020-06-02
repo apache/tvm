@@ -495,9 +495,9 @@ class StorageFlattener : public StmtExprMutator {
   // Variable remap
   std::unordered_map<const VarNode*, PrimExpr> var_remap_;
   // Buffer map
-  std::unordered_map<Buffer, BufferEntry, ObjectHash, ObjectEqual> buf_map_;
+  std::unordered_map<Buffer, BufferEntry, ObjectPtrHash, ObjectPtrEqual> buf_map_;
   // Dimension alignment
-  std::unordered_map<Buffer, std::vector<DimAlignInfo>, ObjectHash, ObjectEqual> dim_align_;
+  std::unordered_map<Buffer, std::vector<DimAlignInfo>, ObjectPtrHash, ObjectPtrEqual> dim_align_;
   // Storage scope
   std::unordered_map<const Object*, std::string> storage_scope_;
   // The current thread scope.

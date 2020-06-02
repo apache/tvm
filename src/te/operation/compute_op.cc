@@ -87,7 +87,7 @@ Array<PrimExpr> BaseComputeOpNode::output_shape(size_t idx) const {
 }
 
 Tensor compute(Array<PrimExpr> shape, FCompute fcompute, std::string name, std::string tag,
-               Map<std::string, ObjectRef> attrs) {
+               Map<String, ObjectRef> attrs) {
   auto op_node = make_object<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
@@ -105,7 +105,7 @@ Tensor compute(Array<PrimExpr> shape, FCompute fcompute, std::string name, std::
 }
 
 Array<Tensor> compute(Array<PrimExpr> shape, FBatchCompute fcompute, std::string name,
-                      std::string tag, Map<std::string, ObjectRef> attrs) {
+                      std::string tag, Map<String, ObjectRef> attrs) {
   auto op_node = make_object<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
@@ -127,10 +127,10 @@ Array<Tensor> compute(Array<PrimExpr> shape, FBatchCompute fcompute, std::string
   return outputs;
 }
 
-Operation ComputeOpNode::make(std::string name, std::string tag, Map<std::string, ObjectRef> attrs,
+Operation ComputeOpNode::make(std::string name, std::string tag, Map<String, ObjectRef> attrs,
                               Array<IterVar> axis, Array<PrimExpr> body) {
   if (!attrs.defined()) {
-    attrs = Map<std::string, ObjectRef>();
+    attrs = Map<String, ObjectRef>();
   }
   auto n = make_object<ComputeOpNode>();
   n->name = std::move(name);

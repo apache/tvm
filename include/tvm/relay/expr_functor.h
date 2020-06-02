@@ -214,7 +214,7 @@ class ExprMutator : public ::tvm::relay::ExprFunctor<Expr(const Expr&)> {
 
  protected:
   /*! \brief Internal map used for memoization. */
-  std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> memo_;
+  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> memo_;
 };
 
 /*!

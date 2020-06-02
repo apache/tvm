@@ -40,7 +40,7 @@
 namespace tvm {
 
 template <typename T, typename U>
-using NodeMap = std::unordered_map<T, U, ObjectHash, ObjectEqual>;
+using NodeMap = std::unordered_map<T, U, ObjectPtrHash, ObjectPtrEqual>;
 
 void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
   // First we pick an error reporting strategy for each error.

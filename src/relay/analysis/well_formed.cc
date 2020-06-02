@@ -34,10 +34,10 @@ namespace relay {
 class WellFormedChecker : private ExprVisitor, PatternVisitor {
   bool well_formed = true;
 
-  std::vector<std::unordered_set<Var, ObjectHash, ObjectEqual>> scope;
-  std::unordered_set<Var, ObjectHash, ObjectEqual> current_bound;
-  std::unordered_set<Var, ObjectHash, ObjectEqual> total_bound;
-  std::unordered_set<Var, ObjectHash, ObjectEqual> free;
+  std::vector<std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>> scope;
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> current_bound;
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> total_bound;
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> free;
 
   struct Scope {
     WellFormedChecker* wfc;

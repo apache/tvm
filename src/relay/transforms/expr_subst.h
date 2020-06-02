@@ -30,7 +30,8 @@
 namespace tvm {
 namespace relay {
 
-Expr ExprSubst(const Expr& expr, std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> subst_map);
+Expr ExprSubst(const Expr& expr,
+               std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> subst_map);
 
 }  // namespace relay
 }  // namespace tvm

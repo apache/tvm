@@ -83,7 +83,7 @@ class RegionMerger : public MixedModeVisitor {
       }
 
       // Collect unmerged parent regions.
-      std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual> mergeable_regions;
+      std::unordered_set<AnnotatedRegion, ObjectPtrHash, ObjectPtrEqual> mergeable_regions;
       for (const auto& arg : region->GetInputs()) {
         auto begin = Downcast<Call>(arg);
         CHECK_EQ(begin->op, CompilerBeginOp());

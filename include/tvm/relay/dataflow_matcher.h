@@ -94,8 +94,7 @@ Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr);
  *
  * \return Return the paritioned Expr.
  */
-Expr PartitionPattern(DFPattern pattern, Expr expr, Map<std::string, ObjectRef> attrs,
-                      PackedFunc check);
+Expr PartitionPattern(DFPattern pattern, Expr expr, Map<String, ObjectRef> attrs, PackedFunc check);
 
 }  // namespace relay
 }  // namespace tvm

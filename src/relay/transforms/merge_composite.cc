@@ -42,7 +42,7 @@ Expr MergeComposite(const Function& func, const Array<runtime::String>& pattern_
   Expr merged_expr = func->body;
   // merge the patterns one-by-one in order
   for (size_t i = 0; i < patterns.size(); i++) {
-    Map<std::string, ObjectRef> attrs;
+    Map<String, ObjectRef> attrs;
     attrs.Set("Composite", pattern_names[i]);
     merged_expr = PartitionPattern(patterns[i], merged_expr, attrs, checks[i]);
   }

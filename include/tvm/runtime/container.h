@@ -66,6 +66,9 @@
 #include <vector>
 
 namespace tvm {
+
+struct ObjectEqual;
+
 namespace runtime {
 
 /*!
@@ -1152,6 +1155,50 @@ class String : public ObjectRef {
   inline String operator=(std::string other);
 
   /*!
+   * \brief Compare is less than other std::string
+   *
+   * \param other The other string
+   *
+   * \return the comparison result
+   */
+  bool operator<(const std::string& other) const { return this->compare(other) < 0; }
+  bool operator<(const String& other) const { return this->compare(other) < 0; }
+  bool operator<(const char* other) const { return this->compare(other) < 0; }
+
+  /*!
+   * \brief Compare is greater than other std::string
+   *
+   * \param other The other string
+   *
+   * \return the comparison result
+   */
+  bool operator>(const std::string& other) const { return this->compare(other) > 0; }
+  bool operator>(const String& other) const { return this->compare(other) > 0; }
+  bool operator>(const char* other) const { return this->compare(other) > 0; }
+
+  /*!
+   * \brief Compare is less than or equal to other std::string
+   *
+   * \param other The other string
+   *
+   * \return the comparison result
+   */
+  bool operator<=(const std::string& other) const { return this->compare(other) <= 0; }
+  bool operator<=(const String& other) const { return this->compare(other) <= 0; }
+  bool operator<=(const char* other) const { return this->compare(other) <= 0; }
+
+  /*!
+   * \brief Compare is greater than or equal to other std::string
+   *
+   * \param other The other string
+   *
+   * \return the comparison result
+   */
+  bool operator>=(const std::string& other) const { return this->compare(other) >= 0; }
+  bool operator>=(const String& other) const { return this->compare(other) >= 0; }
+  bool operator>=(const char* other) const { return this->compare(other) >= 0; }
+
+  /*!
    * \brief Compare is equal to other std::string
    *
    * \param other The other string
@@ -1159,6 +1206,8 @@ class String : public ObjectRef {
    * \return the comparison result
    */
   bool operator==(const std::string& other) const { return this->compare(other) == 0; }
+  bool operator==(const String& other) const { return this->compare(other) == 0; }
+  bool operator==(const char* other) const { return compare(other) == 0; }
 
   /*!
    * \brief Compare is not equal to other std::string
@@ -1167,25 +1216,9 @@ class String : public ObjectRef {
    *
    * \return the comparison result
    */
-  bool operator!=(const std::string& other) const { return !operator==(other); }
-
-  /*!
-   * \brief Compare is equal to other char string
-   *
-   * \param other The other char string
-   *
-   * \return the comparison result
-   */
-  bool operator==(const char* other) const { return compare(other) == 0; }
-
-  /*!
-   * \brief Compare is not equal to other char string
-   *
-   * \param other The other char string
-   *
-   * \return the comparison result
-   */
-  bool operator!=(const char* other) const { return !operator==(other); }
+  bool operator!=(const std::string& other) const { return this->compare(other) != 0; }
+  bool operator!=(const String& other) const { return this->compare(other) != 0; }
+  bool operator!=(const char* other) const { return this->compare(other) != 0; }
 
   /*!
    * \brief Compares this String object to other
@@ -1303,6 +1336,8 @@ class String : public ObjectRef {
    * appear before other, positive otherwise.
    */
   static int memncmp(const char* lhs, const char* rhs, size_t lhs_count, size_t rhs_count);
+
+  friend struct tvm::ObjectEqual;
 };
 
 /*! \brief An object representing string moved from std::string. */

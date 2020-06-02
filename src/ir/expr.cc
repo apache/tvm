@@ -175,22 +175,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         if (it != op->data.begin()) {
           p->stream << ", ";
         }
-        p->Print(it->first);
-        p->stream << ": ";
-        p->Print(it->second);
-      }
-      p->stream << '}';
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<StrMapNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const StrMapNode*>(node.get());
-      p->stream << '{';
-      for (auto it = op->data.begin(); it != op->data.end(); ++it) {
-        if (it != op->data.begin()) {
-          p->stream << ", ";
+        if (it->first->IsInstance<StringObj>()) {
+          p->stream << '\"' << Downcast<String>(it->first) << "\": ";
+        } else {
+          p->Print(it->first);
+          p->stream << ": ";
         }
-        p->stream << '\"' << it->first << "\": ";
         p->Print(it->second);
       }
       p->stream << '}';

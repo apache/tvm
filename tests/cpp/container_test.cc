@@ -283,11 +283,11 @@ TEST(Map, Expr) {
   CHECK(!dict.count(zz));
 }
 
-TEST(StrMap, Expr) {
+TEST(Map, Str) {
   using namespace tvm;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
-  Map<std::string, PrimExpr> dict{{"x", z}, {"z", 2}};
+  Map<String, PrimExpr> dict{{"x", z}, {"z", 2}};
   CHECK(dict.size() == 2);
   CHECK(dict["x"].same_as(z));
 }
@@ -319,7 +319,8 @@ TEST(Map, Iterator) {
   using namespace tvm;
   PrimExpr a = 1, b = 2;
   Map<PrimExpr, PrimExpr> map1{{a, b}};
-  std::unordered_map<PrimExpr, PrimExpr, ObjectHash, ObjectEqual> map2(map1.begin(), map1.end());
+  std::unordered_map<PrimExpr, PrimExpr, ObjectPtrHash, ObjectPtrEqual> map2(map1.begin(),
+                                                                             map1.end());
   CHECK(map2[a].as<IntImmNode>()->value == 2);
 }
 
@@ -366,11 +367,26 @@ TEST(String, Comparisons) {
   string source = "a string";
   string mismatch = "a string but longer";
   String s{source};
+  String m{mismatch};
 
   CHECK_EQ(s == source, true);
   CHECK_EQ(s == mismatch, false);
   CHECK_EQ(s == source.data(), true);
   CHECK_EQ(s == mismatch.data(), false);
+
+  CHECK_EQ(s < m, source < mismatch);
+  CHECK_EQ(s > m, source > mismatch);
+  CHECK_EQ(s <= m, source <= mismatch);
+  CHECK_EQ(s >= m, source >= mismatch);
+  CHECK_EQ(s == m, source == mismatch);
+  CHECK_EQ(s != m, source != mismatch);
+
+  CHECK_EQ(m < s, mismatch < source);
+  CHECK_EQ(m > s, mismatch > source);
+  CHECK_EQ(m <= s, mismatch <= source);
+  CHECK_EQ(m >= s, mismatch >= source);
+  CHECK_EQ(m == s, mismatch == source);
+  CHECK_EQ(m != s, mismatch != source);
 }
 
 // Check '\0' handling

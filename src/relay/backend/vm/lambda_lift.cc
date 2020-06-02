@@ -196,7 +196,7 @@ class LambdaLifter : public ExprMutator {
   }
 
  private:
-  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> lambda_map_;
+  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> lambda_map_;
   std::vector<Var> letrec_;
   IRModule module_;
 };

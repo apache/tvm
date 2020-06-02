@@ -85,7 +85,7 @@ class PassConfigManager {
   }
 
   // Trying to validate and legalize a config.
-  void Legalize(Map<std::string, ObjectRef>* config) {
+  void Legalize(Map<String, ObjectRef>* config) {
     std::vector<std::pair<std::string, ObjectRef>> update;
     auto* reflection = ReflectionVTable::Global();
 
@@ -104,9 +104,9 @@ class PassConfigManager {
       }
       const auto& info = it->second;
       CHECK(kv.second.defined()) << "AttributeError: " << kv.first << " is None";
-      if (kv.second->IsInstance<Map<std::string, ObjectRef>::ContainerType>()) {
-        ObjectRef converted = reflection->CreateObject(
-            info.type_key, Downcast<Map<std::string, ObjectRef>>(kv.second));
+      if (kv.second->IsInstance<Map<String, ObjectRef>::ContainerType>()) {
+        ObjectRef converted =
+            reflection->CreateObject(info.type_key, Downcast<Map<String, ObjectRef>>(kv.second));
         update.emplace_back(kv.first, converted);
       } else {
         if (!runtime::ObjectInternal::DerivedFrom(kv.second.get(), info.type_index)) {
@@ -455,7 +455,7 @@ TVM_REGISTER_NODE_TYPE(PassContextNode);
 
 TVM_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
-                       TraceFunc trace_func, Optional<Map<std::string, ObjectRef>> config) {
+                       TraceFunc trace_func, Optional<Map<String, ObjectRef>> config) {
       auto pctx = PassContext::Create();
       pctx->opt_level = opt_level;
 

@@ -239,12 +239,12 @@ DEFINE_OVERLOAD_SLICE_BINARY_OP(<);  // NOLINT(*)
 
 namespace std {
 template <>
-struct hash<::tvm::te::Operation> : public ::tvm::ObjectHash {};
+struct hash<::tvm::te::Operation> : public ::tvm::ObjectPtrHash {};
 
 template <>
 struct hash<::tvm::te::Tensor> {
   std::size_t operator()(const ::tvm::te::Tensor& k) const {
-    ::tvm::ObjectHash hasher;
+    ::tvm::ObjectPtrHash hasher;
     if (k.defined() && k->op.defined()) {
       return hasher(k->op);
     } else {

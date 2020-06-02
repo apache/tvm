@@ -123,7 +123,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
   // map from expression to checked type
   // type inferencer will populate it up
-  std::unordered_map<Expr, ResolvedTypeInfo, ObjectHash, ObjectEqual> type_map_;
+  std::unordered_map<Expr, ResolvedTypeInfo, ObjectPtrHash, ObjectPtrEqual> type_map_;
 
   // The solver used by the inferencer.
   TypeSolver solver_;
@@ -236,7 +236,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
                              << "the number of type vars in the type data: " << td->type_vars.size()
                              << " != " << tc->args.size());
     }
-    std::unordered_map<TypeVar, Type, ObjectHash, ObjectEqual> type_var_map_;
+    std::unordered_map<TypeVar, Type, ObjectPtrHash, ObjectPtrEqual> type_var_map_;
     for (size_t i = 0; i < td->type_vars.size(); ++i) {
       type_var_map_[td->type_vars[i]] = tc->args[i];
     }
@@ -555,7 +555,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
 class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
  public:
-  Resolver(const std::unordered_map<Expr, ResolvedTypeInfo, ObjectHash, ObjectEqual>& tmap,
+  Resolver(const std::unordered_map<Expr, ResolvedTypeInfo, ObjectPtrHash, ObjectPtrEqual>& tmap,
            TypeSolver* solver)
       : tmap_(tmap), solver_(solver) {}
 
@@ -677,8 +677,8 @@ class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
   Type VisitType(const Type& t) final { return solver_->Resolve(t); }
 
  private:
-  std::unordered_map<Var, Var, ObjectHash, ObjectEqual> vmap_;
-  const std::unordered_map<Expr, ResolvedTypeInfo, ObjectHash, ObjectEqual>& tmap_;
+  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> vmap_;
+  const std::unordered_map<Expr, ResolvedTypeInfo, ObjectPtrHash, ObjectPtrEqual>& tmap_;
   TypeSolver* solver_;
   // whether attach the checked type as type_annotation
   // if original type anntation is missing.
