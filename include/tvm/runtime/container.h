@@ -1152,6 +1152,42 @@ class String : public ObjectRef {
   inline String operator=(std::string other);
 
   /*!
+   * \brief Compare is less than other std::string
+   *
+   * \param other The other string
+   *
+   * \return the comparison result
+   */
+  bool operator<(const std::string& other) const { return this->compare(other) < 0; }
+
+  /*!
+   * \brief Compare is greater than other std::string
+   *
+   * \param other The other string
+   *
+   * \return the comparison result
+   */
+  bool operator>(const std::string& other) const { return this->compare(other) > 0; }
+
+  /*!
+   * \brief Compare is less than or equal to other std::string
+   *
+   * \param other The other string
+   *
+   * \return the comparison result
+   */
+  bool operator<=(const std::string& other) const { return this->compare(other) <= 0; }
+
+  /*!
+   * \brief Compare is greater than or equal to other std::string
+   *
+   * \param other The other string
+   *
+   * \return the comparison result
+   */
+  bool operator>=(const std::string& other) const { return this->compare(other) >= 0; }
+
+  /*!
    * \brief Compare is equal to other std::string
    *
    * \param other The other string
@@ -1167,7 +1203,7 @@ class String : public ObjectRef {
    *
    * \return the comparison result
    */
-  bool operator!=(const std::string& other) const { return !operator==(other); }
+  bool operator!=(const std::string& other) const { return this->compare(other) != 0; }
 
   /*!
    * \brief Compare is equal to other char string

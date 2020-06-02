@@ -22,12 +22,12 @@
  */
 #include "graph_runtime.h"
 
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/serializer.h>
-#include <tvm/runtime/container.h>
 
 #include <algorithm>
 #include <functional>
