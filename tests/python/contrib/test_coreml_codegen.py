@@ -20,24 +20,19 @@ import tvm
 from tvm import relay
 from tvm.relay import transform
 from tvm.contrib.target import coreml as _coreml
+from tvm.contrib import xcode
 
 def check_result(mod, map_inputs, out_shape, result, tol=1e-3, target="llvm",
                  ctx=tvm.cpu(), params=None):
-    def check_graph_runtime_result():
-        with relay.build_config(opt_level=3):
-            json, lib, param = relay.build(mod, target=target, params=params)
-        rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+    for name, data in map_inputs.items():
+        mod.set_input(name, data)
+    mod.set_input(**params)
+    mod.run()
+    out = tvm.nd.empty(out_shape, ctx=ctx)
+    out = mod.get_output(0, out)
 
-        for name, data in map_inputs.items():
-            rt_mod.set_input(name, data)
-        rt_mod.set_input(**param)
-        rt_mod.run()
-        out = tvm.nd.empty(out_shape, ctx=ctx)
-        out = rt_mod.get_output(0, out)
+    tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
-        tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
-
-    check_graph_runtime_result()
 
 def test_coreml_codegen():
     try:
@@ -45,6 +40,15 @@ def test_coreml_codegen():
     except ImportError:
         print("skip because coremltools is not available")
         return
+
+    skip_runtime_check = False
+    try:
+        xcode.xcrun([])
+    except FileNotFoundError:
+        print("Xcode is not available. Check only constructing Core ML models.")
+        xcode.compile_coreml = lambda *_: None
+        skip_runtime_check = True
+
     shape = (1,)
 
     def create_graph():
@@ -96,7 +100,17 @@ def test_coreml_codegen():
 
     assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
-    check_result(mod, {"x": x_data, "y": y_data}, shape, (y_data * y_data) - (x_data + x_data))
+    ctx=tvm.cpu()
+    target="llvm"
+
+    with relay.build_config(opt_level=3):
+        json, lib, params = relay.build(mod, target=target)
+    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+
+    if not skip_runtime_check:
+        check_result(rt_mod, {"x": x_data, "y": y_data}, shape,
+                     (y_data * y_data) - (x_data + x_data),
+                     target=target, ctx=ctx, params=params)
 
 if __name__ == "__main__":
     test_coreml_codegen()
