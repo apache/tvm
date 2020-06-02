@@ -997,7 +997,7 @@ inline Tensor tile(const Tensor& x, Array<Integer> reps, std::string name = "T_t
  * \param name The name of the operation.
  * \param tag The tag to mark the operation.
  *
- * \return A Tensor whose op member is the gather_nd operation
+ * \return A Tensor whose op member is the gather operation
  */
 inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
                      std::string name = "T_gather", std::string tag = kInjective) {

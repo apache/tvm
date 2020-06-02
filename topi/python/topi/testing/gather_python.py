@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
-"""gather_nd in python"""
+"""gather in python"""
 import numpy as np
 
 def gather_python(data, axis, indices):
