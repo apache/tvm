@@ -1116,6 +1116,15 @@ def test_forward_constant_pad3d():
     verify_model(torch.nn.ConstantPad3d((3, 4, 5, 6, 0, 1), 3.5).eval(), inp)
 
 
+def test_forward_reflection_pad1d():
+    inp = torch.rand((1, 2, 4))
+    verify_model(torch.nn.ReflectionPad1d(2).eval(), inp)
+    verify_model(torch.nn.ReflectionPad1d((3, 1)).eval(), inp)
+
+    inp = torch.rand((2, 4, 5))
+    verify_model(torch.nn.ReflectionPad1d((2, 3)).eval(), inp)
+
+
 def test_forward_reflection_pad2d():
     inp = torch.rand((1, 1, 3, 3))
     verify_model(torch.nn.ReflectionPad2d(2).eval(), inp)
@@ -1123,6 +1132,33 @@ def test_forward_reflection_pad2d():
 
     inp = torch.rand((2, 4, 5, 6))
     verify_model(torch.nn.ReflectionPad2d((1, 3, 2, 4)).eval(), inp)
+
+
+def test_forward_replication_pad1d():
+    inp = torch.rand((1, 2, 4))
+    verify_model(torch.nn.ReplicationPad1d(2).eval(), inp)
+    verify_model(torch.nn.ReplicationPad1d((3, 1)).eval(), inp)
+
+    inp = torch.rand((2, 4, 5))
+    verify_model(torch.nn.ReplicationPad1d((2, 3)).eval(), inp)
+
+
+def test_forward_replication_pad2d():
+    inp = torch.rand((1, 1, 3, 3))
+    verify_model(torch.nn.ReplicationPad2d(2).eval(), inp)
+    verify_model(torch.nn.ReplicationPad2d((1, 1, 2, 0)).eval(), inp)
+
+    inp = torch.rand((2, 4, 5, 6))
+    verify_model(torch.nn.ReplicationPad2d((1, 3, 2, 4)).eval(), inp)
+
+
+def test_forward_replication_pad3d():
+    inp = torch.rand((1, 1, 3, 3, 3))
+    verify_model(torch.nn.ReplicationPad3d(3).eval(), inp)
+    verify_model(torch.nn.ReplicationPad3d((1, 1, 2, 2, 1, 1)).eval(), inp)
+
+    inp = torch.rand((7, 5, 4, 5, 6))
+    verify_model(torch.nn.ReplicationPad3d((2, 3, 2, 5, 1, 4)).eval(), inp)
 
 
 def test_forward_upsample3d():
@@ -2429,7 +2465,11 @@ if __name__ == "__main__":
     test_forward_constant_pad1d()
     test_forward_constant_pad2d()
     test_forward_constant_pad3d()
+    test_forward_reflection_pad1d()
     test_forward_reflection_pad2d()
+    test_forward_replication_pad1d()
+    test_forward_replication_pad2d()
+    test_forward_replication_pad3d()
     test_adaptive_pool3d()
     test_conv3d()
 

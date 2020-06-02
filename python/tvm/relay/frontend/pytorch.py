@@ -1369,7 +1369,7 @@ def _none():
         return None
     return _impl
 
-def _pad():
+def _pad(mode):
     def _impl(inputs, input_types):
         data = inputs[0]
         if isinstance(inputs[1], list):
@@ -1394,9 +1394,11 @@ def _pad():
         # group into tuple of 2 ints
         paddings = [paddings[i:i + 2] for i in range(0, len(paddings), 2)]
 
-        pad_value = inputs[2]
+        if mode == "constant":
+            return _op.nn.pad(data, paddings, pad_value=inputs[2], pad_mode=mode)
+        else:
+            return _op.nn.pad(data, paddings, pad_mode=mode)
 
-        return _op.nn.pad(data, paddings, pad_value)
     return _impl
 
 
@@ -1654,22 +1656,6 @@ def _one_hot():
     return _impl
 
 
-def _reflection_pad2d():
-    def _impl(inputs, input_types):
-        if isinstance(inputs[1], list):
-            pad_list = inputs[1]
-        else:
-            pad_list = list(_infer_shape(inputs[1]))
-        padding_left = pad_list[0]
-        padding_right = pad_list[1]
-        padding_top = pad_list[2]
-        padding_bottom = pad_list[3]
-        paddings = [[0, 0], [0, 0], [padding_top, padding_bottom], [padding_left, padding_right]]
-
-        return _op.nn.mirror_pad(inputs[0], paddings, mode='REFLECT')
-    return _impl
-
-
 # Helper functions for operator implementation
 def _convert_dtype_value(val):
     convert_torch_dtype_map = {7:"torch.float64",
@@ -1836,7 +1822,12 @@ def _get_convert_map(prelude):
         "aten::Int"                             : _int(),
         "prim::NumToTensor"                     : _numtotensor(),
         "prim::ImplicitTensorToNum"             : _tensortonum(),
-        "aten::constant_pad_nd"                 : _pad(),
+        "aten::constant_pad_nd"                 : _pad("constant"),
+        "aten::reflection_pad1d"                : _pad("reflect"),
+        "aten::reflection_pad2d"                : _pad("reflect"),
+        "aten::replication_pad1d"               : _pad("edge"),
+        "aten::replication_pad2d"               : _pad("edge"),
+        "aten::replication_pad3d"               : _pad("edge"),
         "aten::permute"                         : _transpose(prelude),
         "aten::sum"                             : _reduce("sum"),
         "aten::prod"                            : _reduce("prod"),
@@ -1895,7 +1886,6 @@ def _get_convert_map(prelude):
         "aten::embedding"                       : _embedding(),
         "aten::one_hot"                         : _one_hot(),
         "aten::mm"                              : _matmul(prelude),
-        "aten::reflection_pad2d"                : _reflection_pad2d(),
         "relay::tensor_array_stack"             : _tensor_array_stack(prelude),
         "aten::add"                             : _add(prelude),
         "aten::add_"                            : _add(prelude),
