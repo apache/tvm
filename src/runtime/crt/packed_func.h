@@ -24,13 +24,11 @@
 #ifndef TVM_RUNTIME_CRT_PACKED_FUNC_H_
 #define TVM_RUNTIME_CRT_PACKED_FUNC_H_
 
-#include "module.h"
-
 #include <tvm/runtime/c_runtime_api.h>
-
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "module.h"
 
 static inline DLDataType String2DLDataType(const char* s) {
   DLDataType t;
