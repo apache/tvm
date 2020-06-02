@@ -73,7 +73,7 @@ class PrimFuncPass : public Pass {
       runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
       PassInfo pass_info);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PrimFuncPass, Pass, PrimFuncPassNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PrimFuncPass, Pass, PrimFuncPassNode);
 };
 
 PrimFuncPass::PrimFuncPass(

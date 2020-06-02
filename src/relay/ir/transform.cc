@@ -99,7 +99,7 @@ class FunctionPass : public Pass {
       runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
       PassInfo pass_info);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(FunctionPass, Pass, FunctionPassNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FunctionPass, Pass, FunctionPassNode);
 };
 
 FunctionPass::FunctionPass(

@@ -138,8 +138,6 @@ void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_inde
   PassConfigManager::Global()->Register(key, value_type_index);
 }
 
-PassContext PassContext::Create() { return PassContext(make_object<PassContextNode>()); }
-
 void PassContext::Trace(const IRModule& module, const PassInfo& info, bool is_before) const {
   auto pass_ctx_node = this->operator->();
   if (pass_ctx_node->trace_func != nullptr) {
@@ -195,7 +193,7 @@ class ModulePass : public Pass {
   ModulePass(runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
              PassInfo pass_info);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ModulePass, Pass, ModulePassNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ModulePass, Pass, ModulePassNode);
 };
 
 /*!
@@ -456,7 +454,7 @@ TVM_REGISTER_NODE_TYPE(PassContextNode);
 TVM_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
                        TraceFunc trace_func, Optional<Map<String, ObjectRef>> config) {
-      auto pctx = PassContext::Create();
+      auto pctx = PassContext();
       pctx->opt_level = opt_level;
 
       pctx->required_pass = std::move(required);

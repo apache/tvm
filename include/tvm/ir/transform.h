@@ -161,7 +161,7 @@ class PassContextNode : public Object {
  */
 class PassContext : public ObjectRef {
  public:
-  PassContext() {}
+  PassContext() : PassContext(make_object<PassContextNode>()) {}
   explicit PassContext(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief const accessor.
@@ -180,11 +180,6 @@ class PassContext : public ObjectRef {
     return static_cast<PassContextNode*>(get_mutable());
   }
 
-  /*!
-   * \brief Construct a PassContext containing the default configurations.
-   * \return The new PassContext.
-   */
-  TVM_DLL static PassContext Create();
   /*!
    * \brief Get the default pass context in the current scope.
    * \return The pass context.
@@ -216,6 +211,7 @@ class PassContext : public ObjectRef {
 
   // accessor.
   using ContainerType = PassContextNode;
+  static constexpr bool _type_is_nullable = false;
   class Internal;
 
  private:
@@ -388,11 +384,11 @@ class Sequential : public Pass {
    */
   TVM_DLL Sequential(Array<Pass> passes, String name = "sequential");
 
-  Sequential() = default;
   explicit Sequential(ObjectPtr<Object> n) : Pass(n) {}
 
   const SequentialNode* operator->() const;
   using ContainerType = Sequential;
+  static constexpr bool _type_is_nullable = false;
 };
 
 /*
