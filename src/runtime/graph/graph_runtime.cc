@@ -27,6 +27,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/serializer.h>
+#include <tvm/runtime/container.h>
 
 #include <algorithm>
 #include <functional>
@@ -418,6 +419,9 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
       int in_idx = 0;
       if (args[0].type_code() == kTVMStr) {
         in_idx = this->GetInputIndex(args[0]);
+      } else if (args[0].IsObjectRef<runtime::String>()) {
+        auto str = args[0].AsObjectRef<runtime::String>();
+        in_idx = this->GetInputIndex(str);
       } else {
         in_idx = args[0];
       }

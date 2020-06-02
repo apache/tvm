@@ -162,8 +162,6 @@ class GraphModule(object):
             keys = list(params.keys())
             keys.sort(key=lambda x: -np.prod(params[x].shape))
             for k in keys:
-                if isinstance(k, string_types):
-                    k = str(k)
                 self._get_input(k).copyfrom(params[k])
 
     def run(self, **input_dict):
