@@ -63,7 +63,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool MatchesPath(const DominatorPatternNode* op, const Expr& expr);
   bool DominatesParent(const DominatorPatternNode* op, const Expr& expr);
 
-  std::unordered_map<DFPattern, Array<Expr>, ObjectHash, ObjectEqual> memo_;
+  std::unordered_map<DFPattern, Array<Expr>, ObjectPtrHash, ObjectPtrEqual> memo_;
   std::vector<DFPattern> matched_nodes_;
   bool memoize_ = true;
 };
@@ -311,7 +311,7 @@ bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& e
 // Iteratively ensure that the parent is dominated somewhere by the child or the path
 bool DFPatternMatcher::DominatesParent(const DominatorPatternNode* op, const Expr& expr) {
   std::stack<Expr> stack;
-  std::unordered_set<Expr, ObjectHash, ObjectEqual> visited;
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visited;
   stack.push(expr);
   while (!stack.empty()) {
     Expr current = stack.top();
@@ -430,7 +430,7 @@ class PatternGrouper {
   };
 
   /* \brief Return the group assignments of expressions */
-  const std::unordered_map<Expr, int, ObjectHash, ObjectEqual>& GetGIDAssignments() {
+  const std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual>& GetGIDAssignments() {
     return gid_assignments_;
   }
   /* \brief Group expressions that match the pattern */
@@ -456,7 +456,7 @@ class PatternGrouper {
    * traversal.
    */
   void VisitExprs() {
-    std::unordered_set<Expr, ObjectHash, ObjectEqual> pre_partitioned;
+    std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> pre_partitioned;
     for (size_t i = matcher_->expr_graph_.topological_order_.size(); i != 0; --i) {
       size_t index = i - 1;
       Expr current = matcher_->expr_graph_.topological_order_.at(index)->ref_;
@@ -476,9 +476,12 @@ class PatternGrouper {
    * group overlap analysis */
   class MatchExtractor : public ExprMutator {
    public:
-    explicit MatchExtractor(const std::unordered_map<Expr, Var, ObjectHash, ObjectEqual>& inputs)
+    explicit MatchExtractor(
+        const std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual>& inputs)
         : inputs_(inputs) {}
-    const std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>& GetMemo() { return this->memo_; }
+    const std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual>& GetMemo() {
+      return this->memo_;
+    }
     const std::string& GetName() { return name_; }
 
    protected:
@@ -528,7 +531,7 @@ class PatternGrouper {
       return out;
     };
     std::string name_;
-    const std::unordered_map<Expr, Var, ObjectHash, ObjectEqual> inputs_;
+    const std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> inputs_;
   };
 
   /* \brief Create a group based on a matched expression */
@@ -538,7 +541,7 @@ class PatternGrouper {
     auto node_map = matcher_->GetMemo();
 
     // Get fuzzy patterns
-    std::unordered_set<Expr, ObjectHash, ObjectEqual> fuzzy_matches;
+    std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> fuzzy_matches;
     for (auto node : pattern_graph_.topological_order_) {
       if (auto op = node->ref_.as<DominatorPatternNode>()) {
         for (auto fuzzy_op : {op->parent, op->path}) {
@@ -554,7 +557,7 @@ class PatternGrouper {
     group.root_node = expr;
     group.matched_nodes = node_map;
 
-    std::unordered_map<Expr, Var, ObjectHash, ObjectEqual> inputs;
+    std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> inputs;
     Array<Var> params;
     for (auto node : pattern_graph_.topological_order_) {
       if (node->inputs_.size() == 0) {
@@ -646,7 +649,7 @@ class PatternGrouper {
   // Internal State
   DFPattern pattern_;
   std::vector<Group> groups_;
-  std::unordered_map<Expr, int, ObjectHash, ObjectEqual> gid_assignments_;
+  std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
   DFPatternMatcher* matcher_ = nullptr;
   IndexedGraph<DFPattern> pattern_graph_;
   int gid_ = 0;
@@ -708,7 +711,7 @@ class PatternRewriter : protected MixedModeMutator {
     if (gid_assignments_.count(pre) && pre == groups_[gid_assignments_[pre]].root_node) {
       // Convert the pre-rewrite node map to a post-rewrite node map
       auto group = groups_[gid_assignments_[pre]];
-      std::unordered_map<DFPattern, Array<Expr>, ObjectHash, ObjectEqual> node_map;
+      std::unordered_map<DFPattern, Array<Expr>, ObjectPtrHash, ObjectPtrEqual> node_map;
       for (auto kv : group.matched_nodes) {
         Array<Expr> tmp;
         for (size_t i = 0; i < kv.second.size(); ++i) {
@@ -724,7 +727,7 @@ class PatternRewriter : protected MixedModeMutator {
 
   DFPatternCallback callback_;
   std::vector<PatternGrouper::Group> groups_;
-  std::unordered_map<Expr, int, ObjectHash, ObjectEqual> gid_assignments_;
+  std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
 };
 
 Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr) {
@@ -776,7 +779,7 @@ class PatternPartitioner : protected MixedModeMutator {
 
   Map<String, ObjectRef> attrs_;
   std::vector<PatternGrouper::Group> groups_;
-  std::unordered_map<Expr, int, ObjectHash, ObjectEqual> gid_assignments_;
+  std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
   PackedFunc check_;
 };
 

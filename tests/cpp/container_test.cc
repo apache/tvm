@@ -319,7 +319,8 @@ TEST(Map, Iterator) {
   using namespace tvm;
   PrimExpr a = 1, b = 2;
   Map<PrimExpr, PrimExpr> map1{{a, b}};
-  std::unordered_map<PrimExpr, PrimExpr, ObjectHash, ObjectEqual> map2(map1.begin(), map1.end());
+  std::unordered_map<PrimExpr, PrimExpr, ObjectPtrHash, ObjectPtrEqual> map2(map1.begin(),
+                                                                             map1.end());
   CHECK(map2[a].as<IntImmNode>()->value == 2);
 }
 

@@ -43,20 +43,21 @@ using runtime::Downcast;
 using runtime::IterAdapter;
 using runtime::make_object;
 using runtime::Object;
-using runtime::ObjectEqual;
-using runtime::ObjectHash;
 using runtime::ObjectPtr;
+using runtime::ObjectPtrEqual;
+using runtime::ObjectPtrHash;
 using runtime::ObjectRef;
 using runtime::String;
 using runtime::StringObj;
 
-struct MapObjectHash {
+struct ObjectHash {
   size_t operator()(const ObjectRef& a) const {
-    return a->IsInstance<StringObj>() ? std::hash<String>()(Downcast<String>(a)) : ObjectHash()(a);
+    return a->IsInstance<StringObj>() ? std::hash<String>()(Downcast<String>(a))
+                                      : ObjectPtrHash()(a);
   }
 };
 
-struct MapObjectEqual {
+struct ObjectEqual {
   bool operator()(const ObjectRef& a, const ObjectRef& b) const {
     return a.same_as(b) || (a->IsInstance<StringObj>() && b->IsInstance<StringObj>() &&
                             Downcast<String>(a) == Downcast<String>(b));
@@ -67,7 +68,7 @@ struct MapObjectEqual {
 class MapNode : public Object {
  public:
   /*! \brief The corresponding conatiner type */
-  using ContainerType = std::unordered_map<ObjectRef, ObjectRef, MapObjectHash, MapObjectEqual>;
+  using ContainerType = std::unordered_map<ObjectRef, ObjectRef, ObjectHash, ObjectEqual>;
 
   /*! \brief the data content */
   ContainerType data;

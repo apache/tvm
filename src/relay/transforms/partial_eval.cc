@@ -63,7 +63,7 @@
  * so we have to deduplicate them.
  *
  * 4: In the generated code, as it call TypeSubst, multiple VarNode might have same Id.
- * While it is permitted, most pass use ObjectHash for Var,
+ * While it is permitted, most pass use ObjectPtrHash for Var,
  * and having multiple VarNode for same Id break them.
  * Thus we remap them to a single Id for now.
  *
@@ -110,7 +110,7 @@ using namespace runtime;
  * Use VarHash to hash Var by id.
  */
 struct VarHash {
-  size_t operator()(const Var& v) const { return ObjectHash()(v->vid); }
+  size_t operator()(const Var& v) const { return ObjectPtrHash()(v->vid); }
 };
 
 /*! \brief Compare Var by it's id.
@@ -1117,7 +1117,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
  private:
   Environment env_;
   IRModule mod_;
-  std::unordered_map<GlobalVar, PStatic, ObjectHash, ObjectEqual> gv_map_;
+  std::unordered_map<GlobalVar, PStatic, ObjectPtrHash, ObjectPtrEqual> gv_map_;
   /*! Termination checking is done as follows:
    *  We have finitely many FunctionIds.
    *  Each FunctionId maps to a class of semantically equivalent function (ignoring type),
@@ -1132,7 +1132,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
    *  Termination is guaranteed because Fuel is finitely descending - there can only be so many
    * meet.
    */
-  std::unordered_map<Function, FuncId, ObjectHash, ObjectEqual> func_map_;
+  std::unordered_map<Function, FuncId, ObjectPtrHash, ObjectPtrEqual> func_map_;
   std::unordered_map<FuncId, Fuel> fuel_map_;
   Store store_;
   DLContext context_ = CPUContext();

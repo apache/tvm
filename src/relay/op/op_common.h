@@ -139,7 +139,7 @@ class OpMatch {
 
  private:
   /*! \brief The match function map. */
-  std::unordered_map<Op, MatchFunc, ObjectHash, ObjectEqual> match_map_;
+  std::unordered_map<Op, MatchFunc, ObjectPtrHash, ObjectPtrEqual> match_map_;
   /*! \brief An optional default case. */
   MatchFunc default_;
 };

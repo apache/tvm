@@ -139,7 +139,7 @@ class TextMetaDataContext {
   /*! \brief additional metadata stored in TVM json format */
   std::unordered_map<String, Array<ObjectRef> > meta_data_;
   /*! \brief map from meta data into its string representation */
-  std::unordered_map<ObjectRef, Doc, ObjectHash, ObjectEqual> meta_repr_;
+  std::unordered_map<ObjectRef, Doc, ObjectPtrHash, ObjectPtrEqual> meta_repr_;
 };
 }  // namespace tvm
 #endif  // TVM_PRINTER_META_DATA_H_

@@ -726,13 +726,13 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
  protected:
   /*! \brief Store the expression a variable points to. */
-  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> expr_map_;
+  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> expr_map_;
   /*! \brief Instructions in the VMFunction. */
   std::vector<Instruction> instructions_;
   /*! \brief Parameter names of the function. */
   std::vector<std::string> params_;
   /*! \brief Map from var to register number. */
-  std::unordered_map<Var, RegName, ObjectHash, ObjectEqual> var_register_map_;
+  std::unordered_map<Var, RegName, ObjectPtrHash, ObjectPtrEqual> var_register_map_;
   /*! \brief Last used register number. */
   size_t last_register_;
   /*! \brief Total number of virtual registers allocated. */

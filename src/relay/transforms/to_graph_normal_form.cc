@@ -51,7 +51,7 @@ class UseVarVisitor : public ExprVisitor {
 
 class GNF : public ExprMutator {
  private:
-  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> var_map_;
+  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> var_map_;
   Expr VisitExpr_(const VarNode* vn) override {
     Var v = GetRef<Var>(vn);
     return var_map_.count(v) == 0 ? v : var_map_.at(v);

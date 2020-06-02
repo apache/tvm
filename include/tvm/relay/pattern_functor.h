@@ -158,7 +158,7 @@ class PatternMutator : public ::tvm::relay::PatternFunctor<Pattern(const Pattern
   virtual Constructor VisitConstructor(const Constructor& c);
 
  private:
-  std::unordered_map<Var, Var, ObjectHash, ObjectEqual> var_map_;
+  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_map_;
 };
 
 }  // namespace relay
