@@ -26,7 +26,6 @@ _injective_schedule = {
     "arm_cpu": topi.arm_cpu.schedule_injective,
     "gpu": topi.cuda.schedule_injective,
     "hls": topi.hls.schedule_injective,
-    "opengl": topi.opengl.schedule_injective
 }
 
 _reduce_schedule = {
@@ -64,7 +63,6 @@ _conv2d_nchw_implement = {
              topi.mali.schedule_conv2d_nchw_spatial_pack),
     "bifrost": (topi.bifrost.conv2d_nchw_spatial_pack,
                 topi.bifrost.schedule_conv2d_nchw_spatial_pack),
-    "opengl": (topi.nn.conv2d_nchw, topi.opengl.schedule_conv2d_nchw),
     "intel_graphics": (topi.intel_graphics.conv2d_nchw,
                        topi.intel_graphics.schedule_conv2d_nchw),
     "hls": (topi.nn.conv2d_nchw, topi.hls.schedule_conv2d_nchw)

@@ -26,6 +26,6 @@ from .module import Module
 # function exposures
 from .object_generic import convert_to_object, convert, const
 from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
-from .ndarray import vpi, rocm, opengl, ext_dev, micro_dev
+from .ndarray import vpi, rocm, ext_dev, micro_dev
 from .module import load_module, enabled, system_lib
 from .container import String
