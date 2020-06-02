@@ -1326,6 +1326,6 @@ struct PackedFuncValueConverter<tvm::Integer> {
 
 namespace std {
 template <>
-struct hash<::tvm::tir::IterVar> : public ::tvm::ObjectHash {};
+struct hash<::tvm::tir::IterVar> : public ::tvm::ObjectPtrHash {};
 }  // namespace std
 #endif  // TVM_TIR_EXPR_H_

@@ -250,12 +250,12 @@ class IRModuleNode : public Object {
   /*! \brief A map from string names to global variables that
    * ensures global uniqueness.
    */
-  Map<std::string, GlobalVar> global_var_map_;
+  Map<String, GlobalVar> global_var_map_;
 
   /*! \brief A map from string names to global type variables (ADT names)
    * that ensures global uniqueness.
    */
-  Map<std::string, GlobalTypeVar> global_type_var_map_;
+  Map<String, GlobalTypeVar> global_type_var_map_;
 
   /*! \brief A map from constructor tags to constructor objects
    * for convenient access
