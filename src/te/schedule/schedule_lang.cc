@@ -422,7 +422,7 @@ Stage CopyStage(const Stage& s) {
 Schedule Schedule::copy() const {
   // map of stages.
   const ScheduleNode* self = operator->();
-  std::unordered_map<Stage, Stage, ObjectHash, ObjectEqual> smap;
+  std::unordered_map<Stage, Stage, ObjectPtrHash, ObjectPtrEqual> smap;
   ObjectPtr<ScheduleNode> n = make_object<ScheduleNode>();
   n->outputs = self->outputs;
   // Copy the stages.
@@ -518,7 +518,7 @@ Stage Schedule::create_group(const Array<Tensor>& outputs, const Array<Tensor>& 
     int count{0};
   };
   // Map of group->touched counter
-  std::unordered_map<Stage, Entry, ObjectHash, ObjectEqual> counter;
+  std::unordered_map<Stage, Entry, ObjectPtrHash, ObjectPtrEqual> counter;
   // The parent group;
   Stage parent_group;
   // Detect common parent and child.

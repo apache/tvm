@@ -58,7 +58,7 @@ class Object(ObjectBase):
                 "%s has no attribute %s" % (str(type(self)), name))
 
     def __hash__(self):
-        return _ffi_api.ObjectHash(self)
+        return _ffi_api.ObjectPtrHash(self)
 
     def __eq__(self, other):
         return self.same_as(other)

@@ -130,7 +130,7 @@ TVM_DLL bool VerifyMemory(const PrimFunc& func);
  * \return valid Whether it is a valid GPU code
  *
  */
-TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<std::string, PrimExpr> constraints);
+TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints);
 
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.
@@ -163,7 +163,7 @@ TVM_DLL Pass VerifyMemory();
  * \returns The pass.
  * \sa tvm::tir::VerifyGPUCode
  */
-TVM_DLL Pass VerifyGPUCode(Map<std::string, PrimExpr> constraints);
+TVM_DLL Pass VerifyGPUCode(Map<String, PrimExpr> constraints);
 
 }  // namespace transform
 }  // namespace tir

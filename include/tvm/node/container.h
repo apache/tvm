@@ -39,15 +39,39 @@ namespace tvm {
 
 using runtime::Array;
 using runtime::ArrayNode;
+using runtime::Downcast;
 using runtime::IterAdapter;
 using runtime::make_object;
 using runtime::Object;
-using runtime::ObjectEqual;
-using runtime::ObjectHash;
 using runtime::ObjectPtr;
+using runtime::ObjectPtrEqual;
+using runtime::ObjectPtrHash;
 using runtime::ObjectRef;
 using runtime::String;
 using runtime::StringObj;
+
+struct ObjectHash {
+  size_t operator()(const ObjectRef& a) const {
+    if (const auto* str = a.as<StringObj>()) {
+      return String::HashBytes(str->data, str->size);
+    }
+    return ObjectPtrHash()(a);
+  }
+};
+
+struct ObjectEqual {
+  bool operator()(const ObjectRef& a, const ObjectRef& b) const {
+    if (a.same_as(b)) {
+      return true;
+    }
+    if (const auto* str_a = a.as<StringObj>()) {
+      if (const auto* str_b = b.as<StringObj>()) {
+        return String::memncmp(str_a->data, str_b->data, str_a->size, str_b->size) == 0;
+      }
+    }
+    return false;
+  }
+};
 
 /*! \brief map node content */
 class MapNode : public Object {
@@ -60,19 +84,6 @@ class MapNode : public Object {
 
   static constexpr const char* _type_key = "Map";
   TVM_DECLARE_FINAL_OBJECT_INFO(MapNode, Object);
-};
-
-/*! \brief specialized map node with string as key */
-class StrMapNode : public Object {
- public:
-  /*! \brief The corresponding conatiner type */
-  using ContainerType = std::unordered_map<std::string, ObjectRef>;
-
-  /*! \brief the data content */
-  ContainerType data;
-
-  static constexpr const char* _type_key = "StrMap";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StrMapNode, Object);
 };
 
 /*!
@@ -249,97 +260,6 @@ class Map : public ObjectRef {
   }
 };
 
-// specialize of string map
-template <typename V, typename T1, typename T2>
-class Map<std::string, V, T1, T2> : public ObjectRef {
- public:
-  // for code reuse
-  Map() { data_ = make_object<StrMapNode>(); }
-  Map(Map<std::string, V>&& other) {  // NOLINT(*)
-    data_ = std::move(other.data_);
-  }
-  Map(const Map<std::string, V>& other) : ObjectRef(other.data_) {  // NOLINT(*)
-  }
-  explicit Map(ObjectPtr<Object> n) : ObjectRef(n) {}
-  template <typename IterType>
-  Map(IterType begin, IterType end) {
-    assign(begin, end);
-  }
-  Map(std::initializer_list<std::pair<std::string, V> > init) {  // NOLINT(*)
-    assign(init.begin(), init.end());
-  }
-
-  template <typename Hash, typename Equal>
-  Map(const std::unordered_map<std::string, V, Hash, Equal>& init) {  // NOLINT(*)
-    assign(init.begin(), init.end());
-  }
-  Map<std::string, V>& operator=(Map<std::string, V>&& other) {
-    data_ = std::move(other.data_);
-    return *this;
-  }
-  Map<std::string, V>& operator=(const Map<std::string, V>& other) {
-    data_ = other.data_;
-    return *this;
-  }
-  template <typename IterType>
-  void assign(IterType begin, IterType end) {
-    auto n = make_object<StrMapNode>();
-    for (IterType i = begin; i != end; ++i) {
-      n->data.emplace(std::make_pair(i->first, i->second));
-    }
-    data_ = std::move(n);
-  }
-  inline const V operator[](const std::string& key) const {
-    return DowncastNoCheck<V>(static_cast<const StrMapNode*>(data_.get())->data.at(key));
-  }
-  inline const V at(const std::string& key) const {
-    return DowncastNoCheck<V>(static_cast<const StrMapNode*>(data_.get())->data.at(key));
-  }
-  inline size_t size() const {
-    if (data_.get() == nullptr) return 0;
-    return static_cast<const StrMapNode*>(data_.get())->data.size();
-  }
-  inline size_t count(const std::string& key) const {
-    if (data_.get() == nullptr) return 0;
-    return static_cast<const StrMapNode*>(data_.get())->data.count(key);
-  }
-  inline StrMapNode* CopyOnWrite() {
-    if (data_.get() == nullptr || !data_.unique()) {
-      ObjectPtr<StrMapNode> n = make_object<StrMapNode>();
-      n->data = static_cast<const StrMapNode*>(data_.get())->data;
-      ObjectPtr<Object>(std::move(n)).swap(data_);
-    }
-    return static_cast<StrMapNode*>(data_.get());
-  }
-  inline void Set(const std::string& key, const V& value) {
-    StrMapNode* n = this->CopyOnWrite();
-    n->data[key] = value;
-  }
-  inline bool empty() const { return size() == 0; }
-  using ContainerType = StrMapNode;
-
-  struct ValueConverter {
-    using ResultType = std::pair<std::string, V>;
-    static inline ResultType convert(const std::pair<std::string, ObjectRef>& n) {
-      return std::make_pair(n.first, DowncastNoCheck<V>(n.second));
-    }
-  };
-
-  using iterator = IterAdapter<ValueConverter, StrMapNode::ContainerType::const_iterator>;
-
-  /*! \return begin iterator */
-  inline iterator begin() const {
-    return iterator(static_cast<const StrMapNode*>(data_.get())->data.begin());
-  }
-  /*! \return end iterator */
-  inline iterator end() const {
-    return iterator(static_cast<const StrMapNode*>(data_.get())->data.end());
-  }
-  /*! \return begin iterator */
-  inline iterator find(const std::string& key) const {
-    return iterator(static_cast<const StrMapNode*>(data_.get())->data.find(key));
-  }
-};
 }  // namespace tvm
 
 namespace tvm {
@@ -359,20 +279,6 @@ struct ObjectTypeChecker<Array<T> > {
     return true;
   }
   static std::string TypeName() { return "List[" + ObjectTypeChecker<T>::TypeName() + "]"; }
-};
-
-template <typename V>
-struct ObjectTypeChecker<Map<std::string, V> > {
-  static bool Check(const Object* ptr) {
-    if (ptr == nullptr) return true;
-    if (!ptr->IsInstance<StrMapNode>()) return false;
-    const StrMapNode* n = static_cast<const StrMapNode*>(ptr);
-    for (const auto& kv : n->data) {
-      if (!ObjectTypeChecker<V>::Check(kv.second.get())) return false;
-    }
-    return true;
-  }
-  static std::string TypeName() { return "Map[str, " + ObjectTypeChecker<V>::TypeName() + ']'; }
 };
 
 template <typename K, typename V>

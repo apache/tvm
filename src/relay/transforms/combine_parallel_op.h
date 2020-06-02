@@ -47,7 +47,7 @@ using Branch = std::vector<const CallNode*>;
 using Group = std::vector<Branch>;
 using FIsSupportedOp = std::function<bool(const CallNode* n)>;
 using FAreCompatibleOps = std::function<bool(const CallNode* a, const CallNode* b)>;
-using ExprSubstMap = std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>;
+using ExprSubstMap = std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual>;
 
 /*
  * Class to find parallel branches starting with op that are
@@ -103,10 +103,11 @@ class BranchGroupFinder : private ExprVisitor {
   /* \brief ops that are on the first (logically, leftmost) branch
    *         of parallel ops and are eligible to be combined
    */
-  std::unordered_set<Expr, ObjectHash, ObjectEqual> op_roots_;
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> op_roots_;
 
   /* \brief map of Expr to CallNodes that follow it  */
-  std::unordered_map<Expr, std::vector<const CallNode*>, ObjectHash, ObjectEqual> children_map_;
+  std::unordered_map<Expr, std::vector<const CallNode*>, ObjectPtrHash, ObjectPtrEqual>
+      children_map_;
 
   /*
    * \brief Creates new branch from op and its children that have

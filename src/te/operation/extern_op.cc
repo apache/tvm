@@ -50,11 +50,11 @@ DataType ExternOpNode::output_dtype(size_t i) const { return output_placeholders
 
 Array<PrimExpr> ExternOpNode::output_shape(size_t i) const { return output_placeholders[i]->shape; }
 
-Operation ExternOpNode::make(std::string name, std::string tag, Map<std::string, ObjectRef> attrs,
+Operation ExternOpNode::make(std::string name, std::string tag, Map<String, ObjectRef> attrs,
                              Array<Tensor> inputs, Array<Buffer> input_placeholders,
                              Array<Buffer> output_placeholders, Stmt body) {
   if (!attrs.defined()) {
-    attrs = Map<std::string, ObjectRef>();
+    attrs = Map<String, ObjectRef>();
   }
   auto n = make_object<ExternOpNode>();
   n->name = std::move(name);

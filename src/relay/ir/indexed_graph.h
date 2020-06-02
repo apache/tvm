@@ -92,7 +92,7 @@ class IndexedGraph {
     }
   }
   /*! \brief Map of input nodes to IndexedGraph Nodes */
-  std::unordered_map<T, std::shared_ptr<Node>, ObjectHash, ObjectEqual> node_map_;
+  std::unordered_map<T, std::shared_ptr<Node>, ObjectPtrHash, ObjectPtrEqual> node_map_;
   /*! \brief Topological IndexedGraph Nodes */
   std::vector<std::shared_ptr<Node>> topological_order_;
 

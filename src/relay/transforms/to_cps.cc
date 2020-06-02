@@ -88,10 +88,10 @@ Type CPSType(const Type& t, const TypeVar& answer) {
 }
 
 // transform global functions into cps form.
-using CPSMap = std::unordered_map<GlobalVar, GlobalVar, ObjectHash, ObjectEqual>;
+using CPSMap = std::unordered_map<GlobalVar, GlobalVar, ObjectPtrHash, ObjectPtrEqual>;
 
 // transform vars from the original program into new vars, so their type will be correct.
-using VarMap = std::unordered_map<Var, Var, ObjectHash, ObjectEqual>;
+using VarMap = std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>;
 
 /*
  * The meta continuation.

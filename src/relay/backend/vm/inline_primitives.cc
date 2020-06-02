@@ -54,7 +54,7 @@ namespace vm {
  */
 struct PrimitiveInliner : ExprMutator {
   IRModule module_;
-  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> var_map;
+  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> var_map;
 
   explicit PrimitiveInliner(const IRModule& module) : module_(module) {}
 

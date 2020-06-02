@@ -286,7 +286,7 @@ TVM_DLL Pass AlterOpLayout();
  *                        this specifies the desired layout for data then kernel for nn.conv2d.
  * \return The pass.
  */
-TVM_DLL Pass ConvertLayout(const Map<std::string, Array<String>>& desired_layouts);
+TVM_DLL Pass ConvertLayout(const Map<String, Array<String>>& desired_layouts);
 
 /*!
  * \brief Legalizes an expr with another expression.

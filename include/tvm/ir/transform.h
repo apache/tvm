@@ -100,7 +100,7 @@ class PassContextNode : public Object {
   TraceFunc trace_func;
 
   /*! \brief Pass specific configurations. */
-  Map<std::string, ObjectRef> config;
+  Map<String, ObjectRef> config;
 
   PassContextNode() = default;
 

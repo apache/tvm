@@ -45,7 +45,7 @@ TVM_REGISTER_GLOBAL("tvm.relay._save_param_dict").set_body([](TVMArgs args, TVMR
   std::vector<DLTensor*> arrays;
   arrays.reserve(num_params);
   for (size_t i = 0; i < num_params * 2; i += 2) {
-    names.emplace_back(args[i].operator std::string());
+    names.emplace_back(args[i].operator String());
     arrays.emplace_back(args[i + 1].operator DLTensor*());
   }
   std::string bytes;

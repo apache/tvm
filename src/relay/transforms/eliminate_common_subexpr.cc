@@ -78,7 +78,7 @@ class CommonSubexprEliminator : public ExprMutator {
     return new_expr;
   }
 
-  std::unordered_map<Expr, std::vector<const CallNode*>, ObjectHash, ObjectEqual> expr_map_;
+  std::unordered_map<Expr, std::vector<const CallNode*>, ObjectPtrHash, ObjectPtrEqual> expr_map_;
   runtime::TypedPackedFunc<bool(Expr)> fskip_;
 };
 

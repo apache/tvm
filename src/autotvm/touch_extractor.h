@@ -111,7 +111,7 @@ class TouchExtractor : public FeatureVisitor {
     FeatureVisitor::VisitExpr_(op);
   }
 
-  std::unordered_map<Var, ItervarFeature, tvm::ObjectHash, tvm::ObjectEqual> itervar_map;
+  std::unordered_map<Var, ItervarFeature, tvm::ObjectPtrHash, tvm::ObjectPtrEqual> itervar_map;
 
  private:
   bool EnterItervar_(Var var, int64_t length, AnnotationType ann_type);
