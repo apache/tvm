@@ -107,7 +107,7 @@ class ConstIntBound : public ObjectRef {
  */
 class ConstIntBoundAnalyzer {
  public:
-  using BoundMapType = std::unordered_map<PrimExpr, ConstIntBound, ObjectHash, ObjectEqual>;
+  using BoundMapType = std::unordered_map<PrimExpr, ConstIntBound, ObjectPtrHash, ObjectPtrEqual>;
   /*!
    * \brief analyze the expr
    * \param expr The expression of interest.

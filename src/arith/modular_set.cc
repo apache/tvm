@@ -233,7 +233,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   /*! \brief pointer to parent. */
   Analyzer* parent_{nullptr};
   // internal variable map
-  std::unordered_map<Var, Entry, ObjectHash, ObjectEqual> var_map_;
+  std::unordered_map<Var, Entry, ObjectPtrHash, ObjectPtrEqual> var_map_;
   /*!
    * \brief Update var by intersecting entry with var's current set.
    * \param var The variable.

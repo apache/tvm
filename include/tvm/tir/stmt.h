@@ -938,7 +938,7 @@ namespace std {
 template <>
 struct hash<::tvm::tir::TensorKey> {
   std::size_t operator()(const ::tvm::tir::TensorKey& k) const {
-    size_t lhs = ::tvm::ObjectHash()(k.f);
+    size_t lhs = ::tvm::ObjectPtrHash()(k.f);
     size_t rhs = static_cast<size_t>(k.value_index);
     lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);
     return lhs;
