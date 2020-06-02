@@ -172,18 +172,6 @@ def intel_graphics(model='unknown', options=None):
     return _ffi_api.TargetCreate("opencl", *opts)
 
 
-def opengl(model='unknown', options=None):
-    """Returns a OpenGL target.
-
-    Parameters
-    ----------
-    options : str or list of str
-        Additional options
-    """
-    opts = _merge_opts(["-model=%s" % model], options)
-    return _ffi_api.TargetCreate("opengl", *opts)
-
-
 def arm_cpu(model='unknown', options=None):
     """Returns a ARM CPU target.
     This function will also download pre-tuned op parameters when there is none.
