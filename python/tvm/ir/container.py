@@ -56,7 +56,6 @@ class Map(Object):
     def items(self):
         """Get the items from the map"""
         akvs = _ffi_node_api.MapItems(self)
-        # TODO(@junrushao1994): check if auto conversion works (runtime::String -> python str)
         return [(akvs[i], akvs[i+1]) for i in range(0, len(akvs), 2)]
 
     def __len__(self):
