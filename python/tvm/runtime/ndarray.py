@@ -409,22 +409,6 @@ def vulkan(dev_id=0):
     return TVMContext(7, dev_id)
 
 
-def opengl(dev_id=0):
-    """Construct a OpenGL device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    ctx : TVMContext
-        The created context
-    """
-    return TVMContext(11, dev_id)
-
-
 def ext_dev(dev_id=0):
     """Construct a extension device
 

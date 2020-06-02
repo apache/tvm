@@ -31,7 +31,6 @@ _softmax_schedule = {
     "cpu": topi.x86.schedule_softmax,
     "gpu": topi.cuda.schedule_softmax,
     "hls": topi.hls.schedule_softmax,
-    "opengl": topi.opengl.schedule_softmax,
 }
 
 def check_device(A, B, a_np, b_np, device, name):
