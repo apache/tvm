@@ -402,6 +402,35 @@ def verify_strided_set(in_shape, v_shape, begin, end, strides=None):
     for device in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
 
+def verify_gather(data, axis, indices):
+    data = np.asarray(data)
+    indices = np.asarray(indices)
+
+    var_data = te.placeholder(shape=data.shape, dtype=data.dtype.name, name="data")
+    var_indices = te.placeholder(shape=indices.shape, dtype=indices.dtype.name, name="indices")
+    out_tensor = topi.gather(var_data, axis, var_indices)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.testing.get_injective_schedule(device)(out_tensor)
+
+        func = tvm.build(s, [var_data, var_indices, out_tensor] , device, name="gather")
+        out_npys = topi.testing.gather_python(data, axis, indices)
+
+        data_nd = tvm.nd.array(data, ctx)
+        indices_nd = tvm.nd.array(indices, ctx)
+        out_nd = tvm.nd.empty(out_npys.shape, ctx=ctx, dtype=data.dtype.name)
+        func(data_nd, indices_nd, out_nd)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npys)
+
+    for device in get_all_backend():
+        check_device(device)
+
 def verify_gather_nd(src_shape, indices_src, indices_dtype):
     src_dtype = "float32"
     indices_src = np.array(indices_src, dtype=indices_dtype)
@@ -772,6 +801,15 @@ def test_take():
     verify_take((3,3,3), [[11,25]], mode="fast")
     verify_take((3,4), [0, 2], axis=0, mode="fast")
     verify_take((3,4), [0, 2], axis=1, mode="fast")
+
+def test_gather():
+    verify_gather([[1, 2], [3, 4]], 1, [[0, 0], [1, 0]])
+    verify_gather(np.random.randn(4, 7, 5), 0, np.random.randint(low=0, high=4, size=(1, 7, 5)))
+    verify_gather(np.random.randn(4, 7, 5), 0, np.random.randint(low=0, high=4, size=(4, 7, 5)))
+    verify_gather(np.random.randn(4, 7, 5), 1, np.random.randint(low=0, high=7, size=(4, 10, 5)))
+    verify_gather(np.random.randn(4, 7, 5), 1, np.random.randint(low=0, high=7, size=(4, 10, 5)))
+    verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 2)))
+    verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 10)))
 
 def test_gather_nd():
     for indices_dtype in ['int32', 'float32']:

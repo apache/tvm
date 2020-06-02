@@ -800,6 +800,43 @@ def reverse_reshape(data, newshape):
     return _make._contrib_reverse_reshape(data, list(newshape))
 
 
+def gather(data, axis, indices):
+    """Gather values along given axis from given indices.
+
+    E.g. for a 3D tensor, output is computed as:
+
+    .. code-block:: python
+
+        out[i][j][k] = data[indices[i][j][k]][j][k]  # if axis == 0
+        out[i][j][k] = data[i][indices[i][j][k]][k]  # if axis == 1
+        out[i][j][k] = data[i][j][indices[i][j][k]]  # if axis == 2
+
+    ``indices`` must have same shape as ``data``, except at dimension ``axis``
+    which must just be not null. Output will have same shape as ``indices``.
+
+    Parameters
+    ----------
+    data: relay.Expr
+        The input data to the operator.
+
+    axis: int
+        The axis along which to index.
+
+    indices: relay.Expr
+        The indices of values to gather.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        data = [[1, 2], [3, 4]]
+        axis = 1
+        indices = [[0, 0], [1, 0]]
+        relay.gather(data, axis, indices) = [[1, 1], [4, 3]]
+    """
+    return _make.gather(data, axis, indices)
+
+
 def gather_nd(data, indices):
     """Gather elements or slices from data and store to a tensor whose shape is
     defined by indices.
