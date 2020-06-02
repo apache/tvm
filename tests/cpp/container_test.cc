@@ -367,11 +367,26 @@ TEST(String, Comparisons) {
   string source = "a string";
   string mismatch = "a string but longer";
   String s{source};
+  String m{mismatch};
 
   CHECK_EQ(s == source, true);
   CHECK_EQ(s == mismatch, false);
   CHECK_EQ(s == source.data(), true);
   CHECK_EQ(s == mismatch.data(), false);
+
+  CHECK_EQ(s < m, source < mismatch);
+  CHECK_EQ(s > m, source > mismatch);
+  CHECK_EQ(s <= m, source <= mismatch);
+  CHECK_EQ(s >= m, source >= mismatch);
+  CHECK_EQ(s == m, source == mismatch);
+  CHECK_EQ(s != m, source != mismatch);
+
+  CHECK_EQ(m < s, mismatch < source);
+  CHECK_EQ(m > s, mismatch > source);
+  CHECK_EQ(m <= s, mismatch <= source);
+  CHECK_EQ(m >= s, mismatch >= source);
+  CHECK_EQ(m == s, mismatch == source);
+  CHECK_EQ(m != s, mismatch != source);
 }
 
 // Check '\0' handling

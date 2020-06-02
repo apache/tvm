@@ -52,15 +52,24 @@ using runtime::StringObj;
 
 struct ObjectHash {
   size_t operator()(const ObjectRef& a) const {
-    return a->IsInstance<StringObj>() ? std::hash<String>()(Downcast<String>(a))
-                                      : ObjectPtrHash()(a);
+    if (const auto* str = a.as<StringObj>()) {
+      return String::HashBytes(str->data, str->size);
+    }
+    return ObjectPtrHash()(a);
   }
 };
 
 struct ObjectEqual {
   bool operator()(const ObjectRef& a, const ObjectRef& b) const {
-    return a.same_as(b) || (a->IsInstance<StringObj>() && b->IsInstance<StringObj>() &&
-                            Downcast<String>(a) == Downcast<String>(b));
+    if (a.same_as(b)) {
+      return true;
+    }
+    if (const auto* str_a = a.as<StringObj>()) {
+      if (const auto* str_b = b.as<StringObj>()) {
+        return String::memncmp(str_a->data, str_b->data, str_a->size, str_b->size) == 0;
+      }
+    }
+    return false;
   }
 };
 
