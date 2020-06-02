@@ -764,14 +764,14 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = runtime::Module(exec_); });
   } else if (name == "set_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      Map<std::string, Constant> params = args[0];
+      Map<String, Constant> params = args[0];
       for (const auto& kv : params) {
         this->SetParam(kv.first, kv.second->data);
       }
     });
   } else if (name == "get_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      Map<std::string, Constant> ret;
+      Map<String, Constant> ret;
       for (const auto& kv : params_) {
         ret.Set(kv.first, Constant(kv.second));
       }
@@ -1008,7 +1008,11 @@ void VMCompiler::Codegen() {
   auto ext_mods = compile_engine->LowerExternalFunctions();
   runtime::Module mod;
   if (funcs.size() > 0) {
-    mod = tvm::build(funcs, target_host_);
+    Map<String, IRModule> build_funcs;
+    for (const auto& i : funcs) {
+      build_funcs.Set(i.first, i.second);
+    }
+    mod = tvm::build(build_funcs, target_host_);
     CHECK(mod.operator->());
   } else {
     CHECK_EQ(ext_mods.size(), 1U)

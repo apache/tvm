@@ -55,11 +55,11 @@ class ConvertTransformMemorizerNode : public TransformMemorizerNode {
    *                        For example: Map("nn.conv2d", Array("NHWC", "OHWI")),
    *                        this specifies the desired layout for data then kernel for nn.conv2d.
    */
-  explicit ConvertTransformMemorizerNode(Map<std::string, Array<String>> desired_layouts)
+  explicit ConvertTransformMemorizerNode(Map<String, Array<String>> desired_layouts)
       : desired_layouts_(std::move(desired_layouts)) {}
 
   /*! \brief A mapping of op_name to array of desired layouts for each input. */
-  Map<std::string, Array<String>> desired_layouts_;
+  Map<String, Array<String>> desired_layouts_;
 };
 
 /*!
@@ -123,7 +123,7 @@ class ConvertTransformMemorizer : public TransformMemorizer {
  * 1. The altered op should have the same number of arguments as the previous one.
  * 2. Do not support nested tuple arguments.
  */
-Expr ConvertLayout(const Expr& expr, const Map<std::string, Array<String>>& desired_layouts) {
+Expr ConvertLayout(const Expr& expr, const Map<String, Array<String>>& desired_layouts) {
   ConvertTransformMemorizer transformMemorizer(
       make_object<ConvertTransformMemorizerNode>(desired_layouts));
   auto fcontext = [&](const Call& call) -> ObjectRef { return transformMemorizer; };
@@ -135,7 +135,7 @@ Expr ConvertLayout(const Expr& expr, const Map<std::string, Array<String>>& desi
 
 namespace transform {
 
-Pass ConvertLayout(const Map<std::string, Array<String>>& desired_layouts) {
+Pass ConvertLayout(const Map<String, Array<String>>& desired_layouts) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(relay::convert_op_layout::ConvertLayout(f, desired_layouts));

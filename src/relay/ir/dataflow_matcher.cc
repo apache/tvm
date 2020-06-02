@@ -148,9 +148,9 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
     auto attrs_node = const_cast<Object*>(op->attrs.get());
     auto attr_names = reflection->ListAttrNames(attrs_node);
     for (auto kv : attributes) {
-      if (matches &&
-          std::find(attr_names.begin(), attr_names.end(), kv.first) != attr_names.end()) {
-        matches &= MatchRetValue(kv.second, reflection->GetAttr(attrs_node, kv.first));
+      std::string attr = kv.first;
+      if (matches && std::find(attr_names.begin(), attr_names.end(), attr) != attr_names.end()) {
+        matches &= MatchRetValue(kv.second, reflection->GetAttr(attrs_node, attr));
       } else {
         matches = false;
         break;
@@ -740,8 +740,8 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.rewrite").set_body_typed(RewritePatt
  */
 class PatternPartitioner : protected MixedModeMutator {
  public:
-  Expr Partition(const DFPattern& pattern, const Expr& pre,
-                 const Map<std::string, ObjectRef>& attrs, PackedFunc check) {
+  Expr Partition(const DFPattern& pattern, const Expr& pre, const Map<String, ObjectRef>& attrs,
+                 PackedFunc check) {
     auto grouper = PatternGrouper();
     groups_ = grouper.GroupMatches(pattern, pre);
     gid_assignments_ = grouper.GetGIDAssignments();
@@ -774,19 +774,19 @@ class PatternPartitioner : protected MixedModeMutator {
     return post;
   }
 
-  Map<std::string, ObjectRef> attrs_;
+  Map<String, ObjectRef> attrs_;
   std::vector<PatternGrouper::Group> groups_;
   std::unordered_map<Expr, int, ObjectHash, ObjectEqual> gid_assignments_;
   PackedFunc check_;
 };
 
-Expr PartitionPattern(DFPattern pattern, Expr expr, Map<std::string, ObjectRef> attrs,
+Expr PartitionPattern(DFPattern pattern, Expr expr, Map<String, ObjectRef> attrs,
                       PackedFunc check) {
   return PatternPartitioner().Partition(pattern, expr, attrs, check);
 }
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.partition")
-    .set_body_typed([](DFPattern pattern, Expr expr, Map<std::string, ObjectRef> attrs,
+    .set_body_typed([](DFPattern pattern, Expr expr, Map<String, ObjectRef> attrs,
                        PackedFunc check) { return PartitionPattern(pattern, expr, attrs, check); });
 
 }  // namespace relay

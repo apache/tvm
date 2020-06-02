@@ -56,6 +56,7 @@ class Map(Object):
     def items(self):
         """Get the items from the map"""
         akvs = _ffi_node_api.MapItems(self)
+        # TODO(@junrushao1994): check if auto conversion works (runtime::String -> python str)
         return [(akvs[i], akvs[i+1]) for i in range(0, len(akvs), 2)]
 
     def __len__(self):
@@ -78,15 +79,3 @@ class Map(Object):
             The result value.
         """
         return self[key] if key in self else default
-
-
-@tvm._ffi.register_object
-class StrMap(Map):
-    """A special map container that has str as key.
-
-    You can use convert to create a dict[str->Object] into a Map.
-    """
-    def items(self):
-        """Get the items from the map"""
-        akvs = _ffi_node_api.MapItems(self)
-        return [(akvs[i].value, akvs[i+1]) for i in range(0, len(akvs), 2)]

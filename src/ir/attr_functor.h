@@ -76,7 +76,6 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
   }
   virtual R VisitAttrDefault_(const Object* node, Args... args) = 0;
   virtual R VisitAttr_(const ArrayNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const StrMapNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const tir::IntImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const tir::FloatImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const tir::StringImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
@@ -113,7 +112,6 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
     using namespace tir;
     FType vtable;
     // Set dispatch
-    ATTR_FUNCTOR_DISPATCH(StrMapNode);
     ATTR_FUNCTOR_DISPATCH(ArrayNode);
     ATTR_FUNCTOR_DISPATCH(IntImmNode);
     ATTR_FUNCTOR_DISPATCH(FloatImmNode);
