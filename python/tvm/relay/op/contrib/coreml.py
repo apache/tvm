@@ -16,9 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """CoreML codegen supported operators."""
-from ... import op as _op
+import tvm.ir
+from tvm.contrib.target.coreml import _convert_map
 from ...expr import Constant
-from ....contrib.target.coreml import _convert_map
 
 
 def _register_coreml_op(op_name):
@@ -38,7 +38,7 @@ def _register_coreml_op(op_name):
                 return False
         return True
 
-    _op.register(op_name, "target.coremlcompiler", _check_supported)
+    tvm.ir.register_op_attr(op_name, "target.coremlcompiler", _check_supported)
 
 
 for op in _convert_map:
