@@ -15,102 +15,125 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
+from unittest import mock
 
 import tvm
 from tvm import relay
 from tvm.relay import transform
 from tvm.contrib.target import coreml as _coreml
-from tvm.contrib import xcode
 
-def check_result(mod, map_inputs, out_shape, result, tol=1e-3, target="llvm",
-                 ctx=tvm.cpu(), params=None):
-    for name, data in map_inputs.items():
-        mod.set_input(name, data)
-    mod.set_input(**params)
-    mod.run()
-    out = tvm.nd.empty(out_shape, ctx=ctx)
-    out = mod.get_output(0, out)
-
-    tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
+pytest.importorskip("coremltools")
 
 
-def test_coreml_codegen():
+def _has_xcode():
     try:
-        import coremltools
-    except ImportError:
-        print("skip because coremltools is not available")
-        return
-
-    skip_runtime_check = False
-    try:
-        xcode.xcrun([])
+        tvm.contrib.xcode.xcrun([])
+        return True
     except FileNotFoundError:
-        print("Xcode is not available. Check only constructing Core ML models.")
-        xcode.compile_coreml = lambda *_: None
-        skip_runtime_check = True
+        pass
 
-    shape = (1,)
+    return False
 
-    def create_graph():
-        x = relay.var('x', shape=shape)
-        y = relay.var('y', shape=shape)
-        z = x + x
-        p = y * y
-        return relay.Function([x, y], p - z)
 
-    def expected():
-        target = "coremlcompiler"
-        mod = tvm.IRModule()
-
-        # function 0
-        f0_i0 = relay.var(target + "_0_i0", shape=shape)
-        func0 = relay.Function([f0_i0], f0_i0 * f0_i0)
-
-        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Compiler", target)
-        func0 = func0.with_attr("global_symbol", target + "_0")
-        gv0 = relay.GlobalVar(target + "_0")
-        mod[gv0] = func0
-
-        # function 2
-        f2_i0 = relay.var(target + "_2_i0", shape=shape)
-        func2 = relay.Function([f2_i0], f2_i0 + f2_i0)
-
-        func2 = func2.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-        func2 = func2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func2 = func2.with_attr("Compiler", target)
-        func2 = func2.with_attr("global_symbol", target + "_2")
-        gv2 = relay.GlobalVar(target + "_2")
-        mod[gv2] = func2
-
-        # body
-        x = relay.var('x', shape=shape)
-        y = relay.var('y', shape=shape)
-        func = relay.Function([x, y], gv0(y) - gv2(x))
-        mod["main"] = func
-        return mod
-
-    x_data = np.random.rand(*shape).astype('float32')
-    y_data = np.random.rand(*shape).astype('float32')
+def _create_graph():
+    shape = (10, 10)
     mod = tvm.IRModule()
-    mod["main"] = create_graph()
+
+    x = relay.var('x', shape=shape)
+    y = relay.var('y', shape=shape)
+    z = x + x
+    p = y * y
+    func = relay.Function([x, y], p - z)
+    mod["main"] = func
+
+    return mod
+
+
+def _create_graph_annotated():
+    shape = (10, 10)
+    target = "coremlcompiler"
+    mod = tvm.IRModule()
+
+    # function 0
+    f0_i0 = relay.var(target + "_0_i0", shape=shape)
+    func0 = relay.Function([f0_i0], f0_i0 * f0_i0)
+
+    func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+    func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+    func0 = func0.with_attr("Compiler", target)
+    func0 = func0.with_attr("global_symbol", target + "_0")
+    gv0 = relay.GlobalVar(target + "_0")
+    mod[gv0] = func0
+
+    # function 2
+    f2_i0 = relay.var(target + "_2_i0", shape=shape)
+    func2 = relay.Function([f2_i0], f2_i0 + f2_i0)
+
+    func2 = func2.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+    func2 = func2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+    func2 = func2.with_attr("Compiler", target)
+    func2 = func2.with_attr("global_symbol", target + "_2")
+    gv2 = relay.GlobalVar(target + "_2")
+    mod[gv2] = func2
+
+    # body
+    x = relay.var('x', shape=shape)
+    y = relay.var('y', shape=shape)
+    func = relay.Function([x, y], gv0(y) - gv2(x))
+    mod["main"] = func
+
+    return mod
+
+
+def test_annotate():
+    mod = _create_graph()
     mod = transform.AnnotateTarget("coremlcompiler")(mod)
     mod = transform.PartitionGraph()(mod)
 
-    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
+    expected = _create_graph_annotated()
+    assert tvm.ir.structural_equal(mod, expected, map_free_vars=True)
 
+
+@mock.patch('tvm.contrib.coreml_runtime.create')
+@mock.patch('tvm.contrib.xcode.compile_coreml')
+def test_construct_model(m1, m2):
+    mod = _create_graph_annotated()
+
+    fcompile = tvm._ffi.get_global_func("relay.ext.coremlcompiler")
+
+    for var, func in mod.functions.items():
+        if func.attrs and 'Compiler' in func.attrs and \
+           func.attrs['Compiler'] == 'coremlcompiler':
+            fcompile(tvm.IRModule.from_expr(func.body))
+
+
+@pytest.mark.skipif(not _has_xcode(), reason="Xcode is not available")
+def test_compile_and_run():
     ctx=tvm.cpu()
     target="llvm"
+    tol=1e-3
 
     with relay.build_config(opt_level=3):
-        json, lib, params = relay.build(mod, target=target)
-    rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
+        json, lib, params = relay.build(_create_graph_annotated(), target=target)
+    m = tvm.contrib.graph_runtime.create(json, lib, ctx)
 
-    if not skip_runtime_check:
-        check_result(rt_mod, {"x": x_data, "y": y_data}, shape,
-                     (y_data * y_data) - (x_data + x_data),
-                     target=target, ctx=ctx, params=params)
+    shape = (10, 10)
+    x_data = np.random.rand(*shape).astype('float32')
+    y_data = np.random.rand(*shape).astype('float32')
+
+    m.set_input("x", x_data)
+    m.set_input("y", y_data)
+    m.set_input(**params)
+    m.run()
+    out = tvm.nd.empty(shape, ctx=ctx)
+    out = m.get_output(0, out)
+
+    expected = (y_data * y_data) - (x_data + x_data)
+    tvm.testing.assert_allclose(out.asnumpy(), expected, rtol=tol, atol=tol)
+
 
 if __name__ == "__main__":
-    test_coreml_codegen()
+    test_annotate()
+    test_construct_model()
+    test_compile_and_run()
