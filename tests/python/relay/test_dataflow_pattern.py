@@ -32,19 +32,19 @@ K_BROADCAST = 1
 
 ## NODE TESTS
 def test_expr_pattern():
-    ep = ExprPattern(relay.var('x', shape=(4, 1)))
+    ep = is_expr(relay.var('x', shape=(4, 1)))
     assert isinstance(ep, ExprPattern)
     assert isinstance(ep.expr, relay.Var)
 
 
 def test_var_pattern():
-    v = is_input("x")
+    v = is_var("x")
     assert isinstance(v, VarPattern)
     assert v.name == "x"
 
 
 def test_constant_pattern():
-    c = ConstantPattern()
+    c = is_constant()
     assert isinstance(c, ConstantPattern)
 
 
@@ -65,7 +65,7 @@ def test_CallPattern():
 def test_TuplePattern():
     wc1 = wildcard()
     wc2 = wildcard()
-    t = TuplePattern([wc1, wc2])
+    t = is_tuple([wc1, wc2])
     assert isinstance(t, TuplePattern)
     assert isinstance(t.fields[0], WildcardPattern)
     assert isinstance(t.fields[1], WildcardPattern)
@@ -74,8 +74,8 @@ def test_TuplePattern():
 def test_TupleGetItemPattern():
     wc1 = wildcard()
     wc2 = wildcard()
-    t = TuplePattern([wc1, wc2])
-    tgi = TupleGetItemPattern(t, 1)
+    t = is_tuple([wc1, wc2])
+    tgi = is_tuple_get_item(t, 1)
     assert isinstance(tgi, TupleGetItemPattern)
     assert isinstance(tgi.tuple, TuplePattern)
     assert isinstance(tgi.tuple.fields[0], WildcardPattern)
@@ -120,10 +120,10 @@ def test_match_op_or():
 def test_match_call_commutive():
     x = relay.var('x')
     y = relay.var('y')
-    add_pattern = is_op('add')(is_input("x"), is_input("y"))
+    add_pattern = is_op('add')(is_var("x"), is_var("y"))
     assert add_pattern.match(x + y)
     assert add_pattern.match(y + x)
-    mul_pattern = is_op('multiply')(is_input("x"), is_input("y"))
+    mul_pattern = is_op('multiply')(is_var("x"), is_var("y"))
     assert mul_pattern.match(x * y)
     assert mul_pattern.match(y * x)
 
@@ -131,10 +131,10 @@ def test_match_call_commutive():
 def test_no_match_call_commutive():
     x = relay.var('x')
     y = relay.var('y')
-    add_pattern = is_op('subtract')(is_input("x"), is_input("y"))
+    add_pattern = is_op('subtract')(is_var("x"), is_var("y"))
     assert add_pattern.match(x - y)
     assert not add_pattern.match(y - x)
-    add_pattern = is_op('divide')(is_input("x"), is_input("y"))
+    add_pattern = is_op('divide')(is_var("x"), is_var("y"))
     assert add_pattern.match(x / y)
     assert not add_pattern.match(y / x)
 
@@ -211,7 +211,7 @@ def test_no_match_option():
 
 
 def test_match_const():
-    conv2d = is_op('nn.conv2d')(wildcard(), ConstantPattern())
+    conv2d = is_op('nn.conv2d')(wildcard(), is_constant())
     pattern = is_op('nn.bias_add')(conv2d, wildcard())
 
     x = relay.var('x', shape=(1, 3, 224, 224))
@@ -232,11 +232,11 @@ def test_match_tuple():
     x = relay.var('x')
     y = relay.var('y')
     z = relay.op.op.get("add")
-    tuple_pattern = TuplePattern((is_input("x"), wildcard(), is_op("add")))
+    tuple_pattern = is_tuple((is_var("x"), wildcard(), is_op("add")))
     assert tuple_pattern.match(relay.expr.Tuple((x, y, z)))
 
-    tuple_pattern = TuplePattern((is_input("x"), wildcard(), is_op("add")))
-    tuple_get_item_pattern = TupleGetItemPattern(tuple_pattern, 1)
+    tuple_pattern = is_tuple((is_var("x"), wildcard(), is_op("add")))
+    tuple_get_item_pattern = is_tuple_get_item(tuple_pattern, 1)
     assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 1))
 
 
@@ -244,11 +244,11 @@ def test_no_match_tuple():
     x = relay.var('x')
     y = relay.var('y')
     z = relay.op.op.get("add")
-    tuple_pattern = TuplePattern((is_input('x'), wildcard(), is_op("add"), wildcard()))
+    tuple_pattern = is_tuple((is_var('x'), wildcard(), is_op("add"), wildcard()))
     assert not tuple_pattern.match(relay.expr.Tuple((x, y, z)))
 
-    tuple_pattern = TuplePattern((is_input('x'), wildcard(), is_op("add")))
-    tuple_get_item_pattern = TupleGetItemPattern(tuple_pattern, 1)
+    tuple_pattern = is_tuple((is_var('x'), wildcard(), is_op("add")))
+    tuple_get_item_pattern = is_tuple_get_item(tuple_pattern, 1)
     assert not tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple(
         (x, y, z)), 2))
 
@@ -596,7 +596,7 @@ class BatchnormCallback(DFPatternCallback):
         self.mean = wildcard()
         self.beta = wildcard()
         self.gamma = wildcard()
-        self.eps = ConstantPattern()
+        self.eps = is_constant()
 
         self.pattern = self.gamma * (self.x - self.mean) / is_op("sqrt")(self.var + self.eps) + \
                        self.beta
@@ -760,8 +760,8 @@ def test_quadruple_rewrite_dominator():
 
 
 def algebraic_simplify(expr):
-    zero = (ExprPattern(relay.const(0)) | ExprPattern(relay.const(0.0)))
-    one = (ExprPattern(relay.const(1)) | ExprPattern(relay.const(1.0)))
+    zero = (is_expr(relay.const(0)) | is_expr(relay.const(0.0)))
+    one = (is_expr(relay.const(1)) | is_expr(relay.const(1.0)))
 
     class ElwiseNullCallback(DFPatternCallback):
         def callback(self, pre, post, node_map):
@@ -1182,35 +1182,32 @@ def test_partition_constant_embedding():
     assert tvm.ir.structural_equal(lifted_func(x, wc, b), pattern.partition(reluc))
 
     # Check lifting of input matches
-    pattern = is_op('nn.relu')(is_op('nn.bias_add')(is_op('nn.conv2d')(wildcard(), is_input()),
+    pattern = is_op('nn.relu')(is_op('nn.bias_add')(is_op('nn.conv2d')(wildcard(), is_var()),
                                                     wildcard()))
     assert tvm.ir.structural_equal(lifted_func(x, w, b), pattern.partition(relu))
     assert tvm.ir.structural_equal(reluc, pattern.partition(reluc))  #Constants are not Inputs
 
     # Check embedding of constant matches
-    pattern = is_op('nn.relu')(is_op('nn.bias_add')(is_op('nn.conv2d')(wildcard(),
-                                                                       ConstantPattern()),
+    pattern = is_op('nn.relu')(is_op('nn.bias_add')(is_op('nn.conv2d')(wildcard(), is_constant()),
                                                     wildcard()))
     assert tvm.ir.structural_equal(relu, pattern.partition(relu))
     assert tvm.ir.structural_equal(embeded_func(x, b), pattern.partition(reluc))
 
     # Check embedding of constant ExprPatterns
-    pattern = is_op('nn.relu')(is_op('nn.bias_add')(is_op('nn.conv2d')(wildcard(),
-                                                                       ExprPattern(wc)),
+    pattern = is_op('nn.relu')(is_op('nn.bias_add')(is_op('nn.conv2d')(wildcard(), is_expr(wc)),
                                                     wildcard()))
     assert tvm.ir.structural_equal(relu, pattern.partition(relu))
     assert tvm.ir.structural_equal(embeded_func(x, b), pattern.partition(reluc))
 
     # Check lifting/embedding of Alt matches
-    pattern = is_op('nn.relu')(is_op('nn.bias_add')(is_op('nn.conv2d')(wildcard(), is_input()
-                                                                       | ConstantPattern()),
-                                                    wildcard()))
+    pattern = is_op('nn.relu')(is_op('nn.bias_add')(is_op('nn.conv2d')(
+        wildcard(), is_var() | is_constant()), wildcard()))
     assert tvm.ir.structural_equal(lifted_func(x, w, b), pattern.partition(relu))
     assert tvm.ir.structural_equal(embeded_func(x, b), pattern.partition(reluc))
 
     # Check lifting/embedding of Alt matches with the other ordering
     pattern = is_op('nn.relu')(is_op('nn.bias_add')(is_op('nn.conv2d')(
-        wildcard(), ConstantPattern() | is_input()), wildcard()))
+        wildcard(), is_constant() | is_var()), wildcard()))
     assert tvm.ir.structural_equal(lifted_func(x, w, b), pattern.partition(relu))
     assert tvm.ir.structural_equal(embeded_func(x, b), pattern.partition(reluc))
 
