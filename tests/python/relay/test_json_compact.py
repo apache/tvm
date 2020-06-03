@@ -186,6 +186,34 @@ def test_tir_var():
     assert y.name == "y"
 
 
+def test_str_map():
+    nodes = [
+        {'type_key': ''},
+        {'type_key': 'StrMap', 'keys': ['z', 'x'], 'data': [2, 3]},
+        {'type_key': 'IntImm', 'attrs': {'dtype': 'int32', 'value': '2'}},
+        {'type_key': 'Max', 'attrs': {'a': '4', 'b': '10', 'dtype': 'int32'}},
+        {'type_key': 'Add', 'attrs': {'a': '5', 'b': '9', 'dtype': 'int32'}},
+        {'type_key': 'Add', 'attrs': {'a': '6', 'b': '8', 'dtype': 'int32'}},
+        {'type_key': 'tir.Var', 'attrs': {'dtype': 'int32', 'name': '7', 'type_annotation': '0'}},
+        {'type_key': 'runtime.String', 'repr_str': 'x'},
+        {'type_key': 'IntImm', 'attrs': {'dtype': 'int32', 'value': '1'}},
+        {'type_key': 'IntImm', 'attrs': {'dtype': 'int32', 'value': '2'}},
+        {'type_key': 'IntImm', 'attrs': {'dtype': 'int32', 'value': '100'}}
+    ]
+    data = {
+        "root" : 1,
+        "nodes": nodes,
+        "attrs": {"tvm_version": "0.6.0"},
+        "b64ndarrays": [],
+    }
+    x = tvm.ir.load_json(json.dumps(data))
+    assert(isinstance(x, tvm.ir.container.Map))
+    assert(len(x) == 2)
+    assert('x' in x)
+    assert('z' in x)
+    assert(bool(x['z'] == 2))
+
+
 if __name__ == "__main__":
     test_op()
     test_type_var()
@@ -194,3 +222,4 @@ if __name__ == "__main__":
     test_func_tuple_type()
     test_global_var()
     test_tir_var()
+    test_str_map()
