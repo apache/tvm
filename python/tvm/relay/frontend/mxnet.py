@@ -846,6 +846,11 @@ def _mx_softsign(inputs, attrs):
     return inputs[0] / (_expr.const(1.0) + _op.abs(inputs[0]))
 
 
+def _mx_softmin(inputs, attrs):
+    axis = attrs.get_int("axis", -1)
+    return _op.nn.softmax(_op.negative(inputs[0]), axis)
+
+
 def _mx_hard_sigmoid(inputs, attrs):
     x = (_expr.const(0.2) * inputs[0]) + _expr.const(0.5)
     return _op.clip(x, a_min=0.0, a_max=1.0)
@@ -1829,6 +1834,7 @@ _identity_list = [
     "floor",
     "ceil",
     "round",
+    "trunc",
     "sign",
     "sigmoid",
     "negative",
@@ -1938,6 +1944,7 @@ _convert_map = {
     "log_softmax"   : _softmax_op(_op.nn.log_softmax),
     "Softmax"       : _softmax_op(_op.nn.softmax),
     "softsign"      : _mx_softsign,
+    "softmin"       : _mx_softmin,
     "hard_sigmoid"  : _mx_hard_sigmoid,
     "reciprocal"    : _mx_reciprocal,
     # per op specialization
