@@ -617,7 +617,16 @@ def _conv3d(opname):
 def _nms():
     def _impl(inputs, attr, params, mod):
         # Get parameter values
-        max_output_size = int(np.atleast_1d(inputs[2].data.asnumpy().astype("int64"))[0])
+        # TODO(yongwww) change nms in relay to support symbolic max_output_size
+        try:
+            max_output_size = int(np.atleast_1d(inputs[2].data.asnumpy()
+                                                .astype("int64"))[0])
+        except Exception:
+            try:
+                max_output_size = _infer_value(inputs[2], params,
+                                               mod).asnumpy().astype("int64").tolist()[0]
+            except Exception:
+                max_output_size = -1
         iou_threshold = np.atleast_1d(inputs[3].data.asnumpy())[0]
         # score_threshold was introduced from V3
         score_threshold = np.atleast_1d(inputs[4].data.asnumpy())[0] if len(inputs) > 4 else 0.0
@@ -1168,7 +1177,7 @@ def _slice():
         except (IndexError, KeyError, AttributeError):
             # Handle symbolic begin
             try:
-                begin = _infer_value(inputs[1], params).asnumpy().tolist()[0]
+                begin = _infer_value(inputs[1], params).asnumpy().tolist()
             except Exception:
                 begin = inputs[1]
         try:
@@ -1176,7 +1185,7 @@ def _slice():
         except (IndexError, KeyError, AttributeError):
             # Handle symbolic size
             try:
-                size = _infer_value(inputs[2], params).asnumpy().tolist()[0]
+                size = _infer_value(inputs[2], params).asnumpy().tolist()
             except Exception:
                 size = inputs[2]
         return _op.strided_slice(inputs[0], begin=begin, end=size, slice_mode=True)
@@ -1509,9 +1518,9 @@ def _stridedSlice():
         if begin_mask or end_mask or ellipsis_mask or new_axis_mask or shrink_axis_mask:
             begin, end, stride, fshape_indices = _transform_mask(stride_dim, ellipsis_mask)
         out = _op.strided_slice(inputs[0],
-                                begin=_expr.const(begin),
-                                end=_expr.const(end),
-                                strides=_expr.const(stride))
+                                begin=begin,
+                                end=end,
+                                strides=stride)
         out_shape = _infer_shape(out, mod=mod)
         if not fshape_indices:
             fshape_indices = range(len(out_shape))

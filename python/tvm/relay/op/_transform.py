@@ -134,7 +134,6 @@ def _strided_slice_shape_func_input_data(data, begin, end, strides,
 @script
 def _strided_slice_shape_func_input_shape(data_shape, begin, end, strides, slice_mode):
     ndim = data_shape.shape[0]
-    assert ndim == 2, "not correct"
     out = output_tensor((ndim,), "int64")
     for i in const_range(ndim):
         cbegin = int64(0)

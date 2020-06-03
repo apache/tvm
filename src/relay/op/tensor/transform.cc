@@ -1927,15 +1927,9 @@ Expr MakeStridedSlice(Expr data, Expr begin, Expr end, Expr strides, bool slice_
     CHECK_EQ(cend->data->ndim, 1);
     CHECK_EQ(cstrides->data->ndim, 1);
     Array<Integer> begin, end, strides;
-    for (int i = 0; i < cbegin->data->shape[0]; i++) {
-      begin.push_back(Integer(static_cast<int>(ToScalar(cbegin->data, i))));
-    }
-    for (int i = 0; i < cend->data->shape[0]; i++) {
-      end.push_back(Integer(static_cast<int>(ToScalar(cend->data, i))));
-    }
-    for (int i = 0; i < cstrides->data->shape[0]; i++) {
-      strides.push_back(Integer(static_cast<int>(ToScalar(cstrides->data, i))));
-    }
+    begin = ToVector(cbegin->data);
+    end = ToVector(cend->data);
+    strides = ToVector(cstrides->data);
     attrs->begin = begin;
     attrs->end = end;
     attrs->strides = strides;
