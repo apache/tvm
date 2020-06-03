@@ -90,7 +90,7 @@ TEST(Relay, Sequential) {
       relay::transform::EliminateCommonSubexpr(), relay::transform::AlterOpLayout()};
   relay::transform::Pass seq = relay::transform::Sequential(pass_seqs);
   auto mod = IRModule::FromExpr(func);
-  auto pass_ctx = relay::transform::PassContext::Create();
+  auto pass_ctx = relay::transform::PassContext();
   pass_ctx->opt_level = 3;
   pass_ctx->config.Set("relay.fallback_device_type", Integer(1));
   {
