@@ -162,15 +162,7 @@ class PassContextNode : public Object {
 class PassContext : public ObjectRef {
  public:
   PassContext() : PassContext(make_object<PassContextNode>()) {}
-  explicit PassContext(ObjectPtr<Object> n) : ObjectRef(n) {}
-  /*!
-   * \brief const accessor.
-   * \return const access pointer.
-   */
-  const PassContextNode* operator->() const {
-    CHECK(get() != nullptr);
-    return static_cast<const PassContextNode*>(get());
-  }
+
   /*!
    * \brief mutable accessor.
    * \return mutable access pointer.
@@ -209,9 +201,7 @@ class PassContext : public ObjectRef {
     return tindex;
   }
 
-  // accessor.
-  using ContainerType = PassContextNode;
-  static constexpr bool _type_is_nullable = false;
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PassContext, ObjectRef, PassContextNode);
   class Internal;
 
  private:
