@@ -80,6 +80,8 @@ def test_fmod():
 
             # launch the kernel.
             n = 1024
+            # Make sure we don't get "bad" values
+            np.random.seed(1797)
             a = tvm.nd.array((np.random.uniform(size=n) * 256).astype(A.dtype), ctx)
             b = tvm.nd.array((np.random.uniform(size=n) * 256).astype(B.dtype), ctx)
             c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
