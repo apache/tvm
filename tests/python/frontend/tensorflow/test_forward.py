@@ -99,12 +99,12 @@ def vmobj_to_list(o):
 
 def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
                   target='llvm', out_names=None, opt_level=3, mode='graph_runtime',
-                  layout=None, disabled_pass=None):
+                  cuda_layout="NCHW", layout=None, disabled_pass=None):
     """ Generic function to compile on relay and execute on tvm """
     input_data = convert_to_list(input_data)
     input_node = convert_to_list(input_node)
     if target == "cuda":
-        layout = "NCHW"
+        layout = cuda_layout
     target_host = None
     shape_dict = {e: i.shape for e, i in zip(input_node, input_data)}
     mod, params = relay.frontend.from_tensorflow(graph_def,
@@ -135,7 +135,8 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
         inputs = {}
         for e, i in zip(input_node, input_data):
             inputs[e] = i
-        return vm.invoke("main", **inputs)
+        result = vm.invoke("main", **inputs)
+        return vmobj_to_list(result)
     else:
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
             graph, lib, params = relay.build(mod, target, target_host, params)

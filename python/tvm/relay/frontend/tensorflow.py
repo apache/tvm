@@ -698,7 +698,7 @@ def _crop_and_resize():
         try:
             crop_size = _get_list_param(params, inputs[3])
         except (IndexError, KeyError):
-            crop_size = _infer_value(inputs[3], params).asnumpy().tolist()
+            crop_size = _infer_value(inputs[3], params, mod).asnumpy().tolist()
 
         method = attr['method'].decode()
         method = 'nearest_neighbor' if method == 'nearest' else method
@@ -732,9 +732,9 @@ def _resize(method):
             # Important that the size is defined. If an axis is not, we need to infer what
             # the shape should be.
             if -1 in size:
-                size = _infer_value(inputs[1], params).asnumpy().reshape([-1]).tolist()
+                size = _infer_value(inputs[1], params, mod).asnumpy().reshape([-1]).tolist()
         else:
-            size = _infer_value(inputs[1], params).asnumpy().reshape([-1]).tolist()
+            size = _infer_value(inputs[1], params, mod).asnumpy().reshape([-1]).tolist()
 
         attr['size'] = size
         inputs.pop(1)
@@ -857,8 +857,7 @@ def _tensor_array():
         assert not attr["dynamic_size"], "Dynamic size tensor array is " \
                                          "not supported in TVM yet."
 
-        if attr['identical_element_shapes']:
-            assert "shape" in attr, "Shape is required for static tensor array."
+        if "shape" in attr:
             shape = attr["shape"]
             static_tensor_array_ops = StaticTensorArrayOps(prelude,
                                                            dtype_str,
@@ -890,17 +889,18 @@ def _tensor_array_scatter():
             values = unstack_function(inputs[2])
             tensor_array_scatter_func = prelude.get_var('tensor_array_scatter', dtype_str)
         else:
-            values_shape = (values_shape[0],) + input_shape
+            input_t_shape = _get_more_static_shape(input_t_shape, input_shape)
+            values_shape = (values_shape[0],) + input_t_shape
             static_tensor_array_ops = StaticTensorArrayOps(prelude,
                                                            dtype_str,
-                                                           input_shape)
+                                                           input_t_shape)
             static_tensor_array_ops.register()
             # Register static indices shape
             if isinstance(indices_shape[0], int):
                 static_tensor_array_ops.define_tensor_array_scatter(indices_shape, True)
             tensor_array_scatter_func = prelude.get_var_static('tensor_array_scatter',
                                                                dtype_str,
-                                                               input_shape)
+                                                               input_t_shape)
 
             static_tensor_array_ops = StaticTensorArrayOps(prelude,
                                                            dtype_str,
@@ -997,11 +997,19 @@ def _tensor_array_write():
             tensor_func = prelude.get_var_static("tensor_constructor",
                                                  dtype_str,
                                                  input_ta_shape)
+            v = tensor_func(inputs[2])
+            # Write tensor with more static shape
             actual_shape = _get_more_static_shape(input_t_shape, input_ta_shape)
             if actual_shape != input_t_shape:
-                v = tensor_func(_op.reshape(inputs[2], actual_shape))
-            else:
-                v = tensor_func(inputs[2])
+                new_shape = []
+                num_any_dim = 0
+                for dim in actual_shape:
+                    if not isinstance(dim, int):
+                        num_any_dim += 1
+                    new_shape.append(dim if isinstance(dim, int) else -1)
+                if num_any_dim <= 1:
+                    v = tensor_func(_op.reshape(inputs[2], new_shape))
+
             write_func = prelude.get_var_static('tensor_array_write',
                                                 dtype_str,
                                                 input_ta_shape)
@@ -1630,24 +1638,22 @@ def _range():
             start = _get_param(params, inputs[0])[0]
         except (IndexError, KeyError, AttributeError):
             try:
-                start = _infer_value(inputs[1], params).asnumpy().tolist()
+                start = _infer_value(inputs[1], params, mod).asnumpy().tolist()
                 start = start if not isinstance(start, list) else start[0]
             except Exception:
                 # Symbolic start
                 start = inputs[0]
 
-        if hasattr(inputs[1], "name_hint") or isinstance(inputs[1], _expr.Constant):
-            limit = _get_param(params, inputs[1])[0]
-        else:
-            if any(['Rank' in param for param in params]):
-                limit = params.pop('Rank').asnumpy()[0]
-            else:
-                try:
-                    limit = _infer_value(inputs[1], params, mod).asnumpy().tolist()
-                    limit = limit if not isinstance(limit, list) else limit[0]
-                except Exception:
-                    # Symbolic limit
-                    limit = inputs[1]
+        try:
+            limit = _get_param(params, inputs[1])[0] \
+                if hasattr(inputs[1], "name_hint") or isinstance(inputs[1], _expr.Constant) \
+                else params.pop('Rank').asnumpy()[0]
+        except:
+            try:
+                limit = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+                limit = limit if not isinstance(limit, list) else limit[0]
+            except:
+                limit = inputs[1]
 
         try:
             delta = _get_param(params, inputs[2])[0]
@@ -1796,7 +1802,7 @@ def _topk():
                 'Attribute sorted=False is not supported in operator TopKV2')
         return AttrCvt(op_name='topk',
                        ignores=['sorted'],
-                       extras={'k': k, 'is_ascend': False, 'dtype': 'int32'})(inputs, attr)
+                       extras={'k': k, 'is_ascend': False, 'dtype': 'int32'})([inputs[0]], attr)
     return _impl
 
 def _floordiv():
@@ -2804,13 +2810,15 @@ class GraphProto(object):
                     if node.op.startswith("TensorArrayGather"):
                         ta_gather_nodes.append(node)
 
-        # Fetch node contains static tensor array shape
+        # Use tensor array gather to infer static tensor array shape
         for gather_node in ta_gather_nodes:
             input_ta_name = gather_node.input[0]
             input_ta_node = self._tf_node_map[input_ta_name]
             if input_ta_node.op.startswith("TensorArrayV"):
                 gather_attr = self._parse_attr(gather_node.attr)
-                raw_elem_shape = tensor_util.TensorShapeProtoToList(gather_attr['element_shape'])
+                if "element_shape" not in gather_attr:
+                    continue
+                raw_elem_shape = tensor_util.TensorShapeProtoToList(gather_attr["element_shape"])
                 elem_shape = []
                 for dim in raw_elem_shape:
                     if dim < 0:
@@ -3342,7 +3350,7 @@ class GraphProto(object):
             Converted relay expression or loop var.
         """
         actual_expr = self._backtrack_construct(node_name)
-        tn = node_name.split(':')
+        tn = node_name.split(':').split("^")[-1]
         node_name = tn[0]
         cloop_name = find_parent_loop_name(node_name, self._while_loop_name_set)
 
@@ -3428,7 +3436,7 @@ class GraphProto(object):
 
                     if elem_shape:
                         attr["shape"] = elem_shape
-                    elif attr['identical_element_shapes']:
+                    if attr['identical_element_shapes'] or elem_shape:
                         shape_node, wnode_op = self._tensor_array_shape_nodes[node.name]
                         converted = self._backtrack_construct(shape_node.name)
                         shape = _infer_shape(converted, self._mod)
@@ -3441,7 +3449,10 @@ class GraphProto(object):
                             preset_shape = self._tensor_array_shapes[node.name]
                             shape = _get_more_static_shape(shape, preset_shape)
 
-                        attr["shape"] = shape
+                        if "shape" in attr:
+                            attr["shape"] = _get_more_static_shape(shape, attr["shape"])
+                        else:
+                            attr["shape"] = shape
 
                 # LICM
                 if plname in self._while_loop_name_set:
