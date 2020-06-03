@@ -1166,6 +1166,8 @@ std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
   return std::make_pair(schedule, operator->()->tensors);
 }
 
+TVM_REGISTER_GLOBAL("ansor.ComputeDAG")
+.set_body_typed([](Array<te::Tensor> tensors) { return ComputeDAGNode::make(tensors); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<ComputeDAGNode>([](const ObjectRef& ref, ReprPrinter *p) {

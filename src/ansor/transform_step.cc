@@ -8,6 +8,7 @@
 namespace tvm {
 namespace ansor {
 
+TVM_REGISTER_NODE_TYPE(IteratorNode);
 TVM_REGISTER_OBJECT_TYPE(StepNode);
 
 /********** Reorder **********/

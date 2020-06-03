@@ -19,13 +19,15 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <unordered_set>
-#include <tvm/te/operation.h>
 #include <topi/nn.h>
-#include "../../src/ansor/loop_state.h"
-#include "../../src/ansor/serialization.h"
+#include <tvm/te/operation.h>
+
+#include <unordered_set>
+
 #include "../../src/ansor/feature.h"
+#include "../../src/ansor/loop_state.h"
 #include "../../src/ansor/search_policy/meta_tile_rewrite_policy.h"
+#include "../../src/ansor/serialization.h"
 
 tvm::Array<tvm::te::Tensor> matmul_func(int n, int m, int k) {
   using namespace tvm;
@@ -35,16 +37,17 @@ tvm::Array<tvm::te::Tensor> matmul_func(int n, int m, int k) {
   Tensor B = placeholder({k, m}, DataType::Float(32), "B");
   IterVar K = IterVarNode::make({0, k}, Var("k"), kCommReduce);
   const auto& C = compute(
-      {n, m},
-      [&](Var i, Var j) { return tvm::sum(A[i][K] * B[K][j], {K}); },
+      {n, m}, [&](Var i, Var j) { return tvm::sum(A[i][K] * B[K][j], {K}); },
       "C");
 
   return {A, B, C};
 }
 
 tvm::Array<tvm::te::Tensor> conv2d_nchw_bn_relu_func(int N, int H, int W,
-    int CI, int CO, int kernel_size, int strides, int padding,
-    int dilation = 1) {
+                                                     int CI, int CO,
+                                                     int kernel_size,
+                                                     int strides, int padding,
+                                                     int dilation = 1) {
   using namespace tvm;
   using namespace tvm::te;
 
@@ -58,27 +61,27 @@ tvm::Array<tvm::te::Tensor> conv2d_nchw_bn_relu_func(int N, int H, int W,
   int OH = (H + 2 * padding - (kernel_size - 1) * dilation - 1) / strides + 1;
   int OW = (W + 2 * padding - (kernel_size - 1) * dilation - 1) / strides + 1;
 
-  const auto& conv = topi::conv2d_nchw(data, kernel, padding, padding, strides,
-                                       strides);
+  const auto& conv =
+      topi::conv2d_nchw(data, kernel, padding, padding, strides, strides);
   CHECK(conv->shape[2].as<IntImmNode>()->value == OH);
   CHECK(conv->shape[3].as<IntImmNode>()->value == OW);
 
   const auto& bias_add = compute(
       {N, CO, OH, OW},
       [&](Var i, Var j, Var k, Var l) {
-          return conv[i][j][k][l] + bias[j][0][0];
+        return conv[i][j][k][l] + bias[j][0][0];
       },
       "Bias_add");
   const auto& bn_mul = compute(
       {N, CO, OH, OW},
       [&](Var i, Var j, Var k, Var l) {
-          return bias_add[i][j][k][l] * bn_scale[j][0][0];
+        return bias_add[i][j][k][l] * bn_scale[j][0][0];
       },
       "Bn_mul");
   const auto& bn_add = compute(
       {N, CO, OH, OW},
       [&](Var i, Var j, Var k, Var l) {
-          return bn_mul[i][j][k][l] + bn_offset[j][0][0];
+        return bn_mul[i][j][k][l] + bn_offset[j][0][0];
       },
       "Bn_add");
   const auto& out = topi::relu<float>(bn_add);
@@ -109,20 +112,22 @@ TEST(ComputeDAG, GetProducersConsumers) {
   std::unordered_set<tvm::te::Operation, tvm::ObjectHash, tvm::ObjectEqual> set;
   {
     std::vector<std::pair<int, int>> consumer_list = {
-      {data, padding}, {padding, conv}, {kernel, conv}, {conv, bias_add},
-      {bias, bias_add}, {bias_add, bn_mul}, {bn_scale, bn_mul},
-      {bn_mul, bn_add}, {bn_offset, bn_add}, {bn_add, relu}
-    };
+        {data, padding},    {padding, conv},  {kernel, conv},
+        {conv, bias_add},   {bias, bias_add}, {bias_add, bn_mul},
+        {bn_scale, bn_mul}, {bn_mul, bn_add}, {bn_offset, bn_add},
+        {bn_add, relu}};
     for (const auto& pair : consumer_list) {
       dag->access_analyzer.GetConsumers(s0, s0->stages[pair.first]->op, &set);
       CHECK_EQ(set.size(), 1);
       CHECK_EQ((*set.begin()), s0->stages[pair.second]->op);
     }
     std::vector<std::pair<int, std::vector<int>>> producer_list = {
-      {padding, {data}}, {conv, {padding, kernel}}, {bias_add, {conv, bias}},
-      {bn_mul, {bias_add, bn_scale}}, {bn_add, {bn_mul, bn_offset}},
-      {relu, {bn_add}}
-    };
+        {padding, {data}},
+        {conv, {padding, kernel}},
+        {bias_add, {conv, bias}},
+        {bn_mul, {bias_add, bn_scale}},
+        {bn_add, {bn_mul, bn_offset}},
+        {relu, {bn_add}}};
     for (const auto& pair : producer_list) {
       dag->access_analyzer.GetProducers(s0, s0->stages[pair.first]->op, &set);
       CHECK_EQ(set.size(), pair.second.size());
@@ -138,18 +143,19 @@ TEST(ComputeDAG, GetProducersConsumers) {
   s0.compute_inline(padding);
   {
     std::vector<std::pair<int, int>> consumer_list = {
-      {data, conv}, {kernel, conv}, {conv, relu}
-    };
+        {data, conv}, {kernel, conv}, {conv, relu}};
     for (const auto& pair : consumer_list) {
       dag->access_analyzer.GetConsumers(s0, s0->stages[pair.first]->op, &set);
       CHECK_EQ(set.size(), 1);
       CHECK_EQ((*set.begin()), s0->stages[pair.second]->op);
     }
     std::vector<std::pair<int, std::vector<int>>> producer_list = {
-      {padding, {data}}, {conv, {padding, kernel}}, {bias_add, {conv, bias}},
-      {bn_mul, {bias_add, bn_scale}}, {bn_add, {bn_mul, bn_offset}},
-      {relu, {bn_add}}
-    };
+        {padding, {data}},
+        {conv, {padding, kernel}},
+        {bias_add, {conv, bias}},
+        {bn_mul, {bias_add, bn_scale}},
+        {bn_add, {bn_mul, bn_offset}},
+        {relu, {bn_add}}};
     for (const auto& pair : producer_list) {
       dag->access_analyzer.GetProducers(s0, s0->stages[pair.first]->op, &set);
       CHECK_EQ(set.size(), pair.second.size());
@@ -170,15 +176,19 @@ TEST(ComputeDAG, InferBoundSerialization) {
   C++;
   const auto& its0 = s0.split(C, s0->stages[C]->iters[0], {4, 8, 8});
   const auto& its1 = s0.split(C, s0->stages[C]->iters[4], {8, 4, 4});
-  s0.reorder(C, {its0[0], its1[0], its0[1], its1[1], its0[2], its1[2],
-                 its0[3], its1[3]});
+  s0.reorder(C, {its0[0], its1[0], its0[1], its1[1], its0[2], its1[2], its0[3],
+                 its1[3]});
   s0.compute_at(C_global, C, s0->stages[C]->iters[3]);
   s0.split(C_global, s0->stages[C_global]->iters[2], {16});
   int B_global = s0.cache_read(B, "global", {C_global}, dag);
-  C++; C_global++;
+  C++;
+  C_global++;
   s0.compute_at(B_global, C_global, s0->stages[C_global]->iters[0]);
   int A_global = s0.cache_read(A, "global", {C_global}, dag);
-  B++; B_global++; C++; C_global++;
+  B++;
+  B_global++;
+  C++;
+  C_global++;
   s0.compute_at(A_global, C_global, s0->stages[C_global]->iters[2]);
 
   const auto& s1 = dag.InferBound(s0);
@@ -186,23 +196,26 @@ TEST(ComputeDAG, InferBoundSerialization) {
   dag.InferBound(&s2);
   const auto& s3 = dag.ReplayAndInferBound(s0->transform_steps);
 
-  CHECK_EQ(s1->stages[B_global]->iters[0]->range->extent.as<IntImmNode>()->value,
-           512);
-  CHECK_EQ(s1->stages[B_global]->iters[1]->range->extent.as<IntImmNode>()->value,
-           16);
-  CHECK_EQ(s1->stages[A_global]->iters[0]->range->extent.as<IntImmNode>()->value,
-           1);
-  CHECK_EQ(s1->stages[A_global]->iters[1]->range->extent.as<IntImmNode>()->value,
-           16);
-  CHECK_EQ(s1->stages[C_global]->iters[0]->range->extent.as<IntImmNode>()->value,
-           64);
+  CHECK_EQ(
+      s1->stages[B_global]->iters[0]->range->extent.as<IntImmNode>()->value,
+      512);
+  CHECK_EQ(
+      s1->stages[B_global]->iters[1]->range->extent.as<IntImmNode>()->value,
+      16);
+  CHECK_EQ(
+      s1->stages[A_global]->iters[0]->range->extent.as<IntImmNode>()->value, 1);
+  CHECK_EQ(
+      s1->stages[A_global]->iters[1]->range->extent.as<IntImmNode>()->value,
+      16);
+  CHECK_EQ(
+      s1->stages[C_global]->iters[0]->range->extent.as<IntImmNode>()->value,
+      64);
   CHECK(std::equal_to<State>()(s1, s2[0]));
   CHECK(std::equal_to<State>()(s1, s3));
 
   const auto& minp0 = MeasureInputNode::make(
       SearchTaskNode::make(dag, "test", tvm::target::llvm(),
-                           tvm::target::llvm(),
-                           HardwareParams()),
+                           tvm::target::llvm(), HardwareParams()),
       s0);
   const auto& mres0 = MeasureResultNode::make({0.1}, 0, "", 0.1, 0.1);
   std::stringstream ss;
@@ -242,7 +255,8 @@ TEST(Step, SplitFuseReorder) {
   CHECK_EQ(s0->stages[2]->iters[2]->range->extent.as<IntImmNode>()->value, 512);
 
   s0.fuse(2, {tio, tjo});
-  CHECK_EQ(s0->stages[2]->iters[0]->range->extent.as<IntImmNode>()->value, 2048);
+  CHECK_EQ(s0->stages[2]->iters[0]->range->extent.as<IntImmNode>()->value,
+           2048);
 
   s1.split(2, ti, {8, 2});
   s1.split(2, tj, {32, 8}, false);
@@ -271,10 +285,12 @@ TEST(Step, ComputeAtRootInline) {
   s0.compute_inline(bn_mul);
   s0.compute_inline(bias_add);
   s0.compute_at(conv, relu, s0->stages[relu]->iters[2]);
-  const auto& conv_stage_attach = s0->attach_map->stage_to_attach_iter.find(conv);
+  const auto& conv_stage_attach =
+      s0->attach_map->stage_to_attach_iter.find(conv);
   std::pair<int, int> iterkey(relu, 2);
   CHECK(conv_stage_attach->second == iterkey);
-  const auto& conv_iter_attach = s0->attach_map->iter_to_attached_stages.find(iterkey);
+  const auto& conv_iter_attach =
+      s0->attach_map->iter_to_attached_stages.find(iterkey);
   CHECK_EQ(conv_iter_attach->second.size(), 1);
   CHECK_EQ(conv_iter_attach->second[0], conv);
   std::stringstream ss;
@@ -335,25 +351,28 @@ TEST(Step, CacheReadWrite) {
     int N = 4, H = 7, W = 7, CO = 512, CI = 512, KH = 3, KW = 3, stride = 1;
     int padding = 1;
     Tensor data = placeholder({N, CI, H, W}, DataType::Float(32), "Data");
-    Tensor kernel_data = placeholder({CO, CI, KH, KW}, DataType::Float(32),
-                                    "kernel_data");
-    const auto& k_split = compute(kernel_data->shape,
+    Tensor kernel_data =
+        placeholder({CO, CI, KH, KW}, DataType::Float(32), "Kernel_data");
+    const auto& k_split = compute(
+        kernel_data->shape,
         [&](const Array<Var>& i) {
-            return Array<PrimExpr>({kernel_data[i[0]][i[1]][i[2]][i[3]] + 1,
-                div(kernel_data[i[0]][i[1]][i[2]][i[3]], 2)});
+          return Array<PrimExpr>({kernel_data[i[0]][i[1]][i[2]][i[3]] + 1,
+                                  div(kernel_data[i[0]][i[1]][i[2]][i[3]], 2)});
         },
         "Kernel_split");
-    const auto& kernel = compute(kernel_data->shape,
+    const auto& kernel = compute(
+        kernel_data->shape,
         [&](Var i, Var j, Var k, Var l) {
-            return (k_split[0])[i][j][k][l] + (k_split[1])[i][j][k][l];
+          return (k_split[0])[i][j][k][l] + (k_split[1])[i][j][k][l];
         },
         "Kernel");
-    const auto& conv = topi::conv2d_nchw(data, kernel, padding, padding, stride,
-                                        stride);
+    const auto& conv =
+        topi::conv2d_nchw(data, kernel, padding, padding, stride, stride);
     const auto& relu = topi::relu<float>(conv);
-    const auto& out = compute(relu->shape,
+    const auto& out = compute(
+        relu->shape,
         [&](Var i, Var j, Var k, Var l) {
-            return data[i][j][k][l] + relu[i][j][k][l];
+          return data[i][j][k][l] + relu[i][j][k][l];
         },
         "Add");
     return {data, kernel_data, out};
@@ -372,15 +391,20 @@ TEST(Step, CacheReadWrite) {
 
   // 1: simple cache_write with compute_at
   int conv_global = s0.cache_write(conv, "global", dag);
-  conv++; relu++; add++;
+  conv++;
+  relu++;
+  add++;
   s0.compute_at(conv_global, conv, s0->stages[conv]->iters[3]);
 
   // 2: simple cache_read with compute_at
   int kernel_global = s0.cache_read(kernel, "global", {conv_global}, dag);
-  conv_global++; conv++; relu++; add++;
+  conv_global++;
+  conv++;
+  relu++;
+  add++;
   s0.compute_at(kernel_global, conv_global, s0->stages[conv_global]->iters[4]);
   std::stringstream ss;
-  ss << "Placeholder: Data, kernel_data\n"
+  ss << "Placeholder: Data, Kernel_data\n"
      << "for ax0 (0,4)\n"
      << "  for ax1 (0,512)\n"
      << "    for ax2 (0,9)\n"
@@ -425,25 +449,45 @@ TEST(Step, CacheReadWrite) {
   // 3: two level cache_read with compute_at
   //    preparing for GPU's shared memory & local memory
   int pad_temp_global = s0.cache_read(pad_temp, "global", {conv_global}, dag);
-  kernel_data++; kernel_split++; kernel++; kernel_global++;
-  conv_global++; conv++; relu++; add++;
-  int pad_temp_shared = s0.cache_read(pad_temp_global, "shared", {conv_global},
-                                      dag);
-  kernel_data++; kernel_split++; kernel++; kernel_global++;
-  conv_global++; conv++; relu++; add++;
+  kernel_data++;
+  kernel_split++;
+  kernel++;
+  kernel_global++;
+  conv_global++;
+  conv++;
+  relu++;
+  add++;
+  int pad_temp_shared =
+      s0.cache_read(pad_temp_global, "shared", {conv_global}, dag);
+  kernel_data++;
+  kernel_split++;
+  kernel++;
+  kernel_global++;
+  conv_global++;
+  conv++;
+  relu++;
+  add++;
   s0.compute_at(pad_temp_global, conv_global,
                 s0->stages[conv_global]->iters[2]);
   s0.compute_at(pad_temp_shared, conv_global,
                 s0->stages[conv_global]->iters[4]);
 
   // 4: cache_read with multi readers
-  // This stage cannot be compute at to its consumer
+  //    This stage cannot be compute at to its consumer
   s0.cache_read(data, "global", {pad_temp, add}, dag);
-  pad_temp++; pad_temp_global++; pad_temp_shared++;
-  kernel_data++; kernel_split++; kernel++; kernel_global++;
-  conv_global++; conv++; relu++; add++;
+  pad_temp++;
+  pad_temp_global++;
+  pad_temp_shared++;
+  kernel_data++;
+  kernel_split++;
+  kernel++;
+  kernel_global++;
+  conv_global++;
+  conv++;
+  relu++;
+  add++;
   ss.str(std::string());
-  ss << "Placeholder: Data, kernel_data\n"
+  ss << "Placeholder: Data, Kernel_data\n"
      << "for ax0 (0,4)\n"
      << "  for ax1 (0,512)\n"
      << "    for ax2 (0,7)\n"
@@ -517,7 +561,7 @@ TEST(Step, CacheReadWrite) {
   // To be fixed in the future
   s0.cache_write(kernel_split, "global", dag);
   ss.str(std::string());
-  ss << "Placeholder: Data, kernel_data\n"
+  ss << "Placeholder: Data, Kernel_data\n"
      << "for ax0 (0,4)\n"
      << "  for ax1 (0,512)\n"
      << "    for ax2 (0,7)\n"
@@ -598,8 +642,8 @@ TEST(Step, FollowSplitFollowFusedSplit) {
   // FollowSplitStep currently only support `inner_to_outer = true`
   const auto& its0 = s0.split(C, s0->stages[C]->iters[0], {4, 2, 8, 4}, true);
   int split_step0 = s0->transform_steps.size() - 1;
-  // const auto& its1 = s0.split(C, s0->stages[C]->iters[5], {4, 2, 8, 4}, false);
-  // int split_step1 = s0->transform_steps.size() - 1;
+  // const auto& its1 = s0.split(C, s0->stages[C]->iters[5], {4, 2, 8, 4},
+  // false); int split_step1 = s0->transform_steps.size() - 1;
   for (int level = 1; level <= 5; level++) {
     State tmp = s0;
     tmp.follow_split(C_global, s0->stages[C_global]->iters[0], split_step0,
@@ -610,7 +654,7 @@ TEST(Step, FollowSplitFollowFusedSplit) {
     const auto& stage_C_global = tmp->stages[C_global];
     for (int i = 0; i < level; i++) {
       CHECK_EQ(stage_C->iters[i]->range->extent.as<IntImmNode>()->value,
-          stage_C_global->iters[i]->range->extent.as<IntImmNode>()->value);
+               stage_C_global->iters[i]->range->extent.as<IntImmNode>()->value);
     }
     // for (int i = 0; i < level; i++) {
     //   CHECK(stage_C->iters[i+5]->range->extent.as<IntImmNode>()->value ==
@@ -627,7 +671,7 @@ TEST(Step, FollowSplitFollowFusedSplit) {
   }
   s0.reorder(C, its);
   for (int i = 0; i < 5; i++) {
-    s0.fuse(C, {s0->stages[C]->iters[i], s0->stages[C]->iters[i+1]});
+    s0.fuse(C, {s0->stages[C]->iters[i], s0->stages[C]->iters[i + 1]});
   }
   for (int level = 0; level < 4; level++) {
     State tmp = s0;
@@ -635,8 +679,8 @@ TEST(Step, FollowSplitFollowFusedSplit) {
                            {split_step0, split_step1}, level, false);
     const auto& stage_C = tmp->stages[C];
     const auto& stage_C_global = tmp->stages[C_global];
-    CHECK_EQ(stage_C->iters[level+1]->range->extent.as<IntImmNode>()->value,
-        stage_C_global->iters[0]->range->extent.as<IntImmNode>()->value);
+    CHECK_EQ(stage_C->iters[level + 1]->range->extent.as<IntImmNode>()->value,
+             stage_C_global->iters[0]->range->extent.as<IntImmNode>()->value);
   }
   for (int level = 0; level < 4; level++) {
     State tmp = s0;
@@ -644,8 +688,8 @@ TEST(Step, FollowSplitFollowFusedSplit) {
                            {split_step0, split_step1}, level, true);
     const auto& stage_C = tmp->stages[C];
     const auto& stage_C_global = tmp->stages[C_global];
-    CHECK_EQ(stage_C->iters[level+1]->range->extent.as<IntImmNode>()->value,
-        stage_C_global->iters[1]->range->extent.as<IntImmNode>()->value);
+    CHECK_EQ(stage_C->iters[level + 1]->range->extent.as<IntImmNode>()->value,
+             stage_C_global->iters[1]->range->extent.as<IntImmNode>()->value);
   }
 }
 
@@ -676,10 +720,10 @@ TEST(Feature, ExtractionMatmul) {
   std::vector<std::vector<float>> features;
   std::vector<std::string> feature_names;
   GetPerStmtFeatureName(max_n_bufs, &feature_names);
-  GetPerStmtFeaturesFromStates({s0},
+  GetPerStmtFeaturesFromStates(
+      {s0},
       SearchTaskNode::make(dag, "test", tvm::target::llvm(),
-                           tvm::target::llvm(),
-                           HardwareParams()),
+                           tvm::target::llvm(), HardwareParams()),
       max_n_bufs, 0, &features);
   int num_states = 1;
   CHECK_EQ(feature_names.size(), (features[0].size() - 1) / num_states);
@@ -704,7 +748,7 @@ class MetaTileRewritePolicyNodeTest {
     policy->SynthesizeMetaStructure(meta_structures);
   }
   void SampleInitPopulation(const std::vector<State>& meta_structures,
-      int out_size, std::vector<State>* out_states) {
+                            int out_size, std::vector<State>* out_states) {
     policy->SampleInitPopulation(meta_structures, out_size, out_states);
   }
   tvm::runtime::ObjectPtr<tvm::ansor::MetaTileRewritePolicyNode> policy;

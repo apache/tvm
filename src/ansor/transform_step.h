@@ -69,6 +69,11 @@ class IteratorNode : public Object {
                        IteratorType iter_type, IteratorAnnotation annotation,
                        const std::vector<Iterator>* ori_iters = nullptr);
 
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("name", &name);
+    v->Visit("range", &range);
+  }
+
   static constexpr const char *_type_key = "ansor.Iterator";
   TVM_DECLARE_FINAL_OBJECT_INFO(IteratorNode, Object);
 };
