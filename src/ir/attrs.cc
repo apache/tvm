@@ -37,7 +37,7 @@ void DictAttrsNode::InitByPackedArgs(const runtime::TVMArgs& args, bool allow_un
     runtime::TVMArgValue val = args[i + 1];
     if (val.IsObjectRef<ObjectRef>()) {
       dict.Set(key, val.operator ObjectRef());
-    } else if (val.type_code() == kTVMStr) {
+    } else if (String::CanConvertFrom(val)) {
       dict.Set(key, val.operator String());
     } else {
       dict.Set(key, val.operator PrimExpr());

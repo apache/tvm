@@ -20,6 +20,7 @@
 /*!
  * \file graph_runtime_debug.cc
  */
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -173,7 +174,7 @@ PackedFunc GraphRuntimeDebug::GetFunction(const std::string& name,
     });
   } else if (name == "debug_get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      if (args[0].type_code() == kTVMStr) {
+      if (String::CanConvertFrom(args[0])) {
         this->DebugGetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
       } else {
         this->DebugGetNodeOutput(args[0], args[1]);
