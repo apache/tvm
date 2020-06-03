@@ -372,8 +372,17 @@ def test_forward_elemwise_ops():
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
 
 
+def test_forward_softmin():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.softmin(data)
+    verify_mxnet_frontend_impl(mx_sym, (1, 3, 100, 100), (1, 3, 100, 100))
+
+    mx_sym = mx.sym.softmin(data, axis=2)
+    verify_mxnet_frontend_impl(mx_sym, (1, 3, 100, 100), (1, 3, 100, 100))
+
+
 def test_forward_unary_ops():
-    for op in ["abs", "sqrt", "ceil", "floor", "round", "reciprocal",
+    for op in ["abs", "sqrt", "ceil", "floor", "round", "reciprocal", "trunc",
                "softsign", "hard_sigmoid",
                "cos", "sin", "tan",
                "cosh", "sinh", "tanh",
@@ -1191,6 +1200,7 @@ if __name__ == '__main__':
     test_forward_rrelu()
     test_forward_prelu()
     test_forward_softrelu()
+    test_forward_softmin()
     test_forward_fc_flatten()
     test_forward_clip()
     test_forward_split()
