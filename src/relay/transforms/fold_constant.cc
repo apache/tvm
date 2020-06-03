@@ -275,7 +275,7 @@ Expr FoldConstant(const Expr& expr, const IRModule& mod) {
   Target target = Target::Create("llvm");
   // use a fresh build context
   // in case we are already in a build context.
-  With<PassContext> fresh_build_ctx(PassContext());
+  With<PassContext> fresh_build_ctx(static_cast<PassContext>(PassContext()));
 
   return ConstantFolder(CreateInterpreter(mod, ctx, target), mod).Mutate(expr);
 }

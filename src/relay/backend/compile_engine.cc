@@ -689,7 +689,7 @@ class CompileEngineImpl : public CompileEngineNode {
       cache_node->funcs = (*f)(cfunc->schedule, all_args, cache_node->func_name, key->source_func);
     } else {
       using tvm::transform::PassContext;
-      With<PassContext> fresh_pass_ctx_scope(PassContext());
+      With<PassContext> fresh_pass_ctx_scope(static_cast<PassContext>(PassContext()));
 
       std::unordered_map<te::Tensor, tir::Buffer> binds;
       cache_node->funcs = tvm::lower(cfunc->schedule, all_args, cache_node->func_name, binds);
@@ -726,7 +726,7 @@ class CompileEngineImpl : public CompileEngineNode {
     }
 
     using tvm::transform::PassContext;
-    With<PassContext> fresh_pass_ctx_scope(PassContext());
+    With<PassContext> fresh_pass_ctx_scope(static_cast<PassContext>(PassContext()));
 
     std::unordered_map<te::Tensor, tir::Buffer> binds;
     cache_node->funcs = tvm::lower(spair.first, all_args, cache_node->func_name, binds);
