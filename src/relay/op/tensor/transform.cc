@@ -2071,7 +2071,9 @@ Example::
 // relay.split
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
 
-bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+bool SplitRel(const Array<Type>& types,
+              int num_inputs,
+              const Attrs& attrs,
               const TypeReporter& reporter) {
   // `types` contains: [data, result]
   CHECK_EQ(types.size(), 2);
@@ -2084,17 +2086,25 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (axis < 0) {
     axis += data->shape.size();
   }
-  CHECK_LT(axis, data->shape.size()) << "axis should be within the input dimension range.";
-  CHECK_GE(axis, 0) << "axis should be within the input dimension range.";
+  CHECK_LT(axis, data->shape.size())
+    << "axis should be within the input dimension range.";
+  CHECK_GE(axis, 0)
+    << "axis should be within the input dimension range.";
 
   if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
-    CHECK(reporter->Assert(indexmod(data->shape[axis], sections->value) ==
-                           tir::make_zero(DataType::Int(64))))
+    if (!data->shape[axis].as<Any>()) {
+      CHECK(reporter->Assert(indexmod(data->shape[axis],
+                                      sections->value) == tir::make_zero(DataType::Int(64))))
         << "indices_or_sections need to be able to divide input.shape[axis]";
+    }
     std::vector<Type> fields;
     for (int i = 0; i < sections->value; ++i) {
       std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-      oshape[axis] = indexdiv(oshape[axis], sections->value);
+      if (data->shape[axis].as<Any>()) {
+        oshape[axis] = Any::make();
+      } else {
+        oshape[axis] = indexdiv(oshape[axis], sections->value);
+      }
       auto vec_type = TensorType(oshape, data->dtype);
       fields.push_back(vec_type);
     }
@@ -2105,17 +2115,23 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     std::vector<Type> fields;
     for (unsigned int i = 0; i < indices.size(); ++i) {
       CHECK(reporter->Assert(Downcast<IndexExpr>(indices[i]) > begin))
-          << "indices_or_sections need to be a sorted ascending list";
+        << "indices_or_sections need to be a sorted ascending list";
       std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
       oshape[axis] = Downcast<IndexExpr>(indices[i]) - begin;
       begin = Downcast<IndexExpr>(indices[i]);
       auto vec_type = TensorType(oshape, data->dtype);
       fields.push_back(vec_type);
     }
-    CHECK(reporter->Assert(begin < data->shape[axis]))
+    if (!data->shape[axis].as<Any>()) {
+      CHECK(reporter->Assert(begin < data->shape[axis]))
         << "The sum of sections must match the input.shape[axis]";
+    }
     std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-    oshape[axis] = data->shape[axis] - begin;
+    if (data->shape[axis].as<Any>()) {
+      oshape[axis] = Any::make();
+    } else {
+      oshape[axis] = data->shape[axis] - begin;
+    }
     auto vec_type = TensorType(oshape, data->dtype);
     fields.push_back(vec_type);
     reporter->Assign(types[1], TupleType(Array<Type>(fields)));
