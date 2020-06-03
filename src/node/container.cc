@@ -247,40 +247,51 @@ struct MapNodeTrait {
   }
 
   static void SHashReduce(const MapNode* key, SHashReducer hash_reduce) {
-    if (key->data.empty()) {
-      hash_reduce(uint64_t(0));
-      return;
-    }
-    if (key->data.begin()->first->IsInstance<StringObj>()) {
+    bool is_str_map = std::all_of(key->data.begin(), key->data.end(), [](const auto& v) {
+      return v.first->template IsInstance<StringObj>();
+    });
+    if (is_str_map) {
       SHashReduceForSMap(key, hash_reduce);
     } else {
       SHashReduceForOMap(key, hash_reduce);
     }
   }
 
+  static bool SEqualReduceForOMap(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
+    for (const auto& kv : lhs->data) {
+      // Only allow equal checking if the keys are already mapped
+      // This resolves common use cases where we want to store
+      // Map<Var, Value> where Var is defined in the function
+      // parameters.
+      ObjectRef rhs_key = equal->MapLhsToRhs(kv.first);
+      if (!rhs_key.defined()) return false;
+      auto it = rhs->data.find(rhs_key);
+      if (it == rhs->data.end()) return false;
+      if (!equal(kv.second, it->second)) return false;
+    }
+    return true;
+  }
+
+  static bool SEqualReduceForSMap(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
+    for (const auto& kv : lhs->data) {
+      auto it = rhs->data.find(kv.first);
+      if (it == rhs->data.end()) return false;
+      if (!equal(kv.second, it->second)) return false;
+    }
+    return true;
+  }
+
   static bool SEqualReduce(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
     if (rhs->data.size() != lhs->data.size()) return false;
     if (rhs->data.size() == 0) return true;
-    if (lhs->data.begin()->first->IsInstance<StringObj>()) {
-      for (const auto& kv : lhs->data) {
-        auto it = rhs->data.find(kv.first);
-        if (it == rhs->data.end()) return false;
-        if (!equal(kv.second, it->second)) return false;
-      }
-    } else {
-      for (const auto& kv : lhs->data) {
-        // Only allow equal checking if the keys are already mapped
-        // This resolves common use cases where we want to store
-        // Map<Var, Value> where Var is defined in the function
-        // parameters.
-        ObjectRef rhs_key = equal->MapLhsToRhs(kv.first);
-        if (!rhs_key.defined()) return false;
-        auto it = rhs->data.find(rhs_key);
-        if (it == rhs->data.end()) return false;
-        if (!equal(kv.second, it->second)) return false;
-      }
+    bool ls = std::all_of(lhs->data.begin(), lhs->data.end(),
+                          [](const auto& v) { return v.first->template IsInstance<StringObj>(); });
+    bool rs = std::all_of(rhs->data.begin(), rhs->data.end(),
+                          [](const auto& v) { return v.first->template IsInstance<StringObj>(); });
+    if (ls != rs) {
+      return false;
     }
-    return true;
+    return (ls && rs) ? SEqualReduceForSMap(lhs, rhs, equal) : SEqualReduceForOMap(lhs, rhs, equal);
   }
 };
 
