@@ -110,11 +110,18 @@ class NodeIndexer : public AttrVisitor {
       }
     } else if (node->IsInstance<MapNode>()) {
       MapNode* n = static_cast<MapNode*>(node);
-      for (const auto& kv : n->data) {
-        if (!kv.first->IsInstance<StringObj>()) {
-          MakeIndex(const_cast<Object*>(kv.first.get()));
+      bool is_str_map = std::all_of(n->data.begin(), n->data.end(), [](const auto& v) {
+        return v.first->template IsInstance<StringObj>();
+      });
+      if (is_str_map) {
+        for (const auto& kv : n->data) {
+          MakeIndex(const_cast<Object*>(kv.second.get()));
         }
-        MakeIndex(const_cast<Object*>(kv.second.get()));
+      } else {
+        for (const auto& kv : n->data) {
+          MakeIndex(const_cast<Object*>(kv.first.get()));
+          MakeIndex(const_cast<Object*>(kv.second.get()));
+        }
       }
     } else {
       // if the node already have repr bytes, no need to visit Attrs.
@@ -246,13 +253,19 @@ class JSONAttrGetter : public AttrVisitor {
       }
     } else if (node->IsInstance<MapNode>()) {
       MapNode* n = static_cast<MapNode*>(node);
-      for (const auto& kv : n->data) {
-        if (const auto* str = kv.first.as<StringObj>()) {
-          node_->keys.push_back(std::string(str->data, str->size));
-        } else {
-          node_->data.push_back(node_index_->at(const_cast<Object*>(kv.first.get())));
+      bool is_str_map = std::all_of(n->data.begin(), n->data.end(), [](const auto& v) {
+        return v.first->template IsInstance<StringObj>();
+      });
+      if (is_str_map) {
+        for (const auto& kv : n->data) {
+          node_->keys.push_back(Downcast<String>(kv.first));
+          node_->data.push_back(node_index_->at(const_cast<Object*>(kv.second.get())));
         }
-        node_->data.push_back(node_index_->at(const_cast<Object*>(kv.second.get())));
+      } else {
+        for (const auto& kv : n->data) {
+          node_->data.push_back(node_index_->at(const_cast<Object*>(kv.first.get())));
+          node_->data.push_back(node_index_->at(const_cast<Object*>(kv.second.get())));
+        }
       }
     } else {
       // recursively index normal object.

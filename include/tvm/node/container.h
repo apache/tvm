@@ -50,6 +50,7 @@ using runtime::ObjectRef;
 using runtime::String;
 using runtime::StringObj;
 
+/*! \brief String-aware ObjectRef hash functor */
 struct ObjectHash {
   size_t operator()(const ObjectRef& a) const {
     if (const auto* str = a.as<StringObj>()) {
@@ -59,6 +60,7 @@ struct ObjectHash {
   }
 };
 
+/*! \brief String-aware ObjectRef equal functor */
 struct ObjectEqual {
   bool operator()(const ObjectRef& a, const ObjectRef& b) const {
     if (a.same_as(b)) {
@@ -96,8 +98,7 @@ class MapNode : public Object {
  * \tparam V The value NodeRef type.
  */
 template <typename K, typename V,
-          typename = typename std::enable_if<std::is_base_of<ObjectRef, K>::value ||
-                                             std::is_base_of<std::string, K>::value>::type,
+          typename = typename std::enable_if<std::is_base_of<ObjectRef, K>::value>::type,
           typename = typename std::enable_if<std::is_base_of<ObjectRef, V>::value>::type>
 class Map : public ObjectRef {
  public:
