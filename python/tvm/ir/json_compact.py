@@ -129,6 +129,7 @@ def create_updater_06_to_07():
         "relay.PassContext": _rename("transform.PassContext"),
         "relay.ModulePass": _rename("transform.ModulePass"),
         "relay.Sequential": _rename("transform.Sequential"),
+        "StrMap": _rename("Map"),
         # TIR
         "Variable": [_update_tir_var("tir.Var"), _update_from_std_str("name")],
         "SizeVar": [_update_tir_var("tir.SizeVar"), _update_from_std_str("name")],
