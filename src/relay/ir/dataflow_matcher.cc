@@ -121,6 +121,15 @@ bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
         return val->data == rhs.operator std::string();
       }
       break;
+    case kTVMObjectHandle:
+      if (rhs.IsObjectRef<String>()) {
+        if (auto* val = lhs.as<tir::StringImmNode>()) {
+          return rhs.operator String() == val->value;
+        } else if (auto* val = lhs.as<StringObj>()) {
+          return rhs.operator String() == val->data;
+        }
+      }
+      break;
     default:
       CHECK(false) << "Unsupported type code in Pattern Node " << rhs.type_code();
   }

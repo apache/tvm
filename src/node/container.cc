@@ -292,29 +292,16 @@ TVM_REGISTER_REFLECTION_VTABLE(MapNode, MapNodeTrait)
 
 TVM_REGISTER_GLOBAL("node.Map").set_body([](TVMArgs args, TVMRetValue* ret) {
   CHECK_EQ(args.size() % 2, 0);
-  if (args.size() != 0 && args[0].type_code() == kTVMStr) {
-    MapNode::ContainerType data;
-    for (int i = 0; i < args.num_args; i += 2) {
-      CHECK(args[i].type_code() == kTVMStr) << "key of str map need to be str";
-      CHECK(args[i + 1].IsObjectRef<ObjectRef>()) << "value of the map to be object";
-      data.emplace(
-          std::make_pair(String(args[i].operator std::string()), args[i + 1].operator ObjectRef()));
-    }
-    auto node = make_object<MapNode>();
-    node->data = std::move(data);
-    *ret = Map<ObjectRef, ObjectRef>(node);
-  } else {
-    // Container node.
-    MapNode::ContainerType data;
-    for (int i = 0; i < args.num_args; i += 2) {
-      CHECK(args[i].IsObjectRef<ObjectRef>()) << "key of map need to be object";
-      CHECK(args[i + 1].IsObjectRef<ObjectRef>()) << "value of map to be object";
-      data.emplace(std::make_pair(args[i].operator ObjectRef(), args[i + 1].operator ObjectRef()));
-    }
-    auto node = make_object<MapNode>();
-    node->data = std::move(data);
-    *ret = Map<ObjectRef, ObjectRef>(node);
+  MapNode::ContainerType data;
+  for (int i = 0; i < args.num_args; i += 2) {
+    ObjectRef k =
+        String::CanConvertFrom(args[i]) ? args[i].operator String() : args[i].operator ObjectRef();
+    ObjectRef v = args[i + 1];
+    data.emplace(std::move(k), std::move(v));
   }
+  auto node = make_object<MapNode>();
+  node->data = std::move(data);
+  *ret = Map<ObjectRef, ObjectRef>(node);
 });
 
 TVM_REGISTER_GLOBAL("node.MapSize").set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -331,15 +318,10 @@ TVM_REGISTER_GLOBAL("node.MapGetItem").set_body([](TVMArgs args, TVMRetValue* re
   CHECK(ptr->IsInstance<MapNode>());
 
   auto* n = static_cast<const MapNode*>(ptr);
-  if (args[1].type_code() == kTVMStr) {
-    auto it = n->data.find(String(args[1].operator std::string()));
-    CHECK(it != n->data.end()) << "cannot find the corresponding key in the Map";
-    *ret = (*it).second;
-  } else {
-    auto it = n->data.find(args[1].operator ObjectRef());
-    CHECK(it != n->data.end()) << "cannot find the corresponding key in the Map";
-    *ret = (*it).second;
-  }
+  auto it = n->data.find(String::CanConvertFrom(args[1]) ? args[1].operator String()
+                                                         : args[1].operator ObjectRef());
+  CHECK(it != n->data.end()) << "cannot find the corresponding key in the Map";
+  *ret = (*it).second;
 });
 
 TVM_REGISTER_GLOBAL("node.MapCount").set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -347,11 +329,9 @@ TVM_REGISTER_GLOBAL("node.MapCount").set_body([](TVMArgs args, TVMRetValue* ret)
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
   CHECK(ptr->IsInstance<MapNode>());
   const MapNode* n = static_cast<const MapNode*>(ptr);
-  if (args[1].type_code() == kTVMStr) {
-    *ret = static_cast<int64_t>(n->data.count(String(args[1].operator std::string())));
-  } else {
-    *ret = static_cast<int64_t>(n->data.count(args[1].operator ObjectRef()));
-  }
+  int64_t cnt = n->data.count(String::CanConvertFrom(args[1]) ? args[1].operator String()
+                                                              : args[1].operator ObjectRef());
+  *ret = cnt;
 });
 
 TVM_REGISTER_GLOBAL("node.MapItems").set_body([](TVMArgs args, TVMRetValue* ret) {

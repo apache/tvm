@@ -1302,6 +1302,15 @@ class String : public ObjectRef {
   operator std::string() const { return std::string{get()->data, size()}; }
 
   /*!
+   * \brief Check if a TVMArgValue can be converted to String, i.e. it can be std::string or String
+   * \param val The value to be checked
+   * \return A boolean indicating if val can be converted to String
+   */
+  static bool CanConvertFrom(const TVMArgValue& val) {
+    return val.type_code() == kTVMStr || val.IsObjectRef<tvm::runtime::String>();
+  }
+
+  /*!
    * \brief Hash the binary bytes
    * \param data The data pointer
    * \param size The size of the bytes.
