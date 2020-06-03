@@ -1301,6 +1301,10 @@ class String : public ObjectRef {
    */
   operator std::string() const { return std::string{get()->data, size()}; }
 
+  static bool CanConvertFrom(const TVMArgValue& val) {
+    return val.type_code() == kTVMStr || val.IsObjectRef<tvm::runtime::String>();
+  }
+
   /*!
    * \brief Hash the binary bytes
    * \param data The data pointer

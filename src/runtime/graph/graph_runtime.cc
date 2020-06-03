@@ -390,8 +390,8 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      if (args[0].type_code() == kTVMStr) {
-        int in_idx = this->GetInputIndex(args[0]);
+      if (String::CanConvertFrom(args[0])) {
+        int in_idx = this->GetInputIndex(args[0].operator String());
         if (in_idx >= 0) this->SetInput(in_idx, args[1]);
       } else {
         this->SetInput(args[0], args[1]);
@@ -399,8 +399,8 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
     });
   } else if (name == "set_input_zero_copy") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      if (args[0].type_code() == kTVMStr) {
-        int in_idx = this->GetInputIndex(args[0]);
+      if (String::CanConvertFrom(args[0])) {
+        int in_idx = this->GetInputIndex(args[0].operator String());
         if (in_idx >= 0) this->SetInputZeroCopy(in_idx, args[1]);
       } else {
         this->SetInputZeroCopy(args[0], args[1]);
@@ -417,11 +417,8 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
   } else if (name == "get_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       int in_idx = 0;
-      if (args[0].type_code() == kTVMStr) {
-        in_idx = this->GetInputIndex(args[0]);
-      } else if (args[0].IsObjectRef<runtime::String>()) {
-        auto str = args[0].AsObjectRef<runtime::String>();
-        in_idx = this->GetInputIndex(str);
+      if (String::CanConvertFrom(args[0])) {
+        in_idx = this->GetInputIndex(args[0].operator String());
       } else {
         in_idx = args[0];
       }
