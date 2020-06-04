@@ -20,7 +20,7 @@
 from .packed_func import PackedFunc
 from .object import Object
 from .object_generic import ObjectGeneric, ObjectTypes
-from .ndarray import NDArray, DataType, TypeCode, TVMContext
+from .ndarray import NDArray, DataType, DataTypeCode, TVMContext
 from .module import Module
 
 # function exposures
