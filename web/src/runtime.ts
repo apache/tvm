@@ -20,7 +20,7 @@
 /**
  * TVM JS Wasm Runtime library.
  */
-import { Pointer, PtrOffset, SizeOf, TypeCode } from "./ctypes";
+import { Pointer, PtrOffset, SizeOf, ArgTypeCode } from "./ctypes";
 import { Disposable } from "./types";
 import { Memory, CachedCallStack } from "./memory";
 import { assert, StringToUint8Array } from "./support";
@@ -234,12 +234,21 @@ export class DLContext {
     );
   }
 }
+/**
+ * The data type code in DLDataType
+ */
+export const enum DLDataTypeCode {
+  Int = 0,
+  UInt = 1,
+  Float = 2,
+  OpaqueHandle = 3
+}
 
 const DLDataTypeCodeToStr: Record<number, string> = {
   0: "int",
   1: "uint",
   2: "float",
-  4: "handle",
+  3: "handle",
 };
 
 /**
@@ -866,16 +875,16 @@ export class Instance implements Disposable {
         lanes = 1;
       if (pattern.substring(0, 5) == "float") {
         pattern = pattern.substring(5, pattern.length);
-        code = TypeCode.Float;
+        code = DLDataTypeCode.Float;
       } else if (pattern.substring(0, 3) == "int") {
         pattern = pattern.substring(3, pattern.length);
-        code = TypeCode.Int;
+        code = DLDataTypeCode.Int;
       } else if (pattern.substring(0, 4) == "uint") {
         pattern = pattern.substring(4, pattern.length);
-        code = TypeCode.UInt;
+        code = DLDataTypeCode.UInt;
       } else if (pattern.substring(0, 6) == "handle") {
         pattern = pattern.substring(5, pattern.length);
-        code = TypeCode.TVMOpaqueHandle;
+        code = DLDataTypeCode.OpaqueHandle;
         bits = 64;
       } else {
         throw new Error("Unknown dtype " + dtype);
@@ -1140,47 +1149,47 @@ export class Instance implements Disposable {
       const codeOffset = argsCode + i * SizeOf.I32;
       if (val instanceof NDArray) {
         stack.storePtr(valueOffset, val.handle);
-        stack.storeI32(codeOffset, TypeCode.TVMNDArrayHandle);
+        stack.storeI32(codeOffset, ArgTypeCode.TVMNDArrayHandle);
       } else if (val instanceof Scalar) {
         if (val.dtype.startsWith("int") || val.dtype.startsWith("uint")) {
           stack.storeI64(valueOffset, val.value);
-          stack.storeI32(codeOffset, TypeCode.Int);
+          stack.storeI32(codeOffset, ArgTypeCode.Int);
         } else if (val.dtype.startsWith("float")) {
           stack.storeF64(valueOffset, val.value);
-          stack.storeI32(codeOffset, TypeCode.Float);
+          stack.storeI32(codeOffset, ArgTypeCode.Float);
         } else {
           assert(val.dtype == "handle", "Expect handle");
           stack.storePtr(valueOffset, val.value);
-          stack.storeI32(codeOffset, TypeCode.TVMOpaqueHandle);
+          stack.storeI32(codeOffset, ArgTypeCode.TVMOpaqueHandle);
         }
       } else if (val instanceof DLContext) {
         stack.storeI32(valueOffset, val.deviceType);
         stack.storeI32(valueOffset + SizeOf.I32, val.deviceType);
-        stack.storeI32(codeOffset, TypeCode.TVMContext);
+        stack.storeI32(codeOffset, ArgTypeCode.TVMContext);
       } else if (tp == "number") {
         stack.storeF64(valueOffset, val);
-        stack.storeI32(codeOffset, TypeCode.Float);
+        stack.storeI32(codeOffset, ArgTypeCode.Float);
         // eslint-disable-next-line no-prototype-builtins
       } else if (tp == "function" && val.hasOwnProperty("_tvmPackedCell")) {
         stack.storePtr(valueOffset, val._tvmPackedCell.handle);
-        stack.storeI32(codeOffset, TypeCode.TVMPackedFuncHandle);
+        stack.storeI32(codeOffset, ArgTypeCode.TVMPackedFuncHandle);
       } else if (val === null || val == undefined) {
         stack.storePtr(valueOffset, 0);
-        stack.storeI32(codeOffset, TypeCode.Null);
+        stack.storeI32(codeOffset, ArgTypeCode.Null);
       } else if (tp == "string") {
         stack.allocThenSetArgString(valueOffset, val);
-        stack.storeI32(codeOffset, TypeCode.TVMStr);
+        stack.storeI32(codeOffset, ArgTypeCode.TVMStr);
       } else if (val instanceof Uint8Array) {
         stack.allocThenSetArgBytes(valueOffset, val);
-        stack.storeI32(codeOffset, TypeCode.TVMBytes);
+        stack.storeI32(codeOffset, ArgTypeCode.TVMBytes);
       } else if (val instanceof Function) {
         val = this.toPackedFunc(val);
         stack.tempArgs.push(val);
         stack.storePtr(valueOffset, val._tvmPackedCell.handle);
-        stack.storeI32(codeOffset, TypeCode.TVMPackedFuncHandle);
+        stack.storeI32(codeOffset, ArgTypeCode.TVMPackedFuncHandle);
       } else if (val instanceof Module) {
         stack.storePtr(valueOffset, val.handle);
-        stack.storeI32(codeOffset, TypeCode.TVMModuleHandle);
+        stack.storeI32(codeOffset, ArgTypeCode.TVMModuleHandle);
       } else {
         throw new Error("Unsupported argument type " + tp);
       }
@@ -1204,10 +1213,10 @@ export class Instance implements Disposable {
         let tcode = lib.memory.loadI32(codePtr);
 
         if (
-          tcode == TypeCode.TVMObjectHandle ||
-          tcode == TypeCode.TVMObjectRValueRefArg ||
-          tcode == TypeCode.TVMPackedFuncHandle ||
-          tcode == TypeCode.TVMModuleHandle
+          tcode == ArgTypeCode.TVMObjectHandle ||
+          tcode == ArgTypeCode.TVMObjectRValueRefArg ||
+          tcode == ArgTypeCode.TVMPackedFuncHandle ||
+          tcode == ArgTypeCode.TVMModuleHandle
         ) {
           lib.checkCall(
             (lib.exports.TVMCbArgToReturn as ctypes.FTVMCbArgToReturn)(
@@ -1290,25 +1299,25 @@ export class Instance implements Disposable {
 
   private retValueToJS(rvaluePtr: Pointer, tcode: number, callbackArg: boolean): any {
     switch (tcode) {
-      case TypeCode.Int:
-      case TypeCode.UInt:
+      case ArgTypeCode.Int:
+      case ArgTypeCode.UInt:
         return this.memory.loadI64(rvaluePtr);
-      case TypeCode.Float:
+      case ArgTypeCode.Float:
         return this.memory.loadF64(rvaluePtr);
-        case TypeCode.TVMOpaqueHandle: {
+        case ArgTypeCode.TVMOpaqueHandle: {
           return this.memory.loadPointer(rvaluePtr);
         }
-      case TypeCode.TVMNDArrayHandle: {
+      case ArgTypeCode.TVMNDArrayHandle: {
         return new NDArray(this.memory.loadPointer(rvaluePtr), false, this.lib);
       }
-      case TypeCode.TVMDLTensorHandle: {
+      case ArgTypeCode.TVMDLTensorHandle: {
         assert(callbackArg);
         return new NDArray(this.memory.loadPointer(rvaluePtr), true, this.lib);
       }
-      case TypeCode.TVMPackedFuncHandle: {
+      case ArgTypeCode.TVMPackedFuncHandle: {
         return this.makePackedFunc(this.memory.loadPointer(rvaluePtr));
       }
-      case TypeCode.TVMModuleHandle: {
+      case ArgTypeCode.TVMModuleHandle: {
         return new Module(
           this.memory.loadPointer(rvaluePtr),
           this.lib,
@@ -1317,17 +1326,17 @@ export class Instance implements Disposable {
           }
         );
       }
-      case TypeCode.Null: return undefined;
-      case TypeCode.TVMContext: {
+      case ArgTypeCode.Null: return undefined;
+      case ArgTypeCode.TVMContext: {
         const deviceType = this.memory.loadI32(rvaluePtr);
         const deviceId = this.memory.loadI32(rvaluePtr + SizeOf.I32);
         return this.context(deviceType, deviceId);
       }
-      case TypeCode.TVMStr: {
+      case ArgTypeCode.TVMStr: {
         const ret = this.memory.loadCString(this.memory.loadPointer(rvaluePtr));
         return ret;
       }
-      case TypeCode.TVMBytes: {
+      case ArgTypeCode.TVMBytes: {
         return this.memory.loadTVMBytes(this.memory.loadPointer(rvaluePtr));
       }
       default:

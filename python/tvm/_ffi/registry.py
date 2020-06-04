@@ -122,7 +122,7 @@ def register_extension(cls, fcreate=None):
 
        @tvm.register_extension
        class MyTensor(object):
-           _tvm_tcode = tvm.TypeCode.ARRAY_HANDLE
+           _tvm_tcode = tvm.ArgTypeCode.ARRAY_HANDLE
 
            def __init__(self):
                self.handle = _LIB.NewDLTensor()
@@ -132,8 +132,8 @@ def register_extension(cls, fcreate=None):
                return self.handle.value
     """
     assert hasattr(cls, "_tvm_tcode")
-    if fcreate and cls._tvm_tcode < TypeCode.EXT_BEGIN:
-        raise ValueError("Cannot register create when extension tcode is same as buildin")
+    if fcreate:
+        raise ValueError("Extension with fcreate is no longer supported")
     _reg_extension(cls, fcreate)
     return cls
 

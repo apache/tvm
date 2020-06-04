@@ -18,9 +18,9 @@
 package org.apache.tvm;
 
 public class TVMValue {
-  public final TypeCode typeCode;
+  public final ArgTypeCode typeCode;
 
-  public TVMValue(TypeCode tc) {
+  public TVMValue(ArgTypeCode tc) {
     typeCode = tc;
   }
 
