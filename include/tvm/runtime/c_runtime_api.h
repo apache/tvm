@@ -87,12 +87,14 @@ typedef enum {
 } TVMDeviceExtType;
 
 /*!
- * \brief The type code in used in the TVM FFI.
+ * \brief The type code in used in the TVM FFI for argument passing.
  */
 typedef enum {
   // The type code of other types are compatible with DLPack.
   // The next few fields are extension types
   // that is used by TVM API calls.
+  kTVMArgInt = kDLInt,
+  kTVMArgFloat = kDLFloat,
   kTVMOpaqueHandle = 3U,
   kTVMNullptr = 4U,
   kTVMDataType = 5U,
@@ -115,9 +117,7 @@ typedef enum {
   // The following section of code is used for non-reserved types.
   kTVMExtReserveEnd = 64U,
   kTVMExtEnd = 128U,
-  // The rest of the space is used for custom, user-supplied datatypes
-  kTVMCustomBegin = 129U,
-} TVMTypeCode;
+} TVMArgTypeCode;
 
 /*!
  * \brief The Device information, abstract away common device types.

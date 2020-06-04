@@ -22,7 +22,7 @@ import tvm._ffi
 
 from tvm._ffi.base import _LIB, check_call, c_array, string_types, _FFI_MODE
 from tvm._ffi.runtime_ctypes import DataType, TVMContext, TVMArray, TVMArrayHandle
-from tvm._ffi.runtime_ctypes import TypeCode, tvm_shape_index_t
+from tvm._ffi.runtime_ctypes import DataTypeCode, tvm_shape_index_t
 
 try:
     # pylint: disable=wrong-import-position

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import { SizeOf, TypeCode } from "./ctypes";
+import { SizeOf, ArgTypeCode } from "./ctypes";
 import { assert, StringToUint8Array, Uint8ArrayToString } from "./support";
 import { detectGPUDevice } from "./webgpu";
 import * as compact from "./compact";
@@ -216,10 +216,10 @@ export class RPCServer {
 
       for (let i = 0; i < nargs; ++i) {
         const tcode = tcodes[i];
-        if (tcode == TypeCode.TVMStr) {
+        if (tcode == ArgTypeCode.TVMStr) {
           const str = Uint8ArrayToString(reader.readByteArray());
           args.push(str);
-        } else if (tcode == TypeCode.TVMBytes) {
+        } else if (tcode == ArgTypeCode.TVMBytes) {
           args.push(reader.readByteArray());
         } else {
           throw new Error("cannot support type code " + tcode);

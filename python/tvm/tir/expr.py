@@ -29,7 +29,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
 """
 import tvm._ffi
 
-from tvm.runtime import Object, ObjectGeneric, DataType, TypeCode, const
+from tvm.runtime import Object, ObjectGeneric, DataType, DataTypeCode, const
 from tvm.ir import PrimExpr
 import tvm.ir._ffi_api
 from . import generic as _generic
@@ -47,13 +47,13 @@ def _dtype_is_int(value):
     if isinstance(value, int):
         return True
     return (isinstance(value, ExprOp) and
-            DataType(value.dtype).type_code == TypeCode.INT)
+            DataType(value.dtype).type_code == DataTypeCode.INT)
 
 def _dtype_is_float(value):
     if isinstance(value, float):
         return True
     return (isinstance(value, ExprOp) and
-            DataType(value.dtype).type_code == TypeCode.FLOAT)
+            DataType(value.dtype).type_code == DataTypeCode.FLOAT)
 
 class ExprOp(object):
     """Operator overloading for Expr like expressions."""
