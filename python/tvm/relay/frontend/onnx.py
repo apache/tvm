@@ -1163,6 +1163,72 @@ class ReduceLogSumExp(Reduce):
     """
     name = 'logsumexp'
 
+
+class ReduceSumSquare(OnnxOpConverter):
+    """ Operator converter for ReduceSumSquare.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if 'axes' in attr:
+            axis = attr.get('axes', 0)
+        else:
+            axis_len = len(infer_shape(inputs[0]))
+            axis = list(range(axis_len))
+        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
+        inputs[0] = inputs[0] * inputs[0]
+
+        return AttrCvt("sum")(inputs, attr)
+
+
+class ReduceL1(OnnxOpConverter):
+    """ Operator converter for ReduceL1.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if 'axes' in attr:
+            axis = attr.get('axes', 0)
+        else:
+            axis_len = len(infer_shape(inputs[0]))
+            axis = list(range(axis_len))
+        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
+        inputs[0] = _op.abs(inputs[0])
+
+        return AttrCvt("sum")(inputs, attr)
+
+
+class ReduceL2(OnnxOpConverter):
+    """ Operator converter for ReduceL2.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if 'axes' in attr:
+            axis = attr.get('axes', 0)
+        else:
+            axis_len = len(infer_shape(inputs[0]))
+            axis = list(range(axis_len))
+        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
+        inputs[0] = inputs[0] * inputs[0]
+        out = AttrCvt("sum")(inputs, attr)
+
+        return _op.sqrt(out)
+
+
+class ReduceLogSum(OnnxOpConverter):
+    """ Operator converter for ReduceLogSum.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if 'axes' in attr:
+            axis = attr.get('axes', 0)
+        else:
+            axis_len = len(infer_shape(inputs[0]))
+            axis = list(range(axis_len))
+        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
+        out = AttrCvt("sum")(inputs, attr)
+
+        return _op.log(out)
+
+
 class ArgMax(OnnxOpConverter):
     """ Operator converter for ArgMax.
     """
@@ -1740,6 +1806,10 @@ def _get_convert_map(opset):
         'ReduceMean': ReduceMean.get_converter(opset),
         'ReduceProd': ReduceProd.get_converter(opset),
         'ReduceLogSumExp': ReduceLogSumExp.get_converter(opset),
+        'ReduceLogSum': ReduceLogSum.get_converter(opset),
+        'ReduceSumSquare': ReduceSumSquare.get_converter(opset),
+        'ReduceL1': ReduceL1.get_converter(opset),
+        'ReduceL2': ReduceL2.get_converter(opset),
 
         #defs/sorting
         'ArgMax': ArgMax.get_converter(opset),
