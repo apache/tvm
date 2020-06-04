@@ -203,7 +203,8 @@ subsection_order = ExplicitOrder(
      '../tutorials/deployment',
      '../vta/tutorials/frontend',
      '../vta/tutorials/optimize',
-     '../vta/tutorials/autotvm'])
+     '../vta/tutorials/autotvm',
+     '../tutorials/micro'])
 
 sphinx_gallery_conf = {
     'backreferences_dir': 'gen_modules/backreferences',
