@@ -87,8 +87,9 @@ def create_updater_06_to_07():
         return _convert
 
     def _update_global_key(item, _):
-        item["repr_str"] = item["global_key"]
-        del item["global_key"]
+        if "global_key" in item:
+            item["repr_str"] = item["global_key"]
+            del item["global_key"]
         return item
 
     def _update_from_std_str(key):
@@ -111,8 +112,10 @@ def create_updater_06_to_07():
         "EnvFunc": _update_global_key,
         "relay.Op": [_update_global_key, _rename("Op")],
         "relay.TypeVar": [_ftype_var, _update_from_std_str("name_hint")],
+        "TypeVar": _update_from_std_str("name_hint"),
         "relay.Id": [_update_from_std_str("name_hint")],
         "relay.GlobalTypeVar": [_ftype_var, _update_from_std_str("name_hint")],
+        "GlobalTypeVar": _update_from_std_str("name_hint"),
         "relay.Type": _rename("Type"),
         "relay.TupleType": _rename("TupleType"),
         "relay.TypeConstraint": _rename("TypeConstraint"),
@@ -124,6 +127,7 @@ def create_updater_06_to_07():
         "relay.SourceName": _rename("SourceName"),
         "relay.Span": _rename("Span"),
         "relay.GlobalVar": [_rename("GlobalVar"), _update_from_std_str("name_hint")],
+        "GlobalVar": _update_from_std_str("name_hint"),
         "relay.Pass": _rename("transform.Pass"),
         "relay.PassInfo": _rename("transform.PassInfo"),
         "relay.PassContext": _rename("transform.PassContext"),
