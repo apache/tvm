@@ -137,6 +137,7 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
                                             args=(mod, target, param))
             build_thread.start()
             build_thread.join()
+            relay.backend.compile_engine.get().clear()
 
         logger.disabled = old_state
 
