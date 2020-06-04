@@ -170,6 +170,8 @@ class CodeGenNVPTX : public CodeGenLLVM {
     CodeGenLLVM::Optimize();
   }
 
+  llvm::Value* CreateIntrinsic(const CallNode* op) override;
+
  protected:
   void InitTarget(llvm::TargetMachine* tm) final {
     // Maximum vector lane = float4
@@ -177,6 +179,62 @@ class CodeGenNVPTX : public CodeGenLLVM {
     CodeGenLLVM::InitTarget(tm);
   }
 };
+
+// Check if this is a warp shuffle intrinsic call and match its
+// corresponding nvvm intrinsic. Return true if the match is successful.
+static bool GetWarpShuffleIntrinsic(const CallNode* op, llvm::Intrinsic::ID* id) {
+  // Only 32 bit data type is supported.
+  if (op->dtype.is_vector() || op->dtype.bits() != 32) {
+    return false;
+  }
+
+  // Intrinsic lookup table.
+  // It is difficult to emit _sync verion that works on Pascal.
+  // We ignore the mask and only emit the non-sync version for nvptx.
+  llvm::Intrinsic::ID ids[] = {
+      llvm::Intrinsic::nvvm_shfl_idx_i32,  llvm::Intrinsic::nvvm_shfl_idx_f32,
+      llvm::Intrinsic::nvvm_shfl_up_i32,   llvm::Intrinsic::nvvm_shfl_up_f32,
+      llvm::Intrinsic::nvvm_shfl_down_i32, llvm::Intrinsic::nvvm_shfl_down_f32};
+
+  int offset = 0;
+  if (op->is_intrinsic(intrinsic::tvm_warp_shuffle)) {
+    offset = 0;
+  } else if (op->is_intrinsic(intrinsic::tvm_warp_shuffle_up)) {
+    offset = 2;
+  } else if (op->is_intrinsic(intrinsic::tvm_warp_shuffle_down)) {
+    offset = 4;
+  } else {
+    return false;
+  }
+
+  *id = ids[offset + op->dtype.is_float()];
+  return true;
+}
+
+llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
+  llvm::Intrinsic::ID id = llvm::Intrinsic::not_intrinsic;
+  if (GetWarpShuffleIntrinsic(op, &id)) {
+    std::vector<llvm::Value*> arg_value;
+    std::vector<llvm::Type*> arg_type;
+    // Ignore the first mask operand and remove the last
+    // redundant warp_size..
+    size_t n_args = op->args.size() - 1;
+    for (size_t i = 1; i < n_args; ++i) {
+      arg_value.push_back(MakeValue(op->args[i]));
+      arg_type.push_back(arg_value.back()->getType());
+    }
+    llvm::Type* return_type = arg_type[0];
+    llvm::Function* func = GetIntrinsicDecl(id, return_type, arg_type);
+    return builder_->CreateCall(func, arg_value);
+  } else if (op->is_intrinsic(intrinsic::tvm_warp_activemask)) {
+    // Only nvptx target may keep this intrinsic at this point.
+    // PTX assembly: asm "activemask.b32 r1;"
+    auto fty = llvm::FunctionType::get(t_int32_, false);
+    auto val = llvm::InlineAsm::get(fty, "activemask.b32 %0", "=r", true);
+    return builder_->CreateCall(val);
+  }
+  return CodeGenLLVM::CreateIntrinsic(op);
+}
 
 inline int DetectCUDAComputeVersion() {
   TVMContext tvm_ctx;
@@ -204,8 +262,10 @@ runtime::Module BuildNVPTX(IRModule mod, std::string target) {
   config << "-mtriple=nvptx64-nvidia-cuda -mcpu=sm_" << compute_ver
          << target.substr(5, target.length() - 5);
   std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
-  std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
+  // careful: cg will hold a naked pointer reference to ctx, so it should
+  // have a shorter lifetime than the ctx.
+  std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
 
   cg->Init("TVMPTXModule", tm.get(), ctx.get(), false, false);
 
