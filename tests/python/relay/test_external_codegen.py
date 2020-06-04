@@ -34,6 +34,14 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         return
 
     def update_lib(lib):
+        ext_mod = tvm.target.PackagingModule(lib.imported_modules[0])
+        code = ext_mod.source
+        metadata = ext_mod.metadata
+
+        new_lib = lib
+        for sym, src in code.items():
+            new_lib.import_module(tvm.target.CSourceModule(src))
+
         test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
         source_dir = os.path.join(test_dir, "..", "..", "..")
         contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
@@ -43,7 +51,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         tmp_path = util.tempdir()
         lib_name = 'lib.so'
         lib_path = tmp_path.relpath(lib_name)
-        lib.export_library(lib_path, fcompile=False, **kwargs)
+        new_lib.export_library(lib_path, fcompile=False, **kwargs)
         lib = tvm.runtime.load_module(lib_path)
 
         return lib

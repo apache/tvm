@@ -169,6 +169,8 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     output.dtype = "float";
 
     runtime::NDArray array = cn->data;
+    CHECK_EQ(metadata_.count(output.name), 0U) << "variable must be unique: " << output.name;
+    metadata_.Set(output.name, array);
 
     // Get the number of elements.
     int64_t num_elems = 1;
@@ -211,6 +213,8 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
   std::string JIT(const std::vector<Output>& out) {
     return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out);
   }
+
+  Map<String, runtime::NDArray> GetMetadata() const { return metadata_; }
 
  private:
   struct GenerateBodyOutput {
@@ -345,6 +349,8 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
   std::vector<std::string> ext_func_body;
   /*! \brief The declaration of intermeidate buffers. */
   std::vector<std::string> buf_decl_;
+  /*! \brief The variable name to constant mapping. */
+  Map<String, runtime::NDArray> metadata_;
 };
 
 /*!
@@ -355,7 +361,7 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 class DNNLModuleCodegen : public CSourceModuleCodegenBase {
  public:
   // Create a corresponding DNNL function for the given relay Function.
-  void GenDNNLFunc(const Function& func) {
+  std::pair<std::string, Map<String, runtime::NDArray>> GenDNNLFunc(const Function& func) {
     CHECK(func.defined()) << "Input error: expect a Relay function.";
 
     // Record the external symbol for runtime lookup.
@@ -364,6 +370,8 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     CodegenDNNL builder(sid);
     auto out = builder.VisitExpr(func->body);
     code_stream_ << builder.JIT(out);
+
+    return std::make_pair(sid, builder.GetMetadata());
   }
 
   /*!
@@ -392,22 +400,30 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "using namespace tvm::runtime::contrib;\n";
     code_stream_ << "\n";
 
+    Map<String, String> code;
+    Map<String, Map<String, runtime::NDArray>> metadata;
     if (ref->IsInstance<FunctionNode>()) {
-      GenDNNLFunc(Downcast<Function>(ref));
+      auto ret = GenDNNLFunc(Downcast<Function>(ref));
+      String sym = std::get<0>(ret);
+      code.Set(sym, code_stream_.str());
+      metadata.Set(sym, std::get<1>(ret));
     } else if (ref->IsInstance<IRModuleNode>()) {
       IRModule mod = Downcast<IRModule>(ref);
       for (const auto& it : mod->functions) {
-        GenDNNLFunc(Downcast<Function>(it.second));
+        auto ret = GenDNNLFunc(Downcast<Function>(it.second));
+        String sym = std::get<0>(ret);
+        code.Set(sym, code_stream_.str());
+        metadata.Set(sym, std::get<1>(ret));
       }
     } else {
       LOG(FATAL) << "The input ref is expected to be a Relay function or module"
                  << "\n";
     }
 
-    // Create a CSourceModule
-    const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
+    // Create a PackagingModule
+    const auto* pf = runtime::Registry::Get("runtime.PackagingModuleCreate");
     CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
-    return (*pf)(code_stream_.str(), "cc");
+    return (*pf)(code, "c", metadata);
   }
 
  private:

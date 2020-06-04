@@ -21,6 +21,7 @@
  * \file source_module.cc
  * \brief Source code module, only for viewing
  */
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
@@ -152,8 +153,111 @@ runtime::Module DeviceSourceModuleCreate(
   return runtime::Module(n);
 }
 
+// Pack the source code and metadata, where source code could be any
+// user-defined code, i.e. c source code, json graph representation, etc.
+class PackagingModule final : public runtime::ModuleNode {
+ public:
+  PackagingModule(Map<String, String> code, const std::string& fmt,
+                  Map<String, Map<String, runtime::NDArray>> metadata)
+      : code_(code), fmt_(fmt), metadata_(metadata) {}
+
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    if (name == "get_source") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetSource(); });
+    } else if (name == "get_metadata") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetMetadata(); });
+    } else if (name == "is_c_source") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->IsCSourceCode(); });
+    } else {
+      LOG(FATAL) << "Unknown packed function: " << name;
+      return PackedFunc(nullptr);
+    }
+  }
+
+  Map<String, String> GetSource() const { return code_; }
+
+  Map<String, Map<String, runtime::NDArray>> GetMetadata() const { return metadata_; }
+
+  bool IsCSourceCode() { return fmt_ == "c" || fmt_ == "cc"; }
+
+  const char* type_key() const { return "c"; }
+
+  void SaveToFile(const std::string& file_name, const std::string& format) final {
+    std::string fmt = GetFileFormat(file_name, format);
+    CHECK_EQ(fmt, "cc") << "file_name: " << file_name << " must be a .cc file.";
+    SaveBinaryToFile(file_name, ";");
+  }
+
+ private:
+  /*! \brief Symbol to source (e.g. c source/json) mapping. */
+  Map<String, String> code_;
+  std::string fmt_;
+  /*! \brief Symbol to {var_name : NDArray} pair mapping. */
+  Map<String, Map<String, runtime::NDArray>> metadata_;
+};
+
+runtime::Module PackagingModuleCreate(Map<String, String> code, std::string fmt,
+                                      Map<String, Map<String, runtime::NDArray>> metadata) {
+  auto n = make_object<PackagingModule>(code, fmt, metadata);
+  return runtime::Module(n);
+}
+
+class ModuleInitWrapper : public runtime::ModuleNode {
+ public:
+  ModuleInitWrapper(Map<String, Map<String, runtime::NDArray>> metadata, Map<String, String> code)
+      : metadata_(metadata), code_(code) {}
+
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    if (initialized_.count(name) == 0) {
+      this->InitSubModule(name);
+      initialized_[name] = true;
+    } else if (name != "__InitModule" && name != "__DestroyModule") {
+      CHECK(!this->imports().empty());
+      runtime::Module submodule = this->imports().at(0);
+      return submodule->GetFunction(name);
+    }
+
+    return PackedFunc();
+  }
+  
+  const char* type_key() const { return "module_init"; }
+
+  void InitSubModule(const std::string& symbol) {}
+
+ private:
+  std::unordered_map<std::string, bool> initialized_;
+  /*! \brief A symbol to {var_name : NDArray} pair mapping. */
+  Map<String, Map<String, runtime::NDArray>> metadata_;
+  /*!
+   * \brief For JSON runtime we need the json code to build up an engine. For
+   * c source module, code has already been compiled into a DSO module, only
+   * metadata is needed to feed the correct data.
+   */
+  Map<String, String> code_;
+};
+
+runtime::Module ModuleInitWrapperCreate(Map<String, Map<String, runtime::NDArray>> metadata,
+                                        Map<String, String> code) {
+  auto n = make_object<ModuleInitWrapper>(metadata, code);
+  return runtime::Module(n);
+}
+
+TVM_REGISTER_GLOBAL("runtime.PackagingModuleCreate").set_body_typed(PackagingModuleCreate);
+
 TVM_REGISTER_GLOBAL("runtime.SourceModuleCreate").set_body_typed(SourceModuleCreate);
 
-TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate").set_body_typed(CSourceModuleCreate);
+TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate").set_body_typed([](String code, String fmt) {
+  return CSourceModuleCreate(code.operator std::string(), fmt.operator std::string());
+});
+
+TVM_REGISTER_GLOBAL("runtime.ModuleInitWrapper")
+    .set_body_typed([](Map<String, Map<String, runtime::NDArray>> metadata,
+                       Map<String, String> code) {
+      return ModuleInitWrapperCreate(metadata, code);
+    });
+
 }  // namespace codegen
 }  // namespace tvm
