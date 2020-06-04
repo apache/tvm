@@ -2293,33 +2293,33 @@ def test_forward_resnetv2():
 
 
 def test_forward_ssd():
-    '''test resnet model'''
-    if is_gpu_available():
-        with tf.Graph().as_default():
-            graph_def = tf_testing.get_workload(
-                "object_detection/ssd_mobilenet_v1_ppn_shared_"
-                "box_predictor_300x300_coco14_sync_2018_07_03.pb")
-            # Call the utility to import the graph definition into default graph.
-            graph_def = tf_testing.ProcessGraphDefParam(graph_def)
+    '''Test SSD with backbone MobileNet V1'''
+    with tf.Graph().as_default():
+        graph_def = tf_testing.get_workload(
+            "object_detection/ssd_mobilenet_v1_ppn_shared_"
+            "box_predictor_300x300_coco14_sync_2018_07_03.pb")
+        # Call the utility to import the graph definition into default graph.
+        graph_def = tf_testing.ProcessGraphDefParam(graph_def)
 
-            data = np.random.uniform(0.0, 255.0, size=(1, 512, 512, 3)).astype('float32')
-            in_node = "image_tensor"
-            out_node = ['detection_boxes', "detection_scores", "detection_classes"]
+        data = np.random.uniform(0.0, 255.0, size=(1, 512, 512, 3)).astype('float32')
+        in_node = "image_tensor"
+        out_node = ['detection_boxes', "detection_scores", "detection_classes"]
 
-            with tf.Session() as sess:
-                tf_output = run_tf_graph(
-                    sess, data, '{}:0'.format(in_node), ["{}:0".format(oname) for oname in out_node])
-                # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
-                for device in ["llvm"]:
-                    ctx = tvm.context(device, 0)
-                    if not ctx.exist:
-                        print("Skip because %s is not enabled" % device)
-                        continue
-                    tvm_output = run_tvm_graph(graph_def, data, in_node, len(out_node),
-                                               target=device, layout="NCHW", mode="vm")
-                    for i in range(len(out_node)):
-                        tvm.testing.assert_allclose(tvm_output[i], tf_output[i],
-                                                    rtol=1e-3, atol=1e-3)
+        with tf.Session() as sess:
+            tf_output = run_tf_graph(
+                sess, data, '{}:0'.format(in_node), ["{}:0".format(oname) for oname in out_node])
+            # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
+            for device in ["llvm"]:
+                ctx = tvm.context(device, 0)
+                if not ctx.exist:
+                    print("Skip because %s is not enabled" % device)
+                    continue
+                tvm_output = run_tvm_graph(graph_def, data, in_node, len(out_node),
+                                           target=device, layout="NCHW", mode="vm",
+                                           disabled_pass=["FoldScaleAxis"])
+                for i in range(len(out_node)):
+                    tvm.testing.assert_allclose(tvm_output[i], tf_output[i],
+                                                rtol=1e-3, atol=1e-3)
 
 #######################################################################
 # Placeholder
