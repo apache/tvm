@@ -1312,5 +1312,53 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
       name, tag);
 }
 
+/*!
+ * \brief Get a dense tensor.
+ * \param sparse_indices sparse_indices[i] contains sparse_values[i] will be placed.
+ * \param output_shape is the shape of the dense output tensor .
+ * \param sparse_values is a 0-D or 1-D tensor. Values for each row of sparse_indices.
+ * \param default_value is a 0-D tensor. Defaults to zero.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return Tensor of output_shape.
+ */
+inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<Integer>& output_shape,
+                              const Tensor& sparse_values, const PrimExpr& default_value,
+                              const std::string name = "T_sparse_to_dense",
+                              const std::string tag = kInjective) {
+  CHECK(sparse_indices->dtype.is_int()) << "sparse_indices only accepts integer values";
+  CHECK_LE(sparse_indices->shape.size(), 3) << "sparse_indices tensor should be 0D, 1D, or 2D only";
+  CHECK_LE(sparse_values->shape.size(), 2) << "sparse_values tensor should be 0D or 1D only";
+
+  const auto rank_sparse_indices = static_cast<int>(sparse_indices->shape.size());
+  Array<PrimExpr> oshape;
+  for (auto l : output_shape) {
+    oshape.push_back(l);
+  }
+  return compute(
+      oshape,
+      [&](const Array<Var>& indices) {
+        PrimExpr ret = default_value;
+        if (0 == rank_sparse_indices) {
+          ret = if_then_else(indices[0] == sparse_indices[0], sparse_values[0], ret);
+        } else if (1 == rank_sparse_indices) {
+          for (int j = 0; j < GetConstInt(sparse_indices->shape[0]); j++) {
+            ret = if_then_else(indices[0] == sparse_indices[j], sparse_values[j], ret);
+          }
+        } else {
+          for (int j = 0; j < GetConstInt(sparse_indices->shape[0]); j++) {
+            PrimExpr aggregate_condition;
+            for (int k = 0; k < GetConstInt(sparse_indices->shape[1]); k++) {
+              PrimExpr comparision = indices[k] == sparse_indices[j][k];
+              aggregate_condition = 0 == k ? comparision : aggregate_condition && comparision;
+            }
+            ret = if_then_else(aggregate_condition, sparse_values[j], ret);
+          }
+        }
+        return ret;
+      },
+      name, tag);
+}
+
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_

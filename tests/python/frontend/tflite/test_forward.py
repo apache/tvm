@@ -859,7 +859,6 @@ def test_all_resize():
     if 'RESIZE_NEAREST_NEIGHBOR' in dir(BuiltinOperator()):
         _test_resize(tf.image.resize_nearest_neighbor, data, align_corners=False)
 
-
 #######################################################################
 # Concatenation
 # -------------
@@ -1863,6 +1862,80 @@ def test_forward_spacetodepth():
     _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
 
 #######################################################################
+# Sparse To Dense
+# ---------------
+def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape):
+    # tflite 1.13 convert method does not accept empty shapes
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        with tf.Graph().as_default():
+            indices = tf.placeholder(shape=sparse_indices.shape, dtype=str(sparse_indices.dtype), name="indices")
+            values = tf.placeholder(shape=sparse_values.shape, dtype=str(sparse_values.dtype), name="values")
+            oshape = tf.constant(output_shape, shape=output_shape.shape, dtype=str(output_shape.dtype))
+
+            if default_value == None:
+                output = tf.sparse_to_dense(indices, oshape, values)
+                compare_tflite_with_tvm(
+                    [sparse_indices, sparse_values],
+                    ["indices", "values"],
+                    [indices, values],
+                    [output]
+                )
+            else:
+                dv = tf.placeholder(shape=(), dtype=str(default_value.dtype), name="default_value")
+                output = tf.sparse_to_dense(indices, oshape, values, dv)
+                compare_tflite_with_tvm(
+                    [sparse_indices, sparse_values, default_value],
+                    ["indices", "values", "default_value"],
+                    [indices, values, dv],
+                    [output]
+                )
+
+def test_forward_sparse_to_dense():
+    '''
+    Works in tvm/topi/tensorflow. But tflite converter breaks this test case
+    _test_sparse_to_dense(
+        np.int32(1),
+        np.int32(3),
+        np.int32(0),
+        np.array([5]).astype("int32")
+    )
+    '''
+    # vector
+    _test_sparse_to_dense(
+        np.array([0, 1, 4]).astype("int32"),
+        np.array([3, 3, 3]).astype("int32"),
+        np.int32(0),
+        np.array([5]).astype("int32")
+    )
+    # vector nXd
+    _test_sparse_to_dense(
+        np.array([[0, 0], [1, 2]]).astype("int32"),
+        np.array([1, 2]).astype("int32"),
+        np.int32(0),
+        np.array([3, 4]).astype("int32")
+    )
+    _test_sparse_to_dense(
+        np.array([[0, 0, 0], [1, 2, 3]]).astype("int32"),
+        np.array([1, 2]).astype("int32"),
+        np.int32(4),
+        np.array([2, 3, 4]).astype("int32")
+    )
+    # floats
+    _test_sparse_to_dense(
+        np.array([0, 1, 4]).astype("int32"),
+        np.array([3.1, 3.1, 3.1]).astype("float32"),
+        np.float32(3.5),
+        np.array([5]).astype("int32")
+    )
+    # default value not specified
+    _test_sparse_to_dense(
+        np.array([0, 1, 4]).astype("int32"),
+        np.array([3.1, 3.1, 3.1]).astype("float32"),
+        None,
+        np.array([5]).astype("int32")
+    )
+
+#######################################################################
 # Fully Connected
 # ---------------
 
@@ -2305,6 +2378,7 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_depthtospace()
     test_forward_spacetodepth()
+    test_forward_sparse_to_dense()
     test_forward_select()
     test_forward_quantize_dequantize()
 

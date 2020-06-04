@@ -274,6 +274,15 @@ struct SequenceMaskAttrs : public tvm::AttrsNode<SequenceMaskAttrs> {
   }
 };  // struct SequenceMaskAttrs.
 
+/*! \brief Attributes used in sparse_to_dense operator */
+struct SparseToDenseAttrs : public tvm::AttrsNode<SparseToDenseAttrs> {
+  Array<Integer> output_shape;
+
+  TVM_DECLARE_ATTRS(SparseToDenseAttrs, "relay.attrs.SparseToDenseAttrs") {
+    TVM_ATTR_FIELD(output_shape).describe("Shape of the dense output tensor");
+  }
+};  // struct SparseToDenseAttrs
+
 /*! \brief Attributes for ndarray_size operator */
 struct NdarraySizeAttrs : public tvm::AttrsNode<NdarraySizeAttrs> {
   DataType dtype;
