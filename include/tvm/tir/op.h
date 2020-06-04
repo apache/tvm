@@ -740,7 +740,7 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value) {
   // datatypes lowering pass, we will lower the value to its true representation in the format
   // specified by the datatype.
   // TODO(gus) when do we need to start worrying about doubles not being precise enough?
-  if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(kTVMCustomBegin)) {
+  if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(DataType::kCustomBegin)) {
     return FloatImm(t, static_cast<double>(value));
   }
   LOG(FATAL) << "cannot make const for type " << t;

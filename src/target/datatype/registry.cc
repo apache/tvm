@@ -49,8 +49,8 @@ Registry* Registry::Global() {
 }
 
 void Registry::Register(const std::string& type_name, uint8_t type_code) {
-  CHECK(type_code >= kTVMCustomBegin)
-      << "Please choose a type code >= kTVMCustomBegin for custom types";
+  CHECK(type_code >= DataType::kCustomBegin)
+      << "Please choose a type code >= DataType::kCustomBegin for custom types";
   code_to_name_[type_code] = type_name;
   name_to_code_[type_name] = type_code;
 }
@@ -78,7 +78,7 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t t
   if (datatype::Registry::Global()->GetTypeRegistered(type_code)) {
     ss << datatype::Registry::Global()->GetTypeName(type_code);
   } else {
-    ss << runtime::TypeCode2Str(type_code);
+    ss << runtime::DLDataTypeCode2Str(static_cast<DLDataTypeCode>(type_code));
   }
 
   ss << ".";
@@ -86,7 +86,7 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t t
   if (datatype::Registry::Global()->GetTypeRegistered(src_type_code)) {
     ss << datatype::Registry::Global()->GetTypeName(src_type_code);
   } else {
-    ss << runtime::TypeCode2Str(src_type_code);
+    ss << runtime::DLDataTypeCode2Str(static_cast<DLDataTypeCode>(src_type_code));
   }
   return runtime::Registry::Get(ss.str());
 }
