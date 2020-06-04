@@ -15,10 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-import, redefined-builtin
-"""Namespace for Ansor autoSchedule"""
+""" ... """
 
-from .compute_dag import ComputeDAG
-from .task import SearchTask, MetaTileRewritePolicy, TuneOption
-from .task import auto_schedule
-from .measure import MeasureInput, LocalBuilder, LocalRunner
 from .cost_model import RandomModel

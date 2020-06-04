@@ -52,7 +52,7 @@ class ComputeDAG(Object):
         """
         return _ffi_api.ComputeDAGGetInitState(self)
 
-    def apply_steps_from_state(self, state, layout_rewrite_level):
+    def apply_steps_from_state(self, state, layout_rewrite_level=None):
         """
         Parameters
         ----------

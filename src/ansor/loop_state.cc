@@ -1142,5 +1142,26 @@ TVM_REGISTER_GLOBAL("ansor.StateCacheWrite")
       return Array<ObjectRef>{state, IntImm(DataType::Int(32), res)};
     });
 
+TVM_REGISTER_GLOBAL("ansor.StatePragma")
+    .set_body_typed([](State state, int stage_id, const Iterator& it,
+                       const std::string& pragma_type) {
+      state.pragma(stage_id, it, pragma_type);
+      return state;
+    });
+
+TVM_REGISTER_GLOBAL("ansor.StateRfactor")
+    .set_body_typed([](State state, int stage_id, const Iterator& it,
+                       int factor_iter_id, const ComputeDAG& task_dag) {
+      int res = state.rfactor(stage_id, it, factor_iter_id, task_dag);
+      return Array<ObjectRef>{state, IntImm(DataType::Int(32), res)};
+    });
+
+TVM_REGISTER_GLOBAL("ansor.StateStorageAlign")
+    .set_body_typed([](State state, int stage_id, const Iterator& it,
+                       int factor, int offset) {
+      state.storage_align(stage_id, it, factor, offset);
+      return state;
+    });
+
 }  // namespace ansor
 }  // namespace tvm

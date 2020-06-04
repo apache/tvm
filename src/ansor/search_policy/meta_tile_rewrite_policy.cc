@@ -3,6 +3,7 @@
  */
 
 #include "meta_tile_rewrite_policy.h"
+#include <tvm/runtime/registry.h>
 #include <iomanip>
 #include <vector>
 #include <string>
@@ -586,7 +587,8 @@ class RuleAddRfactor : public StructureSynthesisRule {
   }
 };
 
-void MetaTileRewritePolicyNode::SynthesizeMetaStructure(std::vector<State>* out_states) {
+void MetaTileRewritePolicyNode::SynthesizeMetaStructure(
+    std::vector<State>* out_states) {
   State init_state = cur_task_->compute_dag.GetInitState();
   std::string cpu_multi_level_tiling_structure =
       GetStringParam(params, "cpu_multi_level_tiling_structure");
@@ -1415,6 +1417,13 @@ void MetaTileRewritePolicyNode::EvolutionarySearch(
                     << "\tTime elapsed: "
                     << std::fixed << std::setprecision(2) << duration << std::endl;
 }
+
+TVM_REGISTER_GLOBAL("ansor.MetaTileRewritePolicy")
+.set_body_typed([](CostModel program_cost_model,
+                   Map<std::string, ObjectRef> params,
+                   int seed){
+  return MetaTileRewritePolicyNode::make(program_cost_model, params, seed);
+});
 
 }  // namespace ansor
 }  // namespace tvm

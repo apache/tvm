@@ -408,9 +408,9 @@ class State(Object):
         state : State
             The updated state
         """
-        state = _ffi_api.StateRfactor(self, stage_id, it, factor_iter_id,
-                                      task_dag)
-        return state
+        state, new_stage_id = _ffi_api.StateRfactor(self, stage_id, it,
+                                                    factor_iter_id, task_dag)
+        return state, new_stage_id
 
     def storage_align(self, stage_id, it, factor, offset):
         """

@@ -2,8 +2,10 @@
  *  Copyright (c) 2020 by Contributors
  */
 #include "cost_model.h"
-#include <tvm/runtime/registry.h>
+
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/registry.h>
+
 #include <utility>
 
 namespace tvm {
@@ -39,8 +41,7 @@ CostModel RandomModelNode::make() {
 }
 
 void RandomModelNode::Update(const Array<MeasureInput>& inputs,
-    const Array<MeasureResult>& results) {
-}
+                             const Array<MeasureResult>& results) {}
 
 void RandomModelNode::Predict(const SearchTask& task,
                               const std::vector<State>& states,
@@ -51,14 +52,13 @@ void RandomModelNode::Predict(const SearchTask& task,
 
 CostModel MeasureModelNode::make(Builder builder, Runner runner) {
   ObjectPtr<MeasureModelNode> node = make_object<MeasureModelNode>();
-  node->measurer = ProgramMeasurerNode::make(std::move(builder), std::move(runner),
-                                             Array<MeasureCallback>(), 0);
+  node->measurer = ProgramMeasurerNode::make(
+      std::move(builder), std::move(runner), Array<MeasureCallback>(), 0);
   return CostModel(node);
 }
 
 void MeasureModelNode::Update(const Array<MeasureInput>& inputs,
-    const Array<MeasureResult>& results) {
-}
+                              const Array<MeasureResult>& results) {}
 
 void MeasureModelNode::Predict(const SearchTask& task,
                                const std::vector<State>& states,
@@ -66,7 +66,8 @@ void MeasureModelNode::Predict(const SearchTask& task,
   std::vector<MeasureInput> inputs;
   std::vector<MeasureResult> results;
 
-  inputs.clear(); inputs.reserve(states.size());
+  inputs.clear();
+  inputs.reserve(states.size());
   for (const auto& state : states) {
     inputs.push_back(MeasureInputNode::make(task, state));
   }
@@ -79,7 +80,8 @@ void MeasureModelNode::Predict(const SearchTask& task,
   }
 }
 
-CostModel PythonBasedCostModelNode::make(PackedFunc update_func, PackedFunc predict_func,
+CostModel PythonBasedCostModelNode::make(PackedFunc update_func,
+                                         PackedFunc predict_func,
                                          PackedFunc predict_stage_func) {
   auto node = make_object<PythonBasedCostModelNode>();
   node->update_func = std::move(update_func);
@@ -89,7 +91,7 @@ CostModel PythonBasedCostModelNode::make(PackedFunc update_func, PackedFunc pred
 }
 
 void PythonBasedCostModelNode::Update(const Array<MeasureInput>& inputs,
-                                      const Array<MeasureResult>& results)  {
+                                      const Array<MeasureResult>& results) {
   update_func(inputs, results);
 }
 
@@ -101,14 +103,15 @@ void PythonBasedCostModelNode::Predict(const SearchTask& task,
                static_cast<void*>(scores->data()));
 }
 
-void PythonBasedCostModelNode::PredictStages(const SearchTask& task,
-                                             const std::vector<State>& states,
-                                             std::vector<float>* state_scores,
-                                             std::vector<std::vector<float>>* stage_scores) {
+void PythonBasedCostModelNode::PredictStages(
+    const SearchTask& task, const std::vector<State>& states,
+    std::vector<float>* state_scores,
+    std::vector<std::vector<float>>* stage_scores) {
   int n_states = states.size();
   int n_stages = task->compute_dag.GetInitState()->stages.size();
   std::vector<float> flatten_scores;
-  flatten_scores.resize(n_states * n_stages * 2);  // Allocate sufficient spaces.
+  // Allocate sufficient spaces.
+  flatten_scores.resize(n_states * n_stages * 2);
   predict_stage_func(task, Array<State>(states.begin(), states.end()),
                      static_cast<void*>(flatten_scores.data()));
 
@@ -134,8 +137,9 @@ void PythonBasedCostModelNode::PredictStages(const SearchTask& task,
       int offset = 0;
 
       if ((*state_scores)[i] > -INFINITY) {
-        // If the score is valid. Copy scored stages and assign 0 to placeholder and inlined stages.
-        // If the score is 0, meaning this state failed to be lowered. Just bypass to update offset.
+        // If the score is valid. Copy scored stages and assign 0 to placeholder
+        // and inlined stages. If the score is 0, meaning this state failed to
+        // be lowered. Just bypass to update offset.
         for (const Stage& stage : states[i]->stages) {
           if (stage->op_type == kPlaceholder) {
             scores.push_back(0);
@@ -158,6 +162,10 @@ void PythonBasedCostModelNode::PredictStages(const SearchTask& task,
     }
   }
 }
+
+TVM_REGISTER_GLOBAL("ansor.RandomModel").set_body_typed([]() {
+  return RandomModelNode::make();
+});
 
 }  // namespace ansor
 }  // namespace tvm

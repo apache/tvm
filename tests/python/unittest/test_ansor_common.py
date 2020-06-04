@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import random
+import numpy as np
+
 import tvm
 from tvm import te
 from tvm import ansor
@@ -499,9 +502,42 @@ def test_measure_local_builder_runner():
 
 
 def test_search_basic():
-    dag = ansor.ComputeDAG(matmul_nkkm(512, 512, 512))
+    print("Test schedule search with default search policy")
+
+    N = 128
+    A, B, C = matmul_nkkm(N, N, N)
+    dag = ansor.ComputeDAG([A, B, C])
     tgt = tvm.target.create("llvm")
     task = ansor.SearchTask(dag, "test", tgt)
+
+    cost_model = ansor.RandomModel()
+    # seed = random.randint(1, 1 << 30)
+    seed = 944563397
+    search_policy = ansor.MetaTileRewritePolicy(cost_model, seed=seed)
+    state = ansor.auto_schedule(task, search_policy,
+                                tune_option=ansor.TuneOption(n_trials=2))
+    sch, args = dag.apply_steps_from_state(state)
+
+    print("==== Get State ====")
+    print(state)
+    print("==== Get Python Code ====")
+    print(dag.print_python_code_from_state(state))
+
+    try:
+        print("==== Get Lowered Stmt ====")
+        print(tvm.lower(sch, args, simple_mode=True))
+        mod = tvm.build(sch, args, tgt)
+
+        ctx = tvm.context("llvm", 0)
+        a = tvm.nd.array(np.random.uniform(size=(N, N)).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=(N, N)).astype(B.dtype), ctx)
+        c = tvm.nd.array(np.zeros((N, N), dtype=C.dtype), ctx)
+        mod(a, b, c)
+        tvm.testing.assert_allclose(c.asnumpy(), np.dot(
+            a.asnumpy(), b.asnumpy()), rtol=1e-5)
+        print("==== Verification passed ====")
+    except Exception:
+        raise Exception("Error encounterd with seed: %d" % (seed))
 
 
 if __name__ == "__main__":
@@ -512,4 +548,4 @@ if __name__ == "__main__":
     test_follow_split_follow_fused_split()
     test_rfactor()
     test_measure_local_builder_runner()
-    # test_search_basic()
+    test_search_basic()

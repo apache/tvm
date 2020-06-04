@@ -50,10 +50,15 @@ inline double GetDoubleParam(const Map<std::string, ObjectRef>& attr_dict,
 // Get a string from a tvm str Map
 inline std::string GetStringParam(const Map<std::string, ObjectRef>& attr_dict,
                                   const std::string& key) {
-  CHECK_GT(attr_dict.count(key), 0) << "Cannot find key: \"" << key << "\" in " << attr_dict;
-  auto pstr = attr_dict[key].as<StringImmNode>();
+  CHECK_GT(attr_dict.count(key), 0)
+      << "Cannot find key: \"" << key << "\" in " << attr_dict;
+  const auto& target = attr_dict[key];
+  if (auto pstr = target.as<StringImmNode>()) {
+    return pstr->value;
+  }
+  auto pstr = target.as<StringObj>();
   CHECK(pstr != nullptr);
-  return pstr->value;
+  return pstr->data;
 }
 
 // Get a iterator name set from a tvm str Map

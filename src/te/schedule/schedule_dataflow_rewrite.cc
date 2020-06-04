@@ -461,7 +461,7 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
     for (IterVar iv : root_iter_vars) {
       size_t idx = FindNodeRef(leaf_vars, iv);
       auto it = s->iter_var_attrs.find(iv);
-      // don;t need to rebase path that are binded.
+      // don't need to rebase path that are binded.
       if (it != s->iter_var_attrs.end() && (*it).second->bind_thread.defined()) {
         continue;
       }
@@ -614,10 +614,74 @@ void InjectInline(ScheduleNode* sch) {
   }
 }
 
+void LegalizeInvalidAttach(ScheduleNode* sch) {
+  std::unordered_map<IterVar, IterVar> replace_map;
+
+  for (Stage stage : sch->stages) {
+    for (Stage s = stage; s.defined();) {
+      Stage spec = s.GetAttachSpec();
+      if (spec->attach_type != kScope) {
+        break;
+      }
+      bool start_attach = false;
+      IterVar attach_ivar = spec->attach_ivar;
+      s = spec->attach_stage;
+      CHECK(attach_ivar.defined());
+      CHECK(s.defined());
+
+      for (size_t i = s->leaf_iter_vars.size(); i != 0; --i) {
+        IterVar iv = s->leaf_iter_vars[i - 1];
+        if (!start_attach && iv.same_as(attach_ivar)) {
+          start_attach = true;
+        }
+      }
+      if (!start_attach) {
+        // If the attach_var is fused into another iter_var, update the
+        // attach_var to be the fused one
+        // Do this recursively.
+        IterVar new_attach_ivar = attach_ivar;;
+        bool updated = true;
+        while (updated) {
+          updated = false;
+          for (const auto& rel : s->relations) {
+            if (const FuseNode* r = rel.as<FuseNode>()) {
+              if (new_attach_ivar.same_as(r->inner)) {
+                new_attach_ivar = r->fused;
+                updated = true;
+              }
+            } else if (const SplitNode* r = rel.as<SplitNode>()) {
+              if (new_attach_ivar.same_as(r->parent)) {
+                new_attach_ivar = r->inner;
+                updated = true;
+              }
+            }
+          }
+          replace_map[attach_ivar] = new_attach_ivar;
+        }
+      }
+    }
+  }
+
+  // remap the parent relation
+  for (Stage s : sch->stages) {
+    if (s->attach_type != kScope) continue;
+    if (replace_map.count(s->attach_ivar)) {
+      s->attach_ivar = replace_map.at(s->attach_ivar);
+    }
+  }
+  for (Stage s : sch->groups) {
+    if (s->attach_type != kScope) continue;
+    if (replace_map.count(s->attach_ivar)) {
+      s->attach_ivar = replace_map.at(s->attach_ivar);
+    }
+  }
+}
+
 Schedule Schedule::normalize() {
   Schedule sn = copy();
   InjectInline(sn.operator->());
   RebaseNonZeroMinLoop(sn);
+  LegalizeInvalidAttach(sn.operator->());
   return sn;
 }
 
