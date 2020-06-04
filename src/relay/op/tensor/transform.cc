@@ -2524,5 +2524,79 @@ Example::
     .set_attr<FTVMCompute>("FTVMCompute", UnRavelIndexCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+// sparse_to_dense
+TVM_REGISTER_NODE_TYPE(SparseToDenseAttrs);
+
+bool SparseToDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  CHECK_EQ(num_inputs, 3);
+  auto sparse_indices = types[0].as<TensorTypeNode>();
+  auto sparse_values = types[1].as<TensorTypeNode>();
+  auto default_value = types[2].as<TensorTypeNode>();
+  CHECK(sparse_indices != nullptr && sparse_values != nullptr && default_value != nullptr);
+
+  CHECK(sparse_indices->dtype.is_int()) << "sparse_indices must be tensor of integers";
+
+  CHECK_LE(sparse_indices->shape.size(), 3)
+      << "sparse_indices must be a tensor of either 0D, 1D or 2D";
+
+  CHECK_LE(sparse_values->shape.size(), 2) << "sparse_values must be a tensor of either 0D, 1D";
+
+  CHECK_EQ(default_value->shape.size(), 0) << "default_value should be a scalar";
+
+  const auto* param = attrs.as<SparseToDenseAttrs>();
+  CHECK(param != nullptr);
+
+  Array<IndexExpr> oshape;
+  for (auto i : param->output_shape) {
+    oshape.push_back(i);
+  }
+  reporter->Assign(types[3], TensorType(oshape, sparse_values->dtype));
+  return true;
+}
+
+Array<te::Tensor> SparseToDenseCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                       const Type& out_type) {
+  CHECK_EQ(inputs.size(), 3);
+  const auto* param = attrs.as<SparseToDenseAttrs>();
+  CHECK(param != nullptr);
+  return {topi::sparse_to_dense(inputs[0], param->output_shape, inputs[1], inputs[2]())};
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.sparse_to_dense")
+    .set_body_typed([](Expr indices, Array<Integer> output_shape, Expr values, Expr default_value) {
+      auto attrs = make_object<SparseToDenseAttrs>();
+      attrs->output_shape = std::move(output_shape);
+      static const Op& op = Op::Get("sparse_to_dense");
+      return Call(op, {indices, values, default_value}, Attrs(attrs));
+    });
+
+RELAY_REGISTER_OP("sparse_to_dense")
+    .describe(R"code(A dense tensor from a sparse representation.
+
+    - **sparse_indices**: A 0-D, 1-D, or 2-D tensor of integers containing location of sparse values
+
+    - **output_shape**: A list of integers. Shape of the dense output tensor.
+
+    - **sparse_values**: A 0-D or 1-D tensor containing the sparse values for the sparse indices.
+
+    - **default_value**: A 0-D tensor containing the default value for the remaining locations. Defaults to 0.
+
+    Example::
+      -  sparse_to_dense([0, 0], [1, 2]], [3, 4], [1, 2], 0) = [[1, 0, 0, 0], [0, 0, 2, 0], [0, 0, 0, 0]]
+
+    )code" TVM_ADD_FILELINE)
+    .set_num_inputs(3)
+    .set_support_level(3)
+    .set_attrs_type<SparseToDenseAttrs>()
+    .add_argument("sparse_indices", "Tensor", "Contains sparse indices.")
+    .add_argument("sparse_values", "Tensor", "Contains values for sparse indices.")
+    .add_argument("default_value", "Tensor", "Value to set for non-sparse indices. Defaults to 0.")
+    .add_type_rel("SparseToDense", SparseToDenseRel)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute", SparseToDenseCompute);
+
 }  // namespace relay
 }  // namespace tvm

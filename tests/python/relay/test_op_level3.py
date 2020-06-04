@@ -747,6 +747,58 @@ def test_unravel_index():
         # output which is inline with Tensorflow
         # verify_unravel_index([0, 1, 2, 5], [2, 2], dtype)
 
+def test_sparse_to_dense():
+    def verify_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape, xpected):
+        sparse_indices_data = np.array(sparse_indices)
+        sparse_values_data = np.array(sparse_values)
+        default_value_data = np.array(default_value)
+
+        a = relay.var("a", relay.TensorType(sparse_indices_data.shape, str(sparse_indices_data.dtype)))
+        b = relay.var("b", relay.TensorType(sparse_values_data.shape, str(sparse_values_data.dtype)))
+        if default_value is None:
+            args = [a, b]
+            d = relay.sparse_to_dense(a, output_shape, b)
+        else:
+            c = relay.var("c", relay.TensorType(default_value_data.shape, str(default_value_data.dtype)))
+            args = [a, b, c]
+            d = relay.sparse_to_dense(a, output_shape, b, c)
+
+        zz = run_infer_type(d)
+        assert zz.checked_type == relay.ty.TensorType(output_shape, str(sparse_values_data.dtype))
+
+        func = relay.Function(args, d)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                if default_value is None:
+                    op_res = intrp.evaluate(func)(sparse_indices_data, sparse_values_data)
+                else:
+                    op_res = intrp.evaluate(func)(
+                        sparse_indices_data, sparse_values_data, default_value_data
+                    )
+                tvm.testing.assert_allclose(op_res.asnumpy(), xpected, rtol=1e-5)
+
+
+    verify_sparse_to_dense(1, 3, 0, [5], [0, 3, 0, 0, 0])  # scalar
+    verify_sparse_to_dense([0, 1, 4], [3, 3, 3], 0, [5], [3, 3, 0, 0, 3])  # vector
+    verify_sparse_to_dense([[0, 0], [1, 2]], [1, 2], 0, [3, 4], [[1, 0, 0, 0], [0, 0, 2, 0], [0, 0, 0, 0]])  # nXd
+    verify_sparse_to_dense(
+        [[0, 0, 0], [1, 2, 3]],
+        [1, 2],
+        4,
+        [2, 3, 4],
+        [[[1, 4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 4]], [[4, 4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 2]]]
+    )  # nXd
+    verify_sparse_to_dense([0, 1, 4], [3.1, 3.1, 3.1], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])  # floats
+    verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])  # default value not specified
+
+    #negative test cases
+    #sparse indices should be ints
+    #verify_sparse_to_dense([[0.1, 1.1, 4.1], [0,2,4]], [3.1, 3.1, 3.1], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
+    #sparse_values should be 0d or 1d only
+    #verify_sparse_to_dense([[0, 1, 4], [0, 2, 4]], [[[3.1, 3.1, 3.1]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
+    #sparse_indices should not be > 2d tensor
+    #verify_sparse_to_dense([[[[0, 1, 4], [0, 2, 4]]]], [[[[3.1, 3.1, 3.1]]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
 
 if __name__ == "__main__":
     test_arange()
@@ -781,3 +833,4 @@ if __name__ == "__main__":
     test_isfinite()
     test_isinf()
     test_unravel_index()
+    test_sparse_to_dense()

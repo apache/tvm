@@ -33,6 +33,7 @@ from .common import ExprTable
 from .common import infer_shape as _infer_shape
 from .tflite_flexbuffer import FlexBufferDecoder
 
+
 __all__ = ['from_tflite']
 
 class TensorWrapper(object):
@@ -130,6 +131,7 @@ class OperatorConverter(object):
             'SOFTMAX': self.convert_softmax,
             'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
             'SPACE_TO_DEPTH': self.convert_space_to_depth,
+            'SPARSE_TO_DENSE': self.convert_sparse_to_dense,
             'SPLIT': self.convert_split,
             'SPLIT_V': self.convert_split_v,
             'SQRT': self.convert_sqrt,
@@ -2264,6 +2266,36 @@ class OperatorConverter(object):
         space_to_depth_options.Init(op_options.Bytes, op_options.Pos)
         block_size = space_to_depth_options.BlockSize()
         out = _op.nn.space_to_depth(in_expr, block_size, layout='NHWC')
+
+        return out
+
+    def convert_sparse_to_dense(self, op):
+        """Convert TFLite SPARSE_TO_DENSE"""
+        try:
+            from tflite.TensorType import TensorType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 4, "input tensors length should be 4"
+
+        indices, values = input_tensors[0], input_tensors[2]
+        default_value = input_tensors[3]
+        output_shape = input_tensors[1]
+
+        for t in input_tensors:
+            assert not t.qnn_params, "Quantized input is not expected."
+
+        for t in [indices, output_shape]:
+            t_type = t.tensor.Type()
+            assert t_type in (TensorType.INT32, TensorType.INT64)
+
+        out = _op.sparse_to_dense(
+            self.get_tensor_expr(indices),
+            list(self.get_tensor_value(output_shape)),
+            self.get_tensor_expr(values),
+            self.get_tensor_expr(default_value)
+        )
 
         return out
 

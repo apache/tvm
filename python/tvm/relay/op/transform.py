@@ -890,3 +890,34 @@ def unravel_index(indices, shape):
     """
 
     return _make.unravel_index(indices, shape)
+
+def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0):
+    """Converts a sparse representation into a dense tensor.
+
+    Example::
+    -   sparse_to_dense([[0, 0], [1, 1]], [2, 2], [3, 3], 0) = [[3, 0], [0, 3]]
+
+    Parameters
+    ----------
+    sparse_indices : relay.Expr
+        A 0-D, 1-D, or 2-D tensor of integers containing location of sparse values.
+
+    output_shape : relay.Expr
+        A list of integers. Shape of the dense output tensor.
+
+    sparse_values : relay.Expr
+        A 0-D or 1-D tensor containing the sparse values for the sparse indices.
+
+    default_value : relay.Expr
+        A 0-D tensor containing the default value for the remaining locations.
+        Defaults to 0.
+
+    Returns
+    -------
+    result : relay.Expr
+        Dense tensor of shape output_shape. Has the same type as sparse_values.
+    """
+
+    if default_value == 0:
+        default_value = const(0)
+    return _make.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
