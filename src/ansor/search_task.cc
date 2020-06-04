@@ -2,20 +2,23 @@
  *  Copyright (c) 2020 by Contributors
  */
 #include "search_task.h"
-#include <tvm/runtime/threading_backend.h>
-#include <tvm/runtime/registry.h>
+
 #include <tvm/runtime/device_api.h>
-#include <utility>
+#include <tvm/runtime/registry.h>
+#include <tvm/runtime/threading_backend.h>
+
 #include <string>
+#include <utility>
 
 namespace tvm {
 namespace ansor {
 
-TVM_REGISTER_OBJECT_TYPE(HardwareParamsNode);
-TVM_REGISTER_OBJECT_TYPE(SearchTaskNode);
+TVM_REGISTER_NODE_TYPE(HardwareParamsNode);
+TVM_REGISTER_NODE_TYPE(SearchTaskNode);
 
 HardwareParams HardwareParamsNode::make(int num_cores, int vector_unit_bytes,
-                                        int cache_line_bytes, int max_unroll_vec,
+                                        int cache_line_bytes,
+                                        int max_unroll_vec,
                                         int max_innermost_split_factor) {
   auto node = make_object<HardwareParamsNode>();
   node->num_cores = num_cores;
@@ -40,21 +43,19 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
     auto ctx = TVMContext{kDLGPU, 0};
     auto func = tvm::runtime::Registry::Get("device_api.gpu");
     CHECK(func != nullptr) << "Cannot find GPU device_api in registry";
-    auto device_api = static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
+    auto device_api =
+        static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
 
     tvm::runtime::TVMRetValue ret;
-    device_api->GetAttr(ctx,
-                        tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock,
-                        &ret);
+    device_api->GetAttr(
+        ctx, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
     p_hardware_params->max_shared_memory_per_block = ret;
 
-    device_api->GetAttr(ctx,
-                        tvm::runtime::DeviceAttrKind::kMaxRegistersPerBlock,
-                        &ret);
+    device_api->GetAttr(
+        ctx, tvm::runtime::DeviceAttrKind::kMaxRegistersPerBlock, &ret);
     p_hardware_params->max_registers_per_block = ret;
 
-    device_api->GetAttr(ctx,
-                        tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock,
+    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock,
                         &ret);
     p_hardware_params->max_threads_per_block = ret;
 
@@ -73,16 +74,15 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
     auto ctx = TVMContext{kDLOpenCL, 0};
     auto func = tvm::runtime::Registry::Get("device_api.opencl");
     CHECK(func != nullptr) << "Cannot find GPU device_api in registry";
-    auto device_api = static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
+    auto device_api =
+        static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
 
     tvm::runtime::TVMRetValue ret;
-    device_api->GetAttr(ctx,
-                        tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock,
-                        &ret);
+    device_api->GetAttr(
+        ctx, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
     p_hardware_params->max_shared_memory_per_block = ret;
 
-    device_api->GetAttr(ctx,
-                        tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock,
+    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock,
                         &ret);
     p_hardware_params->max_threads_per_block = ret;
 
@@ -99,9 +99,10 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
   return HardwareParams();
 }
 
-
-SearchTask SearchTaskNode::make(ComputeDAG compute_dag, std::string workload_key,
-    Target target, Target target_host, HardwareParams hardware_params) {
+SearchTask SearchTaskNode::make(ComputeDAG compute_dag,
+                                std::string workload_key, Target target,
+                                Target target_host,
+                                HardwareParams hardware_params) {
   auto node = make_object<SearchTaskNode>();
   node->compute_dag = std::move(compute_dag);
   node->workload_key = std::move(workload_key);
@@ -115,6 +116,23 @@ SearchTask SearchTaskNode::make(ComputeDAG compute_dag, std::string workload_key
   }
   return SearchTask(node);
 }
+
+TVM_REGISTER_GLOBAL("ansor.HardwareParams")
+    .set_body_typed([](int num_cores, int vector_unit_bytes,
+                       int cache_line_bytes, int max_unroll_vec,
+                       int max_innermost_split_factor) {
+      return HardwareParamsNode::make(num_cores, vector_unit_bytes,
+                                      cache_line_bytes, max_unroll_vec,
+                                      max_innermost_split_factor);
+    });
+
+TVM_REGISTER_GLOBAL("ansor.SearchTask")
+    .set_body_typed([](ComputeDAG compute_dag, std::string workload_key,
+                       Target target, Target target_host,
+                       HardwareParams hardware_params) {
+      return SearchTaskNode::make(compute_dag, workload_key, target,
+                                  target_host, hardware_params);
+    });
 
 }  // namespace ansor
 }  // namespace tvm

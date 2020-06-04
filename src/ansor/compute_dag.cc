@@ -588,15 +588,6 @@ ComputeDAG ComputeDAGNode::make_by_workload_key(const std::string& workload_key)
   return ComputeDAGNode::make(std::move(tens));
 }
 
-void ComputeDAGNode::VisitAttrs(tvm::AttrVisitor* v) {
-  v->Visit("tensors", &tensors);
-  v->Visit("ops", &ops);
-  v->Visit("flop_ct", &flop_ct);
-  v->Visit("access_analyzer", &access_analyzer);
-  State s = Downcast<State>(init_state);
-  v->Visit("init_state", &s);
-}
-
 // Implemented in multi_stage_policy.cc
 // Extract primitive iterators from a nested fused or splitted iterator's name
 extern void ExtractOriginalIterators(const std::string& name, std::set<std::string>* rets);
@@ -1166,9 +1157,6 @@ std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
   return std::make_pair(schedule, operator->()->tensors);
 }
 
-TVM_REGISTER_GLOBAL("ansor.ComputeDAG")
-.set_body_typed([](Array<te::Tensor> tensors) { return ComputeDAGNode::make(tensors); });
-
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<ComputeDAGNode>([](const ObjectRef& ref, ReprPrinter *p) {
   auto* node = static_cast<const ComputeDAGNode*>(ref.get());
@@ -1260,6 +1248,27 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
     }
   }
+});
+
+TVM_REGISTER_GLOBAL("ansor.ComputeDAG")
+.set_body_typed([](Array<te::Tensor> tensors) {
+  return ComputeDAGNode::make(tensors);
+});
+
+TVM_REGISTER_GLOBAL("ansor.ComputeDAGGetInitState")
+.set_body_method(&ComputeDAG::GetInitState);
+
+TVM_REGISTER_GLOBAL("ansor.ComputeDAGApplyStepsFromState")
+.set_body_typed([](const ComputeDAG& dag, const State& state) {
+  te::Schedule sch;
+  Array<te::Tensor> return_tensors;
+  std::tie(sch, return_tensors) = dag.ApplySteps(state->transform_steps);
+  return Array<ObjectRef>{sch, return_tensors};
+});
+
+TVM_REGISTER_GLOBAL("ansor.ComputeDAGPrintPythonCodeFromState")
+.set_body_typed([](const ComputeDAG& dag, const State& state) {
+  return dag.PrintStepsAsPython(state->transform_steps);
 });
 
 }  // namespace ansor

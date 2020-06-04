@@ -8,13 +8,16 @@
 #define TVM_ANSOR_SEARCH_TASK_H_
 
 #include <tvm/target/target.h>
+
 #include <string>
+
 #include "compute_dag.h"
 
 namespace tvm {
 namespace ansor {
 
-class HardwareParams; class SearchTask;
+class HardwareParams;
+class SearchTask;
 
 /*! \brief Hardware related parameters */
 class HardwareParamsNode : public Object {
@@ -54,11 +57,10 @@ class HardwareParamsNode : public Object {
   static HardwareParams GetDefaultHardwareParams(const Target& target,
                                                  const Target& target_host);
 
-  static constexpr const char *_type_key = "ansor.HardwareParams";
+  static constexpr const char* _type_key = "ansor.HardwareParams";
   TVM_DECLARE_FINAL_OBJECT_INFO(HardwareParamsNode, Object);
 };
 TVM_DEFINE_COW_NODE_REF(HardwareParams, ObjectRef, HardwareParamsNode);
-
 
 /*! \brief Meta-info for a search task */
 class SearchTaskNode : public Object {
@@ -81,7 +83,7 @@ class SearchTaskNode : public Object {
                          Target target, Target target_host,
                          HardwareParams hardware_params);
 
-  static constexpr const char *_type_key = "ansor.SearchTask";
+  static constexpr const char* _type_key = "ansor.SearchTask";
   TVM_DECLARE_FINAL_OBJECT_INFO(SearchTaskNode, Object);
 };
 TVM_DEFINE_COW_NODE_REF(SearchTask, ObjectRef, SearchTaskNode);

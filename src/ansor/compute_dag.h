@@ -93,7 +93,13 @@ class ComputeDAGNode : public Object {
   AccessAnalyzer access_analyzer;  // Read/Write accesss static analyzer
   ObjectRef init_state;     // initial states
 
-  void VisitAttrs(tvm::AttrVisitor* v);
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    LOG(INFO) << "ComputeDAG";
+    v->Visit("tensors", &tensors);
+    v->Visit("ops", &ops);
+    v->Visit("flop_ct", &flop_ct);
+    v->Visit("access_analyzer", &access_analyzer);
+  }
 
   static ComputeDAG make(Array<te::Tensor> tensors);
   static ComputeDAG make_by_workload_key(const std::string& workload_key);

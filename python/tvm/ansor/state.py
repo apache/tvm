@@ -25,21 +25,41 @@ from . import _ffi_api
 
 @tvm._ffi.register_object("ansor.Iterator")
 class Iterator(Object):
+    """ ...
+    """
     pass
 
 
 @tvm._ffi.register_object("ansor.Stage")
 class Stage(Object):
+    """ ...
+    """
 
     def iterator(self, index):
+        """
+        Parameters
+        ----------
+        index : Int
+
+        Returns
+        -------
+        iter : Iterator
+        """
         return _ffi_api.StageGetIterator(self, index)
 
     def iterators(self):
+        """
+        Returns
+        -------
+        iters : List[Iterator]
+        """
         return _ffi_api.StageGetIterators(self)
 
 
 @tvm._ffi.register_object("ansor.State")
 class State(Object):
+    """ ...
+    """
 
     def stage(self, index):
         """
@@ -93,10 +113,12 @@ class State(Object):
         -------
         state : State
             The updated state
+        res_its : List[Iterator]
+            The splited Iterators result
         """
-        state = _ffi_api.StateSplit(self, stage_id, it, lengths,
-                                    inner_to_outer)
-        return state
+        state, res_its = _ffi_api.StateSplit(self, stage_id, it, lengths,
+                                             inner_to_outer)
+        return state, res_its
 
     def follow_split(self, stage_id, it, src_step_id, n_split):
         """
@@ -115,10 +137,12 @@ class State(Object):
         -------
         state : State
             The updated state
+        res_its : List[Iterator]
+            The splited Iterators result
         """
-        state = _ffi_api.StateFollowSplit(self, stage_id, it, src_step_id,
-                                          n_split)
-        return state
+        state, res_its = _ffi_api.StateFollowSplit(self, stage_id, it,
+                                                   src_step_id, n_split)
+        return state, res_its
 
     def follow_fused_split(self, stage_id, it, src_step_ids, level,
                            factor_or_nparts):
@@ -140,10 +164,13 @@ class State(Object):
         -------
         state : State
             The updated state
+        res_its : List[Iterator]
+            The splited Iterators result
         """
-        state = _ffi_api.StateFollowFusedSplit(self, stage_id, it, src_step_ids,
-                                               level, factor_or_nparts)
-        return state
+        state, res_its = _ffi_api.StateFollowFusedSplit(self, stage_id, it,
+                                                        src_step_ids, level,
+                                                        factor_or_nparts)
+        return state, res_its
 
     def fuse(self, stage_id, iters):
         """
@@ -158,9 +185,11 @@ class State(Object):
         -------
         state : State
             The updated state
+        res_it : Iterator
+            The fused Iterator
         """
-        state = _ffi_api.StateFuse(self, stage_id, iters)
-        return state
+        state, res_it = _ffi_api.StateFuse(self, stage_id, iters)
+        return state, res_it
 
     def vectorize(self, stage_id, it):
         """
@@ -175,9 +204,11 @@ class State(Object):
         -------
         state : State
             The updated state
+        res_it : Iterator
+            The vectorized Iterator
         """
-        state = _ffi_api.StateVectorize(self, stage_id, it)
-        return state
+        state, res_it = _ffi_api.StateVectorize(self, stage_id, it)
+        return state, res_it
 
     def parallel(self, stage_id, it):
         """
@@ -192,9 +223,11 @@ class State(Object):
         -------
         state : State
             The updated state
+        res_it : Iterator
+            The paralleled Iterator
         """
-        state = _ffi_api.StateParallel(self, stage_id, it)
-        return state
+        state, res_it = _ffi_api.StateParallel(self, stage_id, it)
+        return state, res_it
 
     def unroll(self, stage_id, it, max_unroll=-1):
         """
@@ -210,9 +243,11 @@ class State(Object):
         -------
         state : State
             The updated state
+        res_it : Iterator
+            The unrolled Iterator
         """
-        state = _ffi_api.StateUnroll(self, stage_id, it, max_unroll)
-        return state
+        state, res_it = _ffi_api.StateUnroll(self, stage_id, it, max_unroll)
+        return state, res_it
 
     def bind_thread(self, stage_id, it, thread_type):
         """
@@ -229,9 +264,12 @@ class State(Object):
         -------
         state : State
             The updated state
+        res_it : Iterator
+            The thread binded Iterator
         """
-        state = _ffi_api.StateBindThread(self, stage_id, it, thread_type)
-        return state
+        state, res_it = _ffi_api.StateBindThread(self, stage_id, it,
+                                                 thread_type)
+        return state, res_it
 
     def compute_at(self, stage_id, target_stage_id, target_iter):
         """
@@ -311,10 +349,12 @@ class State(Object):
         -------
         state : State
             The updated state
+        new_stage_id : Int
+            The added staged id
         """
-        state = _ffi_api.StateCacheRead(self, stage_id, scope_name,
-                                        reader_stage_ids, task_dag)
-        return state
+        state, new_stage_id = _ffi_api.StateCacheRead(self, stage_id,
+                                                      scope_name, reader_stage_ids, task_dag)
+        return state, int(new_stage_id)
 
     def cache_write(self, stage_id, scope_name, task_dag):
         """
@@ -329,9 +369,12 @@ class State(Object):
         -------
         state : State
             The updated state
+        new_stage_id : Int
+            The added staged id
         """
-        state = _ffi_api.StateCacheWrite(self, stage_id, scope_name, task_dag)
-        return state
+        state, new_stage_id = _ffi_api.StateCacheWrite(self, stage_id,
+                                                       scope_name, task_dag)
+        return state, int(new_stage_id)
 
     def pragma(self, stage_id, it, pragma_type):
         """

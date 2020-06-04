@@ -73,26 +73,26 @@ def test_state_split_fuse_reorder():
 
     assert ti.range.extent == 512
 
-    s0 = s0.split(2, ti, [16])
+    s0, its = s0.split(2, ti, [16])
+    tio = its[0]
+    tii = its[1]
     assert s0.stage(2).iterator(0).range.extent == 32
     assert s0.stage(2).iterator(1).range.extent == 16
-    tio = s0.stage(2).iterator(0)
-    tii = s0.stage(2).iterator(1)
 
-    s0 = s0.split(2, tj, [8])
+    s0, its = s0.split(2, tj, [8])
+    tjo = its[0]
+    tji = its[1]
     assert s0.stage(2).iterator(2).range.extent == 64
     assert s0.stage(2).iterator(3).range.extent == 8
-    tjo = s0.stage(2).iterator(2)
-    tji = s0.stage(2).iterator(3)
 
     s0 = s0.reorder(2, [tio, tjo, tk, tji, tii])
     assert s0.stage(2).iterator(2).range.extent == 512
 
-    s0 = s0.fuse(2, [tio, tjo])
-    assert s0.stage(2).iterator(0).range.extent == 2048
+    s0, res_it = s0.fuse(2, [tio, tjo])
+    assert res_it.range.extent == 2048
 
-    s1 = s1.split(2, ti, [8, 2])
-    s1 = s1.split(2, tj, [32, 8], False)
+    s1, _ = s1.split(2, ti, [8, 2])
+    s1, _ = s1.split(2, tj, [32, 8], False)
     assert s1.stage(2).iterator(0).range.extent == 32
     assert s1.stage(2).iterator(1).range.extent == 8
     assert s1.stage(2).iterator(2).range.extent == 2
@@ -186,22 +186,19 @@ def test_state_cache_read_write():
     # 0: init state
     s0 = dag.get_init_state()
     ori_its = s0.stage(add).iterators()
-    s0 = s0.split(add, s0.stage(add).iterator(0), [2])
-    s0 = s0.reorder(add, [s0.stage(add).iterator(0), ori_its[1],
-                          s0.stage(add).iterator(1), ori_its[2], ori_its[3]])
+    s0, its = s0.split(add, s0.stage(add).iterator(0), [2])
+    s0 = s0.reorder(add, [its[0], ori_its[1], its[1], ori_its[2], ori_its[3]])
     s0 = s0.compute_inline(relu)
 
     # 1: simple cache_write with compute_at
-    s0 = s0.cache_write(conv, "global", dag)
-    conv_global = conv
+    s0, conv_global = s0.cache_write(conv, "global", dag)
     conv += 1
     relu += 1
     add += 1
     s0 = s0.compute_at(conv_global, conv, s0.stage(conv).iterator(3))
 
     # 2: simple cache_read with compute_at
-    s0 = s0.cache_read(kernel, "global", [conv_global], dag)
-    kernel_global = kernel + 1
+    s0, kernel_global = s0.cache_read(kernel, "global", [conv_global], dag)
     conv_global += 1
     conv += 1
     relu += 1
@@ -252,8 +249,7 @@ def test_state_cache_read_write():
 
     # 3: two level cache_read with compute_at
     #    preparing for GPU's shared memory & local memory
-    s0 = s0.cache_read(pad_temp, "global", [conv_global], dag)
-    pad_temp_global = pad_temp + 1
+    s0, pad_temp_global = s0.cache_read(pad_temp, "global", [conv_global], dag)
     kernel_data += 1
     kernel_split += 1
     kernel += 1
@@ -262,8 +258,8 @@ def test_state_cache_read_write():
     conv += 1
     relu += 1
     add += 1
-    s0 = s0.cache_read(pad_temp_global, "shared", [conv_global], dag)
-    pad_temp_shared = pad_temp_global + 1
+    s0, pad_temp_shared = s0.cache_read(
+        pad_temp_global, "shared", [conv_global], dag)
     kernel_data += 1
     kernel_split += 1
     kernel += 1
@@ -279,7 +275,7 @@ def test_state_cache_read_write():
 
     # 4: cache_read with multi readers
     #    This stage cannot be compute at to its consumer
-    s0 = s0.cache_read(data, "global", [pad_temp, add], dag)
+    s0, data_global = s0.cache_read(data, "global", [pad_temp, add], dag)
     pad_temp += 1
     pad_temp_global += 1
     pad_temp_shared += 1
@@ -350,7 +346,7 @@ def test_state_cache_read_write():
 
     # 5: cache_write with multi outputs
     # See tests/cpp/ansor_test.cc for more information
-    s0 = s0.cache_write(kernel_split, "global", dag)
+    s0, _ = s0.cache_write(kernel_split, "global", dag)
     assert str(s0) == \
         "Placeholder: Data, Kernel_data\n" + \
         "for ax0 (0,4)\n" + \
@@ -424,46 +420,88 @@ def test_follow_split_follow_fused_split():
     s0 = dag.get_init_state()
     C = 2
 
-    s0 = s0.cache_write(C, "global", dag)
-    C_global = C
+    s0, C_global = s0.cache_write(C, "global", dag)
     C += 1
 
-    s0 = s0.split(C, s0.stage(C).iterator(0), [4, 2, 8, 4], True)
+    s0, its0 = s0.split(C, s0.stage(C).iterator(0), [4, 2, 8, 4], True)
     split_step0 = s0.transform_steps_size() - 1
     for level in range(1, 6):
         tmp = s0
-        tmp = tmp.follow_split(C_global, tmp.stage(
+        tmp, _ = tmp.follow_split(C_global, tmp.stage(
             C_global).iterator(0), split_step0, level)
         for i in range(0, level):
             assert tmp.stage(C).iterator(i).range.extent == \
                 tmp.stage(C_global).iterator(i).range.extent
 
-    s0 = s0.split(C, s0.stage(C).iterator(5), [2, 2, 4, 8])
+    s0, its1 = s0.split(C, s0.stage(C).iterator(5), [2, 2, 4, 8])
     split_step1 = s0.transform_steps_size() - 1
-    its = s0.stage(C).iterators()
-    s0 = s0.reorder(C, [its[0], its[5], its[1], its[6], its[2], its[7],
-                        its[3], its[8], its[4], its[9]])
-    s0 = s0.fuse(C, [s0.stage(C).iterator(0), s0.stage(C).iterator(1)])
-    s0 = s0.fuse(C, [s0.stage(C).iterator(1), s0.stage(C).iterator(2)])
-    s0 = s0.fuse(C, [s0.stage(C).iterator(2), s0.stage(C).iterator(3)])
-    s0 = s0.fuse(C, [s0.stage(C).iterator(3), s0.stage(C).iterator(4)])
-    s0 = s0.fuse(C, [s0.stage(C).iterator(4), s0.stage(C).iterator(5)])
+    its = []
+    for i0, i1 in zip(its0, its1):
+        its.append(i0)
+        its.append(i1)
+    s0 = s0.reorder(C, its)
+    for i in range(0, 5):
+        s0, _ = s0.fuse(C, [s0.stage(C).iterator(i),
+                            s0.stage(C).iterator(i+1)])
     for level in range(0, 4):
         tmp = s0
-        tmp = tmp.follow_fused_split(C_global, tmp.stage(C_global).iterator(0),
-                                     [split_step0, split_step1], level, False)
+        tmp, _ = tmp.follow_fused_split(C_global, tmp.stage(C_global).iterator(0),
+                                        [split_step0, split_step1], level, False)
         assert tmp.stage(C).iterator(level+1).range.extent == \
             tmp.stage(C_global).iterator(0).range.extent
     for level in range(0, 4):
         tmp = s0
-        tmp = tmp.follow_fused_split(C_global, tmp.stage(C_global).iterator(0),
-                                     [split_step0, split_step1], level, True)
+        tmp, _ = tmp.follow_fused_split(C_global, tmp.stage(C_global).iterator(0),
+                                        [split_step0, split_step1], level, True)
         assert tmp.stage(C).iterator(level+1).range.extent == \
             tmp.stage(C_global).iterator(1).range.extent
 
 
 def test_rfactor():
     pass
+
+
+def test_measure_local_builder_runner():
+    dag = ansor.ComputeDAG(matmul_nkkm(512, 512, 512))
+
+    s0 = dag.get_init_state()
+    A, B, C = 0, 1, 2
+    s0, C_global = s0.cache_write(C, "global", dag)
+    C += 1
+    s0, its0 = s0.split(C, s0.stage(C).iterator(0), [4, 8, 8])
+    s0, its1 = s0.split(C, s0.stage(C).iterator(4), [8, 4, 4])
+    s0 = s0.reorder(C, [its0[0], its1[0], its0[1], its1[1], its0[2], its1[2],
+                        its0[3], its1[3]])
+    s0 = s0.compute_at(C_global, C, s0.stage(C).iterator(3))
+    s0, _ = s0.split(C_global, s0.stage(C_global).iterator(2), [16])
+    s0, B_global = s0.cache_read(B, "global", [C_global], dag)
+    C += 1
+    C_global += 1
+    s0 = s0.compute_at(B_global, C_global, s0.stage(C_global).iterator(0))
+    s0, A_global = s0.cache_read(A, "global", [C_global], dag)
+    B += 1
+    B_global += 1
+    C += 1
+    C_global += 1
+    s0 = s0.compute_at(A_global, C_global, s0.stage(C_global).iterator(2))
+
+    tgt = tvm.target.create("llvm")
+    task = ansor.SearchTask(dag, "test", tgt)
+
+    minp = ansor.MeasureInput(task, s0)
+    local_builder = ansor.LocalBuilder()
+    local_runner = ansor.LocalRunner()
+
+    bress = local_builder.build([minp])
+    assert bress[0].error_no == 0
+    mress = local_runner.run([minp], bress)
+    assert mress[0].error_no == 0
+
+
+def test_search_basic():
+    dag = ansor.ComputeDAG(matmul_nkkm(512, 512, 512))
+    tgt = tvm.target.create("llvm")
+    task = ansor.SearchTask(dag, "test", tgt)
 
 
 if __name__ == "__main__":
@@ -473,3 +511,5 @@ if __name__ == "__main__":
     test_state_cache_read_write()
     test_follow_split_follow_fused_split()
     test_rfactor()
+    test_measure_local_builder_runner()
+    # test_search_basic()

@@ -18,3 +18,5 @@
 """Namespace for Ansor autoSchedule"""
 
 from .compute_dag import ComputeDAG
+from .task import SearchTask
+from .measure import MeasureInput, LocalBuilder, LocalRunner

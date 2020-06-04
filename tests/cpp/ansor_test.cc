@@ -242,15 +242,15 @@ TEST(Step, SplitFuseReorder) {
   CHECK_EQ(s1->stages[2]->iters[0]->range->extent.as<IntImmNode>()->value, 512);
 
   its = s0.split(2, ti, {16});
+  Iterator tio = its[0], tii = its[1];
   CHECK_EQ(s0->stages[2]->iters[0]->range->extent.as<IntImmNode>()->value, 32);
   CHECK_EQ(s0->stages[2]->iters[1]->range->extent.as<IntImmNode>()->value, 16);
 
-  Iterator tio = its[0], tii = its[1];
   its = s0.split(2, tj, {8});
+  Iterator tjo = its[0], tji = its[1];
   CHECK_EQ(s0->stages[2]->iters[2]->range->extent.as<IntImmNode>()->value, 64);
   CHECK_EQ(s0->stages[2]->iters[3]->range->extent.as<IntImmNode>()->value, 8);
 
-  Iterator tjo = its[0], tji = its[1];
   s0.reorder(2, {tio, tjo, tk, tji, tii});
   CHECK_EQ(s0->stages[2]->iters[2]->range->extent.as<IntImmNode>()->value, 512);
 
