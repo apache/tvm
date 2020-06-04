@@ -145,6 +145,24 @@ def test_global_var():
     }
     tvar = tvm.ir.load_json(json.dumps(data))
     assert isinstance(tvar, tvm.ir.GlobalVar)
+    nodes = [
+        {"type_key": ""},
+        {"type_key": "GlobalVar",
+         "attrs": {
+             "_checked_type_": "0",
+             "name_hint": "x",
+             "span": "0"
+         }
+        }
+    ]
+    data = {
+        "root" : 1,
+        "nodes": nodes,
+        "attrs": {"tvm_version": "0.6.0"},
+        "b64ndarrays": [],
+    }
+    tvar = tvm.ir.load_json(json.dumps(data))
+    assert isinstance(tvar, tvm.ir.GlobalVar)
 
 
 def test_op():
