@@ -95,7 +95,7 @@ def test_simple():
     solution = arith.solve_linear_inequalities([
         tvm.tir.LE(x + y, 20),
         tvm.tir.GE(x - y, 10),
-    ], [x, y], ranges)
+    ], [x, y], ranges, deskew_range=True)
 
     print(solution)
 
@@ -115,7 +115,7 @@ def test_simple():
     assert ir.structural_equal(solution.dst_to_src[x_new], x - y - 10)
     assert ir.structural_equal(solution.dst_to_src[y_new], y)
 
-    sol = arith.solve_linear_inequalities2([
+    sol = arith.solve_linear_inequalities([
         tvm.tir.LE(x + y, 20),
         tvm.tir.GE(x - y, 10),
     ], [x, y], ranges)
@@ -133,29 +133,40 @@ def test_equal():
 
     print(solution)
 
-    sol = arith.solve_linear_inequalities2([
+    sol = arith.solve_linear_inequalities([
         tvm.tir.GE(x + y, 10),
         tvm.tir.GE(x - y, 2),
         tvm.tir.LE(x, 6),
-    ], [x, y])
+    ], [x, y], deskew_range=True)
     print(sol)
 
 
 def test_multi_equal():
-    x, y = te.var("x"), te.var("y")
+    x, y, z = te.var("x"), te.var("y"), te.var("z")
 
     solution = arith.solve_linear_inequalities([
         tvm.tir.LE(x, 6),
         tvm.tir.GE(x, 6),
-        tvm.tir.GE(x - 2 * y, 0),
-        tvm.tir.LE(x - 2 * y, 0),
-    ], [x, y])
+        tvm.tir.GE(x - z * y, 0),
+        tvm.tir.LE(x - z * y, 0),
+    ], [x, y, z], deskew_range=True)
 
     print(solution)
+    # TODO: should it be y & z ?
+    assert ir.structural_equal(solution.src_to_dst[y], y)
+    assert ir.structural_equal(solution.src_to_dst[z], z)
+    assert ir.structural_equal(solution.src_to_dst[x], 6)
+
+    print(arith.solve_linear_inequalities([
+        tvm.tir.LE(x, 6),
+        tvm.tir.GE(x, 6),
+        tvm.tir.GE(x - z * y, 0),
+        tvm.tir.LE(x - z * y, 0),
+    ], [x, y, z]))
 
 
 if __name__ == "__main__":
     # test_solve_system_of_inequalities()
     test_simple()
     test_equal()
-    # test_multi_equal()
+    test_multi_equal()

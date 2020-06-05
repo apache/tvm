@@ -44,17 +44,59 @@ namespace arith {
 using namespace tvm::runtime;
 using namespace tvm::te;
 
-/*
+#define PLUS_ONE(OP)                    \
+  void VisitExpr_(const OP* op) final { \
+    num_symbol++;                       \
+  }
+
+#define PLUS_ONE_BINARY(OP)             \
+  void VisitExpr_(const OP* op) final { \
+    num_symbol++;                       \
+    VisitExpr(op->a);                   \
+    VisitExpr(op->b);                   \
+  }
+
+class ExprComplexity : public ExprVisitor {
+ public:
+  size_t Eval(const PrimExpr& expr) {
+    VisitExpr(expr);
+    return num_symbol;
+  }
+
+  PLUS_ONE_BINARY(AddNode)
+  PLUS_ONE_BINARY(SubNode)
+  PLUS_ONE_BINARY(MulNode)
+  PLUS_ONE_BINARY(DivNode)
+  PLUS_ONE_BINARY(ModNode)
+  PLUS_ONE_BINARY(FloorDivNode)
+  PLUS_ONE_BINARY(FloorModNode)
+  PLUS_ONE_BINARY(MinNode)
+  PLUS_ONE_BINARY(MaxNode)
+  PLUS_ONE_BINARY(EQNode)
+  PLUS_ONE_BINARY(NENode)
+  PLUS_ONE_BINARY(LTNode)
+  PLUS_ONE_BINARY(LENode)
+  PLUS_ONE_BINARY(GTNode)
+  PLUS_ONE_BINARY(GENode)
+  PLUS_ONE_BINARY(AndNode)
+  PLUS_ONE_BINARY(OrNode)
+  PLUS_ONE(VarNode)
+  PLUS_ONE(FloatImmNode)
+  PLUS_ONE(IntImmNode)
+  void VisitExpr_(const NotNode* op) final {
+    num_symbol++;
+    VisitExpr(op->a);
+  }
+
+ private:
+  size_t num_symbol{0};
+};
+
 struct ExprLess {
   bool operator()(const PrimExpr& l, const PrimExpr& r) const {
-    // FIXME:
-    // After https://github.com/apache/incubator-tvm/pull/5206
-    // we no longer have ExprLess,
-    // it was comparing VarNode* raw pointers
-    return Compare(l, r) < 0;
+    return ExprComplexity().Eval(l) < ExprComplexity().Eval(r);
   }
 };
-*/
 
 /*!
  * \brief Combine the information into an array of (in)equalities.
@@ -161,12 +203,12 @@ void AddInequality(std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>
   inequality_set.insert(new_ineq);
 }
 
-void ClassifyByPolarity(const Var &var,
-                        std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> &current_ineq_set,
-                        std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> &next_ineq_set,
-                        std::vector<PrimExpr> &rest,
-                        std::vector<std::pair<int64_t, PrimExpr> > &coef_pos,
-                        std::vector<std::pair<int64_t, PrimExpr> > &coef_neg,
+void ClassifyByPolarity(const Var& var,
+                        std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>& current_ineq_set,
+                        std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>& next_ineq_set,
+                        std::vector<PrimExpr>& rest,
+                        std::vector<std::pair<int64_t, PrimExpr> >& coef_pos,
+                        std::vector<std::pair<int64_t, PrimExpr> >& coef_neg,
                         Analyzer &analyzer) {
   // Take formulas from current_ineq_set and classify them according to polarity wrt var
   // and store to coef_pos and coef_neg respectively.
@@ -278,7 +320,13 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
       coef_pos.push_back({1, -range_ubound});
     }
 
-    ClassifyByPolarity(v, current_ineq_set_to_solve, next_ineq_set_to_solve, rest, coef_pos, coef_neg, analyzer);
+    ClassifyByPolarity(v,
+                       current_ineq_set_to_solve,
+                       next_ineq_set_to_solve,
+                       rest,
+                       coef_pos,
+                       coef_neg,
+                       analyzer);
 
     DebugPrint(current_ineq_set_to_solve,
                next_ineq_set_to_solve,
@@ -364,11 +412,13 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> equal;
     equal.reserve(std::min(upper_bounds.size(), lower_bounds.size()));
     MoveEquality(upper_bounds, lower_bounds, equal);
+    std::vector<PrimExpr> equal_list(equal.begin(), equal.end());
+    std::sort(equal_list.begin(), equal_list.end(), ExprLess());
 
     // Write it to the result.
     IntGroupedBounds bnds(make_const(v.dtype(), coef_lcm),
         Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end()),
-        Array<PrimExpr>(equal.begin(), equal.end()),
+        Array<PrimExpr>(equal_list.begin(), equal_list.end()),
         Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end())
     );
     res_bounds.Set(v, bnds);
@@ -444,8 +494,10 @@ IntConstraints SolveInequalitiesRange(const IntConstraints& inequalities) {
       auto best_range = bnd.FindBestRange(vranges);
       LOG(INFO) << "best range for " << var << " = " << best_range;
 
-      res_ranges.Set(var, best_range);
-      vranges.Set(var, best_range);
+      if (best_range.defined()) {
+        res_ranges.Set(var, best_range);
+        vranges.Set(var, best_range);
+      }
     }
   }
 
@@ -500,7 +552,6 @@ IntConstraintsTransform DeskewRange(const IntConstraints& inequalities) {
       // There is an equation of the form `v == expr`, so this variable can be completely removed.
       // Note that we use the 0-th expression because they are ordered by complexity, so it must be
       // the simplest one.
-      // TODO
       res_old_to_new.Set(var, bnd->equal[0]);
     } else {
       if (vranges.count(var) > 0) {
@@ -512,8 +563,11 @@ IntConstraintsTransform DeskewRange(const IntConstraints& inequalities) {
 
       std::string suffix = ".shifted";
       Var new_var = var.copy_with_suffix(suffix);
-
-      if (is_const_int(best_range->extent, 1)) {
+      if (!best_range.defined()) {
+        res_old_to_new.Set(var, var);
+        res_new_to_old.Set(var, var);
+        res_variables.push_back(var);
+      } else if (is_const_int(best_range->extent, 1)) {
         // Don't create an itervar, just replace it everywhere with its min
         res_old_to_new.Set(var, best_range->min);
       } else {

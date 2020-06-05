@@ -131,13 +131,8 @@ def solve_linear_equations(equations, variables=None, ranges=None):
     return _ffi_api.SolveLinearEquations(variables, ranges, equations)
 
 
-def solve_linear_inequalities(equations, variables=None, ranges=None):
+def solve_linear_inequalities(equations, variables=None, ranges=None, deskew_range=False):
+    solver = _ffi_api.DeskewRange if deskew_range else _ffi_api.SolveInequalitiesRange
     if isinstance(equations, IntConstraints):
-        return _ffi_api.DeskewRange(equations)
-    return _ffi_api.DeskewRange(variables, ranges, equations)
-
-
-def solve_linear_inequalities2(equations, variables=None, ranges=None):
-    if isinstance(equations, IntConstraints):
-        return _ffi_api.SolveInequalitiesRange(equations)
-    return _ffi_api.SolveInequalitiesRange(variables, ranges, equations)
+        return solver(equations)
+    return solver(variables, ranges, equations)
