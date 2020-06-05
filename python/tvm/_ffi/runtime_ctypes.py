@@ -30,7 +30,7 @@ class TypeCode(object):
     FLOAT = 2
     HANDLE = 3
     BFLOAT = 4
-    NULL = 21
+    NULL = 4
     TVM_TYPE = 5
     TVM_CONTEXT = 6
     DLTENSOR_HANDLE = 7
