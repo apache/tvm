@@ -196,7 +196,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     //
     // Allocate reduction vars v[i], i = 0..size-1
     //
-    // for offset from 16 to 1 by 2
+    // for offset from WARP_SIZE to 1 by 2
     //
     //   a    <- load(v[i])
     //   b    <- shuffle_down(load(v[i], offset))
@@ -244,7 +244,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       }
 
       // Emit reductions within a warp.
-      for (int offset = 16; offset > 0; offset /= 2) {
+      for (int offset = warp_size_ / 2; offset > 0; offset /= 2) {
         // Load reduction values, no synchronization needed.
         Array<PrimExpr> a, b;
         for (size_t i = 0; i < size; ++i) {
@@ -478,9 +478,20 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   // the warp size.
   //
   // TODO(tvm-team) reduction with a sub-warp of 8 or 16 threads.
+  // Note: The ROCm backend will only have warp reductions for now.
+  // Also, the warp/wavefront size differs (64 on rocm, 32 on cuda).
   bool is_warp_reduction(const std::vector<DataType>& types) const {
     // Only cuda target supports warp reductions.
-    if (target_->target_name != "cuda") return false;
+    if ((target_->target_name != "cuda") && (target_->target_name != "rocm")) return false;
+
+    // rocm only supports 32 bit operands for shuffling at the moment
+    if ((target_->target_name == "rocm") &&
+        (std::any_of(types.begin(), types.end(), [](DataType ty) {
+          if (ty.is_vector()) return true;
+          return ty.bits() != 32;
+        }))) {
+      return false;
+    }
 
     // Supported types:
     // {u}int, {u}long, {u}long long, float, double, half/half2
