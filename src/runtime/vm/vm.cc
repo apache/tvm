@@ -261,22 +261,22 @@ Instruction::~Instruction() {
     case Opcode::Fatal:
       return;
     case Opcode::AllocTensor:
-      delete this->alloc_tensor.shape;
+      delete[] this->alloc_tensor.shape;
       return;
     case Opcode::AllocADT:
-      delete this->datatype_fields;
+      delete[] this->datatype_fields;
       return;
     case Opcode::AllocClosure:
-      delete this->free_vars;
+      delete[] this->free_vars;
       return;
     case Opcode::InvokePacked:
-      delete this->packed_args;
+      delete[] this->packed_args;
       return;
     case Opcode::InvokeClosure:
-      delete this->closure_args;
+      delete[] this->closure_args;
       return;
     case Opcode::Invoke:
-      delete this->invoke_args_registers;
+      delete[] this->invoke_args_registers;
       return;
     default:
       std::ostringstream out;
