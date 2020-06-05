@@ -536,11 +536,11 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   /*! \brief String stream for function name */
   std::ostringstream readable_name_stream_;
   /*! \brief Map from parameter to its shape function usage state */
-  std::unordered_map<Expr, int, ObjectHash, ObjectEqual> param_states_;
+  std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> param_states_;
   /*! \brief Map from parameter to list of data placeholder */
-  std::unordered_map<Expr, Array<te::Tensor>, ObjectHash, ObjectEqual> param_data_;
+  std::unordered_map<Expr, Array<te::Tensor>, ObjectPtrHash, ObjectPtrEqual> param_data_;
   /*! \brief Map from parameter to list of shape placeholder */
-  std::unordered_map<Expr, Array<te::Tensor>, ObjectHash, ObjectEqual> param_shapes_;
+  std::unordered_map<Expr, Array<te::Tensor>, ObjectPtrHash, ObjectPtrEqual> param_shapes_;
   /*! \brief Stack of data dependencies for shape function */
   std::vector<bool> data_dependants_;
   /*! \brief Scalars used in the shape function */

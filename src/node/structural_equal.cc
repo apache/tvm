@@ -216,9 +216,9 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
   // reflection vtable
   ReflectionVTable* vtable_ = ReflectionVTable::Global();
   // map from lhs to rhs
-  std::unordered_map<ObjectRef, ObjectRef, ObjectHash, ObjectEqual> equal_map_lhs_;
+  std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_lhs_;
   // map from rhs to lhs
-  std::unordered_map<ObjectRef, ObjectRef, ObjectHash, ObjectEqual> equal_map_rhs_;
+  std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_rhs_;
 };
 
 TVM_REGISTER_GLOBAL("node.StructuralEqual")

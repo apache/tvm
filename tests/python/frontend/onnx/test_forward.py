@@ -65,7 +65,7 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
 
     mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
 
-    with relay.build_config(opt_level=1):
+    with tvm.transform.PassContext(opt_level=1):
         graph, lib, params = relay.build(mod,
                                          target,
                                          params=params)
@@ -1364,125 +1364,71 @@ def test_pad():
         np.float32), [0, 0, 1, 1, 0, 0, 1, 1], 'reflect')
 
 
-def verify_reduce_x(name, indata, axis, keepdims):
-    indata = np.array(indata).astype(np.float32)
-    #  numpy expect result
-    if name == 'ReduceMax':
-        outdata = np.maximum.reduce(indata, axis=axis, keepdims=keepdims == 1)
-    elif name == 'ReduceMin':
-        outdata = np.minimum.reduce(indata, axis=axis, keepdims=keepdims == 1)
-    elif name == 'ReduceSum':
-        outdata = np.sum(indata, axis=axis, keepdims=keepdims == 1)
-    elif name == 'ReduceMean':
-        outdata = np.mean(indata, axis=axis, keepdims=keepdims == 1)
-    elif name == 'ReduceLogSumExp':
-        def _np_log_sum_exp(x, axis, keepdims=False):
-            max_x = np.max(x, axis=axis, keepdims=True)
-            x = np.log(np.sum(np.exp(x - max_x), axis=axis, keepdims=True))
-            x = x + max_x
-            if not keepdims:
-                x = np.squeeze(x, axis=axis)
-            return x
-        outdata = _np_log_sum_exp(indata, axis=axis, keepdims=keepdims == 1)
+def verify_reduce_func(func, data, axis, keepdims):
+    inshape = data.shape
+    outshape = np.sum(data, axis=axis, keepdims=keepdims == 1).shape
+
+    if axis:
+        node = onnx.helper.make_node(func,
+                                     inputs=['x'],
+                                     outputs=['y'],
+                                     axes=axis,
+                                     keepdims=keepdims)
     else:
-        raise Exception('unsupport op: {}'.format(name))
-    if len(np.asarray(outdata).shape) == 0:
-        outdata = np.asarray([outdata])
-    #  onnx graph
-    if axis is None:
-        node = helper.make_node(name, inputs=['input'], outputs=['output'],
-                                keepdims=keepdims)
-    else:
-        node = helper.make_node(name, inputs=['input'], outputs=['output'],
-                                axes=axis, keepdims=keepdims)
+        node = onnx.helper.make_node(func,
+                                     inputs=['x'],
+                                     outputs=['y'],
+                                     keepdims=keepdims)
+
     graph = helper.make_graph([node],
-                              '{}_test'.format(name),
-                              inputs=[helper.make_tensor_value_info("input",
-                                                                    TensorProto.FLOAT, list(indata.shape))],
-                              outputs=[helper.make_tensor_value_info("output",
-                                                                     TensorProto.FLOAT, list(outdata.shape))])
-    model = helper.make_model(graph, producer_name='{}_test'.format(name))
-    #  tvm result
+                              "reduce_test",
+                              inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(inshape))],
+                              outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(outshape))])
+
+    model = helper.make_model(graph, producer_name='reduce_test')
+
+    onnx_out = get_onnxruntime_output(model, data, 'float32')
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(
-            model, indata, target, ctx, outdata.shape, 'float32')
-    tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm_out = get_tvm_output(model, data, target, ctx, outshape, 'float32')
+        tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
+def test_all_reduce_funcs():
+    funcs = ["ReduceMax",
+             "ReduceMean",
+             "ReduceMin",
+             "ReduceProd",
+             "ReduceSum",
+             'ReduceSumSquare',
+             "ReduceLogSum",
+             "ReduceLogSumExp",
+             "ReduceL1",
+             "ReduceL2"]
 
-def test_reduce_max():
-    verify_reduce_x("ReduceMax",
-                    np.random.randn(3, 2, 2).astype(np.float32),
-                    axis=None, keepdims=1)
-    verify_reduce_x("ReduceMax",
-                    np.random.randn(3, 2, 3).astype(np.float32),
-                    axis=None, keepdims=0)
-    verify_reduce_x("ReduceMax",
-                    np.random.randn(3, 3, 3).astype(np.float32),
-                    axis=(1,), keepdims=1)
+    for func in funcs:
+        for keepdims in [True, False]:
+            verify_reduce_func(func,
+                               np.random.randn(3, 2, 2).astype(np.float32),
+                               axis=None, keepdims=keepdims)
 
+            verify_reduce_func(func,
+                               np.random.randn(3, 2, 3).astype(np.float32),
+                               axis=None, keepdims=keepdims)
 
-def test_reduce_min():
-    verify_reduce_x("ReduceMin",
-                    np.random.randn(3, 2, 2).astype(np.float32),
-                    axis=None, keepdims=1)
-    verify_reduce_x("ReduceMin",
-                    np.random.randn(3, 2, 3).astype(np.float32),
-                    axis=None, keepdims=0)
-    verify_reduce_x("ReduceMin",
-                    np.random.randn(3, 3, 3).astype(np.float32),
-                    axis=(1,), keepdims=1)
+            verify_reduce_func(func,
+                               np.random.randn(3, 3, 3).astype(np.float32),
+                               axis=(1,), keepdims=keepdims)
 
+            verify_reduce_func(func,
+                               np.random.randn(3, 3, 3, 1).astype(np.float32),
+                               axis=(1, 2), keepdims=keepdims)
 
-def test_reduce_sum():
-    verify_reduce_x("ReduceSum",
-                    np.random.randn(3, 2, 2).astype(np.float32),
-                    axis=None, keepdims=1)
-    verify_reduce_x("ReduceSum",
-                    np.random.randn(3, 2, 3).astype(np.float32),
-                    axis=None, keepdims=0)
-    verify_reduce_x("ReduceSum",
-                    np.random.randn(3, 3, 3).astype(np.float32),
-                    axis=(1,), keepdims=1)
+            verify_reduce_func(func,
+                               np.random.randn(3, 3, 3, 1).astype(np.float32),
+                               axis=(1,), keepdims=keepdims)
 
-
-def test_reduce_mean():
-    verify_reduce_x("ReduceMean",
-                    np.random.randn(3, 2, 2).astype(np.float32),
-                    axis=None, keepdims=1)
-    verify_reduce_x("ReduceMean",
-                    np.random.randn(3, 2, 3).astype(np.float32),
-                    axis=None, keepdims=0)
-    verify_reduce_x("ReduceMean",
-                    np.random.randn(3, 3, 3).astype(np.float32),
-                    axis=(1,), keepdims=1)
-
-
-def test_reduce_logsumexp():
-
-    for keepdims in [True, False]:
-        verify_reduce_x("ReduceLogSumExp",
-                        np.random.randn(3, 2, 2).astype(np.float32),
-                        axis=None, keepdims=keepdims)
-
-        verify_reduce_x("ReduceLogSumExp",
-                        np.random.randn(3, 2, 3).astype(np.float32),
-                        axis=None, keepdims=keepdims)
-
-        verify_reduce_x("ReduceLogSumExp",
-                        np.random.randn(3, 3, 3).astype(np.float32),
-                        axis=(1,), keepdims=keepdims)
-
-        verify_reduce_x("ReduceLogSumExp",
-                        np.random.randn(3, 3, 3, 1).astype(np.float32),
-                        axis=(1, 2), keepdims=keepdims)
-
-        verify_reduce_x("ReduceLogSumExp",
-                        np.random.randn(3, 3, 3, 1).astype(np.float32),
-                        axis=(1), keepdims=keepdims)
-
-        verify_reduce_x("ReduceLogSumExp",
-                        np.random.randn(1, 3, 4, 1).astype(np.float32),
-                        axis=(1), keepdims=keepdims)
+            verify_reduce_func(func,
+                               np.random.randn(1, 3, 4, 1).astype(np.float32),
+                               axis=(1,), keepdims=keepdims)
 
 
 def verify_split(indata, outdatas, split, axis=0):
@@ -2304,6 +2250,76 @@ def test_pooling():
                        auto_pad='SAME_UPPER')
 
 
+def verify_lppool(x_shape, kernel_shape, p, strides, pads, out_shape, auto_pad="NOTSET"):
+    x_np = np.random.uniform(size=x_shape).astype('float32')
+
+    if pads is None:
+        pool_node = helper.make_node("LpPool",
+                                    inputs=["x"],
+                                    outputs=["y"],
+                                    kernel_shape=kernel_shape,
+                                    p = p,
+                                    auto_pad=auto_pad,
+                                    strides=strides)
+    else:
+        pool_node = helper.make_node("LpPool",
+                                    inputs=["x"],
+                                    outputs=["y"],
+                                    kernel_shape=kernel_shape,
+                                    p = p,
+                                    pads=pads,
+                                    strides=strides)
+
+    graph = helper.make_graph([pool_node],
+                              "lppool_test",
+                              inputs=[helper.make_tensor_value_info("x",
+                                                                    TensorProto.FLOAT, list(x_shape))],
+                              outputs=[helper.make_tensor_value_info("y",
+                                                                     TensorProto.FLOAT, list(out_shape))])
+
+    model = helper.make_model(graph, producer_name='lppool_test')
+
+    for target, ctx in ctx_list():
+        onnx_out = get_onnxruntime_output(model, x_np, 'float32')
+        tvm_out = get_tvm_output(
+            model, [x_np], target, ctx, out_shape)
+        tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def test_lppool():
+    # Pool1D
+    verify_lppool(x_shape=[1, 1, 32], kernel_shape=[3], p=2, strides=[1], pads=[1, 1],
+                  out_shape=[1, 1, 32])
+
+    # Pool2D
+    verify_lppool(x_shape=[1, 1, 32, 32], kernel_shape=[3, 3], p=2, strides=[1, 1],
+                  pads=[1, 1, 1, 1], out_shape=[1, 1, 32, 32])
+
+    # Pool1D with stride
+    verify_lppool(x_shape=[1, 1, 32], kernel_shape=[3], p=2, strides=[2], pads=[1, 1],
+                  out_shape=[1, 1, 16])
+
+    # Pool2D with stride
+    verify_lppool(x_shape=[1, 1, 32, 32], kernel_shape=[3, 3], p=2, strides=[2, 2],
+                  pads=[1, 1, 1, 1], out_shape=[1, 1, 16, 16])
+
+    # Pool1D with stride and autopadding
+    verify_lppool(x_shape=[1, 1, 32], kernel_shape=[3], p=2, strides=[2], pads=None,
+                  out_shape=[1, 1, 16], auto_pad='SAME_UPPER')
+
+    # Pool2D with stride and autopadding
+    verify_lppool(x_shape=[1, 1, 32, 32], kernel_shape=[3, 3], p=2, strides=[2, 2],
+                  pads=None, out_shape=[1, 1, 16, 16], auto_pad='SAME_UPPER')
+
+    # Pool3D with stride
+    verify_lppool(x_shape=[1, 1, 32, 32, 32], kernel_shape=[3, 3, 3], p=2, strides=[2, 2, 2],
+                  pads=[1, 1, 1, 1, 1, 1], out_shape=[1, 1, 16, 16, 16])
+
+    # Pool3D with stride and autopadding
+    verify_lppool(x_shape=[1, 1, 32, 32, 32], kernel_shape=[3, 3, 3], p=2, strides=[2, 2, 2],
+                  pads=None, out_shape=[1, 1, 16, 16, 16], auto_pad='SAME_UPPER')
+
+
 def verify_lstm(seq_length,
                 batch_size,
                 input_size,
@@ -2688,11 +2704,7 @@ if __name__ == '__main__':
     test_forward_arg_min_max()
     test_softmax()
     test_constantofshape()
-    test_reduce_max()
-    test_reduce_min()
-    test_reduce_sum()
-    test_reduce_mean()
-    test_reduce_logsumexp()
+    test_all_reduce_funcs()
     test_pad()
     test_split()
     test_binary_ops()
@@ -2722,6 +2734,7 @@ if __name__ == '__main__':
     test_convtranspose()
     test_unsqueeze_constant()
     test_pooling()
+    test_lppool()
     test_lstm()
     test_resize()
     test_nonzero()

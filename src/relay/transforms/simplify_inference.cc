@@ -238,7 +238,7 @@ class InferenceSimplifier : public ExprMutator {
   const Op& layer_norm_op_;
   const Op& group_norm_op_;
   const Op& l2_norm_op_;
-  std::unordered_map<Expr, Type, ObjectHash, ObjectEqual> ty_map_;
+  std::unordered_map<Expr, Type, ObjectPtrHash, ObjectPtrEqual> ty_map_;
 };
 
 Expr SimplifyInference(const Expr& e) { return InferenceSimplifier().Mutate(e); }

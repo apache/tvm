@@ -135,7 +135,7 @@ struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr&)> {
   const OpAttrMap<FPrimalGradient> rev_map = Op::GetAttrMap<FPrimalGradient>("FPrimalGradient");
   std::vector<std::function<void(LetList* ll)>> backprop_actions;
   // we assume no closure so no need for lexical scoping
-  std::unordered_map<Var, ADValue, ObjectHash, ObjectEqual> env;
+  std::unordered_map<Var, ADValue, ObjectPtrHash, ObjectPtrEqual> env;
   LetList* ll;
 
   FirstOrderReverseAD(LetList* ll) : ll(ll) {}
@@ -352,7 +352,7 @@ Expr BPEmpty() {
 }
 
 struct ReverseAD : ExprMutator {
-  using ADVarMap = std::unordered_map<Var, Var, ObjectHash, ObjectEqual>;
+  using ADVarMap = std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>;
 
   Var bp;
   std::shared_ptr<ADVarMap> ad_vars;

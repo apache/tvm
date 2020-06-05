@@ -167,15 +167,20 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
                                      idxm(b*VP + bb, nW) * m + nu],
                             name='d')
 
-    # transform kernel
-    if pre_computed:
-        U = kernel
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        VC = cfg['tile_k'].size[-1]
+        kvshape = (KH + tile_size - 1, KW + tile_size - 1, idxd(CO, VC), CI, VC)
+        U = tvm.te.placeholder(kvshape, kernel.dtype, name="U")
     else:
-        r_kh = te.reduce_axis((0, KH), 'r_kh')
-        r_kw = te.reduce_axis((0, KW), 'r_kw')
-        U = te.compute((alpha, alpha, idxd(K, VK), C, VK), lambda eps, nu, k, c, kk:
-                       te.sum(kernel[k * VK + kk][c][r_kh][r_kw].astype(out_dtype) *
-                              G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]), name='U')
+        # transform kernel
+        if pre_computed:
+            U = kernel
+        else:
+            r_kh = te.reduce_axis((0, KH), 'r_kh')
+            r_kw = te.reduce_axis((0, KW), 'r_kw')
+            U = te.compute((alpha, alpha, idxd(K, VK), C, VK), lambda eps, nu, k, c, kk:
+                           te.sum(kernel[k * VK + kk][c][r_kh][r_kw].astype(out_dtype) *
+                                  G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]), name='U')
 
     # transform image
     r_eps = te.reduce_axis((0, alpha), 'r_eps')

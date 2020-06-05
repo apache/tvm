@@ -225,7 +225,7 @@ ObjectRef ReflectionVTable::CreateObject(const std::string& type_key, const TVMA
 }
 
 ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
-                                         const Map<std::string, ObjectRef>& kwargs) {
+                                         const Map<String, ObjectRef>& kwargs) {
   // Redirect to the TVMArgs version
   // It is not the most efficient way, but CreateObject is not meant to be used
   // in a fast code-path and is mainly reserved as a flexible API for frontends.
@@ -234,8 +234,8 @@ ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
   runtime::TVMArgsSetter setter(values.data(), tcodes.data());
   int index = 0;
 
-  for (auto& kv : static_cast<const StrMapNode*>(kwargs.get())->data) {
-    setter(index, kv.first);
+  for (auto& kv : static_cast<const MapNode*>(kwargs.get())->data) {
+    setter(index, Downcast<String>(kv.first).c_str());
     setter(index + 1, kv.second);
     index += 2;
   }

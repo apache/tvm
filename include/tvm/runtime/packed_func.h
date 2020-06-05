@@ -327,9 +327,16 @@ class TVMArgs {
   inline TVMArgValue operator[](int i) const;
 };
 
+/*!
+ * \brief Convert argument type code to string.
+ * \param type_code The input type code.
+ * \return The corresponding string repr.
+ */
+inline const char* ArgTypeCode2Str(int type_code);
+
 // macro to check type code.
 #define TVM_CHECK_TYPE_CODE(CODE, T) \
-  CHECK_EQ(CODE, T) << " expected " << TypeCode2Str(T) << " but get " << TypeCode2Str(CODE)
+  CHECK_EQ(CODE, T) << " expected " << ArgTypeCode2Str(T) << " but get " << ArgTypeCode2Str(CODE)
 
 /*!
  * \brief Type traits for runtime type check during FFI conversion.
@@ -394,7 +401,7 @@ class TVMPODValue_ {
     } else {
       if (type_code_ == kTVMNullptr) return nullptr;
       LOG(FATAL) << "Expect "
-                 << "DLTensor* or NDArray but get " << TypeCode2Str(type_code_);
+                 << "DLTensor* or NDArray but get " << ArgTypeCode2Str(type_code_);
       return nullptr;
     }
   }
@@ -982,6 +989,44 @@ inline void PackedFunc::CallPacked(TVMArgs args, TVMRetValue* rv) const { body_(
 inline PackedFunc::FType PackedFunc::body() const { return body_; }
 
 // internal namespace
+inline const char* ArgTypeCode2Str(int type_code) {
+  switch (type_code) {
+    case kDLInt:
+      return "int";
+    case kDLUInt:
+      return "uint";
+    case kDLFloat:
+      return "float";
+    case kTVMStr:
+      return "str";
+    case kTVMBytes:
+      return "bytes";
+    case kTVMOpaqueHandle:
+      return "handle";
+    case kTVMNullptr:
+      return "NULL";
+    case kTVMDLTensorHandle:
+      return "ArrayHandle";
+    case kTVMDataType:
+      return "DLDataType";
+    case kTVMContext:
+      return "TVMContext";
+    case kTVMPackedFuncHandle:
+      return "FunctionHandle";
+    case kTVMModuleHandle:
+      return "ModuleHandle";
+    case kTVMNDArrayHandle:
+      return "NDArrayContainer";
+    case kTVMObjectHandle:
+      return "Object";
+    case kTVMObjectRValueRefArg:
+      return "ObjectRValueRefArg";
+    default:
+      LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
+      return "";
+  }
+}
+
 namespace detail {
 
 template <bool stop, std::size_t I, typename F>

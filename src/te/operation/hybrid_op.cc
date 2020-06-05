@@ -57,10 +57,10 @@ DataType HybridOpNode::output_dtype(size_t i) const { return outputs[i]->dtype; 
 
 Array<PrimExpr> HybridOpNode::output_shape(size_t i) const { return outputs[i]->shape; }
 
-Operation HybridOpNode::make(std::string name, std::string tag, Map<std::string, ObjectRef> attrs,
+Operation HybridOpNode::make(std::string name, std::string tag, Map<String, ObjectRef> attrs,
                              Array<Tensor> inputs, Array<Tensor> outputs, Stmt body) {
   if (!attrs.defined()) {
-    attrs = Map<std::string, ObjectRef>();
+    attrs = Map<String, ObjectRef>();
   }
   auto n = make_object<HybridOpNode>();
   n->name = std::move(name);

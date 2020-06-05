@@ -22,7 +22,6 @@ import pytest
 
 import tvm
 import tvm.relay.testing
-import tvm.relay.op as reg
 import tvm.relay.transform as transform
 from tvm import relay
 from tvm import runtime
@@ -52,7 +51,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         return lib
 
     def check_vm_result():
-        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         lib = update_lib(lib)
@@ -63,7 +62,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
     def check_graph_runtime_result():
-        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
             json, lib, param = relay.build(mod, target=target, params=params)
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
@@ -187,7 +186,7 @@ def test_extern_dnnl_mobilenet():
 
 
 def test_multiple_ends():
-    @reg.register("nn.relu", "target.test")
+    @tvm.ir.register_op_attr("nn.relu", "target.test")
     def relu(attrs, args):  # pylint: disable=unused-variable
         return True
 
@@ -229,7 +228,7 @@ def test_multiple_ends():
 def test_type_propagation():
     target = "test_type_propagation"
 
-    @reg.register("nn.relu", "target." + target)
+    @tvm.ir.register_op_attr("nn.relu", "target." + target)
     def relu(attrs, args): # pylint: disable=unused-variable
         return args[0].checked_type.dtype == "float32"
 
@@ -248,11 +247,11 @@ def test_type_propagation():
 def test_tuple():
     target = "test_tuple"
 
-    @reg.register("nn.relu", "target." + target)
+    @tvm.ir.register_op_attr("nn.relu", "target." + target)
     def relu(attrs, args): # pylint: disable=unused-variable
         return True
 
-    @reg.register("concatenate", "target." + target)
+    @tvm.ir.register_op_attr("concatenate", "target." + target)
     def concatenate(attrs, args):  # pylint: disable=unused-variable
         return True
 
@@ -338,11 +337,11 @@ def test_composite_function():
 
 
 def test_multiple_runs():
-    @reg.register("nn.relu", "target.A")
+    @tvm.ir.register_op_attr("nn.relu", "target.A")
     def relu(attrs, args):  # pylint: disable=unused-variable
         return True
 
-    @reg.register("add", "target.B")
+    @tvm.ir.register_op_attr("add", "target.B")
     def add(attrs, args):  # pylint: disable=unused-variable
         return True
 

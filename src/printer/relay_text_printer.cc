@@ -91,7 +91,8 @@ Doc RelayTextPrinter::PrintScope(const ObjectRef& node) {
 }
 
 Doc RelayTextPrinter::PrintFinal(const ObjectRef& node) {
-  if (node->IsInstance<BaseFuncNode>() && !node->IsInstance<relay::FunctionNode>()) {
+  if (node.defined() && node->IsInstance<BaseFuncNode>() &&
+      !node->IsInstance<relay::FunctionNode>()) {
     // Temporarily skip non-relay functions.
     // TODO(tvm-team) enhance the code to work for all functions
   } else if (node.as<ExprNode>()) {
@@ -105,8 +106,8 @@ Doc RelayTextPrinter::PrintFinal(const ObjectRef& node) {
 }
 
 Doc RelayTextPrinter::Print(const ObjectRef& node, bool meta, bool try_inline) {
-  bool is_non_relay_func =
-      node->IsInstance<BaseFuncNode>() && !node->IsInstance<relay::FunctionNode>();
+  bool is_non_relay_func = node.defined() && node->IsInstance<BaseFuncNode>() &&
+                           !node->IsInstance<relay::FunctionNode>();
   if (node.as<ExprNode>() && !is_non_relay_func) {
     return PrintExpr(Downcast<Expr>(node), meta, try_inline);
   } else if (node.as<TypeNode>()) {

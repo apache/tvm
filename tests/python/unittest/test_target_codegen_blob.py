@@ -31,7 +31,7 @@ def test_resnet18():
 
     def verify(data):
         mod, params = relay.testing.resnet.get_workload(num_layers=18)
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             graph, lib, graph_params = relay.build_module.build(mod, "llvm", params=params)
         ctx = tvm.cpu()
         module = graph_runtime.create(graph, lib, ctx)
@@ -42,7 +42,7 @@ def test_resnet18():
         return out
 
     resnet18_mod, resnet18_params = relay.testing.resnet.get_workload(num_layers=18)
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, resnet18_gpu_lib, graph_params = relay.build_module.build(resnet18_mod, "cuda", params=resnet18_params)
 
     from tvm.contrib import util

@@ -85,7 +85,7 @@ class PassConfigManager {
   }
 
   // Trying to validate and legalize a config.
-  void Legalize(Map<std::string, ObjectRef>* config) {
+  void Legalize(Map<String, ObjectRef>* config) {
     std::vector<std::pair<std::string, ObjectRef>> update;
     auto* reflection = ReflectionVTable::Global();
 
@@ -104,9 +104,9 @@ class PassConfigManager {
       }
       const auto& info = it->second;
       CHECK(kv.second.defined()) << "AttributeError: " << kv.first << " is None";
-      if (kv.second->IsInstance<Map<std::string, ObjectRef>::ContainerType>()) {
-        ObjectRef converted = reflection->CreateObject(
-            info.type_key, Downcast<Map<std::string, ObjectRef>>(kv.second));
+      if (kv.second->IsInstance<Map<String, ObjectRef>::ContainerType>()) {
+        ObjectRef converted =
+            reflection->CreateObject(info.type_key, Downcast<Map<String, ObjectRef>>(kv.second));
         update.emplace_back(kv.first, converted);
       } else {
         if (!runtime::ObjectInternal::DerivedFrom(kv.second.get(), info.type_index)) {
@@ -454,12 +454,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(PassContextNode);
 
 TVM_REGISTER_GLOBAL("transform.PassContext")
-    .set_body_typed([](int opt_level, int fallback_device, Array<String> required,
-                       Array<String> disabled, TraceFunc trace_func,
-                       Optional<Map<std::string, ObjectRef>> config) {
+    .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
+                       TraceFunc trace_func, Optional<Map<String, ObjectRef>> config) {
       auto pctx = PassContext::Create();
       pctx->opt_level = opt_level;
-      pctx->fallback_device = fallback_device;
 
       pctx->required_pass = std::move(required);
       pctx->disabled_pass = std::move(disabled);
@@ -477,7 +475,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "Pass context information: "
                 << "\n";
       p->stream << "\topt_level: " << node->opt_level << "\n";
-      p->stream << "\tfallback device: " << runtime::DeviceName(node->fallback_device) << "\n";
 
       p->stream << "\trequired passes: [";
       for (const auto& it : node->required_pass) {

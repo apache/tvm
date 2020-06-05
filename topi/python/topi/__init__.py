@@ -48,7 +48,6 @@ from . import arm_cpu
 from . import mali
 from . import bifrost
 from . import intel_graphics
-from . import opengl
 from . import util
 from . import rocm
 from . import vision

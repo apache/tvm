@@ -55,11 +55,11 @@ Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
   return state_placeholder[i]->shape;
 }
 
-Operation ScanOpNode::make(std::string name, std::string tag, Map<std::string, ObjectRef> attrs,
+Operation ScanOpNode::make(std::string name, std::string tag, Map<String, ObjectRef> attrs,
                            IterVar axis, Array<Tensor> init, Array<Tensor> update,
                            Array<Tensor> state_placeholder, Array<Tensor> inputs) {
   if (!attrs.defined()) {
-    attrs = Map<std::string, ObjectRef>();
+    attrs = Map<String, ObjectRef>();
   }
   auto n = make_object<ScanOpNode>();
   CHECK_EQ(init.size(), update.size());
@@ -111,7 +111,7 @@ TVM_REGISTER_GLOBAL("te.ScanOp").set_body_typed(ScanOpNode::make);
 
 Array<Tensor> scan(Array<Tensor> init, Array<Tensor> update, Array<Tensor> state_placeholder,
                    Array<Tensor> inputs, std::string name, std::string tag,
-                   Map<std::string, ObjectRef> attrs) {
+                   Map<String, ObjectRef> attrs) {
   IterVar scan_axis = IterVarNode::make(
       Range::make_by_min_extent(init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
       Var(name + ".idx"), kOrdered);

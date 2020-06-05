@@ -49,7 +49,8 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         return lib
 
     def check_vm_result():
-        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with tvm.transform.PassContext(opt_level=3,
+                                       disabled_pass=["AlterOpLayout"]):
             exe = relay.vm.compile(mod, target=target)
         code, lib = exe.save()
         lib = update_lib(lib)
@@ -60,7 +61,8 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
     def check_graph_runtime_result():
-        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with tvm.transform.PassContext(opt_level=3,
+                                       disabled_pass=["AlterOpLayout"]):
             json, lib, _ = relay.build(mod, target=target)
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)

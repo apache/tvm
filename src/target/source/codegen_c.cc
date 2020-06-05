@@ -937,7 +937,7 @@ void CodeGenC::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
   if (i == 0) {
     os << "((";
     PrintType(t, os);
-    os << t.lanes() << ")(";
+    os << ")(";
   }
   os << value;
   if (i != t.lanes() - 1) {

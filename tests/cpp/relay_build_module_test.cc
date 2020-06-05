@@ -95,7 +95,7 @@ TEST(Relay, BuildModule) {
     pC[i] = i + 2;
   }
   // get schedule
-  auto reg = tvm::runtime::Registry::Get("relay.op._Register");
+  auto reg = tvm::runtime::Registry::Get("ir.RegisterOpAttr");
   if (!reg) {
     LOG(FATAL) << "no _Register";
   }

@@ -234,7 +234,7 @@ class Call(ExprWithOp):
 
     Parameters
     ----------
-    op: tvm.relay.Op or any tvm.relay.Expr with function type.
+    op: tvm.ir.Op or any tvm.relay.Expr with function type.
         The operation to be called.
 
     args: List[tvm.relay.Expr]

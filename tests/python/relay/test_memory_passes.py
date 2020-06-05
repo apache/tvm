@@ -37,7 +37,7 @@ def check_memory_plan(func, check_fn):
     no_plan_result = ex.evaluate(mod['main'])(*args)
 
     # Compute with memory planning.
-    with relay.build_config(opt_level=1, disabled_pass=["MemoryPlan"]):
+    with tvm.transform.PassContext(opt_level=1, disabled_pass=["MemoryPlan"]):
         plan_result = ex.evaluate(mod['main'])(*args)
 
     # Compute Python result.

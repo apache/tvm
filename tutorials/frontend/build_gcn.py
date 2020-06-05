@@ -336,7 +336,7 @@ func = relay.build_module.bind_params_by_name(func, params)
 mod = tvm.IRModule()
 mod["main"] = func
 # Build with Relay
-with relay.build_config(opt_level=0): # Currently only support opt_level=0
+with tvm.transform.PassContext(opt_level=0): # Currently only support opt_level=0
     graph, lib, params = relay.build(mod, target, params=params)
 
 # Generate graph runtime

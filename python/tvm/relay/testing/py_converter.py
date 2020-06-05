@@ -493,7 +493,7 @@ class PythonConverter(ExprFunctor):
         func = call.op
         fields, field_defs = self.convert_fields(call.args)
 
-        if isinstance(func, relay.Op):
+        if isinstance(func, tvm.ir.Op):
             raise Exception('Operators should have been lowered and eliminated')
 
         if isinstance(func, relay.Constructor):

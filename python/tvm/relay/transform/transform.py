@@ -21,6 +21,7 @@ Relay pass transformation infrastructure.
 import types
 import inspect
 import functools
+import warnings
 
 import tvm.ir
 from tvm import te
@@ -31,11 +32,12 @@ from . import _ffi_api
 
 
 def build_config(opt_level=2,
-                 fallback_device=_nd.cpu(),
                  required_pass=None,
                  disabled_pass=None,
                  trace=None):
-    """Configure the build behavior by setting config variables.
+    """Configure the build behavior by setting config variables. This function
+    will be deprecated in TVM v0.7. Instead, we should directly use
+    tvm.transform.PassContext.
 
     Parameters
     ----------
@@ -59,10 +61,6 @@ def build_config(opt_level=2,
                 "FastMath": 4
             }
 
-    fallback_device : int, str, or tvmContext, optional
-        The fallback device. It is also used as the default device for
-        operators without specified device during heterogeneous execution.
-
     required_pass: set of str, optional
         Optimization passes that are required regardless of optimization level.
 
@@ -77,9 +75,9 @@ def build_config(opt_level=2,
     pass_context: PassContext
         The pass context for optimizations.
     """
-    return tvm.ir.transform.PassContext(
-        opt_level, fallback_device, required_pass,
-        disabled_pass, trace)
+    warnings.warn("relay.build_config will be deprecated. Please use \
+                  tvm.transform.PassContext directly", DeprecationWarning)
+    return tvm.transform.PassContext(opt_level, required_pass, disabled_pass, trace)
 
 
 @tvm._ffi.register_object("relay.FunctionPass")

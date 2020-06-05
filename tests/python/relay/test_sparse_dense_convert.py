@@ -46,7 +46,7 @@ def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype="float32"):
     return s
 
 def run_func(func, params, x):
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, new_params = relay.build(func, "llvm", params=params)
 
     from tvm.contrib import graph_runtime

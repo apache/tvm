@@ -219,7 +219,7 @@ def test_vars():
 
     # operator id
     op = parse_text("foo")
-    assert isinstance(op, relay.Op)
+    assert isinstance(op, tvm.ir.Op)
     assert op.name == "foo"
 
 

@@ -16,11 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Backend QNN related feature registration"""
-from __future__ import absolute_import
+import numpy as np
 
 import tvm
 from tvm import relay
-import numpy as np
 from .. import op as reg
 
 #################################################

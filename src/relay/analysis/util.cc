@@ -38,7 +38,7 @@ namespace relay {
 
 template <typename T>
 struct InsertionSet {
-  std::unordered_set<T, ObjectHash, ObjectEqual> set;
+  std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual> set;
   std::vector<T> data;
   void Insert(const T& t) {
     if (set.count(t) == 0) {

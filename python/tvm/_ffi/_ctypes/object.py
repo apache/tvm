@@ -18,7 +18,7 @@
 """Runtime Object api"""
 import ctypes
 from ..base import _LIB, check_call
-from .types import TypeCode, RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
+from .types import ArgTypeCode, RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
 from .ndarray import _register_ndarray, NDArrayBase
 
 
@@ -60,12 +60,12 @@ def _return_object(x):
     obj.handle = handle
     return obj
 
-RETURN_SWITCH[TypeCode.OBJECT_HANDLE] = _return_object
-C_TO_PY_ARG_SWITCH[TypeCode.OBJECT_HANDLE] = _wrap_arg_func(
-    _return_object, TypeCode.OBJECT_HANDLE)
+RETURN_SWITCH[ArgTypeCode.OBJECT_HANDLE] = _return_object
+C_TO_PY_ARG_SWITCH[ArgTypeCode.OBJECT_HANDLE] = _wrap_arg_func(
+    _return_object, ArgTypeCode.OBJECT_HANDLE)
 
-C_TO_PY_ARG_SWITCH[TypeCode.OBJECT_RVALUE_REF_ARG] = _wrap_arg_func(
-    _return_object, TypeCode.OBJECT_RVALUE_REF_ARG)
+C_TO_PY_ARG_SWITCH[ArgTypeCode.OBJECT_RVALUE_REF_ARG] = _wrap_arg_func(
+    _return_object, ArgTypeCode.OBJECT_RVALUE_REF_ARG)
 
 
 class PyNativeObject:

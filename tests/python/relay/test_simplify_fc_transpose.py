@@ -27,7 +27,7 @@ from tvm import relay
 from tvm.relay.data_dep_optimization import simplify_fc_transpose
 
 def run_func(func, params, x):
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, new_params = relay.build(func, "llvm", params=params)
 
     from tvm.contrib import graph_runtime

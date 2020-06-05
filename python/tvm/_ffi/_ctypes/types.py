@@ -19,7 +19,7 @@
 import ctypes
 import struct
 from ..base import py_str, check_call, _LIB
-from ..runtime_ctypes import TVMByteArray, TypeCode, TVMContext
+from ..runtime_ctypes import TVMByteArray, ArgTypeCode, TVMContext
 
 class TVMValue(ctypes.Union):
     """TVMValue in C API"""
@@ -86,21 +86,21 @@ def _ctx_to_int64(ctx):
 
 
 RETURN_SWITCH = {
-    TypeCode.INT: lambda x: x.v_int64,
-    TypeCode.FLOAT: lambda x: x.v_float64,
-    TypeCode.HANDLE: _return_handle,
-    TypeCode.NULL: lambda x: None,
-    TypeCode.STR: lambda x: py_str(x.v_str),
-    TypeCode.BYTES: _return_bytes,
-    TypeCode.TVM_CONTEXT: _return_context
+    ArgTypeCode.INT: lambda x: x.v_int64,
+    ArgTypeCode.FLOAT: lambda x: x.v_float64,
+    ArgTypeCode.HANDLE: _return_handle,
+    ArgTypeCode.NULL: lambda x: None,
+    ArgTypeCode.STR: lambda x: py_str(x.v_str),
+    ArgTypeCode.BYTES: _return_bytes,
+    ArgTypeCode.TVM_CONTEXT: _return_context
 }
 
 C_TO_PY_ARG_SWITCH = {
-    TypeCode.INT: lambda x: x.v_int64,
-    TypeCode.FLOAT: lambda x: x.v_float64,
-    TypeCode.HANDLE: _return_handle,
-    TypeCode.NULL: lambda x: None,
-    TypeCode.STR: lambda x: py_str(x.v_str),
-    TypeCode.BYTES: _return_bytes,
-    TypeCode.TVM_CONTEXT: _return_context
+    ArgTypeCode.INT: lambda x: x.v_int64,
+    ArgTypeCode.FLOAT: lambda x: x.v_float64,
+    ArgTypeCode.HANDLE: _return_handle,
+    ArgTypeCode.NULL: lambda x: None,
+    ArgTypeCode.STR: lambda x: py_str(x.v_str),
+    ArgTypeCode.BYTES: _return_bytes,
+    ArgTypeCode.TVM_CONTEXT: _return_context
 }

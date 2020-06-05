@@ -66,14 +66,14 @@ struct RegionFuncMetadata {
   /*! \brief Map from each region output expr (compiler end) node to
    * the corresponding function output expr.
    */
-  std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> region_func_out;
+  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> region_func_out;
 
   /*! \brief Map from each region input expression (compiler begin) to
    * the corresponding function input variable. This cache is used to make sure
    * a region function will not have duplicated inputs even if it refers to
    * the same expr multiple times.
    */
-  std::unordered_map<Expr, Var, ObjectHash, ObjectEqual> region_func_in;
+  std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> region_func_in;
 };
 
 /*! \brief This class partitions the expr labeled with begin and end annotations
@@ -268,7 +268,7 @@ class Partitioner : public MixedModeMutator {
   void CreateFunction(AnnotatedRegion region, const CallNode* end_node) {
     // Create fields which is a unique list of outputs.
     Array<Expr> fields;
-    std::unordered_map<Expr, int, ObjectHash, ObjectEqual> out_expr_to_idx;
+    std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> out_expr_to_idx;
     int out_idx = 0;
     for (auto region_end_node : region->GetOutputs()) {
       auto ret_node = Downcast<Call>(region_end_node)->args[0];
@@ -357,14 +357,14 @@ class Partitioner : public MixedModeMutator {
   }
 
   /*! \brief Map from each region to its metadata of the generated function. */
-  std::unordered_map<AnnotatedRegion, RegionFuncMetadata, ObjectHash, ObjectEqual>
+  std::unordered_map<AnnotatedRegion, RegionFuncMetadata, ObjectPtrHash, ObjectPtrEqual>
       region_func_meta_;
 
   /*! \brief Each region set is associated with a function in the module.
    * This map maintains the mapping between regionsets and the function it
    * belongs to
    */
-  std::unordered_map<AnnotatedRegionSet, BaseFunc, ObjectHash, ObjectEqual> regions_sets_;
+  std::unordered_map<AnnotatedRegionSet, BaseFunc, ObjectPtrHash, ObjectPtrEqual> regions_sets_;
 
   /*!\brief The IRModule used for partitioning. */
   IRModule module_;

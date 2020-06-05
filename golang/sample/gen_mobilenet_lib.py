@@ -16,7 +16,7 @@
 # under the License.
 
 import os
-from tvm import relay
+from tvm import relay, transform
 from tvm.contrib.download import download_testdata
 
 
@@ -77,7 +77,7 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 target = 'llvm'
 
 # Build with Relay
-with relay.build_config(opt_level=3):
+with transform.PassContext(opt_level=3):
     graph, lib, params = relay.build_module.build(
         mod, target, params=params)
 

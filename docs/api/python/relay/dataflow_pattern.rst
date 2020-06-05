@@ -15,34 +15,11 @@
     specific language governing permissions and limitations
     under the License.
 
-Python API
-==========
+tvm.relay.dataflow_pattern
+--------------------------
 
-.. toctree::
-   :maxdepth: 2
-
-   runtime
-   ndarray
-   error
-   ir
-   target
-   tir
-   te
-   driver
-   relay/index
-   relay/frontend
-   relay/nn
-   relay/vision
-   relay/image
-   relay/transform
-   relay/analysis
-   relay/backend
-   relay/dataflow_pattern
-   relay/testing
-   autotvm
-   rpc
-   micro
-   contrib
-   graph_runtime
-   vta/index
-   topi
+.. automodule:: tvm.relay.dataflow_pattern
+    :members:
+    :imported-members:
+    :exclude-members: Object, Node
+    :autosummary:

@@ -462,6 +462,10 @@ class Gemm(OnnxOpConverter):
         inputs[0] = _op.nn.batch_flatten(inputs[0])
         out = _op.nn.dense(_expr.const(alpha) * inputs[0],
                            inputs[1], units=channels)
+        # skip (beta * C) if zero
+        C_array = params[inputs[2].name_hint].asnumpy()
+        if (beta == 0.0) or np.array_equal(C_array, np.array([0])):
+            return out
         return _op.nn.bias_add(out, _expr.const(beta) * inputs[2])
 
 
@@ -501,6 +505,57 @@ class MaxPool(Pool):
     """ Operator converter for MaxPool
     """
     name = 'max_pool'
+
+class LpPool(OnnxOpConverter):
+    """ A helper class for lppool op converters.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        input_shape = infer_shape(inputs[0])
+        dtype = infer_type(inputs[0]).checked_type.dtype
+
+        if 'auto_pad' in attr:
+            attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
+            if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
+                pad_tuple = []
+                for axis in range(len(input_shape) - 2):
+                    axis_shape = input_shape[2 + axis]
+                    stride = attr['strides'][axis]
+                    kernel = attr['kernel_shape'][axis]
+                    pad = get_pad_pair(axis_shape, kernel, stride)
+                    pad_tuple.append(pad)
+                pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
+                attr['pads'] = pad_tuple
+            elif attr['auto_pad'] == 'VALID':
+                attr['pads'] = 0
+            elif attr['auto_pad'] == 'NOTSET':
+                pass
+            else:
+                msg = 'Value {} in attribute "auto_pad" of operator {} is invalid.'
+                raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad'], "LpPool"))
+            attr.pop("auto_pad")
+
+        if 'storage_order' in attr:
+            attr['layout'] = onnx_storage_order2layout(attr['storage_order'],
+                                                       dims=(len(input_shape) - 2))
+        else:
+            attr['layout'] = onnx_default_layout(dims=(len(input_shape) - 2))
+
+        p = _expr.const(attr['p'], dtype)
+        reci_p = _expr.const(1.0 / attr['p'], dtype)
+        inputs[0] = _op.power(inputs[0], p)
+
+        out = AttrCvt(op_name=dimension_picker("avg_pool"),
+                      transforms={
+                          'kernel_shape': 'pool_size',
+                          'pads': ('padding', 0)
+                      },
+                      extras={'count_include_pad': True},
+                      ignores=['p'],
+                      custom_check=dimension_constraint())(inputs, attr, params)
+        kernels = attr['kernel_shape']
+        out = _op.abs(out) * _expr.const(np.prod(kernels).astype(dtype))
+        return _op.power(out, reci_p)
 
 
 class Mul(Elemwise):
@@ -1108,6 +1163,72 @@ class ReduceLogSumExp(Reduce):
     """
     name = 'logsumexp'
 
+
+class ReduceSumSquare(OnnxOpConverter):
+    """ Operator converter for ReduceSumSquare.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if 'axes' in attr:
+            axis = attr.get('axes', 0)
+        else:
+            axis_len = len(infer_shape(inputs[0]))
+            axis = list(range(axis_len))
+        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
+        inputs[0] = inputs[0] * inputs[0]
+
+        return AttrCvt("sum")(inputs, attr)
+
+
+class ReduceL1(OnnxOpConverter):
+    """ Operator converter for ReduceL1.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if 'axes' in attr:
+            axis = attr.get('axes', 0)
+        else:
+            axis_len = len(infer_shape(inputs[0]))
+            axis = list(range(axis_len))
+        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
+        inputs[0] = _op.abs(inputs[0])
+
+        return AttrCvt("sum")(inputs, attr)
+
+
+class ReduceL2(OnnxOpConverter):
+    """ Operator converter for ReduceL2.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if 'axes' in attr:
+            axis = attr.get('axes', 0)
+        else:
+            axis_len = len(infer_shape(inputs[0]))
+            axis = list(range(axis_len))
+        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
+        inputs[0] = inputs[0] * inputs[0]
+        out = AttrCvt("sum")(inputs, attr)
+
+        return _op.sqrt(out)
+
+
+class ReduceLogSum(OnnxOpConverter):
+    """ Operator converter for ReduceLogSum.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if 'axes' in attr:
+            axis = attr.get('axes', 0)
+        else:
+            axis_len = len(infer_shape(inputs[0]))
+            axis = list(range(axis_len))
+        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
+        out = AttrCvt("sum")(inputs, attr)
+
+        return _op.log(out)
+
+
 class ArgMax(OnnxOpConverter):
     """ Operator converter for ArgMax.
     """
@@ -1660,6 +1781,7 @@ def _get_convert_map(opset):
 
         # defs/nn
         'AveragePool': AveragePool.get_converter(opset),
+        'LpPool': LpPool.get_converter(opset),
         'MaxPool': MaxPool.get_converter(opset),
         'Conv': Conv.get_converter(opset),
         'ConvTranspose': ConvTranspose.get_converter(opset),
@@ -1684,6 +1806,10 @@ def _get_convert_map(opset):
         'ReduceMean': ReduceMean.get_converter(opset),
         'ReduceProd': ReduceProd.get_converter(opset),
         'ReduceLogSumExp': ReduceLogSumExp.get_converter(opset),
+        'ReduceLogSum': ReduceLogSum.get_converter(opset),
+        'ReduceSumSquare': ReduceSumSquare.get_converter(opset),
+        'ReduceL1': ReduceL1.get_converter(opset),
+        'ReduceL2': ReduceL2.get_converter(opset),
 
         #defs/sorting
         'ArgMax': ArgMax.get_converter(opset),
