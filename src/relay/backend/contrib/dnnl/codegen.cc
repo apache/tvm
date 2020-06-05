@@ -165,7 +165,7 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 
   std::vector<Output> VisitExpr_(const ConstantNode* cn) final {
     Output output;
-    output.name = "const_" + std::to_string(const_idx_++);
+    output.name = ext_func_id_ + "_const_" + std::to_string(const_idx_++);
     output.dtype = "float";
 
     runtime::NDArray array = cn->data;

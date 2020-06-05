@@ -157,17 +157,19 @@ runtime::Module DeviceSourceModuleCreate(
 // user-defined code, i.e. c source code, json graph representation, etc.
 class PackagingModule final : public runtime::ModuleNode {
  public:
-  PackagingModule(Map<String, String> code, const std::string& fmt,
+  PackagingModule(Map<String, String> code, const std::string& source_type,
                   Map<String, Map<String, runtime::NDArray>> metadata)
-      : code_(code), fmt_(fmt), metadata_(metadata) {}
+      : code_(code), source_type_(source_type), metadata_(metadata) {}
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_source") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->code_; });
+    } else if (name == "get_source_type") {
       return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetSource(); });
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->source_type_; });
     } else if (name == "get_metadata") {
       return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetMetadata(); });
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->metadata_; });
     } else if (name == "is_c_source") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->IsCSourceCode(); });
@@ -177,44 +179,66 @@ class PackagingModule final : public runtime::ModuleNode {
     }
   }
 
-  Map<String, String> GetSource() const { return code_; }
-
-  Map<String, Map<String, runtime::NDArray>> GetMetadata() const { return metadata_; }
-
-  bool IsCSourceCode() { return fmt_ == "c" || fmt_ == "cc"; }
+  bool IsCSourceCode() { return source_type_ == "c" || source_type_ == "cc"; }
 
   const char* type_key() const { return "c"; }
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
-    std::string fmt = GetFileFormat(file_name, format);
-    CHECK_EQ(fmt, "cc") << "file_name: " << file_name << " must be a .cc file.";
+    std::string source_type = GetFileFormat(file_name, format);
+    CHECK_EQ(source_type, "cc") << "file_name: " << file_name << " must be a .cc file.";
     SaveBinaryToFile(file_name, ";");
   }
 
  private:
   /*! \brief Symbol to source (e.g. c source/json) mapping. */
   Map<String, String> code_;
-  std::string fmt_;
+  /*! \brief The type of the source code, e.g. c or any customized json type. */
+  std::string source_type_;
   /*! \brief Symbol to {var_name : NDArray} pair mapping. */
   Map<String, Map<String, runtime::NDArray>> metadata_;
 };
 
-runtime::Module PackagingModuleCreate(Map<String, String> code, std::string fmt,
+runtime::Module PackagingModuleCreate(Map<String, String> code, std::string source_type,
                                       Map<String, Map<String, runtime::NDArray>> metadata) {
-  auto n = make_object<PackagingModule>(code, fmt, metadata);
+  auto n = make_object<PackagingModule>(code, source_type, metadata);
+  return runtime::Module(n);
+}
+
+class CSourceModuleInitializer : public runtime::ModuleNode {
+ public:
+  explicit CSourceModuleInitializer(Map<String, Map<String, runtime::NDArray>> metadata)
+      : metadata_(metadata) {}
+
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    LOG(FATAL) << "CSourceModuleInitializer cannot be executed";
+    return PackedFunc();
+  }
+
+  void Init() {}
+
+  const char* type_key() const { return "csourcemodule_initializer"; }
+
+ private:
+  Map<String, Map<String, runtime::NDArray>> metadata_;
+};
+
+runtime::Module CSourceModuleInitializerCreate(
+    Map<String, Map<String, runtime::NDArray>> metadata) {
+  auto n = make_object<CSourceModuleInitializer>(metadata);
   return runtime::Module(n);
 }
 
 class ModuleInitWrapper : public runtime::ModuleNode {
  public:
-  ModuleInitWrapper(Map<String, Map<String, runtime::NDArray>> metadata, Map<String, String> code)
-      : metadata_(metadata), code_(code) {}
+  ModuleInitWrapper(Map<String, Map<String, runtime::NDArray>> metadata, Map<String, String> code,
+                    String source_type)
+      : metadata_(metadata), code_(code), source_type_(source_type) {}
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (initialized_.count(name) == 0) {
       this->InitSubModule(name);
       initialized_[name] = true;
-    } else if (name != "__InitModule" && name != "__DestroyModule") {
+    } else if (name != "init_module" && name != "destroy_module") {
       CHECK(!this->imports().empty());
       runtime::Module submodule = this->imports().at(0);
       return submodule->GetFunction(name);
@@ -222,10 +246,25 @@ class ModuleInitWrapper : public runtime::ModuleNode {
 
     return PackedFunc();
   }
-  
+
   const char* type_key() const { return "module_init"; }
 
-  void InitSubModule(const std::string& symbol) {}
+  void InitSubModule(const std::string& symbol) {
+    // Dispatch initializer according to the source type
+    std::string initializer = "runtime.init." + source_type_;
+    auto pf = tvm::runtime::Registry::Get(initializer);
+
+    CHECK(pf) << "Failed to find the initializer for " << initializer;
+    if (source_type_ == "c") {
+      // Initialize the s source module.
+      runtime::Module c_mod = (*pf)(metadata_);
+      CHECK(c_mod->IsInstance<CSourceModuleInitializer>());
+      auto* c_mod_init = static_cast<CSourceModuleInitializer*>(c_mod.operator->());
+      c_mod_init->Init();
+    } else {
+      LOG(FATAL) << "Implement the initialization of json style runtime here";
+    }
+  }
 
  private:
   std::unordered_map<std::string, bool> initialized_;
@@ -237,11 +276,13 @@ class ModuleInitWrapper : public runtime::ModuleNode {
    * metadata is needed to feed the correct data.
    */
   Map<String, String> code_;
+  /*! \brief The type of the source, i.e. c, or any customized json */
+  String source_type_;
 };
 
 runtime::Module ModuleInitWrapperCreate(Map<String, Map<String, runtime::NDArray>> metadata,
-                                        Map<String, String> code) {
-  auto n = make_object<ModuleInitWrapper>(metadata, code);
+                                        Map<String, String> code, String source_type) {
+  auto n = make_object<ModuleInitWrapper>(metadata, code, source_type);
   return runtime::Module(n);
 }
 
@@ -249,15 +290,18 @@ TVM_REGISTER_GLOBAL("runtime.PackagingModuleCreate").set_body_typed(PackagingMod
 
 TVM_REGISTER_GLOBAL("runtime.SourceModuleCreate").set_body_typed(SourceModuleCreate);
 
-TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate").set_body_typed([](String code, String fmt) {
-  return CSourceModuleCreate(code.operator std::string(), fmt.operator std::string());
-});
+TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
+    .set_body_typed([](String code, String source_type) {
+      return CSourceModuleCreate(code.operator std::string(), source_type.operator std::string());
+    });
 
 TVM_REGISTER_GLOBAL("runtime.ModuleInitWrapper")
     .set_body_typed([](Map<String, Map<String, runtime::NDArray>> metadata,
-                       Map<String, String> code) {
-      return ModuleInitWrapperCreate(metadata, code);
+                       Map<String, String> code, String source_type) {
+      return ModuleInitWrapperCreate(metadata, code, source_type);
     });
+
+TVM_REGISTER_GLOBAL("runtime.init.c").set_body_typed(CSourceModuleInitializerCreate);
 
 }  // namespace codegen
 }  // namespace tvm

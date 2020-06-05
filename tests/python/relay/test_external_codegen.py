@@ -37,9 +37,12 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         ext_mod = tvm.target.PackagingModule(lib.imported_modules[0])
         code = ext_mod.source
         metadata = ext_mod.metadata
+        src_ty = ext_mod.source_type
 
         new_lib = lib
         for sym, src in code.items():
+            # init_mod = tvm.target.ModuleInitWrapper(metadata, code, src_ty)
+            # init_mod.import_module(tvm.target.CSourceModule(src))
             new_lib.import_module(tvm.target.CSourceModule(src))
 
         test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))

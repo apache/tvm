@@ -25,6 +25,7 @@ class PackagingModule:
     def __init__(self, mod):
         self.mod = mod
         self._get_source = self.mod["get_source"]
+        self._get_source_type = self.mod["get_source_type"]
         self._get_metadata = self.mod["get_metadata"]
         self._is_c_source = self.mod["is_c_source"]
 
@@ -32,6 +33,11 @@ class PackagingModule:
     def source(self):
         """Get the source"""
         return self._get_source()
+
+    @property
+    def source_type(self):
+        """Get the source type"""
+        return self._get_source_type()
 
     @property
     def metadata(self):
@@ -47,6 +53,7 @@ def CSourceModule(code, fmt="c"):
     """Create a C source module"""
     return _ffi_api.CSourceModuleCreate(code, fmt)
 
-def ModuleInitWrapper(metadata, code=""):
+
+def ModuleInitWrapper(metadata, code="", source_type="c"):
     """Create a module initialization wrapper"""
-    return _ffi_api.ModuleInitWrapper(metadata, code)
+    return _ffi_api.ModuleInitWrapper(metadata, code, source_type)
