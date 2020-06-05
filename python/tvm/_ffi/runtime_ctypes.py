@@ -29,7 +29,6 @@ class ArgTypeCode(object):
     UINT = 1
     FLOAT = 2
     HANDLE = 3
-    BFLOAT = 4
     NULL = 4
     TVM_TYPE = 5
     TVM_CONTEXT = 6
