@@ -46,7 +46,7 @@ def check_equal(graph, tf_out, input_map=None):
 def test_vanilla_loop():
     graph = tf.Graph()
     with graph.as_default():
-        i = tf.constant(0)
+        i = tf.constant(0, name="while/constant")
 
         def c(i): return tf.less(i, 10)
 
