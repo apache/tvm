@@ -155,16 +155,16 @@ impl<'d, 's, T> From<&'d [T]> for Storage<'s> {
 #[derive(PartialEq)]
 pub struct Tensor<'a> {
     /// The bytes which contain the data this `Tensor` represents.
-    pub(crate) data: Storage<'a>,
-    pub(crate) ctx: TVMContext,
-    pub(crate) dtype: DataType,
-    pub(crate) shape: Vec<i64>,
+    pub data: Storage<'a>,
+    pub ctx: TVMContext,
+    pub dtype: DataType,
+    pub shape: Vec<i64>,
     // ^ not usize because `typedef int64_t tvm_index_t` in c_runtime_api.h
     /// The `Tensor` strides. Can be `None` if the `Tensor` is contiguous.
-    pub(crate) strides: Option<Vec<usize>>,
-    pub(crate) byte_offset: isize,
+    pub strides: Option<Vec<usize>>,
+    pub byte_offset: isize,
     /// The number of elements in the `Tensor`.
-    pub(crate) size: usize,
+    pub size: usize,
 }
 
 unsafe impl<'a> Send for Tensor<'a> {}
@@ -199,7 +199,7 @@ impl<'a> Tensor<'a> {
             None => true,
             Some(ref strides) => {
                 // check that stride for each dimension is the
-                // product of all trailing dimensons' shapes
+                // product of all trailing dimensions' shapes
                 self.shape
                     .iter()
                     .zip(strides)
