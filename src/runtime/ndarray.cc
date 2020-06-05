@@ -26,6 +26,9 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
 
+#include <builtin_fp16.h>
+#include <random>
+
 #include "runtime_base.h"
 
 extern "C" {
@@ -180,13 +183,67 @@ NDArray NDArray::CreateView(std::vector<int64_t> shape, DLDataType dtype) {
 
 DLManagedTensor* NDArray::ToDLPack() const { return Internal::ToDLPack(get_mutable()); }
 
-NDArray NDArray::Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {
+NDArray NDArray::Empty(std::vector<int64_t> shape, DLDataType dtype,
+                       DLContext ctx) {
   NDArray ret = Internal::Create(shape, dtype, ctx);
   // setup memory content
   size_t size = GetDataSize(ret.get_mutable()->dl_tensor);
   size_t alignment = GetDataAlignment(ret.get_mutable()->dl_tensor);
   ret.get_mutable()->dl_tensor.data =
       DeviceAPI::Get(ret->ctx)->AllocDataSpace(ret->ctx, size, alignment, ret->dtype);
+  return ret;
+}
+
+
+NDArray NDArray::NonEmpty(std::vector<int64_t> shape, DLDataType dtype,
+                          DLContext ctx) {
+  NDArray ret = Internal::Create(shape, dtype, ctx);
+  NDArray dummy_cpu_arr = Internal::Create(shape, dtype, {kDLCPU, 0});
+
+  // setup memory content
+  size_t size = GetDataSize(ret.get_mutable()->dl_tensor);
+  size_t alignment = GetDataAlignment(ret.get_mutable()->dl_tensor);
+  dummy_cpu_arr.get_mutable()->dl_tensor.data =
+      DeviceAPI::Get(dummy_cpu_arr->ctx)->AllocDataSpace(
+          {kDLCPU, 0}, size, alignment, dummy_cpu_arr->dtype);
+  size_t elem_cnt = 1;
+  for (tvm_index_t i = 0; i < dummy_cpu_arr->ndim; ++i) {
+    elem_cnt *= static_cast<size_t>(dummy_cpu_arr->shape[i]);
+  }
+
+  // TODO(..): maybe we could have better solution for assigning values
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_real_distribution<> dis(1.0, 10.0);
+  // Use float representation could make us work well on float / int type too.
+  for (size_t i = 0; i < elem_cnt; ++i) {
+    if (dummy_cpu_arr->dtype.bits == 1) {
+      (reinterpret_cast<bool*>(
+          dummy_cpu_arr.get_mutable()->dl_tensor.data))[i] = dis(gen);
+    } else if (dummy_cpu_arr->dtype.bits == 8) {
+      (reinterpret_cast<uint8_t*>(
+          dummy_cpu_arr.get_mutable()->dl_tensor.data))[i] = dis(gen);
+    } else if (dummy_cpu_arr->dtype.bits == 16) {
+      (reinterpret_cast<uint16_t*>(
+          dummy_cpu_arr.get_mutable()->dl_tensor.data))[i] =
+              __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(
+                  static_cast<float>(dis(gen)));
+    } else if (dummy_cpu_arr->dtype.bits == 32) {
+      (reinterpret_cast<float*>(
+          dummy_cpu_arr.get_mutable()->dl_tensor.data))[i] = dis(gen);
+    } else if (dummy_cpu_arr->dtype.bits == 64) {
+      (reinterpret_cast<double*>(
+          dummy_cpu_arr.get_mutable()->dl_tensor.data))[i] = dis(gen);
+    } else {
+      LOG(FATAL) << "Doesn't support dtype code " << dtype.code
+                 << " dtype bits " << dtype.bits;
+    }
+  }
+  ret.get_mutable()->dl_tensor.data =
+      DeviceAPI::Get(ret->ctx)->AllocDataSpace(
+          ret->ctx, size, alignment, ret->dtype);
+  CopyFromTo(&(dummy_cpu_arr.get_mutable()->dl_tensor),
+             &(ret.get_mutable()->dl_tensor));
   return ret;
 }
 
@@ -257,8 +314,9 @@ int TVMArrayGetTypeIndex(TVMArrayHandle handle, unsigned* out_tindex) {
   API_END();
 }
 
-int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_bits,
-                  int dtype_lanes, int device_type, int device_id, TVMArrayHandle* out) {
+int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code,
+                  int dtype_bits, int dtype_lanes, int device_type,
+                  int device_id, TVMArrayHandle* out) {
   API_BEGIN();
   DLDataType dtype;
   dtype.code = static_cast<uint8_t>(dtype_code);
@@ -269,6 +327,22 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
   ctx.device_id = device_id;
   *out = NDArray::Internal::MoveToFFIHandle(
       NDArray::Empty(std::vector<int64_t>(shape, shape + ndim), dtype, ctx));
+  API_END();
+}
+
+int TVMArrayAllocNonEmpty(const tvm_index_t* shape, int ndim, int dtype_code,
+                          int dtype_bits, int dtype_lanes, int device_type,
+                          int device_id, TVMArrayHandle* out) {
+  API_BEGIN();
+  DLDataType dtype;
+  dtype.code = static_cast<uint8_t>(dtype_code);
+  dtype.bits = static_cast<uint8_t>(dtype_bits);
+  dtype.lanes = static_cast<uint16_t>(dtype_lanes);
+  DLContext ctx;
+  ctx.device_type = static_cast<DLDeviceType>(device_type);
+  ctx.device_id = device_id;
+  *out = NDArray::Internal::MoveToFFIHandle(
+      NDArray::NonEmpty(std::vector<int64_t>(shape, shape + ndim), dtype, ctx));
   API_END();
 }
 

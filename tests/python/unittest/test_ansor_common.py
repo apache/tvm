@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import random
+import os
 import numpy as np
 
 import tvm
@@ -510,12 +511,17 @@ def test_search_basic():
     tgt = tvm.target.create("llvm")
     task = ansor.SearchTask(dag, "test", tgt)
 
-    cost_model = ansor.RandomModel()
     # seed = random.randint(1, 1 << 30)
     seed = 944563397
+    log_file = "/tmp/_ansor_python_ut_test.json"
+
+    random.seed(seed)
+    cost_model = ansor.RandomModel()
     search_policy = ansor.MetaTileRewritePolicy(cost_model, seed=seed)
+    tune_option = ansor.TuneOption(n_trials=2,
+                                   callbacks=[ansor.LogToFile(log_file)])
     state = ansor.auto_schedule(task, search_policy,
-                                tune_option=ansor.TuneOption(n_trials=2))
+                                tune_option=tune_option)
     sch, args = dag.apply_steps_from_state(state)
 
     print("==== Get State ====")
@@ -538,6 +544,14 @@ def test_search_basic():
         print("==== Verification passed ====")
     except Exception:
         raise Exception("Error encounterd with seed: %d" % (seed))
+
+    inp, res = ansor.best_measure_pair_in_file(log_file)
+    s0 = dag.infer_bound_from_state(state)
+    s1 = dag.infer_bound_from_state(inp.state)
+    assert str(s0) == str(s1)
+
+    if os.path.isfile(log_file):
+        os.system("rm -rf %s" % log_file)
 
 
 if __name__ == "__main__":

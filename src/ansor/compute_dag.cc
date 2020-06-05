@@ -1271,5 +1271,10 @@ TVM_REGISTER_GLOBAL("ansor.ComputeDAGPrintPythonCodeFromState")
   return dag.PrintStepsAsPython(state->transform_steps);
 });
 
+TVM_REGISTER_GLOBAL("ansor.ComputeDAGInferBoundFromState")
+.set_body_typed([](const ComputeDAG& dag, const State& state) {
+  return dag.ReplayAndInferBound(state->transform_steps);
+});
+
 }  // namespace ansor
 }  // namespace tvm

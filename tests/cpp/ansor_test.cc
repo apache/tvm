@@ -730,51 +730,6 @@ TEST(Feature, ExtractionMatmul) {
   // TODO(...): Add feature check here
 }
 
-namespace tvm {
-namespace ansor {
-class MetaTileRewritePolicyNodeTest {
- public:
-  MetaTileRewritePolicyNodeTest(CostModel cost_model, SearchTask task) {
-    policy = make_object<MetaTileRewritePolicyNode>();
-    policy->program_cost_model = std::move(cost_model);
-    policy->rand_gen_ = std::mt19937(0);
-    policy->params.Set("cpu_multi_level_tiling_structure",
-                       te::StringImmNode::make("SSRSRS"));
-    policy->params.Set("disable_change_compute_location",
-                       IntImm(DataType::Int(32), 0));
-    policy->cur_task_ = task;
-  }
-  void SynthesizeMetaStructure(std::vector<State>* meta_structures) {
-    policy->SynthesizeMetaStructure(meta_structures);
-  }
-  void SampleInitPopulation(const std::vector<State>& meta_structures,
-                            int out_size, std::vector<State>* out_states) {
-    policy->SampleInitPopulation(meta_structures, out_size, out_states);
-  }
-  tvm::runtime::ObjectPtr<tvm::ansor::MetaTileRewritePolicyNode> policy;
-};
-}  // namespace ansor
-}  // namespace tvm
-
-TEST(MetaTileRewritePolicy, Basic) {
-  const auto& tensors = matmul_func(512, 512, 512);
-  const auto& dag = ComputeDAGNode::make(tensors);
-  const auto& task = SearchTaskNode::make(
-      dag, "test", tvm::target::llvm(), tvm::target::llvm(), HardwareParams());
-  const auto& cost_model = RandomModelNode::make();
-  MetaTileRewritePolicyNodeTest test(cost_model, task);
-
-  std::vector<State> meta_structures, init_population;
-  test.SynthesizeMetaStructure(&meta_structures);
-  CHECK_GE(meta_structures.size(), 0);
-  LOG(INFO) << "SynthesizeMetaStructure get " << meta_structures.size()
-            << " states.";
-  test.SampleInitPopulation(meta_structures, 100, &init_population);
-  CHECK_GE(init_population.size(), 0);
-  LOG(INFO) << "SampleInitPopulation get " << init_population.size()
-            << " states.";
-}
-
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";

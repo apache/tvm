@@ -44,6 +44,10 @@ from . import _ffi_api
 logger = logging.getLogger('ansor')
 
 
+@tvm._ffi.register_object("ansor.MeasureCallback")
+class MeasureCallback(Object):
+    pass
+
 @tvm._ffi.register_object("ansor.MeasureInput")
 class MeasureInput(Object):
     """
@@ -332,7 +336,7 @@ def rpc_run_worker(index):
 
         if error_no == 0:
             try:
-                args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
+                args = [ndarray.non_empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
                         build_res.args]
                 ctx.sync()
 
@@ -390,7 +394,7 @@ def local_run(inputs: List[MeasureInput], build_results: List[BuildResult],
 
         if error_no == 0:
             try:
-                args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
+                args = [ndarray.non_empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
                         build_res.args]
                 ctx.sync()
 

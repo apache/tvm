@@ -78,3 +78,15 @@ class ComputeDAG(Object):
         str : Str
         """
         return _ffi_api.ComputeDAGPrintPythonCodeFromState(self, state)
+
+    def infer_bound_from_state(self, state):
+        """
+        Parameters
+        ----------
+        state : State
+
+        Returns
+        -------
+        state : State
+        """
+        return _ffi_api.ComputeDAGInferBoundFromState(self, state)
