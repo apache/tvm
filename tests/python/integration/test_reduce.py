@@ -65,6 +65,7 @@ def test_reduce_prims():
         check_device("vulkan")
         check_device("cuda")
         check_device("opencl")
+        check_device("rocm")
     test_prim(te.sum, np.sum)
     test_prim(tvm.te.min, np.amin)
     test_prim(tvm.te.max, np.amax)
@@ -179,7 +180,7 @@ def test_rfactor_threads():
     check_target("cuda")
     check_target("metal")
     check_target("opencl")
-
+    check_target("rocm")
 
 def test_rfactor_elemwise_threads():
     n = 1025
@@ -230,6 +231,7 @@ def test_rfactor_elemwise_threads():
     check_target("cuda")
     check_target("metal")
     check_target("opencl")
+    check_target("rocm")
 
 def test_argmax():
     def fcombine(x, y):
@@ -337,6 +339,7 @@ def test_rfactor_argmax():
 
     check_target("cuda")
     check_target("vulkan")
+    check_target("rocm")
 
 def test_warp_reduction1():
     nthx = 32
@@ -365,10 +368,10 @@ def test_warp_reduction1():
         s[B].bind(xi, thread_y)
         s[B].bind(xo, block_x)
 
-        print(tvm.lower(s, [A, B], simple_mode=True))
+        tvm.lower(s, [A, B], simple_mode=True)
 
         # validation
-        func = tvm.build(s, [A, B], "cuda", name="warp_reduction")
+        func = tvm.build(s, [A, B], device, name="warp_reduction")
         a_np = np.random.uniform(size=(m,n)).astype(A.dtype)
         b_np = np.zeros((m,), dtype=A.dtype)
         a = tvm.nd.array(a_np, ctx)
@@ -379,6 +382,8 @@ def test_warp_reduction1():
 
     check_target("cuda", m=32, n=256)
     check_target("cuda", m=10, n=20)
+    check_target("rocm", m=32, n=256)
+    check_target("rocm", m=10, n=20)
     # This is a bug in normal reduction.
     # check_target("cuda", m=10, n=37)
 
@@ -437,6 +442,7 @@ def test_warp_reduction2():
         tvm.testing.assert_allclose(t1.asnumpy(), t1_np, rtol=1e-3, atol=1e-3)
 
     check_target("cuda")
+    check_target("rocm")
 
 if __name__ == "__main__":
     test_rfactor_elemwise_threads()
