@@ -22,11 +22,11 @@
  */
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <unordered_set>
 
-#include "../../arith/compute_expr.h"
 #include "../../tir/transforms/ir_util.h"
 #include "message_passing.h"
 #include "operation_inline.h"
@@ -89,13 +89,14 @@ PrimExpr InjectPredicate(const Array<PrimExpr>& predicates, PrimExpr body) {
   using tir::SelectNode;
   if (predicates.size() == 0) return body;
   const ReduceNode* reduce = body.as<ReduceNode>();
+  auto fand = [](PrimExpr a, PrimExpr b) { return a && b; };
+
   if (reduce) {
     auto n = make_object<ReduceNode>(*reduce);
-    n->condition = n->condition && arith::ComputeReduce<tir::AndNode>(predicates, PrimExpr());
+    n->condition = foldl(fand, n->condition, predicates);
     return PrimExpr(n);
   }
-  return SelectNode::make(arith::ComputeReduce<tir::AndNode>(predicates, PrimExpr()), body,
-                          make_zero(body.dtype()));
+  return SelectNode::make(foldl(fand, const_true(1), predicates), body, make_zero(body.dtype()));
 }
 
 // Replace data flow appears in all stages given the tensor change.
@@ -707,7 +708,9 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor, const IterVar& axis, int f
   const ReduceNode* reduce = compute_op->body[idx].as<ReduceNode>();
   CHECK(reduce) << "Can only rfactor non-inline reductions";
   predicates.push_back(reduce->condition);
-  PrimExpr predicate = likely(arith::ComputeReduce<tir::AndNode>(predicates, PrimExpr()));
+  auto fand = [](PrimExpr a, PrimExpr b) { return a && b; };
+
+  PrimExpr predicate = likely(foldl(fand, const_true(1), predicates));
 
   std::unordered_map<const VarNode*, PrimExpr> vsub;
 

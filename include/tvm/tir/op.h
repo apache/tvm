@@ -463,6 +463,7 @@ TVM_DLL PrimExpr isinf(PrimExpr x);
  * \brief sum of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr sum(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -477,6 +478,7 @@ TVM_DLL PrimExpr all(PrimExpr source, Array<tir::IterVar> axis);
  * \brief logical Or of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -484,6 +486,7 @@ TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis);
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -491,6 +494,7 @@ TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis);
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -498,6 +502,7 @@ TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis);
  * \brief product of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr prod(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -659,6 +664,17 @@ inline bool is_zero(const PrimExpr& x) { return is_const_int(x, 0); }
 inline bool is_const(const PrimExpr& x);
 
 /*!
+ * \brief Left fold.
+ * \param freduce The reduction function.
+ * \param init_value The initial value.
+ * \param values The values to be folded.
+ * \return The result.
+ * \tparam FReduce The type of the reduction.
+ */
+template <typename FReduce>
+inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values);
+
+/*!
  * \brief Check whether x is a constant power of two
  * If x is power of two, write the power to the shift.
  *
@@ -762,6 +778,15 @@ inline PrimExpr make_zero(DataType t) {
   }
   return make_const(t, 0);
 }
+
+template <typename FReduce>
+inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values) {
+  for (PrimExpr val : values) {
+    init_value = freduce(init_value, val);
+  }
+  return init_value;
+}
+
 }  // namespace tir
 
 // additional const expression overloading

@@ -36,7 +36,6 @@
 
 #include <unordered_map>
 
-#include "../../arith/compute_expr.h"
 #include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {

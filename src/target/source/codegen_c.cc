@@ -25,7 +25,6 @@
 #include <cctype>
 #include <iomanip>
 
-#include "../../arith/compute_expr.h"
 #include "../../arith/pattern_match.h"
 
 namespace tvm {

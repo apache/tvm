@@ -29,7 +29,6 @@
 
 #include <unordered_set>
 
-#include "../../arith/compute_expr.h"
 #include "./compute_op.h"
 #include "./op_util.h"
 
