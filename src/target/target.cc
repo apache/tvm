@@ -98,8 +98,9 @@ Target CreateTarget(const std::string& target_name, const std::vector<std::strin
     // For now assume rocm schedule for opencl
     if (target_name == "opencl") {
       t->device_type = kDLOpenCL;
-    } else {
+    } else {  // rocm
       t->device_type = kDLROCM;
+      t->thread_warp_size = 64;
     }
     t->keys_array.push_back(target_name);
     t->keys_array.push_back("gpu");
