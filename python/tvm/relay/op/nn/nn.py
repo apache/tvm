@@ -372,6 +372,76 @@ def contrib_conv3d_winograd_without_weight_transform(data,
         groups, channels, kernel_size, data_layout,
         kernel_layout, out_layout, out_dtype)
 
+def conv3d_transpose(data,
+                     weight,
+                     strides=(1, 1, 1),
+                     padding=(0, 0, 0),
+                     dilation=(1, 1, 1),
+                     groups=1,
+                     channels=None,
+                     kernel_size=None,
+                     data_layout="NCDHW",
+                     kernel_layout="OIDHW",
+                     out_layout="",
+                     output_padding=(0, 0, 0),
+                     out_dtype=""):
+    r"""3D transpose convolution.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    strides : Optional[Tuple[int]]
+        The strides of convolution.
+
+    padding : Optional[int, Tuple[int]]
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilation : Optional[int, Tuple[int]]
+        Specifies the dilation rate to be used for dilated convolution.
+
+    groups : Optional[int]
+        Number of groups for grouped convolution.
+
+    channels : Optional[int]
+        Number of output channels of this convolution.
+
+    kernel_size : Optional[int, Tuple[int]]
+        The spatial of the convolution kernel.
+
+    data_layout : Optional[str]
+        Layout of the input.
+
+    kernel_layout : Optional[str]
+        Layout of the weight.
+
+    out_layout : Optional[str]
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : Optional[str]
+        Specifies the output data type for mixed precision conv3d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, kernel_size, kernel_size)
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    if isinstance(dilation, int):
+        dilation = (dilation, dilation, dilation)
+    padding = get_pad_tuple3d(padding)
+
+    return _make.conv3d_transpose(data, weight, strides, padding, dilation,
+                                  groups, channels, kernel_size, data_layout,
+                                  kernel_layout, out_layout, output_padding, out_dtype)
 
 def conv2d_transpose(data,
                      weight,

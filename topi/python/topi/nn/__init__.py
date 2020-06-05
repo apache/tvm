@@ -32,6 +32,7 @@ from .dense import *
 from .mapping import *
 from .pooling import *
 from .softmax import *
+from .conv3d_transpose import *
 from .conv2d_transpose import *
 from .conv1d_transpose import *
 from .bnn import *

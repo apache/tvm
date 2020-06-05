@@ -1186,6 +1186,33 @@ def test_conv3d():
                      inp)
 
 
+def test_conv3d_transpose():
+    for ishape in [(1, 8, 10, 5, 10),
+                   (1, 8, 5, 8, 8),
+                   (1, 8, 13, 7, 7)]:
+        inp = torch.rand(ishape)
+        verify_model(torch.nn.ConvTranspose3d(in_channels=8,
+                                              out_channels=33,
+                                              kernel_size=3,
+                                              stride=2).eval(),
+                     inp),
+        verify_model(torch.nn.ConvTranspose3d(in_channels=8,
+                                              out_channels=20,
+                                              kernel_size=(3, 5, 2),
+                                              stride=(2, 1, 1),
+                                              padding=(0, 4, 2)).eval(),
+                     inp),
+        verify_model(torch.nn.ConvTranspose3d(in_channels=8,
+                                               out_channels=20,
+                                               kernel_size=1).eval(),
+                     inp)
+        verify_model(torch.nn.ConvTranspose3d(in_channels=8,
+                                              out_channels=5,
+                                              kernel_size=1,
+                                              stride=2).eval(),
+                     inp)
+
+
 # Model tests
 def test_resnet18():
     torch.set_grad_enabled(False)
@@ -2472,6 +2499,7 @@ if __name__ == "__main__":
     test_forward_replication_pad3d()
     test_adaptive_pool3d()
     test_conv3d()
+    test_conv3d_transpose()
 
     # Model tests
     test_resnet18()

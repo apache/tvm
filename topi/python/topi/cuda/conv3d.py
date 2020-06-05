@@ -129,7 +129,7 @@ def schedule_conv3d_ndhwc(cfg, outs):
         The config for this template
 
     outs: Array of Tensor
-        The computation graph description of conv2d
+        The computation graph description of conv3d
         in the format of an array of tensors.
 
     Returns

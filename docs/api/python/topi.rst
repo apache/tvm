@@ -214,6 +214,8 @@ topi.nn
 .. autofunction:: topi.nn.conv2d_hwcn
 .. autofunction:: topi.nn.depthwise_conv2d_nchw
 .. autofunction:: topi.nn.depthwise_conv2d_nhwc
+.. autofunction:: topi.nn.conv3d_ncdhw
+.. autofunction:: topi.nn.conv3d_transpose_ncdhw
 .. autofunction:: topi.nn.fifo_buffer
 
 topi.image
@@ -233,6 +235,8 @@ topi.generic
 
 .. autofunction:: topi.generic.schedule_conv2d_nchw
 .. autofunction:: topi.generic.schedule_depthwise_conv2d_nchw
+.. autofunction:: topi.generic.schedule_conv3d_ncdhw
+.. autofunction:: topi.generic.schedule_conv3d_transpose_ncdhw
 .. autofunction:: topi.generic.schedule_reduce
 .. autofunction:: topi.generic.schedule_broadcast
 .. autofunction:: topi.generic.schedule_injective

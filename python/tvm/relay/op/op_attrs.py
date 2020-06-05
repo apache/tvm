@@ -348,6 +348,9 @@ class BinaryDenseAttrs(Attrs):
 class Conv2DTransposeAttrs(Attrs):
     """Attributes used in Transposed Conv2D operators"""
 
+@tvm._ffi.register_object("relay.attrs.Conv3DTransposeAttrs")
+class Conv3DTransposeAttrs(Attrs):
+    """Attributes used in Transposed Conv3D operators"""
 
 @tvm._ffi.register_object("relay.attrs.DilateAttrs")
 class DilateAttrs(Attrs):

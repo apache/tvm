@@ -612,6 +612,43 @@ def test_conv3d_winograd():
                          padding=(0, 2, 2), channels=120, kernel_size=(1, 5, 5))
 
 
+def test_conv3d_transpose_infer_type():
+    # symbolic in batch dimension
+    n, c, d, h, w = te.size_var("n"), 10, 224, 224, 224
+    x = relay.var("x", relay.ty.TensorType((n, c, d, h, w), "float32"))
+    w = relay.var("w")
+    y = relay.nn.conv3d_transpose(x, w,
+                                   kernel_size=(3, 3, 3),
+                                   padding=(1, 1, 1),
+                                   channels=2)
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 2, 224, 224, 224), "float32")
+
+    assert yy.args[1].checked_type == relay.TensorType(
+        (10, 2, 3, 3, 3), "float32")
+
+    # infer by shape of w, mixed precision
+    n, c, d, h, w = te.size_var("n"), 10, 224, 224, 224
+    x = relay.var("x", relay.TensorType((n, c, d, h, w), "int8"))
+    w = relay.var("w", relay.TensorType((10, 12, 3, 3, 3), "int8"))
+    y = relay.nn.conv3d_transpose(x, w, out_dtype="int32")
+    assert "out_dtype=\"int32\"" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 12, 226, 226, 226), "int32")
+
+    # infer shape in case of different dtypes for input and weight.
+    n, c, d, h, w = te.size_var("n"), 10, 224, 224, 224
+    x = relay.var("x", relay.TensorType((n, c, d, h, w), "uint8"))
+    w = relay.var("w", relay.TensorType((10, 12, 3, 3, 3), "int8"))
+    y = relay.nn.conv3d_transpose(x, w, out_dtype="int32")
+    assert "out_dtype=\"int32\"" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 12, 226, 226, 226), "int32")
+
+
 def test_conv2d_transpose_infer_type():
     # symbolic in batch dimension
     n, c, h, w = te.size_var("n"), 10, 10, 12
@@ -1397,6 +1434,7 @@ if __name__ == "__main__":
     test_flatten_infer_type()
     test_pad_infer_type()
     test_pad_run()
+    test_conv3d_transpose_infer_type()
     test_conv2d_transpose_infer_type()
     test_conv2d_transpose_nchw_run()
     test_conv2d_transpose_nhwc_run()

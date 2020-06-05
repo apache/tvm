@@ -36,5 +36,6 @@ from .dense import *
 from .batch_matmul import *
 from .roi_align import roi_align_nchw
 from .conv2d_transpose import *
+from .conv3d_transpose import *
 from .sparse import *
 from .conv2d_alter_op import *
