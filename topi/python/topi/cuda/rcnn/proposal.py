@@ -187,7 +187,7 @@ def argsort_ir(data_buf, out_index_buf):
                 index_out[offset + 1] = temp_index[0]
             ib.emit(tvm.tir.Call(None, 'tvm_storage_sync',
                                  tvm.runtime.convert(['shared']),
-                                 tvm.tir.Call.Intrinsic, None, 0))
+                                 tvm.tir.Call.Intrinsic))
     return ib.get()
 
 
@@ -248,7 +248,7 @@ def nms_ir(sorted_bbox_buf, out_buf, nms_threshold):
                     p_out[base_idx + i] = True
         ib.emit(tvm.tir.Call(None, 'tvm_storage_sync',
                              tvm.runtime.convert(['shared']),
-                             tvm.tir.Call.Intrinsic, None, 0))
+                             tvm.tir.Call.Intrinsic))
     return ib.get()
 
 

@@ -47,14 +47,16 @@ PrimExpr Tensor::operator()(Array<Var> indices) const {
 }
 
 PrimExpr Tensor::operator()(Array<PrimExpr> indices) const {
-  using tir::CallNode;
   if (ndim() != 0) {
     CHECK_EQ(ndim(), indices.size()) << "Tensor dimension mismatch in read"
                                      << "ndim = " << ndim() << ", indices.size=" << indices.size();
   }
-  auto n = CallNode::make((*this)->dtype, (*this)->op->name, indices, CallNode::Halide, (*this)->op,
-                          (*this)->value_index);
-  return n;
+
+  return ProducerLoad((*this), indices);
+}
+
+String TensorNode::GetNameHint() const {
+  return op->num_outputs() == 1 ? op->name : (op->name + ".v" + std::to_string(value_index));
 }
 
 Tensor Operation::output(size_t i) const {

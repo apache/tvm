@@ -80,7 +80,7 @@ class DevContext(object):
         ctx = tvm.tir.call_extern("handle", "VTATLSCommandHandle")
         self.command_handle = tvm.tir.Call(
             "handle", "tvm_thread_context", [ctx],
-            tvm.tir.Call.Intrinsic, None, 0)
+            tvm.tir.Call.Intrinsic)
         self.DEBUG_NO_SYNC = False
         env._dev_ctx = self
         self.gemm = intrin.gemm(env, env.mock_mode)

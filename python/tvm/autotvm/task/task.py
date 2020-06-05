@@ -495,11 +495,11 @@ def compute_flop(sch):
         if isinstance(exp, expr.Select):
             return _count_flop(exp.condition) + max(_count_flop(exp.true_value),
                                                     _count_flop(exp.false_value))
-        if isinstance(exp, expr.Call):
-            if exp.call_type == expr.Call.Halide:
-                # Ignore flops from indexing expressions.
-                return 0
+        if isinstance(exp, expr.ProducerLoad):
+            # Ignore flops from indexing expressions.
+            return 0
 
+        if isinstance(exp, expr.Call):
             return sum([_count_flop(x) for x in exp.args])
 
         raise FlopCalculationError("Found unsupported operator in the compute expr")

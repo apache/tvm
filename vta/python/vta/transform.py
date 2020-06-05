@@ -297,7 +297,7 @@ def InjectCoProcSync():
             if _match_pragma(stmt, "coproc_sync"):
                 success[0] = True
                 sync = tvm.tir.Call(
-                    "int32", "vta.coproc_sync", [], tvm.tir.Call.Intrinsic, None, 0)
+                    "int32", "vta.coproc_sync", [], tvm.tir.Call.Intrinsic)
                 return tvm.tir.SeqStmt([stmt.body, tvm.tir.Evaluate(sync)])
             if _match_pragma(stmt, "trim_loop"):
                 op = stmt.body

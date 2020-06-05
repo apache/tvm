@@ -156,22 +156,19 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self, const Stage& stage,
 // Remap the tensor placeholder, index and inline things.
 class TensorIntrinMatcher final : public StmtExprMutator {
  public:
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<CallNode>();
-    if (op->call_type == CallNode::Halide) {
-      Tensor t = Downcast<Operation>(op->func).output(op->value_index);
-      auto it = in_remap_.find(t);
-      if (it != in_remap_.end()) {
-        const InputEntry& e = it->second;
-        CHECK_EQ(op->args.size(), e.region.size());
-        Array<PrimExpr> args;
-        for (size_t i = e.start; i < e.region.size(); ++i) {
-          args.push_back(op->args[i] - e.region[i]->min);
-        }
-        return CallNode::make(op->dtype, e.tensor->op->name, args, op->call_type, e.tensor->op,
-                              e.tensor->value_index);
+    op = expr.as<ProducerLoadNode>();
+    auto t = Downcast<Tensor>(op->producer);
+    auto it = in_remap_.find(t);
+    if (it != in_remap_.end()) {
+      const InputEntry& e = it->second;
+      CHECK_EQ(op->indices.size(), e.region.size());
+      Array<PrimExpr> indices;
+      for (size_t i = e.start; i < e.region.size(); ++i) {
+        indices.push_back(op->indices[i] - e.region[i]->min);
       }
+      return ProducerLoad(e.tensor, indices);
     }
     return expr;
   }
