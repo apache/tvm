@@ -328,12 +328,12 @@ def test_concatenate():
         in_vars = []
         in_data = []
         for i, shape in enumerate(shapes):
-            in_vars.append(relay.var("x"+ str(i), relay.ty.TensorType(shape, dtype)))
+            in_vars.append(relay.var("x" + str(i), relay.ty.TensorType(shape, dtype)))
             in_data.append(np.random.uniform(size=shape).astype(dtype))
 
         out_tensor = relay.concatenate(in_vars, axis)
         func = relay.Function(in_vars, out_tensor)
-        verify_results(func, in_data, 'test_split', rtol=1e-5, atol=1e-5)
+        verify_results(func, in_data, 'test_concatenate', rtol=1e-5, atol=1e-5)
 
     verify_concatenate([(2,), (2,), (2,)], -1)
     verify_concatenate([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1)
@@ -417,6 +417,34 @@ def test_binary_op():
         for dtype in ['float32']:
             check_binary_op(opfunc, dtype)
 
+
+def test_tuple_types():
+    def verify_tuple_types(dshape, indices_or_sections, axis=None, dtype = "float32"):
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        y = relay.split(x, indices_or_sections, axis=axis)
+        z = relay.concatenate(y, axis=axis)
+        func = relay.Function([x], z)
+        x_data = np.random.uniform(size=dshape).astype(dtype)
+        verify_results(func, [x_data], 'test_tuple_types', rtol=1e-5, atol=1e-5)
+
+        split_z = relay.split(z, indices_or_sections, axis=axis)
+        func = relay.Function([x], split_z.astuple())
+        verify_results(func, [x_data], 'test_tuple_types', rtol=1e-5, atol=1e-5)
+
+        out = relay.Tuple([y[0] + y[1], y[0] - y[1]])
+        func = relay.Function([x], out)
+        verify_results(func, [x_data], 'test_tuple_types', rtol=1e-5, atol=1e-5)
+
+        z = relay.concatenate(out, axis=axis)
+        func = relay.Function([x], z)
+        verify_results(func, [x_data], 'test_tuple_types', rtol=1e-5, atol=1e-5)
+
+    verify_tuple_types((5, 5, 2, 2), 5, axis=1)
+    verify_tuple_types((5, 5, 2, 2), 5, axis=0)
+    verify_tuple_types((5, 5, 2, 2), [1, 3, 4], axis=0)
+    verify_tuple_types((5, 5, 2, 2), [1, 3, 4], axis=1)
+
+
 if __name__ == '__main__':
     test_add()
     test_bias_add()
@@ -429,8 +457,11 @@ if __name__ == '__main__':
     test_batch_norm()
     test_pad()
     test_mean()
+    test_split()
+    test_concatenate()
     test_sofmax()
     test_squeeze()
     test_strided_slice()
     test_cmp_type()
     test_binary_op()
+    test_tuple_types()

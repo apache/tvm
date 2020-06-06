@@ -19,6 +19,7 @@
 
 import os
 import struct
+import copy
 import numpy
 import onnx
 import onnx.utils
@@ -28,7 +29,6 @@ from tvm import relay
 import tvm._ffi
 from tvm.relay.expr_functor import ExprVisitor
 from tvm.relay.ty import TupleType, TensorType
-
 
 ONNX_OPSET_VERSONS_SUPPORTED = [11]
 
@@ -50,6 +50,7 @@ def infer_type(node):
 
 
 def call_node_infer_type(node):
+    """infer the output types of call node"""
     infer_out = infer_type(node)
     out_type = infer_out._checked_type_
     types = []
@@ -89,13 +90,11 @@ class OpConverter(object):
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
         attrs = cls.convert_attributes(node_entry['relay_node'].attrs)
-        output_names = [node_entry['name']]
         onnx_node = onnx.helper.make_node(cls.__name__,
-                                     node_entry['input_names'],
-                                     output_names,
-                                     **attrs)
+                                          node_entry['input_names'],
+                                          node_entry['output_names'],
+                                          **attrs)
         model_container.add_nodes([onnx_node])
-        return output_names
 
 
 def rename(op_name):
@@ -117,13 +116,12 @@ class Reshape(object):
 
         shape = numpy.asarray([a.value for a in node_entry['relay_node'].attrs.newshape],
                               dtype=numpy.int64)
-        output_name = node_entry['name']
-        input_name = 'shape{}'.format(output_name)
+        input_name = 'shape{}'.format(node_entry['name'])
         node = onnx.helper.make_node(cls.__name__, [node_entry['input_names'][0], input_name],
-                                     [output_name])
+                                     node_entry['output_names'])
         model_container.add_nodes([node])
         add_input(shape, input_name, model_container)
-        return [output_name]
+
 
 class Conv(OpConverter):
     """ Operator converter for Conv.
@@ -168,8 +166,7 @@ class MatMul(OpConverter):
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
-        output_name = node_entry['name']
-        inter_output_name = 'inter{}'.format(output_name)
+        inter_output_name = 'inter{}'.format(node_entry['name'])
         transpose_node = onnx.helper.make_node(Transpose.__name__,
                                                [node_entry['input_names'][1]],
                                                [inter_output_name],
@@ -177,9 +174,8 @@ class MatMul(OpConverter):
         model_container.add_nodes([transpose_node])
 
         inputs = [node_entry['input_names'][0], inter_output_name]
-        matmul_node = onnx.helper.make_node(cls.__name__, inputs, [output_name])
+        matmul_node = onnx.helper.make_node(cls.__name__, inputs, node_entry['output_names'])
         model_container.add_nodes([matmul_node])
-        return [output_name]
 
 
 class Flatten(OpConverter):
@@ -211,33 +207,31 @@ class BatchNormalization(OpConverter):
         """
         attrs = cls.convert_attributes(node_entry['relay_node'].attrs)
         transpose_out_name = node_entry['input_names'][0]
-        output_names = [node_entry['name']]
-
+        inter_output_names = [node_entry['output_names'][0]]
         # axis==3 means channel is specified along the 3rd axis
         if attrs['axis'] == 3:
-            transpose_out_name = 'transpose_{}'.format(output_names[0])
+            transpose_out_name = 'transpose_{}'.format(node_entry['name'])
             node_transposed = onnx.helper.make_node(Transpose.__name__,
                                                     [node_entry['input_names'][0]],
                                                     [transpose_out_name],
                                                     perm=[0, 3, 1, 2])
             model_container.add_nodes([node_transposed])
-            output_names = ['batch_norm_{}'.format(output_names[0])]
+            inter_output_names = ['batch_norm_{}'.format(node_entry['name'])]
 
+        input_names = [transpose_out_name] + node_entry['input_names'][1:]
         batch_norm_node = onnx.helper.make_node(cls.__name__,
-                                                [transpose_out_name] + node_entry['input_names'][1:],
-                                                output_names,
+                                                input_names,
+                                                inter_output_names,
                                                 epsilon=attrs['epsilon'])
         model_container.add_nodes([batch_norm_node])
-        final_out_names = output_names
+
         if attrs['axis'] == 3:
             node_transposed = onnx.helper.make_node(Transpose.__name__,
-                                                    output_names,
-                                                    [node_entry['name']],
+                                                    inter_output_names,
+                                                    [node_entry['output_names'][0]],
                                                     perm=[0, 2, 3, 1])
             model_container.add_nodes([node_transposed])
-            final_out_names = [node_entry['name']]
 
-        return final_out_names
 
 class Dropout(OpConverter):
     """ Operator converter for Dropout.
@@ -291,10 +285,8 @@ class BiasAdd(OpConverter):
             inter_output_name = node_entry['input_names'][1]
 
         inputs = [node_entry['input_names'][0], inter_output_name]
-        output_names = [node_entry['name']]
-        matmul_node = onnx.helper.make_node('Add', inputs, output_names)
+        matmul_node = onnx.helper.make_node('Add', inputs, node_entry['output_names'])
         model_container.add_nodes([matmul_node])
-        return output_names
 
 
 class ReduceMean(OpConverter):
@@ -322,14 +314,12 @@ class ReduceMean(OpConverter):
             all_axis = list(range(len(shape)))
             axis = set(all_axis) - set(axis)
 
-        output_names = [node_entry['name']]
         node = onnx.helper.make_node(cls.__name__,
                                      node_entry['input_names'],
-                                     output_names,
+                                     node_entry['output_names'],
                                      axes=axis,
                                      keepdims=keepdims)
         model_container.add_nodes([node])
-        return output_names
 
 
 class Pad(OpConverter):
@@ -359,18 +349,17 @@ class Pad(OpConverter):
         """
         attrs = cls.convert_attributes(node_entry['relay_node'].attrs)
 
-        output_names = [node_entry['name']]
+        name = node_entry['name']
         data = numpy.asarray(attrs['pads'], dtype=attrs['pads'][0].dtype).astype(numpy.int64)
-        input_name = 'pads_{}'.format(output_names[0])
+        input_name = 'pads_{}'.format(name)
         value = numpy.dtype(node_entry['types'][0].dtype).type(attrs['constant_value'])
-        input_value_name = 'value_{}'.format(output_names[0])
+        input_value_name = 'value_{}'.format(name)
         add_input(data, input_name, model_container)
         add_input(value, input_value_name, model_container)
 
         input_names = [node_entry['input_names'][0], input_name, input_value_name]
-        node = onnx.helper.make_node(cls.__name__, input_names, output_names)
+        node = onnx.helper.make_node(cls.__name__, input_names, node_entry['output_names'])
         model_container.add_nodes([node])
-        return output_names
 
 
 class Softmax(OpConverter):
@@ -409,13 +398,11 @@ class Squeeze(OpConverter):
         else:
             axis = node_entry['relay_node'].attrs.get_int_tuple("axis")
 
-        output_names =  [node_entry['name']]
         node = onnx.helper.make_node(cls.__name__,
                                      node_entry['input_names'],
-                                     output_names,
+                                     node_entry['output_names'],
                                      axes=axis)
         model_container.add_nodes([node])
-        return output_names
 
 
 class Slice(OpConverter):
@@ -445,13 +432,13 @@ class Slice(OpConverter):
         for i in range(len(ends), len(shape)):
             ends.append(shape[i] + 1)
 
-        output_names = [node_entry['name']]
+        name = node_entry['name']
         starts = numpy.asarray(starts).astype(numpy.int64)
-        starts_name = 'starts_{}'.format(output_names[0])
+        starts_name = 'starts_{}'.format(name)
         add_input(starts, starts_name, model_container)
 
         ends = numpy.asarray(ends).astype(numpy.int64)
-        ends_name = 'ends_{}'.format(output_names[0])
+        ends_name = 'ends_{}'.format(name)
         add_input(ends, ends_name, model_container)
 
         input_names = node_entry['input_names'] + [starts_name, ends_name]
@@ -462,20 +449,19 @@ class Slice(OpConverter):
             assert len(axes) == len(attrs['steps']), "axes and steps should be of same size"
 
             steps = numpy.asarray(attrs['steps']).astype(numpy.int64)
-            steps_name = 'steps_{}'.format(output_names[0])
+            steps_name = 'steps_{}'.format(name)
             add_input(steps, steps_name, model_container)
 
             axes = numpy.asarray(attrs['axes']).astype(numpy.int64)
-            axes_name = 'axes_{}'.format(output_names[0])
+            axes_name = 'axes_{}'.format(name)
             add_input(axes, axes_name, model_container)
 
             input_names = input_names + [axes_name, steps_name]
 
         slice_node = onnx.helper.make_node(cls.__name__,
                                            input_names,
-                                           output_names)
+                                           node_entry['output_names'])
         model_container.add_nodes([slice_node])
-        return output_names
 
 
 class Split(OpConverter):
@@ -486,10 +472,9 @@ class Split(OpConverter):
     def convert_attributes(cls, attrs):
         indices_or_sections = attrs['indices_or_sections']
 
-        if isinstance(indices_or_sections, tvm.ir.container.Array)\
-            or isinstance(indices_or_sections, list):
+        if isinstance(indices_or_sections, (list, tvm.ir.container.Array)):
             indices_or_sections = attrs.get_int_tuple('indices_or_sections')
-        elif isinstance(indices_or_sections, tvm.ir.PrimExpr):
+        if isinstance(indices_or_sections, tvm.ir.PrimExpr):
             indices_or_sections = indices_or_sections.value
 
         return {
@@ -506,28 +491,28 @@ class Split(OpConverter):
         input_node = input_node[0]
         shape = input_node['types'][0].concrete_shape
 
-        indices = attrs["indices_or_section"]
+        indices_or_sect = attrs["indices_or_section"]
         axis = attrs["axis"]
-        axis_len = shape[axis]
+        axis_length = shape[axis]
 
-        if isinstance(indices, int):
-            split = [axis_len // indices] * (indices)
+        if isinstance(indices_or_sect, int):
+            split = [axis_length // indices_or_sect] * indices_or_sect
         else:
-            split = [None] * (len(indices) + 1)
-            split[0] = indices[0]
-            for i in range(len(indices) - 1):
-                split[i + 1] = indices[i + 1] - indices[i]
-            split[-1] = axis_len - indices[-1]
+            split = []
+            for i in range(len(indices_or_sect) + 1):
+                if i == 0:
+                    split.append(indices_or_sect[0])
+                elif i == len(indices_or_sect):
+                    split.append(axis_length - indices_or_sect[-1])
+                else:
+                    split.append(indices_or_sect[i] - indices_or_sect[i - 1])
 
-        output_names = ["{}_{}".format(node_entry['name'], i) for i in range(len(split))]
         slice_node = onnx.helper.make_node(cls.__name__,
                                            node_entry['input_names'],
-                                           output_names,
+                                           node_entry['output_names'],
                                            split=split,
                                            axis=axis)
         model_container.add_nodes([slice_node])
-
-        return output_names
 
 
 class ConstantOfShapeZeros(OpConverter):
@@ -547,8 +532,7 @@ class ConstantOfShapeZeros(OpConverter):
         assert len(input_node) == 1, "input node can not be a Tuple"
         input_node = input_node[0]
         dtype = input_node['relay_node'].type_annotation.dtype
-        output_names = [node_entry['name']]
-        input_shape_name = 'shape_{}'.format(output_names[0])
+        input_shape_name = 'shape_{}'.format(node_entry['name'])
         shape = [val.value for val in input_node['relay_node'].type_annotation.shape]
         shape = numpy.asarray(shape).astype(numpy.int64)
         add_input(shape, input_shape_name, model_container)
@@ -559,10 +543,9 @@ class ConstantOfShapeZeros(OpConverter):
 
         node = onnx.helper.make_node('ConstantOfShape',
                                      [input_shape_name],
-                                     output_names,
+                                     node_entry['output_names'],
                                      value=tensor_value)
         model_container.add_nodes([node])
-        return output_names
 
 
 class ConstantOfShapeOnes(ConstantOfShapeZeros):
@@ -730,22 +713,31 @@ class RelayToONNXConverter(ExprVisitor):
             self.visit(f)
             self._node_dict[tup].extend(self._node_dict[f])
 
-    def visit_tuple_getitem(self, tup):
-        self.visit(tup.tuple_value)
-        self._node_dict[tup] = [self._node_dict[tup.tuple_value][tup.index]]
         self.last_node = tup
 
-    def visit_call(self, call_node):
+    def visit_tuple_getitem(self, t):
+        self.visit(t.tuple_value)
+        tup_node = self._node_dict[t.tuple_value]
+        if len(tup_node) > 1:
+            self._node_dict[t] = tup_node[t.index]
+        else:
+            node_entry = copy.deepcopy(tup_node[0])
+            output_names = [node_entry["output_names"][t.index]]
+            node_entry["output_names"] = output_names
+            self._node_dict[t] = [node_entry]
+        self.last_node = t
+
+    def visit_call(self, call):
         node_index = self._node_count
-        op = call_node.op
+        op = call.op
         name = "{}_{}".format(op, node_index)
-        node_entry = self._get_node_entry(call_node, name, node_index)
+        node_entry = self._get_node_entry(call, name, node_index)
 
         node_entry["op"] = op
         node_entry["input_names"] = []
         node_entry["inputs"] = []
         node_entry["output_names"] = None
-        for input_arg in call_node.args:
+        for input_arg in call.args:
             self.visit(input_arg)
             input_names = []
             for arg_node_entry in self._node_dict[input_arg]:
@@ -753,11 +745,13 @@ class RelayToONNXConverter(ExprVisitor):
             node_entry["input_names"].extend(input_names)
             node_entry["inputs"].extend([input_arg])
 
-        node_entry['types'] = call_node_infer_type(call_node)
-        self.last_node = call_node
-        output_names = self._add_node(node_entry, node_index)
-        node_entry["output_names"] = output_names if output_names is not None else [name]
-        self._node_dict[call_node] = [node_entry]
+        node_entry['types'] = call_node_infer_type(call)
+        node_entry["output_names"] = []
+        for i in range(len(node_entry['types'])):
+            node_entry["output_names"].append(name + str(i))
+        self.last_node = call
+        self._add_node(node_entry, node_index)
+        self._node_dict[call] = [node_entry]
 
     def _add_node(self, node_entry, idx):
         """Convert Relay operator node to ONNX operator and add it to container nodes list"""
@@ -850,7 +844,7 @@ def to_onnx(relay_ir, params, name, opset_version=11, path=None):
     if opset_version > defs.onnx_opset_version():
         raise Exception("The ONNX package installed of version {} does not support the opset "
                         "version {}. Upgrade the ONNX package to latest version.".format(
-                            get_onnx_version(), opset_version))
+            get_onnx_version(), opset_version))
 
     func = relay_ir["main"] if isinstance(relay_ir, tvm.ir.IRModule) else relay_ir
     converter = RelayToONNXConverter(name, params, opset_version)
@@ -900,7 +894,7 @@ def save_to_file(hex_str, path=None, fmt="onnx"):
     while offset < len(onnx_ir):
         stop = offset + 4
         (name_size,) = struct.unpack('I', onnx_ir[offset:stop])
-        name = onnx_ir[stop :  stop + name_size].decode("utf-8")
+        name = onnx_ir[stop:stop + name_size].decode("utf-8")
         stop = stop + name_size
         (model_size,) = struct.unpack('I', onnx_ir[stop:stop + 4])
         stop = stop + 4
