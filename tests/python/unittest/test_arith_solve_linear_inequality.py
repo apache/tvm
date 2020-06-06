@@ -114,94 +114,99 @@ def test_solve_system_of_inequalities():
         _check(10, 3, coef=(0, 1), bounds=(0, 4))
 
 
-def test_simple():
+def test_dual_variable():
     x, y = te.var("x"), te.var("y")
 
+    variables = [x, y]
     ranges = {
         x: tvm.ir.Range(-100, 100),
         y: tvm.ir.Range(0, 10),
     }
+    problem = [
+        tvm.tir.LE(x + y, 20),
+        tvm.tir.GE(x - y, 10),
+    ]
 
+    # solution as conditions
+    solution = arith._ffi_api.SolveInequalitiesAsCondition(variables, ranges, problem)
+    assert len(solution) == 4
+    assert ir.structural_equal(solution[0], y >= 0)
+    assert ir.structural_equal(solution[1], y <= 5)
+    assert ir.structural_equal(solution[2], x >= (y + 10))
+    assert ir.structural_equal(solution[3], x <= (20 - y))
+
+    # solve and get the ranges
     solution = arith.solve_linear_inequalities([
         tvm.tir.LE(x + y, 20),
         tvm.tir.GE(x - y, 10),
-    ], [x, y], ranges, deskew_range=True)
-
+    ], [x, y], ranges)
     print(solution)
+    # 0 <= y <=5
+    assert solution.ranges[y].min == 0
+    assert solution.ranges[y].extent == 6
+    # y + 10 <= x <= 20 - y
+    assert ir.structural_equal(solution.ranges[x].min, y + 10)
+    assert solution.ranges[x].extent == 11  # max(10 - 2y)
 
+    # deskew the solved ranges to be starting from zero
+    solution = arith.solve_linear_inequalities(problem, variables, ranges, deskew_range=True)
+    print(solution)
     [x_new, y_new] = solution.dst.variables
     [rel] = solution.dst.relations
-
     assert ir.structural_equal(rel, (y_new*2) + x_new <= 10)
-
     assert ir.structural_equal(solution.dst.ranges[x_new].min, 0)
     assert ir.structural_equal(solution.dst.ranges[x_new].extent, 11)
-
     assert ir.structural_equal(solution.dst.ranges[y_new].min, 0)
     assert ir.structural_equal(solution.dst.ranges[y_new].extent, 6)
-
     assert ir.structural_equal(solution.src_to_dst[x], x_new + (y_new + 10))
     assert ir.structural_equal(solution.src_to_dst[y], y_new)
     assert ir.structural_equal(solution.dst_to_src[x_new], x - y - 10)
     assert ir.structural_equal(solution.dst_to_src[y_new], y)
 
-    sol = arith.solve_linear_inequalities([
-        tvm.tir.LE(x + y, 20),
-        tvm.tir.GE(x - y, 10),
-    ], [x, y], ranges)
-    print(sol)
-    # 0 <= y <=5
-    assert sol.ranges[y].min == 0
-    assert sol.ranges[y].extent == 6
-    # y + 10 <= x <= 20 - y
-    assert ir.structural_equal(sol.ranges[x].min, y + 10)
-    assert sol.ranges[x].extent == 11  # max(10 - 2y)
-
 
 def test_equal():
     x, y = te.var("x"), te.var("y")
-
-    solution = arith.solve_linear_inequalities([
+    problem = [
         tvm.tir.GE(x + y, 10),
         tvm.tir.GE(x - y, 2),
         tvm.tir.LE(x, 6),
-    ], [x, y])
+    ]
 
-    print(solution)
+    solution = arith.solve_linear_inequalities(problem, [x, y])
+    assert solution.ranges[x].min == 6
+    assert solution.ranges[x].extent == 1
+    assert solution.ranges[y].min == 4
+    assert solution.ranges[y].extent == 1
 
-    sol = arith.solve_linear_inequalities([
-        tvm.tir.GE(x + y, 10),
-        tvm.tir.GE(x - y, 2),
-        tvm.tir.LE(x, 6),
-    ], [x, y], deskew_range=True)
-    print(sol)
+    solution = arith.solve_linear_inequalities(problem, [x, y], deskew_range=True)
+    assert len(solution.dst.variables) == 0
+    assert len(solution.dst.ranges) == 0
+    assert len(solution.dst.relations) == 0
+    assert solution.src_to_dst[x] == 6
+    assert solution.src_to_dst[y] == 4
 
 
 def test_multi_equal():
     x, y, z = te.var("x"), te.var("y"), te.var("z")
-
-    solution = arith.solve_linear_inequalities([
+    problem = [
         tvm.tir.LE(x, 6),
         tvm.tir.GE(x, 6),
         tvm.tir.GE(x - z * y, 0),
         tvm.tir.LE(x - z * y, 0),
-    ], [x, y, z], deskew_range=True)
+    ]
 
-    print(solution)
+    solution = arith.solve_linear_inequalities(problem, [x, y, z])
+    assert solution.ranges[x].min == 6
+    assert solution.ranges[x].extent == 1
+
+    solution = arith.solve_linear_inequalities(problem, [x, y, z], deskew_range=True)
     assert solution.src_to_dst[y] == y
     assert solution.src_to_dst[z] == z
     assert solution.src_to_dst[x] == 6
 
-    print(arith.solve_linear_inequalities([
-        tvm.tir.LE(x, 6),
-        tvm.tir.GE(x, 6),
-        tvm.tir.GE(x - z * y, 0),
-        tvm.tir.LE(x - z * y, 0),
-    ], [x, y, z]))
-
 
 if __name__ == "__main__":
-    # test_solve_system_of_inequalities()
-    test_simple()
-    # test_equal()
-    # test_multi_equal()
+    test_solve_system_of_inequalities()
+    test_dual_variable()
+    test_equal()
+    test_multi_equal()

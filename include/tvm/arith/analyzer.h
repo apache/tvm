@@ -459,7 +459,7 @@ class Analyzer {
    *
    * \note Analyzer will call into sub-analyzers to get the result.
    */
-  PrimExpr Simplify(const PrimExpr& expr);
+  PrimExpr Simplify(const PrimExpr& expr, size_t repeat=1);
 };
 
 }  // namespace arith

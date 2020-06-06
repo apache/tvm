@@ -42,13 +42,12 @@ using namespace tvm::runtime;
 using namespace tvm::te;
 
 #define PLUS_ONE(OP)                    \
-  void VisitExpr_(const OP* op) final { \
-    num_symbol++;                       \
+  void VisitExpr_(const OP* op) final { num_symbols++;                       \
   }
 
 #define PLUS_ONE_BINARY(OP)             \
   void VisitExpr_(const OP* op) final { \
-    num_symbol++;                       \
+    num_symbols++;                       \
     VisitExpr(op->a);                   \
     VisitExpr(op->b);                   \
   }
@@ -57,7 +56,7 @@ class ExprComplexity : public ExprVisitor {
  public:
   size_t Eval(const PrimExpr& expr) {
     VisitExpr(expr);
-    return num_symbol;
+    return num_symbols;
   }
 
   PLUS_ONE_BINARY(AddNode)
@@ -81,12 +80,12 @@ class ExprComplexity : public ExprVisitor {
   PLUS_ONE(FloatImmNode)
   PLUS_ONE(IntImmNode)
   void VisitExpr_(const NotNode* op) final {
-    num_symbol++;
+    num_symbols++;
     VisitExpr(op->a);
   }
 
  private:
-  size_t num_symbol{0};
+  size_t num_symbols{0};
 };
 
 struct ExprLess {
@@ -340,9 +339,10 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         // eliminate the current variable
         PrimExpr new_lhs = c_neg*neg.second - c_pos*pos.second;
         PrimExpr new_ineq = LENode::make(new_lhs, make_zero(pos.second.dtype()));
+        // we need to do analyzer.rewrite_simplify(analyzer.Simplify(new_ineq))
         // it helps to simplify (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // otherwise it's (y*2) - 10 <= 0
-        new_ineq = NormalizeComparisons()(analyzer.rewrite_simplify(analyzer.Simplify(new_ineq)));
+        new_ineq = NormalizeComparisons()(analyzer.Simplify(new_ineq, 2));
         AddInequality(next_ineq_set_to_solve, new_ineq, analyzer);
       }
     }
