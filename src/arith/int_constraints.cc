@@ -143,8 +143,12 @@ Range IntGroupedBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const
       PrimExpr diff_2 = analyzer.Simplify(floordiv(upp, operator->()->coef) - low_divided);
       PrimExpr diff_over_2 = analyzer.Simplify(EvalSet(diff_2, var_intsets).max());
 
+      LOG(INFO) << "upp = " << upp << " low = " << low;
+      LOG(INFO) << "diff_1 = "  << diff_1 << " diff_over_1 = " << diff_over_1;
+      LOG(INFO) << "diff_2 = "  << diff_2 << " diff_over_2 = " << diff_over_2;
       PrimExpr diff_over = analyzer.CanProve(diff_over_2 - diff_over_1 < 0)
                            ? diff_over_2 : diff_over_1;
+      LOG(INFO) << "diff_over = " << diff_over;
 
       // If it is provable that the new one is strictly better than the current best one,
       // then replace it. Note that we are biased towards earlier pairs which should be simpler.

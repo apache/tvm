@@ -22,6 +22,42 @@ import tvm
 from tvm import te, arith, ir, tir
 
 
+def run_expr(expr, vranges):
+    """ Evaluate expr for every value of free variables
+    given by vranges and return the tensor of results.
+    TODO(yzhliu): move to utils
+    """
+    def _compute_body(*us):
+        vmap = {v: u + r.min for (v, r), u in zip(vranges.items(), us)}
+        return tir.ir_pass.Substitute(expr, vmap)
+
+    A = te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
+    args = [tvm.nd.empty(A.shape, A.dtype)]
+    sch = te.create_schedule(A.op)
+    mod = tvm.build(sch, [A])
+    mod(*args)
+    return args[0].asnumpy()
+
+
+def check_bruteforce(bool_expr, vranges, cond=None):
+    """ Check that bool_expr holds given the condition cond
+    for every value of free variables from vranges.
+    TODO(yzhliu): move to utils
+    """
+    if cond is not None:
+        bool_expr = te.any(tir.Not(cond), bool_expr)
+
+    res = run_expr(bool_expr, vranges)
+    if not np.all(res):
+        indices = list(np.argwhere(res == 0)[0])
+        counterex = [(str(v), i + r.min) for (v, r), i in zip(vranges.items(), indices)]
+        counterex = sorted(counterex, key=lambda x: x[0])
+        counterex = ", ".join([v + " = " + str(i) for v, i in counterex])
+        raise AssertionError("Expression {}\nis not true on {}\n"
+                             "Counterexample: {}"
+                             .format(tir.ir_pass.CanonicalSimplify(bool_expr), vranges, counterex))
+
+
 def test_solve_system_of_inequalities():
     random.seed(0)
 
@@ -38,54 +74,48 @@ def test_solve_system_of_inequalities():
             fs.append(op(s1, s2))
 
         vranges = {v: tvm.ir.expr.Range(bounds[0], bounds[1] + 1) for v in vs}
+        before = te.all(tir.const(1, 'bool'), *fs)
 
         print("--- before ---")
         print(fs)
-        after = arith.solve_linear_inequalities(fs, vs, vranges)
+        after = arith._ffi_api.SolveInequalitiesAsCondition(vs, vranges, fs)
+        after = te.all(tir.const(1, 'bool'), *after)
         print("--- after ---")
         print(after)
         print()
 
-        # check_bruteforce(before == after, vranges)
+        check_bruteforce(before == after, vranges)
 
-    _check(2, 2)
+    for i in range(3):
+        _check(1, 1)
+    for i in range(3):
+        _check(1, 2)
 
-    # for i in range(3):
-    #     _check(1, 1)
-    # for i in range(3):
-    #     _check(1, 2)
-    #
-    # for i in range(3):
-    #     _check(2, 1)
-    # for i in range(3):
-    #     _check(2, 2)
-    # for i in range(3):
-    #     _check(2, 3)
-    #
-    # # Somewhere here coefficients in the results become too large, leading to overflow,
-    # # so we use smaller initial coefficients
-    #
-    # for i in range(5):
-    #     _check(3, 3, coef=(-2,2))
-    # for i in range(5):
-    #     _check(3, 4, coef=(-2,2))
-    #
-    # for i in range(5):
-    #     _check(4, 3, coef=(-1,1))
-    #
-    # for i in range(5):
-    #     _check(10, 2, coef=(-1,1), bounds=(0, 4))
-    # for i in range(5):
-    #     _check(10, 3, coef=(0,1), bounds=(0, 4))
+    for i in range(3):
+        _check(2, 1)
+    for i in range(3):
+        _check(2, 2)
+    for i in range(3):
+        _check(2, 3)
+
+    # Somewhere here coefficients in the results become too large, leading to overflow,
+    # so we use smaller initial coefficients
+    for i in range(5):
+        _check(3, 3, coef=(-2, 2))
+    for i in range(5):
+        _check(3, 4, coef=(-2, 2))
+
+    for i in range(5):
+        _check(4, 3, coef=(-1, 1))
+
+    for i in range(5):
+        _check(10, 2, coef=(-1, 1), bounds=(0, 4))
+    for i in range(5):
+        _check(10, 3, coef=(0, 1), bounds=(0, 4))
 
 
 def test_simple():
     x, y = te.var("x"), te.var("y")
-    # TODO: following will hang forever
-    # ranges = {
-    #     x: tvm.ir.Range(-100, 0),
-    #     y: tvm.ir.Range(0, 100),
-    # }
 
     ranges = {
         x: tvm.ir.Range(-100, 100),
@@ -120,6 +150,12 @@ def test_simple():
         tvm.tir.GE(x - y, 10),
     ], [x, y], ranges)
     print(sol)
+    # 0 <= y <=5
+    assert sol.ranges[y].min == 0
+    assert sol.ranges[y].extent == 6
+    # y + 10 <= x <= 20 - y
+    assert ir.structural_equal(sol.ranges[x].min, y + 10)
+    assert sol.ranges[x].extent == 11  # max(10 - 2y)
 
 
 def test_equal():
@@ -152,10 +188,9 @@ def test_multi_equal():
     ], [x, y, z], deskew_range=True)
 
     print(solution)
-    # TODO: should it be y & z ?
-    assert ir.structural_equal(solution.src_to_dst[y], y)
-    assert ir.structural_equal(solution.src_to_dst[z], z)
-    assert ir.structural_equal(solution.src_to_dst[x], 6)
+    assert solution.src_to_dst[y] == y
+    assert solution.src_to_dst[z] == z
+    assert solution.src_to_dst[x] == 6
 
     print(arith.solve_linear_inequalities([
         tvm.tir.LE(x, 6),
@@ -168,5 +203,5 @@ def test_multi_equal():
 if __name__ == "__main__":
     # test_solve_system_of_inequalities()
     test_simple()
-    test_equal()
-    test_multi_equal()
+    # test_equal()
+    # test_multi_equal()

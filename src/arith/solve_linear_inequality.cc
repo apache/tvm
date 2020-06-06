@@ -33,10 +33,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/runtime/data_type.h>
 
-// TODO
-#include "../tir/pass/ir_util.h"
-// TODO: testing
-// https://github.com/sergei-grechanik/tvm/blob/8cad2d1e62272b3e192bfe08b896e07bc9550e94/tests/python/unittest/test_pass_zero_elimination.py#L367
+// TODO: supersimplify
 
 namespace tvm {
 namespace arith {
@@ -606,6 +603,20 @@ IntConstraintsTransform DeskewRange(const IntConstraints& inequalities) {
 
   return transform;
 }
+
+TVM_REGISTER_GLOBAL("arith.SolveInequalitiesAsCondition")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  PartialSolvedInequalities ret_ineq;
+  if (args.size() == 1) {
+    ret_ineq = SolveLinearInequalities(args[0]);
+  } else if (args.size() == 3) {
+    IntConstraints problem(args[0], args[1], args[2]);
+    ret_ineq = SolveLinearInequalities(problem);
+  } else {
+    LOG(FATAL) << "arith.SolveInequalitiesAsCondition expects 1 or 3 arguments, gets " << args.size();
+  }
+  *ret = as_conditions(ret_ineq.first, ret_ineq.second);
+});
 
 TVM_REGISTER_GLOBAL("arith.SolveInequalitiesRange")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
