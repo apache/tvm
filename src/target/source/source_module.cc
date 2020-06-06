@@ -204,35 +204,10 @@ runtime::Module PackagingModuleCreate(Map<String, String> code, std::string sour
   return runtime::Module(n);
 }
 
-class CSourceModuleInitializer : public runtime::ModuleNode {
- public:
-  explicit CSourceModuleInitializer(Map<String, Map<String, runtime::NDArray>> metadata)
-      : metadata_(metadata) {}
-
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    LOG(FATAL) << "CSourceModuleInitializer cannot be executed";
-    return PackedFunc();
-  }
-
-  void Init() {}
-
-  const char* type_key() const { return "csourcemodule_initializer"; }
-
- private:
-  Map<String, Map<String, runtime::NDArray>> metadata_;
-};
-
-runtime::Module CSourceModuleInitializerCreate(
-    Map<String, Map<String, runtime::NDArray>> metadata) {
-  auto n = make_object<CSourceModuleInitializer>(metadata);
-  return runtime::Module(n);
-}
-
 class ModuleInitWrapper : public runtime::ModuleNode {
  public:
-  ModuleInitWrapper(Map<String, Map<String, runtime::NDArray>> metadata, Map<String, String> code,
-                    String source_type)
-      : metadata_(metadata), code_(code), source_type_(source_type) {}
+  ModuleInitWrapper(Map<String, Map<String, runtime::NDArray>> metadata, String source_type)
+      : metadata_(metadata), source_type_(source_type) {}
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (initialized_.count(name) == 0) {
@@ -249,40 +224,78 @@ class ModuleInitWrapper : public runtime::ModuleNode {
 
   const char* type_key() const { return "module_init"; }
 
+  std::string InitCSourceMetadata() {
+    std::ostringstream os;
+    os.precision(16);
+    for (const auto& it : metadata_) {
+      auto vars = it.second;
+      if (!vars.defined()) continue;
+      String var_name = (*vars.begin()).first;
+      runtime::NDArray data = (*vars.begin()).second;
+      // Get the number of elements.
+      int64_t num_elems = 1;
+      for (auto i : data.Shape()) num_elems *= i;
+      // TODO(zhiics) Handle different data types.
+      os << "static float " << var_name.c_str() << "[" << num_elems << "] = {";
+      const float* ptr = static_cast<float*>(data->data);
+      for (int64_t i = 0; i < num_elems - 1; i++) {
+        os << ptr[i] << ",";
+      }
+      if (num_elems > 0) os << ptr[num_elems - 1];
+      os << "};\n";
+    }
+    return os.str();
+  }
+
   void InitSubModule(const std::string& symbol) {
     // Dispatch initializer according to the source type
-    std::string initializer = "runtime.init." + source_type_;
-    auto pf = tvm::runtime::Registry::Get(initializer);
+    // std::string initializer = "runtime.init." + source_type_;
+    // auto pf = tvm::runtime::Registry::Get(initializer);
 
-    CHECK(pf) << "Failed to find the initializer for " << initializer;
-    if (source_type_ == "c") {
-      // Initialize the s source module.
-      runtime::Module c_mod = (*pf)(metadata_);
-      CHECK(c_mod->IsInstance<CSourceModuleInitializer>());
-      auto* c_mod_init = static_cast<CSourceModuleInitializer*>(c_mod.operator->());
-      c_mod_init->Init();
-    } else {
+    // CHECK(pf) << "Failed to find the initializer for " << initializer;
+    if (source_type_ != "c") {
       LOG(FATAL) << "Implement the initialization of json style runtime here";
     }
+  }
+
+  void SaveToFile(const std::string& file_name, const std::string& format) final {
+    std::string fmt = GetFileFormat(file_name, format);
+    CHECK_EQ(fmt, "h") << "Can only save to .h file";
+    if (source_type_ == "c") {
+      SaveBinaryToFile(file_name, InitCSourceMetadata());
+    } else {
+      SaveBinaryToFile(file_name, ";");
+    }
+  }
+
+  void SaveToBinary(dmlc::Stream* stream) final {
+    for (const auto& it : metadata_) {
+      // Save metadata using the NDArray serialization utility
+    }
+    stream->Write(source_type_.operator std::string());
+  }
+
+  static runtime::Module LoadFromBinary(void* strm) {
+    dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+    std::string source_type;
+    stream->Read(&source_type);
+    Map<String, Map<String, runtime::NDArray>> metadata;
+    // Deserializing metadata using the NDArray serialization utility.
+    auto n = runtime::make_object<ModuleInitWrapper>(metadata, source_type);
+    return runtime::Module(n);
   }
 
  private:
   std::unordered_map<std::string, bool> initialized_;
   /*! \brief A symbol to {var_name : NDArray} pair mapping. */
   Map<String, Map<String, runtime::NDArray>> metadata_;
-  /*!
-   * \brief For JSON runtime we need the json code to build up an engine. For
-   * c source module, code has already been compiled into a DSO module, only
-   * metadata is needed to feed the correct data.
-   */
-  Map<String, String> code_;
   /*! \brief The type of the source, i.e. c, or any customized json */
   String source_type_;
 };
 
 runtime::Module ModuleInitWrapperCreate(Map<String, Map<String, runtime::NDArray>> metadata,
-                                        Map<String, String> code, String source_type) {
-  auto n = make_object<ModuleInitWrapper>(metadata, code, source_type);
+                                        String source_type) {
+  auto n = make_object<ModuleInitWrapper>(metadata, source_type);
   return runtime::Module(n);
 }
 
@@ -296,12 +309,11 @@ TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
     });
 
 TVM_REGISTER_GLOBAL("runtime.ModuleInitWrapper")
-    .set_body_typed([](Map<String, Map<String, runtime::NDArray>> metadata,
-                       Map<String, String> code, String source_type) {
-      return ModuleInitWrapperCreate(metadata, code, source_type);
+    .set_body_typed([](Map<String, Map<String, runtime::NDArray>> metadata, String source_type) {
+      return ModuleInitWrapperCreate(metadata, source_type);
     });
 
-TVM_REGISTER_GLOBAL("runtime.init.c").set_body_typed(CSourceModuleInitializerCreate);
-
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_module_init")
+    .set_body_typed(ModuleInitWrapper::LoadFromBinary);
 }  // namespace codegen
 }  // namespace tvm

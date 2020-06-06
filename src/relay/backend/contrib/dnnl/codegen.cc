@@ -405,16 +405,27 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     if (ref->IsInstance<FunctionNode>()) {
       auto ret = GenDNNLFunc(Downcast<Function>(ref));
       String sym = std::get<0>(ret);
-      code.Set(sym, code_stream_.str());
-      metadata.Set(sym, std::get<1>(ret));
+      Map<String, runtime::NDArray> consts = std::get<1>(ret);
+      std::string code_str = code_stream_.str();
+      if (!consts.empty()) {
+        code_str = "#include \"metadata.h\"\n" + code_str;
+        metadata.Set(sym, consts);
+      }
+      code.Set(sym, code_str);
     } else if (ref->IsInstance<IRModuleNode>()) {
       IRModule mod = Downcast<IRModule>(ref);
       for (const auto& it : mod->functions) {
         auto ret = GenDNNLFunc(Downcast<Function>(it.second));
-        String sym = std::get<0>(ret);
-        code.Set(sym, code_stream_.str());
-        metadata.Set(sym, std::get<1>(ret));
+        Map<String, runtime::NDArray> consts = std::get<1>(ret);
+        if (!consts.empty()) {
+          metadata.Set(std::get<0>(ret), consts);
+        }
       }
+      std::string code_str = code_stream_.str();
+      if (!metadata.empty()) {
+        code_str = "#include \"metadata.h\"\n" + code_str;
+      }
+      code.Set("all", code_str);
     } else {
       LOG(FATAL) << "The input ref is expected to be a Relay function or module"
                  << "\n";

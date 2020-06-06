@@ -222,9 +222,12 @@ class Module(object):
         except NameError:
             raise NameError("time_evaluate is only supported when RPC is enabled")
 
-    def _collect_dso_modules(self):
-        """Helper function to collect dso modules, then return it."""
-        visited, stack, dso_modules = set(), [], []
+    def _collect_dso_metadata_modules(self):
+        """
+        Helper function to collect dso modules and metadata init module. There
+        is at most one medata init module if it exists.
+        """
+        visited, stack, dso_modules, medata_init = set(), [], [], []
         # append root module
         visited.add(self)
         stack.append(self)
@@ -232,11 +235,15 @@ class Module(object):
             module = stack.pop()
             if module._dso_exportable():
                 dso_modules.append(module)
+            elif module.type_key == "module_init":
+                medata_init.append(module)
             for m in module.imported_modules:
                 if m not in visited:
                     visited.add(m)
                     stack.append(m)
-        return dso_modules
+
+        assert len(medata_init) <= 1, "At most one metadata init module is allowed."
+        return dso_modules, medata_init
 
     def _dso_exportable(self):
         return self.type_key == "llvm" or self.type_key == "c"
@@ -282,13 +289,13 @@ class Module(object):
             self.save(file_name)
             return
 
-        modules = self._collect_dso_modules()
+        dso_modules, metadata_init = self._collect_dso_metadata_modules()
         temp = _util.tempdir()
         files = addons if addons else []
         is_system_lib = False
         has_c_module = False
         llvm_target_triple = None
-        for index, module in enumerate(modules):
+        for index, module in enumerate(dso_modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
                 object_format = fcompile.object_format
             else:
@@ -305,6 +312,14 @@ class Module(object):
                              module.get_function("__tvm_is_system_module")())
             llvm_target_triple = (module.type_key == "llvm" and
                                   module.get_function("_get_target_triple")())
+
+        metadata_import = None if not metadata_init else metadata_init[0].imported_modules
+        if metadata_import and metadata_import[0].type_key == "c":
+            module = metadata_init[0]
+            header = temp.relpath("metadata.h")
+            module.save(header)
+            files.append(header)
+
         if not fcompile:
             if file_name.endswith(".tar"):
                 fcompile = _tar.tar

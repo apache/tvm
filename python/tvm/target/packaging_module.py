@@ -54,6 +54,6 @@ def CSourceModule(code, fmt="c"):
     return _ffi_api.CSourceModuleCreate(code, fmt)
 
 
-def ModuleInitWrapper(metadata, code="", source_type="c"):
+def ModuleInitWrapper(metadata, source_type="c"):
     """Create a module initialization wrapper"""
-    return _ffi_api.ModuleInitWrapper(metadata, code, source_type)
+    return _ffi_api.ModuleInitWrapper(metadata, source_type)
