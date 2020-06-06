@@ -21,10 +21,12 @@ pytest.importorskip('onnx')
 pytest.importorskip('onnxruntime')
 
 import numpy as np
+import onnxruntime as rt
+
 import tvm
 from tvm import relay
 from tvm.contrib.target.onnx import to_onnx
-import onnxruntime as rt
+
 
 
 def func_to_onnx(func, name):
@@ -39,9 +41,9 @@ def run_onnx(onnx_model, input_data):
     input_names = {}
     for input, data in zip(sess.get_inputs(), input_data):
         input_names[input.name] = data
-    output_name = sess.get_outputs()[0].name
-    res = sess.run([output_name], input_names)
-    return res[0]
+    output_names = [out.name for out in sess.get_outputs()]
+    res = sess.run(output_names, input_names)
+    return res
 
 
 def run_relay(func, data_tuple):
@@ -49,13 +51,21 @@ def run_relay(func, data_tuple):
     ctx = tvm.context('llvm', 0)
     intrp = relay.create_executor("graph", ctx=ctx, target=target)
     relay_res = intrp.evaluate(func)(*data_tuple)
-    return relay_res.asnumpy()
+
+    result = []
+    relay_res = relay_res if isinstance(relay_res, list) else [relay_res]
+    for res in relay_res:
+        result.append(res.asnumpy())
+
+    return result
 
 
 def verify_results(relay_func, indata, test_name, rtol=1e-7, atol=0):
-    relay_res = run_relay(relay_func, indata)
-    onnx_res = run_onnx(func_to_onnx(relay_func, test_name), indata)
-    np.testing.assert_allclose(relay_res, onnx_res, rtol=rtol, atol=atol)
+    relay_results = run_relay(relay_func, indata)
+    onnx_results = run_onnx(func_to_onnx(relay_func, test_name), indata)
+
+    for relay_res, onnx_res in zip(relay_results, onnx_results):
+        np.testing.assert_allclose(relay_res, onnx_res, rtol=rtol, atol=atol)
 
 
 def test_add():
@@ -297,6 +307,45 @@ def test_mean():
     verify_mean((3, 2, 1), 1, False, True)
 
 
+def test_split():
+    def verify_split(dshape, indices_or_sections, axis=None):
+        dtype = "float32"
+        x = relay.var("x", relay.ty.TensorType(dshape, "float32"))
+        y = relay.split(x, indices_or_sections, axis=axis)
+        func = relay.Function([x], y.astuple())
+        x_data = np.random.uniform(size=dshape).astype(dtype)
+
+        verify_results(func, [x_data], 'test_split', rtol=1e-5, atol=1e-5)
+
+    verify_split((5, 5, 2, 2), 5, axis=1)
+    verify_split((5, 5, 2, 2), 5, axis=0)
+    verify_split((5, 5, 2, 2), [1, 3, 4], axis=0)
+    verify_split((5, 5, 2, 2), [1, 3, 4], axis=1)
+
+
+def test_concatenate():
+    def verify_concatenate(shapes, axis, dtype="float32"):
+        in_vars = []
+        in_data = []
+        for i, shape in enumerate(shapes):
+            in_vars.append(relay.var("x"+ str(i), relay.ty.TensorType(shape, dtype)))
+            in_data.append(np.random.uniform(size=shape).astype(dtype))
+
+        out_tensor = relay.concatenate(in_vars, axis)
+        func = relay.Function(in_vars, out_tensor)
+        verify_results(func, in_data, 'test_split', rtol=1e-5, atol=1e-5)
+
+    verify_concatenate([(2,), (2,), (2,)], -1)
+    verify_concatenate([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1)
+    verify_concatenate([(1, 2, 4), (1, 2, 3), (1, 2, 7), (1, 2, 8), (1, 2, 1)], -1)
+    verify_concatenate([(5, 6, 7, 3),
+                        (16, 6, 7, 3),
+                        (12, 6, 7, 3),
+                        (8, 6, 7, 3),
+                        (2, 6, 7, 3)], 0)
+    verify_concatenate([(1, 14400), (1, 2400), (1, 640), (1, 240)], 1)
+
+
 def test_strided_slice():
     def verify_strided_slice(dshape, begin, end, strides):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
@@ -315,12 +364,7 @@ def test_strided_slice():
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 1000, 3], None)
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4], None)
     verify_strided_slice((3, 4, 3), [1, 1], [4, 4, 3], None)
-
-    # TODO - test cases below fails for TVM itself error -strided_slice get empty slice at axis 1
-    # verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4], [1, -1, 1])
-    # verify_strided_slice((3, 4, 3), [1, 1], [4, 4, 3], [1, 1, 2])
-    # verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4], [1, -1, 1])
-    # verify_strided_slice((3, 4, 3), [1, 1], [4, 4, 3], [1, 1, 2])
+    verify_strided_slice((3, 4, 3), [1, 1], [4, 4, 3], [1, 1, 2])
 
 
 def test_cmp_type():
@@ -382,7 +426,6 @@ if __name__ == '__main__':
     test_dense()
     test_max_pool()
     test_batch_flatten()
-    test_bias_add()
     test_batch_norm()
     test_pad()
     test_mean()
