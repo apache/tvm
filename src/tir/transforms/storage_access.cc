@@ -23,11 +23,11 @@
 #include "storage_access.h"
 
 #include <tvm/target/target_info.h>
+#include <tvm/tir/op.h>
 
 #include <string>
 #include <utility>
 
-#include "../../arith/compute_expr.h"
 #include "ir_util.h"
 
 namespace tvm {

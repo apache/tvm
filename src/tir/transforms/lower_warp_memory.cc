@@ -31,12 +31,12 @@
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
 #include <unordered_set>
 
-#include "../../arith/compute_expr.h"
 #include "../../arith/pattern_match.h"
 #include "../../runtime/thread_storage_scope.h"
 

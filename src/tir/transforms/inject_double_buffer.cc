@@ -26,7 +26,6 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include "../../arith/compute_expr.h"
 #include "ir_util.h"
 
 namespace tvm {
@@ -115,8 +114,9 @@ class DoubleBufferInjector : public StmtExprMutator {
   Stmt VisitStmt_(const AllocateNode* op) final {
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
+      auto fmul = [](PrimExpr a, PrimExpr b) { return a * b; };
       it->second.stride =
-          arith::ComputeReduce<MulNode>(op->extents, PrimExpr()) * op->dtype.lanes();
+          foldl(fmul, make_const(DataType::Int(32), 1), op->extents) * op->dtype.lanes();
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AllocateNode>();
       Array<PrimExpr> new_extents{make_const(op->extents[0].dtype(), 2)};
