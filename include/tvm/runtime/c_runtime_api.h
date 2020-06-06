@@ -87,12 +87,22 @@ typedef enum {
 } TVMDeviceExtType;
 
 /*!
- * \brief The type code in used in the TVM FFI for argument passing.
+ * \brief The type code in used and only used in TVM FFI for argument passing.
+ *
+ * DLPack consistency:
+ * 1) kTVMArgInt is compatible with kDLInt
+ * 2) kTVMArgFloat is compatible with kDLFloat
+ * 3) kDLUInt is not in ArgTypeCode, but has a spared slot
+ *
+ * Downstream consistency:
+ * The kDLInt, kDLUInt, kDLFloat are kept consistent with the original ArgType code
+ *
+ * It is only used in argument passing, and should not be confused with
+ * DataType::TypeCode, which is DLPack-compatible.
+ *
+ * \sa tvm::runtime::DataType::TypeCode
  */
 typedef enum {
-  // The type code of other types are compatible with DLPack.
-  // The next few fields are extension types
-  // that is used by TVM API calls.
   kTVMArgInt = kDLInt,
   kTVMArgFloat = kDLFloat,
   kTVMOpaqueHandle = 3U,
