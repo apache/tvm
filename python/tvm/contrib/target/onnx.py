@@ -640,7 +640,7 @@ class ModelContainer(object):
 
 
 class RelayToONNXConverter(ExprVisitor):
-    """A helper class converting topologically sorted Relay nodes to ONNX model
+    """A helper class to traverse the Relay graph and convert Relay nodes to ONNX model
 
     Parameters
     ----------
@@ -677,7 +677,7 @@ class RelayToONNXConverter(ExprVisitor):
                 }
 
     def convert_to_onnx(self, func):
-        """ Loop through topologically sorted list of Relay nodes and generate a ONNX model"""
+        """ Traverse Relay graph and generate a ONNX model"""
 
         self.visit(func)
 
