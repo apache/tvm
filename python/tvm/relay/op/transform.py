@@ -20,6 +20,7 @@
 
 from . import _make
 from ..expr import TupleWrapper, const
+from ...tir.expr import IntImm
 
 
 def cast(data, dtype):
@@ -212,7 +213,15 @@ def reshape(data, newshape):
     if isinstance(newshape, int):
         newshape = const([newshape])
     if isinstance(newshape, (tuple, list)):
-        newshape = const(list(newshape))
+        tempshape = []
+        for shape in newshape:
+            if isinstance(shape, IntImm):
+                tempshape.append(shape.value)
+            elif isinstance(shape, int):
+                tempshape.append(shape)
+            else:
+                raise RuntimeError('Unrecognized shape type: %s' % type(shape))
+        newshape = const(tempshape)
     return _make.reshape(data, newshape)
 
 def argwhere(condition):
