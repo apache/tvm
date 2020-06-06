@@ -163,7 +163,7 @@ def strided_slice_shape_func(attrs, inputs, _):
     """
     Shape func for strided_slice
     """
-    slice_mode = convert(get_const_int(attrs.slice_mode))
+    slice_mode = convert(0 if attrs.slice_mode == "end" else 1)
     # data independent if begin, end and strides exist
     if attrs.begin and attrs.end and attrs.strides:
         return [_strided_slice_shape_func_input_shape(inputs[0], attrs.begin, attrs.end,

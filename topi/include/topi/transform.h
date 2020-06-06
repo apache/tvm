@@ -520,15 +520,15 @@ inline Array<Tensor> split(const Tensor& x, Array<Integer> split_indices, int ax
  * \param begin The indices to begin with in the slicing
  * \param end Indicies indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
- * \param slice_mode Specifies whether to enable slice mode
  * in that case, the input tensor will be reversed in that particular axis
+ * \param slice_mode Specifies the slice mode
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
  * \return A Tensor whose op member is the split operation
  */
 inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const Array<Integer>& end,
-                            const Array<Integer>& strides, const bool& slice_mode,
+                            const Array<Integer>& strides, std::string slice_mode = "end",
                             std::string name = "T_strided_slice", std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
   // Setup the ranges.
@@ -561,7 +561,7 @@ inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const 
 
     if (!end[i].defined()) {
       end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
-    } else if (slice_mode) {
+    } else if (slice_mode == "size") {
       if (end[i]->value < 0) {
         end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
       } else {

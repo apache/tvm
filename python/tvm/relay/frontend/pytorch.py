@@ -247,7 +247,7 @@ def _slice():
                                            begin=_expr.const(begin),
                                            end=_expr.const(end),
                                            strides=_expr.const(strides),
-                                           slice_mode=True)
+                                           slice_mode="size")
     return _impl
 
 def _split():

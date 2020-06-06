@@ -1689,7 +1689,7 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   if (param->begin && param->end && param->strides) {
     // stride will be set as 1 if slice mode is enabled
     std::vector<int64_t> stride_vec(num_axis, 1);
-    if (!param->slice_mode) {
+    if (param->slice_mode == "end") {
       for (size_t i = 0; i < param->strides.value().size(); ++i) {
         CHECK(param->strides.value()[i].defined());
         stride_vec[i] = param->strides.value()[i]->value;
@@ -1713,14 +1713,16 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
       // allow end to be None
       if (!param->end.value()[i].defined()) {
         end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
-      } else if (param->slice_mode) {
+      } else if (param->slice_mode == "size") {
         if (param->end.value()[i]->value < 0) {
           end_vec.push_back(max_range);
         } else {
           end_vec.push_back(begin_vec[i] + param->end.value()[i]->value);
         }
-      } else {
+      } else if (param->slice_mode == "end") {
         end_vec.push_back(param->end.value()[i]->value);
+      } else {
+        LOG(FATAL) << "Unsupported slice mode: " << param->slice_mode;
       }
     }
     for (int64_t i = end_vec.size(); i < num_axis; ++i) {
@@ -1805,7 +1807,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
     if (params->begin && params->end && params->strides) {
       for (Integer i : params->strides.value()) {
         CHECK(i.defined());
-        strides.push_back(params->slice_mode ? 1 : i->value);
+        strides.push_back(params->slice_mode == "size" ? 1 : i->value);
       }
 
       for (Integer i : params->begin.value()) {
@@ -1842,7 +1844,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
         int64_t ed;
         if (!end[i].defined()) {
           ed = shape[i].as<IntImmNode>()->value;
-        } else if (params->slice_mode) {
+        } else if (params->slice_mode == "size") {
           if (end[i]->value < 0) {
             ed = shape[i].as<IntImmNode>()->value;
           } else {
@@ -1918,7 +1920,7 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
 }
 
 // Positional relay function to create StridedSlice operator used by frontend FFI.
-Expr MakeStridedSlice(Expr data, Expr begin, Expr end, Expr strides, bool slice_mode) {
+Expr MakeStridedSlice(Expr data, Expr begin, Expr end, Expr strides, String slice_mode) {
   auto attrs = make_object<StridedSliceAttrs>();
   const ConstantNode *cbegin, *cend, *cstrides;
   if ((cbegin = begin.as<ConstantNode>()) && (cend = end.as<ConstantNode>()) &&
@@ -1970,7 +1972,7 @@ Examples::
     .add_argument("begin", "Tensor", "The indices to begin with in the slicing.")
     .add_argument("end", "Tensor", "Indices indicating end of the slice.")
     .add_argument("strides", "Tensor", "The stride values.")
-    .add_argument("slice_mode", "Tensor", "Whether to enable slice mode.")
+    .add_argument("slice_mode", "Tensor", "The slice mode.")
     .set_support_level(4)
     .set_attrs_type<StridedSliceAttrs>()
     .add_type_rel("StridedSlice", StridedSliceRel)
@@ -2230,7 +2232,7 @@ Array<te::Tensor> SliceLikeCompute(const Attrs& attrs, const Array<te::Tensor>& 
     }
   }
   return Array<te::Tensor>{topi::strided_slice(inputs[0], GetIntArray(begin_idx),
-                                               GetIntArray(end_idx), GetIntArray(strides), false)};
+                                               GetIntArray(end_idx), GetIntArray(strides), "end")};
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.slice_like").set_body_typed(MakeSliceLike);

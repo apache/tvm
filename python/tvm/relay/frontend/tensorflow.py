@@ -666,7 +666,7 @@ def _nms():
 
         # slice to get the dynamic result
         ret = get_relay_op("strided_slice")(data_slice, begin=_expr.const([0]),
-                                            end=size, slice_mode=True)
+                                            end=size, slice_mode="size")
         return ret
     return _impl
 
@@ -1188,7 +1188,7 @@ def _slice():
                 size = _infer_value(inputs[2], params).asnumpy().tolist()
             except Exception:
                 size = inputs[2]
-        return _op.strided_slice(inputs[0], begin=begin, end=size, slice_mode=True)
+        return _op.strided_slice(inputs[0], begin=begin, end=size, slice_mode="size")
     return _impl
 
 

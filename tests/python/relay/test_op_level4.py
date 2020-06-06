@@ -296,7 +296,7 @@ def test_mean_var_std():
 
 
 def test_strided_slice():
-    def verify(dshape, begin, end, strides, output, slice_mode=False,
+    def verify(dshape, begin, end, strides, output, slice_mode="end",
                attr_const=True, test_ref=True, dtype="int32"):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         ndim = len(dshape)
@@ -355,9 +355,9 @@ def test_strided_slice():
     verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
     verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
     verify((3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1],
-           (2, 4, 3), slice_mode=True, test_ref=False)
+           (2, 4, 3), slice_mode="size", test_ref=False)
     verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1],
-           (2, 2, 3), slice_mode=True, test_ref=True)
+           (2, 2, 3), slice_mode="size", test_ref=True)
 
 def test_strided_set():
     def verify(dshape, begin, end, strides, vshape, test_ref=True):

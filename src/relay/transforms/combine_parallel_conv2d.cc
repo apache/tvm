@@ -168,8 +168,8 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     for (const auto& branch : branches) {
       const CallNode* conv2d = branch[0];
       int64_t channels = GetConv2DSuperChannelsDim(conv2d);
-      Array<Integer> begin;
-      Array<Integer> end;
+      std::vector<int64_t> begin;
+      std::vector<int64_t> end;
       for (size_t i = 0; i < channel_pos_; i++) {
         begin.push_back(0);
         end.push_back(-1);
@@ -177,27 +177,15 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       begin.push_back(index);
       index += channels;
       end.push_back(index);
-      DLContext ctx;
-      ctx.device_type = kDLCPU;
-      ctx.device_id = 0;
-      auto begin_ndarray = runtime::NDArray::Empty({int64_t(begin.size())}, DataType::Int(64), ctx);
-      auto end_ndarray = runtime::NDArray::Empty({int64_t(begin.size())}, DataType::Int(64), ctx);
-      auto strides_ndarray =
-          runtime::NDArray::Empty({int64_t(begin.size())}, DataType::Int(64), ctx);
-
-      auto* begin_data = static_cast<int64_t*>(begin_ndarray->data);
-      auto* end_data = static_cast<int64_t*>(end_ndarray->data);
-      auto* strides_data = static_cast<int64_t*>(strides_ndarray->data);
-
+      std::vector<int64_t> strides(begin.size(), 1);
       for (size_t i = 0; i < begin.size(); ++i) {
-        begin_data[i] = begin[i];
-        end_data[i] = end[i];
-        end_data[i] -= begin_data[i];
-        strides_data[i] = 1;
+        end[i] -= begin[i];
       }
-
-      auto slice = MakeStridedSlice(data, Constant(begin_ndarray), Constant(end_ndarray),
-                                    Constant(strides_ndarray), true);
+      std::vector<int64_t> ndarray_shape = {static_cast<int64_t>(begin.size())};
+      Constant begin_const = MakeConstantTensor(DataType::Int(64), ndarray_shape, begin);
+      Constant end_const = MakeConstantTensor(DataType::Int(64), ndarray_shape, end);
+      Constant strides_const = MakeConstantTensor(DataType::Int(64), ndarray_shape, strides);
+      auto slice = MakeStridedSlice(data, begin_const, end_const, strides_const, "size");
       subst_map->insert({GetRef<Expr>(branch[depth]), slice});
     }
   }

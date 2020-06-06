@@ -611,7 +611,7 @@ def split(data, indices_or_sections, axis=0):
     return TupleWrapper(_make.split(data, indices_or_sections, axis), ret_size)
 
 
-def strided_slice(data, begin, end, strides=None, slice_mode=False):
+def strided_slice(data, begin, end, strides=None, slice_mode="end"):
     """Strided slice of an array.
 
     Parameters
@@ -629,11 +629,12 @@ def strided_slice(data, begin, end, strides=None, slice_mode=False):
         Specifies the stride values, it can be negative in that case,
         the input tensor will be reversed in that particular axis.
 
-    slice_mode: boolean, optional
-        Specifies whether to enable slice mode. In slice mode,
-        strides will be ignored, end indicates the size of a slice
-        starting at the location specified by begin. If end[i] is -1,
-        all remaining elements in that dimension are included in the slice
+    slice_mode: str, optional
+        The slice mode [end, size].
+        end: The ending indices for the slice [default].
+        size: The input strides will be ignored, input end in this mode indicates
+              the size of a slice starting at the location specified by begin. If end[i]
+              is -1, all remaining elements in that dimension are included in the slice.
 
     Returns
     -------
