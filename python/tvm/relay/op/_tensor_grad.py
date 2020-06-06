@@ -472,9 +472,10 @@ def bias_add_grad(orig, grad):
 def dense_grad(orig, grad):
     """Returns [grad' @ weight, data @ grad']"""
     data, weight = orig.args
-    return [collapse_sum_like(transpose(grad) * weight, data),
-            collapse_sum_like(data * transpose(grad), weight)]
-
+    return [collapse_sum_like(_nn.dense(grad, transpose(weight),
+                                        units=weight.checked_type.shape[1]), data),
+            collapse_sum_like(_nn.dense(transpose(grad), transpose(data),
+                                        units=data.checked_type.shape[1]), weight)]
 
 @register_gradient("reshape")
 def reshape_grad(orig, grad):
