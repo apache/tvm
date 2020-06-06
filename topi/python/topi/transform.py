@@ -152,10 +152,10 @@ def strided_slice(a, begin, end, strides=None, slice_mode="end"):
 
     slice_mode : str, optional
         The slice mode [end, size].
-        end - The default slice mode, ending indices for the slice.
+        end - The ending indices for the slice [default].
         size - The input strides will be ignored, input end in this mode indicates
-               the sizeof a slice starting at the location specified by begin. If end[i]
-               is -1, all remaining elements in that dimension are included in the slice.
+        the sizeof a slice starting at the location specified by begin. If end[i]
+        is -1, all remaining elements in that dimension are included in the slice.
 
     Returns
     -------

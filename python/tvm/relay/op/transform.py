@@ -619,22 +619,22 @@ def strided_slice(data, begin, end, strides=None, slice_mode="end"):
     data : relay.Expr
         The source array to be sliced.
 
-    begin: relay.Expr, Tuple[int], or List[int]
+    begin : relay.Expr, Tuple[int], or List[int]
         The indices to begin with in the slicing.
 
-    end: relay.Expr, Tuple[int], or List[int]
+    end : relay.Expr, Tuple[int], or List[int]
         Indices indicating end of the slice.
 
-    strides: relay.Expr, Tuple[int], or List[int], optional
+    strides : relay.Expr, Tuple[int], or List[int], optional
         Specifies the stride values, it can be negative in that case,
         the input tensor will be reversed in that particular axis.
 
-    slice_mode: str, optional
+    slice_mode : str, optional
         The slice mode [end, size].
         end: The ending indices for the slice [default].
         size: The input strides will be ignored, input end in this mode indicates
-              the size of a slice starting at the location specified by begin. If end[i]
-              is -1, all remaining elements in that dimension are included in the slice.
+        the size of a slice starting at the location specified by begin. If end[i]
+        is -1, all remaining elements in that dimension are included in the slice.
 
     Returns
     -------
