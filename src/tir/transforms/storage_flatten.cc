@@ -37,7 +37,6 @@
 
 #include <unordered_map>
 
-#include "../../arith/compute_expr.h"
 #include "../../arith/ir_visitor_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "arg_binder.h"

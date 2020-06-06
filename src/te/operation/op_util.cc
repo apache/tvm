@@ -29,7 +29,6 @@
 
 #include <string>
 
-#include "../../arith/compute_expr.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../schedule/message_passing.h"
 

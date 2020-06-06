@@ -25,8 +25,8 @@
 
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
-#include "../../arith/compute_expr.h"
 #include "ir_util.h"
 
 namespace tvm {
@@ -225,8 +225,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
                    << " expected to be compact array";
     if (conds.size() != 0) {
       auto stride_msg = tvm::tir::StringImmNode::make(stride_err_msg.str());
-      Stmt check = AssertStmtNode::make(arith::ComputeReduce<tir::AndNode>(conds, PrimExpr()),
-                                        stride_msg, EvaluateNode::make(0));
+      auto fand = [](PrimExpr a, PrimExpr b) { return a && b; };
+      Stmt check = AssertStmtNode::make(foldl(fand, const_true(1), conds), stride_msg,
+                                        EvaluateNode::make(0));
       check = IfThenElseNode::make(NotNode::make(is_null), check, Stmt());
       asserts_.emplace_back(SeqStmt({check, EvaluateNode::make(0)}));
     }

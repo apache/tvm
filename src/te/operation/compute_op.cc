@@ -34,7 +34,6 @@
 #include <unordered_set>
 #include <utility>
 
-#include "../../arith/compute_expr.h"
 #include "../../arith/interval_set.h"
 #include "../schedule/message_passing.h"
 #include "op_util.h"
@@ -593,8 +592,8 @@ Stmt TransformUpdate(const Stage& stage, const std::unordered_map<IterVar, Range
     }
   }
 
-  return IfThenElseNode::make(arith::ComputeReduce<tir::OrNode>(conds, const_true(1)), update,
-                              body);
+  auto cond = foldl([](PrimExpr a, PrimExpr b) { return a || b; }, const_false(1), conds);
+  return IfThenElseNode::make(cond, update, body);
 }
 
 }  // namespace te

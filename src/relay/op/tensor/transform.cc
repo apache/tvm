@@ -38,7 +38,6 @@
 
 #include <vector>
 
-#include "../../../arith/compute_expr.h"
 #include "../../transforms/infer_layout_util.h"
 #include "../../transforms/pattern_util.h"
 #include "../op_common.h"

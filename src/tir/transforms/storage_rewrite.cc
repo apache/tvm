@@ -34,7 +34,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../arith/compute_expr.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_util.h"
 
@@ -555,10 +554,12 @@ class StoragePlanRewriter : public StmtExprMutator {
             alloc_type = op->dtype;
           }
         }
+
+        auto fmul = [](PrimExpr a, PrimExpr b) { return a * b; };
+
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
-          PrimExpr sz = arith::ComputeReduce<MulNode>(e->allocs[0]->extents,
-                                                      make_const(DataType::Int(32), 1));
+          PrimExpr sz = foldl(fmul, make_const(DataType::Int(32), 1), e->allocs[0]->extents);
           e->new_alloc = AllocateNode::make(e->alloc_var, alloc_type, {sz}, e->allocs[0]->condition,
                                             EvaluateNode::make(0));
           if (e->scope.tag.length() != 0) {
@@ -571,8 +572,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           // Build a merged allocation
           PrimExpr combo_size;
           for (const AllocateNode* op : e->allocs) {
-            PrimExpr sz =
-                arith::ComputeReduce<MulNode>(op->extents, make_const(DataType::Int(32), 1));
+            PrimExpr sz = foldl(fmul, make_const(DataType::Int(32), 1), op->extents);
             auto nbits = op->dtype.bits() * op->dtype.lanes();
             if (const auto* imm = sz.as<IntImmNode>()) {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {

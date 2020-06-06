@@ -27,7 +27,6 @@
 
 #include <unordered_set>
 
-#include "../../arith/compute_expr.h"
 #include "ir_util.h"
 
 namespace tvm {
@@ -368,7 +367,9 @@ class VTInjector : public StmtExprMutator {
     // always rewrite if not allow sharing.
     if (touched_var_.count(op->buffer_var.get()) || !allow_share_) {
       // place v on highest dimension.
-      PrimExpr stride = arith::ComputeReduce<MulNode>(op->extents, PrimExpr()) * op->dtype.lanes();
+      auto fmul = [](PrimExpr a, PrimExpr b) { return a * b; };
+      PrimExpr stride =
+          foldl(fmul, make_const(DataType::Int(32), 1), op->extents) * op->dtype.lanes();
       Array<PrimExpr> other;
       other.push_back(make_const(op->extents[0].dtype(), num_threads_));
       for (PrimExpr e : extents) {
