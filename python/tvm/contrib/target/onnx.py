@@ -844,7 +844,7 @@ def to_onnx(relay_ir, params, name, opset_version=11, path=None):
     if opset_version > defs.onnx_opset_version():
         raise Exception("The ONNX package installed of version {} does not support the opset "
                         "version {}. Upgrade the ONNX package to latest version.".format(
-            get_onnx_version(), opset_version))
+                            get_onnx_version(), opset_version))
 
     func = relay_ir["main"] if isinstance(relay_ir, tvm.ir.IRModule) else relay_ir
     converter = RelayToONNXConverter(name, params, opset_version)
