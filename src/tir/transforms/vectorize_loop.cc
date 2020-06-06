@@ -24,14 +24,13 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#include "../../arith/compute_expr.h"
 
 namespace tvm {
 namespace tir {
@@ -109,8 +108,14 @@ class Vectorizer : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const AddNode* op) final { return AddSubVec(op); }
-  PrimExpr VisitExpr_(const SubNode* op) final { return AddSubVec(op); }
+  PrimExpr VisitExpr_(const AddNode* op) final {
+    return AddSubVec(op, [](PrimExpr a, PrimExpr b) { return a + b; });
+  }
+
+  PrimExpr VisitExpr_(const SubNode* op) final {
+    return AddSubVec(op, [](PrimExpr a, PrimExpr b) { return a - b; });
+  }
+
   PrimExpr VisitExpr_(const MulNode* op) final {
     PrimExpr a = this->VisitExpr(op->a);
     PrimExpr b = this->VisitExpr(op->b);
@@ -423,8 +428,8 @@ class Vectorizer : public StmtExprMutator {
       return T::make(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
     }
   }
-  template <typename T>
-  PrimExpr AddSubVec(const T* op) {
+  template <typename T, typename FCompute>
+  PrimExpr AddSubVec(const T* op, FCompute fcompute) {
     PrimExpr a = this->VisitExpr(op->a);
     PrimExpr b = this->VisitExpr(op->b);
     if (a.same_as(op->a) && b.same_as(op->b)) {
@@ -435,12 +440,12 @@ class Vectorizer : public StmtExprMutator {
         const RampNode* b_ramp = b.as<RampNode>();
         const RampNode* a_ramp = a.as<RampNode>();
         if (a.dtype().lanes() == 1 && b_ramp) {
-          return RampNode::make(
-              arith::Compute<T>(a, b_ramp->base),
-              arith::Compute<T>(make_zero(b_ramp->stride.dtype()), b_ramp->stride), b_ramp->lanes);
+          return RampNode::make(fcompute(a, b_ramp->base),
+                                fcompute(make_zero(b_ramp->stride.dtype()), b_ramp->stride),
+                                b_ramp->lanes);
         }
         if (b.dtype().lanes() == 1 && a_ramp) {
-          return RampNode::make(arith::Compute<T>(a_ramp->base, b), a_ramp->stride, a_ramp->lanes);
+          return RampNode::make(fcompute(a_ramp->base, b), a_ramp->stride, a_ramp->lanes);
         }
       }
       return T::make(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
