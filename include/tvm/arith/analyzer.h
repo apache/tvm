@@ -455,11 +455,16 @@ class Analyzer {
    * \brief Simplify expr.
    *
    * \param expr The expression to be simplified.
+   * \param steps The simplification runs in the order of
+   *        rewrite_simplify (step 1) -> canonical_simplify (step 2) ->
+   *        rewrite_simplify (step 3) -> canonical_simplify (step 4) -> ...
+   *        param steps controls how many steps to run.
+   *        Default is 2, i.e., rewrite_simplify + canonical_simplify.
    * \return The result.
    *
    * \note Analyzer will call into sub-analyzers to get the result.
    */
-  PrimExpr Simplify(const PrimExpr& expr, size_t repeat=1);
+  PrimExpr Simplify(const PrimExpr& expr, size_t steps=2);
 };
 
 }  // namespace arith

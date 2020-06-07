@@ -20,24 +20,37 @@ from tvm.runtime import Object
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("arith.IntGroupedBounds")
-class IntGroupedBounds(Object):
-    # TODO: doc
+@tvm._ffi.register_object("arith.IntGrpBounds")
+class IntGrpBounds(Object):
+    """Represent integer grouped bounds which are classified into
+       lower bounds (include), upper bounds (include) and equalities.
+
+    Parameters
+    ----------
+    coef : tvm.ir.PrimExpr
+        The coefficient. Must be integer.
+        coef * var >= lower
+        coef * var == equal
+        coef * var >= upper
+    lower : List[tvm.ir.PrimExpr]
+        the lower bounds (include)
+    equal : List[tvm.ir.PrimExpr]
+        equalities
+    upper : List[tvm.ir.PrimExpr]
+        the upper bounds (include)
+    """
     def __init__(self, coef, lower, equal, upper):
         self.__init_handle_by_constructor__(
-            _ffi_api.IntGroupedBounds, coef, lower, equal, upper)
+            _ffi_api.IntGrpBounds, coef, lower, equal, upper)
 
     @staticmethod
     def make_by_range(r):
         """Construct a IntGroupedBounds by Range.
 
-        Parameters TODO
+        Parameters
         ----------
-        min_value : PrimExpr
-            The minimum value of the range.
+        r : tvm.ir.Range
 
-        extent : PrimExpr
-            The extent of the range.
 
         Returns
         -------
@@ -48,8 +61,9 @@ class IntGroupedBounds(Object):
 
     def find_best_range(self):
         """Return the best range from the grouped bounds.
+           None if (-inf, +inf).
         """
-        return _ffi_api.IntGroupedBounds_FindBestRange(self)
+        return _ffi_api.IntGrpBounds_FindBestRange(self)
 
 
 @tvm._ffi.register_object("arith.IntConstraints")
@@ -132,7 +146,29 @@ def solve_linear_equations(equations, variables=None, ranges=None):
 
 
 def solve_linear_inequalities(equations, variables=None, ranges=None, deskew_range=False):
-    solver = _ffi_api.DeskewRange if deskew_range else _ffi_api.SolveInequalitiesRange
+    """Solve linear inequalities.
+
+    Parameters
+    ----------
+    equations   : List[tvm.ir.PrimExpr] or IntConstraints
+        The inequalities of the variables
+    variables   : Optional[List[tvm.tir.Var]]
+        The variables in the system.
+    ranges      : Optional[Map[tvm.tir.Var, tvm.ir.Range]]
+        The ranges of the variables.
+    deskew_range: Optional[bool]
+        Whether deskew the result ranges to be started from zero.
+        Default false.
+
+    Returns
+    -------
+    ret_ranges: IntConstraints or IntConstraintsTransform
+        The result ranges for each variables.
+        Constrains that cannot be transformed to Range will be stored in IntConstraints.relations.
+        If deskew_range is set (=True), the result ranges will be deskewed to be started from zero.
+        New variables are created accordingly therefore IntConstraintsTransform is returned.
+    """
+    solver = _ffi_api.SolveInequalitiesDeskewRange if deskew_range else _ffi_api.SolveInequalitiesToRange
     if isinstance(equations, IntConstraints):
         return solver(equations)
     return solver(variables, ranges, equations)

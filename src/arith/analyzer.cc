@@ -107,12 +107,12 @@ bool Analyzer::CanProve(const PrimExpr& expr) {
   return false;
 }
 
-PrimExpr Analyzer::Simplify(const PrimExpr& expr, size_t repeat) {
+PrimExpr Analyzer::Simplify(const PrimExpr& expr, size_t steps) {
   if (tir::is_const(expr)) return expr;
   PrimExpr res = expr;
-  for (size_t i = 0; i < repeat; ++i) {
+  for (size_t i = 0; i < steps; ++i) {
     res = this->rewrite_simplify(res);
-    if (tir::is_const(res)) return res;
+    if (tir::is_const(res) || ++i == steps) return res;
     res = this->canonical_simplify(res);
     if (tir::is_const(res)) return res;
   }
