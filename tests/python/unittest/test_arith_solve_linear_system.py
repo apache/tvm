@@ -19,43 +19,7 @@ import numpy as np
 import sys
 import pytest
 import tvm
-from tvm import te, arith, ir, tir
-
-
-def run_expr(expr, vranges):
-    """ Evaluate expr for every value of free variables
-    given by vranges and return the tensor of results.
-    TODO(yzhliu): move to utils
-    """
-    def _compute_body(*us):
-        vmap = {v: u + r.min for (v, r), u in zip(vranges.items(), us)}
-        return tir.ir_pass.Substitute(expr, vmap)
-
-    A = te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
-    args = [tvm.nd.empty(A.shape, A.dtype)]
-    sch = te.create_schedule(A.op)
-    mod = tvm.build(sch, [A])
-    mod(*args)
-    return args[0].asnumpy()
-
-
-def check_bruteforce(bool_expr, vranges, cond=None):
-    """ Check that bool_expr holds given the condition cond
-    for every value of free variables from vranges.
-    TODO(yzhliu): move to utils
-    """
-    if cond is not None:
-        bool_expr = te.any(tir.Not(cond), bool_expr)
-
-    res = run_expr(bool_expr, vranges)
-    if not np.all(res):
-        indices = list(np.argwhere(res == 0)[0])
-        counterex = [(str(v), i + r.min) for (v, r), i in zip(vranges.items(), indices)]
-        counterex = sorted(counterex, key=lambda x: x[0])
-        counterex = ", ".join([v + " = " + str(i) for v, i in counterex])
-        raise AssertionError("Expression {}\nis not true on {}\n"
-                             "Counterexample: {}"
-                             .format(tir.ir_pass.CanonicalSimplify(bool_expr), vranges, counterex))
+from tvm import te, arith, ir, tir, testing
 
 
 def check_solution(solution, vranges={}):
@@ -81,8 +45,9 @@ def check_solution(solution, vranges={}):
                 range_cond = tir.ir_pass.Substitute(range_cond, backvarmap)
                 cond_subst = te.all(cond_subst, range_cond)
         cond_subst = tir.ir_pass.Simplify(cond_subst)
-        check_bruteforce(te.all(cond_subst, cond_on_vars), all_vranges,
-                         cond=te.all(tir.const(1, 'bool'), *constraints1.relations))
+        testing.check_bool_expr_is_true(
+            te.all(cond_subst, cond_on_vars), all_vranges,
+            cond=te.all(tir.const(1, 'bool'), *constraints1.relations))
 
     rels = solution.dst.relations
     if len(rels) == 1 and ir.structural_equal(rels[0], False):

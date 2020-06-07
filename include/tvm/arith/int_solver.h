@@ -290,6 +290,30 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t>> *S,
  */
 IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_solve);
 
+/*!
+ * \brief Solve linear inequalities.
+ * \param system_to_solve the variables to solve, their ranges, and a list of inequalities.
+ * \return A map of variables and their solved bounds,
+ *         and constrains that cannot be solved to bounds.
+ */
+PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_to_solve);
+
+/*!
+ * \brief Solve linear inequalities.
+ * \param system_to_solve the variables to solve, their ranges, and a list of inequalities.
+ * \return The result ranges for each variables.
+ *         Constrains that cannot be transformed to Range will be stored in relations.
+ */
+IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities);
+
+/*!
+ * \brief Solve linear inequalities.
+ * \param system_to_solve the variables to solve, their ranges, and a list of inequalities.
+ * \return Solved ranges are deskewed to be started from zero.
+ *         New variables and the mapping are created accordingly.
+ */
+IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequalities);
+
 }  // namespace arith
 }  // namespace tvm
 #endif  // TVM_ARITH_INT_SOLVER_H_

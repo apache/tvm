@@ -21,6 +21,7 @@ import logging
 import numpy as np
 import tvm
 import tvm._ffi
+from tvm import te, tir
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
@@ -166,6 +167,48 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
         logging.info("Numerical grad test wrt '%s' of shape %s passes, "
                      "dist = %f, max_diff = %f, avg_diff = %f",
                      x_name, grad.shape, dist, max_diff, avg_diff)
+
+
+def check_bool_expr_is_true(bool_expr, vranges, cond=None):
+    """ Check that bool_expr holds given the condition cond
+    for every value of free variables from vranges.
+
+    Parameters
+    ----------
+    bool_expr : tvm.ir.expr.PrimExpr
+        Boolean expression to check
+    vranges: Dict[tvm.tir.expr.Var, tvm.ir.Range]
+        Free variables and their ranges
+    cond: tvm.ir.expr.PrimExpr
+        extra conditions needs to be satisfied.
+    """
+    if cond is not None:
+        bool_expr = te.any(tir.Not(cond), bool_expr)
+
+    def _run_expr(expr, vranges):
+        """ Evaluate expr for every value of free variables
+        given by vranges and return the tensor of results.
+        """
+        def _compute_body(*us):
+            vmap = {v: u + r.min for (v, r), u in zip(vranges.items(), us)}
+            return tir.ir_pass.Substitute(expr, vmap)
+
+        A = te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
+        args = [tvm.nd.empty(A.shape, A.dtype)]
+        sch = te.create_schedule(A.op)
+        mod = tvm.build(sch, [A])
+        mod(*args)
+        return args[0].asnumpy()
+
+    res = _run_expr(bool_expr, vranges)
+    if not np.all(res):
+        indices = list(np.argwhere(res == 0)[0])
+        counterex = [(str(v), i + r.min) for (v, r), i in zip(vranges.items(), indices)]
+        counterex = sorted(counterex, key=lambda x: x[0])
+        counterex = ", ".join([v + " = " + str(i) for v, i in counterex])
+        raise AssertionError("Expression {}\nis not true on {}\n"
+                             "Counterexample: {}"
+                             .format(tir.ir_pass.CanonicalSimplify(bool_expr), vranges, counterex))
 
 
 tvm._ffi._init_api("testing", __name__)

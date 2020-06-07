@@ -265,7 +265,6 @@ void MoveEquality(std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>&
 }
 
 PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_to_solve) {
-  LOG(INFO) << "solving inequalities " << system_to_solve;
   arith::Analyzer analyzer;
   analyzer.Bind(system_to_solve->ranges);
 
@@ -296,12 +295,6 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
                   NormalizeComparisons()(analyzer.Simplify(ineq, 3)), analyzer);
   }
 
-  DebugPrint(current_ineq_set_to_solve,
-             next_ineq_set_to_solve,
-             rest,
-             coef_pos,
-             coef_neg);
-
   Map<Var, IntGrpBounds> res_bounds;
   for (const Var& v : system_to_solve->variables) {
     CHECK(!res_bounds.count(v)) <<
@@ -327,12 +320,6 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
                        coef_pos,
                        coef_neg,
                        analyzer);
-
-    DebugPrint(current_ineq_set_to_solve,
-               next_ineq_set_to_solve,
-               rest,
-               coef_pos,
-               coef_neg);
 
     // Combine each positive inequality with each negative one (by adding them together)
     for (const auto& pos : coef_pos) {

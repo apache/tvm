@@ -15,51 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import random
-import numpy as np
 import sys
 import pytest
 import tvm
-from tvm import te, arith, ir, tir
-
-
-def run_expr(expr, vranges):
-    """ Evaluate expr for every value of free variables
-    given by vranges and return the tensor of results.
-    TODO(yzhliu): move to utils
-    """
-    def _compute_body(*us):
-        vmap = {v: u + r.min for (v, r), u in zip(vranges.items(), us)}
-        return tir.ir_pass.Substitute(expr, vmap)
-
-    A = te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
-    args = [tvm.nd.empty(A.shape, A.dtype)]
-    sch = te.create_schedule(A.op)
-    mod = tvm.build(sch, [A])
-    mod(*args)
-    return args[0].asnumpy()
-
-
-def check_bruteforce(bool_expr, vranges, cond=None):
-    """ Check that bool_expr holds given the condition cond
-    for every value of free variables from vranges.
-    TODO(yzhliu): move to utils
-    """
-    if cond is not None:
-        bool_expr = te.any(tir.Not(cond), bool_expr)
-
-    res = run_expr(bool_expr, vranges)
-    if not np.all(res):
-        indices = list(np.argwhere(res == 0)[0])
-        counterex = [(str(v), i + r.min) for (v, r), i in zip(vranges.items(), indices)]
-        counterex = sorted(counterex, key=lambda x: x[0])
-        counterex = ", ".join([v + " = " + str(i) for v, i in counterex])
-        raise AssertionError("Expression {}\nis not true on {}\n"
-                             "Counterexample: {}"
-                             .format(tir.ir_pass.CanonicalSimplify(bool_expr), vranges, counterex))
+from tvm import te, arith, ir, tir, testing
 
 
 def test_solve_system_of_inequalities():
-    random.seed(0)
+    seed = random.randrange(sys.maxsize)
+    print("\nThis test is intentionally non-deterministic, "
+          "if it fails please report it in github issue together with this seed {}\n".format(seed))
+    random.seed(seed)
 
     def _check(variables, formulas, coef=(-5, 5), bounds=(-20, 20)):
         vs = [te.var("x" + str(i)) for i in range(variables)]
@@ -75,16 +41,9 @@ def test_solve_system_of_inequalities():
 
         vranges = {v: tvm.ir.expr.Range(bounds[0], bounds[1] + 1) for v in vs}
         before = te.all(tir.const(1, 'bool'), *fs)
-
-        print("--- before ---")
-        print(fs)
         after = arith._ffi_api.SolveInequalitiesAsCondition(vs, vranges, fs)
         after = te.all(tir.const(1, 'bool'), *after)
-        print("--- after ---")
-        print(after)
-        print()
-
-        check_bruteforce(before == after, vranges)
+        testing.check_bool_expr_is_true(before == after, vranges)
 
     for i in range(3):
         _check(1, 1)
@@ -140,7 +99,6 @@ def test_dual_variable():
         tvm.tir.LE(x + y, 20),
         tvm.tir.GE(x - y, 10),
     ], [x, y], ranges)
-    print(solution)
     # 0 <= y <=5
     assert solution.ranges[y].min == 0
     assert solution.ranges[y].extent == 6
@@ -150,7 +108,6 @@ def test_dual_variable():
 
     # deskew the solved ranges to be starting from zero
     solution = arith.solve_linear_inequalities(problem, variables, ranges, deskew_range=True)
-    print(solution)
     [x_new, y_new] = solution.dst.variables
     [rel] = solution.dst.relations
     assert ir.structural_equal(rel, (y_new*2) + x_new <= 10)
@@ -206,7 +163,4 @@ def test_multi_equal():
 
 
 if __name__ == "__main__":
-    test_solve_system_of_inequalities()
-    test_dual_variable()
-    test_equal()
-    test_multi_equal()
+    pytest.main([__file__])
