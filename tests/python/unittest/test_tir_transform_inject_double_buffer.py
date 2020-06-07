@@ -41,9 +41,13 @@ def test_double_buffer():
     })
 
     opt = tvm.transform.Sequential(
-        [tvm.tir.transform.InjectDoubleBuffer(2),
+        [tvm.tir.transform.InjectDoubleBuffer(),
          tvm.tir.transform.Simplify()])
-    mod = opt(mod)
+
+    with tvm.transform.PassContext(config={
+        "tir.InjectDoubleBuffer" : {"split_loop" : 2}
+    }):
+        mod = opt(mod)
     stmt = mod["db"].body
 
     assert isinstance(stmt.body.body, tvm.tir.Allocate)
@@ -54,7 +58,7 @@ def test_double_buffer():
     def count_sync(op):
         if isinstance(op, tvm.tir.Call) and op.name == "tvm_storage_sync":
             count[0] += 1
-    tvm.tir.ir_pass.PostOrderVisit(f.body, count_sync)
+    tvm.tir.stmt_functor.post_order_visit(f.body, count_sync)
     assert count[0] == 4
 
 

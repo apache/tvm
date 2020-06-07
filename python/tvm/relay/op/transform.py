@@ -201,7 +201,7 @@ def reshape(data, newshape):
     data : relay.Expr
         The input data to the operator.
 
-    newshape : Union[int, Tuple[int], List[int]]
+    newshape : Union[int, Tuple[int], List[int]] or relay.Expr
         The new shape. Should be compatible with the original shape.
 
     Returns
@@ -210,8 +210,10 @@ def reshape(data, newshape):
         The reshaped result.
     """
     if isinstance(newshape, int):
-        newshape = [newshape]
-    return _make.reshape(data, list(newshape))
+        newshape = const([newshape])
+    if isinstance(newshape, (tuple, list)):
+        newshape = const(list(newshape))
+    return _make.reshape(data, newshape)
 
 def argwhere(condition):
     """Find the indices of elements of a tensor that are
@@ -297,7 +299,7 @@ def full(fill_value, shape=(), dtype=""):
     fill_value : relay.Expr
         The value to fill. Must be a scalar.
 
-    shape : tuple of int
+    shape : tuple of int or relay.Expr
         The shape of the target.
 
     dtype : data type, optional (defaults to data type of the fill value)
@@ -308,6 +310,8 @@ def full(fill_value, shape=(), dtype=""):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, (list, tuple)):
+        shape = const(list(shape), "int32")
     return _make.full(fill_value, shape, dtype)
 
 
@@ -500,7 +504,7 @@ def where(condition, x, y):
     Returns
     -------
     result : relay.Expr
-		The selected array.
+        The selected array.
 
     Examples
     --------
@@ -525,7 +529,7 @@ def broadcast_to(data, shape):
     data : relay.Expr
         The input tensor.
 
-    shape : shape
+    shape : tuple of int or relay.Expr
         Provide the shape to broadcast to.
 
     Returns
@@ -533,6 +537,8 @@ def broadcast_to(data, shape):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, (list, tuple)):
+        shape = const(list(shape), "int32")
     return _make.broadcast_to(data, shape)
 
 def broadcast_to_like(data, broadcast_type):
@@ -884,3 +890,34 @@ def unravel_index(indices, shape):
     """
 
     return _make.unravel_index(indices, shape)
+
+def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0):
+    """Converts a sparse representation into a dense tensor.
+
+    Example::
+    -   sparse_to_dense([[0, 0], [1, 1]], [2, 2], [3, 3], 0) = [[3, 0], [0, 3]]
+
+    Parameters
+    ----------
+    sparse_indices : relay.Expr
+        A 0-D, 1-D, or 2-D tensor of integers containing location of sparse values.
+
+    output_shape : relay.Expr
+        A list of integers. Shape of the dense output tensor.
+
+    sparse_values : relay.Expr
+        A 0-D or 1-D tensor containing the sparse values for the sparse indices.
+
+    default_value : relay.Expr
+        A 0-D tensor containing the default value for the remaining locations.
+        Defaults to 0.
+
+    Returns
+    -------
+    result : relay.Expr
+        Dense tensor of shape output_shape. Has the same type as sparse_values.
+    """
+
+    if default_value == 0:
+        default_value = const(0)
+    return _make.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)

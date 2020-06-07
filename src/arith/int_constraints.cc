@@ -22,18 +22,19 @@
  * \brief The integer constraints data structures.
  */
 #include <tvm/arith/int_solver.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/runtime/registry.h>
-
-#include <utility>
-#include <algorithm>
-#include <unordered_map>
 #include <tvm/tir/op.h>
 #include <tvm/arith/analyzer.h>
+#include <tvm/tir/stmt_functor.h>
 
-#include "../tir/pass/ir_util.h"
+#include <algorithm>
+#include <unordered_map>
+#include <utility>
+
+#include "../tir/transforms/ir_util.h"
 
 namespace tvm {
 namespace arith {
@@ -58,7 +59,7 @@ IntGrpBounds IntGrpBounds::range(const Range& r) {
   Array<PrimExpr> equal;
   Array<PrimExpr> lower;
   Array<PrimExpr> upper;
-  if (te::is_one(r->extent)) {
+  if (tir::is_one(r->extent)) {
     equal.push_back(r->min);
   } else {
     lower.push_back(r->min);
@@ -72,7 +73,7 @@ IntGrpBounds IntGrpBounds::operator+(const Range& r) {
   Array<PrimExpr> equal;
   Array<PrimExpr> lower;
   Array<PrimExpr> upper;
-  if (te::is_one(r->extent)) {
+  if (tir::is_one(r->extent)) {
     equal.push_back(analyzer.Simplify(r->min * operator->()->coef));
   } else {
     lower.push_back(analyzer.Simplify(r->min * operator->()->coef));
@@ -87,9 +88,9 @@ IntGrpBounds IntGrpBounds::operator+(const Range& r) {
 IntGrpBounds IntGrpBounds::Substitute(const Map<Var, PrimExpr>& subst) const {
     auto apply_fun = [&subst](const PrimExpr& e) { return tir::Substitute(e, subst); };
     return IntGrpBounds(tir::Substitute(operator->()->coef, subst),
-                            tir::UpdateArray(operator->()->lower, apply_fun),
-                            tir::UpdateArray(operator->()->equal, apply_fun),
-                            tir::UpdateArray(operator->()->upper, apply_fun));
+                        tir::UpdateArray(operator->()->lower, apply_fun),
+                        tir::UpdateArray(operator->()->equal, apply_fun),
+                        tir::UpdateArray(operator->()->upper, apply_fun));
 }
 
 Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
@@ -110,7 +111,7 @@ Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
     uppers.push_back(expr);
   }
 
-  if (lowers.size() == 1 && uppers.size() == 1 && te::is_one(operator->()->coef)) {
+  if (lowers.size() == 1 && uppers.size() == 1 && tir::is_one(operator->()->coef)) {
     return Range(analyzer.Simplify(lowers[0]),
                  analyzer.Simplify(uppers[0] + 1));
   }
@@ -208,7 +209,7 @@ IntConstraints::IntConstraints(Array<Var> variables,
   CHECK(relations.defined());
   for (const auto& var : variables) {
     CHECK(var.dtype().is_int() || var.dtype().is_uint())
-      << "Variables in IntConstraints must be integers";
+        << "Variables in IntConstraints must be integers";
   }
   node->variables = std::move(variables);
   node->ranges = std::move(ranges);
@@ -226,18 +227,13 @@ TVM_REGISTER_GLOBAL("arith.IntConstraints")
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<IntConstraintsNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const IntConstraintsNode*>(node.get());
-    p->stream << "IntConstraints("
-              << op->variables
-              << ", " << op->ranges
-              << ", " << op->relations
-              << ")";
-  });
+    .set_dispatch<IntConstraintsNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const IntConstraintsNode*>(node.get());
+      p->stream << "IntConstraints(" << op->variables << ", " << op->ranges << ", " << op->relations
+                << ")";
+    });
 
-
-IntConstraintsTransform::IntConstraintsTransform(IntConstraints src,
-                                                 IntConstraints dst,
+IntConstraintsTransform::IntConstraintsTransform(IntConstraints src, IntConstraints dst,
                                                  Map<Var, PrimExpr> src_to_dst,
                                                  Map<Var, PrimExpr> dst_to_src) {
   ObjectPtr<IntConstraintsTransformNode> node = make_object<IntConstraintsTransformNode>();
@@ -259,15 +255,12 @@ TVM_REGISTER_GLOBAL("arith.IntConstraintsTransform")
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<IntConstraintsTransformNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const IntConstraintsTransformNode*>(node.get());
-    p->stream << "IntConstraintsTransform("
-              << "\n\t" << op->src
-              << "\n\t" << op->dst
-              << "\n\t" << op->src_to_dst
-              << "\n\t" << op->dst_to_src
-              << "\n)";
-  });
+    .set_dispatch<IntConstraintsTransformNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const IntConstraintsTransformNode*>(node.get());
+      p->stream << "IntConstraintsTransform("
+                << "\n\t" << op->src << "\n\t" << op->dst << "\n\t" << op->src_to_dst << "\n\t"
+                << op->dst_to_src << "\n)";
+    });
 
 }  // namespace arith
 }  // namespace tvm

@@ -67,3 +67,19 @@ class PrimFunc(BaseFunc):
 
         self.__init_handle_by_constructor__(
             _ffi_api.PrimFunc, param_list, body, ret_type, buffer_map, attrs)
+
+    def with_body(self, new_body):
+        """Create a new PrimFunc with the same set signatures but a new body.
+
+        Parameters
+        ----------
+        new_body : Stmt
+            The new body.
+
+        Returns
+        -------
+        new_func : PrimFunc
+            The created new function.
+        """
+        return PrimFunc(
+            self.params, new_body, self.ret_type, self.buffer_map, self.attrs)

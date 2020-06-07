@@ -20,8 +20,8 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/tir/op.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
 namespace tvm {
 namespace test {
@@ -33,23 +33,17 @@ struct TestAttrs : public AttrsNode<TestAttrs> {
   double learning_rate;
 
   TVM_DECLARE_ATTRS(TestAttrs, "attrs.cpptest.TestAttrs") {
-    TVM_ATTR_FIELD(axis)
-        .set_default(10)
-        .set_lower_bound(1)
-        .set_upper_bound(10)
-        .describe("axis field");
-    TVM_ATTR_FIELD(name)
-        .describe("name of the field");
+    TVM_ATTR_FIELD(axis).set_default(10).set_lower_bound(1).set_upper_bound(10).describe(
+        "axis field");
+    TVM_ATTR_FIELD(name).describe("name of the field");
     TVM_ATTR_FIELD(expr)
         .describe("expression field")
         .set_default(tir::make_const(DataType::Int(32), 1));
-    TVM_ATTR_FIELD(learning_rate)
-        .describe("learning_rate")
-        .set_default(0.1);
+    TVM_ATTR_FIELD(learning_rate).describe("learning_rate").set_default(0.1);
   }
 };
-}
-}
+}  // namespace test
+}  // namespace tvm
 
 TEST(Attrs, Basic) {
   using namespace tvm;
@@ -84,12 +78,11 @@ TEST(Attrs, Basic) {
   // Check docstring
   std::ostringstream os;
   n->PrintDocString(os);
-  LOG(INFO) << "docstring\n"<< os.str();
+  LOG(INFO) << "docstring\n" << os.str();
   CHECK(os.str().find("expr : PrimExpr, default=1") != std::string::npos);
 }
 
-
-int main(int argc, char ** argv) {
+int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
   return RUN_ALL_TESTS();

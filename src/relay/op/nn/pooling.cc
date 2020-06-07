@@ -21,12 +21,14 @@
  * \file pooling.cc
  * \brief Pooling operators
  */
-#include <tvm/tir/data_layout.h>
+#include <topi/nn/pooling.h>
+#include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/relay/attrs/nn.h>
-#include <topi/nn/pooling.h>
+#include <tvm/tir/data_layout.h>
+
 #include <vector>
+
 #include "../../transforms/infer_layout_util.h"
 
 namespace tvm {
@@ -37,13 +39,12 @@ TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
 TVM_REGISTER_NODE_TYPE(AvgPool2DAttrs);
 
 template <typename T>
-Array<Array<Layout> > PoolInferCorrectLayout(
-    const Attrs& attrs,
-    const Array<Layout>& new_in_layouts,
-    const Array<Layout>& old_in_layouts,
-    const Array<tvm::relay::Type> &old_in_types) {
+Array<Array<Layout> > PoolInferCorrectLayout(const Attrs& attrs,
+                                             const Array<Layout>& new_in_layouts,
+                                             const Array<Layout>& old_in_layouts,
+                                             const Array<tvm::relay::Type>& old_in_types) {
   // NOTE: Discard "const" qualifier here.
-  T *params = const_cast<T*>(attrs.as<T>());
+  T* params = const_cast<T*>(attrs.as<T>());
 
   if (new_in_layouts.defined()) {
     // Set the pool with the new layout.
@@ -56,13 +57,8 @@ Array<Array<Layout> > PoolInferCorrectLayout(
 }
 
 template <typename T>
-Expr MakeMaxPool(Expr data,
-                 Array<IndexExpr> pool_size,
-                 Array<IndexExpr> strides,
-                 Array<IndexExpr> padding,
-                 std::string layout,
-                 bool ceil_mode,
-                 std::string op_name) {
+Expr MakeMaxPool(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
+                 Array<IndexExpr> padding, String layout, bool ceil_mode, String op_name) {
   auto attrs = make_object<T>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
@@ -74,14 +70,9 @@ Expr MakeMaxPool(Expr data,
 }
 
 template <typename T>
-Expr MakeAvgPool(Expr data,
-                 Array<IndexExpr> pool_size,
-                 Array<IndexExpr> strides,
-                 Array<IndexExpr> padding,
-                 std::string layout,
-                 bool ceil_mode,
-                 bool count_include_pad,
-                 std::string op_name) {
+Expr MakeAvgPool(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
+                 Array<IndexExpr> padding, String layout, bool ceil_mode, bool count_include_pad,
+                 String op_name) {
   auto attrs = make_object<T>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
@@ -94,9 +85,7 @@ Expr MakeAvgPool(Expr data,
 }
 
 template <typename AttrType>
-bool Pool2DRel(const Array<Type>& types,
-               int num_inputs,
-               const Attrs& attrs,
+bool Pool2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -112,8 +101,7 @@ bool Pool2DRel(const Array<Type>& types,
   Layout layout(param->layout);
   CHECK(layout.Contains(LayoutAxis::Get('H')) && layout.Contains(LayoutAxis::Get('W')) &&
         !layout.Contains(LayoutAxis::Get('h')) && !layout.Contains(LayoutAxis::Get('w')))
-    << "Invalid layout " << layout
-    << ". Pool2D layout must have H and W, which cannot be split";
+      << "Invalid layout " << layout << ". Pool2D layout must have H and W, which cannot be split";
 
   const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
   const auto widx = layout.IndexOf(LayoutAxis::Get('W'));
@@ -140,8 +128,9 @@ bool Pool2DRel(const Array<Type>& types,
     oshape[hidx] = dshape[hidx];
   } else {
     if (param->ceil_mode) {
-      oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0] +
-                       param->strides[0] - 1) / param->strides[0]) + 1;
+      oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0] + param->strides[0] - 1) /
+                      param->strides[0]) +
+                     1;
     } else {
       oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0]) / param->strides[0]) + 1;
     }
@@ -150,8 +139,9 @@ bool Pool2DRel(const Array<Type>& types,
     oshape[widx] = dshape[widx];
   } else {
     if (param->ceil_mode) {
-      oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[1] +
-                       param->strides[1] - 1) / param->strides[1]) + 1;
+      oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[1] + param->strides[1] - 1) /
+                      param->strides[1]) +
+                     1;
     } else {
       oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[1]) / param->strides[1]) + 1;
     }
@@ -162,9 +152,8 @@ bool Pool2DRel(const Array<Type>& types,
   return true;
 }
 
-template<typename AttrType, topi::nn::PoolType mode>
-Array<te::Tensor> Pool2DCompute(const Attrs& attrs,
-                                const Array<te::Tensor>& inputs,
+template <typename AttrType, topi::nn::PoolType mode>
+Array<te::Tensor> Pool2DCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
@@ -182,9 +171,7 @@ Array<te::Tensor> Pool2DCompute(const Attrs& attrs,
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
       << "max_pool2d does not support input split on width";
 
-  CHECK(inputs[0].ndim() == 4U ||
-        inputs[0].ndim() == 5U ||
-        inputs[0].ndim() == 6U)
+  CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U || inputs[0].ndim() == 6U)
       << "Pool2D only support 4-D input (e.g., NCHW)"
       << " or 5-D input (e.g. NCHWc on for vector instructions)"
       << " or 6-D input (e.g. NCHWnc for tensor accelerators)";
@@ -199,30 +186,23 @@ Array<te::Tensor> Pool2DCompute(const Attrs& attrs,
   }
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool2DAttrs*>(param)->count_include_pad;
-    return Array<te::Tensor>{
-      topi::nn::pool(inputs[0], pool_size, strides, padding,
-                     mode, ceil_mode, layout.name(), count_include_pad)};
+    return Array<te::Tensor>{topi::nn::pool(inputs[0], pool_size, strides, padding, mode, ceil_mode,
+                                            layout.name(), count_include_pad)};
   } else {
     return Array<te::Tensor>{
-      topi::nn::pool(inputs[0], pool_size, strides, padding,
-                     mode, ceil_mode, layout.name())};
+        topi::nn::pool(inputs[0], pool_size, strides, padding, mode, ceil_mode, layout.name())};
   }
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.max_pool2d")
-.set_body_typed([](Expr data,
-                   Array<IndexExpr> pool_size,
-                   Array<IndexExpr> strides,
-                   Array<IndexExpr> padding,
-                   std::string layout,
-                   bool ceil_mode) {
-  return MakeMaxPool<MaxPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
-    "nn.max_pool2d");
-});
-
+    .set_body_typed([](Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
+                       Array<IndexExpr> padding, String layout, bool ceil_mode) {
+      return MakeMaxPool<MaxPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+                                         "nn.max_pool2d");
+    });
 
 RELAY_REGISTER_OP("nn.max_pool2d")
-.describe(R"code(Max pooling operation for two dimensional data.
+    .describe(R"code(Max pooling operation for two dimensional data.
 
 - **data**: This depends on the `layout` parameter. Input is 4D array of shape
             (batch_size, channels, height, width) if `layout` is `NCHW`.
@@ -242,30 +222,25 @@ RELAY_REGISTER_OP("nn.max_pool2d")
            equation.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<MaxPool2DAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(2)
-.add_type_rel("MaxPool2D", Pool2DRel<MaxPool2DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<MaxPool2DAttrs>)
-.set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<MaxPool2DAttrs, topi::nn::kMaxPool>);
-
+    .set_attrs_type<MaxPool2DAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(2)
+    .add_type_rel("MaxPool2D", Pool2DRel<MaxPool2DAttrs>)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<MaxPool2DAttrs>)
+    .set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<MaxPool2DAttrs, topi::nn::kMaxPool>);
 
 // AvgPool2D
 TVM_REGISTER_GLOBAL("relay.op.nn._make.avg_pool2d")
-.set_body_typed([](Expr data,
-                   Array<IndexExpr> pool_size,
-                   Array<IndexExpr> strides,
-                   Array<IndexExpr> padding,
-                   std::string layout,
-                   bool ceil_mode,
-                   bool count_include_pad) {
-  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
-    count_include_pad, "nn.avg_pool2d");
-});
+    .set_body_typed([](Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
+                       Array<IndexExpr> padding, String layout, bool ceil_mode,
+                       bool count_include_pad) {
+      return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+                                         count_include_pad, "nn.avg_pool2d");
+    });
 
 RELAY_REGISTER_OP("nn.avg_pool2d")
-.describe(R"code(
+    .describe(R"code(
 Average pooling operation for one dimensional data.
 
 - **data**: This depends on the `layout` parameter. Input is 4D array of shape
@@ -286,24 +261,24 @@ Average pooling operation for one dimensional data.
            equation.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<AvgPool2DAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(2)
-.add_type_rel("AvgPool2D", Pool2DRel<AvgPool2DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<AvgPool2DAttrs>)
-.set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<AvgPool2DAttrs, topi::nn::kAvgPool>);
+    .set_attrs_type<AvgPool2DAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(2)
+    .add_type_rel("AvgPool2D", Pool2DRel<AvgPool2DAttrs>)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<AvgPool2DAttrs>)
+    .set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<AvgPool2DAttrs, topi::nn::kAvgPool>);
 
 // relay.nn.global_pool_2d & relay.nn.max_pool_2d
 TVM_REGISTER_NODE_TYPE(GlobalPool2DAttrs);
 
-bool GlobalPool2DRel(const Array<Type>& types,
-                     int num_inputs,
-                     const Attrs& attrs,
+bool GlobalPool2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
-  if (data == nullptr) { return false; }
+  if (data == nullptr) {
+    return false;
+  }
   const auto dshape = data->shape;
   CHECK_GE(dshape.size(), 2U)
       << "Pool2D only support input >= 2-D: input must have height and width";
@@ -313,8 +288,7 @@ bool GlobalPool2DRel(const Array<Type>& types,
   Layout layout(param->layout);
   CHECK(layout.Contains(LayoutAxis::Get('H')) && layout.Contains(LayoutAxis::Get('W')) &&
         !layout.Contains(LayoutAxis::Get('h')) && !layout.Contains(LayoutAxis::Get('w')))
-    << "Invalid layout " << layout
-    << ". Pool2D layout must have H and W, which cannot be split";
+      << "Invalid layout " << layout << ". Pool2D layout must have H and W, which cannot be split";
 
   const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
   const auto widx = layout.IndexOf(LayoutAxis::Get('W'));
@@ -327,44 +301,38 @@ bool GlobalPool2DRel(const Array<Type>& types,
   return true;
 }
 
-
-template<topi::nn::PoolType mode>
-Array<te::Tensor> GlobalPool2DCompute(const Attrs& attrs,
-                                      const Array<te::Tensor>& inputs,
+template <topi::nn::PoolType mode>
+Array<te::Tensor> GlobalPool2DCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                       const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<GlobalPool2DAttrs>();
   CHECK(param != nullptr);
   Layout layout(param->layout);
   CHECK(tir::BijectiveLayout(layout, kNCHW).defined())
-    << "global_avg_pool2d currently only supports layouts that are convertible from NCHW";
+      << "global_avg_pool2d currently only supports layouts that are convertible from NCHW";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('h')), -1)
-    << "global_avg_pool2d does not support input split on height";
+      << "global_avg_pool2d does not support input split on height";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
-    << "global_avg_pool2d does not support input split on width";
+      << "global_avg_pool2d does not support input split on width";
 
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
-    << "Pool2D only support 4-D input (e.g., NCHW)"
-    << " or 5-D input (last dimension is a split of channel)";
-  return Array<te::Tensor>{
-    topi::nn::global_pool(inputs[0], mode, layout.name()) };
+      << "Pool2D only support 4-D input (e.g., NCHW)"
+      << " or 5-D input (last dimension is a split of channel)";
+  return Array<te::Tensor>{topi::nn::global_pool(inputs[0], mode, layout.name())};
 }
 
-Expr MakeGlobalAvgPool2D(Expr data,
-                         std::string layout) {
+Expr MakeGlobalAvgPool2D(Expr data, String layout) {
   auto attrs = make_object<GlobalPool2DAttrs>();
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("nn.global_avg_pool2d");
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-
-TVM_REGISTER_GLOBAL("relay.op.nn._make.global_avg_pool2d")
-.set_body_typed(MakeGlobalAvgPool2D);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.global_avg_pool2d").set_body_typed(MakeGlobalAvgPool2D);
 
 // GlobalAvgPool
 RELAY_REGISTER_OP("nn.global_avg_pool2d")
-.describe(R"code(Global average pooling operation for 2D data.
+    .describe(R"code(Global average pooling operation for 2D data.
 
 - **data**: This depends on the `layout` parameter. Input is 4D array of shape
             (batch_size, channels, height, width) if `layout` is `NCHW`.
@@ -372,30 +340,26 @@ RELAY_REGISTER_OP("nn.global_avg_pool2d")
            (batch_size, channels, 1, 1)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<GlobalPool2DAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(2)
-.add_type_rel("GlobalAvgPool2D", GlobalPool2DRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                               PoolInferCorrectLayout<GlobalPool2DAttrs>)
-.set_attr<FTVMCompute>("FTVMCompute", GlobalPool2DCompute<topi::nn::kAvgPool>);
+    .set_attrs_type<GlobalPool2DAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(2)
+    .add_type_rel("GlobalAvgPool2D", GlobalPool2DRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<GlobalPool2DAttrs>)
+    .set_attr<FTVMCompute>("FTVMCompute", GlobalPool2DCompute<topi::nn::kAvgPool>);
 
 // GlobalMaxPool
-Expr MakeGlobalMaxPool2D(Expr data,
-                         std::string layout) {
+Expr MakeGlobalMaxPool2D(Expr data, String layout) {
   auto attrs = make_object<GlobalPool2DAttrs>();
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("nn.global_max_pool2d");
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.global_max_pool2d")
-.set_body_typed(MakeGlobalMaxPool2D);
-
+TVM_REGISTER_GLOBAL("relay.op.nn._make.global_max_pool2d").set_body_typed(MakeGlobalMaxPool2D);
 
 RELAY_REGISTER_OP("nn.global_max_pool2d")
-.describe(R"code(Global max pooling operation for 2D data.
+    .describe(R"code(Global max pooling operation for 2D data.
 
 - **data**: This depends on the `layout` parameter. Input is 4D array of shape
             (batch_size, channels, height, width) if `layout` is `NCHW`.
@@ -403,44 +367,40 @@ RELAY_REGISTER_OP("nn.global_max_pool2d")
            (batch_size, channels, 1, 1)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<GlobalPool2DAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(2)
-.add_type_rel("GlobalMaxPool2D", GlobalPool2DRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                               PoolInferCorrectLayout<GlobalPool2DAttrs>)
-.set_attr<FTVMCompute>("FTVMCompute", GlobalPool2DCompute<topi::nn::kMaxPool>);
-
+    .set_attrs_type<GlobalPool2DAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(2)
+    .add_type_rel("GlobalMaxPool2D", GlobalPool2DRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<GlobalPool2DAttrs>)
+    .set_attr<FTVMCompute>("FTVMCompute", GlobalPool2DCompute<topi::nn::kMaxPool>);
 
 // relay.nn.adaptive_pool_2d
 TVM_REGISTER_NODE_TYPE(AdaptivePool2DAttrs);
 
-bool AdaptivePool2DRel(const Array<Type>& types,
-                       int num_inputs,
-                       const Attrs& attrs,
+bool AdaptivePool2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                        const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
-  if (data == nullptr) { return false; }
+  if (data == nullptr) {
+    return false;
+  }
   const auto dshape = data->shape;
   CHECK_GE(dshape.size(), 2U)
-    << "Pool2D only support input >= 2-D: input must have height and width";
+      << "Pool2D only support input >= 2-D: input must have height and width";
   const auto* param = attrs.as<AdaptivePool2DAttrs>();
   CHECK(param != nullptr);
 
   Layout layout(param->layout);
   CHECK(layout.Contains(LayoutAxis::Get('H')) && layout.Contains(LayoutAxis::Get('W')) &&
         !layout.Contains(LayoutAxis::Get('h')) && !layout.Contains(LayoutAxis::Get('w')))
-    << "Invalid layout " << layout
-    << ". Pool2D layout must have H and W, which cannot be split";
+      << "Invalid layout " << layout << ". Pool2D layout must have H and W, which cannot be split";
 
   const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
   const auto widx = layout.IndexOf(LayoutAxis::Get('W'));
   Array<IndexExpr> oshape(dshape);
   auto output_size = param->output_size;
-  CHECK_LE(output_size.size(), 2U)
-    << "output_size can have up to 2 elements.";
+  CHECK_LE(output_size.size(), 2U) << "output_size can have up to 2 elements.";
   IndexExpr output_height, output_width;
   if (output_size.empty()) {
     output_height = dshape[hidx];
@@ -461,24 +421,23 @@ bool AdaptivePool2DRel(const Array<Type>& types,
   return true;
 }
 
-template<topi::nn::PoolType mode>
-Array<te::Tensor> AdaptivePool2DCompute(const Attrs& attrs,
-                                        const Array<te::Tensor>& inputs,
+template <topi::nn::PoolType mode>
+Array<te::Tensor> AdaptivePool2DCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                         const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AdaptivePool2DAttrs>();
   CHECK(param != nullptr);
   Layout layout(param->layout);
   CHECK(tir::BijectiveLayout(layout, kNCHW).defined())
-    << "Adaptive pool2d currently only supports layouts that are convertible from NCHW";
+      << "Adaptive pool2d currently only supports layouts that are convertible from NCHW";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('h')), -1)
-    << "Adaptive pool2d does not support input split on height";
+      << "Adaptive pool2d does not support input split on height";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
-    << "Adaptive pool2d does not support input split on width";
+      << "Adaptive pool2d does not support input split on width";
 
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
-    << "Pool2D only support 4-D input (e.g., NCHW)"
-    << " or 5-D input (last dimension is a split of channel)";
+      << "Pool2D only support 4-D input (e.g., NCHW)"
+      << " or 5-D input (last dimension is a split of channel)";
 
   auto output_size = param->output_size;
   const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
@@ -494,15 +453,12 @@ Array<te::Tensor> AdaptivePool2DCompute(const Attrs& attrs,
     output_height = output_size[0];
     output_width = output_size[1];
   }
-  return Array<te::Tensor>{
-    topi::nn::adaptive_pool(inputs[0], Array<IndexExpr>{ output_height, output_width },
-                            mode, layout.name()) };
+  return Array<te::Tensor>{topi::nn::adaptive_pool(
+      inputs[0], Array<IndexExpr>{output_height, output_width}, mode, layout.name())};
 }
 
 // relay.nn.adaptive_avg_pool2d
-Expr MakeAdaptiveAvgPool2D(Expr data,
-                           Array<IndexExpr> output_size,
-                           std::string layout) {
+Expr MakeAdaptiveAvgPool2D(Expr data, Array<IndexExpr> output_size, String layout) {
   auto attrs = make_object<AdaptivePool2DAttrs>();
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
@@ -510,11 +466,10 @@ Expr MakeAdaptiveAvgPool2D(Expr data,
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_avg_pool2d")
-.set_body_typed(MakeAdaptiveAvgPool2D);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_avg_pool2d").set_body_typed(MakeAdaptiveAvgPool2D);
 
 RELAY_REGISTER_OP("nn.adaptive_avg_pool2d")
-  .describe(R"code(Adaptive average pooling operation for 2D data.
+    .describe(R"code(Adaptive average pooling operation for 2D data.
 
 - **data**: This depends on the `layout` parameter. Input is 4D array of shape
             (batch_size, channels, height, width) if `layout` is `NCHW`.
@@ -528,19 +483,17 @@ RELAY_REGISTER_OP("nn.adaptive_avg_pool2d")
            (batch_size, channels, output_height, output_width)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<AdaptivePool2DAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(10)
-.add_type_rel("AdaptiveAvgPool2D", AdaptivePool2DRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                               PoolInferCorrectLayout<AdaptivePool2DAttrs>)
-.set_attr<FTVMCompute>("FTVMCompute", AdaptivePool2DCompute<topi::nn::kAvgPool>);
+    .set_attrs_type<AdaptivePool2DAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(10)
+    .add_type_rel("AdaptiveAvgPool2D", AdaptivePool2DRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   PoolInferCorrectLayout<AdaptivePool2DAttrs>)
+    .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool2DCompute<topi::nn::kAvgPool>);
 
 // relay.nn.adaptive_max_pool2d
-Expr MakeAdaptiveMaxPool2D(Expr data,
-                           Array<IndexExpr> output_size,
-                           std::string layout) {
+Expr MakeAdaptiveMaxPool2D(Expr data, Array<IndexExpr> output_size, String layout) {
   auto attrs = make_object<AdaptivePool2DAttrs>();
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
@@ -548,11 +501,10 @@ Expr MakeAdaptiveMaxPool2D(Expr data,
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_max_pool2d")
-.set_body_typed(MakeAdaptiveMaxPool2D);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_max_pool2d").set_body_typed(MakeAdaptiveMaxPool2D);
 
 RELAY_REGISTER_OP("nn.adaptive_max_pool2d")
-  .describe(R"code(Adaptive max pooling operation for 2D data.
+    .describe(R"code(Adaptive max pooling operation for 2D data.
 
 - **data**: This depends on the `layout` parameter. Input is 4D array of shape
             (batch_size, channels, height, width) if `layout` is `NCHW`.
@@ -566,45 +518,43 @@ RELAY_REGISTER_OP("nn.adaptive_max_pool2d")
            (batch_size, channels, output_height, output_width)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<AdaptivePool2DAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(10)
-.add_type_rel("AdaptiveMaxPool2D", AdaptivePool2DRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                               PoolInferCorrectLayout<AdaptivePool2DAttrs>)
-.set_attr<FTVMCompute>("FTVMCompute", AdaptivePool2DCompute<topi::nn::kMaxPool>);
-
+    .set_attrs_type<AdaptivePool2DAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(10)
+    .add_type_rel("AdaptiveMaxPool2D", AdaptivePool2DRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   PoolInferCorrectLayout<AdaptivePool2DAttrs>)
+    .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool2DCompute<topi::nn::kMaxPool>);
 
 TVM_REGISTER_NODE_TYPE(AdaptivePool3DAttrs);
 
-bool AdaptivePool3DRel(const Array<Type>& types,
-                       int num_inputs,
-                       const Attrs& attrs,
+bool AdaptivePool3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                        const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
-  if (data == nullptr) { return false; }
+  if (data == nullptr) {
+    return false;
+  }
   const auto dshape = data->shape;
   CHECK_GE(dshape.size(), 3U)
-    << "Pool3D only support input >= 3-D: input must have depth, height and width";
+      << "Pool3D only support input >= 3-D: input must have depth, height and width";
   const auto* param = attrs.as<AdaptivePool3DAttrs>();
   CHECK(param != nullptr);
 
   Layout layout(param->layout);
   CHECK(layout.Contains(LayoutAxis::Get('D')) && layout.Contains(LayoutAxis::Get('H')) &&
         layout.Contains(LayoutAxis::Get('W')) && !layout.Contains(LayoutAxis::Get('d')) &&
-       !layout.Contains(LayoutAxis::Get('h')) && !layout.Contains(LayoutAxis::Get('w')))
-    << "Invalid layout " << layout
-    << ". Pool3D layout must have D, H and W, which cannot be split";
+        !layout.Contains(LayoutAxis::Get('h')) && !layout.Contains(LayoutAxis::Get('w')))
+      << "Invalid layout " << layout
+      << ". Pool3D layout must have D, H and W, which cannot be split";
 
   const auto didx = layout.IndexOf(LayoutAxis::Get('D'));
   const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
   const auto widx = layout.IndexOf(LayoutAxis::Get('W'));
   Array<IndexExpr> oshape(dshape);
   auto output_size = param->output_size;
-  CHECK_LE(output_size.size(), 3U)
-    << "output_size can have up to 3 elements.";
+  CHECK_LE(output_size.size(), 3U) << "output_size can have up to 3 elements.";
   IndexExpr output_depth, output_height, output_width;
   if (output_size.empty()) {
     output_depth = dshape[didx];
@@ -629,26 +579,25 @@ bool AdaptivePool3DRel(const Array<Type>& types,
   return true;
 }
 
-template<topi::nn::PoolType mode>
-Array<te::Tensor> AdaptivePool3DCompute(const Attrs& attrs,
-                                        const Array<te::Tensor>& inputs,
+template <topi::nn::PoolType mode>
+Array<te::Tensor> AdaptivePool3DCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                         const Type& out_type) {
   static const Layout kNCDHW("NCDHW");
   const auto* param = attrs.as<AdaptivePool3DAttrs>();
   CHECK(param != nullptr);
   Layout layout(param->layout);
   CHECK(tir::BijectiveLayout(layout, kNCDHW).defined())
-    << "Adaptive pool3d currently only supports layouts that are convertible from NCDHW";
+      << "Adaptive pool3d currently only supports layouts that are convertible from NCDHW";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('d')), -1)
-    << "Adaptive pool3d does not support input split on depth";
+      << "Adaptive pool3d does not support input split on depth";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('h')), -1)
-    << "Adaptive pool3d does not support input split on height";
+      << "Adaptive pool3d does not support input split on height";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
-    << "Adaptive pool3d does not support input split on width";
+      << "Adaptive pool3d does not support input split on width";
 
   CHECK(inputs[0].ndim() == 5U || inputs[0].ndim() == 6U)
-    << "Pool3D only support 5-D input (e.g., NCDHW)"
-    << " or 6-D input (last dimension is a split of channel)";
+      << "Pool3D only support 5-D input (e.g., NCDHW)"
+      << " or 6-D input (last dimension is a split of channel)";
 
   auto output_size = param->output_size;
   const auto didx = layout.IndexOf(LayoutAxis::Get('D'));
@@ -669,16 +618,12 @@ Array<te::Tensor> AdaptivePool3DCompute(const Attrs& attrs,
     output_width = output_size[2];
   }
 
-  auto osize = Array<IndexExpr>{ output_depth, output_height, output_width };
-  return Array<te::Tensor> {
-    topi::nn::adaptive_pool3d(inputs[0], osize,  mode, layout.name())
-  };
+  auto osize = Array<IndexExpr>{output_depth, output_height, output_width};
+  return Array<te::Tensor>{topi::nn::adaptive_pool3d(inputs[0], osize, mode, layout.name())};
 }
 
 // relay.nn.adaptive_max_pool3d
-Expr MakeAdaptiveMaxPool3D(Expr data,
-                           Array<IndexExpr> output_size,
-                           std::string layout) {
+Expr MakeAdaptiveMaxPool3D(Expr data, Array<IndexExpr> output_size, String layout) {
   auto attrs = make_object<AdaptivePool3DAttrs>();
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
@@ -686,11 +631,10 @@ Expr MakeAdaptiveMaxPool3D(Expr data,
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_max_pool3d")
-.set_body_typed(MakeAdaptiveMaxPool3D);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_max_pool3d").set_body_typed(MakeAdaptiveMaxPool3D);
 
 RELAY_REGISTER_OP("nn.adaptive_max_pool3d")
-  .describe(R"code(Adaptive max pooling operation for 3D data.
+    .describe(R"code(Adaptive max pooling operation for 3D data.
 
 - **data**: This depends on the `layout` parameter. Input is 5D array of shape
             (batch_size, channels, depth, height, width) if `layout` is `NCDHW`.
@@ -704,19 +648,17 @@ RELAY_REGISTER_OP("nn.adaptive_max_pool3d")
            (batch_size, channels, output_depth, output_height, output_width)  if `layout` is `NCDHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<AdaptivePool3DAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(10)
-.add_type_rel("AdaptiveMaxPool3D", AdaptivePool3DRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                               PoolInferCorrectLayout<AdaptivePool3DAttrs>)
-.set_attr<FTVMCompute>("FTVMCompute", AdaptivePool3DCompute<topi::nn::kMaxPool>);
+    .set_attrs_type<AdaptivePool3DAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(10)
+    .add_type_rel("AdaptiveMaxPool3D", AdaptivePool3DRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   PoolInferCorrectLayout<AdaptivePool3DAttrs>)
+    .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool3DCompute<topi::nn::kMaxPool>);
 
 // relay.nn.adaptive_max_pool3d
-Expr MakeAdaptiveAvgPool3D(Expr data,
-                           Array<IndexExpr> output_size,
-                           std::string layout) {
+Expr MakeAdaptiveAvgPool3D(Expr data, Array<IndexExpr> output_size, String layout) {
   auto attrs = make_object<AdaptivePool3DAttrs>();
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
@@ -724,11 +666,10 @@ Expr MakeAdaptiveAvgPool3D(Expr data,
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_avg_pool3d")
-.set_body_typed(MakeAdaptiveAvgPool3D);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_avg_pool3d").set_body_typed(MakeAdaptiveAvgPool3D);
 
 RELAY_REGISTER_OP("nn.adaptive_avg_pool3d")
-  .describe(R"code(Adaptive avg pooling operation for 3D data.
+    .describe(R"code(Adaptive avg pooling operation for 3D data.
 - **data**: This depends on the `layout` parameter. Input is 5D array of shape
             (batch_size, channels, depth, height, width) if `layout` is `NCDHW`.
 - **output_size**: If this argument is not provided, input depth, height and width will be used
@@ -740,15 +681,14 @@ RELAY_REGISTER_OP("nn.adaptive_avg_pool3d")
 - **out**: This depends on the `layout` parameter. Output is 5D array of shape
            (batch_size, channels, output_depth, output_height, output_width)  if `layout` is `NCDHW`.
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<AdaptivePool3DAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(10)
-.add_type_rel("AdaptiveAvgPool3D", AdaptivePool3DRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                               PoolInferCorrectLayout<AdaptivePool3DAttrs>)
-.set_attr<FTVMCompute>("FTVMCompute", AdaptivePool3DCompute<topi::nn::kAvgPool>);
-
+    .set_attrs_type<AdaptivePool3DAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(10)
+    .add_type_rel("AdaptiveAvgPool3D", AdaptivePool3DRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   PoolInferCorrectLayout<AdaptivePool3DAttrs>)
+    .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool3DCompute<topi::nn::kAvgPool>);
 
 bool Pool2DGradRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
@@ -763,8 +703,7 @@ bool Pool2DGradRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 template <typename AttrType, topi::nn::PoolType mode>
-Array<te::Tensor> Pool2DGradCompute(const Attrs& attrs,
-                                    const Array<te::Tensor>& inputs,
+Array<te::Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                     const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
@@ -802,17 +741,18 @@ Array<te::Tensor> Pool2DGradCompute(const Attrs& attrs,
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool2DAttrs*>(param)->count_include_pad;
     return Array<te::Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
-        mode, ceil_mode, layout.name(), count_include_pad)};
+                                                 mode, ceil_mode, layout.name(),
+                                                 count_include_pad)};
   } else {
     return Array<te::Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
-        mode, ceil_mode, layout.name())};
+                                                 mode, ceil_mode, layout.name())};
   }
 }
 
-
 // MaxPool2DGrad
 Expr MakeMaxPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
-    Array<IndexExpr> strides, Array<IndexExpr> padding, std::string layout, bool ceil_mode) {
+                       Array<IndexExpr> strides, Array<IndexExpr> padding, String layout,
+                       bool ceil_mode) {
   auto attrs = make_object<MaxPool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
@@ -824,7 +764,6 @@ Expr MakeMaxPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.max_pool2d_grad").set_body_typed(MakeMaxPool2DGrad);
-
 
 RELAY_REGISTER_OP("nn.max_pool2d_grad")
     .describe(R"code(Gradient of max pooling operation for two dimensional data.
@@ -849,18 +788,17 @@ RELAY_REGISTER_OP("nn.max_pool2d_grad")
            (batch_size, channels, height, width)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<MaxPool2DAttrs>()
-.set_num_inputs(2)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(2)
-.add_type_rel("MaxPool2DGrad", Pool2DGradRel)
-.set_attr<FTVMCompute>("FTVMCompute", Pool2DGradCompute<MaxPool2DAttrs, topi::nn::kMaxPool>);
-
+    .set_attrs_type<MaxPool2DAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(2)
+    .add_type_rel("MaxPool2DGrad", Pool2DGradRel)
+    .set_attr<FTVMCompute>("FTVMCompute", Pool2DGradCompute<MaxPool2DAttrs, topi::nn::kMaxPool>);
 
 // AvgPool2DGrad
 Expr MakeAvgPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
-    Array<IndexExpr> strides, Array<IndexExpr> padding, std::string layout, bool ceil_mode,
-    bool count_include_pad) {
+                       Array<IndexExpr> strides, Array<IndexExpr> padding, String layout,
+                       bool ceil_mode, bool count_include_pad) {
   auto attrs = make_object<AvgPool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
@@ -873,7 +811,6 @@ Expr MakeAvgPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.avg_pool2d_grad").set_body_typed(MakeAvgPool2DGrad);
-
 
 RELAY_REGISTER_OP("nn.avg_pool2d_grad")
     .describe(R"code(Gradient of average pooling operation for two dimensional data.
@@ -898,22 +835,19 @@ RELAY_REGISTER_OP("nn.avg_pool2d_grad")
            (batch_size, channels, height, width)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<MaxPool2DAttrs>()
-.set_num_inputs(2)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(2)
-.add_type_rel("MaxPool2DGrad", Pool2DGradRel)
-.set_attr<FTVMCompute>("FTVMCompute", Pool2DGradCompute<AvgPool2DAttrs, topi::nn::kAvgPool>);
-
+    .set_attrs_type<MaxPool2DAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(2)
+    .add_type_rel("MaxPool2DGrad", Pool2DGradRel)
+    .set_attr<FTVMCompute>("FTVMCompute", Pool2DGradCompute<AvgPool2DAttrs, topi::nn::kAvgPool>);
 
 // relay.nn.max_pool1d & relay.nn.avg_pool1d
 TVM_REGISTER_NODE_TYPE(MaxPool1DAttrs);
 TVM_REGISTER_NODE_TYPE(AvgPool1DAttrs);
 
 template <typename AttrType>
-bool Pool1DRel(const Array<Type>& types,
-               int num_inputs,
-               const Attrs& attrs,
+bool Pool1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -921,15 +855,13 @@ bool Pool1DRel(const Array<Type>& types,
   if (data == nullptr) return false;
 
   const auto dshape = data->shape;
-  CHECK_GE(dshape.size(), 1U)
-      << "Pool1D only support input >= 1-D: input must have width";
+  CHECK_GE(dshape.size(), 1U) << "Pool1D only support input >= 1-D: input must have width";
   const auto param = attrs.as<AttrType>();
   CHECK(param != nullptr);
 
   Layout layout(param->layout);
   CHECK(layout.Contains(LayoutAxis::Get('W')) && !layout.Contains(LayoutAxis::Get('w')))
-    << "Invalid layout " << layout
-    << ". Pool1D layout must have W, which cannot be split";
+      << "Invalid layout " << layout << ". Pool1D layout must have W, which cannot be split";
 
   const auto widx = layout.IndexOf(LayoutAxis::Get('W'));
 
@@ -949,8 +881,9 @@ bool Pool1DRel(const Array<Type>& types,
     oshape[widx] = dshape[widx];
   } else {
     if (param->ceil_mode) {
-      oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[0] +
-                       param->strides[0] - 1) / param->strides[0]) + 1;
+      oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[0] + param->strides[0] - 1) /
+                      param->strides[0]) +
+                     1;
     } else {
       oshape[widx] = ((dshape[widx] + pad_w - param->pool_size[0]) / param->strides[0]) + 1;
     }
@@ -961,10 +894,8 @@ bool Pool1DRel(const Array<Type>& types,
   return true;
 }
 
-
-template<typename AttrType, topi::nn::PoolType mode>
-Array<te::Tensor> Pool1DCompute(const Attrs& attrs,
-                                const Array<te::Tensor>& inputs,
+template <typename AttrType, topi::nn::PoolType mode>
+Array<te::Tensor> Pool1DCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
   static const Layout kNCW("NCW");
   const auto* param = attrs.as<AttrType>();
@@ -980,9 +911,7 @@ Array<te::Tensor> Pool1DCompute(const Attrs& attrs,
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
       << "max_pool1d does not support input split on width";
 
-  CHECK(inputs[0].ndim() == 3U ||
-        inputs[0].ndim() == 4U ||
-        inputs[0].ndim() == 5U)
+  CHECK(inputs[0].ndim() == 3U || inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
       << "Pool1D only support 3-D input (e.g., NCW)"
       << " or 4-D input (e.g. NCWc on for vector instructions)"
       << " or 5-D input (e.g. NCWnc for tensor accelerators)";
@@ -993,29 +922,23 @@ Array<te::Tensor> Pool1DCompute(const Attrs& attrs,
 
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool1DAttrs*>(param)->count_include_pad;
-    return Array<te::Tensor>{
-      topi::nn::pool1d(inputs[0], pool_size, strides, padding,
-                       mode, ceil_mode, layout.name(), count_include_pad)};
+    return Array<te::Tensor>{topi::nn::pool1d(inputs[0], pool_size, strides, padding, mode,
+                                              ceil_mode, layout.name(), count_include_pad)};
   } else {
     return Array<te::Tensor>{
-      topi::nn::pool1d(inputs[0], pool_size, strides, padding,
-                       mode, ceil_mode, layout.name())};
+        topi::nn::pool1d(inputs[0], pool_size, strides, padding, mode, ceil_mode, layout.name())};
   }
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.max_pool1d")
-.set_body_typed([](Expr data,
-                   Array<IndexExpr> pool_size,
-                   Array<IndexExpr> strides,
-                   Array<IndexExpr> padding,
-                   std::string layout,
-                   bool ceil_mode) {
-  return MakeMaxPool<MaxPool1DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
-    "nn.max_pool1d");
-});
+    .set_body_typed([](Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
+                       Array<IndexExpr> padding, String layout, bool ceil_mode) {
+      return MakeMaxPool<MaxPool1DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+                                         "nn.max_pool1d");
+    });
 
 RELAY_REGISTER_OP("nn.max_pool1d")
-.describe(R"code(Max pooling operation for one dimensional data.
+    .describe(R"code(Max pooling operation for one dimensional data.
 
 - **data**: This depends on the `layout` parameter. Input is 3D array of shape
             (batch_size, channels, width) if `layout` is `NCW`.
@@ -1033,30 +956,25 @@ RELAY_REGISTER_OP("nn.max_pool1d")
            equation.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<MaxPool1DAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(2)
-.add_type_rel("MaxPool1D", Pool1DRel<MaxPool1DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<MaxPool1DAttrs>)
-.set_attr<FTVMCompute>("FTVMCompute", Pool1DCompute<MaxPool1DAttrs, topi::nn::kMaxPool>);
-
+    .set_attrs_type<MaxPool1DAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(2)
+    .add_type_rel("MaxPool1D", Pool1DRel<MaxPool1DAttrs>)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<MaxPool1DAttrs>)
+    .set_attr<FTVMCompute>("FTVMCompute", Pool1DCompute<MaxPool1DAttrs, topi::nn::kMaxPool>);
 
 // AvgPool1D
 TVM_REGISTER_GLOBAL("relay.op.nn._make.avg_pool1d")
-.set_body_typed([](Expr data,
-                   Array<IndexExpr> pool_size,
-                   Array<IndexExpr> strides,
-                   Array<IndexExpr> padding,
-                   std::string layout,
-                   bool ceil_mode,
-                   bool count_include_pad) {
-  return MakeAvgPool<AvgPool1DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
-    count_include_pad, "nn.avg_pool1d");
-});
+    .set_body_typed([](Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
+                       Array<IndexExpr> padding, String layout, bool ceil_mode,
+                       bool count_include_pad) {
+      return MakeAvgPool<AvgPool1DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+                                         count_include_pad, "nn.avg_pool1d");
+    });
 
 RELAY_REGISTER_OP("nn.avg_pool1d")
-.describe(R"code(
+    .describe(R"code(
 Average pooling operation for one dimensional data.
 
 - **data**: This depends on the `layout` parameter. Input is 3D array of shape
@@ -1075,23 +993,20 @@ Average pooling operation for one dimensional data.
            equation.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<AvgPool1DAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(2)
-.add_type_rel("AvgPool1D", Pool1DRel<AvgPool1DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<AvgPool1DAttrs>)
-.set_attr<FTVMCompute>("FTVMCompute", Pool1DCompute<AvgPool1DAttrs, topi::nn::kAvgPool>);
-
+    .set_attrs_type<AvgPool1DAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(2)
+    .add_type_rel("AvgPool1D", Pool1DRel<AvgPool1DAttrs>)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<AvgPool1DAttrs>)
+    .set_attr<FTVMCompute>("FTVMCompute", Pool1DCompute<AvgPool1DAttrs, topi::nn::kAvgPool>);
 
 // relay.nn.max_pool3d & relay.nn.avg_pool3d
 TVM_REGISTER_NODE_TYPE(MaxPool3DAttrs);
 TVM_REGISTER_NODE_TYPE(AvgPool3DAttrs);
 
 template <typename AttrType>
-bool Pool3DRel(const Array<Type>& types,
-               int num_inputs,
-               const Attrs& attrs,
+bool Pool3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -1108,8 +1023,8 @@ bool Pool3DRel(const Array<Type>& types,
   CHECK(layout.Contains(LayoutAxis::Get('D')) && layout.Contains(LayoutAxis::Get('H')) &&
         layout.Contains(LayoutAxis::Get('W')) && !layout.Contains(LayoutAxis::Get('d')) &&
         !layout.Contains(LayoutAxis::Get('h')) && !layout.Contains(LayoutAxis::Get('w')))
-    << "Invalid layout " << layout
-    << ". Pool3D layout must have D, H and W, which cannot be split";
+      << "Invalid layout " << layout
+      << ". Pool3D layout must have D, H and W, which cannot be split";
 
   const auto didx = layout.IndexOf(LayoutAxis::Get('D'));
   const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
@@ -1143,8 +1058,9 @@ bool Pool3DRel(const Array<Type>& types,
       oshape[ii] = dshape[ii];
     } else {
       if (param->ceil_mode) {
-        oshape[ii] = ((dshape[ii] + pad[i] - param->pool_size[i] +
-                         param->strides[i] - 1) / param->strides[i]) + 1;
+        oshape[ii] = ((dshape[ii] + pad[i] - param->pool_size[i] + param->strides[i] - 1) /
+                      param->strides[i]) +
+                     1;
       } else {
         oshape[ii] = ((dshape[ii] + pad[i] - param->pool_size[i]) / param->strides[i]) + 1;
       }
@@ -1156,10 +1072,8 @@ bool Pool3DRel(const Array<Type>& types,
   return true;
 }
 
-
-template<typename AttrType, topi::nn::PoolType mode>
-Array<te::Tensor> Pool3DCompute(const Attrs& attrs,
-                                const Array<te::Tensor>& inputs,
+template <typename AttrType, topi::nn::PoolType mode>
+Array<te::Tensor> Pool3DCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
   static const Layout kNCDHW("NCDHW");
   const auto* param = attrs.as<AttrType>();
@@ -1179,9 +1093,7 @@ Array<te::Tensor> Pool3DCompute(const Attrs& attrs,
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
       << "max_pool3d does not support input split on width";
 
-  CHECK(inputs[0].ndim() == 4U ||
-        inputs[0].ndim() == 5U ||
-        inputs[0].ndim() == 6U)
+  CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U || inputs[0].ndim() == 6U)
       << "Pool3D only support 5-D input (e.g., NCDHW)"
       << " or 6-D input (e.g. NCDHWc on for vector instructions)"
       << " or 7-D input (e.g. NCDHWnc for tensor accelerators)";
@@ -1197,29 +1109,23 @@ Array<te::Tensor> Pool3DCompute(const Attrs& attrs,
   }
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool3DAttrs*>(param)->count_include_pad;
-    return Array<te::Tensor>{
-      topi::nn::pool3d(inputs[0], pool_size, strides, padding,
-                       mode, ceil_mode, layout.name(), count_include_pad)};
+    return Array<te::Tensor>{topi::nn::pool3d(inputs[0], pool_size, strides, padding, mode,
+                                              ceil_mode, layout.name(), count_include_pad)};
   } else {
     return Array<te::Tensor>{
-      topi::nn::pool3d(inputs[0], pool_size, strides, padding,
-                       mode, ceil_mode, layout.name())};
+        topi::nn::pool3d(inputs[0], pool_size, strides, padding, mode, ceil_mode, layout.name())};
   }
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.max_pool3d")
-.set_body_typed([](Expr data,
-                   Array<IndexExpr> pool_size,
-                   Array<IndexExpr> strides,
-                   Array<IndexExpr> padding,
-                   std::string layout,
-                   bool ceil_mode) {
-  return MakeMaxPool<MaxPool3DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
-    "nn.max_pool3d");
-});
+    .set_body_typed([](Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
+                       Array<IndexExpr> padding, String layout, bool ceil_mode) {
+      return MakeMaxPool<MaxPool3DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+                                         "nn.max_pool3d");
+    });
 
 RELAY_REGISTER_OP("nn.max_pool3d")
-.describe(R"code(Max pooling operation for three dimensional data.
+    .describe(R"code(Max pooling operation for three dimensional data.
 
 - **data**: This depends on the `layout` parameter. Input is 5D array of shape
             (batch_size, channels, depth, height, width) if `layout` is `NCDHW`.
@@ -1240,30 +1146,25 @@ RELAY_REGISTER_OP("nn.max_pool3d")
            equation.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<MaxPool3DAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(2)
-.add_type_rel("MaxPool3D", Pool3DRel<MaxPool3DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<MaxPool3DAttrs>)
-.set_attr<FTVMCompute>("FTVMCompute", Pool3DCompute<MaxPool3DAttrs, topi::nn::kMaxPool>);
-
+    .set_attrs_type<MaxPool3DAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(2)
+    .add_type_rel("MaxPool3D", Pool3DRel<MaxPool3DAttrs>)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<MaxPool3DAttrs>)
+    .set_attr<FTVMCompute>("FTVMCompute", Pool3DCompute<MaxPool3DAttrs, topi::nn::kMaxPool>);
 
 // AvgPool3D
 TVM_REGISTER_GLOBAL("relay.op.nn._make.avg_pool3d")
-.set_body_typed([](Expr data,
-                   Array<IndexExpr> pool_size,
-                   Array<IndexExpr> strides,
-                   Array<IndexExpr> padding,
-                   std::string layout,
-                   bool ceil_mode,
-                   bool count_include_pad) {
-  return MakeAvgPool<AvgPool3DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
-    count_include_pad, "nn.avg_pool3d");
-});
+    .set_body_typed([](Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
+                       Array<IndexExpr> padding, String layout, bool ceil_mode,
+                       bool count_include_pad) {
+      return MakeAvgPool<AvgPool3DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+                                         count_include_pad, "nn.avg_pool3d");
+    });
 
 RELAY_REGISTER_OP("nn.avg_pool3d")
-.describe(R"code(
+    .describe(R"code(
 Average pooling operation for three dimensional data.
 
 - **data**: This depends on the `layout` parameter. Input is 5D array of shape
@@ -1285,13 +1186,13 @@ Average pooling operation for three dimensional data.
            equation.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<AvgPool3DAttrs>()
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(2)
-.add_type_rel("AvgPool3D", Pool3DRel<AvgPool3DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<AvgPool3DAttrs>)
-.set_attr<FTVMCompute>("FTVMCompute", Pool3DCompute<AvgPool3DAttrs, topi::nn::kAvgPool>);
+    .set_attrs_type<AvgPool3DAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(2)
+    .add_type_rel("AvgPool3D", Pool3DRel<AvgPool3DAttrs>)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<AvgPool3DAttrs>)
+    .set_attr<FTVMCompute>("FTVMCompute", Pool3DCompute<AvgPool3DAttrs, topi::nn::kAvgPool>);
 
 }  // namespace relay
 }  // namespace tvm

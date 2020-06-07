@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import json
 import os
 import tvm
 from tvm import te
 import numpy as np
-import json
 from tvm import rpc
 from tvm.contrib import util
 from tvm.contrib.debugger import debug_runtime as graph_runtime
@@ -75,7 +75,16 @@ def test_graph_simple():
         assert(len(os.listdir(directory)) == 1)
 
         #verify the file name is proper
-        assert(os.path.exists(os.path.join(directory, GRAPH_DUMP_FILE_NAME)))
+        graph_dump_path = os.path.join(directory, GRAPH_DUMP_FILE_NAME)
+        assert(os.path.exists(graph_dump_path))
+
+        # verify the graph contains some expected keys
+        with open(graph_dump_path) as graph_f:
+            dumped_graph = json.load(graph_f)
+
+        assert isinstance(dumped_graph, dict)
+        for k in ("nodes", "arg_nodes", "node_row_ptr", "heads", "attrs"):
+            assert k in dumped_graph, f"key {k} not in dumped graph {graph!r}"
 
         mod.run()
         #Verify the tensors are dumped

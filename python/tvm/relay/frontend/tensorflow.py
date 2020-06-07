@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, redefined-builtin
 """TF: Tensorflow frontend."""
 import warnings
 from collections import defaultdict
@@ -1155,14 +1155,11 @@ def _reshape():
                 shape_arg = tuple(params_new.asnumpy().astype('int64').flatten())
             except Exception:
                 # Deal with symbolic shape case.
-                # Currently only shape_of can be the direct ancestor.
-                if not isinstance(pop_node, tvm.relay.expr.Call) or \
-                        "shape_of" not in str(pop_node.op):
-                    raise RuntimeError("If shape operator is used in reshape to "
-                                       "express reshape_like, shape_of must be "
-                                       "the direct ancestor of reshape when input "
-                                       "shape is symbolic.")
-                return _op.reshape_like(inputs[0], pop_node.args[0])
+                if isinstance(pop_node, _expr.Call) and \
+                        "shape_of" in str(pop_node.op):
+                    # shape_of is the direct ancestor.
+                    return _op.reshape_like(inputs[0], pop_node.args[0])
+                shape_arg = pop_node
         return AttrCvt(
             op_name="reshape",
             extras={'newshape': shape_arg},
@@ -1930,7 +1927,6 @@ def _add_n():
         return  _res
     return _impl
 
-
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1947,6 +1943,8 @@ _freezed_graph_pruned_op_list = ['ReadVariableOp', 'ResourceGather', 'Variable',
 # for N to 1 mapping, currently not supported(?)
 _convert_map = {
     'Abs'                               : AttrCvt('abs'),
+    'Acos'                              : AttrCvt('acos'),
+    'Acosh'                             : AttrCvt('acosh'),
     'Add'                               : _elemwise('add'),
     'AddN'                              : _add_n(),
     'AddV2'                             : _elemwise('add'),
@@ -1954,8 +1952,11 @@ _convert_map = {
     'Any'                               : _reduce('any'),
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
+    'Asin'                              : AttrCvt('asin'),
+    'Asinh'                             : AttrCvt('asinh'),
     'Assert'                            : _assert(),
     'Atan'                              : AttrCvt('atan'),
+    'Atanh'                             : AttrCvt('atanh'),
     'Atan2'                             : _atan2(),
     'AvgPool'                           : _pooling('avg_pool'),
     'AvgPool3D'                         : _pool3d('avg_pool3d'),
@@ -1975,6 +1976,7 @@ _convert_map = {
     'Conv2DBackpropInput'               : _conv('conv_transpose'),
     'Conv3D'                            : _conv3d('conv'),
     'Cos'                               : AttrCvt('cos'),
+    'Cosh'                              : AttrCvt('cosh'),
     'CropAndResize'                     : _crop_and_resize(),
     'DecodeJpeg'                        : _decode_image(),
     'DepthToSpace'                      : _depth_to_space(),
@@ -2051,6 +2053,7 @@ _convert_map = {
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Sign'                              : AttrCvt('sign'),
     'Sin'                               : AttrCvt('sin'),
+    'Sinh'                              : AttrCvt('sinh'),
     'Size'                              : _size(),
     'Slice'                             : _slice(),
     'Softmax'                           : _softmax(),
@@ -2713,8 +2716,9 @@ class GraphProto(object):
         self._loop_var_order = {}
         self._hash2tfnode = {}
         self._while_loop_name_set = set()
+        self._main_graph_proto = self
 
-    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
+    def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
 
         Follow the tensorflow graph definition to parse and convert it to Relay.
@@ -2881,6 +2885,13 @@ class GraphProto(object):
 
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
         func = _function.Function(analysis.free_vars(out), out)
+        return func
+
+    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
+        """ Wrapper to _get_relay_func which converts Tensorflow graph to Relay function
+        which is used as main function for the Relay module
+        """
+        func = self._get_relay_func(graph, layout=layout, shape=shape, outputs=outputs)
         self._mod["main"] = func
         return self._mod, self._params
 
@@ -2891,16 +2902,24 @@ class GraphProto(object):
                 which are not supported
         """
         missing_operators = set()
+        from tensorflow.python.framework import op_def_registry
         for node in graph.node:
+            getOpDef = op_def_registry._registered_ops.get if hasattr(op_def_registry,\
+                        "_registered_ops") else op_def_registry.get
+            op_def = getOpDef(node.op)
             if node.op == "Placeholder" or node.op == 'PlaceholderWithDefault':
                 pass
             elif node.op == "Const":
+                pass
+            elif node.op in ["PartitionedCall", "StatefulPartitionedCall"]:
                 pass
             else:
                 if any([node.op in t for t in [_identity_list, _convert_map,
                                                _convert_map_rnn,
                                                _control_flow_nodes]]):
                     pass
+                elif op_def is not None and op_def.is_stateful:
+                    missing_operators.add(node.op)
                 else:
                     missing_operators.add(node.op)
 
@@ -3069,21 +3088,19 @@ class GraphProto(object):
                 branch = self._branches[node_name_prefix]
                 false_br = self._backtrack_construct(node.input[0])
                 true_br = self._backtrack_construct(node.input[1])
-                assert len(true_br) == 1
-                assert len(false_br) == 1
-                branch.true_branch = true_br[0]
-                branch.false_branch = false_br[0]
-                op = [branch.if_node()]
+                branch.true_branch = true_br
+                branch.false_branch = false_br
+                op = branch.if_node()
                 if node_name_prefix not in self._while_loop_name_set:
                     try:
                         cond_val = np.all(_infer_value(branch.cond, self._params,
                                                        self._mod).asnumpy())
                         if cond_val:
-                            op = [branch.true_branch]
+                            op = branch.true_branch
                         else:
-                            op = [branch.false_branch]
+                            op = branch.false_branch
                     except Exception:
-                        op = [branch.if_node()]
+                        op = branch.if_node()
         elif node.op == "Exit":
             loop = self._loops[node_name_prefix]
 
@@ -3109,17 +3126,15 @@ class GraphProto(object):
                 if exit_number == j:
                     body_pos = i
                     break
-            op = [_expr.TupleGetItem(expr, body_pos)]
+            op = _expr.TupleGetItem(expr, body_pos)
         elif node.op == "Enter":
             op = self._backtrack_construct(node.input[0])
         elif node.op == "LoopCond":
             op = self._backtrack_construct(node.input[0])
-            assert len(op) == 1
-            self._loops[node_name_prefix].cond = op[0]
+            self._loops[node_name_prefix].cond = op
         elif node.op == "Switch":
             op = self._backtrack_construct(node.input[0])
             cond = self._backtrack_construct(node.input[1])
-            assert len(op) == 1
             if _in_while_loop(self._control_flow_node_map, node_name_prefix):
                 if node_name_prefix not in self._loop_var_order:
                     self._loop_var_order[node_name_prefix] = []
@@ -3128,11 +3143,11 @@ class GraphProto(object):
                 else:
                     self._loop_var_order[node_name_prefix].\
                         append(int(node.name.split("Switch_")[-1]))
-                self._loops[node_name_prefix].loop_vars.append(op[0])
+                self._loops[node_name_prefix].loop_vars.append(op)
             else:
                 if node_name_prefix not in self._branches:
                     self._branches[node_name_prefix] = Branch()
-                self._branches[node_name_prefix].cond = cond[0]
+                self._branches[node_name_prefix].cond = cond
         elif node.op == "NextIteration":
             if node_name_prefix not in self._loop_body_order:
                 self._loop_body_order[node_name_prefix] = []
@@ -3142,14 +3157,97 @@ class GraphProto(object):
                 self._loop_body_order[node_name_prefix].\
                     append(int(node.name.split("NextIteration_")[-1]))
             op = self._backtrack_construct(node.input[0])
-
-            assert len(op) == 1
-            self._loops[node_name_prefix].body.append(op[0])
+            self._loops[node_name_prefix].body.append(op)
         else:
             raise Exception("Cannot identify control flow operator: " +
                             "{}".format(node.op))
 
         return op
+
+    def _partition_call_operator(self, inputs, attr):
+        """
+        Convert the Relay Partition call ops into Relay Function calls and
+        function definitions from Tensorflow graph library attribute to Relay global
+        functions
+
+        Parameters
+        ----------
+        node: TensorFlow graph node object.
+            A TensorFlow graph node object.
+
+        inputs : List[tvm.relay.Expr]
+            List of input symbols.
+
+        attrs : Dict[tvm.Attrs]
+            Dict of operator attributes.
+
+        Returns
+        -------
+        op : tvm.relay.Expr
+            Converted relay expression.
+        """
+
+        try:
+            from tensorflow.python.framework import function_def_to_graph
+        except ImportError as e:
+            raise ImportError(
+                "Unable to import tensorflow which is required {}".format(e))
+
+        main_graph_proto = self._main_graph_proto
+        outer_graph_def = main_graph_proto._graph
+
+        node_func_name = attr.get('f').name
+        func = next((f for f in outer_graph_def.library.function
+                     if f.signature.name == node_func_name), None)
+        if func:
+            devices = set(node.device for node in func.node_def)
+            if len(devices) > 1:
+                raise Exception("Found inconsistent Device assignment in the "\
+                                "Stateful Partitioned SubGraph. Rejecting "\
+                                "the subgraph ")
+            # Convert function definition to graph
+            func_input_shapes = func.attr["_input_shapes"].list.shape
+            subgraph, _ = function_def_to_graph.\
+                function_def_to_graph_def(func, func_input_shapes)
+
+            # Computing subgraph's input shape dictionary
+            subgraph_shape_dict, input_expr_dict = {}, {}
+            for f_arg, input in zip(func.signature.input_arg, inputs):
+                input_expr_dict[f_arg.name] = input
+                subgraph_shape_dict[f_arg.name] = _infer_shape(input, main_graph_proto._mod)
+
+            func_name = 'func_{}'.format(func.signature.name)
+            try:
+                global_func = main_graph_proto._mod[func_name]
+                sub_func = global_func
+                sub_params = main_graph_proto._params
+            except ValueError:
+                # Construct relay nodes from the subgraph
+                g1 = SubGraphProto(main_graph_proto)
+                sub_func, sub_params = g1.from_tensorflow(subgraph, shape=subgraph_shape_dict)
+                main_graph_proto._params.update(sub_params)
+                func_expr = _function.Function(sub_func.params, sub_func.body)
+                global_func = tvm.relay.GlobalVar(func_name)
+                main_graph_proto._mod[global_func] = func_expr
+
+            param_exprs = []
+            for param_expr in sub_func.params:
+                # sub_params is subset of sub_func.params
+                param_name = param_expr.vid.name_hint
+                if param_name in input_expr_dict.keys():
+                    param_exprs.append(input_expr_dict[param_name])
+                elif param_name in sub_params.keys():
+                    param_exprs.append(param_expr)
+                else:
+                    raise Exception("Input parameter {} not found".format(param_name))
+
+            sb = tvm.relay.scope_builder.ScopeBuilder()
+            loop_ret = global_func(*param_exprs)
+            sb.ret(loop_ret)
+            ret = sb.get()
+        else:
+            raise Exception("Function not found - {}".format(node_func_name))
+        return ret
 
     def _convert_operator(self, op_name, inputs, attrs,
                           graph, identity_list=None, convert_map=None):
@@ -3192,6 +3290,9 @@ class GraphProto(object):
             sym = self._convert_rnn_operator(op_name, inputs, attrs,
                                              self._params, graph,
                                              convert_map_rnn)
+
+        elif op_name in ["PartitionedCall", "StatefulPartitionedCall"]:
+            sym = self._partition_call_operator(inputs, attrs)
         else:
             raise NotImplementedError("Operator {} not implemented.".format(op_name))
         return sym
@@ -3215,10 +3316,10 @@ class GraphProto(object):
         op : relay.Expr
             Converted relay expression
         """
-        node_name = node_name.split(':')[0].split("^")[-1]
+        input_op_name = node_name.split(':')[0].split("^")[-1]
 
-        if node_name not in self._nodes:
-            node = self._tf_node_map[node_name]
+        if input_op_name not in self._nodes:
+            node = self._tf_node_map[input_op_name]
             attr = self._parse_attr(node.attr)
 
             if node.op in _control_flow_nodes:
@@ -3227,20 +3328,10 @@ class GraphProto(object):
                                                          attr,
                                                          self._control_flow_node_map)
             else:
-                attr["_output_shapes"] = self._output_shapes[node_name]
+                attr["_output_shapes"] = self._output_shapes[input_op_name]
                 attr["_node_name"] = node.name
                 attr["_target_layout"] = self._layout
-                inputs = []
-                for iname in node.input:
-                    in_op = self._backtrack_construct(iname)
-                    if isinstance(in_op, _expr.TupleWrapper):
-                        tn = iname.split(':')
-                        tensor_slot = int(tn[1]) if len(tn) > 1 else 0
-                        in_op = in_op[tensor_slot]
-                    else:
-                        in_op = in_op[0]
-
-                    inputs.append(in_op)
+                inputs = [self._backtrack_construct(iname) for iname in node.input]
                 op = self._convert_operator(node.op, inputs, attr, self._graph)
 
             if isinstance(op, np.ndarray):
@@ -3254,9 +3345,32 @@ class GraphProto(object):
 
             node_hash = s_hash(op) if isinstance(op, _expr.Tuple) else s_hash(op[0])
             self._hash2tfnode[node_hash] = node
-            self._nodes[node_name] = op
+            self._nodes[input_op_name] = op
 
-        return self._nodes[node_name]
+        out = self._nodes[input_op_name]
+
+        if isinstance(out, _expr.TupleWrapper):
+            tn = node_name.split(':')
+            tensor_slot = int(tn[1]) if len(tn) > 1 else 0
+            return out[tensor_slot]
+
+        return out[0]
+
+
+class SubGraphProto(GraphProto):
+    """ A helper class for handling relay subgraph copying from Tensorflow GraphDef.
+    """
+    def __init__(self, main_graph_proto):
+        super().__init__()
+        self._main_graph_proto = main_graph_proto  # holds main graph proto object
+
+    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
+        """ Wrapper to _get_relay_func which converts Tensorflow graph to Relay function.
+        Return Relay function and params
+        """
+        func = self._get_relay_func(graph, layout=layout, shape=shape, outputs=outputs)
+        return func, self._params
+
 
 def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
     """Load tensorflow graph which is a python tensorflow graph object into relay.
@@ -3284,6 +3398,7 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
     params : dict of str to tvm.nd.NDArray
         Dict of converted parameters stored in tvm.nd.NDArray format
     """
+
     g = GraphProto()
     mod, params = g.from_tensorflow(graph, layout, shape, outputs)
     return mod, params

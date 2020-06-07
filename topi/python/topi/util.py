@@ -101,7 +101,8 @@ def get_const_int(expr):
     if isinstance(expr, Integral):
         return expr
     if not isinstance(expr, tvm.tir.IntImm):
-        expr = tvm.tir.ir_pass.Simplify(expr)
+        ana = tvm.arith.Analyzer()
+        expr = ana.simplify(expr)
     if not isinstance(expr, tvm.tir.IntImm):
         raise ValueError("Expect value to be constant int")
     return int(expr.value)
@@ -123,7 +124,8 @@ def get_const_float(expr):
     if isinstance(expr, float):
         return float(expr)
     if not isinstance(expr, tvm.tir.FloatImm):
-        expr = tvm.tir.ir_pass.Simplify(expr)
+        ana = tvm.arith.Analyzer()
+        expr = ana.simplify(expr)
     if not isinstance(expr, tvm.tir.FloatImm):
         raise ValueError("Expect value to be constant float")
     return float(expr.value)
@@ -145,7 +147,8 @@ def equal_const_int(expr, value):
     if isinstance(expr, Integral):
         return expr == value
     if not isinstance(expr, tvm.tir.IntImm):
-        expr = tvm.tir.ir_pass.Simplify(expr)
+        ana = tvm.arith.Analyzer()
+        expr = ana.simplify(expr)
     if not isinstance(expr, tvm.tir.IntImm):
         return False
     return expr.value == value
@@ -165,11 +168,13 @@ def get_const_tuple(in_tuple):
         The output.
     """
     ret = []
+    ana = None
     for elem in in_tuple:
         if isinstance(elem, (tvm.tir.Var, tvm.tir.expr.Any)):
             ret.append(elem)
         elif not isinstance(elem, (tvm.tir.IntImm, int)):
-            elem = tvm.tir.ir_pass.Simplify(elem)
+            ana = tvm.arith.Analyzer() if ana is None else ana
+            elem = ana.simplify(elem)
             if not isinstance(elem, tvm.tir.IntImm):
                 ret.append(elem)
             else:
@@ -208,7 +213,7 @@ def simplify(expr):
     out : Expr or int
         The simplified output
     """
-    return tvm.tir.ir_pass.Simplify(expr) if isinstance(expr, tvm.tir.PrimExpr) else expr
+    return tvm.arith.Analyzer().simplify(expr) if isinstance(expr, tvm.tir.PrimExpr) else expr
 
 
 def ravel_index(indices, shape):

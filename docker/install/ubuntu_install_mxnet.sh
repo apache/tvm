@@ -20,4 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-pip3 install mxnet-mkl==1.6.0
+pip3 install mxnet==1.6.0

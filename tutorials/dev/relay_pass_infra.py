@@ -160,7 +160,7 @@ print(mod1)
 # however, provides a configuration interface
 # for users to customize the optimization level that they want to execute.
 
-with relay.build_config(opt_level=3):
+with tvm.transform.PassContext(opt_level=3):
     mod2 = seq(mod)
 print(mod2)
 
@@ -173,7 +173,7 @@ print(mod2)
 # EliminateCommonSubexpr as following. The printed module will again show two
 # identical addition operations.
 
-with relay.build_config(opt_level=3, disabled_pass=["EliminateCommonSubexpr"]):
+with tvm.transform.PassContext(opt_level=3, disabled_pass=["EliminateCommonSubexpr"]):
     mod3 = seq(mod)
 print(mod3)
 
@@ -182,12 +182,12 @@ print(mod3)
 # provides a means to make pass target-aware. For example, the layout
 # alteration pass falls in such category.
 
-with relay.build_config(opt_level=3):
+with tvm.transform.PassContext(opt_level=3):
     mod4 = seq(mod)
 print(mod4)
 
 seq1 = tvm.transform.Sequential([relay.transform.AlterOpLayout()])
-with relay.build_config(opt_level=3):
+with tvm.transform.PassContext(opt_level=3):
     with tvm.target.create("llvm"):
         mod5 = seq1(mod)
 print(mod5)
@@ -242,7 +242,7 @@ seq = tvm.transform.Sequential([relay.transform.FoldConstant(),
                                 relay.transform.EliminateCommonSubexpr(),
                                 relay.transform.FuseOps(),
                                 tvm.transform.PrintIR()])
-with relay.build_config(opt_level=3):
+with tvm.transform.PassContext(opt_level=3):
     mod = seq(mod)
 
 print("done")

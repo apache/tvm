@@ -31,6 +31,7 @@ from .conv2d_spatial_pack import conv2d_spatial_pack_nchw, \
     conv2d_spatial_pack_nhwc, \
     schedule_conv2d_spatial_pack_nchw, \
     schedule_conv2d_spatial_pack_nhwc
+from .cortex_m7.conv2d import direct_simd
 
 
 @autotvm.register_topi_compute("conv2d_nchw_spatial_pack.arm_cpu")
@@ -166,15 +167,20 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
                                      idxm(b*VP + bb, nW) * m + nu],
                             name='d')
 
-    # transform kernel
-    if pre_computed:
-        U = kernel
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        VC = cfg['tile_k'].size[-1]
+        kvshape = (KH + tile_size - 1, KW + tile_size - 1, idxd(CO, VC), CI, VC)
+        U = tvm.te.placeholder(kvshape, kernel.dtype, name="U")
     else:
-        r_kh = te.reduce_axis((0, KH), 'r_kh')
-        r_kw = te.reduce_axis((0, KW), 'r_kw')
-        U = te.compute((alpha, alpha, idxd(K, VK), C, VK), lambda eps, nu, k, c, kk:
-                       te.sum(kernel[k * VK + kk][c][r_kh][r_kw].astype(out_dtype) *
-                              G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]), name='U')
+        # transform kernel
+        if pre_computed:
+            U = kernel
+        else:
+            r_kh = te.reduce_axis((0, KH), 'r_kh')
+            r_kw = te.reduce_axis((0, KW), 'r_kw')
+            U = te.compute((alpha, alpha, idxd(K, VK), C, VK), lambda eps, nu, k, c, kk:
+                           te.sum(kernel[k * VK + kk][c][r_kh][r_kw].astype(out_dtype) *
+                                  G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]), name='U')
 
     # transform image
     r_eps = te.reduce_axis((0, alpha), 'r_eps')
@@ -425,3 +431,15 @@ def schedule_conv2d_nchw_winograd_nnpack_without_weight_transform(cfg, outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
+@autotvm.register_topi_compute("conv2d_direct_simd.arm_cpu")
+def conv2d_direct_simd(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d with SIMD (v7e-m)."""
+    return direct_simd.conv2d_direct_simd_compute(
+        cfg, data, kernel, strides, padding, dilation, out_dtype)
+
+
+@autotvm.register_topi_schedule("conv2d_direct_simd.arm_cpu")
+def schedule_conv2d_direct_simd(cfg, outs):
+    """Create schedule for conv2d_direct_simd"""
+    return direct_simd.conv2d_direct_simd_nhwc_schedule(cfg, outs)

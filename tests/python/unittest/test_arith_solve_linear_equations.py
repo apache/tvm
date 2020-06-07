@@ -24,6 +24,7 @@ from tvm import te, arith, ir, tir, testing
 def check_solution(solution, vranges={}):
     """Check that solution is a bijective transformation"""
     def _check_forward(constraints1, constraints2, varmap, backvarmap):
+        ana = tvm.arith.Analyzer()
         all_vranges = vranges.copy()
         all_vranges.update({v: r for v, r in constraints1.ranges.items()})
 
@@ -31,19 +32,19 @@ def check_solution(solution, vranges={}):
         cond_on_vars = tir.const(1, 'bool')
         for v in constraints1.variables:
             # variable mapping is consistent
-            v_back = tir.ir_pass.Simplify(tir.ir_pass.Substitute(varmap[v], backvarmap))
+            v_back = ana.simplify(tir.stmt_functor.substitute(varmap[v], backvarmap))
             cond_on_vars = te.all(cond_on_vars, v == v_back)
         # Also we have to check that the new relations are true when old relations are true
-        cond_subst = tir.ir_pass.Substitute(
+        cond_subst = tir.stmt_functor.substitute(
             te.all(tir.const(1, 'bool'), *constraints2.relations), backvarmap)
         # We have to include relations from vranges too
         for v in constraints2.variables:
             if v in constraints2.ranges:
                 r = constraints2.ranges[v]
                 range_cond = te.all(v >= r.min, v < r.min + r.extent)
-                range_cond = tir.ir_pass.Substitute(range_cond, backvarmap)
+                range_cond = tir.stmt_functor.substitute(range_cond, backvarmap)
                 cond_subst = te.all(cond_subst, range_cond)
-        cond_subst = tir.ir_pass.Simplify(cond_subst)
+        cond_subst = ana.simplify(cond_subst)
         testing.check_bool_expr_is_true(
             te.all(cond_subst, cond_on_vars), all_vranges,
             cond=te.all(tir.const(1, 'bool'), *constraints1.relations))

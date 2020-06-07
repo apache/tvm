@@ -24,13 +24,14 @@
 #ifndef TVM_RELAY_TRANSFORMS_EXPR_SUBST_H_
 #define TVM_RELAY_TRANSFORMS_EXPR_SUBST_H_
 #include <tvm/relay/expr.h>
+
 #include <unordered_map>
 
 namespace tvm {
 namespace relay {
 
 Expr ExprSubst(const Expr& expr,
-               std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> subst_map);
+               std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> subst_map);
 
 }  // namespace relay
 }  // namespace tvm

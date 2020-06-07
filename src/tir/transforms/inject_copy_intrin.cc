@@ -21,11 +21,13 @@
  * \brief Replace certain copy with copy intrinsics.
  * \file copy_intrin_rewrite.cc
  */
-#include <tvm/runtime/registry.h>
-#include <tvm/tir/transform.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/arith/pattern.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
+
 #include "../../arith/pattern_match.h"
 
 namespace tvm {
@@ -35,11 +37,9 @@ using runtime::PackedFunc;
 
 class CopyIntrinInjector : public StmtMutator {
  public:
-  CopyIntrinInjector(const std::string& pragma_key,
-                     const PackedFunc& flower_copy_fromto)
-      : pragma_key_(attr::pragma_scope_prefix+  pragma_key),
-        flower_copy_fromto_(flower_copy_fromto) {
-  }
+  CopyIntrinInjector(const std::string& pragma_key, const PackedFunc& flower_copy_fromto)
+      : pragma_key_(attr::pragma_scope_prefix + pragma_key),
+        flower_copy_fromto_(flower_copy_fromto) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
@@ -47,15 +47,14 @@ class CopyIntrinInjector : public StmtMutator {
       storage_scope_[buf] = op->value.as<StringImmNode>()->value;
     } else if (op->attr_key == pragma_key_) {
       Stmt ret;
-      CHECK(MatchCopyPattern(op->body, &ret))
-          << "Cannot match copy pattern of " << op->body;
+      CHECK(MatchCopyPattern(op->body, &ret)) << "Cannot match copy pattern of " << op->body;
       return ret;
     }
     return StmtMutator::VisitStmt_(op);
   }
 
  private:
-  bool MatchCopyPattern(Stmt stmt, Stmt *out) {
+  bool MatchCopyPattern(Stmt stmt, Stmt* out) {
     using namespace arith;
     Stmt body = stmt;
 
@@ -71,9 +70,8 @@ class CopyIntrinInjector : public StmtMutator {
     // Expr sel_cond, sel_true_value, sel_false_value;
     // match select or if
     PVar<PrimExpr> sel_cond, sel_true_value, sel_false_value;
-    bool has_cond =
-        if_then_else(sel_cond, sel_true_value, sel_false_value).Match(store->value) ||
-        select(sel_cond, sel_true_value, sel_false_value).Match(store->value);
+    bool has_cond = if_then_else(sel_cond, sel_true_value, sel_false_value).Match(store->value) ||
+                    select(sel_cond, sel_true_value, sel_false_value).Match(store->value);
 
     const CastNode* cast = store->value.as<CastNode>();
     const LoadNode* load = store->value.as<LoadNode>();
@@ -94,11 +92,9 @@ class CopyIntrinInjector : public StmtMutator {
     for (const ForNode* op : loops) {
       loop_vars.push_back(op->loop_var);
     }
-    Array<PrimExpr> store_strides =
-        arith::DetectLinearEquation(store->index, loop_vars);
-    Array<PrimExpr> load_strides =
-        arith::DetectLinearEquation(load->index, loop_vars);
-    if (load_strides.size()  == 0 || store_strides.size() == 0) return false;
+    Array<PrimExpr> store_strides = arith::DetectLinearEquation(store->index, loop_vars);
+    Array<PrimExpr> load_strides = arith::DetectLinearEquation(load->index, loop_vars);
+    if (load_strides.size() == 0 || store_strides.size() == 0) return false;
     Array<PrimExpr> dst_shape;
     const size_t loop_var_size = loop_vars.size();
     if (loop_var_size == 0) {
@@ -113,8 +109,7 @@ class CopyIntrinInjector : public StmtMutator {
     PrimExpr pad_value;
     PrimExpr src_elem_offset = load_strides[loop_var_size];
     if (has_cond) {
-      Array<PrimExpr> clip_bound =
-          arith::DetectClipBound(sel_cond.Eval(), loop_vars);
+      Array<PrimExpr> clip_bound = arith::DetectClipBound(sel_cond.Eval(), loop_vars);
       pad_value = sel_false_value.Eval();
       if (clip_bound.size() == 0) return false;
       CHECK_EQ(src_shape.size(), loop_vars.size());
@@ -125,7 +120,7 @@ class CopyIntrinInjector : public StmtMutator {
         DataType t = loop_vars[i].dtype();
         PrimExpr svalue = src_shape[i];
         if (min_value.defined()) {
-          PrimExpr pbefore = Simplify(MaxNode::make(min_value, make_zero(t)));
+          PrimExpr pbefore = analyzer_.Simplify(MaxNode::make(min_value, make_zero(t)));
           src_elem_offset = src_elem_offset + pbefore * load_strides[i];
           svalue = svalue - pbefore;
           pad_before.push_back(pbefore);
@@ -133,43 +128,31 @@ class CopyIntrinInjector : public StmtMutator {
           pad_before.push_back(make_zero(t));
         }
         if (max_value.defined()) {
-          PrimExpr pafter = Simplify(MaxNode::make(loops[i]->extent - max_value - make_const(t, 1),
-                                           make_zero(t)));
+          PrimExpr pafter = analyzer_.Simplify(
+              max(loops[i]->extent - max_value - make_const(t, 1), make_zero(t)));
           svalue = svalue - pafter;
           pad_after.push_back(pafter);
         } else {
           pad_after.push_back(make_zero(t));
         }
-        src_shape.Set(i, Simplify(svalue));
+        src_shape.Set(i, analyzer_.Simplify(svalue));
       }
-      src_elem_offset = Simplify(src_elem_offset);
+      src_elem_offset = analyzer_.Simplify(src_elem_offset);
     }
     CHECK_EQ(load_strides.size(), store_strides.size());
     CHECK_EQ(load_strides.size(), loop_var_size + 1);
     Array<PrimExpr> src_strides(load_strides.begin(), load_strides.begin() + loop_var_size);
     Array<PrimExpr> dst_strides(store_strides.begin(), store_strides.begin() + loop_var_size);
     if (loop_var_size == 0) {
-        src_strides.push_back(make_const(DataType::Int(32), 1));
-        dst_strides.push_back(make_const(DataType::Int(32), 1));
+      src_strides.push_back(make_const(DataType::Int(32), 1));
+      dst_strides.push_back(make_const(DataType::Int(32), 1));
     }
-    Buffer dst = BufferNode::make(
-        store->buffer_var,
-        store->value.dtype(),
-        dst_shape,
-        dst_strides,
-        store_strides[loop_var_size],
-        store->buffer_var->name_hint,
-        GetStorageScope(store->buffer_var.get()),
-        0, 0, kDefault);
-    Buffer src = BufferNode::make(
-        load->buffer_var,
-        load->dtype,
-        src_shape,
-        src_strides,
-        src_elem_offset,
-        load->buffer_var->name_hint,
-        GetStorageScope(load->buffer_var.get()),
-        0, 0, kDefault);
+    Buffer dst = BufferNode::make(store->buffer_var, store->value.dtype(), dst_shape, dst_strides,
+                                  store_strides[loop_var_size], store->buffer_var->name_hint,
+                                  GetStorageScope(store->buffer_var.get()), 0, 0, kDefault);
+    Buffer src = BufferNode::make(load->buffer_var, load->dtype, src_shape, src_strides,
+                                  src_elem_offset, load->buffer_var->name_hint,
+                                  GetStorageScope(load->buffer_var.get()), 0, 0, kDefault);
     *out = flower_copy_fromto_(src, dst, pad_before, pad_after, pad_value);
     CHECK(out->defined()) << "flower function did not return correct stmt";
     return true;
@@ -189,32 +172,27 @@ class CopyIntrinInjector : public StmtMutator {
   const PackedFunc& flower_copy_fromto_;
   // Storage scope
   std::unordered_map<const VarNode*, std::string> storage_scope_;
+  // arith analyzer
+  arith::Analyzer analyzer_;
 };
 
-Stmt InjectCopyIntrin(Stmt stmt,
-                      const std::string& pragma_key,
+Stmt InjectCopyIntrin(Stmt stmt, const std::string& pragma_key,
                       const PackedFunc& flower_copy_fromto) {
   return CopyIntrinInjector(pragma_key, flower_copy_fromto)(std::move(stmt));
 }
 
-TVM_REGISTER_GLOBAL("ir_pass.InjectCopyIntrin")
-.set_body_typed(InjectCopyIntrin);
-
 namespace transform {
 
-Pass InjectCopyIntrin(std::string pragma_key,
-                      PackedFunc flower_copy_fromto) {
+Pass InjectCopyIntrin(std::string pragma_key, PackedFunc flower_copy_fromto) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = CopyIntrinInjector(
-        pragma_key, flower_copy_fromto)(std::move(n->body));
+    n->body = CopyIntrinInjector(pragma_key, flower_copy_fromto)(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectCopyIntrin", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InjectCopyIntrin")
-.set_body_typed(InjectCopyIntrin);
+TVM_REGISTER_GLOBAL("tir.transform.InjectCopyIntrin").set_body_typed(InjectCopyIntrin);
 
 }  // namespace transform
 

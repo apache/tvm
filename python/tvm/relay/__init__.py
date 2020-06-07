@@ -40,7 +40,6 @@ from . import param_dict
 from .backend import vm
 
 # Root operators
-from .op import Op
 from .op import nn
 from .op import image
 from .op import annotation
@@ -53,9 +52,16 @@ from .op.algorithm import *
 from . import frontend
 from . import backend
 from . import quantize
+from . import data_dep_optimization
 
 # Dialects
 from . import qnn
+
+from .scope_builder import ScopeBuilder
+
+# Load Memory Passes
+from .transform import memory_alloc
+from .transform import memory_plan
 
 # Required to traverse large programs
 setrecursionlimit(10000)

@@ -181,7 +181,9 @@ def add_header(fname, header):
         skipline = False
         ext = os.path.splitext(fname)[1][1:]
 
-        if lines[0][:2] == "#!":
+        if not lines:
+            skipline = False  # File is enpty
+        elif lines[0][:2] == "#!":
             skipline = True
         elif lines[0][:2] == "<?":
             skipline = True

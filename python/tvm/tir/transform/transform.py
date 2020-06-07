@@ -60,6 +60,38 @@ def Filter(fcond):
     return _fpass.prim_func_pass(_transform, opt_level=0, name="Filter")
 
 
+def InjectPrefetch():
+    """Inject prefetch instructions into stmt.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectPrefetch()
+
+
+def StorageFlatten(cache_line_size, create_bound_attribute=False):
+    """Flatten the multi-dimensional read/write to 1D.
+
+
+    Parameters
+    ----------
+    cache_line_size: int
+        The size of CPU cache line.
+
+    create_bound_attribute:
+        Whether to create bound attributes.
+
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.StorageFlatten(cache_line_size, create_bound_attribute)
+
+
 def InjectCopyIntrin(pragma_key, fintrin):
     """Inject virtual thread loops.
 
@@ -106,20 +138,15 @@ def LiftAttrScope(attr_key):
     return _ffi_api.LiftAttrScope(attr_key)
 
 
-def LoopPartition(split_const_loop):
+def LoopPartition():
     """Inject virtual thread loops.
-
-    Parameters
-    ----------
-    split_const_loop : bool
-        Flag to enable partition for const loop.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.LoopPartition(split_const_loop)
+    return _ffi_api.LoopPartition()
 
 
 def VectorizeLoop(enable_vectorize=True):
@@ -150,20 +177,15 @@ def InjectVirtualThread():
     return _ffi_api.InjectVirtualThread()
 
 
-def InjectDoubleBuffer(split_loop_factor):
+def InjectDoubleBuffer():
     """Inject double buffer statements.
-
-    Parameters
-    ----------
-    split_loop_factor : int
-        Loop splitting factor.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.InjectDoubleBuffer(split_loop_factor)
+    return _ffi_api.InjectDoubleBuffer()
 
 
 def StorageRewrite():
@@ -181,36 +203,17 @@ def StorageRewrite():
     return _ffi_api.StorageRewrite()
 
 
-def UnrollLoop(auto_max_step,
-               auto_max_depth,
-               auto_max_extent,
-               explicit_unroll):
+def UnrollLoop():
     """Unroll the constant loop marked by unroll.
 
     This pass also automatically attach pragma unroll tag to loops which meets the standard.
-
-    Parameters
-    ----------
-    auto_max_step : int
-        The maximum step before stop attach automatic unroll
-
-    auto_max_depth : int
-        The maximum depth before stop attach automatic unroll
-
-     auto_max_extent : int
-        The maximum extent of the loop we can unroll.
-        This is an legacy option that do not take the loop total steps into account.
-
-    explicit_unroll : bool
-        Whether explicitly unroll the loop, or leave unroll annotation to codegen.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.UnrollLoop(
-        auto_max_step, auto_max_depth, auto_max_extent, explicit_unroll)
+    return _ffi_api.UnrollLoop()
 
 
 def RemoveNoOp():
@@ -296,6 +299,17 @@ def SplitHostDevice():
         The result pass
     """
     return _ffi_api.SplitHostDevice()
+
+
+def DecorateDeviceScope():
+    """Decorate all the function's body as device function.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.DecorateDeviceScope()
 
 
 def SkipAssert():
@@ -424,3 +438,14 @@ def NarrowDataType(target_bits):
     Run this pass after StorageFlatten.
     """
     return _ffi_api.NarrowDataType(target_bits)
+
+
+def VerifyMemory():
+    """Verify if func contains illegal host side direct memory access.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.VerifyMemory()

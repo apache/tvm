@@ -19,30 +19,30 @@
 
 #include <gtest/gtest.h>
 #include <tvm/node/structural_equal.h>
-#include <tvm/te/operation.h>
-#include <tvm/relay/expr.h>
-#include <tvm/relay/type.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
+#include <tvm/relay/type.h>
+#include <tvm/te/operation.h>
 
 TEST(Relay, SelfReference) {
   using namespace tvm;
   auto tensor_type = relay::TensorType({}, DataType::Bool());
   auto x = relay::Var("x", relay::Type());
-  auto f = relay::Function(tvm::Array<relay::Var>{ x }, x, relay::Type(), {});
+  auto f = relay::Function(tvm::Array<relay::Var>{x}, x, relay::Type(), {});
   CHECK(f->IsInstance<BaseFuncNode>());
   auto y = relay::Var("y", tensor_type);
-  auto call = relay::Call(f, Array<relay::Expr>{ y });
-  auto fx = relay::Function(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
+  auto call = relay::Call(f, Array<relay::Expr>{y});
+  auto fx = relay::Function(tvm::Array<relay::Var>{y}, call, relay::Type(), {});
   auto mod = IRModule::FromExpr(fx);
   mod = relay::transform::InferType()(mod);
   auto type_fx = mod->Lookup("main");
 
-  auto expected = relay::FuncType(tvm::Array<relay::Type>{ tensor_type }, tensor_type, {}, {});
+  auto expected = relay::FuncType(tvm::Array<relay::Type>{tensor_type}, tensor_type, {}, {});
   CHECK(tvm::StructuralEqual()(type_fx->checked_type(), expected));
 }
 
-int main(int argc, char ** argv) {
+int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
   return RUN_ALL_TESTS();

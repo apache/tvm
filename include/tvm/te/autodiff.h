@@ -27,6 +27,7 @@
 
 #include <tvm/runtime/object.h>
 #include <tvm/tir/expr.h>
+
 #include "tensor.h"
 
 namespace tvm {
@@ -59,8 +60,8 @@ Tensor Jacobian(const Tensor& output, const Tensor& input);
  *
  *  Differentiate \p output wrt \p input and multiply the result by \p head on the left using tensor
  *  dot product. \p input must be an immediate dependency of \p output (must be called from within
- *  the body of \p output). That is, the function will compute one summand of the adjoint for \p input
- *  given the adjoint for \p output (which is called \p head here).
+ *  the body of \p output). That is, the function will compute one summand of the adjoint for \p
+ * input given the adjoint for \p output (which is called \p head here).
  *
  * \param output The tensor to differentiate.
  * \param input The input tensor, which \p output should directly use.
@@ -68,7 +69,7 @@ Tensor Jacobian(const Tensor& output, const Tensor& input);
  * \return The tensor of shape `prefix + input.shape`
  *         representing the partial adjoint of \p input wrt one of its consumers (output)
  */
-Tensor VectorJacobianProduct(const Tensor &output, const Tensor &input, const Tensor &head);
+Tensor VectorJacobianProduct(const Tensor& output, const Tensor& input, const Tensor& head);
 
 /*!
  * \brief Perform reverse mode automatic differentiation.
@@ -82,14 +83,12 @@ Tensor VectorJacobianProduct(const Tensor &output, const Tensor &input, const Te
  *               wrt all tensors the output depends on.
  * \param head The adjoint of the output, in other words, some tensor, by which the Jacobians
  *             will be multiplied (using tensordot axes=`output.shape`).
- *             Its shape must be of the form `prefix + output.shape`. If the null pointer is provided,
- *             the identity tensor of shape `output.shape + output.shape` will be used.
- * \return An array of adjoints corresponding to \p inputs.
+ *             Its shape must be of the form `prefix + output.shape`. If the null pointer is
+ * provided, the identity tensor of shape `output.shape + output.shape` will be used. \return An
+ * array of adjoints corresponding to \p inputs.
  */
-TVM_DLL Array<Tensor> Gradient(
-    const Tensor& output,
-    const Array<Tensor>& inputs,
-    const Tensor& head = Tensor());
+TVM_DLL Array<Tensor> Gradient(const Tensor& output, const Array<Tensor>& inputs,
+                               const Tensor& head = Tensor());
 
 }  // namespace te
 }  // namespace tvm

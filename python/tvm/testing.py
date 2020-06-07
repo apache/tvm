@@ -20,8 +20,10 @@
 import logging
 import numpy as np
 import tvm
+import tvm.arith
+import tvm.tir
+import tvm.te
 import tvm._ffi
-from tvm import te, tir
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
@@ -169,6 +171,24 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
                      x_name, grad.shape, dist, max_diff, avg_diff)
 
 
+def assert_prim_expr_equal(lhs, rhs):
+    """Assert lhs and rhs equals to each iother.
+
+    Parameters
+    ----------
+    lhs : tvm.tir.PrimExpr
+        The left operand.
+
+    rhs : tvm.tir.PrimExpr
+        The left operand.
+    """
+    ana = tvm.arith.Analyzer()
+    res = ana.simplify(lhs - rhs)
+    equal = isinstance(res, tvm.tir.IntImm) and res.value == 0
+    if not equal:
+        raise ValueError("{} and {} are not equal".format(lhs, rhs))
+
+
 def check_bool_expr_is_true(bool_expr, vranges, cond=None):
     """ Check that bool_expr holds given the condition cond
     for every value of free variables from vranges.
@@ -183,7 +203,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
         extra conditions needs to be satisfied.
     """
     if cond is not None:
-        bool_expr = te.any(tir.Not(cond), bool_expr)
+        bool_expr = tvm.te.any(tvm.tir.Not(cond), bool_expr)
 
     def _run_expr(expr, vranges):
         """ Evaluate expr for every value of free variables
@@ -191,11 +211,11 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
         """
         def _compute_body(*us):
             vmap = {v: u + r.min for (v, r), u in zip(vranges.items(), us)}
-            return tir.ir_pass.Substitute(expr, vmap)
+            return tvm.tir.stmt_functor.substitute(expr, vmap)
 
-        A = te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
+        A = tvm.te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
         args = [tvm.nd.empty(A.shape, A.dtype)]
-        sch = te.create_schedule(A.op)
+        sch = tvm.te.create_schedule(A.op)
         mod = tvm.build(sch, [A])
         mod(*args)
         return args[0].asnumpy()
@@ -208,7 +228,8 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
         counterex = ", ".join([v + " = " + str(i) for v, i in counterex])
         raise AssertionError("Expression {}\nis not true on {}\n"
                              "Counterexample: {}"
-                             .format(tir.ir_pass.CanonicalSimplify(bool_expr), vranges, counterex))
+                             .format(tvm.tir.ir_pass.CanonicalSimplify(bool_expr),
+                                     vranges, counterex))
 
 
 tvm._ffi._init_api("testing", __name__)

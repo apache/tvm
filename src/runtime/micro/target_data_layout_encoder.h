@@ -24,13 +24,17 @@
 #ifndef TVM_RUNTIME_MICRO_TARGET_DATA_LAYOUT_ENCODER_H_
 #define TVM_RUNTIME_MICRO_TARGET_DATA_LAYOUT_ENCODER_H_
 
+#include <memory>
+#include <set>
 #include <vector>
-#include "host_driven/utvm_runtime.h"
+
+#include "host_driven/utvm_runtime_enum.h"
+#include "micro_common.h"
 
 namespace tvm {
 namespace runtime {
 
-// TODO(weberlo): Handle endianness.
+// TODO(weberlo, areusch): Handle endianness.
 
 /*!
  * \brief data encoder for uTVM that builds a host-side buffer
@@ -40,99 +44,123 @@ class TargetDataLayoutEncoder {
   /*!
    * \brief helper class for writing into `TargetDataLayoutEncoder`
    */
-  template <typename T>
-  class Slot {
+  class Alloc {
    public:
     /*!
      * \brief constructor
      * \param parent pointer to parent encoder
-     * \param start_offset start byte offset of the slot in the backing buffer
-     * \param size size (in bytes) of the memory region allocated for this slot
-     * \param start_addr start address of the slot in the device's memory
+     * \param start_offset start byte offset of the alloc in the backing buffer
+     * \param size size (in bytes) of the memory region allocated for this alloc
+     * \param start_addr start address of the alloc in the device's memory
      */
-    Slot(TargetDataLayoutEncoder* parent, size_t start_offset, size_t size, DevPtr start_addr);
+    Alloc(TargetDataLayoutEncoder* parent, size_t start_offset, size_t size, TargetPtr start_addr);
 
-    ~Slot();
+    ~Alloc();
 
     /*!
      * \brief writes `sizeof(T) * num_elems` bytes of data from `arr`
      * \param arr array to be read from
      * \param num_elems number of elements in array
      */
+    template <typename T>
     void WriteArray(const T* arr, size_t num_elems);
 
     /*!
      * \brief writes `val`
      * \param val value to be written
      */
+    template <typename T>
     void WriteValue(const T& val);
 
     /*!
-     * \brief returns start address of the slot in device memory
+     * \brief returns start address of the alloc in device memory
      * \return device start address
      */
-    DevPtr start_addr();
+    TargetPtr start_addr();
 
     /*!
-     * \brief returns number of bytes allocated for this slot
-     * \return size of this slot
+     * \brief returns number of bytes allocated for this alloc
+     * \return size of this alloc
      */
     size_t size();
+
+    size_t curr_offset() const { return curr_offset_; }
+
+    void CheckUnfilled();
 
    private:
     /*! \brief pointer to parent encoder */
     TargetDataLayoutEncoder* parent_;
-    /*! \brief start offset of the slot in the parent's backing parent_buffer */
+    /*! \brief start offset of the alloc in the parent's backing parent_buffer */
     size_t start_offset_;
-    /*! \brief current offset relative to the start offset of this slot */
+    /*! \brief current offset relative to the start offset of this alloc */
     size_t curr_offset_;
-    /*! \brief size (in bytes) of the memory region allocated for this slot */
+    /*! \brief size (in bytes) of the memory region allocated for this alloc */
     size_t size_;
-    /*! \brief start address of the slot in the device's memory */
-    DevPtr start_addr_;
+    /*! \brief start address of the alloc in the device's memory */
+    TargetPtr start_addr_;
   };
 
   /*!
    * \brief constructor
    * \param start_addr start address of the encoder in device memory
    */
-  explicit TargetDataLayoutEncoder(DevPtr start_addr, size_t word_size)
-      : buf_(std::vector<uint8_t>()), curr_offset_(0), word_size_(word_size) {
-    start_addr_ = DevPtr(UpperAlignValue(start_addr.value().val64, word_size_));
-  }
+  explicit TargetDataLayoutEncoder(size_t capacity, TargetWordSize word_size)
+      : buf_(std::vector<uint8_t>()),
+        curr_offset_(0),
+        start_addr_(word_size, nullptr),
+        capacity_(capacity),
+        word_size_(word_size) {}
 
   /*!
-   * \brief allocates a slot for `sizeof(T) * num_elems` bytes of data
+   * \brief allocates a alloc for `sizeof(T) * num_elems` bytes of data
    * \param num_elems number of elements of type `T` being allocated (defaults to 1)
-   * \return slot of size `sizeof(T) * num_elems` bytes
+   * \return alloc of size `sizeof(T) * num_elems` bytes
    */
   template <typename T>
-  Slot<T> Alloc(size_t num_elems = 1) {
-    curr_offset_ = UpperAlignValue(curr_offset_, word_size_);
+  std::unique_ptr<class Alloc> Alloc(size_t num_elems = 1) {
+    curr_offset_ = UpperAlignValue(curr_offset_, word_size_.bytes());
     size_t size = sizeof(T) * num_elems;
     if (curr_offset_ + size > buf_.size()) {
       buf_.resize(curr_offset_ + size);
     }
-    size_t slot_start_offset = curr_offset_;
+    CHECK(buf_.size() < capacity_) << "out of space in data encoder";
+    size_t alloc_start_offset = curr_offset_;
     curr_offset_ += size;
-    return Slot<T>(this, slot_start_offset, size, start_addr_ + slot_start_offset);
+    class Alloc* alloc =
+        new class Alloc(this, alloc_start_offset, size, start_addr() + alloc_start_offset);
+    return std::unique_ptr<class Alloc>(alloc);
+  }
+
+  void Clear() {
+    buf_.clear();
+    curr_offset_ = 0;
   }
 
   /*!
    * \brief returns the array backing the encoder's buffer
    * \return array backing the encoder's buffer
    */
-  uint8_t* data() {
-    return buf_.data();
-  }
+  uint8_t* data() { return buf_.data(); }
 
   /*!
    * \brief returns current size of the encoder's buffer
    * \return buffer size
    */
-  size_t buf_size() {
-    return buf_.size();
+  size_t buf_size() const { return buf_.size(); }
+
+  TargetPtr start_addr() const {
+    CHECK_NE(start_addr_.value().uint64(), 0) << "start addr uninitialized";
+    return start_addr_;
   }
+
+  void set_start_addr(TargetPtr start_addr) {
+    CHECK_EQ(buf_.size(), 0) << "cannot change encoder start addr unless empty";
+    start_addr_ =
+        TargetPtr(word_size_, UpperAlignValue(start_addr.value().uint64(), word_size_.bytes()));
+  }
+
+  void CheckUnfilledAllocs();
 
  private:
   /*! \brief in-memory backing buffer */
@@ -140,50 +168,31 @@ class TargetDataLayoutEncoder {
   /*! \brief current offset */
   size_t curr_offset_;
   /*! \brief start address of the encoder in device memory */
-  DevPtr start_addr_;
+  TargetPtr start_addr_;
+  /*! \brief number of bytes available in device memory */
+  size_t capacity_;
   /*! \brief number of bytes in a word on the target device */
-  size_t word_size_;
+  TargetWordSize word_size_;
+  /*! \brief Alloc instances allocated now but not yet checked by CheckUnfilledAllocs */
+  std::set<class Alloc*> live_unchecked_allocs_;
+  /*! \brief start offsets Alloc instances that were dealloated before CheckUnfilledAllocs ran */
+  std::vector<size_t> unchecked_alloc_start_offsets_;
+  friend Alloc::~Alloc();
 };
 
 template <typename T>
-TargetDataLayoutEncoder::Slot<T>::Slot(TargetDataLayoutEncoder* parent,
-                                       size_t start_offset,
-                                       size_t size,
-                                       DevPtr start_addr)
-    : parent_(parent),
-      start_offset_(start_offset),
-      curr_offset_(0),
-      size_(size),
-      start_addr_(start_addr) {}
-
-template <typename T>
-TargetDataLayoutEncoder::Slot<T>::~Slot() {
-  CHECK(curr_offset_ == size_) << "unwritten space in slot";
-}
-
-template <typename T>
-void TargetDataLayoutEncoder::Slot<T>::WriteArray(const T* arr, size_t num_elems) {
+void TargetDataLayoutEncoder::Alloc::WriteArray(const T* arr, size_t num_elems) {
   if (num_elems == 0) return;
   size_t size = sizeof(T) * num_elems;
-  CHECK(curr_offset_ + size <= size_) << "not enough space in slot";
+  CHECK(curr_offset_ + size <= size_) << "not enough space in alloc";
   uint8_t* curr_ptr = &(parent_->data())[start_offset_ + curr_offset_];
   std::memcpy(curr_ptr, arr, size);
   curr_offset_ += size;
 }
 
 template <typename T>
-void TargetDataLayoutEncoder::Slot<T>::WriteValue(const T& val) {
+void TargetDataLayoutEncoder::Alloc::WriteValue(const T& val) {
   WriteArray(&val, 1);
-}
-
-template <typename T>
-DevPtr TargetDataLayoutEncoder::Slot<T>::start_addr() {
-  return start_addr_;
-}
-
-template <typename T>
-size_t TargetDataLayoutEncoder::Slot<T>::size() {
-  return size_;
 }
 
 }  // namespace runtime

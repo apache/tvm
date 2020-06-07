@@ -25,16 +25,14 @@
 #ifndef TVM_TIR_DATA_LAYOUT_H_
 #define TVM_TIR_DATA_LAYOUT_H_
 
-
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
-#include <string>
-#include <sstream>
-#include <vector>
-#include <utility>
 #include <algorithm>
-
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace tvm {
 namespace tir {
@@ -63,18 +61,12 @@ class LayoutAxis {
   }
 
   // return the primal axis. If it is already primal, return itself.
-  const LayoutAxis& ToPrimal() const {
-    return IsPrimal() ? *this : ToDual();
-  }
+  const LayoutAxis& ToPrimal() const { return IsPrimal() ? *this : ToDual(); }
 
   // return the subordinate axis. If it is already subordinate, return itself.
-  const LayoutAxis& ToSubordinate() const {
-    return IsPrimal() ? ToDual() : *this;
-  }
+  const LayoutAxis& ToSubordinate() const { return IsPrimal() ? ToDual() : *this; }
 
-  inline bool operator==(const LayoutAxis& rhs) const {
-    return name_ == rhs.name_;
-  }
+  inline bool operator==(const LayoutAxis& rhs) const { return name_ == rhs.name_; }
 
   friend std::ostream& operator<<(std::ostream& os, const LayoutAxis& l) {
     os << l.name();
@@ -136,7 +128,7 @@ class Layout : public ObjectRef {
   explicit Layout(const Array<tir::IterVar>& axes);
 
   /*! \brief construct from a string */
-  Layout(const char* name) : Layout(std::string(name)) {} // NOLINT(*)
+  Layout(const char* name) : Layout(std::string(name)) {}  // NOLINT(*)
 
   /*!
    * \brief construct from a string.
@@ -146,23 +138,19 @@ class Layout : public ObjectRef {
    *        indicates the split dimension.
    *        return undefined layout if "__undef__" is passed.
    */
-  Layout(const std::string& name); // NOLINT(*)
+  Layout(const std::string& name);  // NOLINT(*)
 
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
    */
-  const LayoutNode* operator->() const {
-    return static_cast<const LayoutNode*>(get());
-  }
+  const LayoutNode* operator->() const { return static_cast<const LayoutNode*>(get()); }
 
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
    */
-  LayoutNode* operator->() {
-    return static_cast<LayoutNode*>(get_mutable());
-  }
+  LayoutNode* operator->() { return static_cast<LayoutNode*>(get_mutable()); }
 
   /*!
    * \brief Return an undefined layout.
@@ -190,8 +178,7 @@ class Layout : public ObjectRef {
    * \param factor size of the sub-dimension.
    * \return A newly constructed Layout object.
    */
-  Layout Split(const LayoutAxis &axis, size_t target_pos, int32_t factor) const;
-
+  Layout Split(const LayoutAxis& axis, size_t target_pos, int32_t factor) const;
 
   /*! \return number of dimensions */
   inline size_t ndim() const {
@@ -292,9 +279,7 @@ class Layout : public ObjectRef {
    * \param rhs Another layout.
    * \return whether the two layouts are equal.
    */
-  inline bool Equals(const Layout &rhs) const {
-    return name() == rhs.name();
-  }
+  inline bool Equals(const Layout& rhs) const { return name() == rhs.name(); }
 
   /*!
    * \brief allow output string of layout to ostream

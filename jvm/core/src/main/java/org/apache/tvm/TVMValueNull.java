@@ -19,6 +19,6 @@ package org.apache.tvm;
 
 public class TVMValueNull extends TVMValue {
   public TVMValueNull() {
-    super(TypeCode.NULL);
+    super(ArgTypeCode.NULL);
   }
 }

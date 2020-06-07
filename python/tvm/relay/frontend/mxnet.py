@@ -318,6 +318,34 @@ def _mx_pooling(inputs, attrs):
             new_attrs["count_include_pad"] = attrs.get_bool("count_include_pad", True)
         return new_op(inputs[0], **new_attrs)
 
+    def _pool3d(new_op, is_avg):
+        kernel_size = attrs.get_int_tuple("kernel")
+        if len(kernel_size) != 3:
+            raise tvm.error.OpAttributeInvalid(
+                'Only 3D kernels are supported for operator Pool3D.')
+        new_attrs = {}
+        new_attrs["pool_size"] = kernel_size
+        new_attrs["strides"] = attrs.get_int_tuple("stride", (1, 1, 1))
+        new_attrs["padding"] = attrs.get_int_tuple("pad", (0, 0, 0))
+        new_attrs["ceil_mode"] = (attrs.get_str("pooling_convention", "valid") == "full")
+        if is_avg:
+            new_attrs["count_include_pad"] = attrs.get_bool("count_include_pad", True)
+        return new_op(inputs[0], **new_attrs)
+
+    #3D pooling
+    if len(_infer_shape(inputs[0])) == 5:
+        if pool_type == "max":
+            if global_pool:
+                return _op.nn.global_max_pool3d(inputs[0])
+            return _pool3d(_op.nn.max_pool3d, False)
+        if pool_type == "avg":
+            if global_pool:
+                return _op.nn.global_avg_pool3d(inputs[0])
+            return _pool3d(_op.nn.avg_pool3d, True)
+        raise tvm.error.OpNotImplemented(
+            'Operator {} Pooling is not supported for frontend MXNet.' \
+                .format(pool_type.capitalize()))
+    #2D Pooling
     if pool_type == "max":
         if global_pool:
             return _op.nn.global_max_pool2d(inputs[0])
@@ -327,7 +355,8 @@ def _mx_pooling(inputs, attrs):
             return _op.nn.global_avg_pool2d(inputs[0])
         return _pool2d(_op.nn.avg_pool2d, True)
     raise tvm.error.OpNotImplemented(
-        'Operator {} Pooling is not supported for frontend MXNet.'.format(pool_type.capitalize()))
+        'Operator {} Pooling is not supported for frontend MXNet.' \
+            .format(pool_type.capitalize()))
 
 
 def _mx_adaptive_avg_pooling(inputs, attrs):
@@ -693,6 +722,10 @@ def _mx_take(inputs, attrs):
     axis = attrs.get_int("axis", 0)
     return _op.take(inputs[0], inputs[1].astype("int32"), axis, mode)
 
+def _mx_gather_nd(inputs, attrs):
+    assert len(inputs) == 2
+    assert len(_infer_shape(inputs[1])) > 1, "index tensor to have at least 2 dimensions"
+    return _op.gather_nd(inputs[0], inputs[1])
 
 def _mx_reverse(inputs, attrs):
     assert len(inputs) == 1
@@ -723,6 +756,26 @@ def _mx_resize(inputs, attrs):
     size = (height, width)
     return _op.image.resize(inputs[0], size,
                             coordinate_transformation_mode="align_corners")
+
+def _mx_grid_generator(inputs, attrs):
+    transform_type = attrs.get_str("transform_type")
+    if transform_type == 'affine':
+        target_shape = attrs.get_int_tuple("target_shape")
+        return _op.image.affine_grid(_op.reshape(inputs[0], (0, 2, 3)), target_shape)
+    if transform_type == 'warp':
+        checked_type = _infer_type(inputs[0]).checked_type
+        batch, _, height, width = get_const_tuple(checked_type.shape)
+        dtype = checked_type.dtype
+        identity_affine = relay.const(np.array([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]], dtype=dtype))
+        identity_affine = _op.broadcast_to(identity_affine, (batch, 2, 3))
+        normalizer = (2.0 / np.array([width - 1, height - 1])).reshape(1, -1, 1, 1).astype(dtype)
+        normalized_flow = inputs[0] * relay.const(normalizer)
+        grid = _op.image.affine_grid(identity_affine, (height, width))
+        return grid + normalized_flow
+    raise ValueError("unknown transform type" + transform_type)
+
+def _mx_bilinear_sampler(inputs, attrs):
+    return _op.image.grid_sample(inputs[0], inputs[1], 'bilinear', 'NCHW')
 
 def _mx_roi_pooling(inputs, attrs):
     new_attrs = {}
@@ -787,6 +840,24 @@ def _mx_l2_normalize(inputs, attrs):
     new_attrs['eps'] = attrs.get_float('eps', 1e-10)
     new_attrs['axis'] = [1]
     return _op.nn.l2_normalize(inputs[0], **new_attrs)
+
+
+def _mx_softsign(inputs, attrs):
+    return inputs[0] / (_expr.const(1.0) + _op.abs(inputs[0]))
+
+
+def _mx_softmin(inputs, attrs):
+    axis = attrs.get_int("axis", -1)
+    return _op.nn.softmax(_op.negative(inputs[0]), axis)
+
+
+def _mx_hard_sigmoid(inputs, attrs):
+    x = (_expr.const(0.2) * inputs[0]) + _expr.const(0.5)
+    return _op.clip(x, a_min=0.0, a_max=1.0)
+
+
+def _mx_reciprocal(inputs, attrs):
+    return _expr.const(1.0) /inputs[0]
 
 
 def _mx_shape_array(inputs, attrs):
@@ -1071,6 +1142,33 @@ def _mx_one_hot(inputs, attrs):
     on_value = tvm.relay.const(attrs.get_float('on_value', 1.0), dtype)
     off_value = tvm.relay.const(attrs.get_float('off_value', 0.0), dtype)
     return _op.one_hot(indices, on_value, off_value, depth, -1, dtype)
+
+
+def _mx_depth_to_space(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["block_size"] = attrs.get_int("block_size")
+    return _op.nn.depth_to_space(*inputs, **new_attrs)
+
+
+def _mx_space_to_depth(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["block_size"] = attrs.get_int("block_size")
+    return _op.nn.space_to_depth(*inputs, **new_attrs)
+
+
+def _mx_correlation(inputs, attrs):
+    assert len(inputs) == 2
+    new_attrs = {}
+    new_attrs["kernel_size"] = attrs.get_int("kernel_size", 1)
+    new_attrs["max_displacement"] = attrs.get_int("max_displacement", 1)
+    new_attrs["stride1"] = attrs.get_int("stride1", 1)
+    new_attrs["stride2"] = attrs.get_int("stride2", 1)
+    new_attrs["padding"] = attrs.get_int("pad_size", 0)
+    new_attrs["is_multiply"] = attrs.get_bool("is_multiply", True)
+    new_attrs["layout"] = "NCHW"
+    return _op.nn.correlation(*inputs, **new_attrs)
 
 
 def _mx_contrib_fifo_buffer(inputs, attrs):
@@ -1698,45 +1796,96 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
                 res = _op.nn.relu(res)
             return res
 
+
+def _mx_broadcast_to(inputs, attrs):
+    data = inputs[0]
+    tgt_shape = attrs.get_int_tuple("shape", [])
+
+    return _op.broadcast_to(data, tgt_shape)
+
+
+def _mx_logical_not(inputs, input_types):
+    data = inputs[0]
+    dtype = _infer_type(data).checked_type.dtype
+    data = _op.cast(data, "bool") if dtype != "bool" else data
+
+    return _op.cast(_op.logical_not(data), dtype)
+
+
+def _mx_broadcast_logical(logical_op):
+    def impl(inputs, input_types):
+        lhs_type = _infer_type(inputs[0]).checked_type.dtype
+        rhs_type = _infer_type(inputs[1]).checked_type.dtype
+        lhs = _op.cast(inputs[0], "bool") if lhs_type != "bool" else inputs[0]
+        rhs = _op.cast(inputs[1], "bool") if rhs_type != "bool" else inputs[1]
+
+        return _op.cast(logical_op(lhs, rhs), lhs_type)
+    return impl
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
+    "abs",
     "log",
     "exp",
     "erf",
     "sqrt",
     "floor",
     "ceil",
+    "round",
+    "trunc",
+    "sign",
     "sigmoid",
-    "tanh",
     "negative",
     "reshape_like",
     "zeros_like",
     "ones_like",
     "where",
-    "gather_nd",
-    "tan",
     "cos",
-    "sin"
+    "cosh",
+    "sin",
+    "sinh",
+    "tan",
+    "tanh",
 ]
 
 _convert_map = {
     "_copy"                  : _rename(_op.copy),
     "relu"                   : _rename(_op.nn.relu),
     "broadcast_add"          : _rename(_op.add),
+    "broadcast_plus"         : _rename(_op.add),
     "broadcast_sub"          : _rename(_op.subtract),
+    "broadcast_minus"        : _rename(_op.subtract),
     "broadcast_mul"          : _rename(_op.multiply),
     "broadcast_div"          : _rename(_op.divide),
     "broadcast_mod"          : _rename(_op.mod),
     "broadcast_maximum"      : _rename(_op.maximum),
     "broadcast_minimum"      : _rename(_op.minimum),
+    "broadcast_power"        : _rename(_op.power),
+    "arccos"                 : _rename(_op.acos),
+    "arcsin"                 : _rename(_op.asin),
     "arctan"                 : _rename(_op.atan),
+    "arccosh"                : _rename(_op.acosh),
+    "arcsinh"                : _rename(_op.asinh),
+    "arctanh"                : _rename(_op.atanh),
     "broadcast_equal"        : _mx_compare(_op.equal, _rename),
     "broadcast_not_equal"    : _mx_compare(_op.not_equal, _rename),
     "broadcast_greater"      : _mx_compare(_op.greater, _rename),
     "broadcast_greater_equal": _mx_compare(_op.greater_equal, _rename),
     "broadcast_lesser"       : _mx_compare(_op.less, _rename),
     "broadcast_lesser_equal" : _mx_compare(_op.less_equal, _rename),
+    "broadcast_logical_or"   : _mx_broadcast_logical(_op.logical_or),
+    "broadcast_logical_and"  : _mx_broadcast_logical(_op.logical_and),
+    "broadcast_logical_xor"  : _mx_broadcast_logical(_op.logical_xor),
+    "broadcast_to"           : _mx_broadcast_to,
+    "logical_not"            : _mx_logical_not,
+    "_equal"                 : _mx_compare(_op.equal, _rename),
+    "_not_equal"             : _mx_compare(_op.not_equal, _rename),
+    "_greater"               : _mx_compare(_op.greater, _rename),
+    "_greater_equal"         : _mx_compare(_op.greater_equal, _rename),
+    "_lesser"                : _mx_compare(_op.less, _rename),
+    "_lesser_equal"          : _mx_compare(_op.less_equal, _rename),
     "elemwise_add"           : _rename(_op.add),
     "elemwise_sub"           : _rename(_op.subtract),
     "elemwise_mul"           : _rename(_op.multiply),
@@ -1794,6 +1943,10 @@ _convert_map = {
     "softmax"       : _softmax_op(_op.nn.softmax),
     "log_softmax"   : _softmax_op(_op.nn.log_softmax),
     "Softmax"       : _softmax_op(_op.nn.softmax),
+    "softsign"      : _mx_softsign,
+    "softmin"       : _mx_softmin,
+    "hard_sigmoid"  : _mx_hard_sigmoid,
+    "reciprocal"    : _mx_reciprocal,
     # per op specialization
     "Reshape"       : _reshape,
     "reshape"       : _reshape,
@@ -1837,9 +1990,11 @@ _convert_map = {
     "pad"           : _mx_pad,
     "Pad"           : _mx_pad,
     "take"          : _mx_take,
+    "gather_nd"     : _mx_gather_nd,
     "reverse"       : _mx_reverse,
     "squeeze"       : _mx_squeeze,
     "broadcast_axis": _mx_broadcast_axis,
+    "broadcast_axes": _mx_broadcast_axis,
     "BlockGrad"     : _mx_BlockGrad,
     "shape_array"   : _mx_shape_array,
     "Embedding"     : _mx_embedding,
@@ -1854,6 +2009,9 @@ _convert_map = {
     "make_loss"     : _mx_make_loss,
     "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
     "one_hot"           : _mx_one_hot,
+    "depth_to_space"    : _mx_depth_to_space,
+    "space_to_depth"    : _mx_space_to_depth,
+    "Correlation"       : _mx_correlation,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
@@ -1865,6 +2023,8 @@ _convert_map = {
     "_contrib_box_nms" : _mx_box_nms,
     "_contrib_DeformableConvolution" : _mx_deformable_convolution,
     "_contrib_AdaptiveAvgPooling2D" : _mx_adaptive_avg_pooling,
+    "GridGenerator"                 : _mx_grid_generator,
+    "BilinearSampler"               : _mx_bilinear_sampler,
     # NLP
     "RNN"               : _mx_rnn_layer,
     "_rnn_param_concat" : _mx_rnn_param_concat,
@@ -1875,7 +2035,6 @@ _convert_map = {
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
-    # "broadcast_to",
     # "contrib_fifo_buffer": _mx_contrib_fifo_buffer,
     "ring_buffer": _mx_contrib_fifo_buffer,
     # Qnn ops

@@ -41,13 +41,13 @@ def _lower(mod,
     from tvm.relay.backend import graph_runtime_codegen
 
     if hasattr(target, 'device_name') and target.device_name == "vta":
-        with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
-            import vta
-            with vta.build_config():
-                mod, _ = relay.optimize(mod, target, params)
-                grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
-                grc.codegen(mod["main"])
-                return
+        import vta
+        with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
+            mod, _ = relay.optimize(mod, target, params)
+            grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+            grc.codegen(mod["main"])
+            return
+
     # default case
     # Try graph codegen first to extract autotvm tasks.
     # If failed to compile, then fallback to use VM compiler.
@@ -78,7 +78,7 @@ def extract_from_program(mod, params, target, target_host=None, ops=None):
         The compilation target
     target_host: tvm.target.Target
         The host compilation target
-    ops: List[relay.op.Op] or None
+    ops: List[tvm.ir.Op] or None
         List of relay ops to be tuned. If not specified, all tunable ops will be extracted.
 
     Returns
@@ -105,7 +105,7 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
         The compilation target
     target_host: tvm.target.Target
         The host compilation target
-    ops: List[relay.op.Op] or None
+    ops: List[tvm.ir.Op] or None
         List of relay ops to be tuned.  If not specified, all tunable ops will be extracted.
 
     Returns
@@ -137,6 +137,7 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
                                             args=(mod, target, param))
             build_thread.start()
             build_thread.join()
+            relay.backend.compile_engine.get().clear()
 
         logger.disabled = old_state
 

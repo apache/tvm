@@ -32,8 +32,8 @@ it is supported. For example:
 - The other way is to implement the function by themselves to
 check the attributes of the op and decide if it should be offloaded to DNNL.
 """
-from ... import expr as _expr
-from ... import op as _op
+import tvm.ir
+from ...dataflow_pattern import wildcard, is_op
 from .register import register_pattern_table
 
 
@@ -51,7 +51,7 @@ def _register_external_op_helper(op_name, supported=True):
     f : callable
         A function that returns if the operator is supported by DNNL.
     """
-    @_op.register(op_name, "target.dnnl")
+    @tvm.ir.register_op_attr(op_name, "target.dnnl")
     def _func_wrapper(attrs, args):
         return supported
 
@@ -68,15 +68,15 @@ _register_external_op_helper("multiply")
 
 
 def make_pattern(with_bias=True):
-    data = _expr.var("data")
-    weight = _expr.var("weight")
-    bias = _expr.var("bias")
-    conv = _op.nn.conv2d(data, weight)
+    data = wildcard()
+    weight = wildcard()
+    bias = wildcard()
+    conv = is_op('nn.conv2d')(data, weight)
     if with_bias:
-        conv_out = _op.add(conv, bias)
+        conv_out = is_op('add')(conv, bias)
     else:
         conv_out = conv
-    return _op.nn.relu(conv_out)
+    return is_op('nn.relu')(conv_out)
 
 
 @register_pattern_table("dnnl")

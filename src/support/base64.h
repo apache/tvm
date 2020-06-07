@@ -27,7 +27,7 @@
 #define TVM_SUPPORT_BASE64_H_
 
 #include <dmlc/logging.h>
-#include <dmlc/logging.h>
+
 #include <cctype>
 #include <cstdio>
 #include <string>
@@ -38,18 +38,16 @@ namespace support {
 namespace base64 {
 // decoding table
 const char DecodeTable[] = {
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  62,  // '+'
-  0, 0, 0,
-  63,  // '/'
-  52, 53, 54, 55, 56, 57, 58, 59, 60, 61,  // '0'-'9'
-  0, 0, 0, 0, 0, 0, 0,
-  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-  13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,  // 'A'-'Z'
-  0, 0, 0, 0, 0, 0,
-  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38,
-  39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,  // 'a'-'z'
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    62,  // '+'
+    0,  0,  0,
+    63,                                      // '/'
+    52, 53, 54, 55, 56, 57, 58, 59, 60, 61,  // '0'-'9'
+    0,  0,  0,  0,  0,  0,  0,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14,
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,  // 'A'-'Z'
+    0,  0,  0,  0,  0,  0,  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
+    42, 43, 44, 45, 46, 47, 48, 49, 50, 51,  // 'a'-'z'
 };
 // encoding table
 static const char EncodeTable[] =
@@ -62,14 +60,12 @@ static const char EncodeTable[] =
  */
 class StreamBufferReader {
  public:
-  explicit StreamBufferReader(size_t buffer_size) {
-    buffer_.resize(buffer_size);
-  }
+  explicit StreamBufferReader(size_t buffer_size) { buffer_.resize(buffer_size); }
   /*!
    * \brief set input stream
    * \param stream The stream to be set
    */
-  void set_stream(dmlc::Stream *stream) {
+  void set_stream(dmlc::Stream* stream) {
     stream_ = stream;
     read_len_ = read_ptr_ = 1;
   }
@@ -88,13 +84,11 @@ class StreamBufferReader {
     }
   }
   /*! \return whether we are reaching the end of file */
-  bool AtEnd() const {
-    return read_len_ == 0;
-  }
+  bool AtEnd() const { return read_len_ == 0; }
 
  private:
   /*! \brief the underlying stream */
-  dmlc::Stream *stream_{nullptr};
+  dmlc::Stream* stream_{nullptr};
   /*! \brief buffer to hold data */
   std::string buffer_;
   /*! \brief length of valid data in buffer */
@@ -106,11 +100,9 @@ class StreamBufferReader {
 /*!
  * \brief Input stream from base64 encoding
  */
-class Base64InStream: public dmlc::Stream {
+class Base64InStream : public dmlc::Stream {
  public:
-  explicit Base64InStream(dmlc::Stream *fs) : reader_(256) {
-    reader_.set_stream(fs);
-  }
+  explicit Base64InStream(dmlc::Stream* fs) : reader_(256) { reader_.set_stream(fs); }
   /*!
    * \brief initialize the stream position to beginning of next base64 stream
    * \note call this function before actually start read
@@ -122,16 +114,14 @@ class Base64InStream: public dmlc::Stream {
     } while (isspace(temp_ch_));
   }
   /*! \brief whether current position is end of a base64 stream */
-  bool IsEOF(void) const {
-    return num_prev_ == 0 && (temp_ch_ == EOF || isspace(temp_ch_));
-  }
+  bool IsEOF(void) const { return num_prev_ == 0 && (temp_ch_ == EOF || isspace(temp_ch_)); }
   // override read function.
-  virtual size_t Read(void *ptr, size_t size) {
+  virtual size_t Read(void* ptr, size_t size) {
     using base64::DecodeTable;
     if (size == 0) return 0;
     // use tlen to record left size
     size_t tlen = size;
-    unsigned char *cptr = static_cast<unsigned char*>(ptr);
+    unsigned char* cptr = static_cast<unsigned char*>(ptr);
     // if anything left, load from previous buffered result
     if (num_prev_ != 0) {
       if (num_prev_ == 2) {
@@ -142,13 +132,16 @@ class Base64InStream: public dmlc::Stream {
           num_prev_ = 0;
         } else {
           // assert tlen == 1
-          *cptr++ = buf_prev[0]; --tlen;
+          *cptr++ = buf_prev[0];
+          --tlen;
           buf_prev[0] = buf_prev[1];
           num_prev_ = 1;
         }
       } else {
         // assert num_prev_ == 1
-        *cptr++ = buf_prev[0]; --tlen; num_prev_ = 0;
+        *cptr++ = buf_prev[0];
+        --tlen;
+        num_prev_ = 0;
       }
     }
     if (tlen == 0) return size;
@@ -163,8 +156,9 @@ class Base64InStream: public dmlc::Stream {
         temp_ch_ = reader_.GetChar();
         CHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
         nvalue |= DecodeTable[temp_ch_] << 12;
-        *cptr++ = (nvalue >> 16) & 0xFF; --tlen;
-        }
+        *cptr++ = (nvalue >> 16) & 0xFF;
+        --tlen;
+      }
       {
         // third byte
         temp_ch_ = reader_.GetChar();
@@ -174,13 +168,13 @@ class Base64InStream: public dmlc::Stream {
           temp_ch_ = reader_.GetChar();
           CHECK(temp_ch_ == '=') << "invalid base64 format";
           temp_ch_ = reader_.GetChar();
-          CHECK(temp_ch_ == EOF || isspace(temp_ch_))
-              << "invalid base64 format";
+          CHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
           break;
         }
         nvalue |= DecodeTable[temp_ch_] << 6;
         if (tlen) {
-          *cptr++ = (nvalue >> 8) & 0xFF; --tlen;
+          *cptr++ = (nvalue >> 8) & 0xFF;
+          --tlen;
         } else {
           buf_prev[num_prev_++] = (nvalue >> 8) & 0xFF;
         }
@@ -188,19 +182,18 @@ class Base64InStream: public dmlc::Stream {
       {
         // fourth byte
         temp_ch_ = reader_.GetChar();
-        CHECK(temp_ch_ != EOF && !isspace(temp_ch_))
-            << "invalid base64 format";
+        CHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
         if (temp_ch_ == '=') {
           temp_ch_ = reader_.GetChar();
-          CHECK(temp_ch_ == EOF || isspace(temp_ch_))
-              << "invalid base64 format";
+          CHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
           break;
         }
         nvalue |= DecodeTable[temp_ch_];
         if (tlen) {
-          *cptr++ = nvalue & 0xFF; --tlen;
+          *cptr++ = nvalue & 0xFF;
+          --tlen;
         } else {
-          buf_prev[num_prev_ ++] = nvalue & 0xFF;
+          buf_prev[num_prev_++] = nvalue & 0xFF;
         }
       }
       // get next char
@@ -211,7 +204,7 @@ class Base64InStream: public dmlc::Stream {
     }
     return size - tlen;
   }
-  virtual void Write(const void *ptr, size_t size) {
+  virtual void Write(const void* ptr, size_t size) {
     LOG(FATAL) << "Base64InStream do not support write";
   }
 
@@ -228,17 +221,17 @@ class Base64InStream: public dmlc::Stream {
 /*!
  * \brief Stream to write to base64 format.
  */
-class Base64OutStream: public dmlc::Stream {
+class Base64OutStream : public dmlc::Stream {
  public:
-  explicit Base64OutStream(dmlc::Stream *fp) : fp_(fp) {
-  }
-  virtual void Write(const void *ptr, size_t size) {
+  explicit Base64OutStream(dmlc::Stream* fp) : fp_(fp) {}
+  virtual void Write(const void* ptr, size_t size) {
     using base64::EncodeTable;
     size_t tlen = size;
-    const unsigned char *cptr = static_cast<const unsigned char*>(ptr);
+    const unsigned char* cptr = static_cast<const unsigned char*>(ptr);
     while (tlen) {
-      while (buf__top_ < 3  && tlen != 0) {
-        buf_[++buf__top_] = *cptr++; --tlen;
+      while (buf__top_ < 3 && tlen != 0) {
+        buf_[++buf__top_] = *cptr++;
+        --tlen;
       }
       if (buf__top_ == 3) {
         // flush 4 bytes out
@@ -250,7 +243,7 @@ class Base64OutStream: public dmlc::Stream {
       }
     }
   }
-  virtual size_t Read(void *ptr, size_t size) {
+  virtual size_t Read(void* ptr, size_t size) {
     LOG(FATAL) << "Base64OutStream do not support read";
     return 0;
   }
@@ -280,11 +273,10 @@ class Base64OutStream: public dmlc::Stream {
  private:
   static constexpr size_t kBufferSize = 256;
 
-  dmlc::Stream *fp_{nullptr};
+  dmlc::Stream* fp_{nullptr};
   int buf__top_{0};
   unsigned char buf_[4];
   std::string out_buf_;
-
 
   void PutChar(char ch) {
     out_buf_ += ch;

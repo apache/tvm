@@ -20,7 +20,7 @@ from tvm.runtime import ndarray as _nd
 from tvm.runtime import TVMContext as _TVMContext
 
 from . import _make
-from ..expr import Tuple
+from ..expr import Tuple, const
 
 
 # We create a wrapper function for each operator in the
@@ -46,6 +46,36 @@ def log(data):
         The computed result.
     """
     return _make.log(data)
+
+def log2(data):
+    """Compute elementwise log to the base 2 of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.log2(data)
+
+def log10(data):
+    """Compute elementwise log to the base 10 of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.log10(data)
 
 def tan(data):
     """Compute elementwise tan of data.
@@ -77,6 +107,21 @@ def cos(data):
     """
     return _make.cos(data)
 
+def cosh(data):
+    """Compute elementwise cosh of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.cosh(data)
+
 def sin(data):
     """Compute elementwise sin of data.
 
@@ -92,6 +137,81 @@ def sin(data):
     """
     return _make.sin(data)
 
+def sinh(data):
+    """Compute elementwise sinh of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.sinh(data)
+
+def acos(data):
+    """Compute elementwise acos of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.acos(data)
+
+def acosh(data):
+    """Compute elementwise acosh of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.acosh(data)
+
+def asin(data):
+    """Compute elementwise asin of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.asin(data)
+
+def asinh(data):
+    """Compute elementwise asinh of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.asinh(data)
+
 def atan(data):
     """Compute elementwise atan of data.
 
@@ -106,6 +226,21 @@ def atan(data):
         The computed result.
     """
     return _make.atan(data)
+
+def atanh(data):
+    """Compute elementwise atanh of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.atanh(data)
 
 def exp(data):
     """Compute elementwise exp of data.
@@ -793,7 +928,7 @@ def zeros(shape, dtype):
 
     Parameters
     ----------
-    shape : tuple of int
+    shape : tuple of int or relay.Expr
         The shape of the target.
 
     dtype : data type
@@ -804,6 +939,8 @@ def zeros(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, (list, tuple)):
+        shape = const(list(shape), "int32")
     return _make.zeros(shape, dtype)
 
 
@@ -828,7 +965,7 @@ def ones(shape, dtype):
 
     Parameters
     ----------
-    shape : tuple of int
+    shape : tuple of int or relay.Expr
         The shape of the target.
 
     dtype : data type
@@ -839,6 +976,8 @@ def ones(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, (list, tuple)):
+        shape = const(list(shape), "int32")
     return _make.ones(shape, dtype)
 
 

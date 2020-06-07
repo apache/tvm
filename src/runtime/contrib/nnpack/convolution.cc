@@ -20,11 +20,12 @@
 /*!
  * \file Use external nnpack library call.
  */
-#include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/data_type.h>
 #include <dmlc/logging.h>
 #include <nnpack.h>
+#include <tvm/runtime/data_type.h>
+#include <tvm/runtime/device_api.h>
+#include <tvm/runtime/registry.h>
+
 #include "nnpack_utils.h"
 
 namespace tvm {
@@ -32,28 +33,25 @@ namespace contrib {
 using namespace runtime;
 
 TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      NNPackThreadLocalEntry *entry = NNPackThreadLocalEntry::ThreadLocal();
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      NNPackThreadLocalEntry* entry = NNPackThreadLocalEntry::ThreadLocal();
       static std::once_flag flag;
-      std::call_once(flag,
-                     []() { CHECK_EQ(nnp_initialize(), nnp_status_success); });
-      DLTensor *input = args[0];
-      DLTensor *kernel = args[1];
-      DLTensor *bias = nullptr;
+      std::call_once(flag, []() { CHECK_EQ(nnp_initialize(), nnp_status_success); });
+      DLTensor* input = args[0];
+      DLTensor* kernel = args[1];
+      DLTensor* bias = nullptr;
       if (args[2].type_code() == kTVMDLTensorHandle) {
         bias = args[2];
       }
-      DLTensor *output = args[3];
-      uint64_t pad_top = args[4], pad_right = args[5], pad_bottom = args[6],
-               pad_left = args[7];
+      DLTensor* output = args[3];
+      uint64_t pad_top = args[4], pad_right = args[5], pad_bottom = args[6], pad_left = args[7];
       nnp_padding input_padding{pad_top, pad_right, pad_bottom, pad_left};
       uint64_t stride_width = args[8], stride_height = args[9];
       nnp_size stride_size{stride_width, stride_height};
       NNPackConfig(args[10]);
 
       uint64_t algo_ = args[11];
-      nnp_convolution_algorithm algo =
-          static_cast<nnp_convolution_algorithm>(algo_);
+      nnp_convolution_algorithm algo = static_cast<nnp_convolution_algorithm>(algo_);
       CHECK_EQ(input->ndim, 4);
       CHECK_EQ(kernel->ndim, 4);
       if (bias) {
@@ -93,10 +91,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
 
       size_t workspace_size = 0;
       nnp_status status = nnp_convolution_inference(
-          algo, nnp_convolution_transform_strategy_compute, input_channels,
-          output_channels, input_size, input_padding, kernel_size, stride_size,
-          nullptr, nullptr, nullptr, nullptr, nullptr, &workspace_size,
-          nnp_activation_identity, nullptr, entry->threadpool, nullptr);
+          algo, nnp_convolution_transform_strategy_compute, input_channels, output_channels,
+          input_size, input_padding, kernel_size, stride_size, nullptr, nullptr, nullptr, nullptr,
+          nullptr, &workspace_size, nnp_activation_identity, nullptr, entry->threadpool, nullptr);
       CHECK_EQ(status, nnp_status_success);
 
       // Division with rounding up, in case size is not multiple of sizeof(float)
@@ -107,24 +104,21 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
 
       DeviceAPI* cpu_api = DeviceAPI::Get(ctx);
       void* workspace_buffer =
-        cpu_api->AllocWorkspace(ctx, workspace_elements * sizeof(float), type_hint);
+          cpu_api->AllocWorkspace(ctx, workspace_elements * sizeof(float), type_hint);
       CHECK(workspace_buffer != nullptr);
 
       for (auto n = 0; n < input->shape[0]; ++n) {
         nnp_status status = nnp_convolution_inference(
-            algo, nnp_convolution_transform_strategy_compute, input_channels,
-            output_channels, input_size, input_padding, kernel_size,
-            stride_size,
-            static_cast<float *>(input->data) + n * input->shape[1] *
-                                                   input->shape[2] *
-                                                   input->shape[3],
-            static_cast<float *>(kernel->data),
-            bias ? static_cast<float *>(bias->data) : zero_bias->data(),
-            static_cast<float *>(output->data) + n * output->shape[1] *
-                                                    output->shape[2] *
-                                                    output->shape[3],
-            workspace_buffer, &workspace_size,
-            nnp_activation_identity, nullptr, entry->threadpool, nullptr);
+            algo, nnp_convolution_transform_strategy_compute, input_channels, output_channels,
+            input_size, input_padding, kernel_size, stride_size,
+            static_cast<float*>(input->data) +
+                n * input->shape[1] * input->shape[2] * input->shape[3],
+            static_cast<float*>(kernel->data),
+            bias ? static_cast<float*>(bias->data) : zero_bias->data(),
+            static_cast<float*>(output->data) +
+                n * output->shape[1] * output->shape[2] * output->shape[3],
+            workspace_buffer, &workspace_size, nnp_activation_identity, nullptr, entry->threadpool,
+            nullptr);
 
         CHECK_EQ(status, nnp_status_success);
       }
@@ -132,28 +126,25 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_without_weight_transform")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      NNPackThreadLocalEntry *entry = NNPackThreadLocalEntry::ThreadLocal();
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      NNPackThreadLocalEntry* entry = NNPackThreadLocalEntry::ThreadLocal();
       static std::once_flag flag;
-      std::call_once(flag,
-                     []() { CHECK_EQ(nnp_initialize(), nnp_status_success); });
-      DLTensor *input = args[0];
-      DLTensor *transformed_kernel = args[1];
-      DLTensor *bias = nullptr;
+      std::call_once(flag, []() { CHECK_EQ(nnp_initialize(), nnp_status_success); });
+      DLTensor* input = args[0];
+      DLTensor* transformed_kernel = args[1];
+      DLTensor* bias = nullptr;
       if (args[2].type_code() == kTVMDLTensorHandle) {
         bias = args[2];
       }
-      DLTensor *output = args[3];
-      uint64_t pad_top = args[4], pad_right = args[5], pad_bottom = args[6],
-               pad_left = args[7];
+      DLTensor* output = args[3];
+      uint64_t pad_top = args[4], pad_right = args[5], pad_bottom = args[6], pad_left = args[7];
       nnp_padding input_padding{pad_top, pad_right, pad_bottom, pad_left};
       uint64_t stride_width = args[8], stride_height = args[9];
       nnp_size stride_size{stride_width, stride_height};
       NNPackConfig(args[10]);
 
       uint64_t algo_ = args[11];
-      nnp_convolution_algorithm algo =
-          static_cast<nnp_convolution_algorithm>(algo_);
+      nnp_convolution_algorithm algo = static_cast<nnp_convolution_algorithm>(algo_);
       CHECK_EQ(input->ndim, 4);
       if (bias) {
         CHECK_EQ(bias->ndim, 1);
@@ -189,10 +180,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_without_weight_tra
 
       size_t workspace_size = 0;
       nnp_status status = nnp_convolution_inference(
-          algo, nnp_convolution_transform_strategy_reuse, input_channels,
-          output_channels, input_size, input_padding, kernel_size, stride_size,
-          nullptr, nullptr, nullptr, nullptr, nullptr, &workspace_size,
-          nnp_activation_identity, nullptr, entry->threadpool, nullptr);
+          algo, nnp_convolution_transform_strategy_reuse, input_channels, output_channels,
+          input_size, input_padding, kernel_size, stride_size, nullptr, nullptr, nullptr, nullptr,
+          nullptr, &workspace_size, nnp_activation_identity, nullptr, entry->threadpool, nullptr);
       CHECK_EQ(status, nnp_status_success);
 
       // Division with rounding up, in case size is not multiple of sizeof(float)
@@ -203,38 +193,34 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_without_weight_tra
 
       DeviceAPI* cpu_api = DeviceAPI::Get(ctx);
       void* workspace_buffer =
-        cpu_api->AllocWorkspace(ctx, workspace_elements * sizeof(float), type_hint);
+          cpu_api->AllocWorkspace(ctx, workspace_elements * sizeof(float), type_hint);
       CHECK(workspace_buffer != nullptr);
 
       for (auto n = 0; n < input->shape[0]; ++n) {
         nnp_status status = nnp_convolution_inference(
             algo, nnp_convolution_transform_strategy_reuse, input_channels, output_channels,
             input_size, input_padding, kernel_size, stride_size,
-            static_cast<float *>(input->data) + n * input->shape[1] *
-                                input->shape[2] *
-                                input->shape[3],
-            static_cast<float *>(transformed_kernel->data),
-            bias ? static_cast<float *>(bias->data) : zero_bias->data(),
-            static_cast<float *>(output->data) + n * output->shape[1] *
-                                output->shape[2] *
-                                output->shape[3],
-            workspace_buffer, &workspace_size,
-            nnp_activation_identity, nullptr, entry->threadpool, nullptr);
+            static_cast<float*>(input->data) +
+                n * input->shape[1] * input->shape[2] * input->shape[3],
+            static_cast<float*>(transformed_kernel->data),
+            bias ? static_cast<float*>(bias->data) : zero_bias->data(),
+            static_cast<float*>(output->data) +
+                n * output->shape[1] * output->shape[2] * output->shape[3],
+            workspace_buffer, &workspace_size, nnp_activation_identity, nullptr, entry->threadpool,
+            nullptr);
         CHECK_EQ(status, nnp_status_success);
       }
 
       cpu_api->FreeWorkspace(ctx, workspace_buffer);
     });
 
-TVM_REGISTER_GLOBAL(
-    "tvm.contrib.nnpack.convolution_inference_weight_transform")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      NNPackThreadLocalEntry *entry = NNPackThreadLocalEntry::ThreadLocal();
+TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_weight_transform")
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      NNPackThreadLocalEntry* entry = NNPackThreadLocalEntry::ThreadLocal();
       static std::once_flag flag;
-      std::call_once(flag,
-                     []() { CHECK_EQ(nnp_initialize(), nnp_status_success); });
-      DLTensor *kernel = args[0];
-      DLTensor *transformed_kernel = args[1];
+      std::call_once(flag, []() { CHECK_EQ(nnp_initialize(), nnp_status_success); });
+      DLTensor* kernel = args[0];
+      DLTensor* transformed_kernel = args[1];
       // Dummy sizes
       nnp_padding input_padding{1, 1, 1, 1};
       nnp_size stride_size{1, 1};
@@ -244,8 +230,7 @@ TVM_REGISTER_GLOBAL(
       NNPackConfig(args[2]);
 
       uint64_t algo_ = args[3];
-      nnp_convolution_algorithm algo =
-          static_cast<nnp_convolution_algorithm>(algo_);
+      nnp_convolution_algorithm algo = static_cast<nnp_convolution_algorithm>(algo_);
       CHECK_EQ(kernel->ndim, 4);
       size_t input_channels = kernel->shape[1];
       size_t output_channels = kernel->shape[0];
@@ -259,21 +244,20 @@ TVM_REGISTER_GLOBAL(
       size_t transformed_kernel_size = 0;
       nnp_status status;
       status = nnp_convolution_inference(
-          algo, nnp_convolution_transform_strategy_precompute, input_channels,
-          output_channels, input_size, input_padding, kernel_size, stride_size,
-          nullptr, nullptr, nullptr, nullptr, nullptr, &transformed_kernel_size,
-          nnp_activation_identity, nullptr, entry->threadpool, nullptr);
+          algo, nnp_convolution_transform_strategy_precompute, input_channels, output_channels,
+          input_size, input_padding, kernel_size, stride_size, nullptr, nullptr, nullptr, nullptr,
+          nullptr, &transformed_kernel_size, nnp_activation_identity, nullptr, entry->threadpool,
+          nullptr);
       CHECK_EQ(status, nnp_status_success);
 
       CHECK_LE(transformed_kernel_size, GetDataSize(*transformed_kernel));
 
       status = nnp_convolution_inference(
-          algo, nnp_convolution_transform_strategy_precompute, input_channels,
-          output_channels, input_size, input_padding, kernel_size, stride_size,
-          nullptr, static_cast<float *>(kernel->data), nullptr, nullptr,
-          static_cast<float *>(transformed_kernel->data),
-          &transformed_kernel_size, nnp_activation_identity, nullptr,
-          entry->threadpool, nullptr);
+          algo, nnp_convolution_transform_strategy_precompute, input_channels, output_channels,
+          input_size, input_padding, kernel_size, stride_size, nullptr,
+          static_cast<float*>(kernel->data), nullptr, nullptr,
+          static_cast<float*>(transformed_kernel->data), &transformed_kernel_size,
+          nnp_activation_identity, nullptr, entry->threadpool, nullptr);
       CHECK_EQ(status, nnp_status_success);
     });
 }  // namespace contrib

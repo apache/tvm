@@ -21,9 +21,11 @@
  * \file tvm/runtime/vm/memory_manager.cc
  * \brief Allocate and manage memory for the runtime.
  */
-#include <utility>
-#include <memory>
 #include "memory_manager.h"
+
+#include <memory>
+#include <utility>
+
 #include "naive_allocator.h"
 #include "pooled_allocator.h"
 
@@ -35,8 +37,7 @@ static void BufferDeleter(Object* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
   CHECK(ptr->manager_ctx != nullptr);
   Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
-  MemoryManager::Global()->GetAllocator(buffer->ctx)->
-      Free(*(buffer));
+  MemoryManager::Global()->GetAllocator(buffer->ctx)->Free(*(buffer));
   delete buffer;
   delete ptr;
 }
@@ -76,8 +77,6 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
 }
 
 NDArray StorageObj::AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDataType dtype) {
-  // TODO(@jroesch): generalize later to non-overlapping allocations.
-  CHECK_EQ(offset, 0u);
   VerifyDataType(dtype);
 
   // crtical zone: allocate header, cannot throw
@@ -86,14 +85,26 @@ NDArray StorageObj::AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDa
   container->SetDeleter(StorageObj::Deleter);
   size_t needed_size = GetDataSize(container->dl_tensor);
   this->IncRef();
+  // The manager context pointer must continue to point to the storage object
+  // which owns the backing memory, and keeps track of the reference count.
+  //
+  // When we free a container we extract the storage object, decrement its
+  // reference count, then destroy the container, but leave the underlying
+  // buffer intact.
   container->manager_ctx = reinterpret_cast<void*>(this);
-  container->dl_tensor.data = this->buffer.data;
-  NDArray ret(GetObjectPtr<Object>(container));
 
+  // is this UB?
+  // The only change we make w.r.t offset is modifying the data pointer
+  // of the backing tensor to point into the buffer instead of its start.
+  auto offset_ptr = reinterpret_cast<uint8_t*>(this->buffer.data) + offset;
+  container->dl_tensor.data = reinterpret_cast<void*>(offset_ptr);
+
+  NDArray ret(GetObjectPtr<Object>(container));
   // RAII in effect, now run the check.
-  // TODO(@jroesch): generalize later to non-overlapping allocations.
-  CHECK(needed_size == this->buffer.size)
-    << "size mistmatch required " << needed_size << " found " << this->buffer.size;
+
+  CHECK(offset + needed_size <= this->buffer.size)
+      << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
+      << offset << " in region that is " << this->buffer.size << "bytes";
 
   return ret;
 }
@@ -106,8 +117,8 @@ MemoryManager* MemoryManager::Global() {
 Allocator* MemoryManager::GetAllocator(TVMContext ctx) {
   std::lock_guard<std::mutex> lock(mu_);
   if (allocators_.find(ctx) == allocators_.end()) {
-    DLOG(INFO) << "New allocator for " << DeviceName(ctx.device_type) << "("
-               << ctx.device_id << ")";
+    DLOG(INFO) << "New allocator for " << DeviceName(ctx.device_type) << "(" << ctx.device_id
+               << ")";
     std::unique_ptr<Allocator> alloc(new NaiveAllocator(ctx));
     allocators_.emplace(ctx, std::move(alloc));
   }
@@ -120,7 +131,7 @@ NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext
   container->SetDeleter(BufferDeleter);
   size_t size = GetDataSize(container->dl_tensor);
   size_t alignment = GetDataAlignment(container->dl_tensor);
-  Buffer *buffer = new Buffer;
+  Buffer* buffer = new Buffer;
   *buffer = this->Alloc(size, alignment, dtype);
   container->manager_ctx = reinterpret_cast<void*>(buffer);
   container->dl_tensor.data = buffer->data;

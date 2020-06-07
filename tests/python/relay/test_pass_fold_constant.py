@@ -32,6 +32,25 @@ def run_opt_pass(expr, opt_pass):
     return entry if isinstance(expr, relay.Function) else entry.body
 
 
+def test_concatenate_const():
+    def before():
+        data = tvm.nd.array(np.array([1.0, 2.0, 3.0]))
+        const = relay.const(data)
+        concat = relay.op.concatenate([const, const], axis=0)
+        func = relay.Function([], concat)
+        return func
+
+    def expected():
+        data = tvm.nd.array(np.array([1.0, 2.0, 3.0, 1.0, 2.0, 3.0]))
+        const = relay.const(data)
+        func = relay.Function([], const)
+        return func
+
+    zz = run_opt_pass(before(), transform.FoldConstant())
+    zexpected = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(zz, zexpected)
+
+
 def test_fold_const():
     c_data = np.array([1, 2, 3]).astype("float32")
     t = relay.TensorType([1, 2, 3], "float32")
@@ -51,13 +70,9 @@ def test_fold_const():
         z = relay.add(y, relay.const(c_data))
         return relay.Function([x], z)
 
-    def fail(x):
-        raise RuntimeError()
-
     # the fold constant should work on any context.
-    with tvm.target.build_config(add_lower_pass=[(0, fail)]):
-        with tvm.target.create("cuda"):
-            zz = run_opt_pass(before(), transform.FoldConstant())
+    with tvm.target.create("cuda"):
+        zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
     assert tvm.ir.structural_equal(zz, zexpected)
 
@@ -198,7 +213,7 @@ def test_fold_batch_norm():
     mod, params = create_workload(bn_output[0], initializer)
     mod["main"] = bind_params_by_name(mod["main"], params)
 
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         mod = remove_bn_pass(mod)
 
     expect = run_infer_type(expected())

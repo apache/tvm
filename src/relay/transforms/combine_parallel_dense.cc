@@ -32,16 +32,18 @@
  */
 
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
+
 #include <unordered_map>
 #include <unordered_set>
+
+#include "./combine_parallel_op_batch.h"
 #include "./expr_subst.h"
 #include "pattern_util.h"
-#include "./combine_parallel_op_batch.h"
 
 namespace tvm {
 namespace relay {
@@ -49,8 +51,7 @@ namespace relay {
 class ParallelDenseCombiner : public ParallelOpBatchCombiner {
  public:
   explicit ParallelDenseCombiner(uint64_t min_num_branches)
-    : ParallelOpBatchCombiner("nn.dense", "nn.batch_matmul", min_num_branches) {
-  }
+      : ParallelOpBatchCombiner("nn.dense", "nn.batch_matmul", min_num_branches) {}
 
  protected:
   virtual bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
@@ -63,8 +64,7 @@ class ParallelDenseCombiner : public ParallelOpBatchCombiner {
     const auto* weight_b = b->args[1]->type_as<TensorTypeNode>();
 
     return eq(attrs_a->out_dtype, attrs_b->out_dtype) &&
-           eq(weight_a->shape[0], weight_b->shape[0]) &&
-           eq(weight_a->shape[1], weight_b->shape[1]);
+           eq(weight_a->shape[0], weight_b->shape[0]) && eq(weight_a->shape[1], weight_b->shape[1]);
   }
 };
 
@@ -77,14 +77,13 @@ namespace transform {
 
 Pass CombineParallelDense(uint64_t min_num_branches) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-      return Downcast<Function>(CombineParallelDense(f, min_num_branches));
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(CombineParallelDense(f, min_num_branches));
+      };
   return CreateFunctionPass(pass_func, 4, "CombineParallelDense", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.CombineParallelDense")
-.set_body_typed(CombineParallelDense);
+TVM_REGISTER_GLOBAL("relay._transform.CombineParallelDense").set_body_typed(CombineParallelDense);
 
 }  // namespace transform
 

@@ -36,6 +36,10 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
 from tensorflow.python.ops import init_ops
+from tensorflow.python.framework import function
+from tensorflow.python.framework import ops
+from tensorflow.python.framework import dtypes
+from tensorflow.python.ops import gen_functional_ops
 from distutils.version import LooseVersion
 import tvm
 from tvm import te
@@ -123,7 +127,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
         result = ex.evaluate()(*inputs)
         return vmobj_to_list(result)
     else:
-        with relay.build_config(opt_level=opt_level):
+        with tvm.transform.PassContext(opt_level=opt_level):
             graph, lib, params = relay.build(mod, target, target_host, params)
 
         ctx = tvm.context(target, 0)
@@ -176,6 +180,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
         final_graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
+
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
 
         for device in ["llvm", "cuda"]:
@@ -747,6 +752,17 @@ def _test_reshape_like(data, shape_like):
 
         compare_tf_with_tvm(data, 'Placeholder:0', 'Reshape:0')
 
+def _test_reshape_symbolic(data, a_data, b_data):
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        a = array_ops.placeholder(shape=a_data.shape, dtype=a_data.dtype)
+        b = array_ops.placeholder(shape=b_data.shape, dtype=b_data.dtype)
+        newshape = tf.add(a, b)
+        out = array_ops.reshape(in_data, newshape)
+
+        for mode in ["debug", "vm"]:
+            compare_tf_with_tvm([data, a_data, b_data], [in_data.name, a.name, b.name], out.name, mode=mode)
+
 def test_forward_reshape():
     _test_reshape(np.arange(6.0), [2, 3])
     _test_reshape(np.arange(6), [-1, 2])
@@ -754,6 +770,10 @@ def test_forward_reshape():
     _test_reshape(np.arange(6), [-1])
     _test_reshape_with_call()
     _test_reshape_like(np.zeros((3, 6)), np.zeros((9, 2)))
+    _test_reshape_symbolic(np.arange(6.0), np.array([2, 0]), np.array([0, 3]))
+    _test_reshape_symbolic(np.arange(6), np.array([-1, 0]), np.array([0, 2]))
+    _test_reshape_symbolic(np.arange(6), np.array([3, 0]), np.array([3, -1]))
+    _test_reshape_symbolic(np.arange(6), np.array([0]), np.array([-1]))
 
 #######################################################################
 # DepthToSpace
@@ -941,6 +961,9 @@ def test_tensor_array_concat():
 
 
 def test_tensor_array_size():
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
+            pytest.skip("Needs fixing for tflite >= 1.15.0")
+
     def run(dtype_str, infer_shape):
         with tf.Graph().as_default():
             dtype =  tf_dtypes[dtype_str]
@@ -955,6 +978,9 @@ def test_tensor_array_size():
 
 def test_tensor_array_stack():
     def run(dtype_str, infer_shape):
+        if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
+            pytest.skip("Needs fixing for tflite >= 1.15.0")
+
         with tf.Graph().as_default():
             dtype =  tf_dtypes[dtype_str]
             t = tf.constant(np.array([[1.0], [2.0], [3.0]]).astype(dtype_str))
@@ -972,6 +998,9 @@ def test_tensor_array_stack():
 
 def test_tensor_array_unstack():
     def run(dtype_str, input_shape, infer_shape):
+        if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
+            pytest.skip("Needs fixing for tflite >= 1.15.0")
+
         with tf.Graph().as_default():
             dtype = tf_dtypes[dtype_str]
             t = tf.constant(np.random.choice([0, 1, 2, 3],
@@ -1114,13 +1143,13 @@ def test_read_variable_op():
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
 
         shape_dict = {e: i.shape for e, i in zip(in_name, in_data)}
-        with pytest.raises(Exception) as exexcinfo:
+        with pytest.raises(Exception) as execinfo:
             mod, params = relay.frontend.from_tensorflow(final_graph_def,
                                                          layout=None,
                                                          shape=shape_dict,
                                                          outputs=None)
 
-        assert exexcinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph.")
+        assert execinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph")
 
         # Now convert the variables to constant and run inference on the converted graph
         final_graph_def = tf.graph_util.convert_variables_to_constants(
@@ -1355,7 +1384,7 @@ def test_forward_truncatemod():
 
 
 #######################################################################
-# Gather, GatherV2, GatherNd
+# Gather, GatherV2
 # --------------------------
 
 def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
@@ -1394,16 +1423,32 @@ def test_forward_gather():
     _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 2, 'int32')
     _test_gather((4, 3, 5, 6), (1, 4), [[2, 1, 0, 0]], 0, 'float32')
 
+#######################################################################
+# GatherND
+# --------------------------
+
+def _test_gather_nd(ip_shape, indice_value, dtype):
+    """test operator GatherNd"""
+    np_data = np.random.uniform(1, 100, size=ip_shape).astype(dtype)
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+        tf.gather_nd(in_data, indices=indice_value, name="gather_nd")
+        compare_tf_with_tvm([np_data], ['in_data:0'], 'gather_nd:0')
 
 def test_forward_gather_nd():
     """test operator GatherNd"""
-    np_data = np.random.uniform(1, 100, size=(2, 2, 2)).astype(np.float32)
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(tf.float32, (2, 2, 2), name="in_data")
-        tf.gather_nd(in_data, indices=[[1, 0, 0], [0, 0, 0]], name="gather_nd")
-        compare_tf_with_tvm([np_data], ['in_data:0'], 'gather_nd:0')
-
+    _test_gather_nd((2, 2), [[0, 0], [1, 1]], 'float32')
+    _test_gather_nd((2, 2, 2), [[1, 0, 0], [0, 0, 0]], 'float32')
+    _test_gather_nd((4,), [1], 'float32')
+    _test_gather_nd((4,), [1], 'int32')
+    _test_gather_nd((1, 4), [0, 3], 'int32')
+    _test_gather_nd((2, 2), [[[1, 0], [0, 1]]], 'int32')
+    _test_gather_nd((2, 2), [[[1, 0], [0, 1]]], 'float32')
+    _test_gather_nd((3, 3, 3),  [[[1, 0]]], 'int32')
+    _test_gather_nd((3, 3, 3), [[[1, 0]]], 'int32')
+    _test_gather_nd((4, 3, 5, 6),  [[2, 1, 0, 0]], 'float32')
+    _test_gather_nd((3, 3, 3), [[[2, 1]]], 'int32')
 
 #######################################################################
 # BiasAdd
@@ -1901,7 +1946,9 @@ def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
 
 def test_forward_lstm():
     '''test LSTM block cell'''
-    _test_lstm_cell(1, 2, 1, 0.5, 'float32')
+    if package_version.parse(tf.VERSION) < package_version.parse('2.0.0'):
+        #in 2.0, tf.contrib.rnn.LSTMBlockCell is removed
+        _test_lstm_cell(1, 2, 1, 0.5, 'float32')
 
 
 #######################################################################
@@ -2265,7 +2312,7 @@ def test_forward_ptb():
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c': 'float32',
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h': 'float32'}
         target = 'llvm'
-        with relay.build_config(opt_level=0):
+        with tvm.transform.PassContext(opt_level=0):
             graph, lib, params = relay.build(mod,
                                              target,
                                              params=params)
@@ -2584,15 +2631,6 @@ def test_forward_zeros_like():
         _test_forward_zeros_like((2, 3, 11), "float64")
 
 
-def test_forward_erf():
-    ishape = (1, 3, 10, 10)
-    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
-    with tf.Graph().as_default():
-        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
-        tf.math.erf(in1)
-        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Erf:0')
-
-
 def test_forward_squared_difference():
     ishape = (1, 3, 10, 14)
     inp_array_a = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
@@ -2659,52 +2697,32 @@ def test_forward_pow_exp():
         compare_tf_with_tvm([np_in1], ['in1:0'], 'exp:0')
 
 
-def test_forward_log():
-    """test operator Log """
-    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
-        tf.log(in_data, name="log")
-        compare_tf_with_tvm([np_data], ['in_data:0'], 'log:0')
+def test_forward_unary():
+    def _test_forward_unary(op, a_min=1, a_max=5, dtype=np.float32):
+        """test unary operators"""
+        np_data = np.random.uniform(a_min, a_max, size=(2, 3, 5)).astype(dtype)
+        tf.reset_default_graph()
+        with tf.Graph().as_default():
+            in_data = tf.placeholder(dtype, (2, 3, 5), name="in_data")
+            out = op(in_data)
+            compare_tf_with_tvm([np_data], ['in_data:0'], out.name)
 
+    _test_forward_unary(tf.acos, -1, 1)
+    _test_forward_unary(tf.asin, -1, 1)
+    _test_forward_unary(tf.atanh, -1, 1)
+    _test_forward_unary(tf.sinh)
+    _test_forward_unary(tf.cosh)
+    _test_forward_unary(tf.acosh)
+    _test_forward_unary(tf.asinh)
+    _test_forward_unary(tf.atan)
+    _test_forward_unary(tf.sin)
+    _test_forward_unary(tf.cos)
+    _test_forward_unary(tf.tan)
+    _test_forward_unary(tf.tanh)
+    _test_forward_unary(tf.erf)
+    _test_forward_unary(tf.log)
+    _test_forward_unary(tf.log1p)
 
-def test_forward_log1p():
-    """test operator Log1p """
-    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
-        tf.log1p(in_data, name="log1p")
-        compare_tf_with_tvm([np_data], ['in_data:0'], 'log1p:0')
-
-
-def test_forward_cos():
-    """test operator cos """
-    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
-        tf.cos(in_data, name="cos")
-        compare_tf_with_tvm([np_data], ['in_data:0'], 'cos:0')
-
-
-def test_forward_tan():
-    """test operator tan """
-    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
-    tf.reset_default_graph()
-    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
-    tf.tan(in_data, name="tan")
-    compare_tf_with_tvm([np_data], ['in_data:0'], 'tan:0')
-
-def test_forward_atan():
-    """test operator tan """
-    tf.disable_eager_execution()
-    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
-    tf.reset_default_graph()
-    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
-    tf.atan(in_data, name="atan")
-    compare_tf_with_tvm([np_data], ['in_data:0'], 'atan:0')
 
 def test_forward_atan2():
     """test operator tan """
@@ -2716,16 +2734,6 @@ def test_forward_atan2():
     in_data_2 = tf.placeholder(tf.float32, (2, 3, 5), name="in_data_2")
     tf.atan2(in_data_1, in_data_2, name="atan2")
     compare_tf_with_tvm([np_data_1, np_data_2], ['in_data_1:0', 'in_data_2:0'], 'atan2:0')
-
-
-def test_forward_sin():
-    """test operator sin """
-    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
-        tf.sin(in_data, name="sin")
-        compare_tf_with_tvm([np_data], ['in_data:0'], 'sin:0')
 
 
 def test_forward_negative():
@@ -3192,10 +3200,342 @@ def test_forward_isfinite():
     _verify_infiniteness_ops(tf.is_finite, "isfinite")
 
 
+def _test_spop_placeholder_without_shape_info():
+    with tf.Graph().as_default():
+
+        @function.Defun(*[tf.int32]*2)
+        def Forward(x,y):
+            print(x.name)
+            print(y.name)
+            b = tf.add(x, y)
+            return b
+        pl1 = tf.placeholder(tf.int32,name="pl1")
+        pl2 = tf.placeholder(tf.int32,name="pl2")
+        pl3 = tf.placeholder(tf.int32, name="pl3")
+        data = np.array([[-1, 1], [2, -2]], dtype=np.int32)
+        data2 = np.array([[-2, 3], [4, -6]], dtype=np.int32)
+        data3 = np.array([[-2, 3], [4, -6]], dtype=np.int32)
+        z1 = gen_functional_ops.StatefulPartitionedCall(args=[pl1,pl2], Tout=[tf.int32],f=Forward)
+        z2 = z1 + pl3
+        compare_tf_with_tvm([data, data2, data3], ['pl1:0', 'pl2:0', 'pl3:0'],
+                            ['StatefulPartitionedCall:0',z2.name],  mode='vm', init_global_variables=True)
+
+
+def _test_spop_placeholder_with_shape_and_default_value():
+    with tf.Graph().as_default():
+        data = np.ones([1], dtype=int).astype(np.int32)
+        dataVar = tf.Variable(data, shape=data.shape)
+        pl1 = array_ops.placeholder_with_default(dataVar,shape=data.shape,name="pl1")
+        tpl = tf.convert_to_tensor(pl1, dtype=tf.int32)
+
+        @function.Defun(*[tf.int32])
+        def pl_with_default(pl):
+            return tf.expand_dims(tf.multiply(pl, pl), 0)
+
+        z = gen_functional_ops.StatefulPartitionedCall(args=[tpl], Tout=[tf.int32], f=pl_with_default)
+        compare_tf_with_tvm(data, ['pl1:0'], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
+
+
+def _test_spop_placeholder_numpy_arange_feed():
+    with tf.Graph().as_default():
+        t1 = tf.placeholder(tf.int32, (3, 3, 3), "t1")
+        t1_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
+        t2 = tf.placeholder(tf.int32, (3, 3, 3), "t2")
+        t2_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
+
+        @tf.function
+        def add(x, y):
+            return tf.add(x, y, "add_t1_t2")
+
+        t3 = add(t1, t2)
+        compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
+
+
+def _test_spop_placeholder_numpy_array_feed():
+    with tf.Graph().as_default():
+        t1_data = np.array([[-1, 1, 3], [2, -2, 4], [2, -3, 14]], dtype=np.int32)
+        t2_data = np.array([[-2, 1, 2], [12, -2, 14], [12, -3, 4]], dtype=np.int32)
+        t1 = tf.placeholder(tf.int32, name="t1")
+        t2 = tf.placeholder(tf.int32, name="t2")
+
+        @tf.function
+        def add(x, y):
+            return tf.add(x, y, "add_t1_t2")
+
+        t3 = add(t1, t2)
+        compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [t3.name], mode='vm', init_global_variables=True)
+
+
+def _test_spop_function_invocation_basic():
+    with tf.Graph().as_default():
+
+        def fun1(a):
+            return tf.multiply(a,a)
+
+        def fun2(b):
+            return tf.multiply(b,10)
+
+        @tf.function
+        def fun3(x,y):
+            x = fun2(x)
+            y = fun1(y)
+            z = tf.add(x,y)
+            return z
+
+        t3 = fun3(tf.constant(10.5), tf.constant(20.4))
+
+        compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
+
+
+def _test_spop_function_invocation_nested():
+    with tf.Graph().as_default():
+        t1 = tf.placeholder(tf.int32, (3, 3, 3), name="t1")
+        t1_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
+        t2 = tf.placeholder(tf.int32, name="t2")
+        t2_data = np.arange(27, dtype=np.int32).reshape((3, 3, 3))
+
+        @tf.function
+        def myfunc(x, y):
+            return tf.add(x, y, "myfunc")
+
+        @tf.function
+        def myfunc2(x, y):
+            z = myfunc(x, y)
+            l = myfunc(z, y)
+            m = myfunc(l,z)
+            return tf.add(l, m, "myfunc2")
+
+        res1 = myfunc(t1, t2)
+        res2 = myfunc2(res1, t1)
+
+        compare_tf_with_tvm([t1_data, t2_data], ['t1:0', 't2:0'], [res2.name], mode='vm', init_global_variables=True)
+
+
+def _test_spop_function_invocation_no_autograph():
+    with tf.Graph().as_default():
+
+        @tf.function(autograph=False)
+        def fun1(a):
+            return tf.multiply(a,a)
+
+        @tf.function(autograph=False)
+        def fun2(b):
+            return tf.multiply(b,10)
+
+        @tf.function
+        def fun3(x,y):
+            x = fun2(x)
+            y = fun1(y)
+            z = tf.add(x,y)
+            return z
+
+        t3 = fun3(tf.constant(10.5), tf.constant(20.4))
+
+        compare_tf_with_tvm([], [], [t3.name], mode='vm', init_global_variables=True)
+
+
+def _test_spop_function_invocation_defun():
+    with tf.Graph().as_default():
+
+        def fun1(a):
+            return tf.multiply(a,a)
+
+        def fun2(b):
+            return tf.multiply(b,b)
+
+        @function.Defun(dtypes.float32, dtypes.float32, func_name="Fun3")
+        def fun3(x,y):
+            x = fun2(x)
+            y = fun1(y)
+            z = tf.add(x,y)
+            return z
+
+        op = gen_functional_ops.StatefulPartitionedCall(args=[tf.constant(10.5),tf.constant(20.4)],
+                                                        Tout=[dtypes.float32], f=fun3, name="SpopFnInvocation")
+        compare_tf_with_tvm([],[], 'SpopFnInvocation:0', mode='vm', init_global_variables=True)
+
+
+def _test_spop_arithmetic():
+    with tf.Graph().as_default():
+        @function.Defun(*[dtypes.int32]*3)
+        def arithmetic(m,x,c):
+            z = tf.add(tf.multiply(m, x), c)
+            return z
+
+        m = tf.constant(10)
+        x = tf.constant(20)
+        c = tf.constant(2)
+        spopFn = gen_functional_ops.StatefulPartitionedCall(args=[m,x,c],Tout=[tf.int32], f=arithmetic)
+
+        compare_tf_with_tvm([],[],'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
+
+
+def _test_spop_control_flow():
+    with tf.Graph().as_default():
+
+        @function.Defun(*[dtypes.float32] * 2)
+        def Body1(x, y):
+            with ops.device("/job:localhost/replica:0/task:0/device:CPU:0"):
+                z = math_ops.multiply(x, y)
+                i = 0
+                while i<10 :
+                    i +=1
+                    if i == 5:
+                        continue
+                    z = math_ops.multiply(x, y*i)
+            return z
+
+        op = gen_functional_ops.StatefulPartitionedCall(
+            args=[constant_op.constant(32.), constant_op.constant(100.)],
+            Tout=[dtypes.float32], f=Body1)
+        compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
+
+
+def _test_spop_variables():
+    with tf.Graph().as_default():
+        const1 = tf.constant(10)
+        const2 = tf.constant(20)
+        var1 = tf.Variable(const1, dtype=tf.int32)
+        var2 = tf.Variable(const2, dtype=tf.int32)
+
+        @function.Defun(tf.int32,tf.int32)
+        def Forward(x,y):
+            return tf.multiply(x,y)
+
+        z = gen_functional_ops.StatefulPartitionedCall(args=[var1,var2],Tout=[tf.int32], f=Forward)
+        compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', init_global_variables=True, mode="vm")
+
+
+def _test_spop_constants():
+    with tf.Graph().as_default():
+        @function.Defun(*[dtypes.int32] * 2)
+        def constantsFn(x, y):
+            vv = tf.constant([2, 3, 4], name="vv")
+            z = tf.add(vv + x, y)
+            return z
+
+        a = tf.constant(20000, name = "a")
+        b = tf.constant(40000, name = "b")
+        spopFn = gen_functional_ops.StatefulPartitionedCall(args=[a, b], Tout=[tf.int32], f=constantsFn)
+
+        compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
+
+
+def _test_spop_stateful():
+    # This test case is to test that TVM rejects any TF stateful operations
+    # (including Resource Variables) except StatefulPartitionedCall/PartitionedCall
+    # (as these two operators can still be used as container graphs to execute
+    # "stateless" operations internally.
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+
+        @tf.function
+        def FunctionWithStatefulOp_One(i):
+            b = tf.random.uniform(shape=[2, 4], maxval=10, dtype=tf.float32, seed=10)
+            y = tf.multiply(b, i)
+            return y
+
+        @tf.function
+        def FunctionWithStatefulOp(m, n):
+            a = tf.random.uniform(shape=[2, 4], maxval=10, dtype=tf.float32, seed = 10)
+            x = tf.multiply(a,m)
+            y = FunctionWithStatefulOp_One(n)
+            z = tf.multiply(x,y)
+            return z
+
+        op = FunctionWithStatefulOp(constant_op.constant(1.), constant_op.constant(2.))
+        with pytest.raises(Exception) as execinfo:
+            compare_tf_with_tvm([], [], [op.name], init_global_variables=True, mode="vm")
+        assert execinfo.value.args[0].startswith(
+            "The following operators are not implemented")
+
+
+def _test_spop_device_assignment():
+    # This test case is to test that TVM rejects inconsistent device assignment
+    # while using StatefulPartitionedCall/PartitionedCall operators which in case of TVM will
+    # be used as container graphs to internally execute "stateless" operations.
+
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+
+        def fun1(a):
+            with ops.device("/GPU:0"):
+                return tf.multiply(a,a)
+
+        def fun2(b):
+            with ops.device("/job:localhost/replica:0/task:0/device:CPU:1"):
+                return tf.multiply(b,b)
+
+        @function.Defun(dtypes.float32, dtypes.float32, func_name="Fun3")
+        def fun3(x,y):
+            with ops.device("/CPU:0"):
+                x = fun2(x)
+            with ops.device("/job:localhost/replica:0/task:0/device:CPU:2"):
+                y = fun1(y)
+            with ops.device("/job:localhost/replica:0/task:0/device:CPU:3"):
+                z = tf.add(x,y)
+                return z
+
+        op = gen_functional_ops.StatefulPartitionedCall(args=[tf.constant(10.5),tf.constant(20.4)],
+                                                        Tout=[dtypes.float32], f=fun3)
+        with pytest.raises(Exception) as execinfo:
+            compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0',
+                                mode='vm', init_global_variables=True)
+        assert execinfo.value.args[0].startswith("Found inconsistent Device assignment")
+
+
+def _test_spop_resource_variables():
+    # This test case is to test that TVM rejects any graph containing
+    # resource variables with StatefulPartitionedOp.
+
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+
+        const1 = tf.constant(10)
+        const2 = tf.constant(20)
+        var1 = tf.Variable(const1, dtype=tf.int32, use_resource=True)
+        var2 = tf.Variable(const2, dtype=tf.int32, use_resource=True)
+
+        @tf.function
+        def resourceVariablesTest(x, y):
+            return tf.multiply(x, y)
+
+        op = resourceVariablesTest(var1,var2)
+        with pytest.raises(Exception) as execinfo:
+            compare_tf_with_tvm([], [], 'StatefulPartitionedCall:0',
+                                mode='vm', init_global_variables=True)
+        assert execinfo.value.args[0].startswith("Graph is not frozen."
+                                                 " Provide a frozen graph")
+
+def test_forward_spop():
+    _test_spop_stateful()
+    _test_spop_device_assignment()
+    _test_spop_resource_variables()
+
+    #Placeholder test cases
+    _test_spop_placeholder_without_shape_info()
+    _test_spop_placeholder_with_shape_and_default_value()
+    _test_spop_placeholder_numpy_arange_feed()
+    _test_spop_placeholder_numpy_array_feed()
+
+    #Function Invocation test cases
+    _test_spop_function_invocation_basic()
+    _test_spop_function_invocation_nested()
+    _test_spop_function_invocation_no_autograph()
+    _test_spop_function_invocation_defun()
+
+    #Test cases for various other TF constructs
+    _test_spop_arithmetic()
+    _test_spop_control_flow()
+    _test_spop_variables()
+    _test_spop_constants()
+
+
 #######################################################################
 # Main
 # ----
 if __name__ == '__main__':
+
     # Transforms
     test_forward_slice()
     test_forward_transpose()
@@ -3227,7 +3567,6 @@ if __name__ == '__main__':
     test_forward_left_shift()
     test_forward_truncatemod()
     test_forward_one_hot()
-    test_forward_atan()
     test_forward_atan2()
 
     # Activations
@@ -3243,11 +3582,6 @@ if __name__ == '__main__':
     test_forward_reverse_v2()
     test_forward_pow_exp()
     test_forward_sign()
-    test_forward_log()
-    test_forward_log1p()
-    test_forward_tan()
-    test_forward_cos()
-    test_forward_sin()
     test_forward_negative()
     test_forward_divide()
     test_forward_abs()
@@ -3260,13 +3594,13 @@ if __name__ == '__main__':
     test_forward_log_softmax()
     test_forward_bias_add()
     test_forward_zeros_like()
-    test_forward_erf()
     test_forward_squared_difference()
     test_forward_add_n()
     test_forward_floormod()
     test_forward_isfinite()
     test_forward_isinf()
     test_forward_unravel_index()
+    test_forward_unary()
 
     # Reductions
     test_forward_argminmax()
@@ -3308,9 +3642,7 @@ if __name__ == '__main__':
     test_forward_ptb()
 
     # RNN
-    if package_version.parse(tf.VERSION) < package_version.parse('2.0.0'):
-        #in 2.0, tf.contrib.rnn.LSTMBlockCell is removed
-        test_forward_lstm()
+    test_forward_lstm()
 
     # Elementwise
     test_forward_ceil()
@@ -3328,3 +3660,6 @@ if __name__ == '__main__':
 
     # Sharing params case using Mean ops
     test_sharing_node()
+
+    # StatefulPartitionedCall
+    test_forward_spop()

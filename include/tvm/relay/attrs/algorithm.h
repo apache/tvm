@@ -26,6 +26,8 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/base.h>
+#include <tvm/relay/expr.h>
+
 #include <string>
 
 namespace tvm {
@@ -38,39 +40,39 @@ struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
   DataType dtype;
 
   TVM_DECLARE_ATTRS(ArgsortAttrs, "relay.attrs.ArgsortAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(-1)
-      .describe("Axis along which to sort the input tensor."
-                "If not given, the flattened array is used.");
-    TVM_ATTR_FIELD(is_ascend).set_default(true)
-      .describe("Whether to sort in ascending or descending order."
-                "By default, sort in ascending order");
-    TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
-      .describe("DType of the output indices.");
+    TVM_ATTR_FIELD(axis).set_default(-1).describe(
+        "Axis along which to sort the input tensor."
+        "If not given, the flattened array is used.");
+    TVM_ATTR_FIELD(is_ascend).set_default(true).describe(
+        "Whether to sort in ascending or descending order."
+        "By default, sort in ascending order");
+    TVM_ATTR_FIELD(dtype)
+        .set_default(NullValue<DataType>())
+        .describe("DType of the output indices.");
   }
 };
 
 struct TopKAttrs : public tvm::AttrsNode<TopKAttrs> {
-  int k;
+  Optional<Integer> k;
   int axis;
   bool is_ascend;
   std::string ret_type;
   DataType dtype;
 
   TVM_DECLARE_ATTRS(TopKAttrs, "relay.attrs.TopkAttrs") {
-    TVM_ATTR_FIELD(k).set_default(1)
-      .describe("Number of top elements to select");
-    TVM_ATTR_FIELD(axis).set_default(-1)
-      .describe("Axis along which to sort the input tensor.");
-    TVM_ATTR_FIELD(ret_type).set_default("both")
-      .describe("The return type [both, values, indices]."
-                "both - return both top k data and indices."
-                "values - return top k data only."
-                "indices - return top k indices only.");
-    TVM_ATTR_FIELD(is_ascend).set_default(false)
-      .describe("Whether to sort in ascending or descending order."
-                "By default, sort in descending order");
-    TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
-      .describe("Data type of the output indices.");
+    TVM_ATTR_FIELD(k).describe("Number of top elements to select");
+    TVM_ATTR_FIELD(axis).set_default(-1).describe("Axis along which to sort the input tensor.");
+    TVM_ATTR_FIELD(ret_type).set_default("both").describe(
+        "The return type [both, values, indices]."
+        "both - return both top k data and indices."
+        "values - return top k data only."
+        "indices - return top k indices only.");
+    TVM_ATTR_FIELD(is_ascend).set_default(false).describe(
+        "Whether to sort in ascending or descending order."
+        "By default, sort in descending order");
+    TVM_ATTR_FIELD(dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Data type of the output indices.");
   }
 };
 

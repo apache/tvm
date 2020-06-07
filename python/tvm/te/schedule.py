@@ -509,13 +509,6 @@ class Stage(Object):
         """
         _ffi_api.StageDoubleBuffer(self)
 
-    def opengl(self):
-        """The special OpenGL schedule
-
-        Maps each output element to a pixel.
-        """
-        _ffi_api.StageOpenGL(self)
-
 
 @tvm._ffi.register_object
 class SpecializedCondition(Object):

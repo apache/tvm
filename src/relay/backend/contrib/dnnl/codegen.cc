@@ -144,6 +144,16 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     return {output};
   }
 
+  std::vector<Output> VisitExpr_(const TupleNode* node) final {
+    std::vector<Output> outs;
+    for (auto field : node->fields) {
+      auto res = VisitExpr(field);
+      CHECK_EQ(res.size(), 1U) << "Do not support tuple nest";
+      outs.push_back(res[0]);
+    }
+    return outs;
+  }
+
   std::vector<Output> VisitExpr_(const TupleGetItemNode* op) final {
     auto res = VisitExpr(op->tuple);
     CHECK_GT(res.size(), static_cast<size_t>(op->index));
@@ -169,12 +179,12 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     CHECK_EQ(GetDtypeString(type_node), "float") << "Only float is supported for now.";
 
     std::ostringstream buf_stream;
-    const float* ptr = static_cast<float*>(array.ToDLPack()->dl_tensor.data);
+    const float* ptr = static_cast<float*>(array->data);
 
     // Allocate large arrays on the static section to avoid stakc overflow.
     // Note that this would probably increase compilation time as the source
     // file could be really large.
-    buf_stream << "static float " << output.name << "[" << num_elems <<"] = {";
+    buf_stream << "static float " << output.name << "[" << num_elems << "] = {";
     for (int64_t i = 0; i < num_elems - 1; i++) {
       buf_stream << ptr[i] << ",";
     }
@@ -347,8 +357,6 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
   // Create a corresponding DNNL function for the given relay Function.
   void GenDNNLFunc(const Function& func) {
     CHECK(func.defined()) << "Input error: expect a Relay function.";
-    const auto* call = func->body.as<CallNode>();
-    CHECK(call) << "DNNL expects a single convolution or dense op";
 
     // Record the external symbol for runtime lookup.
     auto sid = GetExtSymbol(func);

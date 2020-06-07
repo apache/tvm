@@ -183,11 +183,16 @@ def get_workload_official(model_url, model_sub_path):
     model_path = download_testdata(model_url, model_tar_name, module=['tf', 'official'])
     dir_path = os.path.dirname(model_path)
 
-    import tarfile
     if model_path.endswith("tgz") or model_path.endswith("gz"):
+        import tarfile
         tar = tarfile.open(model_path)
         tar.extractall(path=dir_path)
         tar.close()
+    elif model_path.endswith("zip"):
+        import zipfile
+        zip_object = zipfile.ZipFile(model_path)
+        zip_object.extractall(path=dir_path)
+        zip_object.close()
     else:
         raise RuntimeError('Could not decompress the file: ' + model_path)
     return os.path.join(dir_path, model_sub_path)

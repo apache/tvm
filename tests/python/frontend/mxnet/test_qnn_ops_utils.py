@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
 import numpy as np
+import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.frontend.mxnet_qnn_op_utils import dequantize_mxnet_min_max, \
@@ -39,7 +39,7 @@ def test_mkldnn_dequantize():
                                                       in_dtype=in_dtype)
         mod = relay.Function(relay.analysis.free_vars(dequantized_output), dequantized_output)
         mod = tvm.IRModule.from_expr(mod)
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build(mod, "llvm", params=None)
             rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
             rt_mod.set_input(input_data=in_data)
@@ -93,7 +93,7 @@ def test_mkldnn_quantize():
                                                         out_dtype=out_dtype)
         mod = relay.Function(relay.analysis.free_vars(quantized_output), quantized_output)
         mod = tvm.IRModule.from_expr(mod)
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build(mod, "llvm", params=None)
             rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
             rt_mod.set_input(input_data=in_data)

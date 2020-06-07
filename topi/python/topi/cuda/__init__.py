@@ -25,6 +25,7 @@ from .conv2d import *
 from .conv2d_hwcn import *
 from .conv2d_int8 import *
 from .conv2d_winograd import *
+from .conv2d_nhwc_winograd import *
 from .depthwise_conv2d import *
 from .group_conv2d_nchw import *
 from . import conv2d_alter_op
@@ -48,3 +49,4 @@ from .sort import *
 from .conv2d_nhwc_tensorcore import *
 from .conv3d_ndhwc_tensorcore import *
 from .dense_tensorcore import *
+from .correlation import *

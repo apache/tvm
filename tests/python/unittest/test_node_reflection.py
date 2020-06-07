@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import pytest
 from tvm import te
 
 def test_const_saveload_json():
@@ -101,6 +102,34 @@ def test_string():
     tvm.ir.assert_structural_equal(s1, s2)
 
 
+def test_pass_config():
+    cfg = tvm.transform.PassContext(opt_level=1, config={
+        "tir.UnrollLoop": {
+            "auto_max_step": 10,
+        }
+    })
+    cfg.opt_level  == 1
+
+    assert cfg.config["tir.UnrollLoop"].auto_max_step == 10
+    # default option
+    assert cfg.config["tir.UnrollLoop"].explicit_unroll == True
+
+    # schema checking for specific config key
+    with pytest.raises(AttributeError):
+        cfg = tvm.transform.PassContext(config={
+            "tir.UnrollLoop": { "invalid": 1 }
+        })
+
+    # schema check for un-registered config
+    with pytest.raises(AttributeError):
+        cfg = tvm.transform.PassContext(config={ "inavlid-opt": True })
+
+    # schema check for wrong type
+    with pytest.raises(AttributeError):
+        cfg = tvm.transform.PassContext(config={
+            "tir.UnrollLoop": 1
+        })
+
 if __name__ == "__main__":
     test_string()
     test_env_func()
@@ -108,3 +137,4 @@ if __name__ == "__main__":
     test_make_smap()
     test_const_saveload_json()
     test_make_sum()
+    test_pass_config()

@@ -55,10 +55,9 @@ We can use :py:func:`tvm.target.create` to create a tvm.target.Target from the t
 We can also use other specific function in this module to create specific targets.
 """
 from .target import Target, create
-from .target import cuda, rocm, mali, intel_graphics, opengl, arm_cpu, rasp, vta, bifrost, hexagon
+from .target import cuda, rocm, mali, intel_graphics, arm_cpu, rasp, vta, bifrost, hexagon
 from .generic_func import GenericFunc
 from .generic_func import generic_func, get_native_generic_func, override_native_generic_func
 from . import datatype
 from . import codegen
 from .intrin import register_intrin_rule
-from .build_config import BuildConfig, build_config

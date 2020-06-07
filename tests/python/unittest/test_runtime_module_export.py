@@ -67,7 +67,7 @@ def test_mod_export():
 
         resnet18_mod, resnet18_params = relay.testing.resnet.get_workload(num_layers=18)
         resnet50_mod, resnet50_params = relay.testing.resnet.get_workload(num_layers=50)
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             _, resnet18_gpu_lib, _ = relay.build_module.build(resnet18_mod, "cuda", params=resnet18_params)
             _, resnet50_cpu_lib, _ = relay.build_module.build(resnet50_mod, "llvm", params=resnet50_params)
 
@@ -93,7 +93,7 @@ def test_mod_export():
                 return
 
         resnet18_mod, resnet18_params = relay.testing.resnet.get_workload(num_layers=18)
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             _, resnet18_cpu_lib, _ = relay.build_module.build(resnet18_mod, "llvm", params=resnet18_params)
 
         A = te.placeholder((1024,), name='A')
@@ -177,7 +177,7 @@ def test_mod_export():
                 return
 
         resnet18_mod, resnet18_params = relay.testing.resnet.get_workload(num_layers=18)
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             _, resnet18_cpu_lib, _ = relay.build_module.build(resnet18_mod, "llvm", params=resnet18_params)
 
         A = te.placeholder((1024,), name='A')

@@ -26,18 +26,18 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
-#include <tvm/arith/util.h>
 #include <tvm/tir/op.h>
 #include <tvm/arith/pattern.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/runtime/data_type.h>
+
+#include "int_operator.h"
 
 namespace tvm {
 namespace arith {
 
 using namespace tvm::runtime;
-using namespace tvm::te;
+using namespace tvm::tir;
 
 #define PLUS_ONE(OP) void VisitExpr_(const OP* op) final { num_symbols_++; }
 
@@ -322,9 +322,10 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
                        analyzer);
 
     // Combine each positive inequality with each negative one (by adding them together)
+    int64_t gcd_x, gcd_y;
     for (const auto& pos : coef_pos) {
       for (const auto& neg : coef_neg) {
-        auto first_gcd = gcd(pos.first, -neg.first);
+        auto first_gcd = ExtendedEuclidean(pos.first, -neg.first, &gcd_x, &gcd_y);
         PrimExpr c_pos = make_const(v.dtype(), neg.first/first_gcd);
         PrimExpr c_neg = make_const(v.dtype(), pos.first/first_gcd);
         // eliminate the current variable
@@ -344,10 +345,10 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     // We will generate formulas of the form coef_lcm*v <= bound
     int64_t coef_lcm = 1;
     for (const auto& pos : coef_pos) {
-      coef_lcm = lcm(coef_lcm, pos.first);
+      coef_lcm = LeastCommonMultiple(coef_lcm, pos.first);
     }
     for (const auto& neg : coef_neg) {
-      coef_lcm = lcm(coef_lcm, -neg.first);
+      coef_lcm = LeastCommonMultiple(coef_lcm, -neg.first);
     }
 
     // The resulting lower and upper bounds stored in sorted vectors

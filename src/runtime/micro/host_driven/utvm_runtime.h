@@ -29,8 +29,10 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/c_runtime_api.h>
+
+#include "utvm_runtime_enum.h"
 
 /*!
  * \brief Task structure for uTVM
@@ -46,19 +48,45 @@ typedef struct {
   int32_t num_args;
 } UTVMTask;
 
+/*!
+ * \brief microTVM processor startup.
+ * Expected to reset the stack pointer, configure any hardware required to support the CRT
+ * (i.e. FPU), and then jump to UTVMMain.
+ */
 extern void UTVMInit();
 
-extern void UTVMTimerReset();
-
+/*!
+ * \brief Start the on-device timer.
+ * \return UTVMReturnCode indicating the outcome of the operation.
+ */
 extern int32_t UTVMTimerStart();
 
-extern void UTVMTimerStop();
+/*!
+ * \brief Stop the on-device timer.
+ * TODO(areusch): Use an SI specification of timer units here.
+ * \param err Receives a UTVMReturnCode indicating the outcome of the operation.
+ * \return elapsed time since UTVMTimerStart returned, in device timer ticks.
+ */
+extern uint32_t UTVMTimerStop(int32_t* err);
 
-extern uint32_t UTVMTimerRead();
-
+/*!
+ * \brief Main entry point for UTVM runtime.
+ * Waits for "go" signal, then executes tasks and reports result. Should never return.
+ */
 void UTVMMain();
 
+/*!
+ * \brief Function entered when UTVMMain is complete.
+ * Should never return. The host sets a breakpoint here to detect end of computation.
+ */
 void UTVMDone();
+
+// GCC -O3 begins to inject memset and memmove calls, so we provide impls in
+// the runtime for this case and for general usage.
+
+void* memset(void* s, int c, size_t n);
+
+void* memmove(void* to, const void* from, size_t n);
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C

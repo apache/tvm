@@ -44,9 +44,10 @@
 #define TVM_RUNTIME_REGISTRY_H_
 
 #include <tvm/runtime/packed_func.h>
+
 #include <string>
-#include <vector>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -68,7 +69,8 @@ class Registry {
   }
   /*!
    * \brief set the body of the function to the given function.
-   *        Note that this will ignore default arg values and always require all arguments to be provided.
+   *        Note that this will ignore default arg values and always require all arguments to be
+   * provided.
    *
    * \code
    *
@@ -88,14 +90,15 @@ class Registry {
    * \param f The function to forward to.
    * \tparam FLambda The signature of the function.
    */
-  template<typename FLambda>
+  template <typename FLambda>
   Registry& set_body_typed(FLambda f) {
     using FType = typename detail::function_signature<FLambda>::FType;
     return set_body(TypedPackedFunc<FType>(std::move(f)).packed());
   }
   /*!
    * \brief set the body of the function to be the passed method pointer.
-   *        Note that this will ignore default arg values and always require all arguments to be provided.
+   *        Note that this will ignore default arg values and always require all arguments to be
+   * provided.
    *
    * \code
    *
@@ -113,9 +116,9 @@ class Registry {
    * \tparam R the return type of the function (inferred).
    * \tparam Args the argument types of the function (inferred).
    */
-  template<typename T, typename R, typename ...Args>
+  template <typename T, typename R, typename... Args>
   Registry& set_body_method(R (T::*f)(Args...)) {
-    auto fwrap =[f](T target, Args... params) -> R {
+    auto fwrap = [f](T target, Args... params) -> R {
       // call method pointer
       return (target.*f)(params...);
     };
@@ -124,7 +127,8 @@ class Registry {
 
   /*!
    * \brief set the body of the function to be the passed method pointer.
-   *        Note that this will ignore default arg values and always require all arguments to be provided.
+   *        Note that this will ignore default arg values and always require all arguments to be
+   * provided.
    *
    * \code
    *
@@ -142,7 +146,7 @@ class Registry {
    * \tparam R the return type of the function (inferred).
    * \tparam Args the argument types of the function (inferred).
    */
-  template<typename T, typename R, typename ...Args>
+  template <typename T, typename R, typename... Args>
   Registry& set_body_method(R (T::*f)(Args...) const) {
     auto fwrap = [f](const T target, Args... params) -> R {
       // call method pointer
@@ -154,7 +158,8 @@ class Registry {
   /*!
    * \brief set the body of the function to be the passed method pointer.
    *        Used when calling a method on a Node subclass through a ObjectRef subclass.
-   *        Note that this will ignore default arg values and always require all arguments to be provided.
+   *        Note that this will ignore default arg values and always require all arguments to be
+   * provided.
    *
    * \code
    *
@@ -181,8 +186,8 @@ class Registry {
    * \tparam R the return type of the function (inferred).
    * \tparam Args the argument types of the function (inferred).
    */
-  template<typename TObjectRef, typename TNode, typename R, typename ...Args,
-    typename = typename std::enable_if<std::is_base_of<ObjectRef, TObjectRef>::value>::type>
+  template <typename TObjectRef, typename TNode, typename R, typename... Args,
+            typename = typename std::enable_if<std::is_base_of<ObjectRef, TObjectRef>::value>::type>
   Registry& set_body_method(R (TNode::*f)(Args...)) {
     auto fwrap = [f](TObjectRef ref, Args... params) {
       TNode* target = ref.operator->();
@@ -195,7 +200,8 @@ class Registry {
   /*!
    * \brief set the body of the function to be the passed method pointer.
    *        Used when calling a method on a Node subclass through a ObjectRef subclass.
-   *        Note that this will ignore default arg values and always require all arguments to be provided.
+   *        Note that this will ignore default arg values and always require all arguments to be
+   * provided.
    *
    * \code
    *
@@ -222,8 +228,8 @@ class Registry {
    * \tparam R the return type of the function (inferred).
    * \tparam Args the argument types of the function (inferred).
    */
-  template<typename TObjectRef, typename TNode, typename R, typename ...Args,
-    typename = typename std::enable_if<std::is_base_of<ObjectRef, TObjectRef>::value>::type>
+  template <typename TObjectRef, typename TNode, typename R, typename... Args,
+            typename = typename std::enable_if<std::is_base_of<ObjectRef, TObjectRef>::value>::type>
   Registry& set_body_method(R (TNode::*f)(Args...) const) {
     auto fwrap = [f](TObjectRef ref, Args... params) {
       const TNode* target = ref.operator->();
@@ -270,8 +276,7 @@ class Registry {
   friend struct Manager;
 };
 
-#define TVM_FUNC_REG_VAR_DEF                                            \
-  static TVM_ATTRIBUTE_UNUSED ::tvm::runtime::Registry& __mk_ ## TVM
+#define TVM_FUNC_REG_VAR_DEF static TVM_ATTRIBUTE_UNUSED ::tvm::runtime::Registry& __mk_##TVM
 
 /*!
  * \brief Register a function globally.
@@ -281,9 +286,8 @@ class Registry {
  *   });
  * \endcode
  */
-#define TVM_REGISTER_GLOBAL(OpName)                              \
-  TVM_STR_CONCAT(TVM_FUNC_REG_VAR_DEF, __COUNTER__) =            \
-      ::tvm::runtime::Registry::Register(OpName)
+#define TVM_REGISTER_GLOBAL(OpName) \
+  TVM_STR_CONCAT(TVM_FUNC_REG_VAR_DEF, __COUNTER__) = ::tvm::runtime::Registry::Register(OpName)
 
 }  // namespace runtime
 }  // namespace tvm

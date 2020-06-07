@@ -17,35 +17,35 @@
  * under the License.
  */
 
+#include <assert.h>
+#include <dlfcn.h>  //dlopen
+#include <sys/stat.h>
+#include <sys/time.h>
 #include <tvm/runtime/c_runtime_api.h>
 
-#include <assert.h>
-#include <dlfcn.h> //dlopen
 #include <iostream>
 #include <random>
 #include <vector>
-#include <sys/time.h>
-#include <sys/stat.h>
 
-template <typename F> auto getFunc(void *bundle, const char *name) {
+template <typename F>
+auto getFunc(void* bundle, const char* name) {
   dlerror();
-  auto *f =
-      reinterpret_cast<typename std::add_pointer<F>::type>(dlsym(bundle, name));
+  auto* f = reinterpret_cast<typename std::add_pointer<F>::type>(dlsym(bundle, name));
   assert(!dlerror());
   return f;
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   assert(argc == 6 && "Usage: test <bundle.so> <data.bin> <output.bin> <graph.json> <params.bin>");
-  auto *bundle = dlopen(argv[1], RTLD_LAZY | RTLD_LOCAL);
+  auto* bundle = dlopen(argv[1], RTLD_LAZY | RTLD_LOCAL);
   assert(bundle);
 
   struct stat st;
-  char * json_data;
-  char * params_data;
+  char* json_data;
+  char* params_data;
   uint64_t params_size;
 
-  FILE * fp = fopen(argv[4], "rb");
+  FILE* fp = fopen(argv[4], "rb");
   stat(argv[4], &st);
   json_data = (char*)malloc(st.st_size);
   fread(json_data, st.st_size, 1, fp);
@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
   struct timeval t0, t1, t2, t3, t4, t5;
   gettimeofday(&t0, 0);
 
-  auto *handle = getFunc<void *(char*, char*, int)>(bundle, "tvm_runtime_create")(
+  auto* handle = getFunc<void*(char*, char*, int)>(bundle, "tvm_runtime_create")(
       json_data, params_data, params_size);
   gettimeofday(&t1, 0);
 
@@ -85,12 +85,10 @@ int main(int argc, char **argv) {
   input.strides = nullptr;
   input.byte_offset = 0;
 
-  getFunc<void(void *, const char *, void *)>(bundle, "tvm_runtime_set_input")(
-      handle, "x", &input);
+  getFunc<void(void*, const char*, void*)>(bundle, "tvm_runtime_set_input")(handle, "x", &input);
   gettimeofday(&t2, 0);
 
-  auto *ftvm_runtime_run =
-      (auto (*)(void *)->void)dlsym(bundle, "tvm_runtime_run");
+  auto* ftvm_runtime_run = (auto (*)(void*)->void)dlsym(bundle, "tvm_runtime_run");
   assert(!dlerror());
   ftvm_runtime_run(handle);
   gettimeofday(&t3, 0);
@@ -106,8 +104,7 @@ int main(int argc, char **argv) {
   output.strides = nullptr;
   output.byte_offset = 0;
 
-  getFunc<void(void *, int, void *)>(bundle, "tvm_runtime_get_output")(
-      handle, 0, &output);
+  getFunc<void(void*, int, void*)>(bundle, "tvm_runtime_get_output")(handle, 0, &output);
   gettimeofday(&t4, 0);
 
   for (auto i = 0; i < 10 * 5; ++i) {
@@ -117,20 +114,21 @@ int main(int argc, char **argv) {
     }
   }
 
-  getFunc<void(void *)>(bundle, "tvm_runtime_destroy")(handle);
+  getFunc<void(void*)>(bundle, "tvm_runtime_destroy")(handle);
   gettimeofday(&t5, 0);
 
-  printf("timing: %.2f ms (create), %.2f ms (set_input), %.2f ms (run), "
-         "%.2f ms (get_output), %.2f ms (destroy)\n",
-         (t1.tv_sec-t0.tv_sec)*1000.0f + (t1.tv_usec-t0.tv_usec)/1000.f,
-         (t2.tv_sec-t1.tv_sec)*1000.0f + (t2.tv_usec-t1.tv_usec)/1000.f,
-         (t3.tv_sec-t2.tv_sec)*1000.0f + (t3.tv_usec-t2.tv_usec)/1000.f,
-         (t4.tv_sec-t3.tv_sec)*1000.0f + (t4.tv_usec-t3.tv_usec)/1000.f,
-         (t5.tv_sec-t4.tv_sec)*1000.0f + (t5.tv_usec-t4.tv_usec)/1000.f);
+  printf(
+      "timing: %.2f ms (create), %.2f ms (set_input), %.2f ms (run), "
+      "%.2f ms (get_output), %.2f ms (destroy)\n",
+      (t1.tv_sec - t0.tv_sec) * 1000.0f + (t1.tv_usec - t0.tv_usec) / 1000.f,
+      (t2.tv_sec - t1.tv_sec) * 1000.0f + (t2.tv_usec - t1.tv_usec) / 1000.f,
+      (t3.tv_sec - t2.tv_sec) * 1000.0f + (t3.tv_usec - t2.tv_usec) / 1000.f,
+      (t4.tv_sec - t3.tv_sec) * 1000.0f + (t4.tv_usec - t3.tv_usec) / 1000.f,
+      (t5.tv_sec - t4.tv_sec) * 1000.0f + (t5.tv_usec - t4.tv_usec) / 1000.f);
 
   free(json_data);
   free(params_data);
   dlclose(bundle);
-  
+
   return 0;
 }

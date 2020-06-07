@@ -26,12 +26,13 @@
 
 #include <memory>
 #include <string>
-#include <vector>
-#include <utility>
 #include <unordered_map>
+#include <utility>
+#include <vector>
+
 #include "base.h"
-#include "op.h"
 #include "c_api.h"
+#include "op.h"
 
 namespace nnvm {
 
@@ -49,27 +50,16 @@ using ObjectPtr = std::shared_ptr<Node>;
 
 /*! \brief an entry that represents output data from a node */
 struct NodeEntry {
-  NodeEntry(ObjectPtr node, uint32_t index, uint32_t version):
-    node(std::move(node)),
-    index(index),
-    version(version)
-  {}
+  NodeEntry(ObjectPtr node, uint32_t index, uint32_t version)
+      : node(std::move(node)), index(index), version(version) {}
 
-  explicit NodeEntry(ObjectPtr node):
-    node(std::move(node)),
-    index(),
-    version()
-  {}
+  explicit NodeEntry(ObjectPtr node) : node(std::move(node)), index(), version() {}
 
   /**
    * MXNet assumes that a node with a null ptr doesn't have a gradient attached. Don't change this
    * constructor.
    */
-  NodeEntry():
-    node(nullptr),
-    index(),
-    version()
-  {}
+  NodeEntry() : node(nullptr), index(), version() {}
 
   /*! \brief the source node of this data */
   ObjectPtr node;
@@ -79,7 +69,8 @@ struct NodeEntry {
    * \brief version of input Variable.
    *  This field can only be nonzero when this->node is a Variable node.
    *  version is increased by one each time a Variable get composed to a mutation Op.
-   *  This information can be helpful to decide order of operations when sequence of mutation happens.
+   *  This information can be helpful to decide order of operations when sequence of mutation
+   * happens.
    */
   uint32_t version;
 };
@@ -90,9 +81,8 @@ struct NodeEntry {
  */
 struct NodeEntryHash {
   size_t operator()(const NodeEntry& e) const {
-    return std::hash<Node*>()(e.node.get()) ^
-          (std::hash<size_t>()(e.index) << 1 >> 1) ^
-          (std::hash<size_t>()(e.version) << 1);
+    return std::hash<Node*>()(e.node.get()) ^ (std::hash<size_t>()(e.index) << 1 >> 1) ^
+           (std::hash<size_t>()(e.version) << 1);
   }
 };
 
@@ -102,14 +92,12 @@ struct NodeEntryHash {
  */
 struct NodeEntryEqual {
   size_t operator()(const NodeEntry& a, const NodeEntry& b) const {
-    return (a.node.get() == b.node.get()) &&
-           (a.index == b.index) &&
-           (a.version == b.version);
+    return (a.node.get() == b.node.get()) && (a.index == b.index) && (a.version == b.version);
   }
 };
 
 /*! use NodeEntry as key in unordered_map */
-template<typename ValueType>
+template <typename ValueType>
 using NodeEntryMap = std::unordered_map<NodeEntry, ValueType, NodeEntryHash, NodeEntryEqual>;
 
 /*!
@@ -121,7 +109,7 @@ struct NodeAttrs {
    * \brief The operator this node uses.
    *  For place holder variable, op == nullptr.
    */
-  const Op *op{nullptr};
+  const Op* op{nullptr};
   /*! \brief name of the node */
   std::string name;
   /*! \brief The dictionary representation of attributes */
@@ -188,7 +176,7 @@ class NNVM_DLL Node {
    * \brief create a new empty shared_ptr of Node.
    * \return a created empty node.
    */
-  template<class ...Args>
+  template <class... Args>
   static ObjectPtr Create(Args&&... args) {
     return std::make_shared<Node>(std::forward<Args>(args)...);
   }
@@ -202,12 +190,9 @@ class NNVM_DLL Node {
  * \param attrs The attributes
  * \return The created node entry.
  */
-inline NodeEntry MakeNode(
-    const char* op_name,
-    std::string node_name,
-    std::vector<NodeEntry> inputs,
-    std::unordered_map<std::string, std::string> attrs =
-    std::unordered_map<std::string, std::string>()) {
+inline NodeEntry MakeNode(const char* op_name, std::string node_name, std::vector<NodeEntry> inputs,
+                          std::unordered_map<std::string, std::string> attrs =
+                              std::unordered_map<std::string, std::string>()) {
   ObjectPtr p = Node::Create();
   p->attrs.op = nnvm::Op::Get(op_name);
   p->attrs.name = std::move(node_name);
@@ -220,13 +205,9 @@ inline NodeEntry MakeNode(
 }
 
 // implementation of functions.
-inline const Op* Node::op() const {
-  return this->attrs.op;
-}
+inline const Op* Node::op() const { return this->attrs.op; }
 
-inline bool Node::is_variable() const {
-  return this->op() == nullptr;
-}
+inline bool Node::is_variable() const { return this->op() == nullptr; }
 
 inline uint32_t Node::num_outputs() const {
   if (is_variable()) return 1;

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,12 +25,14 @@
 #define NNVM_OP_H_
 
 #include <dmlc/parameter.h>
-#include <string>
-#include <vector>
-#include <utility>
-#include <typeinfo>
-#include <limits>
+
 #include <functional>
+#include <limits>
+#include <string>
+#include <typeinfo>
+#include <utility>
+#include <vector>
+
 #include "base.h"
 #include "c_api.h"
 
@@ -39,7 +41,7 @@ namespace nnvm {
 // forward declarations
 class Node;
 struct NodeAttrs;
-template<typename ValueType>
+template <typename ValueType>
 class OpMap;
 class OpGroup;
 class OpRegistryEntry;
@@ -193,15 +195,14 @@ class NNVM_DLL Op {
    * \param description Description of the argument.
    * \return reference to self.
    */
-  inline Op& add_argument(const std::string &name,
-                          const std::string &type,
-                          const std::string &description);
+  inline Op& add_argument(const std::string& name, const std::string& type,
+                          const std::string& description);
   /*!
    * \brief Append list if arguments to the end.
    * \param args Additional list of arguments.
    * \return reference to self.
    */
-  inline Op& add_arguments(const std::vector<ParamFieldInfo> &args);
+  inline Op& add_arguments(const std::vector<ParamFieldInfo>& args);
   /*!
    * \brief Set the num_inputs
    * \param n The number of inputs to be set.
@@ -219,7 +220,7 @@ class NNVM_DLL Op {
    * \param fn The function to be set.
    * \return reference to self.
    */
-  inline Op& set_num_inputs(std::function<uint32_t (const NodeAttrs& attr)> fn);  // NOLINT(*)
+  inline Op& set_num_inputs(std::function<uint32_t(const NodeAttrs& attr)> fn);  // NOLINT(*)
   /*!
    * \brief Set the num_outputs
    * \param n The number of outputs to be set.
@@ -231,13 +232,13 @@ class NNVM_DLL Op {
    * \param fn The function to be set.
    * \return reference to self.
    */
-  inline Op& set_num_outputs(std::function<uint32_t (const NodeAttrs& attr)> fn);  // NOLINT(*)
+  inline Op& set_num_outputs(std::function<uint32_t(const NodeAttrs& attr)> fn);  // NOLINT(*)
   /*!
    * \brief Set the attr_parser function.
    * \param fn The number of outputs to be set.
    * \return reference to self.
    */
-  inline Op& set_attr_parser(std::function<void (NodeAttrs* attrs)> fn);  // NOLINT(*)
+  inline Op& set_attr_parser(std::function<void(NodeAttrs* attrs)> fn);  // NOLINT(*)
   /*!
    * \brief Register additional attributes to operator.
    * \param attr_name The name of the attribute.
@@ -251,10 +252,9 @@ class NNVM_DLL Op {
    *
    * \tparam ValueType The type of the value to be set.
    */
-  template<typename ValueType>
+  template <typename ValueType>
   inline Op& set_attr(const std::string& attr_name,  // NOLINT(*)
-                      const ValueType& value,
-                      int plevel = 10);
+                      const ValueType& value, int plevel = 10);
   /*!
    * \brief Add another alias to this operator.
    *   The same Op can be queried with Op::Get(alias)
@@ -284,11 +284,11 @@ class NNVM_DLL Op {
    * \return An OpMap of specified attr_name.
    * \tparam ValueType The type of the attribute.
    */
-  template<typename ValueType>
+  template <typename ValueType>
   static const OpMap<ValueType>& GetAttr(const std::string& attr_name);
 
  private:
-  template<typename ValueType>
+  template <typename ValueType>
   friend class OpMap;
   friend class OpGroup;
   friend class dmlc::Registry<Op>;
@@ -300,15 +300,13 @@ class NNVM_DLL Op {
   // get const reference to certain attribute
   static const any* GetAttrMap(const std::string& key);
   // update the attribute OpMap
-  static void UpdateAttrMap(const std::string& key,
-                            std::function<void(any*)> updater);
+  static void UpdateAttrMap(const std::string& key, std::function<void(any*)> updater);
   // add a trigger based on tag matching on certain tag attribute
   // This will apply trigger on all the op such that
   // include the corresponding group.
   // The trigger will also be applied to all future registrations
   // that calls include
-  static void AddGroupTrigger(const std::string& group_name,
-                              std::function<void(Op*)> trigger);
+  static void AddGroupTrigger(const std::string& group_name, std::function<void(Op*)> trigger);
 };
 
 /*!
@@ -316,7 +314,7 @@ class NNVM_DLL Op {
  *  and returns ValueType
  * \tparam ValueType The type of the value stored in map.
  */
-template<typename ValueType>
+template <typename ValueType>
 class OpMap {
  public:
   /*!
@@ -351,7 +349,7 @@ class OpMap {
   // internal attribute name
   std::string attr_name_;
   // internal data
-  std::vector<std::pair<ValueType, int> > data_;
+  std::vector<std::pair<ValueType, int>> data_;
   OpMap() = default;
 };
 
@@ -376,18 +374,17 @@ class OpGroup {
    *
    * \tparam ValueType The type of the value to be set.
    */
-  template<typename ValueType>
+  template <typename ValueType>
   inline OpGroup& set_attr(const std::string& attr_name,  // NOLINT(*)
-                           const ValueType& value,
-                           int plevel = 1);
+                           const ValueType& value, int plevel = 1);
 };
 
 // internal macros to make
-#define NNVM_REGISTER_VAR_DEF(OpName)                                   \
-  static DMLC_ATTRIBUTE_UNUSED ::nnvm::Op & __make_ ## NnvmOp ## _ ## OpName
+#define NNVM_REGISTER_VAR_DEF(OpName) \
+  static DMLC_ATTRIBUTE_UNUSED ::nnvm::Op& __make_##NnvmOp##_##OpName
 
-#define NNVM_REGISTER_GVAR_DEF(TagName)                                     \
-  static DMLC_ATTRIBUTE_UNUSED ::nnvm::OpGroup __make_ ## NnvmOpGroup ## _ ## TagName
+#define NNVM_REGISTER_GVAR_DEF(TagName) \
+  static DMLC_ATTRIBUTE_UNUSED ::nnvm::OpGroup __make_##NnvmOpGroup##_##TagName
 
 /*!
  * \def NNVM_REGISTER_OP
@@ -404,8 +401,8 @@ class OpGroup {
  *
  * \endcode
  */
-#define NNVM_REGISTER_OP(OpName)                                     \
-  DMLC_STR_CONCAT(NNVM_REGISTER_VAR_DEF(OpName), __COUNTER__) =         \
+#define NNVM_REGISTER_OP(OpName)                                \
+  DMLC_STR_CONCAT(NNVM_REGISTER_VAR_DEF(OpName), __COUNTER__) = \
       ::dmlc::Registry<::nnvm::Op>::Get()->__REGISTER_OR_GET__(#OpName)
 
 /*!
@@ -429,85 +426,72 @@ class OpGroup {
  *
  * \endcode
  */
-#define NNVM_REGISTER_OP_GROUP(GroupName)                               \
-  DMLC_STR_CONCAT(NNVM_REGISTER_GVAR_DEF(GroupName), __COUNTER__) =     \
-      ::nnvm::OpGroup {#GroupName}
+#define NNVM_REGISTER_OP_GROUP(GroupName) \
+  DMLC_STR_CONCAT(NNVM_REGISTER_GVAR_DEF(GroupName), __COUNTER__) = ::nnvm::OpGroup { #GroupName }
 
 // implementations of template functions after this.
 // member function of Op
-template<typename ValueType>
+template <typename ValueType>
 inline const OpMap<ValueType>& Op::GetAttr(const std::string& key) {
   const any* ref = GetAttrMap(key);
   if (ref == nullptr) {
     // update the attribute map of the key by creating new empty OpMap
     UpdateAttrMap(key, [key](any* pmap) {
-        // use callback so it is in lockscope
-        if (pmap->empty()) {
-          OpMap<ValueType> pm;
-          pm.attr_name_ = key;
-          *pmap = std::move(pm);
-        }
-      });
-    ref = GetAttrMap(key);
-  }
-  return nnvm::get<OpMap<ValueType> >(*ref);
-}
-
-template<typename ValueType>
-inline Op& Op::set_attr(  // NOLINT(*)
-    const std::string& attr_name,
-    const ValueType& value,
-    int plevel) {
-  CHECK_GT(plevel, 0)
-      << "plevel in set_attr must be greater than 0";
-  // update the attribute map of the key by creating new empty if needed.
-  UpdateAttrMap(attr_name,
-                [this, attr_name, value, plevel](any* pmap) {
-      // the callback is in lockscope so is threadsafe.
+      // use callback so it is in lockscope
       if (pmap->empty()) {
         OpMap<ValueType> pm;
-        pm.attr_name_ = attr_name;
+        pm.attr_name_ = key;
         *pmap = std::move(pm);
       }
-      CHECK(pmap->type() == typeid(OpMap<ValueType>))
-          << "Attribute " << attr_name
-          << " of operator " << this->name
-          << " is registered as inconsistent types"
-          << " previously " << pmap->type().name()
-          << " current " << typeid(OpMap<ValueType>).name();
-      std::vector<std::pair<ValueType, int> >& vec =
-          nnvm::get<OpMap<ValueType> >(*pmap).data_;
-      // resize the value type.
-      if (vec.size() <= index_) {
-        vec.resize(index_ + 1,
-                   std::make_pair(ValueType(), 0));
-      }
-      std::pair<ValueType, int>& p = vec[index_];
-      CHECK(p.second != plevel)
-          << "Attribute " << attr_name
-          << " of operator " << this->name
-          << " is already registered with same plevel=" << plevel;
-      if (p.second < plevel) {
-        vec[index_] = std::make_pair(value, plevel);
-      }
     });
-  return *this;
+    ref = GetAttrMap(key);
+  }
+  return nnvm::get<OpMap<ValueType>>(*ref);
 }
 
+template <typename ValueType>
+inline Op& Op::set_attr(  // NOLINT(*)
+    const std::string& attr_name, const ValueType& value, int plevel) {
+  CHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
+  // update the attribute map of the key by creating new empty if needed.
+  UpdateAttrMap(attr_name, [this, attr_name, value, plevel](any* pmap) {
+    // the callback is in lockscope so is threadsafe.
+    if (pmap->empty()) {
+      OpMap<ValueType> pm;
+      pm.attr_name_ = attr_name;
+      *pmap = std::move(pm);
+    }
+    CHECK(pmap->type() == typeid(OpMap<ValueType>))
+        << "Attribute " << attr_name << " of operator " << this->name
+        << " is registered as inconsistent types"
+        << " previously " << pmap->type().name() << " current " << typeid(OpMap<ValueType>).name();
+    std::vector<std::pair<ValueType, int>>& vec = nnvm::get<OpMap<ValueType>>(*pmap).data_;
+    // resize the value type.
+    if (vec.size() <= index_) {
+      vec.resize(index_ + 1, std::make_pair(ValueType(), 0));
+    }
+    std::pair<ValueType, int>& p = vec[index_];
+    CHECK(p.second != plevel) << "Attribute " << attr_name << " of operator " << this->name
+                              << " is already registered with same plevel=" << plevel;
+    if (p.second < plevel) {
+      vec[index_] = std::make_pair(value, plevel);
+    }
+  });
+  return *this;
+}
 
 inline Op& Op::describe(const std::string& descr) {  // NOLINT(*)
   this->description = descr;
   return *this;
 }
 
-inline Op& Op::add_argument(const std::string &name,
-                            const std::string &type,
-                            const std::string &description) {
+inline Op& Op::add_argument(const std::string& name, const std::string& type,
+                            const std::string& description) {
   arguments.push_back({name, type, type, description});
   return *this;
 }
 
-inline Op& Op::add_arguments(const std::vector<ParamFieldInfo> &args) {
+inline Op& Op::add_arguments(const std::vector<ParamFieldInfo>& args) {
   this->arguments.insert(arguments.end(), args.begin(), args.end());
   return *this;
 }
@@ -522,7 +506,7 @@ inline Op& Op::set_support_level(uint32_t n) {  // NOLINT(*)
   return *this;
 }
 
-inline Op& Op::set_num_inputs(std::function<uint32_t (const NodeAttrs& attr)> fn) {  // NOLINT(*)
+inline Op& Op::set_num_inputs(std::function<uint32_t(const NodeAttrs& attr)> fn) {  // NOLINT(*)
   this->get_num_inputs = fn;
   return *this;
 }
@@ -532,18 +516,18 @@ inline Op& Op::set_num_outputs(uint32_t n) {  // NOLINT(*)
   return *this;
 }
 
-inline Op& Op::set_num_outputs(std::function<uint32_t (const NodeAttrs& attr)> fn) {  // NOLINT(*)
+inline Op& Op::set_num_outputs(std::function<uint32_t(const NodeAttrs& attr)> fn) {  // NOLINT(*)
   this->get_num_outputs = fn;
   return *this;
 }
 
-inline Op& Op::set_attr_parser(std::function<void (NodeAttrs* attrs)> fn) {  // NOLINT(*)
+inline Op& Op::set_attr_parser(std::function<void(NodeAttrs* attrs)> fn) {  // NOLINT(*)
   this->attr_parser = fn;
   return *this;
 }
 
 // member functions of OpMap
-template<typename ValueType>
+template <typename ValueType>
 inline int OpMap<ValueType>::count(const Op* op) const {
   if (contains(op)) {
     return 1;
@@ -552,7 +536,7 @@ inline int OpMap<ValueType>::count(const Op* op) const {
   }
 }
 
-template<typename ValueType>
+template <typename ValueType>
 inline bool OpMap<ValueType>::contains(const Op* op) const {
   if (op == nullptr) {
     return false;
@@ -561,17 +545,16 @@ inline bool OpMap<ValueType>::contains(const Op* op) const {
   return idx < data_.size() ? (data_[idx].second != 0) : false;
 }
 
-template<typename ValueType>
+template <typename ValueType>
 inline const ValueType& OpMap<ValueType>::operator[](const Op* op) const {
   CHECK(op != nullptr);
   const uint32_t idx = op->index_;
   CHECK(idx < data_.size() && data_[idx].second)
-        << "Attribute " << attr_name_
-        << " has not been registered for Operator " << op->name;
+      << "Attribute " << attr_name_ << " has not been registered for Operator " << op->name;
   return data_[idx].first;
 }
 
-template<typename ValueType>
+template <typename ValueType>
 inline const ValueType& OpMap<ValueType>::get(const Op* op, const ValueType& def_value) const {
   if (op == nullptr) return def_value;
   const uint32_t idx = op->index_;
@@ -582,9 +565,8 @@ inline const ValueType& OpMap<ValueType>::get(const Op* op, const ValueType& def
   }
 }
 
-template<typename ValueType>
-inline OpGroup& OpGroup::set_attr(const std::string& attr_name,
-                                  const ValueType& value,
+template <typename ValueType>
+inline OpGroup& OpGroup::set_attr(const std::string& attr_name, const ValueType& value,
                                   int plevel) {
   auto trigger = [attr_name, value, plevel](Op* op) {
     op->set_attr<ValueType>(attr_name, value, plevel);

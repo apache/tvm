@@ -31,8 +31,13 @@ pub mod ffi {
 
     include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/c_runtime_api.rs"));
 
-    pub type BackendPackedCFunc =
-        extern "C" fn(args: *const TVMValue, type_codes: *const c_int, num_args: c_int) -> c_int;
+    pub type BackendPackedCFunc = extern "C" fn(
+        args: *const TVMValue,
+        type_codes: *const c_int,
+        num_args: c_int,
+        out_ret_value: *mut TVMValue,
+        out_ret_tcode: *mut u32,
+    ) -> c_int;
 }
 
 pub mod array;

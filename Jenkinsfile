@@ -43,9 +43,10 @@
 //
 //
 
-ci_lint = "tvmai/ci-lint:v0.60"
-ci_gpu = "tvmai/ci-gpu:v0.61"
-ci_cpu = "tvmai/ci-cpu:v0.61"
+ci_lint = "tvmai/ci-lint:v0.61"
+ci_gpu = "tvmai/ci-gpu:v0.64"
+ci_cpu = "tvmai/ci-cpu:v0.62"
+ci_wasm = "tvmai/ci-wasm:v0.60"
 ci_i386 = "tvmai/ci-i386:v0.52"
 
 // tvm libraries
@@ -169,6 +170,18 @@ stage('Build') {
         }
       }
     }
+    },
+  'BUILD: WASM': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/build-wasm")) {
+        init_git()
+        sh "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh"
+        make(ci_wasm, 'build', '-j2')
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh"
+        }
+      }
+    }
   },
   'BUILD : i386': {
     node('CPU') {
@@ -246,7 +259,7 @@ stage('Integration Test') {
     }
   },
   'docs: GPU': {
-    node('GPU') {
+    node('TensorCore') {
       ws(per_exec_ws("tvm/docs-python-gpu")) {
         init_git()
         unpack_lib('gpu', tvm_multilib)

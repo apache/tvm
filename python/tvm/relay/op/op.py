@@ -17,60 +17,12 @@
 #pylint: disable=unused-argument,invalid-name
 """The base node types for the Relay language."""
 import tvm._ffi
+import tvm.ir
 from tvm.driver import lower, build
 
-from ..expr import RelayExpr
 from ...target import get_native_generic_func, GenericFunc
 from ...runtime import Object
 from . import _make
-
-@tvm._ffi.register_object("relay.Op")
-class Op(RelayExpr):
-    """A Relay operator definition."""
-
-    def __init__(self):
-        raise RuntimeError("Cannot create op, use get instead")
-
-    def get_attr(self, attr_name):
-        """Get additional attribute about the operator.
-
-        Parameters
-        ----------
-        attr_name : str
-            The attribute name.
-
-        Returns
-        -------
-        value : object
-            The attribute value
-        """
-        return _OpGetAttr(self, attr_name)
-
-    def set_attr(self, attr_name, value, plevel=10):
-        """Set attribute about the operator.
-
-        Parameters
-        ----------
-        attr_name : str
-            The attribute name
-
-        value : object
-            The attribute value
-
-        plevel : int
-            The priority level
-        """
-        _OpSetAttr(self, attr_name, value, plevel)
-
-    def reset_attr(self, attr_name):
-        """Reset attribute about the operator.
-
-        Parameters
-        ----------
-        attr_name : str
-            The attribute name
-        """
-        _OpResetAttr(self, attr_name)
 
 
 def get(op_name):
@@ -86,37 +38,7 @@ def get(op_name):
     op : Op
         The op of the corresponding name
     """
-    return _GetOp(op_name)
-
-
-def register(op_name, attr_key, value=None, level=10):
-    """Register an operator property of an operator.
-
-
-    Parameters
-    ----------
-    op_name : str
-        The name of operator
-
-    attr_key : str
-        The attribute name.
-
-    value : object, optional
-        The value to set
-
-    level : int, optional
-        The priority level
-
-    Returns
-    -------
-    fregister : function
-        Register function if value is not specified.
-    """
-    def _register(v):
-        """internal register function"""
-        _Register(op_name, attr_key, v, level)
-        return v
-    return _register(value) if value is not None else _register
+    return tvm.ir.Op.get(op_name)
 
 
 class OpPattern(object):
@@ -258,7 +180,7 @@ def register_compute(op_name, compute=None, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "FTVMCompute", compute, level)
+    return tvm.ir.register_op_attr(op_name, "FTVMCompute", compute, level)
 
 
 def register_strategy(op_name, fstrategy=None, level=10):
@@ -279,7 +201,7 @@ def register_strategy(op_name, fstrategy=None, level=10):
     if not isinstance(fstrategy, GenericFunc):
         assert hasattr(fstrategy, "generic_func_node")
         fstrategy = fstrategy.generic_func_node
-    return register(op_name, "FTVMStrategy", fstrategy, level)
+    return tvm.ir.register_op_attr(op_name, "FTVMStrategy", fstrategy, level)
 
 
 def register_schedule(op_name, schedule, level=10):
@@ -360,7 +282,7 @@ def register_alter_op_layout(op_name, alter_layout=None, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "FTVMAlterOpLayout", alter_layout, level)
+    return tvm.ir.register_op_attr(op_name, "FTVMAlterOpLayout", alter_layout, level)
 
 
 def register_convert_op_layout(op_name, convert_layout=None, level=10):
@@ -377,7 +299,7 @@ def register_convert_op_layout(op_name, convert_layout=None, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "FTVMConvertOpLayout", convert_layout, level)
+    return tvm.ir.register_op_attr(op_name, "FTVMConvertOpLayout", convert_layout, level)
 
 
 def register_legalize(op_name, legal_op=None, level=10):
@@ -394,7 +316,7 @@ def register_legalize(op_name, legal_op=None, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "FTVMLegalize", legal_op, level)
+    return tvm.ir.register_op_attr(op_name, "FTVMLegalize", legal_op, level)
 
 
 def register_pattern(op_name, pattern, level=10):
@@ -411,7 +333,7 @@ def register_pattern(op_name, pattern, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "TOpPattern", pattern, level)
+    return tvm.ir.register_op_attr(op_name, "TOpPattern", pattern, level)
 
 
 def register_gradient(op_name, fgradient=None, level=10):
@@ -428,7 +350,7 @@ def register_gradient(op_name, fgradient=None, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "FPrimalGradient", fgradient, level)
+    return tvm.ir.register_op_attr(op_name, "FPrimalGradient", fgradient, level)
 
 
 def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
@@ -450,7 +372,7 @@ def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
         The priority level
     """
     get(op_name).set_attr("TShapeDataDependant", data_dependant, level)
-    return register(op_name, "FShapeFunc", shape_func, level)
+    return tvm.ir.register_op_attr(op_name, "FShapeFunc", shape_func, level)
 
 
 def register_external_compiler(op_name, fexternal=None, level=10):
@@ -469,7 +391,7 @@ def register_external_compiler(op_name, fexternal=None, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "FTVMExternalCompiler", fexternal, level)
+    return tvm.ir.register_op_attr(op_name, "FTVMExternalCompiler", fexternal, level)
 
 
 @tvm._ffi.register_func("relay.op.compiler._lower")
