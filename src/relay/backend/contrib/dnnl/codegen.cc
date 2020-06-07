@@ -412,8 +412,8 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
                  << "\n";
     }
 
-    // Create a PackagingModule
-    const auto* pf = runtime::Registry::Get("runtime.PackagingModuleCreate");
+    // Create a SourceMetadataModuleNode
+    const auto* pf = runtime::Registry::Get("runtime.SourceMetadataModuleCreate");
     CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
     return (*pf)(code, "c", metadata);
   }

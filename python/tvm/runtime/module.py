@@ -33,6 +33,11 @@ from . import _ffi_api
 ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
 
 
+def ModuleInitWrapper(metadata, source_type="c"):
+    """Create a module initialization wrapper"""""
+    return _ffi_api.ModuleInitWrapper(metadata, source_type)
+
+
 class Module(object):
     """Runtime Module."""
     __slots__ = ["handle", "_entry", "entry_name"]

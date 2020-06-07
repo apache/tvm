@@ -21,7 +21,7 @@ from .packed_func import PackedFunc
 from .object import Object
 from .object_generic import ObjectGeneric, ObjectTypes
 from .ndarray import NDArray, DataType, DataTypeCode, TVMContext
-from .module import Module
+from .module import Module, ModuleInitWrapper
 
 # function exposures
 from .object_generic import convert_to_object, convert, const

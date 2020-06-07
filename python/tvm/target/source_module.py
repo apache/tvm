@@ -16,18 +16,17 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, invalid-name, redefined-builtin
 """
-APIs for a packaging module
+Helper functions and classes for hanlding source and metdata.
 """
 from tvm.runtime import _ffi_api
 
-class PackagingModule:
+class SourceMetadataModule:
     """The Packaging module"""
     def __init__(self, mod):
         self.mod = mod
         self._get_source = self.mod["get_source"]
         self._get_source_type = self.mod["get_source_type"]
         self._get_metadata = self.mod["get_metadata"]
-        self._is_c_source = self.mod["is_c_source"]
 
     @property
     def source(self):
@@ -46,14 +45,9 @@ class PackagingModule:
 
     def is_c_source(self):
         """Check if the source code is C/C++"""
-        return self._is_c_source()
+        return self.source_type == "c" or self.source_type == "cc"
 
 
 def CSourceModule(code, fmt="c"):
     """Create a C source module"""
     return _ffi_api.CSourceModuleCreate(code, fmt)
-
-
-def ModuleInitWrapper(metadata, source_type="c"):
-    """Create a module initialization wrapper"""
-    return _ffi_api.ModuleInitWrapper(metadata, source_type)

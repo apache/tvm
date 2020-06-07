@@ -37,12 +37,12 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
     def update_lib(lib):
         new_lib = lib
         if lib.imported_modules:
-            ext_mod = tvm.target.PackagingModule(lib.imported_modules[0])
+            ext_mod = tvm.target.SourceMetadataModule(lib.imported_modules[0])
             code = ext_mod.source
             metadata = ext_mod.metadata
             src_ty = ext_mod.source_type
 
-            init_mod = tvm.target.ModuleInitWrapper(metadata, src_ty)
+            init_mod = runtime.ModuleInitWrapper(metadata, src_ty)
             for _, src in code.items():
                 init_mod.import_module(tvm.target.CSourceModule(src))
             new_lib.import_module(init_mod)
