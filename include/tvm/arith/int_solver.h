@@ -289,7 +289,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
  * \return The result ranges for each variables.
  *         Constrains that cannot be transformed to Range will be stored in relations.
  */
-IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities);
+IntConstraints SolveInequalitiesToRange(const IntConstraints& system_to_solve);
 
 /*!
  * \brief Solve linear inequalities.
@@ -297,7 +297,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities);
  * \return Solved ranges are deskewed to be started from zero.
  *         New variables and the mapping are created accordingly.
  */
-IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequalities);
+IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& system_to_solve);
 
 }  // namespace arith
 }  // namespace tvm
