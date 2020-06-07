@@ -190,7 +190,7 @@ inline int64_t ZeroAwareGCD(int64_t a, int64_t b) {
  */
 inline int64_t LeastCommonMultiple(int64_t a, int64_t b) {
   int64_t x, y;
-  return (a*b) / ExtendedEuclidean(a, b, &x, &y);
+  return (a * b) / ExtendedEuclidean(a, b, &x, &y);
 }
 
 }  // namespace arith

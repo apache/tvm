@@ -21,13 +21,12 @@
  * \file int_constraints.cc
  * \brief The integer constraints data structures.
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/op.h>
-#include <tvm/arith/analyzer.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <algorithm>
@@ -39,9 +38,7 @@
 namespace tvm {
 namespace arith {
 
-IntGrpBounds::IntGrpBounds(PrimExpr coef,
-                           Array<PrimExpr> lower,
-                           Array<PrimExpr> equal,
+IntGrpBounds::IntGrpBounds(PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
                            Array<PrimExpr> upper) {
   CHECK(coef.dtype().is_int() || coef.dtype().is_uint())
       << "Coefficient in IntGrpBounds must be integers";
@@ -86,11 +83,11 @@ IntGrpBounds IntGrpBounds::operator+(const Range& r) {
 }
 
 IntGrpBounds IntGrpBounds::Substitute(const Map<Var, PrimExpr>& subst) const {
-    auto apply_fun = [&subst](const PrimExpr& e) { return tir::Substitute(e, subst); };
-    return IntGrpBounds(tir::Substitute(operator->()->coef, subst),
-                        tir::UpdateArray(operator->()->lower, apply_fun),
-                        tir::UpdateArray(operator->()->equal, apply_fun),
-                        tir::UpdateArray(operator->()->upper, apply_fun));
+  auto apply_fun = [&subst](const PrimExpr& e) { return tir::Substitute(e, subst); };
+  return IntGrpBounds(tir::Substitute(operator->()->coef, subst),
+                      tir::UpdateArray(operator->()->lower, apply_fun),
+                      tir::UpdateArray(operator->()->equal, apply_fun),
+                      tir::UpdateArray(operator->()->upper, apply_fun));
 }
 
 Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
@@ -112,8 +109,7 @@ Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
   }
 
   if (lowers.size() == 1 && uppers.size() == 1 && tir::is_one(operator->()->coef)) {
-    return Range(analyzer.Simplify(lowers[0]),
-                 analyzer.Simplify(uppers[0] + 1));
+    return Range(analyzer.Simplify(lowers[0]), analyzer.Simplify(uppers[0] + 1));
   }
 
   // Here we will try all pairs of lower and upper bounds and find the best pair, that is, the
@@ -133,16 +129,15 @@ Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
 
       // low is the lower bound for v*coef, but we need the lower bound for v.
       // We use rounding-up division to compute it. Since we want to use a single formula
-      PrimExpr low_divided = analyzer.Simplify(
-          floordiv(low + operator->()->coef - 1, operator->()->coef), 3);
+      PrimExpr low_divided =
+          analyzer.Simplify(floordiv(low + operator->()->coef - 1, operator->()->coef), 3);
 
       // Compute another difference which may be more precise (or not).
-      PrimExpr diff_2 = analyzer.Simplify(
-          floordiv(upp, operator->()->coef) - low_divided, 3);
+      PrimExpr diff_2 = analyzer.Simplify(floordiv(upp, operator->()->coef) - low_divided, 3);
       PrimExpr diff_over_2 = analyzer.Simplify(EvalSet(diff_2, var_intsets).max(), 3);
 
-      PrimExpr diff_over = analyzer.CanProve(diff_over_2 - diff_over_1 < 0)
-                           ? diff_over_2 : diff_over_1;
+      PrimExpr diff_over =
+          analyzer.CanProve(diff_over_2 - diff_over_1 < 0) ? diff_over_2 : diff_over_1;
 
       // If it is provable that the new one is strictly better than the current best one,
       // then replace it. Note that we are biased towards earlier pairs which should be simpler.
@@ -163,41 +158,30 @@ Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
 TVM_REGISTER_NODE_TYPE(IntGrpBoundsNode);
 
 TVM_REGISTER_GLOBAL("arith.IntGrpBounds")
-.set_body_typed([](PrimExpr coef,
-                   Array<PrimExpr> lower,
-                   Array<PrimExpr> equal,
-                   Array<PrimExpr> upper) {
-  return IntGrpBounds(coef, lower, equal, upper);
-});
+    .set_body_typed([](PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
+                       Array<PrimExpr> upper) { return IntGrpBounds(coef, lower, equal, upper); });
 
-TVM_REGISTER_GLOBAL("arith.int_grouped_bounds_by_range")
-.set_body_typed(IntGrpBounds::range);
+TVM_REGISTER_GLOBAL("arith.int_grouped_bounds_by_range").set_body_typed(IntGrpBounds::range);
 
 TVM_REGISTER_GLOBAL("arith.IntGrpBounds_FindBestRange")
-.set_body([](TVMArgs args,  TVMRetValue* ret) {
-  CHECK(args.size() == 1 || args.size() == 2);
-  IntGrpBounds bounds = args[0];
-  if (args.size() == 1) {
-    *ret = bounds.FindBestRange();
-  } else if (args.size() == 2) {
-    *ret = bounds.FindBestRange(args[1]);
-  }
-});
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      CHECK(args.size() == 1 || args.size() == 2);
+      IntGrpBounds bounds = args[0];
+      if (args.size() == 1) {
+        *ret = bounds.FindBestRange();
+      } else if (args.size() == 2) {
+        *ret = bounds.FindBestRange(args[1]);
+      }
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<IntGrpBoundsNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const IntGrpBoundsNode*>(node.get());
-    p->stream << "IntGrpBounds(coef="
-              << op->coef
-              << ", lower=" << op->lower
-              << ", equal=" << op->equal
-              << ", upper=" << op->upper
-              << ")";
-  });
+    .set_dispatch<IntGrpBoundsNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const IntGrpBoundsNode*>(node.get());
+      p->stream << "IntGrpBounds(coef=" << op->coef << ", lower=" << op->lower
+                << ", equal=" << op->equal << ", upper=" << op->upper << ")";
+    });
 
-
-IntConstraints::IntConstraints(Array<Var> variables,
-                               Map<Var, Range> ranges,
+IntConstraints::IntConstraints(Array<Var> variables, Map<Var, Range> ranges,
                                Array<PrimExpr> relations) {
   ObjectPtr<IntConstraintsNode> node = make_object<IntConstraintsNode>();
   if (!variables.defined()) {
@@ -220,11 +204,9 @@ IntConstraints::IntConstraints(Array<Var> variables,
 TVM_REGISTER_NODE_TYPE(IntConstraintsNode);
 
 TVM_REGISTER_GLOBAL("arith.IntConstraints")
-.set_body_typed([](Array<Var> variables,
-                   Map<Var, Range> ranges,
-                   Array<PrimExpr> relations) {
-  return IntConstraints(variables, ranges, relations);
-});
+    .set_body_typed([](Array<Var> variables, Map<Var, Range> ranges, Array<PrimExpr> relations) {
+      return IntConstraints(variables, ranges, relations);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IntConstraintsNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -247,12 +229,10 @@ IntConstraintsTransform::IntConstraintsTransform(IntConstraints src, IntConstrai
 TVM_REGISTER_NODE_TYPE(IntConstraintsTransformNode);
 
 TVM_REGISTER_GLOBAL("arith.IntConstraintsTransform")
-.set_body_typed([](IntConstraints src,
-                   IntConstraints dst,
-                   Map<Var, PrimExpr> src_to_dst,
-                   Map<Var, PrimExpr> dst_to_src) {
-  return IntConstraintsTransform(src, dst, src_to_dst, dst_to_src);
-});
+    .set_body_typed([](IntConstraints src, IntConstraints dst, Map<Var, PrimExpr> src_to_dst,
+                       Map<Var, PrimExpr> dst_to_src) {
+      return IntConstraintsTransform(src, dst, src_to_dst, dst_to_src);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IntConstraintsTransformNode>([](const ObjectRef& node, ReprPrinter* p) {
