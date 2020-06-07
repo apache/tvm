@@ -449,10 +449,62 @@ class BufferLoadNode : public PrimExprNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferLoadNode, PrimExprNode);
 };
 
+/*!
+ * \brief Managed reference to BufferLoadNode.
+ * \sa BufferLoadNode
+ */
 class BufferLoad : public PrimExpr {
  public:
   TVM_DLL explicit BufferLoad(Buffer buffer, Array<PrimExpr> indices);
   TVM_DEFINE_OBJECT_REF_METHODS(BufferLoad, PrimExpr, BufferLoadNode);
+};
+
+/*!
+ * \brief Load value from the result produced by the producer.
+ *
+ * \note This node only appears in high-level DSLs that are built on top of the TIR.
+ *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
+ *       this node before TIR transformations.
+ *
+ * \sa ProducerLoad, DataProducerNode
+ */
+class ProducerLoadNode : public PrimExprNode {
+ public:
+  /*! \brief The buffer producer. */
+  DataProducer producer;
+  /*! \brief The location arguments. */
+  Array<PrimExpr> indices;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &(this->dtype));
+    v->Visit("producer", &producer);
+    v->Visit("indices", &indices);
+  }
+
+  bool SEqualReduce(const ProducerLoadNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype) && equal(producer, other->producer) &&
+           equal(indices, other->indices);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(producer);
+    hash_reduce(indices);
+  }
+
+  static constexpr const char* _type_key = "ProducerLoad";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerLoadNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to ProducerLoadNode.
+ * \sa ProducerLoadNode
+ */
+class ProducerLoad : public PrimExpr {
+ public:
+  TVM_DLL explicit ProducerLoad(DataProducer producer, Array<PrimExpr> indices);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ProducerLoad, PrimExpr, ProducerLoadNode);
 };
 
 /*!
@@ -661,11 +713,6 @@ class CallNode : public PrimExprNode {
     ExternCPlusPlus = 1,
     /*! \brief Extern "C" without side-effect. */
     PureExtern = 2,
-    /*!
-     * \brief Halide-style call, evaluates func(args).
-     * \note Deprecated, move to BufferLoad in the future.
-     */
-    Halide = 3,
     /*! \brief Intrinsic functions. */
     Intrinsic = 4,
     /*! \brief Intrinsic functions that are pure. */
@@ -677,30 +724,17 @@ class CallNode : public PrimExprNode {
   Array<PrimExpr> args;
   /*! \brief Type of calls. */
   CallType call_type;
-  /*!
-   * \brief The function to be called.
-   * \note Deprecated, move to BufferLoad in the future.
-   */
-  FunctionRef func;
-  /*!
-   * \brief The output value index if func's value is a tuple.
-   * \note Deprecated, move to BufferLoad in the future.
-   */
-  int value_index{0};
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("name", &name);
     v->Visit("args", &args);
     v->Visit("call_type", &call_type);
-    v->Visit("func", &func);
-    v->Visit("value_index", &value_index);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
     return equal(dtype, other->dtype) && equal(name, other->name) && equal(args, other->args) &&
-           equal(call_type, other->call_type) && equal(func, other->func) &&
-           equal(value_index, other->value_index);
+           equal(call_type, other->call_type);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -708,18 +742,13 @@ class CallNode : public PrimExprNode {
     hash_reduce(name);
     hash_reduce(args);
     hash_reduce(call_type);
-    hash_reduce(func);
-    hash_reduce(value_index);
   }
 
   TVM_DLL static PrimExpr make(DataType dtype, std::string name, Array<PrimExpr> args,
-                               CallType call_type, FunctionRef func = FunctionRef(),
-                               int value_index = 0);
+                               CallType call_type);
 
   /*! \return Whether call node is pure. */
-  bool is_pure() const {
-    return (call_type == PureExtern || call_type == PureIntrinsic || call_type == Halide);
-  }
+  bool is_pure() const { return (call_type == PureExtern || call_type == PureIntrinsic); }
 
   /*!
    * \return Whether call node corresponds to a defined intrinsic.
