@@ -78,21 +78,24 @@ class JacobianMutator : public ExprMutator {
   PrimExpr VisitExpr_(const LoadNode* op) NOT_IMPLEMENTED;
   PrimExpr VisitExpr_(const LetNode* op) NOT_IMPLEMENTED;
 
+  PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
+    auto tensor = Downcast<te::Tensor>(op->producer);
+    if (input_.get() && tensor == input_) {
+      // Tensor(indices)
+      CHECK_EQ(indices_.size(), op->indices.size());
+      PrimExpr condition = const_true();
+      for (size_t i = 0; i < input_.ndim(); ++i) {
+        condition = AndNode::make(condition, EQNode::make(indices_[i], op->indices[i]));
+      }
+      return CastNode::make(op->dtype, condition);
+    } else {
+      return make_zero(op->dtype);
+    }
+  }
+
   PrimExpr VisitExpr_(const CallNode* op) {
     PrimExpr expr = GetRef<PrimExpr>(op);
-    if (op->call_type == CallNode::CallType::Halide) {
-      if (input_.get() && op->func.same_as(input_->op) && op->value_index == input_->value_index) {
-        // Tensor(indices)
-        CHECK_EQ(indices_.size(), op->args.size());
-        PrimExpr condition = const_true();
-        for (size_t i = 0; i < input_.ndim(); ++i) {
-          condition = AndNode::make(condition, EQNode::make(indices_[i], op->args[i]));
-        }
-        return CastNode::make(op->dtype, condition);
-      } else {
-        return make_zero(op->dtype);
-      }
-    } else if (op->call_type == CallNode::CallType::PureIntrinsic) {
+    if (op->call_type == CallNode::CallType::PureIntrinsic) {
       static std::unordered_set<std::string> piecewise_const = {"floor", "ceil", "trunc", "round"};
       if (op->name == "exp") {
         return MulNode::make(Mutate(op->args[0]), expr);
@@ -116,8 +119,7 @@ class JacobianMutator : public ExprMutator {
                                               FloatImm(type, 1.0), FloatImm(type, -1.0)));
       } else if (op->name == intrinsic::tvm_if_then_else) {
         Array<PrimExpr> new_args = {op->args[0], Mutate(op->args[1]), Mutate(op->args[2])};
-        return CallNode::make(op->dtype, op->name, new_args, op->call_type, op->func,
-                              op->value_index);
+        return CallNode::make(op->dtype, op->name, new_args, op->call_type);
       } else if (piecewise_const.count(op->name)) {
         return FloatImm(expr.dtype(), 0.0);
       } else {

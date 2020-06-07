@@ -335,10 +335,9 @@ class StorageFlattener : public StmtExprMutator {
     return stmt;
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
-    CHECK(op->call_type != CallNode::Halide) << "Cannot handle Halide calls "
-                                             << " please run SchedulePostProcToPrimFunc first";
-    return StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
+    LOG(FATAL) << "ProducerLoad cannot appear in a valid TIR PrimFunc.";
+    return PrimExpr();
   }
 
   Stmt VisitStmt_(const ProvideNode* op) final {

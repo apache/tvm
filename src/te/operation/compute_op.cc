@@ -153,9 +153,8 @@ Array<Tensor> ComputeOpNode::InputTensors() const {
   std::unordered_set<Tensor> visited;
   for (auto& e : body) {
     tir::PostOrderVisit(e, [&ret, &visited](const ObjectRef& n) {
-      const tir::CallNode* call = n.as<tir::CallNode>();
-      if (call != nullptr && call->func.defined()) {
-        Tensor t = Downcast<Operation>(call->func).output(call->value_index);
+      if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+        Tensor t = Downcast<Tensor>(pload->producer);
         if (!visited.count(t)) {
           ret.push_back(t);
           visited.insert(t);
@@ -202,9 +201,8 @@ void ComputeOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* an
                                       std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
   auto fvisit = [&dom_map, out_dom_map, analyzer](const ObjectRef& n) {
-    auto* call = n.as<tir::CallNode>();
-    if (call != nullptr && call->func.defined()) {
-      Tensor t = Downcast<Operation>(call->func).output(call->value_index);
+    if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+      Tensor t = Downcast<Tensor>(pload->producer);
       if (t->op.defined() && out_dom_map->count(t)) {
         TensorDom& dom = out_dom_map->at(t);
         for (size_t i = 0; i < t.ndim(); ++i) {
@@ -212,7 +210,7 @@ void ComputeOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* an
           // undefined behaviour), so we can intersect the estimated set of the argument with the
           // range expected by the tensor. However, intersection may result in overly complex
           // expressions, so we perform a more relaxed form of intersection.
-          IntSet arg_intset = analyzer->int_set(call->args[i], ConvertDomMap(dom_map));
+          IntSet arg_intset = analyzer->int_set(pload->indices[i], ConvertDomMap(dom_map));
           const arith::IntervalSetNode* arg_interval = arg_intset.as<arith::IntervalSetNode>();
           if (arg_interval) {
             PrimExpr shape_i_min_value = make_zero(t->shape[i].dtype());

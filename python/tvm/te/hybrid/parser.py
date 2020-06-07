@@ -272,8 +272,7 @@ class HybridParser(ast.NodeVisitor):
             return entry if isinstance(node.ctx, ast.Load) else None
         if ty is Symbol.BufferVar:
             if isinstance(node.ctx, ast.Load):
-                return tvm.tir.Call(entry.dtype, entry.name, [tvm.runtime.const(0, 'int32')], \
-                                  _expr.Call.Halide, entry.op, entry.value_index)
+                return tvm.tir.ProducerLoad(entry, [tvm.runtime.const(0, 'int32')])
             return entry, [tvm.runtime.const(0, 'int32')]
         # Do I need any assertion here?
         return entry
@@ -305,7 +304,7 @@ class HybridParser(ast.NodeVisitor):
             args = [tvm.runtime.const(0, 'int32')]
         _internal_assert(isinstance(buf, Tensor), "LHS is supposed to be Tensor!")
 
-        read = tvm.tir.Call(buf.dtype, buf.name, args, _expr.Call.Halide, buf.op, buf.value_index)
+        read = tvm.tir.ProducerLoad(buf, args)
         value = HybridParser._binop_maker[type(node.op)](read, rhs)
 
         return tvm.tir.Provide(buf.op, 0, value, args)
@@ -392,8 +391,7 @@ class HybridParser(ast.NodeVisitor):
                     arr = arr[i.value]
             return arr
         if isinstance(node.ctx, ast.Load):
-            return tvm.tir.Call(arr.dtype, arr.name, args,
-                                _expr.Call.Halide, arr.op, arr.value_index)
+            return tvm.tir.ProducerLoad(arr, args)
         return arr, args
 
     def visit_With(self, node):

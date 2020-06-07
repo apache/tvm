@@ -202,18 +202,21 @@ void CodeGenHybrid::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT
   PrintExpr(op->a, os);
 }
 
+void CodeGenHybrid::VisitExpr_(const ProducerLoadNode* op, std::ostream& os) {  // NOLINT(*)
+  auto tensor = Downcast<Tensor>(op->producer);
+
+  os << GetTensorID(tensor->op, tensor->value_index);
+  os << "[";
+  for (size_t i = 0; i < op->indices.size(); ++i) {
+    if (i) os << ", ";
+    std::stringstream idx;
+    PrintExpr(op->indices[i], idx);
+    os << idx.str();
+  }
+  os << "]";
+}
 void CodeGenHybrid::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
-  if (op->call_type == CallNode::Halide) {
-    os << GetTensorID(op->func, op->value_index);
-    os << "[";
-    for (size_t i = 0; i < op->args.size(); ++i) {
-      if (i) os << ", ";
-      std::stringstream idx;
-      PrintExpr(op->args[i], idx);
-      os << idx.str();
-    }
-    os << "]";
-  } else if (op->is_intrinsic(CallNode::bitwise_and)) {
+  if (op->is_intrinsic(CallNode::bitwise_and)) {
     PrintBinaryIntrinsitc(op, "&", os, this);
   } else if (op->is_intrinsic(CallNode::bitwise_xor)) {
     PrintBinaryIntrinsitc(op, "^", os, this);

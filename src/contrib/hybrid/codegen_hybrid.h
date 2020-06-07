@@ -90,6 +90,7 @@ class CodeGenHybrid : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   void VisitExpr_(const LoadNode* op, std::ostream& os) override;       // NOLINT(*)
   void VisitExpr_(const LetNode* op, std::ostream& os) override;        // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) override;       // NOLINT(*)
+  void VisitExpr_(const ProducerLoadNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const AddNode* op, std::ostream& os) override;        // NOLINT(*)
   void VisitExpr_(const SubNode* op, std::ostream& os) override;        // NOLINT(*)
   void VisitExpr_(const MulNode* op, std::ostream& os) override;        // NOLINT(*)

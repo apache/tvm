@@ -78,10 +78,9 @@ def replace_io(body, rmap):
         if isinstance(op, _stmt.Provide) and op.func in rmap.keys():
             buf = rmap[op.func]
             return _stmt.Provide(buf.op, op.value_index, op.value, op.args)
-        if isinstance(op, _expr.Call) and  op.func in rmap.keys():
-            buf = rmap[op.func]
-            return _expr.Call(buf.dtype, buf.name, op.args, \
-                              _expr.Call.Halide, buf.op, buf.value_index)
+        if isinstance(op, _expr.ProducerLoad) and  op.producer.op in rmap.keys():
+            buf = rmap[op.producer.op]
+            return _expr.ProducerLoad(buf, op.indices)
         return None
 
     return stmt_functor.ir_transform(body, None, replace, ['Provide', 'Call'])

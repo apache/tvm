@@ -138,9 +138,9 @@ def test_outer_product():
     assert jbody.args[1].name == 'j'
     assert isinstance(jbody.value, tvm.tir.Mul)
     mul = jbody.value
-    assert isinstance(mul.a, tvm.tir.Call)
-    assert mul.a.name == 'a'
-    assert mul.b.name == 'b'
+    assert isinstance(mul.a, tvm.tir.ProducerLoad)
+    assert mul.a.producer.name == 'a'
+    assert mul.b.producer.name == 'b'
 
     func, ins, outs = run_and_check(outer_product, [n, m, a, b], {n: 99, m: 101})
     temp = util.tempdir()
@@ -209,29 +209,29 @@ def test_fanout():
     assert jbody.func.name == 'sigma'
     assert isinstance(jbody.value, tvm.tir.Add)
     value = jbody.value
-    assert isinstance(value.a, tvm.tir.Call)
-    assert value.a.name == 'sigma'
-    assert len(value.a.args) == 1
-    assert value.a.args[0].value == 0
-    assert value.b.name == 'a'
-    assert len(value.b.args) == 1
-    assert tvm.ir.structural_equal(value.b.args[0], ir.loop_var + jloop.loop_var)
+    assert isinstance(value.a, tvm.tir.ProducerLoad)
+    assert value.a.producer.name == 'sigma'
+    assert len(value.a.indices) == 1
+    assert value.a.indices[0].value == 0
+    assert value.b.producer.name == 'a'
+    assert len(value.b.indices) == 1
+    assert tvm.ir.structural_equal(value.b.indices[0], ir.loop_var + jloop.loop_var)
     divide= rbody[2]
     assert isinstance(divide, tvm.tir.Provide)
     assert len(divide.args) == 1
     assert divide.args[0].value == 0
     value = divide.value
     assert isinstance(value, tvm.tir.Mul)
-    assert value.a.name == 'sigma'
-    assert len(value.a.args) == 1
-    assert value.a.args[0].value == 0
+    assert value.a.producer.name == 'sigma'
+    assert len(value.a.indices) == 1
+    assert value.a.indices[0].value == 0
     assert abs(value.b.value - (1 / 3.0)) < 1e-5
     write = rbody[3]
     assert isinstance(write, tvm.tir.Provide)
     assert write.func.name == 'b'
-    assert write.value.name == 'sigma'
-    assert len(write.value.args) == 1
-    assert write.value.args[0].value == 0
+    assert write.value.producer.name == 'sigma'
+    assert len(write.value.indices) == 1
+    assert write.value.indices[0].value == 0
 
     func, ins, outs = run_and_check(fanout, [n, a], {n: 10})
     run_and_check(func, ins, {n: 10}, outs=outs)

@@ -245,18 +245,21 @@ class SchedulePostProc : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->call_type == CallNode::Halide) {
-      TensorKey key{op->func, op->value_index};
-      auto it = replace_buffer_.find(key);
-      if (it != replace_buffer_.end()) {
-        const Tensor& dst = it->second;
-        PrimExpr ret = CallNode::make(op->dtype, dst->op->name, op->args, op->call_type, dst->op,
-                                      dst->value_index);
-        return this->VisitExpr(ret);
-      }
+  PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    op = expr.as<ProducerLoadNode>();
+    CHECK(op != nullptr);
+
+    auto tensor = Downcast<Tensor>(op->producer);
+    TensorKey key{tensor->op, tensor->value_index};
+
+    auto it = replace_buffer_.find(key);
+    if (it != replace_buffer_.end()) {
+      const Tensor& dst = it->second;
+      return ProducerLoad(dst, op->indices);
+    } else {
+      return expr;
     }
-    return StmtExprMutator::VisitExpr_(op);
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
