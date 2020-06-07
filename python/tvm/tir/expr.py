@@ -144,7 +144,7 @@ class ExprOp(object):
     def __invert__(self):
         if _dtype_is_float(self):
             raise RuntimeError("Cannot use ~ operator on float type Expr.")
-        return _ffi_api.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic, None, 0)
+        return _ffi_api.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic)
 
     def __lt__(self, other):
         return _ffi_api._OpLT(self, other)
@@ -889,6 +889,23 @@ class BufferLoad(PrimExprWithOp):
 
 
 @tvm._ffi.register_object
+class ProducerLoad(PrimExprWithOp):
+    """Producer load node.
+
+    Parameters
+    ----------
+    producer : DataProducer
+        The buffer to be loaded.
+
+    indices : List[PrimExpr]
+        The buffer indices.
+    """
+    def __init__(self, producer, indices):
+        self.__init_handle_by_constructor__(
+            _ffi_api.ProducerLoad, producer, indices)
+
+
+@tvm._ffi.register_object
 class Ramp(PrimExprWithOp):
     """Ramp node.
 
@@ -959,22 +976,15 @@ class Call(PrimExprWithOp):
 
     call_type : int
         The type of the call
-
-    func : Operation, optional
-        Operation if call_type is Halide
-
-    value_index : int
-        The output value index
     """
     Extern = 0
     ExternCPlusPlus = 1
     PureExtern = 2
-    Halide = 3
     Intrinsic = 4
     PureIntrinsic = 5
-    def __init__(self, dtype, name, args, call_type, func, value_index):
+    def __init__(self, dtype, name, args, call_type):
         self.__init_handle_by_constructor__(
-            _ffi_api.Call, dtype, name, args, call_type, func, value_index)
+            _ffi_api.Call, dtype, name, args, call_type)
 
 
 @tvm._ffi.register_object

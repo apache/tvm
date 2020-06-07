@@ -214,8 +214,7 @@ class Vectorizer : public StmtExprMutator {
       int lanes = std::max(t.dtype().lanes(), f.dtype().lanes());
       t = BroadcastTo(t, lanes);
       f = BroadcastTo(f, lanes);
-      return CallNode::make(op->dtype.with_lanes(lanes), op->name, {cond, t, f}, op->call_type,
-                            op->func, op->value_index);
+      return CallNode::make(op->dtype.with_lanes(lanes), op->name, {cond, t, f}, op->call_type);
     }
   }
   // Call
@@ -237,8 +236,7 @@ class Vectorizer : public StmtExprMutator {
       if (op->args.same_as(new_args)) {
         return GetRef<PrimExpr>(op);
       } else {
-        return CallNode::make(op->dtype, op->name, new_args, op->call_type, op->func,
-                              op->value_index);
+        return CallNode::make(op->dtype, op->name, new_args, op->call_type);
       }
     } else {
       int lane = 0;
@@ -247,8 +245,7 @@ class Vectorizer : public StmtExprMutator {
       if (op->args.same_as(new_args)) {
         return GetRef<PrimExpr>(op);
       } else {
-        return CallNode::make(op->dtype.with_lanes(lane), op->name, new_args, op->call_type,
-                              op->func, op->value_index);
+        return CallNode::make(op->dtype.with_lanes(lane), op->name, new_args, op->call_type);
       }
     }
   }
