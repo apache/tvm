@@ -76,43 +76,19 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
   }
 
   std::vector<Output> VisitExpr_(const ConstantNode* cn) final {
-    // Note this is for demonstration purpose. ConstantNode doesn't necessarily
-    // belong to calls. We need to revisit this when tuples come into play.
-
     std::ostringstream decl_stream;
     std::ostringstream buf_stream;
 
     Output output;
-    output.name = "const_" + std::to_string(const_idx_++);
-
-    runtime::NDArray array = cn->data;
-    const auto& shape = array.Shape();
-
-    // Get the number of elements.
-    int64_t num_elems = 1;
-    for (auto i : shape) num_elems *= i;
-
+    output.name = ext_func_id_ + "const_" + std::to_string(const_idx_++);
     const auto* type_node = cn->checked_type().as<TensorTypeNode>();
     CHECK(type_node);
     const auto& dtype = GetDtypeString(type_node);
-    // Define a const buffer: float const_0[64] = {1.0, 2.0, ...};
-    //
-    // Technically, you may need: static float* const_0 = (float*)malloc(4 * 64)
-    // to avoid possible stack overflow.
-    buf_stream << dtype << " " << output.name << "[" << num_elems << "] = {";
-    if (dtype == "float") {
-      float* p_flt = static_cast<float*>(array->data);
-      for (int64_t i = 0; i < num_elems - 1; i++) buf_stream << p_flt[i] << ", ";
-      if (num_elems) buf_stream << p_flt[num_elems - 1];
-    } else if (dtype == "int") {
-      int* p_flt = static_cast<int*>(array->data);
-      for (int64_t i = 0; i < num_elems - 1; i++) buf_stream << p_flt[i] << ", ";
-      if (num_elems) buf_stream << p_flt[num_elems - 1];
-    } else {
-      LOG(FATAL) << "Only float and int are supported for now.";
-    }
-    buf_stream << "};";
-    ext_func_body.insert(ext_func_body.begin(), buf_stream.str());
+    CHECK(dtype == "float" || dtype == "int") << "Only float and int are supported for now.";
+    output.dtype = dtype;
+
+    CHECK_EQ(metadata_.count(output.name), 0U) << "variable must be unique: " << output.name;
+    metadata_.Set(output.name, cn->data);
 
     return {output};
   }
@@ -201,6 +177,8 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out);
   }
 
+  Map<String, runtime::NDArray> GetMetadata() const { return metadata_; }
+
  private:
   /*! \brief The function id that represents a C source function. */
   std::string ext_func_id_ = "";
@@ -218,11 +196,13 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
   std::vector<std::string> func_decl_;
   /*! \brief The declaration statements of buffers. */
   std::vector<std::string> buf_decl_;
+  /*! \brief The variable name to constant mapping. */
+  Map<String, runtime::NDArray> metadata_;
 };
 
 class CSourceCodegen : public CSourceModuleCodegenBase {
  public:
-  void GenCFunc(const Function& func) {
+  std::pair<std::string, Map<String, runtime::NDArray>> GenCFunc(const Function& func) {
     CHECK(func.defined()) << "Input error: expect a Relay function.";
 
     // Record the external symbol for runtime lookup.
@@ -231,6 +211,8 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
     CodegenC builder(sid);
     auto out = builder.VisitExpr(func->body);
     code_stream_ << builder.JIT(out);
+
+    return std::make_pair(sid, builder.GetMetadata());
   }
 
   runtime::Module CreateCSourceModule(const ObjectRef& ref) override {
@@ -262,22 +244,41 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
 
     code_stream_ << operator_macro << "\n\n";
 
+    Map<String, String> code;
+    Map<String, Map<String, runtime::NDArray>> metadata;
     if (ref->IsInstance<FunctionNode>()) {
-      GenCFunc(Downcast<Function>(ref));
+      auto ret = GenCFunc(Downcast<Function>(ref));
+      String sym = std::get<0>(ret);
+      Map<String, runtime::NDArray> consts = std::get<1>(ret);
+      std::string code_str = code_stream_.str();
+      if (!consts.empty()) {
+        code_str = "#include \"metadata.h\"\n" + code_str;
+        metadata.Set(sym, consts);
+      }
+      code.Set(sym, code_str);
     } else if (ref->IsInstance<IRModuleNode>()) {
       IRModule mod = Downcast<IRModule>(ref);
       for (const auto& it : mod->functions) {
-        GenCFunc(Downcast<Function>(it.second));
+        auto ret = GenCFunc(Downcast<Function>(it.second));
+        Map<String, runtime::NDArray> consts = std::get<1>(ret);
+        if (!consts.empty()) {
+          metadata.Set(std::get<0>(ret), consts);
+        }
       }
+      std::string code_str = code_stream_.str();
+      if (!metadata.empty()) {
+        code_str = "#include \"metadata.h\"\n" + code_str;
+      }
+      code.Set("all", code_str);
     } else {
       LOG(FATAL) << "The input ref is expected to be a Relay function or module"
                  << "\n";
     }
 
-    // Create a CSourceModule
-    const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
+    // Create a PackagingModule
+    const auto* pf = runtime::Registry::Get("runtime.PackagingModuleCreate");
     CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
-    return (*pf)(code_stream_.str(), "cc");
+    return (*pf)(code, "c", metadata);
   }
 
  private:

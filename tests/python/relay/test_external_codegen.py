@@ -34,16 +34,17 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         return
 
     def update_lib(lib):
-        ext_mod = tvm.target.PackagingModule(lib.imported_modules[0])
-        code = ext_mod.source
-        metadata = ext_mod.metadata
-        src_ty = ext_mod.source_type
-
         new_lib = lib
-        init_mod = tvm.target.ModuleInitWrapper(metadata, src_ty)
-        for _, src in code.items():
-            init_mod.import_module(tvm.target.CSourceModule(src))
-        new_lib.import_module(init_mod)
+        if lib.imported_modules:
+            ext_mod = tvm.target.PackagingModule(lib.imported_modules[0])
+            code = ext_mod.source
+            metadata = ext_mod.metadata
+            src_ty = ext_mod.source_type
+
+            init_mod = tvm.target.ModuleInitWrapper(metadata, src_ty)
+            for _, src in code.items():
+                init_mod.import_module(tvm.target.CSourceModule(src))
+            new_lib.import_module(init_mod)
 
         test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
         source_dir = os.path.join(test_dir, "..", "..", "..")
@@ -260,7 +261,6 @@ def test_extern_dnnl():
     f = set_external_func_attr(f, "dnnl", "dnnl_0")
     call = relay.Call(f, [data0, weight0, weight0])
     mod = tvm.IRModule.from_expr(call)
-    print(mod)
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w_data = np.random.uniform(0, 1, w1shape).astype(dtype)
