@@ -158,12 +158,6 @@ def test_stmt_constructor():
     assert x.index.value == 10
     assert x.value.value == 1
 
-    tensor = te.placeholder((), dtype="float32")
-    x = tvm.tir.Provide(tensor.op, 0, 10, [])
-    assert isinstance(x, tvm.tir.Provide)
-    assert x.value_index == 0
-    assert x.value.value == 10
-
     x = tvm.tir.Allocate(buffer_var, "float32", [10],
                           tvm.tir.const(1, "uint1"), nop)
     assert isinstance(x, tvm.tir.Allocate)
@@ -180,10 +174,6 @@ def test_stmt_constructor():
     x = tvm.tir.Free(buffer_var)
     assert isinstance(x, tvm.tir.Free)
     assert x.buffer_var == buffer_var
-
-    x = tvm.tir.Realize(None, 0, "float", [], tvm.tir.const(1, "uint1"), nop)
-    assert isinstance(x, tvm.tir.Realize)
-    assert x.body == nop
 
     x = tvm.tir.IfThenElse(tvm.tir.const(1, "uint1"),
                             tvm.tir.Evaluate(11),

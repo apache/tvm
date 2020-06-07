@@ -128,8 +128,7 @@ Stmt ExternOpNode::BuildRealize(const Stage& stage,
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(Range::make_by_min_extent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body =
-        tir::RealizeNode::make(t->op, t->value_index, t->dtype, bounds, const_true(), realize_body);
+    realize_body = tir::ProducerRealizeNode::make(t, bounds, const_true(), realize_body);
   }
   return realize_body;
 }
