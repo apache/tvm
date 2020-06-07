@@ -49,11 +49,11 @@ class OperationNode;
  * \brief Tensor structure representing a possible input,
  *  or intermediate computation result.
  */
-class Tensor : public ObjectRef {
+class Tensor : public DataProducer {
  public:
   /*! \brief default constructor, used internally */
   Tensor() {}
-  explicit Tensor(ObjectPtr<Object> n) : ObjectRef(n) {}
+  explicit Tensor(ObjectPtr<Object> n) : DataProducer(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -157,7 +157,7 @@ class Operation : public tir::FunctionRef {
 };
 
 /*! \brief Node to represent a tensor */
-class TensorNode : public Object {
+class TensorNode : public DataProducerNode {
  public:
   /*! \brief The shape of the tensor */
   Array<PrimExpr> shape;
@@ -176,10 +176,17 @@ class TensorNode : public Object {
     v->Visit("op", &op);
     v->Visit("value_index", &value_index);
   }
+
+  Array<PrimExpr> GetShape() const final { return shape; }
+
+  DataType GetDataType() const final { return dtype; }
+
+  TVM_DLL String GetNameHint() const final;
+
   TVM_DLL static Tensor make(Array<PrimExpr> shape, DataType dtype, Operation op, int value_index);
 
   static constexpr const char* _type_key = "Tensor";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, DataProducerNode);
 };
 
 // Implementations of inline functions

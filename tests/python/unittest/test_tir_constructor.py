@@ -112,14 +112,12 @@ def test_expr_constructor():
     assert x.vectors[0] == a
     assert x.indices[0].value == 0
 
-    x = tvm.tir.Call("float32", "xyz", [a], tvm.tir.Call.Extern, None, 0)
+    x = tvm.tir.Call("float32", "xyz", [a], tvm.tir.Call.Extern)
     assert isinstance(x, tvm.tir.Call)
     assert x.dtype == "float32"
     assert x.name == "xyz"
     assert x.args[0] == a
     assert x.call_type == tvm.tir.Call.Extern
-    assert x.func == None
-    assert x.value_index == 0
 
     v = te.var("aa")
     x = tvm.tir.Let(v, 1, v)

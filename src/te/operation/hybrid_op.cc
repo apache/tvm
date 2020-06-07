@@ -86,9 +86,8 @@ Array<Tensor> HybridOpNode::InputTensors() const {
   std::unordered_set<Tensor> visited;
   Array<Tensor> curr_inputs;
   tir::PostOrderVisit(body, [&curr_inputs, &orig_inputs, &visited](const ObjectRef& n) {
-    const tir::CallNode* call = n.as<tir::CallNode>();
-    if (call != nullptr && call->func.defined()) {
-      Tensor t = Downcast<Operation>(call->func).output(call->value_index);
+    if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+      Tensor t = Downcast<Tensor>(pload->producer);
       if (orig_inputs.count(t) && !visited.count(t)) {
         curr_inputs.push_back(t);
         visited.insert(t);

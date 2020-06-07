@@ -114,17 +114,12 @@ class TensorToBufferMapper : public StmtExprMutator {
     return BufferStore(buffer, op->value, op->args);
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
     auto ret = StmtExprMutator::VisitExpr_(op);
-    op = ret.as<CallNode>();
-
-    if (op->call_type == CallNode::Halide) {
-      Tensor tensor = Downcast<Operation>(op->func).output(op->value_index);
-      Buffer buffer = GetBuffer(tensor);
-      return tir::BufferLoad(buffer, op->args);
-    } else {
-      return ret;
-    }
+    op = ret.as<ProducerLoadNode>();
+    Tensor tensor = Downcast<Tensor>(op->producer);
+    Buffer buffer = GetBuffer(tensor);
+    return tir::BufferLoad(buffer, op->indices);
   }
 
  private:

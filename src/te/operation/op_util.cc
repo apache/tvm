@@ -206,18 +206,19 @@ class TensorReplacer : public tir::StmtExprMutator {
  public:
   explicit TensorReplacer(const std::unordered_map<Tensor, Tensor>& vmap) : vmap_(vmap) {}
 
-  PrimExpr VisitExpr_(const tir::CallNode* op) final {
-    if (op->call_type == tir::CallNode::Halide) {
-      Tensor t = Downcast<Operation>(op->func).output(op->value_index);
-      auto it = vmap_.find(t);
-      if (it != vmap_.end()) {
-        PrimExpr ret = tir::CallNode::make(op->dtype, it->second->op->name, op->args, op->call_type,
-                                           it->second->op, it->second->value_index);
-        found = true;
-        return this->VisitExpr(ret);
-      }
+  PrimExpr VisitExpr_(const tir::ProducerLoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    op = expr.as<tir::ProducerLoadNode>();
+    CHECK(op != nullptr);
+
+    Tensor t = Downcast<Tensor>(op->producer);
+    auto it = vmap_.find(t);
+    if (it != vmap_.end()) {
+      found = true;
+      return tir::ProducerLoad(it->second, op->indices);
+    } else {
+      return expr;
     }
-    return StmtExprMutator::VisitExpr_(op);
   }
 
   // whether it is found.

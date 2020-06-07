@@ -203,6 +203,61 @@ inline const BufferNode* Buffer::operator->() const {
  */
 TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
                            std::string name = "buffer");
+
+/*!
+ * \brief Base node for data producers.
+ *
+ *  A DataProducer stores necessary information(e.g. a tensor expression) to produce
+ *  a multi-dimensional array. The stored information is opaque to the TIR.
+ *  DataProducer can appear in high-level DSLs that are built on top of the TIR.
+ *
+ *  A valid TIR PrimFunc should not contain any DataProducer, high level DSLs should lower
+ *  all DataProducers to Buffers before TIR transformations.
+ *
+ * \sa tvm::te::Tensor
+ */
+class DataProducerNode : public Object {
+ public:
+  /*! \brief destructor. */
+  virtual ~DataProducerNode() {}
+  /*!
+   * \brief Get the shape of the result.
+   * \return The shape.
+   */
+  virtual Array<PrimExpr> GetShape() const = 0;
+  /*!
+   * \brief Get the data type of the result.
+   * \return The data type.
+   */
+  virtual DataType GetDataType() const = 0;
+  /*!
+   * \brief Get the name hint of the data producer.
+   * \return The data type.
+   */
+  virtual String GetNameHint() const = 0;
+
+  bool SEqualReduce(const DataProducerNode* other, SEqualReducer equal) const {
+    // because buffer producer is opaque, we just do pointer equality.
+    return this == other;
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {}
+
+  static constexpr const char* _type_key = "DataProducer";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_BASE_OBJECT_INFO(DataProducerNode, Object);
+};
+
+/*!
+ * \brief Managed reference to DataProducerNode.
+ * \sa DataProducerNode
+ */
+class DataProducer : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(DataProducer, ObjectRef, DataProducerNode);
+};
+
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_BUFFER_H_
