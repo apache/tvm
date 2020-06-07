@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import random
-import numpy as np
 import sys
 import pytest
 import tvm
