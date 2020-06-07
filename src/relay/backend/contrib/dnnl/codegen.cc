@@ -168,32 +168,13 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     output.name = ext_func_id_ + "_const_" + std::to_string(const_idx_++);
     output.dtype = "float";
 
-    runtime::NDArray array = cn->data;
     CHECK_EQ(metadata_.count(output.name), 0U) << "variable must be unique: " << output.name;
-    metadata_.Set(output.name, array);
-
-    // Get the number of elements.
-    int64_t num_elems = 1;
-    for (auto i : array.Shape()) num_elems *= i;
+    metadata_.Set(output.name, cn->data);
 
     const auto* type_node = cn->checked_type().as<TensorTypeNode>();
     CHECK(type_node);
     CHECK_EQ(GetDtypeString(type_node), "float") << "Only float is supported for now.";
 
-    std::ostringstream buf_stream;
-    const float* ptr = static_cast<float*>(array->data);
-
-    // Allocate large arrays on the static section to avoid stakc overflow.
-    // Note that this would probably increase compilation time as the source
-    // file could be really large.
-    buf_stream << "static float " << output.name << "[" << num_elems << "] = {";
-    for (int64_t i = 0; i < num_elems - 1; i++) {
-      buf_stream << ptr[i] << ",";
-    }
-    if (num_elems > 0) buf_stream << ptr[num_elems - 1];
-    buf_stream << "};\n";
-
-    ext_func_body.insert(ext_func_body.begin(), buf_stream.str());
     return {output};
   }
 

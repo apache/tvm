@@ -24,6 +24,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <cstdint>
 
 #include "../../runtime/file_util.h"
 #include "../../runtime/meta_data.h"
@@ -213,7 +214,9 @@ class ModuleInitWrapper : public runtime::ModuleNode {
     if (initialized_.count(name) == 0) {
       this->InitSubModule(name);
       initialized_[name] = true;
-    } else if (name != "init_module" && name != "destroy_module") {
+    }
+
+    if (name != "init_module" && name != "destroy_module") {
       CHECK(!this->imports().empty());
       runtime::Module submodule = this->imports().at(0);
       return submodule->GetFunction(name);
@@ -228,21 +231,21 @@ class ModuleInitWrapper : public runtime::ModuleNode {
     std::ostringstream os;
     os.precision(16);
     for (const auto& it : metadata_) {
-      auto vars = it.second;
-      if (!vars.defined()) continue;
-      String var_name = (*vars.begin()).first;
-      runtime::NDArray data = (*vars.begin()).second;
-      // Get the number of elements.
-      int64_t num_elems = 1;
-      for (auto i : data.Shape()) num_elems *= i;
-      // TODO(zhiics) Handle different data types.
-      os << "static float " << var_name.c_str() << "[" << num_elems << "] = {";
-      const float* ptr = static_cast<float*>(data->data);
-      for (int64_t i = 0; i < num_elems - 1; i++) {
-        os << ptr[i] << ",";
+      for (const auto& vars : it.second) {
+        String var_name = vars.first;
+        runtime::NDArray data = vars.second;
+        // Get the number of elements.
+        int64_t num_elems = 1;
+        for (auto i : data.Shape()) num_elems *= i;
+        // TODO(zhiics) Handle different data types.
+        os << "static float " << var_name.c_str() << "[" << num_elems << "] = {";
+        const float* ptr = static_cast<float*>(data->data);
+        for (int64_t i = 0; i < num_elems - 1; i++) {
+          os << ptr[i] << ",";
+        }
+        if (num_elems > 0) os << ptr[num_elems - 1];
+        os << "};\n";
       }
-      if (num_elems > 0) os << ptr[num_elems - 1];
-      os << "};\n";
     }
     return os.str();
   }
@@ -259,28 +262,75 @@ class ModuleInitWrapper : public runtime::ModuleNode {
   }
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
-    std::string fmt = GetFileFormat(file_name, format);
-    CHECK_EQ(fmt, "h") << "Can only save to .h file";
     if (source_type_ == "c") {
+      std::string fmt = GetFileFormat(file_name, format);
+      CHECK_EQ(fmt, "h") << "Can only save to .h file";
       SaveBinaryToFile(file_name, InitCSourceMetadata());
-    } else {
-      SaveBinaryToFile(file_name, ";");
     }
   }
 
   void SaveToBinary(dmlc::Stream* stream) final {
-    for (const auto& it : metadata_) {
-      // Save metadata using the NDArray serialization utility
-    }
     stream->Write(source_type_.operator std::string());
+
+    // Save the total number of symbols
+    uint64_t sym_cnt = static_cast<uint64_t>(metadata_.size());
+    stream->Write(sym_cnt);
+
+    for (const auto& it : metadata_) {
+      // Save the symbol/function name
+      stream->Write(it.first.operator std::string());
+
+      std::vector<std::string> variables;
+      std::vector<runtime::NDArray> metadata;
+      for (const auto& vit : it.second) {
+        String var_name = vit.first;
+        variables.push_back(var_name.operator std::string());
+        metadata.push_back(vit.second);
+      }
+
+      // Save all variables in the function.
+      stream->Write(variables);
+      // Save all constant data
+      uint64_t sz = static_cast<uint64_t>(metadata.size());
+      stream->Write(sz);
+      for (uint64_t i = 0; i < sz; i++) {
+        metadata[i].Save(stream);
+      }
+    }
   }
 
   static runtime::Module LoadFromBinary(void* strm) {
     dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
     std::string source_type;
-    stream->Read(&source_type);
+    CHECK(stream->Read(&source_type)) << "Loading source type failed";
+
     Map<String, Map<String, runtime::NDArray>> metadata;
-    // Deserializing metadata using the NDArray serialization utility.
+
+    uint64_t sym_cnt;
+    CHECK(stream->Read(&sym_cnt, sizeof(sym_cnt))) << "Loading the number of symbols failed";
+
+    for (uint64_t i = 0; i < sym_cnt; i++) {
+      std::string sym;
+      CHECK(stream->Read(&sym)) << "Loading symbol name failed";
+      // Load variable and ndarray pairs
+      std::vector<std::string> variables;
+      std::vector<runtime::NDArray> arrays;
+      CHECK(stream->Read(&variables)) << "Loading variables failed";
+      uint64_t sz;
+      CHECK(stream->Read(&sz, sizeof(sz))) << "Loading medata size failed";
+      CHECK_EQ(static_cast<size_t>(sz), variables.size())
+          << "The number of variables and ndarray counts must match";
+      for (uint64_t i = 0; i < sz; i++) {
+        tvm::runtime::NDArray temp;
+        temp.Load(stream);
+        arrays.push_back(temp);
+      }
+      Map<String, runtime::NDArray> var_const;
+      for (size_t i = 0; i < variables.size(); i++) {
+        var_const.Set(variables[i], arrays[i]);
+      }
+      metadata.Set(sym, var_const);
+    }
     auto n = runtime::make_object<ModuleInitWrapper>(metadata, source_type);
     return runtime::Module(n);
   }
