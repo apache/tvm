@@ -29,6 +29,7 @@
 #include <tvm/tir/op.h>
 #include <unordered_map>
 #include <vector>
+#include <utility>
 #include "analyzer.h"
 
 namespace tvm {

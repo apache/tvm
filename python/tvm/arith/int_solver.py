@@ -44,20 +44,20 @@ class IntGrpBounds(Object):
             _ffi_api.IntGrpBounds, coef, lower, equal, upper)
 
     @staticmethod
-    def make_by_range(r):
+    def make_by_range(rng):
         """Construct a IntGroupedBounds by Range.
 
         Parameters
         ----------
-        r : tvm.ir.Range
+        rng : tvm.ir.Range
 
 
         Returns
         -------
-        rng : Range
+        ret : Range
             The constructed range.
         """
-        return _ffi_api.int_grouped_bounds_by_range(r)
+        return _ffi_api.int_grouped_bounds_by_range(rng)
 
     def find_best_range(self):
         """Return the best range from the grouped bounds.
@@ -168,7 +168,8 @@ def solve_linear_inequalities(equations, variables=None, ranges=None, deskew_ran
         If deskew_range is set (=True), the result ranges will be deskewed to be started from zero.
         New variables are created accordingly therefore IntConstraintsTransform is returned.
     """
-    solver = _ffi_api.SolveInequalitiesDeskewRange if deskew_range else _ffi_api.SolveInequalitiesToRange
+    solver = _ffi_api.SolveInequalitiesDeskewRange \
+        if deskew_range else _ffi_api.SolveInequalitiesToRange
     if isinstance(equations, IntConstraints):
         return solver(equations)
     return solver(variables, ranges, equations)
