@@ -7,7 +7,6 @@
 #ifndef TVM_ANSOR_MEASURE_H_
 #define TVM_ANSOR_MEASURE_H_
 
-// #include <tvm/build_module.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -22,8 +21,7 @@ class SearchPolicy;
 class MeasureInput; class BuildResult; class MeasureResult;
 class Builder; class Runner; class MeasureCallback; class ProgramMeasurer;
 
-extern const char *ErrorNoToStr[];
-
+/* \brief The error code of one measurement */
 enum MeasureErrorNO {
   kNoError = 0,              // No error
   kInstantiationError = 1,   // Errors happen when apply transform steps from init state
@@ -35,14 +33,15 @@ enum MeasureErrorNO {
   kRunTimeoutError = 7,      // Timeout during run
   kUnknonwError = 8,         // Unknown error
 };
+extern const char *ErrorNoToStr[];
 
 // Inputs and results of one measurement
 
-/* \brief Store the input of a meansurement */
+/* \brief Store the input of a measurement */
 class MeasureInputNode: public Object {
  public:
-  SearchTask task;
-  State state;
+  SearchTask task;   // The search task
+  State state;       // The program state to be measured
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("task", &task);
@@ -55,16 +54,16 @@ class MeasureInputNode: public Object {
   static constexpr const char* _type_key = "ansor.MeasureInput";
   TVM_DECLARE_FINAL_OBJECT_INFO(MeasureInputNode, Object);
 };
-TVM_DEFINE_NODE_REF(MeasureInput, MeasureInputNode);
+TVM_DEFINE_OBJECT_REF(MeasureInput, MeasureInputNode);
 
 /* \brief Store the input of a build */
 class BuildResultNode: public Object {
  public:
-  std::string filename;
-  Array<te::Tensor> args;
-  int error_no;
-  std::string error_msg;
-  double time_cost;
+  std::string filename;    // The filename of built binary file
+  Array<te::Tensor> args;  // The arguments
+  int error_no;            // The error code (see MeasureErrorNO). 0 means no error.
+  std::string error_msg;   // The error message if there is any error
+  double time_cost;        // The time cost of build
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("filename", &filename);
@@ -80,16 +79,16 @@ class BuildResultNode: public Object {
   static constexpr const char* _type_key = "ansor.BuildResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(BuildResultNode, Object);
 };
-TVM_DEFINE_NODE_REF(BuildResult, BuildResultNode);
+TVM_DEFINE_OBJECT_REF(BuildResult, BuildResultNode);
 
 /* \brief Store the results of a measurement */
 class MeasureResultNode: public Object {
  public:
-  Array<PrimExpr> costs;
-  int error_no;
-  std::string error_msg;
-  double all_cost;
-  double timestamp;
+  Array<PrimExpr> costs;   // The time costs of execution
+  int error_no;            // The error code (see MeasureErrorNO). 0 means no error.
+  std::string error_msg;   // The error message if there is any error
+  double all_cost;         // The time cost of build and run
+  double timestamp;        // The time stamps of this measurement
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("costs", &costs);
@@ -107,19 +106,21 @@ class MeasureResultNode: public Object {
   static constexpr const char* _type_key = "ansor.MeasureResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(MeasureResultNode, Object);
 };
-TVM_DEFINE_NODE_REF(MeasureResult, MeasureResultNode);
+TVM_DEFINE_OBJECT_REF(MeasureResult, MeasureResultNode);
 
 
-// Measure callback
+/* \brief Bass class of measurement callbacks */
 class MeasureCallbackNode: public Object {
  public:
+  /*! \biref Callback function that will be called on measurement input/result pairs
+   * after measurement */
   virtual void callback(const SearchPolicy& policy,
                         const Array<MeasureInput>& inputs,
                         const Array<MeasureResult>& results) = 0;
   static constexpr const char *_type_key = "ansor.MeasureCallback";
   TVM_DECLARE_BASE_OBJECT_INFO(MeasureCallbackNode, Object);
 };
-TVM_DEFINE_MUTABLE_NODE_REF(MeasureCallback, MeasureCallbackNode);
+TVM_DEFINE_MUTABLE_OBJECT_REF(MeasureCallback, MeasureCallbackNode);
 
 
 // Base class for builder and runner
@@ -127,21 +128,23 @@ TVM_DEFINE_MUTABLE_NODE_REF(MeasureCallback, MeasureCallbackNode);
 /* \brief Builder that builds the programs */
 class BuilderNode: public Object {
  public:
-  int n_parallel;
-  int timeout;
+  int n_parallel;  // The number of tasks to run in parallel
+  int timeout;     // Timeout of a build
 
+  /*! \biref Build programs and return results */
   virtual Array<BuildResult> Build(const Array<MeasureInput>& inputs, int verbose) = 0;
 
   static constexpr const char* _type_key = "ansor.Builder";
   TVM_DECLARE_BASE_OBJECT_INFO(BuilderNode, Object);
 };
-TVM_DEFINE_MUTABLE_NODE_REF(Builder, BuilderNode);
+TVM_DEFINE_MUTABLE_OBJECT_REF(Builder, BuilderNode);
 
 /* \brief Runner that runs the built programs and measure the time cost */
 class RunnerNode: public Object {
  public:
-  int timeout;
+  int timeout;   // Timeout of a run
 
+  /*! \biref Run measurement and return results */
   virtual Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
                                    const Array<BuildResult>& build_results,
                                    int verbose) = 0;
@@ -149,14 +152,14 @@ class RunnerNode: public Object {
   static constexpr const char* _type_key = "ansor.Runner";
   TVM_DECLARE_BASE_OBJECT_INFO(RunnerNode, Object);
 };
-TVM_DEFINE_MUTABLE_NODE_REF(Runner, RunnerNode);
+TVM_DEFINE_MUTABLE_OBJECT_REF(Runner, RunnerNode);
 
 
 // Implementation of various builders and runners
 /* \brief LocalBuilder use local CPU cores to build programs in parallel */
 class LocalBuilderNode: public BuilderNode {
  public:
-  std::string build_func;
+  std::string build_func;  // Build function
 
   static Builder make(int timeout, int n_parallel, const std::string& build_func);
 
@@ -166,6 +169,7 @@ class LocalBuilderNode: public BuilderNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(LocalBuilderNode, BuilderNode);
 };
 
+/* \brief RPCRunner that uses RPC call to measures the time cost of programs on remote devices */
 class RPCRunnerNode : public RunnerNode {
  public:
   std::string key;
@@ -182,6 +186,7 @@ class RPCRunnerNode : public RunnerNode {
                      int priority, int timeout, int n_parallel, int number,
                      int repeat, int min_repeat_ms, double cooldown_interval);
 
+  /*! \biref Run measurement and return results */
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
                            const Array<BuildResult>& build_results,
                            int verbose) final;
@@ -190,7 +195,7 @@ class RPCRunnerNode : public RunnerNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(RPCRunnerNode, RunnerNode);
 };
 
-/* \brief LocalRunner use local CPU/GPU to runs programs in serial and measure the time cost */
+/* \brief LocalRunner that uses local CPU/GPU to measures the time cost of programs */
 class LocalRunnerNode: public RunnerNode {
  public:
   int number;
@@ -201,6 +206,7 @@ class LocalRunnerNode: public RunnerNode {
   static Runner make(int timeout, int number, int repeat,
                      int min_repeat_ms, double cooldown_interval);
 
+  /*! \biref Run measurement and return results */
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
                            const Array<BuildResult>& build_results,
                            int verbose) final;
@@ -211,9 +217,8 @@ class LocalRunnerNode: public RunnerNode {
 
 
 /*!
- * \brief Measurer measures the time costs of tvm programs
- * This class combines Builder and Runner, and provides a simpler API
- */
+ * \brief Measurer that measures the time costs of tvm programs
+ * This class combines Builder and Runner, and provides a simpler API */
 class ProgramMeasurerNode: public Object {
  public:
   static const int DEFAULT_MAX_CONTINOUS_ERROR = 150;
@@ -253,7 +258,7 @@ class ProgramMeasurerNode: public Object {
   static constexpr const char* _type_key = "ansor.ProgramMeasurer";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProgramMeasurerNode, Object);
 };
-TVM_DEFINE_MUTABLE_NODE_REF(ProgramMeasurer, ProgramMeasurerNode);
+TVM_DEFINE_MUTABLE_OBJECT_REF(ProgramMeasurer, ProgramMeasurerNode);
 
 
 }  // namespace ansor

@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2020 by Contributors
  * \file ansor/utils.h
  * \brief Common utilities
  */
@@ -25,7 +43,7 @@
 
 namespace std {
 
-// hash function for std::pair, std::vector and std::tuple
+/*! \brief Hash function for std::pair */
 template <typename T1, typename T2>
 struct hash<std::pair<T1, T2> > {
   std::size_t operator()(const std::pair<T1, T2>& k) const {
@@ -33,6 +51,7 @@ struct hash<std::pair<T1, T2> > {
   }
 };
 
+/*! \brief Hash function for std::tuple */
 template <typename T1, typename T2, typename T3>
 struct hash<std::tuple<T1, T2, T3> > {
   std::size_t operator()(const std::tuple<T1, T2, T3>& k) const {
@@ -42,6 +61,7 @@ struct hash<std::tuple<T1, T2, T3> > {
   }
 };
 
+/*! \brief Hash function for std::vector */
 template <typename T>
 struct hash<std::vector<T> > {
   std::size_t operator()(const std::vector<T>& vec) const {
@@ -61,38 +81,37 @@ struct hash<std::vector<T> > {
 namespace tvm {
 namespace ansor {
 
-/*! \brief Macro to make it easy to define node ref type given node */
-#define TVM_DEFINE_NODE_REF(TypeName, NodeName)                     \
+/*! \brief Macro to make it easy to define object ref type given node */
+#define TVM_DEFINE_OBJECT_REF(TypeName, ObjectName)                 \
   class TypeName : public ObjectRef {                               \
    public:                                                          \
-    TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ObjectRef, NodeName);   \
+    TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ObjectRef, ObjectName); \
   };                                                                \
 
-/*! \brief Macro to make it easy to define mutable node ref type given node */
-#define TVM_DEFINE_MUTABLE_NODE_REF(TypeName, NodeName)                      \
+/*! \brief Macro to make it easy to define mutable object ref type given node */
+#define TVM_DEFINE_MUTABLE_OBJECT_REF(TypeName, ObjectName)                  \
   class TypeName : public ObjectRef {                                        \
    public:                                                                   \
-    TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TypeName, ObjectRef, NodeName);    \
+    TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TypeName, ObjectRef, ObjectName);  \
   };                                                                         \
 
 /*!
  * \brief Macro to make it easy to define node ref type that
  *  has a CopyOnWrite member function.
  */
-#define TVM_DEFINE_COW_NODE_REF(TypeName, BaseType, NodeName)           \
-  class TypeName : public BaseType {                                    \
-   public:                                                              \
-    TVM_DEFINE_OBJECT_REF_METHODS(TypeName, BaseType, NodeName);        \
-    TVM_DEFINE_OBJECT_REF_COW_METHOD(NodeName);                         \
+#define TVM_DEFINE_COW_OBJECT_REF(TypeName, BaseType, ObjectName)    \
+  class TypeName : public BaseType {                                 \
+   public:                                                           \
+    TVM_DEFINE_OBJECT_REF_METHODS(TypeName, BaseType, ObjectName);   \
+    TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName);                    \
   };
 
-/********** Utilities for std::vector, std::set **********/
-
+/********** Utilities for std::vector, std::set, std::string **********/
 /*! \brief Get the first appearance index of elements in a vector */
 template <typename T>
 inline void GetIndices(const std::vector<T>& array,
-                const std::vector<T>& to_locate,
-                std::vector<int>* indices) {
+                       const std::vector<T>& to_locate,
+                       std::vector<int>* indices) {
   for (const auto& v : to_locate) {
     auto it = std::find(array.begin(), array.end(), v);
     if (it != array.end()) {
@@ -133,7 +152,7 @@ inline int64_t ElementProduct(const std::vector<int>& array) {
   return ret;
 }
 
-/* \brief Get the maximum element in a vector */
+/*! \brief Get the maximum element in a vector */
 template <typename T>
 T MaximumElement(const std::vector<T>& array) {
   CHECK(!array.empty());
@@ -162,7 +181,7 @@ std::vector<T>& ConcatenateMove(std::vector<T>* out, std::vector<T>* first, Args
   return *out;
 }
 
-/* \brief Get a random permutation of integers [0, n-1] */
+/*! \brief Get a random permutation of integers [0, n-1] */
 template <typename G>
 void RandomPermutation(int n, std::vector<int>* out, G* gen) {
   out->assign(n, 0);
@@ -170,7 +189,7 @@ void RandomPermutation(int n, std::vector<int>* out, G* gen) {
   std::shuffle(out->begin(), out->end(), *gen);
 }
 
-/* \brief Random sample without replacement */
+/*! \brief Random sample without replacement */
 template <typename T, typename G>
 void RandomSample(std::vector<T>* in_data, size_t out_size, G* gen) {
   // Note: This function is inefficient in the cases when out_size << in_data.size()
@@ -204,43 +223,19 @@ inline void Argsort(const std::vector<T>& scores, std::vector<int>* index) {
   std::sort(index->begin(), index->end(), cmp);
 }
 
-// Do x++ for all x in the set such that x >= threshold
-inline void SetAddOne(std::set<int>* set, int threshold = 0) {
-  std::set<int> new_set;
-  for (int x : *set) {
-    if (x >= threshold) {
-      new_set.insert(x + 1);
-    } else {
-      new_set.insert(x);
-    }
-  }
-  *set = std::move(new_set);
-}
-
-// Compute Jaccard Similarity of two sets
-template <typename T>
-double JaccardSimilarity(std::set<T> s1, std::set<T> s2) {
-  std::vector<T> intersect;
-  std::set_intersection(s1.begin(), s1.end(), s2.begin(), s2.end(),
-                        std::back_inserter(intersect));
-  return 1.0 * intersect.size() / (s1.size() + s2.size() - intersect.size());
-}
-
-/********** Utilities for std::string **********/
-
-/*! Return whether a string ends with a another substring */
+/*! \brief Return whether a string ends with another substring */
 inline bool StrEndsWith(const std::string& a, const std::string& b) {
   if (b.size() > a.size()) return false;
   return std::equal(a.begin() + a.size() - b.size(), a.end(), b.begin());
 }
 
-/*! Return whether a string starts with a another substring */
+/*! \brief Return whether a string starts with another substring */
 inline bool StrStartsWith(const std::string& a, const std::string& b) {
   if (b.size() > a.size()) return false;
   return std::equal(a.begin(), a.begin() + b.size(), b.begin());
 }
 
-/*! Replace a sub-string to another sub-string in a string */
+/*! \brief Replace a sub-string to another sub-string in a string */
 inline void StrReplace(std::string* base, const std::string& from, const std::string& to) {
   auto pos = base->find(from);
   while (pos != std::string::npos) {
@@ -250,7 +245,6 @@ inline void StrReplace(std::string* base, const std::string& from, const std::st
 }
 
 /********** Utilities for TVM Containers / ByteArray **********/
-
 /*! \brief Compute mean of a FloatImm array */
 inline double FloatArrayMean(const Array<PrimExpr>& float_array) {
   double sum = 0;
@@ -266,51 +260,15 @@ inline double FloatArrayMean(const Array<PrimExpr>& float_array) {
   return sum / float_array.size();
 }
 
-/*! \brief Serialize a 2-dimensional vector to TVMByteArray.
- * This is used for sending data to python code */
-template <typename T>
-inline TVMByteArray Serialize2dVector(std::vector<std::vector<T> >&& in_data,
-                                      std::vector<char>* out_data) {
-  size_t total_bytes = 0;
-  std::vector<int> size_vector;
-
-  // serialize sizes
-  total_bytes += (1 + in_data.size()) * sizeof(int);
-  size_vector.reserve(in_data.size() + 1);
-  size_vector.push_back(in_data.size());
-  for (const auto& x : in_data) {
-    size_vector.push_back(static_cast<int>(x.size()));
-    total_bytes += sizeof(T) * x.size();
-  }
-
-  out_data->reserve(total_bytes);
-  char* ptr = out_data->data();
-  memmove(ptr, reinterpret_cast<char*>(size_vector.data()), (1 + in_data.size()) * sizeof(int));
-  ptr += (1 + in_data.size()) * sizeof(int);
-
-  // serialize in_data
-  for (auto& x : in_data) {
-    memmove(ptr, x.data(), sizeof(T) * x.size());
-    ptr += sizeof(T) * x.size();
-    x.clear();
-  }
-
-  CHECK_EQ(ptr - out_data->data(), total_bytes);
-
-  return TVMByteArray{out_data->data(), total_bytes};
-}
-
 /********** Other Utilities **********/
-
-// Get an int value from an Expr
+/*! \brief  Get an int value from an Expr */
 inline int64_t GetIntImm(const PrimExpr& expr) {
   auto pint = expr.as<IntImmNode>();
   CHECK(pint != nullptr);
   return pint->value;
 }
 
-
-// Compute the product of the lengths of axes
+/*! \brief  Compute the product of the lengths of axes */
 inline int64_t AxisLengthProd(const Array<tir::IterVar>& axes) {
   int64_t ret = 1.0;
   for (const auto& x : axes) {
@@ -323,8 +281,7 @@ inline int64_t AxisLengthProd(const Array<tir::IterVar>& axes) {
   return ret;
 }
 
-
-// An empty output stream
+/*! \brief  An empty output stream */
 class NullStream : public std::ostream {
  public:
   NullStream() : std::ostream(nullptr) {}

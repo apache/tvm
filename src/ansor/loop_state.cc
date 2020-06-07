@@ -1,18 +1,56 @@
-/*!
- *  Copyright (c) 2020 by Contributors
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-#include "loop_state.h"
 
+/*!
+ * \file ansor/loop_state.h
+ * \brief  An IR (intermediate representation) for loop structures.
+ */
+
+#include "loop_state.h"
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
-
+#include "transform_step.h"
 #include "utils.h"
 
 namespace tvm {
 namespace ansor {
 
-TVM_REGISTER_OBJECT_TYPE(StageNode);
+TVM_REGISTER_OBJECT_TYPE(StepNode);
+TVM_REGISTER_NODE_TYPE(StageNode);
 TVM_REGISTER_NODE_TYPE(StateNode);
+TVM_REGISTER_NODE_TYPE(IteratorNode);
+
+// Maker for other classes
+Iterator IteratorNode::make(std::string name, Range range,
+                            IteratorType iter_type, IteratorAnnotation annotation,
+                            const std::vector<Iterator>* ori_iters) {
+  auto node = make_object<IteratorNode>();
+  node->name = std::move(name);
+  node->range = std::move(range);
+  node->iter_type = iter_type;
+  node->annotation = annotation;
+  if (ori_iters != nullptr) {
+    node->ori_iters = *ori_iters;
+  }
+  return Iterator(node);
+}
+
 
 Stage StageNode::make(te::Operation op) {
   auto node = make_object<StageNode>();
@@ -43,7 +81,7 @@ Stage StageNode::make(te::Operation op) {
 
 Stage StageNode::make(te::Operation op, StageType op_type,
                       const std::vector<Iterator>& iters,
-                      ComputeAtType compute_at, int16_t auto_unroll_max_step,
+                      ComputeAtType compute_at, int auto_unroll_max_step,
                       int storage_offset) {
   auto node = make_object<StageNode>();
   node->op = std::move(op);
@@ -57,7 +95,7 @@ Stage StageNode::make(te::Operation op, StageType op_type,
 
 Stage StageNode::make(te::Operation op, StageType op_type,
                       std::vector<Iterator>&& iters, ComputeAtType compute_at,
-                      int16_t auto_unroll_max_step, int storage_offset) {
+                      int auto_unroll_max_step, int storage_offset) {
   auto node = make_object<StageNode>();
   node->op = std::move(op);
   node->op_type = op_type;
@@ -214,15 +252,6 @@ void State::compute_inline(int stage_id) {
   ComputeInlineStep step = ComputeInlineStepNode::make(stage_id);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoComputeInlineStep(step);
-}
-
-void State::pack_for_vec(int stage_id, const Iterator& target_iter,
-                         int vec_size) {
-  const Stage& stage = operator->()->stages[stage_id];
-  PackForVecStep step = PackForVecStepNode::make(
-      stage_id, GetIndex(stage->iters, target_iter), vec_size);
-  CopyOnWrite()->transform_steps.push_back(step);
-  return DoPackForVecStep(step);
 }
 
 Iterator State::bind_thread(int stage_id, const Iterator& it,
@@ -560,10 +589,6 @@ void State::DoComputeInlineStep(const ComputeInlineStep& step) {
   pstate->attach_map.DeleteStage(step->stage_id);
 }
 
-void State::DoPackForVecStep(const PackForVecStep& step) {
-  LOG(FATAL) << "Not implemented";
-}
-
 // Common part for steps that add new stages
 // (e.g. CacheReadStep, CacheWriteStep, RfactorStep)
 void AddStageModificationSteps(size_t step_id,
@@ -741,8 +766,6 @@ void State::DoStep(const Step& step, const ComputeDAG& dag) {
     DoComputeRootStep(GetRef<ComputeRootStep>(ps));
   } else if (auto ps = step.as<ComputeInlineStepNode>()) {
     DoComputeInlineStep(GetRef<ComputeInlineStep>(ps));
-  } else if (auto ps = step.as<PackForVecStepNode>()) {
-    DoPackForVecStep(GetRef<PackForVecStep>(ps));
   } else if (auto ps = step.as<CacheReadStepNode>()) {
     DoCacheReadStep(GetRef<CacheReadStep>(ps), dag);
   } else if (auto ps = step.as<CacheWriteStepNode>()) {
@@ -991,177 +1014,175 @@ AttachMap AttachMap::ApplyStageIdOfffset(int start_id, int offset) const {
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<StateNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const StateNode*>(ref.get());
-      PrintState(&p->stream, node, true);
-    });
+.set_dispatch<StateNode>([](const ObjectRef& ref, ReprPrinter* p) {
+  auto* node = static_cast<const StateNode*>(ref.get());
+  PrintState(&p->stream, node, true);
+});
 
-TVM_REGISTER_GLOBAL("ansor.StageGetIterator")
-    .set_body_typed([](const Stage& stage, int index) {
-      return stage->iters[index];
-    });
 
-TVM_REGISTER_GLOBAL("ansor.StageGetIterators")
-    .set_body_typed([](const Stage& stage) {
-      return Array<Iterator>(stage->iters);
-    });
+TVM_REGISTER_GLOBAL("ansor.StageGetIterator").set_body_typed([](const Stage& stage, int index) {
+  return stage->iters[index];
+});
 
-TVM_REGISTER_GLOBAL("ansor.StateGetStage")
-    .set_body_typed([](const State& state, int index) {
-      return state->stages[index];
-    });
+TVM_REGISTER_GLOBAL("ansor.StageGetIterators").set_body_typed([](const Stage& stage) {
+  return Array<Iterator>(stage->iters);
+});
 
-TVM_REGISTER_GLOBAL("ansor.StateGetTransformStepsSize")
-    .set_body_typed([](const State& state) {
-      return static_cast<int64_t>(state->transform_steps.size());
-    });
+TVM_REGISTER_GLOBAL("ansor.StateGetStages").set_body_typed([](const State& state) {
+  return Array<Stage>(state->stages);
+});
+
+TVM_REGISTER_GLOBAL("ansor.StateGetStage").set_body_typed([](const State& state, int index) {
+  return state->stages[index];
+});
+
+TVM_REGISTER_GLOBAL("ansor.StateGetTransformStepsSize").set_body_typed([](const State& state) {
+  return static_cast<int64_t>(state->transform_steps.size());
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateReorder")
-    .set_body_typed([](State state, int stage_id,
-                       const Array<Iterator>& order) {
-      std::vector<Iterator> ord;
-      for (const auto& i : order) {
-        ord.push_back(i);
-      }
-      state.reorder(stage_id, ord);
-      return state;
-    });
+.set_body_typed([](State state, int stage_id, const Array<Iterator>& order) {
+  std::vector<Iterator> ord;
+  for (const auto& i : order) {
+    ord.push_back(i);
+  }
+  state.reorder(stage_id, ord);
+  return state;
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateSplit")
-    .set_body_typed([](State state, int stage_id, const Iterator& it,
-                       const Array<PrimExpr>& lengths, bool inner_to_outer) {
-      std::vector<PrimExpr> len;
-      for (const auto& i : lengths) {
-        len.push_back(i);
-      }
-      const auto& res = state.split(stage_id, it, len, inner_to_outer);
-      return Array<ObjectRef>{state, Array<Iterator>(res)};
-    });
+.set_body_typed([](State state, int stage_id, const Iterator& it,
+                   const Array<PrimExpr>& lengths, bool inner_to_outer) {
+  std::vector<PrimExpr> len;
+  for (const auto& i : lengths) {
+    len.push_back(i);
+  }
+  const auto& res = state.split(stage_id, it, len, inner_to_outer);
+  return Array<ObjectRef>{state, Array<Iterator>(res)};
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateFollowSplit")
-    .set_body_typed([](State state, int stage_id, const Iterator& it,
-                       int src_step_id, int n_split) {
-      const auto& res = state.follow_split(stage_id, it, src_step_id, n_split);
-      return Array<ObjectRef>{state, Array<Iterator>(res)};
-    });
+.set_body_typed([](State state, int stage_id, const Iterator& it,
+                   int src_step_id, int n_split) {
+  const auto& res = state.follow_split(stage_id, it, src_step_id, n_split);
+  return Array<ObjectRef>{state, Array<Iterator>(res)};
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateFollowFusedSplit")
-    .set_body_typed([](State state, int stage_id, const Iterator& it,
-                       const Array<IntImm>& src_step_ids, int level,
-                       bool factor_or_nparts) {
-      std::vector<int> array_src_step_ids;
-      for (const auto& i : src_step_ids) {
-        array_src_step_ids.push_back(i->value);
-      }
-      const auto& res = state.follow_fused_split(
-          stage_id, it, array_src_step_ids, level, factor_or_nparts);
-      return Array<ObjectRef>{state, Array<Iterator>(res)};
-    });
+.set_body_typed([](State state, int stage_id, const Iterator& it,
+                   const Array<IntImm>& src_step_ids, int level,
+                   bool factor_or_nparts) {
+  std::vector<int> array_src_step_ids;
+  for (const auto& i : src_step_ids) {
+    array_src_step_ids.push_back(i->value);
+  }
+  const auto& res = state.follow_fused_split(
+      stage_id, it, array_src_step_ids, level, factor_or_nparts);
+  return Array<ObjectRef>{state, Array<Iterator>(res)};
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateFuse")
-    .set_body_typed([](State state, int stage_id,
-                       const Array<Iterator>& iters) {
-      std::vector<Iterator> its;
-      for (const auto& i : iters) {
-        its.push_back(i);
-      }
-      const auto& res = state.fuse(stage_id, its);
-      return Array<ObjectRef>{state, res};
-    });
+.set_body_typed([](State state, int stage_id,
+                   const Array<Iterator>& iters) {
+  std::vector<Iterator> its;
+  for (const auto& i : iters) {
+    its.push_back(i);
+  }
+  const auto& res = state.fuse(stage_id, its);
+  return Array<ObjectRef>{state, res};
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateVectorize")
-    .set_body_typed([](State state, int stage_id, const Iterator& it) {
-      const auto& res = state.vectorize(stage_id, it);
-      return Array<ObjectRef>{state, res};
-    });
+.set_body_typed([](State state, int stage_id, const Iterator& it) {
+  const auto& res = state.vectorize(stage_id, it);
+  return Array<ObjectRef>{state, res};
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateParallel")
-    .set_body_typed([](State state, int stage_id, const Iterator& it) {
-      const auto& res = state.parallel(stage_id, it);
-      return Array<ObjectRef>{state, res};
-    });
+.set_body_typed([](State state, int stage_id, const Iterator& it) {
+  const auto& res = state.parallel(stage_id, it);
+  return Array<ObjectRef>{state, res};
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateUnroll")
-    .set_body_typed([](State state, int stage_id, const Iterator& it,
-                       int max_unroll) {
-      const auto& res = state.unroll(stage_id, it, max_unroll);
-      return Array<ObjectRef>{state, res};
-    });
+.set_body_typed([](State state, int stage_id, const Iterator& it,
+                   int max_unroll) {
+  const auto& res = state.unroll(stage_id, it, max_unroll);
+  return Array<ObjectRef>{state, res};
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateBindThread")
-    .set_body_typed([](State state, int stage_id, const Iterator& it,
-                       int thread_type) {
-      const auto& res =
-          state.bind_thread(stage_id, it, IteratorAnnotation(thread_type));
-      return Array<ObjectRef>{state, res};
-    });
+.set_body_typed([](State state, int stage_id, const Iterator& it,
+                   int thread_type) {
+  const auto& res =
+      state.bind_thread(stage_id, it, IteratorAnnotation(thread_type));
+  return Array<ObjectRef>{state, res};
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateComputeAt")
-    .set_body_typed([](State state, int stage_id, int target_stage_id,
-                       const Iterator& target_iter) {
-      state.compute_at(stage_id, target_stage_id, target_iter);
-      return state;
-    });
+.set_body_typed([](State state, int stage_id, int target_stage_id,
+                   const Iterator& target_iter) {
+  state.compute_at(stage_id, target_stage_id, target_iter);
+  return state;
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateComputeRoot")
-    .set_body_typed([](State state, int stage_id) {
-      state.compute_root(stage_id);
-      return state;
-    });
+.set_body_typed([](State state, int stage_id) {
+  state.compute_root(stage_id);
+  return state;
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateComputeInline")
-    .set_body_typed([](State state, int stage_id) {
-      state.compute_inline(stage_id);
-      return state;
-    });
-
-TVM_REGISTER_GLOBAL("ansor.StatePackForVec")
-    .set_body_typed([](State state, int stage_id, const Iterator& target_iter,
-                       int vec_size) {
-      state.pack_for_vec(stage_id, target_iter, vec_size);
-      return state;
-    });
+.set_body_typed([](State state, int stage_id) {
+  state.compute_inline(stage_id);
+  return state;
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateCacheRead")
-    .set_body_typed([](State state, int stage_id, const std::string& scope_name,
-                       const Array<IntImm>& reader_stage_ids,
-                       const ComputeDAG& task_dag) {
-      std::vector<int> array_reader_stage_ids;
-      for (const auto& i : reader_stage_ids) {
-        array_reader_stage_ids.push_back(i->value);
-      }
-      int res = state.cache_read(stage_id, scope_name, array_reader_stage_ids,
-                                 task_dag);
-      return Array<ObjectRef>{state, IntImm(DataType::Int(32), res)};
-    });
+.set_body_typed([](State state, int stage_id, const std::string& scope_name,
+                   const Array<IntImm>& reader_stage_ids,
+                   const ComputeDAG& task_dag) {
+  std::vector<int> array_reader_stage_ids;
+  for (const auto& i : reader_stage_ids) {
+    array_reader_stage_ids.push_back(i->value);
+  }
+  int res = state.cache_read(stage_id, scope_name, array_reader_stage_ids,
+                             task_dag);
+  return Array<ObjectRef>{state, IntImm(DataType::Int(32), res)};
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateCacheWrite")
-    .set_body_typed([](State state, int stage_id, const std::string& scope_name,
-                       const ComputeDAG& task_dag) {
-      int res = state.cache_write(stage_id, scope_name, task_dag);
-      return Array<ObjectRef>{state, IntImm(DataType::Int(32), res)};
-    });
+.set_body_typed([](State state, int stage_id, const std::string& scope_name,
+                   const ComputeDAG& task_dag) {
+  int res = state.cache_write(stage_id, scope_name, task_dag);
+  return Array<ObjectRef>{state, IntImm(DataType::Int(32), res)};
+});
 
 TVM_REGISTER_GLOBAL("ansor.StatePragma")
-    .set_body_typed([](State state, int stage_id, const Iterator& it,
-                       const std::string& pragma_type) {
-      state.pragma(stage_id, it, pragma_type);
-      return state;
-    });
+.set_body_typed([](State state, int stage_id, const Iterator& it,
+                   const std::string& pragma_type) {
+  state.pragma(stage_id, it, pragma_type);
+  return state;
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateRfactor")
-    .set_body_typed([](State state, int stage_id, const Iterator& it,
-                       int factor_iter_id, const ComputeDAG& task_dag) {
-      int res = state.rfactor(stage_id, it, factor_iter_id, task_dag);
-      return Array<ObjectRef>{state, IntImm(DataType::Int(32), res)};
-    });
+.set_body_typed([](State state, int stage_id, const Iterator& it,
+                   int factor_iter_id, const ComputeDAG& task_dag) {
+  int res = state.rfactor(stage_id, it, factor_iter_id, task_dag);
+  return Array<ObjectRef>{state, IntImm(DataType::Int(32), res)};
+});
 
 TVM_REGISTER_GLOBAL("ansor.StateStorageAlign")
-    .set_body_typed([](State state, int stage_id, const Iterator& it,
-                       int factor, int offset) {
-      state.storage_align(stage_id, it, factor, offset);
-      return state;
-    });
+.set_body_typed([](State state, int stage_id, const Iterator& it,
+                   int factor, int offset) {
+  state.storage_align(stage_id, it, factor, offset);
+  return state;
+});
+
+TVM_REGISTER_GLOBAL("ansor.StateEqual")
+.set_body_typed([](State state1, State state2) {
+  return std::equal_to<State>()(state1, state2);
+});
 
 }  // namespace ansor
 }  // namespace tvm

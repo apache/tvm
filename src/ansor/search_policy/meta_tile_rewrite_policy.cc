@@ -1,5 +1,25 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2020 by Contributors
+ * \file ansor/search_policy/meta_tile_rewrite_policy.h
+ * \brief The search policy that searches by program sampling and evolutionary search
  */
 
 #include "meta_tile_rewrite_policy.h"
@@ -776,7 +796,7 @@ int InitPopulationThreadBind(const MetaTileRewritePolicyNode* policy,
     // Fuse the outermost space tile as blockIdx
     for (size_t i = 0; i < pop->axis.size(); i++) {
       const auto& it = (*state)->stages[stage_id]->iters[i];
-      if (!StringEndWith(it->name, ".0")) {
+      if (!StrEndsWith(it->name, ".0")) {
         break;
       }
       to_fuse.push_back(it);
@@ -788,7 +808,7 @@ int InitPopulationThreadBind(const MetaTileRewritePolicyNode* policy,
     to_fuse.clear();
     for (size_t i = 1; i < pop->axis.size() + 1; i++) {
       const auto& it = (*state)->stages[stage_id]->iters[i];
-      if (!StringEndWith(it->name, ".1")) {
+      if (!StrEndsWith(it->name, ".1")) {
         break;
       }
       to_fuse.push_back((*state)->stages[stage_id]->iters[i]);
@@ -804,7 +824,7 @@ int InitPopulationThreadBind(const MetaTileRewritePolicyNode* policy,
     to_fuse.clear();
     for (size_t i = 2; i < pop->axis.size() + 2; i++) {
       const auto& it = (*state)->stages[stage_id]->iters[i];
-      if (!StringEndWith(it->name, ".2")) {
+      if (!StrEndsWith(it->name, ".2")) {
         break;
       }
       to_fuse.push_back((*state)->stages[stage_id]->iters[i]);

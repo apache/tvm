@@ -2,15 +2,12 @@
  *  Copyright (c) 2020 by Contributors
  */
 #include "measure.h"
-// #include <tvm/packed_func_ext.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-
 #include <algorithm>
 #include <iomanip>
 #include <utility>
 #include <vector>
-// #include "search_policy/search_policy.h"
 
 namespace tvm {
 namespace ansor {
@@ -38,7 +35,7 @@ const char* ErrorNoToStr[] = {
     "UnknownError",
 };
 
-// Maker
+// Measure input and result
 MeasureInput MeasureInputNode::make(SearchTask task, State state) {
   auto node = make_object<MeasureInputNode>();
   node->task = std::move(task);
@@ -87,6 +84,7 @@ MeasureResult MeasureResultNode::copy() const {
   return MeasureResult(node);
 }
 
+// LocalBuilder
 Builder LocalBuilderNode::make(int timeout, int n_parallel,
                                const std::string& build_func) {
   auto node = make_object<LocalBuilderNode>();
@@ -96,7 +94,6 @@ Builder LocalBuilderNode::make(int timeout, int n_parallel,
   return Builder(node);
 }
 
-// LocalBuilder and LocalRunner
 Array<BuildResult> LocalBuilderNode::Build(const Array<MeasureInput>& inputs,
                                            int verbose) {
   if (const auto* f = runtime::Registry::Get("ansor.local_builder.build")) {
@@ -109,6 +106,7 @@ Array<BuildResult> LocalBuilderNode::Build(const Array<MeasureInput>& inputs,
   return Array<BuildResult>();
 }
 
+// RPC Runner
 Runner RPCRunnerNode::make(const std::string& key, const std::string& host,
                            int port, int priority, int timeout, int n_parallel,
                            int number, int repeat, int min_repeat_ms,
@@ -141,6 +139,7 @@ Array<MeasureResult> RPCRunnerNode::Run(const Array<MeasureInput>& inputs,
   return Array<MeasureResult>();
 }
 
+// Local Runner
 Runner LocalRunnerNode::make(int timeout, int number, int repeat,
                              int min_repeat_ms, double cooldown_interval) {
   ObjectPtr<LocalRunnerNode> node = make_object<LocalRunnerNode>();
@@ -166,6 +165,7 @@ Array<MeasureResult> LocalRunnerNode::Run(
   return Array<MeasureResult>();
 }
 
+// Program Measurer
 ProgramMeasurer ProgramMeasurerNode::make(Builder builder, Runner runner,
                                           Array<MeasureCallback> callbacks,
                                           int verbose,
@@ -284,89 +284,89 @@ void ProgramMeasurerNode::SilentMeasure(const SearchTask& task,
 
 // Printing functions
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<MeasureInputNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      p->stream << "MeasureInput()";
-    });
+.set_dispatch<MeasureInputNode>([](const ObjectRef& ref, ReprPrinter* p) {
+  p->stream << "MeasureInput()";
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<MeasureResultNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const MeasureResultNode*>(ref.get());
-      if (node->error_no == kNoError) {
-        p->stream << "MeasureResult(cost:[";
-        auto old_config = p->stream.precision(4);
-        for (size_t i = 0; i < node->costs.size(); ++i) {
-          auto pf = node->costs[i].as<FloatImmNode>();
-          CHECK(pf != nullptr);
-          p->stream << pf->value;
-          if (i != node->costs.size() - 1) {
-            p->stream << ",";
-          }
-        }
-        p->stream.precision(old_config);
-        p->stream << "], ";
-        p->stream << "error_no:" << 0 << ", "
-                  << "all_cost:" << node->all_cost << ", "
-                  << "Tstamp:" << node->timestamp << ")";
-      } else {
-        p->stream << "MeasureResult("
-                  << "error_type:" << ErrorNoToStr[node->error_no] << ", "
-                  << "error_msg:" << node->error_msg << ", "
-                  << "all_cost:" << node->all_cost << ", "
-                  << "Tstamp:" << node->timestamp << ")";
+.set_dispatch<MeasureResultNode>([](const ObjectRef& ref, ReprPrinter* p) {
+  auto* node = static_cast<const MeasureResultNode*>(ref.get());
+  if (node->error_no == kNoError) {
+    p->stream << "MeasureResult(cost:[";
+    auto old_config = p->stream.precision(4);
+    for (size_t i = 0; i < node->costs.size(); ++i) {
+      auto pf = node->costs[i].as<FloatImmNode>();
+      CHECK(pf != nullptr);
+      p->stream << pf->value;
+      if (i != node->costs.size() - 1) {
+        p->stream << ",";
       }
-    });
+    }
+    p->stream.precision(old_config);
+    p->stream << "], ";
+    p->stream << "error_no:" << 0 << ", "
+              << "all_cost:" << node->all_cost << ", "
+              << "Tstamp:" << node->timestamp << ")";
+  } else {
+    p->stream << "MeasureResult("
+              << "error_type:" << ErrorNoToStr[node->error_no] << ", "
+              << "error_msg:" << node->error_msg << ", "
+              << "all_cost:" << node->all_cost << ", "
+              << "Tstamp:" << node->timestamp << ")";
+  }
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<BuildResultNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const BuildResultNode*>(ref.get());
-      p->stream << "BuildResult(" << node->filename << ", " << node->error_no
-                << ", " << node->time_cost << ")";
-    });
+.set_dispatch<BuildResultNode>([](const ObjectRef& ref, ReprPrinter* p) {
+  auto* node = static_cast<const BuildResultNode*>(ref.get());
+  p->stream << "BuildResult(" << node->filename << ", " << node->error_no
+            << ", " << node->time_cost << ")";
+});
 
 TVM_REGISTER_GLOBAL("ansor.MeasureInput")
-    .set_body_typed([](SearchTask task, State state) {
-      return MeasureInputNode::make(task, state);
-    });
+.set_body_typed([](SearchTask task, State state) {
+  return MeasureInputNode::make(task, state);
+});
 
 TVM_REGISTER_GLOBAL("ansor.BuildResult")
-    .set_body_typed([](std::string filename, Array<te::Tensor> args,
-                       int error_no, std::string error_msg, double time_cost) {
-      return BuildResultNode::make(filename, args, error_no, error_msg,
-                                   time_cost);
-    });
+.set_body_typed([](std::string filename, Array<te::Tensor> args,
+                   int error_no, std::string error_msg, double time_cost) {
+  return BuildResultNode::make(filename, args, error_no, error_msg,
+                               time_cost);
+});
 
 TVM_REGISTER_GLOBAL("ansor.MeasureResult")
-    .set_body_typed([](Array<PrimExpr> costs, int error_no,
-                       std::string error_msg, double all_cost,
-                       double timestamp) {
-      return MeasureResultNode::make(costs, error_no, error_msg, all_cost,
-                                     timestamp);
-    });
+.set_body_typed([](Array<PrimExpr> costs, int error_no,
+                   std::string error_msg, double all_cost,
+                   double timestamp) {
+  return MeasureResultNode::make(costs, error_no, error_msg, all_cost,
+                                 timestamp);
+});
 
 TVM_REGISTER_GLOBAL("ansor.BuilderBuild")
-    .set_body_typed([](const Builder& builder,
-                       const Array<MeasureInput>& inputs, int verbose) {
-      return builder->Build(inputs, verbose);
-    });
+.set_body_typed([](const Builder& builder,
+                   const Array<MeasureInput>& inputs, int verbose) {
+  return builder->Build(inputs, verbose);
+});
 
 TVM_REGISTER_GLOBAL("ansor.RunnerRun")
-    .set_body_typed([](const Runner& runner, const Array<MeasureInput>& inputs,
-                       const Array<BuildResult>& build_results, int verbose) {
-      return runner->Run(inputs, build_results, verbose);
-    });
+.set_body_typed([](const Runner& runner, const Array<MeasureInput>& inputs,
+                   const Array<BuildResult>& build_results, int verbose) {
+  return runner->Run(inputs, build_results, verbose);
+});
 
 TVM_REGISTER_GLOBAL("ansor.LocalBuilder")
-    .set_body_typed([](int timeout, int n_parallel,
-                       const std::string& build_func) {
-      return LocalBuilderNode::make(timeout, n_parallel, build_func);
-    });
+.set_body_typed([](int timeout, int n_parallel,
+                   const std::string& build_func) {
+  return LocalBuilderNode::make(timeout, n_parallel, build_func);
+});
 
 TVM_REGISTER_GLOBAL("ansor.LocalRunner")
-    .set_body_typed([](int timeout, int number, int repeat, int min_repeat_ms,
-                       double cooldown_interval) {
-      return LocalRunnerNode::make(timeout, number, repeat, min_repeat_ms,
-                                   cooldown_interval);
-    });
+.set_body_typed([](int timeout, int number, int repeat, int min_repeat_ms,
+                   double cooldown_interval) {
+  return LocalRunnerNode::make(timeout, number, repeat, min_repeat_ms,
+                               cooldown_interval);
+});
 
 }  // namespace ansor
 }  // namespace tvm

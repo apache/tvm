@@ -1,106 +1,30 @@
-/*!
- * Copyright (c) 2020 by Contributors
- * \file ansor/transform_step.h
- * \brief  Data structures for loop transformations
-
- * Basically this is a simplified TVM IR with schedule primitives.
- * We don't use the existing TVM IR because
- * 1. We want fast incremental change to the loop structures
- * 2. We want serializable history for replay and backtracking
- * 3. We want simplified IR for easy and clean feature extraction
- * 4. We may create some Macro schedule primitives
-
- * After search is done, we will lower this IR to TVM IR and TVM schedule primitives.
- * Because we share a lot common objects during search,  the transformation is
- * implemented in copy on write style.  All objects are immutable, which is
- * similar to TVM IR.
- */
-
-#ifndef TVM_ANSOR_TRANSFORM_STEP_H_
-#define TVM_ANSOR_TRANSFORM_STEP_H_
-
-#include <dmlc/common.h>
-#include <string>
-#include <vector>
-#include "compute_dag.h"
-
-namespace tvm {
-namespace ansor {
-
-using namespace tvm::tir;
-
-inline std::string CleanName(const std::string& str) {
-  // to make the name valid in python code
-  std::string ret = str;
-  StrReplace(&ret, ".", "_");
-  StrReplace(&ret, "@", "_");
-  StrReplace(&ret, "outer", "o");
-  StrReplace(&ret, "inner", "i");
-  return ret;
-}
-
-enum IteratorType {
-  kSpace,     // spatial iterator
-  kReduce,    // reduction iterator
-  kMixed,     // fused spatial and reduction iterator
-  kSpecial    // special iterator (e.g. virtual root iterator)
-};
-
-enum IteratorAnnotation {
-  kNone, kUnroll, kVectorize, kParallel,
-  kVThread, kBlockX, kThreadX, kBlockY, kThreadY
-};
-
-class Iterator;
-
-/*!
- * \brief An for loop iterator
- * Similar to tvm::IterVar in `include/expr.h`
- */
-class IteratorNode : public Object {
- public:
-  std::string name;
-  Range range;             // domain of for loop range
-  IteratorType iter_type;
-  IteratorAnnotation annotation;
-  std::vector<Iterator> ori_iters;
-
-  static Iterator make(std::string name, Range range,
-                       IteratorType iter_type, IteratorAnnotation annotation,
-                       const std::vector<Iterator>* ori_iters = nullptr);
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("range", &range);
-  }
-
-  static constexpr const char *_type_key = "ansor.Iterator";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IteratorNode, Object);
-};
-TVM_DEFINE_COW_NODE_REF(Iterator, ObjectRef, IteratorNode);
-
-/*! \brief The base class for a transformation step */
-class StepNode: public Object {
- public:
-  int stage_id;
-
-  // Print step as equivalent python schedule API
-  virtual std::string PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                                       StageToAxesMap *stage_to_axes,
-                                       te::Schedule *schedule,
-                                       const std::vector<Step>& transform_steps) const = 0;
-
-  static constexpr const char* _type_key = "ansor.Step";
-  TVM_DECLARE_BASE_OBJECT_INFO(StepNode, Object);
-};
-TVM_DEFINE_MUTABLE_NODE_REF(Step, StepNode);
-
 /*
- * Note on how to add a new transform step
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file ansor/transform_step.h
+ * \brief  Transformation steps. For each schedule primitive, there is a corresponding transform step.
+ *
+ * \Note How to add a new transform step.
  * Take fuse for example:
- * 1. Define class FuseStepNode, FuseStep in loop_state.h, and implement its make function
- *    in  FuseStepNode::make(...)  loop_state.cc
+ * 1. Define class FuseStepNode, FuseStep in transform_steps.h, and implement its make function
+ *    in  FuseStepNode::make(...)  transform_steps.cc
  * 2. Implement FuseStepNode::ApplyToSchedule and FuseStepNode::PrintAsPythonAPI.
  *    - In these two functions you need to lower this step with tvm's schedule API
  * 3. Implement State::fuse and State::DoFuseStep.
@@ -112,17 +36,24 @@ TVM_DEFINE_MUTABLE_NODE_REF(Step, StepNode);
  * 6. Add hash support in `struct hash<::tvm::ansor::Step>` (search for this function in this file)
  */
 
-class ReorderStep; class SplitStep; class FollowSplitStep;
-class FollowFusedSplitStep;
-class FuseStep; class AnnotationStep;
-class ComputeAtStep; class ComputeRootStep; class ComputeInlineStep;
-class PackForVecStep; class CacheReadStep; class CacheWriteStep;
-class PragmaStep; class RfactorStep; class StorageAlignStep;
-class AttachMap;
+#ifndef TVM_ANSOR_TRANSFORM_STEP_H_
+#define TVM_ANSOR_TRANSFORM_STEP_H_
 
+#include <dmlc/common.h>
+#include <string>
+#include <vector>
+#include "loop_state.h"
+
+namespace tvm {
+namespace ansor {
+
+using namespace tvm::tir;
+
+/*! \brief Reorder step that corresponds to te::Stage::reorder */
 class ReorderStepNode: public StepNode {
  public:
-  std::vector<int> after_ids;
+  std::vector<int> after_ids;  // The iterator ids after reorder.
+  // This array should specify the order of all iterators.
 
   static ReorderStep make(int stage_id, const std::vector<int>& after_ids);
 
@@ -137,15 +68,17 @@ class ReorderStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.ReorderStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReorderStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(ReorderStep, Step, ReorderStepNode);
+TVM_DEFINE_COW_OBJECT_REF(ReorderStep, Step, ReorderStepNode);
 
-
+/*! \brief Split step that corresponds to te::Stage::split with additional
+ *  support of multiple-level of factors */
 class SplitStepNode: public StepNode {
  public:
-  int iter_id;
-  PrimExpr extent;                // the extent of the axis to split
+  int iter_id;                    // The id of the iter to split
+  PrimExpr extent;                // the extent length of the axis to split
   std::vector<PrimExpr> lengths;  // The split factors
-  bool inner_to_outer;
+  bool inner_to_outer;            // If true, the `lengths` denote the lengths of
+                                  // iterators from inner level to outer level
 
   static SplitStep make(int stage_id, int iter_id, PrimExpr extent,
                         const std::vector<PrimExpr>& lengths,
@@ -162,15 +95,15 @@ class SplitStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.SplitStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(SplitStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(SplitStep, Step, SplitStepNode);
+TVM_DEFINE_COW_OBJECT_REF(SplitStep, Step, SplitStepNode);
 
-// Similar to SplitStepNode, but use split factor from another step
-// (i.e. Follow another split step)
+/*! \brief Similar to SplitStepNode, but use split factor from another step
+ * (i.e. Follow another split step) */
 class FollowSplitStepNode: public StepNode {
  public:
-  int iter_id;
-  int src_step_id;
-  int n_split;
+  int iter_id;      // The id of the iter to split
+  int src_step_id;  // The index of the split step to follow in the history
+  int n_split;      // The number of split level
 
   static FollowSplitStep make(int stage_id, int iter_id,
                               int src_step_id, int n_split);
@@ -190,17 +123,17 @@ class FollowSplitStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.FollowSplitStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(FollowSplitStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(FollowSplitStep, Step, FollowSplitStepNode);
+TVM_DEFINE_COW_OBJECT_REF(FollowSplitStep, Step, FollowSplitStepNode);
 
-
-// Similar to FollowSplitStep, but use split factors from multiple steps
-// This can be used for the split in cooperative fetching.
+/*! \brief Similar to FollowSplitStep, but use split factors from multiple steps.
+ *  \Note This can be used for the split in cooperative fetching
+ */
 class FollowFusedSplitStepNode: public StepNode {
  public:
-  int iter_id;
-  std::vector<int> src_step_ids;
-  int level;              // Use the length in this split level
-  bool factor_or_nparts;  // If this is true, use factor. Otherwise, use nparts
+  int iter_id;                    // The id of the iter to split
+  std::vector<int> src_step_ids;  // The indices of the split steps to follow in the history
+  int level;                      // Use the length in this split level
+  bool factor_or_nparts;          // If this is true, use factor. Otherwise, use nparts
 
   static FollowFusedSplitStep make(int stage_id, int iter_id,
                                    const std::vector<int>& src_step_ids,
@@ -220,12 +153,12 @@ class FollowFusedSplitStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.FollowFusedSplitStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(FollowFusedSplitStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(FollowFusedSplitStep, Step, FollowFusedSplitStepNode);
+TVM_DEFINE_COW_OBJECT_REF(FollowFusedSplitStep, Step, FollowFusedSplitStepNode);
 
-
+/*! \brief Fuse step that corresponds to te::Stage::fuse */
 class FuseStepNode: public StepNode {
  public:
-  std::vector<int> fused_ids;
+  std::vector<int> fused_ids;  // The ids of iterators to fuse
 
   static FuseStep make(int stage_id, const std::vector<int>& fused_ids);
 
@@ -240,9 +173,11 @@ class FuseStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.FuseStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuseStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(FuseStep, Step, FuseStepNode);
+TVM_DEFINE_COW_OBJECT_REF(FuseStep, Step, FuseStepNode);
 
-
+/*! \brief Annotation step that corresponds to vectorize, parallel, unroll and thread binding.
+ * (i.e. te::Stage::vectorize, te::Stage::parallel, te::Stage::vectorize, te::Stage::bind)
+ */
 class AnnotationStepNode: public StepNode {
  public:
   int iter_id;
@@ -261,9 +196,9 @@ class AnnotationStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.AnnotationStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(AnnotationStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(AnnotationStep, Step, AnnotationStepNode);
+TVM_DEFINE_COW_OBJECT_REF(AnnotationStep, Step, AnnotationStepNode);
 
-
+/*! \brief Fuse step that corresponds to te::Stage::compute_at */
 class ComputeAtStepNode: public StepNode {
  public:
   int target_stage_id;
@@ -283,9 +218,9 @@ class ComputeAtStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.ComputeAtStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeAtStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(ComputeAtStep, Step, ComputeAtStepNode);
+TVM_DEFINE_COW_OBJECT_REF(ComputeAtStep, Step, ComputeAtStepNode);
 
-
+/*! \brief Fuse step that corresponds to te::Stage::compute_root */
 class ComputeRootStepNode: public StepNode {
  public:
   static ComputeRootStep make(int stage_id);
@@ -301,9 +236,9 @@ class ComputeRootStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.ComputeRootStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeRootStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(ComputeRootStep, Step, ComputeRootStepNode);
+TVM_DEFINE_COW_OBJECT_REF(ComputeRootStep, Step, ComputeRootStepNode);
 
-
+/*! \brief Fuse step that corresponds to te::Stage::compute_inline */
 class ComputeInlineStepNode: public StepNode {
  public:
   static ComputeInlineStep make(int stage_id);
@@ -319,31 +254,9 @@ class ComputeInlineStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.ComputeInlineStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeInlineStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(ComputeInlineStep, Step, ComputeInlineStepNode);
+TVM_DEFINE_COW_OBJECT_REF(ComputeInlineStep, Step, ComputeInlineStepNode);
 
-class PackForVecStepNode: public StepNode {
- public:
-  int iter_id;
-  int vec_size;
-
-  static PackForVecStep make(int stage_id, int iter_id, int vec_size);
-
-  void ApplyToSchedule(std::vector<te::Stage> *stages,
-      StageToAxesMap *stage_to_axes, te::Schedule *schedule) const;
-
-  std::string PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                               StageToAxesMap *stage_to_axes,
-                               te::Schedule *schedule,
-                               const std::vector<Step>& transform_steps) const final;
-
-  static constexpr const char* _type_key = "ansor.PackForVecStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PackForVecStepNode, Object);
-};
-TVM_DEFINE_COW_NODE_REF(PackForVecStep, Step, PackForVecStepNode);
-
-
-/*! \brief Apply cache_read to a stage
- * TVM Api: te::Schedule::cache_read(tensor, scope, readers) */
+/*! \brief Cache read step that corresponds to te::Schedule::cache_read */
 class CacheReadStepNode: public StepNode {
  public:
   std::string scope_name;
@@ -363,12 +276,10 @@ class CacheReadStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.CacheReadStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(CacheReadStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(CacheReadStep, Step, CacheReadStepNode);
+TVM_DEFINE_COW_OBJECT_REF(CacheReadStep, Step, CacheReadStepNode);
 
-
-/*! \brief Apply cache_write to a stage
- * TVM Api: te::Schedule::cache_write(tensor, scope)
- * This step will cache_write all output tensors of target stage */
+/*! \brief Cache read step that corresponds to te::Schedule::cache_write
+ *  \Note This step will cache_write all output tensors of target stage */
 class CacheWriteStepNode: public StepNode {
  public:
   std::string scope_name;
@@ -386,9 +297,9 @@ class CacheWriteStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.CacheWriteStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(CacheWriteStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(CacheWriteStep, Step, CacheWriteStepNode);
+TVM_DEFINE_COW_OBJECT_REF(CacheWriteStep, Step, CacheWriteStepNode);
 
-/*! \brief Add pragma to a specific iterator */
+/*! \brief Cache read step that corresponds to te::Schedule::pragma */
 class PragmaStepNode: public StepNode {
  public:
   int iter_id;
@@ -407,10 +318,9 @@ class PragmaStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.PragmaStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(PragmaStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(PragmaStep, Step, PragmaStepNode);
+TVM_DEFINE_COW_OBJECT_REF(PragmaStep, Step, PragmaStepNode);
 
-/*! \brief Factor a reduction axis
- * TVM Api: te::Schedule::rfactor(tensor, axis, factor_axis) */
+/*! \brief Reduction factor step that corresponds to te::Schedule::rfactor */
 class RfactorStepNode: public StepNode {
  public:
   int iter_id;
@@ -430,8 +340,9 @@ class RfactorStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.RfactorStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(RfactorStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(RfactorStep, Step, RfactorStepNode);
+TVM_DEFINE_COW_OBJECT_REF(RfactorStep, Step, RfactorStepNode);
 
+/*! \brief Storage align step that corresponds to te::Schedule::storage_align */
 class StorageAlignStepNode: public StepNode {
  public:
   int iter_id;
@@ -452,12 +363,12 @@ class StorageAlignStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.StorageAlignStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(StorageAlignStepNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(StorageAlignStep, Step, StorageAlignStepNode);
+TVM_DEFINE_COW_OBJECT_REF(StorageAlignStep, Step, StorageAlignStepNode);
 
 }  // namespace ansor
 }  // namespace tvm
 
-// Hash and equal function for State, Stage, Iterator and Step
+// Hash and equal function for Step
 namespace std {
 
 template <>
@@ -515,32 +426,27 @@ struct hash<::tvm::ansor::Step> {
     } else if (auto ps = step.as<::tvm::ansor::ComputeInlineStepNode>()) {
       return ::dmlc::HashCombine(9,
                                  ps->stage_id);
-    } else if (auto ps = step.as<::tvm::ansor::PackForVecStepNode>()) {
-      return ::dmlc::HashCombine(10,
-             ::dmlc::HashCombine(std::hash<int>()(ps->stage_id),
-             ::dmlc::HashCombine(std::hash<int>()(ps->iter_id),
-                                 ps->vec_size)));
     } else if (auto ps = step.as<::tvm::ansor::CacheReadStepNode>()) {
-      return ::dmlc::HashCombine(11,
+      return ::dmlc::HashCombine(10,
              ::dmlc::HashCombine(std::hash<int>()(ps->stage_id),
              ::dmlc::HashCombine(std::hash<std::string>()(ps->scope_name),
                                  ps->reader_stage_ids)));
     } else if (auto ps = step.as<::tvm::ansor::CacheWriteStepNode>()) {
-      return ::dmlc::HashCombine(12,
+      return ::dmlc::HashCombine(11,
              ::dmlc::HashCombine(std::hash<int>()(ps->stage_id),
                                  ps->scope_name));
     } else if (auto ps = step.as<::tvm::ansor::PragmaStepNode>()) {
-      return ::dmlc::HashCombine(13,
+      return ::dmlc::HashCombine(12,
              ::dmlc::HashCombine(std::hash<int>()(ps->stage_id),
              ::dmlc::HashCombine(std::hash<int>()(ps->iter_id),
                                  ps->pragma_type)));
     } else if (auto ps = step.as<::tvm::ansor::RfactorStepNode>()) {
-      return ::dmlc::HashCombine(14,
+      return ::dmlc::HashCombine(13,
              ::dmlc::HashCombine(std::hash<int>()(ps->stage_id),
              ::dmlc::HashCombine(std::hash<int>()(ps->iter_id),
                                  ps->factor_iter_id)));
     } else if (auto ps = step.as<::tvm::ansor::StorageAlignStepNode>()) {
-      return ::dmlc::HashCombine(15,
+      return ::dmlc::HashCombine(14,
              ::dmlc::HashCombine(std::hash<int>()(ps->stage_id),
              ::dmlc::HashCombine(std::hash<int>()(ps->iter_id),
              ::dmlc::HashCombine(std::hash<int>()(ps->factor),

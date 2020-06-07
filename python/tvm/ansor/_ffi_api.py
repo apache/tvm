@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI APIs for tvm.ansor"""
+
+"""Register FFI APIs from C++ for the namespace tvm.ansor"""
 import tvm._ffi
 
 

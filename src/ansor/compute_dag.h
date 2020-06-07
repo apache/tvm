@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2020 by Contributors
  * \file ansor/compute_dag.h
  * \brief Compute declaration graph and its related analysis tools
  */
@@ -21,12 +39,6 @@ namespace ansor {
 
 class ComputeDAG; class AccessAnalyzer;
 class StateNode; class State; class Step;
-
-typedef std::unordered_map<tvm::te::Stage, std::vector<tir::IterVar>, ObjectHash, ObjectEqual>
-    StageToAxesMap;
-
-// Update StageToAxes Map during replay
-void UpdateStageAxis(const tvm::te::Stage& stage, StageToAxesMap *stage_to_axes);
 
 /*! \brief Read/Write access static analysis result */
 class AccessAnalyzerNode : public Object {
@@ -60,9 +72,11 @@ class AccessAnalyzer : public ObjectRef {
   // Get all producers of an op
   void GetProducers(const State& state, const te::Operation& op,
       std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* producers) const;
+
   // Get all consumers of an op. This func deals with inlined op correctly.
   void GetConsumers(const State& state, const te::Operation& op,
       std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* consumers) const;
+
   // Check whether two ops are elementwise matched
   // (e.g. conv2d and relu are elementwise matched)
   bool ElementWiseMatch(const te::Operation& op,
@@ -84,17 +98,23 @@ class AccessAnalyzer : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(AccessAnalyzer, ObjectRef, AccessAnalyzerNode);
 };
 
+typedef std::unordered_map<tvm::te::Stage, std::vector<tir::IterVar>, ObjectHash, ObjectEqual>
+    StageToAxesMap;
+
+// Update StageToAxes Map during replay
+void UpdateStageAxis(const tvm::te::Stage& stage, StageToAxesMap *stage_to_axes);
+
+
 /*! \brief Compute declaration graph */
 class ComputeDAGNode : public Object {
  public:
-  Array<te::Tensor> tensors;  // Input and output tensors
-  Array<te::Operation> ops;   // All related operations in topo order
-  double flop_ct;         // Number of float operations
+  Array<te::Tensor> tensors;       // Input and output tensors
+  Array<te::Operation> ops;        // All related operations in topo order
+  double flop_ct;                  // Number of float operations
   AccessAnalyzer access_analyzer;  // Read/Write accesss static analyzer
-  ObjectRef init_state;     // initial states
+  ObjectRef init_state;            // The initial state
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    LOG(INFO) << "ComputeDAG";
     v->Visit("tensors", &tensors);
     v->Visit("ops", &ops);
     v->Visit("flop_ct", &flop_ct);
@@ -126,7 +146,7 @@ class ComputeDAG: public ObjectRef {
 
   // Rewrite the the layout of "layout free" placeholders according to transform steps
   void RewriteLayout(const std::vector<Step>& transform_steps,
-                     LayoutRewriteLevel layout_rewrite_level = kNoRewrite) const {};
+                     LayoutRewriteLevel layout_rewrite_level = kNoRewrite) const {}
 
   // Print transform steps as equivalent python schedule API
   std::string PrintStepsAsPython(const std::vector<Step>& steps) const;
@@ -134,18 +154,20 @@ class ComputeDAG: public ObjectRef {
   // Replay the transform steps and call ir_pass::InferBound to fill correct bound information
   State ReplayAndInferBound(const std::vector<Step>& transform_steps) const;
 
-  // Fill the correct bound information for a given state
+  // Fill the correct bound information for a given state by calling ir_pass::InferBound
   State InferBound(const State& state) const;
 
   // Fill the correct bound information for a list of given states.
   // Return the new states inplace
   void InferBound(std::vector<State>* states) const;
 
-  // Replay the transform steps and get the new ops
+  // Replay the transform steps and get the new DAG
   void ReplayAndGetDAG(const std::vector<Step>& steps, ComputeDAG* task_dag) const;
 
   // Get the init state
   State GetInitState() const;
+
+  static constexpr const char* layout_free_placeholders_key = "layout_free_placeholders";
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeDAG, ObjectRef, ComputeDAGNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeDAGNode);
@@ -155,7 +177,6 @@ class ComputeDAG: public ObjectRef {
   std::pair<te::Schedule, Array<te::Tensor> > ReplaySteps(
       const std::vector<Step>& transform_steps, std::vector<te::Stage>* stages,
       StageToAxesMap* stage_to_axes) const;
-  static constexpr const char* _layout_free_placeholders_key = "layout_free_placeholders";
 
   // Internal common parts for inferring bound
   void InferBoundCommon(StateNode* pstate) const;

@@ -1,57 +1,65 @@
-/*!
- *  Copyright (c) 2020 by Contributors
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-#include "serialization.h"
+
+/*!
+ * \file ansor/serialization.cc
+ * \brief Json serialization format for dumping and loading tuning records
+ */
 
 #include <dmlc/json.h>
 #include <tvm/runtime/registry.h>
-
 #include <fstream>
 #include <sstream>
+#include <vector>
 #include <string>
 #include <utility>
-#include <vector>
-
+#include "serialization.h"
 #include "loop_state.h"
+#include "transform_step.h"
 #include "utils.h"
 
 // Json serialization handler for MeasureInput, MeasureResult
-// (and recursively SearchTask, State, Step, ...
+// (and recursively for SearchTask, State, Step, ...)
 namespace dmlc {
 namespace json {
 
-inline std::vector<double>& FloatArrayToVector(
-    std::vector<double>* out, const ::tvm::Array<::tvm::PrimExpr>& data) {
+inline std::vector<int>& IntArrayToVector(std::vector<int>* out,
+                                          const ::tvm::Array<::tvm::PrimExpr>& data) {
   out->clear();
-  for (const auto& x : data) {
-    auto pf = x.as<::tvm::tir::FloatImmNode>();
-    CHECK(pf != nullptr) << "Cost can only contain float values";
-    out->push_back(pf->value);
-  }
-  return *out;
-}
-
-inline std::vector<int>& IntArrayToVector(
-    std::vector<int>* out, const ::tvm::Array<::tvm::PrimExpr>& data) {
-  out->clear();
-  for (const auto& x : data) {
+  for (const auto&x : data) {
     auto pi = x.as<::tvm::tir::IntImmNode>();
-    CHECK(pi != nullptr) << "Cost can only contain int values";
+    CHECK(pi != nullptr) << "Can only contain int values";
     out->push_back(pi->value);
   }
   return *out;
 }
 
 template <>
-struct Handler<std::vector<::tvm::ansor::Stage>> {
+struct Handler<std::vector<::tvm::ansor::Stage> > {
   inline static void Write(dmlc::JSONWriter* writer,
-                           const std::vector<::tvm::ansor::Stage>& data) {
+                           const std::vector<::tvm::ansor::Stage> & data) {
     // todo(lmzheng): support serialization of Stage
     writer->BeginArray(false);
     writer->EndArray();
   }
   inline static void Read(dmlc::JSONReader* reader,
-                          std::vector<::tvm::ansor::Stage>* data) {
+                          std::vector<::tvm::ansor::Stage> * data) {
     bool s;
     reader->BeginArray();
     s = reader->NextArrayItem(); CHECK(!s);
@@ -59,16 +67,16 @@ struct Handler<std::vector<::tvm::ansor::Stage>> {
 };
 
 template <>
-struct Handler<std::vector<::tvm::ansor::Step>> {
+struct Handler<std::vector<::tvm::ansor::Step> > {
   inline static void Write(dmlc::JSONWriter* writer,
-                           const std::vector<::tvm::ansor::Step>& data) {
+                           const std::vector<::tvm::ansor::Step> & data) {
     std::vector<int> tmp;
     writer->BeginArray(false);
     for (size_t i = 0; i < data.size(); ++i) {
       writer->WriteArraySeperator();
       writer->BeginArray(false);
       if (auto ps = data[i].as<::tvm::ansor::ReorderStepNode>()) {
-        writer->WriteArrayItem(std::string("RS"));
+        writer->WriteArrayItem(std::string("RE"));
         writer->WriteArrayItem(ps->stage_id);
 
         writer->WriteArraySeperator();
@@ -78,7 +86,7 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
         }
         writer->EndArray();
       } else if (auto ps = data[i].as<::tvm::ansor::SplitStepNode>()) {
-        writer->WriteArrayItem(std::string("SS"));
+        writer->WriteArrayItem(std::string("SP"));
         writer->WriteArrayItem(ps->stage_id);
         writer->WriteArrayItem(ps->iter_id);
         if (ps->extent.defined()) {
@@ -89,14 +97,13 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
         writer->WriteArrayItem(IntArrayToVector(&tmp, ps->lengths));
         writer->WriteArrayItem(static_cast<int>(ps->inner_to_outer));
       } else if (auto ps = data[i].as<::tvm::ansor::FollowSplitStepNode>()) {
-        writer->WriteArrayItem(std::string("FSS"));
+        writer->WriteArrayItem(std::string("FSP"));
         writer->WriteArrayItem(ps->stage_id);
         writer->WriteArrayItem(ps->iter_id);
         writer->WriteArrayItem(ps->src_step_id);
         writer->WriteArrayItem(ps->n_split);
-      } else if (auto ps =
-                     data[i].as<::tvm::ansor::FollowFusedSplitStepNode>()) {
-        writer->WriteArrayItem(std::string("FFSS"));
+      } else if (auto ps = data[i].as<::tvm::ansor::FollowFusedSplitStepNode>()) {
+        writer->WriteArrayItem(std::string("FFSP"));
         writer->WriteArrayItem(ps->stage_id);
         writer->WriteArrayItem(ps->iter_id);
 
@@ -110,7 +117,7 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
         writer->WriteArrayItem(ps->level);
         writer->WriteArrayItem(static_cast<int>(ps->factor_or_nparts));
       } else if (auto ps = data[i].as<::tvm::ansor::FuseStepNode>()) {
-        writer->WriteArrayItem(std::string("FS"));
+        writer->WriteArrayItem(std::string("FU"));
         writer->WriteArrayItem(ps->stage_id);
 
         writer->WriteArraySeperator();
@@ -120,7 +127,7 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
         }
         writer->EndArray();
       } else if (auto ps = data[i].as<::tvm::ansor::AnnotationStepNode>()) {
-        writer->WriteArrayItem(std::string("AS"));
+        writer->WriteArrayItem(std::string("AN"));
         writer->WriteArrayItem(ps->stage_id);
         writer->WriteArrayItem(ps->iter_id);
         writer->WriteArrayItem(static_cast<int>(ps->annotation));
@@ -145,12 +152,12 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
         writer->WriteArrayItem(ps->stage_id);
         writer->WriteArrayItem(ps->scope_name);
       } else if (auto ps = data[i].as<::tvm::ansor::PragmaStepNode>()) {
-        writer->WriteArrayItem(std::string("PS"));
+        writer->WriteArrayItem(std::string("PR"));
         writer->WriteArrayItem(ps->stage_id);
         writer->WriteArrayItem(ps->iter_id);
         writer->WriteArrayItem(ps->pragma_type);
       } else if (auto ps = data[i].as<::tvm::ansor::RfactorStepNode>()) {
-        writer->WriteArrayItem(std::string("RFS"));
+        writer->WriteArrayItem(std::string("RF"));
         writer->WriteArrayItem(ps->stage_id);
         writer->WriteArrayItem(ps->iter_id);
         writer->WriteArrayItem(ps->factor_iter_id);
@@ -167,8 +174,9 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
     }
     writer->EndArray();
   }
+
   inline static void Read(dmlc::JSONReader* reader,
-                          std::vector<::tvm::ansor::Step>* data) {
+                          std::vector<::tvm::ansor::Step> * data) {
     std::vector<int> int_list;
     bool s, inner_to_outer, factor_or_nparts;
     std::string name, scope_name, pragma_type;
@@ -181,14 +189,13 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
       reader->BeginArray();
       s = reader->NextArrayItem(); CHECK(s);
       reader->Read(&name);
-      if (name == "RS") {
+      if (name == "RE") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&int_list);
-        data->push_back(
-            ::tvm::ansor::ReorderStepNode::make(stage_id, int_list));
-      } else if (name == "SS") {
+        data->push_back(::tvm::ansor::ReorderStepNode::make(stage_id, int_list));
+      } else if (name == "SP") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
         s = reader->NextArrayItem(); CHECK(s);
@@ -203,7 +210,7 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
             stage_id, iter_id, extent,
             std::vector<::tvm::PrimExpr>(int_list.begin(), int_list.end()),
             inner_to_outer));
-      } else if (name == "FSS") {
+      } else if (name == "FSP") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
         s = reader->NextArrayItem(); CHECK(s);
@@ -214,7 +221,7 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
         reader->Read(&n_split);
         data->push_back(::tvm::ansor::FollowSplitStepNode::make(
             stage_id, iter_id, src_step_id, n_split));
-      } else if (name == "FFSS") {
+      } else if (name == "FFSP") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
         s = reader->NextArrayItem(); CHECK(s);
@@ -227,21 +234,21 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
         reader->Read(&factor_or_nparts);
         data->push_back(::tvm::ansor::FollowFusedSplitStepNode::make(
             stage_id, iter_id, int_list, level, factor_or_nparts));
-      } else if (name == "FS") {
+      } else if (name == "FU") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&int_list);
         data->push_back(::tvm::ansor::FuseStepNode::make(stage_id, int_list));
-      } else if (name == "AS") {
+      } else if (name == "AN") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&iter_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&ann);
-        data->push_back(::tvm::ansor::AnnotationStepNode::make(
-            stage_id, iter_id, ::tvm::ansor::IteratorAnnotation(ann)));
+        data->push_back(::tvm::ansor::AnnotationStepNode::make(stage_id,
+            iter_id, ::tvm::ansor::IteratorAnnotation(ann)));
       } else if (name == "CA") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
@@ -273,26 +280,26 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
         reader->Read(&stage_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&scope_name);
-        data->push_back(
-            ::tvm::ansor::CacheWriteStepNode::make(stage_id, scope_name));
-      } else if (name == "PS") {
+        data->push_back(::tvm::ansor::CacheWriteStepNode::make(
+            stage_id, scope_name));
+      } else if (name == "PR") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&iter_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&pragma_type);
-        data->push_back(
-            ::tvm::ansor::PragmaStepNode::make(stage_id, iter_id, pragma_type));
-      } else if (name == "RFS") {
+        data->push_back(::tvm::ansor::PragmaStepNode::make(
+            stage_id, iter_id, pragma_type));
+      } else if (name == "RF") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&iter_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&factor_iter_id);
-        data->push_back(::tvm::ansor::RfactorStepNode::make(stage_id, iter_id,
-                                                            factor_iter_id));
+        data->push_back(::tvm::ansor::RfactorStepNode::make(
+            stage_id, iter_id, factor_iter_id));
       } else if (name == "SA") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
@@ -392,7 +399,7 @@ struct Handler<::tvm::ansor::MeasureResultNode> {
     writer->BeginArray(false);
     writer->WriteArraySeperator();
     writer->BeginArray(false);
-    for (const auto& x : data.costs) {
+    for (const auto&x : data.costs) {
       auto pf = x.as<::tvm::tir::FloatImmNode>();
       CHECK(pf != nullptr) << "Cost can only contain float values";
       writer->WriteArrayItem(pf->value);
@@ -434,7 +441,7 @@ namespace ansor {
 TVM_REGISTER_OBJECT_TYPE(LogToFileNode);
 TVM_REGISTER_OBJECT_TYPE(LogReaderNode);
 
-const std::string ansor_LOG_VERSION = "v0.1";  // NOLINT(*)
+const std::string ANSOR_LOG_VERSION = "v0.1";    // NOLINT(*)
 
 MeasureCallback LogToFileNode::make(std::string filename) {
   auto node = make_object<LogToFileNode>();
@@ -442,21 +449,24 @@ MeasureCallback LogToFileNode::make(std::string filename) {
   return MeasureCallback(node);
 }
 
-void WriteMeasureRecords(std::ostream* os, const Array<MeasureInput>& inputs,
+void WriteMeasureRecords(std::ostream* os,
+                         const Array<MeasureInput>& inputs,
                          const Array<MeasureResult>& results) {
   dmlc::JSONWriter writer(os);
   for (size_t i = 0; i < inputs.size(); ++i) {
     writer.BeginObject(false);
     writer.WriteObjectKeyValue("i", *inputs[i].operator->());
     writer.WriteObjectKeyValue("r", *results[i].operator->());
-    writer.WriteObjectKeyValue("v", ansor_LOG_VERSION);
+    writer.WriteObjectKeyValue("v", ANSOR_LOG_VERSION);
     writer.EndObject();
     *os << "\n";
   }
 }
 
-void ReadMeasureRecords(std::string str, MeasureInputNode* inp,
-                        MeasureResultNode* res, std::string* log_version) {
+void ReadMeasureRecord(const std::string& str,
+                       MeasureInputNode* inp,
+                       MeasureResultNode* res,
+                       std::string* log_version) {
   std::istringstream ss(str);
   dmlc::JSONReader reader(&ss);
   std::string key;
@@ -499,7 +509,7 @@ bool LogReaderNode::ReadNext(MeasureInputNode* inp, MeasureResultNode* res) {
     }
 
     try {
-      ReadMeasureRecords(cur_line, inp, res, &log_version);
+      ReadMeasureRecord(cur_line, inp, res, &log_version);
     } catch (...) {
       return false;
     }
@@ -510,8 +520,8 @@ bool LogReaderNode::ReadNext(MeasureInputNode* inp, MeasureResultNode* res) {
   return false;
 }
 
-std::pair<Array<MeasureInput>, Array<MeasureResult>> LogReaderNode::ReadLines(
-    int max_size, int skip_size) {
+std::pair<Array<MeasureInput>, Array<MeasureResult> > LogReaderNode::ReadLines(
+        int max_size, int skip_size) {
   auto inp = make_object<MeasureInputNode>();
   auto res = make_object<MeasureResultNode>();
   Array<MeasureInput> inputs;
@@ -534,41 +544,68 @@ std::pair<Array<MeasureInput>, Array<MeasureResult>> LogReaderNode::ReadLines(
   return std::make_pair(inputs, results);
 }
 
-TVM_REGISTER_GLOBAL("ansor.write_measure_records_to_file")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      std::string filename = args[0];
-      Array<MeasureInput> in = args[1];
-      Array<MeasureResult> res = args[2];
-      std::ofstream ofs(filename, std::ofstream::app);
-      WriteMeasureRecords(&ofs, in, res);
-    });
+std::pair<MeasureInput, MeasureResult> BestMeasurePairInFile(const std::string& filename,
+                                                             const std::string& workload_key,
+                                                             const Target& target) {
+  std::pair<MeasureInput, MeasureResult> best_pair;
+  double best_cost = 1e30;
+
+  auto inp = make_object<MeasureInputNode>();
+  auto res = make_object<MeasureResultNode>();
+  LogReader reader = LogReaderNode::make(filename);
+
+  while (reader->ReadNext(inp.get(), res.get())) {
+    if (res->error_no != kNoError || inp->task->workload_key != workload_key
+       || inp->task->target->target_name != target->target_name) {
+      continue;
+    }
+
+    double cost = FloatArrayMean(res->costs);
+
+    if (cost < best_cost) {
+      best_cost = cost;
+      best_pair = std::make_pair(inp->copy(), res->copy());
+    }
+  }
+
+  return best_pair;
+}
+
+TVM_REGISTER_GLOBAL("ansor.WriteMeasureRecordsToFile")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  std::string filename = args[0];
+  Array<MeasureInput> in = args[1];
+  Array<MeasureResult> res = args[2];
+  std::ofstream ofs(filename, std::ofstream::app);
+  WriteMeasureRecords(&ofs, in, res);
+});
 
 TVM_REGISTER_GLOBAL("ansor.LogToFile")
-    .set_body_typed([](const std::string& filename) {
-      return LogToFileNode::make(filename);
-    });
+.set_body_typed([](const std::string& filename) {
+  return LogToFileNode::make(filename);
+});
 
 TVM_REGISTER_GLOBAL("ansor.LogReader")
-    .set_body_typed([](const std::string& filename) {
-      return LogReaderNode::make(filename);
-    });
+.set_body_typed([](const std::string& filename) {
+  return LogReaderNode::make(filename);
+});
 
 TVM_REGISTER_GLOBAL("ansor.LogReaderReadLines")
-    .set_body_typed([](LogReader reader, int size, int skip_size) {
-      const auto& res = reader->ReadLines(size, skip_size);
-      return Array<ObjectRef>{res.first, res.second};
-    });
+.set_body_typed([](LogReader reader, int size, int skip_size) {
+  const auto& res = reader->ReadLines(size, skip_size);
+  return Array<ObjectRef>{res.first, res.second};
+});
 
 TVM_REGISTER_GLOBAL("ansor.LogReaderReadNext")
-    .set_body_typed([](LogReader reader) {
-      auto inp = make_object<MeasureInputNode>();
-      auto res = make_object<MeasureResultNode>();
-      if (reader->ReadNext(inp.get(), res.get())) {
-        return Array<ObjectRef>{ObjectRef(inp), ObjectRef(res)};
-      } else {
-        return Array<ObjectRef>();
-      }
-    });
+.set_body_typed([](LogReader reader) {
+  auto inp = make_object<MeasureInputNode>();
+  auto res = make_object<MeasureResultNode>();
+  if (reader->ReadNext(inp.get(), res.get())) {
+    return Array<ObjectRef>{ObjectRef(inp), ObjectRef(res)};
+  } else {
+    return Array<ObjectRef>();
+  }
+});
 
 }  // namespace ansor
 }  // namespace tvm

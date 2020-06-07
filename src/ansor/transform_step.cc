@@ -1,15 +1,36 @@
-/*!
- *  Copyright (c) 2020 by Contributors
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
+
+/*!
+ * \file ansor/transform_step.cc
+ * \brief  Transformation steps. For each schedule primitive, there is a corresponding transform step.
+ *
+ * See the note in transform_step.h on how to add a new step
+ */
+
 #include "transform_step.h"
 #include <tvm/te/operation.h>
+#include <utility>
 #include "utils.h"
 
 namespace tvm {
 namespace ansor {
-
-TVM_REGISTER_NODE_TYPE(IteratorNode);
-TVM_REGISTER_OBJECT_TYPE(StepNode);
 
 /********** Reorder **********/
 ReorderStep ReorderStepNode::make(int stage_id, const std::vector<int>& after_ids) {
@@ -226,7 +247,8 @@ FollowFusedSplitStep FollowFusedSplitStepNode::make(int stage_id, int iter_id,
   return FollowFusedSplitStep(node);
 }
 
-PrimExpr FollowFusedSplitStepNode::ExtractSplitLength(const std::vector<Step>& transform_steps) const {
+PrimExpr FollowFusedSplitStepNode::ExtractSplitLength(
+    const std::vector<Step>& transform_steps) const {
   PrimExpr ret(1);
 
   for (int src_step_id : src_step_ids) {
@@ -402,7 +424,7 @@ std::string AnnotationStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
   return ss.str();
 }
 
-/********** Compute at **********/
+/********** Compute At **********/
 ComputeAtStep ComputeAtStepNode::make(int stage_id, int target_stage_id, int target_iter_id) {
   auto node = make_object<ComputeAtStepNode>();
   node->stage_id = stage_id;
@@ -487,29 +509,7 @@ std::string ComputeInlineStepNode::PrintAsPythonAPI(
   return ss.str();
 }
 
-/********** Pack for vec **********/
-PackForVecStep PackForVecStepNode::make(int stage_id, int iter_id, int vec_size) {
-  auto node = make_object<PackForVecStepNode>();
-  node->stage_id = stage_id;
-  node->iter_id = iter_id;
-  node->vec_size = vec_size;
-  return PackForVecStep(node);
-}
-
-void PackForVecStepNode::ApplyToSchedule(std::vector<te::Stage> *stages,
-    StageToAxesMap *stage_to_axes, te::Schedule *schedule) const {
-  LOG(FATAL) << "Not implemented";
-}
-
-std::string PackForVecStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                                                 StageToAxesMap *stage_to_axes,
-                                                 te::Schedule *schedule,
-                                                 const std::vector<Step>& transform_steps) const {
-  LOG(FATAL) << "Not implemented";
-  return "";
-}
-
-/********** Cache read **********/
+/********** Cache Read **********/
 CacheReadStep CacheReadStepNode::make(int stage_id, std::string scope_name,
                                       const std::vector<int>& reader_stage_ids) {
   auto node = make_object<CacheReadStepNode>();
@@ -572,7 +572,7 @@ std::string CacheReadStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
   return ss.str();
 }
 
-/********** Cache write **********/
+/********** Cache Write **********/
 CacheWriteStep CacheWriteStepNode::make(int stage_id, std::string scope_name) {
   auto node = make_object<CacheWriteStepNode>();
   node->stage_id = stage_id;
@@ -770,8 +770,7 @@ std::string RfactorStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
   return ss.str();
 }
 
-/********** StorageAlign **********/
-
+/********** Storage Align **********/
 StorageAlignStep StorageAlignStepNode::make(int stage_id, int iter_id,
                                             int factor, int offset) {
   auto node = make_object<StorageAlignStepNode>();
@@ -800,21 +799,6 @@ std::string StorageAlignStepNode::PrintAsPythonAPI(
 
   ApplyToSchedule(stages, stage_to_axes);
   return ss.str();
-}
-
-// Maker for other classes
-Iterator IteratorNode::make(std::string name, Range range,
-                            IteratorType iter_type, IteratorAnnotation annotation,
-                            const std::vector<Iterator>* ori_iters) {
-  auto node = make_object<IteratorNode>();
-  node->name = std::move(name);
-  node->range = std::move(range);
-  node->iter_type = iter_type;
-  node->annotation = annotation;
-  if (ori_iters != nullptr) {
-    node->ori_iters = *ori_iters;
-  }
-  return Iterator(node);
 }
 
 }  // namespace ansor

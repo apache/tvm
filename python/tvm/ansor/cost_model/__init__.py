@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-import, redefined-builtin
-""" ... """
+""" Cost model that estimates the performance of programs """
 
 from .cost_model import RandomModel

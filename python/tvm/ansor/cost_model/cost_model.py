@@ -14,14 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
-""" ... """
+
+""" Cost model that estimates the performance of programs """
 import ctypes
 import numpy as np
 
 import tvm._ffi
 from tvm.runtime import Object
-
 from .. import _ffi_api
 
 
@@ -32,9 +31,6 @@ class CostModel(Object):
 
 @tvm._ffi.register_object("ansor.RandomModel")
 class RandomModel(Object):
-    """
-    """
-
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.RandomModel)
 

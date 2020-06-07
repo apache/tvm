@@ -1,7 +1,25 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2020 by Contributors
- * \file ansor/search_policy/utils.h
- * \brief Common utilities for local mutation in search policy
+ * \file ansor/search_policy/utils.cc
+ * \brief Common utilities for search policies
  */
 
 #ifndef TVM_ANSOR_SEARCH_POLICY_UTILS_H_
@@ -15,19 +33,12 @@
 #include <vector>
 #include "../cost_model/cost_model.h"
 #include "../utils.h"
+#include "../loop_state.h"
+#include "../transform_step.h"
 #include "search_policy.h"
 
 namespace tvm {
 namespace ansor {
-
-inline bool StringEndWith(const std::string& str, const std::string& target) {
-  int str_len = str.length();
-  int target_len = target.length();
-  if (str_len <= target_len) {
-    return false;
-  }
-  return str.compare(str_len - target_len, target_len, target) == 0;
-}
 
 // Get an integer from a tvm str Map
 inline int GetIntParam(const Map<std::string, ObjectRef>& attr_dict,
@@ -96,7 +107,8 @@ inline int64_t GetExtent(const Iterator& it) {
 }
 
 // Return whether an op is strict inlineable
-inline bool IsStrictInlineable(const SearchTask& task, const State& state, const te::Operation& op) {
+inline bool IsStrictInlineable(const SearchTask& task,
+    const State& state, const te::Operation& op) {
   if (state->task_dag.defined()) {
     return state->task_dag->access_analyzer.IsStrictInlineable(op);
   } else {
@@ -132,7 +144,8 @@ inline bool HasReduceIter(const Stage& stage) {
 }
 
 // Return whether an op needs multi level tiling
-inline bool NeedsMultilevelTiling(const SearchTask& task, const State& state, const te::Operation& op) {
+inline bool NeedsMultilevelTiling(const SearchTask& task,
+    const State& state, const te::Operation& op) {
   if (state->task_dag.defined()) {
     return state->task_dag->access_analyzer.NeedsMultiLevelTiling(op);
   } else {
@@ -142,7 +155,7 @@ inline bool NeedsMultilevelTiling(const SearchTask& task, const State& state, co
 
 // Get all consumers for an op. This will take inline into consideration
 inline void GetConsumers(const SearchTask& task, const State& state, const te::Operation& op,
-                  std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* consumers) {
+    std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* consumers) {
   if (state->task_dag.defined()) {
     state->task_dag->access_analyzer.GetConsumers(state, op, consumers);
   } else {
@@ -161,7 +174,7 @@ inline void GetProducers(const SearchTask& task, const State& state, const te::O
 
 // Return whether two ops are elementwise-matched
 inline bool ElementwiseMatch(const SearchTask& task, const State& state, const te::Operation& op,
-                      const te::Operation& target_op) {
+                             const te::Operation& target_op) {
   if (state->task_dag.defined()) {
     return state->task_dag->access_analyzer.ElementWiseMatch(op, target_op);
   } else {
@@ -171,8 +184,7 @@ inline bool ElementwiseMatch(const SearchTask& task, const State& state, const t
 
 // Return whether the stage has only one consumer and they are elementwise-matched
 inline bool HasSingleElementwiseMatchedConsumer(const SearchTask& task,
-                                         const State& state, const Stage& stage,
-                                         int* target_stage_id) {
+    const State& state, const Stage& stage, int* target_stage_id) {
   std::unordered_set<te::Operation, ObjectHash, ObjectEqual> consumers;
 
   GetConsumers(task, state, stage->op, &consumers);
@@ -203,8 +215,8 @@ inline bool NeedsRfactor(const SearchTask& task, const State& state, const te::O
 
     if (NeedsMultilevelTiling(task, state, op)) {
       // Do not use rfactor if we have enough parallelism on space iters
-      if (cum_space_len > cum_reduce_len
-          || cum_space_len > task->hardware_params->num_cores * 16) {
+      if (cum_space_len > cum_reduce_len ||
+          cum_space_len > task->hardware_params->num_cores * 16) {
         return false;
       } else {
         return true;
@@ -240,6 +252,7 @@ inline bool HasCacheWriteStage(const State& s, int stage_id) {
   return false;
 }
 
+// Return whether the state did cache_read for stage_id
 inline bool HasCacheReadStage(const State& s, int stage_id) {
   for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
     if (auto ps = s->transform_steps[i].as<CacheWriteStepNode>()) {
@@ -261,8 +274,10 @@ inline bool HasCacheReadStage(const State& s, int stage_id) {
   return false;
 }
 
+// Get all split step on spatial iterators
 void GetSpaceSplitStepIds(const State& s, int stage_id, std::vector<int>* spatial_split_step_ids);
 
+// Return whether the state did split/follow_split/follow_fused_split in stage_id
 inline bool HasSplitStep(const State& s, int stage_id) {
   for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
     if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
@@ -290,9 +305,26 @@ inline bool IsTiled(const Stage& stage) {
 }
 
 // Query axes that should not be splitted according to the attribute from tvm.compute
-std::pair<std::set<std::string>, std::set<std::string> > QueryNoSplitAxis(const Stage& stage);
+inline std::pair<std::set<std::string>, std::set<std::string> > QueryNoSplitAxis(
+    const Stage& stage) {
+  std::pair<std::set<std::string>, std::set<std::string> > ret;
+  if (stage->op->attrs.count(SearchPolicyNode::no_split_at_inner_key)) {
+    ret.first = GetIterNameSetParam(stage->op->attrs, SearchPolicyNode::no_split_at_inner_key);
+  }
+  if (stage->op->attrs.count(SearchPolicyNode::no_split_at_outer_key)) {
+    ret.second = GetIterNameSetParam(stage->op->attrs, SearchPolicyNode::no_split_at_outer_key);
+  }
+  return ret;
+}
+
 // Query axes that last split is one
-std::set<std::string> QueryLastSplitIsOneAxis(const Stage& stage);
+inline std::set<std::string> QueryLastSplitIsOneAxis(const Stage& stage) {
+  std::set<std::string> ret;
+  if (stage->op->attrs.count(SearchPolicyNode::last_split_is_one_key)) {
+    ret = GetIterNameSetParam(stage->op->attrs, SearchPolicyNode::last_split_is_one_key);
+  }
+  return ret;
+}
 
 // Extract primitive iterators from a nested fused or splitted iterator's name
 inline void ExtractOriginalIterators(const std::string& name, std::set<std::string>* rets) {
@@ -329,6 +361,7 @@ inline const Iterator& GetLastSpaceIteratorInOutermostTile(const Stage& stage) {
   return stage->iters[0];
 }
 
+// Get the last reduce iterator in the outermost reduce tile
 inline const Iterator& GetLastReduceIteratorInOutermostReduceTile(const Stage& stage) {
   auto pop = stage->op.as<te::ComputeOpNode>();
   CHECK(pop != nullptr);
@@ -379,10 +412,15 @@ inline void RandomSampleStates(const std::vector<State>& in_states, std::mt19937
 }
 
 // Random choose an index according to a prefix sum probability
-int RandomChoose(const std::vector<double>& prefix_sum_probs, std::mt19937* random_gen);
+inline int RandomChoose(const std::vector<double>& prefix_sum_probs, std::mt19937* random_gen) {
+  std::uniform_real_distribution<> dis(0.0, 1.0);
+  double x = dis(*random_gen);
 
-// Prune undefined states.
-void PruneUndefined(std::vector<State>* states);
+  CHECK(!prefix_sum_probs.empty());
+
+  return std::lower_bound(prefix_sum_probs.begin(), prefix_sum_probs.end(), x) -
+      prefix_sum_probs.begin();
+}
 
 // Print all states
 inline void PrintAllStates(const std::vector<State>& states) {
@@ -418,7 +456,7 @@ State RandomMutateMaxUnrollStep(const State& old_state, std::mt19937* random_gen
 
 // Mutate a parallel loop.
 State MutataParallel(const State& old_state, SplitFactorizationMemo* split_memo,
-                     std::mt19937* random_gen, SearchTask& task, int verbose = 0);
+                     std::mt19937* random_gen, const SearchTask& task, int verbose = 0);
 
 // Create all possible tile size states for all SplitStep
 void GridMutateTileSize(const State& old_state, std::vector<State>* cands,
@@ -426,6 +464,9 @@ void GridMutateTileSize(const State& old_state, std::vector<State>* cands,
 
 // GA: Crossover two states
 State CrossOverState(const State& p1, const State& p2);
+
+// Prune undefined states.
+void PruneUndefined(std::vector<State>* states);
 
 }  // namespace ansor
 }  // namespace tvm

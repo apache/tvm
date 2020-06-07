@@ -1,12 +1,31 @@
-/*!
- *  Copyright (c) 2020 by Contributors
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-#include "search_task.h"
 
+/*!
+ * \file ansor/search_task.cc
+ * \brief Meta information and hardware parameters for a search task
+ */
+
+#include "search_task.h"
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
-
 #include <string>
 #include <utility>
 
@@ -118,21 +137,21 @@ SearchTask SearchTaskNode::make(ComputeDAG compute_dag,
 }
 
 TVM_REGISTER_GLOBAL("ansor.HardwareParams")
-    .set_body_typed([](int num_cores, int vector_unit_bytes,
-                       int cache_line_bytes, int max_unroll_vec,
-                       int max_innermost_split_factor) {
-      return HardwareParamsNode::make(num_cores, vector_unit_bytes,
-                                      cache_line_bytes, max_unroll_vec,
-                                      max_innermost_split_factor);
-    });
+.set_body_typed([](int num_cores, int vector_unit_bytes,
+                   int cache_line_bytes, int max_unroll_vec,
+                   int max_innermost_split_factor) {
+  return HardwareParamsNode::make(num_cores, vector_unit_bytes,
+                                  cache_line_bytes, max_unroll_vec,
+                                  max_innermost_split_factor);
+});
 
 TVM_REGISTER_GLOBAL("ansor.SearchTask")
-    .set_body_typed([](ComputeDAG compute_dag, std::string workload_key,
-                       Target target, Target target_host,
-                       HardwareParams hardware_params) {
-      return SearchTaskNode::make(compute_dag, workload_key, target,
-                                  target_host, hardware_params);
-    });
+.set_body_typed([](ComputeDAG compute_dag, std::string workload_key,
+                   Target target, Target target_host,
+                   HardwareParams hardware_params) {
+  return SearchTaskNode::make(compute_dag, workload_key, target,
+                              target_host, hardware_params);
+});
 
 }  // namespace ansor
 }  // namespace tvm

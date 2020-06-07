@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
-""" ... """
+
+"""Meta information for a search task"""
+
 import random
 
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import LocalBuilder, LocalRunner
 from .cost_model import RandomModel
-
 from . import _ffi_api
 
 
@@ -137,7 +137,6 @@ class TuneOption(Object):
     callbacks: List[MeasureCallback]
       Callback functions
     """
-
     def __init__(self, n_trials=0, early_stopping=-1, num_measure_per_iter=64,
                  verbose=1, builder='local', runner='local', callbacks=None):
         if isinstance(builder, str):

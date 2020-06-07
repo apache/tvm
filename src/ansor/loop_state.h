@@ -1,16 +1,36 @@
-/*!
- * Copyright (c) 2020 by Contributors
- * \file ansor/interfaces.h
- * \brief  Data structures for loop transformations
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
+/*!
+ * \file ansor/loop_state.h
+ * \brief The definition of the "state" in search. A state consists a current loop structure
+ * and the transform history to reach its current loop structure.
+ * To enable flexible manipulation of the loop structure, we implemented a lightweight
+ * loop structure IR (Intermediate Representation) specifically for search.
+ *
  * Basically this is a simplified TVM IR with schedule primitives.
  * We don't use the existing TVM IR because
  * 1. We want fast incremental change to the loop structures
  * 2. We want serializable history for replay and backtracking
- * 3. We want simplified IR for easy and clean feature extraction
- * 4. We may create some Macro schedule primitives
-
- * After search is done, we will lower this IR to TVM IR and TVM schedule primitives.
+ * 3. We may create some Macro schedule primitives
+ *
+ * After search is done, we will lower this IR to TVM IR with TVM schedule primitives.
  * Because we share a lot common objects during search,  the transformation is
  * implemented in copy on write style.  All objects are immutable, which is
  * similar to TVM IR.
@@ -24,24 +44,77 @@
 #include <utility>
 #include <vector>
 #include <unordered_map>
-#include "transform_step.h"
+#include "compute_dag.h"
 
 namespace tvm {
 namespace ansor {
 
 using namespace tvm::tir;
 
+/*! \brief The type of a stage */
 enum StageType {
   kPlaceholder, kCompute
 };
 
+/*! \brief The type of compute location */
 enum ComputeAtType {
   kRoot,     // compute at root
   kInlined,  // inlined
   kIter,     // compute at some iterator
 };
 
+/*! \brief The type of an iterator */
+enum IteratorType {
+  kSpace,     // spatial iterator
+  kReduce,    // reduction iterator
+  kMixed,     // fused spatial and reduction iterator
+  kSpecial    // special iterator (e.g. virtual root iterator)
+};
+
+/*! \brief The type of an iterator's annotation */
+enum IteratorAnnotation {
+  kNone, kUnroll, kVectorize, kParallel,
+  kVThread, kBlockX, kThreadX, kBlockY, kThreadY
+};
+
+class Iterator;
+
+/*!
+ * \brief A for loop iterator
+ * Similar to tvm::IterVar in `include/tvm/tir/expr.h`
+ */
+class IteratorNode : public Object {
+ public:
+  std::string name;
+  Range range;
+  IteratorType iter_type;
+  IteratorAnnotation annotation;
+  std::vector<Iterator> ori_iters;  // The original iterators before fusion
+
+  static Iterator make(std::string name, Range range,
+                       IteratorType iter_type, IteratorAnnotation annotation,
+                       const std::vector<Iterator>* ori_iters = nullptr);
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("name", &name);
+    v->Visit("range", &range);
+  }
+
+  static constexpr const char *_type_key = "ansor.Iterator";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IteratorNode, Object);
+};
+TVM_DEFINE_COW_OBJECT_REF(Iterator, ObjectRef, IteratorNode);
+
+// Forward decelerations
 class Stage; class State;
+class AttachMap;
+
+class ReorderStep; class SplitStep; class FollowSplitStep;
+class FollowFusedSplitStep;
+class FuseStep; class AnnotationStep;
+class ComputeAtStep; class ComputeRootStep; class ComputeInlineStep;
+class CacheReadStep; class CacheWriteStep;
+class PragmaStep; class RfactorStep; class StorageAlignStep;
 
 /*!
  * \brief A stage in the compute declaration
@@ -53,25 +126,32 @@ class StageNode : public Object {
   StageType op_type;
   std::vector<Iterator> iters;
   ComputeAtType compute_at;
-  int16_t auto_unroll_max_step;
+  int auto_unroll_max_step;
   int storage_offset;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("op", &op);
+  }
 
   static Stage make(te::Operation op);
   static Stage make(te::Operation op, StageType op_type,
                     const std::vector<Iterator>& iters,
-                    ComputeAtType compute_at, int16_t auto_unroll_max_step,
+                    ComputeAtType compute_at, int auto_unroll_max_step,
                     int storage_offset);
   static Stage make(te::Operation op, StageType op_type,
                     std::vector<Iterator>&& iters,
-                    ComputeAtType compute_at, int16_t auto_unroll_max_step,
+                    ComputeAtType compute_at, int auto_unroll_max_step,
                     int storage_offset);
 
   static constexpr const char *_type_key = "ansor.Stage";
   TVM_DECLARE_FINAL_OBJECT_INFO(StageNode, Object);
 };
-TVM_DEFINE_COW_NODE_REF(Stage, ObjectRef, StageNode);
+TVM_DEFINE_COW_OBJECT_REF(Stage, ObjectRef, StageNode);
 
-/*! \brief stores the compute_at relation between stages */
+/*! \brief stores the compute_at relation between stages
+ * This stores a bi-directional mapping from stages and iter:
+ * 1. Stage to its attached iterator 2. Iterator to the stage attached to it
+ */
 class AttachMapNode: public Object {
  public:
   using StageKey = int;
@@ -110,6 +190,22 @@ class AttachMap : public ObjectRef {
   static void DeleteStageEntry(AttachMapNode* pnode, int stage_id);
 };
 
+/*! \brief The base class for a transformation step */
+class StepNode: public Object {
+ public:
+  int stage_id;
+
+  // Print step as equivalent python schedule API
+  virtual std::string PrintAsPythonAPI(std::vector<te::Stage> *stages,
+                                       StageToAxesMap *stage_to_axes,
+                                       te::Schedule *schedule,
+                                       const std::vector<Step>& transform_steps) const = 0;
+
+  static constexpr const char* _type_key = "ansor.Step";
+  TVM_DECLARE_BASE_OBJECT_INFO(StepNode, Object);
+};
+TVM_DEFINE_MUTABLE_OBJECT_REF(Step, StepNode);
+
 /*! \brief The loop state and corresponding history steps to reach this state */
 class StateNode: public Object {
  public:
@@ -125,6 +221,7 @@ class StateNode: public Object {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("complete", &complete);
     v->Visit("aux_info", &aux_info);
+    v->Visit("task_dag", &task_dag);
   }
 
   static State make_empty_state();
@@ -137,7 +234,8 @@ class StateNode: public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(StateNode, Object);
 };
 
-/*! \brief The loop state and corresponding history steps to reach this state */
+/*! \brief A state in the search process.
+ *  It consists of the current loop structure and the history steps to reach this state. */
 class State : public ObjectRef {
  public:
   // Schedule primitives
@@ -154,14 +252,12 @@ class State : public ObjectRef {
   Iterator vectorize(int stage_id, const Iterator& it);
   Iterator parallel(int stage_id, const Iterator& it);
   Iterator unroll(int stage_id, const Iterator& it, int max_unroll = -1);
-  // Valide thread_type: kVThread, kBlockX, kThreadX, kThreadY
   Iterator bind_thread(int stage_id, const Iterator& it,
                        IteratorAnnotation thread_type);
   void compute_at(int stage_id, int target_stage_id,
                   const Iterator& target_iter);
   void compute_root(int stage_id);
   void compute_inline(int stage_id);
-  void pack_for_vec(int stage_id, const Iterator& target_iter, int vec_size);
   int cache_read(int stage_id, const std::string& scope_name,
                  const std::vector<int>& reader_stage_ids,
                  const ComputeDAG& task_dag);
@@ -172,8 +268,10 @@ class State : public ObjectRef {
               const ComputeDAG& task_dag);
   void storage_align(int stage_id, const Iterator& it, int factor, int offset);
 
-  // We separate these functions out,
-  // so you can call them for replay easily given history steps
+  /* Do transform steps
+   * Note: The following functions only change loop state but do not change transform_history.
+   * We separate these functions out,
+   * so you can call them for replay easily given history steps */
   void DoReorderStep(const ReorderStep& step);
   std::vector<Iterator> DoSplitStep(const SplitStep& step);
   std::vector<Iterator> DoFollowSplitStep(const FollowSplitStep& step);
@@ -183,38 +281,44 @@ class State : public ObjectRef {
   void DoComputeAtStep(const ComputeAtStep& step);
   void DoComputeRootStep(const ComputeRootStep& step);
   void DoComputeInlineStep(const ComputeInlineStep& step);
-  void DoPackForVecStep(const PackForVecStep& step);
   int DoCacheReadStep(const CacheReadStep& step, const ComputeDAG& dag);
   int DoCacheWriteStep(const CacheWriteStep& step, const ComputeDAG& dag);
   void DoPragmaStep(const PragmaStep& step);
   int DoRfactorStep(const RfactorStep& step, const ComputeDAG& dag);
   void DoStorageAlignStep(const StorageAlignStep& step);
 
-  /* Do transform steps
-   * Note: The following function only change loop state.
-   *       They do not change transform_history.
-   */
+  // General do step functions with a runtime dynamic dispatcher
   void DoStep(const Step& step, const ComputeDAG& dag);
   void DoSteps(const std::vector<Step>& step, const ComputeDAG& dag);
 
-  // Print to str
+  // Print the state to a string
   std::string ToStr(bool delete_trivial_loop = true) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StateNode);
 
  private:
-  // common function for DoSplitStep and DoFollowSplitStep
+  // Common function for DoSplitStep and DoFollowSplitStep
   std::vector<Iterator> DoSplitStepCommon(int stage_id, int iter_id,
                                           const std::vector<PrimExpr>& lengths,
                                           bool inner_to_outer);
 };
 
+/*! \brief Clean the name of an iterator to make it valid in python code */
+inline std::string CleanName(const std::string& str) {
+  std::string ret = str;
+  StrReplace(&ret, ".", "_");
+  StrReplace(&ret, "@", "_");
+  StrReplace(&ret, "outer", "o");
+  StrReplace(&ret, "inner", "i");
+  return ret;
+}
+
 }  // namespace ansor
 }  // namespace tvm
 
 
-// Hash and equal function for State, Stage, Iterator and Step
+// Hash and equal function for State
 namespace std {
 
 template <>

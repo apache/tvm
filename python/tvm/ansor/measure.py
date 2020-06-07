@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
+
 """Distributed measurement infrastructure to measure the runtime costs of tensor programs
 
 These functions are responsible for building the tvm module, uploading it to
@@ -38,7 +38,6 @@ from tvm.target import build_config
 from ..contrib import tar, ndk
 from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout, request_remote, check_remote
 from .compute_dag import LayoutRewriteLevel
-
 from . import _ffi_api
 
 logger = logging.getLogger('ansor')

@@ -14,21 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
-""" ... """
+
+"""Tuning log I/O Utilities"""
+
 import numpy as np
 
 import tvm._ffi
 from tvm.runtime import Object
-
 from .measure import MeasureCallback, MeasureErrorNo
-
 from . import _ffi_api
 
 
 @tvm._ffi.register_object("ansor.LogToFile")
 class LogToFile(MeasureCallback):
     """
+    A measurement callback that writes tuning logs into a file
+
     Parameters
     ----------
     filename : Str
@@ -40,6 +41,13 @@ class LogToFile(MeasureCallback):
 
 @tvm._ffi.register_object("ansor.LogReader")
 class LogReader(Object):
+    """
+    Reader of the json log file
+
+    Parameters
+    ----------
+    filename : Str
+    """
     def __init__(self, filename="ansor_tuning.json"):
         self.__init_handle_by_constructor__(_ffi_api.LogReader, filename)
 
@@ -56,21 +64,23 @@ class LogReader(Object):
             yield ret[0], ret[1]  # (input, result)
 
 
+def write_measure_records_to_file(filename, inputs, results):
+    """Write(append) measure records to file"""
+    _ffi_api.WriteMeasureRecordsToFile(filename, inputs, results)
+
+
 def best_measure_pair_in_file(filename, workload_key=None, target=None):
     """ Return best results form log file
 
     Parameters
     ----------
     filename : Str
-
     workload_key : Str
-
     target : Str
 
     Returns
     -------
     inp : MeasureInput
-
     res : MeasureResult
     """
     log_reader = LogReader(filename)

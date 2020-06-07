@@ -1,6 +1,27 @@
-/*!
- *  Copyright (c) 2020 by Contributors
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
+
+/*!
+ * \file ansor/compute_dag.cc
+ * \brief Compute declaration graph and its related analysis tools
+ */
+
 #include "compute_dag.h"
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
@@ -15,7 +36,7 @@
 #include <string>
 #include <set>
 #include <vector>
-#include "loop_state.h"
+#include "transform_step.h"
 #include "utils.h"
 // #include "../relay/pass/kernel_layout_transform.h"
 
@@ -385,6 +406,7 @@ void AccessAnalyzer::GetConsumers(const State& state, const te::Operation& op,
   collect(op);
 }
 
+// Return whether two int arrays are elementwise-equal
 bool IntArrayEqual(const Array<PrimExpr>& arr1, const Array<PrimExpr>& arr2) {
   if (arr1.size() != arr2.size()) {
     return false;
@@ -543,23 +565,6 @@ class FlopEstimator: public ExprFunctor<double(const PrimExpr& n)> {
   bool fail{false};
 };
 
-void UpdateStageAxis(const te::Stage& stage, StageToAxesMap *stage_to_axes) {
-  if (auto pop = stage->op.as<te::ComputeOpNode>()) {
-    std::vector<IterVar>& axes = (*stage_to_axes)[stage];
-    axes.clear();
-    for (const auto& axis : pop->axis) {
-      axes.push_back(axis);
-    }
-    for (const auto& axis : pop->reduce_axis) {
-      axes.push_back(axis);
-    }
-  } else if (stage->op->IsInstance<te::PlaceholderOpNode>()) {
-    {}  // do nothing
-  } else {
-    LOG(FATAL) << "Invalid op " << stage->op;
-  }
-}
-
 State ComputeDAG::GetInitState() const {
   return Downcast<State>(operator->()->init_state);
 }
@@ -587,13 +592,6 @@ ComputeDAG ComputeDAGNode::make_by_workload_key(const std::string& workload_key)
   }
   return ComputeDAGNode::make(std::move(tens));
 }
-
-// Implemented in multi_stage_policy.cc
-// Extract primitive iterators from a nested fused or splitted iterator's name
-extern void ExtractOriginalIterators(const std::string& name, std::set<std::string>* rets);
-
-// Implemented in loop_state.cc
-extern std::string CleanName(const std::string& str);
 
 std::string BaseName(const std::string& str) {
   return str.substr(0, str.rfind("_"));
@@ -680,8 +678,8 @@ std::string BaseName(const std::string& str) {
 //     const Operation& op = stage->op;
 //     if (op->IsInstance<ComputeOpNode>()) {
 //       const Map<std::string, ObjectRef>& attrs = op->attrs;
-//       if (attrs.count(_layout_free_placeholders_key)) {
-//         const ObjectRef& attr_value = attrs[_layout_free_placeholders_key];
+//       if (attrs.count(layout_free_placeholders_key)) {
+//         const ObjectRef& attr_value = attrs[layout_free_placeholders_key];
 //         Array<Tensor> placeholders = Downcast<Array<Tensor>>(attr_value);
 //         for (auto& placeholder : placeholders) {
 //           const auto placeholder_op = placeholder->op;
@@ -907,7 +905,8 @@ std::string BaseName(const std::string& str) {
 //                 auto index = old_tensor->value_index;
 //                 ptensors->data[i] = new_op.output(index);
 //               } else if (layout_rewrite_level == kComputeRewrite) {
-//                 TensorNode* old_tensor_node = const_cast<TensorNode*>(old_tensor.as<TensorNode>());
+//                 TensorNode* old_tensor_node =
+//                   const_cast<TensorNode*>(old_tensor.as<TensorNode>());
 //                 old_tensor_node->op = new_op;
 //               }
 //             }
@@ -917,6 +916,24 @@ std::string BaseName(const std::string& str) {
 //     }
 //   }  // end for stage
 // }
+
+
+void UpdateStageAxis(const te::Stage& stage, StageToAxesMap *stage_to_axes) {
+  if (auto pop = stage->op.as<te::ComputeOpNode>()) {
+    std::vector<IterVar>& axes = (*stage_to_axes)[stage];
+    axes.clear();
+    for (const auto& axis : pop->axis) {
+      axes.push_back(axis);
+    }
+    for (const auto& axis : pop->reduce_axis) {
+      axes.push_back(axis);
+    }
+  } else if (stage->op->IsInstance<te::PlaceholderOpNode>()) {
+    {}  // do nothing
+  } else {
+    LOG(FATAL) << "Invalid op " << stage->op;
+  }
+}
 
 std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ApplySteps(
     const std::vector<Step>& transform_steps,
@@ -1103,9 +1120,6 @@ std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
     stages->push_back(stage);
     UpdateStageAxis(stage, stage_to_axes);
   }
-
-  // todo(lmzheng): should we maintain the attach_map and keep the validity of
-  // compute_at an splitted axis?
 
   // Use complete rate for the study in the paper
   const char* complete_rate_str = getenv("ANSOR_PROGRAM_COMPLETE_RATE");

@@ -14,14 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
-""" ... """
+
+""" Computational graph and its analysis tools """
 
 import tvm._ffi
 from tvm.runtime import Object
-
-from .state import State
-
+from .loop_state import State
 from . import _ffi_api
 
 
@@ -50,13 +48,13 @@ class ComputeDAG(Object):
         -------
         state : State
         """
-        return _ffi_api.ComputeDAGGetInitState(self)
+        return State(_ffi_api.ComputeDAGGetInitState(self))
 
     def apply_steps_from_state(self, state, layout_rewrite_level=None):
         """
         Parameters
         ----------
-        state : State
+        state : StateObject
         layout_rewrite_level : LayoutRewriteLevel(***)
 
         Returns
@@ -71,7 +69,7 @@ class ComputeDAG(Object):
         """
         Parameters
         ----------
-        state : State
+        state : StateObject
 
         Returns
         -------
@@ -83,10 +81,10 @@ class ComputeDAG(Object):
         """
         Parameters
         ----------
-        state : State
+        state : StateObject
 
         Returns
         -------
-        state : State
+        state : StateObject
         """
         return _ffi_api.ComputeDAGInferBoundFromState(self, state)

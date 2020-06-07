@@ -272,7 +272,8 @@ class BufferAccessExtractor : public StmtExprVisitor {
     this->VisitExpr(expr);
   }
 
-  void InsertAccess(const te::Tensor& ten, BufferAccessType acc_type, const Array<PrimExpr>& indices) {
+  void InsertAccess(const te::Tensor& ten, BufferAccessType acc_type,
+      const Array<PrimExpr>& indices) {
     BufferAccess& acc = buf_accesses[ten];
     acc.acc_type = acc_type;
     acc.indices.push_back(std::vector<PrimExpr>(indices.begin(), indices.end()));
