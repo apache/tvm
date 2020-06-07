@@ -27,9 +27,11 @@
 #include <tvm/ir/expr.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
+
 #include <unordered_map>
-#include <vector>
 #include <utility>
+#include <vector>
+
 #include "analyzer.h"
 
 namespace tvm {
@@ -63,11 +65,8 @@ class IntGrpBoundsNode : public Object {
   }
 
   bool SEqualReduce(const IntGrpBoundsNode* other, SEqualReducer eq) const {
-    return
-        eq(coef, other->coef) &&
-        eq(lower, other->lower) &&
-        eq(equal, other->equal) &&
-        eq(upper, other->upper);
+    return eq(coef, other->coef) && eq(lower, other->lower) && eq(equal, other->equal) &&
+           eq(upper, other->upper);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -98,9 +97,7 @@ class IntGrpBounds : public ObjectRef {
    * \param equal equalities
    * \param upper the upper bounds (include)
    */
-  TVM_DLL IntGrpBounds(PrimExpr coef,
-                       Array<PrimExpr> lower,
-                       Array<PrimExpr> equal,
+  TVM_DLL IntGrpBounds(PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
                        Array<PrimExpr> upper);
 
   /*!
@@ -246,7 +243,7 @@ class IntConstraintsTransform : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(IntConstraintsTransform, ObjectRef, IntConstraintsTransformNode);
 };
 
-typedef std::pair<Map<Var, IntGrpBounds>, Array<PrimExpr> > PartialSolvedInequalities;
+typedef std::pair<Map<Var, IntGrpBounds>, Array<PrimExpr>> PartialSolvedInequalities;
 
 /*!
  * \brief Obtain Smith Normal Form of linear equation A x = y.
