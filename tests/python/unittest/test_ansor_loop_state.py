@@ -23,7 +23,7 @@ import topi
 from test_ansor_common import matmul_nkkm, conv2d_nchw_bn_relu
 
 
-def test_state_split_fuse_reorder_annotation():
+def test_split_fuse_reorder_annotation():
     dag = ansor.ComputeDAG(matmul_nkkm(512, 512, 512))
     s0 = dag.get_init_state()
     C = 2
@@ -108,7 +108,7 @@ def test_follow_split_follow_fused_split():
                tmp.stages[C_global].iters[1].range.extent
 
 
-def test_state_compute_at_root_inline():
+def test_compute_at_root_inline():
     dag = ansor.ComputeDAG(conv2d_nchw_bn_relu(1, 224, 224, 3, 64, 7, 2, 3))
 
     # data, padding, kernel = 0, 1, 2
@@ -144,8 +144,8 @@ def test_state_compute_at_root_inline():
         "    for i3 (0,112)\n" + \
         "      compute = ...\n"
 
-    s0 = s0.compute_root(conv)
-    s0 = s0.compute_root(bn_mul)
+    s0.compute_root(conv)
+    s0.compute_root(bn_mul)
     assert str(s0) == \
         "Placeholder: Data, Kernel, Bias, Bn_scale, Bn_offset\n" + \
         "for i1 (0,3)\n" + \
@@ -171,7 +171,7 @@ def test_state_compute_at_root_inline():
         "      compute = ...\n"
 
 
-def test_state_cache_read_write():
+def test_cache_read_write():
     N, H, W, CO, CI, KH, KW, strides, padding = 4, 7, 7, 512, 512, 3, 3, (
         1, 1), (1, 1)
 
@@ -469,7 +469,8 @@ def test_rfactor():
 
 
 if __name__ == "__main__":
-    test_state_split_fuse_reorder_annotation()
+    test_split_fuse_reorder_annotation()
     test_follow_split_follow_fused_split()
-    test_state_cache_read_write()
+    test_compute_at_root_inline()
+    test_cache_read_write()
     test_rfactor()
