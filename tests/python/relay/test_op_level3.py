@@ -881,3 +881,4 @@ if __name__ == "__main__":
     test_isfinite()
     test_isinf()
     test_unravel_index()
+    test_sparse_to_dense()
