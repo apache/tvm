@@ -1227,7 +1227,7 @@ def _fused_batch_norm():
             attr['data_format'] = attr['data_format'].decode("utf-8")
             if attr['data_format'] == 'NCHW':
                 axis = 1
-        if 'U' in attr:
+        if 'U' in attr and attr['U'].name != attr['T'].name:
             need_cast = True
             inputs[0] = _op.cast(inputs[0], dtype=attr['U'].name)
         # Check if mean and variance are empty
