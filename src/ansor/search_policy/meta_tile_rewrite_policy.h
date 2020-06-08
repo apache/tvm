@@ -76,7 +76,6 @@ class MetaTileRewritePolicyNode: public SearchPolicyNode {
 
   SearchTask cur_task_;                // The current task
 
-  friend class MetaTileRewritePolicyNodeTest;   // Hack friend class for UT
  protected:
   // Pick states from best states and random states with eps-greedy policy
   void PickStatesWithEpsGreedy(std::vector<MeasureInput>* inputs,

@@ -28,6 +28,6 @@ from . import utils
 from .compute_dag import ComputeDAG
 from .task import SearchTask, MetaTileRewritePolicy, TuneOption
 from .task import auto_schedule
-from .measure import MeasureInput, LocalBuilder, LocalRunner
+from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner
 from .cost_model import RandomModel
 from .serialization import LogToFile, LogReader, best_measure_pair_in_file

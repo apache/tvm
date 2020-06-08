@@ -368,5 +368,13 @@ TVM_REGISTER_GLOBAL("ansor.LocalRunner")
                                cooldown_interval);
 });
 
+TVM_REGISTER_GLOBAL("ansor.RPCRunner")
+.set_body_typed([](const std::string& key, const std::string& host, int port,
+                    int priority, int timeout, int n_parallel, int number,
+                    int repeat, int min_repeat_ms, double cooldown_interval) {
+  return RPCRunnerNode::make(key, host, port, priority, timeout, n_parallel,
+                             number, repeat, min_repeat_ms, cooldown_interval);
+});
+
 }  // namespace ansor
 }  // namespace tvm

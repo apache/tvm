@@ -348,7 +348,8 @@ class Server(object):
             cmd = [sys.executable,
                    "-m", "tvm.exec.rpc_server",
                    "--host=%s" % host,
-                   "--port=%s" % port]
+                   "--port=%s" % port,
+                   "--port-end=%s" % port_end]
             if tracker_addr:
                 assert key
                 cmd += ["--tracker=%s:%d" % tracker_addr,

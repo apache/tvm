@@ -168,6 +168,28 @@ class LocalRunner(Runner):
             _ffi_api.LocalRunner, timeout, number, repeat, min_repeat_ms, cooldown_interval)
 
 
+@tvm._ffi.register_object("ansor.RPCRunner")
+class RPCRunner(Runner):
+    def __init__(self, key, host, port, priority=1,
+                 n_parallel=1,
+                 timeout=10,
+                 number=3,
+                 repeat=1,
+                 min_repeat_ms=0,
+                 cooldown_interval=0.0):
+        self.__init_handle_by_constructor__(
+            _ffi_api.RPCRunner, key, host, port, priority, timeout, n_parallel,
+            number, repeat, min_repeat_ms, cooldown_interval)
+
+        if check_remote(key, host, port, priority, timeout):
+            logger.info("Get devices for measurement successfully!")
+        else:
+            raise RuntimeError("Cannot get remote devices from the tracker. "
+                               "Please check the status of tracker by "
+                               "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' "
+                               "and make sure you have free devices on the queue status.")
+
+
 MAX_ERROR_MSG_LEN = 512
 
 

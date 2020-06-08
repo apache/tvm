@@ -19,6 +19,8 @@
 
 import tvm
 from tvm import ansor
+from tvm.rpc.tracker import Tracker
+from tvm.rpc.server import Server
 import tempfile
 
 from test_ansor_common import get_tiled_matmul
@@ -62,6 +64,33 @@ def test_measure_local_builder_runner():
     assert mress[0].error_no == 0
 
 
+def test_measure_local_builder_rpc_runner():
+    dag, s0 = get_tiled_matmul()
+
+    tgt = tvm.target.create("llvm")
+    task = ansor.SearchTask(dag, "test", tgt)
+
+    minp = ansor.MeasureInput(task, s0)
+    local_builder = ansor.LocalBuilder()
+    host = '0.0.0.0'
+    tracker = Tracker(host, port=9000, port_end=10000, silent=True)
+    device_key = '$local$device$%d' % tracker.port
+    server = Server(host, port=tracker.port, port_end=10000,
+                    key=device_key,
+                    use_popen=True, silent=True,
+                    tracker_addr=(tracker.host, tracker.port))
+    rpc_runner = ansor.RPCRunner(device_key, host, tracker.port)
+
+    bress = local_builder.build([minp])
+    assert bress[0].error_no == 0
+    mress = rpc_runner.run([minp], bress)
+    assert mress[0].error_no == 0
+
+    tracker.terminate()
+    server.terminate()
+
+
 if __name__ == "__main__":
     test_serialization()
     test_measure_local_builder_runner()
+    test_measure_local_builder_rpc_runner()
