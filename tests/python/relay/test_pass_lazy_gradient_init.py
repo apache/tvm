@@ -21,6 +21,7 @@ from tvm import relay
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import rand, run_infer_type
 from tvm.testing import assert_allclose
+from tvm.relay.prelude import Prelude
 import pytest
 
 def test_tc():
@@ -80,7 +81,6 @@ def test_add_tuple():
 
   mod["main"] = y
   mod = transform.LazyGradientInit()(mod)
-  mod = tvm.transform.PrintIR(show_meta_data=True)(mod)
   y = mod["main"]
 
   assert mod["main"].checked_type == relay.FuncType([t], tensor_type)
