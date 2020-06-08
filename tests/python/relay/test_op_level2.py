@@ -649,6 +649,29 @@ def test_conv3d_transpose_infer_type():
         (n, 12, 226, 226, 226), "int32")
 
 
+def test_conv3d_transpose_ncdhw_run():
+    dshape = (1, 3, 24, 24, 24)
+    kshape = (3, 4, 2, 2, 2)
+
+    x = relay.var("x", shape=dshape)
+    w = relay.var("w")
+    y = relay.nn.conv3d_transpose(x, w,
+                                  channels=4, kernel_size=(2, 2, 2), strides=(1, 1, 1),
+                                  padding=(1, 1, 1))
+    func = relay.Function([x, w], y)
+    dtype = "float32"
+
+    data = np.random.uniform(size=dshape).astype(dtype)
+    kernel = np.random.uniform(size=kshape).astype(dtype)
+
+    ref_res = topi.testing.conv3d_transpose_ncdhw_python(data, kernel, 1, 1)
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(data, kernel)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+
 def test_conv2d_transpose_infer_type():
     # symbolic in batch dimension
     n, c, h, w = te.size_var("n"), 10, 10, 12
@@ -1435,6 +1458,7 @@ if __name__ == "__main__":
     test_pad_infer_type()
     test_pad_run()
     test_conv3d_transpose_infer_type()
+    test_conv3d_transpose_ncdhw_run()
     test_conv2d_transpose_infer_type()
     test_conv2d_transpose_nchw_run()
     test_conv2d_transpose_nhwc_run()
