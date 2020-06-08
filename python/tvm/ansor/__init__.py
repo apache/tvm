@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-import, redefined-builtin
-"""Namespace for Ansor autoSchedule"""
+"""Namespace for Ansor auto-scheduler"""
 
 from . import compute_dag
 from . import measure
@@ -23,6 +23,7 @@ from . import serialization
 from . import loop_state
 from . import task
 from . import utils
+from . import feature
 
 # Shortcut
 from .compute_dag import ComputeDAG

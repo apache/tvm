@@ -1,5 +1,25 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2020 by Contributors
+ * \file ansor/feature.cc
+ * \brief Feature extraction for the cost model
  */
 
 #include <tvm/te/operation.h>
@@ -7,6 +27,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/arith/analyzer.h>
 #include <algorithm>
 #include <cmath>
@@ -15,16 +36,12 @@
 #include "measure.h"
 #include "serialization.h"
 #include "utils.h"
-// #include "../arithmetic/compute_expr.h"
 
 namespace tvm {
-/* Import the function from build_module.cc */
-extern void GetBinds(const Array<te::Tensor>& args,
-                     bool compact,
-                     const std::unordered_map<te::Tensor, te::Buffer>& binds,
-                     Map<te::Tensor, te::Buffer>* out_binds,
-                     Array<ObjectRef>* out_arg_list,
-                     const BuildConfig& config);
+/* Import the function from driver_api.cc */
+extern void GetBinds(const Array<te::Tensor>& args, bool compact,
+                     const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                     Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list);
 }  // namespace tvm
 
 
@@ -34,6 +51,9 @@ namespace ansor {
 using namespace tvm::tir;
 using arith::ConstIntBound;
 using arith::Analyzer;
+
+template<class T>
+using BufferMap = std::unordered_map<Buffer, T, ObjectHash, ObjectEqual>;
 
 static const int ARITH_INTENSITY_CURVE_SAMPLE_N = 10;
 
@@ -61,7 +81,7 @@ enum ReuseType {
 
 // Feature for an access of a buffer
 struct BufferAccessFeature {
-  std::string tensor_name;
+  std::string buffer_name;
   BufferAccessType acc_type;
   float bytes;
   float unique_bytes;
@@ -169,10 +189,11 @@ AnnotationPosType GetAnnotationPosEncoding(
   }
 
   if (find_ct == 0) {
-    // If not find in spatial args, then it is a reduce iteartor.
+    // If not find in spacial args, then it is a reduce iterator.
     // Use name to match
+    const std::string& var_name = var->name_hint;
     for (size_t i = 0; i < reduce_axis.size(); ++i) {
-      if (var->name_hint.find(reduce_axis[i]->var->name_hint) != std::string::npos) {
+      if (var_name.find(reduce_axis[i]->var->name_hint) != std::string::npos) {
         find_i = i;
         find_ct++;
       }
@@ -238,7 +259,6 @@ class MathOpCounter : public StmtExprVisitor {
   void VisitExpr_(const NotNode* op) final { bool_op++; StmtExprVisitor::VisitExpr_(op); }
   void VisitExpr_(const SelectNode* op) final { select_op++; StmtExprVisitor::VisitExpr_(op); }
 
-  // TODO(...): CallNode with type CallNode::Halide has been modified to BufferLoadNode
   void VisitExpr_(const CallNode* op) final {
     if (op->call_type == CallNode::CallType::PureIntrinsic) {
       if (op->dtype.is_float()) {
@@ -246,8 +266,8 @@ class MathOpCounter : public StmtExprVisitor {
       } else {
         int_math_func++;
       }
-    } else if (op->call_type != CallNode::CallType::Halide) {
-       if (op->dtype.is_float()) {
+    } else {
+      if (op->dtype.is_float()) {
         float_other_func++;
       } else {
         int_other_func++;
@@ -272,42 +292,38 @@ class BufferAccessExtractor : public StmtExprVisitor {
     this->VisitExpr(expr);
   }
 
-  void InsertAccess(const te::Tensor& ten, BufferAccessType acc_type,
+  void InsertAccess(const Buffer& buf, BufferAccessType acc_type,
       const Array<PrimExpr>& indices) {
-    BufferAccess& acc = buf_accesses[ten];
+    BufferAccess& acc = buf_accesses[buf];
     acc.acc_type = acc_type;
     acc.indices.push_back(std::vector<PrimExpr>(indices.begin(), indices.end()));
   }
 
-  // TODO(...): CallNode with type CallNode::Halide has been modified to BufferLoadNode
-  void VisitExpr_(const CallNode *op) final {
-    if (op->call_type == CallNode::CallType::Halide) {
-      te::Tensor ten = Downcast<te::Operation>(op->func).output(op->value_index);
-      BufferAccess& acc = buf_accesses[ten];
-      switch (acc.acc_type) {
-        case kRead:
-          break;
-        case kWrite:
-          acc.acc_type = kReadWrite; break;
-        case kReadWrite:
-          break;
-        case kUnknownRW:
-        default:
-          acc.acc_type = kRead; break;
-      }
+  void VisitExpr_(const BufferLoadNode *op) final {
+    BufferAccess& acc = buf_accesses[op->buffer];
+    switch (acc.acc_type) {
+      case kRead:
+        break;
+      case kWrite:
+        acc.acc_type = kReadWrite; break;
+      case kReadWrite:
+        break;
+      case kUnknownRW:
+      default:
+        acc.acc_type = kRead; break;
+    }
 
-      if (acc.acc_type != kReadWrite) {
-        // If a buffer is both read and written, in the tvm DSL, it must be a update,
-        // so the indices should be the same. Then we can skip appending indices for it.
-        // Otherwise we do the following.
-        buf_accesses[ten].indices.push_back(
-            std::vector<PrimExpr>(op->args.begin(), op->args.end()));
-      }
+    if (acc.acc_type != kReadWrite) {
+      // If a buffer is both read and written, in the tvm DSL, it must be a update,
+      // so the indices should be the same. Then we can skip appending indices for it.
+      // Otherwise we do the following.
+      buf_accesses[op->buffer].indices.push_back(
+          std::vector<PrimExpr>(op->indices.begin(), op->indices.end()));
     }
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  std::unordered_map<te::Tensor, BufferAccess> buf_accesses;
+  BufferMap<BufferAccess> buf_accesses;
 };
 
 // Compute coefficient for an loop iterator in an expression
@@ -430,11 +446,11 @@ void ComputeRegion(
 // Compute reuse distance and reuse ratio for accesses to a buffer
 // return values: reuse_type, reuse_dis_iter, reuse_dis_bytes, reuse_ct
 std::tuple<ReuseType, float, float, float> ComputeReuse(
-    const te::Tensor& t,
+    const Buffer& buf,
     const std::vector<std::vector<PrimExpr> >& indices,
     const std::vector<const ForNode*>& for_loop_stack,
-    const std::unordered_map<const ForNode*, std::unordered_map<te::Tensor, \
-       std::vector<std::tuple<BufferAccessType, int64_t, int> > > >& for_touch_regions) {
+    const std::unordered_map<const ForNode*, BufferMap<std::vector<
+        std::tuple<BufferAccessType, int64_t, int> > > >& for_touch_regions) {
   float reuse_dis_iter = 1.0f;
   float reuse_dis_bytes = -1.0f;
 
@@ -479,16 +495,16 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
       return std::make_tuple(kLoopMultipleRead, reuse_dis_iter, reuse_dis_bytes, extent);
     }
 
-    const std::unordered_map<te::Tensor, std::vector<std::tuple<BufferAccessType, int64_t, int> > >&
-        tensor_map = for_touch_regions.at(cur_for);
+    const BufferMap<std::vector<std::tuple<BufferAccessType, int64_t, int> > >& buffer_map
+        = for_touch_regions.at(cur_for);
 
-    int serial_reuse = static_cast<int>(tensor_map.at(t).size()) - 1;
+    int serial_reuse = static_cast<int>(buffer_map.at(buf).size()) - 1;
     if (serial_reuse > 0) {
       int64_t extent = GetIntImm(cur_for->extent);
 
       // Have SerialMultipleReadWrite reuse
       reuse_dis_iter = std::numeric_limits<float>::max();
-      for (const auto& acc_info : tensor_map.at(t)) {
+      for (const auto& acc_info : buffer_map.at(buf)) {
         reuse_dis_iter = std::min(reuse_dis_iter, static_cast<float>(std::get<1>(acc_info)));
       }
 
@@ -600,13 +616,8 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
     }
   }
 
-  // TODO(...): ProvideNode is deprecated, move to BufferStoreNode
-  void VisitStmt_(const ProvideNode* node) final {
-    te::Operation op = Downcast<te::Operation>(node->func);
-    te::Tensor ten = op.output(node->value_index);
-    const te::ComputeOpNode* pcompute = op.as<te::ComputeOpNode>();
-
-    FeatureSet &fea = op_features[ten];
+  void VisitStmt_(const BufferStoreNode* node) final {
+    FeatureSet &fea = buffer_features[node->buffer];
 
     // compute feature
     MathOpCounter mathops;
@@ -641,8 +652,10 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
       for (const ForNode* pfor : vec_for_stack) {
         fea.vec_prod *= GetIntImm(pfor->extent);
       }
-      fea.vec_type = GetAnnotationPosEncoding(vec_for_stack.back()->loop_var,
-          node->args, pcompute->axis, pcompute->reduce_axis);
+      fea.vec_type = kPosMixed;
+          // todo(lmzheng): this feature requires operation (tvm.compute) information
+          //GetAnnotationPosEncoding(vec_for_stack.back()->loop_var,
+          //node->args, pcompute->axis, pcompute->reduce_axis);
     }
 
     fea.unroll_num = unroll_for_stack.size();
@@ -652,8 +665,9 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
       for (const ForNode* pfor : unroll_for_stack) {
         fea.unroll_prod *= GetIntImm(pfor->extent);
       }
-      fea.unroll_type = GetAnnotationPosEncoding(unroll_for_stack.back()->loop_var,
-          node->args, pcompute->axis, pcompute->reduce_axis);
+      fea.unroll_type = kPosMixed;
+          //GetAnnotationPosEncoding(unroll_for_stack.back()->loop_var,
+          //node->args, pcompute->axis, pcompute->reduce_axis);
     }
 
     fea.parallel_num = parallel_for_stack.size();
@@ -663,8 +677,9 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
       for (const ForNode* pfor : parallel_for_stack) {
         fea.parallel_prod *= GetIntImm(pfor->extent);
       }
-      fea.parallel_type = GetAnnotationPosEncoding(parallel_for_stack.back()->loop_var,
-          node->args, pcompute->axis, pcompute->reduce_axis);
+      fea.parallel_type = kPosMixed;
+          //GetAnnotationPosEncoding(parallel_for_stack.back()->loop_var,
+          //node->args, pcompute->axis, pcompute->reduce_axis);
     }
 
     // GPU threads
@@ -680,13 +695,13 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
     // Extract all buffer access
     std::vector<BufferAccessFeature> acc_feas;
     BufferAccessExtractor buf_extractor;
-    buf_extractor.InsertAccess(ten, kWrite, node->args);
+    buf_extractor.InsertAccess(node->buffer, kWrite, node->indices);
     buf_extractor.ExtractReads(node->value);
 
     // Compute touched region for all outer loops
     Analyzer ana;
     for (auto x : for_loop_stack) {
-      ana.Bind(x->loop_var, Range::make_by_min_extent(x->min, 1));
+      ana.Bind(x->loop_var, Range::make_by_min_extent(x->min, 1), true);
     }
 
     std::vector<float> mem_bytes_list;
@@ -704,22 +719,22 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
       const ForNode* p_for = for_loop_stack[i];
 
       ana.Bind(p_for->loop_var,
-               Range::make_by_min_extent(for_loop_stack[i]->min, for_loop_stack[i]->extent));
+               Range::make_by_min_extent(for_loop_stack[i]->min, for_loop_stack[i]->extent), true);
 
       // Note, here we do overwrite.
       // So if there are multiple Provides, the last one will overwrite the first few.
       // e.g. The update part in gemm will overwrite the init part.
-      std::unordered_map<te::Tensor, std::vector<std::tuple<BufferAccessType, int64_t, int> > >&
-          tensor_regions_map = for_touch_regions[p_for];
+      BufferMap<std::vector<std::tuple<BufferAccessType, int64_t, int> > >&
+          buffer_regions_map = for_touch_regions[p_for];
 
       int64_t mem_bytes = 0;
       for (const auto &x : buf_extractor.buf_accesses) {
-        const te::Tensor& t = x.first;
+        const Buffer& t = x.first;
         const BufferAccess& acc = x.second;
 
         ComputeRegion(acc.indices, &ana, &tmp_region);
         int64_t touched_size = ElementProduct(tmp_region);
-        tensor_regions_map[t].push_back(std::make_tuple(acc.acc_type,
+        buffer_regions_map[t].push_back(std::make_tuple(acc.acc_type,
                     touched_size, t->dtype.bytes()));
         mem_bytes += touched_size * t->dtype.bytes();
       }
@@ -759,7 +774,7 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
 
     // Compute buffer access feature
     for (const auto &x : buf_extractor.buf_accesses) {
-      const te::Tensor& t = x.first;
+      const Buffer& t = x.first;
       const BufferAccess& acc = x.second;
 
       std::vector<int> int_shape;
@@ -826,7 +841,7 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
       acc_feas.emplace_back();
       BufferAccessFeature& acc_fea = acc_feas.back();
 
-      acc_fea.tensor_name = t->op->func_name();
+      acc_fea.buffer_name = t->name;
       acc_fea.acc_type = acc.acc_type;
       acc_fea.stride = stride;
       acc_fea.bytes = bytes;
@@ -854,21 +869,17 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
     fea.access_feas = acc_feas;
   }
 
-  // TODO(...): RealizeNode is deprecated, move to BufferRealizeNode
-  void VisitStmt_(const RealizeNode *node) final {
+  void VisitStmt_(const BufferRealizeNode *node) final {
     StmtExprVisitor::VisitStmt_(node);
 
-    te::Operation op = Downcast<te::Operation>(node->func);
-    te::Tensor ten = op.output(node->value_index);
-
-    FeatureSet& fea = op_features[ten];
+    FeatureSet& fea = buffer_features[node->buffer];
 
     float allocation_size = 1.0f;
     for (const auto& x : node->bounds) {
       allocation_size *= GetIntImm(x->extent);
     }
     // allocation feature
-    fea.alloc_size = allocation_size * ten->dtype.bytes();
+    fea.alloc_size = allocation_size * node->buffer->dtype.bytes();
     fea.alloc_prod = allocation_size * outer_loop_prod;
     fea.alloc_outer_prod = outer_loop_prod;
     fea.alloc_inner_prod = fea.outer_prod / outer_loop_prod;
@@ -891,12 +902,12 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
   int vthread_len{1};
   int16_t cur_auto_unroll_max_step{0};
 
-  std::unordered_map<te::Tensor, FeatureSet> op_features;
+  BufferMap<FeatureSet> buffer_features;
 
-  // for a loop, for all its touched tensors, for all different accesses to the tensors,
+  // for a loop, for all its touched buffers, for all different accesses to the buffers,
   // its (access type, number of touched elements, number of bytes of single element)
-  std::unordered_map<const ForNode*, std::unordered_map<te::Tensor, \
-       std::vector<std::tuple<BufferAccessType, int64_t, int> > > > for_touch_regions;
+  std::unordered_map<const ForNode*, BufferMap<std::vector<
+    std::tuple<BufferAccessType, int64_t, int> > > > for_touch_regions;
 
  private:
   const int cache_line_size_ = 64;
@@ -913,14 +924,12 @@ void GetPerStmtFeature(const Stmt& stmt,
                        int cache_line_size,
                        int max_n_bufs,
                        std::vector<float>* ret) {
-  LOG(WARNING) << "RealizeNode & ProvideNode deprecated, "
-               << "need to fix the implementation of PerStmtFeatureExtractor.";
   PerStmtFeatureExtractor extractor(cache_line_size);
   extractor(stmt);
 
-  ret->push_back(extractor.op_features.size());
+  ret->push_back(extractor.buffer_features.size());
 
-  for (const auto& x : extractor.op_features) {
+  for (const auto& x : extractor.buffer_features) {
     const FeatureSet& fea_set = x.second;
 
     /***** compute feature *****/
@@ -1148,33 +1157,49 @@ void GetPerStmtFeaturesWorkerFunc(const SearchTask& task, const State& state,
         int max_n_bufs, std::vector<float>* feature, std::atomic<int>* error_ct) {
   te::Schedule sch;
   Array<te::Tensor> tensors;
-  Map<IterVar, Range> bounds;
-  GlobalVar g("main");
 
   std::tie(sch, tensors) = task->compute_dag.ApplySteps(state->transform_steps);
   sch = sch.normalize();
-  bounds = te::InferBound(sch);
+  auto bounds = te::InferBound(sch);
 
   try {
     auto stmt = te::ScheduleOps(sch, bounds, false);
     Map<te::Tensor, te::Buffer> out_binds; Array<ObjectRef> out_arg_list;
     bool compact = te::VerifyCompactBuffer(stmt);
+    const std::string& name = "main";
+    GlobalVar global_var(name);
+
+    // Copied from driver_api.cc::lower
+    auto pass_ctx = tvm::transform::PassContext::Current();
     GetBinds(tensors, compact, std::unordered_map<te::Tensor, te::Buffer>(),
-              &out_binds, &out_arg_list, BuildConfig::Create());
-    tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list,
-        std::move(stmt), out_binds);
-    f = WithAttr(std::move(f), "global_symbol", runtime::String("main"));
-    auto mod = IRModule(Map<GlobalVar, BaseFunc>({{g, f}}));
-    auto pass_list = Array<tvm::transform::Pass>();
+              &out_binds, &out_arg_list);
+    tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
+    f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
+
+    bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
+    bool disable_vectorize =
+        pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
+    bool instrument_bound_checkers =
+        pass_ctx->GetConfig<Bool>("tir.instrument_bound_checkers", Bool(false)).value();
+
+    if (noalias) {
+      f = WithAttr(std::move(f), "tir.noalias", Bool(true));
+    }
+    auto mod = IRModule(Map<GlobalVar, BaseFunc>({{global_var, f}}));
+
     if (task->target->device_type == kDLGPU) {
+      auto pass_list = Array<tvm::transform::Pass>();
+      // Phase 0
       pass_list.push_back(tir::transform::InjectPrefetch());
-      pass_list.push_back(tir::transform::StorageFlatten(64));
+      pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
+      // Phase 1
+      pass_list.push_back(tir::transform::NarrowDataType(32));
       pass_list.push_back(tir::transform::Simplify());
-      pass_list.push_back(tir::transform::VectorizeLoop());
+      pass_list.push_back(tir::transform::VectorizeLoop(disable_vectorize));
       pass_list.push_back(tir::transform::InjectVirtualThread());
       pass_list.push_back(tir::transform::StorageRewrite());
       pass_list.push_back(tir::transform::Simplify());
-      tvm::Map<std::string, tvm::PrimExpr> gpu_params {
+      tvm::Map<String, tvm::PrimExpr> gpu_params {
         {"max_shared_memory_per_block",
             task->hardware_params->max_shared_memory_per_block},
         {"max_local_memory_per_block",
@@ -1188,11 +1213,9 @@ void GetPerStmtFeaturesWorkerFunc(const SearchTask& task, const State& state,
       const auto& optimize = tir::transform::Sequential(pass_list);
       optimize(mod);
     }
-    pass_list.clear();
-    pass_list.push_back(tir::transform::Simplify());
-    const auto& optimize = tir::transform::Sequential(pass_list);
+    const auto& optimize = tir::transform::Sequential(Array<tvm::transform::Pass>{tir::transform::Simplify()});
     mod = optimize(std::move(mod));
-    const auto& it = mod->functions.find(g);
+    const auto& it = mod->functions.find(global_var);
     CHECK(it != mod->functions.end());
     const auto& prim_func = (*it).second.as<PrimFuncNode>();
     GetPerStmtFeature(prim_func->body,
@@ -1205,8 +1228,8 @@ void GetPerStmtFeaturesWorkerFunc(const SearchTask& task, const State& state,
 
 void GetPerStmtFeaturesFromStates(const Array<State>& states,
                                   const SearchTask& task,
-                                  int max_n_bufs,
                                   int skip_first_n_feature_extraction,
+                                  int max_n_bufs,
                                   std::vector<std::vector<float> >* features) {
   // extract features
   features->assign(states.size(), std::vector<float>());
@@ -1230,8 +1253,8 @@ void GetPerStmtFeaturesFromStates(const Array<State>& states,
 
 void GetPerStmtFeaturesFromStates(const Array<State>& states,
                                   const std::vector<SearchTask>& tasks,
-                                  int max_n_bufs,
                                   int skip_first_n_feature_extraction,
+                                  int max_n_bufs,
                                   std::vector<std::vector<float> >* features) {
   // extract features
   features->assign(states.size(), std::vector<float>());
@@ -1314,13 +1337,13 @@ void GetPerStmtFeaturesFromFile(const std::string& filename,
     (*normalized_throughputs)[i] = min_costs[(*task_ids)[i]] / (*normalized_throughputs)[i];
   }
 
-  GetPerStmtFeaturesFromStates(states, tasks, max_n_bufs, 0, features);
+  GetPerStmtFeaturesFromStates(states, tasks, 0, max_n_bufs, features);
 }
 
 void GetPerStmtFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
                                         const Array<MeasureResult>& results,
-                                        int max_n_bufs,
                                         int skip_first_n_feature_extraction,
+                                        int max_n_bufs,
                                         std::vector<std::vector<float> >* features,
                                         std::vector<float>* normalized_throughputs,
                                         std::vector<int>* task_ids) {
@@ -1379,9 +1402,173 @@ void GetPerStmtFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
     (*normalized_throughputs)[i] = min_costs[(*task_ids)[i]] / (*normalized_throughputs)[i];
   }
 
-  GetPerStmtFeaturesFromStates(states, tasks, max_n_bufs,
-          skip_first_n_feature_extraction, features);
+  GetPerStmtFeaturesFromStates(states, tasks, skip_first_n_feature_extraction,
+      max_n_bufs, features);
 }
+
+TVMByteArray SerializeFeatures(std::vector<std::vector<float> >&& features,
+                               std::vector<float>&& normalized_throughputs,
+                               std::vector<int>&& task_ids,
+                               std::vector<char>* out_data) {
+  size_t total_bytes = 0;
+  std::vector<int> size_vector;
+
+  int n = features.size();
+
+  // serialize sizes
+  size_t size_vector_size = 1 + n + 2;
+  total_bytes += size_vector_size * sizeof(int);
+
+  size_vector.reserve(size_vector_size);
+  size_vector.push_back(features.size());
+  for (const auto& x : features) {
+    size_vector.push_back(static_cast<int>(x.size()));
+    total_bytes += sizeof(float) * x.size();
+  }
+  size_vector.push_back(static_cast<int>(normalized_throughputs.size()));
+  total_bytes += sizeof(float) * normalized_throughputs.size();
+  size_vector.push_back(static_cast<int>(task_ids.size()));
+  total_bytes += sizeof(int) * task_ids.size();
+
+  CHECK_EQ(size_vector.size(), size_vector_size);
+
+  // allocate memory
+  out_data->reserve(total_bytes);
+  char* ptr = out_data->data();
+
+  // serialize size_vector
+  memmove(ptr, reinterpret_cast<char*>(size_vector.data()), size_vector.size() * sizeof(int));
+  ptr += size_vector.size() * sizeof(int);
+
+  // serialize features
+  for (auto& x : features) {
+    memmove(ptr, x.data(), sizeof(float) * x.size());
+    ptr += sizeof(float) * x.size();
+    x.clear();
+  }
+
+  // serialize normalized_throughputs
+  memmove(ptr, reinterpret_cast<char*>(normalized_throughputs.data()),
+          normalized_throughputs.size() * sizeof(int));
+  ptr += normalized_throughputs.size() * sizeof(int);
+
+  // serialize task_ids
+  memmove(ptr, reinterpret_cast<char*>(task_ids.data()), task_ids.size() * sizeof(int));
+  ptr += task_ids.size() * sizeof(int);
+
+  CHECK_EQ(ptr - out_data->data(), total_bytes);
+
+  return TVMByteArray{out_data->data(), total_bytes};
+}
+
+
+TVM_REGISTER_GLOBAL("ansor.GetPerStmtFeaturesFromFile")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  std::string filename = args[0];
+  int n_lines = args[1];
+  int max_n_bufs = args[2];
+
+  std::vector<std::vector<float> > features;
+  std::vector<float> normalized_throughputs;
+  std::vector<int> task_ids;
+
+  GetPerStmtFeaturesFromFile(filename, n_lines, max_n_bufs,
+      &features, &normalized_throughputs, &task_ids);
+
+  // serialization format for n records:
+  //
+  // int n;
+  // int[n+2] sizes
+  //
+  // float[sizes[0]]    feature for record 1
+  // float[sizes[1]]    feature for record 2
+  // ...                feature for record i...
+  // float[sizes[n-1]]  feature for record n
+  //
+  // float[sizes[n]]    normalized throughput for n records
+  // int[sizes[n+1]]    task id for n records
+
+  std::vector<char> byte_data;
+  *ret = SerializeFeatures(std::move(features), std::move(normalized_throughputs),
+                           std::move(task_ids), &byte_data);
+});
+
+TVM_REGISTER_GLOBAL("ansor.GetPerStmtFeaturesFromMeasurePairs")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  Array<MeasureInput> inputs = args[0];
+  Array<MeasureResult> results = args[1];
+  int skip_first_n_feature_extraction = args[2];
+  int max_n_bufs = args[3];
+
+  std::vector<std::vector<float> > features;
+  std::vector<float> normalized_throughputs;
+  std::vector<int> task_ids;
+
+  GetPerStmtFeaturesFromMeasurePairs(inputs, results, skip_first_n_feature_extraction, max_n_bufs,
+      &features, &normalized_throughputs, &task_ids);
+
+  // serialization format for n records:
+  //
+  // int n;
+  // int[n+2] sizes
+  //
+  // float[sizes[0]]    feature for record 1
+  // float[sizes[1]]    feature for record 2
+  // ...                feature for record i...
+  // float[sizes[n-1]]  feature for record n
+  //
+  // float[sizes[n]]    normalized throughput for n records
+  // int[sizes[n+1]]    task id for n records
+
+  std::vector<char> byte_data;
+  *ret = SerializeFeatures(std::move(features), std::move(normalized_throughputs),
+                           std::move(task_ids), &byte_data);
+});
+
+TVM_REGISTER_GLOBAL("ansor.GetPerStmtFeaturesFromStates")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  Array<State> states = args[0];
+  SearchTask task = args[1];
+  int max_n_bufs = args[2];
+
+  std::vector<std::vector<float> > features;
+  std::vector<float> normalized_throughputs;
+  std::vector<int> task_ids;
+
+  GetPerStmtFeaturesFromStates(states, task, 0, max_n_bufs, &features);
+
+  // serialization format for n records:
+  //
+  // int n;
+  // int[n+2] sizes
+  //
+  // float[sizes[0]]    feature for record 1
+  // float[sizes[1]]    feature for record 2
+  // ...                feature for record i...
+  // float[sizes[n-1]]  feature for record n
+  //
+  // float[sizes[n]]    normalized throughput for n records
+  // int[sizes[n+1]]    task id for n records
+
+  std::vector<char> byte_data;
+  *ret = SerializeFeatures(std::move(features), std::move(normalized_throughputs),
+                           std::move(task_ids), &byte_data);
+});
+
+TVM_REGISTER_GLOBAL("ansor.GetPerStmtFeatureNames")
+  .set_body([](TVMArgs args, TVMRetValue *ret) {
+  int max_n_bufs = args[0];
+  std::vector<std::string> names;
+
+  GetPerStmtFeatureName(max_n_bufs, &names);
+
+  Array<String> arr;
+  for (const auto& x : names) {
+    arr.push_back(x);
+  }
+  *ret = arr;
+});
+
 
 }   // namespace ansor
 }   // namespace tvm
