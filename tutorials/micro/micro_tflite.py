@@ -15,59 +15,73 @@
 # specific language governing permissions and limitations
 # under the License.
 """
+.. _tutorial-micro-tflite:
+
 Micro TVM with TFLite Models
 ============================
 **Author**: `Tom Gall <https://github.com/tom-gall>`_
 
-This article is an introduction to working with MicroTVM and TFLite models with Relay.
-
-To get started, TFLite package needs to be installed as prerequisite.
-
-.. code-block:: bash
-
-    # install tflite
-    pip install tflite=2.1.0 --user
-
-
-or you could generate TFLite package yourself. The steps are the following:
-
-.. code-block:: bash
-
-    # Get the flatc compiler.
-    # Please refer to https://github.com/google/flatbuffers for details
-    # and make sure it is properly installed.
-    flatc --version
-
-    # Get the TFLite schema.
-    wget https://raw.githubusercontent.com/tensorflow/tensorflow/r1.13/tensorflow/lite/schema/schema.fbs
-
-    # Generate TFLite package.
-    flatc --python schema.fbs
-
-    # Add current folder (which contains generated tflite module) to PYTHONPATH.
-    export PYTHONPATH=${PYTHONPATH:+$PYTHONPATH:}$(pwd)
-
-
-To validate that the TFLite package was installed successfully, ``python -c "import tflite"``
-
-First we need to download a pretrained TFLite model. When working with microcontrollers
-you need to be mindful these are highly resource constrained devices as such standard 
-models like Mobilenet may not fit into their modest memory. 
-
-For this tutorial, we'll make use of one of the TF Micro example models.
-
-If you wish to replicate the training steps see:
-https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/micro/examples/hello_world/train
-
-.. code-block:: bash
-
-    # if you download the example pretrained model from
-    wget https://storage.googleapis.com/download.tensorflow.org/models/tflite/micro/hello_world_2020_04_13.zip
-    unzip hello_world_2020_04_13.zip
-    this will fail due to an unimplemented opcode (114)
-    I've saved an older version of the pre-trailed model and made it available on linaro.org
-
+This tutorial is an introduction to working with MicroTVM and TFLite models with Relay.
 """
+######################################################################
+# Setup
+# -----
+#
+# To get started, TFLite package needs to be installed as prerequisite.
+# 
+# install tflite
+# .. code-block:: bash
+#
+#   pip install tflite=2.1.0 --user
+#
+# or you could generate TFLite package yourself. The steps are the following:
+#
+#   Get the flatc compiler.
+#   Please refer to https://github.com/google/flatbuffers for details
+#   and make sure it is properly installed.
+#
+# .. code-block:: bash
+#
+#   flatc --version
+#
+# Get the TFLite schema.
+#
+# .. code-block:: bash
+#
+#   wget https://raw.githubusercontent.com/tensorflow/tensorflow/r1.13/tensorflow/lite/schema/schema.fbs
+#
+# Generate TFLite package.
+#
+# .. code-block:: bash
+#
+#   flatc --python schema.fbs
+#
+# Add current folder (which contains generated tflite module) to PYTHONPATH.
+#
+# .. code-block:: bash
+#
+#   export PYTHONPATH=${PYTHONPATH:+$PYTHONPATH:}$(pwd)
+#
+#
+# To validate that the TFLite package was installed successfully, ``python -c "import tflite"``
+#
+# First we need to download a pretrained TFLite model. When working with microcontrollers
+# you need to be mindful these are highly resource constrained devices as such standard 
+# models like Mobilenet may not fit into their modest memory. 
+#
+# For this tutorial, we'll make use of one of the TF Micro example models.
+# 
+# If you wish to replicate the training steps see:
+# https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/micro/examples/hello_world/train
+#
+# .. code-block:: bash
+#
+# if you download the example pretrained model from
+#   wget https://storage.googleapis.com/download.tensorflow.org/models/tflite/micro/hello_world_2020_04_13.zip
+#   unzip hello_world_2020_04_13.zip
+#   this will fail due to an unimplemented opcode (114)
+#   I've saved an older version of the pre-trailed model and made it available on linaro.org
+
 ######################################################################
 # Python imports for tvm, numpy etc
 # ----------------------------------------------
@@ -95,7 +109,7 @@ print (model_file)
 # Load the pretrained TFLite model from a file in your current 
 # directory into a buffer
 # model_dir ="./"
-#tflite_model_file = os.path.join(model_dir, "sine_model.tflite")
+# tflite_model_file = os.path.join(model_dir, "sine_model.tflite")
 tflite_model_buf = open(model_file, "rb").read()
 
 ######################################################################
@@ -171,13 +185,16 @@ with micro.Session(dev_config) as sess:
 ######################################################################
 # Run the model ON DEVICE
 # You'll need to uncomment this line for the example to work
+#
+# .. code-block:: python
+#
 #   mod.run()
 
 ######################################################################
 # Get output from the run and print
 # Uncomment the following two lines for the example to work,
+#
+# .. code-block:: python
+#
 #   tvm_output = mod.get_output(0).asnumpy()
-
 #   print("result is: "+str(tvm_output))
-
-
