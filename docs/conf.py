@@ -197,6 +197,7 @@ subsection_order = ExplicitOrder(
     ['../tutorials/frontend',
      '../tutorials/language',
      '../tutorials/optimize',
+     '../tutorials/ansor',
      '../tutorials/autotvm',
      '../tutorials/dev',
      '../tutorials/topi',
