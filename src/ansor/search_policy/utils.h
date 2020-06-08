@@ -41,7 +41,7 @@ namespace tvm {
 namespace ansor {
 
 // Get an integer from a tvm str Map
-inline int GetIntParam(const Map<std::string, ObjectRef>& attr_dict,
+inline int GetIntParam(const Map<String, ObjectRef>& attr_dict,
                        const std::string& key) {
   CHECK_GT(attr_dict.count(key), 0) << "Cannot find key: \"" << key << "\" in " << attr_dict;
   auto pint = attr_dict[key].as<IntImmNode>();
@@ -50,7 +50,7 @@ inline int GetIntParam(const Map<std::string, ObjectRef>& attr_dict,
 }
 
 // Get a double from a tvm str Map
-inline double GetDoubleParam(const Map<std::string, ObjectRef>& attr_dict,
+inline double GetDoubleParam(const Map<String, ObjectRef>& attr_dict,
                              const std::string& key) {
   CHECK_GT(attr_dict.count(key), 0) << "Cannot find key: \"" << key << "\" in " << attr_dict;
   auto pdouble = attr_dict[key].as<FloatImmNode>();
@@ -59,7 +59,7 @@ inline double GetDoubleParam(const Map<std::string, ObjectRef>& attr_dict,
 }
 
 // Get a string from a tvm str Map
-inline std::string GetStringParam(const Map<std::string, ObjectRef>& attr_dict,
+inline std::string GetStringParam(const Map<String, ObjectRef>& attr_dict,
                                   const std::string& key) {
   CHECK_GT(attr_dict.count(key), 0)
       << "Cannot find key: \"" << key << "\" in " << attr_dict;
@@ -73,7 +73,7 @@ inline std::string GetStringParam(const Map<std::string, ObjectRef>& attr_dict,
 }
 
 // Get a iterator name set from a tvm str Map
-inline std::set<std::string> GetIterNameSetParam(const Map<std::string, ObjectRef>& attr_dict,
+inline std::set<std::string> GetIterNameSetParam(const Map<String, ObjectRef>& attr_dict,
                                                  const std::string& key) {
   std::set<std::string> ret;
   CHECK_GT(attr_dict.count(key), 0) << "Cannot find key: \"" << key << "\" in " << attr_dict;

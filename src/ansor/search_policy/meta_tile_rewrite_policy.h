@@ -53,10 +53,10 @@ class MetaTileRewritePolicyNode: public SearchPolicyNode {
    * str cpu_multi_level_tiling_structure // The structure of multi-level tiling for CPU
    * str gpu_multi_level_tiling_structure // The structure of multi-level tiling for GPU
    */
-  Map<std::string, ObjectRef> params;
+  Map<String, ObjectRef> params;
 
   static SearchPolicy make(CostModel program_cost_model,
-                           Map<std::string, ObjectRef> params,
+                           Map<String, ObjectRef> params,
                            int seed);
 
   // Search and make n_trails measurements

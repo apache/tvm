@@ -47,7 +47,7 @@ TVM_REGISTER_OBJECT_TYPE(MetaTileRewritePolicyNode);
 const std::vector<int> MetaTileRewritePolicyNode::auto_unroll_configs{0, 16, 64, 512, 1024};
 
 SearchPolicy MetaTileRewritePolicyNode::make(CostModel program_cost_model,
-                                        Map<std::string, ObjectRef> params,
+                                        Map<String, ObjectRef> params,
                                         int seed) {
   auto node = make_object<MetaTileRewritePolicyNode>();
   node->program_cost_model = std::move(program_cost_model);
@@ -1440,7 +1440,7 @@ void MetaTileRewritePolicyNode::EvolutionarySearch(
 
 TVM_REGISTER_GLOBAL("ansor.MetaTileRewritePolicy")
 .set_body_typed([](CostModel program_cost_model,
-                   Map<std::string, ObjectRef> params,
+                   Map<String, ObjectRef> params,
                    int seed){
   return MetaTileRewritePolicyNode::make(program_cost_model, params, seed);
 });

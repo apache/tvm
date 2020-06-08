@@ -34,7 +34,7 @@ import multiprocessing
 import tvm._ffi
 from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
-from tvm.target import build_config
+from tvm.ir import transform
 from ..contrib import tar, ndk
 from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout, request_remote, check_remote
 from .compute_dag import LayoutRewriteLevel
@@ -254,7 +254,7 @@ def local_build_worker(index):
                 dirname, "tmp_func." + build_func.output_format)
 
             try:
-                with build_config(unroll_max_extent=task.hardware_params.max_unroll_vec):
+                with transform.PassContext():  # todo(lmzheng): port the unroll pass
                     func = build_module.build(
                         sch, args, target=task.target, target_host=task.target_host)
                 func.export_library(filename, build_func)

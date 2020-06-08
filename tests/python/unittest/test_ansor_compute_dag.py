@@ -43,6 +43,12 @@ def test_infer_bound():
     assert s.stages[C_global].iters[0].range.extent == 64
 
 
+def test_estimate_flop():
+    dag, s = get_tiled_matmul()
+
+    assert abs(dag.flop_ct - 2 * 512 ** 3) < 0.5
+
+
 def test_lower_legalize_invalid_attach():
     N, M = 10, 10
 
@@ -63,4 +69,6 @@ def test_lower_legalize_invalid_attach():
 if __name__ == "__main__":
     test_apply_steps()
     test_infer_bound()
+    test_estimate_flop()
     test_lower_legalize_invalid_attach()
+

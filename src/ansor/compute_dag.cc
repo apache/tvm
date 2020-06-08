@@ -129,14 +129,16 @@ class TensorAccessExtractor : public StmtExprVisitor {
     this->VisitExpr(expr);
   }
 
-  void VisitExpr_(const CallNode *op) final {
-    if (op->call_type == CallNode::CallType::Halide) {
-      buf_accesses[Downcast<te::Operation>(op->func)].emplace_back(
-          op->args.begin(), op->args.end());
-    }
+  void VisitExpr_(const CallNode* op) final {
     if (op->name == tir::intrinsic::tvm_if_then_else) {
       has_branch = true;
     }
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitExpr_(const ProducerLoadNode* op) final {
+    buf_accesses[Downcast<te::Tensor>(op->producer)->op].emplace_back(
+        op->indices.begin(), op->indices.end());
     StmtExprVisitor::VisitExpr_(op);
   }
 
@@ -518,7 +520,7 @@ class FlopEstimator: public ExprFunctor<double(const PrimExpr& n)> {
 
   double VisitExpr_(const FloatImmNode* op) final { return 0.0; }
   double VisitExpr_(const IntImmNode* op) final { return 0.0; }
-//   double VisitExpr_(const UIntImm* op) final { return 0.0; }
+  double VisitExpr_(const ProducerLoadNode* op) final { return 0.0; }
 
   double VisitExpr_(const CastNode* op) final { return VisitExpr(op->value); }
   double VisitExpr_(const VarNode* op) final { return 0.0; }
@@ -545,17 +547,13 @@ class FlopEstimator: public ExprFunctor<double(const PrimExpr& n)> {
   VisitBinary(AndNode); VisitBinary(OrNode); VisitUnary(NotNode);
 
   double VisitExpr_(const CallNode* op) final {
-    if (op->call_type == CallNode::CallType::Halide) {
-      // ignore flops in index expressions
-      return 0.0;
-    }
-
     double ret = 0.0;
     for (const auto&x : op->args) {
       ret += VisitExpr(x);
     }
     return ret;
   }
+
 
   double VisitExprDefault_(const Object* op) final {
     fail = true;
