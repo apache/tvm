@@ -109,7 +109,7 @@ class Id : public ObjectRef {
    */
   TVM_DLL explicit Id(String name_hint);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
 };
 
 }  // namespace relay

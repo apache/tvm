@@ -82,9 +82,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 Var::Var(Id vid, Type type_annotation) {
-  ObjectPtr<VarNode> n = make_object<VarNode>();
-  n->vid = std::move(vid);
-  n->type_annotation = std::move(type_annotation);
+  ObjectPtr<VarNode> n = make_object<VarNode>(vid, type_annotation);
   data_ = std::move(n);
 }
 

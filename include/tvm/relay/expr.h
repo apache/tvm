@@ -152,6 +152,9 @@ class Var;
 /*! \brief Container for Var */
 class VarNode : public ExprNode {
  public:
+  VarNode(Id vid, Type type_annotation) : vid(vid), type_annotation(type_annotation) {}
+  VarNode() : vid("") {}
+
   /*!
    * \brief The unique identifier of the Var.
    *
