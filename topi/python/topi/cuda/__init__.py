@@ -50,3 +50,4 @@ from .conv2d_nhwc_tensorcore import *
 from .conv3d_ndhwc_tensorcore import *
 from .dense_tensorcore import *
 from .correlation import *
+from .sparse import *
