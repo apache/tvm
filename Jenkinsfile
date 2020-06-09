@@ -257,7 +257,7 @@ stage('Integration Test') {
         }
       }
     }
-  },
+  }
   // TODO: Fix the doc
   // 'docs: GPU': {
   //   node('TensorCore') {
