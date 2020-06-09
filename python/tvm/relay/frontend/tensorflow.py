@@ -614,6 +614,62 @@ def _conv3d(opname):
         return out
     return _impl
 
+def _nms():
+    def _impl(inputs, attr, params, mod):
+        # Get parameter values
+        # TODO(yongwww) change nms in relay to support symbolic max_output_size
+        try:
+            max_output_size = int(np.atleast_1d(inputs[2].data.asnumpy()
+                                                .astype("int64"))[0])
+        except Exception:
+            try:
+                max_output_size = _infer_value(inputs[2], params,
+                                               mod).asnumpy().astype("int64").tolist()[0]
+            except Exception:
+                max_output_size = -1
+        iou_threshold = np.atleast_1d(inputs[3].data.asnumpy())[0]
+        # score_threshold was introduced from V3
+        score_threshold = np.atleast_1d(inputs[4].data.asnumpy())[0] if len(inputs) > 4 else 0.0
+
+        # Generate data with shape (1, num_anchors, 5)
+        scores = AttrCvt(op_name="expand_dims",
+                         ignores=['T_threshold'],
+                         extras={'axis': -1, 'num_newaxis': 1})([inputs[1]], attr)
+        data = get_relay_op('concatenate')([scores, inputs[0]], -1)
+        data = get_relay_op('expand_dims')(data, 0, 1)
+
+        # reason why using get_valid_counts is for inference performance
+        ct, data, indices = get_relay_op('get_valid_counts')(data,
+                                                             score_threshold=score_threshold,
+                                                             id_index=-1,
+                                                             score_index=0)
+        # TensorFlow NMS doesn't have parameter top_k
+        top_k = -1
+        # TF doesn't have class id for nms input
+        score_index = 0
+        nms_ret = get_relay_op('non_max_suppression')(data=data,
+                                                      valid_count=ct,
+                                                      indices=indices,
+                                                      max_output_size=max_output_size,
+                                                      iou_threshold=iou_threshold,
+                                                      force_suppress=True,
+                                                      top_k=top_k,
+                                                      coord_start=1,
+                                                      score_index=score_index,
+                                                      id_index=-1,
+                                                      return_indices=True,
+                                                      invalid_to_bottom=False)
+
+        # squeeze it, TF NMS is not batched
+        size = get_relay_op("squeeze")(nms_ret[1], axis=[1])
+        data_slice = get_relay_op("squeeze")(nms_ret[0], axis=[0])
+
+        # slice to get the dynamic result
+        ret = get_relay_op("strided_slice")(data_slice, begin=_expr.const([0]),
+                                            end=size, slice_mode="size")
+        return ret
+    return _impl
+
 def _decode_image():
     def _impl(inputs, attr, params, mod):
         # Image decode wrapper: Expecting user to feed decoded input to next layer drop this layer.
@@ -1119,25 +1175,20 @@ def _slice():
         try:
             begin = _get_list_param(params, inputs[1])
         except (IndexError, KeyError, AttributeError):
-            begin = _infer_value(inputs[1], params).asnumpy().tolist()[0]
+            # Handle symbolic begin
+            try:
+                begin = _infer_value(inputs[1], params).asnumpy().tolist()
+            except Exception:
+                begin = inputs[1]
         try:
             size = _get_list_param(params, inputs[2])
         except (IndexError, KeyError, AttributeError):
             # Handle symbolic size
             try:
-                size = _infer_value(inputs[2], params).asnumpy().tolist()[0]
+                size = _infer_value(inputs[2], params).asnumpy().tolist()
             except Exception:
                 size = inputs[2]
-        data_shape = _infer_shape(inputs[0], mod)
-        data_dim = len(data_shape)
-        end = size
-        if not isinstance(end, (_expr.Call, _expr.Var)):
-            for i in range(data_dim):
-                if size[i] == -1:
-                    end[i] = data_shape[i]
-                else:
-                    end[i] += begin[i]
-        return _op.strided_slice(inputs[0], begin=begin, end=end)
+        return _op.strided_slice(inputs[0], begin=begin, end=size, slice_mode="size")
     return _impl
 
 
@@ -1466,8 +1517,11 @@ def _stridedSlice():
         fshape_indices = None
         if begin_mask or end_mask or ellipsis_mask or new_axis_mask or shrink_axis_mask:
             begin, end, stride, fshape_indices = _transform_mask(stride_dim, ellipsis_mask)
-        out = _op.strided_slice(inputs[0], begin=begin, end=end, strides=stride)
-        out_shape = _infer_shape(out, mod)
+        out = _op.strided_slice(inputs[0],
+                                begin=begin,
+                                end=end,
+                                strides=stride)
+        out_shape = _infer_shape(out, mod=mod)
         if not fshape_indices:
             fshape_indices = range(len(out_shape))
 
@@ -2026,6 +2080,8 @@ _convert_map = {
     'Mod'                               : _elemwise('mod'),
     'Mul'                               : _elemwise('multiply'),
     'Neg'                               : AttrCvt('negative'),
+    'NonMaxSuppressionV2'               : _nms(),
+    'NonMaxSuppressionV3'               : _nms(),
     'NoOp'                              : _no_op(),
     'NotEqual'                          : _broadcast('not_equal'),
     'OneHot'                            : _one_hot(),

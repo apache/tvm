@@ -1014,11 +1014,12 @@ class Slice(OnnxOpConverter):
                 attr['ends'] = new_ends
         except KeyError:
             pass
+        begin = list(attr['starts'])
+        end = list(attr['ends'])
 
-        return AttrCvt('strided_slice',
-                       transforms={'starts': 'begin',
-                                   'ends': 'end'},
-                       ignores=['axes'])(inputs, attr)
+        return _op.strided_slice(inputs[0],
+                                 begin=_expr.const(begin, dtype="int32"),
+                                 end=_expr.const(end, dtype="int32"))
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
@@ -1034,7 +1035,9 @@ class Slice(OnnxOpConverter):
                     starts, ends, axes)
                 starts = new_starts
                 ends = new_ends
-        return _op.strided_slice(inputs[0], begin=starts, end=ends)
+        return _op.strided_slice(inputs[0],
+                                 begin=_expr.const(starts, dtype="int32"),
+                                 end=_expr.const(ends, dtype="int32"))
 
 
 class Gather(OnnxOpConverter):

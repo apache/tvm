@@ -390,8 +390,10 @@ def conv2d_grad(orig, grad):
     assert padded_weight_grad_h >= filter_h
     assert padded_weight_grad_w >= filter_w
     if padded_weight_grad_h > filter_h or padded_weight_grad_w > filter_w:
-        backward_weight = strided_slice(backward_weight, begin=[0, 0, 0, 0],
-                                        end=[None, None, filter_h, filter_w])
+        backward_weight = strided_slice(backward_weight,
+                                        begin=const([0, 0, 0, 0], dtype="int64"),
+                                        end=const([out_channel, in_channel // attrs.groups,
+                                                   filter_h, filter_w], dtype="int64"))
 
     return [backward_data, backward_weight]
 

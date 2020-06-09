@@ -2544,7 +2544,7 @@ class OperatorConverter(object):
 
         ret = _op.vision.multibox_transform_loc(cls_pred, loc_prob,
                                                 anchor_expr, **multibox_transform_loc_attrs)
-        ret = _op.vision.non_max_suppression(ret[0], ret[1], **non_max_suppression_attrs)
+        ret = _op.vision.non_max_suppression(ret[0], ret[1], ret[1], **non_max_suppression_attrs)
         ret = _op.vision.get_valid_counts(ret, 0)
         valid_count = ret[0]
         # keep only the top 'max_detections' rows
