@@ -24,7 +24,6 @@ import struct
 import numpy as np
 
 from .loop_state import StateObject
-from .auto_schedule import SearchTask
 from .measure import MeasureInput, MeasureResult
 from . import _ffi_api
 
@@ -124,7 +123,7 @@ def get_per_stmt_features_from_file(filename: str,
 def get_per_stmt_features_from_measure_pairs(inputs: List[MeasureInput],
                                              results: List[MeasureResult],
                                              skip_first_n_feature_extraction: int = 0,
-                                             max_n_bufs: int = None,) \
+                                             max_n_bufs: int = None) \
         -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Get per_stmt features from measurement pairs"""
     byte_arr = _ffi_api.GetPerStmtFeaturesFromMeasurePairs(
@@ -133,7 +132,7 @@ def get_per_stmt_features_from_measure_pairs(inputs: List[MeasureInput],
 
 
 def get_per_stmt_features_from_states(states: List[StateObject],
-                                      task: SearchTask,
+                                      task: "SearchTask",
                                       max_n_bufs: int = None) -> List[np.ndarray]:
     """Get per_stmt features from states"""
     byte_arr = _ffi_api.GetPerStmtFeaturesFromStates(

@@ -23,11 +23,28 @@
  */
 
 #include "search_policy.h"
+#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace ansor {
 
 TVM_REGISTER_OBJECT_TYPE(SearchPolicyNode);
+
+// Search Policy
+TVM_REGISTER_GLOBAL("ansor.SearchPolicyContinueSearchOneRound")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  SearchPolicy policy = args[0];
+  SearchTask task = args[1];
+  int num_measure = args[2];
+  int verbose = args[3];
+  ProgramMeasurer measurer = args[4];
+
+  Array<MeasureInput> inputs;
+  Array<MeasureResult> results;
+  std::tie(inputs, results) = policy->ContinueSearchOneRound(task, num_measure, verbose, measurer);
+
+  *ret = Array<ObjectRef>{inputs, results};
+});
 
 }  // namespace ansor
 }  // namespace tvm

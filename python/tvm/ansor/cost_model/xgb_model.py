@@ -92,14 +92,15 @@ class XGBModel(PythonBasedModel):
         # extract feature
         n_cached = len(self.inputs_feature_cache)
         features, normalized_throughputs, task_ids = \
-                get_per_stmt_features_from_measure_pairs(self.inputs, self.results,
-                        skip_first_n_feature_extraction=n_cached)
+            get_per_stmt_features_from_measure_pairs(self.inputs, self.results,
+                                                     skip_first_n_feature_extraction=n_cached)
         if n_cached > 0:
             features = list(features)
             features[:n_cached] = self.inputs_feature_cache
             features = np.array(features)
         self.inputs_feature_cache = features
-        dtrain = pack_sum_xgbmatrix(features, normalized_throughputs, task_ids, normalized_throughputs)
+        dtrain = pack_sum_xgbmatrix(features, normalized_throughputs,
+                                    task_ids, normalized_throughputs)
 
         # train xgb model
         self.bst = xgb.train(self.xgb_params, dtrain,
@@ -133,7 +134,6 @@ class XGBModel(PythonBasedModel):
 
     def predict_stages(self, task, states):
         # Format: (s0 score, ..., sN score, s0 n_stage, s0 stage 0, ..., s1 n_stage, s1 stage 0,)
-
         features = get_per_stmt_features_from_states(states, task)
         if self.bst is not None and len(self.inputs) > self.num_warmup_sample:
             dtest, pack_ids = pack_sum_xgbmatrix_for_prediction(features)
@@ -339,7 +339,7 @@ def pack_sum_average_peak_score(N):
     return feval
 
 def pack_sum_average_recall_score(N):
-    """evaluate average recall score for xgb"""
+    """Evaluate average recall score for xgb"""
 
     def feval(preds, labels):
         group_sizes = dmatrix_context.get('group_sizes', labels, [len(preds)])

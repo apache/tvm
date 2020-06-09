@@ -324,24 +324,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 });
 
 TVM_REGISTER_GLOBAL("ansor.MeasureInput")
-.set_body_typed([](SearchTask task, State state) {
-  return MeasureInputNode::make(task, state);
-});
+.set_body_typed(MeasureInputNode::make);
 
 TVM_REGISTER_GLOBAL("ansor.BuildResult")
-.set_body_typed([](std::string filename, Array<te::Tensor> args,
-                   int error_no, std::string error_msg, double time_cost) {
-  return BuildResultNode::make(filename, args, error_no, error_msg,
-                               time_cost);
-});
+.set_body_typed(BuildResultNode::make);
 
 TVM_REGISTER_GLOBAL("ansor.MeasureResult")
-.set_body_typed([](Array<PrimExpr> costs, int error_no,
-                   std::string error_msg, double all_cost,
-                   double timestamp) {
-  return MeasureResultNode::make(costs, error_no, error_msg, all_cost,
-                                 timestamp);
-});
+.set_body_typed(MeasureResultNode::make);
 
 TVM_REGISTER_GLOBAL("ansor.BuilderBuild")
 .set_body_typed([](const Builder& builder,
@@ -356,25 +345,17 @@ TVM_REGISTER_GLOBAL("ansor.RunnerRun")
 });
 
 TVM_REGISTER_GLOBAL("ansor.LocalBuilder")
-.set_body_typed([](int timeout, int n_parallel,
-                   const std::string& build_func) {
-  return LocalBuilderNode::make(timeout, n_parallel, build_func);
-});
+.set_body_typed(LocalBuilderNode::make);
 
 TVM_REGISTER_GLOBAL("ansor.LocalRunner")
-.set_body_typed([](int timeout, int number, int repeat, int min_repeat_ms,
-                   double cooldown_interval) {
-  return LocalRunnerNode::make(timeout, number, repeat, min_repeat_ms,
-                               cooldown_interval);
-});
+.set_body_typed(LocalRunnerNode::make);
 
 TVM_REGISTER_GLOBAL("ansor.RPCRunner")
-.set_body_typed([](const std::string& key, const std::string& host, int port,
-                    int priority, int timeout, int n_parallel, int number,
-                    int repeat, int min_repeat_ms, double cooldown_interval) {
-  return RPCRunnerNode::make(key, host, port, priority, timeout, n_parallel,
-                             number, repeat, min_repeat_ms, cooldown_interval);
-});
+.set_body_typed(RPCRunnerNode::make);
+
+TVM_REGISTER_GLOBAL("ansor.ProgramMeasurer")
+.set_body_typed(ProgramMeasurerNode::make);
+
 
 }  // namespace ansor
 }  // namespace tvm

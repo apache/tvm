@@ -22,7 +22,7 @@ import random
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import LocalBuilder, LocalRunner
-from .cost_model import RandomModel
+from .cost_model import RandomModel, XGBModel
 from . import _ffi_api
 
 
@@ -67,11 +67,12 @@ class SearchTask(Object):
 
 @tvm._ffi.register_object("ansor.SearchPolicy")
 class SearchPolicy(Object):
-    pass
+    def continue_search(self, task, num_measure, verbose, measurer):
+        return _ffi_api.SearchPolicyContinueSearchOneRound(self, task, num_measure, verbose, measurer)
 
 
 @tvm._ffi.register_object("ansor.MetaTileRewritePolicy")
-class MetaTileRewritePolicy(Object):
+class MetaTileRewritePolicy(SearchPolicy):
     """ The search policy that searches with meta tiling and random rewrite
 
     Parameters

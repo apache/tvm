@@ -14,8 +14,30 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import, redefined-builtin
-""" Cost model that estimates the performance of programs """
 
-from .cost_model import RandomModel
-from .xgb_model import XGBModel
+"""Test the task scheduler """
+
+import tvm
+from tvm import ansor
+
+from test_ansor_common import matmul_ansor_test
+
+def test_task_scheduler_basic():
+    N = 128
+    A, B, C = matmul_ansor_test(N, N, N)
+    dag = ansor.ComputeDAG([A, B, C])
+    tgt = tvm.target.create("llvm")
+    task1 = ansor.SearchTask(dag, "test", tgt)
+    task2 = ansor.SearchTask(dag, "test", tgt)
+
+    def objective(costs):
+        return sum(costs)
+
+    task_scheduler = ansor.SimpleTaskScheduler([task1, task2], objective)
+    tune_option = ansor.TuneOption(n_trials=3, runner='local')
+
+    task_scheduler.tune(tune_option)
+
+
+if __name__ == "__main__":
+    test_task_scheduler_basic()

@@ -171,6 +171,13 @@ class LocalRunner(Runner):
         self.__init_handle_by_constructor__(
             _ffi_api.LocalRunner, timeout, number, repeat, min_repeat_ms, cooldown_interval)
 
+@tvm._ffi.register_object("ansor.ProgramMeasurer")
+class ProgramMeasurer(Object):
+    def __init__(self, builder: Builder, runner: Runner,
+                 callbacks: List[MeasureCallback],
+                 verbose: int, max_continuous_error: int = -1):
+        self.__init_handle_by_constructor__(
+            _ffi_api.ProgramMeasurer, builder, runner, callbacks, verbose, max_continuous_error)
 
 @tvm._ffi.register_object("ansor.RPCRunner")
 class RPCRunner(Runner):

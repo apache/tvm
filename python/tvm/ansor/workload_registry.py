@@ -187,4 +187,3 @@ def load_workload_func_registry(filename: str):
     global WORKLOAD_FUNC_REGISTRY
 
     WORKLOAD_FUNC_REGISTRY = pickle.load(open(filename, 'rb'))
-
