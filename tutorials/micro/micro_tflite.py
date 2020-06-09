@@ -62,7 +62,6 @@ This tutorial is an introduction to working with MicroTVM and TFLite models with
 #
 #   export PYTHONPATH=${PYTHONPATH:+$PYTHONPATH:}$(pwd)
 #
-#
 # To validate that the TFLite package was installed successfully, ``python -c "import tflite"``
 #
 # CMSIS needs to be downloaded and the CMSIS_ST_PATH environment variable setup
@@ -71,6 +70,7 @@ This tutorial is an introduction to working with MicroTVM and TFLite models with
 # After you've expanded the zip file
 #
 # .. code-block:: bash
+#
 # export CMSIS_ST_PATH=/path/to/STM32Cube_FW_F7_V1.16.0/Drivers/CMSIS
 #
 # Next we need to download a pretrained TFLite model. When working with microcontrollers
@@ -159,8 +159,11 @@ mod, params = relay.frontend.from_tflite(tflite_model,
                                          dtype_dict={input_tensor: input_dtype})
 
 ######################################################################
+# You'll need to uncomment the following blocks of code for the 
+# example to run on device.
 # Next with the dev_config, we establish a micro session and create
 # a context
+#
 # .. code-block:: python
 #
 # with micro.Session(dev_config) as sess:
@@ -169,6 +172,7 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 ######################################################################
 # Now we create a build config for relay. turning off two options
 # and then calling relay.build which will result in a C source
+#
 # .. code-block:: python
 #
 #    disable_vectorize = tvm.target.build_config(disable_vectorize=True)
@@ -189,7 +193,7 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 # Pass the weights to get ready to do some inference
 # .. code-block:: python
 #
-#    mod.set_input(**params)
+#    ``mod.set_input(**params)``
 
 ######################################################################
 # The model consumes a single float32. Construct a tvm.nd.array object
@@ -199,10 +203,8 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 #
 #    mod.set_input(input_tensor, tvm.nd.array(np.array([0.5], dtype="float32")))
 
-
 ######################################################################
-# Run the model ON DEVICE
-# You'll need to uncomment this line for the example to work
+# Run the model on device
 #
 # .. code-block:: python
 #
@@ -210,7 +212,6 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 
 ######################################################################
 # Get output from the run and print
-# Uncomment the following two lines for the example to work,
 #
 # .. code-block:: python
 #
