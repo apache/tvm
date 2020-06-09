@@ -1026,9 +1026,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
       if (c2val % c1val == 0) {
-        if (c2val == 0) {
-          return c1val > 0 ? (min(x, 0) * c1val).Eval() : (max(x, 0) * c1val).Eval();
-        } else if (c2val / c1val > 0) {
+        if (c1val > 0) {
           return (min(x, c2val / c1val) * c1val).Eval();
         } else {
           return (max(x, c2val / c1val) * c1val).Eval();
@@ -1188,9 +1186,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
       if (c2val % c1val == 0) {
-        if (c2val == 0) {
-          return c1val > 0 ? (max(x, 0) * c1val).Eval() : (min(x, 0) * c1val).Eval();
-        } else if (c2val / c1val > 0) {
+        if (c1val > 0) {
           return (max(x, c2val / c1val) * c1val).Eval();
         } else {
           return (min(x, c2val / c1val) * c1val).Eval();
