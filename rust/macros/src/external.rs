@@ -18,7 +18,6 @@
  */
 use proc_macro2::Span;
 use quote::quote;
-use std::env;
 use syn::parse::{Parse, ParseStream, Result};
 
 use syn::{FnArg, Generics, Ident, Lit, Meta, NestedMeta, Pat, ReturnType, TraitItemMethod, Type};
@@ -87,11 +86,7 @@ impl Parse for ExternalInput {
 pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ext_input = syn::parse_macro_input!(input as ExternalInput);
 
-    let tvm_rt_crate = if env::var("CARGO_PKG_NAME").unwrap() == "tvm-rt" {
-        quote!(crate)
-    } else {
-        quote!(tvm_rt)
-    };
+    let tvm_rt_crate = crate::util::get_tvm_rt_crate();
 
     let err_type = quote! { #tvm_rt_crate::Error };
 
