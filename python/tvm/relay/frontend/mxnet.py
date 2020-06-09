@@ -83,6 +83,7 @@ def _mx_fully_connected(inputs, attrs):
     if len(data_shape) > 2:
         new_shape = data_shape[:-1]
         new_shape.append(units)
+        new_shape = [int(v) for v in new_shape]
         res = _op.reshape(res, new_shape)
     return res
 
@@ -1323,11 +1324,11 @@ def _mx_contrib_interleaved_matmul_selfatt_qk(inputs, attrs):
     qkv = inputs[0]
     num_heads = attrs.get_int('heads')
     qkv = _op.reshape(qkv, newshape=(0, 0, num_heads, 3, -1))
-    q_proj = _op.take(qkv, _expr.const(0, "int"), axis=3)
+    q_proj = _op.take(qkv, _expr.const(0, "int32"), axis=3)
     q_proj = _op.transpose(q_proj, axes=[1, 2, 0, 3])
     q_proj = _op.reverse_reshape(q_proj, newshape=(-1, 0, 0))
     q_proj = _mx_contrib_div_sqrt_dim([q_proj], None)
-    k_proj = _op.take(qkv, _expr.const(1, "int"), axis=3)
+    k_proj = _op.take(qkv, _expr.const(1, "int32"), axis=3)
     k_proj = _op.transpose(k_proj, axes=[1, 2, 0, 3])
     k_proj = _op.reverse_reshape(k_proj, newshape=(-1, 0, 0))
     ret = _op.nn.batch_matmul(q_proj, k_proj)
@@ -1348,7 +1349,7 @@ def _mx_contrib_interleaved_matmul_selfatt_valatt(inputs, attrs):
     qkv, att = inputs
     num_heads = attrs.get_int("heads")
     qkv = _op.reshape(qkv, newshape=(0, 0, num_heads, 3, -1))
-    v_proj = _op.take(qkv, _expr.const(2, "int"), axis=3)
+    v_proj = _op.take(qkv, _expr.const(2, "int32"), axis=3)
     v_proj = _op.transpose(v_proj, axes=(1, 2, 0, 3))
     v_proj = _op.reverse_reshape(v_proj, newshape=(-1, 0, 0))
     v_proj = _op.transpose(v_proj, axes=[0, 2, 1])
