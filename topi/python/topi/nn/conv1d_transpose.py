@@ -44,9 +44,9 @@ def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype,
     out_dtype : str
         The output data type. This is used for mixed precision.
 
-    output_padding : tuple
+    output_padding : ints
         Used to recover the actual output shape in case there are more
-        than one possible shape.
+        than one possible shape.  Must be smaller than stride.
 
     Returns
     -------
@@ -58,14 +58,16 @@ def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype,
     # dilate and pad
     if isinstance(stride, (tuple, list)):
         stride = stride[0]
+    if isinstance(output_padding, (tuple, list)):
+        output_padding = output_padding[0]
     batch, channels_in, data_width = data.shape
     _, channels_out, kernel_width = kernel.shape
-    opad = output_padding[0]
+    assert output_padding < stride
     channels_out = simplify(channels_out)
     data = dilate(data, [1, 1, stride], name='data_dilate')
     pad_left, pad_right = get_pad_tuple1d(padding, (kernel_width,))
     pad_left = kernel_width - 1 - pad_left
-    pad_right = kernel_width - 1 - pad_right + opad
+    pad_right = kernel_width - 1 - pad_right + output_padding
     data = pad(data, [0, 0, pad_left], [0, 0, pad_right], name='data_pad')
 
     # transpose kernel, switch kernel layout to IOW
