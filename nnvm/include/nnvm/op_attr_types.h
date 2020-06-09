@@ -224,7 +224,6 @@ using FCorrectLayout =
     std::function<bool(const NodeAttrs& attrs, std::vector<Layout>* ilayouts,
                        const std::vector<Layout>* last_ilayouts, std::vector<Layout>* olayouts)>;
 
-
 /*!
  * \brief Infer & correct function of node layout. See \p Layout for layout convention
  * \param attrs The attribute of the node. Can be modified.
@@ -246,12 +245,8 @@ using FCorrectLayout =
  * \return success flag.
  */
 using FCorrectLayoutEx = std::function<bool(
-    const NodeAttrs& attrs,
-    std::vector<TShape>* ishapes,
-    std::vector<Layout>* ilayouts,
-    const std::vector<Layout>* last_ilayouts,
-    std::vector<Layout>* olayouts)>;
-
+    const NodeAttrs& attrs, std::vector<TShape>* ishapes, std::vector<Layout>* ilayouts,
+    const std::vector<Layout>* last_ilayouts, std::vector<Layout>* olayouts)>;
 
 /*!
  * \brief Get a list of inputs that represent graphs instead of data.
