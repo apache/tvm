@@ -140,7 +140,7 @@ impl Function {
     /// Calls the function that created from `Builder`.
     pub fn invoke<'a>(&self, arg_buf: Vec<ArgValue<'a>>) -> Result<RetValue> {
         let num_args = arg_buf.len();
-        let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMTypeCode>) =
+        let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMArgTypeCode>) =
             arg_buf.iter().map(|arg| arg.to_tvm_value()).unzip();
 
         let mut ret_val = unsafe { MaybeUninit::uninit().assume_init() };

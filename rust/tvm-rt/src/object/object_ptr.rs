@@ -21,7 +21,7 @@ use std::convert::TryFrom;
 use std::ffi::CString;
 use std::ptr::NonNull;
 
-use tvm_sys::ffi::{self, /* TVMObjectFree, */ TVMObjectRetain, TVMObjectTypeKey2Index};
+use tvm_sys::ffi::{self, TVMObjectFree, TVMObjectRetain, TVMObjectTypeKey2Index};
 use tvm_sys::{ArgValue, RetValue};
 
 use crate::errors::Error;
@@ -32,6 +32,8 @@ type Deleter<T> = unsafe extern "C" fn(object: *mut T) -> ();
 #[repr(C)]
 pub struct Object {
     pub type_index: u32,
+    // Can we safely replace with Rust atomics?
+    // don't touch me
     pub ref_count: i32,
     pub fdeleter: Deleter<Object>,
 }
@@ -97,9 +99,9 @@ pub unsafe trait IsObject {
 
     fn as_object<'s>(&'s self) -> &'s Object;
 
-    unsafe extern "C" fn typed_delete(_object: *mut Self) {
-        // let object = Box::from_raw(object);
-        // drop(object)
+    unsafe extern "C" fn typed_delete(object: *mut Self) {
+        let object = Box::from_raw(object);
+        drop(object)
     }
 }
 
@@ -133,14 +135,14 @@ impl<T> Clone for ObjectPtr<T> {
     }
 }
 
-// impl<T> Drop for ObjectPtr<T> {
-//     fn drop(&mut self) {
-//         unsafe {
-//             let raw_ptr = std::mem::transmute(self.ptr);
-//             assert_eq!(TVMObjectFree(raw_ptr), 0)
-//         }
-//     }
-// }
+impl<T> Drop for ObjectPtr<T> {
+    fn drop(&mut self) {
+        unsafe {
+            let raw_ptr = std::mem::transmute(self.ptr);
+            assert_eq!(TVMObjectFree(raw_ptr), 0)
+        }
+    }
+}
 
 impl<T: IsObject> ObjectPtr<T> {
     pub fn new(object: T) -> ObjectPtr<T> {
