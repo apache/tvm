@@ -854,7 +854,7 @@ def DenseToSparse(weight_name, weight_shape):
     weight_name: Array[String]
       Names of weights which qualified sparse contrains
 
-    weight_shape: Array[Array[tvm.tir.IntImm]]
+    weight_shape: Array[Array[IntImm]]
       Weights shape in BSR format.
 
     Returns

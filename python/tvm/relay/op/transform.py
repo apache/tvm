@@ -20,7 +20,7 @@
 
 from . import _make
 from ..expr import TupleWrapper, const
-from ...tir.expr import IntImm
+from ...tir import expr as _expr
 
 
 def cast(data, dtype):
@@ -215,7 +215,7 @@ def reshape(data, newshape):
     if isinstance(newshape, (tuple, list)):
         tempshape = []
         for shape in newshape:
-            if isinstance(shape, IntImm):
+            if isinstance(shape, _expr.IntImm):
                 tempshape.append(shape.value)
             else:
                 try:
