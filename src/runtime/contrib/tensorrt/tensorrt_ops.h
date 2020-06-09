@@ -880,12 +880,14 @@ class ReshapeOpConverter : public TrtOpConverter {
   void Convert(AddTrtLayerParams* params) const {
     auto input = params->inputs.at(0).tensor;
     const auto* attrs = params->call->attrs.as<ReshapeAttrs>();
+    CHECK(attrs->newshape);
     CHECK_EQ(attrs->reverse, false);
     std::vector<int> new_shape;
     const int start_index =
         TRT_HAS_IMPLICIT_BATCH(params) ? 1 : 0;
-    for (size_t i = start_index; i < attrs->newshape.size(); ++i) {
-      const int value = attrs->newshape[i].as<IntImmNode>()->value;
+    for (size_t i = start_index; i < attrs->newshape.value().size(); ++i) {
+      CHECK(attrs->newshape.value()[i].defined());
+      const int value = attrs->newshape.value()[i].as<IntImmNode>()->value;
       CHECK_GE(value, -1);
       new_shape.push_back(value);
     }
@@ -982,15 +984,17 @@ class StridedSliceOpConverter : public TrtOpConverter {
     auto input = params->inputs.at(0).tensor;
     auto input_dims = TrtDimsToVector(input->getDimensions());
     const auto* attrs = params->call->attrs.as<StridedSliceAttrs>();
+    // Dynamic shapes not supported.
+    CHECK(attrs->begin && attrs->end && attrs->strides);
     const int input_rank_with_batch =
         input->getDimensions().nbDims + (TRT_HAS_IMPLICIT_BATCH(params) ? 1 : 0);
-    CHECK_EQ(input_rank_with_batch, attrs->begin.size());
-    CHECK_EQ(input_rank_with_batch, attrs->end.size());
+    CHECK_EQ(input_rank_with_batch, attrs->begin.value().size());
+    CHECK_EQ(input_rank_with_batch, attrs->end.value().size());
     const bool default_strides =
-        !attrs->strides.defined() || attrs->strides.size() == 0;
+        !attrs->strides.value().defined() || attrs->strides.value().size() == 0;
     if (TRT_HAS_IMPLICIT_BATCH(params)) {
-      CHECK(default_strides || !attrs->strides[0].defined() ||
-            attrs->strides[0].as<IntImmNode>()->value == 1);
+      CHECK(default_strides || !attrs->strides.value()[0].defined() ||
+            attrs->strides.value()[0].as<IntImmNode>()->value == 1);
     }
 
     auto process_slice_index = [](Integer x, int default_value, int dim_value) {
@@ -1002,16 +1006,16 @@ class StridedSliceOpConverter : public TrtOpConverter {
 
     const int start_index = TRT_HAS_IMPLICIT_BATCH(params) ? 1 : 0;
     std::vector<int> start, size, strides;
-    for (size_t i = start_index; i < attrs->begin.size(); ++i) {
+    for (size_t i = start_index; i < attrs->begin.value().size(); ++i) {
       const int begin_value =
-          process_slice_index(attrs->begin[i], 0, input_dims[i - start_index]);
+          process_slice_index(attrs->begin.value()[i], 0, input_dims[i - start_index]);
       const int end_value =
-          process_slice_index(attrs->end[i], input_dims[i - start_index],
+          process_slice_index(attrs->end.value()[i], input_dims[i - start_index],
                               input_dims[i - start_index]);
-      const int stride_value = (default_strides || i >= attrs->strides.size() ||
-                                !attrs->strides[i].defined())
+      const int stride_value = (default_strides || i >= attrs->strides.value().size() ||
+                                !attrs->strides.value()[i].defined())
                                    ? 1
-                                   : attrs->strides[i].as<IntImmNode>()->value;
+                                   : attrs->strides.value()[i].as<IntImmNode>()->value;
       CHECK_GT(stride_value, 0);
       const int size_value =
           (end_value - begin_value + stride_value - 1) / stride_value;
