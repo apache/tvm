@@ -45,7 +45,7 @@ def create_shared(output,
         The compiler command.
     """
     if sys.platform == "darwin" or sys.platform.startswith("linux"):
-        _linux_compile(output, objects, options, cc)
+        _linux_compile(output, objects, options, cc, compile_shared=True)
     elif sys.platform == "win32":
         _windows_shared(output, objects, options)
     else:
@@ -164,9 +164,10 @@ def cross_compiler(compile_func,
     return _fcompile
 
 
-def _linux_compile(output, objects, options, compile_cmd="g++"):
+def _linux_compile(output, objects, options,
+                   compile_cmd="g++", compile_shared=False):
     cmd = [compile_cmd]
-    if output.endswith(".so") or output.endswith(".dylib"):
+    if compile_shared or output.endswith(".so") or output.endswith(".dylib"):
         cmd += ["-shared", "-fPIC"]
         if sys.platform == "darwin":
             cmd += ["-undefined", "dynamic_lookup"]
@@ -185,6 +186,7 @@ def _linux_compile(output, objects, options, compile_cmd="g++"):
     if proc.returncode != 0:
         msg = "Compilation error:\n"
         msg += py_str(out)
+        msg += "\nCmd line: " + " ".join(cmd)
         raise RuntimeError(msg)
 
 
