@@ -21,4 +21,5 @@ tvm.relay.transform
 .. automodule:: tvm.relay.transform
     :members:
     :imported-members:
+    :exclude-members: tvm.tir.IntImm
     :autosummary:
