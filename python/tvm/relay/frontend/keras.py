@@ -611,8 +611,8 @@ def _convert_cropping(inexpr, keras_layer, _):
         raise tvm.error.OpNotImplemented(
             'Operator {} is not supported for frontend Keras.'.format(crop_type))
     int32_max = np.iinfo(np.int32).max
-    return _op.strided_slice(inexpr, begin=[0, 0, crop_t, crop_l], \
-        end=[int32_max, int32_max, in_h-crop_b, in_w-crop_r])
+    return _op.strided_slice(inexpr, begin=_expr.const([0, 0, crop_t, crop_l]), \
+        end=_expr.const([int32_max, int32_max, in_h-crop_b, in_w-crop_r]))
 
 
 def _convert_batchnorm(inexpr, keras_layer, etab):

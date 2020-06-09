@@ -100,7 +100,76 @@ def _arange_shape_func(start, stop, step):
 
 @_reg.register_shape_func("arange", True)
 def arange_shape_func(attrs, inputs, _):
+    """
+    Shape func for arange
+    """
     return [_arange_shape_func(*inputs)]
+
+@script
+def _strided_slice_shape_func_input_data(data, begin, end, strides,
+                                         slice_mode):
+    ndim = len(data.shape)
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        cbegin = 0
+        cend = data.shape[i]
+        cstride = 1
+        if strides.shape[0] > i:
+            cstride = strides[i]
+        if begin.shape[0] > i:
+            cbegin = begin[i]
+        if end.shape[0] <= i:
+            cend = data.shape[i]
+        elif slice_mode != 0:
+            cstride = 1
+            if end[i] < 0:
+                cend = data.shape[i]
+            else:
+                cend = cbegin + end[i]
+        else:
+            cend = end[i]
+        assert cstride != 0, "Strides can't be zero."
+        out[i] = int64(ceil_div((int64(cend) - int64(cbegin)), int64(cstride)))
+    return out
+
+@script
+def _strided_slice_shape_func_input_shape(data_shape, begin, end, strides, slice_mode):
+    ndim = data_shape.shape[0]
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        cbegin = int64(0)
+        cend = int64(data_shape[i])
+        cstride = int64(1)
+        if len(strides) > i:
+            cstride = int64(strides[i])
+        if len(begin) > i:
+            cbegin = int64(begin[i])
+        if len(end) <= i:
+            cend = int64(data_shape[i])
+        elif slice_mode != 0:
+            cstride = int64(1)
+            if end[i] < 0:
+                cend = int64(data_shape[i])
+            else:
+                cend = cbegin + int64(end[i])
+        else:
+            cend = int64(end[i])
+        assert cstride != 0, "Strides can't be zero."
+        out[i] = int64(ceil_div((int64(cend) - int64(cbegin)), int64(cstride)))
+    return out
+
+
+@_reg.register_shape_func("strided_slice", True)
+def strided_slice_shape_func(attrs, inputs, _):
+    """
+    Shape func for strided_slice
+    """
+    slice_mode = convert(0 if attrs.slice_mode == "end" else 1)
+    # data independent if begin, end and strides exist
+    if attrs.begin and attrs.end and attrs.strides:
+        return [_strided_slice_shape_func_input_shape(inputs[0], attrs.begin, attrs.end,
+                                                      attrs.strides, slice_mode)]
+    return [_strided_slice_shape_func_input_data(*inputs, slice_mode)]
 
 @script
 def _concatenate_shape_func(inputs, axis):

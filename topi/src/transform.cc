@@ -152,7 +152,7 @@ TVM_REGISTER_GLOBAL("topi.tensordot").set_body([](TVMArgs args, TVMRetValue* rv)
 });
 
 TVM_REGISTER_GLOBAL("topi.strided_slice").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = strided_slice(args[0], args[1], args[2], args[3]);
+  *rv = strided_slice(args[0], args[1], args[2], args[3], args[4]);
 });
 
 TVM_REGISTER_GLOBAL("topi.one_hot").set_body([](TVMArgs args, TVMRetValue* rv) {

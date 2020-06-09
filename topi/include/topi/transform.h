@@ -521,26 +521,25 @@ inline Array<Tensor> split(const Tensor& x, Array<Integer> split_indices, int ax
  * \param end Indicies indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
+ * \param slice_mode Specifies the slice mode
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
  * \return A Tensor whose op member is the split operation
  */
 inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const Array<Integer>& end,
-                            const Array<Integer>& strides, std::string name = "T_strided_slice",
-                            std::string tag = kInjective) {
+                            const Array<Integer>& strides, std::string slice_mode = "end",
+                            std::string name = "T_strided_slice", std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
   // Setup the ranges.
   // NOTE: this code duplicates the shape inference logic relay.op
   // Consider to refactor in the future.
-  std::vector<int64_t> stride_vec;
-  for (Integer i : strides) {
-    CHECK(i.defined());
-    stride_vec.push_back(i->value);
+  std::vector<int64_t> stride_vec(src_tensor_dim, 1);
+  for (size_t i = 0; i < strides.size(); ++i) {
+    CHECK(strides[i].defined());
+    stride_vec[i] = strides[i]->value;
   }
-  for (size_t i = stride_vec.size(); i < src_tensor_dim; ++i) {
-    stride_vec.push_back(1);
-  }
+
   const int64_t max_range = std::numeric_limits<int64_t>::max();
 
   std::vector<int64_t> begin_vec;
@@ -559,8 +558,15 @@ inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const 
   std::vector<int64_t> end_vec;
   for (size_t i = 0; i < end.size(); ++i) {
     // allow end to be None
+
     if (!end[i].defined()) {
       end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
+    } else if (slice_mode == "size") {
+      if (end[i]->value < 0) {
+        end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
+      } else {
+        end_vec.push_back(begin_vec[i] + end[i]->value);
+      }
     } else {
       end_vec.push_back(end[i]->value);
     }
