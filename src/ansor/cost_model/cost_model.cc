@@ -37,7 +37,7 @@ using ::tvm::runtime::NDArray;
 TVM_REGISTER_OBJECT_TYPE(CostModelNode);
 TVM_REGISTER_OBJECT_TYPE(RandomModelNode);
 TVM_REGISTER_OBJECT_TYPE(MeasureModelNode);
-TVM_REGISTER_OBJECT_TYPE(PythonBasedCostModelNode);
+TVM_REGISTER_OBJECT_TYPE(PythonBasedModelNode);
 
 void RandomNumber(TVMArgs args, TVMRetValue* rv) {
   int n = args[0];
@@ -101,30 +101,30 @@ void MeasureModelNode::Predict(const SearchTask& task,
   }
 }
 
-CostModel PythonBasedCostModelNode::make(PackedFunc update_func,
-                                         PackedFunc predict_func,
-                                         PackedFunc predict_stage_func) {
-  auto node = make_object<PythonBasedCostModelNode>();
+CostModel PythonBasedModelNode::make(PackedFunc update_func,
+                                     PackedFunc predict_func,
+                                     PackedFunc predict_stage_func) {
+  auto node = make_object<PythonBasedModelNode>();
   node->update_func = std::move(update_func);
   node->predict_func = std::move(predict_func);
   node->predict_stage_func = std::move(predict_stage_func);
   return CostModel(node);
 }
 
-void PythonBasedCostModelNode::Update(const Array<MeasureInput>& inputs,
-                                      const Array<MeasureResult>& results) {
+void PythonBasedModelNode::Update(const Array<MeasureInput>& inputs,
+                                  const Array<MeasureResult>& results) {
   update_func(inputs, results);
 }
 
-void PythonBasedCostModelNode::Predict(const SearchTask& task,
-                                       const std::vector<State>& states,
-                                       std::vector<float>* scores) {
+void PythonBasedModelNode::Predict(const SearchTask& task,
+                                   const std::vector<State>& states,
+                                   std::vector<float>* scores) {
   scores->resize(states.size());
   predict_func(task, Array<State>(states.begin(), states.end()),
                static_cast<void*>(scores->data()));
 }
 
-void PythonBasedCostModelNode::PredictStages(
+void PythonBasedModelNode::PredictStages(
     const SearchTask& task, const std::vector<State>& states,
     std::vector<float>* state_scores,
     std::vector<std::vector<float>>* stage_scores) {
@@ -186,6 +186,13 @@ void PythonBasedCostModelNode::PredictStages(
 
 TVM_REGISTER_GLOBAL("ansor.RandomModel").set_body_typed([]() {
   return RandomModelNode::make();
+});
+
+TVM_REGISTER_GLOBAL("ansor.PythonBasedModel")
+.set_body_typed([](PackedFunc update_func, PackedFunc predict_func,
+                   PackedFunc predict_stage_func) {
+  return PythonBasedModelNode::make(update_func, predict_func,
+                                    predict_stage_func);
 });
 
 }  // namespace ansor

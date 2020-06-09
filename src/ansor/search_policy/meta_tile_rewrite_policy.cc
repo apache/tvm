@@ -1397,24 +1397,27 @@ void MetaTileRewritePolicyNode::EvolutionarySearch(
       int id = RandomChoose(prefix_sum_probs, &rand_gen_);
 
       if (dis(rand_gen_) < mutation_prob) {
-        const std::vector<double> rule_prefix_sum_probs{0.9, 0.95, 1.0};
+        const std::vector<double> rule_prefix_sum_probs{0.9, 1.0};
 
         int rule_id = RandomChoose(rule_prefix_sum_probs, &rand_gen_);
 
-        State tmp_s;
         if (rule_id == 0) {
-          tmp_s = RandomMutateTileSize((*pnow)[id], &split_memo_, &rand_gen_,
+          // Mutate Tile Size
+          State tmp_s = RandomMutateTileSize((*pnow)[id], &split_memo_, &rand_gen_,
               cur_task_->hardware_params->max_innermost_split_factor);
+          if (tmp_s.defined()) {
+            pnext->push_back(std::move(tmp_s));
+          } else {
+            mutation_fail_ct++;
+          }
         } else if (rule_id == 1) {
-          tmp_s = RandomMutateMaxUnrollStep((*pnow)[id], &rand_gen_, auto_unroll_configs);
-        } else if (rule_id == 2) {
-          tmp_s = MutataParallel((*pnow)[id], &split_memo_, &rand_gen_, cur_task_);
-        }
-
-        if (tmp_s.defined()) {
-          pnext->push_back(std::move(tmp_s));
-        } else {
-          mutation_fail_ct++;
+          // Mutate auto-unroll max step.
+          State tmp_s = RandomMutateMaxUnrollStep((*pnow)[id], &rand_gen_, auto_unroll_configs);
+          if (tmp_s.defined()) {
+            pnext->push_back(std::move(tmp_s));
+          } else {
+            mutation_fail_ct++;
+          }
         }
       } else {
         pnext->push_back((*pnow)[id]);

@@ -29,6 +29,7 @@ from . import feature
 from .compute_dag import ComputeDAG
 from .task import SearchTask, MetaTileRewritePolicy, TuneOption
 from .task import auto_schedule
-from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner
+from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, RPCRunnerWarpper
 from .cost_model import RandomModel
+from .cost_model.xgb_model import XGBModel
 from .serialization import LogToFile, LogReader, best_measure_pair_in_file

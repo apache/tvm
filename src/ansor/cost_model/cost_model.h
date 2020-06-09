@@ -92,7 +92,7 @@ class MeasureModelNode : public CostModelNode {
 
 /*! \brief  A wrapper for cost model defined by python code
  *  This class will call python's function */
-class PythonBasedCostModelNode: public CostModelNode {
+class PythonBasedModelNode: public CostModelNode {
  public:
   PackedFunc update_func;
   PackedFunc predict_func;
@@ -108,8 +108,8 @@ class PythonBasedCostModelNode: public CostModelNode {
                      std::vector<float>* state_scores,
                      std::vector<std::vector<float>>* stage_scores) final;
 
-  static constexpr const char *_type_key = "ansor.PythonBasedCostModel";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PythonBasedCostModelNode, CostModelNode);
+  static constexpr const char *_type_key = "ansor.PythonBasedModel";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PythonBasedModelNode, CostModelNode);
 };
 
 }  // namespace ansor

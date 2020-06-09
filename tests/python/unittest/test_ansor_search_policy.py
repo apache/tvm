@@ -24,28 +24,25 @@ import tempfile
 
 import tvm
 from tvm import ansor
-from tvm.rpc.tracker import Tracker
-from tvm.rpc.server import Server
 
 from test_ansor_common import matmul_nkkm
 
-def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'):
+def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local',
+                  cost_model=ansor.RandomModel(), n_trials=2):
     print("Test %s schedule search with the default search policy" % (target))
 
+    random.seed(seed)
     N = 128
     A, B, C = matmul_nkkm(N, N, N)
     dag = ansor.ComputeDAG([A, B, C])
     tgt = tvm.target.create(target)
     task = ansor.SearchTask(dag, "test", tgt)
 
-    random.seed(seed)
-
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
 
-        cost_model = ansor.RandomModel()
         search_policy = ansor.MetaTileRewritePolicy(cost_model, seed=seed)
-        tune_option = ansor.TuneOption(n_trials=2, runner=runner,
+        tune_option = ansor.TuneOption(n_trials=n_trials, runner=runner,
                                        callbacks=[ansor.LogToFile(log_file)])
         state = ansor.auto_schedule(task, search_policy,
                                     tune_option=tune_option)
@@ -83,48 +80,30 @@ def test_search_basic():
     search_common(seed=944563397)
 
 
+def test_search_xgb_model_rpc_runner():
+    with ansor.RPCRunnerWarpper() as rpc_runner:
+        search_common(seed=456787236, cost_model=ansor.XGBModel(),
+                      runner=rpc_runner.runner)
+
+
 def test_search_opencl():
     if tvm.context("opencl", 0).exist:
-        host = '0.0.0.0'
-        tracker = Tracker(host, port=9000, port_end=10000, silent=True)
-        device_key = '$local$device$%d' % tracker.port
-        server = Server(host, port=tracker.port, port_end=10000,
-                        key=device_key,
-                        use_popen=True, silent=True,
-                        tracker_addr=(tracker.host, tracker.port))
-        rpc_runner = ansor.RPCRunner(device_key, host, tracker.port)
-
-        search_common("opencl", 380344973, rpc_runner)
-
-        tracker.terminate()
-        server.terminate()
+        with ansor.RPCRunnerWarpper() as rpc_runner:
+            search_common("opencl", 380344973, rpc_runner.runner)
     else:
         print("OpenCL device not found, skip this test.")
 
 
 def test_search_cuda():
-    ctx = tvm.context("cuda", 0)
-    if ctx.exist:
-        cuda_arch = "sm_" + "".join(ctx.compute_version.split('.'))
-        tvm.autotvm.measure.measure_methods.set_cuda_target_arch(cuda_arch)
-        host = '0.0.0.0'
-        tracker = Tracker(host, port=9000, port_end=10000, silent=True)
-        device_key = '$local$device$%d' % tracker.port
-        server = Server(host, port=tracker.port, port_end=10000,
-                        key=device_key,
-                        use_popen=True, silent=True,
-                        tracker_addr=(tracker.host, tracker.port))
-        rpc_runner = ansor.RPCRunner(device_key, host, tracker.port)
-
-        search_common("cuda", 903667810, rpc_runner)
-
-        tracker.terminate()
-        server.terminate()
+    if tvm.context("cuda", 0).exist:
+        with ansor.RPCRunnerWarpper("cuda") as rpc_runner:
+            search_common("cuda", 903667810, rpc_runner.runner)
     else:
         print("CUDA device not found, skip this test.")
 
 
 if __name__ == "__main__":
     test_search_basic()
+    test_search_xgb_model_rpc_runner()
     test_search_opencl()
     test_search_cuda()
