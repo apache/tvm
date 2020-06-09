@@ -644,18 +644,18 @@ def test_conv2d_transpose_infer_type():
 def test_conv2d_transpose_nchw_run():
     dshape = (1, 3, 18, 18)
     kshape = (3, 10, 3, 3)
-    oshape = (1, 10, 37, 37)
+    oshape = (1, 10, 36, 36)
     x = relay.var("x", shape=dshape)
     w = relay.var("w")
     y = relay.nn.conv2d_transpose(x, w,
                                   channels=10, kernel_size=(3,3), strides=(2,2),
-                                  padding=(1,1), output_padding=(2, 2))
+                                  padding=(1,1), output_padding=(1, 1))
     func = relay.Function([x, w], y)
     dtype = "float32"
     data = np.random.uniform(size=dshape).astype(dtype)
     kernel = np.random.uniform(size=kshape).astype(dtype)
     ref_res = topi.testing.conv2d_transpose_nchw_python(
-        data, kernel, 2, 1, (2, 2))
+        data, kernel, 2, 1, (1, 1))
 
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
@@ -666,14 +666,14 @@ def test_conv2d_transpose_nchw_run():
 def test_conv2d_transpose_nhwc_run():
     dshape_nhwc = (1, 18, 18, 3)
     kshape_hwoi = (3, 3, 10, 3)
-    oshape_nhwc = (1, 37, 37, 10)
+    oshape_nhwc = (1, 36, 36, 10)
     x = relay.var("x", shape=dshape_nhwc)
     w = relay.var("w")
     # kshape and kernel_layout should have swapped IO.
     # kshape is HWOI and kernel_layout is HWIO
     y = relay.nn.conv2d_transpose(x, w,
                                   channels=10, kernel_size=(3, 3), strides=(2, 2),
-                                  padding=(1, 1), output_padding=(2, 2),
+                                  padding=(1, 1), output_padding=(1, 1),
                                   data_layout="NHWC", kernel_layout="HWIO")
     func = relay.Function([x, w], y)
     dtype = "float32"
@@ -682,7 +682,7 @@ def test_conv2d_transpose_nhwc_run():
     # use true kshape layout here - HWOI
 
     ref_res = topi.testing.conv2d_transpose_nhwc_python(data, kernel, 'HWOI',
-                                                        2, 1, output_padding=(2, 2))
+                                                        2, 1, output_padding=(1, 1))
 
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
@@ -693,18 +693,18 @@ def test_conv2d_transpose_nhwc_run():
 def test_conv1d_transpose_ncw_run():
     dshape = (1, 3, 18)
     kshape = (3, 10, 3)
-    oshape = (1, 10, 37)
+    oshape = (1, 10, 36)
     x = relay.var("x", shape=dshape)
     w = relay.var("w")
     y = relay.nn.conv1d_transpose(x, w,
                                   channels=10, kernel_size=(3,), strides=(2,),
-                                  padding=(1,), output_padding=(2,))
+                                  padding=(1,), output_padding=(1,))
     func = relay.Function([x, w], y)
     dtype = "float32"
     data = np.random.uniform(size=dshape).astype(dtype)
     kernel = np.random.uniform(size=kshape).astype(dtype)
     ref_res = topi.testing.conv1d_transpose_ncw_python(
-        data, kernel, 2, 1, output_padding=(2,))
+        data, kernel, 2, 1, output_padding=(1,))
 
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
