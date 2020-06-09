@@ -20,7 +20,7 @@
 /*!
  * \file graph_runtime.cc
  */
-#include "graph_runtime.h"
+//#include "graph_runtime.h"
 
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
@@ -28,7 +28,6 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/serializer.h>
-
 #include <algorithm>
 #include <functional>
 #include <memory>
@@ -37,7 +36,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
+#include "./graph_runtime.h"
 namespace tvm {
 namespace runtime {
 namespace details {
@@ -66,7 +65,10 @@ void GraphRuntime::Run() {
  * executed on.
  */
 void GraphRuntime::Init(const std::string& graph_json, tvm::runtime::Module module,
-                        const std::vector<TVMContext>& ctxs) {
+                        const std::vector<TVMContext>& ctxs,
+                        const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
+  graph_json_ = graph_json;
+  params_ = params;
   std::istringstream is(graph_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);

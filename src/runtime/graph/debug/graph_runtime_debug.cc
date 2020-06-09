@@ -24,11 +24,9 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-
+#include <tvm/runtime/graph_runtime.h>
 #include <chrono>
 #include <sstream>
-
-#include "../graph_runtime.h"
 
 namespace tvm {
 namespace runtime {

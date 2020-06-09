@@ -1,0 +1,136 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file tvm/runtime/graph_runtime_factory.h
+ * \brief Graph runtime factory creating graph runtime.
+ */
+
+#ifndef TVM_RUNTIME_GRAPH_RUNTIME_FACTORY_H_
+#define TVM_RUNTIME_GRAPH_RUNTIME_FACTORY_H_
+
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/ndarray.h>
+#include <string>
+#include <vector>
+#include <unordered_map>
+
+
+namespace tvm {
+namespace runtime {
+
+class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
+
+ public:
+
+  /*!
+   * \brief Initialize the GraphRuntimeFactory with graph and context.
+   * \param graph_json The execution graph.
+   * \param params The params of graph.
+   * \param kind The runtime kind to be created.
+   */
+
+  void Init(const std::string& kind,
+            const std::string& graph_json,
+            const std::unordered_map<std::string, tvm::runtime::NDArray>& params);
+
+  void ImportModule(Module other, std::string module_name);
+
+  /*!
+   * \brief Get member function to front-end
+   * \param name The name of the function.
+   * \param sptr_to_self The pointer to the module node.
+   * \return The corresponding member function.
+   */
+  virtual PackedFunc GetFunction(const std::string& name,
+                                 const ObjectPtr<Object>& sptr_to_self);
+
+  /*!
+   * \return The type key of the executor.
+   */
+  const char* type_key() const override {
+    return "GraphRuntimeFactory";
+  }
+
+  /*!
+   * \brief Save the module to binary stream.
+   * \param stream The binary stream to save to.
+   */
+  void SaveToBinary(dmlc::Stream* stream) override;
+
+
+  /*!
+   * \brief Create a specific runtime module
+   * \param module The module we will be used for creating runtime
+   * \param ctxs The context of the host and devices where graph nodes will be
+   *  executed on.
+   * \return created runtime module
+   */
+  Module RuntimeCreate(Module module, const std::vector<TVMContext>& ctxs);
+
+  /*!
+   * \brief Select the specific module
+   * \param name The name of the module
+   * \return selected module
+   */
+  Module SelectModule(const std::string& name);
+
+  inline std::string GetJson() const {
+    return graph_json_;
+  }
+
+  inline std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() const {
+    return params_;
+  }
+
+  inline Module GetLib() const {
+    CHECK_GT(this->imports().size(), 0);
+    return this->imports_[0];
+  }
+
+  inline std::string GetKind() const {
+    return kind_;
+  }
+
+  inline std::vector<std::string> GetModuleNames() const {
+    return module_names_;
+  }
+
+  inline void SetModuleNames(const std::vector<std::string>& module_names) {
+    module_names_ = module_names;
+  }
+
+ protected:
+  /*! \brief The execution graph. */
+  std::string graph_json_;
+  /*! \brief The params. */
+  std::unordered_map<std::string, tvm::runtime::NDArray> params_;
+  /*! \brief runtime kind */
+  std::string kind_;
+  /*! \brief module names list */
+  std::vector<std::string> module_names_;
+
+};
+
+} // namespace runtime
+} // namespace tvm
+
+#endif // TVM_RUNTIME_GRAPH_RUNTIME_FACTORY_H_

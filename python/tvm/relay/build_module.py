@@ -26,6 +26,7 @@ from tvm.ir import IRModule
 from tvm.tir import expr as tvm_expr
 from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
+from ..runtime import graph_runtime_factory as _graph_runtime_factory
 from . import _build_module
 from . import ty as _ty
 from . import expr as _expr
@@ -181,7 +182,7 @@ class BuildModule(object):
         return ret
 
 
-def build(mod, target=None, target_host=None, params=None):
+def build(mod, target=None, target_host=None, params=None, mod_name='default', export_graph_module=False):
     """Helper function that builds a Relay function to run on TVM graph
     runtime.
 
@@ -249,7 +250,10 @@ def build(mod, target=None, target_host=None, params=None):
     with tophub_context:
         bld_mod = BuildModule()
         graph_json, mod, params = bld_mod.build(mod, target, target_host, params)
-    return graph_json, mod, params
+        if export_graph_module:
+            mod = _graph_runtime_factory.create("graph", graph_json, mod, params, mod_name)
+            return mod
+        return graph_json, mod, params
 
 
 def optimize(mod, target=None, params=None):

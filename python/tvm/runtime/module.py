@@ -41,6 +41,10 @@ class Module(object):
         self.handle = handle
         self._entry = None
         self.entry_name = "__tvm_main__"
+        # TODO:(FrozenGene): support rpc
+        if self.type_key == 'GraphRuntimeFactory':
+            #from tvm.runtime.graph_runtime_factory import GraphRuntimeFactoryModule
+            self._entry = self.runtime_create
 
     def __del__(self):
         check_call(_LIB.TVMModFree(self.handle))
@@ -99,6 +103,8 @@ class Module(object):
         check_call(_LIB.TVMModImport(self.handle, module.handle))
 
     def __getitem__(self, name):
+        if self.type_key == 'GraphRuntimeFactory':
+            return self.get_function("select_module")(name)
         if not isinstance(name, string_types):
             raise ValueError("Can only take string as function name")
         return self.get_function(name)
@@ -111,6 +117,23 @@ class Module(object):
 
     def __repr__(self):
         return "Module(%s, %x)" % (self.type_key, self.handle.value)
+
+    # TODO (FrozenGene): remove
+    def runtime_create(self, ctx):
+        """Create the runtime using ctx
+
+        Parameters
+        ----------
+        ctx : TVMContext or list of TVMContext
+        """
+        from tvm.contrib.graph_runtime import get_device_ctx
+        from tvm._ffi.registry import get_global_func
+        ctx, num_rpc_ctx, device_type_id = get_device_ctx(self, ctx)
+        if num_rpc_ctx == len(ctx):
+            fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime_factory.runtime_create")
+        else:
+            fcreate = get_global_func("tvm.graph_runtime_factory.runtime_create")
+        return fcreate(self, *device_type_id)
 
     @property
     def type_key(self):
