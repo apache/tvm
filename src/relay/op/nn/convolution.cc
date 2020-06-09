@@ -78,11 +78,10 @@ Expr MakeConvWinograd(Expr data, Expr weight, int tile_size, Array<IndexExpr> st
 }
 
 template <typename T>
-Expr MakeConvGemm(Expr data, Expr weight, Array<IndexExpr> strides,
-                      Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
-                      IndexExpr channels, Array<IndexExpr> kernel_size, std::string data_layout,
-                      std::string kernel_layout, std::string out_layout, DataType out_dtype,
-                      std::string op_name) {
+Expr MakeConvGemm(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
+                  Array<IndexExpr> dilation, int groups, IndexExpr channels,
+                  Array<IndexExpr> kernel_size, std::string data_layout, std::string kernel_layout,
+                  std::string out_layout, DataType out_dtype, std::string op_name) {
   auto attrs = make_object<T>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -532,14 +531,13 @@ weight transformation in advance.
 
 // relay.nn.contrib_conv2d_gemm_without_weight_transform
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_gemm_without_weight_transform")
-    .set_body_typed([](Expr data, Expr weight, Array<IndexExpr> strides,
-                       Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
-                       IndexExpr channels, Array<IndexExpr> kernel_size, std::string data_layout,
+    .set_body_typed([](Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
+                       Array<IndexExpr> dilation, int groups, IndexExpr channels,
+                       Array<IndexExpr> kernel_size, std::string data_layout,
                        std::string kernel_layout, std::string out_layout, DataType out_dtype) {
       return MakeConvGemm<Conv2DAttrs>(
-          data, weight, strides, padding, dilation, groups, channels, kernel_size,
-          data_layout, kernel_layout, out_layout, out_dtype,
-          "nn.contrib_conv2d_gemm_without_weight_transform");
+          data, weight, strides, padding, dilation, groups, channels, kernel_size, data_layout,
+          kernel_layout, out_layout, out_dtype, "nn.contrib_conv2d_gemm_without_weight_transform");
     });
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_gemm_without_weight_transform")
@@ -560,15 +558,13 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_gemm_without_weight_transform")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_support_level(10)
     .add_type_rel("Conv2DGemm", Conv2DGemmRel<Conv2DAttrs>)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                                   ConvInferCorrectLayout<Conv2DAttrs>);
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
 
 // relay.nn.contrib_conv2d_gemm_weight_transform
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_gemm_weight_transform")
     .set_body_typed([](Expr weights) {
-      return MakeConvGemmWeightTransform(weights,
-                                             "nn.contrib_conv2d_gemm_weight_transform");
+      return MakeConvGemmWeightTransform(weights, "nn.contrib_conv2d_gemm_weight_transform");
     });
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_gemm_weight_transform")
@@ -678,7 +674,6 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.deformable_conv2d")
           data, offset, weight, strides, padding, dilation, deformable_groups, groups, channels,
           kernel_size, data_layout, kernel_layout, out_layout, out_dtype, "nn.deformable_conv2d");
     });
-
 
 }  // namespace relay
 }  // namespace tvm

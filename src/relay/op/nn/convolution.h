@@ -392,7 +392,7 @@ inline bool Conv2DGemmWeightTransformRel(const Array<Type>& types, int num_input
 
   CHECK_EQ(data->shape.size(), 4) << "Only support HWIO kernel layout";
 
-  const auto K = data->shape[0]*data->shape[1]*data->shape[2];
+  const auto K = data->shape[0] * data->shape[1] * data->shape[2];
   const auto N = data->shape[3];
 
   auto k_mod_16 = indexmod(K, 16);
@@ -405,10 +405,10 @@ inline bool Conv2DGemmWeightTransformRel(const Array<Type>& types, int num_input
   const auto K_padded = K + pad_k;
 
   Array<IndexExpr> oshape{
-            indexdiv(N_padded, 4),
-            indexdiv(K_padded, 16),
-            4,
-            16,
+      indexdiv(N_padded, 4),
+      indexdiv(K_padded, 16),
+      4,
+      16,
   };
 
   reporter->Assign(types[1], TensorType(oshape, data->dtype));
@@ -553,7 +553,7 @@ bool Conv2DWinogradRel(const Array<Type>& types, int num_inputs, const Attrs& at
 
 template <typename AttrType>
 bool Conv2DGemmRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                       const TypeReporter& reporter) {
+                   const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
