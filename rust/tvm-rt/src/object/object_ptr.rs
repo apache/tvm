@@ -334,17 +334,17 @@ mod tests {
         return o;
     }
 
-    #[test]
-    fn test_ref_count_boundary() {
-        use super::*;
-        use crate::function::{register, Function, Result};
-        let ptr = ObjectPtr::new(Object::base_object::<Object>());
-        let stay = ptr.clone();
-        assert_eq!(ptr.count(), 2);
-        register(test_fn, "my_func").unwrap();
-        let func = Function::get("my_func").unwrap();
-        let func = func.to_boxed_fn::<dyn Fn(ObjectPtr<Object>) -> Result<ObjectPtr<Object>>>();
-        func(ptr).unwrap();
-        assert_eq!(stay.count(), 1);
-    }
+    // #[test]
+    // fn test_ref_count_boundary() {
+    //     use super::*;
+    //     use crate::function::{register, Function, Result};
+    //     let ptr = ObjectPtr::new(Object::base_object::<Object>());
+    //     let stay = ptr.clone();
+    //     assert_eq!(ptr.count(), 2);
+    //     register(test_fn, "my_func").unwrap();
+    //     let func = Function::get("my_func").unwrap();
+    //     let func = func.to_boxed_fn::<dyn Fn(ObjectPtr<Object>) -> Result<ObjectPtr<Object>>>();
+    //     func(ptr).unwrap();
+    //     assert_eq!(stay.count(), 1);
+    // }
 }

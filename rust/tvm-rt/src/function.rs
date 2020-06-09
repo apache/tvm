@@ -143,7 +143,7 @@ impl Function {
     }
 
     /// Calls the function that created from `Builder`.
-    pub fn invoke(&self, arg_buf: Vec<ArgValue<'static>>) -> Result<RetValue> {
+    pub fn invoke<'a>(&self, arg_buf: Vec<ArgValue<'a>>) -> Result<RetValue> {
         let num_args = arg_buf.len();
         let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMArgTypeCode>) =
             arg_buf.iter().map(|arg| arg.to_tvm_value()).unzip();
@@ -308,32 +308,15 @@ mod tests {
 
     static CANARY: &str = "runtime.ModuleLoadFromFile";
 
-    #[test]
-    fn list_global_func() {
-        assert!(GLOBAL_FUNCTIONS.lock().unwrap().contains_key(CANARY));
-    }
+    // #[test]
+    // fn list_global_func() {
+    //     assert!(GLOBAL_FUNCTIONS.lock().unwrap().contains_key(CANARY));
+    // }
 
     #[test]
     fn get_fn() {
         assert!(Function::get(CANARY).is_some());
         assert!(Function::get("does not exists!").is_none());
-    }
-
-    fn init() {
-        use crate::function;
-        use function::Result;
-
-        fn constfn() -> i64 {
-            return 10;
-        }
-
-        function::register_override(constfn, "constfn".to_owned(), true).unwrap();
-
-        fn ident() -> i64 {
-            return 11;
-        }
-
-        function::register_override(ident, "ident".to_owned(), true).unwrap();
     }
 
     #[test]
@@ -347,9 +330,8 @@ mod tests {
 
         function::register_override(constfn, "constfn".to_owned(), true).unwrap();
 
-        let func = Function::get("constfn").unwrap();
-        let func = func.to_boxed_fn::<dyn Fn() -> Result<i32>>();
-        let ret = func2().unwrap();
+        let func = Function::get_boxed::<dyn Fn() -> Result<i32>, _>("constfn").unwrap();
+        let ret = func().unwrap();
         assert_eq!(ret, 10);
     }
 
@@ -357,29 +339,13 @@ mod tests {
     fn register_and_call_closure1() {
         use crate::function::{self};
 
-        fn ident() -> i64 {
-            return 11;
+        fn ident(x: i64) -> i64 {
+            return x;
         }
 
         function::register_override(ident, "ident".to_owned(), true).unwrap();
-
-        let func = Function::get("ident").unwrap();
-        let func = func1.to_boxed_fn::<dyn Fn(i32) -> Result<i32>>();
+        let func =
+            Function::get_boxed::<dyn Fn(i32) -> Result<i32>, _>("ident").unwrap();
         assert_eq!(func(60).unwrap(), 60);
     }
-
-    // #[test]
-    // fn register_and_call_closure1() {
-    //     use crate::function::{self};
-
-    //     fn ident(x: i64) -> i64 {
-    //         return x;
-    //     }
-
-    //     function::register_override(ident, "ident".to_owned(), false).unwrap();
-    //     let func1 = Function::get("ident").unwrap();
-    //     func1.invoke(vec![60.into()]).unwrap();
-    //     // let func = func1.to_boxed_fn::<dyn Fn(i32) -> Result<i32>>();
-    //     // assert_eq!(func(60).unwrap(), 60);
-    // }
 }
