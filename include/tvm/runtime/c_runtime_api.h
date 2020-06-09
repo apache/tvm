@@ -580,8 +580,8 @@ TVM_DLL int TVMDeviceCopyDataFromTo(const void* from, size_t from_offset, void* 
  * \param is_derived A boolean representing whether this predicate holds.
  * \return 0 when success, -1 when failure happens.
  */
-TVM_DLL int TVMObjectDerivedFrom(uint32_t child_type_index, uint32_t parent_type_index, int* is_derived);
-
+TVM_DLL int TVMObjectDerivedFrom(uint32_t child_type_index, uint32_t parent_type_index,
+                                 int* is_derived);
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C
