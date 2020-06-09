@@ -217,10 +217,11 @@ def reshape(data, newshape):
         for shape in newshape:
             if isinstance(shape, IntImm):
                 tempshape.append(shape.value)
-            elif isinstance(shape, int):
-                tempshape.append(shape)
             else:
-                raise RuntimeError('Unrecognized shape type: %s' % type(shape))
+                try:
+                    tempshape.append(int(shape))
+                except ValueError as err:
+                    raise RuntimeError('Unrecognized shape type: %s' % err)
         newshape = const(tempshape)
     return _make.reshape(data, newshape)
 
