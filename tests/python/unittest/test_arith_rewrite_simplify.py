@@ -529,6 +529,12 @@ def test_min_index_simplify():
 
     ck.verify(tvm.min(x * 3, 9), tvm.min(x, 3) * 3)
     ck.verify(tvm.min(3 - x, 2), 3 - tvm.max(x,  1))
+    ck.verify(tvm.min(x * 2, 0), tvm.min(x, 0) * 2)
+    ck.verify(tvm.min(0 - x * 2, 0), tvm.max(x, 0) * -2)
+    ck.verify(tvm.min(x * (-2), -4), tvm.max(x, 2) * -2)
+    ck.verify(tvm.min(x * (-2), 4), tvm.max(x, -2) * -2)
+    ck.verify(tvm.min(x * (0), 4), 0)
+    ck.verify(tvm.min(x * (0), -4), -4)
 
     # DivMod rules
     # truc div
@@ -609,6 +615,12 @@ def test_max_index_simplify():
 
     ck.verify(tvm.max(x * 3, 9), tvm.max(x, 3) * 3)
     ck.verify(tvm.max(3 - x, 1), 3 - tvm.min(x,  2))
+    ck.verify(tvm.max(x * 2, 0), tvm.max(x, 0) * 2)
+    ck.verify(tvm.max(0 - x * 2, 0), tvm.min(x, 0) * -2)
+    ck.verify(tvm.max(x * (-2), -4), tvm.min(x, 2) * -2)
+    ck.verify(tvm.max(x * (-2), 4), tvm.min(x, -2) * -2)
+    ck.verify(tvm.max(x * (0), 4), 4)
+    ck.verify(tvm.max(x * (0), -4), 0)
 
     # DivMod rules
     # truc div
