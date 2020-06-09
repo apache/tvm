@@ -408,6 +408,41 @@ def test_gather():
     verify_gather((4, 3, 5, 6), [[2, 1, 0, 0]], 0, 'float32')
 
 
+def verify_scatter(in_shape, indices, axis):
+    x = np.random.uniform(size=in_shape).astype("float32")
+    indices = np.array(indices, dtype="int32")
+    updates = np.random.uniform(size=indices.shape).astype("float32")
+
+    y = helper.make_node("ScatterElements", ['data', 'indices', 'updates'], ['output'], axis=axis)
+
+    graph = helper.make_graph([y],
+                              'scatter_test',
+                              inputs=[helper.make_tensor_value_info("data",
+                                                                    TensorProto.FLOAT, list(in_shape)),
+                                      helper.make_tensor_value_info("indices",
+                                                                    TensorProto.INT32, list(indices.shape)),
+                                      helper.make_tensor_value_info("updates",
+                                                                    TensorProto.FLOAT, list(indices.shape))],
+                              outputs=[helper.make_tensor_value_info("output",
+                                                                     TensorProto.FLOAT, list(in_shape))])
+    model = helper.make_model(graph, producer_name='scatter_test')
+    onnx_out = get_onnxruntime_output(model, [x, indices, updates])
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(
+            model, [x, indices, updates], target, ctx, onnx_out[0].shape)
+        tvm.testing.assert_allclose(onnx_out[0], tvm_out)
+
+
+def test_scatter():
+    verify_scatter((4,), [1], 0)
+    verify_scatter((1, 4), [[0]], 0)
+    verify_scatter((4,), [2, 3], 0)
+    verify_scatter((2, 2), [[1, 0], [0, 1]], 1)
+    verify_scatter((3, 3, 3), [[[-1, -3]]], -1)
+    verify_scatter((4, 3, 5, 6), [[[[2, 1, 0, 0]]]], 0)
+
+
 def _test_slice_iteration_v1(indata, outdata, starts, ends, axes=None):
     if axes:
         y = helper.make_node(
@@ -2823,6 +2858,7 @@ if __name__ == '__main__':
     test_batch_matmul()
     test_gather()
     test_gather_nd()
+    test_scatter()
     test_lrn()
     test_instance_norm()
     test_upsample()

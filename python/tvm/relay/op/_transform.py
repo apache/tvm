@@ -26,6 +26,7 @@ from topi.util import get_const_int, get_const_tuple
 from . import op as _reg
 from . import strategy
 from .op import OpPattern
+from ._tensor import elemwise_shape_func
 
 _reg.register_broadcast_schedule("broadcast_to")
 _reg.register_broadcast_schedule("broadcast_to_like")
@@ -87,6 +88,14 @@ def compute_argwhere(attrs, inputs, output_type):
     return [topi.argwhere(new_output_type, inputs[0])]
 
 _reg.register_schedule("argwhere", strategy.schedule_argwhere)
+
+# scatter
+@_reg.register_compute("scatter")
+def compute_scatter(attrs, inputs, output_type):
+    """Compute definition of scatter"""
+    return [topi.scatter(inputs[0], inputs[1], inputs[2], attrs.axis)]
+
+_reg.register_schedule("scatter", strategy.schedule_scatter)
 
 #####################
 #  Shape functions  #
@@ -452,6 +461,8 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
     if len(inputs[0].shape) == 5:
         return [_argwhere_shape_func_5d(inputs[0])]
     return ValueError("Does not support rank higher than 5 in argwhere")
+
+_reg.register_shape_func("scatter", False, elemwise_shape_func)
 
 @script
 def _layout_transform_shape_func(data_shape,
