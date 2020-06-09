@@ -1020,11 +1020,16 @@ void VMCompiler::Codegen() {
     // to make sure a DSO module will be also available.
     mod = codegen::CSourceModuleCreate(";", "");
   }
-  // Import all external runtime modules.
-  for (auto it : ext_mods) {
-    mod.Import(it);
+  if (!ext_mods.empty()) {
+    exec_->lib = codegen::ModuleClassWrapperCreate();
+    exec_->lib.Import(mod);
+    // Import all external runtime modules.
+    for (auto it : ext_mods) {
+      exec_->lib.Import(it);
+    }
+  } else {
+    exec_->lib = mod;
   }
-  exec_->lib = mod;
 }
 
 runtime::Module CreateVMCompiler() {

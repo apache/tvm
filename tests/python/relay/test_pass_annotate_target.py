@@ -35,9 +35,9 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         return
 
     def update_lib(lib):
-        new_lib = lib
-        if lib.imported_modules:
-            ext_mod = tvm.target.SourceMetadataModule(lib.imported_modules[0])
+        new_lib, source_metadata_mods = lib.unwrap_modules()
+        if source_metadata_mods:
+            ext_mod = tvm.target.SourceMetadataModule(source_metadata_mods[0])
             code = ext_mod.source
             metadata = ext_mod.metadata
             src_ty = ext_mod.source_type

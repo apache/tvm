@@ -232,7 +232,7 @@ class Module(object):
         Helper function to collect dso modules and metadata init module. There
         is at most one medata init module if it exists.
         """
-        visited, stack, dso_modules, medata_init = set(), [], [], []
+        visited, stack, dso_modules, metadata_init = set(), [], [], []
         # append root module
         visited.add(self)
         stack.append(self)
@@ -241,17 +241,33 @@ class Module(object):
             if module._dso_exportable():
                 dso_modules.append(module)
             elif module.type_key == "module_init":
-                medata_init.append(module)
+                metadata_init.append(module)
             for m in module.imported_modules:
                 if m not in visited:
                     visited.add(m)
                     stack.append(m)
 
-        assert len(medata_init) <= 1, "At most one metadata init module is allowed."
-        return dso_modules, medata_init
+        return dso_modules, metadata_init
 
     def _dso_exportable(self):
         return self.type_key == "llvm" or self.type_key == "c"
+
+    def unwrap_modules(self):
+        """Unwrap the host and source metadata modules.
+
+        Returns
+        -------
+        ret : Tuple(runtime.Module, List[runtime.Module])
+            The host module and a list of source metadata module pair.
+        """
+        if not self.type_key == "module_class_wrapper":
+            return (self, None)
+
+        assert len(self.imported_modules) > 1, \
+                "Expect both host and source metadata module"
+        host_mod = self.imported_modules[0]
+        source_metadata_mods = self.imported_modules[1:]
+        return (host_mod, source_metadata_mods)
 
     def export_library(self,
                        file_name,
@@ -318,12 +334,14 @@ class Module(object):
             llvm_target_triple = (module.type_key == "llvm" and
                                   module.get_function("_get_target_triple")())
 
-        metadata_import = None if not metadata_init else metadata_init[0].imported_modules
-        if metadata_import and metadata_import[0].type_key == "c":
-            module = metadata_init[0]
-            header = temp.relpath("metadata.h")
-            module.save(header)
-            files.append(header)
+        for m in metadata_init:
+            metadata_import = m.imported_modules
+            assert len(metadata_import) == 1, \
+                    "A module should be wrapped in the initialization module."
+            if metadata_import[0].type_key == "c":
+                header = temp.relpath("metadata.h")
+                m.save(header)
+                files.append(header)
 
         if not fcompile:
             if file_name.endswith(".tar"):

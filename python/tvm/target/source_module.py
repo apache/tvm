@@ -16,12 +16,12 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, invalid-name, redefined-builtin
 """
-Helper functions and classes for hanlding source and metdata.
+Helper functions and classes for handling source and metdata.
 """
 from tvm.runtime import _ffi_api
 
 class SourceMetadataModule:
-    """The Packaging module"""
+    """The module used to wrap both source and metadata."""
     def __init__(self, mod):
         self.mod = mod
         self._get_source = self.mod["get_source"]

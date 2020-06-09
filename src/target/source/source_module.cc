@@ -153,6 +153,23 @@ runtime::Module DeviceSourceModuleCreate(
   return runtime::Module(n);
 }
 
+// A helper used to wrap different types of modules and pass through packedfunc.
+// This module will never be used for compilation and execution.
+class ModuleClassWrapperNode : public runtime::ModuleNode {
+ public:
+  ModuleClassWrapperNode() = default;
+  const char* type_key() const { return "module_class_wrapper"; }
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    LOG(FATAL) << "Cannot execute module wrapper";
+    return PackedFunc();
+  }
+};
+
+runtime::Module ModuleClassWrapperCreate() {
+  auto n = make_object<ModuleClassWrapperNode>();
+  return runtime::Module(n);
+}
+
 // Pack the source code and metadata, where source code could be any
 // user-defined code, i.e. c source code, json graph representation, etc.
 class SourceMetadataModuleNode final : public runtime::ModuleNode {
@@ -176,13 +193,7 @@ class SourceMetadataModuleNode final : public runtime::ModuleNode {
     }
   }
 
-  const char* type_key() const { return "c"; }
-
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
-    std::string source_type = GetFileFormat(file_name, format);
-    CHECK_EQ(source_type, "cc") << "file_name: " << file_name << " must be a .cc file.";
-    SaveBinaryToFile(file_name, ";");
-  }
+  const char* type_key() const { return "source_metadata"; }
 
  private:
   /*! \brief Symbol to source (e.g. c source/json) mapping. */
@@ -203,6 +214,10 @@ TVM_REGISTER_GLOBAL("runtime.SourceMetadataModuleCreate")
     .set_body_typed(SourceMetadataModuleCreate);
 
 TVM_REGISTER_GLOBAL("runtime.SourceModuleCreate").set_body_typed(SourceModuleCreate);
+
+TVM_REGISTER_GLOBAL("runtime.ModuleClassWrapperCreate").set_body_typed([]() {
+  return ModuleClassWrapperCreate();
+});
 
 TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
     .set_body_typed([](String code, String source_type) {
