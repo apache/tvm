@@ -272,12 +272,8 @@ def wrap_compute_conv2d_gemm(topi_compute):
 @conv2d_gemm_without_weight_transform_strategy.register("arm_cpu")
 def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_type, target):
     """conv2d_winograd_without_weight_transfrom arm cpu strategy"""
-    dilation = attrs.get_int_tuple("dilation")
-    groups = attrs.get_int("groups")
     layout = attrs.data_layout
-    strides = attrs.get_int_tuple("strides")
     data = inputs[0]
-    kernel = inputs[1]
     strategy = _op.OpStrategy()
 
     if layout == "NHWC" and data.dtype in ['int8', 'uint8']:
@@ -286,8 +282,9 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
             wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized),
             name="conv2d_NHWC_quantized_without_transform.arm_cpu")
     else:
-        raise RuntimeError("Unsupported conv2d_gemm_without_weight_transform layout {0} with datatype {1}".
-                           format(layout, data.dtype))
+        raise RuntimeError(
+            "Unsupported conv2d_gemm_without_weight_transform layout {0} with datatype {1}".
+            format(layout, data.dtype))
     return strategy
 
 @conv2d_transpose_strategy.register(["arm_cpu", "micro_dev"])

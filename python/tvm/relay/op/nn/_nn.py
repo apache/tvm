@@ -461,7 +461,7 @@ def compute_contrib_conv2d_gemm_weight_transform(attrs, inputs, out_dtype):
     return [out]
 
 reg.register_schedule("nn.contrib_conv2d_gemm_weight_transform",
-                       strategy.schedule_conv2d_gemm_weight_transform)
+                      strategy.schedule_conv2d_gemm_weight_transform)
 reg.register_pattern("nn.contrib_conv2d_gemm_weight_transform",
                      OpPattern.OUT_ELEMWISE_FUSABLE)
 
