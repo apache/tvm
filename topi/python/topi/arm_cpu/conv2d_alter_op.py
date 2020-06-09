@@ -258,10 +258,14 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         kernel_expr = relay.nn.contrib_conv2d_gemm_weight_transform(inputs[1])
         new_kernel = te.placeholder((N_padded // 4, K_padded // 16, 4, 16), kernel.dtype)
 
-        new_workload = autotvm.task.args_to_workload(
-            [data, new_kernel, strides, padding, dilation, out_dtype, (KH, KW), CO], "conv2d_NHWC_int8_without_tranform.arm_cpu")
+        new_workload = autotvm.task.args_to_workload([data, new_kernel,
+                                                      strides, padding, dilation,
+                                                      out_dtype, (KH, KW), CO],
+                                                     "conv2d_NHWC_int8_without_tranform.arm_cpu")
         dispatch_ctx.update(target, new_workload, cfg)
 
-        return relay.nn.contrib_conv2d_gemm_without_weight_transform(inputs[0], kernel_expr, **new_attrs)
+        return relay.nn.contrib_conv2d_gemm_without_weight_transform(inputs[0],
+                                                                     kernel_expr,
+                                                                     **new_attrs)
 
     return None

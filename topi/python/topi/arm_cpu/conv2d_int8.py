@@ -23,7 +23,6 @@ from ..util import traverse_inline, get_const_tuple
 from ..generic import conv2d as conv2d_generic
 from .. import nn
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
-from ..nn.util import get_const_int, get_pad_tuple
 from .tensor_intrin import dot_int8_int8_int32
 from .conv2d_gemm import compute_conv2d_gemm_without_weight_transform, schedule_conv2d_gemm
 
@@ -118,12 +117,18 @@ def compute_conv2d_NHWC_quantized(cfg, data, kernel, strides, padding, dilation,
     N, IH, IW, IC = get_const_tuple(data.shape)
     KH, KW, _, OC = get_const_tuple(kernel.shape)
     kernel = nn.conv2d_gemm_weight_transform(kernel)
-    return  compute_conv2d_gemm_without_weight_transform(cfg, data, kernel, strides, padding, dilation, out_dtype, (KH, KW), OC)
+    return  compute_conv2d_gemm_without_weight_transform(cfg,
+                                                         data, kernel, strides, padding,
+                                                         dilation, out_dtype, (KH, KW), OC)
 
 
 @autotvm.register_topi_compute("compute_conv2d_NHWC_quantized_without_transform.arm_cpu")
-def compute_conv2d_NHWC_quantized_without_transform(cfg, data, B, strides, padding, dilation, out_dtype, kernel_size=None, output_channels=None):
-    return  compute_conv2d_gemm_without_weight_transform(cfg, data, B, strides, padding, dilation, out_dtype, kernel_size, output_channels)
+def compute_conv2d_NHWC_quantized_without_transform(cfg, data, B, strides, padding,
+                                                    dilation, out_dtype, kernel_size=None,
+                                                    output_channels=None):
+    return  compute_conv2d_gemm_without_weight_transform(cfg, data, B, strides, padding,
+                                                         dilation, out_dtype, kernel_size,
+                                                         output_channels)
 
 
 @autotvm.register_topi_schedule("conv2d_NHWC_quantized.arm_cpu")

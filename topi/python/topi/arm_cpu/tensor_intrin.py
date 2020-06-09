@@ -19,15 +19,23 @@
 
 import tvm
 from tvm import te
+from tvm.contrib import util, clang
 
+def gemv_quantized_impl(M, N, data_type='uint8'):
+    """ Assembly implementation of a blocked gemv. Given
+    a block a of shape (4, k) and a block b' of shape (4, k)
+    produces the output block c = a*b of shape (4,4) """
 
-def gemv_quantized_impl(M, N, data_type = 'uint8'):
     stepA = min(4, M)
     stepB = min(4, N)
-    assert data_type in ['uint8', 'int8'], 'Only uint8 and int8 are supported for this implementation'
+    assert data_type in ['uint8', 'int8'], 'Only uint8/int8 supported for this implementation'
 
     cc_code = """
-          extern "C" int gemv_{0}_{0}_int32_{1}_{2}(int *c_buffer, unsigned char *a_buffer, unsigned char *b_buffer, int K, int m, int n) """.format(data_type, stepA, stepB)
+          extern "C" int gemv_{0}_{0}_int32_{1}_{2}(int *c_buffer,
+                                                    unsigned char *a_buffer,
+                                                    unsigned char *b_buffer,
+                                                    int K, int m, int n)
+              """.format(data_type, stepA, stepB)
 
     cc_code += """
     {
@@ -255,24 +263,24 @@ def gemv_quantized_impl(M, N, data_type = 'uint8'):
         cc_code = cc_code.replace('umull', 'smull')
         cc_code = cc_code.replace('uadalp', 'sadalp')
 
-    from tvm.contrib import util, clang
     temp = util.tempdir()
     ll_path = temp.relpath("temp.ll")
     # Create LLVM ir from c source code
-    cc_code = cc_code
-    ll_code = clang.create_llvm(cc_code, options=["--target=aarch64-linux-gnu -mattr=+neon"], output=ll_path)
+    ll_code = clang.create_llvm(cc_code,
+                                options=["--target=aarch64-linux-gnu -mattr=+neon"],
+                                output=ll_path)
     return ll_code
 
 
 def gemv_quantized(M, N, K, in_type, out_type):
     """
     Use integer ARM v8 instructions in order to produce a block c of 4x4 elements
-    given two 4xK blocks a and b' (where b' is a Kx4 block transposed). The final 
+    given two 4xK blocks a and b' (where b' is a Kx4 block transposed). The final
     result is c = a*b (where '*' indicates the matrix product)
 
     Every row of the matrix c is obtained (for uint8) by a sequence of
 
-          umull -> uadalp -> umull2 -> uadalp 
+          umull -> uadalp -> umull2 -> uadalp
 
     The block size is constrained by the number of registers available in arvm8. This
     function returns a TensorIntrin that can be used to tensorize
@@ -303,8 +311,8 @@ def gemv_quantized(M, N, K, in_type, out_type):
 
     C = te.compute((te.var("m"), te.var("n")),
                    lambda x, y: te.sum(A[k // 16, x, idxm(k, 16)].astype(out_type) *
-                                    B[k // 16, y, idxm(k, 16)].astype(out_type),
-                                    axis=k), name="C")
+                                       B[k // 16, y, idxm(k, 16)].astype(out_type),
+                                       axis=k), name="C")
 
     a_buffer = tvm.tir.decl_buffer(A.shape, dtype=in_type, name="a_buffer",
                                    offset_factor=1, strides=[te.var('sa_1'), te.var('sa_2'), 1])
@@ -313,7 +321,7 @@ def gemv_quantized(M, N, K, in_type, out_type):
                                    offset_factor=1, strides=[te.var('sb_1'), te.var('sb_2'), 1])
 
     c_buffer = tvm.tir.decl_buffer(C.shape, dtype=out_type, name="c_buffer",
-                         offset_factor=1, strides=[te.var('sc'), 1])
+                                   offset_factor=1, strides=[te.var('sc'), 1])
 
     def _intrin_func(ins, outs):
 
@@ -325,26 +333,30 @@ def gemv_quantized(M, N, K, in_type, out_type):
             stepB = min(4, N)
 
             if in_type == 'int8':
-                ib.emit(tvm.tir.call_extern("int32", "gemv_int8_int8_int32_{0}_{1}".format(stepA, stepB),
-                                        outs[0].access_ptr("w"),
-                                        a_buffer.access_ptr("r"),
-                                        b_buffer.access_ptr("r"),
-                                        K))
+                ib.emit(tvm.tir.call_extern("int32",
+                                            "gemv_int8_int8_int32_{0}_{1}".format(stepA, stepB),
+                                            outs[0].access_ptr("w"),
+                                            a_buffer.access_ptr("r"),
+                                            b_buffer.access_ptr("r"),
+                                            K))
             else:
-                ib.emit(tvm.tir.call_extern("int32", "gemv_uint8_uint8_int32_{0}_{1}".format(stepA, stepB),
-                                        c_buffer.access_ptr("w"),
-                                        a_buffer.access_ptr("r"),
-                                        b_buffer.access_ptr("r"),
-                                        K,
-                                        C.shape[0],  # m, very useful for debug
-                                        C.shape[1]))  # n, very useful for debug
+                ib.emit(tvm.tir.call_extern("int32",
+                                            "gemv_uint8_uint8_int32_{0}_{1}".format(stepA, stepB),
+                                            c_buffer.access_ptr("w"),
+                                            a_buffer.access_ptr("r"),
+                                            b_buffer.access_ptr("r"),
+                                            K,
+                                            C.shape[0],  # m, very useful for debug
+                                            C.shape[1]))  # n, very useful for debug
             return ib.get()
 
         # body, reset, update
         return _instr()
 
     buffer_params = {"offset_factor": 1}
-    return te.decl_tensor_intrin(C.op, _intrin_func, binds={A:a_buffer, B:b_buffer, C:c_buffer}, default_buffer_params=buffer_params)
+    return te.decl_tensor_intrin(C.op, _intrin_func,
+                                 binds={A:a_buffer, B:b_buffer, C:c_buffer},
+                                 default_buffer_params=buffer_params)
 
 
 def dot_int8_int8_int32(int32_lanes, dtype='uint'):

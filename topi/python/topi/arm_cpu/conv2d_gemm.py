@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=invalid-name, unused-variable, too-many-locals
+# pylint: disable=unused-argument, redefined-builtin
+"""GEMM Convolution schedule on ARM"""
 import tvm
-import topi
 from tvm import te
 from topi import nn
 from ..util import get_const_tuple
@@ -25,8 +26,11 @@ from .tensor_intrin import gemv_quantized, gemv_quantized_impl
 
 
 # Compute function
-def compute_conv2d_gemm_without_weight_transform(cfg, data, B_interleaved_t, strides, padding, dilation, out_dtype, kernel_size, output_channels):
-
+def compute_conv2d_gemm_without_weight_transform(cfg,
+                                                 data, B_interleaved_t, strides, padding, dilation,
+                                                 out_dtype, kernel_size, output_channels):
+    """Compute conv2d by transforming the input,
+    executing GEMM and transforming the output back"""
     batches, IH, IW, IC = get_const_tuple(data.shape)
 
     KH, KW = kernel_size
@@ -49,7 +53,8 @@ def compute_conv2d_gemm_without_weight_transform(cfg, data, B_interleaved_t, str
     OH = (IH + pad_top + pad_down - dilated_kernel_h) // HSTR + 1
     OW = (IW + pad_left + pad_right - dilated_kernel_w) // WSTR + 1
     if pad_top or pad_left:
-        data_pad = nn.pad(data, [0, pad_top, pad_left, 0], [0, pad_down, pad_right, 0], name="data_pad")
+        data_pad = nn.pad(data, [0, pad_top, pad_left, 0], [0, pad_down, pad_right, 0],
+                          name="data_pad")
     else:
         data_pad = data
 
@@ -61,10 +66,13 @@ def compute_conv2d_gemm_without_weight_transform(cfg, data, B_interleaved_t, str
     A_shape = (batches, M, K)
     if K_AREA == 1:
         A = te.compute(A_shape, lambda n, x, y: data_pad[n, HSTR * (x // OW), WSTR * (x % OW), y],
-                          name='data_flatten')
+                       name='data_flatten')
     else:
-        A = te.compute(A_shape, lambda n, x, y: data_pad[n, HSTR * (x // OW) + dilation_h * (y // IC) // KW, WSTR * (x % OW) + dilation_w * (y // IC) % KW, y % IC],
-                          name='data_im2col')
+        A = te.compute(A_shape, lambda n, x, y:
+                       data_pad[n,
+                                HSTR * (x // OW) + dilation_h * (y // IC) // KW,
+                                WSTR * (x % OW) + dilation_w * (y // IC) % KW, y % IC],
+                       name='data_im2col')
     N_transformed = B_interleaved_t.shape[0]
 
     # --- Pad if necessary
@@ -91,19 +99,27 @@ def compute_conv2d_gemm_without_weight_transform(cfg, data, B_interleaved_t, str
     # --- GEMM: A*B'
     k = te.reduce_axis((0, K_padded), "k")
 
-    A_interleaved = te.compute((batches, M_padded // 4, K_padded // 16, 4, 16), lambda b, x, y, z, w: A[b, z + 4 * x, w + 16 * y], name='A_interleaved')
+    A_interleaved = te.compute((batches, M_padded // 4, K_padded // 16, 4, 16),
+                               lambda b, x, y, z, w: A[b, z + 4 * x, w + 16 * y],
+                               name='A_interleaved')
 
     C_interleaved = te.compute((batches, M_padded // 4, N_transformed, 4, 4),
-            lambda b, x, y, w, z: te.sum(A_interleaved[b, x, k // 16, w, idxm(k, 16)].astype(out_dtype) *
-                                B_interleaved_t[y, k // 16, z, idxm(k, 16)].astype(out_dtype), axis=k),
-            name='C_interleaved')
+                               lambda b, x, y, w, z:
+                               te.sum(A_interleaved[b, x, k//16, w, idxm(k, 16)].astype(out_dtype)*
+                                      B_interleaved_t[y, k//16, z, idxm(k, 16)].astype(out_dtype),
+                                      axis=k),
+                               name='C_interleaved')
 
     # --- Unpack C
-    C = te.compute((batches, M, N), lambda b, x, y: C_interleaved[b, x // 4, y // 4, idxm(x, 4), idxm(y, 4)], name="C", tag='injective')
+    C = te.compute((batches, M, N),
+                   lambda b, x, y:
+                   C_interleaved[b, x // 4, y // 4, idxm(x, 4), idxm(y, 4)],
+                   name="C", tag='injective')
 
     # --- Produce the conv output
     out_shape = (batches, OH, OW, OC)
-    out = te.compute(out_shape, lambda b, x, y, z: C(b, y + OW * x, z), name='conv2d_gemm_output')
+    out = te.compute(out_shape, lambda b, x, y, z: C(b, y + OW * x, z),
+                     name='conv2d_gemm_output')
 
     return out
 
@@ -111,7 +127,7 @@ def compute_conv2d_gemm_without_weight_transform(cfg, data, B_interleaved_t, str
 
 
 def schedule_conv2d_gemm(cfg, s, out):
-
+    """Create schedule for tensors"""
     C = out.op.input_tensors[0]
     C_interleaved = C.op.input_tensors[0]
     A_interleaved = C_interleaved.op.input_tensors[0]

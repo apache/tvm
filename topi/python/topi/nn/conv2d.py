@@ -591,11 +591,25 @@ def conv2d_NCHWc_int8(data, kernel, stride, padding, dilation, layout, out_layou
 
 
 def conv2d_gemm_weight_transform(kernel):
+    """Weight transformation for winograd
+
+    Parameters
+    ----------
+    kernel: Tensor
+        The raw kernel tensor with layout "NHWC".
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        2-D with shape [CI*KH*KW,CO]
+    """
     KH, KW, IC, OC = get_const_tuple(kernel.shape)
     K = KH * KW * IC
     N = OC
 
-    kernel_flat = te.compute((K, N), lambda x, y: kernel[(x // IC) // KW, (x // IC) % KW, x % IC, y], 'weight_flatten')
+    kernel_flat = te.compute((K, N), lambda x, y:
+                             kernel[(x // IC) // KW, (x // IC) % KW, x % IC, y],
+                             'weight_flatten')
 
     pad_k = 0
     pad_n = 0
@@ -610,9 +624,11 @@ def conv2d_gemm_weight_transform(kernel):
     K_padded = K + pad_k
 
     if pad_k != 0 or pad_n != 0:
-        kernel_flat = pad(kernel_flat, pad_before=(0, 0), pad_after=(pad_k, pad_n), name='weight_padding')
+        kernel_flat = pad(kernel_flat, pad_before=(0, 0), pad_after=(pad_k, pad_n),
+                          name='weight_padding')
 
-    return te.compute((N_padded // 4, K_padded // 16, 4, 16), lambda x, y, z, w: kernel_flat[w + 16 * y, z + 4 * x], name='weight_block_reshape')
+    return te.compute((N_padded // 4, K_padded // 16, 4, 16), lambda x, y, z, w:
+                      kernel_flat[w + 16 * y, z + 4 * x], name='weight_block_reshape')
 
 
 def conv2d_winograd_weight_transform(kernel, tile_size):
