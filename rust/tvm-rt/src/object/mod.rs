@@ -61,7 +61,7 @@ impl TryFrom<RetValue> for ObjectRef {
 impl From<ObjectRef> for RetValue {
     fn from(object_ref: ObjectRef) -> RetValue {
         use std::ffi::c_void;
-        let object_ptr = &object_ref.0;
+        let object_ptr = object_ref.0;
         match object_ptr {
             None => RetValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void),
             Some(value) => value.clone().into(),

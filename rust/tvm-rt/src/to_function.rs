@@ -27,7 +27,6 @@
 
 use std::convert::{TryFrom, TryInto};
 use std::{
-    mem::MaybeUninit,
     os::raw::{c_int, c_void},
     ptr, slice,
 };
@@ -138,12 +137,14 @@ pub trait ToFunction<I, O>: Sized {
     {
         let mut fhandle = ptr::null_mut() as ffi::TVMFunctionHandle;
         let resource_handle = self.into_raw();
+        println!("fhandle {:?}", fhandle);
         check_call!(ffi::TVMFuncCreateFromCFunc(
             Some(Self::tvm_callback),
             resource_handle as *mut _,
-            Some(Self::tvm_finalizer),
-            &mut fhandle as *mut _
+            None, // Some(Self::tvm_finalizer),
+            &mut fhandle as *mut ffi::TVMFunctionHandle,
         ));
+        println!("fhandle {:?}", fhandle);
         Function::new(fhandle)
     }
 
@@ -154,23 +155,22 @@ pub trait ToFunction<I, O>: Sized {
         type_codes: *mut c_int,
         num_args: c_int,
         ret: ffi::TVMRetValueHandle,
-        fhandle: *mut c_void,
+        resource_handle: *mut c_void,
     ) -> c_int
     where
         Self: Typed<I, O>,
     {
-        // turning off the incorrect linter complaints
         #![allow(unused_assignments, unused_unsafe)]
+        // turning off the incorrect linter complaints
         let len = num_args as usize;
         let args_list = slice::from_raw_parts_mut(args, len);
         let type_codes_list = slice::from_raw_parts_mut(type_codes, len);
         let mut local_args: Vec<ArgValue> = Vec::new();
-        let mut value = MaybeUninit::uninit().assume_init();
-        let mut tcode = MaybeUninit::uninit().assume_init();
-        let rust_fn = fhandle as *mut Self::Handle;
+        let mut value = ffi::TVMValue { v_int64: 0 };
+        let mut tcode = 0;
+        let resource_handle = resource_handle as *mut Self::Handle;
         for i in 0..len {
             value = args_list[i];
-            println!("{:?}", value.v_handle);
             tcode = type_codes_list[i];
             if tcode == ffi::TVMArgTypeCode_kTVMObjectHandle as c_int
                 || tcode == ffi::TVMArgTypeCode_kTVMPackedFuncHandle as c_int
@@ -180,14 +180,12 @@ pub trait ToFunction<I, O>: Sized {
                     &mut value as *mut _,
                     &mut tcode as *mut _
                 ));
-                println!("{:?}", value.v_handle);
             }
             let arg_value = ArgValue::from_tvm_value(value, tcode as u32);
-            println!("{:?}", arg_value);
             local_args.push(arg_value);
         }
 
-        let rv = match Self::call(rust_fn, local_args.as_slice()) {
+        let rv = match Self::call(resource_handle, local_args.as_slice()) {
             Ok(v) => v,
             Err(msg) => {
                 crate::set_last_error(&msg);
@@ -197,6 +195,7 @@ pub trait ToFunction<I, O>: Sized {
 
         let (mut ret_val, ret_tcode) = rv.to_tvm_value();
         let mut ret_type_code = ret_tcode as c_int;
+
         check_call!(ffi::TVMCFuncSetReturn(
             ret,
             &mut ret_val as *mut _,
@@ -213,46 +212,6 @@ pub trait ToFunction<I, O>: Sized {
         Self::drop(handle)
     }
 }
-
-// /// A wrapper that is used to work around inference issues for bare functions.
-// ///
-// /// Used to implement `register_untyped`.
-// pub(self) struct RawFunction {
-//     fn_ptr: for<'a> fn (&'a [ArgValue<'static>]) -> Result<RetValue>
-// }
-
-// impl RawFunction {
-//     fn new(fn_ptr: for<'a> fn (&'a [ArgValue<'static>]) -> Result<RetValue>) -> RawFunction {
-//         RawFunction { fn_ptr: fn_ptr }
-//     }
-// }
-
-// impl Typed<&[ArgValue<'static>], ()> for RawFunction {
-//     fn args(i: &[ArgValue<'static>]) -> Result<&[ArgValue<'static>]> {
-//         Ok(i)
-//     }
-
-//     fn ret(o: O) -> RetValue;
-// }
-
-// impl ToFunction<(), ()> for RawFunction
-// {
-//     type Handle = fn(&[ArgValue<'static>]) -> Result<RetValue>;
-
-//     fn into_raw(self) -> *mut Self::Handle {
-//         self.fn_ptr as *mut Self::Handle
-//     }
-
-//     fn call(handle: *mut Self::Handle, args: &[ArgValue<'static>]) -> Result<RetValue> {
-//         let handle: Self::Handle = unsafe { std::mem::transmute(handle) };
-//         let r = handle(args);
-//         println!("afters");
-//         r
-//     }
-
-//     // Function's don't need de-allocation because the pointers are into the code section of memory.
-//     fn drop(_: *mut Self::Handle) {}
-// }
 
 impl<O, F> ToFunction<(), O> for F
 where
@@ -309,7 +268,6 @@ to_function_instance!((A, 0), (B, 1), (C, 2), (D, 3),);
 
 #[cfg(test)]
 mod tests {
-    // use super::RawFunction;
     use super::{Function, ToFunction, Typed};
 
     fn zero() -> i32 {
@@ -323,16 +281,6 @@ mod tests {
     {
         f.to_function()
     }
-
-    // fn func_args(args: &[ArgValue<'static>]) -> Result<RetValue> {
-    //     Ok(10.into())
-    // }
-
-    // #[test]
-    // fn test_fn_ptr() {
-    //     let raw_fn = RawFunction::new(func_args);
-    //     raw_fn.to_function();
-    // }
 
     #[test]
     fn test_to_function0() {

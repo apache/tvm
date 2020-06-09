@@ -20,22 +20,23 @@
 use std::convert::TryFrom;
 use std::ffi::CString;
 use std::ptr::NonNull;
+use std::sync::atomic::AtomicI32;
 
 use tvm_sys::ffi::{self, TVMObjectFree, TVMObjectRetain, TVMObjectTypeKey2Index};
 use tvm_sys::{ArgValue, RetValue};
 
 use crate::errors::Error;
 
-type Deleter<T> = unsafe extern "C" fn(object: *mut T) -> ();
+type Deleter = unsafe extern "C" fn(object: *mut Object) -> ();
 
 #[derive(Debug)]
 #[repr(C)]
 pub struct Object {
     pub type_index: u32,
-    // Can we safely replace with Rust atomics?
-    // don't touch me
-    pub ref_count: i32,
-    pub fdeleter: Deleter<Object>,
+    // TODO(@jroesch): pretty sure Rust and C++ atomics are the same, but not sure.
+    // NB: in general we should not touch this in Rust.
+    pub(self) ref_count: AtomicI32,
+    pub fdeleter: Deleter,
 }
 
 unsafe extern "C" fn delete<T: IsObject>(object: *mut Object) {
@@ -59,14 +60,14 @@ fn derived_from(child_type_index: u32, parent_type_index: u32) -> bool {
 }
 
 impl Object {
-    fn new(type_index: u32, deleter: Deleter<Object>) -> Object {
+    fn new(type_index: u32, deleter: Deleter) -> Object {
         Object {
             type_index,
             // Note: do not touch this field directly again, this is
             // a critical section, we write a 1 to the atomic which will now
             // be managed by the C++ atomics.
             // In the future we should probably use C-atomcis.
-            ref_count: 1,
+            ref_count: AtomicI32::new(0),
             fdeleter: deleter,
         }
     }
@@ -92,6 +93,20 @@ impl Object {
         let index = Object::get_type_index::<T>();
         Object::new(index, delete::<T>)
     }
+
+    pub(self) fn inc_ref(&self) {
+        unsafe {
+            let raw_ptr = std::mem::transmute(self);
+            assert_eq!(TVMObjectRetain(raw_ptr), 0);
+        }
+    }
+
+    pub(self) fn dec_ref(&self) {
+        unsafe {
+            let raw_ptr = std::mem::transmute(self);
+            assert_eq!(TVMObjectFree(raw_ptr), 0);
+        }
+    }
 }
 
 pub unsafe trait IsObject {
@@ -114,47 +129,57 @@ unsafe impl IsObject for Object {
 }
 
 #[repr(C)]
-pub struct ObjectPtr<T> {
+pub struct ObjectPtr<T: IsObject> {
     pub ptr: NonNull<T>,
+}
+
+fn inc_ref<T: IsObject>(ptr: NonNull<T>) {
+    unsafe { ptr.as_ref().as_object().inc_ref() }
+}
+
+fn dec_ref<T: IsObject>(ptr: NonNull<T>) {
+    unsafe { ptr.as_ref().as_object().dec_ref() }
 }
 
 impl ObjectPtr<Object> {
     fn from_raw(object_ptr: *mut Object) -> Option<ObjectPtr<Object>> {
         let non_null = NonNull::new(object_ptr);
-        non_null.map(|ptr| ObjectPtr { ptr })
+        non_null.map(|ptr| {
+            ObjectPtr { ptr }
+        })
     }
 }
 
-impl<T> Clone for ObjectPtr<T> {
+impl<T: IsObject> Clone for ObjectPtr<T> {
     fn clone(&self) -> Self {
-        unsafe {
-            let raw_ptr = std::mem::transmute(self.ptr);
-            assert_eq!(TVMObjectRetain(raw_ptr), 0);
-            ObjectPtr { ptr: self.ptr }
-        }
+        inc_ref(self.ptr);
+        ObjectPtr { ptr: self.ptr }
     }
 }
 
-impl<T> Drop for ObjectPtr<T> {
+impl<T: IsObject> Drop for ObjectPtr<T> {
     fn drop(&mut self) {
-        unsafe {
-            let raw_ptr = std::mem::transmute(self.ptr);
-            assert_eq!(TVMObjectFree(raw_ptr), 0)
-        }
+        dec_ref(self.ptr);
     }
 }
 
 impl<T: IsObject> ObjectPtr<T> {
+    pub fn leak<'a>(object_ptr: ObjectPtr<T>) -> &'a mut T where T: 'a {
+        unsafe { &mut *std::mem::ManuallyDrop::new(object_ptr).ptr.as_ptr() }
+    }
+
     pub fn new(object: T) -> ObjectPtr<T> {
         let object_ptr = Box::new(object);
-        let ptr = NonNull::from(Box::leak(object_ptr));
+        let object_ptr = Box::leak(object_ptr);
+        let ptr = NonNull::from(object_ptr);
+        inc_ref(ptr);
         ObjectPtr { ptr }
     }
 
     pub fn count(&self) -> i32 {
         // need to do atomic read in C++
         // ABI compatible atomics is funky/hard.
-        self.as_object().ref_count
+        self.as_object().ref_count.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     fn as_object<'s>(&'s self) -> &'s Object {
@@ -188,7 +213,7 @@ impl<T: IsObject> ObjectPtr<T> {
     }
 }
 
-impl<T> std::ops::Deref for ObjectPtr<T> {
+impl<T: IsObject> std::ops::Deref for ObjectPtr<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -198,8 +223,7 @@ impl<T> std::ops::Deref for ObjectPtr<T> {
 
 impl<'a, T: IsObject> From<ObjectPtr<T>> for RetValue {
     fn from(object_ptr: ObjectPtr<T>) -> RetValue {
-        let raw_object_ptr = object_ptr.ptr.as_ptr();
-        // Should be able to hide this unsafety in raw bindings.
+        let raw_object_ptr = ObjectPtr::leak(object_ptr);
         let void_ptr = unsafe { std::mem::transmute(raw_object_ptr) };
         RetValue::ObjectHandle(void_ptr)
     }
@@ -222,8 +246,7 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
 
 impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
     fn from(object_ptr: ObjectPtr<T>) -> ArgValue<'a> {
-        let raw_object_ptr = object_ptr.ptr.as_ptr();
-        // Should be able to hide this unsafety in raw bindings.
+        let raw_object_ptr = ObjectPtr::leak(object_ptr);
         let void_ptr = unsafe { std::mem::transmute(raw_object_ptr) };
         ArgValue::ObjectHandle(void_ptr)
     }
@@ -304,5 +327,24 @@ mod tests {
             "objects have different deleters"
         );
         Ok(())
+    }
+
+    fn test_fn(o: ObjectPtr<Object>) -> ObjectPtr<Object> {
+        assert_eq!(o.count(), 2);
+        return o;
+    }
+
+    #[test]
+    fn test_ref_count_boundary() {
+        use super::*;
+        use crate::function::{register, Function, Result};
+        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        let stay = ptr.clone();
+        assert_eq!(ptr.count(), 2);
+        register(test_fn, "my_func").unwrap();
+        let func = Function::get("my_func").unwrap();
+        let func = func.to_boxed_fn::<dyn Fn(ObjectPtr<Object>) -> Result<ObjectPtr<Object>>>();
+        func(ptr).unwrap();
+        assert_eq!(stay.count(), 1);
     }
 }
