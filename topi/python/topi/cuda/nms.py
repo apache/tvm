@@ -354,12 +354,18 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
         3-D tensor with shape [batch_size, num_anchors, elem_length].
         The last dimension should be in format of
         [class_id, score, box_left, box_top, box_right, box_bottom].
+        It could be the second output out_tensor of get_valid_counts.
 
     valid_count : tvm.te.Tensor
-        1-D tensor for valid number of boxes.
+        1-D tensor for valid number of boxes. It could be the output
+        valid_count of get_valid_counts.
 
     indices : tvm.te.Tensor
-        2-D tensor with shape [batch_size, num_anchors].
+        2-D tensor with shape [batch_size, num_anchors], represents
+        the index of box in original data. It could be the third
+        output out_indices of get_valid_counts. The values in the
+        second dimension are like the output of arange(num_anchors)
+        if get_valid_counts is not used before non_max_suppression.
 
     max_output_size : optional, int
         Max number of output valid boxes for each instance.

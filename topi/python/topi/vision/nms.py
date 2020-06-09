@@ -235,17 +235,23 @@ def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors
     ----------
     data: tvm.te.Tensor or numpy NDArray
         Bounding boxes with class and score. 3-D tensor with shape
-        [batch_size, num_anchors, 6].
+        [batch_size, num_anchors, 6]. It could be the second output
+        out_tensor of get_valid_counts.
 
     sorted_index : tvm.te.Tensor or numpy NDArray
         Bounding box indexes sorted by score, with shape
         [batch_size, num_anchors].
 
     valid_count : tvm.te.Tensor or numpy NDArray
-        1-D tensor for valid number of boxes.
+        1-D tensor for valid number of boxes. It could be the output
+        valid_count of get_valid_counts.
 
     indices : tvm.te.Tensor or numpy.NDArray
-        indices in original tensor, with shape [batch_size, num_anchors]
+        indices in original tensor, with shape [batch_size, num_anchors],
+        represents the index of box in original data. It could be the third
+        output out_indices of get_valid_counts. The values in the second
+        dimension are like the output of arange(num_anchors) if get_valid_counts
+        is not used before non_max_suppression.
 
     batch_size: tvm.tir.IntImm or tvm.tir.Var
         Batch size. We need to pass it in since hybrid script doesn't support
