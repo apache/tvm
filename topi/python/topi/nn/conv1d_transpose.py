@@ -24,7 +24,7 @@ from .util import get_pad_tuple1d
 
 
 def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype,
-                         output_padding=(0,)):
+                         output_padding):
     """Transposed 1D convolution ncw forward operator.
 
     Parameters
@@ -44,10 +44,15 @@ def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype,
     out_dtype : str
         The output data type. This is used for mixed precision.
 
+    output_padding : tuple
+        Used to recover the actual output shape in case there are more
+        than one possible shape.
+
     Returns
     -------
     output : tvm.te.Tensor
         3-D with shape [batch, out_channel, out_width]
+
     """
 
     # dilate and pad

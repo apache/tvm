@@ -40,10 +40,15 @@ def conv1d_transpose_ncw_python(a_np, w_np, stride, padding, output_padding):
         tuple of 2 ints for left and right padding, or
         ['VALID', 'SAME']
 
+    output_padding : tuple
+        Used to recover the actual output shape in case more than one
+        is possible
+
     Returns
     -------
     b_np : np.ndarray
         3-D with shape [batch, out_channel, out_width]
+
     """
     batch, in_c, in_w = a_np.shape
     _, out_c, filter_w = w_np.shape
@@ -52,6 +57,7 @@ def conv1d_transpose_ncw_python(a_np, w_np, stride, padding, output_padding):
         stride_w = stride
     else:
         stride_w = stride[0]
+    assert opad < stride_w
     fpad_left, fpad_right = get_pad_tuple1d(padding, filter_w)
     # dilate stage
     dilated_a_np = topi.testing.dilate_python(a_np, [1, 1, stride_w])
