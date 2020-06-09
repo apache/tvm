@@ -25,6 +25,8 @@
 //!
 //! See the tests and examples repository for more examples.
 
+use lazy_static::lazy_static;
+use std::convert::TryFrom;
 use std::{
     collections::BTreeMap,
     ffi::{CStr, CString},
@@ -34,13 +36,14 @@ use std::{
     sync::Mutex,
 };
 
-use anyhow::Result;
-use lazy_static::lazy_static;
-
 pub use tvm_sys::{ffi, ArgValue, RetValue};
+
+use crate::errors::Error;
 
 use super::to_boxed_fn::ToBoxedFn;
 use super::to_function::{ToFunction, Typed};
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 lazy_static! {
     static ref GLOBAL_FUNCTIONS: Mutex<BTreeMap<String, Option<Function>>> = {
@@ -180,6 +183,60 @@ impl Drop for Function {
     }
 }
 
+impl From<Function> for RetValue {
+    fn from(func: Function) -> RetValue {
+        RetValue::FuncHandle(func.handle)
+    }
+}
+
+impl TryFrom<RetValue> for Function {
+    type Error = Error;
+
+    fn try_from(ret_value: RetValue) -> Result<Function> {
+        match ret_value {
+            RetValue::FuncHandle(handle) => Ok(Function::new(handle)),
+            _ => Err(Error::downcast(
+                format!("{:?}", ret_value),
+                "FunctionHandle",
+            )),
+        }
+    }
+}
+
+impl<'a> From<Function> for ArgValue<'a> {
+    fn from(func: Function) -> ArgValue<'a> {
+        ArgValue::FuncHandle(func.handle)
+    }
+}
+
+impl<'a> TryFrom<ArgValue<'a>> for Function {
+    type Error = Error;
+
+    fn try_from(arg_value: ArgValue<'a>) -> Result<Function> {
+        match arg_value {
+            ArgValue::FuncHandle(handle) => Ok(Function::new(handle)),
+            _ => Err(Error::downcast(
+                format!("{:?}", arg_value),
+                "FunctionHandle",
+            )),
+        }
+    }
+}
+
+impl<'a> TryFrom<&ArgValue<'a>> for Function {
+    type Error = Error;
+
+    fn try_from(arg_value: &ArgValue<'a>) -> Result<Function> {
+        match arg_value {
+            ArgValue::FuncHandle(handle) => Ok(Function::new(*handle)),
+            _ => Err(Error::downcast(
+                format!("{:?}", arg_value),
+                "FunctionHandle",
+            )),
+        }
+    }
+}
+
 /// Registers a Rust function with an arbitrary type signature in
 /// the TVM registry.
 ///
@@ -194,8 +251,7 @@ impl Drop for Function {
 ///
 /// ```
 /// # use tvm_rt::{ArgValue, RetValue};
-/// # use tvm_rt::function::{Function, register};
-/// # use anyhow::{Result};
+/// # use tvm_rt::function::{Function, Result, register};
 ///
 /// fn sum(x: i64, y: i64, z: i64) -> i64 {
 ///     x + y + z
@@ -239,27 +295,6 @@ where
     Ok(())
 }
 
-#[macro_export]
-macro_rules! external_func {
-    (fn $name:ident ( $($arg:ident : $ty:ty),* ) -> $ret_type:ty as $ext_name:literal;) => {
-        ::paste::item! {
-            #[allow(non_upper_case_globals)]
-            static [<global_ $name>]: ::once_cell::sync::Lazy<&'static $crate::Function> =
-            ::once_cell::sync::Lazy::new(|| {
-                $crate::Function::get($ext_name)
-                .expect(concat!("unable to load external function", stringify!($ext_name), "from TVM registry."))
-            });
-        }
-
-        pub fn $name($($arg : $ty),*) -> Result<$ret_type, anyhow::Error> {
-            let func_ref: &$crate::Function = ::paste::expr! { &*[<global_ $name>] };
-            let func_ref: Box<dyn Fn($($ty),*) -> anyhow::Result<$ret_type>> = func_ref.to_boxed_fn();
-            let res: $ret_type = func_ref($($arg),*)?;
-            Ok(res)
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,6 +316,7 @@ mod tests {
     #[test]
     fn register_and_call_closure0() {
         use crate::function;
+        use function::Result;
 
         fn constfn() -> i64 {
             return 10;

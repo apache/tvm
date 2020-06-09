@@ -25,13 +25,11 @@
 //!
 //! See the tests and examples repository for more examples.
 
-use anyhow::Result;
-
 pub use tvm_sys::{ffi, ArgValue, RetValue};
 
-use crate::Module;
+use crate::{Module, errors};
 
-use super::function::Function;
+use super::function::{Function, Result};
 
 pub trait ToBoxedFn {
     fn to_boxed_fn(func: &'static Function) -> Box<Self>;
@@ -41,7 +39,7 @@ use std::convert::{TryFrom, TryInto};
 
 impl<E, O> ToBoxedFn for dyn Fn() -> Result<O>
 where
-    E: std::error::Error + Send + Sync + 'static,
+    errors::Error: From<E>,
     O: TryFrom<RetValue, Error = E>,
 {
     fn to_boxed_fn(func: &'static Function) -> Box<Self> {
@@ -56,7 +54,7 @@ where
 
 impl<E, A, O> ToBoxedFn for dyn Fn(A) -> Result<O>
 where
-    E: std::error::Error + Send + Sync + 'static,
+    errors::Error: From<E>,
     A: Into<ArgValue<'static>>,
     O: TryFrom<RetValue, Error = E>,
 {
@@ -73,7 +71,7 @@ where
 
 impl<E, A, B, O> ToBoxedFn for dyn Fn(A, B) -> Result<O>
 where
-    E: std::error::Error + Send + Sync + 'static,
+    errors::Error: From<E>,
     A: Into<ArgValue<'static>>,
     B: Into<ArgValue<'static>>,
     O: TryFrom<RetValue, Error = E>,
@@ -92,7 +90,7 @@ where
 
 impl<E, A, B, C, O> ToBoxedFn for dyn Fn(A, B, C) -> Result<O>
 where
-    E: std::error::Error + Send + Sync + 'static,
+    errors::Error: From<E>,
     A: Into<ArgValue<'static>>,
     B: Into<ArgValue<'static>>,
     C: Into<ArgValue<'static>>,
@@ -113,7 +111,7 @@ where
 
 impl<E, A, B, C, D, O> ToBoxedFn for dyn Fn(A, B, C, D) -> Result<O>
 where
-    E: std::error::Error + Send + Sync + 'static,
+    errors::Error: From<E>,
     A: Into<ArgValue<'static>>,
     B: Into<ArgValue<'static>>,
     C: Into<ArgValue<'static>>,
@@ -183,7 +181,7 @@ impl<'a, 'm> Builder<'a, 'm> {
         self
     }
 
-    /// Sets an output for a function that requirs a mutable output to be provided.
+    /// Sets an output for a function that requires a mutable output to be provided.
     /// See the `basics` in tests for an example.
     pub fn set_output<T>(&mut self, ret: T) -> &mut Self
     where
@@ -214,8 +212,7 @@ impl<'a, 'm> From<&'m mut Module> for Builder<'a, 'm> {
 }
 #[cfg(test)]
 mod tests {
-    use crate::function::{self, Function};
-    use anyhow::Result;
+    use crate::function::{self, Function, Result};
 
     #[test]
     fn to_boxed_fn0() {

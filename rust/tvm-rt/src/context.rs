@@ -1,13 +1,17 @@
-pub use tvm_sys::context::*;
-use tvm_sys::ffi;
 
 use std::os::raw::c_void;
 use std::ptr;
 
+use crate::errors::Error;
+
+use tvm_sys::ffi;
+
+pub use tvm_sys::context::*;
+
 trait ContextExt {
     /// Checks whether the context exists or not.
     fn exist(&self) -> bool;
-    fn sync(&self) -> anyhow::Result<()>;
+    fn sync(&self) -> Result<(), Error>;
     fn max_threads_per_block(&self) -> isize;
     fn warp_size(&self) -> isize;
     fn max_shared_memory_per_block(&self) -> isize;
@@ -30,8 +34,9 @@ macro_rules! impl_device_attrs {
     };
 }
 
-external_func! {
-    fn get_device_attr(device_type: i32, device_id: i32, device_kind: i32) -> i32 as "runtime.GetDeviceAttr";
+crate::external! {
+    #[name("runtime.GetDeviceAttr")]
+    fn get_device_attr(device_type: i32, device_id: i32, device_kind: i32) -> i32;
 }
 
 impl ContextExt for Context {
@@ -43,7 +48,7 @@ impl ContextExt for Context {
     }
 
     /// Synchronize the context stream.
-    fn sync(&self) -> anyhow::Result<()> {
+    fn sync(&self) -> Result<(), Error> {
         check_call!(ffi::TVMSynchronize(
             self.device_type as i32,
             self.device_id as i32,

@@ -26,10 +26,10 @@ use std::{
     ptr,
 };
 
-use anyhow::{anyhow, ensure, Error};
 use tvm_sys::ffi;
 
 use crate::{errors, function::Function};
+use crate::errors::Error;
 
 const ENTRY_FUNC: &str = "__tvm_main__";
 
@@ -43,12 +43,12 @@ pub struct Module {
     entry_func: Option<Function>,
 }
 
-external_func! {
-    fn runtime_enabled(target: CString) -> i32 as "runtime.RuntimeEnabled";
-}
+crate::external! {
+    #[name("runtime.RuntimeEnabled")]
+    fn runtime_enabled(target: CString) -> i32;
 
-external_func! {
-    fn load_from_file(file_name: CString, format: CString) -> Module as "runtime.ModuleLoadFromFile";
+    #[name("runtime.ModuleLoadFromFile")]
+    fn load_from_file(file_name: CString, format: CString) -> Module;
 }
 
 impl Module {
@@ -76,12 +76,13 @@ impl Module {
             query_import as c_int,
             &mut fhandle as *mut _
         ));
-        ensure!(
-            !fhandle.is_null(),
-            errors::NullHandleError {
-                name: name.into_string()?.to_string()
-            }
-        );
+
+        if !fhandle.is_null() {
+            return Err(errors::Error::NullHandle(
+                name.into_string()?.to_string()
+            ));
+        }
+
         Ok(Function::new(fhandle))
     }
 
@@ -97,13 +98,15 @@ impl Module {
                 .extension()
                 .unwrap_or_else(|| std::ffi::OsStr::new(""))
                 .to_str()
-                .ok_or_else(|| anyhow!("Bad module load path: `{}`.", path.as_ref().display()))?,
+                .ok_or_else(|| Error::ModuleLoadPath(path.as_ref().display().to_string()))?
         )?;
+
         let cpath = CString::new(
             path.as_ref()
                 .to_str()
-                .ok_or_else(|| anyhow!("Bad module load path: `{}`.", path.as_ref().display()))?,
+                .ok_or_else(|| Error::ModuleLoadPath(path.as_ref().display().to_string()))?
         )?;
+
         let module = load_from_file(cpath, ext)?;
         Ok(module)
     }

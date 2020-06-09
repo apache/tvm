@@ -44,8 +44,6 @@ use std::{
     str,
 };
 
-use anyhow::Error;
-
 pub use crate::{
     context::{Context, DeviceType},
     errors::*,
@@ -57,8 +55,9 @@ pub use crate::{
 pub use function::{ArgValue, RetValue};
 pub use tvm_sys::byte_array::ByteArray;
 pub use tvm_sys::datatype::DataType;
-
 use tvm_sys::ffi;
+
+pub use tvm_macros::external;
 
 // Macro to check the return call to TVM runtime shared library.
 #[macro_export]
@@ -80,7 +79,7 @@ pub fn get_last_error() -> &'static str {
     }
 }
 
-pub(crate) fn set_last_error(err: &Error) {
+pub(crate) fn set_last_error<E: std::error::Error>(err: &E) {
     let c_string = CString::new(err.to_string()).unwrap();
     unsafe {
         ffi::TVMAPISetLastError(c_string.as_ptr());
@@ -116,8 +115,8 @@ mod tests {
 
     #[test]
     fn set_error() {
-        let err = errors::EmptyArrayError;
-        set_last_error(&err.into());
-        assert_eq!(get_last_error().trim(), errors::EmptyArrayError.to_string());
+        let err = errors::NDArrayError::EmptyArray;
+        set_last_error(&err);
+        assert_eq!(get_last_error().trim(), errors::NDArrayError::EmptyArray.to_string());
     }
 }

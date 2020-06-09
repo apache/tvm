@@ -47,16 +47,17 @@
 //! [`copy_from_buffer`]:struct.NDArray.html#method.copy_from_buffer
 //! [`copy_to_ctx`]:struct.NDArray.html#method.copy_to_ctx
 
-use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice, str::FromStr};
-
-use crate::errors;
-use anyhow::{bail, ensure, Result};
-use ndarray::{Array, ArrayD};
-use num_traits::Num;
 use std::convert::TryInto;
 use std::ffi::c_void;
+use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice, str::FromStr};
+
+use crate::errors::NDArrayError;
+
 use tvm_sys::ffi::DLTensor;
 use tvm_sys::{ffi, ByteArray, Context, DataType};
+
+use ndarray::{Array, ArrayD};
+use num_traits::Num;
 
 /// See the [`module-level documentation`](../ndarray/index.html) for more details.
 ///
@@ -146,13 +147,13 @@ impl NDArray {
     }
 
     /// Shows whether the underlying ndarray is contiguous in memory or not.
-    pub fn is_contiguous(&self) -> Result<bool> {
+    pub fn is_contiguous(&self) -> Result<bool, crate::errors::Error> {
         Ok(match self.strides() {
             None => true,
             Some(strides) => {
-                // errors::MissingShapeError in case shape is not determined
+                // NDArrayError::MissingShape in case shape is not determined
                 self.shape()
-                    .ok_or(errors::MissingShapeError)?
+                    .ok_or(NDArrayError::MissingShape)?
                     .iter()
                     .zip(strides)
                     .rfold(
@@ -188,16 +189,18 @@ impl NDArray {
     /// assert_eq!(ndarray.shape(), Some(&mut shape[..]));
     /// assert_eq!(ndarray.to_vec::<i32>().unwrap(), data);
     /// ```
-    pub fn to_vec<T>(&self) -> Result<Vec<T>> {
-        ensure!(self.shape().is_some(), errors::EmptyArrayError);
+    pub fn to_vec<T>(&self) -> Result<Vec<T>, NDArrayError> {
+        if !self.shape().is_some() {
+            return Err(NDArrayError::EmptyArray);
+        }
         let earr = NDArray::empty(
-            self.shape().ok_or(errors::MissingShapeError)?,
+            self.shape().ok_or(NDArrayError::MissingShape)?,
             Context::cpu(0),
             self.dtype(),
         );
         let target = self.copy_to_ndarray(earr)?;
         let arr = target.as_dltensor();
-        let sz = self.size().ok_or(errors::MissingShapeError)?;
+        let sz = self.size().ok_or(NDArrayError::MissingShape)?;
         let mut v: Vec<T> = Vec::with_capacity(sz * mem::size_of::<T>());
         unsafe {
             v.as_mut_ptr()
@@ -208,7 +211,7 @@ impl NDArray {
     }
 
     /// Converts the NDArray to [`ByteArray`].
-    pub fn to_bytearray(&self) -> Result<ByteArray> {
+    pub fn to_bytearray(&self) -> Result<ByteArray, NDArrayError> {
         let v = self.to_vec::<u8>()?;
         Ok(ByteArray::from(v))
     }
@@ -238,16 +241,14 @@ impl NDArray {
     }
 
     /// Copies the NDArray to another target NDArray.
-    pub fn copy_to_ndarray(&self, target: NDArray) -> Result<NDArray> {
+    pub fn copy_to_ndarray(&self, target: NDArray) -> Result<NDArray, NDArrayError> {
         if self.dtype() != target.dtype() {
-            bail!(
-                "{}",
-                errors::TypeMismatchError {
-                    expected: self.dtype().to_string(),
-                    actual: target.dtype().to_string(),
-                }
-            );
+            return Err(NDArrayError::DataTypeMismatch {
+                expected: self.dtype(),
+                actual: target.dtype(),
+            });
         }
+
         check_call!(ffi::TVMArrayCopyFromTo(
             self.as_raw_dltensor(),
             target.as_raw_dltensor(),
@@ -257,9 +258,9 @@ impl NDArray {
     }
 
     /// Copies the NDArray to a target context.
-    pub fn copy_to_ctx(&self, target: &Context) -> Result<NDArray> {
+    pub fn copy_to_ctx(&self, target: &Context) -> Result<NDArray, NDArrayError> {
         let tmp = NDArray::empty(
-            self.shape().ok_or(errors::MissingShapeError)?,
+            self.shape().ok_or(NDArrayError::MissingShape)?,
             *target,
             self.dtype(),
         );
@@ -272,7 +273,7 @@ impl NDArray {
         rnd: &ArrayD<T>,
         ctx: Context,
         dtype: DataType,
-    ) -> Result<Self> {
+    ) -> Result<Self, NDArrayError> {
         let shape = rnd.shape().to_vec();
         let mut nd = NDArray::empty(&shape, ctx, dtype);
         let mut buf = Array::from_iter(rnd.into_iter().map(|&v| v as T));
@@ -304,24 +305,30 @@ impl NDArray {
 macro_rules! impl_from_ndarray_rustndarray {
     ($type:ty, $type_name:tt) => {
         impl<'a> TryFrom<&'a NDArray> for ArrayD<$type> {
-            type Error = anyhow::Error;
-            fn try_from(nd: &NDArray) -> Result<ArrayD<$type>> {
-                ensure!(nd.shape().is_some(), errors::MissingShapeError);
+            type Error = NDArrayError;
+
+            fn try_from(nd: &NDArray) -> Result<ArrayD<$type>, Self::Error> {
+                if !nd.shape().is_some() {
+                    return Err(NDArrayError::MissingShape);
+                }
                 assert_eq!(nd.dtype(), DataType::from_str($type_name)?, "Type mismatch");
                 Ok(Array::from_shape_vec(
-                    &*nd.shape().ok_or(errors::MissingShapeError)?,
+                    &*nd.shape().ok_or(NDArrayError::MissingShape)?,
                     nd.to_vec::<$type>()?,
                 )?)
             }
         }
 
         impl<'a> TryFrom<&'a mut NDArray> for ArrayD<$type> {
-            type Error = anyhow::Error;
-            fn try_from(nd: &mut NDArray) -> Result<ArrayD<$type>> {
-                ensure!(nd.shape().is_some(), errors::MissingShapeError);
+            type Error = NDArrayError;
+
+            fn try_from(nd: &mut NDArray) -> Result<ArrayD<$type>, Self::Error> {
+                if !nd.shape().is_some() {
+                    return Err(NDArrayError::MissingShape);
+                };
                 assert_eq!(nd.dtype(), DataType::from_str($type_name)?, "Type mismatch");
                 Ok(Array::from_shape_vec(
-                    &*nd.shape().ok_or(errors::MissingShapeError)?,
+                    &*nd.shape().ok_or(NDArrayError::MissingShape)?,
                     nd.to_vec::<$type>()?,
                 )?)
             }

@@ -23,7 +23,10 @@ use quote::quote;
 use syn::DeriveInput;
 use syn::Ident;
 
+use crate::util::get_tvm_rt_crate;
+
 pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
+    let tvm_rt_crate = get_tvm_rt_crate();
     let derive_input = syn::parse_macro_input!(input as DeriveInput);
     let payload_id = derive_input.ident;
 
@@ -63,7 +66,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
     let base = base.expect("should be present");
 
     let expanded = quote! {
-        unsafe impl tvm_rt::object::IsObject for #payload_id {
+        unsafe impl #tvm_rt_crate::object::IsObject for #payload_id {
             const TYPE_KEY: &'static str = #type_key;
 
             fn as_object<'s>(&'s self) -> &'s Object {
@@ -72,9 +75,9 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
         }
 
         #[derive(Clone)]
-        pub struct #ref_id(Option<tvm_rt::object::ObjectPtr<#payload_id>>);
+        pub struct #ref_id(Option<#tvm_rt_crate::object::ObjectPtr<#payload_id>>);
 
-        impl tvm_rt::object::ToObjectRef for #ref_id {
+        impl #tvm_rt_crate::object::ToObjectRef for #ref_id {
             fn to_object_ref(&self) -> ObjectRef {
                 ObjectRef(self.0.as_ref().map(|o| o.upcast()))
             }
@@ -88,25 +91,25 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
             }
         }
 
-        impl std::convert::TryFrom<tvm_rt::RetValue> for #ref_id {
-            type Error = ::anyhow::Error;
+        impl std::convert::TryFrom<#tvm_rt_crate::RetValue> for #ref_id {
+            type Error = #tvm_rt_crate::Error;
 
-            fn try_from(ret_val: tvm_rt::RetValue) -> Result<#ref_id, Self::Error> {
+            fn try_from(ret_val: #tvm_rt_crate::RetValue) -> Result<#ref_id, Self::Error> {
                 use std::convert::TryInto;
                 let oref: ObjectRef = ret_val.try_into()?;
-                let ptr = oref.0.ok_or(anyhow::anyhow!("null ptr"))?;
+                let ptr = oref.0.ok_or(#tvm_rt_crate::Error::Null)?;
                 let ptr = ptr.downcast::<#payload_id>()?;
                 Ok(#ref_id(Some(ptr)))
             }
         }
 
-        impl<'a> From<#ref_id> for tvm_rt::ArgValue<'a> {
-            fn from(object_ref: #ref_id) -> tvm_rt::ArgValue<'a> {
+        impl<'a> From<#ref_id> for #tvm_rt_crate::ArgValue<'a> {
+            fn from(object_ref: #ref_id) -> #tvm_rt_crate::ArgValue<'a> {
                 use std::ffi::c_void;
                 let object_ptr = &object_ref.0;
                 match object_ptr {
                     None => {
-                        tvm_rt::ArgValue::
+                        #tvm_rt_crate::ArgValue::
                             ObjectHandle(std::ptr::null::<c_void>() as *mut c_void)
                     }
                     Some(value) => value.clone().into()
@@ -114,40 +117,40 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
             }
         }
 
-        impl<'a> From<&#ref_id> for tvm_rt::ArgValue<'a> {
-            fn from(object_ref: &#ref_id) -> tvm_rt::ArgValue<'a> {
+        impl<'a> From<&#ref_id> for #tvm_rt_crate::ArgValue<'a> {
+            fn from(object_ref: &#ref_id) -> #tvm_rt_crate::ArgValue<'a> {
                 let oref: #ref_id = object_ref.clone();
-                tvm_rt::ArgValue::<'a>::from(oref)
+                #tvm_rt_crate::ArgValue::<'a>::from(oref)
             }
         }
 
-        impl<'a> std::convert::TryFrom<tvm_rt::ArgValue<'a>> for #ref_id {
-            type Error = anyhow::Error;
+        impl<'a> std::convert::TryFrom<#tvm_rt_crate::ArgValue<'a>> for #ref_id {
+            type Error = #tvm_rt_crate::Error;
 
-            fn try_from(arg_value: tvm_rt::ArgValue<'a>) -> Result<#ref_id, Self::Error> {
+            fn try_from(arg_value: #tvm_rt_crate::ArgValue<'a>) -> Result<#ref_id, Self::Error> {
                 use std::convert::TryInto;
                 let optr = arg_value.try_into()?;
                 Ok(#ref_id(Some(optr)))
             }
         }
 
-        impl<'a> std::convert::TryFrom<&tvm_rt::ArgValue<'a>> for #ref_id {
-            type Error = anyhow::Error;
+        impl<'a> std::convert::TryFrom<&#tvm_rt_crate::ArgValue<'a>> for #ref_id {
+            type Error = #tvm_rt_crate::Error;
 
-            fn try_from(arg_value: &tvm_rt::ArgValue<'a>) -> Result<#ref_id, Self::Error> {
+            fn try_from(arg_value: &#tvm_rt_crate::ArgValue<'a>) -> Result<#ref_id, Self::Error> {
                 use std::convert::TryInto;
                 let optr = arg_value.try_into()?;
                 Ok(#ref_id(Some(optr)))
             }
         }
 
-        impl From<#ref_id> for tvm_rt::RetValue {
-            fn from(object_ref: #ref_id) -> tvm_rt::RetValue {
+        impl From<#ref_id> for #tvm_rt_crate::RetValue {
+            fn from(object_ref: #ref_id) -> #tvm_rt_crate::RetValue {
                 use std::ffi::c_void;
                 let object_ptr = &object_ref.0;
                 match object_ptr {
                     None => {
-                        tvm_rt::RetValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void)
+                        #tvm_rt_crate::RetValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void)
                     }
                     Some(value) => value.clone().into()
                 }
@@ -158,14 +161,3 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
 
     TokenStream::from(expanded)
 }
-
-//  impl TryFrom<RetValue> for Var {
-//    type Error = anyhow::Error;
-
-//    fn try_from(ret_val: RetValue) -> Result<Var, Self::Error> {
-//       let oref: ObjectRef = ret_val.try_into()?;
-//       let var_ptr = oref.0.ok_or(anyhow!("null ptr"))?;
-//       let var_ptr = var_ptr.downcast::<VarNode>()?;
-//       Ok(Var(Some(var_ptr)))
-//    }
-// }

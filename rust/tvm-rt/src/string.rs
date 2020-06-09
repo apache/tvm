@@ -2,7 +2,8 @@ use std::ffi::{CString, NulError};
 use std::os::raw::c_char;
 
 use super::{Object, ObjectPtr, ObjectRef};
-use crate as tvm_rt;
+use super::errors::Error;
+
 use tvm_macros::Object;
 
 #[repr(C)]
@@ -43,7 +44,7 @@ impl String {
         }
     }
 
-    pub fn to_string(&self) -> anyhow::Result<std::string::String> {
+    pub fn to_string(&self) -> Result<std::string::String, Error> {
         let string = self.to_cstring()?.into_string()?;
         Ok(string)
     }

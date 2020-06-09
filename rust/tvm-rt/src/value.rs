@@ -24,12 +24,8 @@
 use std::convert::TryFrom;
 // use std::ffi::c_void;
 
-use crate::{ArgValue, Function, Module, NDArray, RetValue};
-use tvm_sys::{
-    errors::ValueDowncastError,
-    ffi::{TVMFunctionHandle, TVMModuleHandle},
-    try_downcast,
-};
+use crate::{ArgValue, Module, NDArray, RetValue};
+use tvm_sys::{errors::ValueDowncastError, ffi::TVMModuleHandle, try_downcast};
 
 macro_rules! impl_handle_val {
     ($type:ty, $variant:ident, $inner_type:ty, $ctor:path) => {
@@ -74,7 +70,6 @@ macro_rules! impl_handle_val {
     };
 }
 
-impl_handle_val!(Function, FuncHandle, TVMFunctionHandle, Function::new);
 impl_handle_val!(Module, ModuleHandle, TVMModuleHandle, Module::new);
 
 impl<'a> From<&'a NDArray> for ArgValue<'a> {

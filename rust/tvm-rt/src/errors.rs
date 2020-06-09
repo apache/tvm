@@ -17,17 +17,8 @@
  * under the License.
  */
 
+use crate::DataType;
 use thiserror::Error;
-
-#[derive(Debug, Error)]
-#[error("Cannot convert from an empty array.")]
-pub struct EmptyArrayError;
-
-#[derive(Debug, Error)]
-#[error("Handle `{name}` is null.")]
-pub struct NullHandleError {
-    pub name: String,
-}
 
 #[derive(Debug, Error)]
 #[error("Function was not set in `function::Builder`")]
@@ -41,5 +32,45 @@ pub struct TypeMismatchError {
 }
 
 #[derive(Debug, Error)]
-#[error("Missing NDArray shape.")]
-pub struct MissingShapeError;
+pub enum NDArrayError {
+    #[error("Missing NDArray shape.")]
+    MissingShape,
+    #[error("Cannot convert from an empty array.")]
+    EmptyArray,
+    #[error("Invalid datatype when attempting to convert ndarray.")]
+    InvalidDatatype(#[from] tvm_sys::datatype::ParseDataTypeError),
+    #[error("a shape error occurred in the Rust ndarray library")]
+    ShapeError(#[from] ndarray::ShapeError),
+    #[error("Expected type `{expected}` but found `{actual}`")]
+    DataTypeMismatch {
+        expected: DataType,
+        actual: DataType,
+    },
+}
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("{0}")]
+    Downcast(#[from] tvm_sys::errors::ValueDowncastError),
+    #[error("raw pointer passed across boundary was null")]
+    Null,
+    #[error("failed to load module due to invalid path {0}")]
+    ModuleLoadPath(String),
+    #[error("failed to convert String into CString due to embedded nul character")]
+    ToCString(#[from] std::ffi::NulError),
+    #[error("failed to convert CString into String")]
+    FromCString(#[from] std::ffi::IntoStringError),
+    #[error("Handle `{0}` is null.")]
+    NullHandle(String),
+    #[error("{0}")]
+    NDArray(#[from] NDArrayError),
+}
+
+impl Error {
+    pub fn downcast(actual_type: String, expected_type: &'static str) -> Error {
+        Self::Downcast(tvm_sys::errors::ValueDowncastError {
+            actual_type,
+            expected_type,
+        })
+    }
+}

@@ -1,7 +1,10 @@
-use crate::external_func;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::CString;
+
+use crate::errors::Error;
+use crate::external;
+
 use tvm_sys::{ArgValue, RetValue};
 
 mod object_ptr;
@@ -27,14 +30,8 @@ impl ToObjectRef for ObjectRef {
     }
 }
 
-// impl<T: ToObjectRef> ToObjectRef for &T {
-//     fn to_object_ref(&self) -> ObjectRef {
-//         (*self).to_object_ref()
-//     }
-// }
-
 impl TryFrom<RetValue> for ObjectRef {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(ret_val: RetValue) -> Result<ObjectRef, Self::Error> {
         let optr = ret_val.try_into()?;
@@ -54,7 +51,7 @@ impl From<ObjectRef> for RetValue {
 }
 
 impl<'a> std::convert::TryFrom<ArgValue<'a>> for ObjectRef {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(arg_value: ArgValue<'a>) -> Result<ObjectRef, Self::Error> {
         let optr = arg_value.try_into()?;
@@ -63,7 +60,7 @@ impl<'a> std::convert::TryFrom<ArgValue<'a>> for ObjectRef {
 }
 
 impl<'a> std::convert::TryFrom<&ArgValue<'a>> for ObjectRef {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(arg_value: &ArgValue<'a>) -> Result<ObjectRef, Self::Error> {
         // TODO(@jroesch): remove the clone
@@ -90,10 +87,12 @@ impl<'a> From<&ObjectRef> for ArgValue<'a> {
     }
 }
 
-external_func! {
-    fn debug_print(object: ObjectRef) -> CString as "ir.DebugPrint";
+external! {
+    #[name("ir.DebugPrint")]
+    fn debug_print(object: ObjectRef) -> CString;
 }
 
-external_func! {
-    fn as_text(object: ObjectRef) -> CString as "ir.TextPrinter";
-}
+// external! {
+//     #[name("ir.TextPrinter")]
+//     fn as_text(object: ObjectRef) -> CString;
+// }

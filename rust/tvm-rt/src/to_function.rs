@@ -25,18 +25,17 @@
 //!
 //! See the tests and examples repository for more examples.
 
+use std::convert::{TryFrom, TryInto};
 use std::{
     mem::MaybeUninit,
     os::raw::{c_int, c_void},
     ptr, slice,
 };
 
-use anyhow::Result;
+use super::{Function, function::Result};
+use crate::errors::Error;
 
 pub use tvm_sys::{ffi, ArgValue, RetValue};
-
-use super::Function;
-use std::convert::{TryFrom, TryInto};
 
 /// A trait representing whether the function arguments
 /// and return type can be assigned to a TVM packed function.
@@ -47,20 +46,20 @@ use std::convert::{TryFrom, TryInto};
 ///
 /// And the implementation of it to `ToFunction`.
 pub trait Typed<I, O> {
-    fn args(i: &[ArgValue<'static>]) -> anyhow::Result<I>;
+    fn args(i: &[ArgValue<'static>]) -> Result<I>;
     fn ret(o: O) -> RetValue;
 }
 
-impl<'a, F> Typed<&'a [ArgValue<'static>], anyhow::Result<RetValue>> for F
+impl<'a, F> Typed<&'a [ArgValue<'static>], Result<RetValue>> for F
 where
-    F: Fn(&'a [ArgValue]) -> anyhow::Result<RetValue>,
+    F: Fn(&'a [ArgValue]) -> Result<RetValue>,
 {
-    fn args(args: &[ArgValue<'static>]) -> anyhow::Result<&'a [ArgValue<'static>]> {
+    fn args(args: &[ArgValue<'static>]) -> Result<&'a [ArgValue<'static>]> {
         // this is BAD but just hacking for time being
         Ok(unsafe { std::mem::transmute(args) })
     }
 
-    fn ret(ret_value: anyhow::Result<RetValue>) -> RetValue {
+    fn ret(ret_value: Result<RetValue>) -> RetValue {
         ret_value.unwrap()
     }
 }
@@ -69,7 +68,7 @@ impl<F, O: Into<RetValue>> Typed<(), O> for F
 where
     F: Fn() -> O,
 {
-    fn args(_args: &[ArgValue<'static>]) -> anyhow::Result<()> {
+    fn args(_args: &[ArgValue<'static>]) -> Result<()> {
         debug_assert!(_args.len() == 0);
         Ok(())
     }
@@ -79,13 +78,13 @@ where
     }
 }
 
-impl<F, A, O: Into<RetValue>, E: Into<anyhow::Error>> Typed<(A,), O> for F
+impl<F, A, O: Into<RetValue>, E> Typed<(A,), O> for F
 where
     F: Fn(A) -> O,
-    E: std::error::Error + Send + Sync + 'static,
+    Error: From<E>,
     A: TryFrom<ArgValue<'static>, Error = E>,
 {
-    fn args(args: &[ArgValue<'static>]) -> anyhow::Result<(A,)> {
+    fn args(args: &[ArgValue<'static>]) -> Result<(A,)> {
         debug_assert!(args.len() == 1);
         let a: A = args[0].clone().try_into()?;
         Ok((a,))
@@ -96,14 +95,14 @@ where
     }
 }
 
-impl<F, A, B, O: Into<RetValue>, E: Into<anyhow::Error>> Typed<(A, B), O> for F
+impl<F, A, B, O: Into<RetValue>, E> Typed<(A, B), O> for F
 where
     F: Fn(A, B) -> O,
-    E: std::error::Error + Send + Sync + 'static,
+    Error: From<E>,
     A: TryFrom<ArgValue<'static>, Error = E>,
     B: TryFrom<ArgValue<'static>, Error = E>,
 {
-    fn args(args: &[ArgValue<'static>]) -> anyhow::Result<(A, B)> {
+    fn args(args: &[ArgValue<'static>]) -> Result<(A, B)> {
         debug_assert!(args.len() == 2);
         let a: A = args[0].clone().try_into()?;
         let b: B = args[1].clone().try_into()?;
@@ -115,15 +114,15 @@ where
     }
 }
 
-impl<F, A, B, C, O: Into<RetValue>, E: Into<anyhow::Error>> Typed<(A, B, C), O> for F
+impl<F, A, B, C, O: Into<RetValue>, E> Typed<(A, B, C), O> for F
 where
     F: Fn(A, B, C) -> O,
-    E: std::error::Error + Send + Sync + 'static,
+    Error: From<E>,
     A: TryFrom<ArgValue<'static>, Error = E>,
     B: TryFrom<ArgValue<'static>, Error = E>,
     C: TryFrom<ArgValue<'static>, Error = E>,
 {
-    fn args(args: &[ArgValue<'static>]) -> anyhow::Result<(A, B, C)> {
+    fn args(args: &[ArgValue<'static>]) -> Result<(A, B, C)> {
         debug_assert!(args.len() == 3);
         let a: A = args[0].clone().try_into()?;
         let b: B = args[1].clone().try_into()?;
@@ -141,7 +140,7 @@ pub trait ToFunction<I, O>: Sized {
 
     fn into_raw(self) -> *mut Self::Handle;
 
-    fn call(handle: *mut Self::Handle, args: &[ArgValue<'static>]) -> anyhow::Result<RetValue>
+    fn call(handle: *mut Self::Handle, args: &[ArgValue<'static>]) -> Result<RetValue>
     where
         Self: Typed<I, O>;
 
@@ -243,7 +242,7 @@ pub trait ToFunction<I, O>: Sized {
 // }
 
 // impl Typed<&[ArgValue<'static>], ()> for RawFunction {
-//     fn args(i: &[ArgValue<'static>]) -> anyhow::Result<&[ArgValue<'static>]> {
+//     fn args(i: &[ArgValue<'static>]) -> Result<&[ArgValue<'static>]> {
 //         Ok(i)
 //     }
 
@@ -339,7 +338,7 @@ mod tests {
         f.to_function()
     }
 
-    // fn func_args(args: &[ArgValue<'static>]) -> anyhow::Result<RetValue> {
+    // fn func_args(args: &[ArgValue<'static>]) -> Result<RetValue> {
     //     Ok(10.into())
     // }
 

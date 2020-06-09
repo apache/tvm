@@ -1,9 +1,11 @@
-use anyhow::Context;
 use std::convert::TryFrom;
 use std::ffi::CString;
 use std::ptr::NonNull;
+
 use tvm_sys::ffi::{self, /* TVMObjectFree, */ TVMObjectRetain, TVMObjectTypeKey2Index};
 use tvm_sys::{ArgValue, RetValue};
+
+use crate::errors::Error;
 
 type Deleter<T> = unsafe extern "C" fn(object: *mut T) -> ();
 
@@ -27,6 +29,7 @@ fn derived_from(child_type_index: u32, parent_type_index: u32) -> bool {
         parent_type_index,
         &mut is_derived
     ));
+
     if is_derived == 0 {
         false
     } else {
@@ -96,7 +99,6 @@ pub struct ObjectPtr<T> {
 
 impl ObjectPtr<Object> {
     fn from_raw(object_ptr: *mut Object) -> Option<ObjectPtr<Object>> {
-        println!("{:?}", object_ptr);
         let non_null = NonNull::new(object_ptr);
         non_null.map(|ptr| ObjectPtr { ptr })
     }
@@ -144,7 +146,7 @@ impl<T: IsObject> ObjectPtr<T> {
         }
     }
 
-    pub fn downcast<U: IsObject>(&self) -> anyhow::Result<ObjectPtr<U>> {
+    pub fn downcast<U: IsObject>(&self) -> Result<ObjectPtr<U>, Error> {
         let child_index = Object::get_type_index::<U>();
         let object_index = self.as_object().type_index;
 
@@ -160,7 +162,7 @@ impl<T: IsObject> ObjectPtr<T> {
                 ptr: self.ptr.cast(),
             })
         } else {
-            Err(anyhow::anyhow!("failed to downcast to object subtype"))
+            Err(Error::downcast("TODOget_type_key".into(), U::TYPE_KEY))
         }
     }
 }
@@ -183,16 +185,16 @@ impl<'a, T: IsObject> From<ObjectPtr<T>> for RetValue {
 }
 
 impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
-    type Error = anyhow::Error;
+    type Error = Error;
 
     fn try_from(ret_value: RetValue) -> Result<ObjectPtr<T>, Self::Error> {
         match ret_value {
             RetValue::ObjectHandle(handle) => {
                 let handle: *mut Object = unsafe { std::mem::transmute(handle) };
-                let optr = ObjectPtr::from_raw(handle).context("unable to convert nullptr")?;
+                let optr = ObjectPtr::from_raw(handle).ok_or(Error::Null)?;
                 optr.downcast()
             }
-            _ => Err(anyhow::anyhow!("unable to convert the result to an Object")),
+            _ => Err(Error::downcast(format!("{:?}", ret_value), "ObjectHandle")),
         }
     }
 }
@@ -207,29 +209,31 @@ impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
 }
 
 impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
-    type Error = anyhow::Error;
+    type Error = Error;
+
     fn try_from(arg_value: ArgValue<'a>) -> Result<ObjectPtr<T>, Self::Error> {
         match arg_value {
             ArgValue::ObjectHandle(handle) => {
                 let handle = unsafe { std::mem::transmute(handle) };
-                let optr = ObjectPtr::from_raw(handle).context("unable to convert nullptr")?;
+                let optr = ObjectPtr::from_raw(handle).ok_or(Error::Null)?;
                 optr.downcast()
             }
-            _ => Err(anyhow::anyhow!("unable to convert the result to an Object")),
+            _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
         }
     }
 }
 
 impl<'a, T: IsObject> TryFrom<&ArgValue<'a>> for ObjectPtr<T> {
-    type Error = anyhow::Error;
+    type Error = Error;
+
     fn try_from(arg_value: &ArgValue<'a>) -> Result<ObjectPtr<T>, Self::Error> {
         match arg_value {
             ArgValue::ObjectHandle(handle) => {
                 let handle = unsafe { std::mem::transmute(handle) };
-                let optr = ObjectPtr::from_raw(handle).context("unable to convert nullptr")?;
+                let optr = ObjectPtr::from_raw(handle).ok_or(Error::Null)?;
                 optr.downcast()
             }
-            _ => Err(anyhow::anyhow!("unable to convert the result to an Object")),
+            _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
         }
     }
 }
