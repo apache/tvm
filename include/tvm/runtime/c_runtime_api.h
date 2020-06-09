@@ -533,6 +533,16 @@ TVM_DLL int TVMObjectRetain(TVMObjectHandle obj);
  */
 TVM_DLL int TVMObjectFree(TVMObjectHandle obj);
 
+/*!
+ * \brief Allocate a data space on device.
+ * \param ctx The device context to perform operation.
+ * \param nbytes The number of bytes in memory.
+ * \param alignment The alignment of the memory.
+ * \param type_hint The type of elements. Only needed by certain backends such
+ *                   as nbytes & alignment are sufficient for most backends.
+ * \param out_data The allocated device pointer.
+ * \return 0 when success, -1 when failure happens
+ */
 TVM_DLL int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignment,
                                     DLDataType type_hint, void** out_data);
 
@@ -563,6 +573,13 @@ TVM_DLL int TVMDeviceCopyDataFromTo(const void* from, size_t from_offset, void* 
                                     TVMContext ctx_to, DLDataType type_hint,
                                     TVMStreamHandle stream);
 
+/*!
+ * \brief Check that an object is derived from another.
+ * \param child_type_index The type index of the derived type.
+ * \param parent_type_index The type index of the parent type.
+ * \param is_derived A boolean representing whether this predicate holds.
+ * \return 0 when success, -1 when failure happens.
+ */
 TVM_DLL int TVMObjectDerivedFrom(uint32_t child_type_index, uint32_t parent_type_index, int* is_derived);
 
 

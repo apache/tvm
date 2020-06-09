@@ -17,11 +17,10 @@
  * under the License.
  */
 
-//! This module provides an idiomatic Rust API for creating and working with TVM functions.
+//! This module provides a method for converting type erased TVM functions
+//! into a boxed Rust closure.
 //!
-//! For calling an already registered TVM function use [`function::Builder`]
-//! To register a TVM packed function from Rust side either
-//! use [`function::register`] or the macro [`register_global_func`].
+//! To call a registered function check the [`ToBoxedFn::to_boxed_fn`] method.
 //!
 //! See the tests and examples repository for more examples.
 

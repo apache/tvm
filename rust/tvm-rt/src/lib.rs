@@ -19,19 +19,12 @@
 
 //! [TVM](https://github.com/apache/incubator-tvm) is a compiler stack for deep learning systems.
 //!
-//! This crate provides an idiomatic Rust API for TVM runtime frontend.
+//! This crate provides an idiomatic Rust API for TVM runtime.
 //!
-//! One particular use case is that given optimized deep learning model artifacts,
-//! (compiled with TVM) which include a shared library
-//! `lib.so`, `graph.json` and a byte-array `param.params`, one can load them
-//! in Rust idomatically to create a TVM Graph Runtime and
-//! run the model for some inputs and get the
-//! desired predictions *all in Rust*.
-//!
-//! Checkout the `examples` repository for more details.
-
-// NB: required for in-crate uses of the procedural macros.
-pub use crate as tvm_rt;
+//! The TVM runtime API contains the data structures used by higher-level TVM executors.
+//! Specifically it exposes the basic types such as NDArray, as well as the more general object system.
+//! The TVM object system enables cross-language interoperability including that of closures for all
+//! supported languages including C++, and Python.
 
 pub mod object;
 pub mod string;

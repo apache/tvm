@@ -329,17 +329,17 @@ mod tests {
         assert_eq!(ret, 10);
     }
 
-    // #[test]
-    // fn register_and_call_closure1() {
-    //     use crate::function::{self};
+    #[test]
+    fn register_and_call_closure1() {
+        use crate::function::{self};
 
-    //     fn ident(x: i64) -> i64 {
-    //         return x;
-    //     }
+        fn ident(x: i64) -> i64 {
+            return x;
+        }
 
-    //     function::register_override(ident, "ident".to_owned(), false).unwrap();
-    //     let func = Function::get("ident").unwrap();
-    //     let func = func.to_boxed_fn::<dyn Fn(i32) -> Result<i32>>();
-    //     assert_eq!(func(60).unwrap(), 60);
-    // }
+        function::register_override(ident, "ident".to_owned(), false).unwrap();
+        let func = Function::get("ident").unwrap();
+        let func = func.to_boxed_fn::<dyn Fn(i32) -> Result<i32>>();
+        assert_eq!(func(60).unwrap(), 60);
+    }
 }

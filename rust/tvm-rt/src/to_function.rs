@@ -50,20 +50,6 @@ pub trait Typed<I, O> {
     fn ret(o: O) -> RetValue;
 }
 
-impl<'a, F> Typed<&'a [ArgValue<'static>], Result<RetValue>> for F
-where
-    F: Fn(&'a [ArgValue]) -> Result<RetValue>,
-{
-    fn args(args: &[ArgValue<'static>]) -> Result<&'a [ArgValue<'static>]> {
-        // this is BAD but just hacking for time being
-        Ok(unsafe { std::mem::transmute(args) })
-    }
-
-    fn ret(ret_value: Result<RetValue>) -> RetValue {
-        ret_value.unwrap()
-    }
-}
-
 impl<F, O: Into<RetValue>> Typed<(), O> for F
 where
     F: Fn() -> O,
