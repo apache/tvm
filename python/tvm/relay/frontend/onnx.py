@@ -1058,6 +1058,16 @@ class GatherND(OnnxOpConverter):
         return _op.gather_nd(inputs[0], inputs[1])
 
 
+class Scatter(OnnxOpConverter):
+    """ Operator converter for Scatter.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr.get('axis', 0)
+        return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
+
+
 class Greater(OnnxOpConverter):
     """ Operator logical greater.
     """
@@ -1863,6 +1873,8 @@ def _get_convert_map(opset):
         'SpaceToDepth': SpaceToDepth.get_converter(opset),
         'Gather': Gather.get_converter(opset),
         'GatherND': GatherND.get_converter(opset),
+        'Scatter': Scatter.get_converter(opset),
+        'ScatterElements': Scatter.get_converter(opset),
         'Squeeze': AttrCvt('squeeze', {'axes': 'axis'}),
         'Unsqueeze': Unsqueeze.get_converter(opset),
         'Pad': Pad.get_converter(opset),
