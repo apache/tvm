@@ -17,18 +17,16 @@
 
 """Common functions for ansor test cases"""
 
-
 from tvm import te, ansor
 import topi
 
 
-def matmul_nkkm(N, M, K):
+@ansor.register_auto_scheduler_workload_func
+def matmul_ansor_test(N, M, K):
     A = te.placeholder((N, K), name='A')
     B = te.placeholder((K, M), name='B')
     k = te.reduce_axis((0, K), name='k')
-    C = te.compute((N, M), lambda i, j: te.sum(
-        A[i][k] * B[k][j], axis=[k]), name='C')
-
+    C = te.compute((N, M), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
     return [A, B, C]
 
 
@@ -58,7 +56,7 @@ def conv2d_nchw_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation
 
 
 def get_tiled_matmul():
-    dag = ansor.ComputeDAG(matmul_nkkm(512, 512, 512))
+    dag = ansor.ComputeDAG(matmul_ansor_test(512, 512, 512))
 
     s0 = dag.get_init_state()
     A, B, C = 0, 1, 2
@@ -80,3 +78,4 @@ def get_tiled_matmul():
     C_global += 1
     s0.compute_at(A_global, C_global, s0.stages[C_global].iters[2])
     return dag, s0.state_object
+

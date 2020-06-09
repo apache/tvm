@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 """Test feature extraction"""
 
 import math
@@ -6,7 +23,7 @@ import tempfile
 import tvm
 from tvm import te, ansor
 
-from test_ansor_common import matmul_nkkm
+from test_ansor_common import matmul_ansor_test
 
 
 def fequal(a, b):
@@ -14,7 +31,7 @@ def fequal(a, b):
 
 
 def test_cpu_matmul():
-    dag = ansor.ComputeDAG(matmul_nkkm(512, 512, 512))
+    dag = ansor.ComputeDAG(matmul_ansor_test(512, 512, 512))
     s = dag.get_init_state()
     C = 2
 
@@ -87,11 +104,48 @@ def test_cpu_fusion():
 
 
 def test_gpu_feature():
-    # todo(lmzheng)
-    pass
+    ctx = tvm.context("cuda", 0)
+    if not ctx.exist:
+        return
+
+    json_records = "\n".join((
+        """{"i": [["[\\"matmul_ansor_test\\", 512, 512, 512]", "cuda"], [[], [["CHW", 2, "local"], ["SP", 2, 0, 512, [1, 16, 32, 1], 1], ["SP", 2, 5, 512, [4, 1, 1, 16], 1], ["SP", 2, 10, 512, [1, 2], 1], ["RE", 2, [0, 5, 1, 6, 2, 7, 10, 11, 3, 8, 12, 4, 9]], ["FSP", 3, 0, 1, 3], ["FSP", 3, 4, 2, 3], ["RE", 3, [0, 4, 1, 5, 2, 6, 3, 7]], ["FU", 2, [0, 1]], ["FU", 3, [0, 1]], ["FU", 2, [1, 2]], ["FU", 3, [1, 2]], ["FU", 2, [2, 3]], ["FU", 3, [2, 3]], ["CA", 2, 3, 2], ["CHR", 1, "shared", [2]], ["CA", 2, 3, 3], ["FU", 2, [0, 1]], ["FFSP", 2, 0, [1, 2], 1, 1], ["AN", 2, 1, 6], ["CHR", 0, "shared", [3]], ["CA", 1, 4, 3], ["FU", 1, [0, 1]], ["FFSP", 1, 0, [1, 2], 1, 1], ["AN", 1, 1, 6], ["AN", 5, 0, 5], ["AN", 5, 1, 4], ["AN", 5, 2, 6], ["PR", 4, 0, "auto_unroll_max_step$1024"]]]], "r": [[0.00536798], 0, 2.49277, 1585564852], "v": "v0.1"}""",
+    ))
+
+    # load states
+    with tempfile.NamedTemporaryFile(mode='w') as f:
+        f.write(json_records)
+        f.flush()
+        inputs, results = ansor.LogReader(f.name).read_lines()
+
+        inp = inputs[0]
+        dag = ansor.workload_key_to_dag(inp.task.workload_key)
+        task = ansor.SearchTask(dag, inp.task.workload_key, inp.task.target, None, ansor.HardwareParams(100000, 16, 64, 4, 64))
+
+        state = ansor.serialization.get_states_from_measure_inputs(inputs, task)[0]
+        state = dag.infer_bound_from_state(state)
+        fea = ansor.feature.get_per_stmt_features_from_states([state], task)[0]
+        names = ansor.feature.get_per_stmt_feature_names()
+
+        # build feature dict
+        fea_dicts = []
+        for i in range(len(fea)):
+            tmp_dict = {}
+            for j in range(len(names)):
+                tmp_dict[names[j]] = fea[i][j]
+            fea_dicts.append(tmp_dict)
+
+        # check values
+        assert fequal(fea_dicts[0]['blockIdx_x_len'], math.log2(8 + 1))
+        assert fequal(fea_dicts[0]['vthread_len'], math.log2(4 + 1))
+        assert fequal(fea_dicts[1]['threadIdx_x_len'], math.log2(16 + 1))
+        assert fequal(fea_dicts[0]['threadIdx_y_len'], math.log2(1 + 1))
+        assert fequal(fea_dicts[2]['blockIdx_z_len'], math.log2(1 + 1))
+        assert fequal(fea_dicts[0]['is_gpu'], 1.0)
 
 
 if __name__ == "__main__":
     test_cpu_matmul()
     test_cpu_fusion()
     test_gpu_feature()
+

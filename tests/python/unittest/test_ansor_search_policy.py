@@ -25,7 +25,7 @@ import tempfile
 import tvm
 from tvm import ansor
 
-from test_ansor_common import matmul_nkkm
+from test_ansor_common import matmul_ansor_test
 
 def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local',
                   cost_model=ansor.RandomModel(), n_trials=2):
@@ -33,7 +33,7 @@ def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'
 
     random.seed(seed)
     N = 128
-    A, B, C = matmul_nkkm(N, N, N)
+    A, B, C = matmul_ansor_test(N, N, N)
     dag = ansor.ComputeDAG([A, B, C])
     tgt = tvm.target.create(target)
     task = ansor.SearchTask(dag, "test", tgt)

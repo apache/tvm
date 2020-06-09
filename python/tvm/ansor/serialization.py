@@ -69,6 +69,11 @@ def write_measure_records_to_file(filename, inputs, results):
     _ffi_api.WriteMeasureRecordsToFile(filename, inputs, results)
 
 
+def get_states_from_measure_inputs(inputs, task):
+    """Get states from measure inputs"""
+    return _ffi_api.GetStatesFromMeasureInputs(inputs, task)
+
+
 def best_measure_pair_in_file(filename, workload_key=None, target=None):
     """ Return best results form log file
 

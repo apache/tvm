@@ -507,13 +507,7 @@ bool LogReaderNode::ReadNext(MeasureInputNode* inp, MeasureResultNode* res) {
       // skip comment lines begin with '#' or ' '
       continue;
     }
-
-    try {
-      ReadMeasureRecord(cur_line, inp, res, &log_version);
-    } catch (...) {
-      return false;
-    }
-
+    ReadMeasureRecord(cur_line, inp, res, &log_version);
     return true;
   }
 
@@ -606,6 +600,60 @@ TVM_REGISTER_GLOBAL("ansor.LogReaderReadNext")
     return Array<ObjectRef>();
   }
 });
+
+TVM_REGISTER_GLOBAL("ansor.GetStatesFromMeasureInputs")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  Array<MeasureInput> inputs = args[0];
+  SearchTask external_task;
+
+  if (args.size() > 1) {
+    external_task = args[1];
+  }
+
+  Array<State> states;
+  states.reserve(inputs.size());
+
+  // (workload_key, target) -> (search_task)
+  std::unordered_map<std::pair<std::string, std::string>, SearchTask> task_cache;
+
+  for (const auto& inp : inputs) {
+    const std::string& workload_key = inp->task->workload_key;
+    std::pair<std::string, std::string> key(workload_key, inp->task->target->str());
+
+    const SearchTaskNode* ptask;
+    if (external_task.defined()) {
+      ptask = external_task.operator->();
+    } else {
+      auto find_res = task_cache.find(key);
+      if (find_res == task_cache.end()) {
+        if (inp->task->compute_dag.defined()) {   // the measure input is complete
+          ptask = inp->task.operator->();
+        } else {  // the measure input is incomplete
+          // rebuild task for incomplete measure pairs read from file
+          SearchTask new_task = SearchTaskNode::make(
+            ComputeDAGNode::make_by_workload_key(workload_key),
+            workload_key,
+            inp->task->target,
+            inp->task->target_host,
+            inp->task->hardware_params);
+          task_cache.insert(std::make_pair(key, new_task));
+          ptask = new_task.operator->();
+        }
+      } else {
+        ptask = find_res->second.operator->();
+      }
+    }
+
+    State tmp_s = ptask->compute_dag.GetInitState();
+    StateNode *ps = tmp_s.CopyOnWrite();
+    ps->transform_steps = inp->state->transform_steps;
+    tmp_s.DoSteps(ps->transform_steps, ptask->compute_dag);
+    states.push_back(std::move(tmp_s));
+  }
+
+  *ret = states;
+});
+
 
 }  // namespace ansor
 }  // namespace tvm

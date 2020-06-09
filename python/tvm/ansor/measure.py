@@ -44,6 +44,8 @@ from . import _ffi_api
 
 logger = logging.getLogger('ansor')
 
+MAX_ERROR_MSG_LEN = 512
+
 
 @tvm._ffi.register_object("ansor.MeasureCallback")
 class MeasureCallback(Object):
@@ -237,8 +239,6 @@ class RPCRunnerWarpper:
 
         self.tracker.terminate()
         self.server.terminate()
-
-MAX_ERROR_MSG_LEN = 512
 
 
 class MeasureErrorNo(object):
@@ -505,3 +505,4 @@ def local_run(inputs: List[MeasureInput], build_results: List[BuildResult],
         print("")
 
     return measure_results
+

@@ -20,11 +20,11 @@
 from tvm import ansor, te
 import topi
 
-from test_ansor_common import matmul_nkkm, conv2d_nchw_bn_relu
+from test_ansor_common import matmul_ansor_test, conv2d_nchw_bn_relu
 
 
 def test_split_fuse_reorder_annotation():
-    dag = ansor.ComputeDAG(matmul_nkkm(512, 512, 512))
+    dag = ansor.ComputeDAG(matmul_ansor_test(512, 512, 512))
     s0 = dag.get_init_state()
     C = 2
     i, j, k = s0.stages[C].iters
@@ -67,7 +67,7 @@ def test_split_fuse_reorder_annotation():
 
 
 def test_follow_split_follow_fused_split():
-    dag = ansor.ComputeDAG(matmul_nkkm(512, 512, 512))
+    dag = ansor.ComputeDAG(matmul_ansor_test(512, 512, 512))
     s0 = dag.get_init_state()
     C = 2
 
@@ -433,7 +433,7 @@ def test_cache_read_write():
 
 
 def test_rfactor():
-    dag = ansor.ComputeDAG(matmul_nkkm(8, 8, 512))
+    dag = ansor.ComputeDAG(matmul_ansor_test(8, 8, 512))
     s0 = dag.get_init_state()
     C = 2
 

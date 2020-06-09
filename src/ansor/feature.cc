@@ -1241,6 +1241,8 @@ void GetPerStmtFeaturesFromStates(const Array<State>& states,
   for (size_t i = skip_first_n_feature_extraction; i < states.size(); ++i) {
     pool.Enqueue(GetPerStmtFeaturesWorkerFunc, task, states[i],
         max_n_bufs, &(*features)[i], &error_ct);
+    //GetPerStmtFeaturesWorkerFunc(task, states[i],
+    //    max_n_bufs, &(*features)[i], &error_ct);
   }
   pool.WaitBatch();
 

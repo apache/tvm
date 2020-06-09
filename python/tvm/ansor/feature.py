@@ -24,7 +24,7 @@ import struct
 import numpy as np
 
 from .loop_state import StateObject
-from .task import SearchTask
+from .auto_schedule import SearchTask
 from .measure import MeasureInput, MeasureResult
 from . import _ffi_api
 
