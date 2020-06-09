@@ -65,7 +65,15 @@ This tutorial is an introduction to working with MicroTVM and TFLite models with
 #
 # To validate that the TFLite package was installed successfully, ``python -c "import tflite"``
 #
-# First we need to download a pretrained TFLite model. When working with microcontrollers
+# CMSIS needs to be downloaded and the CMSIS_ST_PATH environment variable setup
+# This tutorial only supports the STM32F7xx series of boards.
+# Download from : https://www.st.com/en/embedded-software/stm32cubef7.html
+# After you've expanded the zip file
+#
+# .. code-block:: bash
+# export CMSIS_ST_PATH=/path/to/STM32Cube_FW_F7_V1.16.0/Drivers/CMSIS
+#
+# Next we need to download a pretrained TFLite model. When working with microcontrollers
 # you need to be mindful these are highly resource constrained devices as such standard 
 # models like Mobilenet may not fit into their modest memory. 
 #
@@ -153,33 +161,43 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 ######################################################################
 # Next with the dev_config, we establish a micro session and create
 # a context
-with micro.Session(dev_config) as sess:
-    ctx = tvm.micro_dev(0)
+# .. code-block:: python
+#
+# with micro.Session(dev_config) as sess:
+#   ctx = tvm.micro_dev(0)
 
 ######################################################################
 # Now we create a build config for relay. turning off two options
 # and then calling relay.build which will result in a C source
-    disable_vectorize = tvm.target.build_config(disable_vectorize=True)
-    disable_fusion = relay.build_config(disabled_pass={'FuseOps'})
-    with disable_vectorize, disable_fusion:
-        graph, c_mod, params = relay.build(mod, target=TARGET, params=params)
+# .. code-block:: python
+#
+#    disable_vectorize = tvm.target.build_config(disable_vectorize=True)
+#    disable_fusion = relay.build_config(disabled_pass={'FuseOps'})
+#    with disable_vectorize, disable_fusion:
+#        graph, c_mod, params = relay.build(mod, target=TARGET, params=params)
 
 ######################################################################
 # With the c_mod that is the handle to our c sourcecode, we create a
 # micro module, followed by a compiled object which behind the scenes
 # is linked to the microTVM runtime for running on the target board
-    micro_mod = micro.create_micro_mod(c_mod, dev_config)
-    mod = graph_runtime.create(graph, micro_mod, ctx)
+# .. code-block:: python
+#
+#    micro_mod = micro.create_micro_mod(c_mod, dev_config)
+#    mod = graph_runtime.create(graph, micro_mod, ctx)
 
 ######################################################################
 # Pass the weights to get ready to do some inference
-    mod.set_input(**params)
+# .. code-block:: python
+#
+#    mod.set_input(**params)
 
 ######################################################################
 # The model consumes a single float32. Construct a tvm.nd.array object
 # with a single contrived number as input. For this model values of 
 # 0 to 2Pi are acceptible.
-    mod.set_input(input_tensor, tvm.nd.array(np.array([0.5], dtype="float32")))
+# .. code-block:: python
+#
+#    mod.set_input(input_tensor, tvm.nd.array(np.array([0.5], dtype="float32")))
 
 
 ######################################################################
@@ -188,7 +206,7 @@ with micro.Session(dev_config) as sess:
 #
 # .. code-block:: python
 #
-#   mod.run()
+#    mod.run()
 
 ######################################################################
 # Get output from the run and print
@@ -196,5 +214,5 @@ with micro.Session(dev_config) as sess:
 #
 # .. code-block:: python
 #
-#   tvm_output = mod.get_output(0).asnumpy()
-#   print("result is: "+str(tvm_output))
+#    tvm_output = mod.get_output(0).asnumpy()
+#    print("result is: "+str(tvm_output))
