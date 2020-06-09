@@ -27,7 +27,7 @@
 
 pub use tvm_sys::{ffi, ArgValue, RetValue};
 
-use crate::{Module, errors};
+use crate::{errors, Module};
 
 use super::function::{Function, Result};
 

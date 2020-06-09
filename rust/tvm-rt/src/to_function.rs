@@ -32,7 +32,7 @@ use std::{
     ptr, slice,
 };
 
-use super::{Function, function::Result};
+use super::{function::Result, Function};
 use crate::errors::Error;
 
 pub use tvm_sys::{ffi, ArgValue, RetValue};

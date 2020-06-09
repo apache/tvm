@@ -1,8 +1,8 @@
 use std::ffi::{CString, NulError};
 use std::os::raw::c_char;
 
-use super::{Object, ObjectPtr, ObjectRef};
 use super::errors::Error;
+use super::{Object, ObjectPtr, ObjectRef};
 
 use tvm_macros::Object;
 

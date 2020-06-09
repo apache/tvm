@@ -1,11 +1,11 @@
-use std::env;
-use quote::quote;
 use proc_macro2::TokenStream;
+use quote::quote;
+use std::env;
 
 pub fn get_tvm_rt_crate() -> TokenStream {
     if env::var("CARGO_PKG_NAME").unwrap() == "tvm-rt" {
-        quote!( crate )
+        quote!(crate)
     } else {
-        quote!( tvm_rt )
+        quote!(tvm_rt)
     }
 }

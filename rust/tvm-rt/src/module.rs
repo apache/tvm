@@ -28,8 +28,8 @@ use std::{
 
 use tvm_sys::ffi;
 
-use crate::{errors, function::Function};
 use crate::errors::Error;
+use crate::{errors, function::Function};
 
 const ENTRY_FUNC: &str = "__tvm_main__";
 
@@ -78,9 +78,7 @@ impl Module {
         ));
 
         if !fhandle.is_null() {
-            return Err(errors::Error::NullHandle(
-                name.into_string()?.to_string()
-            ));
+            return Err(errors::Error::NullHandle(name.into_string()?.to_string()));
         }
 
         Ok(Function::new(fhandle))
@@ -98,13 +96,13 @@ impl Module {
                 .extension()
                 .unwrap_or_else(|| std::ffi::OsStr::new(""))
                 .to_str()
-                .ok_or_else(|| Error::ModuleLoadPath(path.as_ref().display().to_string()))?
+                .ok_or_else(|| Error::ModuleLoadPath(path.as_ref().display().to_string()))?,
         )?;
 
         let cpath = CString::new(
             path.as_ref()
                 .to_str()
-                .ok_or_else(|| Error::ModuleLoadPath(path.as_ref().display().to_string()))?
+                .ok_or_else(|| Error::ModuleLoadPath(path.as_ref().display().to_string()))?,
         )?;
 
         let module = load_from_file(cpath, ext)?;

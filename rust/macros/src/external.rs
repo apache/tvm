@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-use std::env;
-use quote::quote;
 use proc_macro2::Span;
+use quote::quote;
+use std::env;
 use syn::parse::{Parse, ParseStream, Result};
 
-use syn::{Ident, Meta, FnArg, Generics, TraitItemMethod, Lit, NestedMeta, Type, ReturnType, Pat};
+use syn::{FnArg, Generics, Ident, Lit, Meta, NestedMeta, Pat, ReturnType, TraitItemMethod, Type};
 
 struct External {
     tvm_name: String,
@@ -39,15 +39,14 @@ impl Parse for External {
         let tvm_name = method.attrs[0].parse_meta()?;
         let tvm_name = match tvm_name {
             Meta::List(meta_list) => {
-                let name = meta_list.path.get_ident()
-                    .expect("name");
+                let name = meta_list.path.get_ident().expect("name");
                 assert_eq!(name.to_string(), "name".to_string());
                 match meta_list.nested.first() {
                     Some(NestedMeta::Lit(Lit::Str(lit))) => lit.value(),
                     _ => panic!(),
                 }
             }
-            _ => panic!()
+            _ => panic!(),
         };
         assert_eq!(method.default, None);
         assert!(method.semi_token != None);
@@ -75,7 +74,9 @@ impl Parse for ExternalInput {
         let mut externs: Vec<External> = Vec::new();
 
         loop {
-            if input.is_empty() { break; }
+            if input.is_empty() {
+                break;
+            }
             externs.push(input.parse()?);
         }
 
@@ -83,13 +84,13 @@ impl Parse for ExternalInput {
     }
 }
 
- pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ext_input = syn::parse_macro_input!(input as ExternalInput);
 
     let tvm_rt_crate = if env::var("CARGO_PKG_NAME").unwrap() == "tvm-rt" {
-        quote!( crate )
+        quote!(crate)
     } else {
-        quote!( tvm_rt )
+        quote!(tvm_rt)
     };
 
     let err_type = quote! { #tvm_rt_crate::Error };
@@ -102,35 +103,36 @@ impl Parse for ExternalInput {
         let global_name = Ident::new(&global_name, Span::call_site());
         let ext_name = &external.tvm_name;
 
-        let ty_params: Vec<syn::TypeParam> =
-            external.generics.params.iter().map(|ty_param|
-                match ty_param {
-                    syn::GenericParam::Type(param) => param.clone(),
-                    _ => panic!()
-                }).collect();
+        let ty_params: Vec<syn::TypeParam> = external
+            .generics
+            .params
+            .iter()
+            .map(|ty_param| match ty_param {
+                syn::GenericParam::Type(param) => param.clone(),
+                _ => panic!(),
+            })
+            .collect();
 
         let args = &external.inputs;
 
-        let (args, tys): (Vec<Ident>, Vec<Type>) =
-            args.iter().map(|arg| {
-                match arg {
-                    FnArg::Typed(pat_type) =>  {
-                        match &*pat_type.pat {
-                            Pat::Ident(pat_ident) => {
-                                let ident: Ident = pat_ident.ident.clone();
-                                let ty: Type = *pat_type.ty.clone();
-                                (ident, ty)
-                            },
-                            _ => panic!()
-                        }
-                    },
+        let (args, tys): (Vec<Ident>, Vec<Type>) = args
+            .iter()
+            .map(|arg| match arg {
+                FnArg::Typed(pat_type) => match &*pat_type.pat {
+                    Pat::Ident(pat_ident) => {
+                        let ident: Ident = pat_ident.ident.clone();
+                        let ty: Type = *pat_type.ty.clone();
+                        (ident, ty)
+                    }
                     _ => panic!(),
-                }
-            }).unzip();
+                },
+                _ => panic!(),
+            })
+            .unzip();
 
         let ret_type = match &external.ret_type {
             ReturnType::Type(_, rtype) => *rtype.clone(),
-            _ => panic!()
+            _ => panic!(),
         };
 
         let global = quote! {
@@ -160,4 +162,4 @@ impl Parse for ExternalInput {
         #(#items
         )*
     })
- }
+}
