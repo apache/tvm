@@ -487,6 +487,8 @@ def const(value, dtype=None):
     - bool maps to "bool"
     - other using the same default rule as numpy.
     """
+    if dtype == 'float': # for numpy, float is float64, for us it is float32
+        dtype = 'float32'
     if isinstance(value, (_base.numeric_types, (bool, list))):
         value = _np.array(value, dtype=dtype)
 
