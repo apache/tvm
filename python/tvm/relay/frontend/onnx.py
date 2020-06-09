@@ -29,11 +29,11 @@ from .. import op as _op
 from .. import vision as _vision
 
 from ..function import Function
-from ..expr import Call, Let, Var, GlobalVar
-from ..expr import If, Tuple, TupleGetItem, Constant
+from ..expr import Call, Let
+from ..expr import If, Tuple, TupleGetItem
 from ..expr import RefCreate, RefRead, RefWrite
 from ..expr_functor import ExprFunctor
-from ..adt import Constructor, Match, Clause
+from ..adt import Match, Clause
 
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels
@@ -1922,7 +1922,7 @@ class GraphProto(ExprFunctor):
         self._tmp_params = {}
         self._infer_simulated = True
         self._mod = None
-        self.memo_map = {}
+        super(GraphProto, self).__init__()
 
     def infer_value(self, input_val, params, mod=None):
         self._tmp_params = params
@@ -1955,10 +1955,10 @@ class GraphProto(ExprFunctor):
             fn.attrs))
 
     def visit_let(self, let):
-        new_var = self.visit(let.var)
-        new_val = self.visit(let.value)
-        new_body = self.visit(let.body)
-        return self.infer(Let(new_var, new_val, new_body))
+        newvar = self.visit(let.var)
+        newval = self.visit(let.value)
+        newbody = self.visit(let.body)
+        return self.infer(Let(newvar, newval, newbody))
 
     def visit_call(self, call):
         new_fn = self.visit(call.op)
