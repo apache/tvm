@@ -94,6 +94,20 @@ def test_TypePattern():
     assert ty_pat.type == ttype
 
 
+def test_DataTypePattern():
+    dtype = "float16"
+    pattern = has_dtype(dtype)
+    assert isinstance(pattern, DataTypePattern)
+    assert pattern.dtype == dtype
+
+
+def test_ShapePattern():
+    shape = [10, 10]
+    pattern = has_shape(shape)
+    assert isinstance(pattern, ShapePattern)
+    assert tvm.ir.structural_equal(pattern.shape, shape)
+
+
 def test_AttrPattern():
     op = is_op('add').has_attr({"TOpPattern": K_ELEMWISE})
     assert isinstance(op, AttrPattern)
@@ -262,6 +276,30 @@ def test_match_type():
 def test_no_match_type():
     x = relay.var('x', shape=(10, 10), dtype="int32")
     ty_pat = has_type(relay.TensorType((10, 10), "float32"))
+    assert not ty_pat.match(x)
+
+
+def test_match_dtype():
+    x = relay.var('x', shape=(10, 10), dtype="float32")
+    ty_pat = has_dtype("float32")
+    assert ty_pat.match(x)
+
+
+def test_no_match_dtype():
+    x = relay.var('x', shape=(10, 10), dtype="int32")
+    ty_pat = has_dtype("float32")
+    assert not ty_pat.match(x)
+
+
+def test_match_shape():
+    x = relay.var('x', shape=(10, 10), dtype="float32")
+    ty_pat = has_shape((10, 10))
+    assert ty_pat.match(x)
+
+
+def test_no_match_shape():
+    x = relay.var('x', shape=(10, 10), dtype="int32")
+    ty_pat = has_shape((10, 5))
     assert not ty_pat.match(x)
 
 
@@ -495,6 +533,54 @@ def test_not_match_dominator():
     relu = relay.op.nn.relu(relu)
     tanh = relay.op.tanh(relu)
     out = relu + tanh
+
+    # Check
+    assert not diamond.match(out)
+
+
+def test_match_typed_dominator():
+    # Pattern
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
+    is_unary_elemwise = (wildcard().has_attr({"TOpPattern": K_ELEMWISE}))(wildcard()).has_dtype("float32")
+    reduction = is_op('add')(wildcard(), wildcard()).has_shape([1, 3, 10, 10])
+    diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
+
+    # Classic Diamond
+    inp = relay.var('input',relay.TensorType((1, 3, 12, 12), "float32"))
+    weight = relay.var('weight', relay.TensorType((3, 3, 3, 3), "float32"))
+    conv2d = relay.op.nn.conv2d(inp, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relay.op.nn.relu(relu)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = relu + leaky_relu
+
+    # Check
+    assert diamond.match(out)
+
+def test_no_match_typed_dominator():
+    # Classic Diamond
+    inp = relay.var('input',relay.TensorType((1, 3, 12, 12), "float32"))
+    weight = relay.var('weight', relay.TensorType((3, 3, 3, 3), "float32"))
+    conv2d = relay.op.nn.conv2d(inp, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relay.op.nn.relu(relu)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = relu + leaky_relu
+
+    # Pattern
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
+    is_unary_elemwise = (wildcard().has_attr({"TOpPattern": K_ELEMWISE}))(wildcard()).has_dtype("float32")
+    reduction = is_op('add')(wildcard(), wildcard()).has_shape([1, 1, 10, 10])
+    diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
+
+    # Check
+    assert not diamond.match(out)
+
+    # Pattern
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
+    is_unary_elemwise = (wildcard().has_attr({"TOpPattern": K_ELEMWISE}))(wildcard()).has_dtype("float16")
+    reduction = is_op('add')(wildcard(), wildcard()).has_shape([1, 3, 10, 10])
+    diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
 
     # Check
     assert not diamond.match(out)
@@ -1222,6 +1308,8 @@ if __name__ == "__main__":
     test_TupleGetItemPattern()
     test_AltPattern()
     test_TypePattern()
+    test_DataTypePattern()
+    test_ShapePattern()
     test_AttrPattern()
     test_match_op()
     test_no_match_op()
@@ -1237,6 +1325,10 @@ if __name__ == "__main__":
     test_no_match_tuple()
     test_match_type()
     test_no_match_type()
+    test_match_dtype()
+    test_no_match_dtype()
+    test_match_shape()
+    test_no_match_shape()
     test_match_op_attr()
     test_no_match_op_attr()
     test_match_func_attr()
