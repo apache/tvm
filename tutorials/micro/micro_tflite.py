@@ -89,7 +89,7 @@ import os
 import numpy as np
 import tvm
 import tvm.micro as micro
-import dload
+import requests
 
 from tvm.contrib import graph_runtime, util
 from tvm import relay
@@ -98,11 +98,11 @@ from tvm import relay
 ######################################################################
 # Load the pretrained TFLite model from a file in your current 
 # directory into a buffer
-print (os.getcwd())
 model_url = 'https://people.linaro.org/~tom.gall/sine_model.tflite'
+model_file = 'sine_model.tflite'
+r = requests.get(model_url, allow_redirects=True)
 
-model_file = dload.save(model_url)
-print (model_file)
+open(model_file,'wb').write(r.content)
 ######################################################################
 # Uncomment the following code to load the model from a local 
 # directory
