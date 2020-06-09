@@ -332,14 +332,11 @@ class LiftConst(ExprMutator):
 
     def visit_let(self, let):
         bindings = []
-        i = 0
         while isinstance(let, expr.Let):
-            print(i)
             new_var = self.visit(let.var)
             new_val = self.visit(let.value)
             bindings.append((new_var, new_val))
             let = let.body
-            i += 1
 
         new_body = self.visit(let)
         return mk_let(bindings, new_body)
