@@ -234,3 +234,6 @@ conda/pkg
 # antlr files
 *.tokens
 *.interp
+
+# ansor tuning logs
+scripts/*.json

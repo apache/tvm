@@ -160,12 +160,12 @@ class TuneOption(Object):
             verbose, builder, runner, callbacks)
 
 
-def auto_schedule(workload, search_policy='default', target=None,
-                  target_host=None, hardware_params=None,
-                  tune_option=None):
+def auto_schedule(workload, target=None,
+                  target_host=None, search_policy='default',
+                  hardware_params=None, tune_option=None):
     """ Do auto schedule for a compute declaration.
 
-    The workload paramter can be a `string` as workload_key, or directly
+    The workload parameter can be a `string` as workload_key, or directly
     passing a `SearchTask` as input.
 
     Parameters
@@ -173,8 +173,6 @@ def auto_schedule(workload, search_policy='default', target=None,
     workload : Str or SearchTask
 
     target : Target
-
-    task : SearchTask
 
     target_host : Target = None
 
@@ -203,13 +201,12 @@ def auto_schedule(workload, search_policy='default', target=None,
 
     if isinstance(workload, str):
         sch, tensors = _ffi_api.AutoScheduleByWorkloadKey(
-            workload, target, target_host, search_policy, hardware_params,
-            tune_option)
+            workload, target, target_host, search_policy, hardware_params, tune_option)
         return sch, tensors
     elif isinstance(workload, SearchTask):
-        state = _ffi_api.AutoScheduleBySearchTask(workload, search_policy,
-                                                  tune_option)
-        return state
+        sch, tensors = _ffi_api.AutoScheduleBySearchTask(workload, search_policy, tune_option)
+        return sch, tensors
     else:
         raise ValueError("Invalid workload: " + workload +
-                         ", should be String or SearchTask")
+                         ". Expect a string or SearchTask")
+

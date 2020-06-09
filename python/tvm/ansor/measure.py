@@ -37,6 +37,7 @@ from tvm.driver import build_module
 from tvm.ir import transform
 from tvm.rpc.tracker import Tracker
 from tvm.rpc.server import Server
+from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 from ..contrib import tar, ndk
 from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout, request_remote, check_remote
 from .compute_dag import LayoutRewriteLevel
@@ -78,7 +79,7 @@ class BuildResult(Object):
 
     def __init__(self, filename, args, error_no, error_msg, time_cost):
         self.__init_handle_by_constructor__(
-            _ffi_api.BuildResult, filename, args, error_no,
+            _ffi_api.BuildResult, filename if filename else "", args, error_no,
             error_msg if error_msg else "", time_cost)
 
 
@@ -201,49 +202,32 @@ class RPCRunner(Runner):
                                "and make sure you have free devices on the queue status.")
 
 
-class RPCRunnerWarpper:
-    def __init__(self, target=None, priority=1,
+class LocalRPCMeasureContext:
+    def __init__(self,
+                 priority=1,
                  n_parallel=1,
                  timeout=10,
-                 number=3,
+                 number=10,
                  repeat=1,
                  min_repeat_ms=0,
                  cooldown_interval=0.0):
-        self.target = target
-        self.priority = priority
-        self.n_parallel = n_parallel
-        self.timeout = timeout
-        self.number = number
-        self.repeat = repeat
-        self.min_repeat_ms = min_repeat_ms
-        self.cooldown_interval = cooldown_interval
-
-        self.tracker = None
-        self.server = None
-        self.runner = None
-
-    def __enter__(self):
-        if self.target == "cuda":
-            ctx = tvm.context("cuda", 0)
+        ctx = tvm.context("cuda", 0)
+        if ctx.exist:
             cuda_arch = "sm_" + "".join(ctx.compute_version.split('.'))
-            tvm.autotvm.measure.measure_methods.set_cuda_target_arch(cuda_arch)
+            set_cuda_target_arch(cuda_arch)
         host = '0.0.0.0'
         self.tracker = Tracker(host, port=9000, port_end=10000, silent=True)
         device_key = '$local$device$%d' % self.tracker.port
         self.server = Server(host, port=self.tracker.port, port_end=10000,
-                        key=device_key,
-                        use_popen=True, silent=True,
-                        tracker_addr=(self.tracker.host, self.tracker.port))
-        self.runner = RPCRunner(device_key, host, self.tracker.port, self.priority,
-                self.n_parallel, self.timeout, self.number, self.repeat,
-                self.min_repeat_ms, self.cooldown_interval)
+                             key=device_key,  use_popen=True, silent=True,
+                             tracker_addr=(self.tracker.host, self.tracker.port))
+        self.runner = RPCRunner(device_key, host, self.tracker.port, priority,
+                                n_parallel, timeout, number, repeat,
+                                min_repeat_ms, cooldown_interval)
+        # wait for the processes to start
+        time.sleep(0.5)
 
-        return self
-
-    def __exit__(self, type, value, trace):
-        if value:
-            raise value
-
+    def __del__(self):
         self.tracker.terminate()
         self.server.terminate()
 

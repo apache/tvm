@@ -67,8 +67,8 @@ class TuneOptionNode : public Object {
 TVM_DEFINE_COW_OBJECT_REF(TuneOption, ObjectRef, TuneOptionNode);
 
 /*! \brief Auto schedule for a compute declaration */
-State AutoSchedule(SearchTask task, SearchPolicy search_policy,
-                   TuneOption tune_option);
+std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
+    SearchTask task, SearchPolicy search_policy, TuneOption tune_option);
 
 std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
     std::string workload_key, Target target, Target target_host,

@@ -31,10 +31,10 @@ from . import task_scheduler
 from .compute_dag import ComputeDAG
 from .auto_schedule import SearchTask, MetaTileRewritePolicy, TuneOption, HardwareParams
 from .auto_schedule import auto_schedule
-from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, RPCRunnerWarpper
+from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, LocalRPCMeasureContext
 from .cost_model import RandomModel
 from .cost_model.xgb_model import XGBModel
-from .serialization import LogToFile, LogReader, best_measure_pair_in_file
-from .workload_registry import register_auto_scheduler_workload_func, workload_key_to_dag, \
-    make_workload_key_func
+from .serialization import LogToFile, LogReader, best_measure_pair_in_file, write_measure_records_to_file
+from .workload_registry import register_auto_scheduler_workload_func, \
+    workload_key_to_dag, make_workload_key_func
 from .task_scheduler import TaskScheduler, SimpleTaskScheduler

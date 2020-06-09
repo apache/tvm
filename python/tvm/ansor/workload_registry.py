@@ -130,7 +130,7 @@ def deserialize_args(args: Tuple) -> List:
     return ret
 
 
-@tvm._ffi.register_func("auto_scheduler.workload_key_to_tensors")
+@tvm._ffi.register_func("ansor.workload_key_to_tensors")
 def workload_key_to_tensors(workload_key: str) -> List[Tensor]:
     """Decode a workload key to the input/output tensors"""
     workload = json.loads(workload_key)
@@ -144,7 +144,7 @@ def workload_key_to_tensors(workload_key: str) -> List[Tensor]:
         return lookup
 
 
-@ tvm._ffi.register_func("auto_scheduler.workload_key_to_dag")
+@ tvm._ffi.register_func("ansor.workload_key_to_dag")
 def workload_key_to_dag(workload_key: str) -> ComputeDAG:
     """Decode a workload key to a compute dag"""
     tensors = workload_key_to_tensors(workload_key)

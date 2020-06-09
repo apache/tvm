@@ -48,16 +48,18 @@ TuneOption TuneOptionNode::make(int n_trials, int early_stopping,
   return TuneOption(node);
 }
 
-State AutoSchedule(SearchTask task, SearchPolicy search_policy,
+std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(SearchTask task, SearchPolicy search_policy,
                    TuneOption tune_option) {
   // Search for the best schedule
   ProgramMeasurer measurer =
       ProgramMeasurerNode::make(tune_option->builder, tune_option->runner,
                                 tune_option->callbacks, tune_option->verbose);
 
-  return search_policy->Search(
+  State state = search_policy->Search(
       task, tune_option->n_trials, tune_option->early_stopping,
       tune_option->num_measure_per_iter, tune_option->verbose, measurer);
+
+  return task->compute_dag.ApplySteps(state->transform_steps);
 }
 
 std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
@@ -68,10 +70,8 @@ std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
   SearchTask task = SearchTaskNode::make(
       std::move(dag), std::move(workload_key), std::move(target),
       std::move(target_host), std::move(hardware_params));
-  State state = AutoSchedule(std::move(task), std::move(search_policy),
+  return AutoSchedule(std::move(task), std::move(search_policy),
                              std::move(tune_option));
-
-  return task->compute_dag.ApplySteps(state->transform_steps);
 }
 
 TVM_REGISTER_GLOBAL("ansor.TuneOption")
@@ -86,7 +86,11 @@ TVM_REGISTER_GLOBAL("ansor.TuneOption")
 TVM_REGISTER_GLOBAL("ansor.AutoScheduleBySearchTask")
 .set_body_typed([](SearchTask task, SearchPolicy search_policy,
                    TuneOption tune_option) {
-  return AutoSchedule(task, search_policy, tune_option);
+  te::Schedule sch;
+  Array<te::Tensor> return_tensors;
+  std::tie(sch, return_tensors) = AutoSchedule(task, search_policy, tune_option);
+
+  return Array<ObjectRef>{sch, return_tensors};
 });
 
 TVM_REGISTER_GLOBAL("ansor.AutoScheduleByWorkloadKey")
