@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
+.. _ansor-simple-subgraph:
+
 Writing compute expression and Using Ansor auto-scheduler
 =========================================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, \

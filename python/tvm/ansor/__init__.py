@@ -35,5 +35,6 @@ from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, RPCRunn
 from .cost_model import RandomModel
 from .cost_model.xgb_model import XGBModel
 from .serialization import LogToFile, LogReader, best_measure_pair_in_file
-from .workload_registry import register_auto_scheduler_workload_func, workload_key_to_dag
+from .workload_registry import register_auto_scheduler_workload_func, workload_key_to_dag, \
+    make_workload_key_func
 from .task_scheduler import TaskScheduler, SimpleTaskScheduler
