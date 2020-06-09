@@ -26,7 +26,8 @@ from ..util import simplify
 
 
 
-def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype, output_padding=(0, 0)):
+def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype,
+                          output_padding):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -65,6 +66,7 @@ def conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype, 
     _, out_c, filter_h, filter_w = kernel.shape
     stride_h, stride_w = strides
     opad_h, opad_w = output_padding
+    assert opad_h < stride_h and opad_w < stride_w
     # dilate data
     data_dilate = dilate(data, [1, 1, stride_h, stride_w], name='data_dilate')
     # pad data

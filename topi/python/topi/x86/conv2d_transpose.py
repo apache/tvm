@@ -22,7 +22,7 @@ from .. import nn
 from .conv2d import conv2d_nchw, schedule_conv2d_nchw
 
 
-def conv2d_transpose_nchw(data, kernel, strides, padding, out_dtype, output_padding=(0, 0)):
+def conv2d_transpose_nchw(data, kernel, strides, padding, out_dtype, output_padding):
     data_pad, kernel_transform = \
         nn.conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype, output_padding)
     # reuse conv2d_nchw implementation

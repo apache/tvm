@@ -28,7 +28,7 @@ from ..util import get_const_tuple, traverse_inline
 
 @autotvm.register_topi_compute("conv2d_transpose_nchw.cuda")
 def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype,
-                          output_padding=(0, 0)):
+                          output_padding):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -45,6 +45,8 @@ def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype,
         Padding size, or ['VALID', 'SAME']
     out_dtype: str
         The output type. This is used in mixed precision
+    output_padding : tuple of two ints
+        Used to disambiguate output shape.
 
     Returns
     -------
@@ -55,6 +57,7 @@ def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype,
     _, out_channels, kernel_height, kernel_width = get_const_tuple(kernel.shape)
     stride_height, stride_width = stride
     outpad_height, outpad_width = output_padding
+    assert outpad_height < stride_height and outpad_width < stride_width
     cfg.stride = stride
     pad_top, pad_left, pad_bottom, pad_right = nn.get_pad_tuple(
         padding, (kernel_height, kernel_width))

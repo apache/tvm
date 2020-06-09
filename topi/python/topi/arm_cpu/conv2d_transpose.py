@@ -30,7 +30,7 @@ from .conv2d_spatial_pack import schedule_conv2d_spatial_pack_nchw
 
 @autotvm.register_topi_compute("conv2d_transpose_nchw.arm_cpu")
 def conv2d_transpose_nchw(cfg, Input, Filter, strides, padding, out_dtype,
-                          output_padding=(0, 0)):
+                          output_padding):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -68,12 +68,13 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, n
 
     N, CI, IH, IW = get_const_tuple(data.shape)
     _, CO, KH, KW = get_const_tuple(kernel.shape)
+    HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     opad_h, opad_w = output_padding
+    assert opad_h < HSTR and opad_w < WSTR
 
     pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (KH, KW))
     bpad_top, bpad_bottom = KH - 1 - pad_top, KH - 1 - pad_bottom + opad_h
     bpad_left, bpad_right = KW - 1 - pad_left, KW - 1 - pad_right + opad_w
-    HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
 
     OH = (IH - 1) * HSTR - pad_top - pad_bottom + KH + opad_h
     OW = (IW - 1) * WSTR - pad_left - pad_right + KW + opad_w

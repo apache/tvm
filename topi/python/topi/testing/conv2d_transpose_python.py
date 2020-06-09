@@ -22,7 +22,7 @@ import topi
 from topi.nn.util import get_pad_tuple
 
 
-def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding=(0, 0)):
+def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding):
     """Transposed convolution operator in NCHW layout.
 
     Parameters
@@ -39,6 +39,9 @@ def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding=(0,
     padding : int or str
         Padding size, or ['VALID', 'SAME']
 
+    output_padding : int or a list/tuple of two ints
+        Use to disambiguate the output shape.
+
     Returns
     -------
     b_np : np.ndarray
@@ -50,7 +53,11 @@ def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding=(0,
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
-    opad_h, opad_w = output_padding
+    if isinstance(output_padding, int):
+        opad_h = opad_w = output_padding
+    else:
+        opad_h, opad_w = output_padding
+    assert opad_h < stride_h and opad_w < stride_w
     # dilate stage
     dilated_a_np = topi.testing.dilate_python(a_np, [1, 1, stride_h, stride_w])
     # padding stage
