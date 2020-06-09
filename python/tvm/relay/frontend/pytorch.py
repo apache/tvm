@@ -1806,6 +1806,7 @@ def _get_convert_map(prelude):
         "aten::view"                            : _view(),
         "aten::reshape"                         : _reshape(),
         "aten::clone"                           : _clone(),
+        "aten::copy_"                           : _clone(),
         "aten::log_softmax"                     : _log_softmax(),
         "aten::sigmoid"                         : _sigmoid(),
         "aten::softplus"                        : _softplus(),
