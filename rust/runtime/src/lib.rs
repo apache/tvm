@@ -41,9 +41,9 @@ extern crate num_cpus;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate old_tvm_macros as tvm_macros;
 extern crate serde_json;
 extern crate tvm_common;
-extern crate old_tvm_macros as tvm_macros;
 
 mod allocator;
 mod array;
