@@ -36,7 +36,7 @@ pub struct StringObj {
 }
 
 impl String {
-    pub fn new(string: std::string::String) -> Result<String, NulError> {
+    pub fn new(string: std::string::String) -> Result<String, Error> {
         let cstring = CString::new(string)?;
 
         // The string is being corrupted.
@@ -73,7 +73,7 @@ impl String {
 // mod tests {
 //     use super::String;
 //     use crate::object::debug_print;
-//     use crate::ToObjectRef;
+//     use crate::IsObjectRef;
 //     use anyhow::{ensure, Result};
 
 //     #[test]

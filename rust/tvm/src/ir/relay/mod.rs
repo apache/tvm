@@ -1,5 +1,5 @@
 use super::array::Array;
-use crate::runtime::{IsObject, Object, ObjectPtr, ObjectRef, String as TString, ToObjectRef};
+use crate::runtime::{IsObject, Object, ObjectPtr, ObjectRef, String as TString, IsObjectRef};
 use crate::DataType;
 use tvm_macros::Object;
 

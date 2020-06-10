@@ -1,55 +1,45 @@
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::marker::PhantomData;
 
-use crate::runtime::object::{ObjectRef, ToObjectRef};
+use crate::runtime::object::{ObjectRef, IsObjectRef};
 
-use tvm_rt::external;
-use tvm_rt::RetValue;
-
-use anyhow::Result;
+use tvm_rt::{external, RetValue, function::{Function, Result}};
+use tvm_rt::errors::Error;
 
 #[derive(Clone)]
-pub struct Array<T: ToObjectRef> {
+pub struct Array<T: IsObjectRef> {
     object: ObjectRef,
     _data: PhantomData<T>,
 }
 
+// TODO(@jroesch): convert to use generics instead of casting inside
+// the implementation.
 external! {
     #[name("node.ArrayGetItem")]
     fn array_get_item(array: ObjectRef, index: isize) -> ObjectRef;
 }
 
-impl<T: ToObjectRef> Array<T> {
+impl<T: IsObjectRef> Array<T> {
     pub fn from_vec(data: Vec<T>) -> Result<Array<T>> {
-        unimplemented!()
-        // let iter = data.iter().map(|element| element.to_object_ref());
+        let iter = data.iter().map(|element| element.to_object_ref().into()).collect();
 
-        // let array_data = Builder::default()
-        //     .get_function("node.Array")
-        //     .args(iter)
-        //     .invoke()?
-        //     .try_into()?;
+        let func = Function::get("node.Array")
+            .expect("node.Array function is not registered, this is most likely a build or linking error");
 
-        // Ok(Array {
-        //     object: array_data,
-        //     _data: PhantomData,
-        // })
+        let array_data = func.invoke(iter)?.try_into()?;
+
+        Ok(Array {
+            object: array_data,
+            _data: PhantomData,
+        })
     }
 
     pub fn get(&self, index: isize) -> Result<T>
     where
-        T: TryFrom<RetValue, Error = anyhow::Error>,
+        T: TryFrom<RetValue, Error = Error>,
     {
-        unimplemented!()
-        // // TODO(@jroesch): why do we used a signed index here?
-        // let element: T = Builder::default()
-        //     .get_function("node.ArrayGetItem")
-        //     .arg(self.object.clone())
-        //     .arg(index)
-        //     .invoke()?
-        //     .try_into()?;
-
-        // Ok(element)
+       let oref: ObjectRef = array_get_item(self.object.clone(), index)?;
+       oref.downcast()
     }
 }
 

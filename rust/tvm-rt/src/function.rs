@@ -32,12 +32,13 @@ use std::{
     ptr, str,
 };
 
-pub use tvm_sys::{ffi, ArgValue, RetValue};
 
 use crate::errors::Error;
 
 use super::to_boxed_fn::ToBoxedFn;
-use super::to_function::{ToFunction, Typed};
+
+pub use tvm_sys::{ffi, ArgValue, RetValue};
+pub use super::to_function::{ToFunction, Typed};
 
 pub type Result<T> = std::result::Result<T, Error>;
 

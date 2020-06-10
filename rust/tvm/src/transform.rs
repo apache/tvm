@@ -1,9 +1,13 @@
 use crate::ir::array::Array;
-use crate::runtime::{external, Function, String as TString};
+use crate::runtime::{external, function::{self, Result, ToFunction, Typed}, String as TString};
 use crate::runtime::{Object, ObjectPtr, ObjectRef};
+use crate::ir::relay::Function;
+
 use tvm_macros::Object;
 
-type Pass = ObjectRef;
+pub type Pass = ObjectRef;
+pub type IRModule = ObjectRef;
+pub type PassContext = ObjectRef;
 
 #[repr(C)]
 #[derive(Object)]
@@ -17,8 +21,8 @@ pub struct PassInfoNode {
 }
 
 impl PassInfo {
-    pub fn new(opt_level: i32, name: String, required: Vec<String>) -> anyhow::Result<PassInfo> {
-        let required: Result<_, _> = required
+    pub fn new(opt_level: i32, name: String, required: Vec<String>) -> Result<PassInfo> {
+        let required: Result<_> = required
             .into_iter()
             .map(|name| TString::new(name))
             .collect();
@@ -38,5 +42,10 @@ impl PassInfo {
 
 external! {
     #[name("relay._transform.MakeFunctionPass")]
-    fn create_func_pass(func: Function, pass_info: PassInfo) -> Pass;
+    fn create_func_pass(func: function::Function, pass_info: PassInfo) -> Pass;
+}
+
+pub fn function_pass<F: Fn(Function, IRModule, PassContext) -> Function + 'static>(pass_fn: F, pass_info: PassInfo) -> Result<Pass> {
+    let func = pass_fn.to_function();
+    create_func_pass(func, pass_info)
 }

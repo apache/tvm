@@ -39,13 +39,34 @@ impl ObjectRef {
     }
 }
 
-pub trait ToObjectRef {
-    fn to_object_ref(&self) -> ObjectRef;
+pub trait IsObjectRef: Sized {
+    type Object: IsObject;
+    fn as_object_ptr(&self) -> Option<&ObjectPtr<Self::Object>>;
+    fn from_object_ptr(object_ptr: Option<ObjectPtr<Self::Object>>) -> Self;
+
+    fn to_object_ref(&self) -> ObjectRef {
+        let object_ptr = self.as_object_ptr().cloned();
+        ObjectRef(object_ptr.map(|ptr| ptr.upcast()))
+    }
+
+    fn downcast<U: IsObjectRef>(&self) -> Result<U, Error> {
+        let ptr =
+            self.as_object_ptr()
+                .map(|ptr| ptr.downcast::<U::Object>());
+        let ptr = ptr.transpose()?;
+        Ok(U::from_object_ptr(ptr))
+    }
 }
 
-impl ToObjectRef for ObjectRef {
-    fn to_object_ref(&self) -> ObjectRef {
-        self.clone()
+impl IsObjectRef for ObjectRef {
+    type Object = Object;
+
+    fn as_object_ptr(&self) -> Option<&ObjectPtr<Self::Object>> {
+        self.0.as_ref()
+    }
+
+    fn from_object_ptr(object_ptr: Option<ObjectPtr<Self::Object>>) -> Self {
+        ObjectRef(object_ptr)
     }
 }
 

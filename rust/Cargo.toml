@@ -31,5 +31,6 @@ members = [
 	"tvm-sys",
 	"tvm-macros",
 	"tvm-rt",
-	"tvm"
+	"tvm",
+	"out-of-tree"
 ]
