@@ -43,6 +43,7 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate tvm_common;
+extern crate old_tvm_macros as tvm_macros;
 
 mod allocator;
 mod array;

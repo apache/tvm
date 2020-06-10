@@ -19,22 +19,9 @@
 
 use proc_macro::TokenStream;
 
-mod external;
 mod import_module;
-mod object;
-mod util;
 
 #[proc_macro]
 pub fn import_module(input: TokenStream) -> TokenStream {
     import_module::macro_impl(input)
-}
-
-#[proc_macro_derive(Object, attributes(base, ref_name, type_key))]
-pub fn macro_impl(input: TokenStream) -> TokenStream {
-    TokenStream::from(object::macro_impl(input))
-}
-
-#[proc_macro]
-pub fn external(input: TokenStream) -> TokenStream {
-    external::macro_impl(input)
 }
