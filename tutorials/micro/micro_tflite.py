@@ -15,13 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-.. _tutorial-micro-tflite:
-
 Micro TVM with TFLite Models
 ============================
 **Author**: `Tom Gall <https://github.com/tom-gall>`_
 
-This tutorial is an introduction to working with MicroTVM and TFLite models with Relay.
+This tutorial is an introduction to working with MicroTVM and a TFLite 
+model with Relay.
 """
 ######################################################################
 # Setup
@@ -30,6 +29,7 @@ This tutorial is an introduction to working with MicroTVM and TFLite models with
 # To get started, TFLite package needs to be installed as prerequisite.
 # 
 # install tflite
+#
 # .. code-block:: bash
 #
 #   pip install tflite=2.1.0 --user
@@ -56,7 +56,7 @@ This tutorial is an introduction to working with MicroTVM and TFLite models with
 #
 #   flatc --python schema.fbs
 #
-# Add current folder (which contains generated tflite module) to PYTHONPATH.
+# Add the current folder (which contains generated tflite module) to PYTHONPATH.
 #
 # .. code-block:: bash
 #
@@ -71,28 +71,27 @@ This tutorial is an introduction to working with MicroTVM and TFLite models with
 #
 # .. code-block:: bash
 #
-# export CMSIS_ST_PATH=/path/to/STM32Cube_FW_F7_V1.16.0/Drivers/CMSIS
+#   export CMSIS_ST_PATH=/path/to/STM32Cube_FW_F7_V1.16.0/Drivers/CMSIS
+
+######################################################################
+# Recreating your own Pre-Trained TFLite model
+# --------------------------------------------
 #
-# Next we need to download a pretrained TFLite model. When working with microcontrollers
+# The tutorial downloads a pretrained TFLite model. When working with microcontrollers
 # you need to be mindful these are highly resource constrained devices as such standard 
-# models like Mobilenet may not fit into their modest memory. 
+# models like MobileNet may not fit into their modest memory. 
 #
 # For this tutorial, we'll make use of one of the TF Micro example models.
 # 
 # If you wish to replicate the training steps see:
 # https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/micro/examples/hello_world/train
 #
-# .. code-block:: bash
+#   .. note::
 #
-# if you download the example pretrained model from
-#   wget https://storage.googleapis.com/download.tensorflow.org/models/tflite/micro/hello_world_2020_04_13.zip
-#   unzip hello_world_2020_04_13.zip
-#   this will fail due to an unimplemented opcode (114)
-#   I've saved an older version of the pre-trailed model and made it available on linaro.org
+#     If you accidentally download the example pretrained model from:
+#     wget https://storage.googleapis.com/download.tensorflow.org/models/tflite/micro/hello_world_2020_04_13.zip
+#     this will fail due to an unimplemented opcode (114)
 
-######################################################################
-# Python imports for tvm, numpy etc
-# ----------------------------------------------
 import os
 import numpy as np
 import tvm
@@ -102,22 +101,17 @@ import requests
 from tvm.contrib import graph_runtime, util
 from tvm import relay
 
-
 ######################################################################
+# Load and prepare the Pre-Trained Model
+# --------------------------------------
 # Load the pretrained TFLite model from a file in your current 
 # directory into a buffer
+
 model_url = 'https://people.linaro.org/~tom.gall/sine_model.tflite'
 model_file = 'sine_model.tflite'
 r = requests.get(model_url, allow_redirects=True)
 
 open(model_file,'wb').write(r.content)
-######################################################################
-# Uncomment the following code to load the model from a local 
-# directory
-# Load the pretrained TFLite model from a file in your current 
-# directory into a buffer
-# model_dir ="./"
-# tflite_model_file = os.path.join(model_dir, "sine_model.tflite")
 tflite_model_buf = open(model_file, "rb").read()
 
 ######################################################################
@@ -133,14 +127,6 @@ except AttributeError:
 # Print out the version of the model
 version = tflite_model.Version()
 print ("Model Version: " + str(version))
-
-
-######################################################################
-# Setup the device config which is what will be used to communicate
-# with the microcontroller (a STM32F746 Discovery board)
-TARGET = 'c -device=micro_dev'
-dev_config = micro.device.arm.stm32f746xx.generate_config("127.0.0.1", 6666)
-
 
 ######################################################################
 # Parse the python model object to convert it into a relay module
@@ -159,61 +145,73 @@ mod, params = relay.frontend.from_tflite(tflite_model,
                                          dtype_dict={input_tensor: input_dtype})
 
 ######################################################################
-# You'll need to uncomment the following blocks of code for the 
-# example to run on device.
+# Running on device
+# ----------------------------------------------
+# Setup the device config which is what will be used to communicate
+# with the microcontroller (a STM32F746 Discovery board)
+TARGET = 'c -device=micro_dev'
+dev_config = micro.device.arm.stm32f746xx.generate_config("127.0.0.1", 6666)
+
+######################################################################
 # Next with the dev_config, we establish a micro session and create
 # a context
 #
 # .. code-block:: python
 #
-# with micro.Session(dev_config) as sess:
-#   ctx = tvm.micro_dev(0)
+#   with micro.Session(dev_config) as sess:
+#      ctx = tvm.micro_dev(0)
 
 ######################################################################
 # Now we create a build config for relay. turning off two options
 # and then calling relay.build which will result in a C source
+# file.
 #
 # .. code-block:: python
 #
-#    disable_vectorize = tvm.target.build_config(disable_vectorize=True)
-#    disable_fusion = relay.build_config(disabled_pass={'FuseOps'})
-#    with disable_vectorize, disable_fusion:
-#        graph, c_mod, params = relay.build(mod, target=TARGET, params=params)
+#   disable_vectorize = tvm.target.build_config(disable_vectorize=True)
+#   disable_fusion = relay.build_config(disabled_pass={'FuseOps'})
+#   with disable_vectorize, disable_fusion:
+#      graph, c_mod, params = relay.build(mod, target=TARGET, params=params)
 
 ######################################################################
-# With the c_mod that is the handle to our c sourcecode, we create a
+# With the c_mod that is the handle to our C source code, we create a
 # micro module, followed by a compiled object which behind the scenes
 # is linked to the microTVM runtime for running on the target board
+#
 # .. code-block:: python
 #
-#    micro_mod = micro.create_micro_mod(c_mod, dev_config)
-#    mod = graph_runtime.create(graph, micro_mod, ctx)
+#   micro_mod = micro.create_micro_mod(c_mod, dev_config)
+#   mod = graph_runtime.create(graph, micro_mod, ctx)
 
 ######################################################################
-# Pass the weights to get ready to do some inference
+# Pass the weights to get ready to perform inference
+#
 # .. code-block:: python
 #
-#    ``mod.set_input(**params)``
+#   mod.set_input(**params)
 
 ######################################################################
-# The model consumes a single float32. Construct a tvm.nd.array object
+# The model consumes a single float32 value and returns a predicted 
+# sine value.
+# To pass the input value we construct a tvm.nd.array object
 # with a single contrived number as input. For this model values of 
-# 0 to 2Pi are acceptible.
+# 0 to 2Pi are acceptable.
+#
 # .. code-block:: python
 #
-#    mod.set_input(input_tensor, tvm.nd.array(np.array([0.5], dtype="float32")))
+#   mod.set_input(input_tensor, tvm.nd.array(np.array([0.5], dtype="float32")))
 
 ######################################################################
 # Run the model on device
 #
 # .. code-block:: python
 #
-#    mod.run()
+#   mod.run()
 
 ######################################################################
 # Get output from the run and print
 #
 # .. code-block:: python
 #
-#    tvm_output = mod.get_output(0).asnumpy()
-#    print("result is: "+str(tvm_output))
+#   tvm_output = mod.get_output(0).asnumpy()
+#   print("result is: "+str(tvm_output))
