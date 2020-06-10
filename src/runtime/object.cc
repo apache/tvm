@@ -246,11 +246,10 @@ int TVMObjectFree(TVMObjectHandle obj) {
   API_END();
 }
 
-
 int TVMObjectDerivedFrom(uint32_t child_type_index, uint32_t parent_type_index, int* is_derived) {
   API_BEGIN();
-  *is_derived = tvm::runtime::TypeContext::Global()->
-    DerivedFrom(child_type_index, parent_type_index);
+  *is_derived =
+      tvm::runtime::TypeContext::Global()->DerivedFrom(child_type_index, parent_type_index);
   API_END();
 }
 
