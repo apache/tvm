@@ -327,7 +327,7 @@ std::function<void()> CreateTVMOp(const DSOModule& module, const TVMOpParam& par
   } TVMValue;
   /*typedef*/ enum {
     kTVMDLTensorHandle = 7U,
-  } /*TVMTypeCode*/;
+  } /*TVMArgTypeCode*/;
   struct OpArgs {
     DynArray<DLTensor> args;
     DynArray<TVMValue> arg_values;

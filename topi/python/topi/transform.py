@@ -131,7 +131,7 @@ def flip(a, axis=0):
     """
     return cpp.flip(a, axis)
 
-def strided_slice(a, begin, end, strides=None):
+def strided_slice(a, begin, end, strides=None, slice_mode="end"):
     """Slice of an array.
 
     Parameters
@@ -139,16 +139,23 @@ def strided_slice(a, begin, end, strides=None):
     a : tvm.te.Tensor
         The tensor to be sliced.
 
-    begin: list of int
+    begin : list of int
         The indices to begin with in the slicing.
 
-    end: list of int
+    end : list of int
         Indicies indicating end of the slice.
 
-    strides: list of int, optional
+    strides : list of int, optional
         Specifies the stride values, it can be negative
         in that case, the input tensor will be reversed
         in that particular axis.
+
+    slice_mode : str, optional
+        The slice mode [end, size].
+        end - The ending indices for the slice [default].
+        size - The input strides will be ignored, input end in this mode indicates
+        the sizeof a slice starting at the location specified by begin. If end[i]
+        is -1, all remaining elements in that dimension are included in the slice.
 
     Returns
     -------
@@ -156,7 +163,7 @@ def strided_slice(a, begin, end, strides=None):
     """
     if strides is None:
         strides = []
-    return cpp.strided_slice(a, begin, end, strides)
+    return cpp.strided_slice(a, begin, end, strides, slice_mode)
 
 @tvm.te.tag_scope(tag=tag.INJECTIVE+",strided_set")
 def strided_set(a, v, begin, end, strides=None):

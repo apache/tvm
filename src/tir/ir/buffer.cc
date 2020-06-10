@@ -26,11 +26,10 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
 #include <iterator>
 #include <stack>
-
-#include "../../arith/compute_expr.h"
 
 namespace tvm {
 namespace tir {
@@ -367,7 +366,8 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
     int highest_dim = 0;
     extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
   } else {
-    extent = arith::ComputeReduce<tir::MulNode>(self->shape, PrimExpr()) - offset;
+    auto fmul = [](PrimExpr a, PrimExpr b) { return a * b; };
+    extent = foldl(fmul, make_const(DataType::Int(32), 1), self->shape) - offset;
   }
   PrimExpr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
