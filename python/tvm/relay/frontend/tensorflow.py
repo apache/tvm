@@ -1331,10 +1331,12 @@ def _fill():
             except Exception:
                 output_shape = inputs[0]
 
-        fill_arg = _get_num_param(params, inputs.pop(1))
         dtype = attr['T'].name
-        return _op.full(tvm.relay.const(fill_arg, dtype),
-                        output_shape, dtype)
+        try:
+            fill_arg = tvm.relay.const(_get_num_param(params, inputs[1]), dtype)
+        except (IndexError, KeyError, AttributeError):
+            fill_arg = inputs[1]
+        return _op.full(fill_arg, output_shape, dtype)
     return _impl
 
 def _lrn():
