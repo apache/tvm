@@ -17,30 +17,14 @@
  * under the License.
  */
 
-use thiserror::Error;
+use proc_macro2::TokenStream;
+use quote::quote;
+use std::env;
 
-#[derive(Error, Debug)]
-#[error("invalid header (expected {expected_type:?}, found {actual_type:?})")]
-pub struct ValueDowncastError {
-    pub actual_type: String,
-    pub expected_type: &'static str,
-}
-
-#[derive(Error, Debug)]
-#[error("Function call `{context:?}` returned error: {message:?}")]
-pub struct FuncCallError {
-    context: String,
-    message: String,
-}
-
-impl FuncCallError {
-    pub fn get_with_context(context: String) -> Self {
-        Self {
-            context,
-            message: unsafe { std::ffi::CStr::from_ptr(crate::ffi::TVMGetLastError()) }
-                .to_str()
-                .expect("failed while attempting to retrieve the TVM error message")
-                .to_owned(),
-        }
+pub fn get_tvm_rt_crate() -> TokenStream {
+    if env::var("CARGO_PKG_NAME").unwrap() == "tvm-rt" {
+        quote!(crate)
+    } else {
+        quote!(tvm_rt)
     }
 }

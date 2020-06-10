@@ -511,11 +511,20 @@ class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, ObjectRef> {
 };
 
 /*!
- * \brief Array container of ObjectRef in DSL graph.
- *  Array implements copy-on-write semantics, which means array is mutable
- *  but copy will happen when array is referenced in more than two places.
+ * \brief Array, container representing a contigious sequence of ObjectRefs.
  *
- * operator[] only provide const access, use Set to mutate the content.
+ *  Array implements in-place copy-on-write semantics.
+ *
+ * As in typical copy-on-write, a method which would typically mutate the array
+ * instead opaquely copies the underlying container, and then acts on its copy.
+ *
+ * If the array has reference count equal to one, we directly update the
+ * container in place without copying. This is optimization is sound because
+ * when the reference count is equal to one this reference is guranteed to be
+ * the sole pointer to the container.
+ *
+ *
+ * operator[] only provides const access, use Set to mutate the content.
  * \tparam T The content ObjectRef type.
  */
 template <typename T,
