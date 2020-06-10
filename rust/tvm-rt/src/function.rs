@@ -87,7 +87,9 @@ impl Function {
     }
 
     pub fn get_boxed<F: ?Sized, S: AsRef<str>>(name: S) -> Option<Box<F>>
-    where F: ToBoxedFn {
+    where
+        F: ToBoxedFn,
+    {
         Self::get(name).map(|f| f.to_boxed_fn::<F>())
     }
 
@@ -295,8 +297,7 @@ mod tests {
         }
 
         function::register_override(ident, "ident".to_owned(), true).unwrap();
-        let func =
-            Function::get_boxed::<dyn Fn(i32) -> Result<i32>, _>("ident").unwrap();
+        let func = Function::get_boxed::<dyn Fn(i32) -> Result<i32>, _>("ident").unwrap();
         assert_eq!(func(60).unwrap(), 60);
     }
 }

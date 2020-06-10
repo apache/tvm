@@ -144,9 +144,7 @@ fn dec_ref<T: IsObject>(ptr: NonNull<T>) {
 impl ObjectPtr<Object> {
     fn from_raw(object_ptr: *mut Object) -> Option<ObjectPtr<Object>> {
         let non_null = NonNull::new(object_ptr);
-        non_null.map(|ptr| {
-            ObjectPtr { ptr }
-        })
+        non_null.map(|ptr| ObjectPtr { ptr })
     }
 }
 
@@ -164,7 +162,10 @@ impl<T: IsObject> Drop for ObjectPtr<T> {
 }
 
 impl<T: IsObject> ObjectPtr<T> {
-    pub fn leak<'a>(object_ptr: ObjectPtr<T>) -> &'a mut T where T: 'a {
+    pub fn leak<'a>(object_ptr: ObjectPtr<T>) -> &'a mut T
+    where
+        T: 'a,
+    {
         unsafe { &mut *std::mem::ManuallyDrop::new(object_ptr).ptr.as_ptr() }
     }
 
@@ -179,7 +180,9 @@ impl<T: IsObject> ObjectPtr<T> {
     pub fn count(&self) -> i32 {
         // need to do atomic read in C++
         // ABI compatible atomics is funky/hard.
-        self.as_object().ref_count.load(std::sync::atomic::Ordering::SeqCst)
+        self.as_object()
+            .ref_count
+            .load(std::sync::atomic::Ordering::SeqCst)
     }
 
     fn as_object<'s>(&'s self) -> &'s Object {
