@@ -43,7 +43,6 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 extern crate tvm_common;
-extern crate old_tvm_macros as tvm_macros;
 
 mod allocator;
 mod array;
@@ -60,7 +59,6 @@ pub use tvm_common::{
     packed_func::{self, *},
     TVMArgValue, TVMRetValue,
 };
-
 pub use tvm_macros::import_module;
 
 pub use self::{array::*, errors::*, graph::*, module::*, threading::*, workspace::*};
