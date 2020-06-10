@@ -501,6 +501,20 @@ class MatMul(OnnxOpConverter):
         return _op.nn.dense(inputs[0], input_1_t)
 
 
+class Mod(OnnxOpConverter):
+    """ Operator converter for Mod.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        assert len(inputs) == 2, "Mod op take 2 inputs, {} given".format(len(inputs))
+        if attr['fmod'] == 1:
+            op_name = "floor_mod"
+        else:
+            op_name = "mod"
+        return AttrCvt(op_name)(inputs, {}, params)
+
+
 class MaxPool(Pool):
     """ Operator converter for MaxPool
     """
@@ -1000,11 +1014,12 @@ class Slice(OnnxOpConverter):
                 attr['ends'] = new_ends
         except KeyError:
             pass
+        begin = list(attr['starts'])
+        end = list(attr['ends'])
 
-        return AttrCvt('strided_slice',
-                       transforms={'starts': 'begin',
-                                   'ends': 'end'},
-                       ignores=['axes'])(inputs, attr)
+        return _op.strided_slice(inputs[0],
+                                 begin=_expr.const(begin, dtype="int32"),
+                                 end=_expr.const(end, dtype="int32"))
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
@@ -1020,7 +1035,9 @@ class Slice(OnnxOpConverter):
                     starts, ends, axes)
                 starts = new_starts
                 ends = new_ends
-        return _op.strided_slice(inputs[0], begin=starts, end=ends)
+        return _op.strided_slice(inputs[0],
+                                 begin=_expr.const(starts, dtype="int32"),
+                                 end=_expr.const(ends, dtype="int32"))
 
 
 class Gather(OnnxOpConverter):
@@ -1039,6 +1056,16 @@ class GatherND(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         return _op.gather_nd(inputs[0], inputs[1])
+
+
+class Scatter(OnnxOpConverter):
+    """ Operator converter for Scatter.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr.get('axis', 0)
+        return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
 
 
 class Greater(OnnxOpConverter):
@@ -1660,8 +1687,23 @@ class TopK(OnnxOpConverter):
         return _op.topk(inputs[0], k=K, axis=axis)
 
 
+class MaxRoiPool(OnnxOpConverter):
+    """Operator converter for MaxRoiPool.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        assert len(inputs) == 2, "MMaxRoiPool op take 2 inputs, {} given".format(len(inputs))
+
+        data = inputs[0]
+        rois = inputs[1]
+        pooled_shape = attr.get("pooled_shape")
+        spatial_scale = attr.get("spatial_scale", 1.0)
+
+        return _vision.roi_pool(data, rois, pooled_shape, spatial_scale)
+
+
 class RoiAlign(OnnxOpConverter):
-    """Operator converter for TopK
+    """Operator converter for RoiAlign.
     """
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
@@ -1778,6 +1820,8 @@ def _get_convert_map(opset):
         'SoftPlus': SoftPlus.get_converter(opset),
         'Gemm': Gemm.get_converter(opset),
         'MatMul': MatMul.get_converter(opset),
+        'Mod': Mod.get_converter(opset),
+        'Xor': Renamer('logical_xor'),
 
         # defs/nn
         'AveragePool': AveragePool.get_converter(opset),
@@ -1797,6 +1841,7 @@ def _get_convert_map(opset):
         'LSTM': LSTM.get_converter(opset),
 
         # defs/vision
+        'MaxRoiPool': MaxRoiPool.get_converter(opset),
         'RoiAlign': RoiAlign.get_converter(opset),
 
         # defs/reduction
@@ -1828,6 +1873,8 @@ def _get_convert_map(opset):
         'SpaceToDepth': SpaceToDepth.get_converter(opset),
         'Gather': Gather.get_converter(opset),
         'GatherND': GatherND.get_converter(opset),
+        'Scatter': Scatter.get_converter(opset),
+        'ScatterElements': Scatter.get_converter(opset),
         'Squeeze': AttrCvt('squeeze', {'axes': 'axis'}),
         'Unsqueeze': Unsqueeze.get_converter(opset),
         'Pad': Pad.get_converter(opset),

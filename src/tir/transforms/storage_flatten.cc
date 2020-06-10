@@ -37,7 +37,6 @@
 
 #include <unordered_map>
 
-#include "../../arith/compute_expr.h"
 #include "../../arith/ir_visitor_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "arg_binder.h"
@@ -336,19 +335,18 @@ class StorageFlattener : public StmtExprMutator {
     return stmt;
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
-    CHECK(op->call_type != CallNode::Halide) << "Cannot handle Halide calls "
-                                             << " please run SchedulePostProcToPrimFunc first";
-    return StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
+    LOG(FATAL) << "ProducerLoad cannot appear in a valid TIR PrimFunc.";
+    return PrimExpr();
   }
 
-  Stmt VisitStmt_(const ProvideNode* op) final {
+  Stmt VisitStmt_(const ProducerStoreNode* op) final {
     LOG(FATAL) << "Cannot handle Provide "
                << " please run SchedulePostProcToPrimFunc first";
     return Stmt();
   }
 
-  Stmt VisitStmt_(const RealizeNode* op) final {
+  Stmt VisitStmt_(const ProducerRealizeNode* op) final {
     LOG(FATAL) << "Cannot handle Realize "
                << " please run SchedulePostProcToPrimFunc first";
     return Stmt();

@@ -42,7 +42,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../arith/compute_expr.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../tir/transforms/ir_util.h"
 #include "llvm_common.h"

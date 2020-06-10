@@ -31,10 +31,10 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
         The input tensor.
 
     valid_count : tvm.te.Tensor, optional
-        1-D tensor for valid number of boxes only for ssd.
+        1-D tensor for valid number of boxes.
 
     axis : int, optional
-            Axis along which to sort the input tensor.
+        Axis along which to sort the input tensor.
         By default the flattened array is used.
 
     is_ascend : boolean, optional

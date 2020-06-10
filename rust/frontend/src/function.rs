@@ -204,7 +204,7 @@ impl<'a, 'm> Builder<'a, 'm> {
         ensure!(self.func.is_some(), errors::FunctionNotFoundError);
 
         let num_args = self.arg_buf.len();
-        let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMTypeCode>) =
+        let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMArgTypeCode>) =
             self.arg_buf.iter().map(|arg| arg.to_tvm_value()).unzip();
 
         let mut ret_val = unsafe { MaybeUninit::uninit().assume_init() };
@@ -257,9 +257,9 @@ unsafe extern "C" fn tvm_callback(
     for i in 0..len {
         value = args_list[i];
         tcode = type_codes_list[i];
-        if tcode == ffi::TVMTypeCode_kTVMObjectHandle as c_int
-            || tcode == ffi::TVMTypeCode_kTVMPackedFuncHandle as c_int
-            || tcode == ffi::TVMTypeCode_kTVMModuleHandle as c_int
+        if tcode == ffi::TVMArgTypeCode_kTVMObjectHandle as c_int
+            || tcode == ffi::TVMArgTypeCode_kTVMPackedFuncHandle as c_int
+            || tcode == ffi::TVMArgTypeCode_kTVMModuleHandle as c_int
         {
             check_call!(ffi::TVMCbArgToReturn(
                 &mut value as *mut _,

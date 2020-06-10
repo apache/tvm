@@ -19,7 +19,7 @@
 import tvm._ffi
 
 from tvm.runtime import Object, ObjectGeneric, convert_to_object
-from tvm.tir import expr as _expr
+from tvm.tir import expr as _expr, DataProducer
 
 from . import _ffi_api
 
@@ -52,7 +52,7 @@ class TensorIntrinCall(Object):
 
 
 @tvm._ffi.register_object
-class Tensor(Object, _expr.ExprOp):
+class Tensor(DataProducer, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
 
     def __call__(self, *indices):
@@ -69,9 +69,8 @@ class Tensor(Object, _expr.ExprOp):
             else:
                 raise ValueError("The indices must be expression")
 
-        return _expr.Call(self.dtype, self.op.name,
-                          args, _expr.Call.Halide,
-                          self.op, self.value_index)
+        return _expr.ProducerLoad(self, args)
+
 
     def __getitem__(self, indices):
         return TensorSlice(self, indices)

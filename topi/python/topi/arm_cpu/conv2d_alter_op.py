@@ -117,7 +117,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         weight_expr = relay.reshape(weight_expr,
                                     newshape=(KH + tile_size - 1,
                                               KW + tile_size - 1,
-                                              idxd(CO, VC), VC, CI))
+                                              CO // VC, VC, CI))
         weight_expr = relay.transpose(weight_expr, axes=[0, 1, 2, 4, 3])
 
         new_attrs['tile_size'] = tile_size

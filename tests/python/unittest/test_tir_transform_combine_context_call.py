@@ -22,7 +22,7 @@ def test_for():
     def device_context(dev_id):
         ctx = tvm.tir.call_extern("handle", "device_context", dev_type, dev_id)
         return tvm.tir.Call(
-            "handle", "tvm_thread_context", [ctx], tvm.tir.Call.Intrinsic, None, 0)
+            "handle", "tvm_thread_context", [ctx], tvm.tir.Call.Intrinsic)
 
     ib = tvm.tir.ir_builder.create()
     n = te.var("n")

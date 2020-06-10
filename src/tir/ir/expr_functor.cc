@@ -41,6 +41,10 @@ void ExprVisitor::VisitExpr_(const BufferLoadNode* op) {
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
 }
 
+void ExprVisitor::VisitExpr_(const ProducerLoadNode* op) {
+  VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
+}
+
 void ExprVisitor::VisitExpr_(const LetNode* op) {
   this->VisitExpr(op->value);
   this->VisitExpr(op->body);
@@ -135,6 +139,16 @@ PrimExpr ExprMutator::VisitExpr_(const BufferLoadNode* op) {
   }
 }
 
+PrimExpr ExprMutator::VisitExpr_(const ProducerLoadNode* op) {
+  auto fmutate = [this](const PrimExpr& e) { return this->VisitExpr(e); };
+  Array<PrimExpr> indices = MutateArray(op->indices, fmutate);
+  if (indices.same_as(op->indices)) {
+    return GetRef<PrimExpr>(op);
+  } else {
+    return ProducerLoad(op->producer, indices);
+  }
+}
+
 PrimExpr ExprMutator::VisitExpr_(const LetNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   PrimExpr body = this->VisitExpr(op->body);
@@ -152,7 +166,7 @@ PrimExpr ExprMutator::VisitExpr_(const CallNode* op) {
   if (args.same_as(op->args)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return CallNode::make(op->dtype, op->name, args, op->call_type, op->func, op->value_index);
+    return CallNode::make(op->dtype, op->name, args, op->call_type);
   }
 }
 

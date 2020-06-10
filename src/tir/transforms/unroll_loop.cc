@@ -33,7 +33,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../../arith/compute_expr.h"
 #include "ir_util.h"
 
 namespace tvm {

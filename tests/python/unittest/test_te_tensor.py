@@ -261,8 +261,8 @@ def test_tuple_with_different_deps():
     stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
 
     def get_B1_realize(x):
-        if isinstance(x, tvm.tir.Realize) and \
-           x.func == B1.op and x.value_index == 1:
+        if isinstance(x, tvm.tir.ProducerRealize) and \
+           x.producer.op == B1.op and x.producer.value_index == 1:
             ret.append(x)
     ret = []
     tvm.tir.stmt_functor.post_order_visit(stmt, get_B1_realize)

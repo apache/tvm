@@ -24,6 +24,7 @@
 
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
 #include <sstream>
 
@@ -40,7 +41,58 @@ inline void DispatchExternOCML(const TVMArgs& args, TVMRetValue* rv) {
   *rv = CallNode::make(call->dtype, intrinsic_name.str(), call->args, CallNode::PureExtern);
 }
 
+inline void DispatchShuffle(const TVMArgs& targs, TVMRetValue* rv) {
+  PrimExpr e_call = targs[0];
+  using namespace tir;
+  const CallNode* call = e_call.as<CallNode>();
+  CHECK(call != nullptr);
+  CHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
+  PrimExpr var = call->args[1];
+  CHECK_EQ(var.dtype().bits(), 32);
+
+  // get own lane in self (__lane_id)
+  PrimExpr minus_one = tir::make_const(DataType::Int(32), -1);
+  PrimExpr zero = tir::make_zero(DataType::Int(32));
+  PrimExpr lo = CallNode::make(DataType::Int(32), "llvm.amdgcn.mbcnt.lo", {minus_one, zero},
+                               CallNode::PureExtern);
+  PrimExpr self = CallNode::make(DataType::Int(32), "llvm.amdgcn.mbcnt.hi", {minus_one, lo},
+                                 CallNode::PureExtern);
+
+  // compute lane to get from
+  PrimExpr width = call->args[3];
+  PrimExpr index;
+  if (call->name == "tvm_warp_shuffle") {
+    PrimExpr src_lane = call->args[2];
+    index = src_lane + (self & ~(width - 1));
+  } else if (call->name == "tvm_warp_shuffle_up") {
+    PrimExpr delta = call->args[2];
+    index = self - delta;
+    index = SelectNode::make(index < (self & ~(width - 1)), self, index);
+  } else {
+    CHECK_EQ(call->name, "tvm_warp_shuffle_down");
+    PrimExpr delta = call->args[2];
+    index = self + delta;
+    index = SelectNode::make((self & (width - 1)) + delta >= width, self, index);
+  }
+  PrimExpr res = CallNode::make(var.dtype(), "llvm.amdgcn.ds.bpermute", {index << 2, var},
+                                CallNode::PureExtern);
+  *rv = res;
+}
+
 namespace llvm {
+
+// dummy because we don't have the activemask
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tvm_warp_activemask")
+    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+      PrimExpr zero = tir::make_zero(DataType::Int(32));
+      *rv = zero;
+    });
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tvm_warp_shuffle").set_body(DispatchShuffle);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tvm_warp_shuffle_up").set_body(DispatchShuffle);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tvm_warp_shuffle_down").set_body(DispatchShuffle);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.floor").set_body(DispatchExternOCML);
 

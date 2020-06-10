@@ -780,7 +780,7 @@ def _test_pool2d_int(opfunc, reffunc, dtype):
     x = relay.var("x", shape=dshape, dtype=dtype)
     y = opfunc(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
     func = relay.Function([x], y)
-    data = np.random.random_integers(low=-128, high=128, size=dshape)
+    data = np.random.randint(low=-128, high=128, size=dshape)
     ref_res = reffunc(data.reshape(1,3,14,2,14,2), axis=(3,5)).astype(dtype)
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
