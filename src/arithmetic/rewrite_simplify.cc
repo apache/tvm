@@ -1157,8 +1157,11 @@ Mutate_(const Min* op, const Expr& self) {
     if (min(x * c1, c2).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      if (c1val == 0) {
+        return c2val < 0 ? c2.Eval() : c1.Eval();
+      }
       if (c2val % c1val == 0) {
-        if (c2val / c1val >= 0) {
+        if (c1val > 0) {
           return (min(x, c2val / c1val) * c1val).Eval();
         } else {
           return (max(x, c2val / c1val) * c1val).Eval();
@@ -1331,8 +1334,11 @@ Mutate_(const Max* op, const Expr& self) {
     if (max(x * c1, c2).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      if (c1val == 0) {
+        return c2val > 0 ? c2.Eval() : c1.Eval();
+      }
       if (c2val % c1val == 0) {
-        if (c2val / c1val >= 0) {
+        if (c1val > 0) {
           return (max(x, c2val / c1val) * c1val).Eval();
         } else {
           return (min(x, c2val / c1val) * c1val).Eval();
