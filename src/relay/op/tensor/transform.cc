@@ -2071,9 +2071,7 @@ Example::
 // relay.split
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
 
-bool SplitRel(const Array<Type>& types,
-              int num_inputs,
-              const Attrs& attrs,
+bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
               const TypeReporter& reporter) {
   // `types` contains: [data, result]
   CHECK_EQ(types.size(), 2);
@@ -2086,10 +2084,8 @@ bool SplitRel(const Array<Type>& types,
   if (axis < 0) {
     axis += data->shape.size();
   }
-  CHECK_LT(axis, data->shape.size())
-    << "axis should be within the input dimension range.";
-  CHECK_GE(axis, 0)
-    << "axis should be within the input dimension range.";
+  CHECK_LT(axis, data->shape.size()) << "axis should be within the input dimension range.";
+  CHECK_GE(axis, 0) << "axis should be within the input dimension range.";
 
   if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
     if (!data->shape[axis].as<Any>()) {
