@@ -37,7 +37,7 @@ def main():
     net, params = relay.testing.resnet.get_workload(
         layers=18, batch_size=dshape[0], image_shape=dshape[1:])
 
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(
             net, 'llvm --system-lib', params=params)
 

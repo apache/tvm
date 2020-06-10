@@ -17,7 +17,7 @@
 """strided_slice/set in python"""
 
 
-def strided_slice_python(data, begin, end, strides):
+def strided_slice_python(data, begin, end, strides, slice_mode="end"):
     """Python version of strided slice operator.
 
     Parameters
@@ -34,6 +34,14 @@ def strided_slice_python(data, begin, end, strides):
     strides : list
         The stride of each slice.
 
+    slice_mode : str, optional
+        The slice mode [end, size].
+        end: The default slice mode, ending indices for the slice.
+        size: The input strides will be ignored, input end in this mode indicates
+              the sizeof a slice starting at the location specified by begin. If end[i] is -1,
+              all remaining elements in that dimension are included in the slice.
+
+
     Returns
     -------
     result : numpy.ndarray
@@ -42,10 +50,24 @@ def strided_slice_python(data, begin, end, strides):
     strides = [] if strides is None else strides
     slices = []
     for i in range(len(data.shape)):
-        slices.append(slice(
-            begin[i] if i < len(begin) else None,
-            end[i] if i < len(end) else None,
-            strides[i] if i < len(strides) else None))
+        new_stride = None
+        if slice_mode == "end" and i < len(strides):
+            new_stride = strides[i]
+
+        new_begin = begin[i] if i < len(begin) else None
+        if i >= len(end):
+            new_end = None
+        elif slice_mode == "size":
+            if end[i] < 0:
+                new_end = None
+            else:
+                new_end = new_begin + end[i]
+        else:
+            new_end = end[i]
+
+        slices.append(slice(new_begin,
+                            new_end,
+                            new_stride))
     return data[tuple(slices)]
 
 

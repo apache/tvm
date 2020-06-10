@@ -21,9 +21,7 @@ import inspect
 import functools
 
 import tvm._ffi
-
 import tvm.runtime
-from tvm.runtime import ndarray as _nd
 
 from . import _ffi_transform_api
 
@@ -61,30 +59,21 @@ class PassContext(tvm.runtime.Object):
     opt_level : Optional[int]
         The optimization level of this pass.
 
-    fallback_device : Optional[Union[int, str, TVMContext]]
-        The fallback device type. It is also used as the default device for
-        operators that are not annotated during heterogeneous execution.
-
     required_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
         The list of passes that are required by a certain pass.
 
     disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
         The list of passes that are disabled.
+
+    config : Optional[Dict[str, Object]]
+        Additional configurations for specific passes.
     """
     def __init__(self,
                  opt_level=2,
-                 fallback_device=_nd.cpu(),
                  required_pass=None,
                  disabled_pass=None,
-                 trace=None):
-        if isinstance(fallback_device, str):
-            fallback_device = _nd.context(fallback_device).device_type
-        elif isinstance(fallback_device, tvm.runtime.TVMContext):
-            fallback_device = fallback_device.device_type
-        if not isinstance(fallback_device, int):
-            raise TypeError("fallback_device is expected to be the type of " +
-                            "int/str/TVMContext.")
-
+                 trace=None,
+                 config=None):
         required = list(required_pass) if required_pass else []
         if not isinstance(required, (list, tuple)):
             raise TypeError("required_pass is expected to be the type of " +
@@ -95,9 +84,9 @@ class PassContext(tvm.runtime.Object):
             raise TypeError("disabled_pass is expected to be the type of " +
                             "list/tuple/set.")
 
+        config = config if config else None
         self.__init_handle_by_constructor__(_ffi_transform_api.PassContext, opt_level,
-                                            fallback_device, required,
-                                            disabled, trace)
+                                            required, disabled, trace, config)
 
     def __enter__(self):
         _ffi_transform_api.EnterPassContext(self)

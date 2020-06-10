@@ -168,7 +168,7 @@ class TypeSolver {
   /*! \brief Number of resolved relations */
   size_t num_resolved_rels_{0};
   /*! \brief map from types to type nodes. */
-  std::unordered_map<Type, TypeNode*, ObjectHash, ObjectEqual> tmap_;
+  std::unordered_map<Type, TypeNode*, ObjectPtrHash, ObjectPtrEqual> tmap_;
   /*! \brief Internal queue to update the relation */
   std::queue<RelationNode*> update_queue_;
   /*! \brief allocator of all the internal node obhect*/

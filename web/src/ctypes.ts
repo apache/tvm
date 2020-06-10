@@ -208,9 +208,9 @@ export const enum SizeOf {
 }
 
 /**
- * Type code in TVM FFI.
+ * Argument Type code in TVM FFI.
  */
-export const enum TypeCode {
+export const enum ArgTypeCode {
   Int = 0,
   UInt = 1,
   Float = 2,

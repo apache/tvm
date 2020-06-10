@@ -284,7 +284,7 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
         b = tvm.nd.array(np.zeros(get_const_tuple(oshape), dtype=out.dtype), ctx)
         f = tvm.build(s, [data, out], device)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), np_out, rtol=1e-5)
+        tvm.testing.assert_allclose(b.asnumpy(), np_out, rtol=4e-5, atol=1e-6)
 
     for device in get_all_backend():
         check_device(device)

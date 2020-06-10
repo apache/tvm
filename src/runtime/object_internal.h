@@ -39,12 +39,30 @@ namespace runtime {
 class ObjectInternal {
  public:
   /*!
+   * \brief Retain an object handle.
+   */
+  static void ObjectRetain(TVMObjectHandle obj) {
+    if (obj != nullptr) {
+      static_cast<Object*>(obj)->IncRef();
+    }
+  }
+
+  /*!
    * \brief Free an object handle.
    */
   static void ObjectFree(TVMObjectHandle obj) {
     if (obj != nullptr) {
       static_cast<Object*>(obj)->DecRef();
     }
+  }
+  /*!
+   * \brief Check of obj derives from the type indicated by type index.
+   * \param obj The original object.
+   * \param type_index The type index of interest.
+   * \return The derivation checking result.
+   */
+  static bool DerivedFrom(const Object* obj, uint32_t type_index) {
+    return obj->DerivedFrom(type_index);
   }
   /*!
    * \brief Expose TypeKey2Index

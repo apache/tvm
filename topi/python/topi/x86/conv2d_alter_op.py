@@ -312,7 +312,9 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             new_attrs['channels'] = new_out_channel
             out = tvm.relay.nn.conv2d(data, kernel, **new_attrs)
             original_out_shape = [x.value for x in output_tensor.shape]
-            out = relay.strided_slice(out, begin=(0, 0, 0, 0), end=original_out_shape)
+            out = relay.strided_slice(out,
+                                      begin=relay.const([0, 0, 0, 0], "int32"),
+                                      end=relay.const(original_out_shape, "int32"))
         else:
             out = relay.nn.conv2d(data, kernel, **new_attrs)
 

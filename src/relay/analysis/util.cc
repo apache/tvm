@@ -25,6 +25,7 @@
  */
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/algorithm.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
@@ -37,7 +38,7 @@ namespace relay {
 
 template <typename T>
 struct InsertionSet {
-  std::unordered_set<T, ObjectHash, ObjectEqual> set;
+  std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual> set;
   std::vector<T> data;
   void Insert(const T& t) {
     if (set.count(t) == 0) {
@@ -338,13 +339,13 @@ bool IsNDArrayAllGreaterEqual(const runtime::NDArray& tensor, T value) {
   return true;
 }
 
-// Cache the operators that are checked recursively to reduce lookup overhead.
-static const auto& expand_dims_op = Op::Get("expand_dims");
-static const auto& reshape_op = Op::Get("reshape");
-static const auto& transpose_op = Op::Get("transpose");
-static const auto& squeeze_op = Op::Get("squeeze");
-
 bool IsAllPositiveConstant(const Expr& expr) {
+  // Cache the operators that are checked recursively to reduce lookup overhead.
+  static const auto& expand_dims_op = Op::Get("expand_dims");
+  static const auto& reshape_op = Op::Get("reshape");
+  static const auto& transpose_op = Op::Get("transpose");
+  static const auto& squeeze_op = Op::Get("squeeze");
+
   // peel through a few common transform ops.
   if (const auto* constant = expr.as<ConstantNode>()) {
     const auto& tensor = constant->data;
@@ -447,6 +448,20 @@ bool IsDataDependant(const CallNode* call) {
     if (const auto* attrs = call->attrs.as<ReshapeAttrs>()) {
       if (attrs->newshape) {
         // If newshape attribute exists, it isn't data dependant.
+        return false;
+      }
+    }
+  } else if (op->name == "topk") {
+    if (const auto* attrs = call->attrs.as<TopKAttrs>()) {
+      if (attrs->k) {
+        // If k attribute exists, it isn't data dependant.
+        return false;
+      }
+    }
+  } else if (op->name == "strided_slice") {
+    if (const auto* attrs = call->attrs.as<StridedSliceAttrs>()) {
+      if (attrs->begin && attrs->end && attrs->strides) {
+        // not data dependant if begin, end and strides exist
         return false;
       }
     }

@@ -176,7 +176,7 @@ def verify_model(model_name, input_data=[],
     compiled_input = dict(zip(input_names,
                               [inp.cpu().numpy() for inp in baseline_input]))
 
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         for target, ctx in ctx_list:
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
             relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
@@ -381,27 +381,60 @@ def test_forward_arange():
     class Arange1(Module):
         def forward(self, *args):
             return torch.arange(5)
+
     class Arange2(Module):
         def forward(self, *args):
             return torch.arange(2.5)
+
     class Arange3(Module):
         def forward(self, *args):
             return torch.arange(1, 4)
+
     class Arange4(Module):
         def forward(self, *args):
             return torch.arange(1, 2.5, 0.5)
+
     class Arange5(Module):
         def forward(self, *args):
             return torch.arange(1, 2, 1, dtype=torch.int32)
+
     class Arange6(Module):
         def forward(self, *args):
             return torch.arange(start=1, end=6, step=2)
+
     class Arange7(Module):
         def forward(self, *args):
             return torch.arange(1, 4, dtype=torch.float32)
+
     class Arange8(Module):
         def forward(self, *args):
             return torch.arange(1, 2, 1, dtype=torch.int16)
+
+    class Arange9(Module):
+        def forward(self, *args):
+            end = torch.add(torch.tensor(4), 1)
+            return torch.arange(end) + torch.ones((5,), dtype=torch.int64)
+
+    class Arange10(Module):
+        def forward(self, *args):
+            end = torch.add(torch.tensor(4.0), torch.tensor(1.0))
+            return torch.arange(end) + torch.ones((5,), dtype=torch.float)
+
+    class Arange11(Module):
+        def forward(self, *args):
+            start = torch.add(torch.tensor(1), 1)
+            end = torch.add(torch.tensor(4), 1)
+            step = torch.add(torch.tensor(2), 1)
+            out = torch.arange(start, end, step)
+            return out + torch.ones((3,), dtype=torch.int64)
+
+    class Arange12(Module):
+        def forward(self, *args):
+            start = torch.add(torch.tensor(1), 1)
+            end = torch.add(torch.tensor(4), 1)
+            step = torch.add(torch.tensor(2.5), torch.tensor(4.1))
+            out = torch.arange(start, end, step)
+            return out + torch.ones((3,), dtype=torch.float)
 
     verify_model(Arange1().float().eval())
     verify_model(Arange2().float().eval())
@@ -411,6 +444,11 @@ def test_forward_arange():
     verify_model(Arange6().float().eval())
     verify_model(Arange7().float().eval())
     verify_model(Arange8().float().eval())
+    verify_model(Arange9().float().eval())
+    verify_model(Arange10().float().eval())
+    verify_model(Arange11().float().eval())
+    verify_model(Arange12().float().eval())
+
 
 def test_forward_abs():
     torch.set_grad_enabled(False)
@@ -810,9 +848,15 @@ def test_forward_view():
         def forward(self, *args):
             return args[0].view(args[0].shape[0], -1)
 
+    class View3(Module):
+        def forward(self, *args):
+            d1 = torch.tensor(3) * torch.tensor(10) * torch.tensor(10)
+            return args[0].view(args[0].shape[0], d1)
+
     input_data = torch.rand(input_shape).float()
     verify_model(View1().float().eval(), input_data=input_data)
     verify_model(View2().float().eval(), input_data=input_data)
+    verify_model(View3().float().eval(), input_data=input_data)
 
 def test_forward_select():
     torch.set_grad_enabled(False)
@@ -896,9 +940,17 @@ def test_forward_slice():
         def forward(self, *args):
             return args[0][0, :, :, :]
 
+    class Slice3(Module):
+        def forward(self, *args):
+            x0 = torch.tensor(2) - torch.tensor(1)
+            x1 = torch.tensor(3) + torch.tensor(1)
+            return args[0][:, x0:, :x1, :]
+
     input_data = torch.rand(input_shape).float()
     verify_model(Slice1().float().eval(), input_data=input_data)
     verify_model(Slice2().float().eval(), input_data=input_data)
+    verify_model(Slice3().float().eval(), input_data=input_data)
+
 
 def test_forward_mean():
     torch.set_grad_enabled(False)
@@ -1020,6 +1072,59 @@ def test_adaptive_pool3d():
         verify_model(torch.nn.AdaptiveMaxPool3d((7, 8, 9)).eval(), inp)
 
 
+def test_forward_functional_pad():
+    torch.set_grad_enabled(False)
+    pad = (0, 0)
+    class Pad1(Module):
+        def forward(self, *args):
+            return torch.nn.functional.pad(args[0], pad, "constant", 0)
+
+    input_data = torch.rand((3, 3, 4, 2))
+    pad = (1, 1)
+    verify_model(Pad1().float().eval(), input_data=input_data)
+
+    pad = (1, 1, 2, 2)
+    verify_model(Pad1().float().eval(), input_data=input_data)
+
+    pad = (0, 1, 2, 1, 3, 3)
+    verify_model(Pad1().float().eval(), input_data=input_data)
+
+
+def test_forward_zero_pad2d():
+    inp = torch.rand((1, 1, 3, 3))
+    verify_model(torch.nn.ZeroPad2d(2).eval(), inp)
+    verify_model(torch.nn.ZeroPad2d((1, 1, 2, 0)).eval(), inp)
+
+
+def test_forward_constant_pad1d():
+    inp = torch.rand((1, 2, 4))
+    verify_model(torch.nn.ConstantPad2d(2, 3.5).eval(), inp)
+
+    inp = torch.rand((1, 2, 3))
+    verify_model(torch.nn.ConstantPad2d((3, 1), 3.5).eval(), inp)
+
+
+def test_forward_constant_pad2d():
+    inp = torch.rand((1, 2, 2, 2))
+    verify_model(torch.nn.ConstantPad2d(2, 3.5).eval(), inp)
+    verify_model(torch.nn.ConstantPad2d((3, 0, 2, 1), 3.5).eval(), inp)
+
+
+def test_forward_constant_pad3d():
+    inp = torch.rand((1, 3, 2, 2, 2))
+    verify_model(torch.nn.ConstantPad3d(3, 3.5).eval(), inp)
+    verify_model(torch.nn.ConstantPad3d((3, 4, 5, 6, 0, 1), 3.5).eval(), inp)
+
+
+def test_forward_reflection_pad1d():
+    inp = torch.rand((1, 2, 4))
+    verify_model(torch.nn.ReflectionPad1d(2).eval(), inp)
+    verify_model(torch.nn.ReflectionPad1d((3, 1)).eval(), inp)
+
+    inp = torch.rand((2, 4, 5))
+    verify_model(torch.nn.ReflectionPad1d((2, 3)).eval(), inp)
+
+
 def test_forward_reflection_pad2d():
     inp = torch.rand((1, 1, 3, 3))
     verify_model(torch.nn.ReflectionPad2d(2).eval(), inp)
@@ -1027,6 +1132,40 @@ def test_forward_reflection_pad2d():
 
     inp = torch.rand((2, 4, 5, 6))
     verify_model(torch.nn.ReflectionPad2d((1, 3, 2, 4)).eval(), inp)
+
+
+def test_forward_replication_pad1d():
+    inp = torch.rand((1, 2, 4))
+    verify_model(torch.nn.ReplicationPad1d(2).eval(), inp)
+    verify_model(torch.nn.ReplicationPad1d((3, 1)).eval(), inp)
+
+    inp = torch.rand((2, 4, 5))
+    verify_model(torch.nn.ReplicationPad1d((2, 3)).eval(), inp)
+
+
+def test_forward_replication_pad2d():
+    inp = torch.rand((1, 1, 3, 3))
+    verify_model(torch.nn.ReplicationPad2d(2).eval(), inp)
+    verify_model(torch.nn.ReplicationPad2d((1, 1, 2, 0)).eval(), inp)
+
+    inp = torch.rand((2, 4, 5, 6))
+    verify_model(torch.nn.ReplicationPad2d((1, 3, 2, 4)).eval(), inp)
+
+
+def test_forward_replication_pad3d():
+    inp = torch.rand((1, 1, 3, 3, 3))
+    verify_model(torch.nn.ReplicationPad3d(3).eval(), inp)
+    verify_model(torch.nn.ReplicationPad3d((1, 1, 2, 2, 1, 1)).eval(), inp)
+
+    inp = torch.rand((7, 5, 4, 5, 6))
+    verify_model(torch.nn.ReplicationPad3d((2, 3, 2, 5, 1, 4)).eval(), inp)
+
+
+def test_forward_upsample3d():
+    inp = torch.arange(1, 9, dtype=torch.float32).view(1, 1, 2, 2, 2)
+    verify_model(torch.nn.Upsample(scale_factor=2, mode='nearest').eval(), inp)
+    verify_model(torch.nn.Upsample(scale_factor=2, mode='trilinear').eval(), inp)
+    verify_model(torch.nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True).eval(), inp)
 
 
 def test_conv3d():
@@ -2106,6 +2245,134 @@ def test_forward_matmul():
     verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
 
 
+def test_forward_pretrained_bert_base_uncased():
+    ######################################################################
+    # This is an example how to run BERT models using TVM
+    # ---------------------------------------------------
+    """
+    Refer the bert example given in https://pypi.org/project/pytorch-pretrained-bert
+
+    # To get started, pretrained bert package needs to be installed as prerequisite.
+
+    .. code-block:: bash
+
+        # install bert package
+        pip install pytorch_pretrained_bert==0.6.2 --user
+    """
+
+    try:
+        from pytorch_pretrained_bert import BertTokenizer, BertForMaskedLM
+    except:
+        print("Torch pretrained bert package must be installed to run this script.")
+        return
+
+    ######################################################################
+    # Load the tokenizer and tokenize the input
+    # -----------------------------------------
+
+    # Load pre-trained model tokenizer (vocabulary)
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+    # Tokenized input
+    text = "[CLS] Who was Jim Henson ? [SEP] Jim Henson was a puppeteer [SEP]"
+    tokenized_text = tokenizer.tokenize(text)
+
+    # Mask a token that we will try to predict back with `BertForMaskedLM`
+    masked_index = 8
+    tokenized_text[masked_index] = '[MASK]'
+    assert tokenized_text == ['[CLS]', 'who', 'was', 'jim', 'henson', '?', '[SEP]', 'jim', '[MASK]', 'was', 'a', 'puppet',
+                              '##eer', '[SEP]']
+
+    # Convert token to vocabulary indices
+    indexed_tokens = tokenizer.convert_tokens_to_ids(tokenized_text)
+    # Define sentence A and B indices associated to 1st and 2nd sentences (see paper)
+    segments_ids = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1]
+
+    # Convert inputs to PyTorch tensors
+    tokens_tensor = torch.tensor([indexed_tokens])
+    segments_tensors = torch.tensor([segments_ids])
+
+    ######################################################################
+    # Load a pretrained PyTorch model bert-base-uncased
+    # -------------------------------------------------
+
+    # Bert Model with a language modeling
+    model = BertForMaskedLM.from_pretrained('bert-base-uncased')
+    model.eval()
+
+    ######################################################################
+    # Predict all tokens with pytorch
+    # -------------------------------
+
+    with torch.no_grad():
+        torch_preds = model(tokens_tensor, segments_tensors)
+
+    ######################################################################
+    # Make TorchScripted model via jit trace
+    # --------------------------------------
+
+    scripted_model = torch.jit.trace(model, (tokens_tensor, segments_tensors)).eval()
+
+    ######################################################################
+    # Import the graph to Relay
+    # -------------------------
+    # Convert PyTorch graph to Relay graph. The input name can be arbitrary.
+
+    input_1 = 'input_ids'
+    input_2 = 'input.2'
+    shape_list = [(input_1, list(tokens_tensor.shape)),
+                  (input_2, list(segments_tensors.shape))]
+
+    mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
+
+    ######################################################################
+    # Compile the model with relay
+    # ----------------------------
+
+    target = 'llvm'
+    with tvm.transform.PassContext(opt_level=3):
+        relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
+
+    ######################################################################
+    # Execute on TVM
+    # --------------
+
+    ctx = tvm.context(target, 0)
+    relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
+    relay_model.set_input(**relay_params)
+    relay_model.set_input(input_1, tokens_tensor)
+    relay_model.set_input(input_2, segments_tensors)
+    relay_model.run()
+    compiled_output = relay_model.get_output(0).asnumpy()
+
+    ######################################################################
+    # Validate the outputs
+    # --------------------
+    # Compare the torch and tvm outputs
+
+    tvm.testing.assert_allclose(torch_preds, compiled_output, rtol=1e-3, atol=1e-3)
+
+    ######################################################################
+    # Process the output
+    # ------------------
+    # Process the model output to token.
+
+    # Torch output to token
+    torch_pred_idx = torch.argmax(torch_preds[0, masked_index]).item()
+    torch_pred_token = tokenizer.convert_ids_to_tokens([torch_pred_idx])[0]
+
+    # TVM output to token
+    tvm_pred_idx = compiled_output[0, masked_index].argmax()
+    tvm_pred_token = tokenizer.convert_ids_to_tokens([tvm_pred_idx])[0]
+
+    assert torch_pred_idx == tvm_pred_idx
+    assert torch_pred_token == tvm_pred_token
+
+    # Print the outputs
+    print('Torch top-1 id: {}, token: {}'.format(torch_pred_idx, torch_pred_token))
+    print('TVM   top-1 id: {}, token: {}'.format(tvm_pred_idx, tvm_pred_token))
+
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_add()
@@ -2191,8 +2458,18 @@ if __name__ == "__main__":
     test_forward_chunk()
     test_forward_split()
     test_upsample()
+    test_forward_upsample3d()
     test_to()
+    test_forward_functional_pad()
+    test_forward_zero_pad2d()
+    test_forward_constant_pad1d()
+    test_forward_constant_pad2d()
+    test_forward_constant_pad3d()
+    test_forward_reflection_pad1d()
     test_forward_reflection_pad2d()
+    test_forward_replication_pad1d()
+    test_forward_replication_pad2d()
+    test_forward_replication_pad3d()
     test_adaptive_pool3d()
     test_conv3d()
 
@@ -2227,3 +2504,6 @@ if __name__ == "__main__":
     from lstm_test import custom_lstm_test
 
     custom_lstm_test()
+
+    # Test bert model
+    test_forward_pretrained_bert_base_uncased()

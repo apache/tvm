@@ -100,9 +100,9 @@ int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
   *strm += sizeof(data_byte_size);
   if (!(data_byte_size == num_elems * elem_bytes)) {
     fprintf(stderr,
-            "invalid DLTensor file format: data_byte_size=%jd, "
-            "while num_elems*elem_bytes=%jd\n",
-            data_byte_size, (num_elems * elem_bytes));
+            "invalid DLTensor file format: data_byte_size=%d, "
+            "while num_elems*elem_bytes=%d\n",
+            (int)data_byte_size, (int)(num_elems * elem_bytes));  // NOLINT(*)
     status = -1;
   }
   memcpy(ret->dl_tensor.data, *strm, data_byte_size);

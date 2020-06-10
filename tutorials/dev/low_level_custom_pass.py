@@ -138,9 +138,8 @@ def vectorize(f, mod, ctx):
 # So far, we are done with writing this IR transformation pass. What we need to do next is to glue
 # this pass to TVM's lower pass.
 #
-# In TVM, there is a property called ``BuildConfig``. You can use this property to customize your
-# own lowering options. In this case, we inject the pass written above into the TVM standard lowering
-# pass by feeding **a list of tuple** as argument to ``add_lower_pass``. "Tuple" indicates different
+# In this case, we inject the pass written above into the TVM standard lowering
+# pass by feeding **a list of tuple** as argument to ``tir.add_lower_pass``. "Tuple" indicates different
 # phases of lowering. In TVM, there are four phases of lowering and user-customized ones will be
 # called after each phase is done.
 #
@@ -154,7 +153,7 @@ def vectorize(f, mod, ctx):
 # Thus, a good place to put this transformation pass is just after Phase 1.
 #
 
-with tvm.target.build_config(add_lower_pass=[(1, vectorize)]) as cfg:
+with tvm.transform.PassContext(config={"tir.add_lower_pass": [(1, vectorize)]}):
     print(tvm.lower(sch, [a, b, c]))
 
 #####################################################################
@@ -164,5 +163,5 @@ with tvm.target.build_config(add_lower_pass=[(1, vectorize)]) as cfg:
 # - Use ``tvm.tir.stmt_functor.post_order_visit`` to gather information on each IR nodes.
 # - Use ``tvm.tir.stmt_functor.ir_transform`` to transform IR nodes.
 # - Wrap up two above to write an IR-transformation function.
-# - Use ``tvm.target.build_config`` to put this function to TVM lowering pass
+# - Use ``tvm.transform.PassContext`` to put this function to TVM lowering pass
 #

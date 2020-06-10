@@ -131,7 +131,7 @@ def flip(a, axis=0):
     """
     return cpp.flip(a, axis)
 
-def strided_slice(a, begin, end, strides=None):
+def strided_slice(a, begin, end, strides=None, slice_mode="end"):
     """Slice of an array.
 
     Parameters
@@ -139,16 +139,23 @@ def strided_slice(a, begin, end, strides=None):
     a : tvm.te.Tensor
         The tensor to be sliced.
 
-    begin: list of int
+    begin : list of int
         The indices to begin with in the slicing.
 
-    end: list of int
+    end : list of int
         Indicies indicating end of the slice.
 
-    strides: list of int, optional
+    strides : list of int, optional
         Specifies the stride values, it can be negative
         in that case, the input tensor will be reversed
         in that particular axis.
+
+    slice_mode : str, optional
+        The slice mode [end, size].
+        end - The ending indices for the slice [default].
+        size - The input strides will be ignored, input end in this mode indicates
+        the sizeof a slice starting at the location specified by begin. If end[i]
+        is -1, all remaining elements in that dimension are included in the slice.
 
     Returns
     -------
@@ -156,7 +163,7 @@ def strided_slice(a, begin, end, strides=None):
     """
     if strides is None:
         strides = []
-    return cpp.strided_slice(a, begin, end, strides)
+    return cpp.strided_slice(a, begin, end, strides, slice_mode)
 
 @tvm.te.tag_scope(tag=tag.INJECTIVE+",strided_set")
 def strided_set(a, v, begin, end, strides=None):
@@ -676,3 +683,32 @@ def unravel_index(indices, shape):
     """
 
     return cpp.unravel_index(indices, shape)
+
+def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0):
+    """Converts a sparse representation into a dense tensor.
+
+    Example::
+    -   sparse_to_dense([[0, 0], [1, 1]], [2, 2], [3, 3], 0) = [[3, 0], [0, 3]]
+
+    Parameters
+    ----------
+    sparse_indices : tvm.te.Tensor
+        A 0-D, 1-D, or 2-D tensor of integers containing location of sparse values.
+
+    output_shape : A list of integers
+        Shape of the dense output tensor.
+
+    sparse_values : tvm.te.Tensor
+        A 0-D or 1-D tensor containing the sparse values for the sparse indices.
+
+    default_value : tvm.te.Tensor
+        A 0-D tensor containing the default value for the remaining locations.
+        Defaults to 0.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        Dense tensor of shape output_shape. Has the same type as sparse_values.
+    """
+
+    return cpp.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)

@@ -73,7 +73,7 @@ class MemoizedExprTranslator : public ::tvm::relay::ExprFunctor<OutputType(const
 
  protected:
   /*! \brief Internal map used for memoization. */
-  std::unordered_map<Expr, OutputType, ObjectHash, ObjectEqual> memo_;
+  std::unordered_map<Expr, OutputType, ObjectPtrHash, ObjectPtrEqual> memo_;
 };
 
 /*!
@@ -128,7 +128,7 @@ inline std::string DType2String(const tvm::DataType dtype) {
 inline relay::Function BindParamsByName(
     relay::Function func, const std::unordered_map<std::string, runtime::NDArray>& params) {
   std::unordered_map<std::string, relay::Var> name_dict;
-  std::unordered_set<relay::Var, ObjectHash, ObjectEqual> repeat_var;
+  std::unordered_set<relay::Var, ObjectPtrHash, ObjectPtrEqual> repeat_var;
   for (auto arg : func->params) {
     const auto& name = arg->name_hint();
     if (name_dict.count(name)) {
@@ -138,7 +138,7 @@ inline relay::Function BindParamsByName(
     }
   }
 
-  std::unordered_map<relay::Var, Expr, ObjectHash, ObjectEqual> bind_dict;
+  std::unordered_map<relay::Var, Expr, ObjectPtrHash, ObjectPtrEqual> bind_dict;
   for (auto& kv : params) {
     if (name_dict.count(kv.first) == 0) {
       continue;

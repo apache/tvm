@@ -55,17 +55,25 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
+  PrimExpr real_condition = condition;
+  if (auto call = condition.as<CallNode>()) {
+    if (call->is_intrinsic(CallNode::likely)) {
+      real_condition = call->args[0];
+    }
+  }
+
   Stmt then_case, else_case;
   {
-    With<ConstraintContext> ctx(analyzer_, condition);
+    With<ConstraintContext> ctx(analyzer_, real_condition);
     then_case = this->VisitStmt(op->then_case);
   }
   if (op->else_case.defined()) {
-    With<ConstraintContext> ctx(analyzer_, analyzer_->rewrite_simplify(NotNode::make(condition)));
+    With<ConstraintContext> ctx(analyzer_,
+                                analyzer_->rewrite_simplify(NotNode::make(real_condition)));
     else_case = this->VisitStmt(op->else_case);
   }
-  if (is_one(condition)) return then_case;
-  if (is_zero(condition)) {
+  if (is_one(real_condition)) return then_case;
+  if (is_zero(real_condition)) {
     if (else_case.defined()) {
       return else_case;
     }

@@ -100,7 +100,7 @@ ctx = tvm.cpu(0)
 data = np.empty([batch_size, net.c, net.h, net.w], dtype)
 shape = {'data': data.shape}
 print("Compiling the model...")
-with relay.build_config(opt_level=3):
+with tvm.transform.PassContext(opt_level=3):
     graph, lib, params = relay.build(mod,
                                      target=target,
                                      target_host=target_host,

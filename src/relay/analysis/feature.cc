@@ -37,7 +37,7 @@ FeatureSet DetectFeature(const Expr& expr) {
     return FeatureSet::No();
   }
   struct FeatureDetector : ExprVisitor {
-    std::unordered_set<Expr, ObjectHash, ObjectEqual> visited_;
+    std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visited_;
     FeatureSet fs = FeatureSet::No();
 
     void VisitExpr(const Expr& expr) final {
@@ -96,8 +96,11 @@ FeatureSet DetectFeature(const IRModule& mod) {
   return fs;
 }
 
-Array<Integer> PyDetectFeature(const Expr& expr, const IRModule& mod) {
-  FeatureSet fs = DetectFeature(expr) + DetectFeature(mod);
+Array<Integer> PyDetectFeature(const Expr& expr, const Optional<IRModule>& mod) {
+  FeatureSet fs = DetectFeature(expr);
+  if (mod.defined()) {
+    fs = fs + DetectFeature(mod.value());
+  }
   return static_cast<Array<Integer>>(fs);
 }
 

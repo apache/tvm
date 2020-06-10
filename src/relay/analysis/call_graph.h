@@ -48,7 +48,7 @@ class CallGraph;
 
 class CallGraphNode : public Object {
   using CallGraphMap =
-      std::unordered_map<GlobalVar, std::unique_ptr<CallGraphEntry>, ObjectHash, ObjectEqual>;
+      std::unordered_map<GlobalVar, std::unique_ptr<CallGraphEntry>, ObjectPtrHash, ObjectPtrEqual>;
   // Create iterator alias for a CallGraphNode object.
   using iterator = CallGraphMap::iterator;
   using const_iterator = CallGraphMap::const_iterator;
@@ -196,7 +196,7 @@ class CallGraphNode : public Object {
  */
 class CallGraph : public ObjectRef {
   using CallGraphMap =
-      std::unordered_map<GlobalVar, std::unique_ptr<CallGraphEntry>, ObjectHash, ObjectEqual>;
+      std::unordered_map<GlobalVar, std::unique_ptr<CallGraphEntry>, ObjectPtrHash, ObjectPtrEqual>;
   // Create iterator alias for a CallGraph object.
   using iterator = CallGraphMap::iterator;
   using const_iterator = CallGraphMap::const_iterator;

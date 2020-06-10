@@ -563,6 +563,11 @@ reg.register_injective_schedule("nn.space_to_depth")
 reg.register_pattern("nn.space_to_depth", OpPattern.INJECTIVE)
 
 
+# correlation
+reg.register_strategy("nn.correlation", strategy.correlation_strategy)
+reg.register_pattern("nn.correlation", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 #####################
 #  Shape functions  #
 #####################

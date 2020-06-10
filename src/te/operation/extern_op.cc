@@ -50,11 +50,11 @@ DataType ExternOpNode::output_dtype(size_t i) const { return output_placeholders
 
 Array<PrimExpr> ExternOpNode::output_shape(size_t i) const { return output_placeholders[i]->shape; }
 
-Operation ExternOpNode::make(std::string name, std::string tag, Map<std::string, ObjectRef> attrs,
+Operation ExternOpNode::make(std::string name, std::string tag, Map<String, ObjectRef> attrs,
                              Array<Tensor> inputs, Array<Buffer> input_placeholders,
                              Array<Buffer> output_placeholders, Stmt body) {
   if (!attrs.defined()) {
-    attrs = Map<std::string, ObjectRef>();
+    attrs = Map<String, ObjectRef>();
   }
   auto n = make_object<ExternOpNode>();
   n->name = std::move(name);
@@ -128,8 +128,7 @@ Stmt ExternOpNode::BuildRealize(const Stage& stage,
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(Range::make_by_min_extent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body =
-        tir::RealizeNode::make(t->op, t->value_index, t->dtype, bounds, const_true(), realize_body);
+    realize_body = tir::ProducerRealizeNode::make(t, bounds, const_true(), realize_body);
   }
   return realize_body;
 }

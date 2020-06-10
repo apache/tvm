@@ -259,7 +259,7 @@ stage('Integration Test') {
     }
   },
   'docs: GPU': {
-    node('GPU') {
+    node('TensorCore') {
       ws(per_exec_ws("tvm/docs-python-gpu")) {
         init_git()
         unpack_lib('gpu', tvm_multilib)

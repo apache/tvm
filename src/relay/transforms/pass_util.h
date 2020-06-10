@@ -115,6 +115,26 @@ inline bool IsAtomic(const Expr& e) {
   return e.as<VarNode>() || e.as<OpNode>() || e.as<ConstructorNode>() || e.as<GlobalVarNode>();
 }
 
+/*!
+ * \brief Cache the compiler_begin annotation op to reduce registry lookup overhead
+ * \param void
+ * \return compiler_begin op
+ */
+inline const Op& CompilerBeginOp() {
+  static Op op = Op::Get("annotation.compiler_begin");
+  return op;
+}
+
+/*!
+ * \brief Cache the compiler_end annotation op to reduce registry lookup overhead
+ * \param void
+ * \return compiler_end op
+ */
+inline const Op& CompilerEndOp() {
+  static Op op = Op::Get("annotation.compiler_end");
+  return op;
+}
+
 template <typename ConditionObjectPtr>
 struct TreeNode {
   typedef std::shared_ptr<TreeNode<ConditionObjectPtr>> pointer;

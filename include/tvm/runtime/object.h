@@ -64,6 +64,8 @@ struct TypeIndex {
     kRuntimeNDArray = 2,
     /*! \brief runtime::String. */
     kRuntimeString = 3,
+    /*! \brief runtime::Array. */
+    kRuntimeArray = 4,
     // static assignments that may subject to change.
     kRuntimeClosure,
     kRuntimeADT,
@@ -475,7 +477,7 @@ class ObjectPtr {
   // friend classes
   friend class Object;
   friend class ObjectRef;
-  friend struct ObjectHash;
+  friend struct ObjectPtrHash;
   template <typename>
   friend class ObjectPtr;
   template <typename>
@@ -585,7 +587,7 @@ class ObjectRef {
     return ObjectPtr<ObjectType>(ref.data_.data_);
   }
   // friend classes.
-  friend struct ObjectHash;
+  friend struct ObjectPtrHash;
   friend class TVMRetValue;
   friend class TVMArgsSetter;
   template <typename SubRef, typename BaseRef>
@@ -604,7 +606,7 @@ template <typename BaseType, typename ObjectType>
 inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr);
 
 /*! \brief ObjectRef hash functor */
-struct ObjectHash {
+struct ObjectPtrHash {
   size_t operator()(const ObjectRef& a) const { return operator()(a.data_); }
 
   template <typename T>
@@ -614,7 +616,7 @@ struct ObjectHash {
 };
 
 /*! \brief ObjectRef equal functor */
-struct ObjectEqual {
+struct ObjectPtrEqual {
   bool operator()(const ObjectRef& a, const ObjectRef& b) const { return a.same_as(b); }
 
   template <typename T>

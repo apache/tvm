@@ -255,7 +255,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
   // reflection vtable
   ReflectionVTable* vtable_ = ReflectionVTable::Global();
   // map from lhs to rhs
-  std::unordered_map<ObjectRef, size_t, ObjectHash, ObjectEqual> hash_memo_;
+  std::unordered_map<ObjectRef, size_t, ObjectPtrHash, ObjectPtrEqual> hash_memo_;
 };
 
 TVM_REGISTER_GLOBAL("node.StructuralHash")

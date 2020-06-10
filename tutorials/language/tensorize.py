@@ -115,8 +115,7 @@ def intrin_gemv(m, l):
                                 bb.access_ptr("r"),
                                 m, l, bb.strides[0]))
         return ib.get()
-    with tvm.target.build_config(offset_factor=1):
-        return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
+    return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
 
 ######################################################################
 # Here :code:`te.decl_tensor_intrin` declares how to execute the computation :code:`c.op`.
@@ -269,8 +268,7 @@ def intrin_gemv(m, l):
         def _reduce_update():
             return _body()
         return _body(), _reduce_reset(), _reduce_update()
-    with tvm.target.build_config(offset_factor=1):
-        return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
+    return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
 
 ######################################################################
 # Note that :code:`intrin_func` now returns a triplet:

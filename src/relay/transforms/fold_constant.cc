@@ -55,7 +55,7 @@ class ConstantChecker : private ExprVisitor {
   }
 
  private:
-  std::unordered_map<Expr, bool, ObjectHash, ObjectEqual> memo_;
+  std::unordered_map<Expr, bool, ObjectPtrHash, ObjectPtrEqual> memo_;
 
   void VisitExpr_(const TupleNode* n) final {
     bool result = true;
@@ -268,13 +268,14 @@ class ConstantFolder : public ExprMutator {
 };
 
 Expr FoldConstant(const Expr& expr, const IRModule& mod) {
+  using tvm::transform::PassContext;
   DLContext ctx;
   ctx.device_type = kDLCPU;
   ctx.device_id = 0;
   Target target = Target::Create("llvm");
   // use a fresh build context
   // in case we are already in a build context.
-  With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
+  With<PassContext> fresh_build_ctx(PassContext::Create());
 
   return ConstantFolder(CreateInterpreter(mod, ctx, target), mod).Mutate(expr);
 }

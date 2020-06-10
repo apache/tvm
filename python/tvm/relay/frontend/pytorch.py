@@ -34,6 +34,7 @@ from ..loops import while_loop
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
+from .common import infer_value_simulated as _infer_value_simulated
 from .common import infer_type as _infer_type
 from ..prelude import Prelude, StaticTensorArrayOps
 
@@ -152,19 +153,33 @@ def _log1p():
 
 def _arange():
     def _impl(inputs, input_types):
+        def _get_value(val, dtype):
+            if isinstance(val, _expr.Expr):
+                return _op.cast(val, _convert_data_type(dtype))
+            return _create_typed_const(val, dtype)
+
+        def _get_type(val, inp_type):
+            if isinstance(val, _expr.Expr):
+                dtype = str(_infer_type(val).checked_type)
+                return dtype if dtype != "float32" else "float"
+            return inp_type
+
         if len(inputs) == 5:
-            dtype = "float" if "float" in input_types[0:1] else _convert_dtype_value(inputs[1])
-            start = _create_typed_const(0, dtype)
-            stop = _create_typed_const(inputs[0], dtype)
-            step = _create_typed_const(1, dtype)
+            dtype0 = _get_type(inputs[0], input_types[0])
+            dtype = "float" if dtype0 == "float" else _convert_dtype_value(inputs[1])
+            start = _get_value(0, dtype)
+            stop = _get_value(inputs[0], dtype)
+            step = _get_value(1, dtype)
         elif len(inputs) == 7:
-            dtype = "float" if "float" in input_types[0:3] else _convert_dtype_value(inputs[3])
-            start = _create_typed_const(inputs[0], dtype)
-            stop = _create_typed_const(inputs[1], dtype)
-            step = _create_typed_const(inputs[2], dtype)
+            types = [_get_type(inputs[i], input_types[i]) for i in range(3)]
+            dtype = "float" if "float" in types else _convert_dtype_value(inputs[3])
+            start = _get_value(inputs[0], dtype)
+            stop = _get_value(inputs[1], dtype)
+            step = _get_value(inputs[2], dtype)
         else:
             msg = "Unknown number of arguments (%d) to parse." % (len(inputs))
             raise AssertionError(msg)
+
         return _op.transform.arange(start=start,
                                     stop=stop,
                                     step=step,
@@ -235,15 +250,25 @@ def _slice():
 
         begin = [0] * len(end)
         dim = int(inputs[1])
-        begin[dim] = int(inputs[2])
+        if isinstance(inputs[2], _expr.Call):
+            begin[dim] = np.asscalar(_infer_value(inputs[2], {}).asnumpy().astype(np.int))
+        else:
+            begin[dim] = int(inputs[2])
 
         if isinstance(inputs[3], str) and inputs[3].isdigit():
             end[dim] = min(end[dim], int(inputs[3]))
         else:
-            end[dim] = inputs[3]
+            if isinstance(inputs[3], _expr.Call):
+                end[dim] = np.asscalar(_infer_value(inputs[3], {}).asnumpy().astype(np.int))
+            else:
+                end[dim] = inputs[3]
 
         strides.append(int(inputs[4]))
-        return _op.transform.strided_slice(data, begin, end, strides)
+        return _op.transform.strided_slice(data,
+                                           begin=_expr.const(begin),
+                                           end=_expr.const(end),
+                                           strides=_expr.const(strides),
+                                           slice_mode="size")
     return _impl
 
 def _split():
@@ -997,7 +1022,10 @@ def _size(prelude):
 def _numtotensor():
     def _impl(inputs, input_types):
         val = inputs[0]
-        dtype = type(val)
+        dtype = input_types[0]
+
+        if isinstance(val, _expr.Expr):
+            return val
 
         if isinstance(val, tvm.tir.IntImm):
             val = val.__int__()
@@ -1019,15 +1047,21 @@ def _view():
         data = inputs[0]
 
         if len(inputs) == 3:
-            new_shape = [inputs[1], _infer_shape(inputs[2])[0]]
+            shape_inp = [inputs[1], _infer_shape(inputs[2])[0]]
         else:
             if isinstance(inputs[1], list):
-                new_shape = inputs[1]
+                shape_inp = inputs[1]
             else:
-                new_shape = _infer_shape(inputs[1])
+                shape_inp = _infer_shape(inputs[1])
+        new_shape = shape_inp
+        for i, shape in enumerate(shape_inp):
+            if isinstance(shape, _expr.Expr):
+                val = _infer_value_simulated(shape, {})
+                new_shape[i] = np.asscalar(val.asnumpy())
 
         return _op.transform.reshape(data, new_shape)
     return _impl
+
 
 def _reshape():
     def _impl(inputs, input_types):
@@ -1233,7 +1267,10 @@ def _chunk(prelude):
             end[axis] = i + unif_size
             stride = [1] * len(shape)
 
-            chunk_out = _op.transform.strided_slice(data, begin, end, stride)
+            chunk_out = _op.transform.strided_slice(data,
+                                                    begin=_expr.const(begin),
+                                                    end=_expr.const(end),
+                                                    strides=_expr.const(stride))
             chunks.append(chunk_out)
 
         if dim % num_chunks:
@@ -1243,7 +1280,10 @@ def _chunk(prelude):
             end[axis] = dim
             stride = [1] * len(shape)
 
-            chunk_out = _op.transform.strided_slice(data, begin, end, stride)
+            chunk_out = _op.transform.strided_slice(data,
+                                                    begin=_expr.const(begin),
+                                                    end=_expr.const(end),
+                                                    strides=_expr.const(stride))
             chunks.append(chunk_out)
 
         return chunks
@@ -1339,13 +1379,36 @@ def _none():
         return None
     return _impl
 
-def _pad():
+def _pad(mode):
     def _impl(inputs, input_types):
         data = inputs[0]
-        padding = inputs[1]
-        pad_width = list(zip(padding, padding))
-        pad_value = inputs[2]
-        return _op.nn.pad(data, pad_width, pad_value)
+        if isinstance(inputs[1], list):
+            pad_list = inputs[1]
+        else:
+            pad_list = list(_infer_shape(inputs[1]))
+
+        # initialize paddings based on input len
+        pad_len = len(_infer_shape(data)) * 2
+        paddings = [0] * pad_len
+
+        if len(pad_list) >= 2:
+            paddings[-1] = pad_list[1]
+            paddings[-2] = pad_list[0]
+        if len(pad_list) >= 4:
+            paddings[-3] = pad_list[3]
+            paddings[-4] = pad_list[2]
+        if len(pad_list) >= 6:
+            paddings[-5] = pad_list[5]
+            paddings[-6] = pad_list[4]
+
+        # group into tuple of 2 ints
+        paddings = [paddings[i:i + 2] for i in range(0, len(paddings), 2)]
+
+        if mode == "constant":
+            return _op.nn.pad(data, paddings, pad_value=inputs[2], pad_mode=mode)
+        else:
+            return _op.nn.pad(data, paddings, pad_mode=mode)
+
     return _impl
 
 
@@ -1425,6 +1488,32 @@ def _upsample(method):
         return func(data)
 
     return _impl
+
+
+def _upsample3d(method):
+    def _impl(inputs, input_types):
+        if isinstance(inputs[1], _expr.Var):
+            out_size = _infer_shape(inputs[1])
+        elif isinstance(inputs[1], list):
+            infer_res = [_infer_value(size, {}) for size in inputs[1]]
+            out_size = [np.asscalar(res.asnumpy().astype(np.int))
+                        for res in infer_res]
+
+        data = inputs[0]
+
+        if len(inputs) > 2:
+            align_corners = inputs[2]
+        else:
+            align_corners = False
+
+        if align_corners:
+            coord_trans = "align_corners"
+        else:
+            coord_trans = "half_pixel"
+
+        return _op.image.resize3d(data, out_size, "NCDHW", method, coord_trans)
+    return _impl
+
 
 def _expand_as():
     def _impl(inputs, input_types):
@@ -1577,22 +1666,6 @@ def _one_hot():
     return _impl
 
 
-def _reflection_pad2d():
-    def _impl(inputs, input_types):
-        if isinstance(inputs[1], list):
-            pad_list = inputs[1]
-        else:
-            pad_list = list(_infer_shape(inputs[1]))
-        padding_left = pad_list[0]
-        padding_right = pad_list[1]
-        padding_top = pad_list[2]
-        padding_bottom = pad_list[3]
-        paddings = [[0, 0], [0, 0], [padding_top, padding_bottom], [padding_left, padding_right]]
-
-        return _op.nn.mirror_pad(inputs[0], paddings, mode='REFLECT')
-    return _impl
-
-
 # Helper functions for operator implementation
 def _convert_dtype_value(val):
     convert_torch_dtype_map = {7:"torch.float64",
@@ -1683,6 +1756,7 @@ def _get_convert_map(prelude):
         "aten::arange"                          : _arange(),
         "aten::div"                             : _elemwise("divide"),
         "aten::div_"                            : _elemwise("divide"),
+        "aten::floor_divide"                    : _elemwise("floor_divide"),
         "aten::addcdiv"                         : _addcdiv(),
         "aten::addcmul"                         : _addcmul(),
         "aten::ones"                            : _ones(),
@@ -1758,7 +1832,12 @@ def _get_convert_map(prelude):
         "aten::Int"                             : _int(),
         "prim::NumToTensor"                     : _numtotensor(),
         "prim::ImplicitTensorToNum"             : _tensortonum(),
-        "aten::constant_pad_nd"                 : _pad(),
+        "aten::constant_pad_nd"                 : _pad("constant"),
+        "aten::reflection_pad1d"                : _pad("reflect"),
+        "aten::reflection_pad2d"                : _pad("reflect"),
+        "aten::replication_pad1d"               : _pad("edge"),
+        "aten::replication_pad2d"               : _pad("edge"),
+        "aten::replication_pad3d"               : _pad("edge"),
         "aten::permute"                         : _transpose(prelude),
         "aten::sum"                             : _reduce("sum"),
         "aten::prod"                            : _reduce("prod"),
@@ -1796,6 +1875,8 @@ def _get_convert_map(prelude):
         "aten::detach"                          : _identity(),
         "aten::upsample_bilinear2d"             : _upsample("bilinear"),
         "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
+        "aten::upsample_trilinear3d"            : _upsample3d("trilinear"),
+        "aten::upsample_nearest3d"              : _upsample3d("nearest_neighbor"),
         "aten::expand_as"                       : _expand_as(),
         "aten::lt"                              : _elemwise("less"),
         "aten::gt"                              : _elemwise("greater"),
@@ -1815,7 +1896,6 @@ def _get_convert_map(prelude):
         "aten::embedding"                       : _embedding(),
         "aten::one_hot"                         : _one_hot(),
         "aten::mm"                              : _matmul(prelude),
-        "aten::reflection_pad2d"                : _reflection_pad2d(),
         "relay::tensor_array_stack"             : _tensor_array_stack(prelude),
         "aten::add"                             : _add(prelude),
         "aten::add_"                            : _add(prelude),

@@ -344,7 +344,7 @@ class ThreadSyncInserter : public StmtExprMutator {
   // The storage scope of each buffer
   std::unordered_map<const VarNode*, StorageScope> storage_scope_;
   // The read write statistics of storage
-  std::unordered_map<Var, Entry, ObjectHash, ObjectEqual> rw_stats_;
+  std::unordered_map<Var, Entry, ObjectPtrHash, ObjectPtrEqual> rw_stats_;
   // The statistics for global barrier
   bool in_thread_env_{false};
   // memorized results

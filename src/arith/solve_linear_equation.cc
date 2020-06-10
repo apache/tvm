@@ -24,12 +24,13 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
-#include <tvm/arith/util.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
+
+#include "int_operator.h"
 
 namespace tvm {
 namespace arith {
@@ -96,7 +97,7 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t>>* S, std::vector<std::
         int64_t g, a, b;
         // g = a*matrix[index][index] + b*matrix[i][index]
         if ((*S)[i][index] % (*S)[index][index] != 0) {
-          std::tie(g, a, b) = xgcd((*S)[index][index], (*S)[i][index]);
+          g = ExtendedEuclidean((*S)[index][index], (*S)[i][index], &a, &b);
         } else {
           // Explicitly avoid changing the index-th row. This is important to avoid infinite loop.
           g = (*S)[index][index];
@@ -149,7 +150,7 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t>>* S, std::vector<std::
         int64_t g, a, b;
         // g = a*matrix[index][index] + b*matrix[index][j]
         if ((*S)[index][j] % (*S)[index][index] != 0) {
-          std::tie(g, a, b) = xgcd((*S)[index][index], (*S)[index][j]);
+          g = ExtendedEuclidean((*S)[index][index], (*S)[index][j], &a, &b);
           // During this phase we may disrupt the zeroness of the index-th column, so we will
           // have to take some action if this might have happened.
           changed = true;

@@ -411,16 +411,22 @@ def _mx_slice(inputs, attrs):
     begin = list(attrs.get_int_tuple('begin', None))
     end = list(attrs.get_int_tuple('end', None))
     stride = attrs.get_int_tuple('step', None)
+    input_shape = _infer_type(inputs[0]).checked_type.shape
     if begin is None:
         raise tvm.error.OpAttributeRequired(
             'Attribute "begin" not found in operator Slice.')
     if end is None:
         raise tvm.error.OpAttributeRequired(
             'Attribute "end" not found in operator Slice.')
-    begin = tuple(x if x is not None else 0 for x in begin)
-    new_attrs = {'begin': begin, 'end': end}
+    begin = (x if x is not None else 0 for x in begin)
+    for i, ed in enumerate(end):
+        if ed is None:
+            end[i] = input_shape[i]
+    new_attrs = {'begin': _expr.const(list(begin), dtype="int32"),
+                 'end': _expr.const(list(end), dtype="int32")}
     if stride is not None:
-        new_attrs['strides'] = stride
+        stride = (x if x is not None else 1 for x in stride)
+        new_attrs['strides'] = _expr.const(list(stride), dtype="int32")
     return _op.strided_slice(inputs[0], **new_attrs)
 
 
@@ -460,7 +466,9 @@ def _mx_slice_axis(inputs, attrs):
         else:
             begin.append(ax_beg)
             end.append(ax_end)
-    return _op.strided_slice(inputs[0], begin, end)
+    return _op.strided_slice(inputs[0],
+                             _expr.const(begin, dtype="int32"),
+                             _expr.const(end, dtype="int32"))
 
 
 def _mx_crop_like(inputs, attrs):
@@ -480,9 +488,9 @@ def _mx_crop_like(inputs, attrs):
         return _op.slice_like(*inputs, **new_attrs)
     expr = _infer_type(inputs[1])
     like_shape = expr.checked_type.shape
-    new_attrs['begin'] = [0, 0, offset[0], offset[1]]
-    new_attrs['end'] = [like_shape[0], like_shape[1], offset[0]+like_shape[2],
-                        offset[1]+like_shape[3]]
+    new_attrs['begin'] = _expr.const([0, 0, offset[0], offset[1]], dtype="int32")
+    new_attrs['end'] = _expr.const([like_shape[0], like_shape[1], offset[0]+like_shape[2],
+                                    offset[1]+like_shape[3]], dtype="int32")
     return _op.strided_slice(inputs[0], **new_attrs)
 
 
@@ -656,7 +664,7 @@ def _mx_multibox_detection(inputs, attrs):
 
     ret = _op.vision.multibox_transform_loc(inputs[0], inputs[1],
                                             inputs[2], **new_attrs0)
-    return _op.vision.non_max_suppression(ret[0], ret[1], **new_attrs1)
+    return _op.vision.non_max_suppression(ret[0], ret[1], ret[1], **new_attrs1)
 
 
 def _mx_batch_dot(inputs, attrs):
@@ -757,6 +765,26 @@ def _mx_resize(inputs, attrs):
     return _op.image.resize(inputs[0], size,
                             coordinate_transformation_mode="align_corners")
 
+def _mx_grid_generator(inputs, attrs):
+    transform_type = attrs.get_str("transform_type")
+    if transform_type == 'affine':
+        target_shape = attrs.get_int_tuple("target_shape")
+        return _op.image.affine_grid(_op.reshape(inputs[0], (0, 2, 3)), target_shape)
+    if transform_type == 'warp':
+        checked_type = _infer_type(inputs[0]).checked_type
+        batch, _, height, width = get_const_tuple(checked_type.shape)
+        dtype = checked_type.dtype
+        identity_affine = relay.const(np.array([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]], dtype=dtype))
+        identity_affine = _op.broadcast_to(identity_affine, (batch, 2, 3))
+        normalizer = (2.0 / np.array([width - 1, height - 1])).reshape(1, -1, 1, 1).astype(dtype)
+        normalized_flow = inputs[0] * relay.const(normalizer)
+        grid = _op.image.affine_grid(identity_affine, (height, width))
+        return grid + normalized_flow
+    raise ValueError("unknown transform type" + transform_type)
+
+def _mx_bilinear_sampler(inputs, attrs):
+    return _op.image.grid_sample(inputs[0], inputs[1], 'bilinear', 'NCHW')
+
 def _mx_roi_pooling(inputs, attrs):
     new_attrs = {}
     new_attrs["pooled_size"] = attrs.get_int_tuple("pooled_size")
@@ -800,6 +828,7 @@ def _mx_box_nms(inputs, attrs):
                                       id_index=id_index, score_index=score_index)
     nms_out = _op.vision.non_max_suppression(ret[1],
                                              ret[0],
+                                             ret[2],
                                              iou_threshold=iou_thresh,
                                              force_suppress=force_suppress,
                                              top_k=top_k,
@@ -824,6 +853,11 @@ def _mx_l2_normalize(inputs, attrs):
 
 def _mx_softsign(inputs, attrs):
     return inputs[0] / (_expr.const(1.0) + _op.abs(inputs[0]))
+
+
+def _mx_softmin(inputs, attrs):
+    axis = attrs.get_int("axis", -1)
+    return _op.nn.softmax(_op.negative(inputs[0]), axis)
 
 
 def _mx_hard_sigmoid(inputs, attrs):
@@ -1131,6 +1165,19 @@ def _mx_space_to_depth(inputs, attrs):
     new_attrs = {}
     new_attrs["block_size"] = attrs.get_int("block_size")
     return _op.nn.space_to_depth(*inputs, **new_attrs)
+
+
+def _mx_correlation(inputs, attrs):
+    assert len(inputs) == 2
+    new_attrs = {}
+    new_attrs["kernel_size"] = attrs.get_int("kernel_size", 1)
+    new_attrs["max_displacement"] = attrs.get_int("max_displacement", 1)
+    new_attrs["stride1"] = attrs.get_int("stride1", 1)
+    new_attrs["stride2"] = attrs.get_int("stride2", 1)
+    new_attrs["padding"] = attrs.get_int("pad_size", 0)
+    new_attrs["is_multiply"] = attrs.get_bool("is_multiply", True)
+    new_attrs["layout"] = "NCHW"
+    return _op.nn.correlation(*inputs, **new_attrs)
 
 
 def _mx_contrib_fifo_buffer(inputs, attrs):
@@ -1796,6 +1843,7 @@ _identity_list = [
     "floor",
     "ceil",
     "round",
+    "trunc",
     "sign",
     "sigmoid",
     "negative",
@@ -1905,6 +1953,7 @@ _convert_map = {
     "log_softmax"   : _softmax_op(_op.nn.log_softmax),
     "Softmax"       : _softmax_op(_op.nn.softmax),
     "softsign"      : _mx_softsign,
+    "softmin"       : _mx_softmin,
     "hard_sigmoid"  : _mx_hard_sigmoid,
     "reciprocal"    : _mx_reciprocal,
     # per op specialization
@@ -1971,6 +2020,7 @@ _convert_map = {
     "one_hot"           : _mx_one_hot,
     "depth_to_space"    : _mx_depth_to_space,
     "space_to_depth"    : _mx_space_to_depth,
+    "Correlation"       : _mx_correlation,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
@@ -1982,6 +2032,8 @@ _convert_map = {
     "_contrib_box_nms" : _mx_box_nms,
     "_contrib_DeformableConvolution" : _mx_deformable_convolution,
     "_contrib_AdaptiveAvgPooling2D" : _mx_adaptive_avg_pooling,
+    "GridGenerator"                 : _mx_grid_generator,
+    "BilinearSampler"               : _mx_bilinear_sampler,
     # NLP
     "RNN"               : _mx_rnn_layer,
     "_rnn_param_concat" : _mx_rnn_param_concat,

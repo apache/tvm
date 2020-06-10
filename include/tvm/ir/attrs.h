@@ -97,7 +97,7 @@ struct AttrError : public dmlc::Error {
    * \brief constructor
    * \param msg error message
    */
-  explicit AttrError(const std::string& msg) : dmlc::Error(msg) {}
+  explicit AttrError(std::string msg) : dmlc::Error("AttributeError:" + msg) {}
 };
 
 /*!
@@ -201,7 +201,7 @@ class Attrs : public ObjectRef {
 class DictAttrsNode : public BaseAttrsNode {
  public:
   /*! \brief internal attrs map */
-  Map<std::string, ObjectRef> dict;
+  Map<String, ObjectRef> dict;
 
   bool SEqualReduce(const DictAttrsNode* other, SEqualReducer equal) const {
     return equal(dict, other->dict);
@@ -230,11 +230,24 @@ class DictAttrs : public Attrs {
    * \param dict The attributes.
    * \return The dict attributes.
    */
-  TVM_DLL explicit DictAttrs(Map<std::string, ObjectRef> dict);
+  TVM_DLL explicit DictAttrs(Map<String, ObjectRef> dict);
 
   TVM_DEFINE_OBJECT_REF_METHODS(DictAttrs, Attrs, DictAttrsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
 };
+
+/*!
+ * \brief Create an Attr object with all default values.
+ * \tparam TAttrNode the type to be created.
+ * \return A instance that will represent None.
+ */
+template <typename TAttrs>
+inline TAttrs AttrsWithDefaultValues() {
+  static_assert(std::is_base_of<Attrs, TAttrs>::value, "Can only take attr nodes");
+  auto n = make_object<typename TAttrs::ContainerType>();
+  n->InitByPackedArgs(runtime::TVMArgs(nullptr, nullptr, 0), false);
+  return TAttrs(n);
+}
 
 // Namespace containing detail implementations
 namespace detail {

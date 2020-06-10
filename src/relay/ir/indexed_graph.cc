@@ -270,6 +270,8 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
 
     void VisitDFPattern_(const VarPatternNode* op, NodePtr parent) override {}
 
+    void VisitDFPattern_(const ConstantPatternNode* op, NodePtr parent) override {}
+
     void VisitDFPattern_(const WildcardPatternNode* op, NodePtr parent) override {}
   };
   return Annotator(Creator().CreateGraph(pattern)).Annotate();

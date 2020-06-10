@@ -29,7 +29,7 @@ def test_exp():
     assert "fast_exp" in fast_mod.astext()
 
     # Check that FastMath option works for relay.build.
-    with relay.build_config(opt_level=3, required_pass=['FastMath']):
+    with tvm.transform.PassContext(opt_level=3, required_pass=['FastMath']):
         fast_mod = relay.optimize(mod, target='llvm', params=None)
     assert "fast_exp" in fast_mod[0].astext()
 
@@ -43,7 +43,7 @@ def test_tanh():
     assert "fast_tanh" in fast_mod.astext()
 
     # Check that FastMath option works for relay.build.
-    with relay.build_config(opt_level=3, required_pass=['FastMath']):
+    with tvm.transform.PassContext(opt_level=3, required_pass=['FastMath']):
         fast_mod = relay.optimize(mod, target='llvm', params=None)
     assert "fast_tanh" in fast_mod[0].astext()
 

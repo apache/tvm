@@ -50,6 +50,7 @@ List of operators
    topi.expand_dims
    topi.reshape
    topi.unravel_index
+   topi.sparse_to_dense
    topi.squeeze
    topi.concatenate
    topi.split
@@ -154,6 +155,7 @@ topi
 .. autofunction:: topi.expand_dims
 .. autofunction:: topi.reshape
 .. autofunction:: topi.unravel_index
+.. autofunction:: topi.sparse_to_dense
 .. autofunction:: topi.squeeze
 .. autofunction:: topi.concatenate
 .. autofunction:: topi.split

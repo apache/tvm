@@ -63,10 +63,52 @@ def test_resize():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4, atol=1e-6)
     for method in ["bilinear", "nearest_neighbor"]:
         for layout in ["NHWC", "NCHW"]:
             verify_resize((1, 4, 4, 4), 2, method, layout)
+
+def test_resize3d_infer_type():
+    n, c, d, h, w = te.size_var("n"), te.size_var("c"), te.size_var("d"), te.size_var("h"), te.size_var("w")
+    x = relay.var("x", relay.TensorType((n, c, d, h, w), "int8"))
+    td, th, tw = te.var("td"), te.var("th"), te.var("tw")
+    z = relay.image.resize3d(x, (td, th, tw))
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((n, c, td, th, tw), "int8")
+
+    x = relay.var("x", relay.TensorType((n, c, d, h, w), "int8"))
+    z= relay.image.resize3d(x, (10, 10, 20), "NCDHW", "trilinear", "align_corners")
+    assert "size=" in z.astext()
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((n, c, 10, 10, 20), "int8")
+
+def test_resize3d():
+    def verify_resize(dshape, scale, method, layout):
+        if layout == "NDHWC":
+            size = (dshape[1] * scale, dshape[2] * scale, dshape[3] * scale)
+        else:
+            size = (dshape[2] * scale, dshape[3] * scale, dshape[4] * scale)
+
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        if method == "trilinear":
+            ref_res = topi.testing.trilinear_resize3d_python(x_data, size, layout)
+        else:
+            ref_res = topi.testing.upsampling3d_python(x_data, (scale, scale, scale), layout)
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.image.resize3d(x, size, layout, method, "align_corners")
+        assert "size=" in z.astext()
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
+        func = relay.Function([x], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+    for method in ["trilinear", "nearest_neighbor"]:
+        for layout in ["NDHWC", "NCDHW"]:
+            verify_resize((1, 4, 4, 4, 4), 2, method, layout)
 
 def test_crop_and_resize():
     def verify_crop_and_resize(img_shape, boxes, box_indices, crop_size,
@@ -202,6 +244,7 @@ def test_get_valid_counts():
         np_data = np.random.uniform(low=-2, high=2, size=dshape).astype(dtype)
         np_out1 = np.zeros(shape=(batch_size,))
         np_out2 = np.zeros(shape=dshape).astype(dtype)
+        np_out3 = np.zeros(shape=(batch_size, num_anchor))
         for i in range(batch_size):
             np_out1[i] = 0
             inter_idx = 0
@@ -211,10 +254,12 @@ def test_get_valid_counts():
                     for k in range(elem_length):
                         np_out2[i, inter_idx, k] = np_data[i, j, k]
                     np_out1[i] += 1
+                    np_out3[i, inter_idx] = j
                     inter_idx += 1
                 if j >= np_out1[i]:
                     for k in range(elem_length):
                         np_out2[i, j, k] = -1.0
+                    np_out3[i, j] = -1
 
         x = relay.var("x", relay.ty.TensorType(dshape, dtype))
         z = relay.vision.get_valid_counts(x, score_threshold, id_index, score_index)
@@ -229,6 +274,7 @@ def test_get_valid_counts():
             if target == 'cuda':
                 return
             tvm.testing.assert_allclose(out[1].asnumpy(), np_out2, rtol=1e-3, atol=1e-04)
+            tvm.testing.assert_allclose(out[2].asnumpy(), np_out3, rtol=1e-3, atol=1e-04)
 
     verify_get_valid_counts((1, 2500, 6), 0, 0, 1)
     verify_get_valid_counts((1, 2500, 5), -1, -1, 0)
@@ -237,69 +283,79 @@ def test_get_valid_counts():
 
 
 def test_non_max_suppression():
-    def verify_nms(x0_data, x1_data, dshape, ref_res, ref_indices_res,
+    def verify_nms(x0_data, x1_data, x2_data, dshape, ref_res, ref_indices_res,
                    iou_threshold=0.5, force_suppress=False, top_k=-1,
                    check_type_only=False):
         x0 = relay.var("x0", relay.ty.TensorType(dshape, "float32"))
         x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int32"))
-        z = relay.vision.non_max_suppression(x0, x1, max_output_size = -1, \
-            iou_threshold = iou_threshold, force_suppress = force_suppress, \
-            top_k = top_k, return_indices=False)
-        z_indices = relay.vision.non_max_suppression(x0, x1, max_output_size = -1, \
-                    iou_threshold = iou_threshold, force_suppress = force_suppress, \
-                    top_k = top_k)
+        x2 = relay.var("x2", relay.ty.TensorType((dshape[0], dshape[1]), "int32"))
+        z = relay.vision.non_max_suppression(x0, x1, x2, max_output_size=-1, \
+            iou_threshold=iou_threshold, force_suppress=force_suppress, \
+            top_k=top_k, return_indices=False)
+        z_indices = relay.vision.non_max_suppression(x0, x1, x2, max_output_size=-1, \
+                    iou_threshold=iou_threshold, force_suppress=force_suppress, \
+                    top_k=top_k, return_indices=True)
+        if isinstance(z_indices, relay.expr.TupleWrapper):
+            z_indices = z_indices.astuple()
         assert "iou_threshold" in z.astext()
         assert "iou_threshold" in z_indices.astext()
         zz = run_infer_type(z)
         zz_indices = run_infer_type(z_indices)
         assert zz.checked_type == relay.ty.TensorType(dshape, "float32")
-        assert zz_indices.checked_type == relay.ty.TensorType((dshape[0], dshape[1]), "int32")
+        assert zz_indices.checked_type == relay.ty.TupleType(
+            [relay.ty.TensorType((dshape[0], dshape[1]), "int32"),
+             relay.ty.TensorType((dshape[0], 1), "int32")])
 
         if check_type_only:
             return
 
-        func = relay.Function([x0, x1], z)
+        func = relay.Function([x0, x1, x2], z)
         func = run_infer_type(func)
-        func_indices = relay.Function([x0, x1], z_indices)
+        func_indices = relay.Function([x0, x1, x2], z_indices)
         func_indices = run_infer_type(func_indices)
         for target, ctx in ctx_list():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-            op_res1 = intrp1.evaluate(func)(x0_data, x1_data)
-            op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data)
+            op_res1 = intrp1.evaluate(func)(x0_data, x1_data, x2_data)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
-            tvm.testing.assert_allclose(op_indices_res1.asnumpy(), ref_indices_res, rtol=1e-5)
             intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
-            op_res2 = intrp2.evaluate(func)(x0_data, x1_data)
-            op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data)
+            op_res2 = intrp2.evaluate(func)(x0_data, x1_data, x2_data)
             tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
-            tvm.testing.assert_allclose(op_indices_res2.asnumpy(), ref_indices_res, rtol=1e-5)
+            if target == 'cuda':
+                return
+            op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data)
+            tvm.testing.assert_allclose(op_indices_res1[0].asnumpy(), ref_indices_res, rtol=1e-5)
+            op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data, x2_data)
+            tvm.testing.assert_allclose(op_indices_res2[0].asnumpy(), ref_indices_res, rtol=1e-5)
 
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
                          [1, 0.5, 100, 60, 70, 110]]]).astype("float32")
     np_valid_count = np.array([4]).astype("int32")
+
+    np_indices = np.array([[0, 1, 3, 4, -1]]).astype("int32")
+
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
                            [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
-    np_indices_result = np.array([[3, 0, -1, -1, -1]])
+    np_indices_result = np.array([[4, 0, -1, -1, -1]])
     num_anchors = 5
 
     dshape = (te.size_var("n"), num_anchors, 6)
-    verify_nms(np_data, np_valid_count, dshape, np_result, np_indices_result,
+    verify_nms(np_data, np_valid_count, np_indices, dshape, np_result, np_indices_result,
                force_suppress=True, top_k=2, check_type_only=True)
     dshape = (1, num_anchors, 6)
-    verify_nms(np_data, np_valid_count, dshape, np_result, np_indices_result,
+    verify_nms(np_data, np_valid_count, np_indices, dshape, np_result, np_indices_result,
                force_suppress=True, top_k=2, check_type_only=False)
 
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
                            [1, 0.7, 30, 60, 50, 80], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
-    np_indices_result = np.array([[3, 0, 1, -1, -1]])
+    np_indices_result = np.array([[4, 0, 1, -1, -1]])
     dshape = (te.size_var("n"), num_anchors, 6)
-    verify_nms(np_data, np_valid_count, dshape, np_result,
+    verify_nms(np_data, np_valid_count, np_indices, dshape, np_result,
                np_indices_result, check_type_only=True)
     dshape = (1, num_anchors, 6)
-    verify_nms(np_data, np_valid_count, dshape, np_result,
+    verify_nms(np_data, np_valid_count, np_indices, dshape, np_result,
                np_indices_result, top_k=3)
 
 
@@ -342,7 +398,7 @@ def test_multibox_transform_loc():
 
         assert ret.checked_type == ref_type
 
-        nms = relay.vision.non_max_suppression(mtl[0], mtl[1], return_indices=False)
+        nms = relay.vision.non_max_suppression(mtl[0], mtl[1], mtl[0], return_indices=False)
         func = relay.Function([cls_prob, loc_pred, anchors], nms)
         func = run_infer_type(func)
         for target, ctx in ctx_list():
@@ -781,9 +837,61 @@ def test_dilation2d_run():
                         data_layout='NHWC', kernel_layout='HWI')
 
 
+def test_affine_grid():
+    def verify_affine_grid(num_batch, target_shape):
+        dtype = 'float32'
+        data_shape = (num_batch, 2, 3)
+        data = relay.var("data", relay.ty.TensorType(data_shape, dtype))
+        y = relay.image.affine_grid(data, target_shape)
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.ty.TensorType((num_batch, len(target_shape), *target_shape), dtype)
+
+        func = relay.Function([data], y)
+        data_np = np.random.uniform(size=data_shape).astype(dtype)
+        ref_res = topi.testing.affine_grid_python(data_np, target_shape)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp1 = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res1 = intrp1.evaluate(func)(data_np)
+                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    verify_affine_grid(1, (16, 32))
+    verify_affine_grid(4, (16, 32))
+
+
+def test_grid_sample():
+    def verify_grid_sample(data_shape, grid_shape):
+        dtype = 'float32'
+        batch, channel, _, _ = data_shape
+        _, _, out_height, out_width = grid_shape
+        data = relay.var("data", relay.ty.TensorType(data_shape, dtype))
+        grid = relay.var("grid", relay.ty.TensorType(grid_shape, dtype))
+        y = relay.image.grid_sample(data, grid, method='bilinear', layout='NCHW')
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType((batch, channel, out_height, out_width), dtype)
+        func = relay.Function([data, grid], y)
+
+        data_np = np.random.uniform(size=data_shape).astype(dtype)
+        grid_np = np.random.uniform(size=grid_shape, low=-1.5, high=1.5).astype(dtype)
+        ref_res = topi.testing.grid_sample_nchw_python(data_np, grid_np, method='bilinear')
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp1 = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res1 = intrp1.evaluate(func)(data_np, grid_np)
+                tvm.testing.assert_allclose(
+                    op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))
+
+
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
+    test_resize3d_infer_type()
+    test_resize3d()
     test_crop_and_resize()
     test_multibox_prior()
     test_multibox_transform_loc()
@@ -799,3 +907,5 @@ if __name__ == "__main__":
     test_space_to_depth()
     test_dilation2d_infer_type()
     test_dilation2d_run()
+    test_affine_grid()
+    test_grid_sample()

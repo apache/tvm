@@ -536,11 +536,11 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   /*! \brief String stream for function name */
   std::ostringstream readable_name_stream_;
   /*! \brief Map from parameter to its shape function usage state */
-  std::unordered_map<Expr, int, ObjectHash, ObjectEqual> param_states_;
+  std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> param_states_;
   /*! \brief Map from parameter to list of data placeholder */
-  std::unordered_map<Expr, Array<te::Tensor>, ObjectHash, ObjectEqual> param_data_;
+  std::unordered_map<Expr, Array<te::Tensor>, ObjectPtrHash, ObjectPtrEqual> param_data_;
   /*! \brief Map from parameter to list of shape placeholder */
-  std::unordered_map<Expr, Array<te::Tensor>, ObjectHash, ObjectEqual> param_shapes_;
+  std::unordered_map<Expr, Array<te::Tensor>, ObjectPtrHash, ObjectPtrEqual> param_shapes_;
   /*! \brief Stack of data dependencies for shape function */
   std::vector<bool> data_dependants_;
   /*! \brief Scalars used in the shape function */
@@ -561,7 +561,7 @@ class CompileEngineImpl : public CompileEngineNode {
     if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
       m = (*f)(value->cached_func->funcs, key->target);
     } else {
-      m = build(value->cached_func->funcs, key->target, Target(nullptr), BuildConfig::Current());
+      m = build(value->cached_func->funcs, key->target, Target(nullptr));
     }
     value->packed_func = m.GetFunction(value->cached_func->func_name);
     return value->packed_func;
@@ -688,9 +688,11 @@ class CompileEngineImpl : public CompileEngineNode {
     if (const auto* f = runtime::Registry::Get("relay.backend.lower")) {
       cache_node->funcs = (*f)(cfunc->schedule, all_args, cache_node->func_name, key->source_func);
     } else {
-      tvm::BuildConfig bcfg = BuildConfig::Create();
+      using tvm::transform::PassContext;
+      With<PassContext> fresh_pass_ctx_scope(PassContext::Create());
+
       std::unordered_map<te::Tensor, tir::Buffer> binds;
-      cache_node->funcs = tvm::lower(cfunc->schedule, all_args, cache_node->func_name, binds, bcfg);
+      cache_node->funcs = tvm::lower(cfunc->schedule, all_args, cache_node->func_name, binds);
     }
     value->cached_func = CachedFunc(cache_node);
     return value;
@@ -722,9 +724,12 @@ class CompileEngineImpl : public CompileEngineNode {
     for (te::Tensor arg : cache_node->outputs) {
       all_args.push_back(arg);
     }
-    tvm::BuildConfig bcfg = BuildConfig::Create();
+
+    using tvm::transform::PassContext;
+    With<PassContext> fresh_pass_ctx_scope(PassContext::Create());
+
     std::unordered_map<te::Tensor, tir::Buffer> binds;
-    cache_node->funcs = tvm::lower(spair.first, all_args, cache_node->func_name, binds, bcfg);
+    cache_node->funcs = tvm::lower(spair.first, all_args, cache_node->func_name, binds);
     value->cached_func = CachedFunc(cache_node);
     return value;
   }
