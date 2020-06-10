@@ -39,7 +39,7 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 tvm-common = { version = "0.1", path = "../common" }
-tvm-macros = { version = "0.1", path = "../macros" }
+old-tvm-macros = { version = "0.1", path = "../macros" }
 
 [target.'cfg(not(any(target_arch = "wasm32", target_env = "sgx")))'.dependencies]
 libloading = "0.5"

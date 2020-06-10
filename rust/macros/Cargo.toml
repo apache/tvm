@@ -16,7 +16,7 @@
 # under the License.
 
 [package]
-name = "tvm-macros"
+name = "old-tvm-macros"
 version = "0.1.1"
 license = "Apache-2.0"
 description = "Procedural macros of the TVM crate."
