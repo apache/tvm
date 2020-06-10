@@ -110,8 +110,7 @@ def _get_more_static_shape(shape0, shape1):
 
     if num_sym_dim0 < num_sym_dim1:
         return shape0
-    else:
-        return shape1
+    return shape1
 
 def _rsqrt():
     def _impl(inputs, attr, params, mod):
@@ -1149,7 +1148,15 @@ def _slice():
                 size = _infer_value(inputs[2], params, mod).asnumpy().tolist()
             except Exception:
                 size = inputs[2]
-        return _op.strided_slice(inputs[0], begin=begin, end=size, slice_mode="size")
+
+        # Align begin and strides for dynamic shape.
+        data_dim = len(_infer_shape(inputs[0], mod))
+        strides = [1] * data_dim
+        if not isinstance(begin, (_expr.Call, _expr.Var)):
+            for _ in range(len(begin), data_dim):
+                begin.append(0)
+        return _op.strided_slice(inputs[0], begin=begin, end=size,
+                                 strides=strides, slice_mode="size")
     return _impl
 
 
@@ -1648,11 +1655,11 @@ def _range():
             limit = _get_param(params, inputs[1])[0] \
                 if hasattr(inputs[1], "name_hint") or isinstance(inputs[1], _expr.Constant) \
                 else params.pop('Rank').asnumpy()[0]
-        except:
+        except (IndexError, KeyError, AttributeError):
             try:
                 limit = _infer_value(inputs[1], params, mod).asnumpy().tolist()
                 limit = limit if not isinstance(limit, list) else limit[0]
-            except:
+            except Exception:
                 limit = inputs[1]
 
         try:
@@ -2412,6 +2419,7 @@ _tensor_array_write_ops = {
 }
 
 def is_tensor_array_constuctor(tf_node):
+    """Check whether is tensor array constructor node."""
     is_ta = False
     ta_start = "TensorArrayV"
     if tf_node.op.startswith(ta_start):
@@ -2480,6 +2488,7 @@ class RewriteSubgraph(ExprMutator):
         return super().visit(expr)
 
 def rewrite_subgraph(expr, rewrites):
+    """Rewrite loop body."""
     return RewriteSubgraph(rewrites).visit(expr)
 
 class Branch:
@@ -2896,9 +2905,6 @@ class GraphProto(object):
                         inode = self._tf_node_map[wnode.input[inode_idx].split(":")[0]]
                         self._tensor_array_shape_nodes[cnode.name] = (inode, wnode.op)
                     break
-
-        for ta in ta_construct_nodes:
-            assert ta.name in self._tensor_array_shape_nodes, "Shape node of {} not found.".format(ta.name)
 
         # First, parse all control flow nodes.
         # Convert tf.cond to Branch and tf.while_loop to Loop.

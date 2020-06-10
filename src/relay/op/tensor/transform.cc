@@ -2093,9 +2093,9 @@ bool SplitRel(const Array<Type>& types,
 
   if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
     if (!data->shape[axis].as<Any>()) {
-      CHECK(reporter->Assert(indexmod(data->shape[axis],
-                                      sections->value) == tir::make_zero(DataType::Int(64))))
-        << "indices_or_sections need to be able to divide input.shape[axis]";
+      CHECK(reporter->Assert(indexmod(data->shape[axis], sections->value) ==
+                             tir::make_zero(DataType::Int(64))))
+          << "indices_or_sections need to be able to divide input.shape[axis]";
     }
     std::vector<Type> fields;
     for (int i = 0; i < sections->value; ++i) {
@@ -2115,7 +2115,7 @@ bool SplitRel(const Array<Type>& types,
     std::vector<Type> fields;
     for (unsigned int i = 0; i < indices.size(); ++i) {
       CHECK(reporter->Assert(Downcast<IndexExpr>(indices[i]) > begin))
-        << "indices_or_sections need to be a sorted ascending list";
+          << "indices_or_sections need to be a sorted ascending list";
       std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
       oshape[axis] = Downcast<IndexExpr>(indices[i]) - begin;
       begin = Downcast<IndexExpr>(indices[i]);
@@ -2124,7 +2124,7 @@ bool SplitRel(const Array<Type>& types,
     }
     if (!data->shape[axis].as<Any>()) {
       CHECK(reporter->Assert(begin < data->shape[axis]))
-        << "The sum of sections must match the input.shape[axis]";
+          << "The sum of sections must match the input.shape[axis]";
     }
     std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
     if (data->shape[axis].as<Any>()) {

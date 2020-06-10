@@ -2301,7 +2301,7 @@ def test_forward_ssd():
         # Call the utility to import the graph definition into default graph.
         graph_def = tf_testing.ProcessGraphDefParam(graph_def)
 
-        data = np.random.uniform(0.0, 255.0, size=(1, 512, 512, 3)).astype('float32')
+        data = np.random.uniform(0.0, 255.0, size=(1, 512, 512, 3)).astype('uint8')
         in_node = "image_tensor"
         out_node = ['detection_boxes', "detection_scores", "detection_classes"]
 
@@ -2315,8 +2315,8 @@ def test_forward_ssd():
                     print("Skip because %s is not enabled" % device)
                     continue
                 tvm_output = run_tvm_graph(graph_def, data, in_node, len(out_node),
-                                           target=device, layout="NCHW", mode="vm",
-                                           disabled_pass=["FoldScaleAxis"])
+                                           target=device, layout="NCHW", out_names=out_node,
+                                           mode="vm", disabled_pass=["FoldScaleAxis"])
                 for i in range(len(out_node)):
                     tvm.testing.assert_allclose(tvm_output[i], tf_output[i],
                                                 rtol=1e-3, atol=1e-3)
