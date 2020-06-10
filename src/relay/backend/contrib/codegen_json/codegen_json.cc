@@ -249,8 +249,18 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
   }
 
   void SetCallNodeAttribute(JSONGraphObjectPtr node, const CallNode* cn) {
-    OpAttrExtractor extractor(node);
-    extractor.Extract(const_cast<Object*>(cn->attrs.get()));
+    if (cn->op.as<OpNode>()) {
+      OpAttrExtractor extractor(node);
+      extractor.Extract(const_cast<Object*>(cn->attrs.get()));
+    } else if (const auto* fn = cn->op.as<FunctionNode>()) {
+      auto pattern = fn->GetAttr<String>(attr::kPartitionedFromPattern);
+      CHECK(pattern.defined());
+      std::vector<std::string> values;
+      values.push_back(pattern.value().operator std::string());
+      std::vector<dmlc::any> attr;
+      attr.emplace_back(values);
+      node->SetAttr("PartitionedFromPattern", attr);
+    }
   }
 
   std::vector<JSONGraphNodeEntry> VisitExprDefault_(const Object* op) final {
@@ -288,8 +298,6 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
       auto comp = fn->GetAttr<String>(attr::kComposite);
       CHECK(comp.defined()) << "JSON runtime only supports composite functions.";
       name = comp.value().operator std::string();
-      // TODO(zhiics) Handle composite function here.
-      LOG(FATAL) << "Composite function is not handled yet.";
     } else {
       LOG(FATAL) << "JSON runtime does not support calls to " << cn->op->GetTypeKey();
     }
