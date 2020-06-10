@@ -278,17 +278,9 @@ class Vectorizer : public StmtExprMutator {
       }
     }
   }
-  // Provide
-  Stmt VisitStmt_(const ProvideNode* op) final {
-    PrimExpr new_value = this->VisitExpr(op->value);
-    int lane = new_value.dtype().lanes();
-    Array<PrimExpr> new_args = MutateArray(op->args, &lane);
-    if (op->args.same_as(new_args) && op->value.same_as(new_value)) {
-      return GetRef<Stmt>(op);
-    } else {
-      new_value = BroadcastTo(new_value, lane);
-      return ProvideNode::make(op->func, op->value_index, new_value, new_args);
-    }
+  Stmt VisitStmt_(const ProducerStoreNode* op) final {
+    LOG(FATAL) << "ProducerProvide is cannot appear in a TIR PrimFunc";
+    return Stmt();
   }
   // Store
   Stmt VisitStmt_(const StoreNode* op) final {
