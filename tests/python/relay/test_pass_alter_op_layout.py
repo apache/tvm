@@ -18,10 +18,11 @@
 import pytest
 
 import tvm
-from tvm import te
 from tvm import relay
 from tvm.relay import transform, analysis
 from tvm.relay.testing.temp_op_attr import TempOpAttr
+from tvm.relay.testing import ctx_list, run_infer_type
+import numpy as np
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
@@ -620,7 +621,10 @@ def test_alter_layout_strided_slice():
         x = relay.var("x", shape=(1, 32, 28, 28))
         weight = relay.var('weight', shape=(32, 32, 3, 3))
         y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1))
-        y = relay.strided_slice(y, begin=[0, 16], end=[None, None])
+        y = relay.strided_slice(y,
+                                begin=relay.const([0, 16], "int32"),
+                                end=relay.const([1, 33], "int32"),
+                                strides=relay.const([1, 1], "int32"))
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
@@ -632,22 +636,41 @@ def test_alter_layout_strided_slice():
 
     def expected():
         x = relay.var("x", shape=(1, 32, 28, 28))
-        weight = relay.var("weight")
+        weight = relay.var("weight", shape=(32, 32, 3, 3))
+        weight = relay.layout_transform(weight, "OIHW", "OIHW4i4o")
         x = relay.layout_transform(x, "NCHW", "NCHW4c")
-        y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1),
-                            data_layout="NCHW4c")
-        y = relay.strided_slice(y, begin=[0, 4], end=[None, 8])
+        y = relay.op.nn.contrib_conv2d_nchwc(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1),
+                                             data_layout="NCHW4c")
+
+        y = relay.strided_slice(y,
+                                begin=relay.const([0, 4], "int32"),
+                                end=relay.const([1, 21], "int32"),
+                                strides=relay.const([1, 1], "int32"))
+
         y = relay.layout_transform(y, "NCHW4c", "NCHW")
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
     with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
         a = before()
-        a = run_opt_pass(a, [transform.CanonicalizeOps(),
-                             transform.AlterOpLayout()])
         b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    # Verify inference result
+    mod_before = tvm.IRModule()
+    mod_new = tvm.IRModule()
+    mod_before['main'] = a
+    mod_new['main'] = b
+    with relay.build_config(opt_level=3):
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug", "vm"]:
+                ex_before = relay.create_executor(kind, mod=mod_before, ctx=ctx, target=target)
+                ex_new = relay.create_executor(kind, mod=mod_new, ctx=ctx, target=target)
+                np_data = np.random.uniform(size=(1, 32, 28, 28)).astype("float32")
+                np_weight = np.random.uniform(size=(32, 32, 3, 3)).astype("float32")
+                result_before = ex_before.evaluate()(np_data, np_weight)
+                result_new = ex_new.evaluate()(np_data, np_weight)
+                tvm.testing.assert_allclose(result_before.asnumpy(), result_new.asnumpy(), rtol=1e-5, atol=1e-5)
+
 
 def test_alter_layout_depthwise_conv2d():
     """Test depthwise_conv2d operator"""

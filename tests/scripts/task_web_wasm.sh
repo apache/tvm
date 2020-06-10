@@ -22,6 +22,7 @@ set -u
 export PYTHONPATH=`pwd`/python
 
 cd web
+make clean
 npm install
 npm run lint
 npm run prepwasm

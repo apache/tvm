@@ -1014,11 +1014,12 @@ class Slice(OnnxOpConverter):
                 attr['ends'] = new_ends
         except KeyError:
             pass
+        begin = list(attr['starts'])
+        end = list(attr['ends'])
 
-        return AttrCvt('strided_slice',
-                       transforms={'starts': 'begin',
-                                   'ends': 'end'},
-                       ignores=['axes'])(inputs, attr)
+        return _op.strided_slice(inputs[0],
+                                 begin=_expr.const(begin, dtype="int32"),
+                                 end=_expr.const(end, dtype="int32"))
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
@@ -1034,7 +1035,9 @@ class Slice(OnnxOpConverter):
                     starts, ends, axes)
                 starts = new_starts
                 ends = new_ends
-        return _op.strided_slice(inputs[0], begin=starts, end=ends)
+        return _op.strided_slice(inputs[0],
+                                 begin=_expr.const(starts, dtype="int32"),
+                                 end=_expr.const(ends, dtype="int32"))
 
 
 class Gather(OnnxOpConverter):
@@ -1053,6 +1056,16 @@ class GatherND(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         return _op.gather_nd(inputs[0], inputs[1])
+
+
+class Scatter(OnnxOpConverter):
+    """ Operator converter for Scatter.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr.get('axis', 0)
+        return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
 
 
 class Greater(OnnxOpConverter):
@@ -1860,6 +1873,8 @@ def _get_convert_map(opset):
         'SpaceToDepth': SpaceToDepth.get_converter(opset),
         'Gather': Gather.get_converter(opset),
         'GatherND': GatherND.get_converter(opset),
+        'Scatter': Scatter.get_converter(opset),
+        'ScatterElements': Scatter.get_converter(opset),
         'Squeeze': AttrCvt('squeeze', {'axes': 'axis'}),
         'Unsqueeze': Unsqueeze.get_converter(opset),
         'Pad': Pad.get_converter(opset),

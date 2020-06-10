@@ -104,7 +104,9 @@ struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionA
         .describe(
             "Max number of output valid boxes for each instance."
             "By default all valid boxes are returned.");
-    TVM_ATTR_FIELD(iou_threshold).set_default(0.5).describe("Non-maximum suppression threshold.");
+    TVM_ATTR_FIELD(iou_threshold)
+        .set_default(0.5)
+        .describe("Non-maximum suppression iou threshold.");
     TVM_ATTR_FIELD(force_suppress)
         .set_default(false)
         .describe("Suppress all detections regardless of class_id.");
