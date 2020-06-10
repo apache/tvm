@@ -15,19 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[workspace]
-members = [
-	"common",
-	"macros",
-	"runtime",
-	"runtime/tests/test_tvm_basic",
-	"runtime/tests/test_tvm_dso",
-	"runtime/tests/test_wasm32",
-	"runtime/tests/test_nn",
-	"frontend",
-	"frontend/tests/basics",
-	"frontend/tests/callback",
-	"frontend/examples/resnet",
-	"tvm-sys",
-	"tvm-rt"
-]
+[package]
+name = "tvm-macros"
+version = "0.1.1"
+license = "Apache-2.0"
+description = "Procedural macros of the TVM crate."
+repository = "https://github.com/apache/incubator-tvm"
+readme = "README.md"
+keywords = ["tvm"]
+authors = ["TVM Contributors"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+goblin = "0.0.24"
+proc-macro2 = "^1.0"
+quote = "^1.0"
+syn = { version = "1.0.17", features = ["full", "extra-traits"] }

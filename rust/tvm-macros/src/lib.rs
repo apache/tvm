@@ -17,30 +17,25 @@
  * under the License.
  */
 
-use thiserror::Error;
+use proc_macro::TokenStream;
 
-#[derive(Error, Debug)]
-#[error("invalid header (expected {expected_type:?}, found {actual_type:?})")]
-pub struct ValueDowncastError {
-    pub actual_type: String,
-    pub expected_type: &'static str,
+mod external;
+mod import_module;
+mod object;
+mod util;
+
+#[proc_macro]
+pub fn import_module(input: TokenStream) -> TokenStream {
+    import_module::macro_impl(input)
 }
 
-#[derive(Error, Debug)]
-#[error("Function call `{context:?}` returned error: {message:?}")]
-pub struct FuncCallError {
-    context: String,
-    message: String,
+#[proc_macro_derive(Object, attributes(base, ref_name, type_key))]
+pub fn macro_impl(input: TokenStream) -> TokenStream {
+    // let input = proc_macro2::TokenStream::from(input);
+    TokenStream::from(object::macro_impl(input))
 }
 
-impl FuncCallError {
-    pub fn get_with_context(context: String) -> Self {
-        Self {
-            context,
-            message: unsafe { std::ffi::CStr::from_ptr(crate::ffi::TVMGetLastError()) }
-                .to_str()
-                .expect("failed while attempting to retrieve the TVM error message")
-                .to_owned(),
-        }
-    }
+#[proc_macro]
+pub fn external(input: TokenStream) -> TokenStream {
+    external::macro_impl(input)
 }
