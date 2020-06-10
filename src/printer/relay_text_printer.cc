@@ -823,8 +823,7 @@ std::vector<Doc> RelayTextPrinter::PrintFuncAttrs(const Attrs& attrs) {
   return docs;
 }
 
-TVM_REGISTER_GLOBAL("ir.TextPrinter")
-.set_body_typed([](ObjectRef node) {
+TVM_REGISTER_GLOBAL("ir.TextPrinter").set_body_typed([](ObjectRef node) {
   std::cout << "The program: " << node << std::endl;
   auto text = AsText(node, false, nullptr);
   std::cout << "The text " << text;
