@@ -548,9 +548,21 @@ def InjectDMAIntrin():
                 allow_fold = True
 
             _check_compact(dst)
+
+            # for int8 -> int32 cast/load
+            orig_dtype = src.dtype
+            if src.dtype != data_type:
+                assert(data_type == "int%d" % env.ACC_WIDTH and \
+                       src.dtype == "int%d" % env.INP_WIDTH)
+                src.dtype = data_type
+
             x_size, y_size, x_stride, offset = _get_2d_pattern(
                 src, elem_width, elem_bytes, data_type,
                 dst.scope, allow_fold=allow_fold)
+
+            if orig_dtype != src.dtype:
+                src.dtype = orig_dtype
+                mem_type = env.dev.MEM_ID_ACC_8
 
             irb = tvm.tir.ir_builder.create()
             irb.scope_attr(env.dev.vta_axis, "coproc_scope",

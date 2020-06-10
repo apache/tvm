@@ -245,11 +245,11 @@ Expr Conv2dTransposeRealize(const Call& ref_call,
   DataType out_dtype = cfg->dtype_activation;
   attrs->out_dtype = out_dtype;
 
-  Expr ret = CallNode::make(ref_call->op,
+  Expr ret = Call(ref_call->op,
     {ldata, rdata}, Attrs(attrs), ref_call->type_args);
   Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
   Expr dom_scale = FoldConstantOpt(mul);
-  return QRealizeIntExprNode::make(ret, dom_scale, out_dtype);
+  return QRealizeIntExpr(ret, dom_scale, out_dtype);
 }
 
 RELAY_REGISTER_OP("nn.conv2d_transpose")

@@ -384,6 +384,7 @@ TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
  * \note this function mutates mod and is not thread-safe.
  */
 TVM_DLL Function InferType(const Function& f, const IRModule& mod, const GlobalVar& var);
+TVM_DLL Expr InferType(const Expr& expr, const IRModule& mod);
 
 /*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order. This

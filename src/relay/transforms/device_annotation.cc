@@ -540,7 +540,7 @@ class AddDeviceCopy : public ExprMutator {
         attrs->src_dev_type = src_dev_type;
         attrs->dst_dev_type = dst_dev_type;
         static const Op& op = Op::Get("device_copy");
-        Call device_copy = CallNode::make(op, {this->Mutate(arg)}, Attrs(attrs), {});
+        Call device_copy = Call(op, {this->Mutate(arg)}, Attrs(attrs), {});
         device_copy->checked_type_ = arg->checked_type_;
         call_args.push_back(device_copy);
       } else {
@@ -548,7 +548,7 @@ class AddDeviceCopy : public ExprMutator {
       }
     }
 
-    auto ret = CallNode::make(call_node->op, call_args, call_node->attrs, call_node->type_args);
+    auto ret = Call(call_node->op, call_args, call_node->attrs, call_node->type_args);
     // manually add the checked_type_
     // alternatively, can call InferType Pass after this
     ret->checked_type_ = call_node->checked_type_;
@@ -641,8 +641,7 @@ Pass AddDeviceCopyOps() {
     [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(AddDeviceCopyOps(f));
   };
-  return CreateFunctionPass(pass_func, 1, "AddDeviceCopyOps",
-                            {tir::StringImmNode::make("InferType")});
+  return CreateFunctionPass(pass_func, 1, "AddDeviceCopyOps", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.AddDeviceCopy")

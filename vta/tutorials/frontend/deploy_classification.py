@@ -96,7 +96,7 @@ pack_dict = {
 # The ``start_pack`` and ``stop_pack`` labels indicate where
 # to start and end the graph packing relay pass: in other words
 # where to start and finish offloading to VTA.
-model = "resnet18_v1"
+model = "resnet50_v2"
 assert model in pack_dict
 
 ######################################################################
@@ -162,7 +162,8 @@ ctxes = [remote.ext_dev(0), remote.cpu(0)]
 
 # Load pre-configured AutoTVM schedules
 log_file = "%s.%s.log-manual-formatv0_2" % (device, model)
-with autotvm.tophub.context(target, extra_files=[log_file]):
+alu_log_file = "%s.alu.%s.log" % (device, model)
+with autotvm.tophub.context(target, extra_files=[log_file, alu_log_file]):
 
     # Populate the shape and data type dictionary for ImageNet classifier input
     dtype_dict = {"data": 'float32'}
@@ -176,7 +177,6 @@ with autotvm.tophub.context(target, extra_files=[log_file]):
 
     # Start front end compilation
     mod, params = relay.frontend.from_mxnet(gluon_model, shape_dict)
-    eprint("from_mxnet mod = ", mod)
 
     # Update shape and type dictionary
     shape_dict.update({k: v.shape for k, v in params.items()})
@@ -189,7 +189,6 @@ with autotvm.tophub.context(target, extra_files=[log_file]):
             with relay.quantize.qconfig(global_scale=8.0,
                                         skip_conv_layers=[0]):
                 mod = relay.quantize.quantize(mod, params=params)
-                eprint("done quantize", mod)
             # Perform graph packing and constant folding for VTA target
             assert env.BLOCK_IN == env.BLOCK_OUT
             relay_prog = graph_pack(
@@ -199,7 +198,6 @@ with autotvm.tophub.context(target, extra_files=[log_file]):
                 env.WGT_WIDTH,
                 start_name=pack_dict[model][0],
                 stop_name=pack_dict[model][1])
-            eprint("done graphpack ", relay_prog)
     else:
         relay_prog = mod["main"]
 
