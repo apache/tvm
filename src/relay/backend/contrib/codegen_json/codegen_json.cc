@@ -112,16 +112,16 @@ class OpAttrExtractor : public AttrVisitor {
   void Visit(const char* key, runtime::ObjectRef* value) final {
     if (const auto* an = (*value).as<ArrayNode>()) {
       std::vector<std::string> attr;
-      for (size_t i = 0; i < an->data.size(); ++i) {
-        if (const auto* im = an->data[i].as<IntImmNode>()) {
+      for (size_t i = 0; i < an->size(); ++i) {
+        if (const auto* im = (*an)[i].as<IntImmNode>()) {
           attr.push_back(std::to_string(im->value));
-        } else if (const auto* fm = an->data[i].as<FloatImmNode>()) {
+        } else if (const auto* fm = (*an)[i].as<FloatImmNode>()) {
           attr.push_back(Fp2String(fm->value));
-        } else if (const auto* str = an->data[i].as<StringObj>()) {
+        } else if (const auto* str = (*an)[i].as<StringObj>()) {
           String s = GetRef<String>(str);
           attr.push_back(s.operator std::string());
         } else {
-          LOG(FATAL) << "Not supported type: " << an->data[i]->GetTypeKey();
+          LOG(FATAL) << "Not supported type: " << (*an)[i]->GetTypeKey();
         }
       }
       SetNodeAttr(key, attr);
