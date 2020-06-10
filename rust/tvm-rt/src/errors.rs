@@ -64,6 +64,8 @@ pub enum Error {
     NullHandle(String),
     #[error("{0}")]
     NDArray(#[from] NDArrayError),
+    #[error("{0}")]
+    CallFailed(String),
 }
 
 impl Error {

@@ -78,20 +78,18 @@ impl NDArray {
     }
 
     pub fn as_dltensor(&self) -> &DLTensor {
-        unsafe {
-            match self {
-                NDArray::Borrowed { ref handle } => std::mem::transmute(*handle),
-                NDArray::Owned { ref handle } => std::mem::transmute(*handle),
-            }
-        }
+        let ptr: *mut DLTensor = match self {
+            NDArray::Borrowed { ref handle } => *handle,
+            NDArray::Owned { ref handle } => *handle as *mut DLTensor,
+        };
+
+        unsafe { std::mem::transmute(ptr) }
     }
 
     pub(crate) fn as_raw_dltensor(&self) -> *mut DLTensor {
-        unsafe {
-            match self {
-                NDArray::Borrowed { ref handle } => std::mem::transmute(*handle),
-                NDArray::Owned { ref handle } => std::mem::transmute(*handle),
-            }
+        match self {
+            NDArray::Borrowed { handle } => *handle,
+            NDArray::Owned { handle } => *handle as *mut DLTensor,
         }
     }
 
@@ -254,6 +252,7 @@ impl NDArray {
             target.as_raw_dltensor(),
             ptr::null_mut() as ffi::TVMStreamHandle
         ));
+
         Ok(target)
     }
 
@@ -412,17 +411,17 @@ mod tests {
         assert_eq!(nd.unwrap().to_vec::<i32>().unwrap(), data);
     }
 
-    // #[test]
-    // #[should_panic(expected = "called `Result::unwrap()` on an `Err`")]
-    // fn copy_wrong_dtype() {
-    //     let shape = vec![4];
-    //     let mut data = vec![1f32, 2., 3., 4.];
-    //     let ctx = Context::cpu(0);
-    //     let mut nd_float = NDArray::empty(&shape, ctx, DataType::from_str("float32").unwrap());
-    //     nd_float.copy_from_buffer(&mut data);
-    //     let empty_int = NDArray::empty(&shape, ctx, DataType::from_str("int32").unwrap());
-    //     nd_float.copy_to_ndarray(empty_int).unwrap();
-    // }
+    #[test]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err`")]
+    fn copy_wrong_dtype() {
+        let shape = vec![4];
+        let mut data = vec![1f32, 2., 3., 4.];
+        let ctx = Context::cpu(0);
+        let mut nd_float = NDArray::empty(&shape, ctx, DataType::from_str("float32").unwrap());
+        nd_float.copy_from_buffer(&mut data);
+        let empty_int = NDArray::empty(&shape, ctx, DataType::from_str("int32").unwrap());
+        nd_float.copy_to_ndarray(empty_int).unwrap();
+    }
 
     #[test]
     fn rust_ndarray() {

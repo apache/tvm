@@ -31,7 +31,7 @@ use crate::{errors, Module};
 use super::function::{Function, Result};
 
 pub trait ToBoxedFn {
-    fn to_boxed_fn(func: &'static Function) -> Box<Self>;
+    fn to_boxed_fn(func: Function) -> Box<Self>;
 }
 
 use std::convert::{TryFrom, TryInto};
@@ -41,10 +41,10 @@ where
     errors::Error: From<E>,
     O: TryFrom<RetValue, Error = E>,
 {
-    fn to_boxed_fn(func: &'static Function) -> Box<Self> {
+    fn to_boxed_fn(func: Function) -> Box<Self> {
         Box::new(move || {
             let mut builder = Builder::default();
-            builder.func = Some(func);
+            builder.func = Some(func.clone());
             let res = builder.invoke()?.try_into()?;
             Ok(res)
         })
@@ -57,10 +57,10 @@ where
     A: Into<ArgValue<'static>>,
     O: TryFrom<RetValue, Error = E>,
 {
-    fn to_boxed_fn(func: &'static Function) -> Box<Self> {
+    fn to_boxed_fn(func: Function) -> Box<Self> {
         Box::new(move |a: A| {
             let mut builder = Builder::default();
-            builder.func = Some(func);
+            builder.func = Some(func.clone());
             builder.arg(a.into());
             let res = builder.invoke()?.try_into()?;
             Ok(res)
@@ -75,10 +75,10 @@ where
     B: Into<ArgValue<'static>>,
     O: TryFrom<RetValue, Error = E>,
 {
-    fn to_boxed_fn(func: &'static Function) -> Box<Self> {
+    fn to_boxed_fn(func: Function) -> Box<Self> {
         Box::new(move |a: A, b: B| {
             let mut builder = Builder::default();
-            builder.func = Some(func);
+            builder.func = Some(func.clone());
             builder.arg(a.into());
             builder.arg(b.into());
             let res = builder.invoke()?.try_into()?;
@@ -95,10 +95,10 @@ where
     C: Into<ArgValue<'static>>,
     O: TryFrom<RetValue, Error = E>,
 {
-    fn to_boxed_fn(func: &'static Function) -> Box<Self> {
+    fn to_boxed_fn(func: Function) -> Box<Self> {
         Box::new(move |a: A, b: B, c: C| {
             let mut builder = Builder::default();
-            builder.func = Some(func);
+            builder.func = Some(func.clone());
             builder.arg(a.into());
             builder.arg(b.into());
             builder.arg(c.into());
@@ -117,10 +117,10 @@ where
     D: Into<ArgValue<'static>>,
     O: TryFrom<RetValue, Error = E>,
 {
-    fn to_boxed_fn(func: &'static Function) -> Box<Self> {
+    fn to_boxed_fn(func: Function) -> Box<Self> {
         Box::new(move |a: A, b: B, c: C, d: D| {
             let mut builder = Builder::default();
-            builder.func = Some(func);
+            builder.func = Some(func.clone());
             builder.arg(a.into());
             builder.arg(b.into());
             builder.arg(c.into());
@@ -135,15 +135,15 @@ where
 ///
 /// *Note:* Currently TVM functions accept *at most* one return value.
 #[derive(Default)]
-pub struct Builder<'a, 'm> {
-    pub func: Option<&'m Function>,
+pub struct Builder<'a> {
+    pub func: Option<Function>,
     pub arg_buf: Vec<ArgValue<'a>>,
     pub ret_buf: Option<RetValue>,
 }
 
-impl<'a, 'm> Builder<'a, 'm> {
+impl<'a, 'm> Builder<'a> {
     pub fn new(
-        func: Option<&'m Function>,
+        func: Option<Function>,
         arg_buf: Vec<ArgValue<'a>>,
         ret_buf: Option<RetValue>,
     ) -> Self {
@@ -197,14 +197,14 @@ impl<'a, 'm> Builder<'a, 'm> {
 
 /// Converts a [`Function`] to builder. Currently, this is the best way to work with
 /// TVM functions.
-impl<'a, 'm> From<&'m Function> for Builder<'a, 'm> {
-    fn from(func: &'m Function) -> Self {
+impl<'a, 'm> From<Function> for Builder<'a> {
+    fn from(func: Function) -> Self {
         Builder::new(Some(func), Vec::new(), None)
     }
 }
 
 /// Converts a mutable reference of a [`Module`] to [`Builder`].
-impl<'a, 'm> From<&'m mut Module> for Builder<'a, 'm> {
+impl<'a, 'm> From<&'m mut Module> for Builder<'a> {
     fn from(module: &'m mut Module) -> Self {
         Builder::new(module.entry(), Vec::new(), None)
     }

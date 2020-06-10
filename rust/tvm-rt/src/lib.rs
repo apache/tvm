@@ -53,6 +53,18 @@ use tvm_sys::ffi;
 pub use tvm_macros::external;
 
 // Macro to check the return call to TVM runtime shared library.
+
+#[macro_export]
+macro_rules! tvm_call {
+    ($e:expr) => {{
+        if unsafe { $e } != 0 {
+            Err($crate::get_last_error().into())
+        } else {
+            Ok(())
+        }
+    }};
+}
+
 #[macro_export]
 macro_rules! check_call {
     ($e:expr) => {{

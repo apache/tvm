@@ -137,14 +137,14 @@ pub trait ToFunction<I, O>: Sized {
     {
         let mut fhandle = ptr::null_mut() as ffi::TVMFunctionHandle;
         let resource_handle = self.into_raw();
-        println!("fhandle {:?}", fhandle);
+
         check_call!(ffi::TVMFuncCreateFromCFunc(
             Some(Self::tvm_callback),
             resource_handle as *mut _,
             None, // Some(Self::tvm_finalizer),
             &mut fhandle as *mut ffi::TVMFunctionHandle,
         ));
-        println!("fhandle {:?}", fhandle);
+
         Function::new(fhandle)
     }
 

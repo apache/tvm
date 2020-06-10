@@ -25,15 +25,11 @@
 //!
 //! See the tests and examples repository for more examples.
 
-use lazy_static::lazy_static;
 use std::convert::TryFrom;
 use std::{
-    collections::BTreeMap,
-    ffi::{CStr, CString},
-    mem,
+    ffi::CString,
     os::raw::{c_char, c_int},
-    ptr, slice, str,
-    sync::Mutex,
+    ptr, str,
 };
 
 pub use tvm_sys::{ffi, ArgValue, RetValue};
@@ -45,33 +41,6 @@ use super::to_function::{ToFunction, Typed};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-lazy_static! {
-    static ref GLOBAL_FUNCTIONS: Mutex<BTreeMap<String, Option<Function>>> = {
-        let mut out_size = 0 as c_int;
-        let mut names_ptr = ptr::null_mut() as *mut *const c_char;
-        check_call!(ffi::TVMFuncListGlobalNames(
-            &mut out_size as *mut _,
-            &mut names_ptr as *mut _,
-        ));
-        let names_list = unsafe { slice::from_raw_parts(names_ptr, out_size as usize) };
-
-        let names_list: Vec<String> =
-            names_list
-            .iter()
-            .map(|&p| unsafe { CStr::from_ptr(p).to_str().unwrap().into() })
-            .collect();
-
-        // println!("{:?}", &names_list);
-
-        let names_list = names_list
-            .into_iter()
-            .map(|p| (p, None))
-            .collect();
-
-        Mutex::new(names_list)
-    };
-}
-
 /// Wrapper around TVM function handle which includes `is_global`
 /// indicating whether the function is global or not, and `is_cloned` showing
 /// not to drop a cloned function from Rust side.
@@ -81,8 +50,7 @@ pub struct Function {
     pub(crate) handle: ffi::TVMFunctionHandle,
     // whether the registered function is global or not.
     is_global: bool,
-    // whether the function has been cloned from frontend or not.
-    is_cloned: bool,
+    from_rust: bool,
 }
 
 unsafe impl Send for Function {}
@@ -93,32 +61,29 @@ impl Function {
         Function {
             handle,
             is_global: false,
-            is_cloned: false,
+            from_rust: false,
         }
     }
 
     /// For a given function, it returns a function by name.
-    pub fn get<S: AsRef<str>>(name: S) -> Option<&'static Function> {
-        let mut globals = GLOBAL_FUNCTIONS.lock().unwrap();
-        globals.get_mut(name.as_ref()).and_then(|maybe_func| {
-            if maybe_func.is_none() {
-                let name = CString::new(name.as_ref()).unwrap();
-                let mut handle = ptr::null_mut() as ffi::TVMFunctionHandle;
-                check_call!(ffi::TVMFuncGetGlobal(
-                    name.as_ptr() as *const c_char,
-                    &mut handle as *mut _
-                ));
-                maybe_func.replace(Function {
-                    handle,
-                    is_global: true,
-                    is_cloned: false,
-                });
-            }
+    pub fn get<S: AsRef<str>>(name: S) -> Option<Function> {
+        let name = CString::new(name.as_ref()).unwrap();
+        let mut handle = ptr::null_mut() as ffi::TVMFunctionHandle;
 
-            unsafe {
-                mem::transmute::<Option<&Function>, Option<&'static Function>>(maybe_func.as_ref())
-            }
-        })
+        check_call!(ffi::TVMFuncGetGlobal(
+            name.as_ptr() as *const c_char,
+            &mut handle as *mut _
+        ));
+
+        if handle.is_null() {
+            None
+        } else {
+            Some(Function {
+                handle,
+                is_global: true,
+                from_rust: false,
+            })
+        }
     }
 
     pub fn get_boxed<F: ?Sized, S: AsRef<str>>(name: S) -> Option<Box<F>>
@@ -134,12 +99,6 @@ impl Function {
     /// Returns `true` if the underlying TVM function is global and `false` otherwise.
     pub fn is_global(&self) -> bool {
         self.is_global
-    }
-
-    /// Returns `true` if the underlying TVM function has been cloned
-    /// from the frontend and `false` otherwise.
-    pub fn is_cloned(&self) -> bool {
-        self.is_cloned
     }
 
     /// Calls the function that created from `Builder`.
@@ -162,7 +121,7 @@ impl Function {
         Ok(RetValue::from_tvm_value(ret_val, ret_type_code as u32))
     }
 
-    pub fn to_boxed_fn<F: ?Sized>(&'static self) -> Box<F>
+    pub fn to_boxed_fn<F: ?Sized>(self) -> Box<F>
     where
         F: ToBoxedFn,
     {
@@ -175,7 +134,7 @@ impl Clone for Function {
         Self {
             handle: self.handle,
             is_global: self.is_global,
-            is_cloned: true,
+            from_rust: true,
         }
     }
 }
@@ -284,13 +243,10 @@ where
     F: ToFunction<I, O>,
     F: Typed<I, O>,
 {
-    let mut globals = GLOBAL_FUNCTIONS.lock().unwrap();
-    // Be very careful this must be called in
     let func = f.to_function();
     let name = name.into();
     // Not sure about this code
     let handle = func.handle();
-    globals.insert(name.clone(), Some(func));
     let name = CString::new(name)?;
     check_call!(ffi::TVMFuncRegisterGlobal(
         name.into_raw(),
@@ -307,11 +263,6 @@ mod tests {
     use crate::function::Function;
 
     static CANARY: &str = "runtime.ModuleLoadFromFile";
-
-    // #[test]
-    // fn list_global_func() {
-    //     assert!(GLOBAL_FUNCTIONS.lock().unwrap().contains_key(CANARY));
-    // }
 
     #[test]
     fn get_fn() {

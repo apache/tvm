@@ -132,7 +132,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
         let global = quote! {
             #[allow(non_upper_case_globals)]
-            static #global_name: ::once_cell::sync::Lazy<&'static #tvm_rt_crate::Function> =
+            static #global_name: ::once_cell::sync::Lazy<#tvm_rt_crate::Function> =
             ::once_cell::sync::Lazy::new(|| {
                 #tvm_rt_crate::Function::get(#ext_name)
                 .expect(concat!("unable to load external function", stringify!(#ext_name), "from TVM registry."))
@@ -143,7 +143,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
         let wrapper = quote! {
             pub fn #name<#(#ty_params),*>(#(#args : #tys),*) -> Result<#ret_type, #err_type> {
-                let func_ref: &#tvm_rt_crate::Function = &#global_name;
+                let func_ref: #tvm_rt_crate::Function = #global_name.clone();
                 let func_ref: Box<dyn Fn(#(#tys),*) -> Result<#ret_type, #err_type>> = func_ref.to_boxed_fn();
                 let res: #ret_type = func_ref(#(#args),*)?;
                 Ok(res)

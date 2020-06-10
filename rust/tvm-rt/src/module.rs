@@ -59,11 +59,11 @@ impl Module {
         }
     }
 
-    pub fn entry(&mut self) -> Option<&Function> {
+    pub fn entry(&mut self) -> Option<Function> {
         if self.entry_func.is_none() {
             self.entry_func = self.get_function(ENTRY_FUNC, false).ok();
         }
-        self.entry_func.as_ref()
+        self.entry_func.clone()
     }
 
     /// Gets a function by name from a registered module.
