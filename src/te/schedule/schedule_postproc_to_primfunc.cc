@@ -94,24 +94,24 @@ class TensorToBufferMapper : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const RealizeNode* op) final {
-    Tensor tensor = Downcast<Operation>(op->func).output(op->value_index);
+  Stmt VisitStmt_(const ProducerRealizeNode* op) final {
+    Tensor tensor = Downcast<Tensor>(op->producer);
     Buffer buffer = GetOrAllocBuffer(tensor);
 
     auto ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<RealizeNode>();
+    op = ret.as<ProducerRealizeNode>();
 
     return BufferRealize(buffer, op->bounds, op->condition, op->body);
   }
 
-  Stmt VisitStmt_(const ProvideNode* op) final {
-    Tensor tensor = Downcast<Operation>(op->func).output(op->value_index);
+  Stmt VisitStmt_(const ProducerStoreNode* op) final {
+    Tensor tensor = Downcast<Tensor>(op->producer);
     Buffer buffer = GetBuffer(tensor);
 
     auto ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<ProvideNode>();
+    op = ret.as<ProducerStoreNode>();
 
-    return BufferStore(buffer, op->value, op->args);
+    return BufferStore(buffer, op->value, op->indices);
   }
 
   PrimExpr VisitExpr_(const ProducerLoadNode* op) final {

@@ -217,13 +217,12 @@ class SchedulePostProc : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const RealizeNode* op) final {
-    TensorKey key{op->func, op->value_index};
+  Stmt VisitStmt_(const ProducerRealizeNode* op) final {
+    auto key = Downcast<Tensor>(op->producer);
     auto it = replace_realize_.find(key);
     if (it != replace_realize_.end()) {
       if (it->second.defined()) {
-        Stmt ret = RealizeNode::make(it->second->op, it->second->value_index, op->dtype, op->bounds,
-                                     op->condition, op->body);
+        Stmt ret = ProducerRealizeNode::make(it->second, op->bounds, op->condition, op->body);
         return this->VisitStmt(ret);
       } else {
         return this->VisitStmt(op->body);
@@ -233,12 +232,12 @@ class SchedulePostProc : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const ProvideNode* op) final {
-    TensorKey key{op->func, op->value_index};
+  Stmt VisitStmt_(const ProducerStoreNode* op) final {
+    auto key = Downcast<Tensor>(op->producer);
     auto it = replace_buffer_.find(key);
     if (it != replace_buffer_.end()) {
       const Tensor& dst = it->second;
-      Stmt ret = ProvideNode::make(dst->op, dst->value_index, op->value, op->args);
+      Stmt ret = ProducerStoreNode::make(dst, op->value, op->indices);
       return this->VisitStmt(ret);
     } else {
       return StmtExprMutator::VisitStmt_(op);
@@ -250,9 +249,7 @@ class SchedulePostProc : public StmtExprMutator {
     op = expr.as<ProducerLoadNode>();
     CHECK(op != nullptr);
 
-    auto tensor = Downcast<Tensor>(op->producer);
-    TensorKey key{tensor->op, tensor->value_index};
-
+    auto key = Downcast<Tensor>(op->producer);
     auto it = replace_buffer_.find(key);
     if (it != replace_buffer_.end()) {
       const Tensor& dst = it->second;
@@ -304,9 +301,8 @@ class SchedulePostProc : public StmtExprMutator {
  private:
   void AddReplace(Tensor src, Tensor dst, Tensor repl_realize = Tensor(),
                   Operation repl_op = Operation()) {
-    TensorKey key{src->op, src->value_index};
-    replace_buffer_[key] = dst;
-    replace_realize_[key] = repl_realize;
+    replace_buffer_[src] = dst;
+    replace_realize_[src] = repl_realize;
     replace_op_[src->op.get()] = repl_op;
   }
   // The thread extent scope.
@@ -314,9 +310,9 @@ class SchedulePostProc : public StmtExprMutator {
   // The scan value
   std::unordered_map<const VarNode*, PrimExpr> var_value_;
   // buffer replacement
-  std::unordered_map<TensorKey, Tensor> replace_buffer_;
+  std::unordered_map<Tensor, Tensor> replace_buffer_;
   // buffere realization to be replaced
-  std::unordered_map<TensorKey, Tensor> replace_realize_;
+  std::unordered_map<Tensor, Tensor> replace_realize_;
   // replace producer consumer.
   std::unordered_map<const Object*, Operation> replace_op_;
   // integer analyzer

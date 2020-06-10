@@ -462,7 +462,7 @@ class VirtualThreadInjector : public StmtMutator {
     }
   }
 
-  Stmt VisitStmt_(const ProvideNode* op) final {
+  Stmt VisitStmt_(const ProducerStoreNode* op) final {
     LOG(FATAL) << "Need to call StorageFlatten first";
     return GetRef<Stmt>(op);
   }

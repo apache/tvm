@@ -131,11 +131,11 @@ def test_outer_product():
     assert isinstance(jbody.message, tvm.tir.StringImm)
     assert jbody.message.value == "index out of range!"
     jbody = jblock[1]
-    assert isinstance(jbody, tvm.tir.Provide)
-    assert jbody.func.name == 'c'
-    assert len(jbody.args) == 2
-    assert jbody.args[0].name == 'i'
-    assert jbody.args[1].name == 'j'
+    assert isinstance(jbody, tvm.tir.ProducerStore)
+    assert jbody.producer.op.name == 'c'
+    assert len(jbody.indices) == 2
+    assert jbody.indices[0].name == 'i'
+    assert jbody.indices[1].name == 'j'
     assert isinstance(jbody.value, tvm.tir.Mul)
     mul = jbody.value
     assert isinstance(mul.a, tvm.tir.ProducerLoad)
@@ -187,26 +187,26 @@ def test_fanout():
     ibody = ir.body
     assert isinstance(ibody, tvm.tir.AttrStmt)
     abody = ibody.body
-    assert isinstance(abody, tvm.tir.Realize)
+    assert isinstance(abody, tvm.tir.ProducerRealize)
     assert abody.bounds[0].min.value == 0
     assert abody.bounds[0].extent.value == 1
-    assert abody.func.name == 'sigma'
+    assert abody.producer.op.name == 'sigma'
     #Check i loop body
     rbody = abody.body
-    assert isinstance(rbody[0], tvm.tir.Provide)
-    assert rbody[0].func.name == 'sigma'
-    assert len(rbody[0].args) == 1
-    assert rbody[0].args[0].value == 0
+    assert isinstance(rbody[0], tvm.tir.ProducerStore)
+    assert rbody[0].producer.op.name == 'sigma'
+    assert len(rbody[0].indices) == 1
+    assert rbody[0].indices[0].value == 0
     #Check fanout loop
     jloop = rbody[1]
     assert jloop.loop_var.name == 'j'
     assert jloop.min.value == 0
     assert jloop.extent.value == 3
     jbody = jloop.body
-    assert isinstance(jbody, tvm.tir.Provide)
-    assert len(jbody.args) == 1
-    assert jbody.args[0].value == 0
-    assert jbody.func.name == 'sigma'
+    assert isinstance(jbody, tvm.tir.ProducerStore)
+    assert len(jbody.indices) == 1
+    assert jbody.indices[0].value == 0
+    assert jbody.producer.op.name == 'sigma'
     assert isinstance(jbody.value, tvm.tir.Add)
     value = jbody.value
     assert isinstance(value.a, tvm.tir.ProducerLoad)
@@ -217,9 +217,9 @@ def test_fanout():
     assert len(value.b.indices) == 1
     assert tvm.ir.structural_equal(value.b.indices[0], ir.loop_var + jloop.loop_var)
     divide= rbody[2]
-    assert isinstance(divide, tvm.tir.Provide)
-    assert len(divide.args) == 1
-    assert divide.args[0].value == 0
+    assert isinstance(divide, tvm.tir.ProducerStore)
+    assert len(divide.indices) == 1
+    assert divide.indices[0].value == 0
     value = divide.value
     assert isinstance(value, tvm.tir.Mul)
     assert value.a.producer.name == 'sigma'
@@ -227,8 +227,8 @@ def test_fanout():
     assert value.a.indices[0].value == 0
     assert abs(value.b.value - (1 / 3.0)) < 1e-5
     write = rbody[3]
-    assert isinstance(write, tvm.tir.Provide)
-    assert write.func.name == 'b'
+    assert isinstance(write, tvm.tir.ProducerStore)
+    assert write.producer.op.name == 'b'
     assert write.value.producer.name == 'sigma'
     assert len(write.value.indices) == 1
     assert write.value.indices[0].value == 0

@@ -340,13 +340,13 @@ class StorageFlattener : public StmtExprMutator {
     return PrimExpr();
   }
 
-  Stmt VisitStmt_(const ProvideNode* op) final {
+  Stmt VisitStmt_(const ProducerStoreNode* op) final {
     LOG(FATAL) << "Cannot handle Provide "
                << " please run SchedulePostProcToPrimFunc first";
     return Stmt();
   }
 
-  Stmt VisitStmt_(const RealizeNode* op) final {
+  Stmt VisitStmt_(const ProducerRealizeNode* op) final {
     LOG(FATAL) << "Cannot handle Realize "
                << " please run SchedulePostProcToPrimFunc first";
     return Stmt();
