@@ -135,7 +135,7 @@ def run_conv2d_transpose(env, remote, wl, target,
         a_np = np.random.randint(a_min, a_max, size=a_shape).astype(data.dtype)
         w_np = np.random.randint(w_min, w_max, size=(wl.in_filter, wl.out_filter, wl.hkernel, wl.wkernel)).astype(kernel.dtype)
         r_np = topi.testing.conv2d_transpose_nchw_python(
-            a_np.astype(env.acc_dtype), w_np.astype(env.acc_dtype), (wl.hstride, wl.wstride), wl.hpad).astype(env.acc_dtype)
+            a_np.astype(env.acc_dtype), w_np.astype(env.acc_dtype), (wl.hstride, wl.wstride), wl.hpad, (wl.o_hpad, wl.o_wpad)).astype(env.acc_dtype)
         return a_np, w_np, r_np
 
     # Data in original format
