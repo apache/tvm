@@ -26,7 +26,7 @@ import multiprocessing
 import pytest
 import numpy as np
 from tvm import rpc
-from tvm.contrib import util
+from tvm.contrib import util, cc
 from tvm.rpc.tracker import Tracker
 
 
@@ -142,7 +142,7 @@ def test_rpc_echo():
     # Test minrpc server.
     temp = util.tempdir()
     minrpc_exec = temp.relpath("minrpc")
-    tvm.rpc.with_minrpc("g++")(minrpc_exec, [])
+    tvm.rpc.with_minrpc(cc.create_executable)(minrpc_exec, [])
     check(rpc.PopenSession(minrpc_exec))
     # minrpc on the remote
     server = rpc.Server("localhost")
@@ -208,7 +208,7 @@ def test_rpc_remote_module():
         temp = util.tempdir()
         f = tvm.build(s, [A, B], "llvm --system-lib", name="myadd")
         path_minrpc = temp.relpath("dev_lib.minrpc")
-        f.export_library(path_minrpc, rpc.with_minrpc("g++"))
+        f.export_library(path_minrpc, rpc.with_minrpc(cc.create_executable))
 
         with pytest.raises(RuntimeError):
             rpc.PopenSession("filenotexist")

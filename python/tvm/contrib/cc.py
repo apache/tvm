@@ -51,6 +51,33 @@ def create_shared(output,
     else:
         raise ValueError("Unsupported platform")
 
+
+def create_executable(output,
+                      objects,
+                      options=None,
+                      cc="g++"):
+    """Create executable binary.
+
+    Parameters
+    ----------
+    output : str
+        The target executable.
+
+    objects : List[str]
+        List of object files.
+
+    options : List[str]
+        The list of additional options string.
+
+    cc : Optional[str]
+        The compiler command.
+    """
+    if sys.platform == "darwin" or sys.platform.startswith("linux"):
+        _linux_compile(output, objects, options, cc)
+    else:
+        raise ValueError("Unsupported platform")
+
+
 def get_target_by_dump_machine(compiler):
     """ Functor of get_target_triple that can get the target triple using compiler.
 
