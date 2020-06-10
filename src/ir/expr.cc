@@ -185,4 +185,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
       p->stream << '}';
     });
+
+TVM_REGISTER_GLOBAL("ir.DebugPrint").set_body_typed([](ObjectRef ref) {
+  std::stringstream ss;
+  ss << ref;
+  return ss.str();
+});
+
 }  // namespace tvm
