@@ -37,6 +37,8 @@
 
 namespace tvm {
 
+using tvm::runtime::String;
+
 /*!
  * \brief Base type of all the expressions.
  * \sa Expr
