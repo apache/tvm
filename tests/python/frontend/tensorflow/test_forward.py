@@ -21,6 +21,7 @@ Tensorflow testcases
 This article is a test script to test tensorflow operator with Relay.
 """
 from __future__ import print_function
+import threading
 import numpy as np
 import pytest
 try:
@@ -2292,7 +2293,7 @@ def test_forward_resnetv2():
 # ---
 
 
-def test_forward_ssd():
+def _test_ssd_impl():
     '''Test SSD with backbone MobileNet V1'''
     with tf.Graph().as_default():
         graph_def = tf_testing.get_workload(
@@ -2320,6 +2321,14 @@ def test_forward_ssd():
                 for i in range(len(out_node)):
                     tvm.testing.assert_allclose(tvm_output[i], tf_output[i],
                                                 rtol=1e-3, atol=1e-3)
+
+def test_forward_ssd():
+    run_thread = threading.Thread(target=_test_ssd_impl, args=())
+    old_stack_size = threading.stack_size(100 * 1024 * 1024)
+    run_thread.start()
+    run_thread.join()
+    threading.stack_size(old_stack_size)
+
 
 #######################################################################
 # Placeholder
@@ -3613,7 +3622,6 @@ def test_forward_spop():
 # Main
 # ----
 if __name__ == '__main__':
-
     # Transforms
     test_forward_slice()
     test_forward_transpose()
