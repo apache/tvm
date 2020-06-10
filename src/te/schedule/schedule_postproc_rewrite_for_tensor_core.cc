@@ -53,11 +53,6 @@ struct Tile {
   int k{-1};
 };
 
-TensorKey TensorKeyFromProducer(DataProducer producer) {
-  auto tensor = Downcast<Tensor>(producer);
-  return TensorKey{tensor->op, tensor->value_index};
-}
-
 std::string simplify_name(std::string input) {
   auto pos = input.find(".");
   if (pos != std::string::npos) {
@@ -88,7 +83,7 @@ class MMAMatcher : public StmtVisitor {
       bi.name = kv.second->name;
       bi.dtype = kv.second->dtype;
       bi.external = true;
-      buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = bi;
+      buf_map_[kv.first] = bi;
     }
   }
 
@@ -104,9 +99,9 @@ class MMAMatcher : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const ProvideNode* op) final {
+  void VisitStmt_(const ProducerStoreNode* op) final {
     StmtVisitor::VisitStmt_(op);
-    auto it = buf_map_.find(TensorKey{op->func, op->value_index});
+    auto it = buf_map_.find(Downcast<Tensor>(op->producer));
     if (it == buf_map_.end()) {
       return;
     }
@@ -119,8 +114,8 @@ class MMAMatcher : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const RealizeNode* op) final {
-    TensorKey key{op->func, op->value_index};
+  void VisitStmt_(const ProducerRealizeNode* op) final {
+    auto key = Downcast<Tensor>(op->producer);
     if (buf_map_.count(key)) {
       if (!buf_map_.at(key).external) {
         return;
@@ -128,8 +123,8 @@ class MMAMatcher : public StmtVisitor {
       this->VisitStmt(op->body);
     } else {
       BufferInfo bi;
-      bi.name = key.GetName();
-      bi.dtype = op->dtype;
+      bi.name = key->GetNameHint();
+      bi.dtype = key->dtype;
       buf_map_[key] = bi;
       this->VisitStmt(op->body);
       buf_map_[key].released = true;
@@ -167,7 +162,7 @@ class MMAMatcher : public StmtVisitor {
     if (strkey != "local") {
       return false;
     }
-    auto it1 = buf_map_.find(TensorKey{tensor->op, tensor->value_index});
+    auto it1 = buf_map_.find(tensor);
     if (it1 == buf_map_.end()) {
       return false;
     }
@@ -179,7 +174,7 @@ class MMAMatcher : public StmtVisitor {
   }
 
   // Do the pattern matching
-  bool mma_sync_match_(const ProvideNode* op, BufferInfo store_buffer) {
+  bool mma_sync_match_(const ProducerStoreNode* op, BufferInfo store_buffer) {
     auto* add = op->value.as<AddNode>();
     if (add == nullptr) {
       return false;
@@ -227,9 +222,9 @@ class MMAMatcher : public StmtVisitor {
     return true;
   }
 
-  std::unordered_map<TensorKey, BufferInfo> buf_map_;
+  std::unordered_map<Tensor, BufferInfo> buf_map_;
   std::unordered_map<const Object*, std::string> storage_scope_;
-  std::unordered_map<const ProvideNode*, Array<PrimExpr>> mma_sync_;
+  std::unordered_map<const ProducerStoreNode*, Array<PrimExpr>> mma_sync_;
   std::unordered_map<const Object*, std::string> buf_name_;
   std::unordered_set<std::string> frag_reg_;
   bool matched_{false};
@@ -365,7 +360,7 @@ class ScheduleAnalyser {
  private:
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
-  std::unordered_map<const ProvideNode*, Array<PrimExpr>> mma_sync_;
+  std::unordered_map<const ProducerStoreNode*, Array<PrimExpr>> mma_sync_;
   std::unordered_map<const Object*, std::string> buf_name_;
 };
 
@@ -403,7 +398,7 @@ class BufferAnalyser : public StmtExprVisitor {
       bi.strides = kv.second->strides;
       bi.shape = kv.second->shape;
       bi.external = true;
-      buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = bi;
+      buf_map_[kv.first] = bi;
     }
   }
 
@@ -421,7 +416,7 @@ class BufferAnalyser : public StmtExprVisitor {
       te::Tensor tensor = Downcast<te::Tensor>(op->node);
       const CallNode* tuple = op->value.as<CallNode>();
       CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
-      auto& vinfo = dim_align_[TensorKey{tensor->op, tensor->value_index}];
+      auto& vinfo = dim_align_[tensor];
       size_t dim = tuple->args[0].as<IntImmNode>()->value;
       if (dim >= vinfo.size()) {
         vinfo.resize(dim + 1);
@@ -434,15 +429,15 @@ class BufferAnalyser : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const ProvideNode* op) final {
+  void VisitStmt_(const ProducerStoreNode* op) final {
     StmtExprVisitor::VisitStmt_(op);
-    TensorKey key{op->func, op->value_index};
+    auto key = Downcast<Tensor>(op->producer);
     auto it = buf_map_.find(key);
-    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key.f;
+    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key->GetNameHint();
     const BufferInfo& bi = it->second;
     CHECK(!bi.released) << "Read a buffer that is already out of scope";
 
-    if (matrix_abc_.count(key.GetName())) {
+    if (matrix_abc_.count(key->GetNameHint())) {
       if (bi.shape.size() < 2) {
         invalid_ = true;
         return;
@@ -469,19 +464,19 @@ class BufferAnalyser : public StmtExprVisitor {
       }
       strides.push_back(make_const(DataType::Int(32), 1));
     }
-    strides_.insert(std::make_pair(key.GetName(), strides));
+    strides_.insert(std::make_pair(key->GetNameHint(), strides));
 
     if (frag_reg_.count(bi.name)) {
-      PrimExpr dst = ProducerLoad(Downcast<Operation>(op->func).output(0), op->args);
+      PrimExpr dst = ProducerLoad(op->producer, op->indices);
       frag_load_.insert(std::make_pair(op, dst));
 
-      auto rel_index = bi.RelIndex(op->args);
-      if (op->args.size() < 2) {
+      auto rel_index = bi.RelIndex(op->indices);
+      if (op->indices.size() < 2) {
         invalid_ = true;
         return;
       }
       std::vector<int> tile_size;
-      for (auto i = op->args.size() - 1; i + 2 >= op->args.size(); --i) {
+      for (auto i = op->indices.size() - 1; i + 2 >= op->indices.size(); --i) {
         index_visitor.scaling_factor_ = 16;
         if (const IntImmNode* shape = bi.shape[i].as<IntImmNode>()) {
           tile_size.push_back(shape->value);
@@ -530,7 +525,7 @@ class BufferAnalyser : public StmtExprVisitor {
     const ProducerLoadNode* value = op->value.as<ProducerLoadNode>();
     // TODO(tvm-team): string matching is dangerous, consider other means.
     if (value != nullptr && frag_reg_.count(value->producer->GetNameHint())) {
-      PrimExpr dst = ProducerLoad(Downcast<Operation>(op->func).output(0), op->args);
+      PrimExpr dst = ProducerLoad(op->producer, op->indices);
       frag_store_.insert(std::make_pair(op, dst));
     }
   }
@@ -539,9 +534,8 @@ class BufferAnalyser : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
 
     auto tensor = Downcast<Tensor>(op->producer);
-    TensorKey key{tensor->op, tensor->value_index};
-    auto it = buf_map_.find(key);
-    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key.f;
+    auto it = buf_map_.find(tensor);
+    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << tensor->GetNameHint();
     const BufferInfo& bi = it->second;
     CHECK(!bi.released) << "Read a buffer that is already out of scope";
 
@@ -572,7 +566,7 @@ class BufferAnalyser : public StmtExprVisitor {
       }
       strides.push_back(make_const(DataType::Int(32), 1));
     }
-    strides_.insert(std::make_pair(key.GetName(), strides));
+    strides_.insert(std::make_pair(tensor->GetNameHint(), strides));
 
     if (!frag_reg_.count(bi.name)) {
       return;
@@ -594,8 +588,8 @@ class BufferAnalyser : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const RealizeNode* op) final {
-    TensorKey key{op->func, op->value_index};
+  void VisitStmt_(const ProducerRealizeNode* op) final {
+    auto key = Downcast<Tensor>(op->producer);
     if (buf_map_.count(key)) {
       CHECK(buf_map_.at(key).external);
       this->VisitStmt(op->body);
@@ -629,8 +623,8 @@ class BufferAnalyser : public StmtExprVisitor {
         strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
       }
 
-      bi.name = key.GetName();
-      bi.dtype = op->dtype;
+      bi.name = key->GetNameHint();
+      bi.dtype = key->dtype;
       bi.strides = strides;
       bi.shape = shape;
 
@@ -726,15 +720,15 @@ class BufferAnalyser : public StmtExprVisitor {
     return false;
   }
 
-  std::unordered_map<TensorKey, BufferInfo> buf_map_;
-  std::unordered_map<TensorKey, std::vector<DimAlignInfo>> dim_align_;
+  std::unordered_map<Tensor, BufferInfo> buf_map_;
+  std::unordered_map<Tensor, std::vector<DimAlignInfo>> dim_align_;
   std::unordered_map<const Object*, std::string> storage_scope_;
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
   std::unordered_set<std::string> frag_reg_;
   std::unordered_map<std::string, Array<PrimExpr>> strides_;
-  std::unordered_map<const ProvideNode*, PrimExpr> frag_load_;
-  std::unordered_map<const ProvideNode*, PrimExpr> frag_store_;
+  std::unordered_map<const ProducerStoreNode*, PrimExpr> frag_load_;
+  std::unordered_map<const ProducerStoreNode*, PrimExpr> frag_store_;
   std::unordered_map<std::string, int> thread_extent_;
   IndexVisitor index_visitor;
   Tile warp_tile_;
@@ -787,30 +781,29 @@ class TensorCoreIRMutator : public StmtExprMutator {
         warp_tile_(buffer_analyser.warp_tile_),
         warp_threads_y_(buffer_analyser.warp_threads_y_) {}
 
-  Stmt VisitStmt_(const RealizeNode* op) final {
-    TensorKey key{op->func, op->value_index};
+  Stmt VisitStmt_(const ProducerRealizeNode* op) final {
+    auto key = Downcast<Tensor>(op->producer);
     bounds_[key] = op->bounds;
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<RealizeNode>();
+    op = stmt.as<ProducerRealizeNode>();
     if (op != nullptr) {
-      if (!frag_reg_.count(key.GetName())) {
+      if (!frag_reg_.count(key->GetNameHint())) {
         return stmt;
       }
 
-      auto new_extents = get_tile_size_(simplify_name(key.GetName()));
+      auto new_extents = get_tile_size_(simplify_name(key->GetNameHint()));
 
       Region new_bounds;
       for (size_t i = 0; i < op->bounds.size() - 2; ++i) {
         new_bounds.push_back(op->bounds[i]);
       }
-      CHECK_GE(op->bounds.size(), 2) << "Less than 2 dimensions for matrix " << key.GetName();
+      CHECK_GE(op->bounds.size(), 2) << "Less than 2 dimensions for matrix " << key->GetNameHint();
       new_bounds.push_back(
           Range::make_by_min_extent(op->bounds[op->bounds.size() - 2]->min, new_extents[0]));
       new_bounds.push_back(
           Range::make_by_min_extent(op->bounds[op->bounds.size() - 1]->min, new_extents[1]));
 
-      return RealizeNode::make(op->func, op->value_index, op->dtype, new_bounds, op->condition,
-                               op->body);
+      return ProducerRealizeNode::make(op->producer, new_bounds, op->condition, op->body);
     }
     return stmt;
   }
@@ -834,7 +827,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const ProvideNode* op) final {
+  Stmt VisitStmt_(const ProducerStoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     auto it = mma_sync_.find(op);
     if (it != mma_sync_.end()) {
@@ -869,17 +862,14 @@ class TensorCoreIRMutator : public StmtExprMutator {
       };
 
       auto call_add_c = [this, &cc, &buffer_node_c, &mma_sync_call](const Buffer& buffer) {
-        return add_buffer_bind_scope_(cc, buffer_node_c, TensorKeyFromProducer(cc->producer),
-                                      mma_sync_call);
+        return add_buffer_bind_scope_(cc, buffer_node_c, mma_sync_call);
       };
 
       auto call_add_b = [this, &cb, &buffer_node_b, &call_add_c](const Buffer& buffer) {
-        return add_buffer_bind_scope_(cb, buffer_node_b, TensorKeyFromProducer(cb->producer),
-                                      call_add_c);
+        return add_buffer_bind_scope_(cb, buffer_node_b, call_add_c);
       };
 
-      return add_buffer_bind_scope_(ca, buffer_node_a, TensorKeyFromProducer(ca->producer),
-                                    call_add_b);
+      return add_buffer_bind_scope_(ca, buffer_node_a, call_add_b);
     }
 
     auto it2 = frag_load_.find(op);
@@ -896,8 +886,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
         };
 
         ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
-        return add_buffer_bind_scope_(pload, buffer_node, TensorKeyFromProducer(pload->producer),
-                                      fill_fragment_call);
+        return add_buffer_bind_scope_(pload, buffer_node, fill_fragment_call);
       }
 
       const CallNode* value = op->value.as<CallNode>();
@@ -937,15 +926,13 @@ class TensorCoreIRMutator : public StmtExprMutator {
       };
 
       ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
-      return add_buffer_bind_scope_(pload, buffer_node, TensorKeyFromProducer(pload->producer),
-                                    load_matrix_call);
+      return add_buffer_bind_scope_(pload, buffer_node, load_matrix_call);
     }
 
     auto it3 = frag_store_.find(op);
     if (it3 != frag_store_.end()) {
-      TensorKey key{op->func, op->value_index};
-      auto it = strides_.find(key.GetName());
-      CHECK(it != strides_.end()) << "Cannot find stride for " << key.GetName();
+      auto it = strides_.find(op->producer->GetNameHint());
+      CHECK(it != strides_.end()) << "Cannot find stride for " << op->producer->GetNameHint();
       auto strides = it->second;
       CHECK_GE(strides.size(), 2);
       PrimExpr stride = strides[strides.size() - 2];
@@ -968,8 +955,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
       };
 
       ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
-      return add_buffer_bind_scope_(pload, buffer_node, TensorKeyFromProducer(pload->producer),
-                                    store_matrix_call);
+      return add_buffer_bind_scope_(pload, buffer_node, store_matrix_call);
     }
 
     return stmt;
@@ -1028,10 +1014,10 @@ class TensorCoreIRMutator : public StmtExprMutator {
   }
 
   Stmt add_buffer_bind_scope_(const ProducerLoadNode* pload,
-                              const ObjectPtr<BufferNode>& buffer_node, const TensorKey& key,
+                              const ObjectPtr<BufferNode>& buffer_node,
                               const std::function<Stmt(const Buffer& buffer)>& call_back) {
     auto tensor = Downcast<Tensor>(pload->producer);
-    auto it = bounds_.find(key);
+    auto it = bounds_.find(tensor);
     CHECK(it != bounds_.end());
     Array<PrimExpr> min_bound;
     for (auto i : it->second) {
@@ -1077,13 +1063,6 @@ class TensorCoreIRMutator : public StmtExprMutator {
     buffer_node->offset_factor = 1;
     Buffer buffer(buffer_node);
 
-    ObjectPtr<te::TensorNode> tensor_node = make_object<te::TensorNode>();
-    tensor_node->value_index = key.value_index;
-    tensor_node->op = Downcast<te::Operation>(key.f);
-    tensor_node->shape = shape;
-    tensor_node->dtype = tensor->dtype;
-    Tensor tensor_bind(tensor_node);
-
     Array<PrimExpr> args;
     for (size_t i = 0; i < pload->indices.size(); ++i) {
       args.push_back(pload->indices[i]);
@@ -1091,19 +1070,19 @@ class TensorCoreIRMutator : public StmtExprMutator {
     }
     auto tuple =
         CallNode::make(DataType::Handle(), intrinsic::tvm_tuple, args, CallNode::Intrinsic);
-    Array<ObjectRef> node = {buffer, tensor_bind};
+    Array<ObjectRef> node = {buffer, tensor};
     return AttrStmtNode::make(node, "buffer_bind_scope", tuple, call_back(buffer));
   }
 
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
-  std::unordered_map<const ProvideNode*, Array<PrimExpr>> mma_sync_;
+  std::unordered_map<const ProducerStoreNode*, Array<PrimExpr>> mma_sync_;
   std::unordered_map<std::string, Array<PrimExpr>> strides_;
   std::unordered_set<std::string> frag_reg_;
   std::unordered_map<const VarNode*, unsigned> loop_scaling_;
-  std::unordered_map<const ProvideNode*, PrimExpr> frag_load_;
-  std::unordered_map<const ProvideNode*, PrimExpr> frag_store_;
-  std::unordered_map<TensorKey, Region> bounds_;
+  std::unordered_map<const ProducerStoreNode*, PrimExpr> frag_load_;
+  std::unordered_map<const ProducerStoreNode*, PrimExpr> frag_store_;
+  std::unordered_map<Tensor, Region> bounds_;
   arith::Analyzer analyzer_;
   Tile warp_tile_;
   int warp_threads_y_{-1};

@@ -212,7 +212,7 @@ class HybridParser(ast.NodeVisitor):
             _domain = [Range.make_by_min_extent(0, i) for i in _buf.shape]
             _dtype = _buf.dtype
             _true = tvm.runtime.convert(True)
-            body = tvm.tir.Realize(_buf.op, 0, _dtype, _domain, _true, body)
+            body = tvm.tir.ProducerRealize(_buf, _domain, _true, body)
             body = tvm.tir.AttrStmt(_buf.op, 'realize_scope', tvm.runtime.convert(_scope), body)
 
         for elem in to_pop:
@@ -307,7 +307,7 @@ class HybridParser(ast.NodeVisitor):
         read = tvm.tir.ProducerLoad(buf, args)
         value = HybridParser._binop_maker[type(node.op)](read, rhs)
 
-        return tvm.tir.Provide(buf.op, 0, value, args)
+        return tvm.tir.ProducerStore(buf, value, args)
 
 
     def visit_Assign(self, node):
@@ -358,13 +358,13 @@ class HybridParser(ast.NodeVisitor):
             lhs = self.visit(lhs_)
             if lhs is not None:
                 buf, args = lhs
-                return tvm.tir.Provide(buf.op, 0, rhs, args)
+                return tvm.tir.ProducerStore(buf, rhs, args)
             return util.make_nop()
 
         lhs, args = self.visit(lhs)
         _internal_assert(isinstance(lhs, Tensor), \
                          "An array access's LHS is expected to be a expr.Call!")
-        res = tvm.tir.Provide(lhs.op, lhs.value_index, rhs, args)
+        res = tvm.tir.ProducerStore(lhs, rhs, args)
         return res
 
 

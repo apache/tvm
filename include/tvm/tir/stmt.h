@@ -334,44 +334,92 @@ class BufferRealize : public Stmt {
 };
 
 /*!
- * \brief Store value into mult-dimensional array defined by func.
+ * \brief Store value into mult-dimensional array that will be read by the consumer
+ *        of the producer.
  *
- * \note Deprecated, move to BufferStore in the future.
+ * \note This node only appears in high-level DSLs that are built on top of the TIR.
+ *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
+ *       this node before TIR transformations.
+ *
+ * \sa DataProducer
  */
-class ProvideNode : public StmtNode {
+class ProducerStoreNode : public StmtNode {
  public:
-  /*! \brief The function to be updated. */
-  FunctionRef func;
-  /*! \brief The output value index if func's value is a tuple. */
-  int value_index{0};
+  /*! \brief The producer to store the results into. */
+  DataProducer producer;
   /*! \brief The value to be stored. */
   PrimExpr value;
   /*! \brief The index arguments of the function. */
-  Array<PrimExpr> args;
+  Array<PrimExpr> indices;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("func", &func);
-    v->Visit("value_index", &value_index);
+    v->Visit("producer", &producer);
     v->Visit("value", &value);
-    v->Visit("args", &args);
+    v->Visit("indices", &indices);
   }
 
-  bool SEqualReduce(const ProvideNode* other, SEqualReducer equal) const {
-    return equal(func, other->func) && equal(value_index, other->value_index) &&
-           equal(value, other->value) && equal(args, other->args);
+  bool SEqualReduce(const ProducerStoreNode* other, SEqualReducer equal) const {
+    return equal(producer, other->producer) && equal(value, other->value) &&
+           equal(indices, other->indices);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(func);
-    hash_reduce(value_index);
+    hash_reduce(producer);
     hash_reduce(value);
-    hash_reduce(args);
+    hash_reduce(indices);
   }
 
-  TVM_DLL static Stmt make(FunctionRef func, int value_index, PrimExpr value, Array<PrimExpr> args);
+  TVM_DLL static Stmt make(DataProducer producer, PrimExpr value, Array<PrimExpr> indices);
 
-  static constexpr const char* _type_key = "Provide";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProvideNode, StmtNode);
+  static constexpr const char* _type_key = "ProducerStore";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerStoreNode, StmtNode);
+};
+
+/*!
+ * \brief Annotate the bounds where the data produced by the producer
+ *  need to be written and read in body.
+ *  We will need to allocate space for the corresponding regions.
+ *
+ * \note This node only appears in high-level DSLs that are built on top of the TIR.
+ *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
+ *       this node before TIR transformations.
+ *
+ * \sa DataProducer
+ */
+class ProducerRealizeNode : public StmtNode {
+ public:
+  /*! \brief The producer that produces the data. */
+  DataProducer producer;
+  /*! \brief Bounds to be realized. */
+  Region bounds;
+  /*! \brief Only realize if condition holds. */
+  PrimExpr condition;
+  /*! \brief The body of realization. */
+  Stmt body;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("producer", &producer);
+    v->Visit("bounds", &bounds);
+    v->Visit("condition", &condition);
+    v->Visit("body", &body);
+  }
+
+  TVM_DLL static Stmt make(DataProducer producer, Region bounds, PrimExpr condition, Stmt body);
+
+  bool SEqualReduce(const ProducerRealizeNode* other, SEqualReducer equal) const {
+    return equal(producer, other->producer) && equal(bounds, other->bounds) &&
+           equal(condition, other->condition) && equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(producer);
+    hash_reduce(bounds);
+    hash_reduce(condition);
+    hash_reduce(body);
+  }
+
+  static constexpr const char* _type_key = "ProducerRealize";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerRealizeNode, StmtNode);
 };
 
 /*!
@@ -451,58 +499,6 @@ class FreeNode : public StmtNode {
 
   static constexpr const char* _type_key = "Free";
   TVM_DECLARE_FINAL_OBJECT_INFO(FreeNode, StmtNode);
-};
-
-/*!
- * \brief Annotate the bounds where func need to be written and read in body.
- *  We will need to allocate space for the corresponding regions.
- *
- * \note Deprecated, move to BufferRealize in the future.
- */
-class RealizeNode : public StmtNode {
- public:
-  /*! \brief The function to be realized. */
-  FunctionRef func;
-  /*! \brief The output value index if func's value is a tuple. */
-  int value_index;
-  /*! \brief The data type of the array. */
-  DataType dtype;
-  /*! \brief Bounds to be realized. */
-  Region bounds;
-  /*! \brief Only realize if condition holds. */
-  PrimExpr condition;
-  /*! \brief The body of realization. */
-  Stmt body;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("func", &func);
-    v->Visit("value_index", &value_index);
-    v->Visit("dtype", &dtype);
-    v->Visit("bounds", &bounds);
-    v->Visit("condition", &condition);
-    v->Visit("body", &body);
-  }
-
-  TVM_DLL static Stmt make(FunctionRef func, int value_index, DataType dtype, Region bounds,
-                           PrimExpr condition, Stmt body);
-
-  bool SEqualReduce(const RealizeNode* other, SEqualReducer equal) const {
-    return equal(func, other->func) && equal(value_index, other->value_index) &&
-           equal(dtype, other->dtype) && equal(bounds, other->bounds) &&
-           equal(condition, other->condition) && equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(func);
-    hash_reduce(value_index);
-    hash_reduce(dtype);
-    hash_reduce(bounds);
-    hash_reduce(condition);
-    hash_reduce(body);
-  }
-
-  static constexpr const char* _type_key = "Realize";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RealizeNode, StmtNode);
 };
 
 /*!
@@ -777,23 +773,6 @@ class Prefetch : public Stmt {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Prefetch, Stmt, PrefetchNode);
 };
 
-/*!
- * \brief Auxiliary data structure used in IR Pass to indicate a tensor.
- */
-struct TensorKey {
-  FunctionRef f;
-  int value_index;
-
-  inline bool operator==(const TensorKey& other) const {
-    return f == other.f && value_index == other.value_index;
-  }
-  inline std::string GetName() const {
-    if (f->num_outputs() == 1) return f->func_name();
-    std::ostringstream os;
-    os << f->func_name() << ".v" << value_index;
-    return os.str();
-  }
-};
 
 /*! \brief namespace of possible attribute sin AttrStmt.attr_key */
 namespace attr {
@@ -933,17 +912,4 @@ TVM_DLL std::ostream& operator<<(std::ostream& os, ForType for_type);
 
 }  // namespace tir
 }  // namespace tvm
-
-namespace std {
-template <>
-struct hash<::tvm::tir::TensorKey> {
-  std::size_t operator()(const ::tvm::tir::TensorKey& k) const {
-    size_t lhs = ::tvm::ObjectPtrHash()(k.f);
-    size_t rhs = static_cast<size_t>(k.value_index);
-    lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);
-    return lhs;
-  }
-};
-}  // namespace std
-
 #endif  // TVM_TIR_STMT_H_
