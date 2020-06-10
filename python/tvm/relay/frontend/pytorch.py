@@ -211,12 +211,12 @@ def _concatenate(prelude):
         assert axis == 0, "Tensor array concat supported only for axis 0"
         tensor_array, shape = _convert_to_tensor_array(lst, prelude)
         concat_shape = (Any(),) + shape[1:]
-        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
-        static_tensor_array_ops.define_tensor_get_data(concat_shape)
-
         concat = prelude.get_var_static('tensor_array_concat', "float32", shape)
         concatenated = concat(tensor_array)
-        get_tensor = prelude.get_var_static('tensor_get_data', "float32", shape)
+
+        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", concat_shape)
+        static_tensor_array_ops.register()
+        get_tensor = prelude.get_var_static('tensor_get_data', "float32", concat_shape)
         return get_tensor(concatenated)
 
     def _impl(inputs, input_types):
@@ -1619,14 +1619,14 @@ def _add(prelude):
 def _tensor_array_stack(prelude):
     def _impl(inputs, input_types):
         tensor_array, shape = _convert_to_tensor_array(inputs[0], prelude)
+
+        stacked_shape = (Any(),) + shape
         stack = prelude.get_var_static('tensor_array_stack', "float32", shape)
         stacked = stack(tensor_array)
 
-        stacked_shape = (Any(),) + shape
-        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
-        static_tensor_array_ops.define_tensor_get_data(stacked_shape)
-        # passing stacked_shape below gives "'Prelude' object has no attribute" error
-        get_tensor = prelude.get_var_static('tensor_get_data', "float32", shape)
+        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", stacked_shape)
+        static_tensor_array_ops.register()
+        get_tensor = prelude.get_var_static('tensor_get_data', "float32", stacked_shape)
         return get_tensor(stacked)
     return _impl
 
