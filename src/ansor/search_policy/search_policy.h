@@ -26,6 +26,7 @@
 #define TVM_ANSOR_SEARCH_POLICY_SEARCH_POLICY_H_
 
 #include <tvm/node/node.h>
+#include <unordered_set>
 #include <vector>
 #include <utility>
 #include <string>
@@ -36,16 +37,44 @@ namespace tvm {
 namespace ansor {
 
 class SearchPolicy;
+class SearchPolicyNode;
+
+class SearchCallbackNode : public Object {
+ public:
+  virtual void callback(SearchPolicyNode* policy) = 0;
+  static constexpr const char *_type_key = "ansor.SearchCallback";
+  TVM_DECLARE_BASE_OBJECT_INFO(SearchCallbackNode, Object);
+};
+TVM_DEFINE_MUTABLE_OBJECT_REF(SearchCallback, SearchCallbackNode);
+
+class PreLoadMeasuredStatesCallbackNode : public SearchCallbackNode {
+ public:
+  std::string filename;
+
+  static SearchCallback make(std::string filename);
+
+  void callback(SearchPolicyNode* policy) final;
+
+  static constexpr const char *_type_key = "ansor.PreLoadMeasuredStatesCallback";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PreLoadMeasuredStatesCallbackNode, SearchCallbackNode);
+};
 
 /*! \brief The base class for search policy */
 class SearchPolicyNode : public Object {
  public:
   virtual State Search(SearchTask task, int n_trials,
                        int early_stopping, int num_measure_per_iter,
-                       int verbose, ProgramMeasurer measurer) = 0;
+                       int verbose, ProgramMeasurer measurer,
+                       Array<SearchCallback> pre_search_callbacks) = 0;
 
   virtual std::pair<Array<MeasureInput>, Array<MeasureResult> > ContinueSearchOneRound(
       SearchTask task, int num_measure, int verbose, ProgramMeasurer measurer) = 0;
+
+  void PreLoadMeasuredStates(const std::string& log_file);
+  void RunCallbacks(const Array<SearchCallback>& callbacks);
+
+  SearchTask cur_task_;               // The current task
+  int verbose_;                       // Verbose level (0 means silent)
 
   // Dict keys
   static constexpr const char* always_unroll_inner_key = "ansor_always_unroll_inner";
@@ -63,6 +92,11 @@ class SearchPolicyNode : public Object {
 
   static constexpr const char *_type_key = "ansor.SearchPolicy";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchPolicyNode, Object);
+
+ protected:
+  // The set of the already measured states.
+  // We store the string format for redundancy check
+  std::unordered_set<std::string> measured_states_set_;
 };
 TVM_DEFINE_MUTABLE_OBJECT_REF(SearchPolicy, SearchPolicyNode);
 

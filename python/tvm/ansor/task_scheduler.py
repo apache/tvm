@@ -153,7 +153,7 @@ class SimpleTaskScheduler(TaskScheduler):
         self.tune_option = tune_option
         if self.use_debug_measurement_simulator is None:
             self.measurer = ProgramMeasurer(tune_option.builder, tune_option.runner,
-                                            tune_option.callbacks, tune_option.verbose)
+                                            tune_option.measure_callbacks, tune_option.verbose)
         self.ct = 0
         self.tic = time.time()
         # reset num_measure_per_iter to make sure every task is tuned at least once
@@ -166,6 +166,13 @@ class SimpleTaskScheduler(TaskScheduler):
         self.dead_tasks = set()
         self.sequential_now_task_idx = 0
         self.sequential_now_task_begin_ct = 0
+
+        for i in range(len(self.tasks)):
+            search_policy = self.search_policies[i]
+            task = self.tasks[i]
+            search_policy.set_task(task)
+            search_policy.set_verbose(tune_option.verbose)
+            search_policy.run_callbacks(tune_option.pre_search_callbacks)
 
         # do a round robin first
         if self.strategy != 'sequential':

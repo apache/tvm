@@ -174,6 +174,16 @@ class LocalRunner(Runner):
 
 @tvm._ffi.register_object("ansor.ProgramMeasurer")
 class ProgramMeasurer(Object):
+    """
+    Parameters
+    ----------
+    builder : Builder
+    runner : Runner
+    callbacks : List[MeasureCallback]
+    verbose : Int
+    max_continuous_error : Float
+    """
+
     def __init__(self, builder: Builder, runner: Runner,
                  callbacks: List[MeasureCallback],
                  verbose: int, max_continuous_error: int = -1):
@@ -182,6 +192,21 @@ class ProgramMeasurer(Object):
 
 @tvm._ffi.register_object("ansor.RPCRunner")
 class RPCRunner(Runner):
+    """
+    Parameters
+    ----------
+    key : Str
+    host : Str
+    port : Int
+    priority : Int
+    n_parallel : Int
+    timeout : Int
+    number : Int
+    repeat : Int
+    min_repeat_ms : Int
+    cooldown_interval : Float
+    """
+
     def __init__(self, key, host, port, priority=1,
                  n_parallel=1,
                  timeout=10,
@@ -203,6 +228,19 @@ class RPCRunner(Runner):
 
 
 class LocalRPCMeasureContext:
+    """ A context wrapper for RPCRunner.
+
+    Parameters
+    ----------
+    priority : Int
+    n_parallel : Int
+    timeout : Int
+    number : Int
+    repeat : Int
+    min_repeat_ms : Int
+    cooldown_interval : Float
+    """
+
     def __init__(self,
                  priority=1,
                  n_parallel=1,
@@ -228,8 +266,8 @@ class LocalRPCMeasureContext:
         time.sleep(0.5)
 
     def __del__(self):
-        self.tracker.terminate()
         self.server.terminate()
+        self.tracker.terminate()
 
 
 class MeasureErrorNo(object):

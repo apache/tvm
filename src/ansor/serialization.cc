@@ -499,6 +499,10 @@ LogReader LogReaderNode::make(std::string filename) {
   return LogReader(node);
 }
 
+LogReaderNode::~LogReaderNode() {
+  infile.close();
+}
+
 bool LogReaderNode::ReadNext(MeasureInputNode* inp, MeasureResultNode* res) {
   std::string log_version;
 

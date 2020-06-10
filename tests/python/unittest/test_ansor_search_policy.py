@@ -42,9 +42,9 @@ def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'
 
         search_policy = ansor.MetaTileRewritePolicy(cost_model, seed=seed)
         tune_option = ansor.TuneOption(n_trials=n_trials, runner=runner,
-                                       callbacks=[ansor.LogToFile(log_file)])
-        sch, args = ansor.auto_schedule(task, search_policy,
-                                    tune_option=tune_option)
+                                       measure_callbacks=[ansor.LogToFile(log_file)])
+        sch, args = ansor.auto_schedule(task, search_policy=search_policy,
+                                        tune_option=tune_option)
         inp, res = ansor.best_measure_pair_in_file(log_file, workload_key, target)
 
         print("==== Python Code ====")

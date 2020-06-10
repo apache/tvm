@@ -69,7 +69,15 @@ class SearchTask(Object):
 class SearchPolicy(Object):
     def continue_search(self, task, num_measure, verbose, measurer):
         return _ffi_api.SearchPolicyContinueSearchOneRound(self, task, num_measure, verbose, measurer)
+    
+    def set_task(self, task):
+        _ffi_api.SearchPolicySetTask(self, task);
 
+    def set_verbose(self, verbose):
+        _ffi_api.SearchPolicySetVerbose(self, verbose);
+
+    def run_callbacks(self, callbacks):
+        _ffi_api.SearchPolicyRunCallbacks(self, callbacks)
 
 @tvm._ffi.register_object("ansor.MetaTileRewritePolicy")
 class MetaTileRewritePolicy(SearchPolicy):
@@ -117,6 +125,21 @@ class MetaTileRewritePolicy(SearchPolicy):
             seed or random.randint(1, 1 << 30))
 
 
+@tvm._ffi.register_object("ansor.SearchCallback")
+class SearchCallback(Object):
+    pass
+
+
+@tvm._ffi.register_object("ansor.PreLoadMeasuredStatesCallback")
+class PreLoadMeasuredStatesCallback(SearchCallback):
+    """ A SearchCallback that used for search policy to load measured hash
+        from the log file.
+    """
+    def __init__(self, filename: str):
+        self.__init_handle_by_constructor__(
+            _ffi_api.PreLoadMeasuredStatesCallback, filename)
+
+
 @tvm._ffi.register_object("ansor.TuneOption")
 class TuneOption(Object):
     """ The options for tuning
@@ -135,11 +158,13 @@ class TuneOption(Object):
       Builder which builds the program
     runner: Runner
       Runner which runs the program and measure time costs
-    callbacks: List[MeasureCallback]
+    measure_callbacks: List[MeasureCallback]
       Callback functions
+    pre_search_callbacks: List[SearchCallback]
     """
     def __init__(self, n_trials=0, early_stopping=-1, num_measure_per_iter=64,
-                 verbose=1, builder='local', runner='local', callbacks=None):
+                 verbose=1, builder='local', runner='local', measure_callbacks=None,
+                 pre_search_callbacks=None):
         if isinstance(builder, str):
             if builder == 'local':
                 builder = LocalBuilder()
@@ -152,12 +177,15 @@ class TuneOption(Object):
             else:
                 raise ValueError("Invalid builder: " + runner)
 
-        if callbacks is None:
-            callbacks = []
+        if measure_callbacks is None:
+            measure_callbacks = []
+
+        if pre_search_callbacks is None:
+            pre_search_callbacks = []
 
         self.__init_handle_by_constructor__(
             _ffi_api.TuneOption, n_trials, early_stopping, num_measure_per_iter,
-            verbose, builder, runner, callbacks)
+            verbose, builder, runner, measure_callbacks, pre_search_callbacks)
 
 
 def auto_schedule(workload, target=None,

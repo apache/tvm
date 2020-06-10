@@ -58,6 +58,7 @@ class LogReaderNode : public Object {
   std::ifstream infile;
 
   static LogReader make(std::string filename);
+  ~LogReaderNode();
 
   /*! \brief Read next line in the log file
    *  \return Whether the read is successful */

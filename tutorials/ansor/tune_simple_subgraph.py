@@ -113,8 +113,8 @@ def matmul_add(N, L, M, dtype):
 # When proposing the next batch of schedules, Ansor can take different cost models to
 # guide the schedule generating process.
 #
-# * :any:`RandomModel`: Generate and take new schedule randomly
-# * :any:`XGBModel`: Use XGBoost model to estimate the performance of potential schedules, try to pick schedules with better performance in each step
+# * :code:`RandomModel`: Generate and take new schedule randomly
+# * :code:`XGBModel`: Use XGBoost model to estimate the performance of potential schedules, try to pick schedules with better performance in each step
 #
 # XGBModel can explore more efficiently and find better schedules.
 
@@ -130,7 +130,7 @@ def matmul_add(N, L, M, dtype):
 #
 # Then we create the :code:`tvm.target` and a tuning task.
 
-N, L, M = 64, 64, 64
+N, L, M = 128, 128, 128
 A, B, C, D = matmul_add(N, L, M, 'float32')
 dag = ansor.ComputeDAG([A, B, C, D])
 
@@ -148,9 +148,6 @@ task = ansor.SearchTask(dag, "test", tgt)
 # you can do more trials according to your time budget.
 # The :code:`ansor.LogToFile` callback will log the tuning results into a
 # log file, which can be used to get the best config later.
-#
-# Then just call :code:`ansor.auto_schedule` and Ansor will try to find a high
-# performance schedule for the target subgraph automatically.
 
 log_file = "matmul_add.json"
 
@@ -160,34 +157,20 @@ cost_model = ansor.RandomModel()
 search_policy = ansor.MetaTileRewritePolicy(cost_model, seed=seed)
 
 tune_option = ansor.TuneOption(n_trials=5,
-                               callbacks=[ansor.LogToFile(log_file)])
+                               measure_callbacks=[ansor.LogToFile(log_file)])
 
-state = ansor.auto_schedule(task, search_policy,
-                            tune_option=tune_option)
-print(state)
+################################################################
+# Then just call :code:`ansor.auto_schedule` and Ansor will try to find a high
+# performance schedule for the target subgraph automatically.
+#
+# The returned result will be a :code:`te.schedule` and a list of :code:`te.Tensor`,
+# which can be used as the input of :code:`tvm.lower` or :code:`tvm.build`.
 
-#########################################################################
-# Finally we apply the history best to be a TVM schedule.
-# 
-# We can call the function :code:`apply_steps_from_state` directly using the returned
-# :code:`state` structure.
-# :code:`state` can also be used to print out the user friendly Python code on demand.
-#
-# And since we've record the runing results to file, we can also use the following
-# code to reply the best schedule from the log file:
-#   .. code-block:: c
-#
-#    inp, res = ansor.best_measure_pair_in_file(log_file)
-#    state = inp.state
-#    s, arg_bufs = dag.apply_steps_from_state(state)
-#
-# With the :code:`state` above, we have lowered result and its python code:
+s, arg_bufs = ansor.auto_schedule(task, search_policy=search_policy,
+                                  tune_option=tune_option)
 
-s, arg_bufs = dag.apply_steps_from_state(state)
 print("==== Get Lowered Stmt ====")
 print(tvm.lower(s, arg_bufs, simple_mode=True))
-print("==== Get Python Code ====")
-print(dag.print_python_code_from_state(state))
 
 #########################################################################
 # Check the correctness to make sure we generate a right schedule.

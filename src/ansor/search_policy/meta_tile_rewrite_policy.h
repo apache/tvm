@@ -63,7 +63,8 @@ class MetaTileRewritePolicyNode: public SearchPolicyNode {
   // Return the best state
   State Search(SearchTask task, int n_trials,
                int early_stopping, int num_measure_per_iter,
-               int verbose, ProgramMeasurer measurer) final;
+               int verbose, ProgramMeasurer measurer,
+               Array<SearchCallback> pre_search_callbacks) final;
 
   // Continue search. This is used by JointTuner
   std::pair<Array<MeasureInput>, Array<MeasureResult> > ContinueSearchOneRound(
@@ -73,8 +74,6 @@ class MetaTileRewritePolicyNode: public SearchPolicyNode {
   static const std::vector<int> auto_unroll_configs;
 
   TVM_DECLARE_FINAL_OBJECT_INFO(MetaTileRewritePolicyNode, SearchPolicyNode);
-
-  SearchTask cur_task_;                // The current task
 
  protected:
   // Pick states from best states and random states with eps-greedy policy
@@ -100,11 +99,7 @@ class MetaTileRewritePolicyNode: public SearchPolicyNode {
 
   SplitFactorizationMemo split_memo_;  // Memorize split space for Split
   std::mt19937 rand_gen_;              // Random generator
-  int verbose_;                        // Verbose level (0 means silent)
   int num_measure_per_iter_;   // The number of states to measure per iteration
-
-  // The set of the already measured states. We store the string format for redundancy check
-  std::unordered_set<std::string> measured_states_set_;
 
   // The array of already measured states.
   std::vector<State> measured_states_vector_;

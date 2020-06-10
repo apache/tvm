@@ -110,11 +110,11 @@ task = ansor.SearchTask(dag, wkl_key, target=tgt)
 log_file = "conv2d_nchw.json"
 seed = 0
 random.seed(seed)
-cost_model = ansor.XGBModel()
+cost_model = ansor.XGBModel(seed=seed)
 search_policy = ansor.MetaTileRewritePolicy(cost_model, seed=seed)
 
 #########################################################################
-# The :code:`ansor.RPCRunnerWarpper` is used to create a RPC runner environment,
+# The :code:`ansor.LocalRPCMeasureContext` is used to create a RPC runner environment.
 # 
 # Use local gpu, measure 10 times for every schedule to reduce variance. The timeout
 # for each running is set to 4 seconds.
@@ -123,15 +123,24 @@ search_policy = ansor.MetaTileRewritePolicy(cost_model, seed=seed)
 # will be filtered out. It's fine to see "Encountered errors during feature extraction."
 # in the tuning logs.
 
-with ansor.RPCRunnerWarpper("cuda", repeat=3, min_repeat_ms=100, timeout=4) as rpc_runner:
-    tune_option = ansor.TuneOption(n_trials=20,
-                                   runner=rpc_runner.runner,
-                                   callbacks=[ansor.LogToFile(log_file)])
-    state = ansor.auto_schedule(task, search_policy,
-                                tune_option=tune_option)
-    print(state)
+measure_ctx = ansor.LocalRPCMeasureContext(repeat=3, min_repeat_ms=100, timeout=4)
+tune_option = ansor.TuneOption(n_trials=20,
+                               runner=measure_ctx.runner,
+                               measure_callbacks=[ansor.LogToFile(log_file)])
+s, arg_bufs = ansor.auto_schedule(task, search_policy=search_policy, tune_option=tune_option)
+
+print("==== Get Lowered Stmt ====")
+print(tvm.lower(s, arg_bufs, simple_mode=True))
+
+# Release the RPC runner environment
+del measure_ctx
 
 #########################################################################
+# From the example lower result showed above, we can see that Ansor has tried
+# techniques such as `Shared Memory Cooperative Fetching`, `Kernel Fusion`,
+# `Axis unroll`, `Axis Vectorize` and so on. There is no need for users to care
+# about the details, and Ansor will catch them well.
+#
 # Finally we can directly use the returned result to get the generated schedule,
 # while in the following tutorial we'll show how to inspect the best config from
 # log file, check correctness, and measure running time.
@@ -160,5 +169,5 @@ tvm.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-2)
 # Evaluate running time. Here we choose a large repeat number (400) to reduce the noise
 # and the overhead of kernel launch. You can also use nvprof to validate the result.
 evaluator = func.time_evaluator(func.entry_name, ctx, number=400)
-print('Time cost of this operator: %f' % evaluator(a_tvm, w_tvm, c_tvm).mean)
+print('Time cost of this operator: %f s' % evaluator(a_tvm, w_tvm, c_tvm).mean)
 

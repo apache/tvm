@@ -58,11 +58,14 @@ SearchPolicy MetaTileRewritePolicyNode::make(CostModel program_cost_model,
 
 State MetaTileRewritePolicyNode::Search(SearchTask task, int n_trials,
                                         int early_stopping, int num_measure_per_iter,
-                                        int verbose, ProgramMeasurer measurer) {
+                                        int verbose, ProgramMeasurer measurer,
+                                        Array<SearchCallback> pre_search_callbacks) {
   std::vector<State> best_states, random_states;
   cur_task_ = task;
   verbose_ = verbose;
   num_measure_per_iter_ = num_measure_per_iter;
+
+  RunCallbacks(pre_search_callbacks);
 
   if (n_trials <= 1) {  // no measurement is allowed
     SearchOneRound(&best_states, 0, &random_states);

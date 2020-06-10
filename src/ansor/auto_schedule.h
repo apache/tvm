@@ -28,6 +28,7 @@
 #include <utility>
 #include <string>
 #include "measure.h"
+#include "search_policy/search_policy.h"
 
 namespace tvm {
 namespace ansor {
@@ -45,7 +46,9 @@ class TuneOptionNode : public Object {
   Builder builder;           // Builder which builds the program
   Runner runner;             // Runner which runs the program and measure time
                              // costs
-  Array<MeasureCallback> callbacks;  // Callback functions
+  Array<MeasureCallback> measure_callbacks;    // MeasureCallback functions
+  Array<SearchCallback> pre_search_callbacks;  // SearchCallback functions
+                                               // run before search
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("n_trials", &n_trials);
@@ -54,12 +57,14 @@ class TuneOptionNode : public Object {
     v->Visit("verbose", &verbose);
     v->Visit("builder", &builder);
     v->Visit("runner", &runner);
-    v->Visit("callbacks", &callbacks);
+    v->Visit("measure_callbacks", &measure_callbacks);
+    v->Visit("pre_search_callbacks", &pre_search_callbacks);
   }
 
   static TuneOption make(int n_trials, int early_stopping,
                          int num_measure_per_iter, int verbose, Builder builder,
-                         Runner runner, Array<MeasureCallback> callbacks);
+                         Runner runner, Array<MeasureCallback> measure_callbacks,
+                         Array<SearchCallback> pre_search_callbacks);
 
   static constexpr const char* _type_key = "ansor.TuneOption";
   TVM_DECLARE_FINAL_OBJECT_INFO(TuneOptionNode, Object);
