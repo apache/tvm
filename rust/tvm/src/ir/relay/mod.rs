@@ -171,10 +171,28 @@ impl Call {
 
 #[repr(C)]
 #[derive(Object)]
+#[ref_name = "BaseFunc"]
+#[type_key = "BaseFunc"]
+pub struct BaseFuncNode {
+    pub base: RelayExpr,
+    pub attrs: ObjectRef,
+}
+
+impl BaseFuncNode {
+    fn base<T: IsObject>() -> BaseFuncNode {
+        BaseFuncNode {
+            base: RelayExpr::base::<T>(),
+            attrs: ObjectRef::null(),
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Object)]
 #[ref_name = "Function"]
 #[type_key = "relay.Function"]
 pub struct FunctionNode {
-    pub base: RelayExpr,
+    pub base: BaseFuncNode,
     pub params: Array<Var>,
     pub body: Expr,
     pub ret_type: Type,
@@ -189,7 +207,7 @@ impl Function {
         type_params: Array<Type>,
     ) -> Function {
         let node = FunctionNode {
-            base: RelayExpr::base::<FunctionNode>(),
+            base: BaseFuncNode::base::<FunctionNode>(),
             params: params,
             body: body,
             ret_type: ret_type,

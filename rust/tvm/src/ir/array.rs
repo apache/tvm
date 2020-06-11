@@ -6,6 +6,7 @@ use crate::runtime::object::{ObjectRef, IsObjectRef};
 use tvm_rt::{external, RetValue, function::{Function, Result}};
 use tvm_rt::errors::Error;
 
+#[repr(C)]
 #[derive(Clone)]
 pub struct Array<T: IsObjectRef> {
     object: ObjectRef,
