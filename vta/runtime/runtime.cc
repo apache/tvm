@@ -796,7 +796,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
             return "LOAD INP";
           } else if (c.mem.memory_type == VTA_MEM_ID_ACC) {
             return "LOAD ACC";
-          } else if (c.mem.memory_type == VTA_MEM_ID_ACC_8) {
+          } else if (c.mem.memory_type == VTA_MEM_ID_ACC_8BIT) {
             return "LOAD ACC 8";
           } else {
             return "LOAD";
@@ -1123,7 +1123,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
   }
   // Get stage of the memory
   static PipelineStage GetMemPipelineStage(int memory_type) {
-    if (memory_type == VTA_MEM_ID_ACC || memory_type == VTA_MEM_ID_ACC_8) return kComputeStage;
+    if (memory_type == VTA_MEM_ID_ACC || memory_type == VTA_MEM_ID_ACC_8BIT) return kComputeStage;
     if (memory_type == VTA_MEM_ID_UOP) return kComputeStage;
     return kLoadStage;
   }
@@ -1133,7 +1133,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     if (insn->opcode == VTA_OPCODE_ALU) return kComputeStage;
     if (insn->opcode == VTA_OPCODE_LOAD) {
       if (insn->x_size == 0) return kNoneStage;
-      if (insn->memory_type == VTA_MEM_ID_ACC || insn->memory_type == VTA_MEM_ID_ACC_8) return kComputeStage;
+      if (insn->memory_type == VTA_MEM_ID_ACC || insn->memory_type == VTA_MEM_ID_ACC_8BIT) return kComputeStage;
       if (insn->memory_type == VTA_MEM_ID_UOP) return kComputeStage;
       return kLoadStage;
     }
@@ -1218,7 +1218,7 @@ class CommandQueue {
       case VTA_MEM_ID_OUT:
         elem_bytes = VTA_OUT_ELEM_BYTES;
         break;
-      case VTA_MEM_ID_ACC_8:
+      case VTA_MEM_ID_ACC_8BIT:
         elem_bytes = VTA_ACC_ELEM_BYTES / 4;
         break;
       default:
