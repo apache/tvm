@@ -356,7 +356,6 @@ def wrap_compute_conv3d_transpose(topi_compute):
         out_dtype = attrs.out_dtype
         out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                      else out_dtype)
-        print(topi_compute, type(topi_compute))
         out = topi_compute(
             inputs[0], inputs[1], strides, padding, out_dtype)
         output_padding = get_const_tuple(attrs.output_padding)
@@ -378,7 +377,6 @@ def conv3d_transpose_strategy(attrs, inputs, out_type, target):
     assert dilation == (1, 1, 1), "not support dilate now"
     assert groups == 1, "only support groups == 1 for now"
     strategy = _op.OpStrategy()
-    print("Adding compute strategy >> ", topi.nn.conv3d_transpose_ncdhw)
     strategy.add_implementation(
         wrap_compute_conv3d_transpose(topi.nn.conv3d_transpose_ncdhw),
         wrap_topi_schedule(topi.generic.schedule_conv3d_transpose_ncdhw),
