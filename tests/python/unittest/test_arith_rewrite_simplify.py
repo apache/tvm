@@ -269,6 +269,17 @@ def test_sub_index_simplify():
     ck.verify(tdiv(x + 5, 3) - tdiv(x, 3), tdiv(tmod(x, 3) + 5, 3))
     ck.verify(tdiv(x + 5, 3) - tdiv(x + 1, 3), tdiv(tmod(x + 1, 3) + 4, 3))
 
+    ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1000), override=True)
+    ck.verify(tdiv(x * 2 + 2, 3) - tdiv(x * 2+ 5, 3),  tdiv(-3, 3))
+    ck.verify(tdiv(x * 2 + 2, 3) + 2 - tdiv(x * 2+ 5, 3),  2 + tdiv(-3, 3))
+    ck.verify(tdiv(x + 2, 3) - tdiv(x + 5, 3),  tdiv(-3, 3))
+    ck.verify(tdiv(x + 2, 3)  + 2 - tdiv(x + 5, 3),  2 + tdiv(-3, 3))
+    ck.analyzer.update(y, tvm.arith.ConstIntBound(1, 1000), override=True)
+    ck.verify(tdiv(x * 2 + 2, y) - tdiv(x * 2+ 5, y),  tdiv(-3, y))
+    ck.verify(tdiv(x * 2 + 2, y) + 2 - tdiv(x * 2+ 5, y),  2 + tdiv(-3, y))
+    ck.verify(tdiv(x + 2, y) - tdiv(x + 5, y),  tdiv(-3, y))
+    ck.verify(tdiv(x + 2, y)  + 2 - tdiv(x + 5, y),  2 + tdiv(-3, y))
+
     ck.verify(y - tdiv(y, (-5)) * (-5), tmod(y, 5))
     ck.verify(tdiv(y, 3) * 3 - y, 0 - tmod(y, 3))
     ck.verify(y - tdiv(y - 6, 5) * 5, tmod(y + (-6), 5) + 6)
