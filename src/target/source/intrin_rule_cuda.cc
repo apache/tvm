@@ -118,7 +118,7 @@ static void DispatchCUDAShuffle(const TVMArgs& args, TVMRetValue* rv) {
   CHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
   Array<PrimExpr> cuda_args{{call->args[0], call->args[1], call->args[2], call->args[3]}};
   const char* name = T()(call->dtype, call->name);
-  *rv = CallNode::make(call->dtype, name, cuda_args, CallNode::PureExtern);
+  *rv = Call(call->dtype, name, cuda_args, CallNode::PureExtern);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.floor").set_body(DispatchExtern<CUDAMath>);

@@ -50,6 +50,7 @@ TEST(Pattern, Basic) {
     CHECK(tir::ExprDeepEqual()(px.Eval(), x + 1));
   }
   CHECK(!(px + min(py, px)).Match((x + 1) + max(y, (x + 1))));
+
   CHECK((px + min(py, px)).Match(z + min(y, z)));
   CHECK((px + truncdiv(py, px * py)).Match(x + truncdiv(2, x * 2)));
   CHECK((px - truncmod(py, px * pz)).Match(x - truncmod(2, x * 2)));
@@ -65,7 +66,7 @@ TEST(Pattern, Basic) {
   CHECK((px >= py && px < pz).Match(x >= y && x < z));
   CHECK((!(px > py || px != py)).Match(!(x > y || x != y)));
   {
-    CHECK(select(px >= pz, py, py + pz).Match(tir::SelectNode::make((x + 1) >= 1, y, y + 1)));
+    CHECK(select(px >= pz, py, py + pz).Match(tir::Select((x + 1) >= 1, y, y + 1)));
     CHECK(tir::ExprDeepEqual()(px.Eval(), x + 1));
   }
   // bit intrinsics
@@ -81,13 +82,13 @@ TEST(Pattern, Basic) {
   CHECK((px - (~(py | (px * pz)))).Match(x - (~(2 | (x * 2)))));
   // select
   {
-    CHECK(select(px > pz, py, py + pz).Match(tir::SelectNode::make(x > 1, y, y + 1)));
+    CHECK(select(px > pz, py, py + pz).Match(tir::Select(x > 1, y, y + 1)));
     CHECK(is_const_int(pz.Eval(), 1));
   }
-  CHECK(!select(px > pz, py, py + pz).Match(tir::SelectNode::make(x > 2, y, y + 1)));
-  CHECK(!select(px > pz, py, py).Match(tir::SelectNode::make(x > 2, y, y + 1)));
+  CHECK(!select(px > pz, py, py + pz).Match(tir::Select(x > 2, y, y + 1)));
+  CHECK(!select(px > pz, py, py).Match(tir::Select(x > 2, y, y + 1)));
   {
-    CHECK(select(px, py, pz).Match(tir::SelectNode::make(x > 2, y, y + 1)));
+    CHECK(select(px, py, pz).Match(tir::Select(x > 2, y, y + 1)));
     CHECK(tir::ExprDeepEqual()(pz.Eval(), y + 1));
   }
   // if_then_else
@@ -97,28 +98,26 @@ TEST(Pattern, Basic) {
   }
   // cast pattern
   {
-    CHECK(!cast(PConst<DataType>(DataType::Int(32)), px)
-               .Match(tir::CastNode::make(DataType::Float(64), x)));
-    CHECK(cast(pt, px).Match(tir::CastNode::make(DataType::Float(64), x)));
+    CHECK(!cast(PConst<DataType>(DataType::Int(32)), px).Match(tir::Cast(DataType::Float(64), x)));
+    CHECK(cast(pt, px).Match(tir::Cast(DataType::Float(64), x)));
     CHECK(pt.Eval() == DataType::Float(64));
     auto zz = cast(pt, px).Eval();
     CHECK((cast(pt, px) - cast(pt, py))
-              .Match(tir::CastNode::make(DataType::Float(64), x) -
-                     tir::CastNode::make(DataType::Int(64), x)));
-    auto expr = tir::CastNode::make(DataType::Int(32), tir::CastNode::make(DataType::Float(64), x));
+              .Match(tir::Cast(DataType::Float(64), x) - tir::Cast(DataType::Int(64), x)));
+    auto expr = tir::Cast(DataType::Int(32), tir::Cast(DataType::Float(64), x));
     CHECK(!(cast(pt, cast(pt, px))).Match(expr));
   }
   // ramp pattern
   {
-    CHECK(ramp(px, PConst<PrimExpr>(1), planes).Match(tir::RampNode::make(x, 1, 10)));
+    CHECK(ramp(px, PConst<PrimExpr>(1), planes).Match(tir::Ramp(x, 1, 10)));
     CHECK(planes.Eval() == 10);
-    CHECK(!ramp(px, PConst<PrimExpr>(1), planes).Match(tir::RampNode::make(x, 2, 10)));
+    CHECK(!ramp(px, PConst<PrimExpr>(1), planes).Match(tir::Ramp(x, 2, 10)));
   }
   // broadcast pattern
   {
-    CHECK(broadcast(px, planes).Match(tir::BroadcastNode::make(x, 10)));
+    CHECK(broadcast(px, planes).Match(tir::Broadcast(x, 10)));
     CHECK(planes.Eval() == 10);
-    CHECK(broadcast(px * py, planes).Match(tir::BroadcastNode::make(x * 10, 10)));
+    CHECK(broadcast(px * py, planes).Match(tir::Broadcast(x * 10, 10)));
   }
 }
 

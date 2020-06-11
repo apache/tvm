@@ -80,7 +80,7 @@ static void DispatchIntelShuffle(const TVMArgs& args, TVMRetValue* rv) {
   CHECK(analyzer.CanProve(call->args[3] == call->args[4]))
       << "Intel warp shuffle dose not support width != warp_size";
   Array<PrimExpr> opencl_args{{call->args[1], call->args[2]}};
-  *rv = CallNode::make(call->dtype, "intel_sub_group_shuffle", opencl_args, CallNode::PureExtern);
+  *rv = Call(call->dtype, "intel_sub_group_shuffle", opencl_args, CallNode::PureExtern);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.tvm_warp_shuffle").set_body(DispatchIntelShuffle);

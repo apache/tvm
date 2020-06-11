@@ -103,7 +103,7 @@ class IRConvertSSA final : public StmtExprMutator {
       scope_[v.get()].push_back(new_var);
       PrimExpr body = this->VisitExpr(op->body);
       scope_[v.get()].pop_back();
-      return LetNode::make(new_var, value, body);
+      return Let(new_var, value, body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitExpr_(op);
@@ -113,8 +113,7 @@ class IRConvertSSA final : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<LoadNode>();
     if (scope_.count(op->buffer_var.get())) {
-      return LoadNode::make(op->dtype, scope_[op->buffer_var.get()].back(), op->index,
-                            op->predicate);
+      return Load(op->dtype, scope_[op->buffer_var.get()].back(), op->index, op->predicate);
     } else {
       return expr;
     }

@@ -107,7 +107,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
       if (body.same_as(op->body) && value.same_as(op->value)) {
         return GetRef<PrimExpr>(op);
       } else {
-        return LetNode::make(op->var, value, body);
+        return Let(op->var, value, body);
       }
     }
   }
@@ -230,15 +230,15 @@ class HostDeviceSplitter : public StmtMutator {
 
     // generate calls to the device function
     Array<PrimExpr> call_args;
-    call_args.push_back(StringImmNode::make(kernel_symbol));
+    call_args.push_back(StringImm(kernel_symbol));
     for (PrimExpr arg : arguments) {
       call_args.push_back(arg);
     }
     for (PrimExpr ext : m.thread_extent_) {
       call_args.push_back(ext);
     }
-    return EvaluateNode::make(CallNode::make(DataType::Int(32), intrinsic::tvm_call_packed,
-                                             call_args, CallNode::Intrinsic));
+    return EvaluateNode::make(
+        Call(DataType::Int(32), intrinsic::tvm_call_packed, call_args, CallNode::Intrinsic));
   }
 
   // target ir module

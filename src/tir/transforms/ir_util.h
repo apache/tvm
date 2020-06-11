@@ -86,7 +86,7 @@ inline PrimExpr TVMStructGet(DataType dtype, Var handle, int index,
                              intrinsic::TVMStructFieldKind kind) {
   Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
                           make_const(DataType::Int(32), static_cast<int>(kind))};
-  return CallNode::make(dtype, intrinsic::tvm_struct_get, args, CallNode::PureIntrinsic);
+  return Call(dtype, intrinsic::tvm_struct_get, args, CallNode::PureIntrinsic);
 }
 
 /*!
@@ -96,11 +96,10 @@ inline PrimExpr TVMStructGet(DataType dtype, Var handle, int index,
  * \param offset the offset index.
  */
 inline PrimExpr AddressOffset(Var handle, DataType dtype, int offset) {
-  return CallNode::make(
-      DataType::Handle(), intrinsic::tvm_address_of,
-      {LoadNode::make(dtype, handle, make_const(DataType::Int(32), offset * dtype.lanes()),
-                      const_true(dtype.lanes()))},
-      CallNode::PureIntrinsic);
+  return Call(DataType::Handle(), intrinsic::tvm_address_of,
+              {Load(dtype, handle, make_const(DataType::Int(32), offset * dtype.lanes()),
+                    const_true(dtype.lanes()))},
+              CallNode::PureIntrinsic);
 }
 
 /*!
@@ -112,11 +111,10 @@ inline PrimExpr AddressOffset(Var handle, DataType dtype, int offset) {
 inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
   if (dtype.lanes() != 1) {
     offset = offset * make_const(offset.dtype(), dtype.lanes());
-    offset = RampNode::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
+    offset = Ramp(offset, make_const(offset.dtype(), 1), dtype.lanes());
   }
-  return CallNode::make(DataType::Handle(), intrinsic::tvm_address_of,
-                        {LoadNode::make(dtype, handle, offset, const_true(dtype.lanes()))},
-                        CallNode::PureIntrinsic);
+  return Call(DataType::Handle(), intrinsic::tvm_address_of,
+              {Load(dtype, handle, offset, const_true(dtype.lanes()))}, CallNode::PureIntrinsic);
 }
 
 /*!
@@ -132,7 +130,7 @@ inline Stmt TVMStructSet(Var handle, int index, intrinsic::TVMStructFieldKind ki
   Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
                           make_const(DataType::Int(32), static_cast<int>(kind)), value};
   return EvaluateNode::make(
-      CallNode::make(DataType::Int(32), intrinsic::tvm_struct_set, args, CallNode::Intrinsic));
+      Call(DataType::Int(32), intrinsic::tvm_struct_set, args, CallNode::Intrinsic));
 }
 
 /*!

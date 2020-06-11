@@ -904,7 +904,7 @@ inline bool IsPragmaKey(const std::string& attr_key) {
  * \return Expr a expression with dtype.
  */
 inline PrimExpr TypeAnnotation(DataType dtype) {
-  return tir::CallNode::make(dtype, "type_annotation", {}, tir::CallNode::PureIntrinsic);
+  return tir::Call(dtype, "type_annotation", {}, tir::CallNode::PureIntrinsic);
 }
 
 // overload printing of for type.

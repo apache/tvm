@@ -98,7 +98,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
           // equivalent to rdiv + (rmod >= 0 ? 0: -1);
           return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
         } else {
-          return tir::SelectNode::make(rmod >= 0, rdiv, rdiv - make_const(dtype, 1));
+          return tir::Select(rmod >= 0, rdiv, rdiv - make_const(dtype, 1));
         }
       }
     } else {
@@ -108,8 +108,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
       PrimExpr rdiv = truncdiv(op->a, op->b);
       PrimExpr rmod = truncmod(op->a, op->b);
-      return tir::SelectNode::make((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
-                                   rdiv - make_const(dtype, 1));
+      return tir::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
+                         rdiv - make_const(dtype, 1));
     }
   }
 
@@ -144,7 +144,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
           // -> rmod >= 0 ? 0 : b
           return rmod + (op->b & (rmod >> make_const(dtype, dtype.bits() - 1)));
         } else {
-          return tir::SelectNode::make(rmod >= 0, rmod, rmod + op->b);
+          return tir::Select(rmod >= 0, rmod, rmod + op->b);
         }
       }
     } else {
@@ -155,8 +155,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // b > 0 && rmod < 0  -> rmod + b
       // b < 0 && rmod < 0 -> rmod
       // b < 0 && rmod > 0 -> rmod + b
-      return tir::SelectNode::make((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod,
-                                   rmod + op->b);
+      return tir::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod, rmod + op->b);
     }
   }
 
@@ -217,8 +216,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         };
 
         if (should_swap()) {
-          PrimExpr new_bcast = BroadcastNode::make(cast->value, bcast->lanes);
-          return CastNode::make(bcast->dtype, new_bcast);
+          PrimExpr new_bcast = Broadcast(cast->value, bcast->lanes);
+          return Cast(bcast->dtype, new_bcast);
         }
       }
     }
@@ -231,13 +230,12 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     PrimExpr rhs = SwapBroadcastCast(b);
 
     if (fma_ != nullptr && op->dtype.is_float()) {
-      PrimExpr r =
-          (*fma_)(CallNode::make(op->dtype, "fma", {lhs, rhs, c}, CallNode::PureIntrinsic));
+      PrimExpr r = (*fma_)(Call(op->dtype, "fma", {lhs, rhs, c}, CallNode::PureIntrinsic));
       if (r.defined()) return this->VisitExpr(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {
-        PrimExpr mul = this->VisitExpr(MulNode::make(lhs, rhs));
-        return AddNode::make(mul, this->VisitExpr(c));
+        PrimExpr mul = this->VisitExpr(Mul(lhs, rhs));
+        return Add(mul, this->VisitExpr(c));
       }
     }
     return IRMutatorWithAnalyzer::VisitExpr_(op);

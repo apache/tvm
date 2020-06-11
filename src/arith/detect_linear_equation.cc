@@ -213,7 +213,7 @@ bool DetectClipBound(const PrimExpr& cond,
   if (is_const_int(ret.coeff, 1)) {
     // var + shift >=0 -> var >= -shift
     if (p.min_value.defined()) {
-      p.min_value = tir::MaxNode::make(p.min_value, -ret.base);
+      p.min_value = max(p.min_value, -ret.base);
     } else {
       p.min_value = -ret.base;
     }
@@ -222,7 +222,7 @@ bool DetectClipBound(const PrimExpr& cond,
   if (is_const_int(ret.coeff, -1)) {
     // -var + shift >=0 -> var <= shift
     if (p.max_value.defined()) {
-      p.max_value = tir::MinNode::make(p.max_value, ret.base);
+      p.max_value = min(p.max_value, ret.base);
     } else {
       p.max_value = ret.base;
     }
