@@ -53,12 +53,10 @@ def call_node_infer_type(node):
     """infer the output types of call node"""
     infer_out = infer_type(node)
     out_type = infer_out._checked_type_
-    types = []
     if isinstance(out_type, TensorType):
-        types.append(out_type)
+        types = [out_type]
     elif isinstance(out_type, TupleType):
-        for tupe_type in out_type.fields:
-            types.append(tupe_type)
+        types = list(out_type.fields)
     else:
         raise RuntimeError("Unsupported output type %s in operator %s"
                            % (type(out_type), node.op.nae))
@@ -414,49 +412,47 @@ class Slice(OpConverter):
         return {
             'starts': attrs.get_int_tuple('begin'),
             'ends': attrs.get_int_tuple('end'),
-            'steps': attrs.get_int_tuple('strides')
+            'steps': attrs.get_int_tuple('strides'),
+            'slice_mode': attrs.get_str('slice_mode')
         }
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
         attrs = cls.convert_attributes(node_entry['relay_node'].attrs)
 
+        name = node_entry['name']
         input_node = node_dict[node_entry['inputs'][0]]
         assert len(input_node) == 1, "input node can not be a Tuple"
         input_node = input_node[0]
         shape = input_node['types'][0].shape
+
         starts = list(attrs['starts'])
         ends = list(attrs['ends'])
-        for i in range(len(starts), len(shape)):
-            starts.append(0)
-        for i in range(len(ends), len(shape)):
-            ends.append(shape[i] + 1)
+        steps = list(attrs['steps'])
+        starts += [0] * (len(shape) - len(starts))
+        ends += [shape[i] + 1 for i in range(len(ends), len(shape))]
+        axes = list(range(len(shape)))
 
-        name = node_entry['name']
-        starts = numpy.asarray(starts).astype(numpy.int64)
-        starts_name = 'starts_{}'.format(name)
-        add_input(starts, starts_name, model_container)
+        if attrs['slice_mode'] == 'size':
+            ends = [starts[i] + (shape[i] + 1 if ends[i] < 0 else ends[i])
+                    for i in range(len(shape))]
+            steps = [1] * len(shape)
+        else:
+            steps += [1] * (len(shape) - len(steps))
 
-        ends = numpy.asarray(ends).astype(numpy.int64)
-        ends_name = 'ends_{}'.format(name)
-        add_input(ends, ends_name, model_container)
+        def _add_input(val, input_name):
+            val_arr = numpy.asarray(val).astype(numpy.int64)
+            input_name = '{}_{}'.format(name, input_name)
+            add_input(val_arr, input_name, model_container)
+            return input_name
 
-        input_names = node_entry['input_names'] + [starts_name, ends_name]
+        input_names = []
+        input_names.append(_add_input(starts, 'starts'))
+        input_names.append(_add_input(ends, 'ends'))
+        input_names.append(_add_input(axes, 'axes'))
+        input_names.append(_add_input(steps, 'steps'))
 
-        if attrs['steps']:
-            axes = list(range(len(shape)))
-            attrs['axes'] = axes
-            assert len(axes) == len(attrs['steps']), "axes and steps should be of same size"
-
-            steps = numpy.asarray(attrs['steps']).astype(numpy.int64)
-            steps_name = 'steps_{}'.format(name)
-            add_input(steps, steps_name, model_container)
-
-            axes = numpy.asarray(attrs['axes']).astype(numpy.int64)
-            axes_name = 'axes_{}'.format(name)
-            add_input(axes, axes_name, model_container)
-
-            input_names = input_names + [axes_name, steps_name]
+        input_names = [node_entry['input_names'][0]] + input_names
 
         slice_node = onnx.helper.make_node(cls.__name__,
                                            input_names,
@@ -665,7 +661,7 @@ class RelayToONNXConverter(ExprVisitor):
         self.last_node = None
 
     @classmethod
-    def _get_node_entry(cls, relay_node, name, node_index):
+    def _get_node_entry(cls, relay_node, name):
         return {"relay_node": relay_node,
                 "inputs": [relay_node],  # inputs in the form of relay nodes
                 "types": [],  # output types in case of call nodes else self type
@@ -673,14 +669,12 @@ class RelayToONNXConverter(ExprVisitor):
                 "input_names": [name],  # input names in case of call nodes else self name
                 "output_names": [name],  # output names in case of call nodes else self name
                 "op": None,  # op name in case of call node else None
-                "index": node_index
                 }
 
     def convert_to_onnx(self, func):
         """ Traverse Relay graph and generate a ONNX model"""
 
         self.visit(func)
-
         self._add_output(self._node_dict[self.last_node])
         model = self._mc.make_model()
         polished_model = onnx.utils.polish_model(model)
@@ -693,7 +687,7 @@ class RelayToONNXConverter(ExprVisitor):
     def visit_constant(self, const):
         node_index = self._node_count
         name = "Constant_" + str(node_index)
-        node_entry = self._get_node_entry(const, name, node_index)
+        node_entry = self._get_node_entry(const, name)
         node_entry["types"] = [const.checked_type]
 
         self._add_constant_input(node_entry, node_index)
@@ -701,7 +695,7 @@ class RelayToONNXConverter(ExprVisitor):
 
     def visit_var(self, var):
         node_index = self._node_count
-        node_entry = self._get_node_entry(var, var.name_hint, node_index)
+        node_entry = self._get_node_entry(var, var.name_hint)
         node_entry["types"] = [var.type_annotation]
 
         self._add_input(node_entry, node_index)
@@ -731,7 +725,7 @@ class RelayToONNXConverter(ExprVisitor):
         node_index = self._node_count
         op = call.op
         name = "{}_{}".format(op, node_index)
-        node_entry = self._get_node_entry(call, name, node_index)
+        node_entry = self._get_node_entry(call, name)
 
         node_entry["op"] = op
         node_entry["input_names"] = []

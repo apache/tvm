@@ -28,7 +28,6 @@ from tvm import relay
 from tvm.contrib.target.onnx import to_onnx
 
 
-
 def func_to_onnx(func, name):
     mod = tvm.IRModule()
     mod['main'] = func
@@ -347,24 +346,29 @@ def test_concatenate():
 
 
 def test_strided_slice():
-    def verify_strided_slice(dshape, begin, end, strides):
+    def verify_strided_slice(dshape, begin, end, strides, mode):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.strided_slice(x, begin=begin, end=end, strides=strides)
+        if mode == 'size':
+            strides = None
+        z = relay.strided_slice(x, begin=begin, end=end, strides=strides, slice_mode=mode)
         func = relay.Function([x], z)
         x_data = np.random.uniform(size=dshape).astype("float32")
         verify_results(func, [x_data], 'test_strided_slice', rtol=1e-5, atol=1e-5)
 
-    verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], None)
-    verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
-    verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1])
-    verify_strided_slice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1])
-    verify_strided_slice((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2])
-    verify_strided_slice((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1])
+    for mode in ['end', 'size']:
+        verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 2, 3], None, mode)
+        verify_strided_slice((3, 4, 3), [1, -1, 0], [4, -1, 3], [1, 2], mode)
+        verify_strided_slice((3, 4, 3), [1, ], [4, -3], None, mode)
+        verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], mode)
+        verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, -3], [2, 1, 1], mode)
+        verify_strided_slice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], mode)
+        verify_strided_slice((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2], mode)
+        verify_strided_slice((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], mode)
 
-    verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 1000, 3], None)
-    verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4], None)
-    verify_strided_slice((3, 4, 3), [1, 1], [4, 4, 3], None)
-    verify_strided_slice((3, 4, 3), [1, 1], [4, 4, 3], [1, 1, 2])
+        verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 1000, 3], None, mode)
+        verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4], None, mode)
+        verify_strided_slice((3, 4, 3), [1, 1], [4, 4, 3], None, mode)
+        verify_strided_slice((3, 4, 3), [1, 1], [4, 4, 3], [1, 1, 2], mode)
 
 
 def test_cmp_type():
