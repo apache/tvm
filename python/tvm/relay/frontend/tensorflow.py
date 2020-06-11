@@ -595,7 +595,7 @@ def _conv3d(opname):
         out = AttrCvt(
             op_name=_dimension_picker('conv',
                                       surfix="_transpose" if opname == 'conv_transpose' else ""),
-            ignores=['explicit_paddings'],
+            ignores=['explicit_paddings', 'Tshape'],
             transforms={
                 'kernel_shape': 'kernel_size',
                 'data_format': 'data_layout',
@@ -2029,6 +2029,7 @@ _convert_map = {
     'Conv2D'                            : _conv('conv'),
     'Conv2DBackpropInput'               : _conv('conv_transpose'),
     'Conv3D'                            : _conv3d('conv'),
+    'Conv3DBackpropInputV2'             : _conv3d('conv_transpose'),
     'Cos'                               : AttrCvt('cos'),
     'Cosh'                              : AttrCvt('cosh'),
     'CropAndResize'                     : _crop_and_resize(),
