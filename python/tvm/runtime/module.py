@@ -33,9 +33,23 @@ from . import _ffi_api
 ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
 
 
-def ModuleInitWrapper(metadata, source_type="c"):
-    """Create a module initialization wrapper"""""
-    return _ffi_api.ModuleInitWrapper(metadata, source_type)
+def ModuleInitWrapper(variables, metadata):
+    """Create a module initialization wrapper.
+
+    Parameters
+    ----------
+    variables : List[Str]
+        The list of variables.
+
+    metadata : List[runtime.NDArray]
+        The list of used NDArray.
+
+    Returns
+    -------
+    ret : runtime.Module
+        The created module wrapper for initialization
+    """""
+    return _ffi_api.ModuleInitWrapper(variables, metadata)
 
 
 class Module(object):
@@ -232,7 +246,7 @@ class Module(object):
         Helper function to collect dso modules and metadata init module. There
         is at most one medata init module if it exists.
         """
-        visited, stack, dso_modules, metadata_init = set(), [], [], []
+        visited, stack, dso_modules, metadata_init = set(), [], [], None
         # append root module
         visited.add(self)
         stack.append(self)
@@ -241,7 +255,9 @@ class Module(object):
             if module._dso_exportable():
                 dso_modules.append(module)
             elif module.type_key == "module_init":
-                metadata_init.append(module)
+                assert not metadata_init, \
+                        "At most one module initializer is allowed"
+                metadata_init = module
             for m in module.imported_modules:
                 if m not in visited:
                     visited.add(m)
@@ -334,14 +350,13 @@ class Module(object):
             llvm_target_triple = (module.type_key == "llvm" and
                                   module.get_function("_get_target_triple")())
 
-        for m in metadata_init:
-            metadata_import = m.imported_modules
-            assert len(metadata_import) == 1, \
-                    "A module should be wrapped in the initialization module."
-            if metadata_import[0].type_key == "c":
-                header = temp.relpath("metadata.h")
-                m.save(header)
-                files.append(header)
+        if metadata_init:
+            for m in metadata_init.imported_modules:
+                if m.type_key == "c":
+                    header = temp.relpath("metadata.h")
+                    metadata_init.save(header)
+                    files.append(header)
+                    break
 
         if not fcompile:
             if file_name.endswith(".tar"):

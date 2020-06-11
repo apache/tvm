@@ -202,7 +202,7 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
 
 class CSourceCodegen : public CSourceModuleCodegenBase {
  public:
-  std::pair<std::string, Map<String, runtime::NDArray>> GenCFunc(const Function& func) {
+  Map<String, runtime::NDArray> GenCFunc(const Function& func) {
     CHECK(func.defined()) << "Input error: expect a Relay function.";
 
     // Record the external symbol for runtime lookup.
@@ -212,7 +212,7 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
     auto out = builder.VisitExpr(func->body);
     code_stream_ << builder.JIT(out);
 
-    return std::make_pair(sid, builder.GetMetadata());
+    return builder.GetMetadata();
   }
 
   runtime::Module CreateCSourceModule(const ObjectRef& ref) override {
@@ -244,32 +244,37 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
 
     code_stream_ << operator_macro << "\n\n";
 
-    Map<String, String> code;
-    Map<String, Map<String, runtime::NDArray>> metadata;
+    String func_symbol("all");
+    String code;
+    Array<String> variables;
+    Array<runtime::NDArray> metadata;
     if (ref->IsInstance<FunctionNode>()) {
-      auto ret = GenCFunc(Downcast<Function>(ref));
-      String sym = std::get<0>(ret);
-      Map<String, runtime::NDArray> consts = std::get<1>(ret);
+      Map<String, runtime::NDArray> consts = GenCFunc(Downcast<Function>(ref));
       std::string code_str = code_stream_.str();
       if (!consts.empty()) {
         code_str = "#include \"metadata.h\"\n" + code_str;
-        metadata.Set(sym, consts);
+        for (const auto& it : consts) {
+          variables.push_back(it.first);
+          metadata.push_back(it.second);
+        }
       }
-      code.Set(sym, code_str);
+      code = code_str;
     } else if (ref->IsInstance<IRModuleNode>()) {
       IRModule mod = Downcast<IRModule>(ref);
       for (const auto& it : mod->functions) {
-        auto ret = GenCFunc(Downcast<Function>(it.second));
-        Map<String, runtime::NDArray> consts = std::get<1>(ret);
+        Map<String, runtime::NDArray> consts = GenCFunc(Downcast<Function>(it.second));
         if (!consts.empty()) {
-          metadata.Set(std::get<0>(ret), consts);
+          for (const auto& it : consts) {
+            variables.push_back(it.first);
+            metadata.push_back(it.second);
+          }
         }
       }
       std::string code_str = code_stream_.str();
       if (!metadata.empty()) {
         code_str = "#include \"metadata.h\"\n" + code_str;
       }
-      code.Set("all", code_str);
+      code = code_str;
     } else {
       LOG(FATAL) << "The input ref is expected to be a Relay function or module"
                  << "\n";
@@ -278,7 +283,7 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
     // Create a SourceMetadataModuleNode
     const auto* pf = runtime::Registry::Get("runtime.SourceMetadataModuleCreate");
     CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
-    return (*pf)(code, "c", metadata);
+    return (*pf)(func_symbol, code, "c", variables, metadata);
   }
 
  private:

@@ -25,8 +25,15 @@ class SourceMetadataModule:
     def __init__(self, mod):
         self.mod = mod
         self._get_source = self.mod["get_source"]
+        self._get_symbol = self.mod["get_symbol"]
         self._get_source_type = self.mod["get_source_type"]
+        self._get_variables = self.mod["get_vars"]
         self._get_metadata = self.mod["get_metadata"]
+
+    @property
+    def symbol(self):
+        """Get the source"""
+        return self._get_symbol()
 
     @property
     def source(self):
@@ -42,6 +49,12 @@ class SourceMetadataModule:
     def metadata(self):
         """Get the metadata"""
         return self._get_metadata()
+
+    @property
+    def variables(self):
+        """Get the metadata"""
+        return self._get_variables()
+
 
     def is_c_source(self):
         """Check if the source code is C/C++"""

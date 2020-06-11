@@ -174,9 +174,13 @@ runtime::Module ModuleClassWrapperCreate() {
 // user-defined code, i.e. c source code, json graph representation, etc.
 class SourceMetadataModuleNode final : public runtime::ModuleNode {
  public:
-  SourceMetadataModuleNode(Map<String, String> code, const std::string& source_type,
-                           Map<String, Map<String, runtime::NDArray>> metadata)
-      : code_(code), source_type_(source_type), metadata_(metadata) {}
+  SourceMetadataModuleNode(const String& func_symbol, const String& code, const String& source_type,
+                           const Array<String>& variables, const Array<runtime::NDArray>& metadata)
+      : func_symbol_(func_symbol),
+        code_(code),
+        source_type_(source_type),
+        variables_(variables),
+        metadata_(metadata) {}
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_source") {
@@ -184,6 +188,12 @@ class SourceMetadataModuleNode final : public runtime::ModuleNode {
     } else if (name == "get_source_type") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->source_type_; });
+    } else if (name == "get_symbol") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->func_symbol_; });
+    } else if (name == "get_vars") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->variables_; });
     } else if (name == "get_metadata") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->metadata_; });
@@ -196,17 +206,23 @@ class SourceMetadataModuleNode final : public runtime::ModuleNode {
   const char* type_key() const { return "source_metadata"; }
 
  private:
-  /*! \brief Symbol to source (e.g. c source/json) mapping. */
-  Map<String, String> code_;
+  /*! \brief The function symbols. */
+  String func_symbol_;
+  /*! \brief The source code. */
+  String code_;
   /*! \brief The type of the source code, e.g. c or any customized json type. */
-  std::string source_type_;
-  /*! \brief Symbol to {var_name : NDArray} pair mapping. */
-  Map<String, Map<String, runtime::NDArray>> metadata_;
+  String source_type_;
+  /*! \brief The list of constant variables. */
+  Array<String> variables_;
+  /*! \brief The list of constant values that are corresponding to the variables. */
+  Array<runtime::NDArray> metadata_;
 };
 
-runtime::Module SourceMetadataModuleCreate(Map<String, String> code, std::string source_type,
-                                           Map<String, Map<String, runtime::NDArray>> metadata) {
-  auto n = make_object<SourceMetadataModuleNode>(code, source_type, metadata);
+runtime::Module SourceMetadataModuleCreate(String func_symbol, String code, String source_type,
+                                           Array<String> variables,
+                                           Array<runtime::NDArray> metadata) {
+  auto n =
+      make_object<SourceMetadataModuleNode>(func_symbol, code, source_type, variables, metadata);
   return runtime::Module(n);
 }
 

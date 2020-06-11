@@ -25,6 +25,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+
 #include <cstdint>
 #include <sstream>
 
@@ -33,10 +34,11 @@
 namespace tvm {
 namespace runtime {
 
+using StringNDArrayMap = std::unordered_map<String, runtime::NDArray, ObjectHash, ObjectEqual>;
+
 class CSourceMetadataInitializer {
  public:
-  explicit CSourceMetadataInitializer(Map<String, Map<String, runtime::NDArray>> metadata)
-      : metadata_(metadata) {}
+  explicit CSourceMetadataInitializer(const StringNDArrayMap& metadata) : metadata_(metadata) {}
 
   template <typename T>
   void GetElements(const std::string& var_name, const std::string& type_name,
@@ -55,33 +57,31 @@ class CSourceMetadataInitializer {
 
   std::string Init() {
     for (const auto& it : metadata_) {
-      for (const auto& vars : it.second) {
-        std::string var_name = vars.first.operator std::string();
-        runtime::NDArray data = vars.second;
-        CHECK(data->dtype.lanes == 1);
-        if (data->dtype.code == kDLFloat) {
-          if (data->dtype.bits == 32) {
-            stream_.precision(std::numeric_limits<float>::digits10 + 1);
-            GetElements<float>(var_name, "float", data);
-          } else {
-            CHECK_EQ(data->dtype.bits, 64);
-            stream_.precision(std::numeric_limits<double>::digits10 + 1);
-            GetElements<double>(var_name, "double", data);
-          }
-        } else if (data->dtype.code == kDLUInt) {
-          if (data->dtype.bits == 8) {
-            GetElements<uint8_t>(var_name, "uint8_t", data);
-          } else {
-            CHECK_EQ(data->dtype.bits, 32);
-            GetElements<uint32_t>(var_name, "uint32_t", data);
-          }
+      std::string var_name = it.first.operator std::string();
+      runtime::NDArray data = it.second;
+      CHECK_EQ(data->dtype.lanes, 1U);
+      if (data->dtype.code == kDLFloat) {
+        if (data->dtype.bits == 32) {
+          stream_.precision(std::numeric_limits<float>::digits10 + 1);
+          GetElements<float>(var_name, "float", data);
         } else {
-          if (data->dtype.bits == 8) {
-            GetElements<int8_t>(var_name, "int8_t", data);
-          } else {
-            CHECK_EQ(data->dtype.bits, 32);
-            GetElements<int32_t>(var_name, "int32_t", data);
-          }
+          CHECK_EQ(data->dtype.bits, 64);
+          stream_.precision(std::numeric_limits<double>::digits10 + 1);
+          GetElements<double>(var_name, "double", data);
+        }
+      } else if (data->dtype.code == kDLUInt) {
+        if (data->dtype.bits == 8) {
+          GetElements<uint8_t>(var_name, "uint8_t", data);
+        } else {
+          CHECK_EQ(data->dtype.bits, 32);
+          GetElements<uint32_t>(var_name, "uint32_t", data);
+        }
+      } else {
+        if (data->dtype.bits == 8) {
+          GetElements<int8_t>(var_name, "int8_t", data);
+        } else {
+          CHECK_EQ(data->dtype.bits, 32);
+          GetElements<int32_t>(var_name, "int32_t", data);
         }
       }
     }
@@ -91,14 +91,18 @@ class CSourceMetadataInitializer {
  private:
   /*! \brief The stream to print constant data. */
   std::ostringstream stream_;
-  /*! \brief A symbol to {var_name : NDArray} pair mapping. */
-  Map<String, Map<String, runtime::NDArray>> metadata_;
+  /*! \brief variable name to NDArray mapping. */
+  StringNDArrayMap metadata_;
 };
 
 class ModuleInitWrapper : public runtime::ModuleNode {
  public:
-  ModuleInitWrapper(Map<String, Map<String, runtime::NDArray>> metadata, String source_type)
-      : metadata_(metadata), source_type_(source_type) {}
+  ModuleInitWrapper(const Array<String>& variables, const Array<runtime::NDArray>& metadata) {
+    CHECK_EQ(variables.size(), metadata.size());
+    for (size_t i = 0; i < variables.size(); i++) {
+      metadata_[variables[i]] = metadata[i];
+    }
+  }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (initialized_.count(name) == 0) {
@@ -106,7 +110,7 @@ class ModuleInitWrapper : public runtime::ModuleNode {
       initialized_[name] = true;
     }
 
-    if (name != "init_module" && name != "destroy_module") {
+    if (name != "__InitModule") {
       CHECK(!this->imports().empty());
       runtime::Module submodule = this->imports().at(0);
       return submodule->GetFunction(name);
@@ -117,93 +121,93 @@ class ModuleInitWrapper : public runtime::ModuleNode {
 
   const char* type_key() const { return "module_init"; }
 
+  /*!
+   * \brief Initialize each imported module.
+   * \param symobl The symbol used for initializing a module. It is also used
+   * for runtime lookup.
+   *
+   * \note  A module could be like the following:
+   *  ModuleInitWrapper (contains all the metadata)
+   *    - CSourceModule
+   *    - JSON runtime module
+   *
+   *  The initializer iterates through the wrapped module and intilizes them
+   *  accordingly by passing the needed metadata into it.
+   */
   void InitSubModule(const std::string& symbol) {
     // Dispatch initializer according to the source type
-    if (source_type_ != "c") {
-      LOG(FATAL) << "Implement the initialization of json style runtime here";
-    } else {
-      // TODO(zhiics) Handle json runtime.
-      // std::string initializer = "runtime.init." + source_type_;
-      // auto pf = tvm::runtime::Registry::Get(initializer);
-      // CHECK(pf) << "Failed to find the initializer for " << initializer;
-    }
+    // TODO(zhiics) iterate through the imported modules to initialize
+    // for (const auto& it : this->imports()) {
+    // }
   }
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     // C source module relies on AOT compilation. The source code has already
     // been generated. The used metadata is saved a separate file for
     // compilation.
-    if (source_type_ == "c") {
+    std::string consts = "";
+    for (auto& it : this->imports()) {
+      if (!std::strcmp(it->type_key(), "c")) {
+        // TODO(zhiics) Maybe we need to store the list of required
+        // variales in the CSourceModule so that we can validate the
+        // existence of the variable and feed it only with the required
+        // ones.
+        CSourceMetadataInitializer c_init(metadata_);
+        consts += c_init.Init();
+        consts += "\n";
+      }
+    }
+    if (consts != "") {
       std::string fmt = GetFileFormat(file_name, format);
       CHECK_EQ(fmt, "h") << "Can only save to .h file";
-      CSourceMetadataInitializer c_init(metadata_);
-      SaveBinaryToFile(file_name, c_init.Init());
+      SaveBinaryToFile(file_name, consts);
     }
   }
 
   void SaveToBinary(dmlc::Stream* stream) final {
-    stream->Write(source_type_.operator std::string());
-
-    // Save the total number of symbols
-    uint64_t sym_cnt = static_cast<uint64_t>(metadata_.size());
-    stream->Write(sym_cnt);
-
+    std::vector<std::string> variables;
+    std::vector<runtime::NDArray> metadata;
     for (const auto& it : metadata_) {
-      // Save the symbol/function name
-      stream->Write(it.first.operator std::string());
+      String var_name = it.first;
+      variables.push_back(var_name.operator std::string());
+      metadata.push_back(it.second);
+    }
 
-      std::vector<std::string> variables;
-      std::vector<runtime::NDArray> metadata;
-      for (const auto& vit : it.second) {
-        String var_name = vit.first;
-        variables.push_back(var_name.operator std::string());
-        metadata.push_back(vit.second);
-      }
-
-      // Save all variables in the function.
-      stream->Write(variables);
-      // Save all constant data
-      uint64_t sz = static_cast<uint64_t>(metadata.size());
-      stream->Write(sz);
-      for (uint64_t i = 0; i < sz; i++) {
-        metadata[i].Save(stream);
-      }
+    // Save all variables in the function.
+    stream->Write(variables);
+    // Save all constant data.
+    uint64_t sz = static_cast<uint64_t>(metadata.size());
+    stream->Write(sz);
+    for (uint64_t i = 0; i < sz; i++) {
+      metadata[i].Save(stream);
     }
   }
 
   static runtime::Module LoadFromBinary(void* strm) {
     dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
-    std::string source_type;
-    CHECK(stream->Read(&source_type)) << "Loading source type failed";
 
-    Map<String, Map<String, runtime::NDArray>> metadata;
-
-    uint64_t sym_cnt;
-    CHECK(stream->Read(&sym_cnt, sizeof(sym_cnt))) << "Loading the number of symbols failed";
-
-    for (uint64_t i = 0; i < sym_cnt; i++) {
-      std::string sym;
-      CHECK(stream->Read(&sym)) << "Loading symbol name failed";
-      // Load variable and ndarray pairs
-      std::vector<std::string> variables;
-      std::vector<runtime::NDArray> arrays;
-      CHECK(stream->Read(&variables)) << "Loading variables failed";
-      uint64_t sz;
-      CHECK(stream->Read(&sz, sizeof(sz))) << "Loading medata size failed";
-      CHECK_EQ(static_cast<size_t>(sz), variables.size())
-          << "The number of variables and ndarray counts must match";
-      for (uint64_t i = 0; i < sz; i++) {
-        tvm::runtime::NDArray temp;
-        temp.Load(stream);
-        arrays.push_back(temp);
-      }
-      Map<String, runtime::NDArray> var_const;
-      for (size_t i = 0; i < variables.size(); i++) {
-        var_const.Set(variables[i], arrays[i]);
-      }
-      metadata.Set(sym, var_const);
+    // Load the variables.
+    std::vector<std::string> variables;
+    CHECK(stream->Read(&variables)) << "Loading variables failed";
+    uint64_t sz;
+    CHECK(stream->Read(&sz, sizeof(sz))) << "Loading medata size failed";
+    CHECK_EQ(static_cast<size_t>(sz), variables.size())
+        << "The number of variables and ndarray counts must match";
+    // Load the list of ndarray.
+    std::vector<runtime::NDArray> metadata;
+    for (uint64_t i = 0; i < sz; i++) {
+      tvm::runtime::NDArray temp;
+      temp.Load(stream);
+      metadata.push_back(temp);
     }
-    auto n = runtime::make_object<ModuleInitWrapper>(metadata, source_type);
+
+    Array<String> vars;
+    Array<runtime::NDArray> consts;
+    for (size_t i = 0; i < variables.size(); i++) {
+      vars.push_back(variables[i]);
+      consts.push_back(metadata[i]);
+    }
+    auto n = runtime::make_object<ModuleInitWrapper>(vars, consts);
     return runtime::Module(n);
   }
 
@@ -213,22 +217,16 @@ class ModuleInitWrapper : public runtime::ModuleNode {
    * modules using execution engine.
    */
   std::unordered_map<std::string, bool> initialized_;
-  /*! \brief A symbol to {var_name : NDArray} pair mapping. */
-  Map<String, Map<String, runtime::NDArray>> metadata_;
-  /*! \brief The type of the source, i.e. c, or any customized json */
-  String source_type_;
+  /*! \brief Variable name to NDArray mapping. */
+  StringNDArrayMap metadata_;
 };
 
-runtime::Module ModuleInitWrapperCreate(Map<String, Map<String, runtime::NDArray>> metadata,
-                                        String source_type) {
-  auto n = make_object<ModuleInitWrapper>(metadata, source_type);
+runtime::Module ModuleInitWrapperCreate(Array<String> variables, Array<runtime::NDArray> metadata) {
+  auto n = make_object<ModuleInitWrapper>(variables, metadata);
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.ModuleInitWrapper")
-    .set_body_typed([](Map<String, Map<String, runtime::NDArray>> metadata, String source_type) {
-      return ModuleInitWrapperCreate(metadata, source_type);
-    });
+TVM_REGISTER_GLOBAL("runtime.ModuleInitWrapper").set_body_typed(ModuleInitWrapperCreate);
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_module_init")
     .set_body_typed(ModuleInitWrapper::LoadFromBinary);
