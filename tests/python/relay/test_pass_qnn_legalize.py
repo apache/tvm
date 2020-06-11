@@ -148,7 +148,7 @@ def test_qnn_legalize_qnn_conv2d():
         # Older ARM vesions.
         with tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu'):
             legalized_mod = relay.qnn.transform.Legalize()(mod)
-            assert 'cast' not in legalized_mod.astext() and "qnn.conv2d" in legalized_mod.astext()
+            assert 'cast' in legalized_mod.astext() and "qnn" not in legalized_mod.astext()
 
     # Check uint8 x int8 transformation
     mod = _get_mod('uint8', 'int8')
@@ -176,7 +176,7 @@ def test_qnn_legalize_qnn_conv2d():
     # Older ARM vesions.
     with tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu'):
         legalized_mod = relay.qnn.transform.Legalize()(mod)
-        assert 'cast' in legalized_mod.astext() and "qnn.conv2d" in legalized_mod.astext()
+        assert 'cast' in legalized_mod.astext() and "qnn" not in legalized_mod.astext()
 
     ###########################################
     # Check transformations for CUDA platforms.

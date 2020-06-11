@@ -113,16 +113,17 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name='conv2d_direct_simd.micro_dev')
             elif kernel_layout == "HWIO":
                 is_aarch64 = "aarch64" in str(isa.target)
+
                 if is_aarch64 and data.dtype in ["int8", "uint8"]:
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized),
                         name="compute_conv2d_NHWC_quantized.arm_cpu")
-                else:
-                    strategy.add_implementation(
-                        wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_spatial_pack),
-                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack),
-                        name="conv2d_nhwc_spatial_pack.arm_cpu")
+
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_spatial_pack),
+                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack),
+                    name="conv2d_nhwc_spatial_pack.arm_cpu")
             else:
                 raise RuntimeError("Unsupported kernel layout {} for conv2d NHWC".
                                    format(kernel_layout))

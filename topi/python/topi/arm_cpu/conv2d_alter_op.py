@@ -88,21 +88,25 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         return relay.nn.conv2d(*inputs, **new_attrs)
 
     if topi_tmpl == "conv2d_nhwc_spatial_pack.arm_cpu":
-        assert data_layout == "NHWC" and kernel_layout == "HWIO"
-        N, H, W, CI = get_const_tuple(data.shape)
-        KH, KW, _, CO = get_const_tuple(kernel.shape)
-        VC = cfg['tile_co'].size[-1]
+        assert (data.dtype == 'int8' and kernel.dtype == 'int8' or
+                data.dtype == 'uint8' and kernel.dtype == 'uint8')
 
-        new_attrs['kernel_layout'] = 'OHWI%do' % VC
+        data_expr, kernel_expr = inputs
 
-        new_data = data
-        new_kernel = te.placeholder((idxd(CO, VC), KH, KW, CI, VC), dtype=kernel.dtype)
+        data_int16 = relay.cast(data_expr, dtype='int16')
+        kernel_int16 = relay.cast(kernel_expr, dtype='int16')
+
+        new_attrs = {k : attrs[k] for k in attrs.keys()}
+
+        new_data = te.placeholder(data.shape, 'int16')
+        new_kernel = te.placeholder(kernel.shape, 'int16')
+
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, out_dtype],
-            "conv2d_nhwc_spatial_pack.arm_cpu")
+            'conv2d_nhwc_spatial_pack.arm_cpu')
         dispatch_ctx.update(target, new_workload, cfg)
 
-        return relay.nn.conv2d(*inputs, **new_attrs)
+        return relay.nn.conv2d(data_int16, kernel_int16, **new_attrs)
 
     if topi_tmpl == "conv2d_nchw_winograd.arm_cpu":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
