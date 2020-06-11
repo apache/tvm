@@ -135,7 +135,8 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
 
 def verify_model(model_name, input_data=[],
                  custom_convert_map={},
-                 ctx_list=ctx_list()):
+                 ctx_list=ctx_list(),
+                 rtol=1e-5, atol=1e-5):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
     if isinstance(model_name, str):
@@ -190,7 +191,7 @@ def verify_model(model_name, input_data=[],
 
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output,
-                                            rtol=1e-3, atol=1e-3)
+                                            rtol=rtol, atol=atol)
 
     del model_name
     del baseline_model
@@ -1216,35 +1217,35 @@ def test_conv3d_transpose():
 # Model tests
 def test_resnet18():
     torch.set_grad_enabled(False)
-    verify_model("resnet18")
+    verify_model("resnet18", atol=1e-4, rtol=1e-4)
 
 def test_squeezenet1_0():
     torch.set_grad_enabled(False)
-    verify_model("squeezenet1_0")
+    verify_model("squeezenet1_0", atol=1e-4, rtol=1e-4)
 
 def test_squeezenet1_1():
     torch.set_grad_enabled(False)
-    verify_model("squeezenet1_1")
+    verify_model("squeezenet1_1", atol=1e-4, rtol=1e-4)
 
 def test_densenet121():
     torch.set_grad_enabled(False)
-    verify_model("densenet121")
+    verify_model("densenet121", atol=1e-4, rtol=1e-4)
 
 def test_inception_v3():
     torch.set_grad_enabled(False)
-    verify_model("inception_v3")
+    verify_model("inception_v3", atol=1e-4, rtol=1e-4)
 
 def test_googlenet():
     torch.set_grad_enabled(False)
-    verify_model("googlenet")
+    verify_model("googlenet", atol=1e-4, rtol=1e-4)
 
 def test_mnasnet0_5():
     torch.set_grad_enabled(False)
-    verify_model("mnasnet0_5")
+    verify_model("mnasnet0_5", atol=1e-4, rtol=1e-4)
 
 def test_mobilenet_v2():
     torch.set_grad_enabled(False)
-    verify_model("mobilenet_v2")
+    verify_model("mobilenet_v2", atol=1e-4, rtol=1e-4)
 
 """
 #TODO: Fix VGG and AlexNet issues (probably due to pooling)
@@ -1305,19 +1306,19 @@ def test_segmentaton_models():
 
     inp = [torch.rand((1, 3, 300, 300), dtype=torch.float)]
 
-    verify_model(SegmentationModelWrapper(fcn.eval()), inp)
+    verify_model(SegmentationModelWrapper(fcn.eval()), inp, atol=1e-4, rtol=1e-4)
 
     # depthwise + dilated covolution not supported on x86
     # see https://github.com/apache/incubator-tvm/issues/4962
     cuda_ctx = ("cuda", tvm.gpu(0))
     if cuda_ctx[1].exist:
-        verify_model(SegmentationModelWrapper(deeplab.eval()), inp, [cuda_ctx])
+        verify_model(SegmentationModelWrapper(deeplab.eval()), inp, [cuda_ctx], atol=1e-4, rtol=1e-4)
 
 
 def test_3d_models():
     input_shape = (1, 3, 4, 56, 56)
     resnet3d = torchvision.models.video.r3d_18(pretrained=True).eval()
-    verify_model(resnet3d, [torch.rand(input_shape)])
+    verify_model(resnet3d, [torch.rand(input_shape)], atol=1e-4, rtol=1e-4)
 
 
 def verify_script_model(pt_model, ishapes):
