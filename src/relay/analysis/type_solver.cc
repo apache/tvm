@@ -175,8 +175,8 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     if (ulhs.same_as(urhs)) {
       return ulhs;
     }
-    if (ulhs.as<Any>() || urhs.as<Any>()) {
-      return Any::make();
+    if (ulhs.as<AnyNode>() || urhs.as<AnyNode>()) {
+      return Any();
     }
 
     auto left_index0 = ulhs.as<tvm::tir::VarNode>();

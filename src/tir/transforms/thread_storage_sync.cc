@@ -209,9 +209,9 @@ class ThreadSyncInserter : public StmtExprMutator {
       if (sync_scope_.rank == StorageRank::kGlobal) {
         barrier = MakeGlobalBarrier();
       } else {
-        barrier = EvaluateNode::make(CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
-                                                    {StringImmNode::make(sync_scope_.to_string())},
-                                                    CallNode::Intrinsic));
+        barrier =
+            EvaluateNode::make(Call(DataType::Int(32), intrinsic::tvm_storage_sync,
+                                    {StringImm(sync_scope_.to_string())}, CallNode::Intrinsic));
       }
       // Mutate after query, to avoid stmt change.
       auto ret = StmtExprMutator::VisitStmt(stmt);
@@ -298,9 +298,9 @@ class ThreadSyncInserter : public StmtExprMutator {
   // private functions.
   Stmt InitGlobalBarrier(const AttrStmtNode* op) {
     CHECK(op != nullptr);
-    Array<PrimExpr> pargs = {StringImmNode::make(runtime::symbol::tvm_prepare_global_barrier)};
+    Array<PrimExpr> pargs = {StringImm(runtime::symbol::tvm_prepare_global_barrier)};
     Stmt prep = EvaluateNode::make(
-        CallNode::make(DataType::Int(32), intrinsic::tvm_call_packed, pargs, CallNode::Intrinsic));
+        Call(DataType::Int(32), intrinsic::tvm_call_packed, pargs, CallNode::Intrinsic));
     Stmt body = op->body;
     for (const auto& kv : rw_stats_) {
       const auto& e = kv.second;
@@ -309,8 +309,8 @@ class ThreadSyncInserter : public StmtExprMutator {
       }
     }
     rw_stats_.clear();
-    Stmt kinit = EvaluateNode::make(CallNode::make(
-        DataType::Int(32), intrinsic::tvm_global_barrier_kinit, {}, CallNode::Intrinsic));
+    Stmt kinit = EvaluateNode::make(
+        Call(DataType::Int(32), intrinsic::tvm_global_barrier_kinit, {}, CallNode::Intrinsic));
     body = SeqStmt({kinit, body});
     body = AttrStmtNode::make(op->node, op->attr_key, op->value, body);
     return SeqStmt({prep, body});
@@ -333,10 +333,9 @@ class ThreadSyncInserter : public StmtExprMutator {
     } else {
       CHECK_EQ(num_work_dim_, thread_extents_.size());
     }
-    return EvaluateNode::make(
-        CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
-                       {StringImmNode::make(sync_scope_.to_string()), is_lead_, num_blocks_},
-                       CallNode::Intrinsic));
+    return EvaluateNode::make(Call(DataType::Int(32), intrinsic::tvm_storage_sync,
+                                   {StringImm(sync_scope_.to_string()), is_lead_, num_blocks_},
+                                   CallNode::Intrinsic));
   }
   // data structure.
   StorageScope sync_scope_;

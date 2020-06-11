@@ -246,22 +246,22 @@ class PartitionFinder : public StmtExprVisitor {
     PrimExpr inverse_cond;
     if (const LTNode* op = cond.as<LTNode>()) {
       // a < b -> a >= b
-      inverse_cond = GENode::make(op->a, op->b);
+      inverse_cond = GE(op->a, op->b);
     } else if (const GTNode* op = cond.as<GTNode>()) {
       // a > b -> a <= b
-      inverse_cond = LENode::make(op->a, op->b);
+      inverse_cond = LE(op->a, op->b);
     } else if (const LENode* op = cond.as<LENode>()) {
       // a <= b -> a > b
-      inverse_cond = GTNode::make(op->a, op->b);
+      inverse_cond = GT(op->a, op->b);
     } else if (const GENode* op = cond.as<GENode>()) {
       // a >= b -> a < b
-      inverse_cond = LTNode::make(op->a, op->b);
+      inverse_cond = LT(op->a, op->b);
     } else if (const EQNode* op = cond.as<EQNode>()) {
       // a == b -> a != b
-      inverse_cond = NENode::make(op->a, op->b);
+      inverse_cond = NE(op->a, op->b);
       // a != b -> a == b
     } else if (const NENode* op = cond.as<NENode>()) {
-      inverse_cond = EQNode::make(op->a, op->b);
+      inverse_cond = EQ(op->a, op->b);
     }
     return inverse_cond;
   }
@@ -509,7 +509,7 @@ Stmt LoopPartitioner::TryPartition(const Object* node, const Stmt& stmt, Var var
       PrimExpr cond = (body_begin - min >= 0);
       if (!analyzer_.CanProve(cond)) {
         LOG(WARNING) << "Cannot prove: " << cond << ", when generating the pre doubt loop";
-        body_begin = MaxNode::make(body_begin, min);
+        body_begin = Max(body_begin, min);
         // stop recursing on this interval if we can't prove it has non-negative length
         pre_stmt_recurse = false;
       }
@@ -534,7 +534,7 @@ Stmt LoopPartitioner::TryPartition(const Object* node, const Stmt& stmt, Var var
       PrimExpr cond = (max - post_doubt_begin + 1 >= 0);
       if (!analyzer_.CanProve(cond)) {
         LOG(WARNING) << "Cannot prove: " << cond << ", when generating the post doubt loop";
-        post_doubt_begin = MinNode::make(post_doubt_begin, max + 1);
+        post_doubt_begin = Min(post_doubt_begin, max + 1);
         // stop recursing on this interval if we can't prove it has non-negative length
         post_stmt_recurse = false;
       }

@@ -104,8 +104,8 @@ class UnsafeSelectRewriter : public StmtExprMutator {
     bool cond_is_scalar_bool = op->condition.dtype().is_bool() && op->condition.dtype().is_scalar();
     if ((unsafe.VisitExpr(op->true_value) || unsafe.VisitExpr(op->false_value)) &&
         cond_is_scalar_bool) {
-      return CallNode::make(op->dtype, intrinsic::tvm_if_then_else,
-                            {op->condition, op->true_value, op->false_value}, CallNode::Intrinsic);
+      return Call(op->dtype, intrinsic::tvm_if_then_else,
+                  {op->condition, op->true_value, op->false_value}, CallNode::Intrinsic);
     } else {
       return expr;
     }

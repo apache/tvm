@@ -58,7 +58,7 @@ class OperationInliner final : public StmtExprMutator {
       }
       if (has_side_effect) {
         for (size_t i = 0; i < args_.size(); ++i) {
-          expr = LetNode::make(args_[i], op->indices[i], expr);
+          expr = Let(args_[i], op->indices[i], expr);
         }
       } else {
         Map<Var, PrimExpr> vmap;

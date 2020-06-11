@@ -867,7 +867,7 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
     out = compute(
         oshape,
         [&](const Array<Var>& indices) {
-          return tvm::tir::SelectNode::make(condition(indices) != 0, x(indices), y(indices));
+          return tvm::tir::Select(condition(indices) != 0, x(indices), y(indices));
         },
         name, tag);
   } else {
@@ -878,7 +878,7 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
         oshape,
         [&](const Array<Var>& indices) {
           Array<PrimExpr> condition_idx{indices[0]};
-          return tvm::tir::SelectNode::make(condition(condition_idx) != 0, x(indices), y(indices));
+          return tvm::tir::Select(condition(condition_idx) != 0, x(indices), y(indices));
         },
         name, tag);
   }
@@ -1312,8 +1312,7 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
         }
 
         auto idx = iter_vars[true_axis];
-        return tir::SelectNode::make(indices(indices_indices) == idx, on_value_cast,
-                                     off_value_cast);
+        return tir::Select(indices(indices_indices) == idx, on_value_cast, off_value_cast);
       },
       name, tag);
 }

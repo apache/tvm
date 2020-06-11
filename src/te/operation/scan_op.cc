@@ -87,8 +87,8 @@ Operation ScanOpNode::make(std::string name, std::string tag, Map<String, Object
         // setup spatial axis
         std::ostringstream spatial_name;
         spatial_name << name << ".out" << i << ".i" << k;
-        n->spatial_axis_.push_back(IterVarNode::make(
-            Range::make_by_min_extent(0, update[i]->shape[k]), Var(spatial_name.str()), kOpaque));
+        n->spatial_axis_.push_back(IterVar(Range::make_by_min_extent(0, update[i]->shape[k]),
+                                           Var(spatial_name.str()), kOpaque));
       }
     }
 
@@ -112,9 +112,9 @@ TVM_REGISTER_GLOBAL("te.ScanOp").set_body_typed(ScanOpNode::make);
 Array<Tensor> scan(Array<Tensor> init, Array<Tensor> update, Array<Tensor> state_placeholder,
                    Array<Tensor> inputs, std::string name, std::string tag,
                    Map<String, ObjectRef> attrs) {
-  IterVar scan_axis = IterVarNode::make(
-      Range::make_by_min_extent(init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
-      Var(name + ".idx"), kOrdered);
+  IterVar scan_axis =
+      IterVar(Range::make_by_min_extent(init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
+              Var(name + ".idx"), kOrdered);
   Operation op =
       ScanOpNode::make(name, tag, attrs, scan_axis, init, update, state_placeholder, inputs);
   Array<Tensor> res;

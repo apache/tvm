@@ -120,7 +120,7 @@ class CopyIntrinInjector : public StmtMutator {
         DataType t = loop_vars[i].dtype();
         PrimExpr svalue = src_shape[i];
         if (min_value.defined()) {
-          PrimExpr pbefore = analyzer_.Simplify(MaxNode::make(min_value, make_zero(t)));
+          PrimExpr pbefore = analyzer_.Simplify(Max(min_value, make_zero(t)));
           src_elem_offset = src_elem_offset + pbefore * load_strides[i];
           svalue = svalue - pbefore;
           pad_before.push_back(pbefore);

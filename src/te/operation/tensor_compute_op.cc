@@ -146,8 +146,7 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
     }
     input_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, tir::attr::buffer_bind_scope,
-        CallNode::make(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
-        nop));
+        Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }
 
   // output binding
@@ -171,8 +170,7 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
 
     output_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, tir::attr::buffer_bind_scope,
-        CallNode::make(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
-        nop));
+        Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }
 
   // Check variable remap

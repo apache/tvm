@@ -142,7 +142,7 @@ Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
     for (size_t i = 0; i < size; ++i) {
       DataType t = reduces[i]->dtype;
       normal_res_handles.emplace_back("normal_reduce_temp" + std::to_string(i), DataType::Handle());
-      lhs.push_back(LoadNode::make(t, normal_res_handles[i], 0, const_true(t.lanes())));
+      lhs.push_back(Load(t, normal_res_handles[i], 0, const_true(t.lanes())));
     }
     Array<PrimExpr> init_value = combiner->identity_element;
     Array<PrimExpr> update_value = (*combiner)(lhs, reduces[0]->source);
@@ -160,7 +160,7 @@ Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
   for (size_t i = 0; i < size; ++i) {
     if (!normal_red.empty()) {
       DataType t = reduces[i]->dtype;
-      freduce_args.push_back(LoadNode::make(t, normal_res_handles[i], 0, const_true(t.lanes())));
+      freduce_args.push_back(Load(t, normal_res_handles[i], 0, const_true(t.lanes())));
     } else {
       freduce_args.push_back(reduces[0]->source[i]);
     }
@@ -194,7 +194,7 @@ Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
   // Apply the existing input predicate if any.
   output_preds.push_back(input_pred);
 
-  Stmt reduce_body = EvaluateNode::make(CallNode::make(
+  Stmt reduce_body = EvaluateNode::make(Call(
       DataType::Handle(), tir::intrinsic::tvm_thread_allreduce, freduce_args, CallNode::Intrinsic));
   reduce_body = AttrStmtNode::make(reduces[0]->combiner, tir::attr::reduce_scope,
                                    make_zero(DataType::Handle()), reduce_body);
@@ -211,7 +211,7 @@ Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
   for (size_t idx = 0; idx < size; ++idx) {
     DataType t = reduces[idx]->dtype;
     assigns[idx] = ProducerStoreNode::make(
-        stage->op.output(idx), LoadNode::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
+        stage->op.output(idx), Load(t, res_handles[idx], 0, const_true(t.lanes())), args);
   }
   Stmt assign_body = SeqStmt::Flatten(assigns);
   assign_body = MergeNest(MakeIfNest(output_preds), assign_body);
@@ -219,13 +219,13 @@ Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
   for (size_t idx = size; idx != 0; --idx) {
     body =
         AllocateNode::make(res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
-    body = AttrStmtNode::make(res_handles[idx - 1], tir::attr::storage_scope,
-                              StringImmNode::make("local"), body);
+    body = AttrStmtNode::make(res_handles[idx - 1], tir::attr::storage_scope, StringImm("local"),
+                              body);
     if (!normal_red.empty()) {
       body = AllocateNode::make(normal_res_handles[idx - 1], reduces[idx - 1]->dtype, {1},
                                 const_true(), body);
       body = AttrStmtNode::make(normal_res_handles[idx - 1], tir::attr::storage_scope,
-                                StringImmNode::make("local"), body);
+                                StringImm("local"), body);
     }
   }
   body = Substitute(body, value_map);

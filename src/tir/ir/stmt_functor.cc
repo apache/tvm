@@ -488,7 +488,7 @@ class IRSubstitue : public StmtExprMutator {
     PrimExpr ret = StmtExprMutator::VisitExpr_(op);
     op = ret.as<LoadNode>();
     if (auto mapped_var = vmap_(op->buffer_var)) {
-      return LoadNode::make(op->dtype, Downcast<Var>(mapped_var.value()), op->index, op->predicate);
+      return Load(op->dtype, Downcast<Var>(mapped_var.value()), op->index, op->predicate);
     } else {
       return ret;
     }

@@ -49,7 +49,7 @@ inline Tensor cublas_matmul(const Tensor& lhs, const Tensor& rhs, bool transa, b
   return make_extern(
       {{n, m}}, {lhs->dtype}, {lhs, rhs},
       [&](Array<Buffer> ins, Array<Buffer> outs) {
-        return call_packed({StringImmNode::make("tvm.contrib.cublas.matmul"), pack_buffer(ins[0]),
+        return call_packed({StringImm("tvm.contrib.cublas.matmul"), pack_buffer(ins[0]),
                             pack_buffer(ins[1]), pack_buffer(outs[0]), transa, transb});
       },
       "C", "", {})[0];
@@ -71,13 +71,13 @@ inline Tensor cublas_batch_matmul(const Tensor& lhs, const Tensor& rhs, bool tra
   auto n = transa ? lhs->shape[2] : lhs->shape[1];
   auto m = transb ? rhs->shape[1] : rhs->shape[2];
 
-  return make_extern({{b, n, m}}, {lhs->dtype}, {lhs, rhs},
-                     [&](Array<Buffer> ins, Array<Buffer> outs) {
-                       return call_packed({StringImmNode::make("tvm.contrib.cublas.batch_matmul"),
-                                           pack_buffer(ins[0]), pack_buffer(ins[1]),
-                                           pack_buffer(outs[0]), transa, transb});
-                     },
-                     "C", "", {})[0];
+  return make_extern(
+      {{b, n, m}}, {lhs->dtype}, {lhs, rhs},
+      [&](Array<Buffer> ins, Array<Buffer> outs) {
+        return call_packed({StringImm("tvm.contrib.cublas.batch_matmul"), pack_buffer(ins[0]),
+                            pack_buffer(ins[1]), pack_buffer(outs[0]), transa, transb});
+      },
+      "C", "", {})[0];
 }
 
 }  // namespace contrib

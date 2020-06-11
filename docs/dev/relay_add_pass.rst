@@ -261,7 +261,7 @@ the pass.
             body.same_as(op->body)) {
           return GetRef<Expr>(op);
         } else {
-          return LetNode::make(var, value, body);
+          return Let(var, value, body);
         }
       }
     }

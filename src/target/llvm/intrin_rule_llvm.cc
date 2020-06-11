@@ -48,8 +48,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.exp10")
       CHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
       PrimExpr ln10 = make_const(x.dtype(), 2.302585093);
-      PrimExpr ret =
-          tir::CallNode::make(x.dtype(), "exp", {x * ln10}, tir::CallNode::PureIntrinsic);
+      PrimExpr ret = tir::Call(x.dtype(), "exp", {x * ln10}, tir::CallNode::PureIntrinsic);
       *rv = ret;
     });
 
@@ -98,14 +97,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tanh")
       PrimExpr two = make_const(x.dtype(), 2);
       PrimExpr neg_two = make_const(x.dtype(), -2);
 
-      PrimExpr exp_neg2x =
-          tir::CallNode::make(x.dtype(), "exp", {neg_two * x}, tir::CallNode::PureIntrinsic);
-      PrimExpr exp_pos2x =
-          tir::CallNode::make(x.dtype(), "exp", {two * x}, tir::CallNode::PureIntrinsic);
+      PrimExpr exp_neg2x = tir::Call(x.dtype(), "exp", {neg_two * x}, tir::CallNode::PureIntrinsic);
+      PrimExpr exp_pos2x = tir::Call(x.dtype(), "exp", {two * x}, tir::CallNode::PureIntrinsic);
 
       PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
       PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
-      *rv = tir::SelectNode::make(x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
+      *rv = tir::Select(x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
     });
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.pow")
@@ -119,8 +116,8 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tan").set_body([](const TVMArgs& targs
   const tir::CallNode* call = e.as<tir::CallNode>();
   CHECK(call != nullptr);
   const PrimExpr& x = call->args[0];
-  PrimExpr sin_x = tir::CallNode::make(x.dtype(), "sin", {x}, tir::CallNode::PureIntrinsic);
-  PrimExpr cos_x = tir::CallNode::make(x.dtype(), "cos", {x}, tir::CallNode::PureIntrinsic);
+  PrimExpr sin_x = tir::Call(x.dtype(), "sin", {x}, tir::CallNode::PureIntrinsic);
+  PrimExpr cos_x = tir::Call(x.dtype(), "cos", {x}, tir::CallNode::PureIntrinsic);
   PrimExpr tan_x = sin_x / cos_x;
   *rv = tan_x;
 });
@@ -138,9 +135,8 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.cosh")
       const PrimExpr& x = call->args[0];
       PrimExpr two = make_const(x.dtype(), 2);
       PrimExpr neg_one = make_const(x.dtype(), -1);
-      PrimExpr exp_negx =
-          tir::CallNode::make(x.dtype(), "exp", {neg_one * x}, tir::CallNode::PureIntrinsic);
-      PrimExpr exp_posx = tir::CallNode::make(x.dtype(), "exp", {x}, tir::CallNode::PureIntrinsic);
+      PrimExpr exp_negx = tir::Call(x.dtype(), "exp", {neg_one * x}, tir::CallNode::PureIntrinsic);
+      PrimExpr exp_posx = tir::Call(x.dtype(), "exp", {x}, tir::CallNode::PureIntrinsic);
       PrimExpr ret = (exp_posx + exp_negx) / two;
       *rv = ret;
     });
@@ -158,9 +154,8 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.sinh")
       const PrimExpr& x = call->args[0];
       PrimExpr two = make_const(x.dtype(), 2);
       PrimExpr neg_one = make_const(x.dtype(), -1);
-      PrimExpr exp_negx =
-          tir::CallNode::make(x.dtype(), "exp", {neg_one * x}, tir::CallNode::PureIntrinsic);
-      PrimExpr exp_posx = tir::CallNode::make(x.dtype(), "exp", {x}, tir::CallNode::PureIntrinsic);
+      PrimExpr exp_negx = tir::Call(x.dtype(), "exp", {neg_one * x}, tir::CallNode::PureIntrinsic);
+      PrimExpr exp_posx = tir::Call(x.dtype(), "exp", {x}, tir::CallNode::PureIntrinsic);
       PrimExpr ret = (exp_posx - exp_negx) / two;
       *rv = ret;
     });

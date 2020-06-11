@@ -64,7 +64,7 @@ class VarReplacer : public tir::StmtExprMutator {
         combiner->identity_element.same_as(new_result)) {
       return combiner;
     } else {
-      return tir::CommReducerNode::make(combiner->lhs, combiner->rhs, new_result, new_identity);
+      return tir::CommReducer(combiner->lhs, combiner->rhs, new_result, new_identity);
     }
   }
 
@@ -75,8 +75,8 @@ class VarReplacer : public tir::StmtExprMutator {
     if (op->combiner.same_as(new_combiner)) {
       return new_e;
     } else {
-      return tir::ReduceNode::make(new_combiner, new_reduce->source, new_reduce->axis,
-                                   new_reduce->condition, new_reduce->value_index);
+      return tir::Reduce(new_combiner, new_reduce->source, new_reduce->axis, new_reduce->condition,
+                         new_reduce->value_index);
     }
   }
 
@@ -96,7 +96,7 @@ PrimExpr InjectPredicate(const Array<PrimExpr>& predicates, PrimExpr body) {
     n->condition = foldl(fand, n->condition, predicates);
     return PrimExpr(n);
   }
-  return SelectNode::make(foldl(fand, const_true(1), predicates), body, make_zero(body.dtype()));
+  return Select(foldl(fand, const_true(1), predicates), body, make_zero(body.dtype()));
 }
 
 // Replace data flow appears in all stages given the tensor change.
@@ -204,7 +204,7 @@ void PrepareAxisMapping(Stage orig_stage, OpType* op, std::unordered_set<IterVar
       if (red_axis.count(iv)) continue;
       CHECK_EQ(iv->iter_type, kDataPar) << "Can only relayout with in data parallel dimensions";
       Range dom = dom_map.at(iv);
-      IterVar new_iv = IterVarNode::make(dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
+      IterVar new_iv = IterVar(dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
       new_axis.push_back(new_iv);
       if (is_one(dom->min)) {
         value_map[iv] = dom->min;
@@ -300,9 +300,8 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch, const Array<Tensor>& tensor_a
       const tir::ReduceNode* reduce_body = body.as<tir::ReduceNode>();
       if (first_reduce != nullptr) {
         CHECK(ReduceEqual(reduce_body, first_reduce));
-        body =
-            tir::ReduceNode::make(first_reduce->combiner, first_reduce->source, first_reduce->axis,
-                                  first_reduce->condition, reduce_body->value_index);
+        body = tir::Reduce(first_reduce->combiner, first_reduce->source, first_reduce->axis,
+                           first_reduce->condition, reduce_body->value_index);
       } else {
         first_reduce = reduce_body;
       }
@@ -362,7 +361,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch, const Array<Tensor>& te
 
   for (int i = tensor_op->schedulable_ndim; i < static_cast<int>(tensor_op->axis.size()); ++i) {
     IterVar iv = tensor_op->axis[i];
-    IterVar new_iv = IterVarNode::make(iv->dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
+    IterVar new_iv = IterVar(iv->dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
     new_axis.push_back(new_iv);
   }
   Array<Region> new_regions;
@@ -390,7 +389,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch, const Array<Tensor>& te
   Array<IterVar> compute_axis = tensor_op->axis;
   for (size_t i = tensor_op->schedulable_ndim; i < tensor_op->axis.size(); ++i) {
     IterVar iv = tensor_op->axis[i];
-    IterVar aiv = IterVarNode::make(iv->dom, iv->var, kDataPar);
+    IterVar aiv = IterVar(iv->dom, iv->var, kDataPar);
     compute_axis.Set(i, aiv);
   }
 
@@ -468,7 +467,7 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
       }
       if (idx < leaf_vars->size()) {
         // insert rebase
-        IterVar rebased = IterVarNode::make(Range(), iv->var.copy_with_suffix(""), iv->iter_type);
+        IterVar rebased = IterVar(Range(), iv->var.copy_with_suffix(""), iv->iter_type);
         s->relations.push_back(RebaseNode::make(iv, rebased));
         if (s->iter_var_attrs.count(iv)) {
           s->iter_var_attrs.Set(rebased, s->iter_var_attrs.at(iv));
@@ -741,8 +740,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor, const IterVar& axis, int f
 
   std::vector<PrimExpr> body;
   for (size_t idx = 0; idx < reduce->source.size(); ++idx) {
-    body.emplace_back(
-        ReduceNode::make(reduce->combiner, new_source, n->reduce_axis, new_pred, idx));
+    body.emplace_back(Reduce(reduce->combiner, new_source, n->reduce_axis, new_pred, idx));
   }
   n->body = Array<PrimExpr>(body);
   // refresh relations, keep the un-touched relations.
@@ -806,7 +804,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor, const IterVar& axis, int f
         Array<IterVar> axis = {repl_red_axis};
         PrimExpr cond = const_true();
         for (int idx = 0; idx < size; ++idx) {
-          reductions.push_back(ReduceNode::make(reduce->combiner, factor_exprs, axis, cond, idx));
+          reductions.push_back(Reduce(reduce->combiner, factor_exprs, axis, cond, idx));
         }
         return reductions;
       },

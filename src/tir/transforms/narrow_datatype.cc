@@ -235,7 +235,7 @@ class DataTypeRewriter : public StmtExprMutator {
       PrimExpr e = VisitExpr(iv->var);
       Var var = Downcast<Var>(e);
       if (ivmap_.find(iv) == ivmap_.end()) {
-        ivmap_[iv] = IterVarNode::make(iv->dom, var, iv->iter_type, iv->thread_tag);
+        ivmap_[iv] = IterVar(iv->dom, var, iv->iter_type, iv->thread_tag);
       }
       return AttrStmtNode::make(ivmap_[iv], op->attr_key, cast(var.dtype(), op->value), op->body);
     }
@@ -266,7 +266,7 @@ class DataTypeRewriter : public StmtExprMutator {
     is_index_ = true;
     PrimExpr index = this->VisitExpr(op->index);
     is_index_ = false;
-    PrimExpr e = LoadNode::make(op->dtype, op->buffer_var, index, op->predicate);
+    PrimExpr e = Load(op->dtype, op->buffer_var, index, op->predicate);
     return StmtExprMutator::VisitExpr_(e.as<LoadNode>());
   }
 
@@ -285,7 +285,7 @@ class DataTypeRewriter : public StmtExprMutator {
       const CastNode* new_op = e.as<CastNode>();
       CHECK(new_op != nullptr) << "Expected type to be CastNode"
                                << ", but get " << e->GetTypeKey();
-      return CastNode::make(visitor_.vmap[op], new_op->value);
+      return Cast(visitor_.vmap[op], new_op->value);
     }
     return StmtExprMutator::VisitExpr_(op);
   }
