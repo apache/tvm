@@ -208,7 +208,7 @@ class DataTypeRewriter : public StmtExprMutator {
     is_index_ = true;
     PrimExpr index = this->VisitExpr(op->index);
     is_index_ = false;
-    Stmt s = StoreNode::make(op->buffer_var, op->value, index, op->predicate);
+    Stmt s = Store(op->buffer_var, op->value, index, op->predicate);
     return StmtExprMutator::VisitStmt_(s.as<StoreNode>());
   }
 
@@ -219,8 +219,8 @@ class DataTypeRewriter : public StmtExprMutator {
                          << ", but get " << s->GetTypeKey();
     PrimExpr e = VisitExpr(op->loop_var);
     Var var = Downcast<Var>(e);
-    return ForNode::make(var, cast(var.dtype(), op->min), cast(var.dtype(), op->extent),
-                         op->for_type, op->device_api, op->body);
+    return For(var, cast(var.dtype(), op->min), cast(var.dtype(), op->extent), op->for_type,
+               op->device_api, op->body);
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -237,7 +237,7 @@ class DataTypeRewriter : public StmtExprMutator {
       if (ivmap_.find(iv) == ivmap_.end()) {
         ivmap_[iv] = IterVar(iv->dom, var, iv->iter_type, iv->thread_tag);
       }
-      return AttrStmtNode::make(ivmap_[iv], op->attr_key, cast(var.dtype(), op->value), op->body);
+      return AttrStmt(ivmap_[iv], op->attr_key, cast(var.dtype(), op->value), op->body);
     }
     return StmtExprMutator::VisitStmt_(op);
   }

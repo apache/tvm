@@ -95,7 +95,7 @@ class ContextCallCombiner final : public StmtExprMutator {
   static Stmt BuildContext(
       const std::unordered_map<PrimExpr, Var, StructuralHash, StructuralEqual>& cmap, Stmt body) {
     for (const auto& kv : cmap) {
-      body = LetStmtNode::make(kv.second, kv.first, body);
+      body = LetStmt(kv.second, kv.first, body);
     }
     return body;
   }

@@ -44,7 +44,7 @@ Stmt MakePipeline(const Stage& s, const std::unordered_map<IterVar, Range>& dom_
                   bool debug_keep_trivial_loop) {
   Stmt producer = s->op->BuildProvide(s, dom_map, debug_keep_trivial_loop);
   if (s->double_buffer) {
-    producer = AttrStmtNode::make(s->op, tir::attr::double_buffer_scope, 1, producer);
+    producer = AttrStmt(s->op, tir::attr::double_buffer_scope, 1, producer);
   }
   Stmt pipeline = producer;
 
@@ -53,7 +53,7 @@ Stmt MakePipeline(const Stage& s, const std::unordered_map<IterVar, Range>& dom_
   }
   pipeline = s->op->BuildRealize(s, dom_map, pipeline);
   // use attribute to mark scope of the operation.
-  pipeline = AttrStmtNode::make(s->op, tir::attr::realize_scope, StringImm(s->scope), pipeline);
+  pipeline = AttrStmt(s->op, tir::attr::realize_scope, StringImm(s->scope), pipeline);
 
   return pipeline;
 }
@@ -77,9 +77,8 @@ class InjectAttach : public StmtMutator {
         CHECK(!found_attach) << "Find IterVar" << attach_spec_->attach_ivar
                              << " in multiple places in the IR";
         found_attach = true;
-        stmt =
-            AttrStmtNode::make(op->node, op->attr_key, op->value,
-                               MakePipeline(stage_, dom_map_, op->body, debug_keep_trivial_loop_));
+        stmt = AttrStmt(op->node, op->attr_key, op->value,
+                        MakePipeline(stage_, dom_map_, op->body, debug_keep_trivial_loop_));
       }
     }
     return stmt;
@@ -120,9 +119,8 @@ class InjectScanStep : public StmtMutator {
                           (op->attr_key == tir::attr::scan_init_scope && is_init_))) {
       if (op->node.same_as(scan_op_)) {
         found_attach = true;
-        stmt =
-            AttrStmtNode::make(op->node, op->attr_key, op->value,
-                               MakePipeline(stage_, dom_map_, op->body, debug_keep_trivial_loop_));
+        stmt = AttrStmt(op->node, op->attr_key, op->value,
+                        MakePipeline(stage_, dom_map_, op->body, debug_keep_trivial_loop_));
       }
     }
     return stmt;
@@ -182,7 +180,7 @@ class SchedulePostProc : public StmtExprMutator {
       auto it = replace_op_.find(op->node.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
-          Stmt ret = AttrStmtNode::make(it->second, op->attr_key, op->value, op->body);
+          Stmt ret = AttrStmt(it->second, op->attr_key, op->value, op->body);
           return this->VisitStmt(ret);
         } else {
           return this->VisitStmt(op->body);
@@ -194,9 +192,8 @@ class SchedulePostProc : public StmtExprMutator {
       auto it = replace_op_.find(tensor->op.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
-          return AttrStmtNode::make(
-              Array<ObjectRef>{tuple[0], it->second.output(tensor->value_index)}, op->attr_key,
-              op->value, this->VisitStmt(op->body));
+          return AttrStmt(Array<ObjectRef>{tuple[0], it->second.output(tensor->value_index)},
+                          op->attr_key, op->value, this->VisitStmt(op->body));
         } else {
           return this->VisitStmt(op->body);
         }
@@ -206,8 +203,8 @@ class SchedulePostProc : public StmtExprMutator {
       auto it = replace_op_.find(tensor->op.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
-          return AttrStmtNode::make(it->second.output(tensor->value_index), op->attr_key, op->value,
-                                    this->VisitStmt(op->body));
+          return AttrStmt(it->second.output(tensor->value_index), op->attr_key, op->value,
+                          this->VisitStmt(op->body));
         } else {
           return this->VisitStmt(op->body);
         }
@@ -221,7 +218,7 @@ class SchedulePostProc : public StmtExprMutator {
     auto it = replace_realize_.find(key);
     if (it != replace_realize_.end()) {
       if (it->second.defined()) {
-        Stmt ret = ProducerRealizeNode::make(it->second, op->bounds, op->condition, op->body);
+        Stmt ret = ProducerRealize(it->second, op->bounds, op->condition, op->body);
         return this->VisitStmt(ret);
       } else {
         return this->VisitStmt(op->body);
@@ -236,7 +233,7 @@ class SchedulePostProc : public StmtExprMutator {
     auto it = replace_buffer_.find(key);
     if (it != replace_buffer_.end()) {
       const Tensor& dst = it->second;
-      Stmt ret = ProducerStoreNode::make(dst, op->value, op->indices);
+      Stmt ret = ProducerStore(dst, op->value, op->indices);
       return this->VisitStmt(ret);
     } else {
       return StmtExprMutator::VisitStmt_(op);

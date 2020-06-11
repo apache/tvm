@@ -687,6 +687,8 @@ TVM_REGISTER_GLOBAL("tir.Let").set_body_typed([](Var var, PrimExpr value, PrimEx
   return Let(var, value, body);
 });
 
+TVM_REGISTER_NODE_TYPE(LetNode);
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<LetNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const LetNode*>(node.get());
@@ -815,6 +817,26 @@ TVM_REGISTER_GLOBAL("tir.Shuffle")
     });
 
 TVM_REGISTER_NODE_TYPE(ShuffleNode);
+
+template <typename T>
+void PrintList(const Array<T>& exprs, ReprPrinter* p) {
+  for (size_t i = 0; i < exprs.size(); ++i) {
+    p->Print(exprs[i]);
+    if (i < exprs.size() - 1) {
+      p->stream << ", ";
+    }
+  }
+}
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ShuffleNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const ShuffleNode*>(node.get());
+      p->stream << "shuffle(";
+      PrintList(op->vectors, p);
+      p->stream << ", ";
+      PrintList(op->indices, p);
+      p->stream << ")";
+    });
 
 // CommReducer
 CommReducer::CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,

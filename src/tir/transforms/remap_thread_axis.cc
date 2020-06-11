@@ -52,7 +52,7 @@ class ThreadAxisRewriter : private StmtExprMutator {
           CHECK(vmap_[v].same_as(new_iv->var));
         }
         Stmt body = this->VisitStmt(op->body);
-        return AttrStmtNode::make(new_iv, op->attr_key, op->value, body);
+        return AttrStmt(new_iv, op->attr_key, op->value, body);
       }
     }
     return StmtExprMutator::VisitStmt_(op);

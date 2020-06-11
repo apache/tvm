@@ -220,9 +220,8 @@ class WarpAccessRewriter : protected StmtExprMutator {
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 
-    return AllocateNode::make(op->buffer_var, op->dtype,
-                              {make_const(DataType::Int(32), alloc_size / width_)}, op->condition,
-                              this->VisitStmt(op->body));
+    return Allocate(op->buffer_var, op->dtype, {make_const(DataType::Int(32), alloc_size / width_)},
+                    op->condition, this->VisitStmt(op->body));
   }
 
  protected:
@@ -235,7 +234,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     if (op->buffer_var.get() == buffer_) {
       PrimExpr local_index, group;
       std::tie(local_index, group) = SplitIndexByGroup(op->index);
-      return StoreNode::make(op->buffer_var, op->value, local_index, op->predicate);
+      return Store(op->buffer_var, op->value, local_index, op->predicate);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -373,7 +372,7 @@ class WarpMemoryRewriter : private StmtMutator {
         warp_buffer_.insert(buf);
         Stmt ret = StmtMutator::VisitStmt_(op);
         op = ret.as<AttrStmtNode>();
-        return AttrStmtNode::make(op->node, op->attr_key, StringImm("local"), op->body);
+        return AttrStmt(op->node, op->attr_key, StringImm("local"), op->body);
       }
     }
     return StmtMutator::VisitStmt_(op);

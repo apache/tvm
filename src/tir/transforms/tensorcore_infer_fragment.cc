@@ -188,11 +188,11 @@ class InferFragmenter : public StmtMutator {
       std::string shape =
           std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
       PrimExpr shape_expr = StringImm(shape);
-      Stmt shape_attr = AttrStmtNode::make(op->buffer_var, attr::fragment_shape, shape_expr, stmt);
+      Stmt shape_attr = AttrStmt(op->buffer_var, attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
         // Add shape attribute to matrix_a and matrix_b
-        Stmt layout_attr = AttrStmtNode::make(op->buffer_var, attr::fragment_layout,
-                                              StringImm(info.layout), shape_attr);
+        Stmt layout_attr =
+            AttrStmt(op->buffer_var, attr::fragment_layout, StringImm(info.layout), shape_attr);
         return layout_attr;
       } else {
         return shape_attr;

@@ -246,7 +246,7 @@ Stmt ScanOpNode::BuildRealize(const Stage& stage, const std::unordered_map<IterV
       IterVar sp_ax = this->spatial_axis_[sp_idx];
       bounds.push_back(dom_map.at(sp_ax));
     }
-    ret = tir::ProducerRealizeNode::make(t, bounds, const_true(), ret);
+    ret = tir::ProducerRealize(t, bounds, const_true(), ret);
   }
   return ret;
 }
@@ -254,9 +254,9 @@ Stmt ScanOpNode::BuildRealize(const Stage& stage, const std::unordered_map<IterV
 Stmt ScanOpNode::BuildProvide(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
                               bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt provide = AttrStmtNode::make(stage->op, tir::attr::scan_update_scope, this->scan_axis->var,
-                                    EvaluateNode::make(0));
-  Stmt init = AttrStmtNode::make(stage->op, tir::attr::scan_init_scope, 0, EvaluateNode::make(0));
+  Stmt provide =
+      AttrStmt(stage->op, tir::attr::scan_update_scope, this->scan_axis->var, Evaluate(0));
+  Stmt init = AttrStmt(stage->op, tir::attr::scan_init_scope, 0, Evaluate(0));
   size_t begin_scan = 0;
   for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
     if (stage->leaf_iter_vars[i]->iter_type == kThreadIndex) {
