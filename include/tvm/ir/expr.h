@@ -310,7 +310,7 @@ class FloatImm : public PrimExpr {
    */
   TVM_DLL FloatImm(DataType dtype, double value);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(FloatImm, PrimExpr, FloatImmNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FloatImm, PrimExpr, FloatImmNode);
 };
 
 /*!
