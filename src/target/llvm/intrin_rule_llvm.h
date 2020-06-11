@@ -49,7 +49,7 @@ inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = tir::CallNode::make(call->dtype, "llvm_intrin", cargs, tir::CallNode::PureIntrinsic);
+  *rv = tir::Call(call->dtype, "llvm_intrin", cargs, tir::CallNode::PureIntrinsic);
 }
 
 template <unsigned id, int num_signature>
@@ -64,7 +64,7 @@ inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = tir::CallNode::make(call->dtype, "llvm_intrin", cargs, tir::CallNode::Intrinsic);
+  *rv = tir::Call(call->dtype, "llvm_intrin", cargs, tir::CallNode::Intrinsic);
 }
 
 }  // namespace codegen

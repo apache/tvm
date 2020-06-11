@@ -223,12 +223,12 @@ class PConst : public Pattern<PConst<T>> {
 
 /*!
  * \brief Pattern binary expression.
- * \tparam NodeType The AST node type.
+ * \tparam OpType The AST noderef type.
  * \tparam TA The pattern type of the first operand.
  * \tparam TB The pattern type of the second operand.
  */
-template <typename NodeType, typename TA, typename TB>
-class PBinaryExpr : public Pattern<PBinaryExpr<NodeType, TA, TB>> {
+template <typename OpType, typename TA, typename TB>
+class PBinaryExpr : public Pattern<PBinaryExpr<OpType, TA, TB>> {
  public:
   PBinaryExpr(const TA& a, const TB& b) : a_(a), b_(b) {}
 
@@ -238,6 +238,7 @@ class PBinaryExpr : public Pattern<PBinaryExpr<NodeType, TA, TB>> {
   }
 
   bool Match_(const ObjectRef& node) const {
+    using NodeType = typename OpType::ContainerType;
     if (const NodeType* ptr = node.as<NodeType>()) {
       if (!a_.Match_(ptr->a)) return false;
       if (!b_.Match_(ptr->b)) return false;
@@ -250,9 +251,9 @@ class PBinaryExpr : public Pattern<PBinaryExpr<NodeType, TA, TB>> {
   PrimExpr Eval() const {
     PrimExpr lhs = a_.Eval();
     PrimExpr rhs = b_.Eval();
-    PrimExpr ret = TryConstFold<NodeType>(lhs, rhs);
+    PrimExpr ret = TryConstFold<OpType>(lhs, rhs);
     if (ret.defined()) return ret;
-    return NodeType::make(lhs, rhs);
+    return OpType(lhs, rhs);
   }
 
  private:
@@ -304,30 +305,30 @@ class PConstWithTypeLike : public Pattern<PConstWithTypeLike<TA>> {
 #define TVM_PATTERN_BINARY_OP(FuncName, NodeName) TVM_PATTERN_BINARY_OP_EX(FuncName, NodeName, )
 
 // raise ambiguity error for operator overload of / and %
-TVM_PATTERN_BINARY_OP_EX(operator/, tir::DivNode, DivAmbiguityError(a));
-TVM_PATTERN_BINARY_OP_EX(operator%, tir::ModNode, DivAmbiguityError(a));
+TVM_PATTERN_BINARY_OP_EX(operator/, tir::Div, DivAmbiguityError(a));
+TVM_PATTERN_BINARY_OP_EX(operator%, tir::Mod, DivAmbiguityError(a));
 
 // arithmetic expressions
-TVM_PATTERN_BINARY_OP(operator+, tir::AddNode);
-TVM_PATTERN_BINARY_OP(operator-, tir::SubNode);
-TVM_PATTERN_BINARY_OP(operator*, tir::MulNode);
-TVM_PATTERN_BINARY_OP(min, tir::MinNode);
-TVM_PATTERN_BINARY_OP(max, tir::MaxNode);
-TVM_PATTERN_BINARY_OP(div, tir::DivNode);
-TVM_PATTERN_BINARY_OP(truncdiv, tir::DivNode);
-TVM_PATTERN_BINARY_OP(truncmod, tir::ModNode);
-TVM_PATTERN_BINARY_OP(floordiv, tir::FloorDivNode);
-TVM_PATTERN_BINARY_OP(floormod, tir::FloorModNode);
+TVM_PATTERN_BINARY_OP(operator+, tir::Add);
+TVM_PATTERN_BINARY_OP(operator-, tir::Sub);
+TVM_PATTERN_BINARY_OP(operator*, tir::Mul);
+TVM_PATTERN_BINARY_OP(min, tir::Min);
+TVM_PATTERN_BINARY_OP(max, tir::Max);
+TVM_PATTERN_BINARY_OP(div, tir::Div);
+TVM_PATTERN_BINARY_OP(truncdiv, tir::Div);
+TVM_PATTERN_BINARY_OP(truncmod, tir::Mod);
+TVM_PATTERN_BINARY_OP(floordiv, tir::FloorDiv);
+TVM_PATTERN_BINARY_OP(floormod, tir::FloorMod);
 
 // logical expressions
-TVM_PATTERN_BINARY_OP(operator>, tir::GTNode);
-TVM_PATTERN_BINARY_OP(operator>=, tir::GENode);
-TVM_PATTERN_BINARY_OP(operator<, tir::LTNode);
-TVM_PATTERN_BINARY_OP(operator<=, tir::LENode);
-TVM_PATTERN_BINARY_OP(operator==, tir::EQNode);
-TVM_PATTERN_BINARY_OP(operator!=, tir::NENode);
-TVM_PATTERN_BINARY_OP(operator&&, tir::AndNode);
-TVM_PATTERN_BINARY_OP(operator||, tir::OrNode);
+TVM_PATTERN_BINARY_OP(operator>, tir::GT);
+TVM_PATTERN_BINARY_OP(operator>=, tir::GE);
+TVM_PATTERN_BINARY_OP(operator<, tir::LT);
+TVM_PATTERN_BINARY_OP(operator<=, tir::LE);
+TVM_PATTERN_BINARY_OP(operator==, tir::EQ);
+TVM_PATTERN_BINARY_OP(operator!=, tir::NE);
+TVM_PATTERN_BINARY_OP(operator&&, tir::And);
+TVM_PATTERN_BINARY_OP(operator||, tir::Or);
 
 /*!
  * \brief Pattern not expression.
@@ -349,7 +350,7 @@ class PNotExpr : public Pattern<PNotExpr<TA>> {
     }
   }
 
-  PrimExpr Eval() const { return tir::NotNode::make(value_.Eval()); }
+  PrimExpr Eval() const { return tir::Not(value_.Eval()); }
 
  private:
   typename TA::Nested value_;
@@ -391,7 +392,7 @@ class PSelectExpr : public Pattern<PSelectExpr<TCond, TA, TB>> {
   }
 
   PrimExpr Eval() const {
-    return tir::SelectNode::make(condition_.Eval(), true_value_.Eval(), false_value_.Eval());
+    return tir::Select(condition_.Eval(), true_value_.Eval(), false_value_.Eval());
   }
 
  private:
@@ -446,7 +447,7 @@ class PCastExpr : public Pattern<PCastExpr<DType, TA>> {
     }
   }
 
-  PrimExpr Eval() const { return tir::CastNode::make(dtype_.Eval(), value_.Eval()); }
+  PrimExpr Eval() const { return tir::Cast(dtype_.Eval(), value_.Eval()); }
 
  private:
   typename DType::Nested dtype_;
@@ -498,7 +499,7 @@ class PRampExpr : public Pattern<PRampExpr<TBase, TStride, TLanes>> {
     }
   }
 
-  PrimExpr Eval() const { return tir::RampNode::make(base_.Eval(), stride_.Eval(), lanes_.Eval()); }
+  PrimExpr Eval() const { return tir::Ramp(base_.Eval(), stride_.Eval(), lanes_.Eval()); }
 
  private:
   typename TBase::Nested base_;
@@ -558,7 +559,7 @@ class PBroadcastExpr : public Pattern<PBroadcastExpr<TA, TLanes>> {
     }
   }
 
-  PrimExpr Eval() const { return tir::BroadcastNode::make(value_.Eval(), lanes_.Eval()); }
+  PrimExpr Eval() const { return tir::Broadcast(value_.Eval(), lanes_.Eval()); }
 
  private:
   typename TA::Nested value_;
@@ -674,16 +675,16 @@ class PCallExpr : public Pattern<PCallExpr<Op, TArgs...>> {
 };
 
 // arithemetic intrinsics
-#define TVM_PATTERN_BINARY_INTRIN(FuncName, OpName, IntrinStr)                                \
-  struct OpName {                                                                             \
-    static PrimExpr Eval(Array<PrimExpr> args) {                                              \
-      return tir::CallNode::make(args[0].dtype(), kName, args, tir::CallNode::PureIntrinsic); \
-    }                                                                                         \
-    static constexpr const char* kName = IntrinStr;                                           \
-  };                                                                                          \
-  template <typename TA, typename TB>                                                         \
-  inline PCallExpr<OpName, TA, TB> FuncName(const Pattern<TA>& a, const Pattern<TB>& b) {     \
-    return PCallExpr<OpName, TA, TB>(a.derived(), b.derived());                               \
+#define TVM_PATTERN_BINARY_INTRIN(FuncName, OpName, IntrinStr)                            \
+  struct OpName {                                                                         \
+    static PrimExpr Eval(Array<PrimExpr> args) {                                          \
+      return tir::Call(args[0].dtype(), kName, args, tir::CallNode::PureIntrinsic);       \
+    }                                                                                     \
+    static constexpr const char* kName = IntrinStr;                                       \
+  };                                                                                      \
+  template <typename TA, typename TB>                                                     \
+  inline PCallExpr<OpName, TA, TB> FuncName(const Pattern<TA>& a, const Pattern<TB>& b) { \
+    return PCallExpr<OpName, TA, TB>(a.derived(), b.derived());                           \
   }
 
 TVM_PATTERN_BINARY_INTRIN(operator<<, PLeftShiftOp, "shift_left");
@@ -693,16 +694,16 @@ TVM_PATTERN_BINARY_INTRIN(operator|, PBitwiseOrOp, "bitwise_or");
 TVM_PATTERN_BINARY_INTRIN(operator^, PBitwiseXorOp, "bitwise_xor");
 
 // unary intrinsics
-#define TVM_PATTERN_UNARY_INTRIN(FuncName, OpName, IntrinStr)                                 \
-  struct OpName {                                                                             \
-    static PrimExpr Eval(Array<PrimExpr> args) {                                              \
-      return tir::CallNode::make(args[0].dtype(), kName, args, tir::CallNode::PureIntrinsic); \
-    }                                                                                         \
-    static constexpr const char* kName = IntrinStr;                                           \
-  };                                                                                          \
-  template <typename TA>                                                                      \
-  inline PCallExpr<OpName, TA> FuncName(const Pattern<TA>& a) {                               \
-    return PCallExpr<OpName, TA>(a.derived());                                                \
+#define TVM_PATTERN_UNARY_INTRIN(FuncName, OpName, IntrinStr)                       \
+  struct OpName {                                                                   \
+    static PrimExpr Eval(Array<PrimExpr> args) {                                    \
+      return tir::Call(args[0].dtype(), kName, args, tir::CallNode::PureIntrinsic); \
+    }                                                                               \
+    static constexpr const char* kName = IntrinStr;                                 \
+  };                                                                                \
+  template <typename TA>                                                            \
+  inline PCallExpr<OpName, TA> FuncName(const Pattern<TA>& a) {                     \
+    return PCallExpr<OpName, TA>(a.derived());                                      \
   }
 
 TVM_PATTERN_UNARY_INTRIN(operator~, PBitwiseNotOp, "bitwise_not");
@@ -710,7 +711,7 @@ TVM_PATTERN_UNARY_INTRIN(operator~, PBitwiseNotOp, "bitwise_not");
 // if_then_else
 struct PIfThenElseOp {
   static PrimExpr Eval(Array<PrimExpr> args) {
-    return tir::CallNode::make(args[1].dtype(), kName, args, tir::CallNode::PureIntrinsic);
+    return tir::Call(args[1].dtype(), kName, args, tir::CallNode::PureIntrinsic);
   }
   static constexpr const char* kName = "tvm_if_then_else";
 };

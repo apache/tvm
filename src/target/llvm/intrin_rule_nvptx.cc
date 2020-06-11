@@ -39,7 +39,7 @@ inline void DispatchExternLibDevice(const TVMArgs& args, TVMRetValue* rv) {
   std::ostringstream intrinsic_name;
   intrinsic_name << "__nv_" << call->name;
   if (call->dtype.bits() == 32) intrinsic_name << "f";
-  *rv = CallNode::make(call->dtype, intrinsic_name.str(), call->args, CallNode::PureExtern);
+  *rv = Call(call->dtype, intrinsic_name.str(), call->args, CallNode::PureExtern);
 }
 
 namespace llvm {
