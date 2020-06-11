@@ -71,7 +71,7 @@ class StorageFlattener : public StmtExprMutator {
     if (it != var_remap_.end() && !it->second.same_as(op->buffer_var)) {
       CHECK(it->second.as<VarNode>());
       Var buf_var = Downcast<Var>(it->second);
-      return StoreNode::make(buf_var, op->value, op->index, op->predicate);
+      return Store(buf_var, op->value, op->index, op->predicate);
     } else {
       return stmt;
     }
@@ -87,7 +87,7 @@ class StorageFlattener : public StmtExprMutator {
       Stmt body = this->VisitStmt(op->body);
       auto it = buf_map_.find(buffer);
       CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << buffer;
-      body = AttrStmtNode::make(it->second.buffer->data, op->attr_key, op->value, std::move(body));
+      body = AttrStmt(it->second.buffer->data, op->attr_key, op->value, std::move(body));
       return body;
     } else if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
@@ -134,8 +134,8 @@ class StorageFlattener : public StmtExprMutator {
     // To create bound attribute collector should has at least one item.
     if (create_bound_attributes_ && shape_collector_.size()) {
       for (size_t i = 0; i < shape_collector_.size(); ++i) {
-        body = AttrStmtNode::make(shape_collector_[i].first, tir::attr::buffer_bound,
-                                  MakeBound(e.buffer->dtype, shape_collector_[i].second), body);
+        body = AttrStmt(shape_collector_[i].first, tir::attr::buffer_bound,
+                        MakeBound(e.buffer->dtype, shape_collector_[i].second), body);
       }
     }
     return body;
@@ -217,23 +217,22 @@ class StorageFlattener : public StmtExprMutator {
       }
       if (strides.size() != 0) {
         int first_dim = 0;
-        ret = AllocateNode::make(e.buffer->data, storage_type,
-                                 {e.buffer->strides[first_dim] * e.buffer->shape[first_dim]},
-                                 make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
+        ret = Allocate(e.buffer->data, storage_type,
+                       {e.buffer->strides[first_dim] * e.buffer->shape[first_dim]},
+                       make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       } else {
         shape = e.buffer->shape;
         if (shape.size() == 0) {
           shape.push_back(make_const(DataType::Int(32), 1));
         }
-        ret = AllocateNode::make(e.buffer->data, storage_type, shape,
-                                 make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
+        ret = Allocate(e.buffer->data, storage_type, shape,
+                       make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       }
-      ret =
-          AttrStmtNode::make(e.buffer->data, attr::storage_scope, StringImm(e.buffer->scope), ret);
+      ret = AttrStmt(e.buffer->data, attr::storage_scope, StringImm(e.buffer->scope), ret);
 
       if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
-        ret = AttrStmtNode::make(e.buffer->data, tir::attr::buffer_bound,
-                                 MakeBound(e.buffer->dtype, e.buffer->shape), ret);
+        ret = AttrStmt(e.buffer->data, tir::attr::buffer_bound,
+                       MakeBound(e.buffer->dtype, e.buffer->shape), ret);
       }
       return ret;
     }
@@ -319,17 +318,16 @@ class StorageFlattener : public StmtExprMutator {
     }
     for (int i = starts; i >= 0; --i) {
       if (i < starts) {
-        stmt = ForNode::make(vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None,
-                             stmt);
+        stmt = For(vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None, stmt);
       } else {
         PrimExpr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
         PrimExpr address =
             Call(DataType::Handle(), tvm_address_of, {load}, CallNode::PureIntrinsic);
         PrimExpr prefetch =
             Call(op->buffer->dtype, CallNode::prefetch, {address, 0, 3, 1}, CallNode::Intrinsic);
-        stmt = EvaluateNode::make(prefetch);
+        stmt = Evaluate(prefetch);
         PrimExpr extent = (op->bounds[i]->extent - 1) / stride + 1;
-        stmt = ForNode::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
+        stmt = For(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
       }
     }
     return stmt;

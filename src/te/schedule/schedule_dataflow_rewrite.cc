@@ -533,10 +533,9 @@ void InjectInline(ScheduleNode* sch) {
               CHECK(ReduceEqual(reduce_, reduce)) << "The Reduce inputs of ComputeOp should "
                                                   << "have the same attribute except value_index";
             }
-            PrimExpr new_value =
-                Inline(tir::EvaluateNode::make(new_body[j][0]), stage->op, args, body)
-                    .as<tir::EvaluateNode>()
-                    ->value;
+            PrimExpr new_value = Inline(tir::Evaluate(new_body[j][0]), stage->op, args, body)
+                                     .as<tir::EvaluateNode>()
+                                     ->value;
             if (!new_value.same_as(new_body[j][0])) {
               changed[j] = true;
               const tir::ReduceNode* r = new_value.as<tir::ReduceNode>();
@@ -551,10 +550,9 @@ void InjectInline(ScheduleNode* sch) {
             }
           } else {
             for (size_t k = 0; k < new_body[j].size(); ++k) {
-              PrimExpr new_value =
-                  Inline(tir::EvaluateNode::make(new_body[j][k]), stage->op, args, body)
-                      .as<tir::EvaluateNode>()
-                      ->value;
+              PrimExpr new_value = Inline(tir::Evaluate(new_body[j][k]), stage->op, args, body)
+                                       .as<tir::EvaluateNode>()
+                                       ->value;
               if (!new_value.same_as(new_body[j][k])) {
                 new_body[j].Set(k, new_value);
                 changed[j] = true;

@@ -264,7 +264,7 @@ Stmt BaseComputeOpNode::BuildRealize(const Stage& stage,
   Stmt realize = body;
   for (int i = this->num_outputs(); i > 0; --i) {
     Tensor t = stage->op.output(i - 1);
-    realize = tir::ProducerRealizeNode::make(t, bounds, const_true(), realize);
+    realize = tir::ProducerRealize(t, bounds, const_true(), realize);
     // alignment requirement, only useful for compute
     for (size_t i = 0; i < num_schedulable_dims(); ++i) {
       auto it = stage->iter_var_attrs.find(this->axis[i]);
@@ -273,7 +273,7 @@ Stmt BaseComputeOpNode::BuildRealize(const Stage& stage,
         if (attr->dim_align_factor != 0) {
           Array<PrimExpr> tuple = {static_cast<int>(i), attr->dim_align_factor,
                                    attr->dim_align_offset};
-          realize = tir::AttrStmtNode::make(
+          realize = tir::AttrStmt(
               t, tir::attr::buffer_dim_align,
               Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
               realize);
@@ -308,13 +308,13 @@ void MakeReduction(const ComputeOpNode* op, const Array<Tensor>& tensors, Stmt* 
   Array<PrimExpr> update_value = (*combiner)(lhs, reduce->source);
   for (size_t i = 0; i < size; ++i) {
     Tensor t = tensors[i];
-    inits.emplace_back(ProducerStoreNode::make(t, init_value[i], args));
-    provides.emplace_back(ProducerStoreNode::make(t, update_value[i], args));
+    inits.emplace_back(ProducerStore(t, init_value[i], args));
+    provides.emplace_back(ProducerStore(t, update_value[i], args));
   }
   *init = SeqStmt::Flatten(inits);
   *provide = SeqStmt::Flatten(provides);
   if (!is_one(reduce->condition)) {
-    *provide = IfThenElseNode::make(reduce->condition, *provide);
+    *provide = IfThenElse(reduce->condition, *provide);
   }
 }
 
@@ -324,7 +324,7 @@ Stmt MakeProvide(const ComputeOpNode* op, const Tensor& t) {
   for (IterVar iv : op->axis) {
     args.push_back(iv->var);
   }
-  return ProducerStoreNode::make(t, op->body[t->value_index], args);
+  return ProducerStore(t, op->body[t->value_index], args);
 }
 
 Stmt MakeComputeStmt(const ComputeOpNode* self, const Stage& stage,
@@ -587,7 +587,7 @@ Stmt TransformUpdate(const Stage& stage, const std::unordered_map<IterVar, Range
   }
 
   auto cond = foldl([](PrimExpr a, PrimExpr b) { return a || b; }, const_false(1), conds);
-  return IfThenElseNode::make(cond, update, body);
+  return IfThenElse(cond, update, body);
 }
 
 }  // namespace te

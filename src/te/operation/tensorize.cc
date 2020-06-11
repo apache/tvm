@@ -351,7 +351,7 @@ Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
   VerifyTensorizeLoopNest(self, stage, n, tloc);
   VerifyTensorizeBody(self, stage, dom_map, out_dom, in_region, intrin);
   // Start bind data.
-  Stmt nop = EvaluateNode::make(0);
+  Stmt nop = Evaluate(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;
   Array<Tensor> inputs = self->InputTensors();
   CHECK_EQ(inputs.size(), intrin->inputs.size()) << "Tensorize failed: input size mismatch ";
@@ -368,7 +368,7 @@ Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
       tuple.push_back(r->min);
       tuple.push_back(r->extent);
     }
-    input_bind_nest.emplace_back(AttrStmtNode::make(
+    input_bind_nest.emplace_back(AttrStmt(
         bind_spec, tir::attr::buffer_bind_scope,
         Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }
@@ -388,7 +388,7 @@ Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
     Tensor tensor = stage->op.output(i - intrin->inputs.size());
     Buffer buffer = intrin->buffers[i];
     Array<ObjectRef> bind_spec{buffer, tensor};
-    output_bind_nest.emplace_back(AttrStmtNode::make(
+    output_bind_nest.emplace_back(AttrStmt(
         bind_spec, tir::attr::buffer_bind_scope,
         Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }

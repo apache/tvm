@@ -303,9 +303,9 @@ class ThreadPartitionInserter : public StmtMutator {
       // add branch code inside the innermost thread scope
       if (innermost_thread_scope_) {
         Stmt simplified_body = ConditionEliminator(ps_)(op->body);
-        Stmt body = IfThenElseNode::make(cond_, simplified_body, op->body);
+        Stmt body = IfThenElse(cond_, simplified_body, op->body);
         PrimExpr value = this->VisitExpr(op->value);
-        stmt = AttrStmtNode::make(op->node, op->attr_key, value, body);
+        stmt = AttrStmt(op->node, op->attr_key, value, body);
       }
       innermost_thread_scope_ = false;
       return stmt;
@@ -588,8 +588,8 @@ inline Stmt LoopPartitioner::MakeFor(const Object* node, PrimExpr extent, Stmt b
     // If the loop extent is 1, do not create the loop anymore
     return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
   } else {
-    return ForNode::make(for_node->loop_var, IntImm(for_node->min.dtype(), 0), extent,
-                         for_node->for_type, for_node->device_api, body);
+    return For(for_node->loop_var, IntImm(for_node->min.dtype(), 0), extent, for_node->for_type,
+               for_node->device_api, body);
   }
 }
 

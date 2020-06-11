@@ -128,7 +128,7 @@ Stmt ExternOpNode::BuildRealize(const Stage& stage,
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(Range::make_by_min_extent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body = tir::ProducerRealizeNode::make(t, bounds, const_true(), realize_body);
+    realize_body = tir::ProducerRealize(t, bounds, const_true(), realize_body);
   }
   return realize_body;
 }
@@ -137,8 +137,7 @@ Stmt ExternOpNode::BuildProvide(const Stage& stage,
                                 const std::unordered_map<IterVar, Range>& dom_map,
                                 bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt ret =
-      AttrStmtNode::make(make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
+  Stmt ret = AttrStmt(make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
   auto f_push_bind = [&ret](Buffer buffer, Tensor tensor) {
     Array<ObjectRef> bind_spec;
     Array<PrimExpr> tuple;
@@ -148,9 +147,8 @@ Stmt ExternOpNode::BuildProvide(const Stage& stage,
       tuple.push_back(make_const(buffer->shape[k].dtype(), 0));
       tuple.push_back(buffer->shape[k]);
     }
-    ret = AttrStmtNode::make(
-        bind_spec, tir::attr::buffer_bind_scope,
-        Call(DataType::Handle(), intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), ret);
+    ret = AttrStmt(bind_spec, tir::attr::buffer_bind_scope,
+                   Call(DataType::Handle(), intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), ret);
   };
   for (size_t i = output_placeholders.size(); i != 0; --i) {
     f_push_bind(output_placeholders[i - 1], stage->op.output(i - 1));

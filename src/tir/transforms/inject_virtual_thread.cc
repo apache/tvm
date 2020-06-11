@@ -252,8 +252,7 @@ class VTInjector : public StmtExprMutator {
     trigger_base_inject_ = !allow_share_;
     auto it = alloc_remap_.find(op->buffer_var.get());
     if (it != alloc_remap_.end()) {
-      return StoreNode::make(op->buffer_var, op->value, RewriteIndex(op->index, it->second),
-                             op->predicate);
+      return Store(op->buffer_var, op->value, RewriteIndex(op->index, it->second), op->predicate);
     } else {
       return stmt;
     }
@@ -271,7 +270,7 @@ class VTInjector : public StmtExprMutator {
       if (value.same_as(op->value) && body.same_as(op->body)) {
         return GetRef<Stmt>(op);
       } else {
-        return AttrStmtNode::make(op->node, op->attr_key, value, body);
+        return AttrStmt(op->node, op->attr_key, value, body);
       }
     }
   }
@@ -286,7 +285,7 @@ class VTInjector : public StmtExprMutator {
     if (value.same_as(op->value) && body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     } else {
-      return LetStmtNode::make(op->var, value, body);
+      return LetStmt(op->var, value, body);
     }
   }
   // For
@@ -304,7 +303,7 @@ class VTInjector : public StmtExprMutator {
     if (extent.same_as(op->extent) && body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     } else {
-      return ForNode::make(op->loop_var, op->min, extent, op->for_type, op->device_api, body);
+      return For(op->loop_var, op->min, extent, op->for_type, op->device_api, body);
     }
   }
   // IfThenElse
@@ -327,7 +326,7 @@ class VTInjector : public StmtExprMutator {
         else_case.same_as(op->else_case)) {
       return GetRef<Stmt>(op);
     } else {
-      return IfThenElseNode::make(condition, then_case, else_case);
+      return IfThenElse(condition, then_case, else_case);
     }
   }
 
@@ -387,7 +386,7 @@ class VTInjector : public StmtExprMutator {
     if (!changed && body.same_as(op->body) && condition.same_as(op->condition)) {
       return GetRef<Stmt>(op);
     } else {
-      return AllocateNode::make(op->buffer_var, op->dtype, extents, condition, body);
+      return Allocate(op->buffer_var, op->dtype, extents, condition, body);
     }
   }
 
@@ -417,8 +416,8 @@ class VTInjector : public StmtExprMutator {
       Var idx(var_->name_hint + ".s", var_->dtype);
       Map<Var, PrimExpr> values{{var_, idx}};
       stmt = Substitute(stmt, values);
-      return ForNode::make(idx, make_zero(idx.dtype()), make_const(idx.dtype(), num_threads_),
-                           ForType::Serial, DeviceAPI::None, stmt);
+      return For(idx, make_zero(idx.dtype()), make_const(idx.dtype(), num_threads_),
+                 ForType::Serial, DeviceAPI::None, stmt);
     }
   }
 

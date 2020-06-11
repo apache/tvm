@@ -80,7 +80,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     if (const LoadNode* load = op->value.as<LoadNode>()) {
       if (load->buffer_var.same_as(op->buffer_var) &&
           tir::ExprDeepEqual()(load->index, op->index)) {
-        return EvaluateNode::make(0);
+        return Evaluate(0);
       }
     }
     return GetRef<Stmt>(op);
