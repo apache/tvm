@@ -22,12 +22,13 @@ Micro TVM with TFLite Models
 This tutorial is an introduction to working with MicroTVM and a TFLite 
 model with Relay.
 """
-######################################################################
+
+# %%
 # Setup
 # -----
 #
 # To get started, TFLite package needs to be installed as prerequisite.
-# 
+#
 # install tflite
 #
 # .. code-block:: bash
@@ -73,16 +74,16 @@ model with Relay.
 #
 #   export CMSIS_ST_PATH=/path/to/STM32Cube_FW_F7_V1.16.0/Drivers/CMSIS
 
-######################################################################
+# %%
 # Recreating your own Pre-Trained TFLite model
 # --------------------------------------------
 #
 # The tutorial downloads a pretrained TFLite model. When working with microcontrollers
-# you need to be mindful these are highly resource constrained devices as such standard 
-# models like MobileNet may not fit into their modest memory. 
+# you need to be mindful these are highly resource constrained devices as such standard
+# models like MobileNet may not fit into their modest memory.
 #
 # For this tutorial, we'll make use of one of the TF Micro example models.
-# 
+#
 # If you wish to replicate the training steps see:
 # https://github.com/tensorflow/tensorflow/tree/master/tensorflow/lite/micro/examples/hello_world/train
 #
@@ -96,23 +97,22 @@ import os
 import numpy as np
 import tvm
 import tvm.micro as micro
-import requests
-
+from tvm.contrib.download import download_testdata
 from tvm.contrib import graph_runtime, util
 from tvm import relay
 
-######################################################################
+# %%
 # Load and prepare the Pre-Trained Model
 # --------------------------------------
-# Load the pretrained TFLite model from a file in your current 
+#
+# Load the pretrained TFLite model from a file in your current
 # directory into a buffer
 
-model_url = 'https://people.linaro.org/~tom.gall/sine_model.tflite'
+model_url = 'https://github.com/apache/incubator-tvm/tutorials/micro/'
 model_file = 'sine_model.tflite'
-r = requests.get(model_url, allow_redirects=True)
+model_path = download_testdata(module_url, model_file, module='data')
 
-open(model_file,'wb').write(r.content)
-tflite_model_buf = open(model_file, "rb").read()
+tflite_model_buf = open(model_path, "rb").read()
 
 ######################################################################
 # Using the buffer, transform into a tflite model python object
@@ -135,7 +135,7 @@ print ("Model Version: " + str(version))
 # is contained in the model.
 # If you are unsure what that might be, this can be discovered by using
 # the visualize.py script within the Tensorflow project.
-# See : How do I inspect a .tflite file? https://www.tensorflow.org/lite/guide/faq 
+# See : How do I inspect a .tflite file? https://www.tensorflow.org/lite/guide/faq
 input_tensor = "dense_4_input"
 input_shape = (1,)
 input_dtype = "float32"
@@ -144,9 +144,10 @@ mod, params = relay.frontend.from_tflite(tflite_model,
                                          shape_dict={input_tensor: input_shape},
                                          dtype_dict={input_tensor: input_dtype})
 
-######################################################################
+# %%
 # Running on device
 # ----------------------------------------------
+#
 # Setup the device config which is what will be used to communicate
 # with the microcontroller (a STM32F746 Discovery board)
 TARGET = 'c -device=micro_dev'
@@ -168,9 +169,8 @@ dev_config = micro.device.arm.stm32f746xx.generate_config("127.0.0.1", 6666)
 #
 # .. code-block:: python
 #
-#   disable_vectorize = tvm.target.build_config(disable_vectorize=True)
 #   disable_fusion = relay.build_config(disabled_pass={'FuseOps'})
-#   with disable_vectorize, disable_fusion:
+#   with tvm.transform.PassContext(opt_level=3, config={'tir.disable_vectorize': True}), disable_fusion
 #      graph, c_mod, params = relay.build(mod, target=TARGET, params=params)
 
 ######################################################################
@@ -191,10 +191,10 @@ dev_config = micro.device.arm.stm32f746xx.generate_config("127.0.0.1", 6666)
 #   mod.set_input(**params)
 
 ######################################################################
-# The model consumes a single float32 value and returns a predicted 
+# The model consumes a single float32 value and returns a predicted
 # sine value.
 # To pass the input value we construct a tvm.nd.array object
-# with a single contrived number as input. For this model values of 
+# with a single contrived number as input. For this model values of
 # 0 to 2Pi are acceptable.
 #
 # .. code-block:: python
