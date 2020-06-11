@@ -249,11 +249,11 @@ class WarpAccessRewriter : protected StmtExprMutator {
       CHECK(!ExprUseVar(local_index, warp_index_))
           << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->index
           << " local_index=" << local_index;
-      PrimExpr load_value = LoadNode::make(op->dtype, op->buffer_var, local_index, op->predicate);
-      PrimExpr mask = CallNode::make(DataType::UInt(32), intrinsic::tvm_warp_activemask, {},
-                                     CallNode::Intrinsic);
-      return CallNode::make(load_value.dtype(), intrinsic::tvm_warp_shuffle,
-                            {mask, load_value, group, width_, warp_size_}, CallNode::Intrinsic);
+      PrimExpr load_value = Load(op->dtype, op->buffer_var, local_index, op->predicate);
+      PrimExpr mask =
+          Call(DataType::UInt(32), intrinsic::tvm_warp_activemask, {}, CallNode::Intrinsic);
+      return Call(load_value.dtype(), intrinsic::tvm_warp_shuffle,
+                  {mask, load_value, group, width_, warp_size_}, CallNode::Intrinsic);
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -271,8 +271,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
       CHECK(arith::ramp(base, 1, index.dtype().lanes()).Match(index));
 
       std::tie(local_index, group) = SplitIndexByGroup(base.Eval());
-      local_index =
-          RampNode::make(local_index, make_const(local_index.dtype(), 1), index.dtype().lanes());
+      local_index = Ramp(local_index, make_const(local_index.dtype(), 1), index.dtype().lanes());
       return std::make_pair(local_index, group);
     }
     PrimExpr m = make_const(index.dtype(), warp_coeff_);
@@ -374,7 +373,7 @@ class WarpMemoryRewriter : private StmtMutator {
         warp_buffer_.insert(buf);
         Stmt ret = StmtMutator::VisitStmt_(op);
         op = ret.as<AttrStmtNode>();
-        return AttrStmtNode::make(op->node, op->attr_key, StringImmNode::make("local"), op->body);
+        return AttrStmtNode::make(op->node, op->attr_key, StringImm("local"), op->body);
       }
     }
     return StmtMutator::VisitStmt_(op);

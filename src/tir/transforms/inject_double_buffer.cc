@@ -125,9 +125,8 @@ class DoubleBufferInjector : public StmtExprMutator {
       }
       CHECK(it->second.loop != nullptr);
       auto& alloc_nest = loop_allocs_[it->second.loop];
-      alloc_nest.emplace_back(AttrStmtNode::make(op->buffer_var, attr::storage_scope,
-                                                 StringImmNode::make(it->second.scope),
-                                                 EvaluateNode::make(0)));
+      alloc_nest.emplace_back(AttrStmtNode::make(
+          op->buffer_var, attr::storage_scope, StringImm(it->second.scope), EvaluateNode::make(0)));
       alloc_nest.emplace_back(AllocateNode::make(op->buffer_var, op->dtype, new_extents,
                                                  op->condition, EvaluateNode::make(0)));
       return op->body;
@@ -205,8 +204,8 @@ class DoubleBufferInjector : public StmtExprMutator {
       const StorageEntry& e = it->second;
       CHECK(e.stride.defined());
       CHECK(e.switch_read_var.defined());
-      return LoadNode::make(op->dtype, op->buffer_var, e.switch_read_var * e.stride + op->index,
-                            op->predicate);
+      return Load(op->dtype, op->buffer_var, e.switch_read_var * e.stride + op->index,
+                  op->predicate);
     } else {
       return expr;
     }

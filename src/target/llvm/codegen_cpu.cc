@@ -27,6 +27,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/tir/analysis.h>
 
+#include <algorithm>
 #include <memory>
 #include <unordered_map>
 
@@ -918,8 +919,8 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
                         op->loop_var, op->body);
       } else {
         PrimExpr step = (op->extent + num_task - make_const(t, 1)) / num_task;
-        PrimExpr begin = MinNode::make(task_id * step, op->extent);
-        PrimExpr end = MinNode::make((task_id + make_const(t, 1)) * step, op->extent);
+        PrimExpr begin = min(task_id * step, op->extent);
+        PrimExpr end = min((task_id + make_const(t, 1)) * step, op->extent);
         CreateSerialFor(MakeValue(begin), MakeValue(end),
                         llvm::ConstantInt::getSigned(GetLLVMType(end), 1), op->loop_var, op->body);
       }

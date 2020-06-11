@@ -31,12 +31,10 @@ namespace tvm {
 namespace te {
 
 IterVar thread_axis(Range dom, std::string tag) {
-  return IterVarNode::make(dom, Var(tag), kThreadIndex, tag);
+  return IterVar(dom, Var(tag), kThreadIndex, tag);
 }
 
-IterVar reduce_axis(Range dom, std::string name) {
-  return IterVarNode::make(dom, Var(name), kCommReduce);
-}
+IterVar reduce_axis(Range dom, std::string name) { return IterVar(dom, Var(name), kCommReduce); }
 
 Var var(std::string name_hint, DataType t) { return Var(name_hint, t); }
 
@@ -111,18 +109,23 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(TensorIntrinNode);
 
 // TensorIntrinCall
-
-TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin, Array<Tensor> tensors,
-                                            Array<Region> regions, Array<IterVar> reduce_axis,
-                                            Array<PrimExpr> scalar_inputs) {
+TensorIntrinCall::TensorIntrinCall(TensorIntrin intrin, Array<Tensor> tensors,
+                                   Array<Region> regions, Array<IterVar> reduce_axis,
+                                   Array<PrimExpr> scalar_inputs) {
   auto n = make_object<TensorIntrinCallNode>();
   n->intrin = std::move(intrin);
   n->tensors = std::move(tensors);
   n->regions = std::move(regions);
   n->reduce_axis = std::move(reduce_axis);
   n->scalar_inputs = std::move(scalar_inputs);
-  return TensorIntrinCall(n);
+  data_ = std::move(n);
 }
+
+TVM_REGISTER_GLOBAL("te.TensorIntrinCall")
+    .set_body_typed([](TensorIntrin intrin, Array<Tensor> tensors, Array<Region> regions,
+                       Array<IterVar> reduce_axis, Array<PrimExpr> scalar_inputs) {
+      return TensorIntrinCall(intrin, tensors, regions, reduce_axis, scalar_inputs);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TensorIntrinCallNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -135,8 +138,6 @@ TVM_REGISTER_NODE_TYPE(TensorIntrinCallNode);
 TVM_REGISTER_GLOBAL("te.Tensor").set_body_typed(TensorNode::make);
 
 TVM_REGISTER_GLOBAL("te.TensorIntrin").set_body_typed(TensorIntrinNode::make);
-
-TVM_REGISTER_GLOBAL("te.TensorIntrinCall").set_body_typed(TensorIntrinCallNode::make);
 
 TVM_REGISTER_GLOBAL("te.TensorEqual").set_body_method(&Tensor::operator==);
 

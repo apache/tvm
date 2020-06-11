@@ -47,7 +47,7 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
     return GetRef<te::Tensor>(ptr)();
   }
   if (auto* ptr = ref.as<runtime::StringObj>()) {
-    return tir::StringImmNode::make(GetRef<runtime::String>(ptr));
+    return tir::StringImm(GetRef<runtime::String>(ptr));
   }
   CHECK(ObjectTypeChecker<PrimExpr>::Check(ref.get()))
       << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName() << " but get "

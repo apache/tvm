@@ -41,8 +41,7 @@ namespace tvm {
 namespace tir {
 
 inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
-  return AssertStmtNode::make(lhs == rhs, tvm::tir::StringImmNode::make(msg),
-                              EvaluateNode::make(0));
+  return AssertStmtNode::make(lhs == rhs, tvm::tir::StringImm(msg), EvaluateNode::make(0));
 }
 
 PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
@@ -86,11 +85,10 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
                               IntImm(DataType::Int(32), intrinsic::kTVMValueContent)};
     // load 64 bit version
     DataType api_type = APIType(t);
-    PrimExpr res =
-        CallNode::make(api_type, intrinsic::tvm_struct_get, call_args, CallNode::PureIntrinsic);
+    PrimExpr res = Call(api_type, intrinsic::tvm_struct_get, call_args, CallNode::PureIntrinsic);
     // cast to the target version.
     if (api_type != t) {
-      res = CastNode::make(t, res);
+      res = Cast(t, res);
     }
     return res;
   };
@@ -127,11 +125,10 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
       seq_init.emplace_back(LetStmtNode::make(v_arg, f_arg_value(v_arg.dtype(), i), nop));
       // type code checks
       Var tcode(v_arg->name_hint + ".code", DataType::Int(32));
-      seq_init.emplace_back(
-          LetStmtNode::make(tcode,
-                            LoadNode::make(DataType::Int(32), v_packed_arg_type_ids,
-                                           IntImm(DataType::Int(32), i), const_true(1)),
-                            nop));
+      seq_init.emplace_back(LetStmtNode::make(tcode,
+                                              Load(DataType::Int(32), v_packed_arg_type_ids,
+                                                   IntImm(DataType::Int(32), i), const_true(1)),
+                                              nop));
       DataType t = v_arg.dtype();
       if (t.is_handle()) {
         std::ostringstream msg;
@@ -139,18 +136,18 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
         seq_check.emplace_back(
             AssertStmtNode::make(tcode == kTVMOpaqueHandle || tcode == kTVMNDArrayHandle ||
                                      tcode == kTVMDLTensorHandle || tcode == kTVMNullptr,
-                                 tvm::tir::StringImmNode::make(msg.str()), nop));
+                                 tvm::tir::StringImm(msg.str()), nop));
       } else if (t.is_int() || t.is_uint()) {
         std::ostringstream msg;
         msg << name_hint << ": Expect arg[" << i << "] to be int";
         seq_check.emplace_back(
-            AssertStmtNode::make(tcode == kDLInt, tvm::tir::StringImmNode::make(msg.str()), nop));
+            AssertStmtNode::make(tcode == kDLInt, tvm::tir::StringImm(msg.str()), nop));
       } else {
         CHECK(t.is_float());
         std::ostringstream msg;
         msg << name_hint << ": Expect arg[" << i << "] to be float";
         seq_check.emplace_back(
-            AssertStmtNode::make(tcode == kDLFloat, tvm::tir::StringImmNode::make(msg.str()), nop));
+            AssertStmtNode::make(tcode == kDLFloat, tvm::tir::StringImm(msg.str()), nop));
       }
     } else {
       args.push_back(v_arg);
@@ -186,18 +183,18 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   }
 
   auto body = AttrStmtNode::make(make_zero(DataType::Int(32)), attr::compute_scope,
-                                 StringImmNode::make(name_hint + "_compute_"), func_ptr->body);
+                                 StringImm(name_hint + "_compute_"), func_ptr->body);
   // Set device context
   if (vmap.count(device_id.get())) {
-    PrimExpr node = StringImmNode::make("default");
+    PrimExpr node = StringImm("default");
     seq_check.push_back(AttrStmtNode::make(node, attr::device_context_id, device_id, nop));
     seq_check.push_back(AttrStmtNode::make(node, attr::device_context_type, device_type, nop));
 
     if (runtime::DeviceAPI::NeedSetDeviceContext(target_device_type)) {
-      Stmt set_device = EvaluateNode::make(CallNode::make(
-          DataType::Int(32), intrinsic::tvm_call_packed,
-          {StringImmNode::make(runtime::symbol::tvm_set_device), device_type, device_id},
-          CallNode::Intrinsic));
+      Stmt set_device = EvaluateNode::make(
+          Call(DataType::Int(32), intrinsic::tvm_call_packed,
+               {StringImm(runtime::symbol::tvm_set_device), device_type, device_id},
+               CallNode::Intrinsic));
       body = SeqStmt({set_device, body});
     }
   }

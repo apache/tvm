@@ -458,7 +458,7 @@ class BufferAnalyser : public StmtExprVisitor {
       for (size_t i = 1; i < bi.shape.size(); ++i) {
         PrimExpr stride = IntImm(DataType::Int(32), 1);
         for (size_t j = bi.shape.size() - 1; j >= i; --j) {
-          stride = MulNode::make(stride, bi.shape[j]);
+          stride = Mul(stride, bi.shape[j]);
         }
         strides.push_back(stride);
       }
@@ -560,7 +560,7 @@ class BufferAnalyser : public StmtExprVisitor {
       for (size_t i = 1; i < bi.shape.size(); ++i) {
         PrimExpr stride = IntImm(DataType::Int(32), 1);
         for (size_t j = bi.shape.size() - 1; j >= i; --j) {
-          stride = MulNode::make(stride, bi.shape[j]);
+          stride = Mul(stride, bi.shape[j]);
         }
         strides.push_back(stride);
       }
@@ -752,8 +752,8 @@ class ThreadIdxMutator : public StmtExprMutator {
         return zero;
       }
       if (op->name_hint == "threadIdx.y") {
-        PrimExpr div = DivNode::make(expr, warp_y_);
-        PrimExpr mul = MulNode::make(div, warp_y_);
+        PrimExpr div = Div(expr, warp_y_);
+        PrimExpr mul = Mul(div, warp_y_);
         return mul;
       }
     }
@@ -819,7 +819,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
 
         auto it = matrix_abc_.find(simplify_name(node->name));
         CHECK(it != matrix_abc_.end()) << "Cannot find matrix info for " << node->name;
-        auto matrix_abc = tvm::tir::StringImmNode::make("wmma." + it->second);
+        auto matrix_abc = tvm::tir::StringImm("wmma." + it->second);
         Stmt body = this->VisitStmt(op->body);
         return AttrStmtNode::make(op->node, op->attr_key, matrix_abc, body);
       }
@@ -847,17 +847,17 @@ class TensorCoreIRMutator : public StmtExprMutator {
         Buffer buffer_a(buffer_node_a);
         Buffer buffer_b(buffer_node_b);
         if (ca->dtype == DataType::Int(1) && cb->dtype == DataType::Int(1)) {
-          return EvaluateNode::make(CallNode::make(
-              DataType::Handle(), intrinsic::tvm_bmma_sync,
-              {buffer->data, buffer->elem_offset, buffer_a->data, buffer_a->elem_offset,
-               buffer_b->data, buffer_b->elem_offset, buffer->data, buffer->elem_offset},
-              CallNode::Intrinsic));
+          return EvaluateNode::make(
+              Call(DataType::Handle(), intrinsic::tvm_bmma_sync,
+                   {buffer->data, buffer->elem_offset, buffer_a->data, buffer_a->elem_offset,
+                    buffer_b->data, buffer_b->elem_offset, buffer->data, buffer->elem_offset},
+                   CallNode::Intrinsic));
         } else {
-          return EvaluateNode::make(CallNode::make(
-              DataType::Handle(), intrinsic::tvm_mma_sync,
-              {buffer->data, buffer->elem_offset, buffer_a->data, buffer_a->elem_offset,
-               buffer_b->data, buffer_b->elem_offset, buffer->data, buffer->elem_offset},
-              CallNode::Intrinsic));
+          return EvaluateNode::make(
+              Call(DataType::Handle(), intrinsic::tvm_mma_sync,
+                   {buffer->data, buffer->elem_offset, buffer_a->data, buffer_a->elem_offset,
+                    buffer_b->data, buffer_b->elem_offset, buffer->data, buffer->elem_offset},
+                   CallNode::Intrinsic));
         }
       };
 
@@ -879,10 +879,10 @@ class TensorCoreIRMutator : public StmtExprMutator {
         auto pload = dst.as<ProducerLoadNode>();
 
         auto fill_fragment_call = [this, &op](const Buffer& buffer) {
-          return EvaluateNode::make(CallNode::make(DataType::Handle(), intrinsic::tvm_fill_fragment,
-                                                   {buffer->data, warp_tile_.m, warp_tile_.n,
-                                                    warp_tile_.k, buffer->elem_offset, op->value},
-                                                   CallNode::Intrinsic));
+          return EvaluateNode::make(Call(DataType::Handle(), intrinsic::tvm_fill_fragment,
+                                         {buffer->data, warp_tile_.m, warp_tile_.n, warp_tile_.k,
+                                          buffer->elem_offset, op->value},
+                                         CallNode::Intrinsic));
         };
 
         ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
@@ -902,7 +902,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
       PrimExpr warp_y = IntImm(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       PrimExpr mutated_value = thread_idx_mutator(op->value);
-      PrimExpr src = CallNode::make(value->dtype, "&", {mutated_value}, CallNode::Extern);
+      PrimExpr src = Call(value->dtype, "&", {mutated_value}, CallNode::Extern);
 
       auto pload = dst.as<ProducerLoadNode>();
       PrimExpr matrix_major;
@@ -910,19 +910,18 @@ class TensorCoreIRMutator : public StmtExprMutator {
       CHECK(iter2 != matrix_major_.end())
           << "Can not determine matrix major for " << pload->producer->GetNameHint();
       if (iter2->second == "col_major") {
-        matrix_major = StringImmNode::make("col_major");
+        matrix_major = StringImm("col_major");
       } else if (iter2->second == "row_major") {
-        matrix_major = StringImmNode::make("row_major");
+        matrix_major = StringImm("row_major");
       } else {
         LOG(FATAL) << "invalid matrix major for " << pload->producer->GetNameHint();
       }
 
       auto load_matrix_call = [this, &src, &stride, &matrix_major](const Buffer& buffer) {
-        return EvaluateNode::make(
-            CallNode::make(DataType::Handle(), intrinsic::tvm_load_matrix_sync,
-                           {buffer->data, warp_tile_.m, warp_tile_.n, warp_tile_.k,
-                            buffer->elem_offset, src, stride, matrix_major},
-                           CallNode::Intrinsic));
+        return EvaluateNode::make(Call(DataType::Handle(), intrinsic::tvm_load_matrix_sync,
+                                       {buffer->data, warp_tile_.m, warp_tile_.n, warp_tile_.k,
+                                        buffer->elem_offset, src, stride, matrix_major},
+                                       CallNode::Intrinsic));
       };
 
       ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
@@ -942,16 +941,15 @@ class TensorCoreIRMutator : public StmtExprMutator {
       PrimExpr warp_y = IntImm(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       dst = thread_idx_mutator(dst);
-      dst = CallNode::make(DataType::Handle(), "&", {dst}, CallNode::Extern);
+      dst = Call(DataType::Handle(), "&", {dst}, CallNode::Extern);
 
       auto pload = op->value.as<ProducerLoadNode>();
 
       auto store_matrix_call = [this, &dst, &stride](const Buffer& buffer) {
-        return EvaluateNode::make(
-            CallNode::make(DataType::Handle(), intrinsic::tvm_store_matrix_sync,
-                           {buffer->data, warp_tile_.m, warp_tile_.n, warp_tile_.k,
-                            buffer->elem_offset, dst, stride, StringImmNode::make("col_major")},
-                           CallNode::Intrinsic));
+        return EvaluateNode::make(Call(DataType::Handle(), intrinsic::tvm_store_matrix_sync,
+                                       {buffer->data, warp_tile_.m, warp_tile_.n, warp_tile_.k,
+                                        buffer->elem_offset, dst, stride, StringImm("col_major")},
+                                       CallNode::Intrinsic));
       };
 
       ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
@@ -1037,7 +1035,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     for (size_t i = 1; i < shape.size(); ++i) {
       PrimExpr stride = IntImm(DataType::Int(32), 1);
       for (size_t j = shape.size() - 1; j >= i; --j) {
-        stride = MulNode::make(stride, shape[j]);
+        stride = Mul(stride, shape[j]);
       }
       strides.push_back(stride);
     }
@@ -1046,8 +1044,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     PrimExpr elem_offset = IntImm(DataType::Int(32), 0);
     CHECK_EQ(pload->indices.size(), min_bound.size());
     for (size_t i = 0; i < min_bound.size(); i++) {
-      elem_offset = AddNode::make(
-          elem_offset, MulNode::make(strides[i], SubNode::make(pload->indices[i], min_bound[i])));
+      elem_offset = Add(elem_offset, Mul(strides[i], Sub(pload->indices[i], min_bound[i])));
     }
 
     auto it2 = matrix_abc_.find(simplify_name(tensor->op->name));
@@ -1068,8 +1065,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
       args.push_back(pload->indices[i]);
       args.push_back(shape[i]);
     }
-    auto tuple =
-        CallNode::make(DataType::Handle(), intrinsic::tvm_tuple, args, CallNode::Intrinsic);
+    auto tuple = Call(DataType::Handle(), intrinsic::tvm_tuple, args, CallNode::Intrinsic);
     Array<ObjectRef> node = {buffer, tensor};
     return AttrStmtNode::make(node, "buffer_bind_scope", tuple, call_back(buffer));
   }
