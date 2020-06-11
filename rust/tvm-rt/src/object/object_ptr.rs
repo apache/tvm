@@ -29,16 +29,36 @@ use crate::errors::Error;
 
 type Deleter = unsafe extern "C" fn(object: *mut Object) -> ();
 
+/// A TVM intrusive smart pointer header, in TVM all FFI compatible types
+/// start with an Object as their first field. The base object tracks
+/// a type_index which is an index into the runtime type information
+/// table, an atomic reference count, and a customized deleter which
+/// will be invoked when the reference count is zero.
+///
 #[derive(Debug)]
 #[repr(C)]
 pub struct Object {
-    pub type_index: u32,
+    /// The index into into TVM's runtime type information table.
+    pub(self) type_index: u32,
     // TODO(@jroesch): pretty sure Rust and C++ atomics are the same, but not sure.
     // NB: in general we should not touch this in Rust.
+    /// The reference count of the smart pointer.
     pub(self) ref_count: AtomicI32,
-    pub fdeleter: Deleter,
+    /// The deleter function which is used to deallocate the underlying data
+    /// when the reference count is zero. This field must always be set for
+    /// all objects.
+    ///
+    /// The common use case is ensuring that the allocator which allocated the
+    /// data is also the one that deletes it.
+    pub(self) fdeleter: Deleter,
 }
 
+/// The default deleter for objects allocated in Rust, we use a bit of
+/// trait magic here to get a monomorphized deleter for each object
+/// "subtype".
+///
+/// This function just transmutes the pointer to the correct type
+/// and invokes the underlying typed delete function.
 unsafe extern "C" fn delete<T: IsObject>(object: *mut Object) {
     let typed_object: *mut T = std::mem::transmute(object);
     T::typed_delete(typed_object);
@@ -63,10 +83,12 @@ impl Object {
     fn new(type_index: u32, deleter: Deleter) -> Object {
         Object {
             type_index,
-            // Note: do not touch this field directly again, this is
-            // a critical section, we write a 1 to the atomic which will now
-            // be managed by the C++ atomics.
-            // In the future we should probably use C-atomcis.
+            // NB(@jroesch): I believe it is sound to use Rust atomics
+            // in conjunction with C++ atomics given the memory model
+            // is nearly identical.
+            //
+            // Of course these are famous last words which I may later
+            // regret.
             ref_count: AtomicI32::new(0),
             fdeleter: deleter,
         }
@@ -75,6 +97,7 @@ impl Object {
     fn get_type_index<T: IsObject>() -> u32 {
         let type_key = T::TYPE_KEY;
         let cstring = CString::new(type_key).expect("type key must not contain null characters");
+
         if type_key == "Object" {
             return 0;
         } else {
@@ -89,11 +112,16 @@ impl Object {
         }
     }
 
+    /// Allocates a base object value for an object subtype of type T.
+    /// By using associated constants and generics we can provide a
+    /// type indexed abstraction over allocating objects with the
+    /// correct index and deleter.
     pub fn base_object<T: IsObject>() -> Object {
         let index = Object::get_type_index::<T>();
         Object::new(index, delete::<T>)
     }
 
+    /// Increases the object's reference count by one.
     pub(self) fn inc_ref(&self) {
         unsafe {
             let raw_ptr = std::mem::transmute(self);
@@ -101,6 +129,7 @@ impl Object {
         }
     }
 
+    /// Decreases the object's reference count by one.
     pub(self) fn dec_ref(&self) {
         unsafe {
             let raw_ptr = std::mem::transmute(self);
@@ -109,6 +138,13 @@ impl Object {
     }
 }
 
+/// An unsafe trait which should be implemented for an object
+/// subtype.
+///
+/// The trait contains the type key needed to compute the type
+/// index, a method for accessing the base object given the
+/// subtype, and a typed delete method which is specialized
+/// to the subtype.
 pub unsafe trait IsObject {
     const TYPE_KEY: &'static str;
 
@@ -128,6 +164,10 @@ unsafe impl IsObject for Object {
     }
 }
 
+/// A smart pointer for types which implement IsObject.
+/// This type directly corresponds to TVM's C++ type ObjectPtr<T>.
+///
+/// See object.h for more details.
 #[repr(C)]
 pub struct ObjectPtr<T: IsObject> {
     pub ptr: NonNull<T>,
@@ -240,6 +280,7 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
             RetValue::ObjectHandle(handle) => {
                 let handle: *mut Object = unsafe { std::mem::transmute(handle) };
                 let optr = ObjectPtr::from_raw(handle).ok_or(Error::Null)?;
+                optr.inc_ref();
                 optr.downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", ret_value), "ObjectHandle")),
@@ -263,6 +304,7 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
             ArgValue::ObjectHandle(handle) => {
                 let handle = unsafe { std::mem::transmute(handle) };
                 let optr = ObjectPtr::from_raw(handle).ok_or(Error::Null)?;
+                optr.inc_ref();
                 optr.downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
@@ -278,6 +320,7 @@ impl<'a, T: IsObject> TryFrom<&ArgValue<'a>> for ObjectPtr<T> {
             ArgValue::ObjectHandle(handle) => {
                 let handle = unsafe { std::mem::transmute(handle) };
                 let optr = ObjectPtr::from_raw(handle).ok_or(Error::Null)?;
+                optr.inc_ref();
                 optr.downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
