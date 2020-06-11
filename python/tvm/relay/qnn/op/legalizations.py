@@ -21,7 +21,6 @@ import numpy as np
 import tvm
 from tvm import relay
 from .. import op as reg
-from tvm import autotvm
 
 #################################################
 # Register the functions for different operators.
@@ -249,25 +248,9 @@ def is_aarch64_arm():
 
 @qnn_conv2d_legalize.register('arm_cpu')
 def _qnn_conv2d_legalize_arm_cpu(attrs, inputs, types):
-    # This legalization depends on the strategy used
-
-    # Get the strategy from the tuner
-    target = tvm.target.Target.current(allow_none=False)
-    input_ph = tvm.te.placeholder(types[0].shape, types[0].dtype)
-    kernel_ph = tvm.te.placeholder(types[1].shape, types[1].dtype)
-    _, outs = relay.backend.compile_engine.select_implementation(
-        relay.op.get("nn.conv2d"), attrs, [input_ph, kernel_ph], types[-1], target)
-
-    workload = autotvm.task.get_workload(outs)
-
-    assert workload != None, "Unable to retrieve a workload"
-
-    topi_tmpl = workload[0]
-
-    if topi_tmpl == 'compute_conv2d_NHWC_quantized.arm_cpu' or is_fast_int8_on_arm():
-        # Fast implementations prefer the types to be the same
+    # ARM prefers the dtypes to be same.
+    if is_aarch64_arm() and attrs["data_layout"] == "NHWC" or is_fast_int8_on_arm():
         return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
-
     return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.conv2d)
 
 
