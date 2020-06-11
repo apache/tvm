@@ -350,9 +350,8 @@ class StoragePlanRewriter : public StmtExprMutator {
       for (StorageEntry* e : attach_map_.at(nullptr)) {
         // CHECK_EQ(e->scope.rank, 0);
         if (e->new_alloc.defined()) {
-          nest.emplace_back(AttrStmtNode::make(e->alloc_var, attr::storage_scope,
-                                               StringImm(e->scope.to_string()),
-                                               EvaluateNode::make(0)));
+          nest.emplace_back(AttrStmt(e->alloc_var, attr::storage_scope,
+                                     StringImm(e->scope.to_string()), Evaluate(0)));
           nest.push_back(e->new_alloc);
         }
       }
@@ -365,8 +364,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     op = stmt.as<StoreNode>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return stmt;
-    return StoreNode::make(it->second->alloc_var, op->value,
-                           RemapIndex(op->value.dtype(), op->index, it->second), op->predicate);
+    return Store(it->second->alloc_var, op->value,
+                 RemapIndex(op->value.dtype(), op->index, it->second), op->predicate);
   }
   PrimExpr VisitExpr_(const LoadNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
@@ -421,7 +420,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         auto& svec = attach_map_[op];
         Stmt stmt = StmtExprMutator::VisitStmt_(op);
         op = stmt.as<AttrStmtNode>();
-        return AttrStmtNode::make(op->node, op->attr_key, op->value, MakeAttach(svec, op->body));
+        return AttrStmt(op->node, op->attr_key, op->value, MakeAttach(svec, op->body));
       } else {
         return StmtExprMutator::VisitStmt_(op);
       }
@@ -430,7 +429,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       op = stmt.as<AttrStmtNode>();
       auto it = alloc_map_.find(op->node.as<VarNode>());
       if (it == alloc_map_.end()) return stmt;
-      return AttrStmtNode::make(it->second->alloc_var, op->attr_key, op->value, op->body);
+      return AttrStmt(it->second->alloc_var, op->attr_key, op->value, op->body);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -442,8 +441,8 @@ class StoragePlanRewriter : public StmtExprMutator {
       auto& svec = attach_map_[op];
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<ForNode>();
-      return ForNode::make(op->loop_var, op->min, op->extent, op->for_type, op->device_api,
-                           MakeAttach(svec, op->body));
+      return For(op->loop_var, op->min, op->extent, op->for_type, op->device_api,
+                 MakeAttach(svec, op->body));
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -498,9 +497,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     std::vector<Stmt> nest;
     for (StorageEntry* e : svec) {
       if (e->new_alloc.defined()) {
-        nest.emplace_back(AttrStmtNode::make(e->alloc_var, attr::storage_scope,
-                                             StringImm(e->scope.to_string()),
-                                             EvaluateNode::make(0)));
+        nest.emplace_back(AttrStmt(e->alloc_var, attr::storage_scope,
+                                   StringImm(e->scope.to_string()), Evaluate(0)));
         nest.push_back(e->new_alloc);
       }
     }
@@ -559,8 +557,8 @@ class StoragePlanRewriter : public StmtExprMutator {
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
           PrimExpr sz = foldl(fmul, make_const(DataType::Int(32), 1), e->allocs[0]->extents);
-          e->new_alloc = AllocateNode::make(e->alloc_var, alloc_type, {sz}, e->allocs[0]->condition,
-                                            EvaluateNode::make(0));
+          e->new_alloc =
+              Allocate(e->alloc_var, alloc_type, {sz}, e->allocs[0]->condition, Evaluate(0));
           if (e->scope.tag.length() != 0) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             uint64_t total_elem = e->const_nbits / e->elem_type.bits();
@@ -599,8 +597,8 @@ class StoragePlanRewriter : public StmtExprMutator {
             combo_size = combo_size + make_const(DataType::Int(32), 1);
           }
           combo_size = analyzer_.Simplify(combo_size);
-          e->new_alloc = AllocateNode::make(e->alloc_var, alloc_type, {combo_size}, const_true(),
-                                            EvaluateNode::make(0));
+          e->new_alloc =
+              Allocate(e->alloc_var, alloc_type, {combo_size}, const_true(), Evaluate(0));
           if (e->scope.tag.length() != 0) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             uint64_t total_elem = e->const_nbits / e->elem_type.bits();
@@ -642,8 +640,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
     PrimExpr alloc_size =
         make_const(e->allocs[0]->extents[0].dtype(), (total_bits + type_bits - 1) / type_bits);
-    e->new_alloc = AllocateNode::make(e->alloc_var, e->elem_type, {alloc_size}, const_true(),
-                                      EvaluateNode::make(0));
+    e->new_alloc = Allocate(e->alloc_var, e->elem_type, {alloc_size}, const_true(), Evaluate(0));
     if (info.defined()) {
       CHECK_LE(total_bits, info->max_num_bits)
           << "Allocation exceed bound of memory tag " << e->scope.to_string();
@@ -935,7 +932,7 @@ class VectorAllocRewriter : public StmtExprMutator {
       if (me->base % factor == 0 && me->coeff % factor == 0) {
         extents.Set(extents.size() - 1,
                     extents[extents.size() - 1] / make_const(extents[0].dtype(), factor));
-        return AllocateNode::make(op->buffer_var, tvec[0], extents, op->condition, op->body);
+        return Allocate(op->buffer_var, tvec[0], extents, op->condition, op->body);
       }
     }
     return stmt;

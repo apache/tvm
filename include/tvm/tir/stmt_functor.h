@@ -352,7 +352,7 @@ TVM_DLL PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(cons
  * \tparam T the input type, can be PrimExpr or Stmt.
  */
 template <typename T>
-inline T Substitute(T input, const Map<Var, PrimExpr>& value_map) {
+inline auto Substitute(T input, const Map<Var, PrimExpr>& value_map) {
   auto vmap = [&](const Var& var) -> Optional<PrimExpr> {
     auto it = value_map.find(var);
     if (it != value_map.end()) return (*it).second;

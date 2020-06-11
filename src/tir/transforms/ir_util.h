@@ -129,8 +129,7 @@ inline Stmt TVMStructSet(Var handle, int index, intrinsic::TVMStructFieldKind ki
                          PrimExpr value) {
   Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
                           make_const(DataType::Int(32), static_cast<int>(kind)), value};
-  return EvaluateNode::make(
-      Call(DataType::Int(32), intrinsic::tvm_struct_set, args, CallNode::Intrinsic));
+  return Evaluate(Call(DataType::Int(32), intrinsic::tvm_struct_set, args, CallNode::Intrinsic));
 }
 
 /*!
