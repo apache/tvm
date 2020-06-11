@@ -1436,7 +1436,7 @@ def _stridedSlice():
         # a partial symbolic shape, such as (1, ?), and get a static shape
         # (1,). Directly slice on shape_of will result in fully dynamic shape.
         # TODO(kevinthesun): Can we generalize this process with partial eval?
-        if isinstance(inputs[0], _expr.Call) and "shape_of" in str(inputs[0].op):
+        if isinstance(inputs[0], _expr.Call) and inputs[0].op == _op.get("shape_of"):
             bg = begin[0]
             ed = end[0]
             st = stride[0]
@@ -1448,16 +1448,15 @@ def _stridedSlice():
             dtype = in_type.checked_type.dtype
             out_data = []
             idx = bg
-            is_constant = True
             while idx < ed:
                 if isinstance(in_shape[idx], int):
                     out_data.append(in_shape[idx])
                 else:
-                    is_constant = False
                     break
                 idx += st
 
-            if is_constant:
+            # Only return when in_shape is fully static in the range from begin to end.
+            if idx >= st:
                 ret = _expr.const(out_data, dtype)
                 if shrink_axis_mask:
                     ret = _op.squeeze(ret)
@@ -2423,11 +2422,7 @@ def is_tensor_array_constuctor(tf_node):
     is_ta = False
     ta_start = "TensorArrayV"
     if tf_node.op.startswith(ta_start):
-        try:
-            int(tf_node.op[len(ta_start)])
-            is_ta = True
-        except ValueError:
-            pass
+        is_ta = tf_node.op[len(ta_start)].isnumeric()
     return is_ta
 
 def find_parent_loop_name(node_name, while_loop_name_set):
@@ -2472,7 +2467,8 @@ def _in_while_loop(control_flow_node_map, op_name):
 
 class RewriteSubgraph(ExprMutator):
     """
-    A helper class to rewrite expr in while loop function to variable
+    A helper class to rewrite expr in while loop function to variable.
+
     Parameters
     ----------
     rewrite_map : Dict[expr, expr]
@@ -2687,17 +2683,13 @@ class Loop:
         for lv, exp in self._lvar2expr[self._loop_name].items():
             if lv not in self.loop_vars:
                 var_checker = VarChecker(lv)
-                used = False
                 for bd in self.body + [cond]:
                     var_checker.visit(bd)
                     if var_checker.used:
-                        used = True
+                        lv_list.append(lv)
+                        expr_list.append(exp)
+                        extra_vars.append(lv)
                         break
-
-                if used:
-                    lv_list.append(lv)
-                    expr_list.append(exp)
-                    extra_vars.append(lv)
 
         with sb.if_scope(cond):
             sb.ret(wl(*list(self.body + extra_vars)))

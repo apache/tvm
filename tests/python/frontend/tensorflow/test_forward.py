@@ -114,7 +114,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
                                                  outputs=out_names)
     ctx = tvm.context(target, 0)
     if mode == 'debug':
-        ex = relay.create_executor(mode, mod=mod, ctx=ctx, target="llvm")
+        ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod['main'].params:
             found = False
@@ -130,9 +130,9 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
         return vmobj_to_list(result)
     elif mode == 'vm':
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
-            vm_exec = relay.vm.compile(mod, target=target, params=params)
+            vm_exec = relay.vm.compile(mod, target="llvm", params=params)
         vm = VirtualMachine(vm_exec)
-        vm.init(ctx)
+        vm.init(tvm.cpu())
         inputs = {}
         for e, i in zip(input_node, input_data):
             inputs[e] = i
