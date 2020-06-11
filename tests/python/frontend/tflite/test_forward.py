@@ -2286,6 +2286,7 @@ def test_forward_qnn_mobilenet_v1_net():
     tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
+@pytest.mark.skip("neo-ai/tvm: disabled due to segfault in CI")
 def test_forward_qnn_mobilenet_v2_net():
     """Test the Quantized TFLite Mobilenet V2 model."""
     # MobilenetV2
