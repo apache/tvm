@@ -46,8 +46,7 @@ using namespace tvm::te;
 inline Buffer DeclExternBuffer(Array<PrimExpr> shape, DataType dtype, std::string name) {
   auto data = var(name, DataType::Handle());
   auto elem_offset = PrimExpr();
-  return BufferNode::make(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, "", -1, 0,
-                          kDefault);
+  return Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, "", -1, 0, kDefault);
 }
 
 /*!
@@ -93,8 +92,7 @@ inline Array<Tensor> make_extern(const Array<Array<PrimExpr> >& out_shapes,
   auto body = fextern(input_placeholders, output_placeholders);
   auto body_stmt = tvm::tir::Evaluate(body);
 
-  auto op = ExternOpNode::make(name, tag, attrs, inputs, input_placeholders, output_placeholders,
-                               body_stmt);
+  auto op = ExternOp(name, tag, attrs, inputs, input_placeholders, output_placeholders, body_stmt);
 
   Array<Tensor> outputs;
   for (size_t i = 0; i < output_placeholders.size(); ++i) {

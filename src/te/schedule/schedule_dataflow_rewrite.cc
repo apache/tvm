@@ -324,16 +324,16 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch, const Array<Tensor>& tensor_a
       args.push_back(value_map.at(iv));
     }
   }
-  Operation cache_op = ComputeOpNode::make(compute->name + "." + scope, compute->tag,
-                                           compute->attrs, new_axis, body_list);
+  Operation cache_op =
+      ComputeOp(compute->name + "." + scope, compute->tag, compute->attrs, new_axis, body_list);
 
   Array<PrimExpr> cache_expr_list;
   for (size_t i = 0; i < tensor_size; i++) {
     Tensor cache_tensor = cache_op.output(i);
     cache_expr_list.push_back(cache_tensor(args));
   }
-  Operation orig_new_op = ComputeOpNode::make(compute->name, compute->tag, compute->attrs,
-                                              compute->axis, cache_expr_list);
+  Operation orig_new_op =
+      ComputeOp(compute->name, compute->tag, compute->attrs, compute->axis, cache_expr_list);
   return ReplaceOriginalOp(sch, orig_stage, scope, cache_op, orig_new_op, tensor_size);
 }
 
@@ -380,10 +380,10 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch, const Array<Tensor>& te
     new_scalar_inputs.push_back(VarReplacer(vsub2newvar)(old_input));
   }
 
-  Operation cache_op = TensorComputeOpNode::make(tensor_op->name + "." + scope, tensor_op->tag,
-                                                 new_axis, tensor_op->reduce_axis,
-                                                 tensor_op->schedulable_ndim, tensor_op->intrin,
-                                                 tensor_op->inputs, new_regions, new_scalar_inputs);
+  Operation cache_op =
+      TensorComputeOp(tensor_op->name + "." + scope, tensor_op->tag, new_axis,
+                      tensor_op->reduce_axis, tensor_op->schedulable_ndim, tensor_op->intrin,
+                      tensor_op->inputs, new_regions, new_scalar_inputs);
 
   // axis will be used in generating compute op
   Array<IterVar> compute_axis = tensor_op->axis;
@@ -419,7 +419,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch, const Array<Tensor>& te
     cache_expr_list.push_back(cache_tensor(args));
   }
   Operation orig_new_op =
-      ComputeOpNode::make(tensor_op->name, tensor_op->tag, {}, compute_axis, cache_expr_list);
+      ComputeOp(tensor_op->name, tensor_op->tag, {}, compute_axis, cache_expr_list);
   return ReplaceOriginalOp(sch, orig_stage, scope, cache_op, orig_new_op, tensor_size);
 }
 
@@ -468,7 +468,7 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
       if (idx < leaf_vars->size()) {
         // insert rebase
         IterVar rebased = IterVar(Range(), iv->var.copy_with_suffix(""), iv->iter_type);
-        s->relations.push_back(RebaseNode::make(iv, rebased));
+        s->relations.push_back(te::Rebase(iv, rebased));
         if (s->iter_var_attrs.count(iv)) {
           s->iter_var_attrs.Set(rebased, s->iter_var_attrs.at(iv));
         }
@@ -583,8 +583,7 @@ void InjectInline(ScheduleNode* sch) {
       CHECK(compute);
       Operation op = s->op;
       if (changed[i]) {
-        op = ComputeOpNode::make(compute->name, compute->tag, compute->attrs, compute->axis,
-                                 new_body[i]);
+        op = ComputeOp(compute->name, compute->tag, compute->attrs, compute->axis, new_body[i]);
       }
       op = op->ReplaceInputs(op, repl);
       if (!op.same_as(s->op)) {
@@ -596,8 +595,8 @@ void InjectInline(ScheduleNode* sch) {
     } else if (hybrid_changed[i]) {
       const HybridOpNode* hybrid = sch->stages[i]->op.as<HybridOpNode>();
       CHECK(hybrid);
-      Operation op = HybridOpNode::make(hybrid->name, hybrid->tag, hybrid->attrs, hybrid->inputs,
-                                        hybrid->outputs, new_hybrid_body[i]);
+      Operation op = HybridOp(hybrid->name, hybrid->tag, hybrid->attrs, hybrid->inputs,
+                              hybrid->outputs, new_hybrid_body[i]);
       op = op->ReplaceInputs(op, repl);
       for (int idx = 0; idx < s->op->num_outputs(); ++idx) {
         repl[s->op.output(idx)] = op.output(idx);

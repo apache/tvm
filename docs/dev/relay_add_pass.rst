@@ -138,7 +138,7 @@ is shown below.
       if (g->tuple == t) {
         return GetRef<Expr>(g);
       } else {
-        return TupleGetItemNode::make(t, g->index);
+        return TupleGetItem(t, g->index);
       }
     }
 

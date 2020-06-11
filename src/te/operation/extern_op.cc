@@ -50,9 +50,9 @@ DataType ExternOpNode::output_dtype(size_t i) const { return output_placeholders
 
 Array<PrimExpr> ExternOpNode::output_shape(size_t i) const { return output_placeholders[i]->shape; }
 
-Operation ExternOpNode::make(std::string name, std::string tag, Map<String, ObjectRef> attrs,
-                             Array<Tensor> inputs, Array<Buffer> input_placeholders,
-                             Array<Buffer> output_placeholders, Stmt body) {
+ExternOp::ExternOp(std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                   Array<Tensor> inputs, Array<Buffer> input_placeholders,
+                   Array<Buffer> output_placeholders, Stmt body) {
   if (!attrs.defined()) {
     attrs = Map<String, ObjectRef>();
   }
@@ -73,10 +73,15 @@ Operation ExternOpNode::make(std::string name, std::string tag, Map<String, Obje
   n->input_placeholders = std::move(input_placeholders);
   n->output_placeholders = std::move(output_placeholders);
   n->body = std::move(body);
-  return Operation(n);
+  data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("te.ExternOp").set_body_typed(ExternOpNode::make);
+TVM_REGISTER_GLOBAL("te.ExternOp")
+    .set_body_typed([](std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                       Array<Tensor> inputs, Array<Buffer> input_placeholders,
+                       Array<Buffer> output_placeholders, Stmt body) {
+      return ExternOp(name, tag, attrs, inputs, input_placeholders, output_placeholders, body);
+    });
 
 Array<Tensor> ExternOpNode::InputTensors() const { return inputs; }
 
