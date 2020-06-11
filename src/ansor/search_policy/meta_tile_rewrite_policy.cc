@@ -41,7 +41,8 @@
 namespace tvm {
 namespace ansor {
 
-TVM_REGISTER_OBJECT_TYPE(MetaTileRewritePolicyNode);
+TVM_REGISTER_NODE_TYPE(MetaTileRewritePolicyNode);
+TVM_REGISTER_OBJECT_TYPE(PreAddCustomRuleNode);
 
 // All possible candidates for auto_unroll
 const std::vector<int> MetaTileRewritePolicyNode::auto_unroll_configs{0, 16, 64, 512, 1024};
@@ -241,7 +242,7 @@ void MetaTileRewritePolicyNode::SearchOneRound(std::vector<State>* best_states,
 
   // Synthesize meta structure
   std::vector<State> meta_structures;
-  SynthesizeMetaStructure(&meta_structures);
+  GenerateMetaSketch(&meta_structures);
 
   // PrintAllStates(meta_structures);
   // exit(0);
@@ -272,8 +273,8 @@ void MetaTileRewritePolicyNode::SearchOneRound(std::vector<State>* best_states,
   RandomSampleStates(init_population, &rand_gen_, num_random_states * 10, random_states);
 }
 
-// The baseclass of derivation rules used in meta structure synthesis
-class StructureSynthesisRule {
+// The baseclass of derivation rules used in meta sketch generation
+class SketchGenerationRule {
  public:
   enum ConditionEnum {
     kPass, kApply, kApplyAndSkipRest
@@ -345,7 +346,7 @@ static inline bool ShouldAlwaysBeInlined(
 }
 
 // The rule that inlines simple elementwise ops
-class RuleAlwaysInline : public StructureSynthesisRule {
+class RuleAlwaysInline : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
       const State& state, int stage_id) final {
@@ -362,7 +363,7 @@ class RuleAlwaysInline : public StructureSynthesisRule {
 };
 
 // The rule that simply skip the current stage
-class RuleSkipStage : public StructureSynthesisRule {
+class RuleSkipStage : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
                               const State& state, int stage_id) final {
@@ -387,7 +388,7 @@ class RuleSkipStage : public StructureSynthesisRule {
 };
 
 // The rule that performs multi-level tiling
-class RuleMultiLevelTiling : public StructureSynthesisRule {
+class RuleMultiLevelTiling : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
                               const State& state, int stage_id) final {
@@ -413,7 +414,7 @@ class RuleMultiLevelTiling : public StructureSynthesisRule {
 };
 
 // The rule that performs multi-level tiling and fuses later consumers
-class RuleMultiLevelTilingWithFusion : public StructureSynthesisRule {
+class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
                               const State& state, int stage_id) final {
@@ -482,7 +483,7 @@ class RuleMultiLevelTilingWithFusion : public StructureSynthesisRule {
 };
 
 // The rule that adds a cache write stage
-class RuleAddCacheWrite : public StructureSynthesisRule {
+class RuleAddCacheWrite : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
                               const State& state, int stage_id) final {
@@ -515,7 +516,7 @@ class RuleAddCacheWrite : public StructureSynthesisRule {
 // The rule that adds a cache read stage
 // Mainly used for GPU cooperative fetching
 // Currently only support 1 to 1 match cache read
-class RuleAddCacheRead : public StructureSynthesisRule {
+class RuleAddCacheRead : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
                               const State& state, int stage_id) final {
@@ -546,7 +547,7 @@ class RuleAddCacheRead : public StructureSynthesisRule {
 };
 
 // The rule that adds rfactor stage
-class RuleAddRfactor : public StructureSynthesisRule {
+class RuleAddRfactor : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
                               const State& state, int stage_id) final {
@@ -610,7 +611,7 @@ class RuleAddRfactor : public StructureSynthesisRule {
   }
 };
 
-void MetaTileRewritePolicyNode::SynthesizeMetaStructure(
+void MetaTileRewritePolicyNode::GenerateMetaSketch(
     std::vector<State>* out_states) {
   State init_state = cur_task_->compute_dag.GetInitState();
   std::string cpu_multi_level_tiling_structure =
@@ -634,18 +635,22 @@ void MetaTileRewritePolicyNode::SynthesizeMetaStructure(
   static RuleAddCacheWrite rule_add_cache_write_stage;
   static RuleAddCacheRead rule_add_cache_read_stage;
   static RuleAddRfactor rule_add_rfactor;
-  // We may apply and skip the rest when processing some rules,
-  // should take care of the rule vector order here
-  static std::vector<StructureSynthesisRule*> all_rules {
-    &rule_always_inline, &rule_add_cache_write_stage,
-    &rule_multi_level_tiling_with_fusion, &rule_multi_level_tiling,
-    &rule_add_rfactor, &rule_skip_stage
-  };
-  if (IS_GPU(cur_task_)) {
-    // Try cache read first before cache write
-    all_rules.insert(all_rules.begin() + 1, &rule_add_cache_read_stage);
+  if (sketch_rules.empty()) {
+    // We may apply and skip the rest when processing some rules,
+    // should take care of the rule vector order here
+    sketch_rules.push_back(&rule_always_inline);
+    sketch_rules.push_back(&rule_add_cache_write_stage);
+    sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
+    sketch_rules.push_back(&rule_multi_level_tiling);
+    sketch_rules.push_back(&rule_add_rfactor);
+    sketch_rules.push_back(&rule_skip_stage);
+    if (IS_GPU(cur_task_)) {
+      // Try cache read first before cache write
+      sketch_rules.insert(sketch_rules.begin() + 1, &rule_add_cache_read_stage);
+    }
+    // TODO(xian): Add a new rule to try combination of multi-level
+    // tiling + rfactor
   }
-  // TODO(xian): Add a new rule to try combination of multi-level tiling + rfactor
 
   // Derivation rule based synthesizer
   while (!pnow->empty()) {
@@ -661,15 +666,15 @@ void MetaTileRewritePolicyNode::SynthesizeMetaStructure(
       }
 
       // Try all derivation rules
-      for (const auto& rule : all_rules) {
+      for (const auto& rule : sketch_rules) {
         auto rule_check = rule->MeetCondition(this, state, stage_id);
-        if (rule_check > StructureSynthesisRule::ConditionEnum::kPass) {
+        if (rule_check > SketchGenerationRule::ConditionEnum::kPass) {
           for (const auto& pair : rule->Apply(this, state, stage_id)) {
             cur_stage_id_map[pair.first] = pair.second;
             pnext->push_back(pair.first);
           }
           // Skip the reset rules
-          if (rule_check == StructureSynthesisRule::ConditionEnum::kApplyAndSkipRest) {
+          if (rule_check == SketchGenerationRule::ConditionEnum::kApplyAndSkipRest) {
             break;
           }
         }
@@ -1444,11 +1449,70 @@ void MetaTileRewritePolicyNode::EvolutionarySearch(
                     << std::fixed << std::setprecision(2) << duration << std::endl;
 }
 
+class RuleCustomSketch : public SketchGenerationRule {
+ public:
+  RuleCustomSketch(PackedFunc meet_condition_func, PackedFunc apply_func) :
+      meet_condition_func_(meet_condition_func), apply_func_(apply_func) {}
+
+  inline ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
+                                     const State& state, int stage_id) final {
+    auto ret = meet_condition_func_(
+        tvm::runtime::GetRef<MetaTileRewritePolicy>(policy), state, stage_id);
+    if (ret.type_code() == 0) {
+      return ConditionEnum(static_cast<int>(ret));
+    } else {
+      return kApplyAndSkipRest;
+    }
+  }
+
+  inline std::vector<std::pair<State, int> > Apply(
+      const MetaTileRewritePolicyNode* policy,
+      const State& state, int stage_id) final {
+    std::vector<std::pair<State, int> > ret;
+
+    Array<Array<ObjectRef>> apply_ret = apply_func_(
+        tvm::runtime::GetRef<MetaTileRewritePolicy>(policy), state, stage_id);
+
+    for (const auto& item : apply_ret) {
+      CHECK_EQ(item.size(), 2);
+      State state = Downcast<State>(item[0]);
+      auto next = item[1].as<IntImmNode>();
+      ret.emplace_back(state, next->value);
+    }
+    return ret;
+  }
+
+ private:
+  PackedFunc meet_condition_func_;
+  PackedFunc apply_func_;
+};
+
+SearchCallback PreAddCustomRuleNode::make(PackedFunc meet_condition_func,
+                                          PackedFunc apply_func) {
+  auto node = make_object<PreAddCustomRuleNode>();
+  node->meet_condition_func = meet_condition_func;
+  node->apply_func = apply_func;
+  return SearchCallback(node);
+}
+
+void PreAddCustomRuleNode::callback(SearchPolicyNode* policy) {
+  CHECK(policy->IsInstance<MetaTileRewritePolicyNode>());
+  auto meta_policy = dynamic_cast<MetaTileRewritePolicyNode*>(policy);
+  meta_policy->sketch_rules.emplace_back(
+      new RuleCustomSketch(meet_condition_func, apply_func));
+  StdCout(policy->verbose_) << "Custom sketch rule added." << std::endl;
+}
+
 TVM_REGISTER_GLOBAL("ansor.MetaTileRewritePolicy")
 .set_body_typed([](CostModel program_cost_model,
                    Map<String, ObjectRef> params,
                    int seed){
   return MetaTileRewritePolicyNode::make(program_cost_model, params, seed);
+});
+
+TVM_REGISTER_GLOBAL("ansor.PreAddCustomRule")
+.set_body_typed([](PackedFunc meet_condition_func, PackedFunc apply_func) {
+  return PreAddCustomRuleNode::make(meet_condition_func, apply_func);
 });
 
 }  // namespace ansor

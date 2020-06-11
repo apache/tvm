@@ -38,6 +38,8 @@
 namespace tvm {
 namespace ansor {
 
+class SketchGenerationRule;
+
 /*! Multi stage search policy */
 class MetaTileRewritePolicyNode: public SearchPolicyNode {
  public:
@@ -54,6 +56,7 @@ class MetaTileRewritePolicyNode: public SearchPolicyNode {
    * str gpu_multi_level_tiling_structure // The structure of multi-level tiling for GPU
    */
   Map<String, ObjectRef> params;
+  std::vector<SketchGenerationRule*> sketch_rules;
 
   static SearchPolicy make(CostModel program_cost_model,
                            Map<String, ObjectRef> params,
@@ -87,7 +90,7 @@ class MetaTileRewritePolicyNode: public SearchPolicyNode {
                       int num_random_states, std::vector<State>* random_states);
 
   // Synthesize meta tiling structure without tile size
-  void SynthesizeMetaStructure(std::vector<State>* out_states);
+  void GenerateMetaSketch(std::vector<State>* out_states);
 
   // Sample init population
   void SampleInitPopulation(const std::vector<State>& meta_structures,
@@ -106,6 +109,22 @@ class MetaTileRewritePolicyNode: public SearchPolicyNode {
 
   // The throughputs of already measured states
   std::vector<float> measured_states_throughputs_;
+};
+TVM_DEFINE_MUTABLE_OBJECT_REF(MetaTileRewritePolicy, MetaTileRewritePolicyNode);
+
+class PreAddCustomRuleNode : public SearchCallbackNode {
+ public:
+  // TODO(jcf94): Use tvm::runtime::TypedPackedFunc?
+  PackedFunc meet_condition_func;
+  PackedFunc apply_func;
+
+  static SearchCallback make(PackedFunc meet_condition_func,
+                             PackedFunc apply_func);
+
+  void callback(SearchPolicyNode* policy) final;
+
+  static constexpr const char *_type_key = "ansor.PreAddCustomRule";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PreAddCustomRuleNode, SearchCallbackNode);
 };
 
 }  // namespace ansor

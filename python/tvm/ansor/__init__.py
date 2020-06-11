@@ -29,7 +29,8 @@ from . import task_scheduler
 
 # Shortcut
 from .compute_dag import ComputeDAG
-from .auto_schedule import SearchTask, MetaTileRewritePolicy, TuneOption, HardwareParams, PreLoadMeasuredStatesCallback
+from .auto_schedule import SearchTask, MetaTileRewritePolicy, TuneOption, HardwareParams, \
+    PreLoadMeasuredStates, PreAddCustomRule
 from .auto_schedule import auto_schedule
 from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, LocalRPCMeasureContext
 from .cost_model import RandomModel

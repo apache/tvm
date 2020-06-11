@@ -47,7 +47,7 @@ class SearchCallbackNode : public Object {
 };
 TVM_DEFINE_MUTABLE_OBJECT_REF(SearchCallback, SearchCallbackNode);
 
-class PreLoadMeasuredStatesCallbackNode : public SearchCallbackNode {
+class PreLoadMeasuredStatesNode : public SearchCallbackNode {
  public:
   std::string filename;
 
@@ -55,8 +55,8 @@ class PreLoadMeasuredStatesCallbackNode : public SearchCallbackNode {
 
   void callback(SearchPolicyNode* policy) final;
 
-  static constexpr const char *_type_key = "ansor.PreLoadMeasuredStatesCallback";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PreLoadMeasuredStatesCallbackNode, SearchCallbackNode);
+  static constexpr const char *_type_key = "ansor.PreLoadMeasuredStates";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PreLoadMeasuredStatesNode, SearchCallbackNode);
 };
 
 /*! \brief The base class for search policy */
@@ -75,6 +75,10 @@ class SearchPolicyNode : public Object {
 
   SearchTask cur_task_;               // The current task
   int verbose_;                       // Verbose level (0 means silent)
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("cur_task", &cur_task_);
+  }
 
   // Dict keys
   static constexpr const char* always_unroll_inner_key = "ansor_always_unroll_inner";

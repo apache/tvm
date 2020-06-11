@@ -157,7 +157,7 @@ if __name__ == "__main__":
                                        builder=builder,
                                        runner=runner,
                                        measure_callbacks=[ansor.LogToFile(log_file)],
-                                       pre_search_callbacks=[ansor.PreLoadMeasuredStatesCallback(log_file)])
+                                       pre_search_callbacks=[ansor.PreLoadMeasuredStates(log_file)])
 
         if args.task_scheduler == 'no':
             # tune workloads one by one

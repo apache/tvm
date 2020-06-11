@@ -67,14 +67,16 @@ class SearchTask(Object):
 
 @tvm._ffi.register_object("ansor.SearchPolicy")
 class SearchPolicy(Object):
+    """ The base search policy class
+    """
     def continue_search(self, task, num_measure, verbose, measurer):
         return _ffi_api.SearchPolicyContinueSearchOneRound(self, task, num_measure, verbose, measurer)
-    
+
     def set_task(self, task):
-        _ffi_api.SearchPolicySetTask(self, task);
+        _ffi_api.SearchPolicySetTask(self, task)
 
     def set_verbose(self, verbose):
-        _ffi_api.SearchPolicySetVerbose(self, verbose);
+        _ffi_api.SearchPolicySetVerbose(self, verbose)
 
     def run_callbacks(self, callbacks):
         _ffi_api.SearchPolicyRunCallbacks(self, callbacks)
@@ -130,14 +132,39 @@ class SearchCallback(Object):
     pass
 
 
-@tvm._ffi.register_object("ansor.PreLoadMeasuredStatesCallback")
-class PreLoadMeasuredStatesCallback(SearchCallback):
+@tvm._ffi.register_object("ansor.PreLoadMeasuredStates")
+class PreLoadMeasuredStates(SearchCallback):
     """ A SearchCallback that used for search policy to load measured hash
         from the log file.
+
+    Parameters
+    ----------
+    filename: Str
     """
     def __init__(self, filename: str):
         self.__init_handle_by_constructor__(
-            _ffi_api.PreLoadMeasuredStatesCallback, filename)
+            _ffi_api.PreLoadMeasuredStates, filename)
+
+
+@tvm._ffi.register_object("ansor.PreAddCustomRule")
+class PreAddCustomRule(SearchCallback):
+    """
+    A SearchCallback for MetaTileRewritePolicy that allowing users to add
+    custom sketch rule.
+
+        Notice: This is an advanced feature, make sure you're clear how it
+        works and this should only be used in MetaTileRewritePolicy.
+
+    Parameters
+    ----------
+    meet_condition_func: Function
+        A function with `(policy, state, stage_id) -> int`
+    apply_func: Function
+        A function with `(policy, state, stage_id) -> [[State, int], ...]`
+    """
+    def __init__(self, meet_condition_func, apply_func):
+        self.__init_handle_by_constructor__(
+            _ffi_api.PreAddCustomRule, meet_condition_func, apply_func)
 
 
 @tvm._ffi.register_object("ansor.TuneOption")
@@ -159,8 +186,13 @@ class TuneOption(Object):
     runner: Runner
       Runner which runs the program and measure time costs
     measure_callbacks: List[MeasureCallback]
-      Callback functions
+      Callback functions called after each measure
+      Candidates:
+        - ansor.LogToFile
     pre_search_callbacks: List[SearchCallback]
+      Callback functions called before the search process
+      Candidates:
+        - ansor.PreLoadMeasuredStates
     """
     def __init__(self, n_trials=0, early_stopping=-1, num_measure_per_iter=64,
                  verbose=1, builder='local', runner='local', measure_callbacks=None,
