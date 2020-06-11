@@ -192,6 +192,31 @@ def legalize_conv2d_transpose(attrs, inputs, types):
     return topi.nn.conv2d_transpose_legalize(attrs, inputs, types)
 
 
+# conv3d_transpose
+reg.register_strategy("nn.conv3d_transpose", strategy.conv3d_transpose_strategy)
+reg.register_pattern("nn.conv3d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+@reg.register_legalize("nn.conv3d_transpose")
+def legalize_conv3d_transpose(attrs, inputs, types):
+    """Legalize conv3d_transpose op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current Transposed convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.conv3d_transpose_legalize(attrs, inputs, types)
+
+
 # conv3d
 reg.register_strategy("nn.conv3d", strategy.conv3d_strategy)
 reg.register_pattern("nn.conv3d", OpPattern.OUT_ELEMWISE_FUSABLE)

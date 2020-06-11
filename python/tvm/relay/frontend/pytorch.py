@@ -754,17 +754,24 @@ def _convolution():
         if isinstance(dilation, _expr.Expr):
             dilation = _infer_shape(dilation)
 
-        data_layout = "NCHW"
-        kernel_layout = "OIHW"
-        conv_op = _op.nn.conv2d
-
         if use_transpose:
-            assert len(kernel_size) == 2, "ConvTranspose 3D not supported"
-            conv_op = _op.nn.conv2d_transpose
+            if len(kernel_size) == 3:
+                conv_op = _op.nn.conv3d_transpose
+            else:
+                conv_op = _op.nn.conv2d_transpose
+        else:
+            if len(kernel_size) == 3:
+                conv_op = _op.nn.conv3d
+            else:
+                conv_op = _op.nn.conv2d
+
         if len(kernel_size) == 3:
-            conv_op = _op.nn.conv3d
             data_layout = "NCDHW"
             kernel_layout = "OIDHW"
+        else:
+            data_layout = "NCHW"
+            kernel_layout = "OIHW"
+
 
         conv_out = conv_op(data,
                            weight,

@@ -313,6 +313,24 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
         name="conv2d_transpose_nchw.cuda")
     return strategy
 
+
+@conv3d_transpose_strategy.register(["cuda", "gpu"])
+def conv3d_transpose_strategy_cuda(attrs, inputs, out_type, target):
+    """conv3d_transpose cuda strategy"""
+    layout = attrs.data_layout
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    assert layout == "NCDHW", "only support ncdhw for now"
+    assert dilation == (1, 1, 1), "not support dilate now"
+    assert groups == 1, "only support groups == 1 for now"
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_conv3d_transpose(topi.cuda.conv3d_transpose_ncdhw),
+        wrap_topi_schedule(topi.cuda.schedule_conv3d_transpose_ncdhw),
+        name="conv3d_transpose_ncdhw.cuda")
+    return strategy
+
+
 @conv3d_strategy.register(["cuda", "gpu"])
 def conv3d_strategy_cuda(attrs, inputs, out_type, target):
     """conv3d cuda strategy"""

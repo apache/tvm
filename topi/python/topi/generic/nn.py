@@ -290,6 +290,24 @@ def schedule_conv3d_ndhwc(outs):
     """
     return _default_schedule(outs, False)
 
+
+def schedule_conv3d_transpose_ncdhw(outs):
+    """Schedule for conv3d_transpose_ncdhw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of conv3d_transpose_ncdhw
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
 def schedule_conv2d_transpose_nchw(outs):
     """Schedule for conv2d_transpose_nchw
 
