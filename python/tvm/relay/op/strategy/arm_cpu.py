@@ -118,7 +118,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized),
-                        name="compute_conv2d_NHWC_quantized.arm_cpu")
+                        name="conv2d_NHWC_quantized.arm_cpu")
 
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_spatial_pack),

@@ -239,7 +239,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
              new_attrs['out_layout'], out_dtype], topi_tmpl)
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_depthwise_conv2d_nchwc(*inputs, **new_attrs)
-    if topi_tmpl == "compute_conv2d_NHWC_quantized.arm_cpu":
+    if topi_tmpl == "conv2d_NHWC_quantized.arm_cpu":
         assert (data.dtype == 'int8' and kernel.dtype == 'int8' or
                 data.dtype == 'uint8' and kernel.dtype == 'uint8')
         CO, IC, KH, KW = get_const_tuple(kernel.shape)

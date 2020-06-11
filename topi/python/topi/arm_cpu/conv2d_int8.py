@@ -112,7 +112,7 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
     return s
 
 
-@autotvm.register_topi_compute("compute_conv2d_NHWC_quantized.arm_cpu")
+@autotvm.register_topi_compute("conv2d_NHWC_quantized.arm_cpu")
 def compute_conv2d_NHWC_quantized(cfg, data, kernel, strides, padding, dilation, out_dtype):
     N, IH, IW, IC = get_const_tuple(data.shape)
     KH, KW, _, OC = get_const_tuple(kernel.shape)
@@ -122,7 +122,7 @@ def compute_conv2d_NHWC_quantized(cfg, data, kernel, strides, padding, dilation,
                                                          dilation, out_dtype, (KH, KW), OC)
 
 
-@autotvm.register_topi_compute("compute_conv2d_NHWC_quantized_without_transform.arm_cpu")
+@autotvm.register_topi_compute("conv2d_NHWC_quantized_without_transform.arm_cpu")
 def compute_conv2d_NHWC_quantized_without_transform(cfg, data, B, strides, padding,
                                                     dilation, out_dtype, kernel_size=None,
                                                     output_channels=None):
