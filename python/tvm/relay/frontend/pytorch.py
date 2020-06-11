@@ -481,7 +481,10 @@ def _full():
             msg = "Data type %s could not be parsed in zeros op" % (type(data))
             raise AssertionError(msg)
 
-        dtype = _convert_data_type(_convert_dtype_value(inputs[2]))
+        if inputs[2] is not None: # dtype given
+            dtype = _convert_data_type(_convert_dtype_value(inputs[2]))
+        else:
+            dtype = data.type_annotation.dtype
 
         return _op.full(_expr.const(fill_value), shape, dtype=dtype)
     return _impl
@@ -567,14 +570,13 @@ def _celu():
 
 def _gelu():
     def _impl(inputs, input_types):
-        import math
         data = inputs[0]
-
-        def _pow3(x):
-            return x * x * x
-        return _expr.const(0.5) * data * (_expr.const(1.0) +
-                                          _op.tanh(_expr.const(math.sqrt(2.0 / math.pi)) *
-                                                   (data + _expr.const(0.044715) * _pow3(data))))
+        # gelu is data  * normcdf(data)
+        # normcdf expressed as erf because we don't currently have that intrinsic
+        # note that there is also a fastgelu variant approximating normcdf
+        # with tanh and third order polynomials, but this is "true" gelu
+        return data * (_expr.const(0.5) +
+                       _op.erf(data * _expr.const(0.5**0.5)) * _expr.const(0.5))
     return _impl
 
 def _selu():
@@ -1839,6 +1841,7 @@ def _get_convert_map(prelude):
         "aten::Int"                             : _int(),
         "prim::NumToTensor"                     : _numtotensor(),
         "prim::ImplicitTensorToNum"             : _tensortonum(),
+        "aten::ScalarImplicit"                  : _tensortonum(),
         "aten::constant_pad_nd"                 : _pad("constant"),
         "aten::reflection_pad1d"                : _pad("reflect"),
         "aten::reflection_pad2d"                : _pad("reflect"),
@@ -1877,6 +1880,7 @@ def _get_convert_map(prelude):
         "aten::floor"                           : _unary("floor"),
         "aten::round"                           : _unary("round"),
         "aten::isfinite"                        : _unary("isfinite"),
+        "aten::isinf"                           : _unary("isinf"),
         "aten::isnan"                           : _unary("isnan"),
         "aten::clamp"                           : _clamp(),
         "aten::detach"                          : _identity(),
