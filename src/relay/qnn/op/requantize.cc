@@ -63,7 +63,7 @@ Array<Array<Layout>> RequantizeInferCorrectLayout(const Attrs& attrs,
     std::string old_dim = old_in_layouts[0][axis].name();
 
     // 3) Collect the new axes by walking new_layout.
-    tvm::Integer new_axis;
+    tvm::Integer new_axis= tvm::Integer(0);
     std::string new_layout_string = "";
     int axis_index = 0;
     for (auto iter_var : new_in_layouts[0]->axes) {

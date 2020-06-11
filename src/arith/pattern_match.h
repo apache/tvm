@@ -201,6 +201,57 @@ class PVar : public Pattern<PVar<T>> {
 };
 
 /*!
+ * \brief Pattern variable container.
+ *
+ * PVarOpt is a variant of PVar to incorporate optional objectref.
+ *
+ * \tparam T the type of the hole.
+ *
+ * \note PVarOpt is not thread safe.
+ *       Do not use the same PVarOpt in multiple threads.
+ */
+template <typename T>
+class PVarOpt : public Pattern<PVarOpt<T>> {
+ public:
+  // Store PVars by reference in the expression.
+  using Nested = const PVarOpt<T>&;
+  using RefType = typename T::RefType;
+
+  void InitMatch_() const { filled_ = false; }
+
+  bool Match_(const RefType& value) const {
+    if (!filled_) {
+      value_ = value;
+      filled_ = true;
+      return true;
+    } else {
+      return PEqualChecker<RefType>()(value_.value(), value);
+    }
+  }
+
+  template <typename NodeRefType,
+            typename = typename std::enable_if<std::is_base_of<NodeRefType, RefType>::value>::type>
+  bool Match_(const NodeRefType& value) const {
+    if (const auto* ptr = value.template as<typename T::ContainerType>()) {
+      return Match_(GetRef<RefType>(ptr));
+    } else {
+      return false;
+    }
+  }
+
+  RefType Eval() const {
+    CHECK(filled_);
+    return value_.value();
+  }
+
+ protected:
+  /*! \brief The matched value */
+  mutable T value_;
+  /*! \brief whether the variable has been filled */
+  mutable bool filled_{false};
+};
+
+/*!
  * \brief Constant Pattern variable container.
  *
  * \tparam T the type of the hole.

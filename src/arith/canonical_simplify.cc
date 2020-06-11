@@ -706,7 +706,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
   // const folding
   PrimExpr const_res = TryConstFold<Div>(a, b);
   if (const_res.defined()) return const_res;
-  PVar<IntImm> c1;
+  PVarOpt<Optional<IntImm>> c1;
   // x / c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
     int64_t cval = c1.Eval()->value;
@@ -764,7 +764,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   // const folding
   PrimExpr const_res = TryConstFold<FloorDiv>(a, b);
   if (const_res.defined()) return const_res;
-  PVar<IntImm> c1;
+  PVarOpt<Optional<IntImm>> c1;
   // x / c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
     int64_t cval = c1.Eval()->value;
@@ -868,7 +868,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ModNode* op) {
   PrimExpr const_res = TryConstFold<Mod>(a, b);
   if (const_res.defined()) return const_res;
 
-  PVar<IntImm> c1;
+  PVarOpt<Optional<IntImm>> c1;
   // x % c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
     int64_t cval = c1.Eval()->value;
@@ -936,7 +936,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   PrimExpr const_res = TryConstFold<FloorMod>(a, b);
   if (const_res.defined()) return const_res;
 
-  PVar<IntImm> c1;
+  PVarOpt<Optional<IntImm>> c1;
   // x % c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
     int64_t cval = c1.Eval()->value;

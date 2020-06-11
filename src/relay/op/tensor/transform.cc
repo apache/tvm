@@ -882,7 +882,7 @@ Array<te::Tensor> TakeCompute(const Attrs& attrs, const Array<te::Tensor>& input
   if (!param->axis.defined()) {
     return Array<te::Tensor>{topi::take(inputs[0], inputs[1], param->mode)};
   } else {
-    return Array<te::Tensor>{topi::take(inputs[0], inputs[1], param->axis, param->mode)};
+    return Array<te::Tensor>{topi::take(inputs[0], inputs[1], param->axis.value(), param->mode)};
   }
 }
 
@@ -1218,7 +1218,7 @@ bool RepeatRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* param = attrs.as<RepeatAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
   const int repeats = param->repeats;
-  const int axis = param->axis;
+  const int axis = param->axis.value();
   CHECK(repeats >= 1) << "repeat only accepts `repeats >= 1`"
                       << ", but got repeats = " << repeats;
   CHECK(-ndim - 1 <= axis && axis <= ndim)
@@ -1242,13 +1242,13 @@ Array<te::Tensor> RepeatCompute(const Attrs& attrs, const Array<te::Tensor>& inp
                                 const Type& out_type) {
   const RepeatAttrs* param = attrs.as<RepeatAttrs>();
   CHECK(param != nullptr);
-  return {topi::repeat(inputs[0], param->repeats, param->axis)};
+  return {topi::repeat(inputs[0], param->repeats, param->axis.value())};
 }
 
 Expr MakeRepeat(Expr data, int repeats, int axis) {
   auto attrs = make_object<RepeatAttrs>();
   attrs->repeats = repeats;
-  attrs->axis = axis;
+  attrs->axis = Integer(axis);
   static const Op& op = Op::Get("repeat");
   return Call(op, {data}, Attrs(attrs), {});
 }
@@ -1385,7 +1385,7 @@ bool ReverseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   const auto* param = attrs.as<ReverseAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
-  const int axis = param->axis;
+  const int axis = param->axis.value();
   CHECK(-ndim <= axis && axis < ndim)
       << "reverse only accepts `axis` in [-data.ndim, data.ndim - 1]"
       << ", but got axis = " << axis << ", and data.ndim = " << ndim;
@@ -1397,12 +1397,12 @@ Array<te::Tensor> ReverseCompute(const Attrs& attrs, const Array<te::Tensor>& in
                                  const Type& out_type) {
   const ReverseAttrs* param = attrs.as<ReverseAttrs>();
   CHECK(param != nullptr);
-  return {topi::flip(inputs[0], param->axis)};
+  return {topi::flip(inputs[0], param->axis.value())};
 }
 
 Expr MakeReverse(Expr data, int axis) {
   auto attrs = make_object<ReverseAttrs>();
-  attrs->axis = axis;
+  attrs->axis = Integer(axis);
   static const Op& op = Op::Get("reverse");
   return Call(op, {data}, Attrs(attrs), {});
 }
@@ -1710,11 +1710,12 @@ RELAY_REGISTER_OP("broadcast_to_like")
     .set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
 // Adapter function to make int array.
-Array<Integer> GetIntArray(Array<IndexExpr> arr) {
+template <typename T>
+Array<T> GetIntArray(Array<IndexExpr> arr) {
   for (size_t i = 0; i < arr.size(); ++i) {
-    CHECK(!arr[i].defined() || arr[i].as<IntImmNode>()) << "Expect an int array";
+    CHECK(!arr[i].defined() || arr[i].as<typename T::ContainerType>()) << "Expect an int array";
   }
-  return Downcast<Array<Integer>>(arr);
+  return Downcast<Array<T>>(arr);
 }
 
 // strided_slice
@@ -2289,8 +2290,8 @@ Array<te::Tensor> SliceLikeCompute(const Attrs& attrs, const Array<te::Tensor>& 
           << topi::GetConstInt(src_shape[axis]);
     }
   }
-  return Array<te::Tensor>{topi::strided_slice(inputs[0], GetIntArray(begin_idx),
-                                               GetIntArray(end_idx), GetIntArray(strides), "end")};
+  return Array<te::Tensor>{topi::strided_slice(inputs[0], GetIntArray<Integer>(begin_idx),
+                                               GetIntArray<Integer>(end_idx), GetIntArray<Integer>(strides), "end")};
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.slice_like").set_body_typed(MakeSliceLike);

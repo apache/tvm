@@ -102,12 +102,12 @@ struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
 };
 
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
-  Integer axis;
+  Optional<Integer> axis;
   std::string mode;
 
   TVM_DECLARE_ATTRS(TakeAttrs, "relay.attrs.TakeAttrs") {
     TVM_ATTR_FIELD(axis)
-        .set_default(NullValue<Integer>())
+        .set_default(NullValue<Optional<Integer>>())
         .describe("The axis over which to select values.");
     TVM_ATTR_FIELD(mode).set_default("clip").describe(
         "Specify how out-of-bound indices will behave."
@@ -145,7 +145,7 @@ struct ArangeAttrs : public tvm::AttrsNode<ArangeAttrs> {
 
 /*! \brief Attributes used in stack operators */
 struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
-  Integer axis;
+  Integer axis = Integer(0);
   TVM_DECLARE_ATTRS(StackAttrs, "relay.attrs.StackAttrs") {
     TVM_ATTR_FIELD(axis).set_default(0).describe(
         "The axis in the result array along which the input arrays are stacked.");
@@ -154,12 +154,12 @@ struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
 
 /*! \brief Attributes used in repeat operators */
 struct RepeatAttrs : public tvm::AttrsNode<RepeatAttrs> {
-  Integer repeats;
-  Integer axis;
+  Integer repeats = Integer(0);
+  Optional<Integer> axis;
   TVM_DECLARE_ATTRS(RepeatAttrs, "relay.attrs.RepeatAttrs") {
     TVM_ATTR_FIELD(repeats).describe("The number of repetitions for each element.");
     TVM_ATTR_FIELD(axis)
-        .set_default(NullValue<Integer>())
+        .set_default(NullValue<Optional<Integer>>())
         .describe(" The axis along which to repeat values.");
   }
 };  // struct RepeatAttrs
@@ -176,10 +176,10 @@ struct TileAttrs : public tvm::AttrsNode<TileAttrs> {
 
 /*! \brief Attributes used in reverse operators */
 struct ReverseAttrs : public tvm::AttrsNode<ReverseAttrs> {
-  Integer axis;
+  Optional<Integer> axis;
   TVM_DECLARE_ATTRS(ReverseAttrs, "relay.attrs.ReverseAttrs") {
     TVM_ATTR_FIELD(axis)
-        .set_default(NullValue<Integer>())
+        .set_default(NullValue<Optional<Integer>>())
         .describe("The axis along which to reverse elements.");
   }
 };  // struct ReverseAttrs

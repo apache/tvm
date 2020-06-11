@@ -367,7 +367,7 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer, P
   }
 
   int64_t base = 0, width = 0;
-  arith::PVar<IntImm> pbase, pstride;
+  arith::PVarOpt<Optional<IntImm>> pbase, pstride;
   arith::PVar<int> planes;
   // create meta-data for alias analysis
   // Use a group of binary tree ranges of memory banks.

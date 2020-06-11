@@ -123,7 +123,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2, c3;
+  PVarOpt<Optional<IntImm>> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
   // Vector rules
@@ -230,7 +230,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2, c3;
+  PVarOpt<Optional<IntImm>> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
   // Vector rules
@@ -413,7 +413,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVarOpt<Optional<IntImm>> c1, c2;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
   // Vector rules
@@ -446,7 +446,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2, c3;
+  PVarOpt<Optional<IntImm>> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
 
@@ -621,7 +621,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVarOpt<Optional<IntImm>> c1, c2;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
 
@@ -701,7 +701,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2, c3;
+  PVarOpt<Optional<IntImm>> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
 
@@ -819,7 +819,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVarOpt<Optional<IntImm>> c1, c2;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
 
@@ -884,7 +884,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVarOpt<Optional<IntImm>> c1, c2;
   PVar<int> lanes;
 
   // vector rule
@@ -1056,7 +1056,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVarOpt<Optional<IntImm>> c1, c2;
   PVar<int> lanes;
 
   // vector rule
@@ -1219,7 +1219,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const EQNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   // Pattern var match IntImm
-  PVar<IntImm> c1;
+  PVarOpt<Optional<IntImm>> c1;
   PVar<int> lanes;
 
   // vector rule
@@ -1267,7 +1267,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LTNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVarOpt<Optional<IntImm>> c1, c2;
   PVar<int> lanes;
 
   // vector rule
@@ -1422,7 +1422,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVarOpt<Optional<IntImm>> c1, c2;
   PVar<int> lanes;
 
   if (op->dtype.lanes() != 1) {
@@ -1461,7 +1461,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVarOpt<Optional<IntImm>> c1, c2;
   PVar<int> lanes;
 
   if (op->dtype.lanes() != 1) {

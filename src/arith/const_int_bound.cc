@@ -520,7 +520,7 @@ class ConstIntBoundAnalyzer::Impl
    */
   static std::vector<BoundInfo> DetectBoundInfo(const PrimExpr& cond) {
     PVar<PrimExpr> x, y;
-    PVar<IntImm> c;
+    PVarOpt<Optional<IntImm>> c;
     // NOTE: canonical form always use <= or <
     if ((c <= x).Match(cond)) {
       return {BoundInfo(x.Eval(), MakeBound(c.Eval()->value, kPosInf))};

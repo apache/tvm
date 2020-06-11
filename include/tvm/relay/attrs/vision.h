@@ -172,7 +172,7 @@ struct ROIPoolAttrs : public tvm::AttrsNode<ROIPoolAttrs> {
 
 /*! \brief Attributes used in yolo reorg operators */
 struct YoloReorgAttrs : public tvm::AttrsNode<YoloReorgAttrs> {
-  Integer stride;
+  Integer stride = Integer(1);
 
   TVM_DECLARE_ATTRS(YoloReorgAttrs, "relay.attrs.YoloReorgAttrs") {
     TVM_ATTR_FIELD(stride).set_default(1).describe("Stride value for yolo reorg");

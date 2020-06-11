@@ -266,7 +266,7 @@ class IntImm : public PrimExpr {
    */
   TVM_DLL IntImm(DataType dtype, int64_t value);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IntImm, PrimExpr, IntImmNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(IntImm, PrimExpr, IntImmNode);
 };
 
 /*!
@@ -350,7 +350,6 @@ inline Bool operator&&(const Bool& a, const Bool& b) {
  */
 class Integer : public IntImm {
  public:
-  Integer() {}
   /*!
    * \brief constructor from node.
    */

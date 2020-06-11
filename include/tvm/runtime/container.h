@@ -1452,6 +1452,7 @@ template <typename T>
 class Optional : public ObjectRef {
  public:
   using ContainerType = typename T::ContainerType;
+  using RefType = T;
   static_assert(std::is_base_of<ObjectRef, T>::value, "Optional is only defined for ObjectRef.");
   // default constructors.
   Optional() = default;
@@ -1474,6 +1475,7 @@ class Optional : public ObjectRef {
     data_ = nullptr;
     return *this;
   }
+
   // normal value handling.
   Optional(T other)  // NOLINT(*)
       : ObjectRef(std::move(other)) {}
@@ -1546,6 +1548,12 @@ class Optional : public ObjectRef {
     if (*this == nullptr) return RetType(true);
     return value() != other;
   }
+
+  const ContainerType* operator->() const {
+    CHECK(data_ != nullptr);
+    return static_cast<const ContainerType*>(data_.get());
+  }
+
   static constexpr bool _type_is_nullable = true;
 };
 
@@ -1560,6 +1568,7 @@ struct PackedFuncValueConverter<Optional<T>> {
     return PackedFuncValueConverter<T>::From(val);
   }
 };
+
 
 }  // namespace runtime
 
