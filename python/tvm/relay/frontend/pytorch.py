@@ -146,7 +146,8 @@ def _unary(name):
 def _log1p():
     def _impl(inputs, input_types):
         # 1_plus_log x = log(x + 1)
-        one = _expr.const(1, dtype="float32")
+        dtype, = input_types
+        one = _expr.const(1, dtype=dtype)
         return _op.log(inputs[0] + one)
     return _impl
 
@@ -154,25 +155,40 @@ def _log1p():
 def _arange():
     def _impl(inputs, input_types):
         def _get_value(val, dtype):
+            # dtype is a tvm dtype
             if isinstance(val, _expr.Expr):
-                return _op.cast(val, _convert_data_type(dtype))
+                return _op.cast(val, dtype)
             return _create_typed_const(val, dtype)
 
         def _get_type(val, inp_type):
             if isinstance(val, _expr.Expr):
                 dtype = str(_infer_type(val).checked_type)
-                return dtype if dtype != "float32" else "float"
+                return dtype
             return inp_type
 
+        # PyTorch arange uses the following type semantics:
+        # - if a dtype is given, start, stop, step are converted to that dtype
+        # - if no dtype is given and all args are integral, dtype is int64
+        # - if no dtype is given and there is a float arg, dtype is float32
         if len(inputs) == 5:
             dtype0 = _get_type(inputs[0], input_types[0])
-            dtype = "float" if dtype0 == "float" else _convert_dtype_value(inputs[1])
+            if inputs[1] is not None:
+                dtype = _convert_data_type(_convert_dtype_value(inputs[1]))
+            elif dtype0.startswith("float"):
+                dtype = "float32"
+            else:
+                dtype = "int64"
             start = _get_value(0, dtype)
             stop = _get_value(inputs[0], dtype)
             step = _get_value(1, dtype)
         elif len(inputs) == 7:
             types = [_get_type(inputs[i], input_types[i]) for i in range(3)]
-            dtype = "float" if "float" in types else _convert_dtype_value(inputs[3])
+            if inputs[3] is not None:
+                dtype = _convert_data_type(_convert_dtype_value(inputs[3]))
+            elif any([t.startswith("float") for t in types]):
+                dtype = "float32"
+            else:
+                dtype = "int64"
             start = _get_value(inputs[0], dtype)
             stop = _get_value(inputs[1], dtype)
             step = _get_value(inputs[2], dtype)
@@ -183,7 +199,7 @@ def _arange():
         return _op.transform.arange(start=start,
                                     stop=stop,
                                     step=step,
-                                    dtype=_convert_data_type(dtype))
+                                    dtype=dtype)
     return _impl
 
 def _squeeze():
@@ -518,7 +534,8 @@ def _linspace():
         else:
             stop = start + step
 
-        dtype = "float" if "float" in input_types[0:3] else _convert_dtype_value(inputs[3])
+        dtype = ("float32" if inputs[3] is not None
+                 else _convert_data_type(_convert_dtype_value(inputs[3])))
         start = _create_typed_const(start, dtype)
         stop = _create_typed_const(stop, dtype)
         step = _create_typed_const(step, dtype)
@@ -526,7 +543,7 @@ def _linspace():
         return _op.transform.arange(start=start,
                                     stop=stop,
                                     step=step,
-                                    dtype=_convert_data_type(dtype))
+                                    dtype=dtype)
     return _impl
 
 
@@ -1677,6 +1694,7 @@ def _one_hot():
 
 # Helper functions for operator implementation
 def _convert_dtype_value(val):
+    """converts a PyTorch the PyTorch numeric type id to a torch scalar type."""
     convert_torch_dtype_map = {7:"torch.float64",
                                6:"torch.float32",
                                5:"torch.float16",
@@ -1693,6 +1711,7 @@ def _convert_dtype_value(val):
         raise NotImplementedError(msg)
 
 def _convert_data_type(input_type):
+    """converts the PyTorch scalar type input_type to a TVM dtype"""
     if input_type in ["double", "torch.float64"]:
         return "float64"
     elif input_type in ["float", "torch.float32"]:
@@ -1709,12 +1728,21 @@ def _convert_data_type(input_type):
         return "int8"
     elif input_type in ["byte", "torch.uint8"]:
         return "uint8"
+    elif input_type in ["quint8", "torch.quint8"]:
+        return "quint8"
+    elif input_type in ["qint8", "torch.qint8"]:
+        return "qint8"
+    elif input_type in ["qint32", "torch.qint32"]:
+        return "qint32"
+    elif input_type in ["bool", "torch.bool"]:
+        return "bool"
     else:
-        raise NotImplementedError("input_type {} is not handled yet" % (input_type))
-    return "float32"
+        raise NotImplementedError("input_type {} is not handled yet".format(input_type))
+    return "float32"  # Never reached
 
-def _create_typed_const(data, data_type):
-    dtype = _convert_data_type(data_type)
+def _create_typed_const(data, dtype):
+    """create a (scalar) constant of given value and dtype.
+       dtype should be a TVM dtype"""
 
     if dtype == "float64":
         typed_data = _expr.const(np.float64(data), dtype=dtype)
@@ -1733,7 +1761,7 @@ def _create_typed_const(data, data_type):
     elif dtype == "uint8":
         typed_data = _expr.const(np.uint8(data), dtype=dtype)
     else:
-        raise NotImplementedError("input_type {} is not handled yet" % (data_type))
+        raise NotImplementedError("input_type {} is not handled yet".format(dtype))
     return typed_data
 
 def _convert_elemwise_input(data, input_type):
@@ -1741,7 +1769,8 @@ def _convert_elemwise_input(data, input_type):
     if isinstance(data, torch.Tensor):
         return _expr.const(data.item(), dtype=_convert_data_type(input_type))
     elif not isinstance(data, _expr.Expr):
-        return _expr.const(data, dtype=_convert_data_type(input_type))
+        # this should already be a TVM dtype, so no conversion
+        return _expr.const(data, dtype=input_type)
     else:
         return data
 
@@ -1837,6 +1866,7 @@ def _get_convert_map(prelude):
         "aten::mean"                            : _mean(),
         "aten::chunk"                           : _chunk(prelude),
         "aten::matmul"                          : _matmul(prelude),
+        "aten::bmm"                             : _matmul(prelude),
         "aten::expand"                          : _expand(),
         "aten::Int"                             : _int(),
         "prim::NumToTensor"                     : _numtotensor(),
@@ -1929,7 +1959,7 @@ def _is_int_seq(seq):
 
 def _get_tensor_and_var(torch_tensor, name):
     tensor = tvm.nd.array(torch_tensor.cpu().numpy())
-    var = _expr.var(name, shape=tensor.shape)
+    var = _expr.var(name, shape=tensor.shape, dtype=tensor.dtype)
     return tensor, var
 
 
@@ -2022,7 +2052,7 @@ def _getattr_full_name(getattrs):
     return ".".join([_getattr_attr_name(node) for node in getattrs])
 
 
-def _get_input_types(op_node):
+def _get_input_types(op_node, default_dtype="float32"):
     """ Returns a torch type for each input nodes """
     input_list_types = []
     for input_node in op_node.inputs():
@@ -2031,17 +2061,19 @@ def _get_input_types(op_node):
         if input_node_kind == 'TensorType':
             if in_ty.scalarType() is None:
                 # Tensor's type can be unknown if we use torch.jit.script(...)
-                # Defaults to float for now
-                logging.warning("Untyped Tensor found, assume it is float")
-                input_list_types.append("float")
+                # Defaults can be passed in, if not it is float32
+                logging.warning("Untyped Tensor found, assume it is %s", default_dtype)
+                input_list_types.append(default_dtype)
             else:
-                input_list_types.append(in_ty.scalarType().lower())
+                input_list_types.append(_convert_data_type(in_ty.scalarType().lower()))
 
         elif input_node_kind == 'ListType':
             input_list_types.append("ListType")
         elif input_node_kind in ['IntType', 'FloatType', 'BoolType',
                                  'StringType', 'OptionalType']:
-            input_list_types.append(str(in_ty).lower())
+            pt_dtype = str(in_ty).lower()
+            dtype = pt_dtype if pt_dtype == 'OptionalType' else _convert_data_type(pt_dtype)
+            input_list_types.append(dtype)
         else:
             input_list_types.append('UnsupportedType')
 
@@ -2049,7 +2081,7 @@ def _get_input_types(op_node):
         node_type = op_node.output().type()
         scalar_type = node_type.scalarType()
         if scalar_type:
-            input_list_types[0] = scalar_type.lower()
+            input_list_types[0] = _convert_data_type(scalar_type.lower())
 
     return input_list_types
 
@@ -2125,13 +2157,23 @@ def _get_relay_input_vars(graph, input_shapes, prelude):
             return prelude.l(elem_tys[0])
         raise NotImplementedError("unsupported input type")
 
-    input_types = [(tup[0], get_relay_ty(tup[1])) for tup in input_shapes]
     input_vars = {}
-    ir_inputs = _get_graph_input_names(graph)
-    for ir_input, (name, itype) in zip(ir_inputs, input_types):
-        inp = _expr.var(name, type_annotation=itype)
-        # Translate from graph input to user input name
-        input_vars[ir_input] = inp
+    if input_shapes is not None:
+        input_types = [(tup[0], get_relay_ty(tup[1])) for tup in input_shapes]
+        ir_inputs = _get_graph_input_names(graph)
+        for ir_input, (name, itype) in zip(ir_inputs, input_types):
+            inp = _expr.var(name, type_annotation=itype)
+            # Translate from graph input to user input name
+            input_vars[ir_input] = inp
+    else:
+        for i in list(graph.inputs())[1:]:
+            if not i.isCompleteTensor():
+                raise ValueError(
+                    "Need complete tensor types for inputs if input_shapes is not given")
+            name = i.debugName()
+            shape = i.type().sizes()
+            dtype = _convert_data_type(i.type().scalarType().lower())
+            input_vars[name] = _expr.var(name, type_annotation=TensorType(shape, dtype))
 
     return input_vars
 
@@ -2235,19 +2277,22 @@ def convert_params(graph, state_dict):
     return params, param_tensors, packed_param_map
 
 
-def convert_block(block, outputs, convert_map, prelude):
+def convert_block(block, outputs, convert_map, prelude, default_dtype="float32"):
     """ Translate Torch "Block", used for prim::If and prim::Loop """
     ops = _get_operator_nodes(block.nodes())
     ret_names = _get_input_names(block.returnNode())
-    return convert_operators(ops, outputs, ret_names, convert_map, prelude)
+    return convert_operators(ops, outputs, ret_names, convert_map, prelude,
+                             default_dtype=default_dtype)
 
 
-def convert_if(if_node, outputs, convert_map, prelude):
+def convert_if(if_node, outputs, convert_map, prelude, default_dtype="float32"):
     """ Translate Torch prim::If to Relay If """
     cond = outputs[if_node.inputsAt(0).debugName()]
     blocks = list(if_node.blocks())
-    true_branch = convert_block(blocks[0], outputs, convert_map, prelude)
-    false_branch = convert_block(blocks[1], outputs, convert_map, prelude)
+    true_branch = convert_block(blocks[0], outputs, convert_map, prelude,
+                                default_dtype=default_dtype)
+    false_branch = convert_block(blocks[1], outputs, convert_map, prelude,
+                                 default_dtype=default_dtype)
     assert len(true_branch) == 1 and len(false_branch) == 1
     return _expr.If(cond, true_branch[0], false_branch[0])
 
@@ -2367,7 +2412,7 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
     return [_expr.TupleGetItem(loop_val, i+1) for i in range(num_loop_var)]
 
 
-def convert_operators(operators, outputs, ret_names, convert_map, prelude):
+def convert_operators(operators, outputs, ret_names, convert_map, prelude, default_dtype="float32"):
     """ Convert each Torch IR operators to Relay equivalent """
     for node_name, op_node in operators:
         operator = op_node.kind()
@@ -2393,7 +2438,7 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude):
                 unpacked = _unpack_tuple(inputs[0])
             outputs.update(zip(_get_output_names(op_node), unpacked))
         elif operator == "prim::If":
-            if_out = convert_if(op_node, outputs, convert_map, prelude)
+            if_out = convert_if(op_node, outputs, convert_map, prelude, default_dtype=default_dtype)
             outputs[node_name] = if_out
         elif operator == "prim::Loop":
             loop_out = convert_loop(op_node, outputs, convert_map, prelude)
@@ -2402,7 +2447,7 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude):
             outputs.update(zip(unpacked_names, loop_out))
         else:
             relay_op = convert_map[operator]
-            relay_out = relay_op(inputs, _get_input_types(op_node))
+            relay_out = relay_op(inputs, _get_input_types(op_node, default_dtype=default_dtype))
 
             if isinstance(relay_out, tuple):
                 # This is for torch operators that return multiple outputs
@@ -2429,7 +2474,7 @@ def get_all_op_names(graph):
     return set(node.kind() for node in nodes)
 
 
-def from_pytorch(script_module, input_shapes, custom_convert_map=None):
+def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_dtype="float32"):
     """ Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
@@ -2468,7 +2513,8 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
 
     op_names = get_all_op_names(graph)
     _report_missing_conversion(op_names, convert_map)
-    _check_inputs(graph, input_shapes)
+    if input_shapes is not None:
+        _check_inputs(graph, input_shapes)
 
     params = script_module.state_dict()
     outputs = _get_relay_input_vars(graph, input_shapes, prelude)
@@ -2489,7 +2535,8 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
         convert_map.update(qnn_torch.convert_map)
 
     ret = convert_operators(_get_operator_nodes(graph.nodes()),
-                            outputs, ret_name, convert_map, prelude)
+                            outputs, ret_name, convert_map, prelude,
+                            default_dtype=default_dtype)
 
     mod["main"] = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
 
