@@ -499,8 +499,7 @@ class IRSubstitue : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<StoreNode>();
     if (auto mapped_var = vmap_(op->buffer_var)) {
-      return StoreNode::make(Downcast<Var>(mapped_var.value()), op->value, op->index,
-                             op->predicate);
+      return Store(Downcast<Var>(mapped_var.value()), op->value, op->index, op->predicate);
     } else {
       return ret;
     }

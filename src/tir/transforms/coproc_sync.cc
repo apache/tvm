@@ -195,7 +195,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
   }
 
   std::vector<Stmt> GetSync(std::string sync_name) {
-    return {EvaluateNode::make(Call(DataType::Int(32), sync_name, {}, CallNode::Intrinsic))};
+    return {Evaluate(Call(DataType::Int(32), sync_name, {}, CallNode::Intrinsic))};
   }
 
   const std::unordered_set<const VarNode*>& touched_;
@@ -331,9 +331,9 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
     CHECK(r.defined()) << "Cannot deduce write range of " << wvec[0].buffer;
     PrimExpr min = r->min;
     PrimExpr extent = r->extent;
-    return EvaluateNode::make(Call(DataType::Int(32), func,
-                                   {wvec[0].buffer, wvec[0].dtype.bits(), r->min, r->extent},
-                                   CallNode::Intrinsic));
+    return Evaluate(Call(DataType::Int(32), func,
+                         {wvec[0].buffer, wvec[0].dtype.bits(), r->min, r->extent},
+                         CallNode::Intrinsic));
   }
   // Write barrier name
   bool read_barrier_{false};
@@ -555,16 +555,14 @@ class CoProcInstDepDetector : public StmtVisitor {
   }
 
   Stmt MakePush(int from, int to) {
-    return EvaluateNode::make(
-        Call(DataType::Int(32), sync_push_name_,
-             {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
-             CallNode::Intrinsic));
+    return Evaluate(Call(DataType::Int(32), sync_push_name_,
+                         {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
+                         CallNode::Intrinsic));
   }
   Stmt MakePop(int from, int to) {
-    return EvaluateNode::make(
-        Call(DataType::Int(32), sync_pop_name_,
-             {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
-             CallNode::Intrinsic));
+    return Evaluate(Call(DataType::Int(32), sync_pop_name_,
+                         {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
+                         CallNode::Intrinsic));
   }
   // sync states.
   SyncState first_state_, last_state_, curr_state_;

@@ -65,7 +65,7 @@ class OperationInliner final : public StmtExprMutator {
         for (size_t i = 0; i < args_.size(); ++i) {
           vmap.Set(args_[i], op->indices[i]);
         }
-        expr = Substitute(EvaluateNode::make(expr), vmap).as<EvaluateNode>()->value;
+        expr = Substitute(Evaluate(expr), vmap).as<EvaluateNode>()->value;
       }
       return expr;
     } else {

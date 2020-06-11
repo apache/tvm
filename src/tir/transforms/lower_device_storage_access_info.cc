@@ -52,7 +52,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
           << "Double allocation of " << it->second.scope.to_string();
 
       if (info->head_address.defined()) {
-        return LetStmtNode::make(op->buffer_var, info->head_address, op->body);
+        return LetStmt(op->buffer_var, info->head_address, op->body);
       } else {
         return op->body;
       }

@@ -85,10 +85,10 @@ class BoundChecker : public StmtExprMutator {
     if (store_scope_bound_collector_.size()) {
       PrimExpr condition = MakeCondition();
       if (!condition.as<StringImmNode>()) {
-        Stmt nop = EvaluateNode::make(1);
-        Stmt then_case = StoreNode::make(op->buffer_var, op->value, op->index, op->predicate);
-        Stmt else_case = AssertStmtNode::make(condition, StringImm(error_message_), nop);
-        Stmt body = IfThenElseNode::make(condition, then_case, else_case);
+        Stmt nop = Evaluate(1);
+        Stmt then_case = Store(op->buffer_var, op->value, op->index, op->predicate);
+        Stmt else_case = AssertStmt(condition, StringImm(error_message_), nop);
+        Stmt body = IfThenElse(condition, then_case, else_case);
         return body;
       }
     }

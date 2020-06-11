@@ -80,8 +80,8 @@ class CustomDatatypesLowerer : public StmtExprMutator {
 
     if (toBeLowered) {
       auto new_allocate_type = DataType::UInt(allocate->dtype.bits(), allocate->dtype.lanes());
-      return AllocateNode::make(allocate->buffer_var, new_allocate_type, allocate->extents,
-                                allocate->condition, allocate->body);
+      return Allocate(allocate->buffer_var, new_allocate_type, allocate->extents,
+                      allocate->condition, allocate->body);
     }
     return stmt;
   }

@@ -302,11 +302,10 @@ Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
   CHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype << " from buffer of " << n->dtype;
   if (value.dtype() == DataType::Bool()) {
-    return tir::StoreNode::make(n->data, tir::Cast(DataType::Int(8), value),
-                                BufferOffset(n, begin, DataType::Int(8)), const_true());
+    return tir::Store(n->data, tir::Cast(DataType::Int(8), value),
+                      BufferOffset(n, begin, DataType::Int(8)), const_true());
   } else {
-    return tir::StoreNode::make(n->data, value, BufferOffset(n, begin, dtype),
-                                const_true(dtype.lanes()));
+    return tir::Store(n->data, value, BufferOffset(n, begin, dtype), const_true(dtype.lanes()));
   }
 }
 

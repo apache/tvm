@@ -76,7 +76,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
     if (else_case.defined()) {
       return else_case;
     }
-    return EvaluateNode::make(0);
+    return Evaluate(0);
   }
 
   if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&

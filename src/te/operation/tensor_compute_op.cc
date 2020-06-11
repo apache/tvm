@@ -127,7 +127,7 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
   CHECK_EQ(stage->op.operator->(), this);
 
   // Start bind data.
-  Stmt nop = EvaluateNode::make(0);
+  Stmt nop = Evaluate(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;
   Array<Tensor> inputs = this->InputTensors();
 
@@ -144,7 +144,7 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
       tuple.push_back(region[i]->min);
       tuple.push_back(region[i]->extent);
     }
-    input_bind_nest.emplace_back(AttrStmtNode::make(
+    input_bind_nest.emplace_back(AttrStmt(
         bind_spec, tir::attr::buffer_bind_scope,
         Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }
@@ -168,7 +168,7 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
       }
     }
 
-    output_bind_nest.emplace_back(AttrStmtNode::make(
+    output_bind_nest.emplace_back(AttrStmt(
         bind_spec, tir::attr::buffer_bind_scope,
         Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }
