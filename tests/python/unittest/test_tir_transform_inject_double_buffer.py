@@ -41,9 +41,13 @@ def test_double_buffer():
     })
 
     opt = tvm.transform.Sequential(
-        [tvm.tir.transform.InjectDoubleBuffer(2),
+        [tvm.tir.transform.InjectDoubleBuffer(),
          tvm.tir.transform.Simplify()])
-    mod = opt(mod)
+
+    with tvm.transform.PassContext(config={
+        "tir.InjectDoubleBuffer" : {"split_loop" : 2}
+    }):
+        mod = opt(mod)
     stmt = mod["db"].body
 
     assert isinstance(stmt.body.body, tvm.tir.Allocate)

@@ -81,7 +81,7 @@ class BaseGraphTuner(object):
                        Each row of this file is an encoded record pair.
             Otherwise, it is an iterator.
 
-        target_ops : List of relay.op.Op
+        target_ops : List of tvm.ir.Op
             Target tuning operators.
 
         target : str or tvm.target

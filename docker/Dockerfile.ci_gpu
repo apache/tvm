@@ -56,9 +56,6 @@ RUN bash /install/ubuntu_install_nodejs.sh
 COPY install/ubuntu_install_rocm.sh /install/ubuntu_install_rocm.sh
 RUN bash /install/ubuntu_install_rocm.sh
 
-COPY install/ubuntu_install_opengl.sh /install/ubuntu_install_opengl.sh
-RUN bash /install/ubuntu_install_opengl.sh
-
 # DL Frameworks
 COPY install/ubuntu_install_mxnet.sh /install/ubuntu_install_mxnet.sh
 RUN bash /install/ubuntu_install_mxnet.sh

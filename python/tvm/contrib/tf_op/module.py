@@ -68,7 +68,7 @@ class TensorFunc:
         elif output_shape is not None:
             self.dynamic_output_shape = self._pack_shape_tensor(output_shape)
 
-        self.module = self._load_platform_specific_library("tvm_dso_op")
+        self.module = self._load_platform_specific_library("libtvm_dso_op")
         self.tvm_dso_op = self.module.tvm_dso_op
 
     def apply(self, *params):

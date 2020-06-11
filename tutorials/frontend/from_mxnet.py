@@ -90,7 +90,7 @@ func = relay.Function(func.params, relay.nn.softmax(func.body), None, func.type_
 ######################################################################
 # now compile the graph
 target = 'cuda'
-with relay.build_config(opt_level=3):
+with tvm.transform.PassContext(opt_level=3):
     graph, lib, params = relay.build(func, target, params=params)
 
 ######################################################################

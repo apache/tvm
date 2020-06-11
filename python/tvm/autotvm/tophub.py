@@ -56,6 +56,7 @@ PACKAGE_VERSION = {
     'intel_graphics':   "v0.02",
 
     'vta':              "v0.08",
+    'amd_apu':          "v0.01",
 }
 
 logger = logging.getLogger('autotvm')
@@ -69,6 +70,7 @@ def _alias(name):
         'webgpu': 'opencl',
         'vulkan': 'opencl',
         'nvptx': 'cuda',
+        'amd_apu': 'amd_apu'
     }
     return table.get(name, name)
 
@@ -214,10 +216,12 @@ def load_reference_log(backend, model, workload_name):
 
     if key not in REFERENCE_LOG_CACHE:
         tmp = []
+        # If TOPHUB_LOCATION is not AUTOTVM_TOPHUB_NONE_LOC,
         # Download the config file from tophub if not exists.
         if not os.path.exists(filename):
             tophub_location = _get_tophub_location()
-            download_package(tophub_location, package_name)
+            if tophub_location != AUTOTVM_TOPHUB_NONE_LOC:
+                download_package(tophub_location, package_name)
         if os.path.isfile(filename): # in case download failed
             find = False
             inp = None

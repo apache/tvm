@@ -90,34 +90,33 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     if (e_dtype != dtype) {
       throw Error("relay.concatenate requires all tensors have the same dtype");
     }
-    for (size_t j = 0; j < first->shape.size(); ++j) {
-      if (j == static_cast<size_t>(axis)) continue;
-      if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
-      throw Error(
-          "relay.concatenate requires all tensors have the same shape "
-          "on non-concatenating axes");
-    }
   }
 
   // Calculate shape
   std::vector<IndexExpr> oshape(first->shape.begin(), first->shape.end());
-  IndexExpr& concat_dim = oshape[axis];
-  bool has_any = false;
-  if (concat_dim.as<Any>()) {
-    has_any = true;
-  } else {
-    for (int i = 1; i < static_cast<int>(tensor_tuple->fields.size()); ++i) {
-      const auto& e = Downcast<TensorType>(tensor_tuple->fields[i]);
-      if (e->shape[axis].as<Any>()) {
-        has_any = true;
-        break;
+  int data_length = static_cast<int>(tensor_tuple->fields.size());
+  for (int i = 0; i < ndim; ++i) {
+    std::vector<IndexExpr> non_any;
+    for (int j = 0; j < data_length; ++j) {
+      const auto& e = Downcast<TensorType>(tensor_tuple->fields[j]);
+      if (!e->shape[i].as<Any>()) {
+        non_any.push_back(e->shape[i]);
+        // accumulate axis dimension
+        if (j > 0 && i == axis && !oshape[i].as<Any>()) {
+          oshape[i] += e->shape[i];
+        }
       }
-      concat_dim += e->shape[axis];
     }
-  }
-
-  if (has_any) {
-    concat_dim = Any::make();
+    int non_any_size = static_cast<int>(non_any.size());
+    if (non_any_size != data_length) oshape[i] = Any::make();
+    if (i != axis) {
+      for (int k = 1; k < non_any_size; k++) {
+        if (reporter->AssertEQ(non_any[0], non_any[k])) continue;
+        throw Error(
+            "relay.concatenate requires all tensors have the same shape "
+            "on non-concatenating axes");
+      }
+    }
   }
 
   auto rtype = TensorType(oshape, dtype);

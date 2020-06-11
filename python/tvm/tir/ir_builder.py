@@ -380,7 +380,7 @@ class IRBuilder(object):
             The expression will likely tag.
         """
         return _expr.Call(expr.dtype, "likely", [expr],
-                          _expr.Call.PureIntrinsic, None, 0)
+                          _expr.Call.PureIntrinsic)
 
     def get(self):
         """Return the builded IR.

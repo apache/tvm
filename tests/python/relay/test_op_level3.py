@@ -730,6 +730,54 @@ def test_reverse_sequence():
            " but got dimension of batch_axis = 4, and seq_length size = 5" in exexcinfo.value.args[0]
 
 
+def test_scatter():
+
+    def ref_scatter(data, indices, updates, axis=0):
+        idx = np.indices(indices.shape).reshape(indices.ndim, -1)
+
+        updated_idx = np.copy(idx)
+        indices = indices.reshape(-1)
+        for i in range(len(indices)):
+            updated_idx[axis, i] = indices[i]
+        scattered = np.copy(data)
+        scattered[tuple(updated_idx)] = updates[tuple(idx)]
+        return scattered
+
+    def verify_scatter(dshape, ishape, axis=0):
+        d = relay.var("d", relay.TensorType(dshape, "float32"))
+        i = relay.var("i", relay.TensorType(ishape, "int64"))
+        u = relay.var("u", relay.TensorType(ishape, "float32"))
+        z = relay.op.scatter(d, i, u, axis)
+
+        func = relay.Function([d, i, u], z)
+
+        data_np = np.random.uniform(size=dshape).astype("float32")
+        updates_np = np.random.uniform(size=ishape).astype("float32")
+        indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
+
+        ref_res = ref_scatter(data_np, indices_np, updates_np, axis)
+        # TODO(mbrookhart): expand testing when adding more backend schedules
+        for target, ctx in [("llvm", tvm.cpu())]:
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
+                tvm.testing.assert_allclose(
+                    op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    verify_scatter((10, ), (10, ), 0)
+    verify_scatter((10, 5), (10, 5), -2)
+    verify_scatter((10, 5), (10, 5), -1)
+    verify_scatter((10, 5), (3, 5), 0)
+    verify_scatter((12, 4), (7, 2), 1)
+    verify_scatter((2, 3, 4), (1, 3, 4), 0)
+    verify_scatter((2, 3, 4), (2, 1, 4), 1)
+    verify_scatter((2, 3, 4), (2, 3, 1), 2)
+    verify_scatter((2, 3, 4, 5), (1, 3, 4, 5), 0)
+    verify_scatter((6, 3, 4, 5), (2, 3, 4, 5), 1)
+    verify_scatter((2, 3, 8, 5), (2, 3, 1, 1), 2)
+    verify_scatter((16, 16, 4, 5), (16, 16, 4, 5), 3)
+
+
 def test_gather_nd():
     def verify_gather_nd(xshape, yshape, y_data):
         x = relay.var("x", relay.TensorType(xshape, "float32"))
@@ -814,6 +862,58 @@ def test_unravel_index():
         # output which is inline with Tensorflow
         # verify_unravel_index([0, 1, 2, 5], [2, 2], dtype)
 
+def test_sparse_to_dense():
+    def verify_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape, xpected):
+        sparse_indices_data = np.array(sparse_indices)
+        sparse_values_data = np.array(sparse_values)
+        default_value_data = np.array(default_value)
+
+        a = relay.var("a", relay.TensorType(sparse_indices_data.shape, str(sparse_indices_data.dtype)))
+        b = relay.var("b", relay.TensorType(sparse_values_data.shape, str(sparse_values_data.dtype)))
+        if default_value is None:
+            args = [a, b]
+            d = relay.sparse_to_dense(a, output_shape, b)
+        else:
+            c = relay.var("c", relay.TensorType(default_value_data.shape, str(default_value_data.dtype)))
+            args = [a, b, c]
+            d = relay.sparse_to_dense(a, output_shape, b, c)
+
+        zz = run_infer_type(d)
+        assert zz.checked_type == relay.ty.TensorType(output_shape, str(sparse_values_data.dtype))
+
+        func = relay.Function(args, d)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                if default_value is None:
+                    op_res = intrp.evaluate(func)(sparse_indices_data, sparse_values_data)
+                else:
+                    op_res = intrp.evaluate(func)(
+                        sparse_indices_data, sparse_values_data, default_value_data
+                    )
+                tvm.testing.assert_allclose(op_res.asnumpy(), xpected, rtol=1e-5)
+
+
+    verify_sparse_to_dense(1, 3, 0, [5], [0, 3, 0, 0, 0])  # scalar
+    verify_sparse_to_dense([0, 1, 4], [3, 3, 3], 0, [5], [3, 3, 0, 0, 3])  # vector
+    verify_sparse_to_dense([[0, 0], [1, 2]], [1, 2], 0, [3, 4], [[1, 0, 0, 0], [0, 0, 2, 0], [0, 0, 0, 0]])  # nXd
+    verify_sparse_to_dense(
+        [[0, 0, 0], [1, 2, 3]],
+        [1, 2],
+        4,
+        [2, 3, 4],
+        [[[1, 4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 4]], [[4, 4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 2]]]
+    )  # nXd
+    verify_sparse_to_dense([0, 1, 4], [3.1, 3.1, 3.1], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])  # floats
+    verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])  # default value not specified
+
+    #negative test cases
+    #sparse indices should be ints
+    #verify_sparse_to_dense([[0.1, 1.1, 4.1], [0,2,4]], [3.1, 3.1, 3.1], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
+    #sparse_values should be 0d or 1d only
+    #verify_sparse_to_dense([[0, 1, 4], [0, 2, 4]], [[[3.1, 3.1, 3.1]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
+    #sparse_indices should not be > 2d tensor
+    #verify_sparse_to_dense([[[[0, 1, 4], [0, 2, 4]]]], [[[[3.1, 3.1, 3.1]]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
 
 if __name__ == "__main__":
     test_arange()
@@ -848,3 +948,4 @@ if __name__ == "__main__":
     test_isfinite()
     test_isinf()
     test_unravel_index()
+    test_sparse_to_dense()

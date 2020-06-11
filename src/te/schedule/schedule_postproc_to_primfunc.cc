@@ -94,37 +94,32 @@ class TensorToBufferMapper : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const RealizeNode* op) final {
-    Tensor tensor = Downcast<Operation>(op->func).output(op->value_index);
+  Stmt VisitStmt_(const ProducerRealizeNode* op) final {
+    Tensor tensor = Downcast<Tensor>(op->producer);
     Buffer buffer = GetOrAllocBuffer(tensor);
 
     auto ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<RealizeNode>();
+    op = ret.as<ProducerRealizeNode>();
 
     return BufferRealize(buffer, op->bounds, op->condition, op->body);
   }
 
-  Stmt VisitStmt_(const ProvideNode* op) final {
-    Tensor tensor = Downcast<Operation>(op->func).output(op->value_index);
+  Stmt VisitStmt_(const ProducerStoreNode* op) final {
+    Tensor tensor = Downcast<Tensor>(op->producer);
     Buffer buffer = GetBuffer(tensor);
 
     auto ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<ProvideNode>();
+    op = ret.as<ProducerStoreNode>();
 
-    return BufferStore(buffer, op->value, op->args);
+    return BufferStore(buffer, op->value, op->indices);
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
     auto ret = StmtExprMutator::VisitExpr_(op);
-    op = ret.as<CallNode>();
-
-    if (op->call_type == CallNode::Halide) {
-      Tensor tensor = Downcast<Operation>(op->func).output(op->value_index);
-      Buffer buffer = GetBuffer(tensor);
-      return tir::BufferLoad(buffer, op->args);
-    } else {
-      return ret;
-    }
+    op = ret.as<ProducerLoadNode>();
+    Tensor tensor = Downcast<Tensor>(op->producer);
+    Buffer buffer = GetBuffer(tensor);
+    return tir::BufferLoad(buffer, op->indices);
   }
 
  private:

@@ -87,7 +87,7 @@ def main(model_str, output_path):
     except FileExistsError:
         pass
     print("building...")
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(net, target, target_host=target_host, params=params)
     print("dumping lib...")
     lib.export_library(output_path_str + '/' + 'deploy_lib_cpu.so', ndk.create_shared)

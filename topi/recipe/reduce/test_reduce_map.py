@@ -27,12 +27,6 @@ TASK = "reduce_map"
 USE_MANUAL_CODE = False
 
 
-@tvm.register_func
-def tvm_callback_cuda_compile(code):
-    ptx = nvcc.compile_cuda(code, target="ptx")
-    return ptx
-
-
 def write_code(code, fname):
     with open(fname, "w") as f:
         f.write(code)
@@ -64,8 +58,9 @@ def test_reduce_map(in_shape, axis, keepdims, type="sum", test_id=0):
     else:
         raise NotImplementedError
     s = topi.cuda.schedule_reduce(B)
-    with tvm.target.build_config(auto_unroll_max_step=16,
-                          auto_unroll_min_depth=0):
+    with tvm.transform.PassContext(config={"tir.UnrollLoop": {
+        "auto_max_step": 16,
+    }}):
         fcuda = tvm.build(s, [A, B], "cuda", name="sum")
 
     # Test

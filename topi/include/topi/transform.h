@@ -549,26 +549,25 @@ inline Array<Tensor> split(const Tensor& x, Array<Integer> split_indices, int ax
  * \param end Indicies indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
+ * \param slice_mode Specifies the slice mode
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
  * \return A Tensor whose op member is the split operation
  */
 inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const Array<Integer>& end,
-                            const Array<Integer>& strides, std::string name = "T_strided_slice",
-                            std::string tag = kInjective) {
+                            const Array<Integer>& strides, std::string slice_mode = "end",
+                            std::string name = "T_strided_slice", std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
   // Setup the ranges.
   // NOTE: this code duplicates the shape inference logic relay.op
   // Consider to refactor in the future.
-  std::vector<int64_t> stride_vec;
-  for (Integer i : strides) {
-    CHECK(i.defined());
-    stride_vec.push_back(i->value);
+  std::vector<int64_t> stride_vec(src_tensor_dim, 1);
+  for (size_t i = 0; i < strides.size(); ++i) {
+    CHECK(strides[i].defined());
+    stride_vec[i] = strides[i]->value;
   }
-  for (size_t i = stride_vec.size(); i < src_tensor_dim; ++i) {
-    stride_vec.push_back(1);
-  }
+
   const int64_t max_range = std::numeric_limits<int64_t>::max();
 
   std::vector<int64_t> begin_vec;
@@ -587,8 +586,15 @@ inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const 
   std::vector<int64_t> end_vec;
   for (size_t i = 0; i < end.size(); ++i) {
     // allow end to be None
+
     if (!end[i].defined()) {
       end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
+    } else if (slice_mode == "size") {
+      if (end[i]->value < 0) {
+        end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
+      } else {
+        end_vec.push_back(begin_vec[i] + end[i]->value);
+      }
     } else {
       end_vec.push_back(end[i]->value);
     }
@@ -1336,6 +1342,54 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
         auto idx = iter_vars[true_axis];
         return tir::SelectNode::make(indices(indices_indices) == idx, on_value_cast,
                                      off_value_cast);
+      },
+      name, tag);
+}
+
+/*!
+ * \brief Get a dense tensor.
+ * \param sparse_indices sparse_indices[i] contains sparse_values[i] will be placed.
+ * \param output_shape is the shape of the dense output tensor .
+ * \param sparse_values is a 0-D or 1-D tensor. Values for each row of sparse_indices.
+ * \param default_value is a 0-D tensor. Defaults to zero.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return Tensor of output_shape.
+ */
+inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<Integer>& output_shape,
+                              const Tensor& sparse_values, const PrimExpr& default_value,
+                              const std::string name = "T_sparse_to_dense",
+                              const std::string tag = kInjective) {
+  CHECK(sparse_indices->dtype.is_int()) << "sparse_indices only accepts integer values";
+  CHECK_LE(sparse_indices->shape.size(), 3) << "sparse_indices tensor should be 0D, 1D, or 2D only";
+  CHECK_LE(sparse_values->shape.size(), 2) << "sparse_values tensor should be 0D or 1D only";
+
+  const auto rank_sparse_indices = static_cast<int>(sparse_indices->shape.size());
+  Array<PrimExpr> oshape;
+  for (auto l : output_shape) {
+    oshape.push_back(l);
+  }
+  return compute(
+      oshape,
+      [&](const Array<Var>& indices) {
+        PrimExpr ret = default_value;
+        if (0 == rank_sparse_indices) {
+          ret = if_then_else(indices[0] == sparse_indices[0], sparse_values[0], ret);
+        } else if (1 == rank_sparse_indices) {
+          for (int j = 0; j < GetConstInt(sparse_indices->shape[0]); j++) {
+            ret = if_then_else(indices[0] == sparse_indices[j], sparse_values[j], ret);
+          }
+        } else {
+          for (int j = 0; j < GetConstInt(sparse_indices->shape[0]); j++) {
+            PrimExpr aggregate_condition;
+            for (int k = 0; k < GetConstInt(sparse_indices->shape[1]); k++) {
+              PrimExpr comparision = indices[k] == sparse_indices[j][k];
+              aggregate_condition = 0 == k ? comparision : aggregate_condition && comparision;
+            }
+            ret = if_then_else(aggregate_condition, sparse_values[j], ret);
+          }
+        }
+        return ret;
       },
       name, tag);
 }

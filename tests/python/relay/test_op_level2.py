@@ -262,7 +262,7 @@ def test_conv2d_run():
         with open(temp.relpath("temp.log"), "w") as log_file:
             log_file.write(test_schedule)
         with autotvm.apply_history_best(temp.relpath("temp.log")):
-            with relay.build_config(opt_level=3):
+            with tvm.transform.PassContext(opt_level=3):
                 print('Compiling...')
                 graph_json, mod, params = tvm.relay.build(mod, target="llvm -device=arm_cpu")
 
@@ -356,7 +356,7 @@ def test_conv2d_winograd():
             data.astype(out_dtype), kernel.astype(out_dtype), 1, padding,
             groups=groups)
 
-        with WinogradFallback(), relay.build_config(opt_level=3):
+        with WinogradFallback(), tvm.transform.PassContext(opt_level=3):
             for target, ctx in ctx_list():
                 if target != 'cuda':
                     continue
@@ -578,7 +578,7 @@ def test_conv3d_winograd():
             data.astype(out_dtype), kernel.astype(out_dtype), 1, padding,
             groups=groups)
 
-        with WinogradFallback(), relay.build_config(opt_level=3):
+        with WinogradFallback(), tvm.transform.PassContext(opt_level=3):
             for target, ctx in ctx_list():
                 if target != 'cuda':
                     continue
@@ -780,7 +780,7 @@ def _test_pool2d_int(opfunc, reffunc, dtype):
     x = relay.var("x", shape=dshape, dtype=dtype)
     y = opfunc(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
     func = relay.Function([x], y)
-    data = np.random.random_integers(low=-128, high=128, size=dshape)
+    data = np.random.randint(low=-128, high=128, size=dshape)
     ref_res = reffunc(data.reshape(1,3,14,2,14,2), axis=(3,5)).astype(dtype)
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
@@ -1199,7 +1199,7 @@ def test_conv2d_int8_intrinsics():
         wdata = np.random.rand(*kernel_shape) * 10
         parameters = {"weight": tvm.nd.array(wdata.astype(weight_dtype))}
 
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build(func, target, params=parameters)
 
         assembly = lib.get_source("asm")
@@ -1314,7 +1314,7 @@ def test_depthwise_conv2d_int8():
     llvm_version = tvm.target.codegen.llvm_version_major()
     for target in targets:
         if llvm_version >= 8:
-            with relay.build_config(opt_level=3):
+            with tvm.transform.PassContext(opt_level=3):
                 graph, lib, params = relay.build(func, target, params=parameters)
 
 
@@ -1340,6 +1340,45 @@ def test_bitpack_infer_type():
         (32, 2, 128, 128, 1), "uint16")
 
 # TODO(@jwfromm): Need to add bitserial_conv2d & bitpack run test cases
+
+
+def test_correlation():
+    def _test_correlation(data_shape, kernel_size, max_displacement, stride1, stride2, padding, is_multiply, dtype='float32'):
+        data1 = relay.var("data1", relay.ty.TensorType(data_shape, dtype))
+        data2 = relay.var("data2", relay.ty.TensorType(data_shape, dtype))
+        y = relay.nn.correlation(data1, data2, kernel_size, max_displacement, stride1, stride2,
+                                 padding, is_multiply, "NCHW")
+        yy = run_infer_type(y)
+        padded_height = data_shape[2] + 2 * padding
+        padded_width = data_shape[3] + 2 * padding
+        border_size = (kernel_size - 1) // 2 + max_displacement
+        displacement_radius = max_displacement // stride2
+        out_channel = ((2 * displacement_radius) + 1) ** 2
+        out_height = (padded_height - 2 * border_size + stride1 - 1) // stride1
+        out_width = (padded_width - 2 * border_size + stride1 - 1) // stride1
+        assert yy.checked_type == relay.TensorType(
+            (data_shape[0], out_channel, out_height, out_width), dtype
+        )
+        func = relay.Function([data1, data2], y)
+        data1_np = np.random.uniform(size=data_shape).astype(dtype)
+        data2_np = np.random.uniform(size=data_shape).astype(dtype)
+        ref_res = topi.testing.correlation_nchw_python(data1_np, data2_np, kernel_size, max_displacement, stride1, stride2, padding, is_multiply)
+
+        for target, ctx in ctx_list():
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(data1_np, data2_np)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    _test_correlation((1, 3, 10, 10), kernel_size=1, max_displacement=4,
+                      stride1=1, stride2=1, padding=4, is_multiply=True)
+    _test_correlation((1, 3, 10, 10), kernel_size=1, max_displacement=5,
+                      stride1=1, stride2=1, padding=5, is_multiply=True)
+    _test_correlation((5, 1, 4, 4), kernel_size=3, max_displacement=1,
+                      stride1=2, stride2=1, padding=2, is_multiply=True)
+    _test_correlation((5, 1, 6, 4), kernel_size=3, max_displacement=1,
+                      stride1=2, stride2=2, padding=2, is_multiply=False)
+    _test_correlation((5, 1, 11, 11), kernel_size=5, max_displacement=1,
+                      stride1=1, stride2=1, padding=2, is_multiply=False)
 
 
 if __name__ == "__main__":
@@ -1374,3 +1413,4 @@ if __name__ == "__main__":
     test_upsampling3d()
     test_conv2d_int8_intrinsics()
     test_depthwise_conv2d_int8()
+    test_correlation()

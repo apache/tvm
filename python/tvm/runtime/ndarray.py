@@ -22,7 +22,7 @@ import tvm._ffi
 
 from tvm._ffi.base import _LIB, check_call, c_array, string_types, _FFI_MODE
 from tvm._ffi.runtime_ctypes import DataType, TVMContext, TVMArray, TVMArrayHandle
-from tvm._ffi.runtime_ctypes import TypeCode, tvm_shape_index_t
+from tvm._ffi.runtime_ctypes import DataTypeCode, tvm_shape_index_t
 
 try:
     # pylint: disable=wrong-import-position
@@ -407,22 +407,6 @@ def vulkan(dev_id=0):
         The created context
     """
     return TVMContext(7, dev_id)
-
-
-def opengl(dev_id=0):
-    """Construct a OpenGL device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    ctx : TVMContext
-        The created context
-    """
-    return TVMContext(11, dev_id)
 
 
 def ext_dev(dev_id=0):

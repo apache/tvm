@@ -246,7 +246,7 @@ In order to specify the layouts to convert to, we create a mapping of heavily-la
     # RemoveUnunsedFunctions is used to clean up the graph.
     seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
                                     relay.transform.ConvertLayout(desired_layouts)])
-    with relay.transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
 
     # Call relay compilation

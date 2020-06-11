@@ -45,7 +45,7 @@ public class Module extends TVMValue {
   }
 
   Module(long handle) {
-    super(TypeCode.MODULE_HANDLE);
+    super(ArgTypeCode.MODULE_HANDLE);
     this.handle = handle;
   }
 
@@ -138,7 +138,7 @@ public class Module extends TVMValue {
    */
   public static Module load(String path, String fmt) {
     TVMValue ret = getApi("ModuleLoadFromFile").pushArg(path).pushArg(fmt).invoke();
-    assert ret.typeCode == TypeCode.MODULE_HANDLE;
+    assert ret.typeCode == ArgTypeCode.MODULE_HANDLE;
     return ret.asModule();
   }
 

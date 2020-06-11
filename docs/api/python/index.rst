@@ -37,9 +37,11 @@ Python API
    relay/transform
    relay/analysis
    relay/backend
+   relay/dataflow_pattern
    relay/testing
    autotvm
    rpc
+   micro
    contrib
    graph_runtime
    vta/index

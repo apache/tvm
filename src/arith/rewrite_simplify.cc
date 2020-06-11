@@ -211,7 +211,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
 
 std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& constraint) {
   size_t old_literal_size = literal_constraints_.size();
-  literal_constraints_.push_back(constraint);
+  // we will compare the already simplified result with the constraint,
+  // so simplify the constarint as well
+  literal_constraints_.push_back(operator()(constraint));
   size_t new_literal_size = literal_constraints_.size();
   auto frecover = [old_literal_size, new_literal_size, this]() {
     CHECK_EQ(literal_constraints_.size(), new_literal_size);
@@ -1023,8 +1025,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
     if (min(x * c1, c2).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      if (c1val == 0) {
+        return c2val < 0 ? c2.Eval() : c1.Eval();
+      }
       if (c2val % c1val == 0) {
-        if (c2val / c1val >= 0) {
+        if (c1val > 0) {
           return (min(x, c2val / c1val) * c1val).Eval();
         } else {
           return (max(x, c2val / c1val) * c1val).Eval();
@@ -1183,8 +1188,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
     if (max(x * c1, c2).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      if (c1val == 0) {
+        return c2val > 0 ? c2.Eval() : c1.Eval();
+      }
       if (c2val % c1val == 0) {
-        if (c2val / c1val >= 0) {
+        if (c1val > 0) {
           return (max(x, c2val / c1val) * c1val).Eval();
         } else {
           return (min(x, c2val / c1val) * c1val).Eval();

@@ -115,7 +115,7 @@ def test_fp16_conversion():
             X = tvm.nd.array(n * np.random.randn(n).astype(src) - n / 2)
 
             # build
-            with relay.build_config(opt_level=1):
+            with tvm.transform.PassContext(opt_level=1):
                 g_json, mmod, params = relay.build(tvm.IRModule.from_expr(func), tgt)
 
             # test

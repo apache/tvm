@@ -105,19 +105,23 @@ class NodeIndexer : public AttrVisitor {
 
     if (node->IsInstance<ArrayNode>()) {
       ArrayNode* n = static_cast<ArrayNode*>(node);
-      for (const auto& sp : n->data) {
+      for (const auto& sp : *n) {
         MakeIndex(const_cast<Object*>(sp.get()));
       }
     } else if (node->IsInstance<MapNode>()) {
       MapNode* n = static_cast<MapNode*>(node);
-      for (const auto& kv : n->data) {
-        MakeIndex(const_cast<Object*>(kv.first.get()));
-        MakeIndex(const_cast<Object*>(kv.second.get()));
-      }
-    } else if (node->IsInstance<StrMapNode>()) {
-      StrMapNode* n = static_cast<StrMapNode*>(node);
-      for (const auto& kv : n->data) {
-        MakeIndex(const_cast<Object*>(kv.second.get()));
+      bool is_str_map = std::all_of(n->data.begin(), n->data.end(), [](const auto& v) {
+        return v.first->template IsInstance<StringObj>();
+      });
+      if (is_str_map) {
+        for (const auto& kv : n->data) {
+          MakeIndex(const_cast<Object*>(kv.second.get()));
+        }
+      } else {
+        for (const auto& kv : n->data) {
+          MakeIndex(const_cast<Object*>(kv.first.get()));
+          MakeIndex(const_cast<Object*>(kv.second.get()));
+        }
       }
     } else {
       // if the node already have repr bytes, no need to visit Attrs.
@@ -244,20 +248,24 @@ class JSONAttrGetter : public AttrVisitor {
 
     if (node->IsInstance<ArrayNode>()) {
       ArrayNode* n = static_cast<ArrayNode*>(node);
-      for (size_t i = 0; i < n->data.size(); ++i) {
-        node_->data.push_back(node_index_->at(const_cast<Object*>(n->data[i].get())));
+      for (size_t i = 0; i < n->size(); ++i) {
+        node_->data.push_back(node_index_->at(const_cast<Object*>(n->at(i).get())));
       }
     } else if (node->IsInstance<MapNode>()) {
       MapNode* n = static_cast<MapNode*>(node);
-      for (const auto& kv : n->data) {
-        node_->data.push_back(node_index_->at(const_cast<Object*>(kv.first.get())));
-        node_->data.push_back(node_index_->at(const_cast<Object*>(kv.second.get())));
-      }
-    } else if (node->IsInstance<StrMapNode>()) {
-      StrMapNode* n = static_cast<StrMapNode*>(node);
-      for (const auto& kv : n->data) {
-        node_->keys.push_back(kv.first);
-        node_->data.push_back(node_index_->at(const_cast<Object*>(kv.second.get())));
+      bool is_str_map = std::all_of(n->data.begin(), n->data.end(), [](const auto& v) {
+        return v.first->template IsInstance<StringObj>();
+      });
+      if (is_str_map) {
+        for (const auto& kv : n->data) {
+          node_->keys.push_back(Downcast<String>(kv.first));
+          node_->data.push_back(node_index_->at(const_cast<Object*>(kv.second.get())));
+        }
+      } else {
+        for (const auto& kv : n->data) {
+          node_->data.push_back(node_index_->at(const_cast<Object*>(kv.first.get())));
+          node_->data.push_back(node_index_->at(const_cast<Object*>(kv.second.get())));
+        }
       }
     } else {
       // recursively index normal object.
@@ -270,7 +278,7 @@ class JSONAttrGetter : public AttrVisitor {
 // from given json node.
 class JSONAttrSetter : public AttrVisitor {
  public:
-  const std::vector<ObjectPtr<Object> >* node_list_;
+  const std::vector<ObjectPtr<Object>>* node_list_;
   const std::vector<runtime::NDArray>* tensor_list_;
   JSONNode* node_;
 
@@ -322,22 +330,24 @@ class JSONAttrSetter : public AttrVisitor {
 
     if (node->IsInstance<ArrayNode>()) {
       ArrayNode* n = static_cast<ArrayNode*>(node);
-      n->data.clear();
+      CHECK_EQ(n->size(), node_->data.size());
+      int64_t i = 0;
       for (size_t index : node_->data) {
-        n->data.push_back(ObjectRef(node_list_->at(index)));
+        n->SetItem(i++, ObjectRef(node_list_->at(index)));
       }
     } else if (node->IsInstance<MapNode>()) {
       MapNode* n = static_cast<MapNode*>(node);
-      CHECK_EQ(node_->data.size() % 2, 0U);
-      for (size_t i = 0; i < node_->data.size(); i += 2) {
-        n->data[ObjectRef(node_list_->at(node_->data[i]))] =
-            ObjectRef(node_list_->at(node_->data[i + 1]));
-      }
-    } else if (node->IsInstance<StrMapNode>()) {
-      StrMapNode* n = static_cast<StrMapNode*>(node);
-      CHECK_EQ(node_->data.size(), node_->keys.size());
-      for (size_t i = 0; i < node_->data.size(); ++i) {
-        n->data[node_->keys[i]] = ObjectRef(node_list_->at(node_->data[i]));
+      if (node_->keys.empty()) {
+        CHECK_EQ(node_->data.size() % 2, 0U);
+        for (size_t i = 0; i < node_->data.size(); i += 2) {
+          n->data[ObjectRef(node_list_->at(node_->data[i]))] =
+              ObjectRef(node_list_->at(node_->data[i + 1]));
+        }
+      } else {
+        CHECK_EQ(node_->data.size(), node_->keys.size());
+        for (size_t i = 0; i < node_->data.size(); ++i) {
+          n->data[String(node_->keys[i])] = ObjectRef(node_list_->at(node_->data[i]));
+        }
       }
     } else {
       reflection_->VisitAttrs(node, this);
@@ -414,21 +424,23 @@ std::string SaveJSON(const ObjectRef& n) {
 }
 
 ObjectRef LoadJSON(std::string json_str) {
-  std::istringstream is(json_str);
-  dmlc::JSONReader reader(&is);
   JSONGraph jgraph;
-  // load in json graph.
-  jgraph.Load(&reader);
-  std::vector<ObjectPtr<Object> > nodes;
+  std::vector<ObjectPtr<Object>> nodes;
   std::vector<runtime::NDArray> tensors;
-  // load in tensors
-  for (const std::string& blob : jgraph.b64ndarrays) {
-    dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
-    support::Base64InStream b64strm(&mstrm);
-    b64strm.InitPosition();
-    runtime::NDArray temp;
-    CHECK(temp.Load(&b64strm));
-    tensors.emplace_back(temp);
+  {
+    // load in json graph.
+    std::istringstream is(json_str);
+    dmlc::JSONReader reader(&is);
+    jgraph.Load(&reader);
+    // load in tensors
+    for (const std::string& blob : jgraph.b64ndarrays) {
+      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
+      support::Base64InStream b64strm(&mstrm);
+      b64strm.InitPosition();
+      runtime::NDArray temp;
+      CHECK(temp.Load(&b64strm));
+      tensors.emplace_back(temp);
+    }
   }
   ReflectionVTable* reflection = ReflectionVTable::Global();
 
@@ -436,9 +448,12 @@ ObjectRef LoadJSON(std::string json_str) {
   nodes.reserve(jgraph.nodes.size());
 
   for (const JSONNode& jnode : jgraph.nodes) {
-    if (jnode.type_key.length() != 0) {
+    if (jnode.type_key == ArrayNode::_type_key) {
+      CHECK(jnode.repr_bytes.empty());
+      nodes.emplace_back(ArrayNode::CreateRepeated(jnode.data.size(), ObjectRef(nullptr)));
+    } else if (jnode.type_key.length() != 0) {
       ObjectPtr<Object> node = reflection->CreateInitObject(jnode.type_key, jnode.repr_bytes);
-      nodes.emplace_back(node);
+      nodes.emplace_back(std::move(node));
     } else {
       nodes.emplace_back(ObjectPtr<Object>());
     }

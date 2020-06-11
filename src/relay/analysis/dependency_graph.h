@@ -56,7 +56,7 @@ class DependencyGraph {
   };
 
   /*! \brief Maps a Relay Expr to its node in the dependency graph. */
-  std::unordered_map<Expr, Node*, ObjectHash, ObjectEqual> expr_node;
+  std::unordered_map<Expr, Node*, ObjectPtrHash, ObjectPtrEqual> expr_node;
 
   /*! \brief The dependency graph in post DFS order. */
   std::vector<Node*> post_dfs_order;

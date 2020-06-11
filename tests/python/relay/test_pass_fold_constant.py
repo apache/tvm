@@ -70,15 +70,9 @@ def test_fold_const():
         z = relay.add(y, relay.const(c_data))
         return relay.Function([x], z)
 
-    def FailPass():
-        def _transform(m, *args):
-            raise RuntimeError()
-        return tvm.transform.module_pass(_transform, opt_level=0)
-
     # the fold constant should work on any context.
-    with tvm.target.build_config(add_lower_pass=[(0, FailPass())]):
-        with tvm.target.create("cuda"):
-            zz = run_opt_pass(before(), transform.FoldConstant())
+    with tvm.target.create("cuda"):
+        zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
     assert tvm.ir.structural_equal(zz, zexpected)
 
@@ -219,7 +213,7 @@ def test_fold_batch_norm():
     mod, params = create_workload(bn_output[0], initializer)
     mod["main"] = bind_params_by_name(mod["main"], params)
 
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         mod = remove_bn_pass(mod)
 
     expect = run_infer_type(expected())

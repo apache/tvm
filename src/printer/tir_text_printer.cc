@@ -164,11 +164,11 @@ Doc TIRTextPrinter::PrintIRModule(const IRModule& module) {
 Doc TIRTextPrinter::PrintArray(const ArrayNode* op) {
   Doc doc;
   doc << '[';
-  for (size_t i = 0; i < op->data.size(); ++i) {
+  for (size_t i = 0; i < op->size(); ++i) {
     if (i != 0) {
       doc << ", ";
     }
-    doc << Print(op->data[i]);
+    doc << Print(op->at(i));
   }
   doc << ']';
   return doc;
@@ -291,6 +291,13 @@ Doc TIRTextPrinter::VisitExpr_(const BufferLoadNode* op) {
   return doc;
 }
 
+Doc TIRTextPrinter::VisitExpr_(const ProducerLoadNode* op) {
+  // TODO(tvm-team): consider make a better text format for producer.
+  Doc doc;
+  doc << op->producer->GetNameHint() << Print(op->indices);
+  return doc;
+}
+
 Doc TIRTextPrinter::VisitExpr_(const LoadNode* op) {
   Doc doc;
   doc << "(" << PrintDType(op->dtype) << "*)" << Print(op->buffer_var) << "[" << Print(op->index)
@@ -327,8 +334,6 @@ inline const char* CallType2String(CallNode::CallType t) {
       return "extern_cpp";
     case CallNode::PureExtern:
       return "pure_extern";
-    case CallNode::Halide:
-      return "halide";
     case CallNode::Intrinsic:
       return "intrin";
     case CallNode::PureIntrinsic:
@@ -346,8 +351,7 @@ Doc TIRTextPrinter::VisitExpr_(const CallNode* op) {
     args.push_back(Print(arg));
   }
   doc << PrintSep(args, Doc::Text(", ")) << ", dtype=" << PrintDType(op->dtype)
-      << ", type=" << Doc::StrLiteral(CallType2String(op->call_type))
-      << ", index=" << op->value_index << ")";
+      << ", type=" << Doc::StrLiteral(CallType2String(op->call_type)) << ")";
   return doc;
 }
 
@@ -567,7 +571,7 @@ Doc TIRTextPrinter::AllocVar(const Var& var) {
   if (it != memo_var_.end()) {
     return it->second;
   }
-  std::string name = var->name_hint;
+  std::string name = var->name_hint.operator std::string();
   if (name.length() == 0 || !std::isalpha(name[0])) {
     name = "v" + name;
   }

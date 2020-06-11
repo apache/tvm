@@ -141,6 +141,8 @@ constexpr const char* kSkipOptimization = "SkipOptimization";
 constexpr const char* kComposite = "Composite";
 /*! \brief Mark the function to be inlined. */
 constexpr const char* kInline = "Inline";
+/*! \brief Indicate the function was created by the Pattern Partitioning Pass. */
+constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
 }  // namespace attr
 
 }  // namespace relay

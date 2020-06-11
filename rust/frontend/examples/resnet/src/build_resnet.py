@@ -75,8 +75,8 @@ def build(target_dir):
             num_layers=18, batch_size=batch_size, image_shape=image_shape)
 
     # compile the model
-    with relay.build_config(opt_level=opt_level):
-            graph, lib, params = relay.build_module.build(net, target, params=params)
+    with tvm.transform.PassContext(opt_level=opt_level):
+        graph, lib, params = relay.build_module.build(net, target, params=params)
 
     # save the model artifacts
     lib.save(deploy_lib)

@@ -17,29 +17,25 @@
  * under the License.
  */
 
-/*!
- * \file tvm/arith/util.h
- * \brief Utils for arithmetic analysis.
- */
-#ifndef TVM_ARITH_UTIL_H_
-#define TVM_ARITH_UTIL_H_
+use proc_macro::TokenStream;
 
-#include <cstdint>
-#include <tuple>
+mod external;
+mod import_module;
+mod object;
+mod util;
 
-namespace tvm {
-/*! \brief namespace of arithmetic analysis. */
-namespace arith {
+#[proc_macro]
+pub fn import_module(input: TokenStream) -> TokenStream {
+    import_module::macro_impl(input)
+}
 
-/*!
- * \brief Calculate the extended greatest common divisor for two values.
- *        See https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm.
- * \param a an integer number
- * \param b an integer number
- * \return 3 integers (div, m, n) where div = gcd(a, b) and a*m + b*n = div
- */
-std::tuple<int64_t, int64_t, int64_t> xgcd(int64_t a, int64_t b);
+#[proc_macro_derive(Object, attributes(base, ref_name, type_key))]
+pub fn macro_impl(input: TokenStream) -> TokenStream {
+    // let input = proc_macro2::TokenStream::from(input);
+    TokenStream::from(object::macro_impl(input))
+}
 
-}  // namespace arith
-}  // namespace tvm
-#endif  // TVM_ARITH_UTIL_H_
+#[proc_macro]
+pub fn external(input: TokenStream) -> TokenStream {
+    external::macro_impl(input)
+}

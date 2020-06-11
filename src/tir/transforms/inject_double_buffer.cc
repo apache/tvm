@@ -26,11 +26,27 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include "../../arith/compute_expr.h"
 #include "ir_util.h"
 
 namespace tvm {
 namespace tir {
+
+struct InjectDoubleBufferConfigNode : public tvm::AttrsNode<InjectDoubleBufferConfigNode> {
+  int split_loop;
+
+  TVM_DECLARE_ATTRS(InjectDoubleBufferConfigNode, "tir.transform.InjectDoubleBufferConfig") {
+    TVM_ATTR_FIELD(split_loop).describe("Split loop factors").set_default(1);
+  }
+};
+
+class InjectDoubleBufferConfig : public Attrs {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(InjectDoubleBufferConfig, Attrs,
+                                            InjectDoubleBufferConfigNode);
+};
+
+TVM_REGISTER_NODE_TYPE(InjectDoubleBufferConfigNode);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.InjectDoubleBuffer", InjectDoubleBufferConfig);
 
 // Detect double buffer variables.
 class DoubleBufferDetector : public StmtExprVisitor {
@@ -98,8 +114,9 @@ class DoubleBufferInjector : public StmtExprMutator {
   Stmt VisitStmt_(const AllocateNode* op) final {
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
+      auto fmul = [](PrimExpr a, PrimExpr b) { return a * b; };
       it->second.stride =
-          arith::ComputeReduce<MulNode>(op->extents, PrimExpr()) * op->dtype.lanes();
+          foldl(fmul, make_const(DataType::Int(32), 1), op->extents) * op->dtype.lanes();
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AllocateNode>();
       Array<PrimExpr> new_extents{make_const(op->extents[0].dtype(), 2)};
@@ -258,16 +275,16 @@ class DoubleBufferInjector : public StmtExprMutator {
   std::unordered_map<const VarNode*, StorageEntry> dbuffer_info_;
 };
 
-Stmt InjectDoubleBuffer(Stmt stmt, int split_loop) {
-  return DoubleBufferInjector(split_loop).Inject(stmt);
-}
-
 namespace transform {
 
-Pass InjectDoubleBuffer(int split_loop) {
+Pass InjectDoubleBuffer() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = DoubleBufferInjector(split_loop).Inject(std::move(n->body));
+    auto cfg = ctx->GetConfig<InjectDoubleBufferConfig>("tir.InjectDoubleBuffer");
+    if (!cfg.defined()) {
+      cfg = AttrsWithDefaultValues<InjectDoubleBufferConfig>();
+    }
+    n->body = DoubleBufferInjector(cfg.value()->split_loop).Inject(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectDoubleBuffer", {});

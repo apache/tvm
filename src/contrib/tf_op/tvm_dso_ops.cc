@@ -21,11 +21,15 @@
 
 REGISTER_OP("TvmDsoOp")
     .Input("input_args: ListT")
-    .Attr("ListT: list({int8, int32, int64, float16, float32})")
+    .Attr(
+        "ListT: list({float16, float32, float64, int8, int16, int32, int64, uint8, uint16,"
+        "uint32, uint64})")
     .Input("dynamic_output_shape: int64")
     .Output("output: output_dtype")
     .Attr("lib_path: string")
     .Attr("func_name: string")
-    .Attr("output_dtype: {int8, int32, int64, float16, float32} = DT_FLOAT")
+    .Attr(
+        "output_dtype: {float16, float32, float64, int8, int16, int32, int64, uint8, uint16,"
+        "uint32, uint64} = DT_FLOAT")
     .Attr("static_output_shape: list(int) >= 0 = []")
     .Attr("has_static_output_shape: bool");

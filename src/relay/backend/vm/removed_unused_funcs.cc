@@ -47,7 +47,7 @@ struct CallTracer : ExprVisitor {
   std::unordered_set<std::string> called_funcs_;
 
   // Record the expressions that are being visited
-  std::unordered_set<Expr, ObjectHash, ObjectEqual> visiting_;
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visiting_;
 
   explicit CallTracer(const IRModule& module) : module_{module}, called_funcs_{}, visiting_{} {}
 

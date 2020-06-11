@@ -250,12 +250,12 @@ class IRModuleNode : public Object {
   /*! \brief A map from string names to global variables that
    * ensures global uniqueness.
    */
-  Map<std::string, GlobalVar> global_var_map_;
+  Map<String, GlobalVar> global_var_map_;
 
   /*! \brief A map from string names to global type variables (ADT names)
    * that ensures global uniqueness.
    */
-  Map<std::string, GlobalTypeVar> global_type_var_map_;
+  Map<String, GlobalTypeVar> global_type_var_map_;
 
   /*! \brief A map from constructor tags to constructor objects
    * for convenient access
@@ -285,7 +285,7 @@ class IRModule : public ObjectRef {
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
                             std::unordered_set<String> import_set = {});
   /*! \brief default constructor */
-  IRModule() {}
+  IRModule() : IRModule(Map<GlobalVar, BaseFunc>()) {}
   /*!
    * \brief constructor
    * \param n The object pointer.
@@ -298,12 +298,6 @@ class IRModule : public ObjectRef {
     return static_cast<IRModuleNode*>(ptr);
   }
 
-  /*!
-   * \brief Construct an empty module.
-   *
-   * \returns The constructed module
-   */
-  static IRModule Empty() { return IRModule(Map<GlobalVar, BaseFunc>()); }
   /*!
    * \brief Construct a module from a standalone expression.
    *
@@ -330,6 +324,10 @@ class IRModule : public ObjectRef {
 
   /*! \brief Declare the container type. */
   using ContainerType = IRModuleNode;
+
+  /*! \brief Declare whether Ref is nullable. */
+  static constexpr bool _type_is_nullable = false;
+
   // allow copy on write.
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IRModuleNode);
 };

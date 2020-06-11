@@ -17,37 +17,14 @@
  * under the License.
  */
 
-/*!
- * \file util.cc
- * \brief The utils for arithmetic analysis.
- */
-#include <dmlc/logging.h>
-#include <tvm/arith/util.h>
+use proc_macro2::TokenStream;
+use quote::quote;
+use std::env;
 
-namespace tvm {
-namespace arith {
-
-std::tuple<int64_t, int64_t, int64_t> xgcd(int64_t a, int64_t b) {
-  int64_t s = 0, old_s = 1;
-  int64_t t = 1, old_t = 0;
-  int64_t r = b, old_r = a;
-
-  while (r != 0) {
-    int64_t q = old_r / r;
-    std::swap(r, old_r);
-    r -= q * old_r;
-    std::swap(s, old_s);
-    s -= q * old_s;
-    std::swap(t, old_t);
-    t -= q * old_t;
-  }
-
-  CHECK_EQ(a % old_r, 0);
-  CHECK_EQ(b % old_r, 0);
-  CHECK(old_r == old_s * a + old_t * b);
-
-  return std::make_tuple(old_r, old_s, old_t);
+pub fn get_tvm_rt_crate() -> TokenStream {
+    if env::var("CARGO_PKG_NAME").unwrap() == "tvm-rt" {
+        quote!(crate)
+    } else {
+        quote!(tvm_rt)
+    }
 }
-
-}  // namespace arith
-}  // namespace tvm

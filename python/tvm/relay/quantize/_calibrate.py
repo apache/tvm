@@ -28,7 +28,6 @@ from . import quantize
 from .. import op as _op
 from .. import expr as _expr
 from .. import analysis as _analysis
-from .. import transform as _transform
 from .. import build_module as _build_module
 from ...contrib import graph_runtime
 from .kl_divergence import _find_scale_by_kl
@@ -45,7 +44,7 @@ def _get_profile_runtime(mod):
         target = 'llvm'
         ctx = tvm.context(target)
 
-    with _transform.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = _build_module.build(func, target=target)
     runtime = graph_runtime.create(graph, lib, ctx)
     runtime.set_input(**params)
