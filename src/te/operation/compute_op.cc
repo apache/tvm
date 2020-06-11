@@ -95,8 +95,7 @@ Tensor compute(Array<PrimExpr> shape, FCompute fcompute, std::string name, std::
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
-    axis.emplace_back(
-        IterVarNode::make(Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
+    axis.emplace_back(IterVar(Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
@@ -113,8 +112,7 @@ Array<Tensor> compute(Array<PrimExpr> shape, FBatchCompute fcompute, std::string
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
-    axis.emplace_back(
-        IterVarNode::make(Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
+    axis.emplace_back(IterVar(Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
@@ -275,11 +273,10 @@ Stmt BaseComputeOpNode::BuildRealize(const Stage& stage,
         if (attr->dim_align_factor != 0) {
           Array<PrimExpr> tuple = {static_cast<int>(i), attr->dim_align_factor,
                                    attr->dim_align_offset};
-          realize =
-              tir::AttrStmtNode::make(t, tir::attr::buffer_dim_align,
-                                      CallNode::make(DataType::Handle(), tir::intrinsic::tvm_tuple,
-                                                     tuple, CallNode::Intrinsic),
-                                      realize);
+          realize = tir::AttrStmtNode::make(
+              t, tir::attr::buffer_dim_align,
+              Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
+              realize);
         }
       }
     }

@@ -192,8 +192,7 @@ TEST(IRF, StmtMutator) {
   }
 
   {
-    auto body =
-        EvaluateNode::make(CallNode::make(DataType::Int(32), "xyz", {x + 1}, CallNode::Extern));
+    auto body = EvaluateNode::make(Call(DataType::Int(32), "xyz", {x + 1}, CallNode::Extern));
     auto res = v(std::move(body));
     CHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[0].same_as(x));
   }

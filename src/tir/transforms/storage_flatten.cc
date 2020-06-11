@@ -228,8 +228,8 @@ class StorageFlattener : public StmtExprMutator {
         ret = AllocateNode::make(e.buffer->data, storage_type, shape,
                                  make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       }
-      ret = AttrStmtNode::make(e.buffer->data, attr::storage_scope,
-                               StringImmNode::make(e.buffer->scope), ret);
+      ret =
+          AttrStmtNode::make(e.buffer->data, attr::storage_scope, StringImm(e.buffer->scope), ret);
 
       if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
         ret = AttrStmtNode::make(e.buffer->data, tir::attr::buffer_bound,
@@ -246,7 +246,7 @@ class StorageFlattener : public StmtExprMutator {
     if (it != var_remap_.end() && !it->second.same_as(op->buffer_var)) {
       CHECK(it->second.as<VarNode>());
       Var buf_var = Downcast<Var>(it->second);
-      return LoadNode::make(op->dtype, buf_var, op->index, op->predicate);
+      return Load(op->dtype, buf_var, op->index, op->predicate);
     } else {
       return expr;
     }
@@ -324,9 +324,9 @@ class StorageFlattener : public StmtExprMutator {
       } else {
         PrimExpr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
         PrimExpr address =
-            CallNode::make(DataType::Handle(), tvm_address_of, {load}, CallNode::PureIntrinsic);
-        PrimExpr prefetch = CallNode::make(op->buffer->dtype, CallNode::prefetch,
-                                           {address, 0, 3, 1}, CallNode::Intrinsic);
+            Call(DataType::Handle(), tvm_address_of, {load}, CallNode::PureIntrinsic);
+        PrimExpr prefetch =
+            Call(op->buffer->dtype, CallNode::prefetch, {address, 0, 3, 1}, CallNode::Intrinsic);
         stmt = EvaluateNode::make(prefetch);
         PrimExpr extent = (op->bounds[i]->extent - 1) / stride + 1;
         stmt = ForNode::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
@@ -481,10 +481,9 @@ class StorageFlattener : public StmtExprMutator {
 
   PrimExpr MakeBound(const DataType& type, const Array<PrimExpr>& shape) {
     // We have already checked the shape size to be greater then 0.
-    PrimExpr bound = MulNode::make(make_const(shape[0].dtype(), type.lanes()), shape[0]);
+    PrimExpr bound = Mul(make_const(shape[0].dtype(), type.lanes()), shape[0]);
     for (size_t i = 1; i < shape.size(); ++i) {
-      bound =
-          MulNode::make(bound, MulNode::make(make_const(bound.dtype(), type.lanes()), shape[i]));
+      bound = Mul(bound, Mul(make_const(bound.dtype(), type.lanes()), shape[i]));
     }
     return bound;
   }

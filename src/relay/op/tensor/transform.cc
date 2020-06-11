@@ -481,7 +481,7 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
     // Doesn't support dynamic output rank
     for (int i = 0; i < newshape->shape[0].as<IntImmNode>()->value; i++) {
-      oshape.push_back(Any::make());
+      oshape.push_back(Any());
     }
 
     reporter->Assign(types[2], TensorType(oshape, data->dtype));
@@ -526,8 +526,8 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       used_input_dims.insert(src_idx);
       IndexExpr d2 = data_shape[src_idx++];
       used_output_dims.insert(oshape.size());
-      if (d1.as<Any>() || d2.as<Any>()) {
-        oshape.push_back(Any::make());
+      if (d1.as<AnyNode>() || d2.as<AnyNode>()) {
+        oshape.push_back(Any());
       } else {
         oshape.push_back(d1 * d2);
       }
@@ -543,8 +543,8 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       if (d1->value == -1) {
         CHECK(d2->value != -1) << "Split dims cannot both be -1.";
         used_output_dims.insert(oshape.size());
-        if (d0.as<Any>()) {
-          oshape.push_back(Any::make());
+        if (d0.as<AnyNode>()) {
+          oshape.push_back(Any());
         } else {
           oshape.push_back(indexdiv(d0, d2));
         }
@@ -555,8 +555,8 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         oshape.push_back(d1);
         used_output_dims.insert(oshape.size());
         if (d2->value == -1) {
-          if (d0.as<Any>()) {
-            oshape.push_back(Any::make());
+          if (d0.as<AnyNode>()) {
+            oshape.push_back(Any());
           } else {
             oshape.push_back(indexdiv(d0, d1));
           }
@@ -575,19 +575,19 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       if (used_input_dims.count(i) != 0) {
         continue;
       }
-      if (data_shape[i].as<Any>()) {
-        infer_dim = Any::make();
+      if (data_shape[i].as<AnyNode>()) {
+        infer_dim = Any();
         break;
       }
       infer_dim *= data_shape[i];
     }
-    if (!infer_dim.as<Any>()) {
+    if (!infer_dim.as<AnyNode>()) {
       for (size_t i = 0; i < oshape.size(); ++i) {
         if (used_output_dims.count(i) != 0) {
           continue;
         }
-        if (oshape[i].as<Any>()) {
-          infer_dim = Any::make();
+        if (oshape[i].as<AnyNode>()) {
+          infer_dim = Any();
           break;
         }
         infer_dim = indexdiv(infer_dim, oshape[i]);
@@ -759,7 +759,7 @@ bool ArgWhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto& input_shape = tt->shape;
   const auto& input_rank = input_shape.size();
   std::vector<IndexExpr> result_shape;
-  result_shape.push_back(Any::make());
+  result_shape.push_back(Any());
   result_shape.push_back(IntImm(DataType::Int(32), input_rank));
   reporter->Assign(types[1], TensorType(result_shape, DataType::Int(32)));
   return true;
@@ -960,7 +960,7 @@ bool FullRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
   } else {
     for (int i = 0; i < shape_shape->value; ++i) {
-      oshape.push_back(Any::make());
+      oshape.push_back(Any());
     }
   }
   reporter->Assign(types[2], TensorType(oshape, out_dtype));
@@ -1016,7 +1016,7 @@ bool InitOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
   } else {
     for (int i = 0; i < shape_shape->value; ++i) {
-      oshape.push_back(Any::make());
+      oshape.push_back(Any());
     }
   }
   reporter->Assign(types[1], TensorType(oshape, out_dtype));
@@ -1136,7 +1136,7 @@ bool ArangeRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attrs,
     reporter->Assign(types[3], TensorType({num_elem}, attrs->dtype));
     return true;
   } else {
-    reporter->Assign(types[3], TensorType({Any::make()}, attrs->dtype));
+    reporter->Assign(types[3], TensorType({Any()}, attrs->dtype));
     return true;
   }
 }
@@ -1331,7 +1331,7 @@ bool TileRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   for (size_t i = 0; i < tndim; ++i) {
     // Save Any if it is dynamic shape
     if (!data_shape[i].as<IntImmNode>()) {
-      oshape.emplace_back(Any::make());
+      oshape.emplace_back(Any());
     } else {
       oshape.emplace_back(data_shape[i] * reps_shape[i]);
     }
@@ -1641,7 +1641,7 @@ bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     }
   } else {
     for (int i = 0; i < shape_shape->value; ++i) {
-      oshape.push_back(Any::make());
+      oshape.push_back(Any());
     }
   }
   reporter->Assign(types[2], TensorType(oshape, out_dtype));
@@ -1817,7 +1817,7 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
     }
   } else {
     for (int64_t i = 0; i < num_axis; ++i) {
-      oshape[i] = Any::make();
+      oshape[i] = Any();
     }
   }
 

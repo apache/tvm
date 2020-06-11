@@ -212,8 +212,7 @@ class VTInjector : public StmtExprMutator {
     }
     auto it = alloc_remap_.find(op->buffer_var.get());
     if (it != alloc_remap_.end()) {
-      return LoadNode::make(op->dtype, op->buffer_var, RewriteIndex(op->index, it->second),
-                            op->predicate);
+      return Load(op->dtype, op->buffer_var, RewriteIndex(op->index, it->second), op->predicate);
     } else {
       return expr;
     }
@@ -231,8 +230,8 @@ class VTInjector : public StmtExprMutator {
       PrimExpr extent = this->VisitExpr(op->args[3]);
       PrimExpr stride = it->second / make_const(offset.dtype(), dtype.lanes());
       offset = stride * var_ + offset;
-      return CallNode::make(op->dtype, op->name,
-                            {op->args[0], op->args[1], offset, extent, op->args[4]}, op->call_type);
+      return Call(op->dtype, op->name, {op->args[0], op->args[1], offset, extent, op->args[4]},
+                  op->call_type);
     } else if (op->is_intrinsic(intrinsic::tvm_context_id)) {
       return allow_share_ ? GetRef<PrimExpr>(op) : var_;
     } else {

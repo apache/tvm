@@ -156,7 +156,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
     // TODO(mbrookhart): When OpNode Attrs move from TVMRetValue to the Object system, remove this
     // and replace the whole thing with a Visitor-based approach
     ReflectionVTable* reflection = ReflectionVTable::Global();
-    auto attrs_node = const_cast<Object*>(op->attrs.get());
+    auto attrs_node = const_cast<BaseAttrsNode*>(op->attrs.get());
     auto attr_names = reflection->ListAttrNames(attrs_node);
     for (auto kv : attributes) {
       std::string attr = kv.first;

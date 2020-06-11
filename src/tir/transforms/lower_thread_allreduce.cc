@@ -86,15 +86,13 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       if (warp_allocs_.count(repl)) {
         stmt = AllocateNode::make(repl->buffer_var, repl->dtype, repl->extents, repl->condition,
                                   op->body);
-        stmt = AttrStmtNode::make(repl->buffer_var, attr::storage_scope,
-                                  StringImmNode::make("local"), stmt);
+        stmt = AttrStmtNode::make(repl->buffer_var, attr::storage_scope, StringImm("local"), stmt);
       } else {
         // use volatile access to shared buffer.
         stmt = AttrStmtNode::make(repl->buffer_var, attr::volatile_scope, 1, op->body);
         stmt =
             AllocateNode::make(repl->buffer_var, repl->dtype, repl->extents, repl->condition, stmt);
-        stmt = AttrStmtNode::make(repl->buffer_var, attr::storage_scope,
-                                  StringImmNode::make("shared"), stmt);
+        stmt = AttrStmtNode::make(repl->buffer_var, attr::storage_scope, StringImm("shared"), stmt);
       }
       return stmt;
     } else {
@@ -139,7 +137,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     for (size_t idx = 0; idx < size; ++idx) {
       values[idx] = call->args[1 + idx];
       if (!is_one(cond)) {
-        values[idx] = SelectNode::make(cond, values[idx], inits[idx]);
+        values[idx] = Select(cond, values[idx], inits[idx]);
       }
       types[idx] = values[idx].dtype();
     }
@@ -232,8 +230,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       Var mask_var("mask", DataType::UInt(32));
       {
         PrimExpr pred = const_true(1);
-        PrimExpr mask = CallNode::make(DataType::UInt(32), intrinsic::tvm_warp_activemask, {},
-                                       CallNode::Intrinsic);
+        PrimExpr mask =
+            Call(DataType::UInt(32), intrinsic::tvm_warp_activemask, {}, CallNode::Intrinsic);
         seq.emplace_back(StoreNode::make(mask_var, mask, index, pred));
         // Push allocation with an empty body. Later this will be fixed
         // when the entire body is ready.
@@ -249,7 +247,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         for (size_t i = 0; i < size; ++i) {
           Var var = shared_bufs[i];
           PrimExpr pred = const_true(types[i].lanes());
-          PrimExpr val = LoadNode::make(types[i], var, index, pred);
+          PrimExpr val = Load(types[i], var, index, pred);
           a.push_back(val);
 
           // __shfl_*sync calls shall not appear in if_then_else expressions
@@ -271,7 +269,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
           Stmt s = StoreNode::make(repl->buffer_var, other, index, pred);
           seq.push_back(s);
 
-          PrimExpr load = LoadNode::make(types[i], repl->buffer_var, index, pred);
+          PrimExpr load = Load(types[i], repl->buffer_var, index, pred);
           b.push_back(load);
         }
 
@@ -296,7 +294,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         Var var = shared_bufs[i];
         PrimExpr pred = const_true(types[i].lanes());
         const char* shfl_func = intrinsic::tvm_warp_shuffle;
-        PrimExpr val = LoadNode::make(types[i], var, index, pred);
+        PrimExpr val = Load(types[i], var, index, pred);
         PrimExpr splat = WarpShuffle(shfl_func, mask_var, val, 0);
         seq.push_back(StoreNode::make(var, splat, index, pred));
       }
@@ -306,7 +304,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         CHECK(!load_remap_.count(buffers[i]));
         PrimExpr pred = const_true(types[i].lanes());
         Var var = shared_bufs[i];
-        load_remap_[buffers[i]] = LoadNode::make(types[i], var, index, pred);
+        load_remap_[buffers[i]] = Load(types[i], var, index, pred);
         Array<PrimExpr> extents{PrimExpr(1)};
         auto node = AllocateNode::make(var, types[i], extents, pred, EvaluateNode::make(0));
         alloc_remap_[buffers[i]] = node;
@@ -343,9 +341,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       for (size_t idx = 0; idx < size; ++idx) {
         CHECK(!load_remap_.count(buffers[idx]));
         PrimExpr pred = const_true(types[idx].lanes());
-        load_remap_[buffers[idx]] = LoadNode::make(
-            types[idx], shared_bufs[idx],
-            BufIndex(make_zero(reduce_index.dtype()), group_index, reduce_extent), pred);
+        load_remap_[buffers[idx]] =
+            Load(types[idx], shared_bufs[idx],
+                 BufIndex(make_zero(reduce_index.dtype()), group_index, reduce_extent), pred);
         alloc_remap_[buffers[idx]] = AllocateNode::make(
             shared_bufs[idx], types[idx], {PrimExpr(group_extent), PrimExpr(reduce_extent)}, pred,
             EvaluateNode::make(0));
@@ -359,8 +357,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       if (repl) {
         body =
             AllocateNode::make(repl->buffer_var, repl->dtype, repl->extents, repl->condition, body);
-        body = AttrStmtNode::make(repl->buffer_var, attr::storage_scope,
-                                  StringImmNode::make("local"), body);
+        body = AttrStmtNode::make(repl->buffer_var, attr::storage_scope, StringImm("local"), body);
       }
     }
 
@@ -385,10 +382,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     auto freduce = [&](int offset) {
       Array<PrimExpr> a, b;
       for (size_t i = 0; i < size; ++i) {
-        b.push_back(LoadNode::make(types[i], shared_bufs[i],
-                                   BufIndex(reduce_index + offset, group_index, reduce_extent),
-                                   const_true()));
-        a.push_back(LoadNode::make(types[i], shared_bufs[i], buf_index, const_true()));
+        b.push_back(Load(types[i], shared_bufs[i],
+                         BufIndex(reduce_index + offset, group_index, reduce_extent),
+                         const_true()));
+        a.push_back(Load(types[i], shared_bufs[i], buf_index, const_true()));
       }
       Array<PrimExpr> ret = (*combiner)(a, b);
       std::vector<Stmt> stores(size);
@@ -459,18 +456,18 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
-    return EvaluateNode::make(CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
-                                             {StringImmNode::make(sync)}, CallNode::Intrinsic));
+    return EvaluateNode::make(Call(DataType::Int(32), intrinsic::tvm_storage_sync,
+                                   {StringImm(sync)}, CallNode::Intrinsic));
   }
 
   // Emit warp shuffle intrinsic calls.
   PrimExpr WarpShuffle(const char* name, Var mask_var, PrimExpr val, int delta_or_lane) {
     PrimExpr pred = const_true(1);
     PrimExpr index(0);
-    PrimExpr mask = LoadNode::make(DataType::UInt(32), mask_var, index, pred);
+    PrimExpr mask = Load(DataType::UInt(32), mask_var, index, pred);
     PrimExpr width = IntImm(DataType::Int(32), warp_size_);
     Array<PrimExpr> args{mask, val, IntImm(DataType::Int(32), delta_or_lane), width, width};
-    return CallNode::make(val.dtype(), name, args, CallNode::Intrinsic);
+    return Call(val.dtype(), name, args, CallNode::Intrinsic);
   }
 
   // Check if this is a reduction on threadIdx.x and its extent matches

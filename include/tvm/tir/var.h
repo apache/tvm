@@ -83,7 +83,7 @@ class VarNode : public PrimExprNode {
   TVM_DECLARE_BASE_OBJECT_INFO(VarNode, PrimExprNode);
 };
 
-/*! \brief a named variable in TVM */
+/*! \brief a named variable in TIR */
 class Var : public PrimExpr {
  public:
   explicit Var(ObjectPtr<Object> n) : PrimExpr(n) {}
@@ -105,6 +105,7 @@ class Var : public PrimExpr {
    * \return the new Var copy
    */
   TVM_DLL Var copy_with_suffix(const String& suffix) const;
+
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
@@ -152,9 +153,6 @@ class SizeVar : public Var {
   /*! \brief type indicate the container type */
   using ContainerType = SizeVarNode;
 };
-
-/*! \brief container class of iteration variable. */
-class IterVarNode;
 
 using Region = Array<Range>;
 
@@ -228,29 +226,6 @@ enum IterVarType : int {
   kTensorized = 8
 };
 
-/*!
- * \brief Iteration Variable,
- *  represents an iteration over an integer interval.
- */
-class IterVar : public ObjectRef {
- public:
-  // construct a new iter var without a domain
-  IterVar() {}
-  // construct from shared ptr.
-  explicit IterVar(ObjectPtr<Object> n) : ObjectRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const IterVarNode* operator->() const;
-  /*!
-   * \return the corresponding var in the IterVar.
-   */
-  inline operator PrimExpr() const;
-  /*! \brief specify container node */
-  using ContainerType = IterVarNode;
-};
-
 using Domain = Array<Range>;
 
 /*!
@@ -293,20 +268,28 @@ class IterVarNode : public Object {
     hash_reduce(thread_tag);
   }
 
-  TVM_DLL static IterVar make(Range dom, Var var, IterVarType iter_type,
-                              std::string thread_tag = "");
-
   static constexpr const char* _type_key = "IterVar";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IterVarNode, Object);
 };
 
-// inline implementations
-inline const IterVarNode* IterVar::operator->() const {
-  return static_cast<const IterVarNode*>(data_.get());
-}
+/*!
+ * \brief Iteration Variable,
+ *  represents an iteration over an integer interval.
+ */
+class IterVar : public ObjectRef {
+ public:
+  TVM_DLL IterVar(Range dom, Var var, IterVarType iter_type, std::string thread_tag = "");
+  /*!
+   * \return the corresponding var in the IterVar.
+   */
+  inline operator PrimExpr() const;
 
+  TVM_DEFINE_OBJECT_REF_METHODS(IterVar, ObjectRef, IterVarNode);
+};
+
+// inline implementations
 inline IterVar::operator PrimExpr() const { return (*this)->var; }
 
 inline const char* IterVarType2String(IterVarType t) {

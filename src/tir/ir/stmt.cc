@@ -67,7 +67,7 @@ Stmt AssertStmtNode::make(PrimExpr condition, PrimExpr message, Stmt body) {
 TVM_REGISTER_GLOBAL("tir.AssertStmt")
     .set_body_typed([](PrimExpr condition, ObjectRef message, Stmt body) {
       if (const auto* str = message.as<StringObj>()) {
-        auto msg = StringImmNode::make(str->data);
+        auto msg = StringImm(str->data);
         return AssertStmtNode::make(condition, msg, body);
       } else {
         return AssertStmtNode::make(condition, Downcast<PrimExpr>(message), body);

@@ -351,7 +351,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         // CHECK_EQ(e->scope.rank, 0);
         if (e->new_alloc.defined()) {
           nest.emplace_back(AttrStmtNode::make(e->alloc_var, attr::storage_scope,
-                                               StringImmNode::make(e->scope.to_string()),
+                                               StringImm(e->scope.to_string()),
                                                EvaluateNode::make(0)));
           nest.push_back(e->new_alloc);
         }
@@ -373,8 +373,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     op = expr.as<LoadNode>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return expr;
-    return LoadNode::make(op->dtype, it->second->alloc_var,
-                          RemapIndex(op->dtype, op->index, it->second), op->predicate);
+    return Load(op->dtype, it->second->alloc_var, RemapIndex(op->dtype, op->index, it->second),
+                op->predicate);
   }
   PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = alloc_map_.find(op);
@@ -404,9 +404,8 @@ class StoragePlanRewriter : public StmtExprMutator {
       if (se->bits_offset != 0) {
         offset = make_const(offset.dtype(), se->bits_offset / elem_bits) + offset;
       }
-      return CallNode::make(op->dtype, op->name,
-                            {op->args[0], se->alloc_var, offset, extent, op->args[4]},
-                            op->call_type);
+      return Call(op->dtype, op->name, {op->args[0], se->alloc_var, offset, extent, op->args[4]},
+                  op->call_type);
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -500,7 +499,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     for (StorageEntry* e : svec) {
       if (e->new_alloc.defined()) {
         nest.emplace_back(AttrStmtNode::make(e->alloc_var, attr::storage_scope,
-                                             StringImmNode::make(e->scope.to_string()),
+                                             StringImm(e->scope.to_string()),
                                              EvaluateNode::make(0)));
         nest.push_back(e->new_alloc);
       }
