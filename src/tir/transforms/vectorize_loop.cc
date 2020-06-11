@@ -74,8 +74,7 @@ class VecAllocAccess : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<StoreNode>();
     if (op->buffer_var.get() == buf_) {
-      return StoreNode::make(op->buffer_var, op->value, op->index * var_lanes_ + var_,
-                             op->predicate);
+      return Store(op->buffer_var, op->value, op->index * var_lanes_ + var_, op->predicate);
     } else {
       return stmt;
     }
@@ -291,8 +290,8 @@ class Vectorizer : public StmtExprMutator {
     } else {
       int lanes = std::max(value.dtype().lanes(), index.dtype().lanes());
       lanes = std::max(lanes, pred.dtype().lanes());
-      return StoreNode::make(op->buffer_var, BroadcastTo(value, lanes), BroadcastTo(index, lanes),
-                             BroadcastTo(pred, lanes));
+      return Store(op->buffer_var, BroadcastTo(value, lanes), BroadcastTo(index, lanes),
+                   BroadcastTo(pred, lanes));
     }
   }
   // For
@@ -310,7 +309,7 @@ class Vectorizer : public StmtExprMutator {
     if (extent.same_as(op->extent) && body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     } else {
-      return ForNode::make(op->loop_var, op->min, extent, op->for_type, op->device_api, body);
+      return For(op->loop_var, op->min, extent, op->for_type, op->device_api, body);
     }
   }
   // IfThenElse
@@ -329,7 +328,7 @@ class Vectorizer : public StmtExprMutator {
         else_case.same_as(op->else_case)) {
       return GetRef<Stmt>(op);
     } else {
-      return IfThenElseNode::make(condition, then_case, else_case);
+      return IfThenElse(condition, then_case, else_case);
     }
   }
   // LetStmt
@@ -358,14 +357,14 @@ class Vectorizer : public StmtExprMutator {
     // rewrite access to buffer internally.
     Stmt body = VecAllocAccess(op->buffer_var.get(), var_, var_lanes_)(op->body);
     body = this->VisitStmt(body);
-    return AllocateNode::make(op->buffer_var, op->dtype, extents, condition, body);
+    return Allocate(op->buffer_var, op->dtype, extents, condition, body);
   }
   // scalarize the statment
   Stmt Scalarize(Stmt stmt) {
     Var idx(var_->name_hint + ".s", var_->dtype);
     Map<Var, PrimExpr> values{{var_, idx}};
     stmt = Substitute(stmt, values);
-    return ForNode::make(idx, 0, var_lanes_, ForType::Serial, DeviceAPI::None, stmt);
+    return For(idx, 0, var_lanes_, ForType::Serial, DeviceAPI::None, stmt);
   }
 
  private:
@@ -465,8 +464,7 @@ class VectorizeSkipper : public StmtMutator {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<ForNode>();
     if (op->for_type == ForType::Vectorized) {
-      return ForNode::make(op->loop_var, op->min, op->extent, ForType::Serial, op->device_api,
-                           op->body);
+      return For(op->loop_var, op->min, op->extent, ForType::Serial, op->device_api, op->body);
     } else {
       return stmt;
     }

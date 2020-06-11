@@ -54,14 +54,14 @@ class BuiltinLower : public StmtExprMutator {
     stack_tcode_ = Var("stack_tcode", DataType::Handle());
     stmt = this->VisitStmt(stmt);
     if (max_shape_stack_ != 0) {
-      stmt = LetStmtNode::make(stack_shape_, StackAlloca("shape", max_shape_stack_), stmt);
+      stmt = LetStmt(stack_shape_, StackAlloca("shape", max_shape_stack_), stmt);
     }
     if (max_array_stack_ != 0) {
-      stmt = LetStmtNode::make(stack_array_, StackAlloca("array", max_array_stack_), stmt);
+      stmt = LetStmt(stack_array_, StackAlloca("array", max_array_stack_), stmt);
     }
     if (max_arg_stack_ != 0) {
-      stmt = LetStmtNode::make(stack_value_, StackAlloca("arg_value", max_arg_stack_), stmt);
-      stmt = LetStmtNode::make(stack_tcode_, StackAlloca("arg_tcode", max_arg_stack_), stmt);
+      stmt = LetStmt(stack_value_, StackAlloca("arg_value", max_arg_stack_), stmt);
+      stmt = LetStmt(stack_tcode_, StackAlloca("arg_tcode", max_arg_stack_), stmt);
     }
     return stmt;
   }
@@ -102,15 +102,15 @@ class BuiltinLower : public StmtExprMutator {
     }
     CHECK(device_type_.defined()) << "Unknown device type in current IR";
     CHECK(device_id_.defined()) << "Unknown device id in current IR";
-    Stmt throw_last_error = EvaluateNode::make(
-        Call(DataType::Int(32), intrinsic::tvm_throw_last_error, {}, CallNode::Intrinsic));
+    Stmt throw_last_error =
+        Evaluate(Call(DataType::Int(32), intrinsic::tvm_throw_last_error, {}, CallNode::Intrinsic));
 
-    Stmt body = SeqStmt({IfThenElseNode::make(Call(DataType::Bool(1), intrinsic::tvm_handle_is_null,
-                                                   {op->buffer_var}, CallNode::PureIntrinsic),
-                                              throw_last_error),
+    Stmt body = SeqStmt({IfThenElse(Call(DataType::Bool(1), intrinsic::tvm_handle_is_null,
+                                         {op->buffer_var}, CallNode::PureIntrinsic),
+                                    throw_last_error),
                          op->body});
 
-    Stmt alloca = LetStmtNode::make(
+    Stmt alloca = LetStmt(
         op->buffer_var,
         Call(op->buffer_var.dtype(), "TVMBackendAllocWorkspace",
              {cast(DataType::Int(32), device_type_), cast(DataType::Int(32), device_id_),
@@ -123,11 +123,10 @@ class BuiltinLower : public StmtExprMutator {
                             {cast(DataType::Int(32), device_type_),
                              cast(DataType::Int(32), device_id_), op->buffer_var},
                             CallNode::Extern);
-    Stmt free_stmt =
-        IfThenElseNode::make(free_op != make_zero(DataType::Int(32)), throw_last_error);
+    Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
     body = SeqStmt({alloca, free_stmt});
-    body = AttrStmtNode::make(op->buffer_var, attr::storage_alignment,
-                              make_const(DataType::Int(32), runtime::kTempAllocaAlignment), body);
+    body = AttrStmt(op->buffer_var, attr::storage_alignment,
+                    make_const(DataType::Int(32), runtime::kTempAllocaAlignment), body);
     return body;
   }
 
@@ -166,8 +165,8 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
     for (size_t i = 0; i < op->args.size(); ++i) {
-      prep_seq_.emplace_back(StoreNode::make(stack_shape_, cast(DataType::Int(64), op->args[i]),
-                                             ConstInt32(stack_begin + i), const_true(1)));
+      prep_seq_.emplace_back(Store(stack_shape_, cast(DataType::Int(64), op->args[i]),
+                                   ConstInt32(stack_begin + i), const_true(1)));
     }
     return AddressOffset(stack_shape_, DataType::Int(64), stack_begin);
   }
@@ -234,7 +233,7 @@ class BuiltinLower : public StmtExprMutator {
       }
       if (IsArrayHandle(arg)) arg_tcode = kTVMDLTensorHandle;
       prep_seq_.emplace_back(
-          StoreNode::make(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
+          Store(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
     }
     // UPDATE stack value
     max_arg_stack_ = std::max(run_arg_stack_, max_arg_stack_);
@@ -272,7 +271,7 @@ class BuiltinLower : public StmtExprMutator {
       int arg_tcode = api_type.code();
       CHECK(!IsArrayHandle(arg)) << "Trace does not support Buffers";
       prep_seq_.emplace_back(
-          StoreNode::make(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
+          Store(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
     }
     // UPDATE stack value
     max_arg_stack_ = std::max(run_arg_stack_, max_arg_stack_);

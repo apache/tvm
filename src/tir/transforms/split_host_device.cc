@@ -59,7 +59,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
       if (value.same_as(op->value) && body.same_as(op->body)) {
         return GetRef<Stmt>(op);
       }
-      return AttrStmtNode::make(op->node, op->attr_key, value, body);
+      return AttrStmt(op->node, op->attr_key, value, body);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -76,7 +76,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
       if (body.same_as(op->body) && value.same_as(op->value)) {
         return GetRef<Stmt>(op);
       } else {
-        return LetStmtNode::make(op->var, value, body);
+        return LetStmt(op->var, value, body);
       }
     }
   }
@@ -237,7 +237,7 @@ class HostDeviceSplitter : public StmtMutator {
     for (PrimExpr ext : m.thread_extent_) {
       call_args.push_back(ext);
     }
-    return EvaluateNode::make(
+    return Evaluate(
         Call(DataType::Int(32), intrinsic::tvm_call_packed, call_args, CallNode::Intrinsic));
   }
 

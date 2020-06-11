@@ -125,8 +125,8 @@ class LoopUnroller : public StmtExprMutator {
     } else {
       if (auto_unroll) {
         if (op->for_type != ForType::Unrolled) {
-          return ForNode::make(op->loop_var, op->min, op->extent, ForType::Unrolled, op->device_api,
-                               op->body);
+          return For(op->loop_var, op->min, op->extent, ForType::Unrolled, op->device_api,
+                     op->body);
         }
       }
       return stmt;
@@ -164,7 +164,7 @@ class LoopUnroller : public StmtExprMutator {
     int value = GetExtent(op);
     // For loop must have a constant integer extent
     CHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
-    if (value == 0) return EvaluateNode::make(0);
+    if (value == 0) return Evaluate(0);
     Stmt body = op->body;
     Map<Var, PrimExpr> vmap;
     Array<Stmt> unrolled;

@@ -79,10 +79,19 @@ class LetStmtNode : public StmtNode {
     hash_reduce(body);
   }
 
-  TVM_DLL static Stmt make(Var var, PrimExpr value, Stmt body);
-
   static constexpr const char* _type_key = "LetStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(LetStmtNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to LetStmtNode.
+ * \sa LetStmtNode
+ */
+class LetStmt : public Stmt {
+ public:
+  TVM_DLL LetStmt(Var var, PrimExpr value, Stmt body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(LetStmt, Stmt, LetStmtNode);
 };
 
 /*!
@@ -125,10 +134,19 @@ class AttrStmtNode : public StmtNode {
     hash_reduce(body);
   }
 
-  TVM_DLL static Stmt make(ObjectRef node, std::string type_key, PrimExpr value, Stmt body);
-
   static constexpr const char* _type_key = "AttrStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrStmtNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to AttrStmtNode.
+ * \sa AttrStmtNode
+ */
+class AttrStmt : public Stmt {
+ public:
+  TVM_DLL AttrStmt(ObjectRef node, std::string type_key, PrimExpr value, Stmt body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(AttrStmt, Stmt, AttrStmtNode);
 };
 
 /*!
@@ -163,10 +181,19 @@ class AssertStmtNode : public StmtNode {
     hash_reduce(body);
   }
 
-  TVM_DLL static Stmt make(PrimExpr condition, PrimExpr message, Stmt body);
-
   static constexpr const char* _type_key = "AssertStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(AssertStmtNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to AssertStmtNode.
+ * \sa AssertStmtNode
+ */
+class AssertStmt : public Stmt {
+ public:
+  TVM_DLL AssertStmt(PrimExpr condition, PrimExpr message, Stmt body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(AssertStmt, Stmt, AssertStmtNode);
 };
 
 /*!
@@ -217,10 +244,19 @@ class StoreNode : public StmtNode {
     hash_reduce(predicate);
   }
 
-  TVM_DLL static Stmt make(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate);
-
   static constexpr const char* _type_key = "Store";
   TVM_DECLARE_FINAL_OBJECT_INFO(StoreNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to StoreNode.
+ * \sa StoreNode
+ */
+class Store : public Stmt {
+ public:
+  TVM_DLL Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Store, Stmt, StoreNode);
 };
 
 /*!
@@ -270,6 +306,7 @@ class BufferStoreNode : public StmtNode {
 class BufferStore : public Stmt {
  public:
   TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
+
   TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
 };
 
@@ -369,10 +406,19 @@ class ProducerStoreNode : public StmtNode {
     hash_reduce(indices);
   }
 
-  TVM_DLL static Stmt make(DataProducer producer, PrimExpr value, Array<PrimExpr> indices);
-
   static constexpr const char* _type_key = "ProducerStore";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProducerStoreNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to ProducerStoreNode.
+ * \sa ProducerStoreNode
+ */
+class ProducerStore : public Stmt {
+ public:
+  TVM_DLL ProducerStore(DataProducer producer, PrimExpr value, Array<PrimExpr> indices);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ProducerStore, Stmt, ProducerStoreNode);
 };
 
 /*!
@@ -404,8 +450,6 @@ class ProducerRealizeNode : public StmtNode {
     v->Visit("body", &body);
   }
 
-  TVM_DLL static Stmt make(DataProducer producer, Region bounds, PrimExpr condition, Stmt body);
-
   bool SEqualReduce(const ProducerRealizeNode* other, SEqualReducer equal) const {
     return equal(producer, other->producer) && equal(bounds, other->bounds) &&
            equal(condition, other->condition) && equal(body, other->body);
@@ -420,6 +464,17 @@ class ProducerRealizeNode : public StmtNode {
 
   static constexpr const char* _type_key = "ProducerRealize";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProducerRealizeNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to ProducerRealizeNode.
+ * \sa ProducerRealizeNode
+ */
+class ProducerRealize : public Stmt {
+ public:
+  TVM_DLL ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition, Stmt body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ProducerRealize, Stmt, ProducerRealizeNode);
 };
 
 /*!
@@ -460,9 +515,6 @@ class AllocateNode : public StmtNode {
     hash_reduce(body);
   }
 
-  TVM_DLL static Stmt make(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
-                           PrimExpr condition, Stmt body);
-
   /*!
    * \brief If the buffer size is constant, return the size.
    *        Otherwise return 0.
@@ -481,6 +533,18 @@ class AllocateNode : public StmtNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateNode, StmtNode);
 };
 
+/*!
+ * \brief Managed reference to AllocateNode.
+ * \sa AllocateNode
+ */
+class Allocate : public Stmt {
+ public:
+  TVM_DLL Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
+                   Stmt body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
+};
+
 /*! \brief Free the resources in the buffer before the scope ends. */
 class FreeNode : public StmtNode {
  public:
@@ -495,10 +559,19 @@ class FreeNode : public StmtNode {
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(buffer_var); }
 
-  TVM_DLL static Stmt make(Var buffer_var);
-
   static constexpr const char* _type_key = "Free";
   TVM_DECLARE_FINAL_OBJECT_INFO(FreeNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to FreeNode.
+ * \sa FreeNode
+ */
+class Free : public Stmt {
+ public:
+  TVM_DLL Free(Var buffer_var);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Free, Stmt, FreeNode);
 };
 
 /*!
@@ -624,10 +697,19 @@ class IfThenElseNode : public StmtNode {
     hash_reduce(else_case);
   }
 
-  TVM_DLL static Stmt make(PrimExpr condition, Stmt then_case, Stmt else_case = Stmt());
-
   static constexpr const char* _type_key = "IfThenElse";
   TVM_DECLARE_FINAL_OBJECT_INFO(IfThenElseNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to IfThenElseNode.
+ * \sa IfThenElseNode
+ */
+class IfThenElse : public Stmt {
+ public:
+  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case, Stmt else_case = Stmt());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(IfThenElse, Stmt, IfThenElseNode);
 };
 
 /*!
@@ -649,10 +731,21 @@ class EvaluateNode : public StmtNode {
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
 
-  TVM_DLL static Stmt make(PrimExpr v);
-
   static constexpr const char* _type_key = "Evaluate";
   TVM_DECLARE_FINAL_OBJECT_INFO(EvaluateNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to EvaluateNode.
+ * \sa EvaluateNode
+ */
+class Evaluate : public Stmt {
+ public:
+  TVM_DLL explicit Evaluate(PrimExpr value);
+
+  explicit Evaluate(int value) : Evaluate(PrimExpr(value)) {}
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Evaluate, Stmt, EvaluateNode);
 };
 
 /*! \brief Additional annotation of for loop. */
@@ -700,9 +793,6 @@ class ForNode : public StmtNode {
   /*! \brief The body of the for loop. */
   Stmt body;
 
-  TVM_DLL static Stmt make(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type,
-                           DeviceAPI device_api, Stmt body);
-
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("loop_var", &loop_var);
     v->Visit("min", &min);
@@ -729,6 +819,18 @@ class ForNode : public StmtNode {
 
   static constexpr const char* _type_key = "For";
   TVM_DECLARE_FINAL_OBJECT_INFO(ForNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to ForNode.
+ * \sa ForNode
+ */
+class For : public Stmt {
+ public:
+  TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, DeviceAPI device_api,
+              Stmt body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
 };
 
 /*!
@@ -772,7 +874,6 @@ class Prefetch : public Stmt {
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Prefetch, Stmt, PrefetchNode);
 };
-
 
 /*! \brief namespace of possible attribute sin AttrStmt.attr_key */
 namespace attr {

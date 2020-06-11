@@ -57,7 +57,7 @@ class NoOpRemover : public StmtMutator {
         if (is_no_op(op->then_case)) {
           return MakeEvaluate(op->condition);
         } else {
-          return IfThenElseNode::make(op->condition, op->then_case);
+          return IfThenElse(op->condition, op->then_case);
         }
       } else {
         return stmt;
@@ -74,7 +74,7 @@ class NoOpRemover : public StmtMutator {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<ForNode>();
     if (is_zero(op->extent)) {
-      return EvaluateNode::make(0);
+      return Evaluate(0);
     }
     return is_no_op(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
   }
@@ -91,7 +91,7 @@ class NoOpRemover : public StmtMutator {
   }
   Stmt VisitStmt_(const EvaluateNode* op) final {
     if (HasSideEffect(op->value)) return GetRef<Stmt>(op);
-    return EvaluateNode::make(0);
+    return Evaluate(0);
   }
 
   Stmt VisitStmt_(const SeqStmtNode* op) final {
@@ -128,9 +128,9 @@ class NoOpRemover : public StmtMutator {
  private:
   Stmt MakeEvaluate(PrimExpr value) {
     if (HasSideEffect(value)) {
-      return EvaluateNode::make(value);
+      return Evaluate(value);
     } else {
-      return EvaluateNode::make(0);
+      return Evaluate(0);
     }
   }
   Stmt MakeEvaluate(const Array<PrimExpr>& values) {
@@ -138,13 +138,13 @@ class NoOpRemover : public StmtMutator {
     for (PrimExpr e : values) {
       if (HasSideEffect(e)) {
         if (stmt.defined()) {
-          stmt = SeqStmt({stmt, EvaluateNode::make(e)});
+          stmt = SeqStmt({stmt, Evaluate(e)});
         } else {
-          stmt = EvaluateNode::make(e);
+          stmt = Evaluate(e);
         }
       }
     }
-    return stmt.defined() ? stmt : EvaluateNode::make(0);
+    return stmt.defined() ? stmt : Evaluate(0);
   }
 };
 
