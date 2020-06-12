@@ -2397,6 +2397,88 @@ example below::
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+// gather operator
+TVM_REGISTER_NODE_TYPE(GatherAttrs);
+
+bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // `types` contains: [data, indices, result]
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* indices = types[1].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "Gather: expect input data type to be TensorType but get " << types[0];
+    return false;
+  }
+  if (indices == nullptr) {
+    CHECK(types[1].as<IncompleteTypeNode>())
+        << "Gather: expect indices type to be TensorType but get " << types[1];
+    return false;
+  }
+  CHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
+  const auto param = attrs.as<GatherAttrs>();
+  CHECK(param != nullptr);
+  CHECK(param->axis.defined());
+
+  const auto ndim_data = data->shape.size();
+  const auto ndim_indices = indices->shape.size();
+  int axis = param->axis->value;
+  CHECK_EQ(ndim_data, ndim_indices);
+  CHECK_GE(axis, 0);
+  CHECK_LT(axis, ndim_data);
+
+  std::vector<IndexExpr> oshape;
+  oshape.reserve(ndim_data);
+  for (size_t i = 0; i < ndim_data; ++i) {
+    if (i == (size_t)axis) {
+      const int64_t* indice_shape_i = tir::as_const_int(indices->shape[i]);
+      CHECK_GE(*indice_shape_i, 1);
+    } else {
+      CHECK(reporter->AssertEQ(indices->shape[i], data->shape[i]));
+    }
+    oshape.emplace_back(indices->shape[i]);
+  }
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Array<te::Tensor> GatherCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                const Type& out_type) {
+  const auto* param = attrs.as<GatherAttrs>();
+  return {topi::gather(inputs[0], param->axis, inputs[1])};
+}
+
+Expr MakeGather(Expr data, Integer axis, Expr indices) {
+  auto attrs = make_object<GatherAttrs>();
+  attrs->axis = std::move(axis);
+  static const Op& op = Op::Get("gather");
+  return Call(op, {data, indices}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.gather").set_body_typed(MakeGather);
+
+RELAY_REGISTER_OP("gather")
+    .describe(R"code(Gather values along given axis from given indices.
+
+E.g. for a 3D tensor, output is computed as:
+
+	out[i][j][k] = data[indices[i][j][k]][j][k]  # if axis == 0
+	out[i][j][k] = data[i][indices[i][j][k]][k]  # if axis == 1
+	out[i][j][k] = data[i][j][indices[i][j][k]]  # if axis == 2
+
+``indices`` must have same shape as ``data``, except at dimension ``axis``
+which must just be not null. Output will have same shape as ``indices``.
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<GatherAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input data to the operator.")
+    .add_argument("indices", "Tensor", "The indices of values to gather.")
+    .set_support_level(3)
+    .add_type_rel("Gather", GatherRel)
+    .set_attr<FTVMCompute>("FTVMCompute", GatherCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
 // gather_nd operator
 bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {

@@ -101,6 +101,16 @@ struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
   }
 };
 
+struct GatherAttrs : public tvm::AttrsNode<GatherAttrs> {
+  Integer axis;
+
+  TVM_DECLARE_ATTRS(GatherAttrs, "relay.attrs.GatherAttrs") {
+    TVM_ATTR_FIELD(axis)
+        .set_default(NullValue<Integer>())
+        .describe("The axis over which to select values.");
+  }
+};
+
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   Integer axis;
   std::string mode;
