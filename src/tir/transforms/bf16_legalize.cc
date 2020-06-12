@@ -150,20 +150,19 @@ class BF16CastEliminationRewriter : public StmtExprMutator {
   }
 };
 
-// implementation from
-// https://github.com/pytorch/pytorch/blob/master/c10/util/BFloat16.h
-inline uint16_t round_to_nearest_even(float src) {
+union FloatCaster {
+  uint32_t u32;
+  float f32;
+};
+
+uint16_t RoundToNearestEven(float src) {
   if (std::isnan(src)) {
     return UINT16_C(0x7FC0);
   } else {
-    union {
-      uint32_t U32;
-      float F32;
-    };
-
-    F32 = src;
-    uint32_t rounding_bias = ((U32 >> 16) & 1) + UINT32_C(0x7FFF);
-    return static_cast<uint16_t>((U32 + rounding_bias) >> 16);
+    FloatCaster caster;
+    caster.f32 = src;
+    uint32_t rounding_bias = ((caster.u32 >> 16) & 1) + UINT32_C(0x7FFF);
+    return static_cast<uint16_t>((caster.u32 + rounding_bias) >> 16);
   }
 }
 
@@ -315,7 +314,7 @@ class BF16LowerRewriter : StmtExprMutator {
   PrimExpr VisitExpr_(const FloatImmNode* op) final {
     if (op->dtype.is_bfloat16()) {
       return IntImm(DataType::UInt(16, op->dtype.lanes()),
-                    round_to_nearest_even(static_cast<float>(op->value)));
+                    RoundToNearestEven(static_cast<float>(op->value)));
     }
     return StmtExprMutator::VisitExpr_(op);
   }
