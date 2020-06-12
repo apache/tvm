@@ -1260,7 +1260,7 @@ void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     alloc_storage_info_[v].scope =
-        runtime::StorageScope::make(op->value.as<StringImmNode>()->value);
+        runtime::StorageScope::Create(op->value.as<StringImmNode>()->value);
   } else if (op->attr_key == tir::attr::storage_alignment) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);

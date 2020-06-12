@@ -101,7 +101,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
 
   // Return the thread index via intrinsics.
   llvm::Value* GetThreadIndex(const IterVar& iv) final {
-    runtime::ThreadScope ts = runtime::ThreadScope::make(iv->thread_tag);
+    runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
     llvm::Intrinsic::ID intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
     if (ts.rank == 1) {
       switch (ts.dim_index) {

@@ -75,7 +75,7 @@ std::string CodeGenOpenCL::Finish() {
 
 void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
   CHECK(!var_idmap_.count(iv->var.get()));
-  runtime::ThreadScope ts = runtime::ThreadScope::make(iv->thread_tag);
+  runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
   std::ostringstream os;
   if (ts.rank == 1) {
     os << "get_local_id(" << ts.dim_index << ")";
