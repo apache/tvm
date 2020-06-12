@@ -120,6 +120,7 @@ This level enables additional math and transform operators.
    tvm.relay.zeros_like
    tvm.relay.ones
    tvm.relay.ones_like
+   tvm.relay.gather
    tvm.relay.gather_nd
    tvm.relay.full
    tvm.relay.full_like

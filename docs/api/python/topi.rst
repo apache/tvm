@@ -55,6 +55,7 @@ List of operators
    topi.concatenate
    topi.split
    topi.take
+   topi.gather
    topi.gather_nd
    topi.full
    topi.full_like
@@ -160,6 +161,7 @@ topi
 .. autofunction:: topi.concatenate
 .. autofunction:: topi.split
 .. autofunction:: topi.take
+.. autofunction:: topi.gather
 .. autofunction:: topi.gather_nd
 .. autofunction:: topi.full
 .. autofunction:: topi.full_like
