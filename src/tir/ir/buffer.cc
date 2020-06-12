@@ -26,11 +26,10 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
 #include <iterator>
 #include <stack>
-
-#include "../../arith/compute_expr.h"
 
 namespace tvm {
 namespace tir {
@@ -276,7 +275,7 @@ inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataTyp
     offset = offset * make_const(offset.dtype(), dtype.lanes());
   }
   if (dtype.lanes() != 1) {
-    return tir::RampNode::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
+    return tir::Ramp(offset, make_const(offset.dtype(), 1), dtype.lanes());
   } else {
     return offset;
   }
@@ -288,13 +287,11 @@ PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
   CHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype << " from buffer of " << n->dtype;
   if (dtype == DataType::Bool()) {
-    return tir::CastNode::make(
-        DataType::Bool(),
-        tir::LoadNode::make(DataType::Int(8), n->data, BufferOffset(n, begin, DataType::Int(8)),
-                            const_true()));
+    return tir::Cast(DataType::Bool(),
+                     tir::Load(DataType::Int(8), n->data, BufferOffset(n, begin, DataType::Int(8)),
+                               const_true()));
   } else {
-    return tir::LoadNode::make(dtype, n->data, BufferOffset(n, begin, dtype),
-                               const_true(dtype.lanes()));
+    return tir::Load(dtype, n->data, BufferOffset(n, begin, dtype), const_true(dtype.lanes()));
   }
 }
 
@@ -305,11 +302,10 @@ Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
   CHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype << " from buffer of " << n->dtype;
   if (value.dtype() == DataType::Bool()) {
-    return tir::StoreNode::make(n->data, tir::CastNode::make(DataType::Int(8), value),
-                                BufferOffset(n, begin, DataType::Int(8)), const_true());
+    return tir::Store(n->data, tir::Cast(DataType::Int(8), value),
+                      BufferOffset(n, begin, DataType::Int(8)), const_true());
   } else {
-    return tir::StoreNode::make(n->data, value, BufferOffset(n, begin, dtype),
-                                const_true(dtype.lanes()));
+    return tir::Store(n->data, value, BufferOffset(n, begin, dtype), const_true(dtype.lanes()));
   }
 }
 
@@ -367,7 +363,8 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
     int highest_dim = 0;
     extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
   } else {
-    extent = arith::ComputeReduce<tir::MulNode>(self->shape, PrimExpr()) - offset;
+    auto fmul = [](PrimExpr a, PrimExpr b) { return a * b; };
+    extent = foldl(fmul, make_const(DataType::Int(32), 1), self->shape) - offset;
   }
   PrimExpr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
@@ -379,8 +376,7 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
   }
   Array<PrimExpr> acc_args{e_dtype, self->data, elem_offset, extent,
                            make_const(DataType::Int(32), access_mask)};
-  return tir::CallNode::make(ptr_type, tir::intrinsic::tvm_access_ptr, acc_args,
-                             tir::CallNode::Intrinsic);
+  return tir::Call(ptr_type, tir::intrinsic::tvm_access_ptr, acc_args, tir::CallNode::Intrinsic);
 }
 
 Buffer BufferNode::make(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,

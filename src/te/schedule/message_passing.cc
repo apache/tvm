@@ -26,8 +26,6 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 
-#include "../../arith/compute_expr.h"
-
 namespace tvm {
 namespace te {
 

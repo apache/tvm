@@ -54,11 +54,12 @@ def schedule_softmax(outs):
         raise ValueError('Tag is expected to be softmax_output or log_softmax_output. \
                          Got {0}'.format(op_tag))
 
-    # The nvptx backend only supports 32-bits warp shuffle instructions.
+    # The nvptx and rocm backends only supports 32-bits warp shuffle
+    # instructions.
     #
     # TODO(tvm-team) Fix nvptx codegen or deprecate nvptx backend.
     def sched_warp_softmax():
-        if tgt.target_name == "nvptx":
+        if tgt.target_name == "nvptx" or tgt.target_name == "rocm":
             return softmax.dtype == "float32" or softmax.dtype == "int32"
         if tgt.target_name != "cuda":
             # this is used as the gpu schedule for other arches which may not have warp reductions

@@ -34,7 +34,6 @@
 #include <unordered_set>
 #include <utility>
 
-#include "../../arith/compute_expr.h"
 #include "../../arith/interval_set.h"
 #include "../schedule/message_passing.h"
 #include "op_util.h"
@@ -96,8 +95,7 @@ Tensor compute(Array<PrimExpr> shape, FCompute fcompute, std::string name, std::
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
-    axis.emplace_back(
-        IterVarNode::make(Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
+    axis.emplace_back(IterVar(Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
@@ -114,8 +112,7 @@ Array<Tensor> compute(Array<PrimExpr> shape, FBatchCompute fcompute, std::string
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
-    axis.emplace_back(
-        IterVarNode::make(Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
+    axis.emplace_back(IterVar(Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
@@ -154,9 +151,8 @@ Array<Tensor> ComputeOpNode::InputTensors() const {
   std::unordered_set<Tensor> visited;
   for (auto& e : body) {
     tir::PostOrderVisit(e, [&ret, &visited](const ObjectRef& n) {
-      const tir::CallNode* call = n.as<tir::CallNode>();
-      if (call != nullptr && call->func.defined()) {
-        Tensor t = Downcast<Operation>(call->func).output(call->value_index);
+      if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+        Tensor t = Downcast<Tensor>(pload->producer);
         if (!visited.count(t)) {
           ret.push_back(t);
           visited.insert(t);
@@ -203,9 +199,8 @@ void ComputeOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* an
                                       std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
   auto fvisit = [&dom_map, out_dom_map, analyzer](const ObjectRef& n) {
-    auto* call = n.as<tir::CallNode>();
-    if (call != nullptr && call->func.defined()) {
-      Tensor t = Downcast<Operation>(call->func).output(call->value_index);
+    if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+      Tensor t = Downcast<Tensor>(pload->producer);
       if (t->op.defined() && out_dom_map->count(t)) {
         TensorDom& dom = out_dom_map->at(t);
         for (size_t i = 0; i < t.ndim(); ++i) {
@@ -213,7 +208,7 @@ void ComputeOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* an
           // undefined behaviour), so we can intersect the estimated set of the argument with the
           // range expected by the tensor. However, intersection may result in overly complex
           // expressions, so we perform a more relaxed form of intersection.
-          IntSet arg_intset = analyzer->int_set(call->args[i], ConvertDomMap(dom_map));
+          IntSet arg_intset = analyzer->int_set(pload->indices[i], ConvertDomMap(dom_map));
           const arith::IntervalSetNode* arg_interval = arg_intset.as<arith::IntervalSetNode>();
           if (arg_interval) {
             PrimExpr shape_i_min_value = make_zero(t->shape[i].dtype());
@@ -269,8 +264,7 @@ Stmt BaseComputeOpNode::BuildRealize(const Stage& stage,
   Stmt realize = body;
   for (int i = this->num_outputs(); i > 0; --i) {
     Tensor t = stage->op.output(i - 1);
-    realize =
-        tir::RealizeNode::make(t->op, t->value_index, t->dtype, bounds, const_true(), realize);
+    realize = tir::ProducerRealize(t, bounds, const_true(), realize);
     // alignment requirement, only useful for compute
     for (size_t i = 0; i < num_schedulable_dims(); ++i) {
       auto it = stage->iter_var_attrs.find(this->axis[i]);
@@ -279,11 +273,10 @@ Stmt BaseComputeOpNode::BuildRealize(const Stage& stage,
         if (attr->dim_align_factor != 0) {
           Array<PrimExpr> tuple = {static_cast<int>(i), attr->dim_align_factor,
                                    attr->dim_align_offset};
-          realize =
-              tir::AttrStmtNode::make(t, tir::attr::buffer_dim_align,
-                                      CallNode::make(DataType::Handle(), tir::intrinsic::tvm_tuple,
-                                                     tuple, CallNode::Intrinsic),
-                                      realize);
+          realize = tir::AttrStmt(
+              t, tir::attr::buffer_dim_align,
+              Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
+              realize);
         }
       }
     }
@@ -315,13 +308,13 @@ void MakeReduction(const ComputeOpNode* op, const Array<Tensor>& tensors, Stmt* 
   Array<PrimExpr> update_value = (*combiner)(lhs, reduce->source);
   for (size_t i = 0; i < size; ++i) {
     Tensor t = tensors[i];
-    inits.emplace_back(ProvideNode::make(t->op, t->value_index, init_value[i], args));
-    provides.emplace_back(ProvideNode::make(t->op, t->value_index, update_value[i], args));
+    inits.emplace_back(ProducerStore(t, init_value[i], args));
+    provides.emplace_back(ProducerStore(t, update_value[i], args));
   }
   *init = SeqStmt::Flatten(inits);
   *provide = SeqStmt::Flatten(provides);
   if (!is_one(reduce->condition)) {
-    *provide = IfThenElseNode::make(reduce->condition, *provide);
+    *provide = IfThenElse(reduce->condition, *provide);
   }
 }
 
@@ -331,7 +324,7 @@ Stmt MakeProvide(const ComputeOpNode* op, const Tensor& t) {
   for (IterVar iv : op->axis) {
     args.push_back(iv->var);
   }
-  return ProvideNode::make(t->op, t->value_index, op->body[t->value_index], args);
+  return ProducerStore(t, op->body[t->value_index], args);
 }
 
 Stmt MakeComputeStmt(const ComputeOpNode* self, const Stage& stage,
@@ -593,8 +586,8 @@ Stmt TransformUpdate(const Stage& stage, const std::unordered_map<IterVar, Range
     }
   }
 
-  return IfThenElseNode::make(arith::ComputeReduce<tir::OrNode>(conds, const_true(1)), update,
-                              body);
+  auto cond = foldl([](PrimExpr a, PrimExpr b) { return a || b; }, const_false(1), conds);
+  return IfThenElse(cond, update, body);
 }
 
 }  // namespace te

@@ -25,10 +25,9 @@
 
 #include <tvm/runtime/container.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
 #include <string>
-
-#include "../../arith/compute_expr.h"
 
 namespace tvm {
 namespace codegen {

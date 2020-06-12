@@ -47,7 +47,7 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
     return GetRef<te::Tensor>(ptr)();
   }
   if (auto* ptr = ref.as<runtime::StringObj>()) {
-    return tir::StringImmNode::make(GetRef<runtime::String>(ptr));
+    return tir::StringImm(GetRef<runtime::String>(ptr));
   }
   CHECK(ObjectTypeChecker<PrimExpr>::Check(ref.get()))
       << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName() << " but get "
@@ -185,4 +185,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
       p->stream << '}';
     });
+
+TVM_REGISTER_GLOBAL("ir.DebugPrint").set_body_typed([](ObjectRef ref) {
+  std::stringstream ss;
+  ss << ref;
+  return ss.str();
+});
+
 }  // namespace tvm

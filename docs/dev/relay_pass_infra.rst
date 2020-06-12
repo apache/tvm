@@ -349,7 +349,7 @@ registration.
     auto f = relay::FunctionNode::make(tvm::Array<relay::Var>{ x }, x, relay::Type(), {});
 
     auto y = relay::VarNode::make("y", tensor_type);
-    auto call = relay::CallNode::make(f, tvm::Array<relay::Expr>{ y });
+    auto call = relay::Call(f, tvm::Array<relay::Expr>{ y });
     auto fx = relay::FunctionNode::make(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
 
     // Create a module for optimization.

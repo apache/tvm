@@ -49,7 +49,7 @@ inline Tensor rocblas_matmul(const Tensor& lhs, const Tensor& rhs, bool transa, 
   return make_extern(
       {{n, m}}, {lhs->dtype}, {lhs, rhs},
       [&](Array<Buffer> ins, Array<Buffer> outs) {
-        return call_packed({StringImmNode::make("tvm.contrib.rocblas.matmul"), pack_buffer(ins[0]),
+        return call_packed({StringImm("tvm.contrib.rocblas.matmul"), pack_buffer(ins[0]),
                             pack_buffer(ins[1]), pack_buffer(outs[0]), transa, transb});
       },
       "C", "", {})[0];

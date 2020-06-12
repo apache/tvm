@@ -60,7 +60,7 @@ inline void DispatchExtern(const TVMArgs& args, TVMRetValue* rv) {
   CHECK(call != nullptr);
   std::string name = T()(call->dtype, call->name);
   if (name.length() != 0) {
-    *rv = CallNode::make(call->dtype, name, call->args, CallNode::PureExtern);
+    *rv = Call(call->dtype, name, call->args, CallNode::PureExtern);
   } else {
     *rv = e;
   }

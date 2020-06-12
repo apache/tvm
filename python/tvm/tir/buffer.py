@@ -245,3 +245,8 @@ def decl_buffer(shape,
     return _ffi_api.Buffer(
         data, dtype, shape, strides, elem_offset, name, scope,
         data_alignment, offset_factor, buffer_type)
+
+
+@tvm._ffi.register_object
+class DataProducer(Object):
+    pass

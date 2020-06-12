@@ -40,7 +40,14 @@ namespace runtime {
  */
 class DataType {
  public:
-  /*! \brief Type code for the DataType. */
+  /*!
+   * \brief Type code for the DataType.
+   *
+   * DLPack consistency:
+   * 1) kInt is consistent with kDLInt
+   * 2) kUInt is consistent with kDLUInt
+   * 3) kFloat is consistent with kDLFloat
+   */
   enum TypeCode {
     kInt = kDLInt,
     kUInt = kDLUInt,

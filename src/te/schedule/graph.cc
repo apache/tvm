@@ -40,8 +40,6 @@ struct TensorDimKey {
   int value_index;
   int dim;
   TensorDimKey() {}
-  TensorDimKey(const tir::CallNode* op, int dim)
-      : f(op->func), value_index(op->value_index), dim(dim) {}
   TensorDimKey(const Tensor& t, int dim) : f(t->op), value_index(t->value_index), dim(dim) {}
   TensorDimKey(const Tensor& t, size_t dim)
       : f(t->op), value_index(t->value_index), dim(static_cast<int>(dim)) {}
@@ -240,11 +238,11 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
         reach[TensorDimKey(t, i)] = {};
       }
       auto fvisit = [&vmap, &reach, &bset](const ObjectRef& n) {
-        const tir::CallNode* call = n.as<tir::CallNode>();
-        if (call != nullptr && call->func.defined()) {
-          if (!bset.count(call->func.get())) return;
-          for (size_t i = 0; i < call->args.size(); ++i) {
-            TensorDimKey dkey(call, static_cast<int>(i));
+        if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+          Tensor t = Downcast<Tensor>(pload->producer);
+          if (!bset.count(t->op.get())) return;
+          for (size_t i = 0; i < pload->indices.size(); ++i) {
+            TensorDimKey dkey(t, static_cast<int>(i));
             auto fpush = [&dkey, &vmap, &reach](const ObjectRef& node) {
               const VarNode* v = node.as<VarNode>();
               auto it = vmap.find(v);
@@ -252,7 +250,7 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
                 reach[it->second].push_back(dkey);
               }
             };
-            tir::PostOrderVisit(call->args[i], fpush);
+            tir::PostOrderVisit(pload->indices[i], fpush);
           }
         }
       };
@@ -328,11 +326,11 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
         vmap[axis[i]->var.get()] = std::move(keys);
       }
       auto fvisit = [&vmap, &f_merge_key, &exact_reach, &fail_set](const ObjectRef& n) {
-        const tir::CallNode* call = n.as<tir::CallNode>();
-        if (call != nullptr && call->func.defined()) {
-          for (size_t i = 0; i < call->args.size(); ++i) {
-            auto it = vmap.find(call->args[i].get());
-            TensorDimKey src(call, static_cast<int>(i));
+        if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+          Tensor t = Downcast<Tensor>(pload->producer);
+          for (size_t i = 0; i < pload->indices.size(); ++i) {
+            auto it = vmap.find(pload->indices[i].get());
+            TensorDimKey src(t, static_cast<int>(i));
             if (it != vmap.end()) {
               const std::vector<TensorDimKey>& keys = it->second;
               for (const auto& key : keys) {

@@ -92,8 +92,8 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const BufferRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const FreeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AssertStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const ProvideNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const RealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ProducerStoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ProducerRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const PrefetchNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const SeqStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const EvaluateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
@@ -114,8 +114,8 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(StoreNode);
     IR_STMT_FUNCTOR_DISPATCH(FreeNode);
     IR_STMT_FUNCTOR_DISPATCH(AssertStmtNode);
-    IR_STMT_FUNCTOR_DISPATCH(ProvideNode);
-    IR_STMT_FUNCTOR_DISPATCH(RealizeNode);
+    IR_STMT_FUNCTOR_DISPATCH(ProducerStoreNode);
+    IR_STMT_FUNCTOR_DISPATCH(ProducerRealizeNode);
     IR_STMT_FUNCTOR_DISPATCH(PrefetchNode);
     IR_STMT_FUNCTOR_DISPATCH(SeqStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(EvaluateNode);
@@ -156,8 +156,8 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
   void VisitStmt_(const BufferRealizeNode* op) override;
   void VisitStmt_(const FreeNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const ProvideNode* op) override;
-  void VisitStmt_(const RealizeNode* op) override;
+  void VisitStmt_(const ProducerStoreNode* op) override;
+  void VisitStmt_(const ProducerRealizeNode* op) override;
   void VisitStmt_(const PrefetchNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
@@ -248,8 +248,8 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   Stmt VisitStmt_(const BufferRealizeNode* op) override;
   Stmt VisitStmt_(const FreeNode* op) override;
   Stmt VisitStmt_(const AssertStmtNode* op) override;
-  Stmt VisitStmt_(const ProvideNode* op) override;
-  Stmt VisitStmt_(const RealizeNode* op) override;
+  Stmt VisitStmt_(const ProducerStoreNode* op) override;
+  Stmt VisitStmt_(const ProducerRealizeNode* op) override;
   Stmt VisitStmt_(const PrefetchNode* op) override;
   Stmt VisitStmt_(const SeqStmtNode* op) override;
   Stmt VisitStmt_(const EvaluateNode* op) override;
@@ -352,7 +352,7 @@ TVM_DLL PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(cons
  * \tparam T the input type, can be PrimExpr or Stmt.
  */
 template <typename T>
-inline T Substitute(T input, const Map<Var, PrimExpr>& value_map) {
+inline auto Substitute(T input, const Map<Var, PrimExpr>& value_map) {
   auto vmap = [&](const Var& var) -> Optional<PrimExpr> {
     auto it = value_map.find(var);
     if (it != value_map.end()) return (*it).second;

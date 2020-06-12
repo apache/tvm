@@ -86,9 +86,8 @@ Array<Tensor> HybridOpNode::InputTensors() const {
   std::unordered_set<Tensor> visited;
   Array<Tensor> curr_inputs;
   tir::PostOrderVisit(body, [&curr_inputs, &orig_inputs, &visited](const ObjectRef& n) {
-    const tir::CallNode* call = n.as<tir::CallNode>();
-    if (call != nullptr && call->func.defined()) {
-      Tensor t = Downcast<Operation>(call->func).output(call->value_index);
+    if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+      Tensor t = Downcast<Tensor>(pload->producer);
       if (orig_inputs.count(t) && !visited.count(t)) {
         curr_inputs.push_back(t);
         visited.insert(t);
@@ -153,8 +152,7 @@ Stmt HybridOpNode::BuildRealize(const Stage& stage,
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(Range::make_by_min_extent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body =
-        tir::RealizeNode::make(t->op, t->value_index, t->dtype, bounds, const_true(), realize_body);
+    realize_body = tir::ProducerRealize(t, bounds, const_true(), realize_body);
   }
   return realize_body;
 }
@@ -163,8 +161,7 @@ Stmt HybridOpNode::BuildProvide(const Stage& stage,
                                 const std::unordered_map<IterVar, Range>& dom_map,
                                 bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt ret =
-      AttrStmtNode::make(make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
+  Stmt ret = AttrStmt(make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
   std::unordered_map<Tensor, Tensor> rmap;
   for (int i = 0; i < this->num_outputs(); ++i) {
     rmap[outputs[i]] = stage->op.output(i);
@@ -223,8 +220,8 @@ Stmt ApplyLoopShapes(const Stage& stage, const std::unordered_map<IterVar, Range
       auto& outer_dom = dom_map.find(outer_)->second;
       CHECK(is_const_int(outer_dom->min, 0));
 
-      inner = IterVarNode::make(inner_dom, inner_->var, inner_->iter_type);
-      outer = IterVarNode::make(outer_dom, outer_->var, outer_->iter_type);
+      inner = IterVar(inner_dom, inner_->var, inner_->iter_type);
+      outer = IterVar(outer_dom, outer_->var, outer_->iter_type);
     }
 
     Stmt VisitStmt_(const ForNode* op) final {
@@ -233,11 +230,11 @@ Stmt ApplyLoopShapes(const Stage& stage, const std::unordered_map<IterVar, Range
         rmap[op->loop_var.get()] = inner + outer * factor;
         Stmt ret = tir::Substitute(op->body, rmap);
         PrimExpr cond = likely(outer * factor < (op->extent - inner));
-        ret = IfThenElseNode::make(cond, ret);
-        ret = ForNode::make(inner->var, PrimExpr(0), inner->dom->extent,
-                            IterVarTypeToForType(inner->iter_type), op->device_api, ret);
-        ret = ForNode::make(outer->var, PrimExpr(0), outer->dom->extent,
-                            IterVarTypeToForType(outer->iter_type), op->device_api, ret);
+        ret = IfThenElse(cond, ret);
+        ret = For(inner->var, PrimExpr(0), inner->dom->extent,
+                  IterVarTypeToForType(inner->iter_type), op->device_api, ret);
+        ret = For(outer->var, PrimExpr(0), outer->dom->extent,
+                  IterVarTypeToForType(outer->iter_type), op->device_api, ret);
         splitted = true;
         return ret;
       }
@@ -278,8 +275,8 @@ Stmt ApplyLoopShapes(const Stage& stage, const std::unordered_map<IterVar, Range
         rmap[op->loop_var.get()] = indexdiv(parent, extent);
         body = tir::Substitute(body, rmap);
         under_outer = false;
-        return ForNode::make(parent->var, PrimExpr(0), extent * op->extent, op->for_type,
-                             op->device_api, body);
+        return For(parent->var, PrimExpr(0), extent * op->extent, op->for_type, op->device_api,
+                   body);
       } else if (under_outer) {
         Stmt body = this->VisitStmt(op->body);
         std::unordered_map<const VarNode*, PrimExpr> rmap;
@@ -330,10 +327,10 @@ Stmt ApplyLoopAnnotations(const Stage& stage, const std::unordered_map<IterVar, 
           std::unordered_map<const VarNode*, PrimExpr> rmap;
           rmap[op->loop_var.get()] = iter_var;
           Stmt body = tir::Substitute(op->body, rmap);
-          return AttrStmtNode::make(iter_var, "thread_extent", op->extent, body);
+          return AttrStmt(iter_var, "thread_extent", op->extent, body);
         } else {
-          return ForNode::make(op->loop_var, op->min, op->extent,
-                               IterVarTypeToForType(attr->iter_type), op->device_api, op->body);
+          return For(op->loop_var, op->min, op->extent, IterVarTypeToForType(attr->iter_type),
+                     op->device_api, op->body);
         }
       }
       return StmtMutator::VisitStmt_(op);
@@ -415,7 +412,7 @@ Stmt ApplyLoopOrder(const Stage& stage, const std::unordered_map<IterVar, Range>
         for_type = IterVarTypeToForType(stage->iter_var_attrs[target]->iter_type);
       }
       const Range& range = target->dom.defined() ? target->dom : dom_map.find(target)->second;
-      return ForNode::make(target->var, range->min, range->extent, for_type, DeviceAPI::None, body);
+      return For(target->var, range->min, range->extent, for_type, DeviceAPI::None, body);
     }
   };
 
@@ -449,7 +446,7 @@ std::vector<IterVar> GatherLoopVars(Stmt stmt) {
     if (const ForNode* op = node.as<ForNode>()) {
       Var loop_var(op->loop_var);
       Range dom = Range::make_by_min_extent(op->min, op->extent);
-      res_.push_back(IterVarNode::make(dom, loop_var, ForTypeToIterVarType(op->for_type)));
+      res_.push_back(IterVar(dom, loop_var, ForTypeToIterVarType(op->for_type)));
     }
   });
   std::reverse(res_.begin(), res_.end());
@@ -461,12 +458,11 @@ class ProviderReplacer : public tir::StmtMutator {
  public:
   explicit ProviderReplacer(const std::unordered_map<Tensor, Tensor>& vmap) : vmap_(vmap) {}
 
-  Stmt VisitStmt_(const tir::ProvideNode* op) final {
-    Tensor t = Downcast<Operation>(op->func).output(op->value_index);
+  Stmt VisitStmt_(const tir::ProducerStoreNode* op) final {
+    Tensor t = Downcast<Tensor>(op->producer);
     auto it = vmap_.find(t);
     if (it != vmap_.end()) {
-      Stmt ret =
-          tir::ProvideNode::make(it->second->op, it->second->value_index, op->value, op->args);
+      Stmt ret = tir::ProducerStore(it->second, op->value, op->indices);
       found = true;
       return this->VisitStmt(ret);
     }

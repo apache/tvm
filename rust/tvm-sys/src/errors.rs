@@ -39,7 +39,7 @@ impl FuncCallError {
             context,
             message: unsafe { std::ffi::CStr::from_ptr(crate::ffi::TVMGetLastError()) }
                 .to_str()
-                .expect("double fault")
+                .expect("failed while attempting to retrieve the TVM error message")
                 .to_owned(),
         }
     }

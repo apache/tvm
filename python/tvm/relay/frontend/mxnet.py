@@ -411,16 +411,22 @@ def _mx_slice(inputs, attrs):
     begin = list(attrs.get_int_tuple('begin', None))
     end = list(attrs.get_int_tuple('end', None))
     stride = attrs.get_int_tuple('step', None)
+    input_shape = _infer_type(inputs[0]).checked_type.shape
     if begin is None:
         raise tvm.error.OpAttributeRequired(
             'Attribute "begin" not found in operator Slice.')
     if end is None:
         raise tvm.error.OpAttributeRequired(
             'Attribute "end" not found in operator Slice.')
-    begin = tuple(x if x is not None else 0 for x in begin)
-    new_attrs = {'begin': begin, 'end': end}
+    begin = (x if x is not None else 0 for x in begin)
+    for i, ed in enumerate(end):
+        if ed is None:
+            end[i] = input_shape[i]
+    new_attrs = {'begin': _expr.const(list(begin), dtype="int32"),
+                 'end': _expr.const(list(end), dtype="int32")}
     if stride is not None:
-        new_attrs['strides'] = stride
+        stride = (x if x is not None else 1 for x in stride)
+        new_attrs['strides'] = _expr.const(list(stride), dtype="int32")
     return _op.strided_slice(inputs[0], **new_attrs)
 
 
@@ -460,7 +466,9 @@ def _mx_slice_axis(inputs, attrs):
         else:
             begin.append(ax_beg)
             end.append(ax_end)
-    return _op.strided_slice(inputs[0], begin, end)
+    return _op.strided_slice(inputs[0],
+                             _expr.const(begin, dtype="int32"),
+                             _expr.const(end, dtype="int32"))
 
 
 def _mx_crop_like(inputs, attrs):
@@ -480,9 +488,9 @@ def _mx_crop_like(inputs, attrs):
         return _op.slice_like(*inputs, **new_attrs)
     expr = _infer_type(inputs[1])
     like_shape = expr.checked_type.shape
-    new_attrs['begin'] = [0, 0, offset[0], offset[1]]
-    new_attrs['end'] = [like_shape[0], like_shape[1], offset[0]+like_shape[2],
-                        offset[1]+like_shape[3]]
+    new_attrs['begin'] = _expr.const([0, 0, offset[0], offset[1]], dtype="int32")
+    new_attrs['end'] = _expr.const([like_shape[0], like_shape[1], offset[0]+like_shape[2],
+                                    offset[1]+like_shape[3]], dtype="int32")
     return _op.strided_slice(inputs[0], **new_attrs)
 
 
@@ -656,7 +664,7 @@ def _mx_multibox_detection(inputs, attrs):
 
     ret = _op.vision.multibox_transform_loc(inputs[0], inputs[1],
                                             inputs[2], **new_attrs0)
-    return _op.vision.non_max_suppression(ret[0], ret[1], **new_attrs1)
+    return _op.vision.non_max_suppression(ret[0], ret[1], ret[1], **new_attrs1)
 
 
 def _mx_batch_dot(inputs, attrs):
@@ -820,6 +828,7 @@ def _mx_box_nms(inputs, attrs):
                                       id_index=id_index, score_index=score_index)
     nms_out = _op.vision.non_max_suppression(ret[1],
                                              ret[0],
+                                             ret[2],
                                              iou_threshold=iou_thresh,
                                              force_suppress=force_suppress,
                                              top_k=top_k,

@@ -34,3 +34,19 @@ def schedule_argwhere(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+
+def schedule_scatter(outs):
+    """Schedule for scatter operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of scatter.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)

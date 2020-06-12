@@ -34,7 +34,7 @@ def test_llvm_intrin():
     ]
     ib.emit(tvm.tir.Evaluate(
         tvm.tir.Call(
-            "int32", "prefetch", args, tvm.tir.Call.Intrinsic, None, 0)))
+            "int32", "prefetch", args, tvm.tir.Call.Intrinsic)))
     body = ib.get()
 
     mod = tvm.IRModule.from_expr(

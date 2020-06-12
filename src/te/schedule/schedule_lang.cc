@@ -61,10 +61,8 @@ void Split(StageNode* self, IterVar parent, PrimExpr factor, PrimExpr nparts, It
   CHECK(parent->iter_type == kDataPar || parent->iter_type == kCommReduce ||
         parent->iter_type == kOrdered)
       << "Cannot split on " << IterVarType2String(parent->iter_type);
-  IterVar outer =
-      IterVarNode::make(Range(), parent->var.copy_with_suffix(".outer"), parent->iter_type);
-  IterVar inner =
-      IterVarNode::make(Range(), parent->var.copy_with_suffix(".inner"), parent->iter_type);
+  IterVar outer = IterVar(Range(), parent->var.copy_with_suffix(".outer"), parent->iter_type);
+  IterVar inner = IterVar(Range(), parent->var.copy_with_suffix(".inner"), parent->iter_type);
   *p_outer = outer;
   *p_inner = inner;
   // The splits
@@ -231,7 +229,7 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
   if (inner->iter_type > iter_type) iter_type = inner->iter_type;
   std::string fused_name = outer->var->name_hint + "." + inner->var->name_hint + ".fused";
 
-  IterVar fused = IterVarNode::make(Range(), Var(fused_name, outer->var.dtype()), iter_type);
+  IterVar fused = IterVar(Range(), Var(fused_name, outer->var.dtype()), iter_type);
 
   Array<IterVar>& all_vars = self->all_iter_vars;
   Array<IterVar>& leaf_vars = self->leaf_iter_vars;
@@ -263,8 +261,8 @@ Stage& Stage::fuse(const Array<IterVar>& axes, IterVar* p_target) {  // NOLINT(*
     StageNode* self = operator->();
     // special handle fuse empty array.
     // insert at the outer most loop
-    IterVar singleton = IterVarNode::make(Range::make_by_min_extent(0, 1),
-                                          Var("singleton", DataType::Int(32)), kDataPar);
+    IterVar singleton =
+        IterVar(Range::make_by_min_extent(0, 1), Var("singleton", DataType::Int(32)), kDataPar);
     self->relations.push_back(SingletonNode::make(singleton));
     Array<IterVar>& all_vars = self->all_iter_vars;
     Array<IterVar>& leaf_vars = self->leaf_iter_vars;
@@ -370,7 +368,7 @@ Stage& Stage::pragma(IterVar var, const std::string& pragma_type,
     this->vectorize(var);
   } else {
     UpdateIterVarAttr(operator->(), var, [pragma_type, pragma_value](IterVarAttrNode* n) {
-      n->pragma_keys.push_back(tir::StringImmNode::make(pragma_type));
+      n->pragma_keys.push_back(tir::StringImm(pragma_type));
       n->pragma_values.push_back(pragma_value);
     });
   }

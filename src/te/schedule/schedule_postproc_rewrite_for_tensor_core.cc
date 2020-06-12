@@ -36,7 +36,6 @@
 
 #include <unordered_map>
 
-#include "../../arith/compute_expr.h"
 #include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -84,7 +83,7 @@ class MMAMatcher : public StmtVisitor {
       bi.name = kv.second->name;
       bi.dtype = kv.second->dtype;
       bi.external = true;
-      buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = bi;
+      buf_map_[kv.first] = bi;
     }
   }
 
@@ -100,9 +99,9 @@ class MMAMatcher : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const ProvideNode* op) final {
+  void VisitStmt_(const ProducerStoreNode* op) final {
     StmtVisitor::VisitStmt_(op);
-    auto it = buf_map_.find(TensorKey{op->func, op->value_index});
+    auto it = buf_map_.find(Downcast<Tensor>(op->producer));
     if (it == buf_map_.end()) {
       return;
     }
@@ -115,8 +114,8 @@ class MMAMatcher : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const RealizeNode* op) final {
-    TensorKey key{op->func, op->value_index};
+  void VisitStmt_(const ProducerRealizeNode* op) final {
+    auto key = Downcast<Tensor>(op->producer);
     if (buf_map_.count(key)) {
       if (!buf_map_.at(key).external) {
         return;
@@ -124,8 +123,8 @@ class MMAMatcher : public StmtVisitor {
       this->VisitStmt(op->body);
     } else {
       BufferInfo bi;
-      bi.name = key.GetName();
-      bi.dtype = op->dtype;
+      bi.name = key->GetNameHint();
+      bi.dtype = key->dtype;
       buf_map_[key] = bi;
       this->VisitStmt(op->body);
       buf_map_[key].released = true;
@@ -153,37 +152,35 @@ class MMAMatcher : public StmtVisitor {
   };
 
   // Check whether the storage scope is local
-  bool check_local_buffer_(const CallNode* op, BufferInfo* bi) {
-    if (op->call_type == CallNode::Halide) {
-      auto it = storage_scope_.find(op->func.get());
-      if (it == storage_scope_.end()) {
-        return false;
-      }
-      const std::string& strkey = it->second;
-      if (strkey != "local") {
-        return false;
-      }
-      auto it1 = buf_map_.find(TensorKey{op->func, op->value_index});
-      if (it1 == buf_map_.end()) {
-        return false;
-      }
-      *bi = it1->second;
-      if (bi->released) {
-        return false;
-      }
-      return true;
+  bool check_local_buffer_(const ProducerLoadNode* op, BufferInfo* bi) {
+    auto tensor = Downcast<Tensor>(op->producer);
+    auto it = storage_scope_.find(tensor.get());
+    if (it == storage_scope_.end()) {
+      return false;
     }
-    return false;
+    const std::string& strkey = it->second;
+    if (strkey != "local") {
+      return false;
+    }
+    auto it1 = buf_map_.find(tensor);
+    if (it1 == buf_map_.end()) {
+      return false;
+    }
+    *bi = it1->second;
+    if (bi->released) {
+      return false;
+    }
+    return true;
   }
 
   // Do the pattern matching
-  bool mma_sync_match_(const ProvideNode* op, BufferInfo store_buffer) {
+  bool mma_sync_match_(const ProducerStoreNode* op, BufferInfo store_buffer) {
     auto* add = op->value.as<AddNode>();
     if (add == nullptr) {
       return false;
     }
 
-    auto* load_c = add->a.as<CallNode>();
+    auto* load_c = add->a.as<ProducerLoadNode>();
     BufferInfo buffer_c;
     if (!check_local_buffer_(load_c, &buffer_c) || !buffer_c.same_as(store_buffer) ||
         !(buffer_c.dtype == DataType::Float(32) || buffer_c.dtype == DataType::Int(32))) {
@@ -196,7 +193,7 @@ class MMAMatcher : public StmtVisitor {
     }
 
     auto load_a_expr = unpack_type_cast(mul->a, buffer_c.dtype);
-    auto load_a = load_a_expr.as<CallNode>();
+    auto load_a = load_a_expr.as<ProducerLoadNode>();
     BufferInfo buffer_a;
     if (!check_local_buffer_(load_a, &buffer_a) ||
         !(buffer_a.dtype == DataType::Float(16) || buffer_a.dtype == DataType::Int(8) ||
@@ -206,7 +203,7 @@ class MMAMatcher : public StmtVisitor {
     }
 
     auto load_b_expr = unpack_type_cast(mul->b, buffer_c.dtype);
-    auto load_b = load_b_expr.as<CallNode>();
+    auto load_b = load_b_expr.as<ProducerLoadNode>();
     BufferInfo buffer_b;
     if (!check_local_buffer_(load_b, &buffer_b) ||
         !(buffer_b.dtype == DataType::Float(16) || buffer_b.dtype == DataType::Int(8) ||
@@ -225,9 +222,9 @@ class MMAMatcher : public StmtVisitor {
     return true;
   }
 
-  std::unordered_map<TensorKey, BufferInfo> buf_map_;
+  std::unordered_map<Tensor, BufferInfo> buf_map_;
   std::unordered_map<const Object*, std::string> storage_scope_;
-  std::unordered_map<const ProvideNode*, Array<PrimExpr>> mma_sync_;
+  std::unordered_map<const ProducerStoreNode*, Array<PrimExpr>> mma_sync_;
   std::unordered_map<const Object*, std::string> buf_name_;
   std::unordered_set<std::string> frag_reg_;
   bool matched_{false};
@@ -363,7 +360,7 @@ class ScheduleAnalyser {
  private:
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
-  std::unordered_map<const ProvideNode*, Array<PrimExpr>> mma_sync_;
+  std::unordered_map<const ProducerStoreNode*, Array<PrimExpr>> mma_sync_;
   std::unordered_map<const Object*, std::string> buf_name_;
 };
 
@@ -401,7 +398,7 @@ class BufferAnalyser : public StmtExprVisitor {
       bi.strides = kv.second->strides;
       bi.shape = kv.second->shape;
       bi.external = true;
-      buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = bi;
+      buf_map_[kv.first] = bi;
     }
   }
 
@@ -419,7 +416,7 @@ class BufferAnalyser : public StmtExprVisitor {
       te::Tensor tensor = Downcast<te::Tensor>(op->node);
       const CallNode* tuple = op->value.as<CallNode>();
       CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
-      auto& vinfo = dim_align_[TensorKey{tensor->op, tensor->value_index}];
+      auto& vinfo = dim_align_[tensor];
       size_t dim = tuple->args[0].as<IntImmNode>()->value;
       if (dim >= vinfo.size()) {
         vinfo.resize(dim + 1);
@@ -432,15 +429,15 @@ class BufferAnalyser : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const ProvideNode* op) final {
+  void VisitStmt_(const ProducerStoreNode* op) final {
     StmtExprVisitor::VisitStmt_(op);
-    TensorKey key{op->func, op->value_index};
+    auto key = Downcast<Tensor>(op->producer);
     auto it = buf_map_.find(key);
-    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key.f;
+    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key->GetNameHint();
     const BufferInfo& bi = it->second;
     CHECK(!bi.released) << "Read a buffer that is already out of scope";
 
-    if (matrix_abc_.count(key.GetName())) {
+    if (matrix_abc_.count(key->GetNameHint())) {
       if (bi.shape.size() < 2) {
         invalid_ = true;
         return;
@@ -461,25 +458,25 @@ class BufferAnalyser : public StmtExprVisitor {
       for (size_t i = 1; i < bi.shape.size(); ++i) {
         PrimExpr stride = IntImm(DataType::Int(32), 1);
         for (size_t j = bi.shape.size() - 1; j >= i; --j) {
-          stride = MulNode::make(stride, bi.shape[j]);
+          stride = Mul(stride, bi.shape[j]);
         }
         strides.push_back(stride);
       }
       strides.push_back(make_const(DataType::Int(32), 1));
     }
-    strides_.insert(std::make_pair(key.GetName(), strides));
+    strides_.insert(std::make_pair(key->GetNameHint(), strides));
 
     if (frag_reg_.count(bi.name)) {
-      PrimExpr dst = CallNode::make(bi.dtype, bi.name, op->args, CallNode::Halide, op->func, 0);
+      PrimExpr dst = ProducerLoad(op->producer, op->indices);
       frag_load_.insert(std::make_pair(op, dst));
 
-      auto rel_index = bi.RelIndex(op->args);
-      if (op->args.size() < 2) {
+      auto rel_index = bi.RelIndex(op->indices);
+      if (op->indices.size() < 2) {
         invalid_ = true;
         return;
       }
       std::vector<int> tile_size;
-      for (auto i = op->args.size() - 1; i + 2 >= op->args.size(); --i) {
+      for (auto i = op->indices.size() - 1; i + 2 >= op->indices.size(); --i) {
         index_visitor.scaling_factor_ = 16;
         if (const IntImmNode* shape = bi.shape[i].as<IntImmNode>()) {
           tile_size.push_back(shape->value);
@@ -525,74 +522,74 @@ class BufferAnalyser : public StmtExprVisitor {
       }
     }
 
-    const CallNode* value = op->value.as<CallNode>();
-    if (value != nullptr && frag_reg_.count(value->name)) {
-      PrimExpr dst = CallNode::make(bi.dtype, bi.name, op->args, CallNode::Halide, op->func, 0);
+    const ProducerLoadNode* value = op->value.as<ProducerLoadNode>();
+    // TODO(tvm-team): string matching is dangerous, consider other means.
+    if (value != nullptr && frag_reg_.count(value->producer->GetNameHint())) {
+      PrimExpr dst = ProducerLoad(op->producer, op->indices);
       frag_store_.insert(std::make_pair(op, dst));
     }
   }
 
-  void VisitExpr_(const CallNode* op) final {
+  void VisitExpr_(const ProducerLoadNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
-    if (op->call_type == CallNode::Halide) {
-      TensorKey key{op->func, op->value_index};
-      auto it = buf_map_.find(key);
-      CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key.f;
-      const BufferInfo& bi = it->second;
-      CHECK(!bi.released) << "Read a buffer that is already out of scope";
 
-      if (matrix_abc_.count(op->name)) {
-        if (bi.shape.size() < 2) {
-          invalid_ = true;
-          return;
-        }
-        for (auto i = bi.shape.size() - 1; i + 2 >= bi.shape.size(); --i) {
-          const IntImmNode* shape = bi.shape[i].as<IntImmNode>();
-          if (shape == nullptr || shape->value % 16 != 0) {
-            invalid_ = true;
-            return;
-          }
-        }
-      }
+    auto tensor = Downcast<Tensor>(op->producer);
+    auto it = buf_map_.find(tensor);
+    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << tensor->GetNameHint();
+    const BufferInfo& bi = it->second;
+    CHECK(!bi.released) << "Read a buffer that is already out of scope";
 
-      Array<PrimExpr> strides;
-      if (bi.strides.size() > 0) {
-        strides = bi.strides;
-      } else {
-        for (size_t i = 1; i < bi.shape.size(); ++i) {
-          PrimExpr stride = IntImm(DataType::Int(32), 1);
-          for (size_t j = bi.shape.size() - 1; j >= i; --j) {
-            stride = MulNode::make(stride, bi.shape[j]);
-          }
-          strides.push_back(stride);
-        }
-        strides.push_back(make_const(DataType::Int(32), 1));
-      }
-      strides_.insert(std::make_pair(key.GetName(), strides));
-
-      if (!frag_reg_.count(bi.name)) {
-        return;
-      }
-
-      auto rel_index = bi.RelIndex(op->args);
-      if (op->args.size() < 2) {
+    if (matrix_abc_.count(tensor->op->name)) {
+      if (bi.shape.size() < 2) {
         invalid_ = true;
         return;
       }
-      for (auto i = op->args.size() - 1; i + 2 >= op->args.size(); --i) {
-        index_visitor.scaling_factor_ = 16;
-        if (const IntImmNode* shape = bi.shape[i].as<IntImmNode>()) {
-          index_visitor.scaling_factor_ = shape->value;
+      for (auto i = bi.shape.size() - 1; i + 2 >= bi.shape.size(); --i) {
+        const IntImmNode* shape = bi.shape[i].as<IntImmNode>();
+        if (shape == nullptr || shape->value % 16 != 0) {
+          invalid_ = true;
+          return;
         }
-        auto index = rel_index[i];
-        auto simplified_index = analyzer_.Simplify(index);
-        index_visitor(simplified_index);
       }
+    }
+
+    Array<PrimExpr> strides;
+    if (bi.strides.size() > 0) {
+      strides = bi.strides;
+    } else {
+      for (size_t i = 1; i < bi.shape.size(); ++i) {
+        PrimExpr stride = IntImm(DataType::Int(32), 1);
+        for (size_t j = bi.shape.size() - 1; j >= i; --j) {
+          stride = Mul(stride, bi.shape[j]);
+        }
+        strides.push_back(stride);
+      }
+      strides.push_back(make_const(DataType::Int(32), 1));
+    }
+    strides_.insert(std::make_pair(tensor->GetNameHint(), strides));
+
+    if (!frag_reg_.count(bi.name)) {
+      return;
+    }
+
+    auto rel_index = bi.RelIndex(op->indices);
+    if (op->indices.size() < 2) {
+      invalid_ = true;
+      return;
+    }
+    for (auto i = op->indices.size() - 1; i + 2 >= op->indices.size(); --i) {
+      index_visitor.scaling_factor_ = 16;
+      if (const IntImmNode* shape = bi.shape[i].as<IntImmNode>()) {
+        index_visitor.scaling_factor_ = shape->value;
+      }
+      auto index = rel_index[i];
+      auto simplified_index = analyzer_.Simplify(index);
+      index_visitor(simplified_index);
     }
   }
 
-  void VisitStmt_(const RealizeNode* op) final {
-    TensorKey key{op->func, op->value_index};
+  void VisitStmt_(const ProducerRealizeNode* op) final {
+    auto key = Downcast<Tensor>(op->producer);
     if (buf_map_.count(key)) {
       CHECK(buf_map_.at(key).external);
       this->VisitStmt(op->body);
@@ -626,8 +623,8 @@ class BufferAnalyser : public StmtExprVisitor {
         strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
       }
 
-      bi.name = key.GetName();
-      bi.dtype = op->dtype;
+      bi.name = key->GetNameHint();
+      bi.dtype = key->dtype;
       bi.strides = strides;
       bi.shape = shape;
 
@@ -723,15 +720,15 @@ class BufferAnalyser : public StmtExprVisitor {
     return false;
   }
 
-  std::unordered_map<TensorKey, BufferInfo> buf_map_;
-  std::unordered_map<TensorKey, std::vector<DimAlignInfo>> dim_align_;
+  std::unordered_map<Tensor, BufferInfo> buf_map_;
+  std::unordered_map<Tensor, std::vector<DimAlignInfo>> dim_align_;
   std::unordered_map<const Object*, std::string> storage_scope_;
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
   std::unordered_set<std::string> frag_reg_;
   std::unordered_map<std::string, Array<PrimExpr>> strides_;
-  std::unordered_map<const ProvideNode*, PrimExpr> frag_load_;
-  std::unordered_map<const ProvideNode*, PrimExpr> frag_store_;
+  std::unordered_map<const ProducerStoreNode*, PrimExpr> frag_load_;
+  std::unordered_map<const ProducerStoreNode*, PrimExpr> frag_store_;
   std::unordered_map<std::string, int> thread_extent_;
   IndexVisitor index_visitor;
   Tile warp_tile_;
@@ -755,8 +752,8 @@ class ThreadIdxMutator : public StmtExprMutator {
         return zero;
       }
       if (op->name_hint == "threadIdx.y") {
-        PrimExpr div = DivNode::make(expr, warp_y_);
-        PrimExpr mul = MulNode::make(div, warp_y_);
+        PrimExpr div = Div(expr, warp_y_);
+        PrimExpr mul = Mul(div, warp_y_);
         return mul;
       }
     }
@@ -784,30 +781,29 @@ class TensorCoreIRMutator : public StmtExprMutator {
         warp_tile_(buffer_analyser.warp_tile_),
         warp_threads_y_(buffer_analyser.warp_threads_y_) {}
 
-  Stmt VisitStmt_(const RealizeNode* op) final {
-    TensorKey key{op->func, op->value_index};
+  Stmt VisitStmt_(const ProducerRealizeNode* op) final {
+    auto key = Downcast<Tensor>(op->producer);
     bounds_[key] = op->bounds;
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<RealizeNode>();
+    op = stmt.as<ProducerRealizeNode>();
     if (op != nullptr) {
-      if (!frag_reg_.count(key.GetName())) {
+      if (!frag_reg_.count(key->GetNameHint())) {
         return stmt;
       }
 
-      auto new_extents = get_tile_size_(simplify_name(key.GetName()));
+      auto new_extents = get_tile_size_(simplify_name(key->GetNameHint()));
 
       Region new_bounds;
       for (size_t i = 0; i < op->bounds.size() - 2; ++i) {
         new_bounds.push_back(op->bounds[i]);
       }
-      CHECK_GE(op->bounds.size(), 2) << "Less than 2 dimensions for matrix " << key.GetName();
+      CHECK_GE(op->bounds.size(), 2) << "Less than 2 dimensions for matrix " << key->GetNameHint();
       new_bounds.push_back(
           Range::make_by_min_extent(op->bounds[op->bounds.size() - 2]->min, new_extents[0]));
       new_bounds.push_back(
           Range::make_by_min_extent(op->bounds[op->bounds.size() - 1]->min, new_extents[1]));
 
-      return RealizeNode::make(op->func, op->value_index, op->dtype, new_bounds, op->condition,
-                               op->body);
+      return ProducerRealize(op->producer, new_bounds, op->condition, op->body);
     }
     return stmt;
   }
@@ -823,25 +819,25 @@ class TensorCoreIRMutator : public StmtExprMutator {
 
         auto it = matrix_abc_.find(simplify_name(node->name));
         CHECK(it != matrix_abc_.end()) << "Cannot find matrix info for " << node->name;
-        auto matrix_abc = tvm::tir::StringImmNode::make("wmma." + it->second);
+        auto matrix_abc = tvm::tir::StringImm("wmma." + it->second);
         Stmt body = this->VisitStmt(op->body);
-        return AttrStmtNode::make(op->node, op->attr_key, matrix_abc, body);
+        return AttrStmt(op->node, op->attr_key, matrix_abc, body);
       }
     }
     return stmt;
   }
 
-  Stmt VisitStmt_(const ProvideNode* op) final {
+  Stmt VisitStmt_(const ProducerStoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     auto it = mma_sync_.find(op);
     if (it != mma_sync_.end()) {
       const auto& operands = it->second;
       PrimExpr a = operands[0];
-      auto ca = a.as<CallNode>();
+      auto ca = a.as<ProducerLoadNode>();
       PrimExpr b = operands[1];
-      auto cb = b.as<CallNode>();
+      auto cb = b.as<ProducerLoadNode>();
       PrimExpr c = operands[2];
-      auto cc = c.as<CallNode>();
+      auto cc = c.as<ProducerLoadNode>();
 
       ObjectPtr<BufferNode> buffer_node_a = make_object<BufferNode>();
       ObjectPtr<BufferNode> buffer_node_b = make_object<BufferNode>();
@@ -851,50 +847,46 @@ class TensorCoreIRMutator : public StmtExprMutator {
         Buffer buffer_a(buffer_node_a);
         Buffer buffer_b(buffer_node_b);
         if (ca->dtype == DataType::Int(1) && cb->dtype == DataType::Int(1)) {
-          return EvaluateNode::make(CallNode::make(
-              DataType::Handle(), intrinsic::tvm_bmma_sync,
-              {buffer->data, buffer->elem_offset, buffer_a->data, buffer_a->elem_offset,
-               buffer_b->data, buffer_b->elem_offset, buffer->data, buffer->elem_offset},
-              CallNode::Intrinsic));
+          return Evaluate(
+              Call(DataType::Handle(), intrinsic::tvm_bmma_sync,
+                   {buffer->data, buffer->elem_offset, buffer_a->data, buffer_a->elem_offset,
+                    buffer_b->data, buffer_b->elem_offset, buffer->data, buffer->elem_offset},
+                   CallNode::Intrinsic));
         } else {
-          return EvaluateNode::make(CallNode::make(
-              DataType::Handle(), intrinsic::tvm_mma_sync,
-              {buffer->data, buffer->elem_offset, buffer_a->data, buffer_a->elem_offset,
-               buffer_b->data, buffer_b->elem_offset, buffer->data, buffer->elem_offset},
-              CallNode::Intrinsic));
+          return Evaluate(
+              Call(DataType::Handle(), intrinsic::tvm_mma_sync,
+                   {buffer->data, buffer->elem_offset, buffer_a->data, buffer_a->elem_offset,
+                    buffer_b->data, buffer_b->elem_offset, buffer->data, buffer->elem_offset},
+                   CallNode::Intrinsic));
         }
       };
 
       auto call_add_c = [this, &cc, &buffer_node_c, &mma_sync_call](const Buffer& buffer) {
-        return add_buffer_bind_scope_(cc, buffer_node_c, TensorKey{cc->func, cc->value_index},
-                                      mma_sync_call, cc->dtype);
+        return add_buffer_bind_scope_(cc, buffer_node_c, mma_sync_call);
       };
 
       auto call_add_b = [this, &cb, &buffer_node_b, &call_add_c](const Buffer& buffer) {
-        return add_buffer_bind_scope_(cb, buffer_node_b, TensorKey{cb->func, cb->value_index},
-                                      call_add_c, cb->dtype);
+        return add_buffer_bind_scope_(cb, buffer_node_b, call_add_c);
       };
 
-      return add_buffer_bind_scope_(ca, buffer_node_a, TensorKey{ca->func, ca->value_index},
-                                    call_add_b, ca->dtype);
+      return add_buffer_bind_scope_(ca, buffer_node_a, call_add_b);
     }
 
     auto it2 = frag_load_.find(op);
     if (it2 != frag_load_.end()) {
       PrimExpr dst = it2->second;
       if (op->value.as<FloatImmNode>() != nullptr || op->value.as<IntImmNode>() != nullptr) {
-        auto call = dst.as<CallNode>();
+        auto pload = dst.as<ProducerLoadNode>();
 
         auto fill_fragment_call = [this, &op](const Buffer& buffer) {
-          return EvaluateNode::make(CallNode::make(DataType::Handle(), intrinsic::tvm_fill_fragment,
-                                                   {buffer->data, warp_tile_.m, warp_tile_.n,
-                                                    warp_tile_.k, buffer->elem_offset, op->value},
-                                                   CallNode::Intrinsic));
+          return Evaluate(Call(DataType::Handle(), intrinsic::tvm_fill_fragment,
+                               {buffer->data, warp_tile_.m, warp_tile_.n, warp_tile_.k,
+                                buffer->elem_offset, op->value},
+                               CallNode::Intrinsic));
         };
 
         ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
-        return add_buffer_bind_scope_(call, buffer_node, TensorKey{call->func, call->value_index},
-                                      fill_fragment_call, call->dtype);
+        return add_buffer_bind_scope_(pload, buffer_node, fill_fragment_call);
       }
 
       const CallNode* value = op->value.as<CallNode>();
@@ -910,38 +902,36 @@ class TensorCoreIRMutator : public StmtExprMutator {
       PrimExpr warp_y = IntImm(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       PrimExpr mutated_value = thread_idx_mutator(op->value);
-      PrimExpr src = CallNode::make(value->dtype, "&", {mutated_value}, CallNode::Extern);
+      PrimExpr src = Call(value->dtype, "&", {mutated_value}, CallNode::Extern);
 
-      auto call = dst.as<CallNode>();
+      auto pload = dst.as<ProducerLoadNode>();
       PrimExpr matrix_major;
-      auto iter2 = matrix_major_.find(simplify_name(call->name));
-      CHECK(iter2 != matrix_major_.end()) << "Can not determine matrix major for " << call->name;
+      auto iter2 = matrix_major_.find(simplify_name(pload->producer->GetNameHint()));
+      CHECK(iter2 != matrix_major_.end())
+          << "Can not determine matrix major for " << pload->producer->GetNameHint();
       if (iter2->second == "col_major") {
-        matrix_major = StringImmNode::make("col_major");
+        matrix_major = StringImm("col_major");
       } else if (iter2->second == "row_major") {
-        matrix_major = StringImmNode::make("row_major");
+        matrix_major = StringImm("row_major");
       } else {
-        LOG(FATAL) << "invalid matrix major for " << call->name;
+        LOG(FATAL) << "invalid matrix major for " << pload->producer->GetNameHint();
       }
 
       auto load_matrix_call = [this, &src, &stride, &matrix_major](const Buffer& buffer) {
-        return EvaluateNode::make(
-            CallNode::make(DataType::Handle(), intrinsic::tvm_load_matrix_sync,
-                           {buffer->data, warp_tile_.m, warp_tile_.n, warp_tile_.k,
-                            buffer->elem_offset, src, stride, matrix_major},
-                           CallNode::Intrinsic));
+        return Evaluate(Call(DataType::Handle(), intrinsic::tvm_load_matrix_sync,
+                             {buffer->data, warp_tile_.m, warp_tile_.n, warp_tile_.k,
+                              buffer->elem_offset, src, stride, matrix_major},
+                             CallNode::Intrinsic));
       };
 
       ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
-      return add_buffer_bind_scope_(call, buffer_node, TensorKey{op->func, op->value_index},
-                                    load_matrix_call, call->dtype);
+      return add_buffer_bind_scope_(pload, buffer_node, load_matrix_call);
     }
 
     auto it3 = frag_store_.find(op);
     if (it3 != frag_store_.end()) {
-      TensorKey key{op->func, op->value_index};
-      auto it = strides_.find(key.GetName());
-      CHECK(it != strides_.end()) << "Cannot find stride for " << key.GetName();
+      auto it = strides_.find(op->producer->GetNameHint());
+      CHECK(it != strides_.end()) << "Cannot find stride for " << op->producer->GetNameHint();
       auto strides = it->second;
       CHECK_GE(strides.size(), 2);
       PrimExpr stride = strides[strides.size() - 2];
@@ -951,21 +941,19 @@ class TensorCoreIRMutator : public StmtExprMutator {
       PrimExpr warp_y = IntImm(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       dst = thread_idx_mutator(dst);
-      dst = CallNode::make(DataType::Handle(), "&", {dst}, CallNode::Extern);
+      dst = Call(DataType::Handle(), "&", {dst}, CallNode::Extern);
 
-      auto call = op->value.as<CallNode>();
+      auto pload = op->value.as<ProducerLoadNode>();
 
       auto store_matrix_call = [this, &dst, &stride](const Buffer& buffer) {
-        return EvaluateNode::make(
-            CallNode::make(DataType::Handle(), intrinsic::tvm_store_matrix_sync,
-                           {buffer->data, warp_tile_.m, warp_tile_.n, warp_tile_.k,
-                            buffer->elem_offset, dst, stride, StringImmNode::make("col_major")},
-                           CallNode::Intrinsic));
+        return Evaluate(Call(DataType::Handle(), intrinsic::tvm_store_matrix_sync,
+                             {buffer->data, warp_tile_.m, warp_tile_.n, warp_tile_.k,
+                              buffer->elem_offset, dst, stride, StringImm("col_major")},
+                             CallNode::Intrinsic));
       };
 
       ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
-      return add_buffer_bind_scope_(call, buffer_node, TensorKey{call->func, call->value_index},
-                                    store_matrix_call, call->dtype);
+      return add_buffer_bind_scope_(pload, buffer_node, store_matrix_call);
     }
 
     return stmt;
@@ -984,8 +972,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
           scaled_extent_value = ori_extent_value / scale_factor;
         }
         PrimExpr scaled_extent = make_const(op->extent.dtype(), scaled_extent_value);
-        stmt = ForNode::make(op->loop_var, op->min, scaled_extent, op->for_type, op->device_api,
-                             op->body);
+        stmt = For(op->loop_var, op->min, scaled_extent, op->for_type, op->device_api, op->body);
       }
     }
     return stmt;
@@ -1023,11 +1010,11 @@ class TensorCoreIRMutator : public StmtExprMutator {
     return tile_size;
   }
 
-  Stmt add_buffer_bind_scope_(const CallNode* call, const ObjectPtr<BufferNode>& buffer_node,
-                              const TensorKey& key,
-                              const std::function<Stmt(const Buffer& buffer)>& call_back,
-                              DataType datatype) {
-    auto it = bounds_.find(key);
+  Stmt add_buffer_bind_scope_(const ProducerLoadNode* pload,
+                              const ObjectPtr<BufferNode>& buffer_node,
+                              const std::function<Stmt(const Buffer& buffer)>& call_back) {
+    auto tensor = Downcast<Tensor>(pload->producer);
+    auto it = bounds_.find(tensor);
     CHECK(it != bounds_.end());
     Array<PrimExpr> min_bound;
     for (auto i : it->second) {
@@ -1039,7 +1026,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     for (size_t i = 0; i < it->second.size() - 2; ++i) {
       shape.push_back(it->second[i]->extent);
     }
-    auto tile_size = get_tile_size_(simplify_name(call->name));
+    auto tile_size = get_tile_size_(simplify_name(tensor->op->name));
     shape.push_back(tile_size[0]);
     shape.push_back(tile_size[1]);
 
@@ -1047,25 +1034,24 @@ class TensorCoreIRMutator : public StmtExprMutator {
     for (size_t i = 1; i < shape.size(); ++i) {
       PrimExpr stride = IntImm(DataType::Int(32), 1);
       for (size_t j = shape.size() - 1; j >= i; --j) {
-        stride = MulNode::make(stride, shape[j]);
+        stride = Mul(stride, shape[j]);
       }
       strides.push_back(stride);
     }
     strides.push_back(make_const(DataType::Int(32), 1));
 
     PrimExpr elem_offset = IntImm(DataType::Int(32), 0);
-    CHECK_EQ(call->args.size(), min_bound.size());
+    CHECK_EQ(pload->indices.size(), min_bound.size());
     for (size_t i = 0; i < min_bound.size(); i++) {
-      elem_offset = AddNode::make(
-          elem_offset, MulNode::make(strides[i], SubNode::make(call->args[i], min_bound[i])));
+      elem_offset = Add(elem_offset, Mul(strides[i], Sub(pload->indices[i], min_bound[i])));
     }
 
-    auto it2 = matrix_abc_.find(simplify_name(call->name));
-    CHECK(it2 != matrix_abc_.end()) << "Cannot find matrix info for " << call->name;
-    buffer_node->data = Var(call->name, DataType::Handle());
-    buffer_node->name = call->name;
+    auto it2 = matrix_abc_.find(simplify_name(tensor->op->name));
+    CHECK(it2 != matrix_abc_.end()) << "Cannot find matrix info for " << tensor->op->name;
+    buffer_node->data = Var(tensor->op->name, DataType::Handle());
+    buffer_node->name = tensor->op->name;
     buffer_node->scope = "wmma." + it2->second;
-    buffer_node->dtype = datatype;
+    buffer_node->dtype = tensor->dtype;
     buffer_node->strides = strides;
     buffer_node->shape = shape;
     buffer_node->data_alignment = 1;
@@ -1073,33 +1059,25 @@ class TensorCoreIRMutator : public StmtExprMutator {
     buffer_node->offset_factor = 1;
     Buffer buffer(buffer_node);
 
-    ObjectPtr<te::TensorNode> tensor_node = make_object<te::TensorNode>();
-    tensor_node->value_index = key.value_index;
-    tensor_node->op = Downcast<te::Operation>(key.f);
-    tensor_node->shape = shape;
-    tensor_node->dtype = datatype;
-    Tensor tensor(tensor_node);
-
     Array<PrimExpr> args;
-    for (size_t i = 0; i < call->args.size(); ++i) {
-      args.push_back(call->args[i]);
+    for (size_t i = 0; i < pload->indices.size(); ++i) {
+      args.push_back(pload->indices[i]);
       args.push_back(shape[i]);
     }
-    auto tuple =
-        CallNode::make(DataType::Handle(), intrinsic::tvm_tuple, args, CallNode::Intrinsic);
+    auto tuple = Call(DataType::Handle(), intrinsic::tvm_tuple, args, CallNode::Intrinsic);
     Array<ObjectRef> node = {buffer, tensor};
-    return AttrStmtNode::make(node, "buffer_bind_scope", tuple, call_back(buffer));
+    return AttrStmt(node, "buffer_bind_scope", tuple, call_back(buffer));
   }
 
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
-  std::unordered_map<const ProvideNode*, Array<PrimExpr>> mma_sync_;
+  std::unordered_map<const ProducerStoreNode*, Array<PrimExpr>> mma_sync_;
   std::unordered_map<std::string, Array<PrimExpr>> strides_;
   std::unordered_set<std::string> frag_reg_;
   std::unordered_map<const VarNode*, unsigned> loop_scaling_;
-  std::unordered_map<const ProvideNode*, PrimExpr> frag_load_;
-  std::unordered_map<const ProvideNode*, PrimExpr> frag_store_;
-  std::unordered_map<TensorKey, Region> bounds_;
+  std::unordered_map<const ProducerStoreNode*, PrimExpr> frag_load_;
+  std::unordered_map<const ProducerStoreNode*, PrimExpr> frag_store_;
+  std::unordered_map<Tensor, Region> bounds_;
   arith::Analyzer analyzer_;
   Tile warp_tile_;
   int warp_threads_y_{-1};

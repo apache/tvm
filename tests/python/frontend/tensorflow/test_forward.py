@@ -21,6 +21,7 @@ Tensorflow testcases
 This article is a test script to test tensorflow operator with Relay.
 """
 from __future__ import print_function
+import threading
 import numpy as np
 import pytest
 try:
@@ -45,6 +46,7 @@ import tvm
 from tvm import te
 from tvm import relay
 import tvm.relay.testing.tf as tf_testing
+from tvm.runtime.vm import VirtualMachine
 from packaging import version as package_version
 
 #######################################################################
@@ -98,11 +100,10 @@ def vmobj_to_list(o):
 
 def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
                   target='llvm', out_names=None, opt_level=3, mode='graph_runtime',
-                  cuda_layout="NCHW"):
+                  cuda_layout="NCHW", layout=None, disabled_pass=None):
     """ Generic function to compile on relay and execute on tvm """
     input_data = convert_to_list(input_data)
     input_node = convert_to_list(input_node)
-    layout = None
     if target == "cuda":
         layout = cuda_layout
     target_host = None
@@ -111,7 +112,8 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
                                                  layout=layout,
                                                  shape=shape_dict,
                                                  outputs=out_names)
-    if mode in ['debug', 'vm']:
+    ctx = tvm.context(target, 0)
+    if mode == 'debug':
         ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod['main'].params:
@@ -126,11 +128,19 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
                 inputs.append(tvm.nd.array(params[param.name_hint]))
         result = ex.evaluate()(*inputs)
         return vmobj_to_list(result)
+    elif mode == 'vm':
+        with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
+            vm_exec = relay.vm.compile(mod, target="llvm", params=params)
+        vm = VirtualMachine(vm_exec)
+        vm.init(tvm.cpu())
+        inputs = {}
+        for e, i in zip(input_node, input_data):
+            inputs[e] = i
+        result = vm.invoke("main", **inputs)
+        return vmobj_to_list(result)
     else:
-        with tvm.transform.PassContext(opt_level=opt_level):
+        with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
             graph, lib, params = relay.build(mod, target, target_host, params)
-
-        ctx = tvm.context(target, 0)
         from tvm.contrib import graph_runtime
         m = graph_runtime.create(graph, lib, ctx)
         # set inputs
@@ -474,7 +484,7 @@ def test_forward_convolution():
 
 #######################################################################
 # Convolution3D
-# -----------
+# -------------
 
 
 def _test_convolution3d(opname, tensor_in_sizes, filter_in_sizes,
@@ -888,10 +898,15 @@ def test_tensor_array_scatter():
     def run(dtype_str, infer_shape):
         with tf.Graph().as_default():
             dtype =  tf_dtypes[dtype_str]
+            if infer_shape:
+                element_shape = tf.TensorShape([tf.Dimension(None)])
+            else:
+                element_shape = None
             t = tf.constant(np.array([[1.0], [2.0], [3.0]]).astype(dtype_str), dtype=dtype)
             indices = tf.constant([2, 1, 0])
             ta1 = tf.TensorArray(dtype=dtype, size=3,
-                                 infer_shape=infer_shape)
+                                 infer_shape=infer_shape,
+                                 element_shape=element_shape)
             ta2 = ta1.scatter(indices, t)
             out0 = ta2.read(0)
             out1 = ta2.read(1)
@@ -967,8 +982,14 @@ def test_tensor_array_size():
     def run(dtype_str, infer_shape):
         with tf.Graph().as_default():
             dtype =  tf_dtypes[dtype_str]
+            np_data = np.array([[1.0, 2.0], [3.0, 4.0]]).astype(dtype_str)
+            in_data = [np_data, np_data]
+            t1 = tf.constant(np_data, dtype=dtype)
+            t2 = tf.constant(np_data, dtype=dtype)
             ta1 = tf.TensorArray(dtype=dtype, size=2, infer_shape=infer_shape)
-            out = ta1.size()
+            ta2 = ta1.write(0, t1)
+            ta3 = ta2.write(1, t2)
+            out = ta3.size()
             g = tf.get_default_graph()
             compare_tf_with_tvm([], [], 'TensorArraySizeV3:0', mode='debug')
     for dtype in ["float32", "int8"]:
@@ -1892,6 +1913,30 @@ def test_forward_crop_and_resize():
 
 
 #######################################################################
+# Non Max Suppression
+# -------------------
+def _test_forward_nms_v3(bx_shape, score_shape, iou_threshold, score_threshold, out_size, dtype="float32"):
+    boxes = np.random.uniform(0, 10, size=bx_shape).astype(dtype)
+    scores = np.random.uniform(size=score_shape).astype(dtype)
+    tf.reset_default_graph()
+    in_data_1 = tf.placeholder(dtype, boxes.shape, name="in_data_1")
+    in_data_2 = tf.placeholder(dtype, scores.shape, name="in_data_2")
+    tf.image.non_max_suppression(boxes=in_data_1, scores=in_data_2,
+                                 max_output_size=out_size, iou_threshold=iou_threshold,
+                                 score_threshold=score_threshold, name="nms")
+    compare_tf_with_tvm([boxes, scores], ['in_data_1:0', 'in_data_2:0'],
+                        'nms/NonMaxSuppressionV3:0', mode='vm')
+    compare_tf_with_tvm([boxes, scores], ['in_data_1:0', 'in_data_2:0'],
+                        'nms/NonMaxSuppressionV3:0', mode='debug')
+
+def test_forward_nms_v3():
+    """ NonMaxSuppressionV3 """
+    _test_forward_nms_v3((5, 4), (5,), 0.7, 0.5, 5)
+    _test_forward_nms_v3((20, 4), (20,), 0.5, 0.6, 10)
+    _test_forward_nms_v3((1000, 4), (1000,), 0.3, 0.7, 1000)
+
+
+#######################################################################
 # LSTM
 # ----
 
@@ -2242,6 +2287,48 @@ def test_forward_resnetv2():
                                                target=device)
                     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]),
                                                 rtol=1e-5, atol=1e-5)
+
+#######################################################################
+# SSD
+# ---
+
+
+def _test_ssd_impl():
+    '''Test SSD with backbone MobileNet V1'''
+    with tf.Graph().as_default():
+        graph_def = tf_testing.get_workload(
+            "object_detection/ssd_mobilenet_v1_ppn_shared_"
+            "box_predictor_300x300_coco14_sync_2018_07_03.pb")
+        # Call the utility to import the graph definition into default graph.
+        graph_def = tf_testing.ProcessGraphDefParam(graph_def)
+
+        data = np.random.uniform(0.0, 255.0, size=(1, 512, 512, 3)).astype('uint8')
+        in_node = "image_tensor"
+        out_node = ['detection_boxes', "detection_scores", "detection_classes"]
+
+        with tf.Session() as sess:
+            tf_output = run_tf_graph(
+                sess, data, '{}:0'.format(in_node), ["{}:0".format(oname) for oname in out_node])
+            # TODO(kevinthesun): enable gpu test when VM heterogeneous execution is ready.
+            for device in ["llvm"]:
+                ctx = tvm.context(device, 0)
+                if not ctx.exist:
+                    print("Skip because %s is not enabled" % device)
+                    continue
+                tvm_output = run_tvm_graph(graph_def, data, in_node, len(out_node),
+                                           target=device, layout="NCHW", out_names=out_node,
+                                           mode="vm", disabled_pass=["FoldScaleAxis"])
+                for i in range(len(out_node)):
+                    tvm.testing.assert_allclose(tvm_output[i], tf_output[i],
+                                                rtol=1e-3, atol=1e-3)
+
+def test_forward_ssd():
+    run_thread = threading.Thread(target=_test_ssd_impl, args=())
+    old_stack_size = threading.stack_size(100 * 1024 * 1024)
+    run_thread.start()
+    run_thread.join()
+    threading.stack_size(old_stack_size)
+
 
 #######################################################################
 # Placeholder
@@ -3535,7 +3622,6 @@ def test_forward_spop():
 # Main
 # ----
 if __name__ == '__main__':
-
     # Transforms
     test_forward_slice()
     test_forward_transpose()
@@ -3568,6 +3654,7 @@ if __name__ == '__main__':
     test_forward_truncatemod()
     test_forward_one_hot()
     test_forward_atan2()
+    test_forward_nms_v3()
 
     # Activations
     test_forward_sigmoid()
@@ -3625,6 +3712,7 @@ if __name__ == '__main__':
 
     # NN
     test_forward_convolution()
+    test_forward_convolution3d()
     test_forward_pooling()
     test_forward_concat_v2()
     test_forward_lrn()
@@ -3638,6 +3726,7 @@ if __name__ == '__main__':
     test_forward_inception_v1()
     test_forward_mobilenet()
     test_forward_resnetv2()
+    test_forward_ssd()
     test_forward_placeholder()
     test_forward_ptb()
 

@@ -43,7 +43,7 @@ inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = tir::CallNode::make(call->dtype, "spirv_glsl450", cargs, tir::CallNode::PureIntrinsic);
+  *rv = tir::Call(call->dtype, "spirv_glsl450", cargs, tir::CallNode::PureIntrinsic);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.floor")
