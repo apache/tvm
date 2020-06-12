@@ -2088,7 +2088,7 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK_GE(axis, 0) << "axis should be within the input dimension range.";
 
   if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
-    if (!data->shape[axis].as<Any>()) {
+    if (!data->shape[axis].as<AnyNode>()) {
       CHECK(reporter->Assert(indexmod(data->shape[axis], sections->value) ==
                              tir::make_zero(DataType::Int(64))))
           << "indices_or_sections need to be able to divide input.shape[axis]";
@@ -2096,7 +2096,7 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     std::vector<Type> fields;
     for (int i = 0; i < sections->value; ++i) {
       std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-      if (data->shape[axis].as<Any>()) {
+      if (data->shape[axis].as<AnyNode>()) {
         oshape[axis] = Any();
       } else {
         oshape[axis] = indexdiv(oshape[axis], sections->value);
@@ -2118,12 +2118,12 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       auto vec_type = TensorType(oshape, data->dtype);
       fields.push_back(vec_type);
     }
-    if (!data->shape[axis].as<Any>()) {
+    if (!data->shape[axis].as<AnyNode>()) {
       CHECK(reporter->Assert(begin < data->shape[axis]))
           << "The sum of sections must match the input.shape[axis]";
     }
     std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-    if (data->shape[axis].as<Any>()) {
+    if (data->shape[axis].as<AnyNode>()) {
       oshape[axis] = Any();
     } else {
       oshape[axis] = data->shape[axis] - begin;
