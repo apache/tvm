@@ -54,7 +54,7 @@ class JSONRuntimeBase : public ModuleNode {
   // The type key of each subclass can be saved to the json file and them
   // used to create the specific runtime during deserialization.
   // virtual const char* type_key() const = 0;
-  const char* type_key() const { return ""; }
+  const char* type_key() const { return "jsonruntime"; }
 
   virtual void Init() { LOG(FATAL) << "NYI"; }
 

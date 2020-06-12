@@ -35,6 +35,7 @@
 
 #include "../../utils.h"
 #include "../codegen_c/codegen_c.h"
+#include "../codegen_json/codegen_json.h"
 
 namespace tvm {
 namespace relay {
@@ -418,12 +419,45 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
 };
 
 /*!
+ * \brief Get the external symbol of the Relay function name.
+ *
+ * \param func The provided function.
+ *
+ * \return An external symbol.
+ */
+std::string GetExtSymbol(const Function& func) {
+  const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  CHECK(name_node.defined()) << "Fail to retrieve external symbol.";
+  return std::string(name_node.value());
+}
+
+/*!
  * \brief The external compiler/codegen tool. It takes a Relay expression/module and
  * compile it into a runtime module.
  */
 runtime::Module DNNLCompiler(const ObjectRef& ref) {
-  DNNLModuleCodegen dnnl;
-  return dnnl.CreateCSourceModule(ref);
+  std::string func_name;
+  std::string graph_json;
+  if (ref->IsInstance<FunctionNode>()) {
+    auto func = Downcast<Function>(ref);
+    func_name = GetExtSymbol(func);
+    graph_json = ToJSON(func);
+  } else if (ref->IsInstance<IRModuleNode>()) {
+    IRModule mod = Downcast<IRModule>(ref);
+    CHECK_EQ(mod->functions.size(), 1U) << "Only support single subgraph";
+    for (const auto& it : mod->functions) {
+      auto func = Downcast<Function>(it.second);
+      func_name = GetExtSymbol(func);
+      graph_json = ToJSON(func);
+    }
+  } else {
+    LOG(FATAL) << "The input ref is expected to be a Relay function or module\n";
+  }
+
+  const auto* pf = runtime::Registry::Get("runtime.DNNLJSONRuntimeCreate");
+  CHECK(pf != nullptr) << "Cannot find JSON runtime driver module to create";
+  auto mod = (*pf)(func_name, graph_json);
+  return mod;
 }
 
 TVM_REGISTER_GLOBAL("relay.ext.dnnl").set_body_typed(DNNLCompiler);

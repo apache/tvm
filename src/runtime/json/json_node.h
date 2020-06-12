@@ -84,7 +84,9 @@ class JSONGraphNodeEntry {
     }
   }
 
+  /*! \brief The json graph node ID. */
   uint32_t id_;
+  /*! \brief The entry index. */
   uint32_t index_;
   uint32_t version_;
 };

@@ -204,6 +204,14 @@ class JSONRuntimeDriver : public ModuleNode {
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_jsonruntime")
 .set_body_typed(JSONRuntimeDriver::LoadFromBinary);
 
+runtime::Module JSONRuntimeDriverCreate(std::string graph_json) {
+  auto n = make_object<JSONRuntimeDriver>(graph_json);
+  return runtime::Module(n);
+}
+
+TVM_REGISTER_GLOBAL("runtime.JSONRuntimeDriverCreate")
+.set_body_typed(JSONRuntimeDriverCreate);
+
 }  // namespace json
 }  // namespace runtime
 }  // namespace tvm

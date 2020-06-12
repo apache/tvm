@@ -18,9 +18,11 @@
  */
 
 /*!
- * \file relay/backend/contrib/codegen_json.cc
+ * \file relay/backend/contrib/codegen_json.h
  * \brief Utilities for json codegen and runtime
  */
+#ifndef TVM_RELAY_BACKEND_CONTRIB_CODEGEN_JSON_CODEGEN_JSON_H_
+#define TVM_RELAY_BACKEND_CONTRIB_CODEGEN_JSON_CODEGEN_JSON_H_
 
 #include <dmlc/any.h>
 #include <dmlc/json.h>
@@ -365,3 +367,4 @@ TVM_REGISTER_GLOBAL("relay.analysis.ToJSON")
 
 }  // namespace relay
 }  // namespace tvm
+#endif  // TVM_RELAY_BACKEND_CONTRIB_CODEGEN_JSON_CODEGEN_JSON_H_
