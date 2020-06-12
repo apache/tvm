@@ -230,7 +230,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2, c3;
+  PVar<IntImm> c1, c2, c3, c4;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
   // Vector rules
