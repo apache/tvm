@@ -892,6 +892,91 @@ def test_forward_logsoftmax():
     input_data = torch.rand(input_shape).float()
     verify_model(LogSoftmax1().float().eval(), input_data=input_data)
 
+
+def test_forward_norm():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class Norm1(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('inf'), dim=None, keepdim=False)
+
+    class Norm2(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('-inf'), dim=None, keepdim=False)
+
+    class Norm3(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('-inf'), dim=None, keepdim=True)
+
+    class Norm4(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('inf'), dim=(1, 2), keepdim=False)
+
+    class Norm5(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('inf'), dim=(1), keepdim=True)
+
+    class Norm6(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(0.5), dim=(1), keepdim=True)
+
+    class Norm7(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(1), dim=None, keepdim=False)
+
+    class Norm8(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(2.0), dim=(1), keepdim=True)
+
+    class Norm9(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(-0.5), dim=(1, 2), keepdim=True)
+
+    class Norm10(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(-2), dim=(1), keepdim=False)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Norm1().float().eval(), input_data=input_data)
+    verify_model(Norm2().float().eval(), input_data=input_data)
+    verify_model(Norm3().float().eval(), input_data=input_data)
+    verify_model(Norm4().float().eval(), input_data=input_data)
+    verify_model(Norm5().float().eval(), input_data=input_data)
+    verify_model(Norm6().float().eval(), input_data=input_data)
+    verify_model(Norm7().float().eval(), input_data=input_data)
+    verify_model(Norm8().float().eval(), input_data=input_data)
+    verify_model(Norm9().float().eval(), input_data=input_data)
+    verify_model(Norm10().float().eval(), input_data=input_data)
+
+
+def test_forward_frobenius_norm():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class FroNorm1(Module):
+        def forward(self, *args):
+            return torch.norm(args[0])
+
+    class FroNorm2(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p='fro', dim=None, keepdim=True)
+
+    class FroNorm3(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p='fro', dim=(1), keepdim=True)
+
+    class FroNorm4(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], dim=None, keepdim=False)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(FroNorm1().float().eval(), input_data=input_data)
+    verify_model(FroNorm2().float().eval(), input_data=input_data)
+    verify_model(FroNorm3().float().eval(), input_data=input_data)
+    verify_model(FroNorm4().float().eval(), input_data=input_data)
+
+
 def test_forward_sigmoid():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -2421,6 +2506,8 @@ if __name__ == "__main__":
     test_forward_reduce_prod()
     test_forward_argmin()
     test_forward_argmax()
+    test_forward_norm()
+    test_forward_frobenius_norm()
     test_forward_std()
     test_forward_variance()
     test_forward_relu()

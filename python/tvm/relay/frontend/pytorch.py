@@ -1184,6 +1184,44 @@ def _reduce(name):
 
     return _impl
 
+def _norm():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        axis = None
+        keepdims = False
+        if len(inputs) > 3:
+            axis = list(_infer_shape(inputs[2]))
+            keepdims = bool(inputs[3])
+
+        order = inputs[1]
+        if order == np.inf:
+            return _op.reduce.max(_op.abs(data), axis=axis, keepdims=keepdims)
+        elif order == np.NINF:
+            return _op.reduce.min(_op.abs(data), axis=axis, keepdims=keepdims)
+        else:
+            reci_order = _expr.const(1.0 / order)
+            order = _expr.const(order)
+            return _op.power(_op.reduce.sum(_op.power(_op.abs(data), order),
+                                            axis=axis,
+                                            keepdims=keepdims),
+                             reci_order)
+    return _impl
+
+
+def _frobenius_norm():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        axis = None
+        keepdims = False
+        if len(inputs) > 2:
+            axis = list(_infer_shape(inputs[1]))
+            keepdims = bool(inputs[2])
+
+        return _op.sqrt(_op.reduce.sum((data * data), axis=axis, keepdims=keepdims))
+
+    return _impl
+
+
 def _std():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -1853,6 +1891,8 @@ def _get_convert_map(prelude):
         "aten::prod"                            : _reduce("prod"),
         "aten::argmin"                          : _reduce("argmin"),
         "aten::argmax"                          : _reduce("argmax"),
+        "aten::norm"                            : _norm(),
+        "aten::frobenius_norm"                  : _frobenius_norm(),
         "aten::std"                             : _std(),
         "aten::var"                             : _variance(),
         "aten::abs"                             : _unary("abs"),
