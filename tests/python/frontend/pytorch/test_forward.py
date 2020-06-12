@@ -836,6 +836,20 @@ def test_forward_size():
     input_data = torch.rand(input_shape).float()
     verify_model(Size1().float().eval(), input_data=input_data)
 
+
+def test_type_as():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3]
+
+    class TypeAsInt32(Module):
+        def forward(self, *args):
+            int32_tensor = torch.zeros(1, 3, dtype=torch.int32)
+            return args[0].type_as(int32_tensor)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(TypeAsInt32(), input_data=input_data)
+
+
 def test_forward_view():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -2460,6 +2474,7 @@ if __name__ == "__main__":
     test_upsample()
     test_forward_upsample3d()
     test_to()
+    test_type_as()
     test_forward_functional_pad()
     test_forward_zero_pad2d()
     test_forward_constant_pad1d()

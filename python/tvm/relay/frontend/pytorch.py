@@ -1598,6 +1598,14 @@ def _list_len(prelude):
     return _impl
 
 
+def _type_as():
+    def _impl(inputs, input_types):
+        assert len(inputs) == 2
+        assert len(input_types) == 2
+        return _op.cast(inputs[0], input_types[1])
+    return _impl
+
+
 def _add(prelude):
     # add_ is overloaded for tensor add and list concat
     def _impl(inputs, input_types):
@@ -1902,6 +1910,7 @@ def _get_convert_map(prelude):
         "aten::stack"                           : _tensor_array_stack(prelude),
         "aten::__getitem__"                     : _list_getitem(prelude),
         "aten::len"                             : _list_len(prelude),
+        "aten::type_as"                         : _type_as(),
     }
     return convert_map
 
