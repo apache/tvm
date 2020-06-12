@@ -45,11 +45,38 @@ def create_shared(output,
         The compiler command.
     """
     if sys.platform == "darwin" or sys.platform.startswith("linux"):
-        _linux_compile(output, objects, options, cc)
+        _linux_compile(output, objects, options, cc, compile_shared=True)
     elif sys.platform == "win32":
         _windows_shared(output, objects, options)
     else:
         raise ValueError("Unsupported platform")
+
+
+def create_executable(output,
+                      objects,
+                      options=None,
+                      cc="g++"):
+    """Create executable binary.
+
+    Parameters
+    ----------
+    output : str
+        The target executable.
+
+    objects : List[str]
+        List of object files.
+
+    options : List[str]
+        The list of additional options string.
+
+    cc : Optional[str]
+        The compiler command.
+    """
+    if sys.platform == "darwin" or sys.platform.startswith("linux"):
+        _linux_compile(output, objects, options, cc)
+    else:
+        raise ValueError("Unsupported platform")
+
 
 def get_target_by_dump_machine(compiler):
     """ Functor of get_target_triple that can get the target triple using compiler.
@@ -164,9 +191,10 @@ def cross_compiler(compile_func,
     return _fcompile
 
 
-def _linux_compile(output, objects, options, compile_cmd="g++"):
+def _linux_compile(output, objects, options,
+                   compile_cmd="g++", compile_shared=False):
     cmd = [compile_cmd]
-    if output.endswith(".so") or output.endswith(".dylib"):
+    if compile_shared or output.endswith(".so") or output.endswith(".dylib"):
         cmd += ["-shared", "-fPIC"]
         if sys.platform == "darwin":
             cmd += ["-undefined", "dynamic_lookup"]
@@ -185,6 +213,7 @@ def _linux_compile(output, objects, options, compile_cmd="g++"):
     if proc.returncode != 0:
         msg = "Compilation error:\n"
         msg += py_str(out)
+        msg += "\nCommand line: " + " ".join(cmd)
         raise RuntimeError(msg)
 
 
