@@ -1336,7 +1336,6 @@ def test_static_tensor_get_data():
         p = Prelude(mod)
         static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
         static_tensor_array_ops.register()
-        static_tensor_array_ops.define_tensor_get_data(shape)
 
         np_data_list = []
         ta_length = 3
