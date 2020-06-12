@@ -58,6 +58,7 @@ def build_config(opt_level=2,
                 "EliminateCommonSubexpr": 3,
                 "CombineParallelConv2D": 4,
                 "CombineParallelDense": 4,
+                "CombineParallelBatchMatmul": 4,
                 "FastMath": 4
             }
 
@@ -306,6 +307,37 @@ def CombineParallelDense(min_num_branches=3):
         The registered pass that combines parallel dense operators.
     """
     return _ffi_api.CombineParallelDense(min_num_branches)
+
+def CombineParallelBatchMatmul(min_num_branches=3):
+    """Combine multiple dense operators into one. For example:
+
+    .. code-block
+                    data
+            /              \
+        dense (2,2)         dense (2,2)
+            |                 |
+        elemwise/bcast (2,2)  elemwise/bcast (2,2)
+
+    Would become:
+
+    .. code-block
+
+                data
+                |
+            batch_matmul+elemwise/bcast (2,2,2)
+
+    Parameters
+    ----------
+    min_num_branches : int
+        The minimum number of required parallel branches for performing this
+        optimization.
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+        The registered pass that combines parallel dense operators.
+    """
+    return _ffi_api.CombineParallelBatchMatmul(min_num_branches)
 
 
 def AlterOpLayout():
