@@ -135,7 +135,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
         vm.init(tvm.cpu())
         inputs = {}
         for e, i in zip(input_node, input_data):
-            inputs[e] = i
+            inputs[e] = tvm.nd.array(i)
         result = vm.invoke("main", **inputs)
         return vmobj_to_list(result)
     else:
