@@ -26,3 +26,8 @@ from .bitserial_conv2d import *
 from .bitserial_dense import *
 from .injective import *
 from . import cortex_m7
+
+import os
+use_auto_scheduler = os.environ.get("TVM_USE_AUTO_SCHEDULER", "true")
+if use_auto_scheduler.lower() == "true":
+  from ..ansor import *

@@ -19,6 +19,7 @@
 
 import tvm._ffi
 from tvm.runtime import Object
+from tvm import te
 from .loop_state import State
 from . import _ffi_api
 
@@ -88,3 +89,13 @@ class ComputeDAG(Object):
         state : StateObject
         """
         return _ffi_api.ComputeDAGInferBoundFromState(self, state)
+
+def gen_schedule(state, bufs):
+    if not state or not state.complete:
+        return te.create_schedule([x.op for x in bufs])
+    else:
+        dag = ComputeDAG(bufs)
+        # only update compute body, layout_rewrite_level = LayoutRewriteLevel.COMPUTE_REWRITE,
+        # since kernel layout has already been rewritten in relay pass
+        schedule, _ = dag.apply_steps_from_state(state, layout_rewrite_level=LayoutRewriteLevel.COMPUTE_REWRITE)
+    return schedule

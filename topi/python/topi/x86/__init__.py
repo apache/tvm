@@ -39,3 +39,8 @@ from .conv2d_transpose import *
 from .conv3d_transpose import *
 from .sparse import *
 from .conv2d_alter_op import *
+
+import os
+use_auto_scheduler = os.environ.get("TVM_USE_AUTO_SCHEDULER", "true")
+if use_auto_scheduler.lower() == "true":
+  from ..ansor import *

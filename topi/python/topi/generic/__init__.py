@@ -39,3 +39,8 @@ from .vision import *
 from .sort import *
 from .search import *
 from .image import *
+
+import os
+use_auto_scheduler = os.environ.get("TVM_USE_AUTO_SCHEDULER", "true")
+if use_auto_scheduler.lower() == "true":
+  from ..ansor import *
