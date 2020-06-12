@@ -1155,6 +1155,9 @@ def _slice():
         if not isinstance(begin, (_expr.Call, _expr.Var)):
             for _ in range(len(begin), data_dim):
                 begin.append(0)
+        elif not isinstance(size, (_expr.Call, _expr.Var)):
+            for _ in range(len(size), data_dim):
+                size.append(-1)
         return _op.strided_slice(inputs[0], begin=begin, end=size,
                                  strides=strides, slice_mode="size")
     return _impl
