@@ -702,8 +702,9 @@ class OperatorConverter(object):
 
         if input_tensor.qnn_params:
             # Quantize a float value to an quantized integer value
-            quantize = lambda x: float(int(round(x / input_tensor.qnn_params['scale'])) + \
-                                       input_tensor.qnn_params['zero_point'])
+            scale_val = get_scalar_from_constant(input_tensor.qnn_params['scale'])
+            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
+            quantize = lambda x: float(int(round(x / scale_val)) + zero_point_val)
 
             # Get min/max of the input dtype. This will be used to ensure that
             # clip a_min/a_max are not beyond the dtype range.
@@ -772,8 +773,9 @@ class OperatorConverter(object):
 
         if input_tensor.qnn_params:
             # Quantize a float value to an quantized integer value
-            quantize = lambda x: float(int(round(x / input_tensor.qnn_params['scale'])) + \
-                                       input_tensor.qnn_params['zero_point'])
+            scale_val = get_scalar_from_constant(input_tensor.qnn_params['scale'])
+            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
+            quantize = lambda x: float(int(round(x / scale_val)) + zero_point_val)
 
             # Get min/max of the input dtype. This will be used to ensure that
             # clip a_min/a_max are not beyond the dtype range.
