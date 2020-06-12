@@ -601,9 +601,9 @@ inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const 
         << ": Input [Begin=" << begin_vec[i] << ", End=" << end_vec[i]
         << "] is invalid for axis=" << i;
 
-    begin_expr.push_back(make_const(begin[0].value().dtype(), begin_i));
+    begin_expr.push_back(make_const(begin[0].dtype(), begin_i));
     strides_expr.push_back(
-        make_const((strides.size() != 0 ? strides[0].dtype() : begin[0].value().dtype()), stride_vec[i]));
+        make_const((strides.size() != 0 ? strides[0].dtype() : begin[0].dtype()), stride_vec[i]));
     out_shape.push_back(slice_size);
   }
 

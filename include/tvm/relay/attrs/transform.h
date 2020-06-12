@@ -94,7 +94,7 @@ struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
 };  // struct ReshapeAttrs
 
 struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
-  Integer axis;
+  Integer axis = Integer(0);
 
   TVM_DECLARE_ATTRS(ScatterAttrs, "relay.attrs.ScatterAttrs") {
     TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
