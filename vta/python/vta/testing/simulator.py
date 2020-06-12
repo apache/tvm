@@ -25,7 +25,7 @@ def _load_sw():
     """Load hardware library for simulator."""
 
     env = get_env()
-    lib_driver_name = "libvta_tsim" if env.TARGET == "tsim" else "libvta_fsim" if env.TARGET == "sim" else "libvta"
+    lib_driver_name = "libvta_tsim" if env.TARGET == "" else "libvta" if env.TARGET == "intelfocl" else "libvta_fsim"
 
     # Load driver library
     lib_driver = find_libvta(lib_driver_name, optional=True)

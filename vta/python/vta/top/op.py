@@ -95,6 +95,11 @@ def schedule_alu_packed(cfg, outs):
     te.schedule.AutoInlineInjective(s)
     # s[output].fuse(s[output].op.axis)
 
+    env = get_env()
+    # other target does not support alu-only ops
+    if not (env.TARGET in ["sim", "tsim", "intelfocl"]):
+        return s
+
     # only put the int-related ops to vta
     if "int" in output.dtype and len(output.shape) == 6:
         ewise_inputs = []
@@ -144,7 +149,6 @@ def schedule_alu_packed(cfg, outs):
         s[output].reorder(x_bo, x_i0, x_co0, x_j0, x_co1, x_i1, x_j1, x_bi, x_ci)
         store_pt = x_j0
 
-        env = get_env()
         for eo in ewise_ops:
             s[eo].set_scope(env.acc_scope)
             s[eo].pragma(s[eo].op.axis[0], env.alu)
