@@ -178,7 +178,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       VisitNewScope(op);
     } else if (op->attr_key == attr::storage_scope) {
       const VarNode* buf = op->node.as<VarNode>();
-      alloc_info_[buf].storage_scope = StorageScope::make(op->value.as<StringImmNode>()->value);
+      alloc_info_[buf].storage_scope = StorageScope::Create(op->value.as<StringImmNode>()->value);
       StmtExprVisitor::VisitStmt_(op);
     } else {
       StmtExprVisitor::VisitStmt_(op);

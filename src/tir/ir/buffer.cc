@@ -45,8 +45,8 @@ Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, Array<PrimExpr> array) {
 }
 
 Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, std::string name) {
-  return BufferNode::make(Var(name, PointerType(PrimType(dtype))), dtype, shape, Array<PrimExpr>(),
-                          PrimExpr(), name, "", 0, 0, kDefault);
+  return Buffer(Var(name, PointerType(PrimType(dtype))), dtype, shape, Array<PrimExpr>(),
+                PrimExpr(), name, "", 0, 0, kDefault);
 }
 
 // Split the given expression w.r.t the add operator
@@ -348,8 +348,8 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
       return MakeStrideView().MakeSlice(begins, extents);
     }
   }
-  return BufferNode::make(n->data, n->dtype, extents, strides, elem_offset, n->name + "_slice",
-                          n->scope, n->data_alignment, 0, n->buffer_type);
+  return Buffer(n->data, n->dtype, extents, strides, elem_offset, n->name + "_slice", n->scope,
+                n->data_alignment, 0, n->buffer_type);
 }
 
 PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes,
@@ -379,9 +379,9 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
   return tir::Call(ptr_type, tir::intrinsic::tvm_access_ptr, acc_args, tir::CallNode::Intrinsic);
 }
 
-Buffer BufferNode::make(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
-                        PrimExpr elem_offset, std::string name, std::string scope,
-                        int data_alignment, int offset_factor, BufferType buffer_type) {
+Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
+               PrimExpr elem_offset, std::string name, std::string scope, int data_alignment,
+               int offset_factor, BufferType buffer_type) {
   auto n = make_object<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
@@ -410,7 +410,7 @@ Buffer BufferNode::make(Var data, DataType dtype, Array<PrimExpr> shape, Array<P
       n->strides.push_back(Var("stride", n->shape[i].dtype()));
     }
   }
-  return Buffer(n);
+  data_ = std::move(n);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -425,8 +425,8 @@ TVM_REGISTER_GLOBAL("tir.Buffer").set_body([](TVMArgs args, TVMRetValue* ret) {
   CHECK_EQ(args.size(), 10);
   auto buffer_type = args[9].operator std::string();
   BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  *ret = BufferNode::make(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7],
-                          args[8], type);
+  *ret =
+      Buffer(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], type);
 });
 
 TVM_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);
