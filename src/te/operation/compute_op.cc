@@ -99,7 +99,7 @@ Tensor compute(Array<PrimExpr> shape, FCompute fcompute, std::string name, std::
     args.push_back(axis.back()->var);
   }
 
-  return ComputeOpNode::make(name, tag, attrs, axis, {fcompute(args)}).output(0);
+  return ComputeOp(name, tag, attrs, axis, {fcompute(args)}).output(0);
 }
 
 Array<Tensor> compute(Array<PrimExpr> shape, FBatchCompute fcompute, std::string name,
@@ -116,7 +116,7 @@ Array<Tensor> compute(Array<PrimExpr> shape, FBatchCompute fcompute, std::string
     args.push_back(axis.back()->var);
   }
 
-  Operation op = ComputeOpNode::make(name, tag, attrs, axis, fcompute(args));
+  Operation op = ComputeOp(name, tag, attrs, axis, fcompute(args));
   Array<Tensor> outputs;
   for (int idx = 0; idx < op->num_outputs(); ++idx) {
     outputs.push_back(op.output(idx));
@@ -124,8 +124,8 @@ Array<Tensor> compute(Array<PrimExpr> shape, FBatchCompute fcompute, std::string
   return outputs;
 }
 
-Operation ComputeOpNode::make(std::string name, std::string tag, Map<String, ObjectRef> attrs,
-                              Array<IterVar> axis, Array<PrimExpr> body) {
+ComputeOp::ComputeOp(std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                     Array<IterVar> axis, Array<PrimExpr> body) {
   if (!attrs.defined()) {
     attrs = Map<String, ObjectRef>();
   }
@@ -140,10 +140,13 @@ Operation ComputeOpNode::make(std::string name, std::string tag, Map<String, Obj
     n->reduce_axis = reduce->axis;
   }
   VerifyComputeOp(n.get());
-  return Operation(n);
+  data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("te.ComputeOp").set_body_typed(ComputeOpNode::make);
+TVM_REGISTER_GLOBAL("te.ComputeOp")
+    .set_body_typed([](std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                       Array<IterVar> axis,
+                       Array<PrimExpr> body) { return ComputeOp(name, tag, attrs, axis, body); });
 
 // The schedule related logics
 Array<Tensor> ComputeOpNode::InputTensors() const {
@@ -188,7 +191,7 @@ Operation ComputeOpNode::ReplaceInputs(const Operation& self,
         UpdateArray(this->body, [&rmap](const PrimExpr& e) { return te::ReplaceTensor(e, rmap); });
   }
   if (!arr.same_as(this->body)) {
-    return ComputeOpNode::make(this->name, this->tag, this->attrs, this->axis, arr);
+    return ComputeOp(this->name, this->tag, this->attrs, this->axis, arr);
   } else {
     return self;
   }
@@ -331,7 +334,7 @@ Stmt MakeComputeStmt(const ComputeOpNode* self, const Stage& stage,
                      const std::unordered_map<IterVar, Range>& dom_map,
                      bool debug_keep_trivial_loop) {
   // grab the nest structure
-  ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map, debug_keep_trivial_loop);
+  ComputeLoopNest n = ComputeLoopNest::Create(self, stage, dom_map, debug_keep_trivial_loop);
   // Normal loop structure
   n.init_nest.emplace_back(MakeIfNest(n.init_predicates));
   n.main_nest.emplace_back(MakeIfNest(n.main_predicates));
@@ -424,9 +427,9 @@ Stmt ComputeOpNode::BuildProvide(const Stage& stage,
   }
 }
 
-ComputeLoopNest ComputeLoopNest::make(const BaseComputeOpNode* self, const Stage& stage,
-                                      const std::unordered_map<IterVar, Range>& dom_map,
-                                      bool debug_keep_trivial_loop) {
+ComputeLoopNest ComputeLoopNest::Create(const BaseComputeOpNode* self, const Stage& stage,
+                                        const std::unordered_map<IterVar, Range>& dom_map,
+                                        bool debug_keep_trivial_loop) {
   CHECK_EQ(stage->op.operator->(), self);
   ComputeLoopNest ret;
   // make main loop nest

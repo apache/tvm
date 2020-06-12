@@ -1194,8 +1194,8 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
                                const std::string& dst_layout,
                                const std::string name = "T_layout_trans",
                                const std::string tag = kInjective) {
-  Layout src_layout_struct = LayoutNode::make(src_layout);
-  Layout dst_layout_struct = LayoutNode::make(dst_layout);
+  Layout src_layout_struct(src_layout);
+  Layout dst_layout_struct(dst_layout);
 
   if (src_layout_struct.Equals(dst_layout_struct)) {
     return src;

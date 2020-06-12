@@ -55,9 +55,9 @@ Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
   return state_placeholder[i]->shape;
 }
 
-Operation ScanOpNode::make(std::string name, std::string tag, Map<String, ObjectRef> attrs,
-                           IterVar axis, Array<Tensor> init, Array<Tensor> update,
-                           Array<Tensor> state_placeholder, Array<Tensor> inputs) {
+ScanOp::ScanOp(std::string name, std::string tag, Map<String, ObjectRef> attrs, IterVar axis,
+               Array<Tensor> init, Array<Tensor> update, Array<Tensor> state_placeholder,
+               Array<Tensor> inputs) {
   if (!attrs.defined()) {
     attrs = Map<String, ObjectRef>();
   }
@@ -104,10 +104,15 @@ Operation ScanOpNode::make(std::string name, std::string tag, Map<String, Object
   n->update = std::move(update);
   n->state_placeholder = std::move(state_placeholder);
   n->inputs = std::move(inputs);
-  return Operation(n);
+  data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("te.ScanOp").set_body_typed(ScanOpNode::make);
+TVM_REGISTER_GLOBAL("te.ScanOp")
+    .set_body_typed([](std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                       IterVar axis, Array<Tensor> init, Array<Tensor> update,
+                       Array<Tensor> state_placeholder, Array<Tensor> inputs) {
+      return ScanOp(name, tag, attrs, axis, init, update, state_placeholder, inputs);
+    });
 
 Array<Tensor> scan(Array<Tensor> init, Array<Tensor> update, Array<Tensor> state_placeholder,
                    Array<Tensor> inputs, std::string name, std::string tag,
@@ -115,8 +120,7 @@ Array<Tensor> scan(Array<Tensor> init, Array<Tensor> update, Array<Tensor> state
   IterVar scan_axis =
       IterVar(Range::make_by_min_extent(init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
               Var(name + ".idx"), kOrdered);
-  Operation op =
-      ScanOpNode::make(name, tag, attrs, scan_axis, init, update, state_placeholder, inputs);
+  Operation op = ScanOp(name, tag, attrs, scan_axis, init, update, state_placeholder, inputs);
   Array<Tensor> res;
   for (int i = 0; i < op->num_outputs(); ++i) {
     res.push_back(op.output(i));

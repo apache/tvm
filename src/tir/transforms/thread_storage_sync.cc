@@ -251,7 +251,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       return ret;
     } else if (op->attr_key == attr::storage_scope) {
       const VarNode* buf = op->node.as<VarNode>();
-      storage_scope_[buf] = StorageScope::make(op->value.as<StringImmNode>()->value);
+      storage_scope_[buf] = StorageScope::Create(op->value.as<StringImmNode>()->value);
       return StmtExprMutator::VisitStmt_(op);
     } else {
       return StmtExprMutator::VisitStmt_(op);
@@ -321,7 +321,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       num_work_dim_ = thread_extents_.size();
       for (const AttrStmtNode* attr : thread_extents_) {
         IterVar iv = Downcast<IterVar>(attr->node);
-        runtime::ThreadScope s = runtime::ThreadScope::make(iv->thread_tag);
+        runtime::ThreadScope s = runtime::ThreadScope::Create(iv->thread_tag);
         if (s.rank == 0) {
           num_blocks_ = (num_blocks_.defined() ? attr->value * num_blocks_ : attr->value);
         } else if (s.rank == 1) {
@@ -353,7 +353,7 @@ class ThreadSyncInserter : public StmtExprMutator {
 };
 
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
-  StorageScope sync_scope = StorageScope::make(storage_scope);
+  StorageScope sync_scope = StorageScope::Create(storage_scope);
   ThreadSyncPlanner planner(sync_scope);
   planner(stmt);
   return ThreadSyncInserter(sync_scope, planner.syncs_inserted_)(std::move(stmt));

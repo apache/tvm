@@ -347,7 +347,7 @@ Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
   size_t tloc = InferTensorizeRegion(self, stage, dom_map, &out_dom, &in_region);
   TensorIntrin intrin = stage->iter_var_attrs.at(stage->leaf_iter_vars[tloc])->tensor_intrin;
   CHECK(intrin.defined());
-  ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map, debug_keep_trivial_loop);
+  ComputeLoopNest n = ComputeLoopNest::Create(self, stage, dom_map, debug_keep_trivial_loop);
   VerifyTensorizeLoopNest(self, stage, n, tloc);
   VerifyTensorizeBody(self, stage, dom_map, out_dom, in_region, intrin);
   // Start bind data.

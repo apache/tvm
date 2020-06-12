@@ -37,6 +37,8 @@
 namespace tvm {
 namespace tir {
 
+class Layout;
+
 class LayoutAxis {
  public:
   static const LayoutAxis& Get(const char name);
@@ -45,7 +47,7 @@ class LayoutAxis {
   static const LayoutAxis& Get(const tir::IterVar& itvar);
 
   // Get the singleton LayoutAxis using name[0] (size of name must be 1).
-  static const LayoutAxis& make(const std::string& name);
+  static const LayoutAxis& Get(const std::string& name);
 
   inline bool IsPrimal() const { return name_ >= 'A' && name_ <= 'Z'; }
   inline std::string name() const { return std::string(1, name_); }
@@ -83,8 +85,16 @@ class LayoutAxis {
   const char name_;
 };
 
-class Layout;
-// Internal node container Buffer
+/*!
+ * \brief Layout is to describe how data is organized within an N-dimention tensor.
+ *  It is composed of upper cases, lower cases and numbers,
+ *  where upper case indicates a primal axis and
+ *  the corresponding lower case with factor size indicates the subordinate axis.
+ *  For example, NCHW16c can describe a 5-D tensor of
+ *  [batch_size, channel, height, width, channel_block].
+ *  Here subordinate axis channel_block=16 is the factor size of the primal axis C (channel).
+ *  Layout for scalar is defined, while both its name and axes have size 0.
+ */
 class LayoutNode : public Object {
  public:
   /*! \brief string representation of layout, "" for scalar. */
@@ -102,29 +112,16 @@ class LayoutNode : public Object {
     v->Visit("axes", &axes);
   }
 
-  TVM_DLL static Layout make(const std::string& layout);
-
   static constexpr const char* _type_key = "Layout";
   TVM_DECLARE_FINAL_OBJECT_INFO(LayoutNode, Object);
 };
 
 /*!
- * \brief Layout is to describe how data is organized within an N-dimention tensor.
- *  It is composed of upper cases, lower cases and numbers,
- *  where upper case indicates a primal axis and
- *  the corresponding lower case with factor size indicates the subordinate axis.
- *  For example, NCHW16c can describe a 5-D tensor of
- *  [batch_size, channel, height, width, channel_block].
- *  Here subordinate axis channel_block=16 is the factor size of the primal axis C (channel).
- *  Layout for scalar is defined, while both its name and axes have size 0.
+ * \brief Managed reference to LayoutNode
+ * \sa LayoutNode
  */
 class Layout : public ObjectRef {
  public:
-  explicit Layout(ObjectPtr<Object> n) : ObjectRef(n) {}
-
-  /*! \brief default constructor */
-  Layout() = default;
-
   explicit Layout(const Array<tir::IterVar>& axes);
 
   /*! \brief construct from a string */
@@ -138,13 +135,7 @@ class Layout : public ObjectRef {
    *        indicates the split dimension.
    *        return undefined layout if "__undef__" is passed.
    */
-  Layout(const std::string& name);  // NOLINT(*)
-
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  const LayoutNode* operator->() const { return static_cast<const LayoutNode*>(get()); }
+  TVM_DLL Layout(const std::string& name);  // NOLINT(*)
 
   /*!
    * \brief access the internal node container
@@ -292,10 +283,9 @@ class Layout : public ObjectRef {
     return os;
   }
 
-  using ContainerType = LayoutNode;
+  TVM_DEFINE_OBJECT_REF_METHODS(Layout, ObjectRef, LayoutNode);
 };
 
-class BijectiveLayout;
 // Internal node container BijectiveLayout
 class BijectiveLayoutNode : public Object {
  public:
@@ -329,8 +319,6 @@ class BijectiveLayoutNode : public Object {
  */
 class BijectiveLayout : public ObjectRef {
  public:
-  BijectiveLayout() = default;
-  explicit BijectiveLayout(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief The constructor
    * \param src_layout The source layout
@@ -347,19 +335,9 @@ class BijectiveLayout : public ObjectRef {
   // Given the destination indices, recover the source indices.
   TVM_DLL Array<PrimExpr> BackwardIndex(const Array<PrimExpr>& dst_index) const;
 
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const BijectiveLayoutNode* operator->() const;
-
-  /*! \brief specify container node */
-  using ContainerType = BijectiveLayoutNode;
+  TVM_DEFINE_OBJECT_REF_METHODS(BijectiveLayout, ObjectRef, BijectiveLayoutNode);
 };
 
-inline const BijectiveLayoutNode* BijectiveLayout::operator->() const {
-  return static_cast<const BijectiveLayoutNode*>(get());
-}
 }  // namespace tir
 }  // namespace tvm
 

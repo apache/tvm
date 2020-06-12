@@ -340,8 +340,7 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
     new_bodies.push_back(new_body);
   }
 
-  auto new_op =
-      ComputeOpNode::make(op->name + ".jacobian", op->tag, op->attrs, new_axis, new_bodies);
+  auto new_op = ComputeOp(op->name + ".jacobian", op->tag, op->attrs, new_axis, new_bodies);
 
   // Jacobian shape = output.shape + input.shape
   Array<PrimExpr> new_shape = output->shape;
@@ -349,7 +348,7 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
     new_shape.push_back(e);
   }
 
-  return TensorNode::make(new_shape, output->dtype, new_op, value_index);
+  return Tensor(new_shape, output->dtype, new_op, value_index);
 }
 
 }  // namespace te

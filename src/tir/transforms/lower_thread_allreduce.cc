@@ -165,7 +165,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     for (const AttrStmtNode* attr : thread_extents_) {
       ThreadEntry e;
       IterVar iv = Downcast<IterVar>(attr->node);
-      e.scope = runtime::ThreadScope::make(iv->thread_tag);
+      e.scope = runtime::ThreadScope::Create(iv->thread_tag);
       e.iv = iv;
       CHECK_LE(e.scope.rank, 1);
       CHECK_GE(e.scope.dim_index, 0) << "vthread do not work with cross thread reduction";
@@ -516,7 +516,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
     IterVar iv = Downcast<IterVar>(op->node);
     ThreadEntry e;
-    e.scope = runtime::ThreadScope::make(iv->thread_tag);
+    e.scope = runtime::ThreadScope::Create(iv->thread_tag);
     e.extent = 0;
     if (auto ptr = op->value.as<IntImmNode>()) {
       e.extent = static_cast<int>(ptr->value);
