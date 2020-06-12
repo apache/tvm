@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Relay to ONNX serialization test cases"""
+"""Relay to ONNX target test cases"""
 import pytest
 pytest.importorskip('onnx')
 pytest.importorskip('onnxruntime')
@@ -87,7 +87,8 @@ def test_squeezenet():
         _verify_results(mod, params, in_data)
 
 
-def skipped_test_partition():
+@pytest.mark.skip("USE_TARGET_ONNX should be ON")
+def test_partition():
     in_1 = relay.var('in_1', shape=(10, 10), dtype='float32')
     in_2 = relay.var('in_2', shape=(10, 10), dtype='float32')
     in_3 = relay.var('in_3', shape=(10, 10), dtype='float32')
@@ -161,5 +162,5 @@ def skipped_test_partition():
 if __name__ == '__main__':
     test_resnet()
     test_squeezenet()
-    # test_partition need USE_TARGET_ONNX enabled
-    # skipped_test_partition()
+    # test_partition needs USE_TARGET_ONNX to be ON
+    # test_partition()
