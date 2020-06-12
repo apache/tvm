@@ -57,7 +57,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // AttrStmt
-AttrStmt::AttrStmt(ObjectRef node, std::string attr_key, PrimExpr value, Stmt body) {
+AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body) {
   auto n = make_object<AttrStmtNode>();
   n->node = node;
   n->attr_key = std::move(attr_key);
@@ -67,7 +67,7 @@ AttrStmt::AttrStmt(ObjectRef node, std::string attr_key, PrimExpr value, Stmt bo
 }
 
 TVM_REGISTER_GLOBAL("tir.AttrStmt")
-    .set_body_typed([](ObjectRef node, std::string attr_key, PrimExpr value, Stmt body) {
+    .set_body_typed([](ObjectRef node, String attr_key, PrimExpr value, Stmt body) {
       return AttrStmt(node, attr_key, value, body);
     });
 

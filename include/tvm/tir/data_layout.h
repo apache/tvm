@@ -98,7 +98,7 @@ class LayoutAxis {
 class LayoutNode : public Object {
  public:
   /*! \brief string representation of layout, "" for scalar. */
-  std::string name;
+  String name;
   /*! \brief specify each axis of the layout,
    *   in which the variable name is the name of the axis.
    *   The IterVar's extent indicates the size of the axis,

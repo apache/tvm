@@ -45,7 +45,7 @@ namespace tvm {
 class ConstructorNode : public RelayExprNode {
  public:
   /*! \brief The name (only a hint) */
-  std::string name_hint;
+  String name_hint;
   /*! \brief Input to the constructor. */
   Array<Type> inputs;
   /*! \brief The datatype the constructor will construct. */

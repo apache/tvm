@@ -123,6 +123,7 @@ def create_updater_06_to_07():
         "relay.IncompleteType": _rename("IncompleteType"),
         "relay.TypeRelation": _rename("TypeRelation"),
         "relay.TypeCall": _rename("TypeCall"),
+        "relay.Constructor": [_update_from_std_str("name_hint")],
         "relay.Module": _rename("IRModule"),
         "relay.SourceName": _rename("SourceName"),
         "relay.Span": _rename("Span"),
@@ -137,6 +138,11 @@ def create_updater_06_to_07():
         # TIR
         "Variable": [_update_tir_var("tir.Var"), _update_from_std_str("name")],
         "SizeVar": [_update_tir_var("tir.SizeVar"), _update_from_std_str("name")],
+        "StringImm": [_update_from_std_str("value")],
+        "Call": [_update_from_std_str("name")],
+        "AttrStmt": [_update_from_std_str("attr_key")],
+        "Layout": [_update_from_std_str("name")],
+        "Buffer": [_update_from_std_str("name"), _update_from_std_str("scope")],
     }
     return create_updater(node_map, "0.6", "0.7")
 
