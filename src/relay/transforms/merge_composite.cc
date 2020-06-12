@@ -36,17 +36,24 @@ namespace tvm {
 namespace relay {
 namespace merge_composite {
 
+Function InferType(const Function& expr) {
+  auto mod = IRModule::FromExpr(expr);
+  mod = transform::InferType()(mod);
+  return Downcast<Function>(mod->Lookup("main"));
+}
+
 Expr MergeComposite(const Function& func, const Array<runtime::String>& pattern_names,
                     const Array<DFPattern>& patterns, const std::vector<PackedFunc>& checks) {
   CHECK_EQ(pattern_names.size(), patterns.size());
-  Expr merged_expr = func->body;
+  Function merged_func = func;
   // merge the patterns one-by-one in order
   for (size_t i = 0; i < patterns.size(); i++) {
     Map<String, ObjectRef> attrs;
     attrs.Set("Composite", pattern_names[i]);
-    merged_expr = PartitionPattern(patterns[i], merged_expr, attrs, checks[i]);
+    merged_func = Downcast<Function>(PartitionPattern(patterns[i], merged_func, attrs, checks[i]));
+    merged_func = InferType(merged_func);
   }
-  return Function(func->params, merged_expr, func->ret_type, func->type_params, func->attrs);
+  return std::move(merged_func);
 }
 
 }  // namespace merge_composite
