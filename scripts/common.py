@@ -168,7 +168,7 @@ def conv2d_nhwc_without_layout_rewrite(Input, Filter, stride, padding, dilation,
     # compute the output shape
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
-    pad_top, pad_left, pad_down, pad_right = topi.nn.util.get_pad_tuple(
+    pad_top, pad_left, pad_down, pad_right = topi.nn.get_pad_tuple(
         padding, (dilated_kernel_h, dilated_kernel_w))
     out_channel = num_filter
     out_height = topi.util.simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)

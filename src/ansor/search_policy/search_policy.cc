@@ -54,9 +54,11 @@ void SearchPolicyNode::PreLoadMeasuredStates(const std::string& log_file) {
       measured_states_set_.insert(state.ToStr());
     }
 
-    StdCout(verbose_) << "Measured States Set: "
-                      << measured_states_set_.size()
+    StdCout(verbose_) << "Measured States Set: " << measured_states_set_.size()
                       << " state hashes loaded from " << log_file << std::endl;
+  } else {
+    StdCout(verbose_) << "Measured States Set: no states found from "
+                      << log_file << std::endl;
   }
 }
 

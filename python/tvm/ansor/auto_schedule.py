@@ -193,6 +193,7 @@ class TuneOption(Object):
       Callback functions called before the search process
       Candidates:
         - ansor.PreLoadMeasuredStates
+        - ansor.PreAddCustomRule
     """
     def __init__(self, n_trials=0, early_stopping=-1, num_measure_per_iter=64,
                  verbose=1, builder='local', runner='local', measure_callbacks=None,

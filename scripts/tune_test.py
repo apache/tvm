@@ -12,26 +12,61 @@ from tvm.ansor.utils import request_remote
 
 from common import get_workload_keys, get_workload_weights, measure_schedule, str2bool
 
+def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose,
+                      n_parallel, build_timeout, local_measure, device_key, host,
+                      port, ndk_cc, early_stopping=-1):
+    builder = runner = measure_ctx = None
+    if local_measure:
+        builder = ansor.LocalBuilder(timeout=build_timeout)
+        if target.target_name == "cuda":
+            measure_ctx = ansor.LocalRPCMeasureContext(repeat=1, min_repeat_ms=400)
+            runner = measure_ctx.runner
+        else:
+            runner = ansor.LocalRunner(repeat=1, min_repeat_ms=400)
+    else:
+        os.environ['TVM_NDK_CC'] = ndk_cc
+        builder = ansor.LocalBuilder(timeout=build_timeout, build_func='ndk')
+        runner = ansor.RPCRunner(key=device_key, host=host, port=port,
+                                 n_parallel=n_parallel, repeat=1, min_repeat_ms=400)
+
+    tune_option = ansor.TuneOption(n_trials=n_trials, early_stopping=early_stopping,
+                                   num_measure_per_iter=num_measure_per_iter,
+                                   verbose=verbose,
+                                   builder=builder,
+                                   runner=runner,
+                                   measure_callbacks=[ansor.LogToFile(log_file)],
+                                   pre_search_callbacks=[ansor.PreLoadMeasuredStates(log_file)])
+
+    return tune_option, measure_ctx
+
 
 def replay_workload(wkl_key, target, target_host, log_file,
                     local_measure=True, device_key=None, host="0.0.0.0",
-                    port=9190, ndk_cc=None):
+                    port=9190, ndk_cc=None, show_lower_result=True):
+    cost = gflops = None
+
     inp, res = ansor.best_measure_pair_in_file(log_file, wkl_key, target)
     if inp is None:
         print("Cannot find log for: %s" % (wkl_key))
     else:
         dag = ansor.workload_key_to_dag(inp.task.workload_key)
-        s, bufs = dag.apply_steps_from_state(inp.state)
-
         print("Found schedule for: %s" % (wkl_key))
-        print(tvm.lower(s, bufs, simple_mode=True))
+
+        s, bufs = dag.apply_steps_from_state(inp.state)
+        if show_lower_result:
+            print(tvm.lower(s, bufs, simple_mode=True))
+
         if local_measure:
             remote = None
         else:
             remote = request_remote(device_key, host, port, 1)
+
         cost = np.mean((measure_schedule(s, bufs, target, remote=remote, ndk_cc=ndk_cc)))
+        gflops = ansor.ComputeDAG(bufs).flop_ct / cost / 1e9
         print("Best schedule: %.2f GFLOPS\tcost: %.3f ms" %
-                (ansor.ComputeDAG(bufs).flop_ct / cost / 1e9, cost * 1e3))
+                (gflops, cost * 1e3))
+
+    return cost, gflops
 
 
 def tune_workload(wkl_key, target, target_host, policy, model_type, load_model_file,
@@ -99,6 +134,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-measure-per-iter", type=int, default=48,
                         help="The number of programs to be measured at each iteration")
     parser.add_argument("--tune", type=str2bool, nargs='?', const=True, default=True)
+
     # Strategy related options
     parser.add_argument("--seed", type=int, default=0, help='random seed')
     parser.add_argument("--policy", type=str, choices=['meta-rewrite', 'beam-search'], default='meta-rewrite')
@@ -106,13 +142,15 @@ if __name__ == "__main__":
     parser.add_argument("--task-scheduler", type=str, default='no',
                         choices=['no', 'gradient', 'round-robin'],
                         help='The strategy of task scheduler')
+
     # File related options
     parser.add_argument("--log-file", type=str, help="Write log of measurement results to this file")
     parser.add_argument("--load-model", type=str, help="Load pre trained cost model file")
     parser.add_argument("--load-log", type=str, help="Load history log for pre-training the cost model")
+
     # Detailed control options
     parser.add_argument("--build-timeout", type=int, default=10)
-    parser.add_argument("--run-timeout", type=int, default=60)    
+    parser.add_argument("--run-timeout", type=int, default=60)
     parser.add_argument("--verbose", type=int, default=1)
     parser.add_argument("--local-measure", type=str2bool, nargs='?', const=True, default=True)
     parser.add_argument("--device-key", type=str, default=None)
@@ -124,40 +162,21 @@ if __name__ == "__main__":
 
     np.random.seed(args.seed)
     random.seed(args.seed)
-
     logging.basicConfig()
     logging.getLogger('ansor').setLevel(logging.DEBUG)
 
-    log_file = args.log_file or args.wkl + ".json"
-
-    target = tvm.target.create(args.target)
     wkl_keys = get_workload_keys(args.wkl)
+    target = tvm.target.create(args.target)
+    log_file = args.log_file or args.wkl + ".json"
 
     if args.tune:
         load_log_file = args.load_log or log_file
         weights = get_workload_weights(args.wkl)
 
-        builder = runner = measure_ctx = None
-        if args.local_measure:
-            builder = ansor.LocalBuilder(timeout=args.build_timeout)
-            if target.target_name == "cuda":
-                measure_ctx = ansor.LocalRPCMeasureContext(repeat=1, min_repeat_ms=400)
-                runner = measure_ctx.runner
-            else:
-                runner = ansor.LocalRunner(repeat=1, min_repeat_ms=400)
-        else:
-            os.environ['TVM_NDK_CC'] = args.ndk_cc
-            builder = ansor.LocalBuilder(timeout=args.build_timeout, build_func='ndk')
-            runner = ansor.RPCRunner(args.device_key, host=args.host, port=args.port,
-                                     repeat=1, min_repeat_ms=400, n_parallel=args.n_parallel)
-
-        tune_option = ansor.TuneOption(n_trials=args.n_trials,
-                                       num_measure_per_iter=args.num_measure_per_iter,
-                                       verbose=args.verbose,
-                                       builder=builder,
-                                       runner=runner,
-                                       measure_callbacks=[ansor.LogToFile(log_file)],
-                                       pre_search_callbacks=[ansor.PreLoadMeasuredStates(log_file)])
+        tune_option, measure_ctx = create_tune_option(target, log_file,
+                args.n_trials, args.num_measure_per_iter, args.verbose,
+                args.n_parallel, args.build_timeout, args.local_measure,
+                args.device_key, args.host, args.port, args.ndk_cc)
 
         if args.task_scheduler == 'no':
             # tune workloads one by one

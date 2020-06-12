@@ -196,7 +196,7 @@ def prepare_layout_rewrite(mod, params, ops, target):
 
         # wrap build call in thread to avoid multiprocessing problems
         build_thread = threading.Thread(target=_lower,
-                                        args=(mod, target, param))
+                                        args=(mod, target, params))
         build_thread.start()
         build_thread.join()
         relay.backend.compile_engine.get().clear()

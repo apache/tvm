@@ -7,22 +7,16 @@ import time
 import numpy as np
 
 import tvm
-from tvm.rpc.tracker import Tracker
-from tvm.rpc.server import Server
-from tvm import ansor as auto_scheduler
-from tvm import relay
-from tvm.rpc.tracker import Tracker
-from tvm.rpc.server import Server
-from tvm.relay import testing
-#from tvm._ffi.function import get_global_func
+from tvm import _ffi, relay, ansor
 import tvm.contrib.graph_runtime as runtime
 from tvm.contrib.debugger import debug_runtime
 from tvm.contrib import util, ndk
-from common import str2bool
-from tvm.ansor import LocalRunner, LogToFile, TuneOption, SimpleTaskScheduler, \
-    RPCRunner, LocalBuilder
+from tvm.relay import testing
 from tvm.ansor.utils import request_remote
 #from baseline.utils import log_line, BenchmarkRecord
+
+from common import str2bool
+from tune_test import create_tune_option
 
 dtype = "float32"
 
@@ -43,7 +37,6 @@ def get_network(name, model_path, batch_size, layout):
         image_shape = (224, 224, 3) if layout == 'NHWC' else (3, 224, 224)
         input_shape = (batch_size, *image_shape)
         mod, params = relay.testing.resnet.get_workload(num_layers=n_layer, batch_size=batch_size, layout=layout, image_shape=image_shape, dtype=dtype)
-        print(mod)
     elif "lstm" in name:
         mod, params = relay.testing.lstm.get_workload(iterations=10, num_hidden=512, batch_size=batch_size, dtype=dtype)
     elif "mlp" in name:
@@ -54,9 +47,9 @@ def get_network(name, model_path, batch_size, layout):
         mod, params = relay.testing.vgg.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
     elif name == 'dcgan':
         input_shape = (batch_size, 100)
-        mod, params = relay.testing.dcgan.get_workload(batch_size=batch_size, layout=layout)
+        mod, params = relay.testing.dcgan.get_workload(batch_size=batch_size)
     elif name == 'dqn':
-        image_shape = (84, 84, 4) if layout == 'NHWC' else (4, 84, 84)
+        image_shape = (4, 84, 84)
         input_shape = (batch_size, *image_shape)
         mod, params = relay.testing.dqn.get_workload(batch_size=batch_size, image_shape=image_shape, dtype=dtype)
     elif name == 'mobilenet':
@@ -143,71 +136,6 @@ def get_network(name, model_path, batch_size, layout):
         mod, params = relay.frontend.from_tensorflow(graph_def,
                                                     shape=shape_dict,
                                                     outputs=out_names)
-    elif name == 'tflite-textcnn':
-        try:
-            import tflite.Model
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
-        model_path = './baseline/tensorflow/fake_textcnn.tflite'
-        input_name = "Placeholder"
-        input_shape = (batch_size, 200, 128, 1)
-        output_shape = (1, 1001)
-        input_dtype = "float32"
-        tflite_model_buf = open(model_path, "rb").read()
-        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
-        mod, params = relay.frontend.from_tflite(tflite_model,
-                                                 shape_dict={input_name: input_shape},
-                                                 dtype_dict={input_name: input_dtype})
-        print(mod['main'])
-    elif name == 'textcnn':
-        import tensorflow as tf
-
-        bert_pb = './baseline/tensorflow/fake_textcnn.pb'
-        try:
-            with tf.compat.v1.gfile.GFile(bert_pb, 'rb') as f:
-                graph_def = tf.compat.v1.GraphDef()
-                graph_def.ParseFromString(f.read())
-        except:
-            raise ValueError("Need to run ./baseline/tensorflow/bert/generate_bert_pb.py to get model first")
-
-        input_shape = (batch_size, 200, 128, 1)
-        input_name = ['Placeholder']
-        shape_dict = {
-            'Placeholder': input_shape
-        }
-        out_names = [
-            'concat/concat_dim'
-        ]
-
-        mod, params = relay.frontend.from_tensorflow(graph_def,
-                                                    shape=shape_dict,
-                                                    outputs=out_names)
-        print(mod['main'])
-    elif name == 'tdnn':
-        import tensorflow as tf
-
-        pb = './baseline/tensorflow/pruned_model_0407.pb'
-        #pb = './baseline/tensorflow/tdnn_4001.pb'
-        try:
-            with tf.compat.v1.gfile.GFile(pb, 'rb') as f:
-                graph_def = tf.compat.v1.GraphDef()
-                graph_def.ParseFromString(f.read())
-        except:
-            raise ValueError("Need to run ./baseline/tensorflow/bert_convert.py to get model first")
-
-        input_shape = (batch_size, 600, 64)
-        input_name = ['tf_loss_fn/Placeholder']
-
-        shape_dict = {
-            'tf_loss_fn/Placeholder': input_shape,
-        }
-        out_names = [
-            #"tf_loss_fn/ForwardPass/w2l_encoder/conv91/Conv2D"
-            "tf_loss_fn/ForwardPass/Softmax"
-        ]
-        mod, params = relay.frontend.from_tensorflow(graph_def,
-                                                     shape=shape_dict,
-                                                     outputs=out_names)
     else:
         raise ValueError("Unsupported network: " + name)
 
@@ -223,7 +151,7 @@ def create_module(data_shape, graph, lib, target, input_name, params, debug_prof
         else:
             ctx = tvm.cpu()
             if num_threads:
-                config_threadpool = get_global_func('runtime.config_threadpool')
+                config_threadpool = _ffi.get_global_func('runtime.config_threadpool')
                 config_threadpool(0, num_threads)
     else:
         print("=============== Request Remote ===============")
@@ -267,23 +195,19 @@ def tune_and_evaluate(network_name, model_path, batch_size, target, target_host,
                       local_measure, device_key, host, port, n_parallel, ndk_cc,
                       build_timeout, run_timeout, num_threads, tune, check_correctness,
                       debug_profile, tuning_parameters, record_file, layout_set):
-    joint_tuner, model_type, policy, log_file, load_log_file = (tuning_parameters['joint_tuner'],
+    task_scheduler, model_type, policy, log_file, load_log_file = (tuning_parameters['task_scheduler'],
             tuning_parameters['model_type'], tuning_parameters['policy'],
             tuning_parameters['log_file'], tuning_parameters['load_log_file'])
 
     if layout_set:
         layout = layout_set
-    elif target.target_name == 'cuda':
-        layout = 'NCHW'
-    else:
-        layout = "NHWC"
 
     # Extract workloads from relay program
     print("=============== Extract workloads ===============")
     mod, params, input_name, data_shape, out_shape = get_network(network_name, model_path, batch_size, layout)
 
     if tune:
-        workloads, wkl_weights = auto_scheduler.extract_from_program(mod, target=target,
+        workloads, wkl_weights = ansor.extract_from_program(mod, target=target,
                 params=params, ops=(relay.op.nn.dense, relay.op.nn.softmax,
                                     relay.op.nn.conv2d, relay.op.nn.conv2d_transpose,
                                     relay.op.nn.max_pool2d, relay.op.nn.avg_pool2d,
@@ -292,85 +216,54 @@ def tune_and_evaluate(network_name, model_path, batch_size, target, target_host,
                                     relay.op.nn.batch_matmul, relay.op.mean,
                                     ))
         print("Total workload number: %d" % (len(workloads)))
-        #workloads = workloads[1:2]
-        #wkl_weights = wkl_weights[1:2]
-        #workloads = ['["2543426b0070d4a379a1f75a362a5f1b"]']
-
 
         # Tune workloads with auto scheduler
         print("=============== Tuning ===============")
         tasks = []
         for i, wkl_key in enumerate(workloads):
-            dag = auto_scheduler.workload_key_to_dag(wkl_key)
+            dag = ansor.workload_key_to_dag(wkl_key)
             print("[========= Task %d =========]\n" % i, dag)
-            tasks.append(auto_scheduler.SearchTask(dag, wkl_key, target, target_host))
+            tasks.append(ansor.SearchTask(dag, wkl_key, target, target_host))
 
-        if joint_tuner != 'rl':
-            tuner = SimpleTaskScheduler(tasks, load_log_file=load_log_file)
-        elif joint_tuner == 'rl':
-            # put import here to remove pytorch dependency
-            from tvm.auto_scheduler.joint_tuner.rl_joint_tuner import RLJointTuner
-            tuner = RLJointTuner(tasks, weights=wkl_weights, load_log_file=load_log_file)
-        else:
-            raise ValueError("Invalid joint tuner: " + joint_tuner)
+        def objective_func(costs):
+            return sum(c * w for c, w in zip(costs, wkl_weights))
 
-        if local_measure:
-            builder = LocalBuilder(timeout=build_timeout)
-            if target.target_name == "cuda":
-                ctx = tvm.context("cuda", 0)
-                cuda_arch = "sm_" + "".join(ctx.compute_version.split('.'))
-                tvm.autotvm.measure.measure_methods.set_cuda_target_arch(cuda_arch)
+        tuner = ansor.SimpleTaskScheduler(tasks, objective_func, strategy=task_scheduler,
+                                          load_log_file=load_log_file,
+                                          load_model_file=tuning_parameters['load_model'])
 
-                tracker = Tracker('0.0.0.0', port=port, port_end=10000, silent=True)
-                if device_key is None:
-                    device_key = '$local$device$%d' % tracker.port
-                server = Server('0.0.0.0', port=tracker.port, port_end=10000,
-                                key=device_key, use_popen=True, silent=True,
-                                tracker_addr=(tracker.host, tracker.port))
-                runner = RPCRunner(device_key, host=host, port=tracker.port,
-                                repeat=1, min_repeat_ms=400,
-                                n_parallel=n_parallel)
-            else:
-                os.environ['TVM_AUTO_CACHE_FLUSH'] = "1"
-                runner = LocalRunner(repeat=10, number=1, min_repeat_ms=0, timeout=run_timeout)
-        else:
-            os.environ['TVM_NDK_CC'] = ndk_cc
-            builder = LocalBuilder(build_func='ndk', timeout=build_timeout)
-            runner = RPCRunner(device_key, host=host, port=port,
-                               repeat=1, min_repeat_ms=400,
-                               n_parallel=n_parallel, timeout=run_timeout)
-
+        tune_option, measure_ctx = create_tune_option(target, log_file,
+                tuning_parameters['n_trials'], tuning_parameters['num_measure_per_iter'],
+                tuning_parameters['verbose'], n_parallel, build_timeout,
+                local_measure, device_key, host, port, ndk_cc,
+                tuning_parameters['early_stopping'])
         search_policy = "%s.%s" % (policy, model_type)
-        tune_option = TuneOption(n_trials=tuning_parameters['n_trials'],
-                                 early_stopping=tuning_parameters['early_stopping'],
-                                 num_measure_per_iter=tuning_parameters['num_measure_per_iter'],
-                                 builder=builder,
-                                 verbose=tuning_parameters['verbose'],
-                                 runner=runner,
-                                 measure_callbacks=[LogToFile(log_file)])
+
         if local_measure and target.target_name != 'cuda':
             os.environ['TVM_BIND_MASTER_CORE_0'] = "1"
-            tuner.tune(tune_option, search_policy)
-        else:
-            tuner.tune(tune_option, search_policy)
+
+        tuner.tune(tune_option, search_policy)
+
+        if measure_ctx:
+            del measure_ctx
 
     kernel_layout_rewrite =  False
 
     # Compile graph with best states found by auto-scheduler
     print("=============== Compile ===============")
-    with auto_scheduler.apply_history_best(log_file, args.log_n_lines):
+    with ansor.apply_history_best(log_file, args.log_n_lines):
     #if True:
-    #with auto_scheduler.BlockingEmptyContext():
+    #with ansor.BlockingEmptyContext():
         os.environ['TVM_AUTO_CACHE_FLUSH'] = "0"
         os.environ['TVM_BIND_MASTER_CORE_0'] = "1"
         if kernel_layout_rewrite:
-            auto_scheduler.prepare_layout_rewrite(mod, target=target,
+            ansor.prepare_layout_rewrite(mod, target=target,
                                                   params=params,
                                                   ops=(relay.op.nn.dense, relay.op.nn.conv2d, relay.op.nn.conv3d))
         else:
             # disable layout rewrite
-            auto_scheduler.LayoutRewriteLevel.BOTH_REWRITE = auto_scheduler.LayoutRewriteLevel.NO_REWRITE
-            auto_scheduler.LayoutRewriteLevel.COMPUTE_REWRITE = auto_scheduler.LayoutRewriteLevel.NO_REWRITE
+            ansor.LayoutRewriteLevel.BOTH_REWRITE = ansor.LayoutRewriteLevel.NO_REWRITE
+            ansor.LayoutRewriteLevel.COMPUTE_REWRITE = ansor.LayoutRewriteLevel.NO_REWRITE
 
         with relay.build_config(opt_level=3):
             graph, lib, opt_params = relay.build_module.build(
@@ -385,7 +278,7 @@ def tune_and_evaluate(network_name, model_path, batch_size, target, target_host,
             graph, lib, opt_params = relay.build_module.build(
                 mod, target=target, params=params)
         '''
-        auto_scheduler.finish_layout_rewrite()
+        ansor.finish_layout_rewrite()
         print("=============== Compile Finish ===============")
 
         module, ctx = create_module(data_shape, graph, lib, target, input_name, opt_params,
@@ -415,8 +308,8 @@ def tune_and_evaluate(network_name, model_path, batch_size, target, target_host,
         relay.backend.compile_engine.get().clear()
 
         # disable layout rewrite
-        auto_scheduler.LayoutRewriteLevel.BOTH_REWRITE = auto_scheduler.LayoutRewriteLevel.NO_REWRITE
-        auto_scheduler.LayoutRewriteLevel.COMPUTE_REWRITE = auto_scheduler.LayoutRewriteLevel.NO_REWRITE
+        ansor.LayoutRewriteLevel.BOTH_REWRITE = ansor.LayoutRewriteLevel.NO_REWRITE
+        ansor.LayoutRewriteLevel.COMPUTE_REWRITE = ansor.LayoutRewriteLevel.NO_REWRITE
         target = tvm.target.create('llvm')
         with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             graph, lib, opt_params = relay.build_module.build(
@@ -433,28 +326,40 @@ def tune_and_evaluate(network_name, model_path, batch_size, target, target_host,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    # Task related options
     parser.add_argument("--network", type=str, required=True)
     parser.add_argument("--model-path", type=str, default=None, help="The path of tflite model")
-    parser.add_argument("--n-trials", type=int, default=1000)
+    parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument("--layout", type=str, default='NHWC')
     parser.add_argument("--target", type=str, default='llvm -mcpu=core-avx2')
     parser.add_argument("--target-host", type=str, default=None)
-    parser.add_argument("--policy", type=str, choices=['multi-stage', 'meta-rewrite'],
-            default='meta-rewrite')
+    parser.add_argument("--n-trials", type=int, default=1000)
+    parser.add_argument("--num-measure-per-iter", type=int, default=48,
+                        help="The number of programs to be measured at each iteration")
     parser.add_argument("--tune", type=str2bool, nargs='?', const=True, default=True)
     parser.add_argument("--check-correctness", type=str2bool, nargs='?', const=True, default=False)
     parser.add_argument("--debug-profile", type=str2bool, nargs='?', const=True, default=False)
-    parser.add_argument("--build-timeout", type=int, default=10)
-    parser.add_argument("--run-timeout", type=int, default=10)
-    parser.add_argument("--log-file", type=str, help="Write log of measurement results to this file")
+
+    # Strategy related options
+    parser.add_argument("--seed", type=int, default=0, help='random seed')
+    parser.add_argument("--policy", type=str, choices=['multi-stage', 'meta-rewrite'],
+            default='meta-rewrite')
     parser.add_argument("--model-type", type=str, choices=['xgb', 'random', 'no-share'], default='xgb')
-    parser.add_argument("--load-model", action='store_true')
-    parser.add_argument("--model-file", type=str, default='saved_model.xgb')
+    parser.add_argument("--task-scheduler", type=str, default='gradient',
+                        choices=['no', 'gradient', 'round-robin'],
+                        help='The strategy of task scheduler')
+
+    # File related options
+    parser.add_argument("--log-file", type=str, help="Write log of measurement results to this file")
+    parser.add_argument("--load-model", type=str, help="Load pre trained cost model file")
     parser.add_argument("--load-log", type=str, help="Load history log for pre-training the cost model")
     parser.add_argument("--out-file", type=str, default='results.tsv')
-    parser.add_argument("--seed", type=int, default=0, help='random seed')
+    parser.add_argument("--log-n-lines", type=int)
+
+    # Detailed control options
+    parser.add_argument("--build-timeout", type=int, default=10)
+    parser.add_argument("--run-timeout", type=int, default=10)
     parser.add_argument("--verbose", type=int, default=1)
-    parser.add_argument("--joint-tuner", type=str, default='bottleneck-decay', help='The type of joint tuner',
-                        choices=['no', 'uniform', 'weighted', 'bottleneck', 'bottleneck-decay', 'sequential', 'round-robin', 'rl'])
     parser.add_argument("--local-measure", type=str2bool, nargs='?', const=True, default=True)
     parser.add_argument("--device-key", type=str, default=None)
     parser.add_argument("--host", type=str, default='0.0.0.0')
@@ -462,27 +367,22 @@ if __name__ == "__main__":
     parser.add_argument("--n-parallel", type=int, default=1)
     parser.add_argument("--ndk-cc", type=str, default=None)
     parser.add_argument("--num-threads", type=int, default=None)
-    parser.add_argument("--batch-size", type=int, default=1)
-    parser.add_argument("--num-measure-per-iter", type=int, default=48,
-                        help="The number of programs to be measured at each iteration")
-    parser.add_argument("--layout", type=str, default=None)
-    parser.add_argument("--log-n-lines", type=int)
     args = parser.parse_args()
 
     np.random.seed(args.seed)
     random.seed(args.seed)
-
     logging.basicConfig()
-    logging.getLogger('auto_scheduler').setLevel(logging.DEBUG)
+    logging.getLogger('ansor').setLevel(logging.DEBUG)
 
     target = tvm.target.create(args.target)
 
     tuning_parameters = {
         'n_trials': args.n_trials,
         'num_measure_per_iter': args.num_measure_per_iter,
-        'log_file': args.log_file if args.log_file else "%s-B%d.json" % (args.network, args.batch_size),
+        'log_file': args.log_file or "%s-B%d.json" % (args.network, args.batch_size),
+        'load_model': args.load_model,
         'model_type': args.model_type,
-        'joint_tuner': args.joint_tuner,
+        'task_scheduler': args.task_scheduler,
         'policy': args.policy,
         'early_stopping': -1,
         'verbose': 1,
