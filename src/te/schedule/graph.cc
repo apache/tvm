@@ -36,15 +36,15 @@ namespace tvm {
 namespace te {
 // key to specific tensor dimension.
 struct TensorDimKey {
-  tir::FunctionRef f;
+  Operation op;
   int value_index;
   int dim;
   TensorDimKey() {}
-  TensorDimKey(const Tensor& t, int dim) : f(t->op), value_index(t->value_index), dim(dim) {}
+  TensorDimKey(const Tensor& t, int dim) : op(t->op), value_index(t->value_index), dim(dim) {}
   TensorDimKey(const Tensor& t, size_t dim)
-      : f(t->op), value_index(t->value_index), dim(static_cast<int>(dim)) {}
+      : op(t->op), value_index(t->value_index), dim(static_cast<int>(dim)) {}
   inline bool operator==(const TensorDimKey& other) const {
-    return f == other.f && value_index == other.value_index && dim == other.dim;
+    return op == other.op && value_index == other.value_index && dim == other.dim;
   }
   inline bool operator!=(const TensorDimKey& other) const { return !operator==(other); }
 };
@@ -55,7 +55,7 @@ namespace std {
 template <>
 struct hash<::tvm::te::TensorDimKey> {
   std::size_t operator()(const ::tvm::te::TensorDimKey& k) const {
-    size_t lhs = ::tvm::ObjectPtrHash()(k.f);
+    size_t lhs = ::tvm::ObjectPtrHash()(k.op);
     size_t rhs = static_cast<size_t>(k.value_index) << 16UL | static_cast<size_t>(k.dim);
     lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);
     return lhs;
@@ -378,7 +378,7 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
           if (k != target && place_holder_ref.count(k)) break;
           stack.pop_back();
           if (!reach.count(k)) {
-            LOG(FATAL) << "cannot find reach of " << k.f << "-" << k.dim;
+            LOG(FATAL) << "cannot find reach of " << k.op << "-" << k.dim;
           }
 
           for (TensorDimKey kk : reach.at(k)) {
