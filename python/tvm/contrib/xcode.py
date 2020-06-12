@@ -21,6 +21,7 @@ from __future__ import absolute_import as _abs
 import os
 import sys
 import subprocess
+import json
 from .._ffi.base import py_str
 from . import util
 
@@ -170,15 +171,24 @@ def compile_metal(code, path_target=None, sdk="macosx"):
     return libbin
 
 
-def compile_coreml(model, out_dir="."):
+def compile_coreml(model, model_name="main", out_dir="."):
     """Compile coreml model and return the compiled model path.
     """
-    mlmodel_path = os.path.join(out_dir, "tmp.mlmodel")
+    mlmodel_path = os.path.join(out_dir, model_name + ".mlmodel")
+    mlmodelc_path = os.path.join(out_dir, model_name + ".mlmodelc")
+    metadata = {
+        "inputs": list(model.input_description),
+        "outputs": list(model.output_description)
+    }
+    # Use the description field to send info to CoreML runtime
+    model.short_description = json.dumps(metadata)
     model.save(mlmodel_path)
 
-    xcrun(["coremlcompiler", "compile", mlmodel_path, out_dir])
+    res = xcrun(["coremlcompiler", "compile", mlmodel_path, out_dir])
+    if not os.path.isdir(mlmodelc_path):
+        raise RuntimeError("Compile failed: %s" % res)
 
-    return os.path.join(out_dir, "tmp.mlmodelc")
+    return mlmodelc_path
 
 
 class XCodeRPCServer(object):
