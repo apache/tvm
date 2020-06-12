@@ -354,23 +354,17 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
         CanProveGreaterEqual(x.Eval(), 0) && c1.Eval()->value >= 0 && c3.Eval()->value > 0);
 
     TVM_TRY_REWRITE_IF(truncdiv(x * c1 + c2, c3) - truncdiv(x * c1 + c4, c3), truncdiv(c2 - c4, c3),
-                       c1.Eval()->value >= 0 && c2.Eval()->value > 0 &&
-                       c3.Eval()->value > 0 && c4.Eval()->value >= 0 &&
-                       CanProveGreaterEqual(x.Eval(), 0));
+                       c1.Eval()->value >= 0 && c2.Eval()->value > 0 && c3.Eval()->value > 0 &&
+                           c4.Eval()->value >= 0 && CanProveGreaterEqual(x.Eval(), 0));
     TVM_TRY_REWRITE_IF(truncdiv(x + c2, c3) - truncdiv(x + c4, c3), truncdiv(c2 - c4, c3),
-                       c2.Eval()->value > 0 &&
-                       c3.Eval()->value > 0 && c4.Eval()->value >= 0 &&
-                       CanProveGreaterEqual(x.Eval(), 0));
+                       c2.Eval()->value > 0 && c3.Eval()->value > 0 && c4.Eval()->value >= 0 &&
+                           CanProveGreaterEqual(x.Eval(), 0));
     TVM_TRY_REWRITE_IF(truncdiv(x * c1 + c2, y) - truncdiv(x * c1 + c4, y), truncdiv(c2 - c4, y),
-                       c1.Eval()->value >= 0 && c2.Eval()->value > 0 &&
-                       c4.Eval()->value >= 0 &&
-                       CanProveGreaterEqual(x.Eval(), 0) &&
-                      CanProveGreaterEqual(y.Eval(), 1));
+                       c1.Eval()->value >= 0 && c2.Eval()->value > 0 && c4.Eval()->value >= 0 &&
+                           CanProveGreaterEqual(x.Eval(), 0) && CanProveGreaterEqual(y.Eval(), 1));
     TVM_TRY_REWRITE_IF(truncdiv(x + c2, y) - truncdiv(x + c4, y), truncdiv(c2 - c4, y),
-                       c2.Eval()->value > 0 &&
-                       c4.Eval()->value >= 0 &&
-                       CanProveGreaterEqual(x.Eval(), 0) &&
-                       CanProveGreaterEqual(y.Eval(), 1));
+                       c2.Eval()->value > 0 && c4.Eval()->value >= 0 &&
+                           CanProveGreaterEqual(x.Eval(), 0) && CanProveGreaterEqual(y.Eval(), 1));
 
     // floordiv
     TVM_TRY_REWRITE_IF(x - floordiv(x, c1) * c1, floormod(x, c1), c1.Eval()->value != 0);
