@@ -107,7 +107,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
     if target == "cuda":
         layout = cuda_layout
     target_host = None
-    shape_dict = {e: i.shape for e, i in zip(input_node, input_data)}
+    shape_dict = {e: i.shape if hasattr(i, "shape") else () for e, i in zip(input_node, input_data)}
     mod, params = relay.frontend.from_tensorflow(graph_def,
                                                  layout=layout,
                                                  shape=shape_dict,
@@ -135,7 +135,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
         vm.init(tvm.cpu())
         inputs = {}
         for e, i in zip(input_node, input_data):
-            inputs[e] = i
+            inputs[e] = tvm.nd.array(i)
         result = vm.invoke("main", **inputs)
         return vmobj_to_list(result)
     else:
@@ -1923,12 +1923,24 @@ def _test_fill_from_tensor(in_shape):
         compare_tf_with_tvm(data, 'Placeholder:0', 'out1:0')
 
 
+def _test_fill_symbolic_inputs(in_shape_data, in_value_data, dtype):
+    with tf.Graph().as_default():
+        in_shape = tf.placeholder(shape=[in_shape_data.shape[0]], dtype=in_shape_data.dtype)
+        in_value = tf.placeholder(shape=(), dtype=dtype)
+        out = tf.fill(in_shape, in_value)
+        for mode in ['debug', 'vm']:
+            compare_tf_with_tvm([in_shape_data, in_value_data], [in_shape.name, in_value.name], out.name, mode=mode)
+
+
 def test_forward_fill():
     """ Resize Bilinear """
 
     _test_fill((32))
     _test_fill((6, 32, 64, 64))
     _test_fill_from_tensor((6, 32, 64, 64))
+    _test_fill_symbolic_inputs(np.array((2,)), np.int32(9), tf.int32)
+    _test_fill_symbolic_inputs(np.array((2, 3)), 9, tf.int64)
+    _test_fill_symbolic_inputs(np.array((2, 3, 4)), np.float32(9.0), tf.float32)
 
 #######################################################################
 # Crop to bounding box
