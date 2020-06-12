@@ -1007,28 +1007,20 @@ void VMCompiler::Codegen() {
 
   auto compile_engine = CompileEngine::Global();
   auto ext_mods = compile_engine->LowerExternalFunctions();
-  runtime::Module mod;
   if (funcs.size() > 0) {
     Map<String, IRModule> build_funcs;
     for (const auto& i : funcs) {
       build_funcs.Set(i.first, i.second);
     }
-    mod = tvm::build(build_funcs, target_host_);
-    CHECK(mod.operator->());
+    exec_->lib = tvm::build(build_funcs, target_host_);
   } else {
     // There is no function handled by TVM. We create a virtual master module
     // to make sure a DSO module will be also available.
-    mod = codegen::CSourceModuleCreate(";", "");
+    exec_->lib = codegen::CSourceModuleCreate(";", "");
   }
   if (!ext_mods.empty()) {
-    exec_->lib = codegen::ModuleClassWrapperCreate();
-    exec_->lib.Import(mod);
-    // Import all external runtime modules.
-    for (auto it : ext_mods) {
-      exec_->lib.Import(it);
-    }
-  } else {
-    exec_->lib = mod;
+    auto init_mod = codegen::WrapMetadataModule(ext_mods);
+    exec_->lib.Import(init_mod);
   }
 }
 

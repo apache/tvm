@@ -33,25 +33,6 @@ from . import _ffi_api
 ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
 
 
-def ModuleInitWrapper(variables, metadata):
-    """Create a module initialization wrapper.
-
-    Parameters
-    ----------
-    variables : List[Str]
-        The list of variables.
-
-    metadata : List[runtime.NDArray]
-        The list of used NDArray.
-
-    Returns
-    -------
-    ret : runtime.Module
-        The created module wrapper for initialization
-    """""
-    return _ffi_api.ModuleInitWrapper(variables, metadata)
-
-
 class Module(object):
     """Runtime Module."""
     __slots__ = ["handle", "_entry", "entry_name"]
@@ -267,23 +248,6 @@ class Module(object):
 
     def _dso_exportable(self):
         return self.type_key == "llvm" or self.type_key == "c"
-
-    def unwrap_modules(self):
-        """Unwrap the host and source metadata modules.
-
-        Returns
-        -------
-        ret : Tuple(runtime.Module, List[runtime.Module])
-            The host module and a list of source metadata module pair.
-        """
-        if not self.type_key == "module_class_wrapper":
-            return (self, None)
-
-        assert len(self.imported_modules) > 1, \
-                "Expect both host and source metadata module"
-        host_mod = self.imported_modules[0]
-        source_metadata_mods = self.imported_modules[1:]
-        return (host_mod, source_metadata_mods)
 
     def export_library(self,
                        file_name,

@@ -146,6 +146,13 @@ runtime::Module CSourceModuleCreate(std::string code, std::string fmt);
 runtime::Module ModuleClassWrapperCreate();
 
 /*!
+ * \brief Wrap the submodules in a metadata module.
+ * \param modules The modules to be wrapped.
+ * \return The wrapped module.
+ */
+runtime::Module WrapMetadataModule(const Array<runtime::Module>& modules);
+
+/*!
  * \brief Create a source module for viewing and limited saving for device.
  * \param data The code data to be viewed.
  * \param fmt The code. format.

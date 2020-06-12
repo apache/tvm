@@ -41,6 +41,43 @@ using runtime::GetFileFormat;
 using runtime::GetMetaFilePath;
 using runtime::SaveBinaryToFile;
 
+runtime::Module WrapMetadataModule(const Array<runtime::Module>& modules) {
+  // Wrap all submodules in the initialization wrapper.
+  Map<String, runtime::NDArray> var_md;
+  Array<runtime::Module> source_modules;
+  for (runtime::Module it : modules) {
+    String code = it.GetFunction("get_source")();
+    Array<String> variables = it.GetFunction("get_vars")();
+    Array<runtime::NDArray> metadata = it.GetFunction("get_metadata")();
+    CHECK_EQ(variables.size(), metadata.size())
+        << "Found mismatch in the number of variables and ndarray";
+    for (size_t i = 0; i < variables.size(); i++) {
+      var_md.Set(variables[i], metadata[i]);
+    }
+
+    // TODO(zhiics) Invoke the corresponding module create function using the
+    // type key when json runtime comes.
+    source_modules.push_back(tvm::codegen::CSourceModuleCreate(code, "c"));
+  }
+  Array<String> vars;
+  Array<runtime::NDArray> arrs;
+  for (const auto& it : var_md) {
+    vars.push_back(it.first);
+    arrs.push_back(it.second);
+  }
+
+  // Wrap the modules.
+  const auto* pf = runtime::Registry::Get("runtime.ModuleInitWrapper");
+  CHECK(pf != nullptr) << "Cannot find the registry for runtime.ModuleInitWrapper";
+  runtime::Module init_m = (*pf)(vars, arrs);
+
+  for (const auto& it : source_modules) {
+    init_m.Import(it);
+  }
+
+  return init_m;
+}
+
 // Simulator function
 class SourceModuleNode : public runtime::ModuleNode {
  public:
@@ -153,23 +190,6 @@ runtime::Module DeviceSourceModuleCreate(
   return runtime::Module(n);
 }
 
-// A helper used to wrap different types of modules and pass through packedfunc.
-// This module will never be used for compilation and execution.
-class ModuleClassWrapperNode : public runtime::ModuleNode {
- public:
-  ModuleClassWrapperNode() = default;
-  const char* type_key() const { return "module_class_wrapper"; }
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    LOG(FATAL) << "Cannot execute module wrapper";
-    return PackedFunc();
-  }
-};
-
-runtime::Module ModuleClassWrapperCreate() {
-  auto n = make_object<ModuleClassWrapperNode>();
-  return runtime::Module(n);
-}
-
 // Pack the source code and metadata, where source code could be any
 // user-defined code, i.e. c source code, json graph representation, etc.
 class SourceMetadataModuleNode final : public runtime::ModuleNode {
@@ -230,10 +250,6 @@ TVM_REGISTER_GLOBAL("runtime.SourceMetadataModuleCreate")
     .set_body_typed(SourceMetadataModuleCreate);
 
 TVM_REGISTER_GLOBAL("runtime.SourceModuleCreate").set_body_typed(SourceModuleCreate);
-
-TVM_REGISTER_GLOBAL("runtime.ModuleClassWrapperCreate").set_body_typed([]() {
-  return ModuleClassWrapperCreate();
-});
 
 TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
     .set_body_typed([](String code, String source_type) {

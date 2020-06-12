@@ -429,8 +429,6 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     auto lowered_funcs = graph_codegen_->GetIRModule();
 
-    runtime::Module tvm_lib;
-
     // When there is no lowered_funcs due to reasons such as optimization.
     if (lowered_funcs.size() == 0) {
       Target target_host = GetTargetHost();
@@ -443,25 +441,21 @@ class RelayBuildModule : public runtime::ModuleNode {
 
       if (target_host.defined() && target_host->target_name == "llvm") {
         // If we can decide the target is LLVM, we then create an empty LLVM module.
-        tvm_lib = (*pf)(target_host->str(), "empty_module");
+        ret_.mod = (*pf)(target_host->str(), "empty_module");
       } else {
         // If we cannot decide the target is LLVM, we create an empty CSourceModule.
         // The code content is initialized with ";" to prevent complaining
         // from CSourceModuleNode::SaveToFile.
-        tvm_lib = tvm::codegen::CSourceModuleCreate(";", "");
+        ret_.mod = tvm::codegen::CSourceModuleCreate(";", "");
       }
     } else {
-      tvm_lib = tvm::build(lowered_funcs, target_host_);
+      ret_.mod = tvm::build(lowered_funcs, target_host_);
     }
 
     Array<tvm::runtime::Module> ext_mods = graph_codegen_->GetExternalModules();
     if (!ext_mods.empty()) {
-      ret_.mod = tvm::codegen::ModuleClassWrapperCreate();
-      ret_.mod.Import(tvm_lib);
-      // Import all external runtime modules.
-      for (const auto& it : ext_mods) ret_.mod.Import(it);
-    } else {
-      ret_.mod = std::move(tvm_lib);
+      auto init_mod = tvm::codegen::WrapMetadataModule(ext_mods);
+      ret_.mod.Import(init_mod);
     }
   }
 
