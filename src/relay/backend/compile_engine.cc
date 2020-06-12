@@ -217,8 +217,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
     // Skip fcompute for device copy operators as it is not registered.
     if (op == device_copy_op_) {
       const auto* copy_input = inputs[0].operator->();
-      outputs.push_back(
-          te::TensorNode::make(copy_input->shape, copy_input->dtype, te::Operation(), 0));
+      outputs.push_back(te::Tensor(copy_input->shape, copy_input->dtype, te::Operation(), 0));
     } else {
       LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_);
       outputs = lowered_out->outputs;

@@ -91,7 +91,7 @@ class StorageFlattener : public StmtExprMutator {
       return body;
     } else if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
-      ThreadScope ts = ThreadScope::make(iv->thread_tag);
+      ThreadScope ts = ThreadScope::Create(iv->thread_tag);
       curr_thread_scope_.push_back(ts);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       curr_thread_scope_.pop_back();
@@ -165,7 +165,7 @@ class StorageFlattener : public StmtExprMutator {
           skey.rank = runtime::DefaultStorageRank(curr_thread_scope_.back().rank);
         }
       } else {
-        skey = StorageScope::make(strkey);
+        skey = StorageScope::Create(strkey);
       }
 
       // use small alignment for small arrays
@@ -200,9 +200,9 @@ class StorageFlattener : public StmtExprMutator {
         strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
       }
 
-      e.buffer = BufferNode::make(Var(op->buffer->data->name_hint, DataType::Handle()),
-                                  op->buffer->dtype, shape, strides, PrimExpr(), op->buffer->name,
-                                  skey.to_string(), align, 0, kDefault);
+      e.buffer =
+          Buffer(Var(op->buffer->data->name_hint, DataType::Handle()), op->buffer->dtype, shape,
+                 strides, PrimExpr(), op->buffer->name, skey.to_string(), align, 0, kDefault);
 
       buf_map_[key] = e;
       Stmt body = this->VisitStmt(op->body);

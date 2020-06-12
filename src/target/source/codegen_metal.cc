@@ -122,7 +122,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   auto thread_axis = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis).value();
 
   for (IterVar iv : thread_axis) {
-    runtime::ThreadScope scope = runtime::ThreadScope::make(iv->thread_tag);
+    runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
     work_dim = std::max(work_dim, scope.dim_index + 1);
   }
   if (work_dim != 0) {

@@ -367,7 +367,7 @@ class WarpMemoryRewriter : private StmtMutator {
     using runtime::StorageScope;
     if (op->attr_key == attr::storage_scope) {
       const VarNode* buf = op->node.as<VarNode>();
-      StorageScope scope = StorageScope::make(op->value.as<StringImmNode>()->value);
+      StorageScope scope = StorageScope::Create(op->value.as<StringImmNode>()->value);
       if (scope.rank == runtime::StorageRank::kWarp) {
         warp_buffer_.insert(buf);
         Stmt ret = StmtMutator::VisitStmt_(op);
