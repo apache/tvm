@@ -76,20 +76,20 @@ class BF16PromoteRewriter : public StmtExprMutator {
   PrimExpr VisitExpr_(const GENode* op) final;
 };
 
-#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)       \
-  PrimExpr BF16PromoteRewriter::VisitExpr_(const OP* op) {      \
-    PrimExpr a, b;                                              \
-    bool is_bfloat16;                                           \
-    std::tie(a, b) = DoCast(op->a, op->b, &is_bfloat16);        \
-    if (a.same_as(op->a) && b.same_as(op->b)) {                 \
-      return GetRef<PrimExpr>(op);                              \
-    } else {                                                    \
-      auto ret = FUNC(a, b);                                    \
-      if (!is_bfloat16)                                         \
-        return ret;                                             \
-      else                                                      \
-        return Cast(DataType(kDLBfloat, 16, 1), ret); \
-    }                                                           \
+#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)  \
+  PrimExpr BF16PromoteRewriter::VisitExpr_(const OP* op) { \
+    PrimExpr a, b;                                         \
+    bool is_bfloat16;                                      \
+    std::tie(a, b) = DoCast(op->a, op->b, &is_bfloat16);   \
+    if (a.same_as(op->a) && b.same_as(op->b)) {            \
+      return GetRef<PrimExpr>(op);                         \
+    } else {                                               \
+      auto ret = FUNC(a, b);                               \
+      if (!is_bfloat16)                                    \
+        return ret;                                        \
+      else                                                 \
+        return Cast(DataType(kDLBfloat, 16, 1), ret);      \
+    }                                                      \
   }
 
 #define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(OP, FUNC) \
@@ -188,15 +188,13 @@ class BF16LowerRewriter : StmtExprMutator {
       auto uint32_dtype = DataType(kDLUInt, 32, op_val->dtype.lanes());
       auto uint32_v = Cast(uint32_dtype, op_val);
       // to be endian invariant.
-      return Call(op->dtype, CallNode::reinterpret, {uint32_v << 16},
-                            CallNode::PureIntrinsic);
+      return Call(op->dtype, CallNode::reinterpret, {uint32_v << 16}, CallNode::PureIntrinsic);
 
     } else if (op->dtype.is_bfloat16()) {
       // if is cast_to_bf16, check if op->value is fp32
       CHECK(op->value->dtype.is_float() && op->value->dtype.bits() == 32);
       auto uint32_dtype = DataType(kDLUInt, 32, op_val->dtype.lanes());
-      auto uint32_v =
-          Call(uint32_dtype, CallNode::reinterpret, {op_val}, CallNode::PureIntrinsic);
+      auto uint32_v = Call(uint32_dtype, CallNode::reinterpret, {op_val}, CallNode::PureIntrinsic);
       auto uint16_dtype = DataType(kDLUInt, 16, op_val->dtype.lanes());
       /* the following TIR is equivalent to the C++ code below:
       uint32_t rounding_bias = ((U32 >> 16) & 1) + UINT32_C(0x7FFF);
@@ -227,8 +225,8 @@ class BF16LowerRewriter : StmtExprMutator {
     Stmt node_holder;
     const AllocateNode* newop;
     if (op->dtype.is_bfloat16()) {
-      auto v = Allocate(op->buffer_var, DataType::UInt(16, op->dtype.lanes()),
-                                  op->extents, op->condition, op->body);
+      auto v = Allocate(op->buffer_var, DataType::UInt(16, op->dtype.lanes()), op->extents,
+                        op->condition, op->body);
       node_holder = v;
       newop = static_cast<const AllocateNode*>(v.operator->());
     } else {
@@ -306,8 +304,8 @@ class BF16LowerRewriter : StmtExprMutator {
     if (index.same_as(op->index) && predicate.same_as(op->predicate) && !is_bf16) {
       return GetRef<PrimExpr>(op);
     } else {
-      return Load(is_bf16 ? DataType::UInt(16, op->dtype.lanes()) : op->dtype,
-                            op->buffer_var, index, predicate);
+      return Load(is_bf16 ? DataType::UInt(16, op->dtype.lanes()) : op->dtype, op->buffer_var,
+                  index, predicate);
     }
   }
 
