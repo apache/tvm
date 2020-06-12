@@ -58,8 +58,8 @@ class BF16PromoteRewriter : public StmtExprMutator {
 
     if (*is_bfloat16) {
       DataType fp32ty(kDLFloat, 32, 1);
-      a = CastNode::make(fp32ty, a);
-      b = CastNode::make(fp32ty, b);
+      a = Cast(fp32ty, a);
+      b = Cast(fp32ty, b);
     }
     return std::make_tuple(a, b);
   }
@@ -88,7 +88,7 @@ class BF16PromoteRewriter : public StmtExprMutator {
       if (!is_bfloat16)                                         \
         return ret;                                             \
       else                                                      \
-        return CastNode::make(DataType(kDLBfloat, 16, 1), ret); \
+        return Cast(DataType(kDLBfloat, 16, 1), ret); \
     }                                                           \
   }
 
@@ -146,7 +146,7 @@ class BF16CastEliminationRewriter : public StmtExprMutator {
       }
     }
     if (op->value.same_as(op_val)) return GetRef<PrimExpr>(op);
-    return CastNode::make(op->dtype, op_val);
+    return Cast(op->dtype, op_val);
   }
 };
 
@@ -186,9 +186,9 @@ class BF16LowerRewriter : StmtExprMutator {
       // if is cast_from_bf16, check if is to fp32
       CHECK(op->dtype.is_float() && op->dtype.bits() == 32);
       auto uint32_dtype = DataType(kDLUInt, 32, op_val->dtype.lanes());
-      auto uint32_v = CastNode::make(uint32_dtype, op_val);
+      auto uint32_v = Cast(uint32_dtype, op_val);
       // to be endian invariant.
-      return CallNode::make(op->dtype, CallNode::reinterpret, {uint32_v << 16},
+      return Call(op->dtype, CallNode::reinterpret, {uint32_v << 16},
                             CallNode::PureIntrinsic);
 
     } else if (op->dtype.is_bfloat16()) {
@@ -196,17 +196,17 @@ class BF16LowerRewriter : StmtExprMutator {
       CHECK(op->value->dtype.is_float() && op->value->dtype.bits() == 32);
       auto uint32_dtype = DataType(kDLUInt, 32, op_val->dtype.lanes());
       auto uint32_v =
-          CallNode::make(uint32_dtype, CallNode::reinterpret, {op_val}, CallNode::PureIntrinsic);
+          Call(uint32_dtype, CallNode::reinterpret, {op_val}, CallNode::PureIntrinsic);
       auto uint16_dtype = DataType(kDLUInt, 16, op_val->dtype.lanes());
       /* the following TIR is equivalent to the C++ code below:
       uint32_t rounding_bias = ((U32 >> 16) & 1) + UINT32_C(0x7FFF);
       return static_cast<uint16_t>((U32 + rounding_bias) >> 16);*/
       auto rounding_bias = ((uint32_v >> 16) & 1) + make_const(uint16_dtype, 0x7FFF);
       // to be endian invariant.
-      return CastNode::make(uint16_dtype, {(uint32_v + rounding_bias) >> 16});
+      return Cast(uint16_dtype, {(uint32_v + rounding_bias) >> 16});
     }
     if (op->value.same_as(op_val)) return GetRef<PrimExpr>(op);
-    return CastNode::make(op->dtype, op_val);
+    return Cast(op->dtype, op_val);
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
@@ -227,7 +227,7 @@ class BF16LowerRewriter : StmtExprMutator {
     Stmt node_holder;
     const AllocateNode* newop;
     if (op->dtype.is_bfloat16()) {
-      auto v = AllocateNode::make(op->buffer_var, DataType::UInt(16, op->dtype.lanes()),
+      auto v = Allocate(op->buffer_var, DataType::UInt(16, op->dtype.lanes()),
                                   op->extents, op->condition, op->body);
       node_holder = v;
       newop = static_cast<const AllocateNode*>(v.operator->());
@@ -256,13 +256,13 @@ class BF16LowerRewriter : StmtExprMutator {
     if (auto buffer = op->node.as<BufferNode>()) {
       auto itr = buffer_remap.find(buffer);
       if (itr != buffer_remap.end()) {
-        newop_holder = AttrStmtNode::make(itr->second, op->attr_key, op->value, op->body);
+        newop_holder = AttrStmt(itr->second, op->attr_key, op->value, op->body);
         newop = newop_holder.as<AttrStmtNode>();
       }
     } else if (auto buffer = op->node.as<VarNode>()) {
       auto itr = var_remap.find(buffer);
       if (itr != var_remap.end()) {
-        newop_holder = AttrStmtNode::make(itr->second, op->attr_key, op->value, op->body);
+        newop_holder = AttrStmt(itr->second, op->attr_key, op->value, op->body);
         newop = newop_holder.as<AttrStmtNode>();
       }
     }
@@ -306,7 +306,7 @@ class BF16LowerRewriter : StmtExprMutator {
     if (index.same_as(op->index) && predicate.same_as(op->predicate) && !is_bf16) {
       return GetRef<PrimExpr>(op);
     } else {
-      return LoadNode::make(is_bf16 ? DataType::UInt(16, op->dtype.lanes()) : op->dtype,
+      return Load(is_bf16 ? DataType::UInt(16, op->dtype.lanes()) : op->dtype,
                             op->buffer_var, index, predicate);
     }
   }
