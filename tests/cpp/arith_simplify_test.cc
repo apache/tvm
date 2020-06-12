@@ -49,7 +49,7 @@ TEST(Simplify, Mod) {
   // Mod::make is used instead of % to avoid constant folding during
   // calling operator%(x,y). Mod::make doesn't try constant folding,
   // and therefore, the constant folding will be attempted in CanonicalSimplify
-  auto mod = ana.canonical_simplify(tvm::tir::ModNode::make(x, y));
+  auto mod = ana.canonical_simplify(tvm::tir::Mod(x, y));
   auto es = ana.canonical_simplify(mod - x);
   CHECK(tvm::tir::is_zero(es));
 }

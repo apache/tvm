@@ -55,6 +55,7 @@ List of operators
    topi.concatenate
    topi.split
    topi.take
+   topi.gather
    topi.gather_nd
    topi.full
    topi.full_like
@@ -160,6 +161,7 @@ topi
 .. autofunction:: topi.concatenate
 .. autofunction:: topi.split
 .. autofunction:: topi.take
+.. autofunction:: topi.gather
 .. autofunction:: topi.gather_nd
 .. autofunction:: topi.full
 .. autofunction:: topi.full_like
@@ -214,6 +216,8 @@ topi.nn
 .. autofunction:: topi.nn.conv2d_hwcn
 .. autofunction:: topi.nn.depthwise_conv2d_nchw
 .. autofunction:: topi.nn.depthwise_conv2d_nhwc
+.. autofunction:: topi.nn.conv3d_ncdhw
+.. autofunction:: topi.nn.conv3d_transpose_ncdhw
 .. autofunction:: topi.nn.fifo_buffer
 
 topi.image
@@ -233,6 +237,8 @@ topi.generic
 
 .. autofunction:: topi.generic.schedule_conv2d_nchw
 .. autofunction:: topi.generic.schedule_depthwise_conv2d_nchw
+.. autofunction:: topi.generic.schedule_conv3d_ncdhw
+.. autofunction:: topi.generic.schedule_conv3d_transpose_ncdhw
 .. autofunction:: topi.generic.schedule_reduce
 .. autofunction:: topi.generic.schedule_broadcast
 .. autofunction:: topi.generic.schedule_injective

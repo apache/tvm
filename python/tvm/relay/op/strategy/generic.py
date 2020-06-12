@@ -345,6 +345,44 @@ def conv2d_transpose_strategy(attrs, inputs, out_type, target):
         name="conv2d_transpose_nchw.generic")
     return strategy
 
+
+# conv3d_transpose
+def wrap_compute_conv3d_transpose(topi_compute):
+    """wrap conv3d_transpose topi compute"""
+    def compute_conv3d_transpose(attrs, inputs, out_dtype):
+        """Compute definition of conv3d_transpose"""
+        padding = get_const_tuple(attrs.padding)
+        strides = get_const_tuple(attrs.strides)
+        out_dtype = attrs.out_dtype
+        out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                     else out_dtype)
+        out = topi_compute(
+            inputs[0], inputs[1], strides, padding, out_dtype)
+        output_padding = get_const_tuple(attrs.output_padding)
+        out = topi.nn.pad(out,
+                          [0, 0, 0, 0, 0],
+                          [0, 0, output_padding[0], output_padding[1], output_padding[2]])
+        return [out]
+    return compute_conv3d_transpose
+
+
+@override_native_generic_func("conv3d_transpose_strategy")
+def conv3d_transpose_strategy(attrs, inputs, out_type, target):
+    """conv3d_transpose generic strategy"""
+    logger.warning("conv3d_transpose is not optimized for this platform.")
+    layout = attrs.data_layout
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    assert layout == "NCDHW", "only support ncdhw for now"
+    assert dilation == (1, 1, 1), "not support dilate now"
+    assert groups == 1, "only support groups == 1 for now"
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_conv3d_transpose(topi.nn.conv3d_transpose_ncdhw),
+        wrap_topi_schedule(topi.generic.schedule_conv3d_transpose_ncdhw),
+        name="conv3d_transpose_ncdhw.generic")
+    return strategy
+
 # conv3d
 def wrap_compute_conv3d(topi_compute, need_layout=False):
     """wrap conv3d topi compute"""

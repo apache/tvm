@@ -272,7 +272,7 @@ class Pool(OnnxOpConverter):
                 'kernel_shape': 'pool_size',
                 'pads': ('padding', 0)
             },
-            ignores=['dilations'],
+            ignores=['dilations', 'storage_order'],
             custom_check=dimension_constraint())(inputs, attr, params)
 
 

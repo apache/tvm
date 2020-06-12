@@ -278,6 +278,12 @@ class Schedule : public ObjectRef {
   Schedule() {}
   explicit Schedule(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
+   * \brief Create a schedule for array of ops(and their dependencies).
+   * \param ops The ops to be scheduled.
+   * \return sch The created Schedule.
+   */
+  TVM_DLL explicit Schedule(Array<Operation> ops);
+  /*!
    * \brief Get a copy of current schedule.
    * \return The copied schedule.
    */
@@ -553,13 +559,6 @@ class ScheduleNode : public Object {
    */
   TVM_DLL bool Contain(const Tensor& tensor) const { return Contain(tensor->op); }
 
-  /*!
-   * \brief Create a schedule for array of ops(and their dependencies).
-   * \param ops The ops to be scheduled.
-   * \return sch The created Schedule.
-   */
-  TVM_DLL static Schedule make(Array<Operation> ops);
-
   static constexpr const char* _type_key = "Schedule";
   TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleNode, Object);
 };
@@ -569,7 +568,7 @@ class ScheduleNode : public Object {
  * \param ops The ops to be scheduled.
  * \return sch The created Schedule.
  */
-inline Schedule create_schedule(Array<Operation> ops) { return ScheduleNode::make(ops); }
+inline Schedule create_schedule(Array<Operation> ops) { return Schedule(ops); }
 
 /*! \brief node container for IterVar attr */
 class IterVarAttrNode : public Object {
@@ -648,11 +647,19 @@ class SplitNode : public IterVarRelationNode {
     v->Visit("nparts", &nparts);
   }
 
-  static IterVarRelation make(IterVar parent, IterVar outer, IterVar inner, PrimExpr factor,
-                              PrimExpr nparts);
-
   static constexpr const char* _type_key = "Split";
   TVM_DECLARE_FINAL_OBJECT_INFO(SplitNode, IterVarRelationNode);
+};
+
+/*!
+ * \brief Managed reference to SplitNode
+ * \sa SplitNode
+ */
+class Split : public IterVarRelation {
+ public:
+  TVM_DLL Split(IterVar parent, IterVar outer, IterVar inner, PrimExpr factor, PrimExpr nparts);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Split, IterVarRelation, SplitNode);
 };
 
 /*!
@@ -673,10 +680,19 @@ class FuseNode : public IterVarRelationNode {
     v->Visit("fused", &fused);
   }
 
-  static IterVarRelation make(IterVar outer, IterVar inner, IterVar fused);
-
   static constexpr const char* _type_key = "Fuse";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuseNode, IterVarRelationNode);
+};
+
+/*!
+ * \brief Managed reference to FuseNode
+ * \sa FuseNode
+ */
+class Fuse : public IterVarRelation {
+ public:
+  TVM_DLL Fuse(IterVar outer, IterVar inner, IterVar fused);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Fuse, IterVarRelation, FuseNode);
 };
 
 /*!
@@ -696,10 +712,19 @@ class RebaseNode : public IterVarRelationNode {
     v->Visit("rebased", &rebased);
   }
 
-  static IterVarRelation make(IterVar parent, IterVar rebased);
-
   static constexpr const char* _type_key = "Rebase";
   TVM_DECLARE_FINAL_OBJECT_INFO(RebaseNode, IterVarRelationNode);
+};
+
+/*!
+ * \brief Managed reference to RebaseNode
+ * \sa RebaseNode
+ */
+class Rebase : public IterVarRelation {
+ public:
+  TVM_DLL Rebase(IterVar parent, IterVar rebased);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Rebase, IterVarRelation, RebaseNode);
 };
 
 /*!
@@ -712,10 +737,19 @@ class SingletonNode : public IterVarRelationNode {
 
   void VisitAttrs(AttrVisitor* v) { v->Visit("iter", &iter); }
 
-  static IterVarRelation make(IterVar iter);
-
   static constexpr const char* _type_key = "Singleton";
   TVM_DECLARE_FINAL_OBJECT_INFO(SingletonNode, IterVarRelationNode);
+};
+
+/*!
+ * \brief Managed reference to SingletonNode
+ * \sa SingletonNode
+ */
+class Singleton : public IterVarRelation {
+ public:
+  TVM_DLL explicit Singleton(IterVar iter);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Singleton, IterVarRelation, SingletonNode);
 };
 
 /*! \brief Container for specialization conditions. */

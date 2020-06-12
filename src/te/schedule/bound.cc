@@ -59,7 +59,7 @@ bool NeedRelax(const IterVar& iv, bool found_attach,
   if (tag.length() == 0 || tag == "pipeline") {
     return !found_attach;
   }
-  ThreadScope ts = ThreadScope::make(tag);
+  ThreadScope ts = ThreadScope::Create(tag);
 
   // When there is warp memory
   // threadIdx.x must be set to be warp index.
@@ -72,14 +72,14 @@ bool NeedRelax(const IterVar& iv, bool found_attach,
 // infer storage scope, if not given
 StorageScope InferStorageScope(const Stage& stage, const GraphContext& ctx) {
   if (stage->scope.length() != 0) {
-    return StorageScope::make(stage->scope);
+    return StorageScope::Create(stage->scope);
   }
   int max_rank = -1;
   for (IterVar iv : ctx.attach_path.at(stage->op)) {
     auto it = ctx.bind_map.find(iv);
     const std::string& tag = (it != ctx.bind_map.end() ? it->second->thread_tag : iv->thread_tag);
     if (tag != "pipeline" && tag.length() != 0) {
-      max_rank = std::max(max_rank, ThreadScope::make(tag).rank);
+      max_rank = std::max(max_rank, ThreadScope::Create(tag).rank);
     }
   }
   StorageScope s;

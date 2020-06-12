@@ -1337,9 +1337,6 @@ class String : public ObjectRef {
 #endif
   }
 
-  /*! \return the internal StringObj pointer */
-  const StringObj* get() const { return operator->(); }
-
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
 
  private:
@@ -1502,6 +1499,7 @@ class Optional : public ObjectRef {
    *         otherwise return the default_value.
    */
   T value_or(T default_value) const { return data_ != nullptr ? T(data_) : default_value; }
+
   /*! \return Whether the container is not nullptr.*/
   explicit operator bool() const { return *this != nullptr; }
   // operator overloadings

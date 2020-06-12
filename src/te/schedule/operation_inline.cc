@@ -58,14 +58,14 @@ class OperationInliner final : public StmtExprMutator {
       }
       if (has_side_effect) {
         for (size_t i = 0; i < args_.size(); ++i) {
-          expr = LetNode::make(args_[i], op->indices[i], expr);
+          expr = Let(args_[i], op->indices[i], expr);
         }
       } else {
         Map<Var, PrimExpr> vmap;
         for (size_t i = 0; i < args_.size(); ++i) {
           vmap.Set(args_[i], op->indices[i]);
         }
-        expr = Substitute(EvaluateNode::make(expr), vmap).as<EvaluateNode>()->value;
+        expr = Substitute(Evaluate(expr), vmap).as<EvaluateNode>()->value;
       }
       return expr;
     } else {

@@ -41,7 +41,7 @@ class AttrScopeLifter : public StmtMutator {
   Stmt Lift(Stmt stmt) {
     stmt = operator()(std::move(stmt));
     if (attr_node_.defined()) {
-      stmt = AttrStmtNode::make(attr_node_, attr_key_, attr_value_, stmt);
+      stmt = AttrStmt(attr_node_, attr_key_, attr_value_, stmt);
     }
     return stmt;
   }
@@ -51,11 +51,11 @@ class AttrScopeLifter : public StmtMutator {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<AllocateNode>();
     if (attr_node_.defined()) {
-      Stmt body = AttrStmtNode::make(attr_node_, attr_key_, attr_value_, op->body);
+      Stmt body = AttrStmt(attr_node_, attr_key_, attr_value_, op->body);
       // undefine them
       attr_node_ = ObjectRef();
       attr_value_ = PrimExpr();
-      return AllocateNode::make(op->buffer_var, op->dtype, op->extents, op->condition, body);
+      return Allocate(op->buffer_var, op->dtype, op->extents, op->condition, body);
     } else {
       return stmt;
     }
@@ -111,7 +111,7 @@ class AttrScopeLifter : public StmtMutator {
       }
       Stmt stmt = SeqStmt::Flatten(seq);
       if (attr_node[begin].defined()) {
-        stmt = AttrStmtNode::make(attr_node[begin], attr_key_, attr_value[begin], stmt);
+        stmt = AttrStmt(attr_node[begin], attr_key_, attr_value[begin], stmt);
       }
       reorg.push_back(stmt);
       begin = end;
@@ -137,14 +137,14 @@ class AttrScopeLifter : public StmtMutator {
       if (then_case.same_as(op->then_case) && else_case.same_as(op->else_case)) {
         return GetRef<Stmt>(op);
       } else {
-        return IfThenElseNode::make(op->condition, then_case, else_case);
+        return IfThenElse(op->condition, then_case, else_case);
       }
     } else {
       if (first_node.defined()) {
-        then_case = AttrStmtNode::make(first_node, attr_key_, first_value, then_case);
+        then_case = AttrStmt(first_node, attr_key_, first_value, then_case);
       }
       if (attr_node_.defined()) {
-        else_case = AttrStmtNode::make(attr_node_, attr_key_, attr_value_, else_case);
+        else_case = AttrStmt(attr_node_, attr_key_, attr_value_, else_case);
         // undefine them
         attr_node_ = ObjectRef();
         attr_value_ = PrimExpr();
@@ -152,7 +152,7 @@ class AttrScopeLifter : public StmtMutator {
       if (then_case.same_as(op->then_case) && else_case.same_as(op->else_case)) {
         return GetRef<Stmt>(op);
       } else {
-        return IfThenElseNode::make(op->condition, then_case, else_case);
+        return IfThenElse(op->condition, then_case, else_case);
       }
     }
   }

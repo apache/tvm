@@ -202,6 +202,24 @@ def conv2d_transpose_strategy_cpu(attrs, inputs, out_type, target):
         name="conv2d_transpose_nchw.x86")
     return strategy
 
+
+@conv3d_transpose_strategy.register("cpu")
+def conv3d_transpose_strategy_cpu(attrs, inputs, out_type, target):
+    """conv3d_transpose x86 strategy"""
+    layout = attrs.data_layout
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    assert layout == "NCDHW", "only support ncdhw for now"
+    assert dilation == (1, 1, 1), "not support dilate now"
+    assert groups == 1, "only support groups == 1 for now"
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_conv3d_transpose(topi.x86.conv3d_transpose_ncdhw),
+        wrap_topi_schedule(topi.x86.schedule_conv3d_transpose_ncdhw),
+        name="conv3d_transpose_ncdhw.x86")
+    return strategy
+
+
 @conv3d_strategy.register("cpu")
 def conv3d_strategy_cpu(attrs, inputs, out_type, target):
     """conv3d generic strategy"""

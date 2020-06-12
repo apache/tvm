@@ -192,7 +192,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
         axis.push_back(it->second);
       }
     }
-    return ReduceNode::make(op->combiner, op->source, axis, op->condition, op->value_index);
+    return Reduce(op->combiner, op->source, axis, op->condition, op->value_index);
   }
 
   void Init(const ComputeOpNode* self, const Stage& stage,
@@ -347,11 +347,11 @@ Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
   size_t tloc = InferTensorizeRegion(self, stage, dom_map, &out_dom, &in_region);
   TensorIntrin intrin = stage->iter_var_attrs.at(stage->leaf_iter_vars[tloc])->tensor_intrin;
   CHECK(intrin.defined());
-  ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map, debug_keep_trivial_loop);
+  ComputeLoopNest n = ComputeLoopNest::Create(self, stage, dom_map, debug_keep_trivial_loop);
   VerifyTensorizeLoopNest(self, stage, n, tloc);
   VerifyTensorizeBody(self, stage, dom_map, out_dom, in_region, intrin);
   // Start bind data.
-  Stmt nop = EvaluateNode::make(0);
+  Stmt nop = Evaluate(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;
   Array<Tensor> inputs = self->InputTensors();
   CHECK_EQ(inputs.size(), intrin->inputs.size()) << "Tensorize failed: input size mismatch ";
@@ -368,10 +368,9 @@ Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
       tuple.push_back(r->min);
       tuple.push_back(r->extent);
     }
-    input_bind_nest.emplace_back(AttrStmtNode::make(
+    input_bind_nest.emplace_back(AttrStmt(
         bind_spec, tir::attr::buffer_bind_scope,
-        CallNode::make(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
-        nop));
+        Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }
   // output binding
   const ComputeOpNode* intrin_compute = intrin->op.as<ComputeOpNode>();
@@ -389,10 +388,9 @@ Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
     Tensor tensor = stage->op.output(i - intrin->inputs.size());
     Buffer buffer = intrin->buffers[i];
     Array<ObjectRef> bind_spec{buffer, tensor};
-    output_bind_nest.emplace_back(AttrStmtNode::make(
+    output_bind_nest.emplace_back(AttrStmt(
         bind_spec, tir::attr::buffer_bind_scope,
-        CallNode::make(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
-        nop));
+        Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }
   // Check variable remap
   std::unordered_map<const VarNode*, PrimExpr> vmap;

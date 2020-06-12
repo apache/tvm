@@ -59,9 +59,9 @@ struct ComputeLoopNest {
    * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1
    * \return The constructed loop nest
    */
-  static ComputeLoopNest make(const BaseComputeOpNode* self, const Stage& stage,
-                              const std::unordered_map<IterVar, Range>& dom_map,
-                              bool debug_keep_trivial_loop);
+  static ComputeLoopNest Create(const BaseComputeOpNode* self, const Stage& stage,
+                                const std::unordered_map<IterVar, Range>& dom_map,
+                                bool debug_keep_trivial_loop);
 };
 
 /*!

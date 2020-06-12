@@ -32,24 +32,6 @@
 namespace tvm {
 namespace te {
 
-// Internal node container of tensor intrinsics.
-class TensorIntrinNode;
-
-/*! \brief Tensor intrinsic node. */
-class TensorIntrin : public ObjectRef {
- public:
-  TensorIntrin() {}
-  explicit TensorIntrin(ObjectPtr<Object> n) : ObjectRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const TensorIntrinNode* operator->() const;
-
-  /*! \brief specify container node */
-  using ContainerType = TensorIntrinNode;
-};
-
 /*! \brief Node to represent a Tensor intrinsic operator */
 class TensorIntrinNode : public Object {
  public:
@@ -100,34 +82,20 @@ class TensorIntrinNode : public Object {
     v->Visit("reduce_update", &reduce_update);
   }
 
-  TVM_DLL static TensorIntrin make(std::string name, Operation op, Array<Tensor> inputs,
-                                   Array<Buffer> buffers, Array<Var> scalar_params, Stmt body,
-                                   Stmt reduce_init, Stmt reduce_update);
-
   static constexpr const char* _type_key = "TensorIntrin";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorIntrinNode, Object);
 };
 
-inline const TensorIntrinNode* TensorIntrin::operator->() const {
-  return static_cast<const TensorIntrinNode*>(get());
-}
-
-// Internal node container of tensor intrinsic calling.
-class TensorIntrinCallNode;
-
-/*! \brief Tensor intrinsic calling node. */
-class TensorIntrinCall : public ObjectRef {
+/*!
+ * \brief Managed reference to TensorIntrinNode
+ * \sa TensorIntrinNode
+ */
+class TensorIntrin : public ObjectRef {
  public:
-  TensorIntrinCall() {}
-  explicit TensorIntrinCall(ObjectPtr<Object> n) : ObjectRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const TensorIntrinCallNode* operator->() const;
+  TVM_DLL TensorIntrin(std::string name, Operation op, Array<Tensor> inputs, Array<Buffer> buffers,
+                       Array<Var> scalar_params, Stmt body, Stmt reduce_init, Stmt reduce_update);
 
-  /*! \brief specify container node */
-  using ContainerType = TensorIntrinCallNode;
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode);
 };
 
 class TensorIntrinCallNode : public Object {
@@ -155,16 +123,22 @@ class TensorIntrinCallNode : public Object {
     v->Visit("reduce_axis", &reduce_axis);
     v->Visit("scalar_inputs", &scalar_inputs);
   }
-  static TensorIntrinCall make(TensorIntrin intrin, Array<Tensor> tensors, Array<Region> regions,
-                               Array<IterVar> reduce_axis, Array<PrimExpr> scalar_inputs);
 
   static constexpr const char* _type_key = "TensorIntrinCall";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorIntrinCallNode, Object);
 };
 
-inline const TensorIntrinCallNode* TensorIntrinCall::operator->() const {
-  return static_cast<const TensorIntrinCallNode*>(get());
-}
+/*!
+ * \brief Managed reference to TensorIntrinCallNode
+ * \sa TensorIntrinCallNode
+ */
+class TensorIntrinCall : public ObjectRef {
+ public:
+  TVM_DLL TensorIntrinCall(TensorIntrin intrin, Array<Tensor> tensors, Array<Region> regions,
+                           Array<IterVar> reduce_axis, Array<PrimExpr> scalar_inputs);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrinCall, ObjectRef, TensorIntrinCallNode);
+};
 
 }  // namespace te
 }  // namespace tvm

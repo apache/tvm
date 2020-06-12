@@ -92,7 +92,7 @@ void CodeGenSPIRV::InitFuncState() {
 }
 
 spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& extent) {
-  runtime::ThreadScope ts = runtime::ThreadScope::make(iv->thread_tag);
+  runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
   spirv::Value v;
   if (ts.rank == 1) {
     v = builder_->GetLocalID(ts.dim_index);
@@ -580,7 +580,7 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
   } else if (op->attr_key == tir::attr::storage_scope) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
-    storage_info_[v].scope = runtime::StorageScope::make(op->value.as<StringImmNode>()->value);
+    storage_info_[v].scope = runtime::StorageScope::Create(op->value.as<StringImmNode>()->value);
   } else if (op->attr_key == tir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);

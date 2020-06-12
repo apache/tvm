@@ -346,7 +346,7 @@ Stmt IfThenElseHoist::HoistIf(const Stmt& if_stmt) {
 
     const IfThenElseNode* new_if_node = new_if.as<IfThenElseNode>();
     CHECK(new_if_node);
-    new_if = IfThenElseNode::make(new_if_node->condition, then_for, else_for);
+    new_if = IfThenElse(new_if_node->condition, then_for, else_for);
     if (i < if2for_map_[if_stmt.get()].size() - 1) {
       const Stmt& original_next_for = if2for_map_[if_stmt.get()].at(i + 1);
       const Stmt& actual_next_for = for_tracking_map_[original_next_for.get()].at(updated_for_idx);
@@ -376,20 +376,19 @@ Stmt IfThenElseHoist::PostOrderMutate(const Stmt& stmt) {
       Stmt new_for = Stmt();
       for (size_t i = new_if_list.size() - 1; i > 0; --i) {
         CHECK(current_if_node);
-        const Stmt current_if_stmt = IfThenElseNode::make(
+        const Stmt current_if_stmt = IfThenElse(
             current_if_node->condition, current_if_node->then_case, current_if_node->else_case);
         next_if_node = new_if_list[i - 1].as<IfThenElseNode>();
         CHECK(next_if_node);
-        new_for =
-            IfThenElseNode::make(next_if_node->condition, current_if_stmt, next_if_node->else_case);
+        new_for = IfThenElse(next_if_node->condition, current_if_stmt, next_if_node->else_case);
         current_if_node = new_for.as<IfThenElseNode>();
       }
 
       if (!new_for.get()) {
         const IfThenElseNode* first_if_node = new_if_list[0].as<IfThenElseNode>();
         CHECK(first_if_node);
-        new_for = IfThenElseNode::make(first_if_node->condition, first_if_node->then_case,
-                                       first_if_node->else_case);
+        new_for = IfThenElse(first_if_node->condition, first_if_node->then_case,
+                             first_if_node->else_case);
       }
       *ret = new_for;
     }
