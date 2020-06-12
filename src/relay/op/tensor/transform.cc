@@ -2097,7 +2097,7 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     for (int i = 0; i < sections->value; ++i) {
       std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
       if (data->shape[axis].as<Any>()) {
-        oshape[axis] = Any::make();
+        oshape[axis] = Any();
       } else {
         oshape[axis] = indexdiv(oshape[axis], sections->value);
       }
@@ -2124,7 +2124,7 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
     std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
     if (data->shape[axis].as<Any>()) {
-      oshape[axis] = Any::make();
+      oshape[axis] = Any();
     } else {
       oshape[axis] = data->shape[axis] - begin;
     }
