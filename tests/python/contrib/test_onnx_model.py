@@ -147,9 +147,7 @@ def skipped_test_partition():
     func = relay.Function([in_1, in_2, in_3, in_4, in_5, in_6, in_7, in_8, in_9, in_10], end7)
 
     target = 'llvm'
-    mod = IRModule()
-    expr = func
-    mod["main"] = expr
+    mod = IRModule.from_expr(func)
     mod = transform.PartitionGraph()(mod)
 
     with relay.build_config(opt_level=3, disabled_pass=['FuseOps']):
@@ -163,5 +161,5 @@ def skipped_test_partition():
 if __name__ == '__main__':
     test_resnet()
     test_squeezenet()
-    # test_partition need USE_ONNX_CODEGEN enabled
+    # test_partition need USE_TARGET_ONNX enabled
     # skipped_test_partition()

@@ -69,7 +69,7 @@ tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
 tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
 tvm_option(USE_COREML "Build with coreml support" OFF)
-tvm_option(USE_ONNX_CODEGEN "Build with ONNX Codegen support" OFF)
+tvm_option(USE_TARGET_ONNX "Build with ONNX Codegen support" OFF)
 
 if(USE_CPP_RPC AND UNIX)
   message(FATAL_ERROR "USE_CPP_RPC is only supported with WIN32. Use the Makefile for non-Windows.")

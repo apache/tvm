@@ -16,3 +16,5 @@
 # under the License.
 """Codegen and runtime APIs for targets.
 """
+
+from . import onnx

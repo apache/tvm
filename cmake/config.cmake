@@ -217,4 +217,4 @@ set(USE_HEXAGON_DEVICE OFF)
 set(USE_HEXAGON_SDK /path/to/sdk)
 
 # Whether to use ONNX codegen
-set(USE_ONNX_CODEGEN OFF)
+set(USE_TARGET_ONNX OFF)
