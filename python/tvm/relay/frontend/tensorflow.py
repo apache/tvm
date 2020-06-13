@@ -1322,14 +1322,10 @@ def _shape():
 
 def _fill():
     def _impl(inputs, attr, params, mod):
-        output_shape = attr['_output_shapes'][0]
-        # Output shape must be defined to avoid errors. If any axis is not, we must
-        # try to compute its shape.
-        if output_shape is None or -1 in output_shape:
-            try:
-                output_shape = _expr.Constant(_infer_value(inputs[0], params, mod))
-            except Exception:
-                output_shape = inputs[0]
+        try:
+            output_shape = _infer_value(inputs[0], params, mod).asnumpy().tolist()
+        except Exception:
+            output_shape = inputs[0]
 
         return _op.full(inputs[1], output_shape, attr['T'].name)
     return _impl
