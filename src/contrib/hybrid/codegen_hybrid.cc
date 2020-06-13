@@ -414,7 +414,7 @@ std::string CodeGenHybrid::GetTensorID(const Tensor& tensor) {
   if (id_map_.count(key)) {
     return id_map_[key];
   }
-  std::string name_hint = tensor->op->func_name();
+  std::string name_hint = tensor->op->name;
   if (tensor->op->num_outputs() > 1) {
     name_hint += "_v" + std::to_string(tensor->value_index);
   }

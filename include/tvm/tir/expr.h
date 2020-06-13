@@ -870,40 +870,6 @@ class Let : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_METHODS(Let, PrimExpr, LetNode);
 };
 
-// Call node, represent a function call or a multi-dimensional array load.
-//
-// TODO(tvm-team):
-// Refactor call with more explicit property registrations.
-// rather than calling a string symbol.
-// We should move most information into function itself and remove name.
-
-/*! \brief Base node of internal functions. */
-class FunctionBaseNode : public Object {
- public:
-  /*! \brief virtual destructor */
-  virtual ~FunctionBaseNode() {}
-  /*! \return the name of the function */
-  virtual const std::string& func_name() const = 0;
-  /*! \return the number of outputs of this function */
-  virtual int num_outputs() const = 0;
-
-  // fall back to pointer equality now before refactor.
-  bool SEqualReduce(const FunctionBaseNode* other, SEqualReducer equal) const {
-    return this == other;
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {}
-
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-};
-
-/*! \brief reference to a function */
-class FunctionRef : public ObjectRef {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(FunctionRef, ObjectRef, FunctionBaseNode);
-};
-
 /*!
  * \brief Call node.
  */
