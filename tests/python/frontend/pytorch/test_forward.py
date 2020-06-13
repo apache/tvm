@@ -27,6 +27,7 @@ import torchvision
 
 from tvm import relay
 from tvm.contrib import graph_runtime
+from tvm.contrib.nvcc import have_fp16
 from tvm.relay.testing.config import ctx_list
 
 
@@ -840,14 +841,35 @@ def test_forward_size():
 def test_type_as():
     torch.set_grad_enabled(False)
     input_shape = [1, 3]
+    
+    def _create_module(dtype):
+        class TypeAs(Module):
+            def forward(self, *args):
+                expected_type_tensor = torch.zeros(1, 3, dtype=dtype)
+                return args[0].type_as(expected_type_tensor)
+        
+        return TypeAs()
 
-    class TypeAsInt32(Module):
-        def forward(self, *args):
-            int32_tensor = torch.zeros(1, 3, dtype=torch.int32)
-            return args[0].type_as(int32_tensor)
+    input_data = torch.randn(input_shape).float()
+    verify_model(_create_module(torch.float64), input_data=input_data)
+    verify_model(_create_module(torch.float32), input_data=input_data)
+    verify_model(_create_module(torch.int64), input_data=input_data)
+    verify_model(_create_module(torch.int32), input_data=input_data)
+    verify_model(_create_module(torch.int16), input_data=input_data)
+    verify_model(_create_module(torch.int8), input_data=input_data)
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(TypeAsInt32(), input_data=input_data)
+    if torch.cuda.is_available():
+        check_fp16 = False
+        try:
+            # Only check half precision on supported hardwares.
+            if have_fp16(tvm.gpu(0).compute_version):
+                check_fp16 = True
+        except Exception as e:
+            # If GPU is not enabled in TVM, skip the fp16 test.
+            pass
+        
+        if check_fp16:
+            verify_model(_create_module(torch.float16), input_data=input_data)
 
 
 def test_forward_view():

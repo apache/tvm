@@ -1602,7 +1602,7 @@ def _type_as():
     def _impl(inputs, input_types):
         assert len(inputs) == 2
         assert len(input_types) == 2
-        return _op.cast(inputs[0], input_types[1])
+        return _op.cast(inputs[0], _convert_data_type(input_types[1]))
     return _impl
 
 
