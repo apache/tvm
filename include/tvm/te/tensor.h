@@ -42,13 +42,14 @@ using namespace tvm::tir;
 
 // internal node container for Operation
 class OperationNode;
+class Tensor;
 
 /*! \brief Operation that produces tensors */
-class Operation : public tir::FunctionRef {
+class Operation : public ObjectRef {
  public:
   /*! \brief default constructor  */
   Operation() {}
-  explicit Operation(ObjectPtr<Object> n) : FunctionRef(n) {}
+  explicit Operation(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

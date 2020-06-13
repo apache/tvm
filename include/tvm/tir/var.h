@@ -226,8 +226,6 @@ enum IterVarType : int {
   kTensorized = 8
 };
 
-using Domain = Array<Range>;
-
 /*!
  * \brief An iteration variable representing an iteration
  *  over a one dimensional interval.
