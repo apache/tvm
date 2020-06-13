@@ -126,7 +126,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // IterVar
-IterVar::IterVar(Range dom, Var var, IterVarType t, std::string thread_tag) {
+IterVar::IterVar(Range dom, Var var, IterVarType t, String thread_tag) {
   ObjectPtr<IterVarNode> n = make_object<IterVarNode>();
   n->dom = dom;
   n->var = var;
@@ -136,7 +136,7 @@ IterVar::IterVar(Range dom, Var var, IterVarType t, std::string thread_tag) {
 }
 
 TVM_REGISTER_GLOBAL("tir.IterVar")
-    .set_body_typed([](Range dom, Var var, int iter_type, std::string thread_tag) {
+    .set_body_typed([](Range dom, Var var, int iter_type, String thread_tag) {
       return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag);
     });
 
@@ -159,16 +159,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(IterVarNode);
 
 // StringImm
-StringImm::StringImm(std::string value) {
+StringImm::StringImm(String value) {
   ObjectPtr<StringImmNode> node = make_object<StringImmNode>();
   node->dtype = DataType::Handle();
   node->value = std::move(value);
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.StringImm").set_body_typed([](std::string value) {
-  return StringImm(value);
-});
+TVM_REGISTER_GLOBAL("tir.StringImm").set_body_typed([](String value) { return StringImm(value); });
 
 TVM_REGISTER_NODE_TYPE(StringImmNode);
 
@@ -700,7 +698,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // Call
-Call::Call(DataType dtype, std::string name, Array<PrimExpr> args, CallType call_type) {
+Call::Call(DataType dtype, String name, Array<PrimExpr> args, CallType call_type) {
   for (size_t i = 0; i < args.size(); ++i) {
     CHECK(args[i].defined());
   }
@@ -743,7 +741,7 @@ bool CallNode::is_vectorizable() const {
 }
 
 TVM_REGISTER_GLOBAL("tir.Call")
-    .set_body_typed([](DataType type, std::string name, Array<ObjectRef> args, int call_type) {
+    .set_body_typed([](DataType type, String name, Array<ObjectRef> args, int call_type) {
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
         CHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>());

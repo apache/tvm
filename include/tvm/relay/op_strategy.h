@@ -46,7 +46,7 @@ class OpImplementationNode : public Object {
   /*! \brief Schedule function */
   FTVMSchedule fschedule;
   /*! \brief Name of the implementation */
-  std::string name;
+  String name;
   /*! \brief Priority level */
   int plevel;
 

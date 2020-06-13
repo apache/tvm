@@ -181,7 +181,7 @@ Stmt LiftAttrScope(Stmt stmt, std::string attr_key) {
 
 namespace transform {
 
-Pass LiftAttrScope(std::string attr_key) {
+Pass LiftAttrScope(String attr_key) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = AttrScopeLifter(attr_key).Lift(std::move(n->body));
