@@ -253,10 +253,10 @@ class PassInfoNode : public Object {
   int opt_level;
 
   /*! \brief The name of an optimization/analysis pass. */
-  std::string name;
+  String name;
 
   /*! \brief The passes that are required to perform the current pass. */
-  Array<runtime::String> required;
+  Array<String> required;
 
   PassInfoNode() = default;
 
@@ -407,7 +407,7 @@ class Sequential : public Pass {
  */
 TVM_DLL Pass
 CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                 int opt_level, const String& name, const Array<runtime::String>& required);
+                 int opt_level, String name, Array<runtime::String> required);
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).

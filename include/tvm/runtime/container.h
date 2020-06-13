@@ -65,6 +65,11 @@
 #include <utility>
 #include <vector>
 
+namespace llvm {
+// String to llvm object compatibility.
+class StringRef;
+}  // namespace llvm
+
 namespace tvm {
 
 struct ObjectEqual;
@@ -1161,7 +1166,14 @@ class String : public ObjectRef {
    * \param other The value for the new String
    *
    */
-  inline String operator=(std::string other);
+  inline String& operator=(std::string other);
+
+  /*!
+   * \brief Change the value the reference object points to.
+   *
+   * \param other The value for the new String
+   */
+  inline String& operator=(const char* other);
 
   /*!
    * \brief Compare is less than other std::string
@@ -1304,11 +1316,19 @@ class String : public ObjectRef {
   const char* data() const { return get()->data; }
 
   /*!
-   * \brief Convert String to an std::sting object
+   * \brief Convert String to an std::string object
    *
    * \return std::string
    */
   operator std::string() const { return std::string{get()->data, size()}; }
+
+  // LLVM compatibility function, implemented in src/target/llvm/llvm_common.h
+  /*!
+   * \brief Convert String to an llvm::StringRef object
+   *
+   * \return llvm::StringRef
+   */
+  inline operator llvm::StringRef() const;
 
   /*!
    * \brief Check if a TVMArgValue can be converted to String, i.e. it can be std::string or String
@@ -1382,11 +1402,13 @@ inline String::String(std::string other) {
   data_ = std::move(ptr);
 }
 
-inline String String::operator=(std::string other) {
+inline String& String::operator=(std::string other) {
   String replace{std::move(other)};
   data_.swap(replace.data_);
-  return Downcast<String>(*this);
+  return *this;
 }
+
+inline String& String::operator=(const char* other) { return operator=(std::string(other)); }
 
 inline String operator+(const std::string lhs, const String& rhs) {
   return lhs + rhs.operator std::string();
