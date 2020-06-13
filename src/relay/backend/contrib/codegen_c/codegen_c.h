@@ -110,6 +110,8 @@ class CodegenCBase {
    *
    * \code
    *
+   * Array<NDArray> foo_consts;
+   *
    * // An example code for the generated C function.
    * extern "C" void foo_wrapper_(DLTensor* arg0,
    *                              DLTensor* arg1,
@@ -122,10 +124,16 @@ class CodegenCBase {
    *
    * TVM_DLL_EXPORT_TYPED_FUNC(foo, foo_wrapper_);
    *
+   * void foo_init_wrapper_(Array<NDArray> arr) {
+   *   foo_consts = arr;
+   * }
+   *
+   * TVM_DLL_EXPORT_TYPED_FUNC(__init_foo, foo_init_wrapper_);
+   *
    * \endcode
    */
   void GenerateBackendCFunc(const std::string& func_name, const Array<Var>& args,
-                            const std::vector<Output>& outs) {
+                            const std::string& const_arr, const std::vector<Output>& outs) {
     // Print signature
     code_stream_ << "\n";
     code_stream_ << "extern \"C\" int " << func_name << "_wrapper_(";
@@ -163,6 +171,17 @@ class CodegenCBase {
     // Generate the macro
     code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(" << func_name << ", " << func_name
                  << "_wrapper_);\n\n";
+
+    if (!const_arr.empty()) {
+      code_stream_ << "void " << func_name << "_init_wrapper_(Array<NDArray> arr) {\n";
+      EnterScope();
+      PrintIndents();
+      code_stream_ << func_name << "_consts = arr;\n";
+      code_stream_ << "}\n\n";
+      ExitScope();
+      code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(__init_" << func_name << ", " << func_name
+                   << "_init_wrapper_);\n\n";
+    }
   }
 
   /*!
@@ -190,7 +209,12 @@ class CodegenCBase {
    */
   std::string JitImpl(const std::string& ext_func_id, const Array<Var>& args,
                       const std::vector<std::string>& buf_decl,
-                      const std::vector<std::string>& body, const std::vector<Output>& outs) {
+                      const std::vector<std::string>& body, const std::string& const_arr,
+                      const std::vector<Output>& outs) {
+    // Create a declaration for global ndarrays that contain constant data.
+    if (!const_arr.empty()) {
+      code_stream_ << const_arr << "\n\n";
+    }
     // Create the signature. For example, it could be:
     // extern "C" void dnnl_0_(float* in0, float* in1, float* out0, float* out1) {}
     code_stream_ << "extern \"C\" void " << ext_func_id << "_(";
@@ -236,7 +260,7 @@ class CodegenCBase {
     code_stream_ << "}\n";
 
     // Create the wrapper to call the ext_func
-    this->GenerateBackendCFunc(ext_func_id, args, outs);
+    this->GenerateBackendCFunc(ext_func_id, args, const_arr, outs);
     return code_stream_.str();
   }
 

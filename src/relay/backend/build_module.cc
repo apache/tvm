@@ -454,8 +454,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     Array<tvm::runtime::Module> ext_mods = graph_codegen_->GetExternalModules();
     if (!ext_mods.empty()) {
-      auto init_mod = tvm::codegen::WrapMetadataModule(ext_mods);
-      ret_.mod.Import(init_mod);
+      ret_.mod = tvm::codegen::WrapMetadataModule(ret_.params, ret_.mod, ext_mods);
     }
   }
 

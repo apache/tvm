@@ -25,6 +25,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <string>
 
 #include "../../utils.h"
 #include "codegen_c.h"
@@ -80,15 +81,27 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     std::ostringstream buf_stream;
 
     Output output;
-    output.name = ext_func_id_ + "const_" + std::to_string(const_idx_++);
+    // Get const: static_cast<float*>(dnnl_0_consts[0]->data)
+    output.name = "static_cast<float*>(" + ext_func_id_ + "_consts[" + std::to_string(const_idx_) +
+                  "]->data)";
     const auto* type_node = cn->checked_type().as<TensorTypeNode>();
     CHECK(type_node);
     const auto& dtype = GetDtypeString(type_node);
+
+    // Generate the global variable for needed ndarrays
+    if (const_array_.empty()) {
+      const_array_ = "Array<NDArray> " + ext_func_id_ + "_consts;";
+      std::ostringstream buf_stream;
+      buf_stream << "CHECK(!" << ext_func_id_
+                 << "_consts.empty()) << \"C source module hasn't been initialized.\";\n";
+      ext_func_body_.insert(ext_func_body_.begin(), buf_stream.str());
+    }
+
     CHECK(dtype == "float" || dtype == "int") << "Only float and int are supported for now.";
     output.dtype = dtype;
 
-    CHECK_EQ(metadata_.count(output.name), 0U) << "variable must be unique: " << output.name;
-    metadata_.Set(output.name, cn->data);
+    std::string const_var_name = ext_func_id_ + "_const_" + std::to_string(const_idx_++);
+    const_vars_.push_back(const_var_name);
 
     return {output};
   }
@@ -151,7 +164,7 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     buf_decl_.push_back(buf_stream.str());
 
     decl_stream << ", " << out << ");";
-    ext_func_body.push_back(decl_stream.str());
+    ext_func_body_.push_back(decl_stream.str());
 
     // Update output buffer
     // Note C codegen only handles TensorType. Therefore, we don't flatten
@@ -174,10 +187,8 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     for (auto decl : func_decl_) {
       code_stream_ << decl << "\n";
     }
-    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out);
+    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body_, const_array_, out);
   }
-
-  Map<String, runtime::NDArray> GetMetadata() const { return metadata_; }
 
  private:
   /*! \brief The function id that represents a C source function. */
@@ -191,18 +202,22 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
   /*! \brief The arguments of a C compiler compatible function. */
   Array<Var> ext_func_args_;
   /*! \brief The statements of a C compiler compatible function. */
-  std::vector<std::string> ext_func_body;
+  std::vector<std::string> ext_func_body_;
+  /*! \brief The array declared to store the constant values. */
+  std::string const_array_;
   /*! \brief The declaration statements of a C compiler compatible function. */
   std::vector<std::string> func_decl_;
   /*! \brief The declaration statements of buffers. */
   std::vector<std::string> buf_decl_;
   /*! \brief The variable name to constant mapping. */
-  Map<String, runtime::NDArray> metadata_;
+  Array<String> const_vars_;
+
+  friend class CSourceCodegen;
 };
 
 class CSourceCodegen : public CSourceModuleCodegenBase {
  public:
-  Map<String, runtime::NDArray> GenCFunc(const Function& func) {
+  std::pair<std::string, Array<String>> GenCFunc(const Function& func) {
     CHECK(func.defined()) << "Input error: expect a Relay function.";
 
     // Record the external symbol for runtime lookup.
@@ -212,15 +227,18 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
     auto out = builder.VisitExpr(func->body);
     code_stream_ << builder.JIT(out);
 
-    return builder.GetMetadata();
+    return {sid, builder.const_vars_};
   }
 
   runtime::Module CreateCSourceModule(const ObjectRef& ref) override {
     // Create headers
     code_stream_ << "#include <cstring>\n";
+    code_stream_ << "#include <vector>\n";
     code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
+    code_stream_ << "#include <tvm/runtime/container.h>\n";
     code_stream_ << "#include <tvm/runtime/packed_func.h>\n";
     code_stream_ << "#include <dlpack/dlpack.h>\n";
+    code_stream_ << "using namespace tvm::runtime;\n";
 
     // Append some common macro for operator definition.
     const char* operator_macro = R"op_macro(
@@ -244,46 +262,17 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
 
     code_stream_ << operator_macro << "\n\n";
 
-    String func_symbol("all");
-    String code;
-    Array<String> variables;
-    Array<runtime::NDArray> metadata;
-    if (ref->IsInstance<FunctionNode>()) {
-      Map<String, runtime::NDArray> consts = GenCFunc(Downcast<Function>(ref));
-      std::string code_str = code_stream_.str();
-      if (!consts.empty()) {
-        code_str = "#include \"metadata.h\"\n" + code_str;
-        for (const auto& it : consts) {
-          variables.push_back(it.first);
-          metadata.push_back(it.second);
-        }
-      }
-      code = code_str;
-    } else if (ref->IsInstance<IRModuleNode>()) {
-      IRModule mod = Downcast<IRModule>(ref);
-      for (const auto& it : mod->functions) {
-        Map<String, runtime::NDArray> consts = GenCFunc(Downcast<Function>(it.second));
-        if (!consts.empty()) {
-          for (const auto& it : consts) {
-            variables.push_back(it.first);
-            metadata.push_back(it.second);
-          }
-        }
-      }
-      std::string code_str = code_stream_.str();
-      if (!metadata.empty()) {
-        code_str = "#include \"metadata.h\"\n" + code_str;
-      }
-      code = code_str;
-    } else {
-      LOG(FATAL) << "The input ref is expected to be a Relay function or module"
-                 << "\n";
-    }
+    CHECK(ref->IsInstance<FunctionNode>());
+    auto res = GenCFunc(Downcast<Function>(ref));
+    std::string code = code_stream_.str();
 
-    // Create a SourceMetadataModuleNode
-    const auto* pf = runtime::Registry::Get("runtime.SourceMetadataModuleCreate");
+    String sym = std::get<0>(res);
+    Array<String> variables = std::get<1>(res);
+
+    // Create a CSource module
+    const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
     CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
-    return (*pf)(func_symbol, code, "c", variables, metadata);
+    return (*pf)(code, "c", sym, variables);
   }
 
  private:

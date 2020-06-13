@@ -997,6 +997,10 @@ void VMCompiler::Codegen() {
     mod.CopyOnWrite();
 
     if (target_str == "ext_dev") {
+      // Collect metadata in functions that are handled by external codegen.
+      CHECK(mod->ContainGlobalVar(cfunc->func_name));
+      backend::ConstantUpdater const_visit(cfunc->func_name, &params_);
+      const_visit(Downcast<Function>(mod->Lookup(cfunc->func_name)));
       continue;
     } else if (funcs.count(target_str) == 0) {
       funcs.emplace(target_str, mod);
@@ -1019,8 +1023,7 @@ void VMCompiler::Codegen() {
     exec_->lib = codegen::CSourceModuleCreate(";", "");
   }
   if (!ext_mods.empty()) {
-    auto init_mod = codegen::WrapMetadataModule(ext_mods);
-    exec_->lib.Import(init_mod);
+    exec_->lib = codegen::WrapMetadataModule(params_, exec_->lib, ext_mods);
   }
 }
 

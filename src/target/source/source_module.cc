@@ -41,37 +41,27 @@ using runtime::GetFileFormat;
 using runtime::GetMetaFilePath;
 using runtime::SaveBinaryToFile;
 
-runtime::Module WrapMetadataModule(const Array<runtime::Module>& modules) {
+runtime::Module WrapMetadataModule(const std::unordered_map<std::string, runtime::NDArray>& params,
+                                   const runtime::Module& dso_module,
+                                   const Array<runtime::Module>& modules) {
   // Wrap all submodules in the initialization wrapper.
-  Map<String, runtime::NDArray> var_md;
-  Array<runtime::Module> source_modules;
+  std::unordered_map<std::string, std::vector<std::string>> sym_metadata;
   for (runtime::Module it : modules) {
-    String code = it.GetFunction("get_source")();
-    Array<String> variables = it.GetFunction("get_vars")();
-    Array<runtime::NDArray> metadata = it.GetFunction("get_metadata")();
-    CHECK_EQ(variables.size(), metadata.size())
-        << "Found mismatch in the number of variables and ndarray";
+    CHECK_EQ(it->type_key(), "c") << "Only csource submodule is handled for now";
+    String symbol = it.GetFunction("get_symbol")();
+    Array<String> variables = it.GetFunction("get_const_vars")();
+    std::vector<std::string> arrays;
     for (size_t i = 0; i < variables.size(); i++) {
-      var_md.Set(variables[i], metadata[i]);
+      arrays.push_back(variables[i].operator std::string());
     }
-
-    // TODO(zhiics) Invoke the corresponding module create function using the
-    // type key when json runtime comes.
-    source_modules.push_back(tvm::codegen::CSourceModuleCreate(code, "c"));
-  }
-  Array<String> vars;
-  Array<runtime::NDArray> arrs;
-  for (const auto& it : var_md) {
-    vars.push_back(it.first);
-    arrs.push_back(it.second);
+    CHECK_EQ(sym_metadata.count(symbol), 0U) << "Found duplicated symbol: " << symbol;
+    sym_metadata[symbol] = arrays;
   }
 
   // Wrap the modules.
-  const auto* pf = runtime::Registry::Get("runtime.ModuleInitWrapper");
-  CHECK(pf != nullptr) << "Cannot find the registry for runtime.ModuleInitWrapper";
-  runtime::Module init_m = (*pf)(vars, arrs);
-
-  for (const auto& it : source_modules) {
+  runtime::Module init_m = runtime::MetadataModuleCreate(params, sym_metadata);
+  init_m.Import(dso_module);
+  for (const auto& it : modules) {
     init_m.Import(it);
   }
 
@@ -105,13 +95,22 @@ runtime::Module SourceModuleCreate(std::string code, std::string fmt) {
 // Simulator function
 class CSourceModuleNode : public runtime::ModuleNode {
  public:
-  CSourceModuleNode(std::string code, std::string fmt) : code_(code), fmt_(fmt) {}
+  CSourceModuleNode(const std::string& code, const std::string& fmt, const std::string& symbol,
+                    const Array<String>& const_vars)
+      : code_(code), fmt_(fmt), symbol_(symbol), const_vars_(const_vars) {}
   const char* type_key() const { return "c"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    LOG(FATAL) << "C Source module cannot execute, to get executable module"
-               << " build TVM with \'" << fmt_ << "\' runtime support";
-    return PackedFunc();
+    if (name == "get_symbol") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_; });
+    } else if (name == "get_const_vars") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->const_vars_; });
+    } else {
+      LOG(FATAL) << "Unknown packed function: " << name;
+      return PackedFunc(nullptr);
+    }
   }
 
   std::string GetSource(const std::string& format) final { return code_; }
@@ -130,10 +129,14 @@ class CSourceModuleNode : public runtime::ModuleNode {
  protected:
   std::string code_;
   std::string fmt_;
+  std::string symbol_;
+  Array<String> const_vars_;
 };
 
-runtime::Module CSourceModuleCreate(std::string code, std::string fmt) {
-  auto n = make_object<CSourceModuleNode>(code, fmt);
+runtime::Module CSourceModuleCreate(const String& code, const String& fmt, const String& symbol,
+                                    const Array<String>& const_vars) {
+  auto n = make_object<CSourceModuleNode>(code.operator std::string(), fmt.operator std::string(),
+                                          symbol.operator std::string(), const_vars);
   return runtime::Module(n);
 }
 
@@ -190,70 +193,11 @@ runtime::Module DeviceSourceModuleCreate(
   return runtime::Module(n);
 }
 
-// Pack the source code and metadata, where source code could be any
-// user-defined code, i.e. c source code, json graph representation, etc.
-class SourceMetadataModuleNode final : public runtime::ModuleNode {
- public:
-  SourceMetadataModuleNode(const String& func_symbol, const String& code, const String& source_type,
-                           const Array<String>& variables, const Array<runtime::NDArray>& metadata)
-      : func_symbol_(func_symbol),
-        code_(code),
-        source_type_(source_type),
-        variables_(variables),
-        metadata_(metadata) {}
-
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    if (name == "get_source") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->code_; });
-    } else if (name == "get_source_type") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->source_type_; });
-    } else if (name == "get_symbol") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->func_symbol_; });
-    } else if (name == "get_vars") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->variables_; });
-    } else if (name == "get_metadata") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->metadata_; });
-    } else {
-      LOG(FATAL) << "Unknown packed function: " << name;
-      return PackedFunc(nullptr);
-    }
-  }
-
-  const char* type_key() const { return "source_metadata"; }
-
- private:
-  /*! \brief The function symbols. */
-  String func_symbol_;
-  /*! \brief The source code. */
-  String code_;
-  /*! \brief The type of the source code, e.g. c or any customized json type. */
-  String source_type_;
-  /*! \brief The list of constant variables. */
-  Array<String> variables_;
-  /*! \brief The list of constant values that are corresponding to the variables. */
-  Array<runtime::NDArray> metadata_;
-};
-
-runtime::Module SourceMetadataModuleCreate(String func_symbol, String code, String source_type,
-                                           Array<String> variables,
-                                           Array<runtime::NDArray> metadata) {
-  auto n =
-      make_object<SourceMetadataModuleNode>(func_symbol, code, source_type, variables, metadata);
-  return runtime::Module(n);
-}
-
-TVM_REGISTER_GLOBAL("runtime.SourceMetadataModuleCreate")
-    .set_body_typed(SourceMetadataModuleCreate);
-
 TVM_REGISTER_GLOBAL("runtime.SourceModuleCreate").set_body_typed(SourceModuleCreate);
 
 TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
-    .set_body_typed([](String code, String source_type) {
-      return CSourceModuleCreate(code.operator std::string(), source_type.operator std::string());
+    .set_body_typed([](String code, String fmt, String symbol, Array<String> const_vars) {
+      return CSourceModuleCreate(code, fmt, symbol, const_vars);
     });
 
 }  // namespace codegen

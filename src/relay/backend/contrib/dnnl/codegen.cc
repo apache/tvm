@@ -165,11 +165,24 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 
   std::vector<Output> VisitExpr_(const ConstantNode* cn) final {
     Output output;
-    output.name = ext_func_id_ + "_const_" + std::to_string(const_idx_++);
+    // Get const: static_cast<float*>(dnnl_0_consts[0]->data)
+    output.name = "static_cast<float*>(" + ext_func_id_ + "_consts[" + std::to_string(const_idx_) +
+                  "]->data)";
     output.dtype = "float";
 
-    CHECK_EQ(metadata_.count(output.name), 0U) << "variable must be unique: " << output.name;
-    metadata_.Set(output.name, cn->data);
+    // Generate the global variable for needed ndarrays
+    if (const_array_.empty()) {
+      const_array_ = "Array<NDArray> " + ext_func_id_ + "_consts;";
+      std::ostringstream buf_stream;
+      buf_stream << "CHECK(!" << ext_func_id_
+                 << "_consts.empty()) << \"DNNL source module hasn't been initialized.\";\n";
+      ext_func_body_.insert(ext_func_body_.begin(), buf_stream.str());
+    }
+
+    // Give the ndarray a unique name to ease the initialization of it at
+    // runtime.
+    std::string const_var_name = ext_func_id_ + "_const_" + std::to_string(const_idx_++);
+    const_vars_.push_back(const_var_name);
 
     const auto* type_node = cn->checked_type().as<TensorTypeNode>();
     CHECK(type_node);
@@ -187,15 +200,13 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     }
 
     buf_decl_.insert(buf_decl_.end(), ret.buffers.begin(), ret.buffers.end());
-    ext_func_body.push_back(ret.decl);
+    ext_func_body_.push_back(ret.decl);
     return ret.outputs;
   }
 
   std::string JIT(const std::vector<Output>& out) {
-    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out);
+    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body_, const_array_, out);
   }
-
-  Map<String, runtime::NDArray> GetMetadata() const { return metadata_; }
 
  private:
   struct GenerateBodyOutput {
@@ -326,12 +337,16 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
   int const_idx_{0};
   /*! \brief The arguments used by a wrapped function that calls DNNL kernels. */
   Array<Var> ext_func_args_;
-  /*! \brief statement of the function that will be compiled using DNNL kernels. */
-  std::vector<std::string> ext_func_body;
+  /*! \brief Statement of the function that will be compiled using DNNL kernels. */
+  std::vector<std::string> ext_func_body_;
+  /*! \brief The array declared to store the constant values. */
+  std::string const_array_;
   /*! \brief The declaration of intermeidate buffers. */
   std::vector<std::string> buf_decl_;
   /*! \brief The variable name to constant mapping. */
-  Map<String, runtime::NDArray> metadata_;
+  Array<String> const_vars_;
+
+  friend class DNNLModuleCodegen;
 };
 
 /*!
@@ -342,7 +357,7 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 class DNNLModuleCodegen : public CSourceModuleCodegenBase {
  public:
   // Create a corresponding DNNL function for the given relay Function.
-  Map<String, runtime::NDArray> GenDNNLFunc(const Function& func) {
+  std::pair<std::string, Array<String>> GenDNNLFunc(const Function& func) {
     CHECK(func.defined()) << "Input error: expect a Relay function.";
 
     // Record the external symbol for runtime lookup.
@@ -352,7 +367,7 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     auto out = builder.VisitExpr(func->body);
     code_stream_ << builder.JIT(out);
 
-    return builder.GetMetadata();
+    return {sid, builder.const_vars_};
   }
 
   /*!
@@ -371,56 +386,29 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cstdint>\n";
     code_stream_ << "#include <cstdlib>\n";
     code_stream_ << "#include <cstring>\n";
+    code_stream_ << "#include <vector>\n";
     code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
+    code_stream_ << "#include <tvm/runtime/container.h>\n";
     code_stream_ << "#include <tvm/runtime/packed_func.h>\n";
     code_stream_ << "#include <dlpack/dlpack.h>\n";
     // dnnl_kernel file is saved under src/runtime/contrib/dnnl so that we don't
     // expose it to ordinary users. To make export_library use it, users need to
     // pass -I${PATH_TO_TVM}/src/runtime/contrib
     code_stream_ << "#include <dnnl/dnnl_kernel.h>\n";
+    code_stream_ << "using namespace tvm::runtime;\n";
     code_stream_ << "using namespace tvm::runtime::contrib;\n";
     code_stream_ << "\n";
 
-    String func_symbol("all");
-    String code;
-    Array<String> variables;
-    Array<runtime::NDArray> metadata;
-    if (ref->IsInstance<FunctionNode>()) {
-      Map<String, runtime::NDArray> consts = GenDNNLFunc(Downcast<Function>(ref));
-      std::string code_str = code_stream_.str();
-      if (!consts.empty()) {
-        code_str = "#include \"metadata.h\"\n" + code_str;
-        for (const auto& it : consts) {
-          variables.push_back(it.first);
-          metadata.push_back(it.second);
-        }
-      }
-      code = code_str;
-    } else if (ref->IsInstance<IRModuleNode>()) {
-      IRModule mod = Downcast<IRModule>(ref);
-      for (const auto& it : mod->functions) {
-        Map<String, runtime::NDArray> consts = GenDNNLFunc(Downcast<Function>(it.second));
-        if (!consts.empty()) {
-          for (const auto& it : consts) {
-            variables.push_back(it.first);
-            metadata.push_back(it.second);
-          }
-        }
-      }
-      std::string code_str = code_stream_.str();
-      if (!metadata.empty()) {
-        code_str = "#include \"metadata.h\"\n" + code_str;
-      }
-      code = code_str;
-    } else {
-      LOG(FATAL) << "The input ref is expected to be a Relay function or module"
-                 << "\n";
-    }
+    CHECK(ref->IsInstance<FunctionNode>());
+    auto res = GenDNNLFunc(Downcast<Function>(ref));
+    std::string code = code_stream_.str();
+    String sym = std::get<0>(res);
+    Array<String> variables = std::get<1>(res);
 
-    // Create a SourceMetadataModuleNode
-    const auto* pf = runtime::Registry::Get("runtime.SourceMetadataModuleCreate");
+    // Create a CSource module
+    const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
     CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
-    return (*pf)(func_symbol, code, "c", variables, metadata);
+    return (*pf)(code, "c", sym, variables);
   }
 
  private:
