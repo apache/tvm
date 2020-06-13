@@ -316,7 +316,8 @@ llvm::Value* CodeGenCPU::CreateCallExtern(const CallNode* op) {
   } else {
     llvm::Function* f = module_->getFunction(op->name);
     if (f == nullptr) {
-      f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, op->name, module_.get());
+      f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
+                                 op->name.operator llvm::StringRef(), module_.get());
     }
 #if TVM_LLVM_VERSION >= 90
     auto ext_callee = llvm::FunctionCallee(f);
@@ -408,7 +409,8 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   }
   llvm::FunctionType* ftype = llvm::FunctionType::get(t_int_, arg_types, false);
   llvm::Function* fcompute = llvm::Function::Create(
-      ftype, llvm::Function::PrivateLinkage, op->value.as<StringImmNode>()->value, module_.get());
+      ftype, llvm::Function::PrivateLinkage,
+      op->value.as<StringImmNode>()->value.operator llvm::StringRef(), module_.get());
   BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
   // setup compute fuinction.
   std::unordered_map<const VarNode*, llvm::Value*> new_vmap;

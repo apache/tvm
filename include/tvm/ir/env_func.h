@@ -41,7 +41,7 @@ namespace tvm {
 class EnvFuncNode : public Object {
  public:
   /*! \brief Unique name of the global function */
-  std::string name;
+  String name;
   /*! \brief The internal packed function */
   runtime::PackedFunc func;
   /*! \brief constructor */
