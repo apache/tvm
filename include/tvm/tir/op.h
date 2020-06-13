@@ -463,6 +463,7 @@ TVM_DLL PrimExpr isinf(PrimExpr x);
  * \brief sum of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr sum(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -477,6 +478,7 @@ TVM_DLL PrimExpr all(PrimExpr source, Array<tir::IterVar> axis);
  * \brief logical Or of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -484,6 +486,7 @@ TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis);
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -491,6 +494,7 @@ TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis);
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -498,6 +502,7 @@ TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis);
  * \brief product of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr prod(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -547,9 +552,9 @@ TVM_DLL PrimExpr trunc(PrimExpr x);
 TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                                               \
-  inline PrimExpr OpName(PrimExpr x) {                                                 \
-    return tir::CallNode::make(x.dtype(), #OpName, {x}, tir::CallNode::PureIntrinsic); \
+#define TVM_DECLARE_INTRIN_UNARY(OpName)                                     \
+  inline PrimExpr OpName(PrimExpr x) {                                       \
+    return tir::Call(x.dtype(), #OpName, {x}, tir::CallNode::PureIntrinsic); \
   }
 
 TVM_DECLARE_INTRIN_UNARY(exp);
@@ -659,6 +664,17 @@ inline bool is_zero(const PrimExpr& x) { return is_const_int(x, 0); }
 inline bool is_const(const PrimExpr& x);
 
 /*!
+ * \brief Left fold.
+ * \param freduce The reduction function.
+ * \param init_value The initial value.
+ * \param values The values to be folded.
+ * \return The result.
+ * \tparam FReduce The type of the reduction.
+ */
+template <typename FReduce>
+inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values);
+
+/*!
  * \brief Check whether x is a constant power of two
  * If x is power of two, write the power to the shift.
  *
@@ -740,7 +756,7 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value) {
   // datatypes lowering pass, we will lower the value to its true representation in the format
   // specified by the datatype.
   // TODO(gus) when do we need to start worrying about doubles not being precise enough?
-  if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(kTVMCustomBegin)) {
+  if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(DataType::kCustomBegin)) {
     return FloatImm(t, static_cast<double>(value));
   }
   LOG(FATAL) << "cannot make const for type " << t;
@@ -752,7 +768,7 @@ inline PrimExpr make_const(DataType t, ValueType value) {
   if (t.lanes() == 1) {
     return MakeConstScalar(t, value);
   } else {
-    return tir::BroadcastNode::make(MakeConstScalar(t.element_of(), value), t.lanes());
+    return tir::Broadcast(MakeConstScalar(t.element_of(), value), t.lanes());
   }
 }
 
@@ -762,6 +778,15 @@ inline PrimExpr make_zero(DataType t) {
   }
   return make_const(t, 0);
 }
+
+template <typename FReduce>
+inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values) {
+  for (PrimExpr val : values) {
+    init_value = freduce(init_value, val);
+  }
+  return init_value;
+}
+
 }  // namespace tir
 
 // additional const expression overloading

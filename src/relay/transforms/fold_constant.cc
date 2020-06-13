@@ -55,7 +55,7 @@ class ConstantChecker : private ExprVisitor {
   }
 
  private:
-  std::unordered_map<Expr, bool, ObjectHash, ObjectEqual> memo_;
+  std::unordered_map<Expr, bool, ObjectPtrHash, ObjectPtrEqual> memo_;
 
   void VisitExpr_(const TupleNode* n) final {
     bool result = true;

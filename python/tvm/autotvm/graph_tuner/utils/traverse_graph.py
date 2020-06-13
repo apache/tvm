@@ -38,7 +38,7 @@ def expr2graph(expr, target_ops, node_dict, node_list):
     expr : tvm.relay.Expr.Function
         Input relay function expression.
 
-    target_ops: List of relay.op.Op
+    target_ops: List of tvm.ir.Op
         List of target relay ops
 
     node_dict : dictionary from tvm.relay.Expr to int
@@ -157,7 +157,7 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
         elif isinstance(node, Constant):
             node_entry["name"] = "Constant_" + str(node_index)
             node_entry["types"] = [node.checked_type]
-        elif isinstance(node, relay.op.op.Op):
+        elif isinstance(node, tvm.ir.Op):
             return
         else:
             raise RuntimeError("Not supported relay node type in graph tuning: %s"

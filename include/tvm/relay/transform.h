@@ -58,7 +58,7 @@ using Sequential = tvm::transform::Sequential;
  */
 TVM_DLL Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
-    int opt_level, const String& name, const tvm::Array<runtime::String>& required);
+    int opt_level, String name, tvm::Array<String> required);
 
 /*! \brief Remove expressions which does not effect the program result.
  *
@@ -286,7 +286,7 @@ TVM_DLL Pass AlterOpLayout();
  *                        this specifies the desired layout for data then kernel for nn.conv2d.
  * \return The pass.
  */
-TVM_DLL Pass ConvertLayout(const Map<std::string, Array<String>>& desired_layouts);
+TVM_DLL Pass ConvertLayout(const Map<String, Array<String>>& desired_layouts);
 
 /*!
  * \brief Legalizes an expr with another expression.

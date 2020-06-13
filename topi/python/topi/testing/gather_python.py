@@ -14,13 +14,33 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
+"""gather in python"""
+import numpy as np
 
-# pylint: disable=redefined-builtin, wildcard-import
-"""CUDA specific declaration and schedules."""
-from __future__ import absolute_import as _abs
+def gather_python(data, axis, indices):
+    """ Python version of Gather operator
 
-from .conv2d_nchw import schedule_conv2d_nchw
-from .injective import schedule_injective, schedule_elemwise, schedule_broadcast
-from .softmax import schedule_softmax
-from .dense import schedule_dense
-from .pooling import schedule_pool, schedule_adaptive_pool
+    Parameters
+    ----------
+    data : numpy.ndarray
+        Numpy array
+
+    axis: int
+        integer
+
+    indices : numpy.ndarray
+        Numpy array
+
+    Returns
+    -------
+    b_np : numpy.ndarray
+        Numpy array
+    """
+    shape_indices = indices.shape
+    out = np.zeros(shape_indices, dtype=data.dtype)
+    for index in np.ndindex(*shape_indices):
+        new_index = list(index)
+        new_index[axis] = indices[index]
+        out[index] = data[tuple(new_index)]
+    return out

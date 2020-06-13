@@ -37,6 +37,7 @@ Python API
    relay/transform
    relay/analysis
    relay/backend
+   relay/dataflow_pattern
    relay/testing
    autotvm
    rpc

@@ -166,7 +166,7 @@ def test_gru_like():
     z = unit(rnn_dim)
 
     for target, ctx in ctx_list():
-        with relay.build_config(opt_level=2):
+        with tvm.transform.PassContext(opt_level=2):
             graph, lib, params = relay.build(tvm.IRModule.from_expr(z), target)
             m = graph_runtime.create(graph, lib, ctx)
             m.set_input("X", tvm.nd.array(x.astype(dtype)))

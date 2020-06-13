@@ -129,8 +129,7 @@ class TextMetaDataContext {
    */
   Doc GetMetaSection() const {
     if (meta_data_.size() == 0) return Doc();
-    return Doc::RawText(
-        SaveJSON(Map<std::string, ObjectRef>(meta_data_.begin(), meta_data_.end())));
+    return Doc::RawText(SaveJSON(Map<String, ObjectRef>(meta_data_.begin(), meta_data_.end())));
   }
 
   /*! \return whether the meta data context is empty. */
@@ -138,9 +137,9 @@ class TextMetaDataContext {
 
  private:
   /*! \brief additional metadata stored in TVM json format */
-  std::unordered_map<std::string, Array<ObjectRef> > meta_data_;
+  std::unordered_map<String, Array<ObjectRef> > meta_data_;
   /*! \brief map from meta data into its string representation */
-  std::unordered_map<ObjectRef, Doc, ObjectHash, ObjectEqual> meta_repr_;
+  std::unordered_map<ObjectRef, Doc, ObjectPtrHash, ObjectPtrEqual> meta_repr_;
 };
 }  // namespace tvm
 #endif  // TVM_PRINTER_META_DATA_H_

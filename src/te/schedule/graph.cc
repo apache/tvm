@@ -36,17 +36,15 @@ namespace tvm {
 namespace te {
 // key to specific tensor dimension.
 struct TensorDimKey {
-  tir::FunctionRef f;
+  Operation op;
   int value_index;
   int dim;
   TensorDimKey() {}
-  TensorDimKey(const tir::CallNode* op, int dim)
-      : f(op->func), value_index(op->value_index), dim(dim) {}
-  TensorDimKey(const Tensor& t, int dim) : f(t->op), value_index(t->value_index), dim(dim) {}
+  TensorDimKey(const Tensor& t, int dim) : op(t->op), value_index(t->value_index), dim(dim) {}
   TensorDimKey(const Tensor& t, size_t dim)
-      : f(t->op), value_index(t->value_index), dim(static_cast<int>(dim)) {}
+      : op(t->op), value_index(t->value_index), dim(static_cast<int>(dim)) {}
   inline bool operator==(const TensorDimKey& other) const {
-    return f == other.f && value_index == other.value_index && dim == other.dim;
+    return op == other.op && value_index == other.value_index && dim == other.dim;
   }
   inline bool operator!=(const TensorDimKey& other) const { return !operator==(other); }
 };
@@ -57,7 +55,7 @@ namespace std {
 template <>
 struct hash<::tvm::te::TensorDimKey> {
   std::size_t operator()(const ::tvm::te::TensorDimKey& k) const {
-    size_t lhs = ::tvm::ObjectHash()(k.f);
+    size_t lhs = ::tvm::ObjectPtrHash()(k.op);
     size_t rhs = static_cast<size_t>(k.value_index) << 16UL | static_cast<size_t>(k.dim);
     lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);
     return lhs;
@@ -240,11 +238,11 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
         reach[TensorDimKey(t, i)] = {};
       }
       auto fvisit = [&vmap, &reach, &bset](const ObjectRef& n) {
-        const tir::CallNode* call = n.as<tir::CallNode>();
-        if (call != nullptr && call->func.defined()) {
-          if (!bset.count(call->func.get())) return;
-          for (size_t i = 0; i < call->args.size(); ++i) {
-            TensorDimKey dkey(call, static_cast<int>(i));
+        if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+          Tensor t = Downcast<Tensor>(pload->producer);
+          if (!bset.count(t->op.get())) return;
+          for (size_t i = 0; i < pload->indices.size(); ++i) {
+            TensorDimKey dkey(t, static_cast<int>(i));
             auto fpush = [&dkey, &vmap, &reach](const ObjectRef& node) {
               const VarNode* v = node.as<VarNode>();
               auto it = vmap.find(v);
@@ -252,7 +250,7 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
                 reach[it->second].push_back(dkey);
               }
             };
-            tir::PostOrderVisit(call->args[i], fpush);
+            tir::PostOrderVisit(pload->indices[i], fpush);
           }
         }
       };
@@ -328,11 +326,11 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
         vmap[axis[i]->var.get()] = std::move(keys);
       }
       auto fvisit = [&vmap, &f_merge_key, &exact_reach, &fail_set](const ObjectRef& n) {
-        const tir::CallNode* call = n.as<tir::CallNode>();
-        if (call != nullptr && call->func.defined()) {
-          for (size_t i = 0; i < call->args.size(); ++i) {
-            auto it = vmap.find(call->args[i].get());
-            TensorDimKey src(call, static_cast<int>(i));
+        if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+          Tensor t = Downcast<Tensor>(pload->producer);
+          for (size_t i = 0; i < pload->indices.size(); ++i) {
+            auto it = vmap.find(pload->indices[i].get());
+            TensorDimKey src(t, static_cast<int>(i));
             if (it != vmap.end()) {
               const std::vector<TensorDimKey>& keys = it->second;
               for (const auto& key : keys) {
@@ -380,7 +378,7 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
           if (k != target && place_holder_ref.count(k)) break;
           stack.pop_back();
           if (!reach.count(k)) {
-            LOG(FATAL) << "cannot find reach of " << k.f << "-" << k.dim;
+            LOG(FATAL) << "cannot find reach of " << k.op << "-" << k.dim;
           }
 
           for (TensorDimKey kk : reach.at(k)) {

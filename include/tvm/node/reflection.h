@@ -161,8 +161,7 @@ class ReflectionVTable {
    * \param kwargs The field arguments.
    * \return The created object.
    */
-  TVM_DLL ObjectRef CreateObject(const std::string& type_key,
-                                 const Map<std::string, ObjectRef>& kwargs);
+  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const Map<String, ObjectRef>& kwargs);
   /*!
    * \brief Get an field object by the attr name.
    * \param self The pointer to the object.
@@ -170,7 +169,7 @@ class ReflectionVTable {
    * \return The corresponding attribute value.
    * \note This function will throw an exception if the object does not contain the field.
    */
-  TVM_DLL runtime::TVMRetValue GetAttr(Object* self, const std::string& attr_name) const;
+  TVM_DLL runtime::TVMRetValue GetAttr(Object* self, const String& attr_name) const;
 
   /*!
    * \brief List all the fields in the object.

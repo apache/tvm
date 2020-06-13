@@ -231,6 +231,51 @@ with the layer input to produce a tensor of outputs.
     .add_type_rel("Conv3D", Conv3DRel<Conv3DAttrs>)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv3DAttrs>);
 
+// relay.nn.conv3d_transpose
+TVM_REGISTER_NODE_TYPE(Conv3DTransposeAttrs);
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv3d_transpose")
+    .set_body_typed([](Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
+                       Array<IndexExpr> dilation, int groups, IndexExpr channels,
+                       Array<IndexExpr> kernel_size, String data_layout, String kernel_layout,
+                       String out_layout, Array<IndexExpr> output_padding, DataType out_dtype) {
+      return MakeConvTranspose<Conv3DTransposeAttrs>(
+          data, weight, strides, padding, dilation, groups, channels, kernel_size, data_layout,
+          kernel_layout, out_layout, output_padding, out_dtype, "nn.conv3d_transpose");
+    });
+
+RELAY_REGISTER_OP("nn.conv3d_transpose")
+    .describe(R"code(Transposed 3D convolution layer (sometimes called Deconvolution 3D).
+
+The need for transposed convolutions generally arises
+from the desire to use a transformation going in the opposite direction
+of a normal convolution, i.e., from something that has the shape of the
+output of some convolution to something that has the shape of its input
+while maintaining a connectivity pattern that is compatible with
+said convolution.
+
+- **data**: This depends on the `layout` parameter. Input is 5D array of shape
+            (batch_size, in_channels, depth, height, width) if `layout` is `NCDHW`.
+- **weight**: (in_channels, channels, kernel_size[0], kernel_size[1], kernel_size[2])
+- **bias**: (channels,)
+- **out**:  This depends on the `layout` parameter. Output is 5D array of shape
+            (batch_size, channels, out_depth, out_height, out_width) if `layout` is `NCDHW`.
+
+            out_depth and out_height and out_width are calculated as::
+                out_depth = (depth-1)*strides[0]-2*padding[0]+kernel_size[0]+output_padding[0]
+                out_height = (height-1)*strides[1]-2*padding[1]+kernel_size[1]+output_padding[1]
+                out_width = (width-1)*strides[2]-2*padding[2]+kernel_size[2]+output_padding[2]
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<Conv3DTransposeAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("weight", "Tensor", "The weight tensor.")
+    .set_support_level(2)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   ConvInferCorrectLayout<Conv3DTransposeAttrs>)
+    .add_type_rel("Conv3DTranspose", Conv3DTransposeRel<Conv3DTransposeAttrs>);
+
 // relay.nn.conv2d_transpose
 TVM_REGISTER_NODE_TYPE(Conv2DTransposeAttrs);
 

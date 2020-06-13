@@ -27,7 +27,7 @@
  *   struct MyAttrs : public tvm::AttrsNode<MyAttrs> {
  *     float learning_rate;
  *     int num_hidden;
- *     std::string name;
+ *     String name;
  *     // declare attribute fields in header file
  *     TVM_DECLARE_ATTRS(MyAttrs, "attrs.MyAttrs") {
  *       TVM_ATTR_FIELD(num_hidden).set_lower_bound(1);
@@ -106,11 +106,11 @@ struct AttrError : public dmlc::Error {
 class AttrFieldInfoNode : public Object {
  public:
   /*! \brief name of the field */
-  std::string name;
+  String name;
   /*! \brief type docstring information in str. */
-  std::string type_info;
+  String type_info;
   /*! \brief detailed description of the type */
-  std::string description;
+  String description;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
@@ -201,7 +201,7 @@ class Attrs : public ObjectRef {
 class DictAttrsNode : public BaseAttrsNode {
  public:
   /*! \brief internal attrs map */
-  Map<std::string, ObjectRef> dict;
+  Map<String, ObjectRef> dict;
 
   bool SEqualReduce(const DictAttrsNode* other, SEqualReducer equal) const {
     return equal(dict, other->dict);
@@ -230,7 +230,7 @@ class DictAttrs : public Attrs {
    * \param dict The attributes.
    * \return The dict attributes.
    */
-  TVM_DLL explicit DictAttrs(Map<std::string, ObjectRef> dict);
+  TVM_DLL explicit DictAttrs(Map<String, ObjectRef> dict);
 
   TVM_DEFINE_OBJECT_REF_METHODS(DictAttrs, Attrs, DictAttrsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);

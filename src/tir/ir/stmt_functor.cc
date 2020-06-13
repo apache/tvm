@@ -87,12 +87,12 @@ void StmtVisitor::VisitStmt_(const AssertStmtNode* op) {
   this->VisitStmt(op->body);
 }
 
-void StmtVisitor::VisitStmt_(const ProvideNode* op) {
-  VisitArray(op->args, [this](const PrimExpr& e) { this->VisitExpr(e); });
+void StmtVisitor::VisitStmt_(const ProducerStoreNode* op) {
+  VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
   this->VisitExpr(op->value);
 }
 
-void StmtVisitor::VisitStmt_(const RealizeNode* op) {
+void StmtVisitor::VisitStmt_(const ProducerRealizeNode* op) {
   VisitArray(op->bounds, [this](const Range& r) {
     this->VisitExpr(r->min);
     this->VisitExpr(r->extent);
@@ -261,20 +261,20 @@ Stmt StmtMutator::VisitStmt_(const BufferRealizeNode* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const ProvideNode* op) {
-  Array<PrimExpr> args = Internal::Mutate(this, op->args);
+Stmt StmtMutator::VisitStmt_(const ProducerStoreNode* op) {
+  Array<PrimExpr> indices = Internal::Mutate(this, op->indices);
   PrimExpr value = this->VisitExpr(op->value);
-  if (args.same_as(op->args) && value.same_as(op->value)) {
+  if (indices.same_as(op->indices) && value.same_as(op->value)) {
     return GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
-    n->args = std::move(args);
+    n->indices = std::move(indices);
     n->value = std::move(value);
     return Stmt(n);
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const RealizeNode* op) {
+Stmt StmtMutator::VisitStmt_(const ProducerRealizeNode* op) {
   Region bounds = Internal::Mutate(this, op->bounds);
   Stmt body = this->VisitStmt(op->body);
   PrimExpr condition = this->VisitExpr(op->condition);
@@ -488,7 +488,7 @@ class IRSubstitue : public StmtExprMutator {
     PrimExpr ret = StmtExprMutator::VisitExpr_(op);
     op = ret.as<LoadNode>();
     if (auto mapped_var = vmap_(op->buffer_var)) {
-      return LoadNode::make(op->dtype, Downcast<Var>(mapped_var.value()), op->index, op->predicate);
+      return Load(op->dtype, Downcast<Var>(mapped_var.value()), op->index, op->predicate);
     } else {
       return ret;
     }
@@ -499,8 +499,7 @@ class IRSubstitue : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<StoreNode>();
     if (auto mapped_var = vmap_(op->buffer_var)) {
-      return StoreNode::make(Downcast<Var>(mapped_var.value()), op->value, op->index,
-                             op->predicate);
+      return Store(Downcast<Var>(mapped_var.value()), op->value, op->index, op->predicate);
     } else {
       return ret;
     }

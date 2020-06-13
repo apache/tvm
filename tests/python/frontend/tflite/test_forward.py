@@ -83,8 +83,34 @@ def get_real_image_object_detection(im_height, im_width):
     data = np.reshape(x, (1, im_height, im_width, 3))
     return data
 
+def vmobj_to_list(o):
+    if isinstance(o, tvm.nd.NDArray):
+        return [o.asnumpy().tolist()]
+    elif isinstance(o, tvm.runtime.container.ADT):
+        result = []
+        for f in o:
+            result.extend(vmobj_to_list(f))
+        return result
+    elif isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
+        if o.constructor.name_hint == 'Cons':
+            tl = vmobj_to_list(o.fields[1])
+            hd = vmobj_to_list(o.fields[0])
+            hd.extend(tl)
+            return hd
+        elif o.constructor.name_hint == 'Nil':
+            return []
+        elif 'tensor_nil' in o.constructor.name_hint:
+            return [0]
+        elif 'tensor' in o.constructor.name_hint:
+            return [o.fields[0].asnumpy()]
+        else:
+            raise RuntimeError("Unknown object type: %s" %
+                               o.constructor.name_hint)
+    else:
+        raise RuntimeError("Unknown object type: %s" % type(o))
+
 def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target='llvm',
-                  out_names=None):
+                  out_names=None, mode='graph_runtime'):
     """ Generic function to compile on relay and execute on tvm """
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
     try:
@@ -109,27 +135,43 @@ def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target
                                              shape_dict=shape_dict,
                                              dtype_dict=dtype_dict)
 
-    with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(mod, target, params=params)
+    if mode in ['debug', 'vm']:
+        ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target="llvm")
+        inputs = []
+        for param in mod['main'].params:
+            found = False
+            for i, n in enumerate(input_node):
+                if n == param.name_hint:
+                    found = True
+                    inputs.append(tvm.nd.array(input_data[i]))
+                    break
+            # Interpreter doesn't bind constants, so still need to find in params
+            if not found:
+                inputs.append(tvm.nd.array(params[param.name_hint]))
+        result = ex.evaluate()(*inputs)
+        return vmobj_to_list(result)
+    else:
+        with tvm.transform.PassContext(opt_level=3):
+            graph, lib, params = relay.build(mod, target, params=params)
 
-    ctx = tvm.context(target, 0)
-    from tvm.contrib import graph_runtime
-    m = graph_runtime.create(graph, lib, ctx)
-    # set inputs
-    for i, e in enumerate(input_node):
-        m.set_input(e, tvm.nd.array(input_data[i].astype(input_data[i].dtype)))
+        ctx = tvm.context(target, 0)
+        from tvm.contrib import graph_runtime
+        m = graph_runtime.create(graph, lib, ctx)
+        # set inputs
+        for i, e in enumerate(input_node):
+            m.set_input(e, tvm.nd.array(input_data[i].astype(input_data[i].dtype)))
 
-    m.set_input(**params)
-    # execute
-    m.run()
-    # get outputs
-    assert out_names is None or num_output == len(out_names), "out_names: {} num_output: {}".format(
-        out_names, num_output)
-    tvm_output_list = []
-    for i in range(0, num_output):
-        tvm_output = m.get_output(i)
-        tvm_output_list.append(tvm_output.asnumpy())
-    return tvm_output_list
+        m.set_input(**params)
+        # execute
+        m.run()
+        # get outputs
+        assert out_names is None or num_output == len(out_names), "out_names: {} num_output: {}".format(
+            out_names, num_output)
+        tvm_output_list = []
+        for i in range(0, num_output):
+            tvm_output = m.get_output(i)
+            tvm_output_list.append(tvm_output.asnumpy())
+        return tvm_output_list
 
 
 def run_tflite_graph(tflite_model_buf, input_data):
@@ -160,7 +202,7 @@ def run_tflite_graph(tflite_model_buf, input_data):
 
 def compare_tflite_with_tvm(in_data, in_name, input_tensors,
                             output_tensors, init_global_variables=False,
-                            out_names=None, quantized=False, input_range=None):
+                            out_names=None, quantized=False, input_range=None, mode='graph_runtime'):
     """Generic function to generate and compare TFLite and TVM output"""
     in_data = convert_to_list(in_data)
     in_name = convert_to_list(in_name)
@@ -202,7 +244,7 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
                 continue
 
             tvm_output = run_tvm_graph(tflite_model_buffer, in_data, in_node, target=device,
-                                       num_output=len(out_names), out_names=out_names)
+                                       num_output=len(out_names), out_names=out_names, mode=mode)
 
             # WARNING: the results could well be random values clipped to 0 or 255 because of badly tuned output
             # range for the specific operator. While adding test ensure that we aren't getting only clipped values
@@ -859,6 +901,79 @@ def test_all_resize():
     if 'RESIZE_NEAREST_NEIGHBOR' in dir(BuiltinOperator()):
         _test_resize(tf.image.resize_nearest_neighbor, data, align_corners=False)
 
+#######################################################################
+# Range
+# -----
+def _test_range(start, limit, delta):
+    # tflite 1.13 convert method does not accept empty shapes
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        tf.reset_default_graph()
+        with tf.Graph().as_default():
+            start_scalar, limit_scalar, delta_scalar = \
+                tf.placeholder(dtype=start.dtype, shape=(), name="start"), \
+                tf.placeholder(dtype=limit.dtype, shape=(), name="limit"), \
+                tf.placeholder(dtype=delta.dtype, shape=(), name="delta")
+
+            out = tf.range(start_scalar, limit_scalar, delta_scalar, name="range")
+
+            compare_tflite_with_tvm(
+                [start, limit, delta],
+                ["start", "limit", "delta"],
+                [start_scalar, limit_scalar, delta_scalar],
+                [out],
+                mode="vm",
+                quantized=False
+        )
+
+def _test_range_default():
+    # tflite 1.13 convert method does not accept empty shapes
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        tf.reset_default_graph()
+        with tf.Graph().as_default():
+            inputs = [
+                tf.placeholder(dtype=tf.int32, shape=(), name="p1"),
+                tf.placeholder(dtype=tf.int32, shape=(), name="p2")
+            ]
+            outputs = [
+                tf.range(start = inputs[0], limit = inputs[1]), # use default delta
+                tf.range(start = inputs[1]) # use start as limit with 0 as the first item in the range
+            ]
+
+            compare_tflite_with_tvm(
+                [np.int32(1), np.int32(18)],
+                ["p1", "p2"],
+                inputs,
+                outputs,
+                mode="vm"
+        )
+
+def test_forward_range():
+   _test_range(np.int32(1), np.int32(18), np.int32(3))
+   _test_range(np.int32(1), np.int32(18), np.float32(3.1)) # increment is of type float
+   _test_range(np.float32(1.0), np.int32(18), np.int32(3.1)) # start is of type float
+   _test_range_default()
+
+#######################################################################
+# Shape
+# -----
+def test_forward_shape():
+    # tflite 1.13 convert method does not accept empty shapes
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        tf.reset_default_graph()
+        with tf.Graph().as_default():
+            data = np.array([1, 18, 3], dtype=np.int32)
+            start = tf.placeholder(dtype=tf.int32, shape=[], name="start")
+            limit = tf.placeholder(dtype=tf.int32, shape=[], name="limit")
+            delta = tf.placeholder(dtype=tf.int32, shape=[], name="delta")
+            r = tf.range(start, limit, delta, tf.int32, name="range")
+            out = tf.shape(r, out_type=tf.dtypes.int32)
+            compare_tflite_with_tvm(
+                [x for x in np.nditer(data)],
+                ["start", "limit", "delta"],
+                [start, limit, delta],
+                [out],
+                mode="vm"
+            )
 
 #######################################################################
 # Concatenation
@@ -1863,6 +1978,80 @@ def test_forward_spacetodepth():
     _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
 
 #######################################################################
+# Sparse To Dense
+# ---------------
+def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape):
+    # tflite 1.13 convert method does not accept empty shapes
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        with tf.Graph().as_default():
+            indices = tf.placeholder(shape=sparse_indices.shape, dtype=str(sparse_indices.dtype), name="indices")
+            values = tf.placeholder(shape=sparse_values.shape, dtype=str(sparse_values.dtype), name="values")
+            oshape = tf.constant(output_shape, shape=output_shape.shape, dtype=str(output_shape.dtype))
+
+            if default_value == None:
+                output = tf.sparse_to_dense(indices, oshape, values)
+                compare_tflite_with_tvm(
+                    [sparse_indices, sparse_values],
+                    ["indices", "values"],
+                    [indices, values],
+                    [output]
+                )
+            else:
+                dv = tf.placeholder(shape=(), dtype=str(default_value.dtype), name="default_value")
+                output = tf.sparse_to_dense(indices, oshape, values, dv)
+                compare_tflite_with_tvm(
+                    [sparse_indices, sparse_values, default_value],
+                    ["indices", "values", "default_value"],
+                    [indices, values, dv],
+                    [output]
+                )
+
+def test_forward_sparse_to_dense():
+    '''
+    Works in tvm/topi/tensorflow. But tflite converter breaks this test case
+    _test_sparse_to_dense(
+        np.int32(1),
+        np.int32(3),
+        np.int32(0),
+        np.array([5]).astype("int32")
+    )
+    '''
+    # vector
+    _test_sparse_to_dense(
+        np.array([0, 1, 4]).astype("int32"),
+        np.array([3, 3, 3]).astype("int32"),
+        np.int32(0),
+        np.array([5]).astype("int32")
+    )
+    # vector nXd
+    _test_sparse_to_dense(
+        np.array([[0, 0], [1, 2]]).astype("int32"),
+        np.array([1, 2]).astype("int32"),
+        np.int32(0),
+        np.array([3, 4]).astype("int32")
+    )
+    _test_sparse_to_dense(
+        np.array([[0, 0, 0], [1, 2, 3]]).astype("int32"),
+        np.array([1, 2]).astype("int32"),
+        np.int32(4),
+        np.array([2, 3, 4]).astype("int32")
+    )
+    # floats
+    _test_sparse_to_dense(
+        np.array([0, 1, 4]).astype("int32"),
+        np.array([3.1, 3.1, 3.1]).astype("float32"),
+        np.float32(3.5),
+        np.array([5]).astype("int32")
+    )
+    # default value not specified
+    _test_sparse_to_dense(
+        np.array([0, 1, 4]).astype("int32"),
+        np.array([3.1, 3.1, 3.1]).astype("float32"),
+        None,
+        np.array([5]).astype("int32")
+    )
+
+#######################################################################
 # Fully Connected
 # ---------------
 
@@ -2290,6 +2479,9 @@ if __name__ == '__main__':
     # Tile
     test_forward_tile()
 
+    # Query
+    test_forward_shape()
+
     # Transforms
     test_forward_concatenation()
     test_forward_pad()
@@ -2297,6 +2489,7 @@ if __name__ == '__main__':
     test_forward_unpack()
     test_forward_reshape()
     test_all_resize()
+    test_forward_range()
     test_forward_squeeze()
     test_forward_slice()
     test_forward_topk()
@@ -2305,6 +2498,7 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_depthtospace()
     test_forward_spacetodepth()
+    test_forward_sparse_to_dense()
     test_forward_select()
     test_forward_quantize_dequantize()
 

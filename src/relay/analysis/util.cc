@@ -38,7 +38,7 @@ namespace relay {
 
 template <typename T>
 struct InsertionSet {
-  std::unordered_set<T, ObjectHash, ObjectEqual> set;
+  std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual> set;
   std::vector<T> data;
   void Insert(const T& t) {
     if (set.count(t) == 0) {
@@ -420,7 +420,7 @@ struct IsDynamicVisitor : public TypeVisitor {
   bool is_dyn{false};
   void VisitType_(const TensorTypeNode* tt) {
     for (auto dim : tt->shape) {
-      if (dim.as<Any>()) {
+      if (dim.as<AnyNode>()) {
         is_dyn = true;
         break;
       }
@@ -455,6 +455,13 @@ bool IsDataDependant(const CallNode* call) {
     if (const auto* attrs = call->attrs.as<TopKAttrs>()) {
       if (attrs->k) {
         // If k attribute exists, it isn't data dependant.
+        return false;
+      }
+    }
+  } else if (op->name == "strided_slice") {
+    if (const auto* attrs = call->attrs.as<StridedSliceAttrs>()) {
+      if (attrs->begin && attrs->end && attrs->strides) {
+        // not data dependant if begin, end and strides exist
         return false;
       }
     }

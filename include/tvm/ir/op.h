@@ -58,21 +58,21 @@ class OpAttrMap;
 class OpNode : public RelayExprNode {
  public:
   /*! \brief name of the operator */
-  std::string name;
+  String name;
   /*! \brief the type of the operator */
   mutable FuncType op_type;
   /*!
    * \brief detailed description of the operator
    *  This can be used to generate docstring automatically for the operator.
    */
-  std::string description;
+  String description;
   /* \brief Information of input arguments to the operator */
   Array<AttrFieldInfo> arguments;
   /*!
    * \brief The type key of the attribute field
    *  This can be empty, in which case it defaults to anything.
    */
-  std::string attrs_type_key;
+  String attrs_type_key;
   /*!
    * \brief attribute type index,
    * this field varies in each run and is not exposed to frontend.
@@ -121,7 +121,7 @@ class OpNode : public RelayExprNode {
     return is_primitive_ != 0;
   }
 
-  static constexpr const char* _type_key = "relay.Op";
+  static constexpr const char* _type_key = "Op";
   TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, RelayExprNode);
 
  private:
@@ -180,7 +180,7 @@ class Op : public RelayExpr {
    * \tparam ValueType The type of the attribute.
    */
   template <typename ValueType>
-  inline static OpAttrMap<ValueType> GetAttrMap(const std::string& attr_name);
+  inline static OpAttrMap<ValueType> GetAttrMap(const String& attr_name);
   /*!
    * \brief Checks if an attr map is present in the registry.
    * \param attr_name The name of the attribute.
@@ -374,7 +374,7 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
 inline const OpNode* Op::operator->() const { return static_cast<const OpNode*>(get()); }
 
 template <typename ValueType>
-inline OpAttrMap<ValueType> Op::GetAttrMap(const std::string& key) {
+inline OpAttrMap<ValueType> Op::GetAttrMap(const String& key) {
   return OpAttrMap<ValueType>(Op::GetAttrMapContainer(key));
 }
 

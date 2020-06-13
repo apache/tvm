@@ -73,8 +73,8 @@ struct GraphCodegen {
     return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
   }
 
-  Map<std::string, IRModule> GetIRModule() {
-    return CallFunc<Map<std::string, IRModule>>("get_irmodule", nullptr);
+  Map<String, IRModule> GetIRModule() {
+    return CallFunc<Map<String, IRModule>>("get_irmodule", nullptr);
   }
 
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
@@ -135,7 +135,7 @@ class RelayBuildModule : public runtime::ModuleNode {
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetParams(); });
     } else if (name == "set_params") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        Map<std::string, Constant> params = args[0];
+        Map<String, Constant> params = args[0];
         for (const auto& kv : params) {
           this->SetParam(kv.first, kv.second->data);
         }
@@ -189,10 +189,10 @@ class RelayBuildModule : public runtime::ModuleNode {
   /*!
    * \brief Get params dictionary
    *
-   * \return Map<std::string, Constant> params dictionary
+   * \return Map<String, Constant> params dictionary
    */
-  Map<std::string, Constant> GetParams() {
-    Map<std::string, Constant> ret;
+  Map<String, Constant> GetParams() {
+    Map<String, Constant> ret;
     for (const auto& kv : ret_.params) {
       ret.Set(kv.first, Constant(kv.second));
     }
@@ -304,9 +304,8 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Handle heterogeneous compilation.
     transform::PassContext pass_ctx = PassContext::Current();
     if (targets_.size() > 1) {
-      Optional<IntImm> opt_fallback_dev =
-          pass_ctx->GetConfig("relay.fallback_device_type",
-                              IntImm(runtime::DataType::Int(32), static_cast<int>(kDLCPU)));
+      Optional<Integer> opt_fallback_dev =
+          pass_ctx->GetConfig("relay.fallback_device_type", Integer(static_cast<int>(kDLCPU)));
       auto fallback_dev = opt_fallback_dev.value();
       CHECK_GT(fallback_dev->value, 0U);
       relay_module = RunDeviceAnnotationPass(relay_module, fallback_dev->value);
@@ -495,7 +494,7 @@ TVM_REGISTER_GLOBAL("relay.build_module._BuildModule").set_body([](TVMArgs args,
 
 TVM_REGISTER_GLOBAL("relay.build_module.BindParamsByName")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
-      Map<std::string, Constant> params = args[1];
+      Map<String, Constant> params = args[1];
       std::unordered_map<std::string, runtime::NDArray> params_;
       for (const auto& kv : params) {
         params_[kv.first] = kv.second->data;

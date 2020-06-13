@@ -112,12 +112,20 @@ TVM_REGISTER_GLOBAL("topi.tile").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = tile(args[0], args[1]);
 });
 
+TVM_REGISTER_GLOBAL("topi.gather").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = gather(args[0], args[1], args[2]);
+});
+
 TVM_REGISTER_GLOBAL("topi.gather_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = gather_nd(args[0], args[1]);
 });
 
 TVM_REGISTER_GLOBAL("topi.unravel_index").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = unravel_index(args[0], args[1]);
+});
+
+TVM_REGISTER_GLOBAL("topi.sparse_to_dense").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = sparse_to_dense(args[0], args[1], args[2], args[3]);
 });
 
 TVM_REGISTER_GLOBAL("topi.matmul").set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -148,7 +156,7 @@ TVM_REGISTER_GLOBAL("topi.tensordot").set_body([](TVMArgs args, TVMRetValue* rv)
 });
 
 TVM_REGISTER_GLOBAL("topi.strided_slice").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = strided_slice(args[0], args[1], args[2], args[3]);
+  *rv = strided_slice(args[0], args[1], args[2], args[3], args[4]);
 });
 
 TVM_REGISTER_GLOBAL("topi.one_hot").set_body([](TVMArgs args, TVMRetValue* rv) {

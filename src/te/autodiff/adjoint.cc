@@ -54,7 +54,7 @@ Tensor Identity(const Tensor& output) {
       res =
           res && (PrimExpr(input_indices[i]) == PrimExpr(input_indices[output->shape.size() + i]));
     }
-    return CastNode::make(output->dtype, res);
+    return Cast(output->dtype, res);
   };
   return te::compute(shape, func, "identity");
 }

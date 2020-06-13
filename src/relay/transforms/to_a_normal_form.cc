@@ -107,7 +107,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
  private:
   const DependencyGraph& dg_;
   std::unordered_map<DependencyGraph::Node*, Scope>* node_scope_;
-  std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> memo;
+  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> memo;
 
   Fill(const DependencyGraph& dg, std::unordered_map<DependencyGraph::Node*, Scope>* node_scope)
       : dg_(dg), node_scope_(node_scope) {}

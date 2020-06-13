@@ -26,6 +26,12 @@ from collections import namedtuple
 import time
 import scipy.sparse as sp
 
+_sparse_dense_implement = {
+    "generic": (topi.nn.sparse_dense, topi.generic.schedule_sparse_dense),
+    "cuda": (topi.cuda.sparse_dense, topi.cuda.schedule_sparse_dense),
+    "x86": (topi.nn.sparse_dense, topi.x86.schedule_sparse_dense)
+}
+
 def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
     nr, nc, n = te.var("nr"), te.var("nc"), te.var("n")
     dtype = 'float32'
@@ -293,16 +299,28 @@ def test_sparse_dense_bsr():
     W_indices = te.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
     W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
     X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
-    Y = topi.nn.sparse_dense(X, W_data, W_indices, W_indptr)
-    s = te.create_schedule(Y.op)
-    func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
-    Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype))
-    func(tvm.nd.array(X_np),
-         tvm.nd.array(W_sp_np.data),
-         tvm.nd.array(W_sp_np.indices),
-         tvm.nd.array(W_sp_np.indptr),
-         Y_tvm)
-    tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        fcompute, fschedule = topi.testing.dispatch(device, _sparse_dense_implement)
+        with tvm.target.create(device):
+            Y = fcompute(X, W_data, W_indices, W_indptr)
+            s = fschedule([Y])
+            func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
+            Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), ctx=ctx)
+            func(tvm.nd.array(X_np, ctx=ctx),
+                 tvm.nd.array(W_sp_np.data, ctx=ctx),
+                 tvm.nd.array(W_sp_np.indices, ctx=ctx),
+                 tvm.nd.array(W_sp_np.indptr, ctx=ctx),
+                 Y_tvm)
+            tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
+
+    for device in ['llvm', 'cuda']:
+        check_device(device)
 
 def test_sparse_dense_bsr_randomized():
     for _ in range(20):
@@ -322,16 +340,28 @@ def test_sparse_dense_bsr_randomized():
         W_indices = te.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
         W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
         X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
-        Y = topi.nn.sparse_dense(X, W_data, W_indices, W_indptr)
-        s = te.create_schedule(Y.op)
-        func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
-        Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype))
-        func(tvm.nd.array(X_np),
-             tvm.nd.array(W_sp_np.data),
-             tvm.nd.array(W_sp_np.indices),
-             tvm.nd.array(W_sp_np.indptr),
-             Y_tvm)
-        tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-5, rtol=1e-5)
+
+        def check_device(device):
+            ctx = tvm.context(device, 0)
+            if not ctx.exist:
+                print("Skip because %s is not enabled" % device)
+                return
+            print("Running on target: %s" % device)
+            fcompute, fschedule = topi.testing.dispatch(device, _sparse_dense_implement)
+            with tvm.target.create(device):
+                Y = fcompute(X, W_data, W_indices, W_indptr)
+                s = fschedule([Y])
+                func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
+                Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), ctx=ctx)
+                func(tvm.nd.array(X_np, ctx=ctx),
+                     tvm.nd.array(W_sp_np.data, ctx=ctx),
+                     tvm.nd.array(W_sp_np.indices, ctx=ctx),
+                     tvm.nd.array(W_sp_np.indptr, ctx=ctx),
+                     Y_tvm)
+                tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-5, rtol=1e-5)
+
+        for device in ['llvm', 'cuda']:
+            check_device(device)
 
 
 def test_sparse_dense():

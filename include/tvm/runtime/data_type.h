@@ -40,12 +40,20 @@ namespace runtime {
  */
 class DataType {
  public:
-  /*! \brief Type code for the DataType. */
+  /*!
+   * \brief Type code for the DataType.
+   *
+   * DLPack consistency:
+   * 1) kInt is consistent with kDLInt
+   * 2) kUInt is consistent with kDLUInt
+   * 3) kFloat is consistent with kDLFloat
+   */
   enum TypeCode {
     kInt = kDLInt,
     kUInt = kDLUInt,
     kFloat = kDLFloat,
-    kHandle = TVMTypeCode::kTVMOpaqueHandle,
+    kHandle = TVMArgTypeCode::kTVMOpaqueHandle,
+    kCustomBegin = 129
   };
   /*! \brief default constructor */
   DataType() {}
@@ -248,7 +256,7 @@ TVM_DLL uint8_t ParseCustomDatatype(const std::string& s, const char** scan);
  * \param type_code The type code .
  * \return The name of type code.
  */
-inline const char* TypeCode2Str(int type_code);
+inline const char* DLDataTypeCode2Str(DLDataTypeCode type_code);
 
 /*!
  * \brief convert a string to TVM type.
@@ -265,38 +273,16 @@ inline DLDataType String2DLDataType(std::string s);
 inline std::string DLDataType2String(DLDataType t);
 
 // implementation details
-inline const char* TypeCode2Str(int type_code) {
-  switch (type_code) {
+inline const char* DLDataTypeCode2Str(DLDataTypeCode type_code) {
+  switch (static_cast<int>(type_code)) {
     case kDLInt:
       return "int";
     case kDLUInt:
       return "uint";
     case kDLFloat:
       return "float";
-    case kTVMStr:
-      return "str";
-    case kTVMBytes:
-      return "bytes";
-    case kTVMOpaqueHandle:
+    case DataType::kHandle:
       return "handle";
-    case kTVMNullptr:
-      return "NULL";
-    case kTVMDLTensorHandle:
-      return "ArrayHandle";
-    case kTVMDataType:
-      return "DLDataType";
-    case kTVMContext:
-      return "TVMContext";
-    case kTVMPackedFuncHandle:
-      return "FunctionHandle";
-    case kTVMModuleHandle:
-      return "ModuleHandle";
-    case kTVMNDArrayHandle:
-      return "NDArrayContainer";
-    case kTVMObjectHandle:
-      return "Object";
-    case kTVMObjectRValueRefArg:
-      return "ObjectRValueRefArg";
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
       return "";
@@ -311,8 +297,8 @@ inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)
   if (DataType(t).is_void()) {
     return os << "void";
   }
-  if (t.code < kTVMCustomBegin) {
-    os << TypeCode2Str(t.code);
+  if (t.code < DataType::kCustomBegin) {
+    os << DLDataTypeCode2Str(static_cast<DLDataTypeCode>(t.code));
   } else {
     os << "custom[" << GetCustomTypeName(t.code) << "]";
   }

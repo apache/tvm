@@ -87,15 +87,15 @@ struct is_logical_op {
     static const bool value = true; \
   };
 
-TVM_DECLARE_LOGICAL_OP(AndNode);
-TVM_DECLARE_LOGICAL_OP(OrNode);
-TVM_DECLARE_LOGICAL_OP(EQNode);
-TVM_DECLARE_LOGICAL_OP(NENode);
-TVM_DECLARE_LOGICAL_OP(GENode);
-TVM_DECLARE_LOGICAL_OP(GTNode);
-TVM_DECLARE_LOGICAL_OP(LENode);
-TVM_DECLARE_LOGICAL_OP(LTNode);
-TVM_DECLARE_LOGICAL_OP(NotNode);
+TVM_DECLARE_LOGICAL_OP(And);
+TVM_DECLARE_LOGICAL_OP(Or);
+TVM_DECLARE_LOGICAL_OP(EQ);
+TVM_DECLARE_LOGICAL_OP(NE);
+TVM_DECLARE_LOGICAL_OP(GE);
+TVM_DECLARE_LOGICAL_OP(GT);
+TVM_DECLARE_LOGICAL_OP(LE);
+TVM_DECLARE_LOGICAL_OP(LT);
+TVM_DECLARE_LOGICAL_OP(Not);
 
 /*!
  * \brief Combine two interval set under arithmetic operations.
@@ -105,7 +105,7 @@ template <typename Op>
 inline IntervalSet Combine(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     PrimExpr res = TryConstFold<Op>(a->min_value, b->min_value);
-    if (!res.defined()) res = Op::make(a->min_value, b->min_value);
+    if (!res.defined()) res = Op(a->min_value, b->min_value);
     return IntervalSet::SinglePoint(res);
   }
   if (is_logical_op<Op>::value) {
@@ -119,7 +119,7 @@ inline IntervalSet Combine(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
 }
 
 template <>
-inline IntervalSet Combine<tir::AddNode>(Analyzer* analyer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Add>(Analyzer* analyer, IntervalSet a, IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value + b->min_value);
   }
@@ -133,7 +133,7 @@ inline IntervalSet Combine<tir::AddNode>(Analyzer* analyer, IntervalSet a, Inter
 }
 
 template <>
-inline IntervalSet Combine<tir::SubNode>(Analyzer* analyer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Sub>(Analyzer* analyer, IntervalSet a, IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value - b->min_value);
   }
@@ -147,7 +147,7 @@ inline IntervalSet Combine<tir::SubNode>(Analyzer* analyer, IntervalSet a, Inter
 }
 
 template <>
-inline IntervalSet Combine<tir::MulNode>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Mul>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value * b->min_value);
   }
@@ -168,11 +168,11 @@ inline IntervalSet Combine<tir::MulNode>(Analyzer* analyzer, IntervalSet a, Inte
       PrimExpr max_value = a->HasLowerBound() ? a->min_value * b->min_value : pos_inf();
       return IntervalSet(min_value, max_value);
     } else if (a->HasUpperBound() && a->HasLowerBound()) {
-      using tir::SelectNode;
+      using tir::Select;
       PrimExpr sign = b->min_value >= make_zero(b->min_value.dtype().element_of());
       PrimExpr e1 = a->min_value * b->min_value;
       PrimExpr e2 = a->max_value * b->min_value;
-      return IntervalSet(SelectNode::make(sign, e1, e2), SelectNode::make(sign, e2, e1));
+      return IntervalSet(Select(sign, e1, e2), Select(sign, e2, e1));
     }
   }
   DLOG(WARNING) << "Return Everything in CombineInterval Mul";
@@ -180,7 +180,7 @@ inline IntervalSet Combine<tir::MulNode>(Analyzer* analyzer, IntervalSet a, Inte
 }
 
 template <>
-inline IntervalSet Combine<tir::DivNode>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Div>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value / b->min_value);
   }
@@ -201,11 +201,11 @@ inline IntervalSet Combine<tir::DivNode>(Analyzer* analyzer, IntervalSet a, Inte
       PrimExpr max_value = a->HasLowerBound() ? a->min_value / b->min_value : pos_inf();
       return IntervalSet(min_value, max_value);
     } else if (a->HasUpperBound() && a->HasLowerBound()) {
-      using tir::SelectNode;
+      using tir::Select;
       PrimExpr sign = b->min_value >= make_zero(b->min_value.dtype().element_of());
       PrimExpr e1 = a->min_value / b->min_value;
       PrimExpr e2 = a->max_value / b->min_value;
-      return IntervalSet(SelectNode::make(sign, e1, e2), SelectNode::make(sign, e2, e1));
+      return IntervalSet(Select(sign, e1, e2), Select(sign, e2, e1));
     }
   }
   DLOG(WARNING) << "Return Everything in CombineInterval Div";
@@ -213,7 +213,7 @@ inline IntervalSet Combine<tir::DivNode>(Analyzer* analyzer, IntervalSet a, Inte
 }
 
 template <>
-inline IntervalSet Combine<tir::ModNode>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Mod>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(truncmod(a->min_value, b->min_value));
   }
@@ -241,7 +241,7 @@ inline IntervalSet Combine<tir::ModNode>(Analyzer* analyzer, IntervalSet a, Inte
 }
 
 template <>
-inline IntervalSet Combine<tir::FloorDivNode>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::FloorDiv>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(floordiv(a->min_value, b->min_value));
   }
@@ -262,11 +262,11 @@ inline IntervalSet Combine<tir::FloorDivNode>(Analyzer* analyzer, IntervalSet a,
       PrimExpr max_value = a->HasLowerBound() ? floordiv(a->min_value, b->min_value) : pos_inf();
       return IntervalSet(min_value, max_value);
     } else if (a->HasUpperBound() && a->HasLowerBound()) {
-      using tir::SelectNode;
+      using tir::Select;
       PrimExpr sign = b->min_value >= make_zero(b->min_value.dtype().element_of());
       PrimExpr e1 = floordiv(a->min_value, b->min_value);
       PrimExpr e2 = floordiv(a->max_value, b->min_value);
-      return IntervalSet(SelectNode::make(sign, e1, e2), SelectNode::make(sign, e2, e1));
+      return IntervalSet(Select(sign, e1, e2), Select(sign, e2, e1));
     }
   }
   DLOG(WARNING) << "Return Everything in CombineInterval Div";
@@ -274,7 +274,7 @@ inline IntervalSet Combine<tir::FloorDivNode>(Analyzer* analyzer, IntervalSet a,
 }
 
 template <>
-inline IntervalSet Combine<tir::FloorModNode>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::FloorMod>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(floormod(a->min_value, b->min_value));
   }
@@ -308,7 +308,7 @@ inline IntervalSet Combine<tir::FloorModNode>(Analyzer* analyzer, IntervalSet a,
 }
 
 template <>
-inline IntervalSet Combine<tir::MaxNode>(Analyzer* analzyer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Max>(Analyzer* analzyer, IntervalSet a, IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(max(a->min_value, b->min_value));
   }
@@ -318,7 +318,7 @@ inline IntervalSet Combine<tir::MaxNode>(Analyzer* analzyer, IntervalSet a, Inte
 }
 
 template <>
-inline IntervalSet Combine<tir::MinNode>(Analyzer* analzyer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Min>(Analyzer* analzyer, IntervalSet a, IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(min(a->min_value, b->min_value));
   }
@@ -377,39 +377,39 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     }
   }
 
-  IntervalSet VisitExpr_(const AddNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const AddNode* op) final { return VisitBinaryExpr_<Add>(op); }
 
-  IntervalSet VisitExpr_(const SubNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const SubNode* op) final { return VisitBinaryExpr_<Sub>(op); }
 
-  IntervalSet VisitExpr_(const MulNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const MulNode* op) final { return VisitBinaryExpr_<Mul>(op); }
 
-  IntervalSet VisitExpr_(const DivNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const DivNode* op) final { return VisitBinaryExpr_<Div>(op); }
 
-  IntervalSet VisitExpr_(const ModNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const ModNode* op) final { return VisitBinaryExpr_<Mod>(op); }
 
-  IntervalSet VisitExpr_(const FloorDivNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const FloorDivNode* op) final { return VisitBinaryExpr_<FloorDiv>(op); }
 
-  IntervalSet VisitExpr_(const FloorModNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const FloorModNode* op) final { return VisitBinaryExpr_<FloorMod>(op); }
 
-  IntervalSet VisitExpr_(const MinNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const MinNode* op) final { return VisitBinaryExpr_<Min>(op); }
 
-  IntervalSet VisitExpr_(const MaxNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const MaxNode* op) final { return VisitBinaryExpr_<Max>(op); }
 
-  IntervalSet VisitExpr_(const EQNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const EQNode* op) final { return VisitBinaryExpr_<EQ>(op); }
 
-  IntervalSet VisitExpr_(const NENode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const NENode* op) final { return VisitBinaryExpr_<NE>(op); }
 
-  IntervalSet VisitExpr_(const LTNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const LTNode* op) final { return VisitBinaryExpr_<LT>(op); }
 
-  IntervalSet VisitExpr_(const LENode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const LENode* op) final { return VisitBinaryExpr_<LE>(op); }
 
-  IntervalSet VisitExpr_(const GTNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const GTNode* op) final { return VisitBinaryExpr_<GT>(op); }
 
-  IntervalSet VisitExpr_(const GENode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const GENode* op) final { return VisitBinaryExpr_<GE>(op); }
 
-  IntervalSet VisitExpr_(const AndNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const AndNode* op) final { return VisitBinaryExpr_<And>(op); }
 
-  IntervalSet VisitExpr_(const OrNode* op) final { return VisitBinaryExpr_(op); }
+  IntervalSet VisitExpr_(const OrNode* op) final { return VisitBinaryExpr_<Or>(op); }
 
   IntervalSet VisitExpr_(const RampNode* op) final {
     CHECK(eval_vec_);
@@ -419,11 +419,11 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
       DataType t = op->base.dtype();
       int64_t vstride = stride.Eval()->value;
       if (vstride > 0) {
-        return Combine<AddNode>(analyzer_, base,
-                                IntervalSet(make_zero(t), make_const(t, vstride * op->lanes - 1)));
+        return Combine<Add>(analyzer_, base,
+                            IntervalSet(make_zero(t), make_const(t, vstride * op->lanes - 1)));
       } else {
-        return Combine<AddNode>(analyzer_, base,
-                                IntervalSet(make_const(t, vstride * op->lanes + 1), make_zero(t)));
+        return Combine<Add>(analyzer_, base,
+                            IntervalSet(make_const(t, vstride * op->lanes + 1), make_zero(t)));
       }
     }
     DLOG(WARNING) << "cannot evaluate set on expression " << GetRef<PrimExpr>(op);
@@ -452,14 +452,15 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     return set->min_value.same_as(value) && set->max_value.same_as(value);
   }
 
-  template <typename T>
+  template <typename TOp, typename T>
   inline IntervalSet VisitBinaryExpr_(const T* op) {
+    static_assert(std::is_same<typename TOp::ContainerType, T>::value, "constraint");
     IntervalSet a = this->Eval(op->a);
     IntervalSet b = this->Eval(op->b);
     if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
       return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
     }
-    return Combine<T>(analyzer_, a, b);
+    return Combine<TOp>(analyzer_, a, b);
   }
 
   // recursive depth

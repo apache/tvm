@@ -550,7 +550,7 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
       return expr;
     }
     auto ret = Function(new_params, new_body, func->ret_type, func->type_params, func->attrs);
-    std::unordered_set<Var, ObjectHash, ObjectEqual> set;
+    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> set;
     for (const auto& v : FreeVars(expr)) {
       set.insert(v);
     }

@@ -281,7 +281,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
   /*! \brief The target backends for annotation. */
   Array<runtime::String> targets_;
   /*! \brief Maintain the decision of the target for each op expr. */
-  std::unordered_map<Expr, std::string, ObjectHash, ObjectEqual> op_expr_to_target_;
+  std::unordered_map<Expr, std::string, ObjectPtrHash, ObjectPtrEqual> op_expr_to_target_;
 };
 
 Expr AnnotateTarget(const Expr& expr, const Array<runtime::String>& targets) {

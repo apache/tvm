@@ -114,7 +114,7 @@ class FuncOp(OpWrapper):
     def __call__(self, args, attrs, type_args):
         if attrs is None:
             attrs = {}
-        if self.operator is op.reshape:
+        if self.operator in (op.reshape, op.strided_slice):
             x = self.operator(*args)
         elif self.operator in (op.zeros, op.ones, op.full, op.broadcast_to):
             x = self.operator(*args, dtype=attrs["dtype"])
@@ -378,7 +378,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         return self.module
 
     # Exprs
-    def visitOpIdent(self, ctx) -> op.Op:
+    def visitOpIdent(self, ctx) -> tvm.ir.Op:
         op_name = ".".join([name.getText() for name in ctx.CNAME()])
         if op_name in FUNC_OPS:
             return FuncOp(FUNC_OPS[op_name])

@@ -76,7 +76,7 @@ def test_rocm_inf_nan():
     check_inf_nan(ctx, 1, float('nan'), 'float64')
 
 @unittest.skipIf(not tvm.rocm(0).exist or not tvm.runtime.enabled("rocm"), "skip because rocm is not enabled..")
-def test_rocm_reducition_binding():
+def test_rocm_reduction_binding():
     k = te.reduce_axis((0, 32), 'k')
     A = te.placeholder((96, 32), name='A')
     B = te.compute( (96,), lambda m:
@@ -132,6 +132,6 @@ def test_rocm_vectorize_add():
 if __name__ == "__main__":
     test_rocm_cross_thread_reduction()
     test_rocm_inf_nan()
-    test_rocm_reducition_binding()
+    test_rocm_reduction_binding()
     test_rocm_copy()
     test_rocm_vectorize_add()

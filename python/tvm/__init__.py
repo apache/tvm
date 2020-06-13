@@ -23,14 +23,14 @@ import traceback
 # top-level alias
 # tvm._ffi
 from ._ffi.base import TVMError, __version__
-from ._ffi.runtime_ctypes import TypeCode, DataType
+from ._ffi.runtime_ctypes import DataTypeCode, DataType
 from ._ffi import register_object, register_func, register_extension, get_global_func
 
 # top-level alias
 # tvm.runtime
 from .runtime.object import Object
 from .runtime.ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
-from .runtime.ndarray import vpi, rocm, opengl, ext_dev, micro_dev, hexagon
+from .runtime.ndarray import vpi, rocm, ext_dev, micro_dev, hexagon
 from .runtime import ndarray as nd
 
 # tvm.error

@@ -84,7 +84,7 @@ This function is mapped to the C++ function in ``include/tvm/schedule.h``.
 ::
 
    inline Schedule create_schedule(Array<Operation> ops) {
-     return ScheduleNode::make(ops);
+     return Schedule(ops);
    }
 
 ``Schedule`` consists of collections of ``Stage`` and output ``Operation``.

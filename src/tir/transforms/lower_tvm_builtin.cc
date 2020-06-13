@@ -39,8 +39,8 @@ inline PrimExpr ConstInt32(size_t index) {
 }
 
 inline PrimExpr StackAlloca(std::string type, size_t num) {
-  Array<PrimExpr> args = {StringImmNode::make(type), ConstInt32(num)};
-  return CallNode::make(DataType::Handle(), intrinsic::tvm_stack_alloca, args, CallNode::Intrinsic);
+  Array<PrimExpr> args = {StringImm(type), ConstInt32(num)};
+  return Call(DataType::Handle(), intrinsic::tvm_stack_alloca, args, CallNode::Intrinsic);
 }
 
 // Calculate the statistics of packed function.
@@ -54,14 +54,14 @@ class BuiltinLower : public StmtExprMutator {
     stack_tcode_ = Var("stack_tcode", DataType::Handle());
     stmt = this->VisitStmt(stmt);
     if (max_shape_stack_ != 0) {
-      stmt = LetStmtNode::make(stack_shape_, StackAlloca("shape", max_shape_stack_), stmt);
+      stmt = LetStmt(stack_shape_, StackAlloca("shape", max_shape_stack_), stmt);
     }
     if (max_array_stack_ != 0) {
-      stmt = LetStmtNode::make(stack_array_, StackAlloca("array", max_array_stack_), stmt);
+      stmt = LetStmt(stack_array_, StackAlloca("array", max_array_stack_), stmt);
     }
     if (max_arg_stack_ != 0) {
-      stmt = LetStmtNode::make(stack_value_, StackAlloca("arg_value", max_arg_stack_), stmt);
-      stmt = LetStmtNode::make(stack_tcode_, StackAlloca("arg_tcode", max_arg_stack_), stmt);
+      stmt = LetStmt(stack_value_, StackAlloca("arg_value", max_arg_stack_), stmt);
+      stmt = LetStmt(stack_tcode_, StackAlloca("arg_tcode", max_arg_stack_), stmt);
     }
     return stmt;
   }
@@ -102,34 +102,31 @@ class BuiltinLower : public StmtExprMutator {
     }
     CHECK(device_type_.defined()) << "Unknown device type in current IR";
     CHECK(device_id_.defined()) << "Unknown device id in current IR";
-    Stmt throw_last_error = EvaluateNode::make(CallNode::make(
-        DataType::Int(32), intrinsic::tvm_throw_last_error, {}, CallNode::Intrinsic));
+    Stmt throw_last_error =
+        Evaluate(Call(DataType::Int(32), intrinsic::tvm_throw_last_error, {}, CallNode::Intrinsic));
 
-    Stmt body = SeqStmt(
-        {IfThenElseNode::make(CallNode::make(DataType::Bool(1), intrinsic::tvm_handle_is_null,
-                                             {op->buffer_var}, CallNode::PureIntrinsic),
-                              throw_last_error),
-         op->body});
+    Stmt body = SeqStmt({IfThenElse(Call(DataType::Bool(1), intrinsic::tvm_handle_is_null,
+                                         {op->buffer_var}, CallNode::PureIntrinsic),
+                                    throw_last_error),
+                         op->body});
 
-    Stmt alloca = LetStmtNode::make(
+    Stmt alloca = LetStmt(
         op->buffer_var,
-        CallNode::make(
-            op->buffer_var.dtype(), "TVMBackendAllocWorkspace",
-            {cast(DataType::Int(32), device_type_), cast(DataType::Int(32), device_id_),
-             cast(DataType::UInt(64), total_bytes), IntImm(DataType::Int(32), op->dtype.code()),
-             IntImm(DataType::Int(32), op->dtype.bits())},
-            CallNode::Extern),
+        Call(op->buffer_var.dtype(), "TVMBackendAllocWorkspace",
+             {cast(DataType::Int(32), device_type_), cast(DataType::Int(32), device_id_),
+              cast(DataType::UInt(64), total_bytes), IntImm(DataType::Int(32), op->dtype.code()),
+              IntImm(DataType::Int(32), op->dtype.bits())},
+             CallNode::Extern),
         body);
 
-    PrimExpr free_op = CallNode::make(DataType::Int(32), "TVMBackendFreeWorkspace",
-                                      {cast(DataType::Int(32), device_type_),
-                                       cast(DataType::Int(32), device_id_), op->buffer_var},
-                                      CallNode::Extern);
-    Stmt free_stmt =
-        IfThenElseNode::make(free_op != make_zero(DataType::Int(32)), throw_last_error);
+    PrimExpr free_op = Call(DataType::Int(32), "TVMBackendFreeWorkspace",
+                            {cast(DataType::Int(32), device_type_),
+                             cast(DataType::Int(32), device_id_), op->buffer_var},
+                            CallNode::Extern);
+    Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
     body = SeqStmt({alloca, free_stmt});
-    body = AttrStmtNode::make(op->buffer_var, attr::storage_alignment,
-                              make_const(DataType::Int(32), runtime::kTempAllocaAlignment), body);
+    body = AttrStmt(op->buffer_var, attr::storage_alignment,
+                    make_const(DataType::Int(32), runtime::kTempAllocaAlignment), body);
     return body;
   }
 
@@ -168,8 +165,8 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
     for (size_t i = 0; i < op->args.size(); ++i) {
-      prep_seq_.emplace_back(StoreNode::make(stack_shape_, cast(DataType::Int(64), op->args[i]),
-                                             ConstInt32(stack_begin + i), const_true(1)));
+      prep_seq_.emplace_back(Store(stack_shape_, cast(DataType::Int(64), op->args[i]),
+                                   ConstInt32(stack_begin + i), const_true(1)));
     }
     return AddressOffset(stack_shape_, DataType::Int(64), stack_begin);
   }
@@ -226,7 +223,7 @@ class BuiltinLower : public StmtExprMutator {
       DataType t = arg.dtype();
       DataType api_type = APIType(t);
       if (t != api_type) {
-        arg = CastNode::make(api_type, arg);
+        arg = Cast(api_type, arg);
       }
       prep_seq_.emplace_back(TVMStructSet(stack_value_, static_cast<int>(arg_stack_begin + i - 1),
                                           intrinsic::kTVMValueContent, arg));
@@ -236,7 +233,7 @@ class BuiltinLower : public StmtExprMutator {
       }
       if (IsArrayHandle(arg)) arg_tcode = kTVMDLTensorHandle;
       prep_seq_.emplace_back(
-          StoreNode::make(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
+          Store(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
     }
     // UPDATE stack value
     max_arg_stack_ = std::max(run_arg_stack_, max_arg_stack_);
@@ -248,8 +245,8 @@ class BuiltinLower : public StmtExprMutator {
     Array<PrimExpr> packed_args = {op->args[0], stack_value_, stack_tcode_,
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1)};
-    return CallNode::make(DataType::Int(32), intrinsic::tvm_call_packed_lowered, packed_args,
-                          CallNode::Intrinsic);
+    return Call(DataType::Int(32), intrinsic::tvm_call_packed_lowered, packed_args,
+                CallNode::Intrinsic);
   }
 
   PrimExpr MakeCallTracePacked(const CallNode* op) {
@@ -267,14 +264,14 @@ class BuiltinLower : public StmtExprMutator {
       DataType t = arg.dtype();
       DataType api_type = APIType(t);
       if (t != api_type) {
-        arg = CastNode::make(api_type, arg);
+        arg = Cast(api_type, arg);
       }
       prep_seq_.emplace_back(TVMStructSet(stack_value_, static_cast<int>(arg_stack_begin + i - 1),
                                           intrinsic::kTVMValueContent, arg));
       int arg_tcode = api_type.code();
       CHECK(!IsArrayHandle(arg)) << "Trace does not support Buffers";
       prep_seq_.emplace_back(
-          StoreNode::make(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
+          Store(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
     }
     // UPDATE stack value
     max_arg_stack_ = std::max(run_arg_stack_, max_arg_stack_);
@@ -290,8 +287,8 @@ class BuiltinLower : public StmtExprMutator {
                                    ConstInt32(arg_stack_begin + op->args.size() - 1),
                                    // Pass traced value.
                                    op->args[args_size - 1]};
-    return CallNode::make(op->dtype, intrinsic::tvm_call_trace_packed_lowered, packed_args,
-                          CallNode::Intrinsic);
+    return Call(op->dtype, intrinsic::tvm_call_trace_packed_lowered, packed_args,
+                CallNode::Intrinsic);
   }
 
  private:

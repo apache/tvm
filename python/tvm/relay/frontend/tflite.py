@@ -33,6 +33,7 @@ from .common import ExprTable
 from .common import infer_shape as _infer_shape
 from .tflite_flexbuffer import FlexBufferDecoder
 
+
 __all__ = ['from_tflite']
 
 class TensorWrapper(object):
@@ -113,6 +114,7 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'POW': self.convert_pow,
             'PRELU': self.convert_prelu,
+            'RANGE': self.convert_range,
             'QUANTIZE': self.convert_quantize,
             'REDUCE_ANY': self.convert_reduce_any,
             'REDUCE_MAX': self.convert_reduce_max,
@@ -125,11 +127,13 @@ class OperatorConverter(object):
             'ROUND': self.convert_round,
             'RSQRT': self.convert_rsqrt,
             'SELECT': self.convert_select,
+            'SHAPE': self.convert_shape,
             'SIN': self.convert_sin,
             'SLICE': self.convert_slice,
             'SOFTMAX': self.convert_softmax,
             'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
             'SPACE_TO_DEPTH': self.convert_space_to_depth,
+            'SPARSE_TO_DENSE': self.convert_sparse_to_dense,
             'SPLIT': self.convert_split,
             'SPLIT_V': self.convert_split_v,
             'SQRT': self.convert_sqrt,
@@ -604,6 +608,39 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
         out = _op.tanh(in_expr)
+
+        return out
+
+    def convert_range(self, op):
+        """Convert TFLite Range"""
+        try:
+            from tflite.TensorType import TensorType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+
+        start, limit, delta = input_tensors[0], input_tensors[1], input_tensors[2]
+
+        expressions = [self.get_tensor_expr(t) for t in [start, limit, delta]]
+
+        # out type inference
+        if delta.tensor.Type() == TensorType.FLOAT32:
+            out_type = self.get_tensor_type_str(delta.tensor.Type())
+        else:
+            out_type = self.get_tensor_type_str(start.tensor.Type())
+
+        out = _op.arange(expressions[0], expressions[1], expressions[2], out_type)
+
+        return out
+
+    def convert_shape(self, op):
+        """Convert TFLite Shape"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        out = _op.shape_of(self.get_tensor_expr(input_tensors[0]))
 
         return out
 
@@ -2267,6 +2304,36 @@ class OperatorConverter(object):
 
         return out
 
+    def convert_sparse_to_dense(self, op):
+        """Convert TFLite SPARSE_TO_DENSE"""
+        try:
+            from tflite.TensorType import TensorType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 4, "input tensors length should be 4"
+
+        indices, values = input_tensors[0], input_tensors[2]
+        default_value = input_tensors[3]
+        output_shape = input_tensors[1]
+
+        for t in input_tensors:
+            assert not t.qnn_params, "Quantized input is not expected."
+
+        for t in [indices, output_shape]:
+            t_type = t.tensor.Type()
+            assert t_type in (TensorType.INT32, TensorType.INT64)
+
+        out = _op.sparse_to_dense(
+            self.get_tensor_expr(indices),
+            list(self.get_tensor_value(output_shape)),
+            self.get_tensor_expr(values),
+            self.get_tensor_expr(default_value)
+        )
+
+        return out
+
     def convert_prelu(self, op):
         """Convert TFLite PReLU"""
         input_tensors = self.get_input_tensors(op)
@@ -2477,7 +2544,7 @@ class OperatorConverter(object):
 
         ret = _op.vision.multibox_transform_loc(cls_pred, loc_prob,
                                                 anchor_expr, **multibox_transform_loc_attrs)
-        ret = _op.vision.non_max_suppression(ret[0], ret[1], **non_max_suppression_attrs)
+        ret = _op.vision.non_max_suppression(ret[0], ret[1], ret[1], **non_max_suppression_attrs)
         ret = _op.vision.get_valid_counts(ret, 0)
         valid_count = ret[0]
         # keep only the top 'max_detections' rows

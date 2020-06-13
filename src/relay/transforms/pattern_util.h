@@ -673,7 +673,7 @@ Expr MakeConcatenate(Expr data, int axis);
 
 Expr MakeRepeat(Expr data, int repeats, int axis);
 
-Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
+Expr MakeStridedSlice(Expr data, Expr begin, Expr end, Expr strides, String slice_mode);
 
 Expr MakeStack(Expr data, int axis);
 

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for graph partitioning."""
+# pylint: disable=not-callable
 import os
 import sys
 
@@ -194,19 +195,22 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
 
     def check_vm_result():
         compile_engine.get().clear()
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         lib = update_lib(lib)
         exe = runtime.vm.Executable.load_exec(code, lib)
         vm = runtime.vm.VirtualMachine(exe)
         vm.init(ctx)
-        out = vm.run(**map_inputs)
-        tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
+        outs = vm.run(**map_inputs)
+        outs = outs if isinstance(outs, runtime.container.ADT) else [outs]
+        results = result if isinstance(result, list) else [result]
+        for out, ref in zip(outs, results):
+            tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=tol, atol=tol)
 
     def check_graph_runtime_result():
         compile_engine.get().clear()
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             json, lib, param = relay.build(mod, target=target, params=params)
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
@@ -215,10 +219,14 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
             rt_mod.set_input(name, data)
         rt_mod.set_input(**param)
         rt_mod.run()
-        out = tvm.nd.empty(out_shape, ctx=ctx)
-        out = rt_mod.get_output(0, out)
 
-        tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
+        out_shapes = out_shape if isinstance(out_shape, list) else [out_shape]
+        results = result if isinstance(result, list) else [result]
+
+        for idx, shape in enumerate(out_shapes):
+            out = tvm.nd.empty(shape, ctx=ctx)
+            out = rt_mod.get_output(idx, out)
+            tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=tol, atol=tol)
 
     check_vm_result()
     check_graph_runtime_result()
@@ -504,7 +512,7 @@ def test_function_lifting():
             transform.AlterOpLayout(),
         ])
 
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             mod = opt_pass(mod)
 
         return mod
@@ -587,7 +595,7 @@ def test_function_lifting_inline():
             transform.Inline(),
         ])
 
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             mod = opt_pass(mod)
 
         return mod
@@ -877,7 +885,8 @@ def test_dnnl_fuse():
             transform.PartitionGraph()
         ])
 
-        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with tvm.transform.PassContext(opt_level=3,
+                                       disabled_pass=["AlterOpLayout"]):
             return composite_partition(mod)
 
     def test_detect_pattern(pattern_table, include_bn, include_sigmoid,
@@ -1025,7 +1034,7 @@ def test_multiple_use_of_an_output():
 def test_duplicate_outputs():
     target = "test_duplicate_outputs"
 
-    @reg.register("abs", "target." + target)
+    @tvm.ir.register_op_attr("abs", "target." + target)
     def abs(attrs, args): # pylint: disable=unused-variable
         return True
 
@@ -1081,12 +1090,12 @@ def test_duplicate_outputs():
 def test_duplicate_merge_and_tuplegetitem():
     target = "test_duplicate_merge_and_tuplegetitem"
 
-    @reg.register("nn.batch_norm", "target." + target)
-    def abs(attrs, args): # pylint: disable=unused-variable
+    @tvm.ir.register_op_attr("nn.batch_norm", "target." + target)
+    def batch_norm(attrs, args): # pylint: disable=unused-variable
         return True
 
-    @reg.register("nn.relu", "target." + target)
-    def abs(attrs, args): # pylint: disable=unused-variable
+    @tvm.ir.register_op_attr("nn.relu", "target." + target)
+    def relu(attrs, args): # pylint: disable=unused-variable
         return True
 
     def create_graph():
@@ -1156,7 +1165,7 @@ def test_duplicate_merge_and_tuplegetitem():
     assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 def test_constant_tuples():
-    @reg.register("qnn.concatenate", "target.const_tuples")
+    @tvm.ir.register_op_attr("qnn.concatenate", "target.const_tuples")
     def add(attrs, args):  # pylint: disable=unused-variable
         return True
 
@@ -1194,12 +1203,12 @@ def test_constant_tuples():
 def test_flatten_tuple_output():
     target = "test_flatten_tuple_output"
 
-    @reg.register("split", "target." + target)
-    def foo(attrs, args): # pylint: disable=unused-variable
+    @tvm.ir.register_op_attr("split", "target." + target)
+    def split(attrs, args): # pylint: disable=unused-variable
         return True
 
-    @reg.register("abs", "target." + target)
-    def foo(attrs, args): # pylint: disable=unused-variable
+    @tvm.ir.register_op_attr("abs", "target." + target)
+    def abs(attrs, args): # pylint: disable=unused-variable
         return True
 
     def create_graph():
@@ -1259,6 +1268,27 @@ def test_flatten_tuple_output():
     partitioned = seq(create_graph())
     assert tvm.ir.structural_equal(partitioned, expected(), map_free_vars=True)
 
+def test_tuple_output_exec():
+    """Test C codegen and runtime for a subgraph with a tuple output"""
+    a = relay.var('a', shape=(10, 10), dtype='float32')
+    b = relay.var('b', shape=(10, 10), dtype='float32')
+    ba = relay.annotation.compiler_begin(a, 'ccompiler')
+    bb = relay.annotation.compiler_begin(b, 'ccompiler')
+    add = relay.add(ba, bb)
+    sub = relay.subtract(ba, bb)
+    out = relay.Tuple((add, sub))
+    eout = relay.annotation.compiler_end(out, 'ccompiler')
+    func=relay.Function([a, b], eout)
+    mod = tvm.IRModule()
+    mod["main"] = func
+    mod = transform.PartitionGraph()(mod)
+
+    a_data = np.random.rand(10, 10).astype('float32')
+    b_data = np.random.rand(10, 10).astype('float32')
+
+    check_result(mod, {'a': a_data, 'b': b_data},
+                 [(10, 10), (10, 10)],
+                 [(a_data + b_data), (a_data - b_data)])
 
 if __name__ == "__main__":
     test_multi_node_compiler()
@@ -1278,3 +1308,4 @@ if __name__ == "__main__":
     test_duplicate_merge_and_tuplegetitem()
     test_constant_tuples()
     test_flatten_tuple_output()
+    test_tuple_output_exec()

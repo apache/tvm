@@ -87,8 +87,9 @@ def create_updater_06_to_07():
         return _convert
 
     def _update_global_key(item, _):
-        item["repr_str"] = item["global_key"]
-        del item["global_key"]
+        if "global_key" in item:
+            item["repr_str"] = item["global_key"]
+            del item["global_key"]
         return item
 
     def _update_from_std_str(key):
@@ -109,10 +110,12 @@ def create_updater_06_to_07():
         # Base IR
         "SourceName": _update_global_key,
         "EnvFunc": _update_global_key,
-        "relay.Op": _update_global_key,
+        "relay.Op": [_update_global_key, _rename("Op")],
         "relay.TypeVar": [_ftype_var, _update_from_std_str("name_hint")],
+        "TypeVar": _update_from_std_str("name_hint"),
         "relay.Id": [_update_from_std_str("name_hint")],
         "relay.GlobalTypeVar": [_ftype_var, _update_from_std_str("name_hint")],
+        "GlobalTypeVar": _update_from_std_str("name_hint"),
         "relay.Type": _rename("Type"),
         "relay.TupleType": _rename("TupleType"),
         "relay.TypeConstraint": _rename("TypeConstraint"),
@@ -120,18 +123,26 @@ def create_updater_06_to_07():
         "relay.IncompleteType": _rename("IncompleteType"),
         "relay.TypeRelation": _rename("TypeRelation"),
         "relay.TypeCall": _rename("TypeCall"),
+        "relay.Constructor": [_update_from_std_str("name_hint")],
         "relay.Module": _rename("IRModule"),
         "relay.SourceName": _rename("SourceName"),
         "relay.Span": _rename("Span"),
         "relay.GlobalVar": [_rename("GlobalVar"), _update_from_std_str("name_hint")],
+        "GlobalVar": _update_from_std_str("name_hint"),
         "relay.Pass": _rename("transform.Pass"),
         "relay.PassInfo": _rename("transform.PassInfo"),
         "relay.PassContext": _rename("transform.PassContext"),
         "relay.ModulePass": _rename("transform.ModulePass"),
         "relay.Sequential": _rename("transform.Sequential"),
+        "StrMap": _rename("Map"),
         # TIR
         "Variable": [_update_tir_var("tir.Var"), _update_from_std_str("name")],
         "SizeVar": [_update_tir_var("tir.SizeVar"), _update_from_std_str("name")],
+        "StringImm": [_update_from_std_str("value")],
+        "Call": [_update_from_std_str("name")],
+        "AttrStmt": [_update_from_std_str("attr_key")],
+        "Layout": [_update_from_std_str("name")],
+        "Buffer": [_update_from_std_str("name"), _update_from_std_str("scope")],
     }
     return create_updater(node_map, "0.6", "0.7")
 

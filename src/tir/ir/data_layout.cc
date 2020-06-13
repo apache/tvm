@@ -66,7 +66,7 @@ const LayoutAxis& LayoutAxis::Get(const IterVar& itvar) {
   return LayoutAxis::Get(axis[0]);
 }
 
-const LayoutAxis& LayoutAxis::make(const std::string& name) {
+const LayoutAxis& LayoutAxis::Get(const std::string& name) {
   CHECK_EQ(name.length(), 1) << "Invalid axis " << name;
   return LayoutAxis::Get(name[0]);
 }
@@ -106,14 +106,14 @@ Layout::Layout(const std::string& name) {  // NOLINT(*)
                           << " before dimension " << c;
       std::string shape_name("_shape");
       shape_name.insert(0, 1, c);
-      IterVar axis = IterVarNode::make(Range(PrimExpr(0), Var(shape_name)), Var(std::string(1, c)),
-                                       tir::kDataPar);
+      IterVar axis =
+          IterVar(Range(PrimExpr(0), Var(shape_name)), Var(std::string(1, c)), tir::kDataPar);
       node->axes.push_back(axis);
     } else if (c >= 'a' && c <= 'z') {
       CHECK_GT(factor, 0) << "Invalid layout " << name << ": invalid factor size " << factor
                           << " for dimension " << c;
-      IterVar axis = IterVarNode::make(Range(PrimExpr(0), PrimExpr(factor)), Var(std::string(1, c)),
-                                       tir::kDataPar);
+      IterVar axis =
+          IterVar(Range(PrimExpr(0), PrimExpr(factor)), Var(std::string(1, c)), tir::kDataPar);
       node->axes.push_back(axis);
       factor = 0;
     } else if (c >= '0' && c <= '9') {
@@ -144,8 +144,6 @@ Layout::Layout(const std::string& name) {  // NOLINT(*)
   data_ = std::move(node);
 }
 
-Layout LayoutNode::make(const std::string& layout) { return Layout(layout); }
-
 Layout Layout::SubLayout(size_t pos, size_t len) const {
   if (!defined() || pos > ndim()) return Layout::Undef();
   if (len == 0) return Layout(Array<IterVar>());
@@ -172,8 +170,8 @@ Layout Layout::Split(const LayoutAxis& axis, size_t target_pos, int32_t factor) 
   Array<IterVar> new_layout;
   for (size_t i = 0; i <= this->ndim(); ++i) {
     if (i == target_pos) {
-      new_layout.push_back(IterVarNode::make(Range(PrimExpr(0), PrimExpr(factor)),
-                                             Var(axis.ToSubordinate().name()), tir::kDataPar));
+      new_layout.push_back(IterVar(Range(PrimExpr(0), PrimExpr(factor)),
+                                   Var(axis.ToSubordinate().name()), tir::kDataPar));
     }
     if (i == this->ndim()) break;
     new_layout.push_back(axes[i]);
@@ -323,7 +321,7 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
       result.push_back(axis->dom->extent);
     } else {
       if (symbolic_var_set.count(i)) {
-        result.push_back(tir::AnyNode::make());
+        result.push_back(tir::Any());
       } else {
         result.push_back(ana.Simplify(tir::Substitute(rule, bind_map)));
       }
@@ -365,15 +363,15 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-TVM_REGISTER_GLOBAL("tir.Layout").set_body_typed(LayoutNode::make);
+TVM_REGISTER_GLOBAL("tir.Layout").set_body_typed([](std::string name) { return Layout(name); });
 
 TVM_REGISTER_GLOBAL("tir.LayoutIndexOf").set_body_typed([](Layout layout, std::string axis) -> int {
-  return layout.IndexOf(LayoutAxis::make(axis));
+  return layout.IndexOf(LayoutAxis::Get(axis));
 });
 
 TVM_REGISTER_GLOBAL("tir.LayoutFactorOf")
     .set_body_typed([](Layout layout, std::string axis) -> int {
-      return layout.FactorOf(LayoutAxis::make(axis));
+      return layout.FactorOf(LayoutAxis::Get(axis));
     });
 
 TVM_REGISTER_GLOBAL("tir.LayoutNdim").set_body_typed([](Layout layout) -> int {

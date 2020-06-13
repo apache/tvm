@@ -93,6 +93,24 @@ struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
   }
 };  // struct ReshapeAttrs
 
+struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
+  Integer axis;
+
+  TVM_DECLARE_ATTRS(ScatterAttrs, "relay.attrs.ScatterAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
+  }
+};
+
+struct GatherAttrs : public tvm::AttrsNode<GatherAttrs> {
+  Integer axis;
+
+  TVM_DECLARE_ATTRS(GatherAttrs, "relay.attrs.GatherAttrs") {
+    TVM_ATTR_FIELD(axis)
+        .set_default(NullValue<Integer>())
+        .describe("The axis over which to select values.");
+  }
+};
+
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   Integer axis;
   std::string mode;
@@ -210,14 +228,24 @@ struct SplitAttrs : public tvm::AttrsNode<SplitAttrs> {
 
 /*! \brief Attributes for StridedSlice operator */
 struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
-  Array<Integer> begin;
-  Array<Integer> end;
-  Array<Integer> strides;
+  Optional<Array<Integer>> begin;
+  Optional<Array<Integer>> end;
+  Optional<Array<Integer>> strides;
+  std::string slice_mode;
 
   TVM_DECLARE_ATTRS(StridedSliceAttrs, "relay.attrs.StridedSliceAttrs") {
     TVM_ATTR_FIELD(begin).describe("Indices for begin of slice, begin index is also inclusive");
     TVM_ATTR_FIELD(end).describe("Indices for end of slice, end index is exclusive");
-    TVM_ATTR_FIELD(strides).set_default(Array<Integer>({})).describe("Stride values of the slice");
+    TVM_ATTR_FIELD(strides).describe(
+        "Stride values of the slice, a stride can be negative, which causes a reverse slice.");
+    TVM_ATTR_FIELD(slice_mode)
+        .set_default("end")
+        .describe(
+            "The slice mode [end, size]."
+            "end - The default slice mode, ending indices for the slice."
+            "size - The input strides will be ignored, input end in this mode indicates the size"
+            "of a slice starting at the location specified by begin. If end[i] is -1,"
+            "all remaining elements in that dimension are included in the slice");
   }
 };
 
@@ -273,6 +301,15 @@ struct SequenceMaskAttrs : public tvm::AttrsNode<SequenceMaskAttrs> {
         "The axis of the length dimension. Can only be 0 or 1.");
   }
 };  // struct SequenceMaskAttrs.
+
+/*! \brief Attributes used in sparse_to_dense operator */
+struct SparseToDenseAttrs : public tvm::AttrsNode<SparseToDenseAttrs> {
+  Array<Integer> output_shape;
+
+  TVM_DECLARE_ATTRS(SparseToDenseAttrs, "relay.attrs.SparseToDenseAttrs") {
+    TVM_ATTR_FIELD(output_shape).describe("Shape of the dense output tensor");
+  }
+};  // struct SparseToDenseAttrs
 
 /*! \brief Attributes for ndarray_size operator */
 struct NdarraySizeAttrs : public tvm::AttrsNode<NdarraySizeAttrs> {

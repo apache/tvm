@@ -50,20 +50,22 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const AltPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const AttrPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const CallPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const ConstantPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const ExprPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TuplePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TypePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const VarPatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const ConstantPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const WildcardPatternNode* op, const Expr& expr) override;
 
   void ClearMap(size_t watermark);
   bool MatchesPath(const DominatorPatternNode* op, const Expr& expr);
   bool DominatesParent(const DominatorPatternNode* op, const Expr& expr);
 
-  std::unordered_map<DFPattern, Array<Expr>, ObjectHash, ObjectEqual> memo_;
+  std::unordered_map<DFPattern, Array<Expr>, ObjectPtrHash, ObjectPtrEqual> memo_;
   std::vector<DFPattern> matched_nodes_;
   bool memoize_ = true;
 };
@@ -121,6 +123,15 @@ bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
         return val->data == rhs.operator std::string();
       }
       break;
+    case kTVMObjectHandle:
+      if (rhs.IsObjectRef<String>()) {
+        if (auto* val = lhs.as<tir::StringImmNode>()) {
+          return rhs.operator String() == val->value;
+        } else if (auto* val = lhs.as<StringObj>()) {
+          return rhs.operator String() == val->data;
+        }
+      }
+      break;
     default:
       CHECK(false) << "Unsupported type code in Pattern Node " << rhs.type_code();
   }
@@ -145,12 +156,12 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
     // TODO(mbrookhart): When OpNode Attrs move from TVMRetValue to the Object system, remove this
     // and replace the whole thing with a Visitor-based approach
     ReflectionVTable* reflection = ReflectionVTable::Global();
-    auto attrs_node = const_cast<Object*>(op->attrs.get());
+    auto attrs_node = const_cast<BaseAttrsNode*>(op->attrs.get());
     auto attr_names = reflection->ListAttrNames(attrs_node);
     for (auto kv : attributes) {
-      if (matches &&
-          std::find(attr_names.begin(), attr_names.end(), kv.first) != attr_names.end()) {
-        matches &= MatchRetValue(kv.second, reflection->GetAttr(attrs_node, kv.first));
+      std::string attr = kv.first;
+      if (matches && std::find(attr_names.begin(), attr_names.end(), attr) != attr_names.end()) {
+        matches &= MatchRetValue(kv.second, reflection->GetAttr(attrs_node, attr));
       } else {
         matches = false;
         break;
@@ -311,7 +322,7 @@ bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& e
 // Iteratively ensure that the parent is dominated somewhere by the child or the path
 bool DFPatternMatcher::DominatesParent(const DominatorPatternNode* op, const Expr& expr) {
   std::stack<Expr> stack;
-  std::unordered_set<Expr, ObjectHash, ObjectEqual> visited;
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visited;
   stack.push(expr);
   while (!stack.empty()) {
     Expr current = stack.top();
@@ -384,6 +395,22 @@ bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& ex
   return (StructuralEqual()(op->type, expr_type)) && VisitDFPattern(op->pattern, expr);
 }
 
+bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) {
+  auto expr_type = InferType(expr).as<ExprNode>()->checked_type();
+  if (const TensorTypeNode* tensor_type = expr_type.as<TensorTypeNode>()) {
+    return (StructuralEqual()(op->shape, tensor_type->shape)) && VisitDFPattern(op->pattern, expr);
+  }
+  return false;
+}
+
+bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) {
+  auto expr_type = InferType(expr).as<ExprNode>()->checked_type();
+  if (const TensorTypeNode* tensor_type = expr_type.as<TensorTypeNode>()) {
+    return (StructuralEqual()(op->dtype, tensor_type->dtype)) && VisitDFPattern(op->pattern, expr);
+  }
+  return false;
+}
+
 bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& expr) {
   bool matches = false;
   if (const auto* var_node = expr.as<VarNode>()) {
@@ -430,7 +457,7 @@ class PatternGrouper {
   };
 
   /* \brief Return the group assignments of expressions */
-  const std::unordered_map<Expr, int, ObjectHash, ObjectEqual>& GetGIDAssignments() {
+  const std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual>& GetGIDAssignments() {
     return gid_assignments_;
   }
   /* \brief Group expressions that match the pattern */
@@ -456,7 +483,7 @@ class PatternGrouper {
    * traversal.
    */
   void VisitExprs() {
-    std::unordered_set<Expr, ObjectHash, ObjectEqual> pre_partitioned;
+    std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> pre_partitioned;
     for (size_t i = matcher_->expr_graph_.topological_order_.size(); i != 0; --i) {
       size_t index = i - 1;
       Expr current = matcher_->expr_graph_.topological_order_.at(index)->ref_;
@@ -476,9 +503,12 @@ class PatternGrouper {
    * group overlap analysis */
   class MatchExtractor : public ExprMutator {
    public:
-    explicit MatchExtractor(const std::unordered_map<Expr, Var, ObjectHash, ObjectEqual>& inputs)
+    explicit MatchExtractor(
+        const std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual>& inputs)
         : inputs_(inputs) {}
-    const std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>& GetMemo() { return this->memo_; }
+    const std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual>& GetMemo() {
+      return this->memo_;
+    }
     const std::string& GetName() { return name_; }
 
    protected:
@@ -528,7 +558,7 @@ class PatternGrouper {
       return out;
     };
     std::string name_;
-    const std::unordered_map<Expr, Var, ObjectHash, ObjectEqual> inputs_;
+    const std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> inputs_;
   };
 
   /* \brief Create a group based on a matched expression */
@@ -538,7 +568,7 @@ class PatternGrouper {
     auto node_map = matcher_->GetMemo();
 
     // Get fuzzy patterns
-    std::unordered_set<Expr, ObjectHash, ObjectEqual> fuzzy_matches;
+    std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> fuzzy_matches;
     for (auto node : pattern_graph_.topological_order_) {
       if (auto op = node->ref_.as<DominatorPatternNode>()) {
         for (auto fuzzy_op : {op->parent, op->path}) {
@@ -554,7 +584,7 @@ class PatternGrouper {
     group.root_node = expr;
     group.matched_nodes = node_map;
 
-    std::unordered_map<Expr, Var, ObjectHash, ObjectEqual> inputs;
+    std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> inputs;
     Array<Var> params;
     for (auto node : pattern_graph_.topological_order_) {
       if (node->inputs_.size() == 0) {
@@ -562,7 +592,7 @@ class PatternGrouper {
           auto matches = node_map[node->ref_];
           for (auto match : matches) {
             if (fuzzy_matches.count(match) == 0 && match.as<OpNode>() == nullptr &&
-                match.as<FunctionNode>() == nullptr) {
+                match.as<FunctionNode>() == nullptr && !EmbedConst(match, node->ref_)) {
               inputs[match] = Var(
                   "FunctionVar_" + std::to_string(graph_number_) + "_" + std::to_string(var_number),
                   NullValue<Type>());
@@ -582,8 +612,8 @@ class PatternGrouper {
     auto extractor = MatchExtractor(inputs);
     auto body = extractor.Mutate(expr);
 
-    // Verify the pattern still holds, no longer valid if we're not embedding constants in the
-    // graph, keep here for future debug CHECK(DFPatternMatcher(body).Match(pattern_, body));
+    // Verify the pattern still holds
+    CHECK(DFPatternMatcher(body).Match(pattern_, body));
     group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
     group.name = extractor.GetName();
     // Check to make sure we aren't overlapping with another group
@@ -613,10 +643,40 @@ class PatternGrouper {
     CHECK_EQ(groups_[gid_].gid, gid_);
   }
 
+  /* \brief EmbedConst implements rules for embedding constants into partitioned functions or
+   * lifting them into the function arguments.
+   *
+   * The rules depend on what pattern the ConstantNode matched.
+   *
+   * The basic rules are:
+   *  If the constant matches ExprPattern(relay.const(*)) or a ConstantPattern(), embed the constant
+   * in the partitioned function. If the constant matched an AltPattern, recursively check the
+   * matched side of the pattern. For any other matching pattern (i.e, wildcard, VarPattern, etc),
+   * lift the constant into the arguments of the partitioned function.
+   */
+  bool EmbedConst(const Expr& expr, const DFPattern pattern) {
+    bool embed = false;
+    if (expr.as<ConstantNode>()) {
+      if (pattern.as<ConstantPatternNode>() != nullptr) {
+        embed = true;
+      } else if (auto expr_pat = pattern.as<ExprPatternNode>()) {
+        if (expr_pat->expr.as<ConstantNode>()) {
+          embed = true;
+        }
+      } else if (auto alt_pat = pattern.as<AltPatternNode>()) {
+        if (matcher_->Match(alt_pat->left, expr)) {
+          embed = EmbedConst(expr, alt_pat->left);
+        } else {
+          embed = EmbedConst(expr, alt_pat->right);
+        }
+      }
+    }
+    return embed;
+  }
   // Internal State
   DFPattern pattern_;
   std::vector<Group> groups_;
-  std::unordered_map<Expr, int, ObjectHash, ObjectEqual> gid_assignments_;
+  std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
   DFPatternMatcher* matcher_ = nullptr;
   IndexedGraph<DFPattern> pattern_graph_;
   int gid_ = 0;
@@ -678,7 +738,7 @@ class PatternRewriter : protected MixedModeMutator {
     if (gid_assignments_.count(pre) && pre == groups_[gid_assignments_[pre]].root_node) {
       // Convert the pre-rewrite node map to a post-rewrite node map
       auto group = groups_[gid_assignments_[pre]];
-      std::unordered_map<DFPattern, Array<Expr>, ObjectHash, ObjectEqual> node_map;
+      std::unordered_map<DFPattern, Array<Expr>, ObjectPtrHash, ObjectPtrEqual> node_map;
       for (auto kv : group.matched_nodes) {
         Array<Expr> tmp;
         for (size_t i = 0; i < kv.second.size(); ++i) {
@@ -694,7 +754,7 @@ class PatternRewriter : protected MixedModeMutator {
 
   DFPatternCallback callback_;
   std::vector<PatternGrouper::Group> groups_;
-  std::unordered_map<Expr, int, ObjectHash, ObjectEqual> gid_assignments_;
+  std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
 };
 
 Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr) {
@@ -710,8 +770,8 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.rewrite").set_body_typed(RewritePatt
  */
 class PatternPartitioner : protected MixedModeMutator {
  public:
-  Expr Partition(const DFPattern& pattern, const Expr& pre,
-                 const Map<std::string, ObjectRef>& attrs, PackedFunc check) {
+  Expr Partition(const DFPattern& pattern, const Expr& pre, const Map<String, ObjectRef>& attrs,
+                 PackedFunc check) {
     auto grouper = PatternGrouper();
     groups_ = grouper.GroupMatches(pattern, pre);
     gid_assignments_ = grouper.GetGIDAssignments();
@@ -744,19 +804,19 @@ class PatternPartitioner : protected MixedModeMutator {
     return post;
   }
 
-  Map<std::string, ObjectRef> attrs_;
+  Map<String, ObjectRef> attrs_;
   std::vector<PatternGrouper::Group> groups_;
-  std::unordered_map<Expr, int, ObjectHash, ObjectEqual> gid_assignments_;
+  std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
   PackedFunc check_;
 };
 
-Expr PartitionPattern(DFPattern pattern, Expr expr, Map<std::string, ObjectRef> attrs,
+Expr PartitionPattern(DFPattern pattern, Expr expr, Map<String, ObjectRef> attrs,
                       PackedFunc check) {
   return PatternPartitioner().Partition(pattern, expr, attrs, check);
 }
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.partition")
-    .set_body_typed([](DFPattern pattern, Expr expr, Map<std::string, ObjectRef> attrs,
+    .set_body_typed([](DFPattern pattern, Expr expr, Map<String, ObjectRef> attrs,
                        PackedFunc check) { return PartitionPattern(pattern, expr, attrs, check); });
 
 }  // namespace relay

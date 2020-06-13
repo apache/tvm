@@ -160,7 +160,7 @@ class GPUCodeVerifier : public StmtVisitor {
   }
 };
 
-bool VerifyGPUCode(const PrimFunc& func, Map<std::string, PrimExpr> constraints) {
+bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints) {
   GPUCodeVerifier verifier;
 
   int64_t max_local_memory_per_block = INT64_MAX;
@@ -196,7 +196,7 @@ TVM_REGISTER_GLOBAL("tir.analysis.verify_gpu_code").set_body_typed(VerifyGPUCode
 
 namespace transform {
 
-Pass VerifyGPUCode(Map<std::string, PrimExpr> constraints) {
+Pass VerifyGPUCode(Map<String, PrimExpr> constraints) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {

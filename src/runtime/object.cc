@@ -217,8 +217,8 @@ uint32_t Object::TypeKey2Index(const std::string& key) {
   return TypeContext::Global()->TypeKey2Index(key);
 }
 
-TVM_REGISTER_GLOBAL("runtime.ObjectHash").set_body_typed([](ObjectRef obj) {
-  return static_cast<int64_t>(ObjectHash()(obj));
+TVM_REGISTER_GLOBAL("runtime.ObjectPtrHash").set_body_typed([](ObjectRef obj) {
+  return static_cast<int64_t>(ObjectPtrHash()(obj));
 });
 
 TVM_REGISTER_GLOBAL("runtime.DumpTypeTable").set_body_typed([](int min_child_count) {
@@ -234,9 +234,22 @@ int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex) {
   API_END();
 }
 
+int TVMObjectRetain(TVMObjectHandle obj) {
+  API_BEGIN();
+  tvm::runtime::ObjectInternal::ObjectRetain(obj);
+  API_END();
+}
+
 int TVMObjectFree(TVMObjectHandle obj) {
   API_BEGIN();
   tvm::runtime::ObjectInternal::ObjectFree(obj);
+  API_END();
+}
+
+int TVMObjectDerivedFrom(uint32_t child_type_index, uint32_t parent_type_index, int* is_derived) {
+  API_BEGIN();
+  *is_derived =
+      tvm::runtime::TypeContext::Global()->DerivedFrom(child_type_index, parent_type_index);
   API_END();
 }
 

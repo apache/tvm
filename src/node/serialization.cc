@@ -110,14 +110,18 @@ class NodeIndexer : public AttrVisitor {
       }
     } else if (node->IsInstance<MapNode>()) {
       MapNode* n = static_cast<MapNode*>(node);
-      for (const auto& kv : n->data) {
-        MakeIndex(const_cast<Object*>(kv.first.get()));
-        MakeIndex(const_cast<Object*>(kv.second.get()));
-      }
-    } else if (node->IsInstance<StrMapNode>()) {
-      StrMapNode* n = static_cast<StrMapNode*>(node);
-      for (const auto& kv : n->data) {
-        MakeIndex(const_cast<Object*>(kv.second.get()));
+      bool is_str_map = std::all_of(n->data.begin(), n->data.end(), [](const auto& v) {
+        return v.first->template IsInstance<StringObj>();
+      });
+      if (is_str_map) {
+        for (const auto& kv : n->data) {
+          MakeIndex(const_cast<Object*>(kv.second.get()));
+        }
+      } else {
+        for (const auto& kv : n->data) {
+          MakeIndex(const_cast<Object*>(kv.first.get()));
+          MakeIndex(const_cast<Object*>(kv.second.get()));
+        }
       }
     } else {
       // if the node already have repr bytes, no need to visit Attrs.
@@ -249,15 +253,19 @@ class JSONAttrGetter : public AttrVisitor {
       }
     } else if (node->IsInstance<MapNode>()) {
       MapNode* n = static_cast<MapNode*>(node);
-      for (const auto& kv : n->data) {
-        node_->data.push_back(node_index_->at(const_cast<Object*>(kv.first.get())));
-        node_->data.push_back(node_index_->at(const_cast<Object*>(kv.second.get())));
-      }
-    } else if (node->IsInstance<StrMapNode>()) {
-      StrMapNode* n = static_cast<StrMapNode*>(node);
-      for (const auto& kv : n->data) {
-        node_->keys.push_back(kv.first);
-        node_->data.push_back(node_index_->at(const_cast<Object*>(kv.second.get())));
+      bool is_str_map = std::all_of(n->data.begin(), n->data.end(), [](const auto& v) {
+        return v.first->template IsInstance<StringObj>();
+      });
+      if (is_str_map) {
+        for (const auto& kv : n->data) {
+          node_->keys.push_back(Downcast<String>(kv.first));
+          node_->data.push_back(node_index_->at(const_cast<Object*>(kv.second.get())));
+        }
+      } else {
+        for (const auto& kv : n->data) {
+          node_->data.push_back(node_index_->at(const_cast<Object*>(kv.first.get())));
+          node_->data.push_back(node_index_->at(const_cast<Object*>(kv.second.get())));
+        }
       }
     } else {
       // recursively index normal object.
@@ -329,16 +337,17 @@ class JSONAttrSetter : public AttrVisitor {
       }
     } else if (node->IsInstance<MapNode>()) {
       MapNode* n = static_cast<MapNode*>(node);
-      CHECK_EQ(node_->data.size() % 2, 0U);
-      for (size_t i = 0; i < node_->data.size(); i += 2) {
-        n->data[ObjectRef(node_list_->at(node_->data[i]))] =
-            ObjectRef(node_list_->at(node_->data[i + 1]));
-      }
-    } else if (node->IsInstance<StrMapNode>()) {
-      StrMapNode* n = static_cast<StrMapNode*>(node);
-      CHECK_EQ(node_->data.size(), node_->keys.size());
-      for (size_t i = 0; i < node_->data.size(); ++i) {
-        n->data[node_->keys[i]] = ObjectRef(node_list_->at(node_->data[i]));
+      if (node_->keys.empty()) {
+        CHECK_EQ(node_->data.size() % 2, 0U);
+        for (size_t i = 0; i < node_->data.size(); i += 2) {
+          n->data[ObjectRef(node_list_->at(node_->data[i]))] =
+              ObjectRef(node_list_->at(node_->data[i + 1]));
+        }
+      } else {
+        CHECK_EQ(node_->data.size(), node_->keys.size());
+        for (size_t i = 0; i < node_->data.size(); ++i) {
+          n->data[String(node_->keys[i])] = ObjectRef(node_list_->at(node_->data[i]));
+        }
       }
     } else {
       reflection_->VisitAttrs(node, this);
