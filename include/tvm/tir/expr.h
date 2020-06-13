@@ -51,7 +51,7 @@ using FloatImmNode = tvm::FloatImmNode;
 class StringImmNode : public PrimExprNode {
  public:
   /*! \brief The constant value content. */
-  std::string value;
+  String value;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
@@ -74,7 +74,7 @@ class StringImmNode : public PrimExprNode {
  */
 class StringImm : public PrimExpr {
  public:
-  TVM_DLL StringImm(std::string value);
+  TVM_DLL StringImm(String value);
   TVM_DEFINE_OBJECT_REF_METHODS(StringImm, PrimExpr, StringImmNode);
 };
 
@@ -889,7 +889,7 @@ class CallNode : public PrimExprNode {
     PureIntrinsic = 5
   };
   /*! \brief The name of the function/intrinsic. */
-  std::string name;
+  String name;
   /*! \brief The arguments. */
   Array<PrimExpr> args;
   /*! \brief Type of calls. */
@@ -958,7 +958,7 @@ class Call : public PrimExpr {
  public:
   using CallType = CallNode::CallType;
 
-  TVM_DLL Call(DataType dtype, std::string name, Array<PrimExpr> args, CallType call_type);
+  TVM_DLL Call(DataType dtype, String name, Array<PrimExpr> args, CallType call_type);
   TVM_DEFINE_OBJECT_REF_METHODS(Call, PrimExpr, CallNode);
 };
 

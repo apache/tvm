@@ -109,7 +109,7 @@ class AttrStmtNode : public StmtNode {
   /*! \brief this is attribute about certain node */
   ObjectRef node;
   /*! \brief the type key of the attribute */
-  std::string attr_key;
+  String attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
   PrimExpr value;
   /*! \brief The body statement to be executed */
@@ -144,7 +144,7 @@ class AttrStmtNode : public StmtNode {
  */
 class AttrStmt : public Stmt {
  public:
-  TVM_DLL AttrStmt(ObjectRef node, std::string type_key, PrimExpr value, Stmt body);
+  TVM_DLL AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body);
 
   TVM_DEFINE_OBJECT_REF_METHODS(AttrStmt, Stmt, AttrStmtNode);
 };

@@ -664,7 +664,8 @@ llvm::Value* CodeGenLLVM::CreateCallExtern(const CallNode* op) {
       llvm::FunctionType::get(GetLLVMType(GetRef<PrimExpr>(op)), arg_type, false);
   llvm::Function* f = module_->getFunction(op->name);
   if (f == nullptr) {
-    f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, op->name, module_.get());
+    f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
+                               op->name.operator llvm::StringRef(), module_.get());
   }
   llvm::CallInst* call = builder_->CreateCall(f, arg_value);
   return call;

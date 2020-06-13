@@ -58,21 +58,21 @@ class OpAttrMap;
 class OpNode : public RelayExprNode {
  public:
   /*! \brief name of the operator */
-  std::string name;
+  String name;
   /*! \brief the type of the operator */
   mutable FuncType op_type;
   /*!
    * \brief detailed description of the operator
    *  This can be used to generate docstring automatically for the operator.
    */
-  std::string description;
+  String description;
   /* \brief Information of input arguments to the operator */
   Array<AttrFieldInfo> arguments;
   /*!
    * \brief The type key of the attribute field
    *  This can be empty, in which case it defaults to anything.
    */
-  std::string attrs_type_key;
+  String attrs_type_key;
   /*!
    * \brief attribute type index,
    * this field varies in each run and is not exposed to frontend.

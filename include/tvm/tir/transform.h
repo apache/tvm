@@ -54,7 +54,7 @@ using tvm::transform::Sequential;
  */
 TVM_DLL Pass CreatePrimFuncPass(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, const std::string& name, const tvm::Array<runtime::String>& required);
+    int opt_level, String name, tvm::Array<String> required);
 
 /*!
  * \brief Inject prefetch instructions into stmt.
@@ -88,7 +88,7 @@ TVM_DLL Pass StorageFlatten(int cache_line_size, bool create_bound_attribute = f
  *                Expr pad_value)
  * \return The pass.
  */
-TVM_DLL Pass InjectCopyIntrin(std::string pragma_key, runtime::PackedFunc fintrin);
+TVM_DLL Pass InjectCopyIntrin(String pragma_key, runtime::PackedFunc fintrin);
 
 /*!
  * \brief Detect and insert sync points to co-processor.
@@ -103,7 +103,7 @@ TVM_DLL Pass CoProcSync();
  * \param attr_key The attribute key to be checked.
  * \return The pass.
  */
-TVM_DLL Pass LiftAttrScope(std::string attr_key);
+TVM_DLL Pass LiftAttrScope(String attr_key);
 
 /*!
  * \brief partition loops in the stmt.
@@ -222,7 +222,7 @@ TVM_DLL Pass MakePackedAPI(int num_unpacked_args);
  *
  * \return The pass.
  */
-TVM_DLL Pass RemapThreadAxis(Map<runtime::String, IterVar> axis_map);
+TVM_DLL Pass RemapThreadAxis(Map<String, IterVar> axis_map);
 
 /*!
  * \brief Lower custom datatypes.
@@ -260,7 +260,7 @@ TVM_DLL Pass SkipAssert();
  * \param storage_scope The storage scope considered.
  * \return The pass.
  */
-TVM_DLL Pass ThreadSync(std::string storage_scope);
+TVM_DLL Pass ThreadSync(String storage_scope);
 
 /*!
  * \brief Lower cross thread alleduce.
