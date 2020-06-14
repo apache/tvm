@@ -87,7 +87,7 @@ def FoldUopLoop():
             return op
 
         ret = tvm.tir.stmt_functor.ir_transform(
-            stmt.body, None, _post_order, ["Call"])
+            stmt.body, None, _post_order, ["tir.Call"])
 
         if not fail[0] and all(x is not None for x in gemm_offsets):
             def _visit(op):
@@ -132,7 +132,7 @@ def FoldUopLoop():
 
     def _ftransform(f, mod, ctx):
         return f.with_body(tvm.tir.stmt_functor.ir_transform(
-            f.body, _do_fold, None, ["AttrStmt"]))
+            f.body, _do_fold, None, ["tir.AttrStmt"]))
 
     return tvm.tir.transform.prim_func_pass(
         _ftransform, opt_level=0, name="tir.vta.FoldUopLoop")
@@ -188,7 +188,7 @@ def CPUAccessRewrite():
 
         stmt_in = f.body
         stmt = tvm.tir.stmt_functor.ir_transform(
-            stmt_in, None, _post_order, ["Allocate", "Load", "Store"])
+            stmt_in, None, _post_order, ["tir.Allocate", "tir.Load", "tir.Store"])
 
         for buffer_var, new_var in rw_info.items():
             stmt = tvm.tir.LetStmt(
@@ -254,7 +254,7 @@ def LiftAllocToScopeBegin():
             raise RuntimeError("not reached")
         stmt_in = f.body
         stmt = tvm.tir.stmt_functor.ir_transform(
-            stmt_in, _pre_order, _post_order, ["Allocate", "AttrStmt", "For"])
+            stmt_in, _pre_order, _post_order, ["tir.Allocate", "tir.AttrStmt", "tir.For"])
         assert len(lift_stmt) == 1
         return f.with_body(_merge_block(lift_stmt[0], stmt))
 
@@ -277,7 +277,7 @@ def InjectSkipCopy():
 
     def _ftransform(f, mod, ctx):
         return f.with_body(tvm.tir.stmt_functor.ir_transform(
-            f.body, _do_fold, None, ["AttrStmt"]))
+            f.body, _do_fold, None, ["tir.AttrStmt"]))
 
     return tvm.tir.transform.prim_func_pass(
         _ftransform, opt_level=0, name="tir.vta.InjectSkipCopy")
@@ -307,7 +307,7 @@ def InjectCoProcSync():
                     op.device_api, op.body)
             return None
         return f.with_body(tvm.tir.stmt_functor.ir_transform(
-            f.body, None, _do_fold, ["AttrStmt"]))
+            f.body, None, _do_fold, ["tir.AttrStmt"]))
     return tvm.transform.Sequential(
         [tvm.tir.transform.prim_func_pass(_ftransform, 0, "tir.vta.InjectCoProcSync"),
          tvm.tir.transform.CoProcSync()],
@@ -708,7 +708,7 @@ def InjectConv2DTransposeSkip():
             return None
 
         return func.with_body(tvm.tir.stmt_functor.ir_transform(
-            func.body, _do_fold, None, ["AttrStmt"]))
+            func.body, _do_fold, None, ["tir.AttrStmt"]))
     return tvm.tir.transform.prim_func_pass(
         _ftransform, opt_level=0, name="tir.vta.InjectConv2DTrasnposeSkip")
 
@@ -737,7 +737,7 @@ def AnnotateALUCoProcScope():
             return stmt
 
         return func.with_body(tvm.tir.stmt_functor.ir_transform(
-            func.body, None, _do_fold, ["AttrStmt"]))
+            func.body, None, _do_fold, ["tir.AttrStmt"]))
     return tvm.tir.transform.prim_func_pass(
         _ftransform, opt_level=0, name="tir.vta.AnnotateALUCoProcScope")
 
@@ -956,7 +956,7 @@ def InjectALUIntrin():
             return stmt
 
         return func.with_body(tvm.tir.stmt_functor.ir_transform(
-            func.body, None, _do_fold, ["AttrStmt"]))
+            func.body, None, _do_fold, ["tir.AttrStmt"]))
 
     return tvm.tir.transform.prim_func_pass(
         _ftransform, opt_level=0, name="tir.vta.InjectALUIntrin")

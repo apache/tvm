@@ -118,7 +118,7 @@ class BufferNode : public Object {
     return shape.size() != 0 ? shape[0].dtype() : DataType::Int(32);
   }
 
-  static constexpr const char* _type_key = "Buffer";
+  static constexpr const char* _type_key = "tir.Buffer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferNode, Object);
@@ -228,7 +228,7 @@ class DataProducerNode : public Object {
 
   void SHashReduce(SHashReducer hash_reduce) const {}
 
-  static constexpr const char* _type_key = "DataProducer";
+  static constexpr const char* _type_key = "tir.DataProducer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(DataProducerNode, Object);

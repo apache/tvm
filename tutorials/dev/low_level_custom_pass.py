@@ -84,7 +84,7 @@ print(ir)
 
 loops = []
 def find_width8(op):
-    """ Find all the 'For' nodes whose extent can be divided by 8. """
+    """ Find all the 'tir.For' nodes whose extent can be divided by 8. """
     if isinstance(op, tvm.tir.For):
         if isinstance(op.extent, tvm.tir.IntImm):
             if op.extent.value % 8 == 0:
@@ -129,7 +129,7 @@ def vectorize(f, mod, ctx):
     # The last list arugment indicates what kinds of nodes will be transformed.
     # Thus, in this case only `For` nodes will call `vectorize8`
     return f.with_body(
-        tvm.tir.stmt_functor.ir_transform(f.body, None, vectorize8, ['For']))
+        tvm.tir.stmt_functor.ir_transform(f.body, None, vectorize8, ['tir.For']))
 
 
 #####################################################################
