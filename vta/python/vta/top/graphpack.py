@@ -510,7 +510,10 @@ def graph_pack(expr,
                stop_name="nn.global_avg_pool2d",
                start_name_idx=None,
                stop_name_idx=None,
-               count_meta=False, device_annot=False):
+               count_meta=False,
+               device_annot=False,
+               annot_start_name="nn.conv2d",
+               annot_end_name="annotation.stop_fusion"):
     """Pack the graph into batch&channel packed format.
 
     Parameters
@@ -547,6 +550,15 @@ def graph_pack(expr,
         'expr.astext(show_meta_data=False)'. When count_meta is True, the operator increase
         logic would count the meta.
 
+    device_annot: boolean, optional
+        if we want to annoate the device_type
+
+    annot_start_name: str, optional
+        device annotation start node, from which we mark the nodes as `ext_dev`
+
+    annot_end_name: str, optional
+        device annotation end node, after which we mark the nodes as 'cpu'
+
     Returns
     -------
     expr : Expr
@@ -568,18 +580,12 @@ def graph_pack(expr,
         expr_locator = ExprLocater()
         expr_locator.visit(expr)
 
-        # FIXME(zhanghao): generalize this part
-        # from the first int conv2d to the last int stop_fusion, all will run on vta
-        conv2d = op.op.get("nn.conv2d")
-        conv2d_transpose = op.op.get("nn.conv2d_transpose")
-        stop_fusion = op.op.get("annotation.stop_fusion")
-        if (conv2d, "int32") in expr_locator.op2nodes:
-            start = expr_locator.op2nodes[(conv2d, "int32")][0]
-        else:
-            start = expr_locator.op2nodes[(conv2d_transpose, "int32")][0]
+        annot_start = op.op.get(annot_start_name)
+        start = expr_locator.op2nodes[(annot_start, "int32")][0]
 
+        annot_end = op.op.get(annot_end_name)
         # we mark the next op to the last stop_fusion on cpu device
-        end = expr_locator.op2nodes[(stop_fusion, "int8")][-1] + 1
+        end = expr_locator.op2nodes[(annot_end, "int8")][-1] + 1
 
         device_annot = ExprDeviceAnnot(start=start, end=end)
         expr = device_annot.visit(expr)

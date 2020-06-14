@@ -75,11 +75,6 @@ env = vta.get_env()
 # or ``device=vta`` to run inference on the FPGA.
 device = "vta"
 target = env.target if device == "vta" else env.target_vta_cpu
-# multiple targets to run both on cpu and vta
-targets = {
-    "cpu": env.target_vta_cpu,
-    "ext_dev": env.target
-}
 
 # Dictionary lookup for when to start/end bit packing
 pack_dict = {
@@ -140,8 +135,7 @@ else:
     remote = rpc.LocalSession()
 
 # Get execution context from remote
-# ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
-ctxes = [remote.ext_dev(0), remote.cpu(0)]
+ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 
 ######################################################################
 # Build the inference graph runtime
@@ -160,9 +154,7 @@ ctxes = [remote.ext_dev(0), remote.cpu(0)]
 #
 
 # Load pre-configured AutoTVM schedules
-log_file = "%s.%s.log-manual-formatv0_2" % (device, model)
-alu_log_file = "%s.alu.%s.log" % (device, model)
-with autotvm.tophub.context(target, extra_files=[log_file, alu_log_file]):
+with autotvm.tophub.context(target):
 
     # Populate the shape and data type dictionary for ImageNet classifier input
     dtype_dict = {"data": 'float32'}
@@ -207,9 +199,15 @@ with autotvm.tophub.context(target, extra_files=[log_file, alu_log_file]):
                 relay_prog, target=target,
                 params=params, target_host=env.target_host)
     else:
+        if env.TARGET == "intelfocl":
+            # multiple targets to run both on cpu and vta
+            target = {
+                "cpu": env.target_vta_cpu,
+                "ext_dev": target
+            }
         with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             graph, lib, params = relay.build(
-                relay_prog, target=targets,
+                relay_prog, target=target,
                 params=params, target_host=env.target_host)
 
     # Measure Relay build time
@@ -222,8 +220,13 @@ with autotvm.tophub.context(target, extra_files=[log_file, alu_log_file]):
     remote.upload(temp.relpath("graphlib.o"))
     lib = remote.load_module("graphlib.o")
 
-    # Graph runtime
-    m = graph_runtime.create(graph, lib, ctxes)
+
+    if env.TARGET == "intelfocl":
+        ctxes = [remote.ext_dev(0), remote.cpu(0)]
+        m = graph_runtime.create(graph, lib, ctxes)
+    else:
+        # Graph runtime
+        m = graph_runtime.create(graph, lib, ctx)
 
 ######################################################################
 # Perform image classification inference
@@ -261,7 +264,7 @@ m.set_input('data', image)
 # More on: https://docs.tvm.ai/api/python/module.html#tvm.runtime.Module.time_evaluator
 num = 4 # number of times we run module for a single measurement
 rep = 3 # number of measurements (we derive std dev from this)
-timer = m.module.time_evaluator("run", ctxes[0], number=num, repeat=rep)
+timer = m.module.time_evaluator("run", ctx, number=num, repeat=rep)
 
 if env.TARGET in ["sim", "tsim"]:
     simulator.clear_stats()
