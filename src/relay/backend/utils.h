@@ -151,7 +151,7 @@ inline std::string DType2String(const tvm::DataType dtype) {
     os << "uint";
   } else {
     LOG(FATAL) << "Unknown type with code "
-      << static_cast<unsigned>(tvm_type.code);
+               << static_cast<unsigned>(dtype.code());
   }
   os << dtype.bits();
   return os.str();
