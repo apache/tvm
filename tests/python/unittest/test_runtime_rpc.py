@@ -86,6 +86,22 @@ def test_rpc_simple():
     f2 = client.get_function("rpc.test.strcat")
     assert f2("abc", 11) == "abc:11"
 
+
+def test_rpc_runtime_string():
+    if not tvm.runtime.enabled("rpc"):
+        return
+    @tvm.register_func("rpc.test.runtime_str_concat")
+    def strcat(x, y):
+        return x + y
+
+    server = rpc.Server("localhost", key="x1")
+    client = rpc.connect(server.host, server.port, key="x1")
+    func = client.get_function("rpc.test.runtime_str_concat")
+    x = tvm.runtime.container.String("abc")
+    y = tvm.runtime.container.String("def")
+    assert str(func(x, y)) == "abcdef"
+
+
 def test_rpc_array():
     if not tvm.runtime.enabled("rpc"):
         return
