@@ -1353,7 +1353,7 @@ template <typename T, typename U,
 inline String operator+(const T& lhs, const U& rhs) {
   size_t lhs_size = lhs.size();
   size_t rhs_size = rhs.size();
-  char* concat = new char[lhs_size + rhs_size];
+  char* concat = new char[lhs_size + rhs_size + 1];
   std::memcpy(concat, lhs.data(), lhs_size);
   std::memcpy(concat + lhs_size, rhs.data(), rhs_size);
   auto ptr = make_object<StringObj>();
@@ -1365,7 +1365,7 @@ inline String operator+(const T& lhs, const U& rhs) {
 inline String operator+(const char* lhs, const String& rhs) {
   size_t lhs_size = std::strlen(lhs);
   size_t rhs_size = rhs.size();
-  char* concat = new char[lhs_size + rhs_size];
+  char* concat = new char[lhs_size + rhs_size + 1];
   std::memcpy(concat, lhs, lhs_size);
   std::memcpy(concat + lhs_size, rhs.data(), rhs_size);
   auto ptr = make_object<StringObj>();
@@ -1377,7 +1377,7 @@ inline String operator+(const char* lhs, const String& rhs) {
 inline String operator+(const String& lhs, const char* rhs) {
   size_t lhs_size = lhs.size();
   size_t rhs_size = std::strlen(rhs);
-  char* concat = new char[lhs_size + rhs_size];
+  char* concat = new char[lhs_size + rhs_size + 1];
   std::memcpy(concat, lhs.data(), lhs_size);
   std::memcpy(concat + lhs_size, rhs, rhs_size);
   auto ptr = make_object<StringObj>();
@@ -1397,9 +1397,9 @@ inline bool operator<(const String& lhs, const char* rhs) { return lhs.compare(r
 
 inline bool operator<(const char* lhs, const String& rhs) { return rhs.compare(lhs) > 0; }
 
+// Overload > operator
 inline bool operator>(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) > 0; }
 
-// Overload > operator
 inline bool operator>(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) < 0; }
 
 inline bool operator>(const String& lhs, const String& rhs) { return lhs.compare(rhs) > 0; }
