@@ -288,12 +288,13 @@ def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
     assert s.indptr.shape == (M // BS_R + 1, )
     return s
 
-def test_sparse_dense_bsr():
-    M, N, K, BS_R, BS_C, density = 1, 64, 128, 8, 16, 0.9
+def verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu):
     X_np = np.random.randn(M, K).astype("float32")
     W_sp_np = random_bsr_matrix(N, K, BS_R, BS_C, density=density, dtype="float32")
     W_np = W_sp_np.todense()
     Y_np = X_np.dot(W_np.T)
+    if use_relu:
+        Y_np = np.maximum(Y_np, 0.0)
 
     W_data = te.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype))
     W_indices = te.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
@@ -309,6 +310,8 @@ def test_sparse_dense_bsr():
         fcompute, fschedule = topi.testing.dispatch(device, _sparse_dense_implement)
         with tvm.target.create(device):
             Y = fcompute(X, W_data, W_indices, W_indptr)
+            if use_relu:
+                Y = topi.nn.relu(Y)
             s = fschedule([Y])
             func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
             Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), ctx=ctx)
@@ -321,6 +324,11 @@ def test_sparse_dense_bsr():
 
     for device in ['llvm', 'cuda']:
         check_device(device)
+
+def test_sparse_dense_bsr():
+    M, N, K, BS_R, BS_C, density = 1, 64, 128, 8, 16, 0.9
+    verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu=True)
+    verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu=False)
 
 def test_sparse_dense_bsr_randomized():
     for _ in range(20):
