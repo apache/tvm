@@ -67,6 +67,7 @@ class QConfigNode : public Object {
   std::string calibrate_mode = "global_scale";
   double global_scale = 8.0;
   std::string weight_scale = "power2";
+  bool skip_dense_layer = true;
   Array<Expr> skip_conv_layers = Array<Expr>(ObjectPtr<Object>(nullptr));
   bool do_simulation = false;
   bool round_for_shift = true;
@@ -84,6 +85,7 @@ class QConfigNode : public Object {
     v->Visit("calibrate_mode", &calibrate_mode);
     v->Visit("global_scale", &global_scale);
     v->Visit("weight_scale", &weight_scale);
+    v->Visit("skip_dense_layer", &skip_dense_layer);
     v->Visit("skip_conv_layers", &skip_conv_layers);
     v->Visit("do_simulation", &do_simulation);
     v->Visit("round_for_shift", &round_for_shift);
