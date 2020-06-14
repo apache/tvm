@@ -69,6 +69,11 @@ def schedule_sparse_dense(cfg, outs):
             y_bsrmm = op.input_tensors[0]
             assert y_bsrmm.op.tag == "sparse_dense_bsrmm_block"
             out = s.outputs[0].output(0)
+
+            if op not in s.outputs:
+                y_reshape = op.output(0)
+                s[y_reshape].compute_at(s[out], s[out].op.axis[1])
+
             (_, c) = s[y_bsrmm].op.reduce_axis
 
             (m_o, n_o) = s[out].op.axis
