@@ -83,7 +83,7 @@ def replace_io(body, rmap):
             return _expr.ProducerLoad(buf, op.indices)
         return None
 
-    return stmt_functor.ir_transform(body, None, replace, ['ProducerStore', 'ProducerLoad'])
+    return stmt_functor.ir_transform(body, None, replace, ['tir.ProducerStore', 'tir.ProducerLoad'])
 
 
 def _is_tvm_arg_types(args):

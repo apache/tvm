@@ -36,7 +36,7 @@ class Stmt(Object):
     """Base class of all the statements."""
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.LetStmt")
 class LetStmt(Stmt):
     """LetStmt node.
 
@@ -56,7 +56,7 @@ class LetStmt(Stmt):
             _ffi_api.LetStmt, var, value, body)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.AssertStmt")
 class AssertStmt(Stmt):
     """AssertStmt node.
 
@@ -76,7 +76,7 @@ class AssertStmt(Stmt):
             _ffi_api.AssertStmt, condition, message, body)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.For")
 class For(Stmt):
     """For node.
 
@@ -116,7 +116,7 @@ class For(Stmt):
             for_type, device_api, body)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Store")
 class Store(Stmt):
     """Store node.
 
@@ -140,7 +140,7 @@ class Store(Stmt):
             _ffi_api.Store, buffer_var, value, index, *args)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.BufferStore")
 class BufferStore(Stmt):
     """Buffer store node.
 
@@ -160,7 +160,7 @@ class BufferStore(Stmt):
             _ffi_api.BufferStore, buffer, value, indices)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.BufferRealize")
 class BufferRealize(Stmt):
     """Buffer realize node.
 
@@ -183,7 +183,7 @@ class BufferRealize(Stmt):
             _ffi_api.BufferRealize, buffer, bounds, condition, body)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.ProducerStore")
 class ProducerStore(Stmt):
     """ProducerStore node.
 
@@ -203,7 +203,7 @@ class ProducerStore(Stmt):
             _ffi_api.ProducerStore, producer, value, indices)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Allocate")
 class Allocate(Stmt):
     """Allocate node.
 
@@ -235,7 +235,7 @@ class Allocate(Stmt):
             extents, condition, body)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.AttrStmt")
 class AttrStmt(Stmt):
     """AttrStmt node.
 
@@ -258,7 +258,7 @@ class AttrStmt(Stmt):
             _ffi_api.AttrStmt, node, attr_key, value, body)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Free")
 class Free(Stmt):
     """Free node.
 
@@ -272,7 +272,7 @@ class Free(Stmt):
             _ffi_api.Free, buffer_var)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.ProducerRealize")
 class ProducerRealize(Stmt):
     """ProducerRealize node.
 
@@ -299,7 +299,7 @@ class ProducerRealize(Stmt):
             _ffi_api.ProducerRealize, producer, bounds, condition, body)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.SeqStmt")
 class SeqStmt(Stmt):
     """Sequence of statements.
 
@@ -319,7 +319,7 @@ class SeqStmt(Stmt):
         return len(self.seq)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.IfThenElse")
 class IfThenElse(Stmt):
     """IfThenElse node.
 
@@ -339,7 +339,7 @@ class IfThenElse(Stmt):
             _ffi_api.IfThenElse, condition, then_case, else_case)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Evaluate")
 class Evaluate(Stmt):
     """Evaluate node.
 
@@ -353,7 +353,7 @@ class Evaluate(Stmt):
             _ffi_api.Evaluate, value)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Prefetch")
 class Prefetch(Stmt):
     """Prefetch node.
 
