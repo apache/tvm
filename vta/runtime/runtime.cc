@@ -186,12 +186,7 @@ struct DataBuffer {
    * Bytes.
    */
   void MemCopyFromHost(void* dst, const void* src, size_t size) {
-    // struct timespec start, stop;
-    // clock_gettime(CLOCK_REALTIME, &start);
     VTAMemCopyFromHost(dst, src, size);
-    // clock_gettime(CLOCK_REALTIME, &stop);
-    // uint64_t elapsed = 1000000ULL * (stop.tv_sec - start.tv_sec) + (stop.tv_nsec - start.tv_nsec) / 1000;
-    // LOG(WARNING) << "DataBuffer VTAMemCopyFromHost: " << elapsed << " us";
   }
   /*!
    * \brief Performs a copy operation from buffer allocated with VTAMemAlloc to host memory.
@@ -549,16 +544,6 @@ class UopQueue : public BaseQueue<VTAUop> {
       buff_size += cache_[i]->size() * kElemBytes;
     }
     CHECK(buff_size <= kMaxBytes);
-    // Move kernel contents to FPGA readable buffer
-    // uint32_t offset = 0;
-    // for (uint32_t i = 0; i < cache_.size(); ++i) {
-    //   uint32_t ksize = cache_[i]->size() * kElemBytes;
-    //   VTAMemCopyFromHost(static_cast<char*>(fpga_buff_) + offset,
-    //                      cache_[i]->data(),
-    //                      ksize);
-    //   // Update offset
-    //   offset += ksize;
-    // }
 
     // merge all the cache entries and do CopyFromHost once
     uint32_t total_size = 0;
@@ -797,7 +782,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
           } else if (c.mem.memory_type == VTA_MEM_ID_ACC) {
             return "LOAD ACC";
           } else if (c.mem.memory_type == VTA_MEM_ID_ACC_8BIT) {
-            return "LOAD ACC 8";
+            return "LOAD ACC 8BIT";
           } else {
             return "LOAD";
           }
@@ -860,6 +845,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     // Iterate over all instructions
     int insn_count = count();
     const VTAGenericInsn* insn = data();
+    // FIXME(zhanghao): rapidjson dep
     rapidjson::StringBuffer s;
     rapidjson::Writer<rapidjson::StringBuffer> writer(s);
 
@@ -1335,18 +1321,9 @@ class CommandQueue {
     // Check if there are no instruction to execute at all
     if (insn_queue_.count() == 0) return;
     // Synchronization for the queues
-    // struct timespec start, stop;
-    // clock_gettime(CLOCK_REALTIME, &start);
     uop_queue_.AutoReadBarrier();
-    // clock_gettime(CLOCK_REALTIME, &stop);
-    // uint64_t elapsed = 1000000ULL * (stop.tv_sec - start.tv_sec) + (stop.tv_nsec - start.tv_nsec) / 1000;
-    // LOG(WARNING) << "UopQueue VTAMemCopyFromHost: " << elapsed << " us";
 
-    // clock_gettime(CLOCK_REALTIME, &start);
     insn_queue_.AutoReadBarrier();
-    // clock_gettime(CLOCK_REALTIME, &stop);
-    // elapsed = 1000000ULL * (stop.tv_sec - start.tv_sec) + (stop.tv_nsec - start.tv_nsec) / 1000;
-    // LOG(WARNING) << "InsnQueue VTAMemCopyFromHost: " << elapsed << " us";
     // Dump instructions if debug enabled
     if (debug_flag_ & VTA_DEBUG_DUMP_INSN) {
       insn_queue_.DumpInsn();
@@ -1505,6 +1482,7 @@ class CommandQueue {
   void CheckInsnOverFlow() {
     // At each API call, we can at most commit:
     // one pending store, one pending load, and one uop
+    // FIXME(zhanghao): check why there are 5 insns
     if ((insn_queue_.count() + 5) * sizeof(VTAGenericInsn) >= VTA_MAX_XFER) {
       this->AutoSync();
     }
@@ -1547,13 +1525,8 @@ void VTABufferCopy(const void* from, size_t from_offset, void* to, size_t to_off
   if (from_buffer) {
     // This is an FPGA to host mem transfer
     // NOTE: Issue synchronize manually as we delay the copy until we do it synchronously and explicitly
-    // struct timespec start, stop;
-    // clock_gettime(CLOCK_REALTIME, &start);
     const char* sync_once = std::getenv("TVM_VTA_SYNC_ONCE");
     if (sync_once) VTASynchronize(VTATLSCommandHandle(), 1<<31, false);
-    // clock_gettime(CLOCK_REALTIME, &stop);
-    // uint64_t elapsed = 1000000ULL * (stop.tv_sec - start.tv_sec) + (stop.tv_nsec - start.tv_nsec) / 1000;
-    // LOG(WARNING) << "Final Synchronize: " << elapsed << " us";
     from_buffer->InvalidateCache(from_offset, size);
     from_buffer->MemCopyToHost(static_cast<char*>(to) + to_offset,
                                static_cast<const char*>(from) + from_offset, size);
@@ -1573,8 +1546,6 @@ void VTASetDebugMode(VTACommandHandle cmd, int debug_flag) {
   static_cast<vta::CommandQueue*>(cmd)->SetDebugFlag(debug_flag);
 }
 
-// TODO(zhanghao): now we do the check here
-// it would be better to do the check in ir_pass before adding the "VTABufferCPUPtr"
 void* VTABufferCPUPtr(VTACommandHandle cmd, void* buffer) {
   auto data_buf = vta::DataBuffer::FromHandle(buffer);
   if (data_buf) {
@@ -1645,5 +1616,4 @@ int VTADepPop(VTACommandHandle cmd, int from_qid, int to_qid) {
 }
 
 void VTASynchronize(VTACommandHandle cmd, uint32_t wait_cycles, bool skip) {
-  static_cast<vta::CommandQueue*>(cmd)->
-      Synchronize(wait_cycles, skip); }
+  static_cast<vta::CommandQueue*>(cmd)->Synchronize(wait_cycles, skip); }

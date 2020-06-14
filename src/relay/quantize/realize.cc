@@ -360,11 +360,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
     if (nptrs[i]->dtype != dtype) {
       auto new_arg = Cast(ret[i], dtype);
 
-      // NOTE(zhanghao)
-      // if you want to let cpu to do all the cast, use the following code
-      // ret.Set(i, StopFusion(new_arg));
-
-      // do not fuse float32 cast
+      // FIXME(zhanghao): do not fuse float32 cast
       if (nptrs[i]->dtype == DataType::Float(32)) {
         ret.Set(i, StopFusion(new_arg));
       } else {
@@ -374,11 +370,6 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
                ref_arg->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput) {
       auto new_arg = Cast(ret[i], cfg->dtype_input);
       new_arg = StopFusion(new_arg);
-
-      // NOTE(zhanghao)
-      // if you want to let cpu to do all the cast, use the following code
-      // ret.Set(i, StopFusion(Cast(new_arg, dtype)));
-
       ret.Set(i, Cast(new_arg, dtype));
     }
   }

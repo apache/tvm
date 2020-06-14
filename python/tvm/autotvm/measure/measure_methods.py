@@ -50,8 +50,6 @@ from ..task.space import InstantiationError
 from .measure import MeasureResult, MeasureErrorNo, Builder, Runner
 from .local_executor import LocalExecutor
 
-from tvm.contrib.util import eprint
-
 logger = logging.getLogger('autotvm')
 
 class BuildResult(namedtuple("BuildResult", ('filename', 'arg_info', 'error', 'time_cost'))):
@@ -489,14 +487,6 @@ def run_through_rpc(measure_input, build_result,
     try:
         # upload built module
         remote = request_remote(*remote_args)
-        # Program the FPGA every single time when targeting VTA
-        if hasattr(measure_input.target, 'device_name') and \
-            measure_input.target.device_name == 'vta':
-            # pylint: disable=import-outside-toplevel
-            from vta import program_fpga, reconfig_runtime
-            # FIXME(zhanghao): remove this
-            # program_fpga(remote, None)
-            # reconfig_runtime(remote)
         remote.upload(build_result.filename)
         func = remote.load_module(os.path.split(build_result.filename)[1])
         ctx = remote.context(str(measure_input.target), 0)

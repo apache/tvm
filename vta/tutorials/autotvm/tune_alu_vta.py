@@ -37,7 +37,6 @@ from vta.testing import simulator
 from vta.top import graph_pack
 import copy
 
-from tvm.contrib.util import eprint
 
 #################################################################
 # Compile network
@@ -145,7 +144,6 @@ def log_to_file(file_out, protocol='json'):
     def _callback(_, inputs, results):
         with open(file_out, "a") as f:
             for inp, result in zip(inputs, results):
-                eprint("inp = {}, result = {}".format(inp, result))
                 f.write(record.encode(inp, result, protocol) + "\n")
 
                 # we only consider task with same lhs and rhs

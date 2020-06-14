@@ -549,6 +549,7 @@ def InjectDMAIntrin():
 
             _check_compact(dst)
 
+            # FIXME(zhanghao): optimize
             # for int8 -> int32 cast/load
             orig_dtype = src.dtype
             if src.dtype != data_type:
@@ -562,7 +563,7 @@ def InjectDMAIntrin():
 
             if orig_dtype != src.dtype:
                 src.dtype = orig_dtype
-                mem_type = env.dev.MEM_ID_ACC_8
+                mem_type = env.dev.MEM_ID_ACC_8BIT
 
             irb = tvm.tir.ir_builder.create()
             irb.scope_attr(env.dev.vta_axis, "coproc_scope",

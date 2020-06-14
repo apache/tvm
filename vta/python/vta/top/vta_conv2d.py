@@ -25,9 +25,6 @@ import topi
 
 from .util import is_packed_layout
 from ..environment import get_env
-from tvm.relay import op as Op
-from tvm.contrib.util import eprint
-
 
 @autotvm.register_topi_compute("conv2d_packed.vta")
 def conv2d_packed(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
@@ -65,7 +62,6 @@ def conv2d_packed(cfg, data, kernel, strides, padding, dilation, layout, out_dty
                  kshape[2] * kshape[3] * ishape[1] * ishape[-1])
 
     return res
-
 
 @autotvm.register_topi_schedule("conv2d_packed.vta")
 def schedule_conv2d_packed(cfg, outs):
@@ -188,6 +184,3 @@ def schedule_conv2d_packed(cfg, outs):
     s[output].pragma(x_co1, env.dma_copy)
 
     return s
-
-
-

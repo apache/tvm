@@ -125,6 +125,7 @@ elseif(PYTHON)
     elseif(${VTA_TARGET} STREQUAL "intelfocl")  # Intel OpenCL for FPGA rules
       target_include_directories(vta PUBLIC "/opt/intelFPGA_pro/19.3.0.222/hld/host/include")
       target_include_directories(vta PUBLIC ${VTA_HW_PATH}/include)
+      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
       target_link_libraries(vta -L/opt/intelFPGA_pro/19.3.0.222/hld/host/linux64/lib -lOpenCL)
     endif()
   endif()

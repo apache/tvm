@@ -62,7 +62,7 @@ class DevContext(object):
     MEM_ID_INP = 2
     MEM_ID_ACC = 3
     MEM_ID_OUT = 4
-    MEM_ID_ACC_8 = 5
+    MEM_ID_ACC_8BIT = 5
     # VTA ALU Opcodes
     ALU_OPCODE_MIN = 0
     ALU_OPCODE_MAX = 1

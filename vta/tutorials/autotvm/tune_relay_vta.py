@@ -76,7 +76,7 @@ from vta.top import graph_pack
 # Perform vta-specific compilation with Relay from a Gluon model
 
 
-def compile_network(env, target, model, start_pack, stop_pack, device_annot=False):
+def compile_network(env, target, model, start_pack, stop_pack):
 
     # Populate the shape and data type dictionary
     dtype_dict = {"data": 'float32'}
@@ -104,8 +104,7 @@ def compile_network(env, target, model, start_pack, stop_pack, device_annot=Fals
                                 env.BLOCK_OUT,
                                 env.WGT_WIDTH,
                                 start_name=start_pack,
-                                stop_name=stop_pack,
-                                device_annot=device_annot)
+                                stop_name=stop_pack)
 
     return relay_prog, params
 
@@ -195,7 +194,7 @@ target = env.target if device == "vta" else env.target_vta_cpu
 # The ``start_pack`` and ``stop_pack`` labels indicate where
 # to start and end the graph packing relay pass: in other words
 # where to start and finish offloading to VTA.
-network = "resnet50_v2"
+network = "resnet18_v1"
 start_pack = "nn.max_pool2d"
 stop_pack = "nn.global_avg_pool2d"
 
@@ -368,7 +367,7 @@ def tune_and_evaluate(tuning_opt):
     tasks = list(filter(lambda t: len(t.args[0][1]) > 4, tasks))
 
     # We should have extracted 10 convolution tasks
-    # assert len(tasks) == 10
+    assert len(tasks) == 10
     print("Extracted {} conv2d tasks:".format(len(tasks)))
     for tsk in tasks:
         inp = tsk.args[0][1]
@@ -386,7 +385,7 @@ def tune_and_evaluate(tuning_opt):
 
     # We do not run the tuning in our webpage server since it takes too long.
     # Comment the following line to run it by yourself.
-    # return
+    return
 
     # run tuning tasks
     print("Tuning...")
@@ -402,9 +401,9 @@ def tune_and_evaluate(tuning_opt):
         if target.device_name != "vta":
             with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
                 graph, lib, params = relay.build(relay_prog,
-                                                 target=target,
-                                                 params=params,
-                                                 target_host=env.target_host)
+                                                target=target,
+                                                params=params,
+                                                target_host=env.target_host)
         else:
             targets = {
                 "cpu": env.target_vta_cpu,

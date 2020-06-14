@@ -35,10 +35,6 @@ from .vta_dense import dense_packed, schedule_dense_packed
 from ..environment import get_env
 
 
-# override to force partition at copy
-# TODO(zhanghao): remove all copy
-# reg.register_pattern("copy", OpPattern.INJECTIVE, level=15)
-
 # add clip vta strategy
 def compute_clip_vta(attrs, inputs, output_type):
     """ Clip operator. """
@@ -74,11 +70,6 @@ def add_packed(cfg, lhs, rhs):
 @autotvm.register_topi_compute("multiply.vta")
 def multiply_packed(cfg, lhs, rhs):
     return topi.multiply(lhs, rhs)
-
-
-@autotvm.register_topi_compute("copy.vta")
-def copy_packed(cfg, i):
-    return topi.identify(i)
 
 
 def schedule_alu_packed(cfg, outs):
@@ -183,11 +174,6 @@ def schedule_multiply_packed(cfg, outs):
     return schedule_alu_packed(cfg, outs)
 
 
-@autotvm.register_topi_schedule("copy.vta")
-def schedule_copy_packed(cfg, outs):
-    return schedule_alu_packed(cfg, outs)
-
-
 def add_strategy_vta(attrs, inputs, out_type, target):
     strategy = OpStrategy()
     strategy.add_implementation(
@@ -206,18 +192,9 @@ def multiply_strategy_vta(attrs, inputs, out_type, target):
     return strategy
 
 
-def copy_strategy_vta(attrs, inputs, out_type, target):
-    strategy = OpStrategy()
-    strategy.add_implementation(
-        _strategy.wrap_topi_compute(copy_packed),
-        _strategy.wrap_topi_schedule(schedule_copy_packed),
-        name="copy.vta")
-    return strategy
-
-
 reg.get("add").get_attr("FTVMStrategy").register(add_strategy_vta, "vta")
 reg.get("multiply").get_attr("FTVMStrategy").register(multiply_strategy_vta, "vta")
-reg.get("copy").get_attr("FTVMStrategy").register(copy_strategy_vta, "vta")
+
 
 @_strategy.conv2d_strategy.register("vta")
 def conv2d_strategy_vta(attrs, inputs, out_type, target):

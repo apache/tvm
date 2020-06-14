@@ -20,7 +20,6 @@ import tvm.relay.testing
 import vta
 from vta.testing import simulator
 from vta.top import graph_pack
-from tvm.contrib.util import eprint
 
 # Make sure that TVM was compiled with RPC=1
 assert tvm.runtime.enabled("rpc")

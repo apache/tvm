@@ -59,7 +59,6 @@ from tvm.relay import transform
 import vta
 from vta.testing import simulator
 from vta.top import graph_pack
-from tvm.contrib.util import eprint
 
 # Make sure that TVM was compiled with RPC=1
 assert tvm.runtime.enabled("rpc")
@@ -96,7 +95,7 @@ pack_dict = {
 # The ``start_pack`` and ``stop_pack`` labels indicate where
 # to start and end the graph packing relay pass: in other words
 # where to start and finish offloading to VTA.
-model = "resnet50_v2"
+model = "resnet18_v1"
 assert model in pack_dict
 
 ######################################################################
@@ -197,7 +196,7 @@ with autotvm.tophub.context(target, extra_files=[log_file, alu_log_file]):
                 env.BLOCK_OUT,
                 env.WGT_WIDTH,
                 start_name=pack_dict[model][0],
-                stop_name=pack_dict[model][1])
+                stop_name=pack_dict[model][1], device_annot=True)
     else:
         relay_prog = mod["main"]
 

@@ -21,7 +21,6 @@ import tvm
 from tvm import relay
 from tvm.relay import op, transform
 from tvm.relay import ExprMutator
-from tvm.contrib.util import eprint
 
 def run_opt_pass(expr, opt_pass):
     """Exectue a relay pass."""
@@ -416,11 +415,6 @@ class ExprPack(ExprMutator):
             elif self.start_pack and call.op == op.op.get('cast') and \
                     input_types[0].dtype == 'int32':
                 cast = relay.Call(op.op.get('cast'), [args[0]], call.attrs)
-                # zhanghao: force separate cast and copy (to let copy do on cpu)
-                # cast = relay.Call(op.op.get('annotation.stop_fusion'), [cast])
-
-                # zhanghao: remove the redudant copy
-                # return relay.Call(op.op.get('copy'), [cast])
                 return cast
             elif call.op == self.pad:
                 pad_width = call.attrs.pad_width
@@ -516,7 +510,7 @@ def graph_pack(expr,
                stop_name="nn.global_avg_pool2d",
                start_name_idx=None,
                stop_name_idx=None,
-               count_meta=False, device_annot=True):
+               count_meta=False, device_annot=False):
     """Pack the graph into batch&channel packed format.
 
     Parameters
@@ -574,6 +568,7 @@ def graph_pack(expr,
         expr_locator = ExprLocater()
         expr_locator.visit(expr)
 
+        # FIXME(zhanghao): generalize this part
         # from the first int conv2d to the last int stop_fusion, all will run on vta
         conv2d = op.op.get("nn.conv2d")
         conv2d_transpose = op.op.get("nn.conv2d_transpose")

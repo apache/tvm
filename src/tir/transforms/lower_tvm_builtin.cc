@@ -87,6 +87,8 @@ class BuiltinLower : public StmtExprMutator {
     // Get constant allocation bound.
     int64_t nbytes = GetVectorBytes(op->dtype);
     // FIXME(zhanghao): remove special handling for kDLCPU
+    // otherwise, may cause LLVM parameters match error
+    // if in heterogenous targets
     // if (device_type_.defined()) {
     //   if (arith::GetConst(device_type_, &dev_type)) {
     //     if (dev_type == kDLCPU) {

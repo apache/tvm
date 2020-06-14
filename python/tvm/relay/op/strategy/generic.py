@@ -35,7 +35,7 @@ def wrap_topi_schedule(topi_schedule):
 
 
 def wrap_topi_compute(topi_compute):
-    """Wrap TOPI schedule which doesn't use attrs"""
+    """Wrap TOPI compute which doesn't use attrs"""
     def wrapper(attrs, inputs, out_type):
         return [topi_compute(*inputs)]
     return wrapper

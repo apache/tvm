@@ -20,7 +20,6 @@ import tvm.relay.testing
 import vta
 from vta.testing import simulator
 from vta.top import graph_pack
-from tvm.contrib.util import eprint
 
 # Make sure that TVM was compiled with RPC=1
 assert tvm.runtime.enabled("rpc")
@@ -145,7 +144,6 @@ with autotvm.tophub.context(target):
     m = graph_runtime.create(graph, lib, ctxes)
 
 image = np.zeros((1, 100), dtype=np.float32)
-eprint("image", image.dtype, image)
 image = np.repeat(image, env.BATCH, axis=0)
 
 # Set the network parameters and inputs

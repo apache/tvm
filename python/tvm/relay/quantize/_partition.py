@@ -21,7 +21,6 @@ from .. import expr as _expr
 from .. import analysis as _analysis
 from . import _quantize
 from .quantize import _forward_op
-from tvm.contrib.util import eprint
 
 def register_partition_function(op_name, frewrite=None, level=10):
     return tvm.ir.register_op_attr(op_name, "FQPartitionRewrite", frewrite, level)
@@ -55,7 +54,7 @@ def conv2d_partition_function(ref_call, new_args, ctx):
 
 @register_partition_function("nn.conv2d_transpose")
 def conv2d_partition_function(ref_call, new_args, ctx):
-    """Rewrite function for conv2d for partition"""
+    """Rewrite function for conv2d_transpose for partition"""
     data_cond, data = partition_expr_check(new_args[0])
     kernel_cond, kernel = partition_expr_check(new_args[1])
 

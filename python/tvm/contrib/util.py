@@ -29,11 +29,6 @@ except ImportError:
     fcntl = None
 
 
-def eprint(*args, **kwargs):
-    # return
-    print(*args, file=sys.stderr, flush=True, **kwargs)
-
-
 class DirectoryCreatedPastAtExit(Exception):
     """Raised when a TempDirectory is created after the atexit hook runs."""
 
