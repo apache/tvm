@@ -106,17 +106,11 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         }
       }
     } else {
-<<<<<<< HEAD
-      // uncommon case
-      DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divisor";
-      // b >= 0 => (rmod >=0 ? rdiv : rdiv - 1)
-      // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
-      PrimExpr rdiv = truncdiv(op->a, op->b);
-      PrimExpr rmod = truncmod(op->a, op->b);
-      return tir::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
-                         rdiv - make_const(dtype, 1));
-=======
-      if (dtype.bits() <= 32) {
+      if (dtype.is_float()){
+        // floor(a / b)
+        return VisitExpr_(tvm::floor(op->a / op->b).as<CallNode>());
+      }
+      else if (dtype.is_int() && dtype.bits() <= 32) {
         /* NOTE:
         This must be restricted to int32 or less since floats can losslessly represent integers
         only if the number of bits in the mantissa exceeds the number of bits in the integer.
@@ -126,9 +120,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
         // floor(a / b)
         auto fdtype = DataType::Float(dtype.bits() * 2, dtype.lanes());
-        auto div = tir::CastNode::make(fdtype, op->a) / tir::CastNode::make(fdtype, op->b);
+        auto div = tir::Div(tir::Cast(fdtype, op->a), tir::Cast(fdtype, op->b));
         auto f = tvm::floor(div);
-        return tir::CastNode::make(dtype, VisitExpr_(f.as<CallNode>()));
+        return tir::Cast(dtype, VisitExpr_(f.as<CallNode>()));
       } else {
         // uncommon case
         DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divisor";
@@ -136,10 +130,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
         PrimExpr rdiv = truncdiv(op->a, op->b);
         PrimExpr rmod = truncmod(op->a, op->b);
-        return tir::SelectNode::make((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
+        return tir::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
                                      rdiv - make_const(dtype, 1));
       }
->>>>>>> Improved uncommon case of floormod and floordiv. Removed dependence on np floor_div and fmod.
     }
   }
 
@@ -178,17 +171,10 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         }
       }
     } else {
-<<<<<<< HEAD
-      // uncommon case
-      DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divsor and divident";
-      PrimExpr rmod = truncmod(op->a, op->b);
-      // b > 0 && rmod >= 0 -> rmod
-      // b > 0 && rmod < 0  -> rmod + b
-      // b < 0 && rmod < 0 -> rmod
-      // b < 0 && rmod > 0 -> rmod + b
-      return tir::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod, rmod + op->b);
-=======
-      if (dtype.bits() <= 32) {
+      if (dtype.is_float()) {
+        // a - floor(a / b) * b
+        return op->a - (VisitExpr_(tvm::floor(op->a / op->b).as<CallNode>()) * op->b);
+      } else if (dtype.is_int() && dtype.bits() <= 32) {
         /* NOTE:
         This must be restricted to int32 or less since floats can losslessly represent integers
         only if the number of bits in the mantissa exceeds the number of bits in the integer.
@@ -198,23 +184,21 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
         // a - floor(a / b) * b
         auto fdtype = DataType::Float(dtype.bits() * 2, dtype.lanes());
-        auto div = tir::CastNode::make(fdtype, op->a) / tir::CastNode::make(fdtype, op->b);
-        auto f = tvm::floor(div);
-        auto floor_lowered = tir::CastNode::make(dtype, VisitExpr_(f.as<CallNode>()));
+        auto div = tir::Div(tir::Cast(fdtype, op->a), tir::Cast(fdtype, op->b));
+        auto floor_lowered = tir::Cast(dtype, VisitExpr_(tvm::floor(div).as<CallNode>()));
 
         return op->a - (floor_lowered * op->b);
       } else {
         // uncommon case
         DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divsor and divident";
-        PrimExpr rmod = truncmod(op->a, op->b);
+        auto rmod = tir::Var("rmod" + std::to_string(++var_suffix_),dtype);
         // b > 0 && rmod >= 0 -> rmod
         // b > 0 && rmod < 0  -> rmod + b
         // b < 0 && rmod < 0 -> rmod
         // b < 0 && rmod > 0 -> rmod + b
-        return tir::SelectNode::make((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod,
-                                     rmod + op->b);
+        return tir::Let(rmod, truncmod(op->a, op->b),
+          tir::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod, rmod + op->b));
       }
->>>>>>> Improved uncommon case of floormod and floordiv. Removed dependence on np floor_div and fmod.
     }
   }
 
@@ -323,6 +307,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     }
     return PrimExpr();
   }
+
+  // FloorMod/FloorDiv
+ int var_suffix_;
 
   // patterns
   std::vector<std::string> patterns_;
