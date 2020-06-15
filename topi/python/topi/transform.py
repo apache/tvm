@@ -374,6 +374,38 @@ def take(a, indices, axis=None, mode="clip"):
     return cpp.take(a, indices, int(axis), mode)
 
 
+def gather(data, axis, indices):
+    """Gather values along given axis from given indices.
+
+    E.g. for a 3D tensor, output is computed as:
+
+    .. code-block:: python
+
+        out[i][j][k] = data[indices[i][j][k]][j][k]  # if axis == 0
+        out[i][j][k] = data[i][indices[i][j][k]][k]  # if axis == 1
+        out[i][j][k] = data[i][j][indices[i][j][k]]  # if axis == 2
+
+    ``indices`` must have same shape as ``data``, except at dimension ``axis``
+    which must just be not null. Output will have same shape as ``indices``.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The input data to the operator.
+
+    axis: int
+        The axis along which to index.
+
+    indices : tvm.te.Tensor
+        The indices of the values to extract.
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+    """
+    return cpp.gather(data, axis, indices)
+
+
 def gather_nd(a, indices):
     """Gather elements from a n-dimension array..
 

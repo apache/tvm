@@ -57,8 +57,8 @@ DataType HybridOpNode::output_dtype(size_t i) const { return outputs[i]->dtype; 
 
 Array<PrimExpr> HybridOpNode::output_shape(size_t i) const { return outputs[i]->shape; }
 
-Operation HybridOpNode::make(std::string name, std::string tag, Map<String, ObjectRef> attrs,
-                             Array<Tensor> inputs, Array<Tensor> outputs, Stmt body) {
+HybridOp::HybridOp(std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                   Array<Tensor> inputs, Array<Tensor> outputs, Stmt body) {
   if (!attrs.defined()) {
     attrs = Map<String, ObjectRef>();
   }
@@ -70,11 +70,13 @@ Operation HybridOpNode::make(std::string name, std::string tag, Map<String, Obje
   n->outputs = std::move(outputs);
   n->axis = te::GatherLoopVars(body);
   n->body = std::move(body);
-  Operation res = Operation(n);
-  return res;
+  data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("te.HybridOp").set_body_typed(HybridOpNode::make);
+TVM_REGISTER_GLOBAL("te.HybridOp")
+    .set_body_typed([](std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                       Array<Tensor> inputs, Array<Tensor> outputs,
+                       Stmt body) { return HybridOp(name, tag, attrs, inputs, outputs, body); });
 
 Array<Tensor> HybridOpNode::InputTensors() const {
   // Because input tensors could be potentially inlined into hybrid scripts,

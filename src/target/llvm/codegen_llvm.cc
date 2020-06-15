@@ -664,7 +664,8 @@ llvm::Value* CodeGenLLVM::CreateCallExtern(const CallNode* op) {
       llvm::FunctionType::get(GetLLVMType(GetRef<PrimExpr>(op)), arg_type, false);
   llvm::Function* f = module_->getFunction(op->name);
   if (f == nullptr) {
-    f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, op->name, module_.get());
+    f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
+                               op->name.operator llvm::StringRef(), module_.get());
   }
   llvm::CallInst* call = builder_->CreateCall(f, arg_value);
   return call;
@@ -1260,7 +1261,7 @@ void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     alloc_storage_info_[v].scope =
-        runtime::StorageScope::make(op->value.as<StringImmNode>()->value);
+        runtime::StorageScope::Create(op->value.as<StringImmNode>()->value);
   } else if (op->attr_key == tir::attr::storage_alignment) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);

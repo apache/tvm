@@ -107,7 +107,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
     if target == "cuda":
         layout = cuda_layout
     target_host = None
-    shape_dict = {e: i.shape for e, i in zip(input_node, input_data)}
+    shape_dict = {e: i.shape if hasattr(i, "shape") else () for e, i in zip(input_node, input_data)}
     mod, params = relay.frontend.from_tensorflow(graph_def,
                                                  layout=layout,
                                                  shape=shape_dict,
@@ -135,7 +135,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
         vm.init(tvm.cpu())
         inputs = {}
         for e, i in zip(input_node, input_data):
-            inputs[e] = i
+            inputs[e] = tvm.nd.array(i)
         result = vm.invoke("main", **inputs)
         return vmobj_to_list(result)
     else:
@@ -531,6 +531,92 @@ def test_forward_convolution3d():
     _test_convolution3d('conv', [4, 17, 17, 17, 19], [3, 3, 3, 19, 19], [1, 1, 1], [2, 2, 2], 'VALID', 'NDHWC')
     _test_convolution3d('conv', [4, 17, 17, 17, 124], [1, 1, 1, 124, 19], [1, 1, 1], [1, 1, 1], 'SAME', 'NDHWC')
     _test_convolution3d('conv', [4, 17, 17, 17, 12], [3, 3, 3, 12, 32], [1, 1, 1], [2, 2, 2], 'VALID', 'NDHWC')
+
+
+#######################################################################
+# Convolution3D Transpose
+# -----------------------
+
+def _test_convolution3d_transpose(data_shape, filter_shape, strides,
+                                  padding, output_shape, data_format='NCDHW'):
+    """ One iteration of 3D convolution transpose with given shapes and attributes """
+
+    dtype = 'float32'
+    data_array = np.random.uniform(size=data_shape).astype(dtype)
+    filter_array = np.random.uniform(size=filter_shape).astype(dtype)
+    if data_format == 'NDHWC':
+        strides = [1] + strides + [1]
+    else:
+        strides = [1, 1] + strides
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data_shape, dtype=dtype)
+        in_filter = constant_op.constant(
+            filter_array, shape=filter_shape, dtype=dtype)
+
+        nn_ops.conv3d_transpose(in_data,
+                                in_filter,
+                                output_shape=output_shape,
+                                strides=strides,
+                                padding=padding,
+                                data_format=data_format)
+
+        compare_tf_with_tvm(data_array, 'Placeholder:0', 'conv3d_transpose:0', cuda_layout="NDHWC")
+
+
+def test_forward_convolution3d_transpose():
+    if is_gpu_available():
+        _test_convolution3d_transpose(data_shape=[1, 10, 8, 8, 8],
+                                      filter_shape=[1, 1, 1, 6, 10],
+                                      strides=[1, 1, 1],
+                                      padding='VALID',
+                                      output_shape=[1, 6, 8, 8, 8])
+
+        _test_convolution3d_transpose(data_shape=[4, 9, 8, 8, 8],
+                                      filter_shape=[1, 1, 1, 6, 9],
+                                      strides=[1, 1, 1],
+                                      padding='VALID',
+                                      output_shape=[4, 6, 8, 8, 8])
+
+        _test_convolution3d_transpose(data_shape=[1, 3, 8, 8, 8],
+                                      filter_shape=[1, 1, 1, 6, 3],
+                                      strides=[2, 2, 2],
+                                      padding='SAME',
+                                      output_shape=[1, 6, 15, 15, 15])
+
+        _test_convolution3d_transpose(data_shape=[1, 16, 8, 8, 8],
+                                      filter_shape=[3, 3, 3, 6, 16],
+                                      strides=[3, 3, 3],
+                                      padding='VALID',
+                                      output_shape=[1, 6, 24, 24, 24])
+
+    _test_convolution3d_transpose(data_shape=[1, 8, 8, 8, 10],
+                                  filter_shape=[1, 1, 1, 6, 10],
+                                  strides=[1, 1, 1],
+                                  padding='VALID',
+                                  output_shape=[1, 8, 8, 8, 6],
+                                  data_format='NDHWC')
+
+    _test_convolution3d_transpose(data_shape=[4, 8, 8, 8, 9],
+                                  filter_shape=[1, 1, 1, 6, 9],
+                                  strides=[1, 1, 1],
+                                  padding='VALID',
+                                  output_shape=[4, 8, 8, 8, 6],
+                                  data_format='NDHWC')
+
+    _test_convolution3d_transpose(data_shape=[1, 8, 8, 8, 3],
+                                  filter_shape=[1, 1, 1, 6, 3],
+                                  strides=[2, 2, 2],
+                                  padding='SAME',
+                                  output_shape=[1, 15, 15, 15, 6],
+                                  data_format='NDHWC')
+
+    _test_convolution3d_transpose(data_shape=[1, 8, 8, 8, 16],
+                                  filter_shape=[3, 3, 3, 6, 16],
+                                  strides=[3, 3, 3],
+                                  padding='VALID',
+                                  output_shape=[1, 24, 24, 24, 6],
+                                  data_format='NDHWC')
 
 
 #######################################################################
@@ -1837,12 +1923,24 @@ def _test_fill_from_tensor(in_shape):
         compare_tf_with_tvm(data, 'Placeholder:0', 'out1:0')
 
 
+def _test_fill_symbolic_inputs(in_shape_data, in_value_data, dtype):
+    with tf.Graph().as_default():
+        in_shape = tf.placeholder(shape=[in_shape_data.shape[0]], dtype=in_shape_data.dtype)
+        in_value = tf.placeholder(shape=(), dtype=dtype)
+        out = tf.fill(in_shape, in_value)
+        for mode in ['debug', 'vm']:
+            compare_tf_with_tvm([in_shape_data, in_value_data], [in_shape.name, in_value.name], out.name, mode=mode)
+
+
 def test_forward_fill():
     """ Resize Bilinear """
 
     _test_fill((32))
     _test_fill((6, 32, 64, 64))
     _test_fill_from_tensor((6, 32, 64, 64))
+    _test_fill_symbolic_inputs(np.array((2,)), np.int32(9), tf.int32)
+    _test_fill_symbolic_inputs(np.array((2, 3)), 9, tf.int64)
+    _test_fill_symbolic_inputs(np.array((2, 3, 4)), np.float32(9.0), tf.float32)
 
 #######################################################################
 # Crop to bounding box
@@ -3713,6 +3811,7 @@ if __name__ == '__main__':
     # NN
     test_forward_convolution()
     test_forward_convolution3d()
+    test_forward_convolution3d_transpose()
     test_forward_pooling()
     test_forward_concat_v2()
     test_forward_lrn()

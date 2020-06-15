@@ -66,7 +66,7 @@ const LayoutAxis& LayoutAxis::Get(const IterVar& itvar) {
   return LayoutAxis::Get(axis[0]);
 }
 
-const LayoutAxis& LayoutAxis::make(const std::string& name) {
+const LayoutAxis& LayoutAxis::Get(const std::string& name) {
   CHECK_EQ(name.length(), 1) << "Invalid axis " << name;
   return LayoutAxis::Get(name[0]);
 }
@@ -143,8 +143,6 @@ Layout::Layout(const std::string& name) {  // NOLINT(*)
   }
   data_ = std::move(node);
 }
-
-Layout LayoutNode::make(const std::string& layout) { return Layout(layout); }
 
 Layout Layout::SubLayout(size_t pos, size_t len) const {
   if (!defined() || pos > ndim()) return Layout::Undef();
@@ -365,15 +363,15 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-TVM_REGISTER_GLOBAL("tir.Layout").set_body_typed(LayoutNode::make);
+TVM_REGISTER_GLOBAL("tir.Layout").set_body_typed([](std::string name) { return Layout(name); });
 
 TVM_REGISTER_GLOBAL("tir.LayoutIndexOf").set_body_typed([](Layout layout, std::string axis) -> int {
-  return layout.IndexOf(LayoutAxis::make(axis));
+  return layout.IndexOf(LayoutAxis::Get(axis));
 });
 
 TVM_REGISTER_GLOBAL("tir.LayoutFactorOf")
     .set_body_typed([](Layout layout, std::string axis) -> int {
-      return layout.FactorOf(LayoutAxis::make(axis));
+      return layout.FactorOf(LayoutAxis::Get(axis));
     });
 
 TVM_REGISTER_GLOBAL("tir.LayoutNdim").set_body_typed([](Layout layout) -> int {

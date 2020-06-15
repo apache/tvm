@@ -113,7 +113,7 @@ class CandidateSelector final : public StmtExprVisitor {
       const IterVarNode* iv = op->node.as<IterVarNode>();
       CHECK(iv);
       Var var = iv->var;
-      runtime::ThreadScope scope = runtime::ThreadScope::make(iv->thread_tag);
+      runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
       if ((scope.rank == 0) && (!is_const(op->value) || partition_const_loop_)) {
         record_.insert({var.get(), false});
         StmtExprVisitor::VisitStmt_(op);
@@ -361,7 +361,7 @@ class LoopPartitioner : public StmtMutator {
     }
 
     // normal path when loop parittion fails.
-    runtime::ThreadScope scope = runtime::ThreadScope::make(iv->thread_tag);
+    runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
     Stmt res;
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.

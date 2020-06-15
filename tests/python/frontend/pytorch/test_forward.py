@@ -27,6 +27,7 @@ import torchvision
 
 from tvm import relay
 from tvm.contrib import graph_runtime
+from tvm.contrib.nvcc import have_fp16
 from tvm.relay.testing.config import ctx_list
 
 
@@ -837,6 +838,44 @@ def test_forward_size():
     input_data = torch.rand(input_shape).float()
     verify_model(Size1().float().eval(), input_data=input_data)
 
+
+def test_type_as():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3]
+
+    def _create_module(dtype):
+        class TypeAs(Module):
+            def forward(self, *args):
+                expected_type_tensor = torch.zeros(1, 3, dtype=dtype)
+                return args[0].type_as(expected_type_tensor)
+
+        return TypeAs()
+
+    input_data = torch.randn(input_shape).float()
+    verify_model(_create_module(torch.float64), input_data=input_data)
+    verify_model(_create_module(torch.float32), input_data=input_data)
+    verify_model(_create_module(torch.int64), input_data=input_data)
+    verify_model(_create_module(torch.int32), input_data=input_data)
+    verify_model(_create_module(torch.int16), input_data=input_data)
+    verify_model(_create_module(torch.int8), input_data=input_data)
+
+    if torch.cuda.is_available():
+        check_fp16 = False
+        try:
+            # Only check half precision on supported hardwares.
+            if have_fp16(tvm.gpu(0).compute_version):
+                check_fp16 = True
+        except Exception as e:
+            # If GPU is not enabled in TVM, skip the fp16 test.
+            pass
+
+        # Temporary disable fp16 test
+        check_fp16 = False
+
+        if check_fp16:
+            verify_model(_create_module(torch.float16), input_data=input_data)
+
+
 def test_forward_view():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -891,6 +930,91 @@ def test_forward_logsoftmax():
 
     input_data = torch.rand(input_shape).float()
     verify_model(LogSoftmax1().float().eval(), input_data=input_data)
+
+
+def test_forward_norm():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class Norm1(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('inf'), dim=None, keepdim=False)
+
+    class Norm2(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('-inf'), dim=None, keepdim=False)
+
+    class Norm3(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('-inf'), dim=None, keepdim=True)
+
+    class Norm4(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('inf'), dim=(1, 2), keepdim=False)
+
+    class Norm5(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('inf'), dim=(1), keepdim=True)
+
+    class Norm6(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(0.5), dim=(1), keepdim=True)
+
+    class Norm7(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(1), dim=None, keepdim=False)
+
+    class Norm8(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(2.0), dim=(1), keepdim=True)
+
+    class Norm9(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(-0.5), dim=(1, 2), keepdim=True)
+
+    class Norm10(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(-2), dim=(1), keepdim=False)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Norm1().float().eval(), input_data=input_data)
+    verify_model(Norm2().float().eval(), input_data=input_data)
+    verify_model(Norm3().float().eval(), input_data=input_data)
+    verify_model(Norm4().float().eval(), input_data=input_data)
+    verify_model(Norm5().float().eval(), input_data=input_data)
+    verify_model(Norm6().float().eval(), input_data=input_data)
+    verify_model(Norm7().float().eval(), input_data=input_data)
+    verify_model(Norm8().float().eval(), input_data=input_data)
+    verify_model(Norm9().float().eval(), input_data=input_data)
+    verify_model(Norm10().float().eval(), input_data=input_data)
+
+
+def test_forward_frobenius_norm():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class FroNorm1(Module):
+        def forward(self, *args):
+            return torch.norm(args[0])
+
+    class FroNorm2(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p='fro', dim=None, keepdim=True)
+
+    class FroNorm3(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p='fro', dim=(1), keepdim=True)
+
+    class FroNorm4(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], dim=None, keepdim=False)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(FroNorm1().float().eval(), input_data=input_data)
+    verify_model(FroNorm2().float().eval(), input_data=input_data)
+    verify_model(FroNorm3().float().eval(), input_data=input_data)
+    verify_model(FroNorm4().float().eval(), input_data=input_data)
+
 
 def test_forward_sigmoid():
     torch.set_grad_enabled(False)
@@ -2421,6 +2545,8 @@ if __name__ == "__main__":
     test_forward_reduce_prod()
     test_forward_argmin()
     test_forward_argmax()
+    test_forward_norm()
+    test_forward_frobenius_norm()
     test_forward_std()
     test_forward_variance()
     test_forward_relu()
@@ -2488,6 +2614,7 @@ if __name__ == "__main__":
     test_upsample()
     test_forward_upsample3d()
     test_to()
+    test_type_as()
     test_forward_functional_pad()
     test_forward_zero_pad2d()
     test_forward_constant_pad1d()

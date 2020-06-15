@@ -149,15 +149,23 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     std::unordered_set<const VarNode*> reduce_set;
     for (size_t i = 2 + 2 * size; i < call->args.size(); ++i) {
       const VarNode* v = call->args[i].as<VarNode>();
-      CHECK(v);
-      reduce_set.insert(v);
+      // The simply optimization replace a iteration variable with a constant
+      // when extent of the iteration is 1. As threaded IterVar always started from 0,
+      // we can just ignore this variable in this case.
+      if (v) {
+        reduce_set.insert(v);
+      } else {
+        CHECK(call->args[i].as<IntImmNode>() && call->args[i].as<IntImmNode>()->value == 0)
+            << "arg" << i << "should be a VarNode or IntImmNode";
+      }
     }
+
     size_t nmatch = 0;
     std::vector<ThreadEntry> vred, vpar;
     for (const AttrStmtNode* attr : thread_extents_) {
       ThreadEntry e;
       IterVar iv = Downcast<IterVar>(attr->node);
-      e.scope = runtime::ThreadScope::make(iv->thread_tag);
+      e.scope = runtime::ThreadScope::Create(iv->thread_tag);
       e.iv = iv;
       CHECK_LE(e.scope.rank, 1);
       CHECK_GE(e.scope.dim_index, 0) << "vthread do not work with cross thread reduction";
@@ -165,6 +173,11 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         const auto* ptr = attr->value.as<IntImmNode>();
         CHECK(ptr) << "Need constant extent for reduce set " << iv;
         e.extent = static_cast<int>(ptr->value);
+        // ignore variables equal to 0
+        if (e.extent == 1) {
+          continue;
+        }
+
         if (reduce_set.count(iv->var.get())) {
           vred.push_back(e);
           ++nmatch;
@@ -503,7 +516,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
     IterVar iv = Downcast<IterVar>(op->node);
     ThreadEntry e;
-    e.scope = runtime::ThreadScope::make(iv->thread_tag);
+    e.scope = runtime::ThreadScope::Create(iv->thread_tag);
     e.extent = 0;
     if (auto ptr = op->value.as<IntImmNode>()) {
       e.extent = static_cast<int>(ptr->value);

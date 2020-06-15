@@ -43,7 +43,7 @@ namespace generic {
  *
  * \return A schedule for the given ops.
  */
-inline Schedule default_schedule(const Target& target, Array<Tensor> outs) {
+inline Schedule default_schedule(const Target& target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
@@ -61,7 +61,7 @@ inline Schedule default_schedule(const Target& target, Array<Tensor> outs) {
  *
  * \return A schedule for the given ops.
  */
-inline Schedule default_schedule_auto_inline(const Target& target, Array<Tensor> outs) {
+inline Schedule default_schedule_auto_inline(const Target& target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);

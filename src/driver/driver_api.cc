@@ -88,8 +88,8 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
     elem_offset = PrimExpr();
   }
 
-  return tir::BufferNode::make(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, "",
-                               data_alignment, offset_factor, buffer_type);
+  return tir::Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, "", data_alignment,
+                     offset_factor, buffer_type);
 }
 
 void GetBinds(const Array<te::Tensor>& args, bool compact,

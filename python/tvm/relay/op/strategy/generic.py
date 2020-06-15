@@ -599,12 +599,22 @@ def batch_matmul_strategy(attrs, inputs, out_type, target):
                                 name="batch_matmul.generic")
     return strategy
 
-# sparse_dense
-@generic_func
-def schedule_sparse_dense(attrs, outs, target):
-    """schedule sparse_dense"""
-    with target:
-        return topi.generic.schedule_sparse_dense(outs)
+# sparse dense
+def wrap_compute_sparse_dense(topi_compute):
+    """wrap sparse dense topi compute"""
+    def _compute_sparse_dense(attrs, inputs, out_type):
+        return [topi_compute(inputs[0], inputs[1], inputs[2], inputs[3])]
+    return _compute_sparse_dense
+
+@override_native_generic_func("sparse_dense_strategy")
+def sparse_dense_strategy(attrs, inputs, out_type, target):
+    """sparse dense generic strategy"""
+    logger.warning("sparse dense is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(wrap_compute_sparse_dense(topi.nn.sparse_dense),
+                                wrap_topi_schedule(topi.generic.schedule_sparse_dense),
+                                name="sparse_dense.generic")
+    return strategy
 
 # sparse_transpose
 @generic_func

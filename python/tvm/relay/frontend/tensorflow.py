@@ -603,7 +603,7 @@ def _conv3d(opname):
         out = AttrCvt(
             op_name=_dimension_picker('conv',
                                       surfix="_transpose" if opname == 'conv_transpose' else ""),
-            ignores=['explicit_paddings'],
+            ignores=['explicit_paddings', 'Tshape'],
             transforms={
                 'kernel_shape': 'kernel_size',
                 'data_format': 'data_layout',
@@ -1322,19 +1322,12 @@ def _shape():
 
 def _fill():
     def _impl(inputs, attr, params, mod):
-        output_shape = attr['_output_shapes'][0]
-        # Output shape must be defined to avoid errors. If any axis is not, we must
-        # try to compute its shape.
-        if output_shape is None or -1 in output_shape:
-            try:
-                output_shape = _expr.Constant(_infer_value(inputs[0], params, mod))
-            except Exception:
-                output_shape = inputs[0]
+        try:
+            output_shape = _infer_value(inputs[0], params, mod).asnumpy().tolist()
+        except Exception:
+            output_shape = inputs[0]
 
-        fill_arg = _get_num_param(params, inputs.pop(1))
-        dtype = attr['T'].name
-        return _op.full(tvm.relay.const(fill_arg, dtype),
-                        output_shape, dtype)
+        return _op.full(inputs[1], output_shape, attr['T'].name)
     return _impl
 
 def _lrn():
@@ -2046,6 +2039,7 @@ _convert_map = {
     'Conv2D'                            : _conv('conv'),
     'Conv2DBackpropInput'               : _conv('conv_transpose'),
     'Conv3D'                            : _conv3d('conv'),
+    'Conv3DBackpropInputV2'             : _conv3d('conv_transpose'),
     'Cos'                               : AttrCvt('cos'),
     'Cosh'                              : AttrCvt('cosh'),
     'CropAndResize'                     : _crop_and_resize(),

@@ -493,6 +493,19 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
             plevel=15)
     return strategy
 
+
+@sparse_dense_strategy.register(["cuda", "gpu"])
+def sparse_dense_strategy_cuda(attrs, inputs, out_type, target):
+    """sparse dense cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sparse_dense(topi.cuda.sparse_dense),
+        wrap_topi_schedule(topi.cuda.schedule_sparse_dense),
+        name="sparse_dense.cuda",
+        plevel=10)
+    return strategy
+
+
 @argsort_strategy.register(["cuda", "gpu"])
 def argsort_strategy_cuda(attrs, inputs, out_type, target):
     """argsort cuda strategy"""

@@ -63,12 +63,16 @@ def schedule_sparse_dense(cfg, outs):
     """Create schedule for sparse dense"""
     # pylint:disable=invalid-name
     s = te.create_schedule([x.op for x in outs])
-
     def _callback(op):
         if op.tag == "sparse_dense_bsrmm":
             y_bsrmm = op.input_tensors[0]
             assert y_bsrmm.op.tag == "sparse_dense_bsrmm_block"
             out = s.outputs[0].output(0)
+
+            if op not in s.outputs:
+                y_reshape = op.output(0)
+                s[y_reshape].compute_at(s[out], s[out].op.axis[1])
+
             (_, c) = s[y_bsrmm].op.reduce_axis
 
             (m_o, n_o) = s[out].op.axis
