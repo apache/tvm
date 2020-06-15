@@ -22,6 +22,8 @@ set -u
 source tests/scripts/setup-pytest-env.sh
 export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/apps/extension/python
 export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
+
+# to avoid CI CPU thread throttling.
 export TVM_BIND_THREADS=0
 export TVM_NUM_THREADS=2
 
