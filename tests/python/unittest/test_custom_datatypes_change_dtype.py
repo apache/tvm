@@ -23,6 +23,14 @@ from tvm.target.datatype import register, register_op, create_lower_func
 
 tgt = "llvm"
 
+def convert_ndarray(dst_dtype, array, executor):
+    """Converts an NDArray into the specified datatype"""
+    x = relay.var('x', shape=array.shape, dtype=str(array.dtype))
+    cast = relay.Function([x], x.astype(dst_dtype))
+    with tvm.transform.PassContext(config={
+        "tir.disable_vectorize": True
+    }):
+        return executor.evaluate(cast)(array)
 
 def setup():
     # You must first load the library containing the datatype implementation.
@@ -49,8 +57,9 @@ def test_change_dtype_inception_v3():
     def change_dtype(src, dst, module, params):
         module = relay.frontend.ChangeDatatype(src, dst)(module)
         module = relay.transform.InferType()(module)
+        ex = relay.create_executor()
         params = dict(
-            (p, tvm.nd.array(params[p].asnumpy().astype(dst))) for p in params)
+            (p, convert_ndarray(dst, params[p], ex)) for p in params)
         return module, params
 
     src_dtype = 'float32'
