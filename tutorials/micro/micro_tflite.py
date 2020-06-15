@@ -169,7 +169,9 @@ dev_config = micro.device.arm.stm32f746xx.generate_config("127.0.0.1", 6666)
 #
 # .. code-block:: python
 #
-#   with tvm.transform.PassContext(opt_level=3, config={'tir.disable_vectorize': True},disabled_pass=['FuseOps']):
+#   disable_vectorize = tvm.target.build_config(disable_vectorize=True)
+#   disable_fusion = relay.build_config(disabled_pass={'FuseOps'})
+#   with disable_vectorize, disable_fusion:
 #       graph, c_mod, params = relay.build(mod, target=TARGET, params=params)
 
 ######################################################################
