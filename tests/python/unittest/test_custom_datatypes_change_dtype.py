@@ -474,7 +474,7 @@ def test_ops():
     # bit posit.
     # Figure out a more logical way to test here.
     run_ops('float32', 'custom[posit8]8', rtol=1, atol=1)
-    run_ops('float32', 'custom[posit16]16', rtol=0.001, atol=0.1)
+    run_ops('float32', 'custom[posit16]16', rtol=0.01, atol=1)
     run_ops('float32', 'custom[posit32]32')
 
 
