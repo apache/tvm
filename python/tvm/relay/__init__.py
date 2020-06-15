@@ -45,6 +45,7 @@ from .op import image
 from .op import annotation
 from .op import vision
 from .op import contrib
+from .op import dynamic
 from .op.reduce import *
 from .op.tensor import *
 from .op.transform import *
