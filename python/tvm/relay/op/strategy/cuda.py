@@ -473,7 +473,7 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
             wrap_compute_dense(topi.cuda.dense_cublas),
             wrap_topi_schedule(topi.cuda.schedule_dense_cublas),
             name="dense_cublas.cuda",
-            plevel=15)
+            plevel=25)
     return strategy
 
 @batch_matmul_strategy.register(["cuda", "gpu"])
