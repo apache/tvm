@@ -188,7 +188,7 @@ with autotvm.tophub.context(target):
                 env.BLOCK_OUT,
                 env.WGT_WIDTH,
                 start_name=pack_dict[model][0],
-                stop_name=pack_dict[model][1], device_annot=True)
+                stop_name=pack_dict[model][1], device_annot=env.TARGET == "intelfocl")
     else:
         relay_prog = mod["main"]
 

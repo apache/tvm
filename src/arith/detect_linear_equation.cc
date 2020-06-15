@@ -152,7 +152,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const
   PrimExpr FloorDivCombine(PrimExpr a, PrimExpr b) {
     if (!a.defined()) return b;
     if (!b.defined()) return a;
-    return FloorDivNode::make(a, b);
+    return FloorDiv(a, b);
   }
 };
 
