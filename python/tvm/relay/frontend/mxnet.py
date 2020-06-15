@@ -83,7 +83,6 @@ def _mx_fully_connected(inputs, attrs):
     if len(data_shape) > 2:
         new_shape = data_shape[:-1]
         new_shape.append(units)
-        new_shape = [int(v) for v in new_shape]
         res = _op.reshape(res, new_shape)
     return res
 
