@@ -176,7 +176,7 @@ class ADTTransform : public TypeMutator, public PatternMutator {
 
     TypeData new_datatype = TypeData(new_adt, op->type_vars, constructors);
     module_->AddTypeDef(new_adt, new_datatype);
-    return new_datatype;
+    return std::move(new_datatype);
   }
 
   Pattern VisitPattern(const Pattern& c) final { return PatternMutator::VisitPattern(c); }
@@ -234,7 +234,7 @@ class TypeVarSolver : public TypeMutator {
       return type_var_map_.at(type);
     }
 
-    return type;
+    return std::move(type);
   }
 
  private:
@@ -487,7 +487,7 @@ Expr GradCellWrapper::GetADTFunction(const TypeCallNode* op, TypeCallMutator& ty
 
   Function func = Function({v}, match, this->VisitType(input_type), type_args.params);
   module_->AddUnchecked(func_var, func);
-  return func;
+  return std::move(func);
 }
 
 Type GradCellWrapper::VisitType_(const GlobalTypeVarNode* op) {
@@ -616,7 +616,7 @@ Expr GradCellUnWrapper::GetReverseADTFunction(const TypeCallNode* op, TypeCallMu
 
   Function func = Function({v}, match, this->VisitType(input_type), type_args.params);
   module_->AddUnchecked(func_var, func);
-  return func;
+  return std::move(func);
 }
 
 Type GradCellUnWrapper::VisitType_(const TypeCallNode* op) {
@@ -761,9 +761,8 @@ class LazyGradientInitializer : public ExprMutator, public TypeMutator, public P
   }
 
   Expr VisitExpr_(const ConstructorNode* op) final {
-    Constructor c = module_->GetConstructor(GradCell_Header + op->belong_to->name_hint,
-                                            GradCell_Header + op->name_hint);
-    return c;
+    return module_->GetConstructor(GradCell_Header + op->belong_to->name_hint,
+                                   GradCell_Header + op->name_hint);
   }
 
   Expr VisitExpr_(const IfNode* op) final {
@@ -801,14 +800,14 @@ class LazyGradientInitializer : public ExprMutator, public TypeMutator, public P
     GlobalTypeVar t = GetRef<GlobalTypeVar>(op);
     if (module_->GetGlobalTypeVar("GradCell").same_as(t)) {
       // if GradCell type, do nothing
-      return t;
+      return std::move(t);
     }
     if (op->kind == kAdtHandle) {
       // handle to ADT, define GradCell version of ADT is not already created
       return adt_transformer_->VisitType(t);
     }
 
-    return t;
+    return std::move(t);
   }
 
   Var VisitVar(const Var& v) final {
