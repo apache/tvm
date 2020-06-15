@@ -1106,6 +1106,8 @@ class StringObj : public Object {
  private:
   /*! \brief String object which is moved from std::string container. */
   class FromStd;
+  /*! \brief String object that is constructed from char*. */
+  class FromCharPtr;
 
   friend class String;
 };
@@ -1157,8 +1159,7 @@ class String : public ObjectRef {
    *
    * \param other a char array.
    */
-  String(const char* other)  // NOLINT(*)
-      : String(std::string(other)) {}
+  String(const char* other);  // NOLINT(*);
 
   /*!
    * \brief Change the value the reference object points to.
@@ -1306,6 +1307,31 @@ class String : public ObjectRef {
    */
   static int memncmp(const char* lhs, const char* rhs, size_t lhs_count, size_t rhs_count);
 
+  /*!
+   * \brief Concatenate two char sequences
+   *
+   * \param lhs Pointers to the lhs char array
+   * \param lhs_size The size of the lhs char array
+   * \param rhs Pointers to the rhs char array
+   * \param rhs_size The size of the rhs char array
+   *
+   * \return The concatenated char sequence
+   */
+  static char* Concat(const char* lhs, size_t lhs_size, const char* rhs, size_t rhs_size) {
+    char* concat = new char[lhs_size + rhs_size + 1];
+    std::memcpy(concat, lhs, lhs_size);
+    std::memcpy(concat + lhs_size, rhs, rhs_size);
+    concat[lhs_size + rhs_size] = '\0';
+    return concat;
+  }
+
+  // Overload + operator
+  friend String operator+(const String& lhs, const String& rhs);
+  friend String operator+(const String& lhs, const std::string& rhs);
+  friend String operator+(const std::string& lhs, const String& rhs);
+  friend String operator+(const String& lhs, const char* rhs);
+  friend String operator+(const char* lhs, const String& rhs);
+
   friend struct tvm::ObjectEqual;
 };
 
@@ -1329,10 +1355,36 @@ class StringObj::FromStd : public StringObj {
   friend class String;
 };
 
+/*!
+ * \brief The class that initializes and manages the memory of a String object
+ * created from char pointers.
+ */
+class StringObj::FromCharPtr : public StringObj, InplaceArrayBase<StringObj::FromCharPtr, char> {
+ public:
+  /*! \brief The size function needed by InplaceArrayBase */
+  size_t GetSize() const { return size_; }
+
+ private:
+  /*! \brief The length of the chars. */
+  size_t size_;
+
+  friend class String;
+  friend class InplaceArrayBase<StringObj::FromCharPtr, char>;
+};
+
 inline String::String(std::string other) {
   auto ptr = make_object<StringObj::FromStd>(std::move(other));
   ptr->size = ptr->data_container.size();
   ptr->data = ptr->data_container.data();
+  data_ = std::move(ptr);
+}
+
+inline String::String(const char* other) {
+  size_t size = std::strlen(other);
+  auto ptr = make_inplace_array_object<StringObj::FromCharPtr, char>(size);
+  ptr->size_ = size;
+  ptr->size = size;
+  ptr->data = other;
   data_ = std::move(ptr);
 }
 
@@ -1344,46 +1396,39 @@ inline String& String::operator=(std::string other) {
 
 inline String& String::operator=(const char* other) { return operator=(std::string(other)); }
 
-template <typename T, typename U,
-          typename = typename std::enable_if<std::is_same<T, String>::value ||
-                                             std::is_same<T, std::string>::value>::type,
-          typename = typename std::enable_if<std::is_same<U, String>::value ||
-                                             (std::is_same<U, std::string>::value &&
-                                              !std::is_same<T, U>::value)>::type>
-inline String operator+(const T& lhs, const U& rhs) {
+inline String operator+(const String& lhs, const String& rhs) {
   size_t lhs_size = lhs.size();
   size_t rhs_size = rhs.size();
-  char* concat = new char[lhs_size + rhs_size + 1];
-  std::memcpy(concat, lhs.data(), lhs_size);
-  std::memcpy(concat + lhs_size, rhs.data(), rhs_size);
-  auto ptr = make_object<StringObj>();
-  ptr->size = lhs_size + rhs_size;
-  ptr->data = concat;
-  return String(ptr);
+  char* concat = String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
+  return String(concat);
+}
+
+inline String operator+(const String& lhs, const std::string& rhs) {
+  size_t lhs_size = lhs.size();
+  size_t rhs_size = rhs.size();
+  char* concat = String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
+  return String(concat);
+}
+
+inline String operator+(const std::string& lhs, const String& rhs) {
+  size_t lhs_size = lhs.size();
+  size_t rhs_size = rhs.size();
+  char* concat = String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
+  return String(concat);
 }
 
 inline String operator+(const char* lhs, const String& rhs) {
   size_t lhs_size = std::strlen(lhs);
   size_t rhs_size = rhs.size();
-  char* concat = new char[lhs_size + rhs_size + 1];
-  std::memcpy(concat, lhs, lhs_size);
-  std::memcpy(concat + lhs_size, rhs.data(), rhs_size);
-  auto ptr = make_object<StringObj>();
-  ptr->size = lhs_size + rhs_size;
-  ptr->data = concat;
-  return String(ptr);
+  char* concat = String::Concat(lhs, lhs_size, rhs.data(), rhs_size);
+  return String(concat);
 }
 
 inline String operator+(const String& lhs, const char* rhs) {
   size_t lhs_size = lhs.size();
   size_t rhs_size = std::strlen(rhs);
-  char* concat = new char[lhs_size + rhs_size + 1];
-  std::memcpy(concat, lhs.data(), lhs_size);
-  std::memcpy(concat + lhs_size, rhs, rhs_size);
-  auto ptr = make_object<StringObj>();
-  ptr->size = lhs_size + rhs_size;
-  ptr->data = concat;
-  return String(ptr);
+  char* concat = String::Concat(lhs.data(), lhs_size, rhs, rhs_size);
+  return String(concat);
 }
 
 // Overload < operator
