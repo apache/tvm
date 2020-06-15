@@ -52,64 +52,12 @@ def setup():
 
     # To use datatype operations in an external library, you should first load
     # the library containing the datatype implementation:
-    # CDLL("libmybfloat16.so", RTLD_GLOBAL)
+    # CDLL("libposit.so", RTLD_GLOBAL)
     # In this case, the datatype library we are using is built right into TVM,
     # so we do not need to explicitly load any library.
 
     # You can pick a code for your datatype arbitrarily, as long as it is
     # greater than 128 and has not already been chosen.
-
-    register("notbfloat", 130)
-
-    register_op(create_lower_func("FloatToNotBFloat16_wrapper"), "Cast",
-                "llvm", "notbfloat", "float")
-    register_op(create_lower_func("NotBFloat16ToFloat_wrapper"), "Cast",
-                "llvm", "float", "notbfloat")
-    register_op(create_lower_func("IntToNotBFloat16_wrapper"), "Cast", "llvm",
-                "notbfloat", "int")
-    register_op(create_lower_func("NotBFloat16Add_wrapper"), "Add", "llvm",
-                "notbfloat")
-    register_op(create_lower_func("NotBFloat16Sub_wrapper"), "Sub", "llvm",
-                "notbfloat")
-    register_op(create_lower_func("FloatToNotBFloat16_wrapper"), "FloatImm",
-                "llvm", "notbfloat")
-    register_op(create_lower_func("NotBFloat16Mul_wrapper"), "Mul", "llvm",
-                "notbfloat")
-    register_op(create_lower_func("NotBFloat16Div_wrapper"), "Div", "llvm",
-                "notbfloat")
-    register_op(create_lower_func("NotBFloat16Max_wrapper"), "Max", "llvm",
-                "notbfloat")
-    register_op(create_lower_func("NotBFloat16Sqrt_wrapper"),
-                "Call",
-                "llvm",
-                "notbfloat",
-                intrinsic_name="sqrt")
-    # TODO(gus) not sure if this will work...
-    register_op(lower_ite,
-                "Call",
-                "llvm",
-                "notbfloat",
-                intrinsic_name="tvm_if_then_else")
-    register_op(create_lower_func("NotBFloat16Exp_wrapper"),
-                "Call",
-                "llvm",
-                "notbfloat",
-                intrinsic_name="exp")
-    register_op(create_lower_func("NotBFloat16Log_wrapper"),
-                "Call",
-                "llvm",
-                "notbfloat",
-                intrinsic_name="log")
-    register_op(create_lower_func("NotBFloat16Sigmoid_wrapper"),
-                "Call",
-                "llvm",
-                "notbfloat",
-                intrinsic_name="sigmoid")
-    register_op(create_lower_func("NotBFloat16Tanh_wrapper"),
-                "Call",
-                "llvm",
-                "notbfloat",
-                intrinsic_name="tanh")
 
     register("posit32", 131)
 
