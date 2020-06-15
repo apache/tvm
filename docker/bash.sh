@@ -83,6 +83,7 @@ ${DOCKER_BINARY} run --rm --pid=host\
     -v ${WORKSPACE}:/workspace \
     -v ${SCRIPT_DIR}:/docker \
     -w /workspace \
+    --ulimit stack=16777216:16777216 \
     -e "CI_BUILD_HOME=/workspace" \
     -e "CI_BUILD_USER=$(id -u -n)" \
     -e "CI_BUILD_UID=$(id -u)" \
