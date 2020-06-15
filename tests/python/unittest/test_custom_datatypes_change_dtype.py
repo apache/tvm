@@ -379,7 +379,14 @@ def test_models():
               'float32',
               'custom[posit32]32',
               num_classes=10)
-    # run_model(get_resnet, (3, 32, 32), 'float32', 'custom[posit32]32', num_classes=10)
+    # run_model(get_inception, (3, 32, 32),
+    #           'float32',
+    #           'custom[posit32]32',
+    #           num_classes=10)
+    # run_model(get_resnet, (3, 32, 32),
+    #           'float32',
+    #           'custom[posit32]32',
+    #           num_classes=10)
 
 
 if __name__ == "__main__":
