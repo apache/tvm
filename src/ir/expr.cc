@@ -85,7 +85,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 FloatImm::FloatImm(DataType dtype, double value) {
   CHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
-  CHECK(dtype.is_float()) << "ValueError: FloatImm supports only float type.";
   ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();
   node->dtype = dtype;
   node->value = value;
