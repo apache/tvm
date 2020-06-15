@@ -107,7 +107,8 @@ class CustomDatatypesLowerer : public StmtExprMutator {
         << "Lowering non-intrinsic Calls not implemented";
       auto lower = datatype::GetIntrinLowerFunc(target_, call->name, call->dtype.code());
       CHECK(lower) << "Intrinsic lowering function for target " << target_ << ", intrinsic name "
-                   << call->name << ", type " << static_cast<unsigned>(call->dtype.code()) << " not found";
+                   << call->name << ", type " << static_cast<unsigned>(call->dtype.code())
+                   << " not found";
       return (*lower)(expr);
       // TODO(gus) Not sure what to do in any other case.
       // } else {
