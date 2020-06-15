@@ -76,8 +76,6 @@ def schedule_alu_packed(cfg, outs):
     assert len(outs) == 1
 
     def is_cast_op(op):
-        # return op.same_as(Op.op.get("cast"))
-        # FIXME(zhanghao): find a better way to do compare
         return op.name == 'T_cast'
 
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs

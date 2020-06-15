@@ -120,16 +120,8 @@ def schedule_conv2d_transpose_packed(cfg, outs):
     data, kernel = conv2d_stage.op.input_tensors
     if isinstance(data.op, tvm.te.ComputeOp) and "pad" in data.op.tag:
         temp = data.op.input_tensors[0]
-        # FIXME(zhanghao): force merge pad(dilate(xx)) to one load op
-        # this may cause results in-correct
-        # disable for now
-        if False and isinstance(temp.op, tvm.te.ComputeOp) and ("pad" in temp.op.tag or temp.op.name == "DilatedInput"):
-            pad_data = data
-            data = temp.op.input_tensors[0]
-            s[temp.op].compute_inline()
-        else:
-            pad_data = data
-            data = temp
+        pad_data = data
+        data = temp
     else:
         pad_data = None
 
