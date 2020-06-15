@@ -381,9 +381,10 @@ def InjectDMAIntrin():
 
     def _get_2d_pattern(buf, elem_width, elem_bytes, dtype, scope, allow_fold):
         elem_block = elem_bytes * 8 // elem_width
-        if buf.dtype != dtype:
-            raise RuntimeError("Expect buffer type to be %s instead of %s" %
-                               (dtype, buf.dtype))
+        # remove the checking as we have load_int8 insn
+        # if buf.dtype != dtype:
+        #     raise RuntimeError("Expect buffer type to be %s instead of %s" %
+        #                        (dtype, buf.dtype))
         shape, strides = buf.shape, buf.strides
         if not util.equal_const_int(idxm(buf.elem_offset, elem_block), 0):
             raise RuntimeError("scope %s need to have block=%d" % (scope, elem_block))
@@ -549,20 +550,13 @@ def InjectDMAIntrin():
 
             _check_compact(dst)
 
-            # FIXME(zhanghao): optimize
-            # for int8 -> int32 cast/load
-            orig_dtype = src.dtype
-            if src.dtype != data_type:
-                assert(data_type == "int%d" % env.ACC_WIDTH and \
-                       src.dtype == "int%d" % env.INP_WIDTH)
-                src.dtype = data_type
-
             x_size, y_size, x_stride, offset = _get_2d_pattern(
                 src, elem_width, elem_bytes, data_type,
                 dst.scope, allow_fold=allow_fold)
 
-            if orig_dtype != src.dtype:
-                src.dtype = orig_dtype
+            if data_type != src.dtype:
+                assert(data_type == "int%d" % env.ACC_WIDTH and \
+                       src.dtype == "int%d" % env.INP_WIDTH)
                 mem_type = env.dev.MEM_ID_ACC_8BIT
 
             irb = tvm.tir.ir_builder.create()

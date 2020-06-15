@@ -82,7 +82,6 @@ def schedule_alu_packed(cfg, outs):
     output = outs[0]
     s = te.create_schedule([x.op for x in outs])
     te.schedule.AutoInlineInjective(s)
-    # s[output].fuse(s[output].op.axis)
 
     env = get_env()
     # other target does not support alu-only ops
@@ -190,8 +189,11 @@ def multiply_strategy_vta(attrs, inputs, out_type, target):
     return strategy
 
 
-reg.get("add").get_attr("FTVMStrategy").register(add_strategy_vta, "vta")
-reg.get("multiply").get_attr("FTVMStrategy").register(multiply_strategy_vta, "vta")
+env = get_env()
+# other target does not support alu-only ops
+if env.TARGET in ["sim", "tsim", "intelfocl"]:
+    reg.get("add").get_attr("FTVMStrategy").register(add_strategy_vta, "vta")
+    reg.get("multiply").get_attr("FTVMStrategy").register(multiply_strategy_vta, "vta")
 
 
 @_strategy.conv2d_strategy.register("vta")

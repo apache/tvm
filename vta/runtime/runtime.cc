@@ -1078,6 +1078,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     CHECK(fpga_buff_ != nullptr);
     CHECK(fpga_buff_phy_);
     uint32_t buff_size = dram_buffer_.size() * elem_bytes_;
+
     CHECK(buff_size <= kMaxBytes);
     // Copy contents of DRAM buffer to FPGA buff
     VTAMemCopyFromHost(fpga_buff_, dram_buffer_.data(), buff_size);
@@ -1322,7 +1323,6 @@ class CommandQueue {
     if (insn_queue_.count() == 0) return;
     // Synchronization for the queues
     uop_queue_.AutoReadBarrier();
-
     insn_queue_.AutoReadBarrier();
     // Dump instructions if debug enabled
     if (debug_flag_ & VTA_DEBUG_DUMP_INSN) {
@@ -1333,7 +1333,7 @@ class CommandQueue {
           VTA_OPCODE_FINISH);
 
     // Make sure that we don't exceed contiguous physical memory limits
-    CHECK(insn_queue_.count() * sizeof(VTAGenericInsn) < VTA_MAX_XFER);
+    CHECK(insn_queue_.count() * sizeof(VTAGenericInsn) <= VTA_MAX_XFER);
     int timeout =
         VTADeviceRun(device_, insn_queue_.dram_phy_addr(), insn_queue_.count(), wait_cycles);
     CHECK_EQ(timeout, 0);
@@ -1481,9 +1481,8 @@ class CommandQueue {
 
   void CheckInsnOverFlow() {
     // At each API call, we can at most commit:
-    // one pending store, one pending load, and one uop
-    // FIXME(zhanghao): check why there are 5 insns
-    if ((insn_queue_.count() + 5) * sizeof(VTAGenericInsn) >= VTA_MAX_XFER) {
+    // at most: 2 NOP-COMPUTE-STAGE -> 2 NOP-MEMORY-STAGE -> 1 NOP-COMPUTE-STAGE -> 1 FINISH
+    if ((insn_queue_.count() + 6) * sizeof(VTAGenericInsn) > VTA_MAX_XFER) {
       this->AutoSync();
     }
   }
