@@ -2437,12 +2437,11 @@ def test_forward_coco_ssd_mobilenet_v1():
 #######################################################################
 # MediaPipe
 # -------------
-@pytest.mark.skip("TFLite problem")
 def test_forward_mediapipe_hand_landmark():
     """Test MediaPipe 2D hand landmark TF Lite model."""
     # MediaPipe 2D hand landmark TF
     tflite_model_file = download_testdata(
-        "https://github.com/google/mediapipe/raw/master/mediapipe/models/hand_landmark.tflite",
+        "https://github.com/google/mediapipe/raw/v0.7.4/mediapipe/models/hand_landmark.tflite",
         "hand_landmark.tflite")
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
