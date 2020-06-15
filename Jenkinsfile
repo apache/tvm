@@ -159,7 +159,7 @@ stage('Build') {
         init_git()
         sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
         make(ci_cpu, 'build', '-j2')
-        pack_lib('cpu', tvm_lib)
+        pack_lib('cpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
@@ -254,6 +254,17 @@ stage('Integration Test') {
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh"
+        }
+      }
+    }
+  },
+  'frontend: CPU': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/frontend-python-cpu")) {
+        init_git()
+        unpack_lib('cpu', tvm_multilib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh"
         }
       }
     }
