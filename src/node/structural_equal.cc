@@ -231,8 +231,7 @@ bool StructuralEqual::operator()(const ObjectRef& lhs, const ObjectRef& rhs) con
   return RemapVarSEqualHandler(false).Equal(lhs, rhs, false);
 }
 
-bool StructuralEqual::operator()(const ObjectRef& lhs,
-                                 const ObjectRef& rhs,
+bool StructuralEqual::operator()(const ObjectRef& lhs, const ObjectRef& rhs,
                                  bool map_free_vars) const {
   return RemapVarSEqualHandler(false).Equal(lhs, rhs, map_free_vars);
 }
