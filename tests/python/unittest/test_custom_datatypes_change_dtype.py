@@ -401,8 +401,8 @@ def run_conv2d(src_dtype, dst_dtype):
     # depthwise conv2d
     dshape = (1, 32, 18, 18)
     kshape = (32, 1, 3, 3)
-    run_test_conv2d("float32",
-                    "custom[posit32]32",
+    run_test_conv2d(src_dtype,
+                    dst_dtype,
                     1,
                     dshape,
                     kshape,
@@ -418,8 +418,8 @@ def run_conv2d(src_dtype, dst_dtype):
     # group conv2d
     dshape = (1, 32, 18, 18)
     kshape = (32, 4, 3, 3)
-    run_test_conv2d("float32",
-                    "custom[posit32]32",
+    run_test_conv2d(src_dtype,
+                    dst_dtype,
                     1,
                     dshape,
                     kshape,
@@ -431,8 +431,8 @@ def run_conv2d(src_dtype, dst_dtype):
     # also group conv2d
     dshape = (1, 32, 18, 18)
     kshape = (64, 1, 3, 3)
-    run_test_conv2d("float32",
-                    "custom[posit32]32",
+    run_test_conv2d(src_dtype,
+                    dst_dtype,
                     1,
                     dshape,
                     kshape,
@@ -445,8 +445,8 @@ def run_conv2d(src_dtype, dst_dtype):
     # normal conv2d
     dshape = (1, 3, 224, 224)
     kshape = (10, 3, 3, 3)
-    run_test_conv2d("float32",
-                    "custom[posit32]32",
+    run_test_conv2d(src_dtype,
+                    dst_dtype,
                     1,
                     dshape,
                     kshape,
@@ -457,8 +457,8 @@ def run_conv2d(src_dtype, dst_dtype):
     # dilated conv2d
     dshape = (1, 3, 18, 18)
     kshape = (10, 3, 3, 3)
-    run_test_conv2d("float32",
-                    "custom[posit32]32",
+    run_test_conv2d(src_dtype,
+                    dst_dtype,
                     1,
                     dshape,
                     kshape,
