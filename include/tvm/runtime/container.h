@@ -1106,8 +1106,6 @@ class StringObj : public Object {
  private:
   /*! \brief String object which is moved from std::string container. */
   class FromStd;
-  /*! \brief String object that is constructed from char*. */
-  class FromCharPtr;
 
   friend class String;
 };
@@ -1159,7 +1157,8 @@ class String : public ObjectRef {
    *
    * \param other a char array.
    */
-  String(const char* other);  // NOLINT(*);
+  String(const char* other)  // NOLINT(*)
+      : String(std::string(other)) {}
 
   /*!
    * \brief Change the value the reference object points to.
@@ -1355,36 +1354,10 @@ class StringObj::FromStd : public StringObj {
   friend class String;
 };
 
-/*!
- * \brief The class that initializes and manages the memory of a String object
- * created from char pointers.
- */
-class StringObj::FromCharPtr : public StringObj, InplaceArrayBase<StringObj::FromCharPtr, char> {
- public:
-  /*! \brief The size function needed by InplaceArrayBase */
-  size_t GetSize() const { return size_; }
-
- private:
-  /*! \brief The length of the chars. */
-  size_t size_;
-
-  friend class String;
-  friend class InplaceArrayBase<StringObj::FromCharPtr, char>;
-};
-
 inline String::String(std::string other) {
   auto ptr = make_object<StringObj::FromStd>(std::move(other));
   ptr->size = ptr->data_container.size();
   ptr->data = ptr->data_container.data();
-  data_ = std::move(ptr);
-}
-
-inline String::String(const char* other) {
-  size_t size = std::strlen(other);
-  auto ptr = make_inplace_array_object<StringObj::FromCharPtr, char>(size);
-  ptr->size_ = size;
-  ptr->size = size;
-  ptr->data = other;
   data_ = std::move(ptr);
 }
 
