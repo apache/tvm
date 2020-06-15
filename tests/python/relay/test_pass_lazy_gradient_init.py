@@ -391,5 +391,41 @@ def test_ones_like():
   y = ex.evaluate(y)(x)
   assert_allclose(y.asnumpy(), x.asnumpy() + np.ones_like(x.asnumpy()))
 
+def test_list_adt():
+  """test prelude functions on list ADT. which is a recursive ADT"""
+  mod = tvm.IRModule()
+  p = Prelude(mod)
+
+  cons = p.cons
+  nil = p.nil
+
+  mod = transform.LazyGradientInit()(mod)
+
+  ex = create_executor(mod=mod)
+
+  def to_list_adt(list):
+    l = nil()
+    for x in list:
+      l = cons(relay.const(x), l)
+    return ex.evaluate(l)
+
+  def from_list_adt(list):
+    l = []
+    def rec(x):
+      if x.constructor.tag == cons.tag:
+        l.insert(0, x.fields[0].asnumpy().tolist())
+        rec(x.fields[1])
+    rec(list)
+    return l
+
+  # test sum
+  x = np.random.randint(1,101,10)
+  assert sum(x) == ex.evaluate(mod['sum'])(to_list_adt(x)).asnumpy()
+
+  # test reverse
+  x = np.random.rand(10)
+  actual = from_list_adt(ex.evaluate(mod['rev'])(to_list_adt(x)))
+  assert_allclose(x[::-1], actual)
+
 if __name__ == "__main__":
   pytest.main([__file__])
