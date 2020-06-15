@@ -37,7 +37,7 @@
  * operations involving tensors with values of only 0 or 1.
  * 
  * Note: this pass can only be used with functions where the input/output types are a
- * combination of TupleTypes, TensorTypes, non mutually-recursive ADTs, and non-nested FuncTypes
+ * combination of TupleTypes, TensorTypes, ADTs, and non-nested FuncTypes
  * 
  * This pass optimizes 6 ops:
  * - add
@@ -47,9 +47,9 @@
  * - zeros
  * - zeros_like
  * 
- * This module level pass adds a new "GradCell" datatype for each existing datatype.
+ * This module level pass adds a new "GradCell" version datatype for each existing datatype.
  * This is the case to propogate the new GradCell datatype through ADTs such as Lists.
- * For each function, a new function is created that accepts the "GradCell-version" of the arguments
+ * For each function, a new function is created that accepts the "GradCell" type of the arguments
  * of the original function. That is, inputs to the function are converted to their GradCell-version,
  * passed to the newly created "GradCell_Function".
  * The output is then necessarily converted from the GradCell version to the original return type.
@@ -78,12 +78,18 @@
 #include <tvm/relay/analysis.h>
 #include "let_list.h"
 
+#include <string>
+
 namespace tvm {
 namespace relay {
 
+// prefix of name of GradCell version ADT
 const std::string GradCell_Header = "_GradCell_";
+// prefix of transformation function for converting ADT to GradCell version
 const std::string GradCell_TransFunc = "_GradCell_TransFunc_";
+// prefix of transformation function for converting GradCell version ADT to normal
 const std::string GradCell_ReverseTransFunc = "_GradCell_ReverseTransFunc_";
+// prefix of copy of function that operates on GradCell types
 const std::string GradCell_Func = "_GradCell_Func_";
 
 struct TypeCallHash {
@@ -108,7 +114,7 @@ struct TypeCallEqual {
     }
 
     for (size_t i = 0; i < l->args.size(); i++) {
-      if (!GraphEqual(l->args[i], r->args[i])) {
+      if (!tvm::StructuralEqual()(l->args[i], r->args[i], true)) {
         return false;
       }
     }
@@ -120,8 +126,6 @@ struct TypeCallEqual {
 /*!
  * \brief ADTTransform creates a new ADT named 
  * GradCell_Header + name_hint for each unique ADT.
- * 
- * This is necessary to handle ADTs.
  */ 
 class ADTTransform: public TypeMutator, public PatternMutator {
  public:
@@ -142,7 +146,6 @@ class ADTTransform: public TypeMutator, public PatternMutator {
   Type VisitType_(const GlobalTypeVarNode* op) final {
     GlobalTypeVar t = GetRef<GlobalTypeVar>(op);
     if (op->kind == kAdtHandle) {
-      
       if (adt_mapping_.count(t) != 0) {
         return adt_mapping_.at(t);
       }
@@ -242,22 +245,21 @@ class TypeVarSolver: public TypeMutator {
     return type;
   }
  private:
-  // 
-  std::unordered_map<TypeVar, TypeVar, ObjectHash, ObjectEqual> &type_var_map_;
-  std::unordered_map<TypeVar, Type, ObjectHash, ObjectEqual> &type_call_map_;
+  // type vars to unique type vars
+  std::unordered_map<TypeVar, TypeVar, ObjectHash, ObjectEqual> type_var_map_;
+  // TypeCall arguments to ADT
+  std::unordered_map<TypeVar, Type, ObjectHash, ObjectEqual> type_call_map_;
 };
 
 /*!
- * \brief Find and replace TypeVars within arguments of a TypeCall
- * This is used in GradCellWrapper and GradCellUnwrapper to extract the type_args
- * to be passed in to the function that converts the ADT and the type_params of the
- * new function.
+ * \brief Find all TypeVars within the arguments of a TypeCallNode and create a mapping
+ * of the TypeVars to new TypeVars
  */
 class TypeCallMutator: public TypeVisitor {
  public:
-  // TypeVars that have to be passed to function as type_args
+  // TypeVars within TypeCallNode
   Array<Type> args;
-  // TypeVar params of new function
+  // unique TypeVars
   Array<TypeVar> params;
   explicit TypeCallMutator(IRModule module, const TypeCallNode* op): module_(module) {
     for (Type t : op->args) {
@@ -271,14 +273,14 @@ class TypeCallMutator: public TypeVisitor {
   }
 
   /*!
-   * \brief Solve for input type to function. Replace TypeVars of ADT with argumuents from TypeCall
-   * and replace TypeVars with newly created TypeVars of function.
+   * \brief Replace ADT type vars with TypeCall arguments
+   * and replace type vars with unique typevars
    * 
    * \param t TypeCall
    * \param map TypeVar of ADT -> type argument
    * 
-   * \return type after replacing ADT TypeVar with arguments and TypeVar of arguments with TypeVar
-   * of functions
+   * \return type after replacing ADT TypeVar with arguments and replacing any
+   * free type vars with uniquely generated typevars
    */
 
   Type InputType(Type t, std::unordered_map<TypeVar, Type, ObjectHash, ObjectEqual>& map) {
@@ -306,7 +308,7 @@ typedef class GradCellUnWrapper GradCellUnWrapper;
  * TensorTypes are wrapped with the Raw constructor of GradCell.
  * TupleTypes are recursively visited.
  * ADTTypes are converted to its appropriate transformed ADT
- * FuncTypes are wrapped with a function that appropriates wraps/unwraps input and output
+ * FuncTypes are wrapped with a function that appropriately wraps/unwraps input and output
  */
 class GradCellWrapper: public ExprFunctor<Expr(const Expr&, const Type&, GradCellUnWrapper*)>, 
                        public TypeMutator {
@@ -325,7 +327,7 @@ class GradCellWrapper: public ExprFunctor<Expr(const Expr&, const Type&, GradCel
   std::unordered_map<TypeCall, GlobalVar, TypeCallHash, TypeCallEqual> adt_wrapper_map_;
   // TypeVar of ADT call -> Type argument
   std::unordered_map<TypeVar, Type, ObjectHash, ObjectEqual> type_var_map;
-  // create unique strings for ADT wrapper functions
+  // append to prefix to create unique function names for ADT wrapper functions
   unsigned long unique;
 
   Expr WrapExpr(const Expr expr, const Type& type, GradCellUnWrapper* unwrapper);
@@ -408,12 +410,16 @@ Expr GradCellWrapper::WrapExpr(const Expr expr, const Type& type,
   if (auto* type_anno = type.as<TypeCallNode>()) {
     // create GradCell_ADT if not already created
     adt_transformer_->VisitType(type_anno->func);
+    // find all type vars within type_anno
+    // to handle polymorphic functions
     auto tvs = TypeCallMutator(module_, type_anno);
 
     return Call(GetADTFunction(type_anno, tvs, unwrapper), {expr}, Attrs(), tvs.args);
   } 
   
   if (auto* type_anno = type.as<FuncTypeNode>()) {
+    // to handle functions, we need to create a new function
+    // that handles GradCell version input and outputs GradCell version types
     Array<Var> funcVars;
     Array<Expr> args;
     for (Type t : type_anno->arg_types) {
@@ -452,7 +458,7 @@ Expr GradCellWrapper::GetADTFunction(const TypeCallNode* op, TypeCallMutator &ty
   TypeData adt_data = module_->LookupTypeDef(adt_handle);
   TypeData new_adt_data = module_->LookupTypeDef(GradCell_Header + adt_handle->name_hint);
 
-  // solve for input type wrap ADT function
+  // solve for input type to wrap ADT function
   for (size_t i = 0; i < adt_data->type_vars.size(); i++) {
     type_var_map[adt_data->type_vars[i]] = op->args[i];
   }
@@ -491,7 +497,7 @@ Expr GradCellWrapper::GetADTFunction(const TypeCallNode* op, TypeCallMutator &ty
   Expr match = Match(v, clauses);
 
   Function func = Function({v}, match, this->VisitType(input_type), type_args.params); 
-  module_->Add(func_var, func);
+  module_->AddUnchecked(func_var, func);
   return func;
 }
 
@@ -564,7 +570,7 @@ Expr GradCellUnWrapper::GetReverseADTFunction(const TypeCallNode* op,
   GlobalTypeVar adt_handle = adt_transformer_->GetReverseADT(transformed_adt_handle);
 
   // sanity check
-  CHECK(transformed_adt_handle->name_hint.rfind(GradCell_Header, 0) == 0) 
+  CHECK(std::string(transformed_adt_handle->name_hint).rfind(GradCell_Header, 0) == 0) 
                                   << "Output ADT is not a transformed ADT";
 
   if (adt_unwrapper_map_.count(type)) {
@@ -621,7 +627,7 @@ Expr GradCellUnWrapper::GetReverseADTFunction(const TypeCallNode* op,
   Expr match = Match(v, clauses);
 
   Function func = Function({v}, match, this->VisitType(input_type), type_args.params); 
-  module_->Add(func_var, func);
+  module_->AddUnchecked(func_var, func);
   return func;
 }
 
@@ -687,11 +693,7 @@ class LazyGradientInitializer: public ExprMutator,
       }
       // create transformed function and add definition to IRModule
       auto* transformed = ExprMutator::Mutate(f).as<FunctionNode>();
-      module_->Add(func_var, GetRef<Function>(transformed));
-
-      // sanity check
-      CHECK(f->params.size() == transformed->params.size()) 
-          << "Transformed function doesn't have same number of args";
+      module_->AddUnchecked(func_var, GetRef<Function>(transformed));
 
       // wrap inputs of Tensor type using GradCellWrapper class
       tvm::Array<Expr> args;
@@ -706,7 +708,7 @@ class LazyGradientInitializer: public ExprMutator,
       Expr tensorOutput = grad_cell_unwrapper_->VisitExpr(transformedExpr, transformed->ret_type);
       return Function(f->params, tensorOutput, f->ret_type, f->type_params);
     }
-    return module_->Lookup(gv);
+    LOG(FATAL) << "GlobalVar does not map to a function";
   }
 
   Expr VisitExpr_(const ConstantNode* op) final {
@@ -752,6 +754,7 @@ class LazyGradientInitializer: public ExprMutator,
       // wrap result with Raw constructor
       return grad_cell_wrapper_->VisitExpr(result, call_node->checked_type(), grad_cell_unwrapper_);
     }
+
     if (auto* op = (call_node->op).as<ConstructorNode>()) {
       // create "GradCell-version" of ADT if not already created 
       adt_transformer_->VisitType(op->belong_to);
@@ -804,8 +807,6 @@ class LazyGradientInitializer: public ExprMutator,
     if (func_map_.count(gv) == 0) {
       // create handle to transformed function
       func_map_[gv] = GlobalVar(GradCell_Func + op->name_hint);
-      // define transformed function
-      this->VisitGlobalVar(gv);
     }
     return func_map_.at(gv);
   }
@@ -817,6 +818,7 @@ class LazyGradientInitializer: public ExprMutator,
   Type VisitType_(const GlobalTypeVarNode* op) final {
     GlobalTypeVar t = GetRef<GlobalTypeVar>(op);
     if (module_->GetGlobalTypeVar("GradCell").same_as(t)) {
+      // if GradCell type, do nothing
       return t;
     }
     if (op->kind == kAdtHandle) {
@@ -930,8 +932,9 @@ IRModule LazyGradientInit(const IRModule& m) {
     gvs.push_back(p.first);
   }
   for (const auto& gv : gvs) {
-    m->Add(gv, lgi.VisitGlobalVar(gv));
+    m->AddUnchecked(gv, lgi.VisitGlobalVar(gv));
   }
+  m->Check();
   return m;
 }
 

@@ -231,6 +231,45 @@ void IRModuleNode::AddUnchecked(const GlobalVar& var, const BaseFunc& func) {
   global_var_map_.Set(var->name_hint, var);
 }
 
+void IRModuleNode::Check() {
+  const auto& mod = GetRef<IRModule>(this);
+  const auto& globalvars = this->GetGlobalVars();
+
+  // first pass: fill in type for all functions
+  for (const auto& var : globalvars) {
+    relay::Function f = Downcast<relay::Function>(this->Lookup(var));
+    auto func = Downcast<relay::Function>(relay::DeDup(std::move(f)));
+
+    auto fv = relay::FreeVars(func);
+    auto ftv = relay::FreeTypeVars(func, mod);
+    if (fv.size() != 0) {
+      LOG(WARNING) << "There are free variables: " << fv << " in function: " << AsText(func, false)
+                   << std::endl;
+    }
+    if (ftv.size() != 0) {
+      LOG(WARNING) << "There are free type variables: " << ftv
+                   << " in function: " << AsText(func, false) << std::endl;
+    }
+    auto func_copy = relay::Function(concat(func->params, fv), func->body, func->ret_type,
+                          concat(func->type_params, ftv), func->attrs);
+
+    func_copy->checked_type_ = func_copy->func_type_annotation();
+    mod->AddUnchecked(var, func_copy);
+  }
+
+  // second pass: type inference on every function
+  for (const auto& var : globalvars) {
+    auto func = Downcast<relay::Function>(this->Lookup(var));
+    relay::Function checked_func = InferType(func, mod, var);
+
+    Type type = checked_func->checked_type();
+    CHECK(type.as<relay::IncompleteTypeNode>() == nullptr) << "NULL";
+
+    var->checked_type_ = type;
+    mod->AddUnchecked(var, func);
+  }
+}
+
 void IRModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& type) {
   // We hash the global type var name to use as a globally unique prefix for tags.
   // The hash will be used as the most significant byte of the tag, with the index of
