@@ -22,6 +22,7 @@ import numpy as np
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import MeasureCallback, MeasureErrorNo
+from .loop_state import State
 from . import _ffi_api
 
 
@@ -74,7 +75,8 @@ def write_measure_records_to_file(filename, inputs, results):
 
 def get_states_from_measure_inputs(inputs, task):
     """Get states from measure inputs"""
-    return _ffi_api.GetStatesFromMeasureInputs(inputs, task)
+    state_objects = _ffi_api.GetStatesFromMeasureInputs(inputs, task)
+    return [State(s) for s in state_objects]
 
 
 def best_measure_pair_in_file(filename, workload_key=None, target=None):

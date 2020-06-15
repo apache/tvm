@@ -245,8 +245,6 @@ def auto_schedule(workload, target=None,
 
     Returns
     -------
-    state : State
-
     sch : tvm.Schedule
 
     tensors : List[Tensor]
@@ -270,4 +268,3 @@ def auto_schedule(workload, target=None,
     else:
         raise ValueError("Invalid workload: " + workload +
                          ". Expect a string or SearchTask")
-

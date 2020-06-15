@@ -23,7 +23,7 @@ from typing import List, Tuple
 import struct
 import numpy as np
 
-from .loop_state import StateObject
+from .loop_state import State, StateObject
 from .measure import MeasureInput, MeasureResult
 from . import _ffi_api
 
@@ -131,12 +131,16 @@ def get_per_stmt_features_from_measure_pairs(inputs: List[MeasureInput],
     return unpack_feature(byte_arr)
 
 
-def get_per_stmt_features_from_states(states: List[StateObject],
+def get_per_stmt_features_from_states(states,
                                       task: "SearchTask",
                                       max_n_bufs: int = None) -> List[np.ndarray]:
     """Get per_stmt features from states"""
+    if isinstance(states[0], State):
+        state_objects = [s.state_object for s in states]
+    elif isinstance(states[0], StateObject):
+        state_objects = states
     byte_arr = _ffi_api.GetPerStmtFeaturesFromStates(
-        states, task, max_n_bufs or DEFAULT_MAX_N_BUFS)
+        state_objects, task, max_n_bufs or DEFAULT_MAX_N_BUFS)
     return unpack_feature(byte_arr)[0]
 
 

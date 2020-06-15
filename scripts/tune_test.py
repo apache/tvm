@@ -14,7 +14,7 @@ from common import get_workload_keys, get_workload_weights, measure_schedule, st
 
 def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose,
                       n_parallel, build_timeout, local_measure, device_key, host,
-                      port, ndk_cc, early_stopping=-1):
+                      port, ndk_cc, early_stopping=-1, run_timeout=10):
     builder = runner = measure_ctx = None
     if local_measure:
         builder = ansor.LocalBuilder(timeout=build_timeout)
@@ -26,7 +26,7 @@ def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose
     else:
         os.environ['TVM_NDK_CC'] = ndk_cc
         builder = ansor.LocalBuilder(timeout=build_timeout, build_func='ndk')
-        runner = ansor.RPCRunner(key=device_key, host=host, port=port,
+        runner = ansor.RPCRunner(key=device_key, host=host, port=port, timeout=run_timeout,
                                  n_parallel=n_parallel, repeat=1, min_repeat_ms=400)
 
     tune_option = ansor.TuneOption(n_trials=n_trials, early_stopping=early_stopping,

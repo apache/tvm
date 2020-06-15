@@ -20,7 +20,7 @@
 import tvm._ffi
 from tvm.runtime import Object
 from tvm import te
-from .loop_state import State
+from .loop_state import State, StateObject
 from . import _ffi_api
 
 
@@ -63,8 +63,12 @@ class ComputeDAG(Object):
         sch : Schedule
         args : List[Tensor]
         """
-        sch, args = _ffi_api.ComputeDAGApplyStepsFromState(self, state)
-        return sch, args
+        if isinstance(state, State):
+            return _ffi_api.ComputeDAGApplyStepsFromState(self, state.state_object)
+        elif isinstance(state, StateObject):
+            return _ffi_api.ComputeDAGApplyStepsFromState(self, state)
+        else:
+            raise ValueError("The input must be a State or StateObject")
 
     def print_python_code_from_state(self, state):
         """
@@ -76,7 +80,12 @@ class ComputeDAG(Object):
         -------
         str : Str
         """
-        return _ffi_api.ComputeDAGPrintPythonCodeFromState(self, state)
+        if isinstance(state, State):
+            return _ffi_api.ComputeDAGPrintPythonCodeFromState(self, state.state_object)
+        elif isinstance(state, StateObject):
+            return _ffi_api.ComputeDAGPrintPythonCodeFromState(self, state)
+        else:
+            raise ValueError("The input must be a State or StateObject")
 
     def infer_bound_from_state(self, state):
         """
@@ -88,7 +97,12 @@ class ComputeDAG(Object):
         -------
         state : StateObject
         """
-        return _ffi_api.ComputeDAGInferBoundFromState(self, state)
+        if isinstance(state, State):
+            return State(_ffi_api.ComputeDAGInferBoundFromState(self, state.state_object))
+        elif isinstance(state, StateObject):
+            return State(_ffi_api.ComputeDAGInferBoundFromState(self, state))
+        else:
+            raise ValueError("The input must be a State or StateObject")
 
 def gen_schedule(state, bufs):
     if not state or not state.complete:

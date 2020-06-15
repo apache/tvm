@@ -33,7 +33,6 @@ def test_apply_steps():
 def test_infer_bound():
     dag, s = get_tiled_matmul()
     s = dag.infer_bound_from_state(s)
-    s = ansor.loop_state.State(s)
 
     A_global, B_global, C_global = 1, 3, 4
     assert s.stages[B_global].iters[0].range.extent == 512
@@ -62,7 +61,7 @@ def test_lower_legalize_invalid_attach():
     s.compute_at(A, B, s.stages[B].iters[1])
     s.split(B, s.stages[B].iters[1], [2])
 
-    sch, tensors = dag.apply_steps_from_state(s.state_object)
+    sch, tensors = dag.apply_steps_from_state(s)
     stmt = tvm.lower(sch, tensors, simple_mode=True)
 
 

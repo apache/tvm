@@ -1019,11 +1019,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   PrintState(&p->stream, node, true);
 });
 
-
-TVM_REGISTER_GLOBAL("ansor.StageGetIterator").set_body_typed([](const Stage& stage, int index) {
-  return stage->iters[index];
-});
-
 TVM_REGISTER_GLOBAL("ansor.StageGetIterators").set_body_typed([](const Stage& stage) {
   return Array<Iterator>(stage->iters);
 });

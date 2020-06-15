@@ -47,7 +47,7 @@ def test_cpu_matmul():
     target = tvm.target.create('llvm')
     task = ansor.SearchTask(dag, "test", target)
     names = ansor.feature.get_per_stmt_feature_names()
-    fea = ansor.feature.get_per_stmt_features_from_states([s.state_object], task)[0]
+    fea = ansor.feature.get_per_stmt_features_from_states([s], task)[0]
 
     stage_0 = fea[0]
     assert len(stage_0) == len(names), "%d vs %d" % (len(stage_0), len(names))
@@ -91,7 +91,7 @@ def test_cpu_fusion():
     target = tvm.target.create('llvm')
     task = ansor.SearchTask(dag, "test", target)
     names = ansor.feature.get_per_stmt_feature_names()
-    fea = ansor.feature.get_per_stmt_features_from_states([s.state_object], task)[0]
+    fea = ansor.feature.get_per_stmt_features_from_states([s], task)[0]
 
     found = False
     for stage_fea in fea:

@@ -122,11 +122,17 @@ search_policy = ansor.MetaTileRewritePolicy(cost_model, seed=seed)
 # During the searching process, we may generate several invalid schedules and they
 # will be filtered out. It's fine to see "Encountered errors during feature extraction."
 # in the tuning logs.
+# :code:`ansor.LogToFile` callback will log the tuning results into a
+# log file, which can be used to get the best config later.
+# :code:`ansor.PreLoadMeasuredStates` callback will load measured states
+# from history log before schedule search, we can add this callback to make
+# sure a same schedule will never be measured for multiple times.
 
 measure_ctx = ansor.LocalRPCMeasureContext(repeat=3, min_repeat_ms=100, timeout=4)
 tune_option = ansor.TuneOption(n_trials=20,
                                runner=measure_ctx.runner,
-                               measure_callbacks=[ansor.LogToFile(log_file)])
+                               measure_callbacks=[ansor.LogToFile(log_file)],
+                               pre_search_callbacks=[ansor.PreLoadMeasuredStates(log_file)])
 s, arg_bufs = ansor.auto_schedule(task, search_policy=search_policy, tune_option=tune_option)
 
 print("==== Get Lowered Stmt ====")

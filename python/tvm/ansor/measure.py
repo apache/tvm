@@ -62,7 +62,7 @@ class MeasureInput(Object):
     """
 
     def __init__(self, task, state):
-        self.__init_handle_by_constructor__(_ffi_api.MeasureInput, task, state)
+        self.__init_handle_by_constructor__(_ffi_api.MeasureInput, task, state.state_object)
 
 
 @tvm._ffi.register_object("ansor.BuildResult")

@@ -43,7 +43,7 @@ def test_serialization():
         s2 = dag.infer_bound_from_state(inputs[0].state)
 
         assert s1 == s2
-        assert not (s1 == dag.get_init_state().state_object)
+        assert not (s1 == dag.get_init_state())
 
 
 def test_measure_local_builder_runner():

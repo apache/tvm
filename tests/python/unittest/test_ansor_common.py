@@ -77,5 +77,5 @@ def get_tiled_matmul():
     C += 1
     C_global += 1
     s0.compute_at(A_global, C_global, s0.stages[C_global].iters[2])
-    return dag, s0.state_object
+    return dag, s0
 

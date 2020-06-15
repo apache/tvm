@@ -60,18 +60,6 @@ class Stage(Object):
             setattr(self, "iterators_cache", _ffi_api.StageGetIterators(self))
         return getattr(self, "iterators_cache")
 
-    def iter(self, index):
-        """
-        Parameters
-        ----------
-        index : Int
-
-        Returns
-        -------
-        iter : Iterator
-        """
-        return _ffi_api.StageGetIterator(self, index)
-
 
 @tvm._ffi.register_object("ansor.State")
 class StateObject(Object):
@@ -302,7 +290,7 @@ class State:
         }
         thread_id = trans_table[thread_name]
 
-        self.state_object, res = _ffi_api.StateUnroll(self.state_object, stage_id, it, thread_id)
+        self.state_object, res = _ffi_api.StateBindThread(self.state_object, stage_id, it, thread_id)
         self.clear_cache()
         return res
 

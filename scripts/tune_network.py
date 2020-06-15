@@ -191,22 +191,14 @@ def create_module(data_shape, graph, lib, target, input_name, params, debug_prof
     return module, ctx
 
 
-def tune_and_evaluate(network_name, model_path, batch_size, target, target_host,
-                      local_measure, device_key, host, port, n_parallel, ndk_cc,
-                      build_timeout, run_timeout, num_threads, tune, check_correctness,
-                      debug_profile, tuning_parameters, record_file, layout_set):
-    task_scheduler, model_type, policy, log_file, load_log_file = (tuning_parameters['task_scheduler'],
-            tuning_parameters['model_type'], tuning_parameters['policy'],
-            tuning_parameters['log_file'], tuning_parameters['load_log_file'])
-
-    if layout_set:
-        layout = layout_set
-
+def tune_and_evaluate(target, target_host, log_n_lines, search_policy, tune,
+                      debug_profile, check_correctness, network_parameters,
+                      task_scheduler_parameters, tune_parameters, module_parameters):
     # Extract workloads from relay program
-    print("=============== Extract workloads ===============")
-    mod, params, input_name, data_shape, out_shape = get_network(network_name, model_path, batch_size, layout)
+    mod, params, input_name, data_shape, out_shape = get_network(**network_parameters)
 
     if tune:
+        print("=============== Extracting workloads ===============")
         workloads, wkl_weights = ansor.extract_from_program(mod, target=target,
                 params=params, ops=(relay.op.nn.dense, relay.op.nn.softmax,
                                     relay.op.nn.conv2d, relay.op.nn.conv2d_transpose,
@@ -215,7 +207,7 @@ def tune_and_evaluate(network_name, model_path, batch_size, target, target_host,
                                     relay.op.nn.conv3d, relay.op.nn.adaptive_avg_pool3d,
                                     relay.op.nn.batch_matmul, relay.op.mean,
                                     ))
-        print("Total workload number: %d" % (len(workloads)))
+        print("Totally %d workload extracted." % (len(workloads)))
 
         # Tune workloads with auto scheduler
         print("=============== Tuning ===============")
@@ -225,23 +217,13 @@ def tune_and_evaluate(network_name, model_path, batch_size, target, target_host,
             print("[========= Task %d =========]\n" % i, dag)
             tasks.append(ansor.SearchTask(dag, wkl_key, target, target_host))
 
-        def objective_func(costs):
-            return sum(c * w for c, w in zip(costs, wkl_weights))
+        tuner = ansor.SimpleTaskScheduler(tasks,
+                lambda costs: sum(c * w for c, w in zip(costs, wkl_weights)),
+                **task_scheduler_parameters)
+        tune_option, measure_ctx = create_tune_option(target, **tune_parameters)
 
-        tuner = ansor.SimpleTaskScheduler(tasks, objective_func, strategy=task_scheduler,
-                                          load_log_file=load_log_file,
-                                          load_model_file=tuning_parameters['load_model'])
-
-        tune_option, measure_ctx = create_tune_option(target, log_file,
-                tuning_parameters['n_trials'], tuning_parameters['num_measure_per_iter'],
-                tuning_parameters['verbose'], n_parallel, build_timeout,
-                local_measure, device_key, host, port, ndk_cc,
-                tuning_parameters['early_stopping'])
-        search_policy = "%s.%s" % (policy, model_type)
-
-        if local_measure and target.target_name != 'cuda':
+        if tune_parameters['local_measure'] and target.target_name != 'cuda':
             os.environ['TVM_BIND_MASTER_CORE_0'] = "1"
-
         tuner.tune(tune_option, search_policy)
 
         if measure_ctx:
@@ -251,15 +233,13 @@ def tune_and_evaluate(network_name, model_path, batch_size, target, target_host,
 
     # Compile graph with best states found by auto-scheduler
     print("=============== Compile ===============")
-    with ansor.apply_history_best(log_file, args.log_n_lines):
-    #if True:
-    #with ansor.BlockingEmptyContext():
+    with ansor.apply_history_best(tune_parameters['log_file'], log_n_lines):
         os.environ['TVM_AUTO_CACHE_FLUSH'] = "0"
         os.environ['TVM_BIND_MASTER_CORE_0'] = "1"
         if kernel_layout_rewrite:
             ansor.prepare_layout_rewrite(mod, target=target,
-                                                  params=params,
-                                                  ops=(relay.op.nn.dense, relay.op.nn.conv2d, relay.op.nn.conv3d))
+                                         params=params,
+                                         ops=(relay.op.nn.dense, relay.op.nn.conv2d, relay.op.nn.conv3d))
         else:
             # disable layout rewrite
             ansor.LayoutRewriteLevel.BOTH_REWRITE = ansor.LayoutRewriteLevel.NO_REWRITE
@@ -268,22 +248,12 @@ def tune_and_evaluate(network_name, model_path, batch_size, target, target_host,
         with relay.build_config(opt_level=3):
             graph, lib, opt_params = relay.build_module.build(
                 mod, target=target, params=params)
-        '''
-        from tvm.relay.backend import graph_runtime_codegen
-        with relay.build_config(opt_level=3):
-            opt_mod, _ = relay.optimize(mod, target, params)
-            grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
-            grc.codegen(opt_mod["main"])
-        with tvm.transform.PassContext(opt_level=3):
-            graph, lib, opt_params = relay.build_module.build(
-                mod, target=target, params=params)
-        '''
+
         ansor.finish_layout_rewrite()
         print("=============== Compile Finish ===============")
 
-        module, ctx = create_module(data_shape, graph, lib, target, input_name, opt_params,
-                                    debug_profile, local_measure, ndk_cc,
-                                    device_key, host, port, run_timeout, num_threads)
+        module, ctx = create_module(data_shape, graph, lib, target, input_name,
+                                    opt_params, debug_profile, **module_parameters)
 
         # Evaluate
         print("========== Evaluate ==========")
@@ -315,9 +285,8 @@ def tune_and_evaluate(network_name, model_path, batch_size, target, target_host,
             graph, lib, opt_params = relay.build_module.build(
                 mod, target=target, params=params)
 
-        module, _ = create_module(data_shape, graph, lib, target, input_name, opt_params,
-                                  debug_profile, local_measure, ndk_cc,
-                                  device_key, host, port, run_timeout, num_threads)
+        module, _ = create_module(data_shape, graph, lib, target, input_name,
+                                  opt_params, debug_profile, **module_parameters)
         module.run()
 
         expected_output = module.get_output(0).asnumpy()
@@ -343,7 +312,7 @@ if __name__ == "__main__":
     # Strategy related options
     parser.add_argument("--seed", type=int, default=0, help='random seed')
     parser.add_argument("--policy", type=str, choices=['multi-stage', 'meta-rewrite'],
-            default='meta-rewrite')
+                        default='meta-rewrite')
     parser.add_argument("--model-type", type=str, choices=['xgb', 'random', 'no-share'], default='xgb')
     parser.add_argument("--task-scheduler", type=str, default='gradient',
                         choices=['no', 'gradient', 'round-robin'],
@@ -359,6 +328,7 @@ if __name__ == "__main__":
     # Detailed control options
     parser.add_argument("--build-timeout", type=int, default=10)
     parser.add_argument("--run-timeout", type=int, default=10)
+    parser.add_argument("--early-stopping", type=int, default=-1)
     parser.add_argument("--verbose", type=int, default=1)
     parser.add_argument("--local-measure", type=str2bool, nargs='?', const=True, default=True)
     parser.add_argument("--device-key", type=str, default=None)
@@ -375,23 +345,59 @@ if __name__ == "__main__":
     logging.getLogger('ansor').setLevel(logging.DEBUG)
 
     target = tvm.target.create(args.target)
+    log_file =  args.log_file or "%s-B%d-%s.json" % (args.network, args.batch_size,
+                                                     target.target_name)
+    load_log_file = args.load_log or log_file
+    search_policy = "%s.%s" % (args.policy, args.model_type)
+    if args.layout:
+        layout = args.layout
+    elif target.target_name == "cuda":
+        layout = "NCHW"
+    else:
+        layout = "NHWC"
 
-    tuning_parameters = {
+    network_parameters = {
+        'name': args.network,
+        'model_path': args.model_path,
+        'batch_size': args.batch_size,
+        'layout': layout
+    }
+
+    task_scheduler_parameters = {
+        'strategy': args.task_scheduler,
+        'load_log_file': load_log_file,
+        'load_model_file': args.load_model,
+        'verbose': args.verbose,
+    }
+
+    control_parameters = {
+        'local_measure': args.local_measure,
+        'device_key': args.device_key,
+        'host': args.host,
+        'port': args.port,
+        'ndk_cc': args.ndk_cc,
+    }
+
+    tune_parameters = {
+        'log_file': log_file,
         'n_trials': args.n_trials,
         'num_measure_per_iter': args.num_measure_per_iter,
-        'log_file': args.log_file or "%s-B%d.json" % (args.network, args.batch_size),
-        'load_model': args.load_model,
-        'model_type': args.model_type,
-        'task_scheduler': args.task_scheduler,
-        'policy': args.policy,
-        'early_stopping': -1,
-        'verbose': 1,
+        'verbose': args.verbose,
+        'n_parallel': args.n_parallel,
+        'build_timeout': args.build_timeout,
+        'run_timeout': args.run_timeout,
+        'early_stopping': args.early_stopping,
+        **control_parameters
     }
-    tuning_parameters['load_log_file'] = args.load_log or tuning_parameters['log_file']
+
+    module_parameters = {
+        'run_timeout': args.run_timeout,
+        'num_threads': args.num_threads,
+        **control_parameters
+    }
 
     os.environ["TOPHUB_LOCATION"] = "NONE"
-    tune_and_evaluate(args.network, args.model_path, args.batch_size, target, args.target_host,
-                      args.local_measure, args.device_key, args.host,
-                      args.port, args.n_parallel, args.ndk_cc, args.build_timeout,
-                      args.run_timeout, args.num_threads, args.tune, args.check_correctness,
-                      args.debug_profile, tuning_parameters, args.out_file, args.layout)
+    tune_and_evaluate(target, args.target_host, args.log_n_lines, search_policy,
+                      args.tune, args.debug_profile, args.check_correctness,
+                      network_parameters, task_scheduler_parameters, tune_parameters,
+                      module_parameters)

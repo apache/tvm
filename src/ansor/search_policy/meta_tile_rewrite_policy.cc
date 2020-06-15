@@ -1267,6 +1267,9 @@ void MetaTileRewritePolicyNode::SampleInitPopulation(const std::vector<State>& m
 
       if (InitPopulationThreadBind(this, &tmp_s)) {
         continue_count++;
+        if (continue_count == out_size) {
+          StdCout(verbose_) << "Initial Population Sampling..." << std::endl;
+        }
         continue;
       }
 
