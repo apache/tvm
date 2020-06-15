@@ -91,6 +91,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         assert (data.dtype == 'int8' and kernel.dtype == 'int8' or
                 data.dtype == 'uint8' and kernel.dtype == 'uint8')
 
+        assert data_layout == "NHWC" and kernel_layout == "HWIO"
+
         data_expr, kernel_expr = inputs
 
         data_int16 = relay.cast(data_expr, dtype='int16')
@@ -242,6 +244,9 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     if topi_tmpl == "conv2d_NHWC_quantized.arm_cpu":
         assert (data.dtype == 'int8' and kernel.dtype == 'int8' or
                 data.dtype == 'uint8' and kernel.dtype == 'uint8')
+
+        assert data_layout == "NHWC" and kernel_layout == "HWIO"
+
         CO, IC, KH, KW = get_const_tuple(kernel.shape)
 
         K = KH * KW * IC

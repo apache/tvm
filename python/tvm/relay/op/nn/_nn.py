@@ -452,7 +452,6 @@ reg.register_strategy("nn.contrib_conv2d_gemm_without_weight_transform",
 reg.register_pattern("nn.contrib_conv2d_gemm_without_weight_transform",
                      OpPattern.OUT_ELEMWISE_FUSABLE)
 
-
 @reg.register_compute("nn.contrib_conv2d_gemm_weight_transform")
 def compute_contrib_conv2d_gemm_weight_transform(attrs, inputs, out_dtype):
     """Compute definition of contrib_conv2d_gemm_weight_transform"""
