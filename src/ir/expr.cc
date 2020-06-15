@@ -57,7 +57,7 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
 
 IntImm::IntImm(DataType dtype, int64_t value) {
   CHECK(dtype.is_scalar()) << "ValueError: IntImm can only take scalar.";
-  CHECK(dtype.is_int() || dtype.is_uint()) << "ValueError: IntImm can only take scalar.";
+  CHECK(dtype.is_int() || dtype.is_uint()) << "ValueError: IntImm supports only int or uint type.";
   if (dtype.is_uint()) {
     CHECK_GE(value, 0U);
   }
@@ -85,6 +85,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 FloatImm::FloatImm(DataType dtype, double value) {
   CHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
+  CHECK(dtype.is_float()) << "ValueError: FloatImm supports only float type.";
   ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();
   node->dtype = dtype;
   node->value = value;

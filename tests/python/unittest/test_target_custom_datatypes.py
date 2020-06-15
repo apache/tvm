@@ -128,7 +128,7 @@ def test_bfloat_add_and_cast_FloatImm():
     Z = topi.cast(
         topi.add(
             topi.cast(X, dtype="custom[bfloat]16"),
-            tvm.tir.FloatImm("custom[bfloat]16", 1.5)),
+            tvm.tir.FloatImm("float", 1.5)),
         dtype="float")
 
     s = te.create_schedule([Z.op])
