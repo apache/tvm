@@ -277,7 +277,13 @@ def run_ops(src_dtype, dst_dtype, rtol=1e-7, atol=1e-7):
         check_binary_op(op, src_dtype, dst_dtype)
 
 
-def run_model(get_workload, input_shape, src_dtype, dst_dtype, num_classes):
+def run_model(get_workload,
+              input_shape,
+              src_dtype,
+              dst_dtype,
+              num_classes,
+              rtol=0.0001,
+              atol=0.0001):
     module, params = get_workload(image_shape=input_shape,
                                   num_classes=num_classes)
 
@@ -298,8 +304,11 @@ def run_model(get_workload, input_shape, src_dtype, dst_dtype, num_classes):
     # Vectorization is not implemented with custom datatypes.
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
         result = ex.evaluate()(input, **params)
-        tvm.testing.assert_allclose(
-            convert_ndarray(src_dtype, result).asnumpy(), correct.asnumpy())
+        tvm.testing.assert_allclose(convert_ndarray(src_dtype,
+                                                    result).asnumpy(),
+                                    correct.asnumpy(),
+                                    rtol=rtol,
+                                    atol=atol)
 
 
 def run_conv2d(src_dtype, dst_dtype):
