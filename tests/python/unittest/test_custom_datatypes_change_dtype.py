@@ -53,8 +53,6 @@ def test_change_dtype_inception_v3():
             (p, tvm.nd.array(params[p].asnumpy().astype(dst))) for p in params)
         return module, params
 
-    module, params = change_dtype('float32', 'float16', module, params)
-
     src_dtype = 'float32'
     dst_dtype = 'custom[bfloat]16'
     module, params = change_dtype(src_dtype, dst_dtype, module, params)
