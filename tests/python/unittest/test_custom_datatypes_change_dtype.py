@@ -23,14 +23,14 @@ from tvm.target.datatype import register, register_op, create_lower_func
 
 tgt = "llvm"
 
-def convert_ndarray(dst_dtype, array, executor):
+
+def convert_ndarray(dst_dtype, array):
     """Converts an NDArray into the specified datatype"""
     x = relay.var('x', shape=array.shape, dtype=str(array.dtype))
     cast = relay.Function([x], x.astype(dst_dtype))
-    with tvm.transform.PassContext(config={
-        "tir.disable_vectorize": True
-    }):
-        return executor.evaluate(cast)(array)
+    with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
+        return relay.create_executor('graph').evaluate(cast)(array)
+
 
 def setup():
     # You must first load the library containing the datatype implementation.
