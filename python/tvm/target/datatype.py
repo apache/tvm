@@ -163,7 +163,7 @@ def create_lower_func(extern_func_name):
 
 def lower_ite(ite_intrin):
     dtype = ite_intrin.dtype
-    t = _TVMType(dtype)
+    t = tvm.DataType(dtype)
     assert get_type_registered(t.type_code)
     dtype = "uint" + str(t.bits)
     if t.lanes > 1:
