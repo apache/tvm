@@ -21,6 +21,10 @@ set -u
 
 source tests/scripts/setup-pytest-env.sh
 
+# to avoid CI CPU thread throttling.
+export TVM_BIND_THREADS=0
+export OMP_NUM_THREADS=4
+
 cleanup()
 {
     rm -rf /tmp/$$.log.txt
