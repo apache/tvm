@@ -294,11 +294,16 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
                                     plevel=15)
     return strategy
 
-@schedule_sparse_dense.register("cpu")
-def schedule_sparse_dense_cpu(attrs, outs, target):
-    """schedule sparse_dense for x86"""
-    with target:
-        return topi.x86.schedule_sparse_dense(outs)
+@sparse_dense_strategy.register("cpu")
+def sparse_dense_strategy_cpu(attrs, inputs, out_type, target):
+    """sparse dense x86 strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(wrap_compute_sparse_dense(topi.nn.sparse_dense),
+                                wrap_topi_schedule(topi.x86.schedule_sparse_dense),
+                                name="sparse_dense.x86",
+                                plevel=10)
+    return strategy
+
 
 @roi_align_strategy.register("cpu")
 def roi_align_strategy_cpu(attrs, inputs, out_type, target):
