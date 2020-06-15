@@ -89,6 +89,12 @@ class TransformSpace(object):
         """
         return self.entities[index]
 
+    def __eq__(self, other):
+        if not isinstance(other, TransformSpace):
+            return NotImplemented
+
+        return self.__dict__ == other.__dict__
+
     @staticmethod
     def get_num_output():
         """get number of output axes after this transform
@@ -119,21 +125,26 @@ class VirtualAxis(TransformSpace):
         super(VirtualAxis, self).__init__()
         self.num_output = 1
 
-        if name is None:
-            name = 'axis_%d' % VirtualAxis.name_ct
-            VirtualAxis.name_ct += 1
+        self.name = None
+        if name is not None:
+            self.name = name
 
-        self.name = name
         if isinstance(var, (int, _long)):
             self.length = var
+            if name is None:
+                self.name = 'axis_%d' % VirtualAxis.name_ct
+                VirtualAxis.name_ct += 1
         elif isinstance(var, schedule.IterVar):
-            self.name = var.var.name
+            if self.name is None:
+                self.name = var.var.name
             if var.dom is None:
                 self.length = -1
             else:
                 self.length = get_const_int(var.dom.extent)
         elif isinstance(var, VirtualAxis):
             self.length = var.length
+            if self.name is None:
+                self.name = var.name
         else:
             raise RuntimeError("Invalid type of axis: " + str(type(var)))
 
@@ -310,13 +321,13 @@ class ReorderSpace(TransformSpace):
         elif policy == 'candidate':
             candidate = kwargs["candidate"]
             for can in candidate:
-                perm = [axes.index(x) for x in can]
+                perm = [axes.index(VirtualAxis(x)) for x in can]
                 self.entities.append(ReorderEntity(perm))
         elif policy == 'interleave':
             spatial, reduce = kwargs['spatial'], kwargs['reduce']
 
-            spatial = [[axes.index(x) for x in ch] for ch in spatial]
-            reduce = [[axes.index(x) for x in ch] for ch in reduce]
+            spatial = [[axes.index(VirtualAxis(x)) for x in ch] for ch in spatial]
+            reduce = [[axes.index(VirtualAxis(x)) for x in ch] for ch in reduce]
 
             outer_merged = self._merge_chain([x[:-1] for x in spatial])
             inner_merged = self._merge_chain([x[-1:] for x in spatial] + reduce)
@@ -327,8 +338,8 @@ class ReorderSpace(TransformSpace):
         elif policy == 'interleave_cuda':
             spatial, reduce = kwargs['spatial'], kwargs['reduce']
 
-            spatial = [[axes.index(x) for x in ch] for ch in spatial]
-            reduce = [[axes.index(x) for x in ch] for ch in reduce]
+            spatial = [[axes.index(VirtualAxis(x)) for x in ch] for ch in spatial]
+            reduce = [[axes.index(VirtualAxis(x)) for x in ch] for ch in reduce]
 
             outer_merged = self._merge_chain([x[:-1] for x in spatial])
             reduce_merged = self._merge_chain(reduce)
