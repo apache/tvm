@@ -322,8 +322,7 @@ class BF16LowerRewriter : StmtExprMutator {
     for (auto& itr : op->buffer_map) {
       auto oldbuf = itr.second;
       if (oldbuf->dtype.is_bfloat16()) {
-        auto newbuf =
-            BufferNode::make(oldbuf->data, DataType::UInt(16, oldbuf->dtype.lanes()), oldbuf->shape,
+        auto newbuf = Buffer(oldbuf->data, DataType::UInt(16, oldbuf->dtype.lanes()), oldbuf->shape,
                              oldbuf->strides, oldbuf->elem_offset, oldbuf->name, oldbuf->scope,
                              oldbuf->data_alignment, oldbuf->offset_factor, oldbuf->buffer_type);
         buffer_remap[oldbuf.operator->()] = newbuf;
