@@ -692,7 +692,7 @@ class LazyGradientInitializer : public ExprMutator, public TypeMutator, public P
       Expr tensorOutput = grad_cell_unwrapper_->VisitExpr(transformedExpr, transformed->ret_type);
       return Function(f->params, tensorOutput, f->ret_type, f->type_params);
     }
-    LOG(FATAL) << "GlobalVar does not map to a function";
+    throw std::runtime_error("GlobalVar does not map to a function");
   }
 
   Expr VisitExpr_(const ConstantNode* op) final {
