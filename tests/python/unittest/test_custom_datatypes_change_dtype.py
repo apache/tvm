@@ -104,9 +104,8 @@ def test_change_dtype_inception_v3():
     ex = relay.create_executor("graph")
     # Convert the input into the correct format.
     input = tvm.nd.array(np.random.rand(3, 299, 299).astype(src_dtype))
-    x = relay.var("x", shape=(3, 299, 299))
-    castR = relay.Function([x], x.astype(dst_dtype))
-    input = ex.evaluate(castR)(input)
+    input = convert_ndarray(dst_dtype, input, ex)
+
     # Execute the model in the new datatype.
     result = ex.evaluate(expr)(input, **params)
 
