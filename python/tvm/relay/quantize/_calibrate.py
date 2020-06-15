@@ -138,10 +138,14 @@ def _set_params(mod, input_scale_func, weight_scale_func):
             const_params[nclip_min] = _make_const(- (valid_range - 1))
             const_params[nclip_max] = _make_const((valid_range - 1))
 
-    func = mod['main']
-    _analysis.post_order_visit(func, visit_func)
-    func = _expr.bind(func, const_params)
-    return IRModule.from_expr(func)
+    main_func = mod['main']
+    _analysis.post_order_visit(main_func, visit_func)
+    main_func = _expr.bind(main_func, const_params)
+    func_dict = {}
+    for global_var, func in mod.functions.items():
+        if global_var.name_hint != 'main':
+            func_dict[global_var] = func
+    return IRModule.from_expr(main_func, func_dict)
 
 
 # weight scale functions

@@ -31,12 +31,10 @@ namespace tvm {
 namespace te {
 
 IterVar thread_axis(Range dom, std::string tag) {
-  return IterVarNode::make(dom, Var(tag), kThreadIndex, tag);
+  return IterVar(dom, Var(tag), kThreadIndex, tag);
 }
 
-IterVar reduce_axis(Range dom, std::string name) {
-  return IterVarNode::make(dom, Var(name), kCommReduce);
-}
+IterVar reduce_axis(Range dom, std::string name) { return IterVar(dom, Var(name), kCommReduce); }
 
 Var var(std::string name_hint, DataType t) { return Var(name_hint, t); }
 
@@ -68,14 +66,21 @@ Tensor Operation::output(size_t i) const {
   return Tensor(node);
 }
 
-Tensor TensorNode::make(Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {
+Tensor::Tensor(Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {
   auto n = make_object<TensorNode>();
   n->shape = std::move(shape);
   n->dtype = dtype;
   n->op = op;
   n->value_index = value_index;
-  return Tensor(n);
+  data_ = std::move(n);
 }
+
+TVM_REGISTER_GLOBAL("te.Tensor")
+    .set_body_typed([](Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {
+      return Tensor(shape, dtype, op, value_index);
+    });
+
+TVM_REGISTER_NODE_TYPE(TensorNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TensorNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -83,13 +88,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "Tensor(shape=" << t->shape << ", op.name=" << t->op->name << ')';
     });
 
-TVM_REGISTER_NODE_TYPE(TensorNode);
-
 // TensorIntrin
-
-TensorIntrin TensorIntrinNode::make(std::string name, Operation op, Array<Tensor> inputs,
-                                    Array<Buffer> buffers, Array<Var> scalar_params, Stmt body,
-                                    Stmt reduce_init, Stmt reduce_update) {
+TensorIntrin::TensorIntrin(std::string name, Operation op, Array<Tensor> inputs,
+                           Array<Buffer> buffers, Array<Var> scalar_params, Stmt body,
+                           Stmt reduce_init, Stmt reduce_update) {
   auto n = make_object<TensorIntrinNode>();
   n->name = std::move(name);
   n->op = std::move(op);
@@ -99,8 +101,17 @@ TensorIntrin TensorIntrinNode::make(std::string name, Operation op, Array<Tensor
   n->body = std::move(body);
   n->reduce_init = std::move(reduce_init);
   n->reduce_update = std::move(reduce_update);
-  return TensorIntrin(n);
+  data_ = std::move(n);
 }
+
+TVM_REGISTER_GLOBAL("te.TensorIntrin")
+    .set_body_typed([](std::string name, Operation op, Array<Tensor> inputs, Array<Buffer> buffers,
+                       Array<Var> scalar_params, Stmt body, Stmt reduce_init, Stmt reduce_update) {
+      return TensorIntrin(name, op, inputs, buffers, scalar_params, body, reduce_init,
+                          reduce_update);
+    });
+
+TVM_REGISTER_NODE_TYPE(TensorIntrinNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TensorIntrinNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -108,21 +119,24 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "TensorIntrin(name=" << op->name << ", " << op << ")";
     });
 
-TVM_REGISTER_NODE_TYPE(TensorIntrinNode);
-
 // TensorIntrinCall
-
-TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin, Array<Tensor> tensors,
-                                            Array<Region> regions, Array<IterVar> reduce_axis,
-                                            Array<PrimExpr> scalar_inputs) {
+TensorIntrinCall::TensorIntrinCall(TensorIntrin intrin, Array<Tensor> tensors,
+                                   Array<Region> regions, Array<IterVar> reduce_axis,
+                                   Array<PrimExpr> scalar_inputs) {
   auto n = make_object<TensorIntrinCallNode>();
   n->intrin = std::move(intrin);
   n->tensors = std::move(tensors);
   n->regions = std::move(regions);
   n->reduce_axis = std::move(reduce_axis);
   n->scalar_inputs = std::move(scalar_inputs);
-  return TensorIntrinCall(n);
+  data_ = std::move(n);
 }
+
+TVM_REGISTER_GLOBAL("te.TensorIntrinCall")
+    .set_body_typed([](TensorIntrin intrin, Array<Tensor> tensors, Array<Region> regions,
+                       Array<IterVar> reduce_axis, Array<PrimExpr> scalar_inputs) {
+      return TensorIntrinCall(intrin, tensors, regions, reduce_axis, scalar_inputs);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TensorIntrinCallNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -132,12 +146,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(TensorIntrinCallNode);
 
-TVM_REGISTER_GLOBAL("te.Tensor").set_body_typed(TensorNode::make);
-
-TVM_REGISTER_GLOBAL("te.TensorIntrin").set_body_typed(TensorIntrinNode::make);
-
-TVM_REGISTER_GLOBAL("te.TensorIntrinCall").set_body_typed(TensorIntrinCallNode::make);
-
+// Other tensor ops.
 TVM_REGISTER_GLOBAL("te.TensorEqual").set_body_method(&Tensor::operator==);
 
 TVM_REGISTER_GLOBAL("te.TensorHash").set_body_typed([](Tensor tensor) -> int64_t {

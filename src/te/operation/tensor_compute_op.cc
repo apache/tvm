@@ -52,10 +52,10 @@ DataType TensorComputeOpNode::output_dtype(size_t i) const {
   return this->intrin->buffers[this->inputs.size() + i]->dtype;
 }
 
-Operation TensorComputeOpNode::make(std::string name, std::string tag, Array<IterVar> axis,
-                                    Array<IterVar> reduce_axis, int schedulable_ndim,
-                                    TensorIntrin intrin, Array<Tensor> tensors,
-                                    Array<Region> regions, Array<PrimExpr> scalar_inputs) {
+TensorComputeOp::TensorComputeOp(std::string name, std::string tag, Array<IterVar> axis,
+                                 Array<IterVar> reduce_axis, int schedulable_ndim,
+                                 TensorIntrin intrin, Array<Tensor> tensors, Array<Region> regions,
+                                 Array<PrimExpr> scalar_inputs) {
   auto n = make_object<TensorComputeOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
@@ -66,10 +66,17 @@ Operation TensorComputeOpNode::make(std::string name, std::string tag, Array<Ite
   n->inputs = std::move(tensors);
   n->input_regions = std::move(regions);
   n->scalar_inputs = std::move(scalar_inputs);
-  return Operation(n);
+  data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("te.TensorComputeOp").set_body_typed(TensorComputeOpNode::make);
+TVM_REGISTER_GLOBAL("te.TensorComputeOp")
+    .set_body_typed([](std::string name, std::string tag, Array<IterVar> axis,
+                       Array<IterVar> reduce_axis, int schedulable_ndim, TensorIntrin intrin,
+                       Array<Tensor> tensors, Array<Region> regions,
+                       Array<PrimExpr> scalar_inputs) {
+      return TensorComputeOp(name, tag, axis, reduce_axis, schedulable_ndim, intrin, tensors,
+                             regions, scalar_inputs);
+    });
 
 Array<Tensor> TensorComputeOpNode::InputTensors() const { return inputs; }
 
@@ -127,7 +134,7 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
   CHECK_EQ(stage->op.operator->(), this);
 
   // Start bind data.
-  Stmt nop = EvaluateNode::make(0);
+  Stmt nop = Evaluate(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;
   Array<Tensor> inputs = this->InputTensors();
 
@@ -144,10 +151,9 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
       tuple.push_back(region[i]->min);
       tuple.push_back(region[i]->extent);
     }
-    input_bind_nest.emplace_back(AttrStmtNode::make(
+    input_bind_nest.emplace_back(AttrStmt(
         bind_spec, tir::attr::buffer_bind_scope,
-        CallNode::make(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
-        nop));
+        Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }
 
   // output binding
@@ -169,10 +175,9 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
       }
     }
 
-    output_bind_nest.emplace_back(AttrStmtNode::make(
+    output_bind_nest.emplace_back(AttrStmt(
         bind_spec, tir::attr::buffer_bind_scope,
-        CallNode::make(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
-        nop));
+        Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }
 
   // Check variable remap
@@ -193,7 +198,7 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
   binder.BindArray(sp_expr, user_expr, this->name);
 
   size_t tloc = stage->leaf_iter_vars.size();
-  ComputeLoopNest n = ComputeLoopNest::make(this, stage, dom_map, debug_keep_trivial_loop);
+  ComputeLoopNest n = ComputeLoopNest::Create(this, stage, dom_map, debug_keep_trivial_loop);
 
   if (this->reduce_axis.size() == 0) {
     std::vector<std::vector<Stmt> > nest(n.main_nest.begin(), n.main_nest.begin() + tloc + 1);

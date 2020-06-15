@@ -134,9 +134,8 @@ ObjectPtr<Object> CreateOp(const std::string& name) {
   return Op2ObjectPtr::Get(op);
 }
 
-TVM_REGISTER_NODE_TYPE(OpNode).set_creator(CreateOp).set_repr_bytes([](const Object* n) {
-  return static_cast<const OpNode*>(n)->name;
-});
+TVM_REGISTER_NODE_TYPE(OpNode).set_creator(CreateOp).set_repr_bytes(
+    [](const Object* n) -> std::string { return static_cast<const OpNode*>(n)->name; });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<OpNode>([](const ObjectRef& ref, ReprPrinter* p) {

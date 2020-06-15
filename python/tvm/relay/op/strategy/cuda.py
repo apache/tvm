@@ -313,6 +313,24 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
         name="conv2d_transpose_nchw.cuda")
     return strategy
 
+
+@conv3d_transpose_strategy.register(["cuda", "gpu"])
+def conv3d_transpose_strategy_cuda(attrs, inputs, out_type, target):
+    """conv3d_transpose cuda strategy"""
+    layout = attrs.data_layout
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    assert layout == "NCDHW", "only support ncdhw for now"
+    assert dilation == (1, 1, 1), "not support dilate now"
+    assert groups == 1, "only support groups == 1 for now"
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_conv3d_transpose(topi.cuda.conv3d_transpose_ncdhw),
+        wrap_topi_schedule(topi.cuda.schedule_conv3d_transpose_ncdhw),
+        name="conv3d_transpose_ncdhw.cuda")
+    return strategy
+
+
 @conv3d_strategy.register(["cuda", "gpu"])
 def conv3d_strategy_cuda(attrs, inputs, out_type, target):
     """conv3d cuda strategy"""
@@ -463,7 +481,7 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
     """batch_matmul cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_batch_matmul(topi.nn.batch_matmul),
+        wrap_compute_batch_matmul(topi.cuda.batch_matmul),
         wrap_topi_schedule(topi.cuda.schedule_batch_matmul),
         name="batch_matmul.cuda",
         plevel=10)
@@ -474,6 +492,19 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
             name="batch_matmul_cublas.cuda",
             plevel=15)
     return strategy
+
+
+@sparse_dense_strategy.register(["cuda", "gpu"])
+def sparse_dense_strategy_cuda(attrs, inputs, out_type, target):
+    """sparse dense cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sparse_dense(topi.cuda.sparse_dense),
+        wrap_topi_schedule(topi.cuda.schedule_sparse_dense),
+        name="sparse_dense.cuda",
+        plevel=10)
+    return strategy
+
 
 @argsort_strategy.register(["cuda", "gpu"])
 def argsort_strategy_cuda(attrs, inputs, out_type, target):

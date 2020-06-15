@@ -2187,20 +2187,18 @@ def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_p
     else:
         raise ValueError("Pool method {} is not supported.".format(mode))
 
+    pool_node = helper.make_node(
+        node_type, inputs=["x"], outputs=["y"], kernel_shape=kernel_shape, strides=strides)
+
     if pads is None:
-        pool_node = helper.make_node(node_type,
-                                    inputs=["x"],
-                                    outputs=["y"],
-                                    kernel_shape=kernel_shape,
-                                    auto_pad=auto_pad,
-                                    strides=strides)
+        pad_attr = helper.make_attribute('auto_pad', auto_pad)
     else:
-        pool_node = helper.make_node(node_type,
-                                    inputs=["x"],
-                                    outputs=["y"],
-                                    kernel_shape=kernel_shape,
-                                    pads=pads,
-                                    strides=strides)
+        pad_attr = helper.make_attribute('pads', pads)
+    pool_node.attribute.append(pad_attr)
+
+    if mode == 'max':
+        storage_attr = helper.make_attribute('storage_order', 0)
+        pool_node.attribute.append(storage_attr)
 
     graph = helper.make_graph([pool_node],
                               "pooling_test",
@@ -2907,4 +2905,4 @@ if __name__ == '__main__':
     test_mod()
     test_xor()
     test_max_roi_pool()
-    test_roialign()
+    test_roi_align()

@@ -309,6 +309,64 @@ class TypePattern : public DFPattern {
   TVM_DEFINE_OBJECT_REF_METHODS(TypePattern, DFPattern, TypePatternNode);
 };
 
+class ShapePattern;
+/*!
+ * \brief Pattern for Shapes.
+ */
+class ShapePatternNode : public DFPatternNode {
+ public:
+  /*! \brief The pattern. */
+  DFPattern pattern;
+  /*! \brief The type to match */
+  Array<PrimExpr> shape;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("pattern", &pattern);
+    v->Visit("shape", &shape);
+  }
+
+  static constexpr const char* _type_key = "relay.dataflow_pattern.ShapePattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ShapePatternNode, DFPatternNode);
+};
+
+/*!
+ * \brief A pattern which matches a type in another pattern
+ */
+class ShapePattern : public DFPattern {
+ public:
+  TVM_DLL ShapePattern(DFPattern pattern, Array<PrimExpr> type);
+  TVM_DEFINE_OBJECT_REF_METHODS(ShapePattern, DFPattern, ShapePatternNode);
+};
+
+class DataTypePattern;
+/*!
+ * \brief Pattern for Types.
+ */
+class DataTypePatternNode : public DFPatternNode {
+ public:
+  /*! \brief The pattern. */
+  DFPattern pattern;
+  /*! \brief The type to match */
+  DataType dtype;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("pattern", &pattern);
+    v->Visit("dtype", &dtype);
+  }
+
+  static constexpr const char* _type_key = "relay.dataflow_pattern.DataTypePattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DataTypePatternNode, DFPatternNode);
+};
+
+/*!
+ * \brief A pattern which matches a type in another pattern
+ */
+class DataTypePattern : public DFPattern {
+ public:
+  TVM_DLL DataTypePattern(DFPattern pattern, DataType dtype);
+  TVM_DEFINE_OBJECT_REF_METHODS(DataTypePattern, DFPattern, DataTypePatternNode);
+};
+
 class AttrPattern;
 /*!
  * \brief Pattern for Attributes.

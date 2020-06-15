@@ -895,7 +895,7 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
     out = compute(
         oshape,
         [&](const Array<Var>& indices) {
-          return tvm::tir::SelectNode::make(condition(indices) != 0, x(indices), y(indices));
+          return tvm::tir::Select(condition(indices) != 0, x(indices), y(indices));
         },
         name, tag);
   } else {
@@ -906,7 +906,7 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
         oshape,
         [&](const Array<Var>& indices) {
           Array<PrimExpr> condition_idx{indices[0]};
-          return tvm::tir::SelectNode::make(condition(condition_idx) != 0, x(indices), y(indices));
+          return tvm::tir::Select(condition(condition_idx) != 0, x(indices), y(indices));
         },
         name, tag);
   }
@@ -1014,6 +1014,54 @@ inline Tensor tile(const Tensor& x, Array<Integer> reps, std::string name = "T_t
         },
         name, tag);
   }
+}
+
+/*!
+ * \brief Gather values along given axis from given indices.
+ *
+ * \param data The input data to the operator.
+ * \param axis The axis along which to index.
+ * \param indices The indices of values to gather.
+ * \param name The name of the operation.
+ * \param tag The tag to mark the operation.
+ *
+ * \return A Tensor whose op member is the gather operation
+ */
+inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
+                     std::string name = "T_gather", std::string tag = kInjective) {
+  size_t ndim_d = data->shape.size();
+  size_t ndim_i = indices->shape.size();
+  CHECK_GE(ndim_d, 1) << "Cannot gather from a scalar.";
+  CHECK_EQ(ndim_d, ndim_i);
+  CHECK_GE(axis, 0);
+  CHECK_LT(axis, ndim_d);
+  size_t indices_dim_i = static_cast<size_t>(GetConstInt(indices->shape[axis]));
+  CHECK_GE(indices_dim_i, 1);
+  CHECK(indices->dtype.is_int());
+
+  Array<PrimExpr> out_shape;
+  for (size_t i = 0; i < ndim_i; ++i) {
+    out_shape.push_back(indices->shape[i]);
+  }
+
+  return compute(
+      out_shape,
+      [&](const Array<Var>& out_index) {
+        Array<PrimExpr> indices_position;
+        for (size_t i = 0; i < ndim_i; ++i) {
+          indices_position.push_back(out_index[i]);
+        }
+        Array<PrimExpr> real_indices;
+        for (size_t i = 0; i < ndim_i; ++i) {
+          if (i == (size_t)axis) {
+            real_indices.push_back(indices(indices_position));
+          } else {
+            real_indices.push_back(indices_position[i]);
+          }
+        }
+        return data(real_indices);
+      },
+      name, tag);
 }
 
 /*!
@@ -1222,8 +1270,8 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
                                const std::string& dst_layout,
                                const std::string name = "T_layout_trans",
                                const std::string tag = kInjective) {
-  Layout src_layout_struct = LayoutNode::make(src_layout);
-  Layout dst_layout_struct = LayoutNode::make(dst_layout);
+  Layout src_layout_struct(src_layout);
+  Layout dst_layout_struct(dst_layout);
 
   if (src_layout_struct.Equals(dst_layout_struct)) {
     return src;
@@ -1340,8 +1388,7 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
         }
 
         auto idx = iter_vars[true_axis];
-        return tir::SelectNode::make(indices(indices_indices) == idx, on_value_cast,
-                                     off_value_cast);
+        return tir::Select(indices(indices_indices) == idx, on_value_cast, off_value_cast);
       },
       name, tag);
 }

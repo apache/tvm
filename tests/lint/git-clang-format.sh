@@ -25,7 +25,7 @@ if [[ "$#" -lt 1 ]]; then
     echo "Run clang-format on files that changed since <commit>"
     echo "Examples:"
     echo "- Compare last one commit: tests/lint/git-clang-format.sh HEAD~1"
-    echo "- Compare against upstream/master: tests/lint/git-clang-format.sh upsstream/master"
+    echo "- Compare against upstream/master: tests/lint/git-clang-format.sh upstream/master"
     echo "You can also add -i option to do inplace format"
     exit 1
 fi
@@ -48,7 +48,7 @@ CLANG_FORMAT=clang-format-10
 if [ -x "$(command -v clang-format-10)" ]; then
     CLANG_FORMAT=clang-format-10
 elif [ -x "$(command -v clang-format)" ]; then
-    echo "clang-format might be different from clang-format-10, expect pontential difference."
+    echo "clang-format might be different from clang-format-10, expect potential difference."
     CLANG_FORMAT=clang-format
 else
     echo "Cannot find clang-format-10"
@@ -70,6 +70,6 @@ echo "---------clang-format log----------"
 cat /tmp/$$.clang-format.txt
 echo ""
 if grep --quiet -E "diff" < /tmp/$$.clang-format.txt; then
-    echo "clang-format lint error found. Consider run clang-format-10 on these files to fix them."
+    echo "clang-format lint error found. Consider running clang-format-10 on these files to fix them."
     exit 1
 fi

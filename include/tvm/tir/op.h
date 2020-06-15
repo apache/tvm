@@ -552,9 +552,9 @@ TVM_DLL PrimExpr trunc(PrimExpr x);
 TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                                               \
-  inline PrimExpr OpName(PrimExpr x) {                                                 \
-    return tir::CallNode::make(x.dtype(), #OpName, {x}, tir::CallNode::PureIntrinsic); \
+#define TVM_DECLARE_INTRIN_UNARY(OpName)                                     \
+  inline PrimExpr OpName(PrimExpr x) {                                       \
+    return tir::Call(x.dtype(), #OpName, {x}, tir::CallNode::PureIntrinsic); \
   }
 
 TVM_DECLARE_INTRIN_UNARY(exp);
@@ -768,7 +768,7 @@ inline PrimExpr make_const(DataType t, ValueType value) {
   if (t.lanes() == 1) {
     return MakeConstScalar(t, value);
   } else {
-    return tir::BroadcastNode::make(MakeConstScalar(t.element_of(), value), t.lanes());
+    return tir::Broadcast(MakeConstScalar(t.element_of(), value), t.lanes());
   }
 }
 

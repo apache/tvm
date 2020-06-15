@@ -27,6 +27,7 @@ import torchvision
 
 from tvm import relay
 from tvm.contrib import graph_runtime
+from tvm.contrib.nvcc import have_fp16
 from tvm.relay.testing.config import ctx_list
 
 
@@ -135,7 +136,8 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
 
 def verify_model(model_name, input_data=[],
                  custom_convert_map={},
-                 ctx_list=ctx_list()):
+                 ctx_list=ctx_list(),
+                 rtol=1e-5, atol=1e-5):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
     if isinstance(model_name, str):
@@ -190,7 +192,7 @@ def verify_model(model_name, input_data=[],
 
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output,
-                                            rtol=1e-3, atol=1e-3)
+                                            rtol=rtol, atol=atol)
 
     del model_name
     del baseline_model
@@ -836,6 +838,44 @@ def test_forward_size():
     input_data = torch.rand(input_shape).float()
     verify_model(Size1().float().eval(), input_data=input_data)
 
+
+def test_type_as():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3]
+
+    def _create_module(dtype):
+        class TypeAs(Module):
+            def forward(self, *args):
+                expected_type_tensor = torch.zeros(1, 3, dtype=dtype)
+                return args[0].type_as(expected_type_tensor)
+
+        return TypeAs()
+
+    input_data = torch.randn(input_shape).float()
+    verify_model(_create_module(torch.float64), input_data=input_data)
+    verify_model(_create_module(torch.float32), input_data=input_data)
+    verify_model(_create_module(torch.int64), input_data=input_data)
+    verify_model(_create_module(torch.int32), input_data=input_data)
+    verify_model(_create_module(torch.int16), input_data=input_data)
+    verify_model(_create_module(torch.int8), input_data=input_data)
+
+    if torch.cuda.is_available():
+        check_fp16 = False
+        try:
+            # Only check half precision on supported hardwares.
+            if have_fp16(tvm.gpu(0).compute_version):
+                check_fp16 = True
+        except Exception as e:
+            # If GPU is not enabled in TVM, skip the fp16 test.
+            pass
+
+        # Temporary disable fp16 test
+        check_fp16 = False
+
+        if check_fp16:
+            verify_model(_create_module(torch.float16), input_data=input_data)
+
+
 def test_forward_view():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -890,6 +930,91 @@ def test_forward_logsoftmax():
 
     input_data = torch.rand(input_shape).float()
     verify_model(LogSoftmax1().float().eval(), input_data=input_data)
+
+
+def test_forward_norm():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class Norm1(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('inf'), dim=None, keepdim=False)
+
+    class Norm2(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('-inf'), dim=None, keepdim=False)
+
+    class Norm3(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('-inf'), dim=None, keepdim=True)
+
+    class Norm4(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('inf'), dim=(1, 2), keepdim=False)
+
+    class Norm5(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float('inf'), dim=(1), keepdim=True)
+
+    class Norm6(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(0.5), dim=(1), keepdim=True)
+
+    class Norm7(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(1), dim=None, keepdim=False)
+
+    class Norm8(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(2.0), dim=(1), keepdim=True)
+
+    class Norm9(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(-0.5), dim=(1, 2), keepdim=True)
+
+    class Norm10(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p=float(-2), dim=(1), keepdim=False)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Norm1().float().eval(), input_data=input_data)
+    verify_model(Norm2().float().eval(), input_data=input_data)
+    verify_model(Norm3().float().eval(), input_data=input_data)
+    verify_model(Norm4().float().eval(), input_data=input_data)
+    verify_model(Norm5().float().eval(), input_data=input_data)
+    verify_model(Norm6().float().eval(), input_data=input_data)
+    verify_model(Norm7().float().eval(), input_data=input_data)
+    verify_model(Norm8().float().eval(), input_data=input_data)
+    verify_model(Norm9().float().eval(), input_data=input_data)
+    verify_model(Norm10().float().eval(), input_data=input_data)
+
+
+def test_forward_frobenius_norm():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class FroNorm1(Module):
+        def forward(self, *args):
+            return torch.norm(args[0])
+
+    class FroNorm2(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p='fro', dim=None, keepdim=True)
+
+    class FroNorm3(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], p='fro', dim=(1), keepdim=True)
+
+    class FroNorm4(Module):
+        def forward(self, *args):
+            return torch.norm(args[0], dim=None, keepdim=False)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(FroNorm1().float().eval(), input_data=input_data)
+    verify_model(FroNorm2().float().eval(), input_data=input_data)
+    verify_model(FroNorm3().float().eval(), input_data=input_data)
+    verify_model(FroNorm4().float().eval(), input_data=input_data)
+
 
 def test_forward_sigmoid():
     torch.set_grad_enabled(False)
@@ -1186,38 +1311,65 @@ def test_conv3d():
                      inp)
 
 
+def test_conv3d_transpose():
+    for ishape in [(1, 8, 10, 5, 10),
+                   (1, 8, 5, 8, 8),
+                   (1, 8, 13, 7, 7)]:
+        inp = torch.rand(ishape)
+        verify_model(torch.nn.ConvTranspose3d(in_channels=8,
+                                              out_channels=33,
+                                              kernel_size=3,
+                                              stride=2).eval(),
+                     inp),
+        verify_model(torch.nn.ConvTranspose3d(in_channels=8,
+                                              out_channels=20,
+                                              kernel_size=(3, 5, 2),
+                                              stride=(2, 1, 1),
+                                              padding=(0, 4, 2)).eval(),
+                     inp),
+        verify_model(torch.nn.ConvTranspose3d(in_channels=8,
+                                               out_channels=20,
+                                               kernel_size=1).eval(),
+                     inp)
+        verify_model(torch.nn.ConvTranspose3d(in_channels=8,
+                                              out_channels=5,
+                                              kernel_size=1,
+                                              stride=2).eval(),
+                     inp)
+
+
 # Model tests
 def test_resnet18():
     torch.set_grad_enabled(False)
-    verify_model("resnet18")
+    verify_model("resnet18", atol=1e-4, rtol=1e-4)
 
 def test_squeezenet1_0():
     torch.set_grad_enabled(False)
-    verify_model("squeezenet1_0")
+    verify_model("squeezenet1_0", atol=1e-4, rtol=1e-4)
 
 def test_squeezenet1_1():
     torch.set_grad_enabled(False)
-    verify_model("squeezenet1_1")
+    verify_model("squeezenet1_1", atol=1e-4, rtol=1e-4)
 
 def test_densenet121():
     torch.set_grad_enabled(False)
-    verify_model("densenet121")
+    verify_model("densenet121", atol=1e-4, rtol=1e-4)
 
 def test_inception_v3():
     torch.set_grad_enabled(False)
-    verify_model("inception_v3")
+    verify_model("inception_v3", atol=1e-4, rtol=1e-4)
 
 def test_googlenet():
     torch.set_grad_enabled(False)
-    verify_model("googlenet")
+    verify_model("googlenet", atol=1e-4, rtol=1e-4)
 
 def test_mnasnet0_5():
     torch.set_grad_enabled(False)
-    verify_model("mnasnet0_5")
+    verify_model("mnasnet0_5", atol=1e-4, rtol=1e-4)
 
 def test_mobilenet_v2():
     torch.set_grad_enabled(False)
-    verify_model("mobilenet_v2")
+    verify_model("mobilenet_v2", atol=1e-4, rtol=1e-4)
 
 """
 #TODO: Fix VGG and AlexNet issues (probably due to pooling)
@@ -1278,19 +1430,19 @@ def test_segmentaton_models():
 
     inp = [torch.rand((1, 3, 300, 300), dtype=torch.float)]
 
-    verify_model(SegmentationModelWrapper(fcn.eval()), inp)
+    verify_model(SegmentationModelWrapper(fcn.eval()), inp, atol=1e-4, rtol=1e-4)
 
     # depthwise + dilated covolution not supported on x86
     # see https://github.com/apache/incubator-tvm/issues/4962
     cuda_ctx = ("cuda", tvm.gpu(0))
     if cuda_ctx[1].exist:
-        verify_model(SegmentationModelWrapper(deeplab.eval()), inp, [cuda_ctx])
+        verify_model(SegmentationModelWrapper(deeplab.eval()), inp, [cuda_ctx], atol=1e-4, rtol=1e-4)
 
 
 def test_3d_models():
     input_shape = (1, 3, 4, 56, 56)
     resnet3d = torchvision.models.video.r3d_18(pretrained=True).eval()
-    verify_model(resnet3d, [torch.rand(input_shape)])
+    verify_model(resnet3d, [torch.rand(input_shape)], atol=1e-4, rtol=1e-4)
 
 
 def verify_script_model(pt_model, ishapes):
@@ -2393,6 +2545,8 @@ if __name__ == "__main__":
     test_forward_reduce_prod()
     test_forward_argmin()
     test_forward_argmax()
+    test_forward_norm()
+    test_forward_frobenius_norm()
     test_forward_std()
     test_forward_variance()
     test_forward_relu()
@@ -2460,6 +2614,7 @@ if __name__ == "__main__":
     test_upsample()
     test_forward_upsample3d()
     test_to()
+    test_type_as()
     test_forward_functional_pad()
     test_forward_zero_pad2d()
     test_forward_constant_pad1d()
@@ -2472,6 +2627,7 @@ if __name__ == "__main__":
     test_forward_replication_pad3d()
     test_adaptive_pool3d()
     test_conv3d()
+    test_conv3d_transpose()
 
     # Model tests
     test_resnet18()

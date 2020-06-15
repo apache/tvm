@@ -69,7 +69,7 @@ def compute_sparse_dense(attrs, inputs, out_type):
     """Compute definition of sparse_dense"""
     return [topi.nn.sparse_dense(inputs[0], inputs[1], inputs[2], inputs[3])]
 
-reg.register_schedule("nn.sparse_dense", strategy.schedule_sparse_dense)
+reg.register_strategy("nn.sparse_dense", strategy.sparse_dense_strategy)
 reg.register_pattern("nn.sparse_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
@@ -190,6 +190,31 @@ def legalize_conv2d_transpose(attrs, inputs, types):
         The legalized expr
     """
     return topi.nn.conv2d_transpose_legalize(attrs, inputs, types)
+
+
+# conv3d_transpose
+reg.register_strategy("nn.conv3d_transpose", strategy.conv3d_transpose_strategy)
+reg.register_pattern("nn.conv3d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+@reg.register_legalize("nn.conv3d_transpose")
+def legalize_conv3d_transpose(attrs, inputs, types):
+    """Legalize conv3d_transpose op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current Transposed convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.conv3d_transpose_legalize(attrs, inputs, types)
 
 
 # conv3d

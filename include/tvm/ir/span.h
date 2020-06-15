@@ -97,14 +97,14 @@ class SpanNode : public Object {
            equal(col_offset, other->col_offset);
   }
 
-  TVM_DLL static Span make(SourceName source, int lineno, int col_offset);
-
   static constexpr const char* _type_key = "Span";
   TVM_DECLARE_FINAL_OBJECT_INFO(SpanNode, Object);
 };
 
 class Span : public ObjectRef {
  public:
+  TVM_DLL Span(SourceName source, int lineno, int col_offset);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Span, ObjectRef, SpanNode);
 };
 

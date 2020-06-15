@@ -44,7 +44,7 @@ namespace generic {
  *
  * \return A schedule for the op.
  */
-inline Schedule schedule_extern(const Target& target, Array<Tensor> outs) {
+inline Schedule schedule_extern(const Target& target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
