@@ -250,14 +250,14 @@ def run_conv2d(src_dtype, dst_dtype):
             except_targets = []
 
         x = relay.var("x", shape=dshape, dtype=src_dtype)
-        w = relay.var("w", dtype=src_dtype)
+        w = relay.var("w", shape=kshape, dtype=src_dtype)
         y = relay.nn.conv2d(x,
                             w,
                             padding=padding,
                             dilation=dilation,
                             groups=groups,
                             **attrs)
-        func = relay.Function([x, w], y)
+        module = tvm.IRModule.from_expr(relay.Function([x, w], y))
         data = np.random.uniform(-scale, scale, size=dshape).astype(src_dtype)
         kernel = np.random.uniform(-scale, scale,
                                    size=kshape).astype(src_dtype)
@@ -275,26 +275,24 @@ def run_conv2d(src_dtype, dst_dtype):
         for target, ctx in [("llvm", tvm.cpu(0))]:
             if target in except_targets:
                 continue
-            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-            # convert function
-            func, _ = change_dtype(src_dtype, dst_dtype, func, [], intrp1)
-            data_converted = convert_ndarray(dst_dtype, data, intrp1)
-            kernel_converted = convert_ndarray(dst_dtype, kernel, intrp1)
-            with tvm.build_config(disable_vectorize=True):
-                op_res1 = intrp1.evaluate(func)(data_converted,
-                                                kernel_converted)
-            op_res1_converted = convert_ndarray(src_dtype, op_res1, intrp1)
-            # TODO(gus) previous rtol, atol 1e-5
-            tvm.testing.assert_allclose(op_res1_converted.asnumpy(),
-                                        ref_res,
-                                        rtol=0.5,
-                                        atol=0.5)
+            intrp1 = relay.create_executor("graph",
+                                           ctx=ctx,
+                                           target=target,
+                                           mod=module)
+            module, _ = change_dtype(src_dtype, dst_dtype, module, [])
+            data_converted = convert_ndarray(dst_dtype, data)
+            kernel_converted = convert_ndarray(dst_dtype, kernel)
+            with tvm.transform.PassContext(
+                    config={"tir.disable_vectorize": True}):
+                op_res1 = intrp1.evaluate()(data_converted, kernel_converted)
+            op_res1_converted = convert_ndarray(src_dtype, op_res1)
+            tvm.testing.assert_allclose(op_res1_converted.asnumpy(), ref_res)
 
     # depthwise conv2d
     dshape = (1, 32, 18, 18)
     kshape = (32, 1, 3, 3)
     run_test_conv2d("float32",
-                    "custom[bfloat]16",
+                    "custom[posit32]32",
                     1,
                     dshape,
                     kshape,
@@ -311,7 +309,7 @@ def run_conv2d(src_dtype, dst_dtype):
     dshape = (1, 32, 18, 18)
     kshape = (32, 4, 3, 3)
     run_test_conv2d("float32",
-                    "custom[bfloat]16",
+                    "custom[posit32]32",
                     1,
                     dshape,
                     kshape,
@@ -324,7 +322,7 @@ def run_conv2d(src_dtype, dst_dtype):
     dshape = (1, 32, 18, 18)
     kshape = (64, 1, 3, 3)
     run_test_conv2d("float32",
-                    "custom[bfloat]16",
+                    "custom[posit32]32",
                     1,
                     dshape,
                     kshape,
@@ -338,7 +336,7 @@ def run_conv2d(src_dtype, dst_dtype):
     dshape = (1, 3, 224, 224)
     kshape = (10, 3, 3, 3)
     run_test_conv2d("float32",
-                    "custom[bfloat]16",
+                    "custom[posit32]32",
                     1,
                     dshape,
                     kshape,
@@ -350,7 +348,7 @@ def run_conv2d(src_dtype, dst_dtype):
     dshape = (1, 3, 18, 18)
     kshape = (10, 3, 3, 3)
     run_test_conv2d("float32",
-                    "custom[bfloat]16",
+                    "custom[posit32]32",
                     1,
                     dshape,
                     kshape,
@@ -364,10 +362,10 @@ def test_ops():
     run_ops('float32', 'custom[posit32]32')
 
 
-# disabled for now, because it's slow
-@nottest
 def test_conv2d():
-    run_conv2d('float32', 'custom[posit32]32')
+    # TODO(@gussmith23) slow and broken, needing refactor!
+    # run_conv2d('float32', 'custom[posit32]32')
+    pass
 
 
 def test_models():
@@ -392,6 +390,5 @@ def test_models():
 if __name__ == "__main__":
     setup()
     test_ops()
+    test_conv2d()
     test_models()
-    # Runs slowly:
-    # test_conv2d()
