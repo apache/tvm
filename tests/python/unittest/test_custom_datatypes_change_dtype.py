@@ -112,8 +112,6 @@ def test_change_dtype_resnet():
 def test_change_dtype_inception_v3():
     module, params = get_inception()
 
-    ex = relay.create_executor("graph")
-
     src_dtype = 'float32'
     dst_dtype = 'custom[bfloat]16'
     module, params = change_dtype(src_dtype, dst_dtype, module, params)
@@ -121,11 +119,13 @@ def test_change_dtype_inception_v3():
     ex = relay.create_executor("graph")
     # Convert the input into the correct format.
     input = tvm.nd.array(np.random.rand(3, 299, 299).astype(src_dtype))
-    input = convert_ndarray(dst_dtype, input, ex)
+    input = convert_ndarray(dst_dtype, input)
 
     # Execute the model in the new datatype.
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        result = ex.evaluate(expr)(input, **params)
+        ex = relay.create_executor('graph', mod=module)
+        result = ex.evaluate()(input, **params)
+
 
 
 if __name__ == "__main__":
