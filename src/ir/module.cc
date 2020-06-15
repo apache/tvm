@@ -251,7 +251,7 @@ void IRModuleNode::Check() {
                    << " in function: " << AsText(func, false) << std::endl;
     }
     auto func_copy = relay::Function(concat(func->params, fv), func->body, func->ret_type,
-                          concat(func->type_params, ftv), func->attrs);
+                                     concat(func->type_params, ftv), func->attrs);
 
     func_copy->checked_type_ = func_copy->func_type_annotation();
     mod->AddUnchecked(var, func_copy);
