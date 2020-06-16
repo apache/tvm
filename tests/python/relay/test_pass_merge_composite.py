@@ -163,9 +163,9 @@ def make_bn_relu_pattern():
     r = is_op('nn.relu')(tuple_get_item_node)
     return r
 
-def check_result(pattern_table, graph, expected_graph):
+def check_result(pattern_table, graph, expected_graph, import_prelude=False):
     """Utility function to check merge composite results."""
-    result = run_opt_pass(graph, relay.transform.MergeComposite(pattern_table))
+    result = run_opt_pass(graph, relay.transform.MergeComposite(pattern_table), import_prelude=import_prelude)
     assert not relay.analysis.free_vars(result), \
         "Found free vars in the result graph: {0}".format(str(result))
     expected = run_opt_pass(expected_graph, relay.transform.InferType())
@@ -213,7 +213,7 @@ def test_simple_merge():
         r = relay.Call(add_relu, [a, b])
         return relay.Function([a, b], r)
 
-    check_result(pattern_table, before(), expected())
+    check_result(pattern_table, before(), expected(), import_prelude=True)
 
 
 def test_branch_merge():
