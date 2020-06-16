@@ -37,28 +37,44 @@ TVM_REGISTER_OBJECT_TYPE(PreLoadMeasuredStatesNode);
 void SearchPolicyNode::PreLoadMeasuredStates(const std::string& log_file) {
   LogReader reader = LogReaderNode::make(log_file);
   const auto& res = reader->ReadLines(-1);
-  if (res.first.size()) {
+  size_t log_size = res.first.size();
+  CHECK_EQ(log_size, res.second.size());
+  if (log_size) {
     std::vector<State> measured_states;
-    for (const auto& inp : res.first) {
+    std::vector<float> measured_throughputs;
+    for (size_t i = 0; i < log_size; i++) {
+      const auto& inp = res.first[i];
       if (inp->task->workload_key == cur_task_->workload_key &&
           inp->task->target->target_name.compare(
               cur_task_->target->target_name) == 0) {
         State state = cur_task_->compute_dag.GetInitState();
         state.CopyOnWrite()->transform_steps = inp->state->transform_steps;
         state.DoSteps(inp->state->transform_steps, cur_task_->compute_dag);
-        measured_states.push_back(std::move(state));
+        measured_states.emplace_back(std::move(state));
+        measured_throughputs.push_back(res.second[i]->error_no == 0 ?
+            (1.0 / FloatArrayMean(res.second[i]->costs)) : 0.0);
       }
     }
     cur_task_->compute_dag.InferBound(&measured_states);
-    for (auto state : measured_states) {
-      measured_states_set_.insert(state.ToStr());
+    for (size_t i = 0; i < measured_states.size(); i ++) {
+      auto& state = measured_states[i];
+      const auto& state_str = state.ToStr();
+      if (!measured_states_set_.count(state_str)) {
+        measured_states_set_.insert(state_str);
+        if (measured_throughputs[i] != 0.0) {
+          measured_states_vector_.emplace_back(std::move(state));
+          measured_states_throughputs_.emplace_back(measured_throughputs[i]);
+        }
+      }
     }
 
     StdCout(verbose_) << "Measured States Set: " << measured_states_set_.size()
-                      << " state hashes loaded from " << log_file << std::endl;
+                      << " state hashes loaded from " << log_file
+                      << " for " << cur_task_->workload_key << std::endl;
   } else {
     StdCout(verbose_) << "Measured States Set: no states found from "
-                      << log_file << std::endl;
+                      << log_file << " for " << cur_task_->workload_key
+                      << std::endl;
   }
 }
 

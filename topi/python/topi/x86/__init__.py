@@ -41,6 +41,6 @@ from .sparse import *
 from .conv2d_alter_op import *
 
 import os
-use_auto_scheduler = os.environ.get("TVM_USE_AUTO_SCHEDULER", "true")
+use_auto_scheduler = os.environ.get("TVM_USE_AUTO_SCHEDULER", "false")
 if use_auto_scheduler.lower() == "true":
   from ..ansor import *

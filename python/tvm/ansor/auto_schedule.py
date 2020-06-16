@@ -81,6 +81,7 @@ class SearchPolicy(Object):
     def run_callbacks(self, callbacks):
         _ffi_api.SearchPolicyRunCallbacks(self, callbacks)
 
+
 @tvm._ffi.register_object("ansor.MetaTileRewritePolicy")
 class MetaTileRewritePolicy(SearchPolicy):
     """ The search policy that searches with meta tiling and random rewrite
@@ -231,7 +232,7 @@ def auto_schedule(workload, target=None,
 
     Parameters
     ----------
-    workload : Str or SearchTask
+    workload : Union[SearchTask, str]
 
     target : Target
 

@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 import tvm
-from tvm import _ffi, relay, ansor
+from tvm import _ffi, ansor, relay
 import tvm.contrib.graph_runtime as runtime
 from tvm.contrib.debugger import debug_runtime
 from tvm.contrib import util, ndk

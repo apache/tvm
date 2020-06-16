@@ -20,6 +20,7 @@
 import random
 import numpy as np
 import tempfile
+import threading
 
 import tvm
 from tvm import ansor
@@ -73,8 +74,11 @@ def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'
 
 
 def test_search_basic():
-    search_common(seed=944563397)
-
+    # Ansor search process with local runner has some modification on thread
+    # binding, wrap this to a subprocess to eliminate the impacts to other tests
+    t = threading.Thread(target=search_common, kwargs={'seed': 944563397})
+    t.start()
+    t.join()
 
 def test_search_xgb_model_rpc_runner():
     measure_ctx = ansor.LocalRPCMeasureContext()

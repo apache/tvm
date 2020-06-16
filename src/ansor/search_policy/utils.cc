@@ -311,9 +311,10 @@ State RandomMutateTileSize(const State& old_state, SplitFactorizationMemo* split
     CHECK(ps != nullptr);
     extent = GetIntImm(ps->extent);
     retry_ct += 1;
-  } while (retry_ct < static_cast<int>(split_step_ids.size()) << 2 && extent == 1);
+  } while (retry_ct < static_cast<int>(split_step_ids.size()) << 2 &&
+           (extent == 1 || extent == 0));
 
-  if (extent == 1) {
+  if (extent == 0 || extent == 1) {
     return State();
   }
 

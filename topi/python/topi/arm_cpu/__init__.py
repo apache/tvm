@@ -28,6 +28,6 @@ from .injective import *
 from . import cortex_m7
 
 import os
-use_auto_scheduler = os.environ.get("TVM_USE_AUTO_SCHEDULER", "true")
+use_auto_scheduler = os.environ.get("TVM_USE_AUTO_SCHEDULER", "false")
 if use_auto_scheduler.lower() == "true":
   from ..ansor import *

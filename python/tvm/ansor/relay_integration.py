@@ -20,6 +20,9 @@ Decorator and utilities for the integration with TOPI and Relay
 99.9% copy-paste of implementation by @MerryMercy
 
 """
+import os
+os.environ['TVM_USE_AUTO_SCHEDULER'] = 'true'
+
 import threading
 import warnings
 import tvm
@@ -95,7 +98,7 @@ def init_op_to_schedule_map():
         relay.op.nn.batch_matmul: [topi.generic.schedule_batch_matmul],
     }
 
-def extract_from_program(mod, params, ops, target, target_host=None):
+def extract_from_program(mod, params, target, target_host=None, ops=None):
     """ Extract tuning tasks from a relay program.
 
     This function is the single program version of extract_from_multiple_program.
@@ -117,9 +120,9 @@ def extract_from_program(mod, params, ops, target, target_host=None):
     -------
     workloads: Array of Tuple(wkl_key, target)
     """
-    return extract_from_multiple_program([mod], [params], ops, target, target_host)
+    return extract_from_multiple_program([mod], [params], target, target_host, ops)
 
-def extract_from_multiple_program(mods, params, ops, target, target_host=None):
+def extract_from_multiple_program(mods, params, target, target_host=None, ops=None):
     """ Extract tuning tasks from multiple relay programs.
 
     This function collects tuning tasks by building a list of programs
@@ -148,6 +151,15 @@ def extract_from_multiple_program(mods, params, ops, target, target_host=None):
 
     init_op_to_schedule_map()
     topi_scheds = []
+
+    if not ops:
+        ops = [relay.op.nn.dense, relay.op.nn.softmax, relay.op.nn.conv2d,
+               relay.op.nn.conv2d_transpose, relay.op.nn.max_pool2d,
+               relay.op.nn.avg_pool2d, relay.op.nn.global_max_pool2d,
+               relay.op.nn.global_avg_pool2d, relay.op.nn.conv3d,
+               relay.op.nn.adaptive_avg_pool3d, relay.op.nn.batch_matmul,
+               relay.op.mean]
+
     for op_name in ops:
         if op_name in OP_TO_SCHEDULE:
             topi_scheds.extend(OP_TO_SCHEDULE[op_name])

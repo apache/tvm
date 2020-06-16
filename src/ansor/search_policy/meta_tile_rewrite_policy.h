@@ -103,12 +103,6 @@ class MetaTileRewritePolicyNode: public SearchPolicyNode {
   SplitFactorizationMemo split_memo_;  // Memorize split space for Split
   std::mt19937 rand_gen_;              // Random generator
   int num_measure_per_iter_;   // The number of states to measure per iteration
-
-  // The array of already measured states.
-  std::vector<State> measured_states_vector_;
-
-  // The throughputs of already measured states
-  std::vector<float> measured_states_throughputs_;
 };
 TVM_DEFINE_MUTABLE_OBJECT_REF(MetaTileRewritePolicy, MetaTileRewritePolicyNode);
 

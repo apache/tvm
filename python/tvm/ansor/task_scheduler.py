@@ -145,6 +145,17 @@ class SimpleTaskScheduler(TaskScheduler):
         self.sequential_now_task_begin_ct = 0
 
     def tune(self, tune_option: TuneOption, search_policy: Union[str, List[SearchPolicy]] = 'default'):
+        """ Tune tasks.
+
+            Notice: This method does not have return value, make sure to set `LogToFile`
+            measure callback in `tune_option`.
+
+        Parameters
+        ----------
+        tune_option: TuneOption
+
+        search_policy: Str or List[SearchPolicy]
+        """
         # init members
         self.task_cts = [0 for _ in range(len(self.tasks))]
         self.task_costs_history = [[] for _ in range(len(self.tasks))]

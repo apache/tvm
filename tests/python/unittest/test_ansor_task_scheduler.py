@@ -17,6 +17,8 @@
 
 """Test the task scheduler """
 
+import threading
+
 import tvm
 from tvm import ansor
 
@@ -30,13 +32,20 @@ def test_task_scheduler_basic():
     task1 = ansor.SearchTask(dag, "test", tgt)
     task2 = ansor.SearchTask(dag, "test", tgt)
 
-    def objective(costs):
-        return sum(costs)
+    def basic_test_func(task1, task2):
+        def objective(costs):
+            return sum(costs)
 
-    task_scheduler = ansor.SimpleTaskScheduler([task1, task2], objective)
-    tune_option = ansor.TuneOption(n_trials=3, runner='local')
+        task_scheduler = ansor.SimpleTaskScheduler([task1, task2], objective)
+        tune_option = ansor.TuneOption(n_trials=3, runner='local')
+        task_scheduler.tune(tune_option)
 
-    task_scheduler.tune(tune_option)
+    # Ansor search process with local runner has some modification on thread
+    # binding, wrap this to a subprocess to eliminate the impacts to other tests
+    t = threading.Thread(target=basic_test_func,
+                         kwargs={'task1': task1, 'task2': task2})
+    t.start()
+    t.join()
 
 
 if __name__ == "__main__":

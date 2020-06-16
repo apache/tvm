@@ -101,6 +101,10 @@ class SearchPolicyNode : public Object {
   // The set of the already measured states.
   // We store the string format for redundancy check
   std::unordered_set<std::string> measured_states_set_;
+  // The array of already measured states.
+  std::vector<State> measured_states_vector_;
+  // The throughputs of already measured states
+  std::vector<float> measured_states_throughputs_;
 };
 TVM_DEFINE_MUTABLE_OBJECT_REF(SearchPolicy, SearchPolicyNode);
 
