@@ -279,7 +279,7 @@ struct ObjectTypeChecker<Array<T> > {
     }
     return true;
   }
-  static std::string TypeName() { return "List[" + ObjectTypeChecker<T>::TypeName() + "]"; }
+  static std::string TypeName() { return "Array[" + ObjectTypeChecker<T>::TypeName() + "]"; }
 };
 
 template <typename K, typename V>
