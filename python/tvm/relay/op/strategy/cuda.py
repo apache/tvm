@@ -190,7 +190,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                                         has_groups=True),
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_cudnn),
                     name="conv2d_cudnn.cuda",
-                    plevel=15)
+                    plevel=25)
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -218,7 +218,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                                         has_groups=True),
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_cudnn),
                     name="conv2d_cudnn.cuda",
-                    plevel=15)
+                    plevel=25)
                 cudnn_impl = True
 
         if layout == 'NCHW':
@@ -377,7 +377,7 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
         strategy.add_implementation(wrap_compute_conv3d(topi.cuda.conv3d_cudnn, True),
                                     wrap_topi_schedule(topi.cuda.schedule_conv3d_cudnn),
                                     name="conv3d_cudnn.cuda",
-                                    plevel=15)
+                                    plevel=25)
     return strategy
 
 @conv3d_winograd_without_weight_transfrom_strategy.register(["cuda", "gpu"])
@@ -473,7 +473,7 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
             wrap_compute_dense(topi.cuda.dense_cublas),
             wrap_topi_schedule(topi.cuda.schedule_dense_cublas),
             name="dense_cublas.cuda",
-            plevel=15)
+            plevel=25)
     return strategy
 
 @batch_matmul_strategy.register(["cuda", "gpu"])
