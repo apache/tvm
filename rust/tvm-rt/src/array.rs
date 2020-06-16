@@ -20,7 +20,7 @@
 use std::convert::{TryFrom, TryInto};
 use std::marker::PhantomData;
 
-use crate::object::{ObjectRef, IsObjectRef};
+use crate::object::{ObjectRef, IsObjectRef, ObjectPtr, Object};
 use crate::{external, RetValue, function::{Function, Result}};
 use crate::errors::Error;
 
@@ -45,10 +45,14 @@ impl<T: IsObjectRef> Array<T> {
         let func = Function::get("node.Array")
             .expect("node.Array function is not registered, this is most likely a build or linking error");
 
-        let array_data = func.invoke(iter)?.try_into()?;
+        // let array_data = func.invoke(iter)?;
+        // let array_data: ObjectRef = func.invoke(iter)?.try_into()?;
+        let array_data: ObjectPtr<Object> = func.invoke(iter)?.try_into()?;
+
+        debug_assert!(array_data.count() >= 1, "array reference count is {}", array_data.count());
 
         Ok(Array {
-            object: array_data,
+            object: ObjectRef(Some(array_data)),
             _data: PhantomData,
         })
     }

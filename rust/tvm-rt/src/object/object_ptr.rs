@@ -112,6 +112,13 @@ impl Object {
         }
     }
 
+    pub fn count(&self) -> i32 {
+        // need to do atomic read in C++
+        // ABI compatible atomics is funky/hard.
+        self.ref_count
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+
     /// Allocates a base object value for an object subtype of type T.
     /// By using associated constants and generics we can provide a
     /// type indexed abstraction over allocating objects with the
@@ -184,7 +191,10 @@ fn dec_ref<T: IsObject>(ptr: NonNull<T>) {
 impl ObjectPtr<Object> {
     fn from_raw(object_ptr: *mut Object) -> Option<ObjectPtr<Object>> {
         let non_null = NonNull::new(object_ptr);
-        non_null.map(|ptr| ObjectPtr { ptr })
+        non_null.map(|ptr| {
+            debug_assert!(unsafe { ptr.as_ref().count() } >= 0);
+            ObjectPtr { ptr }
+        })
     }
 }
 
@@ -247,9 +257,9 @@ impl<T: IsObject> ObjectPtr<T> {
         };
 
         if is_derived {
-            Ok(ObjectPtr {
-                ptr: self.ptr.cast(),
-            })
+            let ptr = self.ptr.cast();
+            inc_ref(ptr);
+            Ok(ObjectPtr { ptr })
         } else {
             Err(Error::downcast("TODOget_type_key".into(), U::TYPE_KEY))
         }
@@ -335,6 +345,8 @@ mod tests {
         let ptr = ObjectPtr::new(Object::base_object::<Object>());
         let ret_value: RetValue = ptr.clone().into();
         let ptr2: ObjectPtr<Object> = ret_value.try_into()?;
+        assert_eq!(ptr.count(), ptr2.count());
+        assert_eq!(ptr.count(), 2);
         ensure!(
             ptr.type_index == ptr2.type_index,
             "type indices do not match"
@@ -351,6 +363,8 @@ mod tests {
         let ptr = ObjectPtr::new(Object::base_object::<Object>());
         let arg_value: ArgValue = ptr.clone().into();
         let ptr2: ObjectPtr<Object> = arg_value.try_into()?;
+        assert_eq!(ptr.count(), ptr2.count());
+        assert_eq!(ptr.count(), 2);
         ensure!(
             ptr.type_index == ptr2.type_index,
             "type indices do not match"
