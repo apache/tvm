@@ -55,7 +55,7 @@ def test_dynamic_shape_reshape():
         x = relay.var("x", relay.TensorType(shape, "float32"))
         y = relay.var("y", relay.TensorType(newshape, "float32"))
         z = relay.dynamic.reshape(x, relay.shape_of(y))
-        print(z)
+
         func = relay.Function([x, y], z)
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
         y_data = np.random.uniform(low=-1, high=1, size=newshape).astype("float32")

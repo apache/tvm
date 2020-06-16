@@ -127,7 +127,7 @@ RELAY_REGISTER_OP("dynamic.reshape")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("newshape", "Tensor", "The shape of output tensor.")
     .set_support_level(3)
-    .add_type_rel("Reshape", ReshapeRel)
+    .add_type_rel("DynamicReshape", ReshapeRel)
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
