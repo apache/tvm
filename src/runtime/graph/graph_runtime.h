@@ -26,16 +26,16 @@
 #define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
 
 #include <dlpack/dlpack.h>
-#include <dmlc/memory_io.h>
 #include <dmlc/json.h>
+#include <dmlc/memory_io.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <string>
 
 #include "../../contrib/subgraph/subgraph.h"
 #ifdef TVM_GRAPH_RUNTIME_TENSORRT
@@ -46,11 +46,10 @@ namespace tvm {
 namespace runtime {
 
 /*! \brief macro to do C API call */
-#define TVM_CCALL(func)                                            \
-  {                                                                \
-    int ret = (func);                                              \
-    CHECK_EQ(ret, 0)                                               \
-        << TVMGetLastError();                                      \
+#define TVM_CCALL(func)                    \
+  {                                        \
+    int ret = (func);                      \
+    CHECK_EQ(ret, 0) << TVMGetLastError(); \
   }
 
 /*! \brief Magic number for NDArray list file  */
@@ -85,15 +84,12 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const final {
-    return "GraphRuntime";
-  }
+  const char* type_key() const final { return "GraphRuntime"; }
   void Run();
 
   /*!
@@ -105,8 +101,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    *  executed on.
    */
 
-  void Init(const std::string& graph_json,
-            tvm::runtime::Module module,
+  void Init(const std::string& graph_json, tvm::runtime::Module module,
             const std::vector<TVMContext>& ctxs);
 
   /*!
@@ -210,14 +205,9 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    * \brief Get total number of nodes.
    * \return Total number of nodes.
    */
-  uint32_t GetNumOfNodes() const {
-    return static_cast<uint32_t>(nodes_.size());
-  }
+  uint32_t GetNumOfNodes() const { return static_cast<uint32_t>(nodes_.size()); }
 
-  std::string GetNodeName(uint32_t nid) const {
-    return nodes_[nid].name;
-  }
-
+  std::string GetNodeName(uint32_t nid) const { return nodes_[nid].name; }
 
  protected:
   // Memory pool entry.
@@ -232,7 +222,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     uint32_t index;
     uint32_t version;
     // JSON Loader
-    void Load(dmlc::JSONReader *reader) {
+    void Load(dmlc::JSONReader* reader) {
       reader->BeginArray();
       CHECK(reader->NextArrayItem()) << "invalid json format";
       reader->Read(&node_id);
@@ -261,7 +251,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     // subgraphs
     std::vector<contrib::Subgraph> subgraphs;
     // JSON Loader
-    void LoadAttrs(dmlc::JSONReader *reader, TVMOpParam* param) {
+    void LoadAttrs(dmlc::JSONReader* reader, TVMOpParam* param) {
       int bitmask = 0;
       std::string key, value;
       reader->BeginObject();
@@ -281,7 +271,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
           bitmask |= 8;
         }
       }
-      CHECK_EQ(bitmask, 1|2|4|8) << "invalid format";
+      CHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "invalid format";
     }
 
     // Subgraph loader
@@ -297,7 +287,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     }
 
     // JSON Loader
-    void Load(dmlc::JSONReader *reader) {
+    void Load(dmlc::JSONReader* reader) {
       reader->BeginObject();
       int bitmask = 0;
       std::string key;
@@ -321,7 +311,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
           LOG(FATAL) << "do not support key " << key;
         }
       }
-      CHECK_EQ(bitmask, 1|2|4) << "invalid format";
+      CHECK_EQ(bitmask, 1 | 2 | 4) << "invalid format";
     }
   };
   struct GraphAttr {
@@ -329,9 +319,9 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     std::vector<int> storage_id;
     std::vector<int> device_index;
     std::vector<std::string> dltype;
-    std::vector<std::vector<int64_t> > shape;
+    std::vector<std::vector<int64_t>> shape;
     // The graph attribute fields.
-    void Load(dmlc::JSONReader *reader) {
+    void Load(dmlc::JSONReader* reader) {
       reader->BeginObject();
       int bitmask = 0;
       std::string key, type;
@@ -389,37 +379,37 @@ class TVM_DLL GraphRuntime : public ModuleNode {
           CHECK(!reader->NextArrayItem());
         }
       }
-      CHECK_EQ(bitmask, 1|2|4) << "invalid format";
+      CHECK_EQ(bitmask, 1 | 2 | 4) << "invalid format";
     }
   };
   // The graph attribute fields.
-  void Load(dmlc::JSONReader *reader) {
-      reader->BeginObject();
-      int bitmask = 0;
-      std::string key;
-      while (reader->NextObjectItem(&key)) {
-        if (key == "nodes") {
-          reader->Read(&nodes_);
-          bitmask |= 1;
-        } else if (key == "arg_nodes") {
-          reader->Read(&input_nodes_);
-          bitmask |= 2;
-        } else if (key == "node_row_ptr") {
-          reader->Read(&node_row_ptr_);
-          bitmask |= 4;
-        } else if (key == "heads") {
-          reader->Read(&outputs_);
-          bitmask |= 8;
-        } else if (key == "attrs") {
-          reader->Read(&attrs_);
-          bitmask |= 16;
-        } else if (key == "metadata") {
-          break;
-        } else {
-          LOG(FATAL) << "key " << key << " is not supported";
-        }
+  void Load(dmlc::JSONReader* reader) {
+    reader->BeginObject();
+    int bitmask = 0;
+    std::string key;
+    while (reader->NextObjectItem(&key)) {
+      if (key == "nodes") {
+        reader->Read(&nodes_);
+        bitmask |= 1;
+      } else if (key == "arg_nodes") {
+        reader->Read(&input_nodes_);
+        bitmask |= 2;
+      } else if (key == "node_row_ptr") {
+        reader->Read(&node_row_ptr_);
+        bitmask |= 4;
+      } else if (key == "heads") {
+        reader->Read(&outputs_);
+        bitmask |= 8;
+      } else if (key == "attrs") {
+        reader->Read(&attrs_);
+        bitmask |= 16;
+      } else if (key == "metadata") {
+        break;
+      } else {
+        LOG(FATAL) << "key " << key << " is not supported";
       }
-      CHECK_EQ(bitmask, 1|2|4|8|16) << "invalid format";
+    }
+    CHECK_EQ(bitmask, 1 | 2 | 4 | 8 | 16) << "invalid format";
   }
   /*! \brief Setup the temporal storage */
   void SetupStorage();
@@ -432,21 +422,14 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    * \param num_inputs Number of inputs.
    * \return The created executor.
    */
-  std::pair<std::function<void()>, std::shared_ptr<OpArgs> > CreateTVMOp(
-      const TVMOpParam& attrs, const std::vector<DLTensor>& args,
-      size_t num_inputs);
+  std::pair<std::function<void()>, std::shared_ptr<OpArgs>> CreateTVMOp(
+      const TVMOpParam& attrs, const std::vector<DLTensor>& args, size_t num_inputs);
   // Get node entry index.
-  uint32_t entry_id(uint32_t nid, uint32_t index) const {
-    return node_row_ptr_[nid] + index;
-  }
+  uint32_t entry_id(uint32_t nid, uint32_t index) const { return node_row_ptr_[nid] + index; }
   // Get node entry index.
-  uint32_t entry_id(const NodeEntry& e) const {
-    return entry_id(e.node_id, e.index);
-  }
+  uint32_t entry_id(const NodeEntry& e) const { return entry_id(e.node_id, e.index); }
   // Number of node entries.
-  uint32_t num_node_entries() const {
-    return node_row_ptr_.back();
-  }
+  uint32_t num_node_entries() const { return node_row_ptr_.back(); }
   /*! \brief The weight names. */
   std::vector<std::string> weight_names_;
   /*! \brief The graph nodes. */
@@ -474,13 +457,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   /*! \brief Data alignment of each node. */
   std::vector<size_t> data_alignment_;
   /*! \brief Operator on each node. */
-  std::vector<std::function<void()> > op_execs_;
-#ifdef TVM_GRAPH_RUNTIME_TENSORRT
-  contrib::TensorRTExecManager tensorrt_exec_manager_;
-#endif  // TVM_GRAPH_RUNTIME_TENSORRT
-
-  /*! \brief Arg info of TVM ops */
-  std::vector<std::shared_ptr<OpArgs> > op_args_;
+  std::vector<std::function<void()>> op_execs_;
 };
 
 std::vector<TVMContext> GetAllContext(const TVMArgs& args);

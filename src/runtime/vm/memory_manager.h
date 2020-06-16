@@ -27,6 +27,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
+
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -73,15 +74,13 @@ class Allocator {
    *  \param ctx The context where the array is allocated.
    *  \return The empty NDArray.
    */
-  NDArray Empty(std::vector<int64_t> shape,
-                DLDataType dtype,
-                DLContext ctx);
+  NDArray Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx);
   /*! \brief Allocate a buffer given a size, alignment and type.
    *  \param nbytes The size of the buffer.
    *  \param alignment The alignment of the buffer.
    *  \param type_hint A type hint to the allocator.
    *  \return A sized allocation in the form of a buffer.
-  */
+   */
   virtual Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) = 0;
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
@@ -115,9 +114,7 @@ class StorageObj : public Object {
   Buffer buffer;
 
   /*! \brief Allocate an NDArray from a given piece of storage. */
-  NDArray AllocNDArray(size_t offset,
-                       std::vector<int64_t> shape,
-                       DLDataType dtype);
+  NDArray AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDataType dtype);
 
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
   static void Deleter(Object* ptr);

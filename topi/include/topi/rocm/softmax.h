@@ -24,10 +24,10 @@
 #ifndef TOPI_ROCM_SOFTMAX_H_
 #define TOPI_ROCM_SOFTMAX_H_
 
-#include <topi/tags.h>
 #include <topi/detail/fuse.h>
-#include <tvm/te/operation.h>
+#include <topi/tags.h>
 #include <tvm/target/generic_func.h>
+#include <tvm/te/operation.h>
 
 #include "topi/cuda/softmax.h"
 
@@ -45,7 +45,7 @@ namespace rocm {
  *
  * \return A schedule for the given ops.
  */
-inline Schedule schedule_softmax(const Target &target, const Array<Tensor>& outs) {
+inline Schedule schedule_softmax(const Target& target, const Array<Tensor>& outs) {
   return topi::cuda::schedule_softmax(target, outs);
 }
 

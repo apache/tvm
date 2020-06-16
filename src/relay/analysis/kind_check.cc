@@ -31,9 +31,9 @@
  * We check this by ensuring the `dtype` field of a Tensor always
  * contains a data type such as `int`, `float`, `uint`.
  */
+#include <tvm/ir/error.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
-#include <tvm/ir/error.h>
 
 namespace tvm {
 namespace relay {
@@ -51,40 +51,28 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     this->err_reporter.RenderErrors(mod);
   }
 
-  void CheckKindMatches(const Type& t, const Type& outer,
-                        Kind expected, const std::string& description) {
+  void CheckKindMatches(const Type& t, const Type& outer, Kind expected,
+                        const std::string& description) {
     Kind k = this->VisitType(t);
     if (k != expected) {
       ReportFatalError(ErrorBuilder()
-        << "Incorrect kind for a " << description
-        << ". Type " << t << " inside " << outer
-        << " is of kind " << k
-        << " but was expected to be "
-        << expected);
+                       << "Incorrect kind for a " << description << ". Type " << t << " inside "
+                       << outer << " is of kind " << k << " but was expected to be " << expected);
     }
   }
 
-  Kind VisitType_(const IncompleteTypeNode* op) override {
-    return op->kind;
-  }
+  Kind VisitType_(const IncompleteTypeNode* op) override { return op->kind; }
 
-  Kind VisitType_(const TypeVarNode* op) override {
-    return op->kind;
-  }
+  Kind VisitType_(const TypeVarNode* op) override { return op->kind; }
 
-  Kind VisitType_(const GlobalTypeVarNode* op) override {
-    return op->kind;
-  }
+  Kind VisitType_(const GlobalTypeVarNode* op) override { return op->kind; }
 
-  Kind VisitType_(const TensorTypeNode* op) override {
-    return Kind::kType;
-  }
+  Kind VisitType_(const TensorTypeNode* op) override { return Kind::kType; }
 
   Kind VisitType_(const TupleTypeNode* op) override {
     // tuples should only contain normal types
     for (const Type& t : op->fields) {
-      CheckKindMatches(t, GetRef<TupleType>(op), Kind::kType,
-                       "tuple member");
+      CheckKindMatches(t, GetRef<TupleType>(op), Kind::kType, "tuple member");
     }
     return Kind::kType;
   }
@@ -117,8 +105,7 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
   Kind VisitType_(const TypeRelationNode* op) override {
     // arguments to type relation should be normal types
     for (const Type& t : op->args) {
-      CheckKindMatches(t, GetRef<TypeRelation>(op), Kind::kType,
-                       "argument to type relation");
+      CheckKindMatches(t, GetRef<TypeRelation>(op), Kind::kType, "argument to type relation");
     }
     return Kind::kConstraint;
   }
@@ -128,9 +115,8 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     TypeCall tc = GetRef<TypeCall>(op);
     const auto* gtv = op->func.as<GlobalTypeVarNode>();
     if (gtv == nullptr) {
-      ReportFatalError(
-        ErrorBuilder() <<"The callee in " << tc
-        << " is not a global type var, but is " << op->func);
+      ReportFatalError(ErrorBuilder() << "The callee in " << tc
+                                      << " is not a global type var, but is " << op->func);
     }
 
     CheckKindMatches(op->func, tc, Kind::kAdtHandle, "type call function");
@@ -143,9 +129,8 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     auto var = GetRef<GlobalTypeVar>(gtv);
     auto data = mod->LookupTypeDef(var);
     if (data->type_vars.size() != op->args.size()) {
-      ReportFatalError(ErrorBuilder()
-        << "Expected " << data->type_vars.size() << "arguments for " << tc
-        << "; got " << op->args.size());
+      ReportFatalError(ErrorBuilder() << "Expected " << data->type_vars.size() << "arguments for "
+                                      << tc << "; got " << op->args.size());
     }
     return Kind::kType;
   }
@@ -164,9 +149,8 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
 
     for (const auto& con : op->constructors) {
       if (!con->belong_to.same_as(op->header)) {
-        ReportFatalError(ErrorBuilder()
-          <<con << " has header " << con->belong_to
-          << " but " << op << " has header " << op->header);
+        ReportFatalError(ErrorBuilder() << con << " has header " << con->belong_to << " but " << op
+                                        << " has header " << op->header);
       }
 
       for (const Type& t : con->inputs) {
@@ -176,9 +160,7 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     return Kind::kTypeData;
   }
 
-  Kind Check(const Type& t) {
-    return this->VisitType(t);
-  }
+  Kind Check(const Type& t) { return this->VisitType(t); }
 };
 
 Kind KindCheck(const Type& t, const IRModule& mod) {
@@ -186,14 +168,13 @@ Kind KindCheck(const Type& t, const IRModule& mod) {
   return kc.Check(t);
 }
 
-TVM_REGISTER_GLOBAL("relay.analysis.check_kind")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    if (args.size() == 1) {
-      *ret = KindCheck(args[0], IRModule({}, {}));
-    } else {
-      *ret = KindCheck(args[0], args[1]);
-    }
-  });
+TVM_REGISTER_GLOBAL("relay.analysis.check_kind").set_body([](TVMArgs args, TVMRetValue* ret) {
+  if (args.size() == 1) {
+    *ret = KindCheck(args[0], IRModule({}, {}));
+  } else {
+    *ret = KindCheck(args[0], args[1]);
+  }
+});
 
 }  // namespace relay
 }  // namespace tvm

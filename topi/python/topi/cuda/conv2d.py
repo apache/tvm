@@ -66,8 +66,8 @@ def schedule_conv2d_nhwc(cfg, outs):
 
 
 @autotvm.register_topi_compute("conv2d_cudnn.cuda")
-def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, layout='NCHW',
-                 out_dtype='float32'):
+def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, groups=1,
+                 layout='NCHW', out_dtype='float32'):
     """Compute conv2d using CuDNN library"""
     if layout == 'NCHW':
         tensor_format = 0 # CUDNN_TENSOR_NCHW
@@ -89,7 +89,7 @@ def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, layout='NCHW',
     pt, pl, pb, pr = get_pad_tuple(padding, (KH, KW))
     OH = (H + pt + pb - KH) // stride_h + 1
     OW = (W + pl + pr - KW) // stride_w + 1
-    cfg.add_flop(2 * N * OH * OW * CO * CI * ((KH - 1) * dilation_h + 1) * \
+    cfg.add_flop(groups * 2 * N * OH * OW * CO * CI * ((KH - 1) * dilation_h + 1) * \
                  ((KW - 1) * dilation_w + 1))
 
     if data.dtype == "int8" or kernel.dtype == "int8":
@@ -107,7 +107,8 @@ def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, layout='NCHW',
                               conv_mode=1,
                               tensor_format=tensor_format,
                               algo=-1,         # let CUDNN choose the best algo
-                              conv_dtype=dtype)
+                              conv_dtype=dtype,
+                              groups=groups)
 
 
 @autotvm.register_topi_schedule("conv2d_cudnn.cuda")

@@ -26,8 +26,10 @@
 
 #include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
+
 #include <string>
 #include <unordered_map>
+
 #include "codegen_c.h"
 
 namespace tvm {
@@ -46,37 +48,32 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitStmt_(const ForNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
-  void PrintVecBinaryOp(
-      const std::string& op, DataType t,
-      PrimExpr lhs, PrimExpr rhs, std::ostream& os) final;  // NOLINT(*)
-  void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
-  void PrintVecElemLoad(
-      const std::string& vec, DataType t, int i, std::ostream& os) final;  // NOLINT(*)
-  void PrintVecElemStore(
-      const std::string& vec, DataType t, int i, const std::string& value) final;
+  void PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
+                        std::ostream& os) final;       // NOLINT(*)
+  void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
+  void PrintVecElemLoad(const std::string& vec, DataType t, int i,
+                        std::ostream& os) final;  // NOLINT(*)
+  void PrintVecElemStore(const std::string& vec, DataType t, int i, const std::string& value) final;
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   void PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os) final;
   // overload visitor
-  void VisitExpr_(const RampNode* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const ShuffleNode* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const SelectNode* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const FloatImmNode *op, std::ostream& os) final;
-  void VisitExpr_(const CallNode *op, std::ostream& os) final;
+  void VisitExpr_(const RampNode* op, std::ostream& os) final;       // NOLINT(*)
+  void VisitExpr_(const ShuffleNode* op, std::ostream& os) final;    // NOLINT(*)
+  void VisitExpr_(const SelectNode* op, std::ostream& os) final;     // NOLINT(*)
+  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;
+  void VisitExpr_(const CallNode* op, std::ostream& os) final;
   void VisitExpr_(const CastNode* op, std::ostream& os) final;
-  void VisitStmt_(const EvaluateNode *op) final;
-  void VisitStmt_(const AllocateNode *op) final;
-  void VisitStmt_(const AttrStmtNode *op) final;
+  void VisitStmt_(const EvaluateNode* op) final;
+  void VisitStmt_(const AllocateNode* op) final;
+  void VisitStmt_(const AttrStmtNode* op) final;
 
  private:
   // Handle volatile loads
-  void HandleVolatileLoads(const std::string& value, const LoadNode* op,
-                           std::ostream& os) final;
+  void HandleVolatileLoads(const std::string& value, const LoadNode* op, std::ostream& os) final;
 
   // Whether scope such as "__shared__" or "__constant__"  is part of type.
-  bool IsScopePartOfType() const final {
-    return false;
-  }
+  bool IsScopePartOfType() const final { return false; }
 
   // Whether global barrier is needed.
   bool need_global_barrier_{false};
@@ -88,6 +85,8 @@ class CodeGenCUDA final : public CodeGenC {
   bool enable_fp16_{false};
   // whether enable int8
   bool enable_int8_{false};
+  // whether enable warp shuffle intrinsics
+  bool enable_warp_shuffle_{false};
   // whether need math_constants.h
   bool need_math_constants_h_{false};
   // whether need mma.h
@@ -96,10 +95,9 @@ class CodeGenCUDA final : public CodeGenC {
   std::unordered_map<const VarNode*, std::string> fragment_shapes;
   std::unordered_map<const VarNode*, std::string> fragment_layouts;
   friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p);
-  void PrintWmmaScope(
-      const std::string& scope, DataType t, const VarNode* variable, std::ostream& os);
-  int32_t GetWmmaFragmentSize(
-      const std::string &scope, const VarNode* variable, int32_t size);
+  void PrintWmmaScope(const std::string& scope, DataType t, const VarNode* variable,
+                      std::ostream& os);
+  int32_t GetWmmaFragmentSize(const std::string& scope, const VarNode* variable, int32_t size);
 };
 
 }  // namespace codegen

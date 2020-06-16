@@ -25,20 +25,20 @@
 #ifndef TVM_TIR_EXPR_H_
 #define TVM_TIR_EXPR_H_
 
-#include <tvm/node/node.h>
+#include <tvm/ir/expr.h>
 #include <tvm/node/container.h>
 #include <tvm/node/functor.h>
+#include <tvm/node/node.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/ir/expr.h>
-#include <tvm/tir/var.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/tir/var.h>
 
-#include <string>
 #include <algorithm>
-#include <unordered_map>
 #include <iostream>
 #include <limits>
+#include <string>
+#include <unordered_map>
 #include <utility>
 
 namespace tvm {
@@ -51,7 +51,7 @@ using FloatImmNode = tvm::FloatImmNode;
 class StringImmNode : public PrimExprNode {
  public:
   /*! \brief The constant value content. */
-  std::string value;
+  String value;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
@@ -62,18 +62,19 @@ class StringImmNode : public PrimExprNode {
     return equal(value, other->value);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(value);
-  }
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
 
-  TVM_DLL PrimExpr static make(std::string value);
-
-  static constexpr const char* _type_key = "StringImm";
+  static constexpr const char* _type_key = "tir.StringImm";
   TVM_DECLARE_FINAL_OBJECT_INFO(StringImmNode, PrimExprNode);
 };
 
+/*!
+ * \brief Managed reference to StringImmNode.
+ * \sa StringImmNode
+ */
 class StringImm : public PrimExpr {
  public:
+  TVM_DLL StringImm(String value);
   TVM_DEFINE_OBJECT_REF_METHODS(StringImm, PrimExpr, StringImmNode);
 };
 
@@ -100,17 +101,25 @@ class CastNode : public PrimExprNode {
     hash_reduce(value);
   }
 
-  TVM_DLL static PrimExpr make(DataType t, PrimExpr v);
-
-  static constexpr const char* _type_key = "Cast";
+  static constexpr const char* _type_key = "tir.Cast";
   TVM_DECLARE_FINAL_OBJECT_INFO(CastNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to CastNode
+ * \sa CastNode
+ */
+class Cast : public PrimExpr {
+ public:
+  TVM_DLL Cast(DataType dtype, PrimExpr value);
+  TVM_DEFINE_OBJECT_REF_METHODS(Cast, PrimExpr, CastNode);
 };
 
 /*!
  * \brief Base template to implement binary ops.
  * \tparam T The type of the child class.
  */
-template<typename T>
+template <typename T>
 class BinaryOpNode : public PrimExprNode {
  public:
   /*! \brief The left operand. */
@@ -125,10 +134,7 @@ class BinaryOpNode : public PrimExprNode {
   }
 
   bool SEqualReduce(const T* other, SEqualReducer equal) const {
-    return
-        equal(dtype, other->dtype) &&
-        equal(a, other->a) &&
-        equal(b, other->b);
+    return equal(dtype, other->dtype) && equal(a, other->a) && equal(b, other->b);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -137,36 +143,55 @@ class BinaryOpNode : public PrimExprNode {
     hash_reduce(b);
   }
 
-  static PrimExpr make(PrimExpr a, PrimExpr b) {
-    CHECK(a.defined()) << "ValueError: a is undefined\n";
-    CHECK(b.defined()) << "ValueError: b is undefined\n";
-    CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types\n";
-    ObjectPtr<T> node = make_object<T>();
-    node->dtype = a.dtype();
-    node->a = std::move(a);
-    node->b = std::move(b);
-    return PrimExpr(node);
-  }
-
   TVM_DECLARE_FINAL_OBJECT_INFO(T, PrimExprNode);
 };
 
 /*! \brief a + b */
 class AddNode : public BinaryOpNode<AddNode> {
  public:
-  static constexpr const char* _type_key = "Add";
+  static constexpr const char* _type_key = "tir.Add";
+};
+
+/*!
+ * \brief Managed reference to AddNode
+ * \sa AddNode
+ */
+class Add : public PrimExpr {
+ public:
+  TVM_DLL Add(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(Add, PrimExpr, AddNode);
 };
 
 /*! \brief a - b */
 class SubNode : public BinaryOpNode<SubNode> {
  public:
-  static constexpr const char* _type_key = "Sub";
+  static constexpr const char* _type_key = "tir.Sub";
+};
+
+/*!
+ * \brief Managed reference to SubNode
+ * \sa SubNode
+ */
+class Sub : public PrimExpr {
+ public:
+  TVM_DLL Sub(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(Sub, PrimExpr, SubNode);
 };
 
 /*! \brief a * b */
 class MulNode : public BinaryOpNode<MulNode> {
  public:
-  static constexpr const char* _type_key = "Mul";
+  static constexpr const char* _type_key = "tir.Mul";
+};
+
+/*!
+ * \brief Managed reference to MulNode
+ * \sa MulNode
+ */
+class Mul : public PrimExpr {
+ public:
+  TVM_DLL Mul(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(Mul, PrimExpr, MulNode);
 };
 
 /*!
@@ -175,7 +200,17 @@ class MulNode : public BinaryOpNode<MulNode> {
  */
 class DivNode : public BinaryOpNode<DivNode> {
  public:
-  static constexpr const char* _type_key = "Div";
+  static constexpr const char* _type_key = "tir.Div";
+};
+
+/*!
+ * \brief Managed reference to DivNode
+ * \sa DivNode
+ */
+class Div : public PrimExpr {
+ public:
+  TVM_DLL Div(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(Div, PrimExpr, DivNode);
 };
 
 /*!
@@ -184,38 +219,88 @@ class DivNode : public BinaryOpNode<DivNode> {
  */
 class ModNode : public BinaryOpNode<ModNode> {
  public:
-  static constexpr const char* _type_key = "Mod";
+  static constexpr const char* _type_key = "tir.Mod";
+};
+
+/*!
+ * \brief Managed reference to ModNode
+ * \sa ModNode
+ */
+class Mod : public PrimExpr {
+ public:
+  TVM_DLL Mod(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(Mod, PrimExpr, ModNode);
 };
 
 /*! \brief Floor division, floor(a/b) */
 class FloorDivNode : public BinaryOpNode<FloorDivNode> {
  public:
-  static constexpr const char* _type_key = "FloorDiv";
+  static constexpr const char* _type_key = "tir.FloorDiv";
+};
+
+/*!
+ * \brief Managed reference to FloorDivNode
+ * \sa FloorDivNode
+ */
+class FloorDiv : public PrimExpr {
+ public:
+  TVM_DLL FloorDiv(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(FloorDiv, PrimExpr, FloorDivNode);
 };
 
 /*! \brief The remainder of the floordiv */
 class FloorModNode : public BinaryOpNode<FloorModNode> {
  public:
-  static constexpr const char* _type_key = "FloorMod";
+  static constexpr const char* _type_key = "tir.FloorMod";
+};
+
+/*!
+ * \brief Managed reference to FloorModNode
+ * \sa FloorModNode
+ */
+class FloorMod : public PrimExpr {
+ public:
+  TVM_DLL FloorMod(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(FloorMod, PrimExpr, FloorModNode);
 };
 
 /*! \brief min(a, b) */
 class MinNode : public BinaryOpNode<MinNode> {
  public:
-  static constexpr const char* _type_key = "Min";
+  static constexpr const char* _type_key = "tir.Min";
+};
+
+/*!
+ * \brief Managed reference to MinNode
+ * \sa MinNode
+ */
+class Min : public PrimExpr {
+ public:
+  TVM_DLL Min(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(Min, PrimExpr, MinNode);
 };
 
 /*! \brief max(a, b) */
 class MaxNode : public BinaryOpNode<MaxNode> {
  public:
-  static constexpr const char* _type_key = "Max";
+  static constexpr const char* _type_key = "tir.Max";
+};
+
+/*!
+ * \brief Managed reference to MaxNode
+ * \sa MaxNode
+ */
+class Max : public PrimExpr {
+ public:
+  TVM_DLL Max(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(Max, PrimExpr, MaxNode);
 };
 
 /*!
  * \brief Base template to implement comparison ops.
  * \tparam T The type of the child class.
  */
-template<typename T>
+template <typename T>
 class CmpOpNode : public PrimExprNode {
  public:
   /*! \brief The left operand. */
@@ -230,10 +315,7 @@ class CmpOpNode : public PrimExprNode {
   }
 
   bool SEqualReduce(const T* other, SEqualReducer equal) const {
-    return
-        equal(dtype, other->dtype) &&
-        equal(a, other->a) &&
-        equal(b, other->b);
+    return equal(dtype, other->dtype) && equal(a, other->a) && equal(b, other->b);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -242,54 +324,103 @@ class CmpOpNode : public PrimExprNode {
     hash_reduce(b);
   }
 
-  static PrimExpr make(PrimExpr a, PrimExpr b) {
-    CHECK(a.defined()) << "ValueError: a is undefined\n";
-    CHECK(b.defined()) << "ValueError: b is undefined\n";
-    CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types\n";
-    ObjectPtr<T> node = make_object<T>();
-    node->dtype = DataType::Bool(a.dtype().lanes());
-    node->a = std::move(a);
-    node->b = std::move(b);
-    return PrimExpr(node);
-  }
-
   TVM_DECLARE_FINAL_OBJECT_INFO(T, PrimExprNode);
 };
 
 /*! \brief a == b */
 class EQNode : public CmpOpNode<EQNode> {
  public:
-  static constexpr const char* _type_key = "EQ";
+  static constexpr const char* _type_key = "tir.EQ";
+};
+
+/*!
+ * \brief Managed reference to EQNode
+ * \sa EQNode
+ */
+class EQ : public PrimExpr {
+ public:
+  TVM_DLL EQ(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(EQ, PrimExpr, EQNode);
 };
 
 /*! \brief a != b */
 class NENode : public CmpOpNode<NENode> {
  public:
-  static constexpr const char* _type_key = "NE";
+  static constexpr const char* _type_key = "tir.NE";
+};
+
+/*!
+ * \brief Managed reference to NENode
+ * \sa NENode
+ */
+class NE : public PrimExpr {
+ public:
+  TVM_DLL NE(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(NE, PrimExpr, NENode);
 };
 
 /*! \brief a < b */
 class LTNode : public CmpOpNode<LTNode> {
  public:
-  static constexpr const char* _type_key = "LT";
+  static constexpr const char* _type_key = "tir.LT";
+};
+
+/*!
+ * \brief Managed reference to LTNode
+ * \sa LTNode
+ */
+class LT : public PrimExpr {
+ public:
+  TVM_DLL LT(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(LT, PrimExpr, LTNode);
 };
 
 /*! \brief a <= b */
 struct LENode : public CmpOpNode<LENode> {
  public:
-  static constexpr const char* _type_key = "LE";
+  static constexpr const char* _type_key = "tir.LE";
+};
+
+/*!
+ * \brief Managed reference to LENode
+ * \sa LENode
+ */
+class LE : public PrimExpr {
+ public:
+  TVM_DLL LE(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(LE, PrimExpr, LENode);
 };
 
 /*! \brief a > b */
 class GTNode : public CmpOpNode<GTNode> {
  public:
-  static constexpr const char* _type_key = "GT";
+  static constexpr const char* _type_key = "tir.GT";
+};
+
+/*!
+ * \brief Managed reference to GTNode
+ * \sa GTNode
+ */
+class GT : public PrimExpr {
+ public:
+  TVM_DLL GT(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(GT, PrimExpr, GTNode);
 };
 
 /*! \brief a >= b */
 class GENode : public CmpOpNode<GENode> {
  public:
-  static constexpr const char* _type_key = "GE";
+  static constexpr const char* _type_key = "tir.GE";
+};
+
+/*!
+ * \brief Managed reference to GENode
+ * \sa GENode
+ */
+class GE : public PrimExpr {
+ public:
+  TVM_DLL GE(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(GE, PrimExpr, GENode);
 };
 
 /*! \brief a && b */
@@ -307,10 +438,7 @@ class AndNode : public PrimExprNode {
   }
 
   bool SEqualReduce(const AndNode* other, SEqualReducer equal) const {
-    return
-        equal(dtype, other->dtype) &&
-        equal(a, other->a) &&
-        equal(b, other->b);
+    return equal(dtype, other->dtype) && equal(a, other->a) && equal(b, other->b);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -319,10 +447,18 @@ class AndNode : public PrimExprNode {
     hash_reduce(b);
   }
 
-  TVM_DLL static PrimExpr make(PrimExpr a, PrimExpr b);
-
-  static constexpr const char* _type_key = "And";
+  static constexpr const char* _type_key = "tir.And";
   TVM_DECLARE_FINAL_OBJECT_INFO(AndNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to AndNode
+ * \sa AndNode
+ */
+class And : public PrimExpr {
+ public:
+  TVM_DLL And(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(And, PrimExpr, AndNode);
 };
 
 /*! \brief a || b */
@@ -340,10 +476,7 @@ class OrNode : public PrimExprNode {
   }
 
   bool SEqualReduce(const OrNode* other, SEqualReducer equal) const {
-    return
-        equal(dtype, other->dtype) &&
-        equal(a, other->a) &&
-        equal(b, other->b);
+    return equal(dtype, other->dtype) && equal(a, other->a) && equal(b, other->b);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -352,10 +485,18 @@ class OrNode : public PrimExprNode {
     hash_reduce(b);
   }
 
-  TVM_DLL static PrimExpr make(PrimExpr a, PrimExpr b);
-
-  static constexpr const char* _type_key = "Or";
+  static constexpr const char* _type_key = "tir.Or";
   TVM_DECLARE_FINAL_OBJECT_INFO(OrNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to OrNode
+ * \sa OrNode
+ */
+class Or : public PrimExpr {
+ public:
+  TVM_DLL Or(PrimExpr a, PrimExpr b);
+  TVM_DEFINE_OBJECT_REF_METHODS(Or, PrimExpr, OrNode);
 };
 
 /*! \brief !a */
@@ -378,10 +519,18 @@ class NotNode : public PrimExprNode {
     hash_reduce(a);
   }
 
-  TVM_DLL static PrimExpr make(PrimExpr a);
-
-  static constexpr const char* _type_key = "Not";
+  static constexpr const char* _type_key = "tir.Not";
   TVM_DECLARE_FINAL_OBJECT_INFO(NotNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to NotNode
+ * \sa NotNode
+ */
+class Not : public PrimExpr {
+ public:
+  TVM_DLL Not(PrimExpr a);
+  TVM_DEFINE_OBJECT_REF_METHODS(Not, PrimExpr, NotNode);
 };
 
 /*!
@@ -408,11 +557,8 @@ class SelectNode : public PrimExprNode {
   }
 
   bool SEqualReduce(const SelectNode* other, SEqualReducer equal) const {
-    return
-        equal(dtype, other->dtype) &&
-        equal(condition, other->condition) &&
-        equal(true_value, other->true_value) &&
-        equal(false_value, other->false_value);
+    return equal(dtype, other->dtype) && equal(condition, other->condition) &&
+           equal(true_value, other->true_value) && equal(false_value, other->false_value);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -422,10 +568,19 @@ class SelectNode : public PrimExprNode {
     hash_reduce(false_value);
   }
 
-  TVM_DLL static PrimExpr make(PrimExpr condition, PrimExpr true_value, PrimExpr false_value);
-
-  static constexpr const char* _type_key = "Select";
+  static constexpr const char* _type_key = "tir.Select";
   TVM_DECLARE_FINAL_OBJECT_INFO(SelectNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to SelectNode
+ * \sa SelectNode
+ */
+class Select : public PrimExpr {
+ public:
+  TVM_DLL Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Select, PrimExpr, SelectNode);
 };
 
 /*!
@@ -452,10 +607,8 @@ class BufferLoadNode : public PrimExprNode {
   }
 
   bool SEqualReduce(const BufferLoadNode* other, SEqualReducer equal) const {
-    return
-        equal(dtype, other->dtype) &&
-        equal(buffer, other->buffer) &&
-        equal(indices, other->indices);
+    return equal(dtype, other->dtype) && equal(buffer, other->buffer) &&
+           equal(indices, other->indices);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -464,15 +617,66 @@ class BufferLoadNode : public PrimExprNode {
     hash_reduce(indices);
   }
 
-  static constexpr const char* _type_key = "BufferLoad";
+  static constexpr const char* _type_key = "tir.BufferLoad";
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferLoadNode, PrimExprNode);
 };
 
+/*!
+ * \brief Managed reference to BufferLoadNode.
+ * \sa BufferLoadNode
+ */
 class BufferLoad : public PrimExpr {
  public:
-  TVM_DLL explicit BufferLoad(Buffer buffer,
-                              Array<PrimExpr> indices);
+  TVM_DLL explicit BufferLoad(Buffer buffer, Array<PrimExpr> indices);
   TVM_DEFINE_OBJECT_REF_METHODS(BufferLoad, PrimExpr, BufferLoadNode);
+};
+
+/*!
+ * \brief Load value from the result produced by the producer.
+ *
+ * \note This node only appears in high-level DSLs that are built on top of the TIR.
+ *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
+ *       this node before TIR transformations.
+ *
+ * \sa ProducerLoad, DataProducerNode
+ */
+class ProducerLoadNode : public PrimExprNode {
+ public:
+  /*! \brief The buffer producer. */
+  DataProducer producer;
+  /*! \brief The location arguments. */
+  Array<PrimExpr> indices;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &(this->dtype));
+    v->Visit("producer", &producer);
+    v->Visit("indices", &indices);
+  }
+
+  bool SEqualReduce(const ProducerLoadNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype) && equal(producer, other->producer) &&
+           equal(indices, other->indices);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(producer);
+    hash_reduce(indices);
+  }
+
+  static constexpr const char* _type_key = "tir.ProducerLoad";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerLoadNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to ProducerLoadNode.
+ * \sa ProducerLoadNode
+ */
+class ProducerLoad : public PrimExpr {
+ public:
+  TVM_DLL explicit ProducerLoad(DataProducer producer, Array<PrimExpr> indices);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ProducerLoad, PrimExpr, ProducerLoadNode);
 };
 
 /*!
@@ -507,11 +711,8 @@ class LoadNode : public PrimExprNode {
   }
 
   bool SEqualReduce(const LoadNode* other, SEqualReducer equal) const {
-    return
-        equal(dtype, other->dtype) &&
-        equal(buffer_var, other->buffer_var) &&
-        equal(index, other->index) &&
-        equal(predicate, other->predicate);
+    return equal(dtype, other->dtype) && equal(buffer_var, other->buffer_var) &&
+           equal(index, other->index) && equal(predicate, other->predicate);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -521,10 +722,18 @@ class LoadNode : public PrimExprNode {
     hash_reduce(predicate);
   }
 
-  TVM_DLL static PrimExpr make(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate);
-
-  static constexpr const char* _type_key = "Load";
+  static constexpr const char* _type_key = "tir.Load";
   TVM_DECLARE_FINAL_OBJECT_INFO(LoadNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to LoadNode
+ * \sa LoadNode
+ */
+class Load : public PrimExpr {
+ public:
+  TVM_DLL Load(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate);
+  TVM_DEFINE_OBJECT_REF_METHODS(Load, PrimExpr, LoadNode);
 };
 
 /*!
@@ -553,11 +762,8 @@ class RampNode : public PrimExprNode {
   }
 
   bool SEqualReduce(const RampNode* other, SEqualReducer equal) const {
-    return
-        equal(dtype, other->dtype) &&
-        equal(base, other->base) &&
-        equal(stride, other->stride) &&
-        equal(lanes, other->lanes);
+    return equal(dtype, other->dtype) && equal(base, other->base) && equal(stride, other->stride) &&
+           equal(lanes, other->lanes);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -567,10 +773,18 @@ class RampNode : public PrimExprNode {
     hash_reduce(lanes);
   }
 
-  TVM_DLL static PrimExpr make(PrimExpr base, PrimExpr stride, int lanes);
-
-  static constexpr const char* _type_key = "Ramp";
+  static constexpr const char* _type_key = "tir.Ramp";
   TVM_DECLARE_FINAL_OBJECT_INFO(RampNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to RampNode
+ * \sa RampNode
+ */
+class Ramp : public PrimExpr {
+ public:
+  TVM_DLL Ramp(PrimExpr base, PrimExpr stride, int lanes);
+  TVM_DEFINE_OBJECT_REF_METHODS(Ramp, PrimExpr, RampNode);
 };
 
 /*! \brief Create a vector where all the elements are value. */
@@ -588,10 +802,7 @@ class BroadcastNode : public PrimExprNode {
   }
 
   bool SEqualReduce(const BroadcastNode* other, SEqualReducer equal) const {
-    return
-        equal(dtype, other->dtype) &&
-        equal(value, other->value) &&
-        equal(lanes, other->lanes);
+    return equal(dtype, other->dtype) && equal(value, other->value) && equal(lanes, other->lanes);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -600,10 +811,18 @@ class BroadcastNode : public PrimExprNode {
     hash_reduce(lanes);
   }
 
-  TVM_DLL static PrimExpr make(PrimExpr value, int lanes);
-
-  static constexpr const char* _type_key = "Broadcast";
+  static constexpr const char* _type_key = "tir.Broadcast";
   TVM_DECLARE_FINAL_OBJECT_INFO(BroadcastNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to BroadcastNode
+ * \sa BroadcastNode
+ */
+class Broadcast : public PrimExpr {
+ public:
+  TVM_DLL Broadcast(PrimExpr value, int lanes);
+  TVM_DEFINE_OBJECT_REF_METHODS(Broadcast, PrimExpr, BroadcastNode);
 };
 
 /*!
@@ -626,11 +845,8 @@ class LetNode : public PrimExprNode {
   }
 
   bool SEqualReduce(const LetNode* other, SEqualReducer equal) const {
-    return
-        equal(dtype, other->dtype) &&
-        equal.DefEqual(var, other->var) &&
-        equal(value, other->value) &&
-        equal(body, other->body);
+    return equal(dtype, other->dtype) && equal.DefEqual(var, other->var) &&
+           equal(value, other->value) && equal(body, other->body);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -640,45 +856,18 @@ class LetNode : public PrimExprNode {
     hash_reduce(body);
   }
 
-  TVM_DLL static PrimExpr make(Var var, PrimExpr value, PrimExpr body);
-
-  static constexpr const char* _type_key = "Let";
+  static constexpr const char* _type_key = "tir.Let";
   TVM_DECLARE_FINAL_OBJECT_INFO(LetNode, PrimExprNode);
 };
 
-// Call node, represent a function call or a multi-dimensional array load.
-//
-// TODO(tvm-team):
-// Refactor call with more explicit property registrations.
-// rather than calling a string symbol.
-// We should move most information into function itself and remove name.
-
-/*! \brief Base node of internal functions. */
-class FunctionBaseNode : public Object {
+/*!
+ * \brief Managed reference to LetNode
+ * \sa LetNode
+ */
+class Let : public PrimExpr {
  public:
-  /*! \brief virtual destructor */
-  virtual ~FunctionBaseNode() {}
-  /*! \return the name of the function */
-  virtual const std::string& func_name() const = 0;
-  /*! \return the number of outputs of this function */
-  virtual int num_outputs() const = 0;
-
-  // fall back to pointer equality now before refactor.
-  bool SEqualReduce(const FunctionBaseNode* other, SEqualReducer equal) const {
-    return this == other;
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-  }
-
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-};
-
-/*! \brief reference to a function */
-class FunctionRef : public ObjectRef {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(FunctionRef, ObjectRef, FunctionBaseNode);
+  TVM_DLL Let(Var var, PrimExpr value, PrimExpr body);
+  TVM_DEFINE_OBJECT_REF_METHODS(Let, PrimExpr, LetNode);
 };
 
 /*!
@@ -694,41 +883,28 @@ class CallNode : public PrimExprNode {
     ExternCPlusPlus = 1,
     /*! \brief Extern "C" without side-effect. */
     PureExtern = 2,
-    /*! \brief Halide-style call, evaluates func(args). */
-    Halide = 3,
     /*! \brief Intrinsic functions. */
     Intrinsic = 4,
     /*! \brief Intrinsic functions that are pure. */
     PureIntrinsic = 5
   };
   /*! \brief The name of the function/intrinsic. */
-  std::string name;
+  String name;
   /*! \brief The arguments. */
   Array<PrimExpr> args;
   /*! \brief Type of calls. */
   CallType call_type;
-  /*! \brief The function to be called. */
-  FunctionRef func;
-  /*! \brief The output value index if func's value is a tuple. */
-  int value_index{0};
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("name", &name);
     v->Visit("args", &args);
     v->Visit("call_type", &call_type);
-    v->Visit("func", &func);
-    v->Visit("value_index", &value_index);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
-    return
-        equal(dtype, other->dtype) &&
-        equal(name, other->name) &&
-        equal(args, other->args) &&
-        equal(call_type, other->call_type) &&
-        equal(func, other->func) &&
-        equal(value_index, other->value_index);
+    return equal(dtype, other->dtype) && equal(name, other->name) && equal(args, other->args) &&
+           equal(call_type, other->call_type);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -736,39 +912,23 @@ class CallNode : public PrimExprNode {
     hash_reduce(name);
     hash_reduce(args);
     hash_reduce(call_type);
-    hash_reduce(func);
-    hash_reduce(value_index);
   }
-
-  TVM_DLL static PrimExpr make(DataType dtype,
-                               std::string name,
-                               Array<PrimExpr> args,
-                               CallType call_type,
-                               FunctionRef func = FunctionRef(),
-                               int value_index = 0);
 
   /*! \return Whether call node is pure. */
-  bool is_pure() const {
-    return (call_type == PureExtern ||
-            call_type == PureIntrinsic ||
-            call_type == Halide);
-  }
+  bool is_pure() const { return (call_type == PureExtern || call_type == PureIntrinsic); }
 
   /*!
    * \return Whether call node corresponds to a defined intrinsic.
    * \param intrin_name The name of the intrinsic.
    */
   bool is_intrinsic(const char* intrin_name) const {
-    return
-        ((call_type == Intrinsic ||
-          call_type == PureIntrinsic) &&
-         name == intrin_name);
+    return ((call_type == Intrinsic || call_type == PureIntrinsic) && name == intrin_name);
   }
 
   /*! \return Whether call node can be vectorized. */
   bool is_vectorizable() const;
 
-  static constexpr const char* _type_key = "Call";
+  static constexpr const char* _type_key = "tir.Call";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, PrimExprNode);
 
   // Build-in intrinsics
@@ -781,7 +941,6 @@ class CallNode : public PrimExprNode {
   static constexpr const char* shift_right = "shift_right";
   static constexpr const char* popcount = "popcount";
   static constexpr const char* likely = "likely";
-  static constexpr const char* glsl_texture_store = "glsl_texture_store";
   static constexpr const char* prefetch = "prefetch";
   static constexpr const char* isnan = "isnan";
   static constexpr const char* isfinite = "isfinite";
@@ -789,6 +948,18 @@ class CallNode : public PrimExprNode {
 
   /*! \brief Vectorizable intrinsic list. */
   static const char* vectorizable_intrinsics[];
+};
+
+/*!
+ * \brief Managed reference to CallNode
+ * \sa CallNode
+ */
+class Call : public PrimExpr {
+ public:
+  using CallType = CallNode::CallType;
+
+  TVM_DLL Call(DataType dtype, String name, Array<PrimExpr> args, CallType call_type);
+  TVM_DEFINE_OBJECT_REF_METHODS(Call, PrimExpr, CallNode);
 };
 
 /*!
@@ -809,10 +980,8 @@ class ShuffleNode : public PrimExprNode {
   }
 
   bool SEqualReduce(const ShuffleNode* other, SEqualReducer equal) const {
-    return
-        equal(dtype, other->dtype) &&
-        equal(vectors, other->vectors) &&
-        equal(indices, other->indices);
+    return equal(dtype, other->dtype) && equal(vectors, other->vectors) &&
+           equal(indices, other->indices);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -821,35 +990,24 @@ class ShuffleNode : public PrimExprNode {
     hash_reduce(indices);
   }
 
-  TVM_DLL static PrimExpr make(Array<PrimExpr> vectors, Array<PrimExpr> indices);
-  TVM_DLL static PrimExpr make_concat(Array<PrimExpr> vectors);
-  TVM_DLL static PrimExpr make_extract_element(PrimExpr vector, int index);
-
-  static constexpr const char* _type_key = "Shuffle";
+  static constexpr const char* _type_key = "tir.Shuffle";
   TVM_DECLARE_FINAL_OBJECT_INFO(ShuffleNode, PrimExprNode);
 };
 
-// Reduce operator
-class CommReducerNode;
-
-class CommReducer : public ObjectRef {
+/*!
+ * \brief Managed reference to ShuffleNode
+ * \sa ShuffleNode
+ */
+class Shuffle : public PrimExpr {
  public:
-  CommReducer() {}
-  explicit CommReducer(ObjectPtr<Object> n) : ObjectRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const CommReducerNode* get() const;
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const CommReducerNode* operator->() const;
-  /*! \brief type indicate the container type */
-  using ContainerType = CommReducerNode;
+  TVM_DLL Shuffle(Array<PrimExpr> vectors, Array<PrimExpr> indices);
+  TVM_DLL static PrimExpr Concat(Array<PrimExpr> vectors);
+  TVM_DLL static PrimExpr ExtractElement(PrimExpr vector, int index);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Shuffle, PrimExpr, ShuffleNode);
 };
 
+// Reduce operator
 /*!
  * \brief A commutative reducer node to represent a commutative
  *  binary operator with identity element
@@ -870,11 +1028,6 @@ class CommReducerNode : public Object {
   Array<PrimExpr> identity_element;
   /*! \brief Function call operator to combine a and b */
   Array<PrimExpr> operator()(Array<PrimExpr> a, Array<PrimExpr> b) const;
-  /*! \brief construct CommReducer from args, result and identity_element */
-  TVM_DLL static CommReducer make(Array<Var> lhs,
-                                  Array<Var> rhs,
-                                  Array<PrimExpr> result,
-                                  Array<PrimExpr> identity_element);
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("lhs", &lhs);
@@ -884,11 +1037,8 @@ class CommReducerNode : public Object {
   }
 
   bool SEqualReduce(const CommReducerNode* other, SEqualReducer equal) const {
-    return
-        equal.DefEqual(lhs, other->lhs) &&
-        equal.DefEqual(rhs, other->rhs) &&
-        equal(result, other->result) &&
-        equal(identity_element, other->identity_element);
+    return equal.DefEqual(lhs, other->lhs) && equal.DefEqual(rhs, other->rhs) &&
+           equal(result, other->result) && equal(identity_element, other->identity_element);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -898,18 +1048,23 @@ class CommReducerNode : public Object {
     hash_reduce(identity_element);
   }
 
-  static constexpr const char* _type_key = "CommReducer";
+  static constexpr const char* _type_key = "tir.CommReducer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(CommReducerNode, Object);
 };
 
-inline const CommReducerNode* CommReducer::get() const {
-  return static_cast<const CommReducerNode*>(data_.get());
-}
-inline const CommReducerNode* CommReducer::operator->() const {
-  return get();
-}
+/*!
+ * \brief Managed reference to CommReducerNode
+ * \sa CommReducerNode
+ */
+class CommReducer : public ObjectRef {
+ public:
+  TVM_DLL CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
+                      Array<PrimExpr> identity_element);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(CommReducer, ObjectRef, CommReducerNode);
+};
 
 /*! \brief Reduction operator operator */
 class ReduceNode : public PrimExprNode {
@@ -928,13 +1083,6 @@ class ReduceNode : public PrimExprNode {
   /*! \brief the index of this reduce node */
   int value_index;
 
-  /*! \brief construct expr from op and rdom */
-  TVM_DLL static PrimExpr make(CommReducer combiner,
-                               Array<PrimExpr> src,
-                               Array<IterVar> rdom,
-                               PrimExpr condition,
-                               int value_index);
-
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("combiner", &combiner);
@@ -946,13 +1094,9 @@ class ReduceNode : public PrimExprNode {
 
   bool SEqualReduce(const ReduceNode* other, SEqualReducer equal) const {
     // check axis first so IterVars can define the necessary variables.
-    return
-        equal(dtype, other->dtype) &&
-        equal(axis, other->axis) &&
-        equal(combiner, other->combiner) &&
-        equal(source, other->source) &&
-        equal(condition, other->condition) &&
-        equal(value_index, other->value_index);
+    return equal(dtype, other->dtype) && equal(axis, other->axis) &&
+           equal(combiner, other->combiner) && equal(source, other->source) &&
+           equal(condition, other->condition) && equal(value_index, other->value_index);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -964,8 +1108,20 @@ class ReduceNode : public PrimExprNode {
     hash_reduce(value_index);
   }
 
-  static constexpr const char* _type_key = "Reduce";
+  static constexpr const char* _type_key = "tir.Reduce";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReduceNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to ReduceNode
+ * \sa ReduceNode
+ */
+class Reduce : public PrimExpr {
+ public:
+  TVM_DLL Reduce(CommReducer combiner, Array<PrimExpr> src, Array<IterVar> rdom, PrimExpr condition,
+                 int value_index);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Reduce, PrimExpr, ReduceNode);
 };
 
 /*! \brief Any shape. */
@@ -973,24 +1129,27 @@ class AnyNode : public PrimExprNode {
  public:
   void VisitAttrs(AttrVisitor* v) {}
 
-  bool SEqualReduce(const AnyNode* other, SEqualReducer equal) const {
-    return true;
-  }
+  bool SEqualReduce(const AnyNode* other, SEqualReducer equal) const { return true; }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-  }
+  void SHashReduce(SHashReducer hash_reduce) const {}
 
   /*! \brief Convert to var. */
-  Var ToVar() const {
-    return Var("any_dim", DataType::Int(32));
-  }
+  Var ToVar() const { return Var("any_dim", DataType::Int(32)); }
 
-  TVM_DLL static PrimExpr make();
-
-  static constexpr const char* _type_key = "Any";
+  static constexpr const char* _type_key = "tir.Any";
   TVM_DECLARE_FINAL_OBJECT_INFO(AnyNode, PrimExprNode);
 };
 
+/*!
+ * \brief Managed reference to AnyNode
+ * \sa AnyNode
+ */
+class Any : public PrimExpr {
+ public:
+  TVM_DLL Any();
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Any, PrimExpr, AnyNode);
+};
 
 /*
  * \brief Template function to convert Map to unordered_map
@@ -1000,7 +1159,7 @@ class AnyNode : public PrimExprNode {
  * \tparam K the key of the Map.
  * \tparam V the value of the Map.
  */
-template<typename K, typename V>
+template <typename K, typename V>
 inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
   std::unordered_map<K, V> ret;
   for (auto kv : dmap) {
@@ -1167,7 +1326,7 @@ constexpr const char* tvm_call_packed = "tvm_call_packed";
  *     return 0;
  *  }
  */
-constexpr const char *tvm_call_trace_packed = "tvm_call_trace_packed";
+constexpr const char* tvm_call_trace_packed = "tvm_call_trace_packed";
 /*!
  * \brief See pesudo code
  *  Mark the content as thread local context, can get optimized
@@ -1214,8 +1373,7 @@ constexpr const char* tvm_call_packed_lowered = "tvm_call_packed_lowered";
  *                   TVMRetValue(value_stack + end, tcode_stack + end));
  *  }
  */
-constexpr const char *tvm_call_trace_packed_lowered =
-    "tvm_call_trace_packed_lowered";
+constexpr const char* tvm_call_trace_packed_lowered = "tvm_call_trace_packed_lowered";
 /*!
  * \brief See pseudo code
  *
@@ -1225,14 +1383,43 @@ constexpr const char *tvm_call_trace_packed_lowered =
  *  }
  */
 constexpr const char* tvm_storage_sync = "tvm_storage_sync";
+
 /*!
  * \brief See pseudo code
  *
- *  Type tvm_warp_shuffle(Type value, warp_id) {
- *     return (value passed in by warp indicated by warp_id);
+ *  Type tvm_warp_shuffle(mask, Type value, warp_id, width, warp_size) {
+ *    return (value passed in by warp indicated by this_warp_id);
  *  }
+ *
+ *  Type tvm_warp_shuffle_up(mask, Type value, offset, width, warp_size) {
+ *    return (value passed in by warp indicated by this_warp_id - offset);
+ *  }
+ *
+ *  Type tvm_warp_shuffle_down(mask, Type value, offset, width, warp_size) {
+ *    return (value passed in by warp indicated by this_warp_id + offset);
+ *  }
+ *
+ *  unsigned tvm_warp_activemask() {
+ *    return (32-bit mask of currently active threads in the calling warp);
+ *  }
+ *
+ *  Parameter warp_id indicates the source thread ID in a warp.
+ *
+ *  Parameter offset indicates the relative distance to this_warp_id.
+ *
+ *  Parameter width indicates the number of threads involved in one
+ *  shuffle. See CUDA document for __shfl_sync, __shfl_up_sync,
+ *  __shfl_down_sync and __activemask.
+ *
+ *  Parameter warp_size is the size of a warp, which helps a backend
+ *  to determine wheter the width paramter is legal.
+ *
  */
 constexpr const char* tvm_warp_shuffle = "tvm_warp_shuffle";
+constexpr const char* tvm_warp_shuffle_up = "tvm_warp_shuffle_up";
+constexpr const char* tvm_warp_shuffle_down = "tvm_warp_shuffle_down";
+constexpr const char* tvm_warp_activemask = "tvm_warp_activemask";
+
 /*!
  * \brief Initialize the global barrier.
  *  Call this at beginning of kernel that need global barrier.
@@ -1330,7 +1517,7 @@ enum TVMStructFieldKind : int {
   kTVMValueContent,
   kTVMValueKindBound_
 };
-}   // namespace intrinsic
+}  // namespace intrinsic
 
 }  // namespace tir
 }  // namespace tvm
@@ -1339,7 +1526,7 @@ namespace tvm {
 namespace runtime {
 // Additional implementattion overloads for PackedFunc.
 
-template<>
+template <>
 struct PackedFuncValueConverter<tvm::Integer> {
   // common rule for RetValue and ArgValue
   static tvm::Integer From(const TVMPODValue_& val) {
@@ -1357,7 +1544,6 @@ struct PackedFuncValueConverter<tvm::Integer> {
 
 namespace std {
 template <>
-struct hash<::tvm::tir::IterVar> : public ::tvm::ObjectHash {
-};
-}
+struct hash<::tvm::tir::IterVar> : public ::tvm::ObjectPtrHash {};
+}  // namespace std
 #endif  // TVM_TIR_EXPR_H_

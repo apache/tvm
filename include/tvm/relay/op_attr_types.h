@@ -24,21 +24,22 @@
 #ifndef TVM_RELAY_OP_ATTR_TYPES_H_
 #define TVM_RELAY_OP_ATTR_TYPES_H_
 
-#include <tvm/te/tensor.h>
-#include <tvm/te/schedule.h>
-#include <tvm/relay/type.h>
 #include <tvm/relay/expr.h>
-#include <tvm/target/target.h>
+#include <tvm/relay/type.h>
 #include <tvm/target/generic_func.h>
+#include <tvm/target/target.h>
+#include <tvm/te/schedule.h>
+#include <tvm/te/tensor.h>
 #include <tvm/tir/data_layout.h>
+
 #include <string>
 
 namespace tvm {
 namespace relay {
 
+using tir::BijectiveLayoutNode;
 using tir::Layout;
 using tir::LayoutAxis;
-using tir::BijectiveLayoutNode;
 
 /*! \brief operator pattern used in graph fusion */
 enum OpPatternKind {
@@ -104,10 +105,8 @@ using TShapeDataDependant = bool;
  &                 these are always placeholders.
  * \return The output compute description of the operator.
  */
-using FTVMCompute = runtime::TypedPackedFunc<
-  Array<te::Tensor>(const Attrs& attrs,
-                    const Array<te::Tensor>& inputs,
-                    const Type& out_type)>;
+using FTVMCompute = runtime::TypedPackedFunc<Array<te::Tensor>(
+    const Attrs& attrs, const Array<te::Tensor>& inputs, const Type& out_type)>;
 
 /*!
  * \brief Build the computation schedule for
@@ -118,10 +117,8 @@ using FTVMCompute = runtime::TypedPackedFunc<
  * \param target The build target.
  * \return schedule The computation schedule.
  */
-using FTVMSchedule = runtime::TypedPackedFunc<
-  te::Schedule(const Attrs& attrs,
-               const Array<te::Tensor>& outs,
-               const Target& target)>;
+using FTVMSchedule = runtime::TypedPackedFunc<te::Schedule(
+    const Attrs& attrs, const Array<te::Tensor>& outs, const Target& target)>;
 
 /*!
  * \brief Generate the strategy of operators. This function is a generic
@@ -143,11 +140,9 @@ using FTVMStrategy = GenericFunc;
  *               and dtype of the inputs.
  * \return new_expr The modified expression.
  */
-using FTVMAlterOpLayout = runtime::TypedPackedFunc<
-  Expr(const Attrs& attrs,
-       const Array<Expr>& args,
-       const Array<te::Tensor>& tinfos,
-       const Type& out_type)>;
+using FTVMAlterOpLayout =
+    runtime::TypedPackedFunc<Expr(const Attrs& attrs, const Array<Expr>& args,
+                                  const Array<te::Tensor>& tinfos, const Type& out_type)>;
 
 /*!
  * \brief Convert the layout of operators or replace the
@@ -157,14 +152,14 @@ using FTVMAlterOpLayout = runtime::TypedPackedFunc<
  * \param inputs The input symbols of the original node.
  * \param tinfos An array of placeholders, use for getting the inferred shape
  *               and dtype of the inputs.
- * \param desired_layout The desired layout.
+ * \param desired_layouts Specify an array of desired layouts for each input.
+ *                        For example a conv2d op: Array("NHWC", "OHWI"), this
+ *                        specifies the desired layout for data then kernel.
  * \return new_expr The modified expression.
  */
-using FTVMConvertOpLayout = runtime::TypedPackedFunc<
-  Expr(const Attrs& attrs,
-       const Array<Expr>& args,
-       const Array<te::Tensor>& tinfos,
-       const std::string& desired_layout)>;
+using FTVMConvertOpLayout = runtime::TypedPackedFunc<Expr(
+    const Attrs& attrs, const Array<Expr>& args, const Array<te::Tensor>& tinfos,
+    const Array<String>& desired_layouts)>;
 /*!
  * \brief Legalizes an expression with another expression. This function will be
  *  invoked in Legalize pass. It is a target-dependent pass.
@@ -174,10 +169,8 @@ using FTVMConvertOpLayout = runtime::TypedPackedFunc<
  *               and dtype of the inputs.
  * \return new_expr The modified expression.
  */
-using FTVMLegalize = runtime::TypedPackedFunc<
-  Expr(const Attrs& attrs,
-       const Array<Expr>& args,
-       const Array<tvm::relay::Type>& arg_types)>;
+using FTVMLegalize = runtime::TypedPackedFunc<Expr(const Attrs& attrs, const Array<Expr>& args,
+                                                   const Array<tvm::relay::Type>& arg_types)>;
 
 /*!
  * \brief Annotates an expression to indicate if an op should be compiled using
@@ -189,9 +182,8 @@ using FTVMLegalize = runtime::TypedPackedFunc<
  * \return true if this op should be registered to invoke a specific compiler
  * for codegen, otherwise, false.
  */
-using FTVMAnnotateTarget = runtime::TypedPackedFunc<
-  bool(const Attrs& attrs,  // NOLINT(*)
-       const Array<Expr>& args)>;
+using FTVMAnnotateTarget = runtime::TypedPackedFunc<bool(const Attrs& attrs,  // NOLINT(*)
+                                                         const Array<Expr>& args)>;
 
 /*!
  * \brief Forward rewriting rule for a specific op.
@@ -207,10 +199,8 @@ using FTVMAnnotateTarget = runtime::TypedPackedFunc<
  * \note When we register the function, we can register
  *       a different signature with ctx to be a specific node type.
  */
-using FForwardRewrite = runtime::TypedPackedFunc<
-  Expr(const Call& ref_call,
-       const Array<Expr>& new_args,
-       const ObjectRef& ctx)>;
+using FForwardRewrite = runtime::TypedPackedFunc<Expr(
+    const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx)>;
 
 /*!
  * \brief Gradient for a specific op.
@@ -219,8 +209,8 @@ using FForwardRewrite = runtime::TypedPackedFunc<
  * \param output_grad the gradient of the Expr.
  * \return the gradient for each parameters.
  */
-using FPrimalGradient = runtime::TypedPackedFunc<tvm::Array<Expr>(const Expr& orig_call,
-                                                                  const Expr& output_grad)>;
+using FPrimalGradient =
+    runtime::TypedPackedFunc<tvm::Array<Expr>(const Expr& orig_call, const Expr& output_grad)>;
 
 /*!
  * \brief The codegeneration strategy for dynamic dimensions.
@@ -233,10 +223,8 @@ enum AnyCodegenStrategy {
 /*! \brief A runtime representation of shape. */
 using Shape = Array<IndexExpr>;
 
-using FShapeFunc = runtime::TypedPackedFunc<
-  Array<te::Tensor>(const Attrs& attrs,
-                    const Array<te::Tensor>& inputs,
-                    const Array<IndexExpr>& out_ndims)>;
+using FShapeFunc = runtime::TypedPackedFunc<Array<te::Tensor>(
+    const Attrs& attrs, const Array<te::Tensor>& inputs, const Array<IndexExpr>& out_ndims)>;
 
 }  // namespace relay
 }  // namespace tvm

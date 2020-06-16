@@ -21,10 +21,12 @@
  * \file system_library.cc
  * \brief Create library module that directly get symbol from the system lib.
  */
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/memory.h>
 #include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/memory.h>
+#include <tvm/runtime/registry.h>
+
 #include <mutex>
+
 #include "library_module.h"
 
 namespace tvm {
@@ -48,10 +50,8 @@ class SystemLibrary : public Library {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = tbl_.find(name);
     if (it != tbl_.end() && ptr != it->second) {
-      LOG(WARNING)
-          << "SystemLib symbol " << name
-          << " get overriden to a different address "
-          << ptr << "->" << it->second;
+      LOG(WARNING) << "SystemLib symbol " << name << " get overriden to a different address " << ptr
+                   << "->" << it->second;
     }
     tbl_[name] = ptr;
   }
@@ -68,11 +68,9 @@ class SystemLibrary : public Library {
   std::unordered_map<std::string, void*> tbl_;
 };
 
-TVM_REGISTER_GLOBAL("runtime.SystemLib")
-.set_body_typed([]() {
-    static auto mod = CreateModuleFromLibrary(
-        SystemLibrary::Global());
-    return mod;
+TVM_REGISTER_GLOBAL("runtime.SystemLib").set_body_typed([]() {
+  static auto mod = CreateModuleFromLibrary(SystemLibrary::Global());
+  return mod;
 });
 }  // namespace runtime
 }  // namespace tvm

@@ -19,8 +19,8 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/memory.h>
+#include <tvm/runtime/object.h>
 
 namespace tvm {
 namespace test {
@@ -47,6 +47,7 @@ class ObjA : public ObjBase {
 class ObjB : public ObjBase {
  public:
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const uint32_t _type_child_slots = 0;
   static constexpr const char* _type_key = "test.ObjB";
   TVM_DECLARE_BASE_OBJECT_INFO(ObjB, ObjBase);
 };
@@ -57,7 +58,6 @@ class ObjAA : public ObjA {
   static constexpr const char* _type_key = "test.ObjAA";
   TVM_DECLARE_FINAL_OBJECT_INFO(ObjAA, ObjA);
 };
-
 
 TVM_REGISTER_OBJECT_TYPE(ObjBase);
 TVM_REGISTER_OBJECT_TYPE(ObjA);
@@ -96,7 +96,7 @@ TEST(ObjectHierachy, Basic) {
   CHECK(refB.as<ObjB>() != nullptr);
 }
 
-int main(int argc, char ** argv) {
+int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
   return RUN_ALL_TESTS();

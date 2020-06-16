@@ -34,15 +34,15 @@ def test_thread_storage_sync():
     bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
-    A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name='A2')
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
+
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A2], stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod._move())
 
     cuda_target = tvm.target.create("cuda")
 
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([Ab, A2b], stmt).with_attr({
-            "global_symbol": "test", "target": cuda_target}))
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr({
+            "global_symbol": "test", "target": cuda_target}))(mod._move())
 
     fdevice = tvm.tir.transform.SplitHostDevice()(mod)["test_kernel0"]
     mod = tvm.IRModule.from_expr(fdevice)

@@ -19,17 +19,16 @@
 import warnings
 import topi
 import tvm._ffi
-
+from tvm.relay.op import op as _reg
 from .. import expr as _expr
 from .. import analysis as _analysis
 from .. import op as _op
-from ..op import op as _reg
 from . import _quantize
 from .quantize import QAnnotateKind, current_qconfig, quantize_context
 from .quantize import _forward_op
 
 
-@_reg.register_compute("relay.op.annotation.simulated_quantize")
+@_op.register_compute("relay.op.annotation.simulated_quantize")
 def simulated_quantize_compute(attrs, inputs, out_type):
     """Compiler for simulated_quantize."""
     assert len(inputs) == 4
@@ -106,8 +105,8 @@ def register_annotate_function(op_name, frewrite=None, level=10):
             if not current_qconfig().guard(ref_call):
                 return default_rewrite(ref_call, new_args, ctx)
             return func(ref_call, new_args, ctx)
-        _reg._Register(op_name, "FQAnnotateRewrite", frewrite_with_guard, level)
-        return frewrite_with_guard
+
+        return tvm.ir.register_op_attr(op_name, "FQAnnotateRewrite", frewrite_with_guard, level)
 
     return _register(frewrite) if frewrite is not None else _register
 
@@ -174,11 +173,14 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
-# TODO(tmoreau89,ziheng) need to include an option to turn off dense quant
-# @register_annotate_function("nn.dense")
+@register_annotate_function("nn.dense")
 def dense_rewrite(ref_call, new_args, ctx):
     """Rewrite function for dense. Lhs of dense will be quantized to input field, and rhs of
     dense will be quantized to weight field. Output would be in activation field."""
+
+    if current_qconfig().skip_dense_layer:
+        return None
+
     if quantize_context().check_to_skip(ref_call):
         return None
 

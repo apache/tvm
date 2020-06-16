@@ -69,14 +69,15 @@ def dp4a(x_scope='local', y_scope='local', z_scope='local'):
 
         return _instr(0), _instr(1), _instr(2) # body, reset, update
 
-    with tvm.target.build_config(data_alignment=4, offset_factor=1) as cfg:
-        scopes = {x: x_scope, y: y_scope, z: z_scope}
-        binds = {t: tvm.tir.decl_buffer(t.shape, t.dtype, t.op.name,
-                                        data_alignment=cfg.data_alignment,
-                                        offset_factor=cfg.offset_factor,
-                                        scope=scopes[t]) for t in [x, y, z]}
+    default_buffer_params = {
+        "data_alignment": 4, "offset_factor": 1
+    }
+    scopes = {x: x_scope, y: y_scope, z: z_scope}
+    binds = {t: tvm.tir.decl_buffer(t.shape, t.dtype, t.op.name,
+                                    scope=scopes[t], **default_buffer_params) for t in [x, y, z]}
 
-        return te.decl_tensor_intrin(z.op, _intrin_func, binds=binds)
+    return te.decl_tensor_intrin(
+        z.op, _intrin_func, binds=binds, default_buffer_params=default_buffer_params)
 
 
 def intrin_wmma_load_matrix_A(strides_dst, strides_from, shape, layout, A_shape, C_shape, in_dtype):

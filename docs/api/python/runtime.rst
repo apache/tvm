@@ -23,28 +23,3 @@ tvm.runtime
    :imported-members:
    :exclude-members: NDArray
    :autosummary:
-
-
-.. autoclass:: tvm.runtime.PackedFunc
-   :members:
-   :inherited-members:
-
-.. autofunction:: tvm.register_func
-
-.. autofunction:: tvm.get_global_func
-
-
-.. autoclass:: tvm.runtime.Module
-   :members:
-
-.. autofunction:: tvm.runtime.load_module
-
-.. autofunction:: tvm.runtime.system_lib
-
-.. autofunction:: tvm.runtime.enabled
-
-
-.. autoclass:: tvm.runtime.Object
-   :members:
-
-.. autofunction:: tvm.register_object

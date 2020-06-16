@@ -189,6 +189,9 @@ class TransposeAttrs(Attrs):
 class ReshapeAttrs(Attrs):
     """Attributes for transform.reshape"""
 
+@tvm._ffi.register_object("relay.attrs.GatherAttrs")
+class GatherAttrs(Attrs):
+    """Attributes for transform.gather"""
 
 @tvm._ffi.register_object("relay.attrs.TakeAttrs")
 class TakeAttrs(Attrs):
@@ -349,7 +352,20 @@ class BinaryDenseAttrs(Attrs):
 class Conv2DTransposeAttrs(Attrs):
     """Attributes used in Transposed Conv2D operators"""
 
+@tvm._ffi.register_object("relay.attrs.Conv3DTransposeAttrs")
+class Conv3DTransposeAttrs(Attrs):
+    """Attributes used in Transposed Conv3D operators"""
+
+@tvm._ffi.register_object("relay.attrs.DilateAttrs")
+class DilateAttrs(Attrs):
+    """Attributes used in dilate operators"""
+
 
 @tvm._ffi.register_object("relay.attrs.SubPixelAttrs")
 class SubPixelAttrs(Attrs):
     """Attributes used in depth to space and space to depth operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.CorrelationAttrs")
+class CorrelationAttrs(Attrs):
+    """Attributes used in correlation operators"""

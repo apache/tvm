@@ -25,14 +25,15 @@
 #ifndef TVM_RELAY_QNN_UTIL_H_
 #define TVM_RELAY_QNN_UTIL_H_
 
-#include <tvm/tir/expr.h>
-#include <tvm/tir/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/qnn/attrs.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
+
 #include <limits>
 #include <string>
-#include <vector>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace relay {
@@ -46,8 +47,7 @@ static inline Array<IndexExpr> get_shape(const Type& type) {
 }
 
 static inline int32_t GetQmin(const DataType& dtype) {
-  CHECK_LE(dtype.bits(), 32)
-      << "QNN ops support int32 or lower precision";
+  CHECK_LE(dtype.bits(), 32) << "QNN ops support int32 or lower precision";
   if (dtype.is_int() || dtype.is_uint()) {
     auto* min_value = tir::as_const_int(tvm::min_value(dtype));
     CHECK(min_value != nullptr);
@@ -59,8 +59,7 @@ static inline int32_t GetQmin(const DataType& dtype) {
 }
 
 static inline int32_t GetQmax(const DataType& dtype) {
-  CHECK_LE(dtype.bits(), 32)
-      << "QNN ops support int32 or lower precision";
+  CHECK_LE(dtype.bits(), 32) << "QNN ops support int32 or lower precision";
   if (dtype.is_int() || dtype.is_uint()) {
     auto* max_value = tir::as_const_int(tvm::max_value(dtype));
     CHECK(max_value != nullptr);
@@ -171,8 +170,7 @@ static inline void AssignType(const Type& expr_type, const DataType& dtype, cons
                               const TypeReporter& reporter) {
   // Scale/Zero_points can be either const scalar or a vector with C axis num elems.
   const auto* tensor_type = expr_type.as<TensorTypeNode>();
-  CHECK(tensor_type) << "Can assign type to Tensor type only. But got "
-                     << AsText(expr_type, false);
+  CHECK(tensor_type) << "Can assign type to Tensor type only. But got " << AsText(expr_type, false);
   const auto tensor_dtype = tensor_type->dtype;
   CHECK(tensor_dtype == dtype) << "Expected type is " << dtype << " but received " << tensor_dtype;
   if (tensor_type->shape.size() != 0) {

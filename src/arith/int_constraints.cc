@@ -22,19 +22,18 @@
  * \brief The integer constraints data structures.
  */
 #include <tvm/arith/int_solver.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
-#include <tvm/runtime/registry.h>
 
-#include <utility>
 #include <algorithm>
 #include <unordered_map>
+#include <utility>
 
 namespace tvm {
 namespace arith {
 
-IntConstraints::IntConstraints(Array<Var> variables,
-                               Map<Var, Range> ranges,
+IntConstraints::IntConstraints(Array<Var> variables, Map<Var, Range> ranges,
                                Array<PrimExpr> relations) {
   ObjectPtr<IntConstraintsNode> node = make_object<IntConstraintsNode>();
   if (!variables.defined()) {
@@ -46,7 +45,7 @@ IntConstraints::IntConstraints(Array<Var> variables,
   CHECK(relations.defined());
   for (const auto& var : variables) {
     CHECK(var.dtype().is_int() || var.dtype().is_uint())
-      << "Variables in IntConstraints must be integers";
+        << "Variables in IntConstraints must be integers";
   }
   node->variables = std::move(variables);
   node->ranges = std::move(ranges);
@@ -57,18 +56,13 @@ IntConstraints::IntConstraints(Array<Var> variables,
 TVM_REGISTER_NODE_TYPE(IntConstraintsNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<IntConstraintsNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const IntConstraintsNode*>(node.get());
-    p->stream << "IntConstraints("
-              << op->variables
-              << ", " << op->ranges
-              << ", " << op->relations
-              << ")";
-  });
+    .set_dispatch<IntConstraintsNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const IntConstraintsNode*>(node.get());
+      p->stream << "IntConstraints(" << op->variables << ", " << op->ranges << ", " << op->relations
+                << ")";
+    });
 
-
-IntConstraintsTransform::IntConstraintsTransform(IntConstraints src,
-                                                 IntConstraints dst,
+IntConstraintsTransform::IntConstraintsTransform(IntConstraints src, IntConstraints dst,
                                                  Map<Var, PrimExpr> src_to_dst,
                                                  Map<Var, PrimExpr> dst_to_src) {
   ObjectPtr<IntConstraintsTransformNode> node = make_object<IntConstraintsTransformNode>();
@@ -82,15 +76,12 @@ IntConstraintsTransform::IntConstraintsTransform(IntConstraints src,
 TVM_REGISTER_NODE_TYPE(IntConstraintsTransformNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<IntConstraintsTransformNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const IntConstraintsTransformNode*>(node.get());
-    p->stream << "IntConstraintsTransform("
-              << "\n\t" << op->src
-              << "\n\t" << op->dst
-              << "\n\t" << op->src_to_dst
-              << "\n\t" << op->dst_to_src
-              << "\n)";
-  });
+    .set_dispatch<IntConstraintsTransformNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const IntConstraintsTransformNode*>(node.get());
+      p->stream << "IntConstraintsTransform("
+                << "\n\t" << op->src << "\n\t" << op->dst << "\n\t" << op->src_to_dst << "\n\t"
+                << op->dst_to_src << "\n)";
+    });
 
 }  // namespace arith
 }  // namespace tvm

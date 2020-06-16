@@ -402,6 +402,35 @@ def verify_strided_set(in_shape, v_shape, begin, end, strides=None):
     for device in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
 
+def verify_gather(data, axis, indices):
+    data = np.asarray(data)
+    indices = np.asarray(indices)
+
+    var_data = te.placeholder(shape=data.shape, dtype=data.dtype.name, name="data")
+    var_indices = te.placeholder(shape=indices.shape, dtype=indices.dtype.name, name="indices")
+    out_tensor = topi.gather(var_data, axis, var_indices)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.testing.get_injective_schedule(device)(out_tensor)
+
+        func = tvm.build(s, [var_data, var_indices, out_tensor] , device, name="gather")
+        out_npys = topi.testing.gather_python(data, axis, indices)
+
+        data_nd = tvm.nd.array(data, ctx)
+        indices_nd = tvm.nd.array(indices, ctx)
+        out_nd = tvm.nd.empty(out_npys.shape, ctx=ctx, dtype=data.dtype.name)
+        func(data_nd, indices_nd, out_nd)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npys)
+
+    for device in get_all_backend():
+        check_device(device)
+
 def verify_gather_nd(src_shape, indices_src, indices_dtype):
     src_dtype = "float32"
     indices_src = np.array(indices_src, dtype=indices_dtype)
@@ -595,6 +624,47 @@ def verify_unravel_index(indices, shape, dtype):
     for device in get_all_backend():
         check_device(device)
 
+def verify_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape, xpected):
+    sparse_indices_data = np.array(sparse_indices)
+    sparse_values_data = np.array(sparse_values)
+    output_shape_data = np.array(output_shape)
+    default_value_data = np.array(default_value)
+
+    A = te.placeholder(shape=sparse_indices_data.shape, name="sparse_indices", dtype=str(sparse_indices_data.dtype))
+    B = te.placeholder(shape=sparse_values_data.shape, name="sparse_values", dtype=str(sparse_values_data.dtype))
+    if default_value is None:
+        args = [A, B]
+        D = topi.sparse_to_dense(A, output_shape, B)
+    else:
+        C = te.placeholder(shape=(), name="default_value", dtype=str(default_value_data.dtype))
+        args = [A, B, C]
+        D = topi.sparse_to_dense(A, output_shape, B, C)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.testing.get_injective_schedule(device)(D)
+
+        foo = tvm.build(s, args + [D], device, name="sparse_to_dense")
+
+        sparse_indices_nd = tvm.nd.array(sparse_indices_data, ctx)
+        sparse_values_nd = tvm.nd.array(sparse_values_data, ctx)
+        out_nd = tvm.nd.empty(output_shape_data, ctx=ctx, dtype=B.dtype)
+
+        if default_value is None:
+            foo(sparse_indices_nd, sparse_values_nd, out_nd)
+        else:
+            default_value_nd = tvm.nd.array(default_value_data, ctx)
+            foo(sparse_indices_nd, sparse_values_nd, default_value_nd, out_nd)
+
+        tvm.testing.assert_allclose(out_nd.asnumpy(), np.array(xpected))
+
+    for device in get_all_backend():
+        check_device(device)
 
 def test_strided_slice():
     verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
@@ -731,6 +801,15 @@ def test_take():
     verify_take((3,3,3), [[11,25]], mode="fast")
     verify_take((3,4), [0, 2], axis=0, mode="fast")
     verify_take((3,4), [0, 2], axis=1, mode="fast")
+
+def test_gather():
+    verify_gather([[1, 2], [3, 4]], 1, [[0, 0], [1, 0]])
+    verify_gather(np.random.randn(4, 7, 5), 0, np.random.randint(low=0, high=4, size=(1, 7, 5)))
+    verify_gather(np.random.randn(4, 7, 5), 0, np.random.randint(low=0, high=4, size=(4, 7, 5)))
+    verify_gather(np.random.randn(4, 7, 5), 1, np.random.randint(low=0, high=7, size=(4, 10, 5)))
+    verify_gather(np.random.randn(4, 7, 5), 1, np.random.randint(low=0, high=7, size=(4, 10, 5)))
+    verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 2)))
+    verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 10)))
 
 def test_gather_nd():
     for indices_dtype in ['int32', 'float32']:
@@ -924,6 +1003,27 @@ def test_unravel_index():
         verify_unravel_index(144, [5, 5, 5, 2], dtype)
         verify_unravel_index([100, 13, 5], [5, 5, 5, 2], dtype)
 
+def test_sparse_to_dense():
+    verify_sparse_to_dense(1, 3, 0, [5], [0, 3, 0, 0, 0]) #scalar
+    verify_sparse_to_dense([0, 1, 4], [3, 3, 3], 0, [5], [3, 3, 0, 0, 3]) #vector
+    verify_sparse_to_dense([[0, 0], [1, 2]], [1, 2], 0, [3, 4], [[1, 0, 0, 0],[0, 0, 2, 0],[0, 0, 0, 0]]) #nXd
+    verify_sparse_to_dense(
+        [[0, 0, 0], [1, 2, 3]],
+        [1, 2],
+        4,
+        [2, 3, 4],
+        [[[1, 4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 4]],  [[4, 4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 2]]]
+    ) #nXd
+    verify_sparse_to_dense([0, 1, 4], [3.1, 3.1, 3.1], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])  #floats
+    verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])  # default value not specified
+
+    #negative test cases
+    #sparse indices should be ints
+    #verify_sparse_to_dense([[0.1, 1.1, 4.1], [0,2,4]], [3.1, 3.1, 3.1], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
+    #sparse_values should be 0d or 1d only
+    #verify_sparse_to_dense([[0, 1, 4], [0, 2, 4]], [[[3.1, 3.1, 3.1]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
+    #sparse_indices should not be > 2d tensor
+    #verify_sparse_to_dense([[[[0, 1, 4], [0, 2, 4]]]], [[[3.1, 3.1, 3.1]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
 
 if __name__ == "__main__":
     test_strided_slice()
@@ -949,3 +1049,4 @@ if __name__ == "__main__":
     test_where_fusion()
     test_one_hot()
     test_unravel_index()
+    test_sparse_to_dense()

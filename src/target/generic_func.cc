@@ -20,14 +20,12 @@
  * \file src/target/generic_func.cc
  */
 #include <dmlc/thread_local.h>
-
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/container.h>
 #include <tvm/node/node.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/target/target.h>
-#include <tvm/target/generic_func.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/target/generic_func.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 
 #include <algorithm>
@@ -43,8 +41,7 @@ struct GenericFunc::Manager {
   // mutex
   std::mutex mutex;
 
-  Manager() {
-  }
+  Manager() {}
 
   static Manager* Global() {
     static Manager inst;
@@ -76,25 +73,23 @@ void GenericFunc::RegisterGenericFunc(GenericFunc func, const std::string& name)
   m->fmap[name] = func;
 }
 
-GenericFunc& GenericFunc::set_default(const PackedFunc value,
-                                      bool allow_override) {
+GenericFunc& GenericFunc::set_default(const PackedFunc value, bool allow_override) {
   auto node = static_cast<GenericFuncNode*>(operator->());
   if (!allow_override) {
     CHECK(node->generic_func_ == nullptr)
-      << "Generic function already registered for " << node->name_;
+        << "Generic function already registered for " << node->name_;
   }
   node->generic_func_ = value;
   return *this;
 }
 
 GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
-                                        const PackedFunc value,
-                                        bool allow_override) {
-  for (auto &t : tags) {
+                                        const PackedFunc value, bool allow_override) {
+  for (auto& t : tags) {
     if (!allow_override) {
       auto iter = (*this)->dispatch_dict_.find(t);
       CHECK(iter == (*this)->dispatch_dict_.end())
-        << "Tag " << t << " already registered for schedule factory " << (*this)->name_;
+          << "Tag " << t << " already registered for schedule factory " << (*this)->name_;
     }
     (*this)->dispatch_dict_[t] = value;
   }
@@ -107,7 +102,7 @@ void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   PackedFunc func;
 
   if (target.defined()) {
-    for (auto &k : target->keys()) {
+    for (auto& k : target->keys()) {
       auto iter = node->dispatch_dict_.find(k);
       if (iter != node->dispatch_dict_.end()) {
         func = iter->second;
@@ -124,30 +119,25 @@ void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   func.CallPacked(args, ret);
 }
 
-TVM_REGISTER_GLOBAL("target.GenericFuncCreate")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("target.GenericFuncCreate").set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = GenericFunc(make_object<GenericFuncNode>());
-  });
+});
 
-TVM_REGISTER_GLOBAL("target.GenericFuncGetGlobal")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("target.GenericFuncGetGlobal").set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string func_name = args[0];
   *ret = GenericFunc::Get(func_name);
-  });
+});
 
-TVM_REGISTER_GLOBAL("target.GenericFuncSetDefault")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("target.GenericFuncSetDefault").set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
   PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
   bool allow_override = args[2];
 
-  generic_func
-    .set_default(*func, allow_override);
-  });
+  generic_func.set_default(*func, allow_override);
+});
 
-TVM_REGISTER_GLOBAL("target.GenericFuncRegisterFunc")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("target.GenericFuncRegisterFunc").set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
   PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
@@ -159,17 +149,14 @@ TVM_REGISTER_GLOBAL("target.GenericFuncRegisterFunc")
     tags_vector.push_back(tag);
   }
 
-  generic_func
-    .register_func(tags_vector, *func, allow_override);
-  });
+  generic_func.register_func(tags_vector, *func, allow_override);
+});
 
-TVM_REGISTER_GLOBAL("target.GenericFuncCallFunc")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("target.GenericFuncCallFunc").set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   TVMArgs func_args(&args.values[1], &args.type_codes[1], args.num_args - 1);
 
-  generic_func
-    .CallPacked(func_args, ret);
-  });
+  generic_func.CallPacked(func_args, ret);
+});
 
 }  // namespace tvm

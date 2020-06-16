@@ -34,23 +34,18 @@ namespace tir {
 
 class IRVisitorWithAnalyzer final : public StmtExprVisitor {
  public:
-  PrimExpr Simplify(const PrimExpr& expr) {
-    return analyzer_.Simplify(expr);
-  }
+  PrimExpr Simplify(const PrimExpr& expr) { return analyzer_.Simplify(expr); }
 
   void VisitStmt_(const ForNode* op) {
-    analyzer_.Bind(op->loop_var,
-                   Range::make_by_min_extent(op->min, op->extent));
+    analyzer_.Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
     return StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitStmt_(const AttrStmtNode* op) {
-    if (op->attr_key == attr::thread_extent ||
-        op->attr_key == attr::virtual_thread) {
+    if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
-      analyzer_.Bind(iv->var,
-                      Range::make_by_min_extent(0, op->value));
+      analyzer_.Bind(iv->var, Range::make_by_min_extent(0, op->value));
       StmtExprVisitor::VisitStmt_(op);
     } else {
       StmtExprVisitor::VisitStmt_(op);

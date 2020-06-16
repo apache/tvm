@@ -22,13 +22,14 @@
  * \brief Split device function from host.
  */
 #include <tvm/ir/transform.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/transform.h>
-#include <tvm/tir/ir_pass.h>
-#include <tvm/tir/stmt_functor.h>
-#include <tvm/target/target.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/container.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/target/target.h>
+#include <tvm/tir/analysis.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
 
 #include <unordered_map>
 
@@ -58,7 +59,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
       if (value.same_as(op->value) && body.same_as(op->body)) {
         return GetRef<Stmt>(op);
       }
-      return AttrStmtNode::make(op->node, op->attr_key, value, body);
+      return AttrStmt(op->node, op->attr_key, value, body);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -68,16 +69,14 @@ class VarUseDefAnalysis : public StmtExprMutator {
     this->HandleDef(op->var.get());
     Stmt body = this->VisitStmt(op->body);
     // eliminate unreferenced let
-    if (use_count_.at(op->var.get()) == 0 &&
-        !HasSideEffect(op->value)) {
+    if (use_count_.at(op->var.get()) == 0 && !HasSideEffect(op->value)) {
       return body;
     } else {
       PrimExpr value = this->VisitExpr(op->value);
-      if (body.same_as(op->body) &&
-          value.same_as(op->value)) {
+      if (body.same_as(op->body) && value.same_as(op->value)) {
         return GetRef<Stmt>(op);
       } else {
-        return LetStmtNode::make(op->var, value, body);
+        return LetStmt(op->var, value, body);
       }
     }
   }
@@ -101,16 +100,14 @@ class VarUseDefAnalysis : public StmtExprMutator {
     this->HandleDef(op->var.get());
     PrimExpr body = this->VisitExpr(op->body);
     // eliminate unreferenced let
-    if (use_count_.at(op->var.get()) == 0 &&
-        !HasSideEffect(op->value)) {
+    if (use_count_.at(op->var.get()) == 0 && !HasSideEffect(op->value)) {
       return body;
     } else {
       PrimExpr value = this->VisitExpr(op->value);
-      if (body.same_as(op->body) &&
-          value.same_as(op->value)) {
+      if (body.same_as(op->body) && value.same_as(op->value)) {
         return GetRef<PrimExpr>(op);
       } else {
-        return LetNode::make(op->var, value, body);
+        return Let(op->var, value, body);
       }
     }
   }
@@ -126,12 +123,10 @@ class VarUseDefAnalysis : public StmtExprMutator {
   }
 
   void HandleDef(const VarNode* v) {
-    CHECK(!def_count_.count(v))
-        << "variable " << v->name_hint
-        << " has already been defined, the Stmt is not SSA";
-    CHECK(!use_count_.count(v))
-        << "variable " << v->name_hint
-        << " has been used before definition!";
+    CHECK(!def_count_.count(v)) << "variable " << v->name_hint
+                                << " has already been defined, the Stmt is not SSA";
+    CHECK(!use_count_.count(v)) << "variable " << v->name_hint
+                                << " has been used before definition!";
     use_count_[v] = 0;
     def_count_[v] = 1;
   }
@@ -160,7 +155,6 @@ class VarUseDefAnalysis : public StmtExprMutator {
   std::unordered_map<const VarNode*, int> def_count_;
 };
 
-
 Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
   VarUseDefAnalysis m;
   for (Var arg : args) {
@@ -170,16 +164,10 @@ Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
   return m.undefined_;
 }
 
-
 class HostDeviceSplitter : public StmtMutator {
  public:
-  explicit HostDeviceSplitter(IRModule* device_mod,
-                              Target device_target,
-                              std::string name_prefix)
-      : device_mod_(device_mod),
-        device_target_(device_target),
-        name_prefix_(name_prefix) {
-  }
+  explicit HostDeviceSplitter(IRModule* device_mod, Target device_target, std::string name_prefix)
+      : device_mod_(device_mod), device_target_(device_target), name_prefix_(name_prefix) {}
 
   Stmt VisitStmt_(const AllocateNode* op) final {
     handle_data_type_[op->buffer_var.get()] = make_const(op->dtype, 0);
@@ -187,8 +175,7 @@ class HostDeviceSplitter : public StmtMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent ||
-        op->attr_key == attr::pipeline_exec_scope ||
+    if (op->attr_key == attr::thread_extent || op->attr_key == attr::pipeline_exec_scope ||
         op->attr_key == attr::device_scope) {
       return SplitDeviceFunc(GetRef<Stmt>(op));
     }
@@ -215,8 +202,7 @@ class HostDeviceSplitter : public StmtMutator {
         // Create a new version of v.
         auto it = handle_data_type_.find(var.get());
         if (it != handle_data_type_.end()) {
-          tir::Var new_var(var->name_hint,
-                           PointerType(PrimType((*it).second->dtype)));
+          tir::Var new_var(var->name_hint, PointerType(PrimType((*it).second->dtype)));
           params.push_back(new_var);
           remap_vars.Set(var, new_var);
         } else {
@@ -236,24 +222,23 @@ class HostDeviceSplitter : public StmtMutator {
     device_func = WithAttr(std::move(device_func), tir::attr::kDeviceThreadAxis, m.thread_axis_);
     device_func = WithAttr(std::move(device_func), tvm::attr::kCallingConv,
                            Integer(CallingConv::kDeviceKernelLaunch));
-    device_func = WithAttr(std::move(device_func), tvm::attr::kGlobalSymbol,
-                           runtime::String(kernel_symbol));
+    device_func =
+        WithAttr(std::move(device_func), tvm::attr::kGlobalSymbol, runtime::String(kernel_symbol));
     device_func = WithAttr(std::move(device_func), tir::attr::kNoAlias, Integer(1));
     device_func = WithAttr(std::move(device_func), tvm::attr::kTarget, device_target_);
     (*device_mod_)->Add(GlobalVar(kernel_symbol), device_func);
 
     // generate calls to the device function
     Array<PrimExpr> call_args;
-    call_args.push_back(StringImmNode::make(kernel_symbol));
+    call_args.push_back(StringImm(kernel_symbol));
     for (PrimExpr arg : arguments) {
       call_args.push_back(arg);
     }
     for (PrimExpr ext : m.thread_extent_) {
       call_args.push_back(ext);
     }
-    return EvaluateNode::make(CallNode::make(
-        DataType::Int(32), intrinsic::tvm_call_packed,
-        call_args, CallNode::Intrinsic));
+    return Evaluate(
+        Call(DataType::Int(32), intrinsic::tvm_call_packed, call_args, CallNode::Intrinsic));
   }
 
   // target ir module
@@ -267,19 +252,15 @@ class HostDeviceSplitter : public StmtMutator {
   std::unordered_map<const VarNode*, PrimExpr> handle_data_type_;
 };
 
-
 PrimFunc SplitHostDevice(PrimFunc&& func, IRModule* device_mod) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
-  CHECK(target.defined())
-      << "SplitHostDevice: Require the target attribute";
+  CHECK(target.defined()) << "SplitHostDevice: Require the target attribute";
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "SplitHostDevice: Expect PrimFunc to have the global_symbol attribute";
 
-  HostDeviceSplitter splitter(
-      device_mod,
-      target.value(),
-      static_cast<std::string>(global_symbol.value()));
+  HostDeviceSplitter splitter(device_mod, target.value(),
+                              static_cast<std::string>(global_symbol.value()));
 
   auto* n = func.CopyOnWrite();
   n->body = splitter(std::move(n->body));
@@ -288,14 +269,13 @@ PrimFunc SplitHostDevice(PrimFunc&& func, IRModule* device_mod) {
   return std::move(func);
 }
 
-
 namespace transform {
 
 Pass SplitHostDevice() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
     IRModuleNode* mod_ptr = mod.CopyOnWrite();
     auto* func_dict = mod_ptr->functions.CopyOnWrite();
-    IRModule device_mod = IRModule::Empty();
+    IRModule device_mod = IRModule();
 
     for (auto& kv : func_dict->data) {
       if (kv.second->IsInstance<PrimFuncNode>()) {
@@ -307,12 +287,10 @@ Pass SplitHostDevice() {
     return mod;
   };
 
-  return tvm::transform::CreateModulePass(
-      pass_func, 0, "tir.SplitHostDevice", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tir.SplitHostDevice", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.SplitHostDevice")
-.set_body_typed(SplitHostDevice);
+TVM_REGISTER_GLOBAL("tir.transform.SplitHostDevice").set_body_typed(SplitHostDevice);
 
 }  // namespace transform
 }  // namespace tir

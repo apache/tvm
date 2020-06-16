@@ -18,7 +18,6 @@
  */
 
 use std::{
-    env,
     os::raw::{c_int, c_void},
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -26,6 +25,9 @@ use std::{
     },
     thread::{self, JoinHandle},
 };
+
+#[cfg(not(target_arch = "wasm32"))]
+use std::env;
 
 use crossbeam::channel::{bounded, Receiver, Sender};
 use tvm_common::ffi::TVMParallelGroupEnv;
@@ -147,7 +149,10 @@ impl ThreadPool {
 
     fn run_worker(queue: Receiver<Task>) {
         loop {
-            let task = queue.recv().expect("should recv");
+            let task = match queue.recv() {
+                Ok(v) => v,
+                Err(_) => break,
+            };
             let result = task.run();
             if result == <i32>::min_value() {
                 break;

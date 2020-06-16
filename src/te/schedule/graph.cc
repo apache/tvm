@@ -21,40 +21,32 @@
  * \file graph.cc
  * \brief Utilities to get information about schedule graph.
  */
+#include "graph.h"
+
 #include <tvm/runtime/registry.h>
+#include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/te/operation.h>
-#include <utility>
-#include <unordered_set>
+
 #include <unordered_map>
-#include "graph.h"
+#include <unordered_set>
+#include <utility>
 
 namespace tvm {
 namespace te {
 // key to specific tensor dimension.
 struct TensorDimKey {
-  tir::FunctionRef f;
+  Operation op;
   int value_index;
   int dim;
   TensorDimKey() {}
-  TensorDimKey(const tir::CallNode* op, int dim)
-      : f(op->func), value_index(op->value_index), dim(dim) {
-  }
-  TensorDimKey(const Tensor& t, int dim)
-      : f(t->op), value_index(t->value_index), dim(dim) {
-  }
+  TensorDimKey(const Tensor& t, int dim) : op(t->op), value_index(t->value_index), dim(dim) {}
   TensorDimKey(const Tensor& t, size_t dim)
-      : f(t->op), value_index(t->value_index), dim(static_cast<int>(dim)) {
-  }
+      : op(t->op), value_index(t->value_index), dim(static_cast<int>(dim)) {}
   inline bool operator==(const TensorDimKey& other) const {
-    return f == other.f &&
-        value_index == other.value_index &&
-        dim == other.dim;
+    return op == other.op && value_index == other.value_index && dim == other.dim;
   }
-  inline bool operator!=(const TensorDimKey& other) const {
-    return !operator==(other);
-  }
+  inline bool operator!=(const TensorDimKey& other) const { return !operator==(other); }
 };
 }  // namespace te
 }  // namespace tvm
@@ -63,15 +55,13 @@ namespace std {
 template <>
 struct hash<::tvm::te::TensorDimKey> {
   std::size_t operator()(const ::tvm::te::TensorDimKey& k) const {
-    size_t lhs = ::tvm::ObjectHash()(k.f);
-    size_t rhs = static_cast<size_t>(k.value_index) << 16UL |
-        static_cast<size_t>(k.dim);
+    size_t lhs = ::tvm::ObjectPtrHash()(k.op);
+    size_t rhs = static_cast<size_t>(k.value_index) << 16UL | static_cast<size_t>(k.dim);
     lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);
     return lhs;
   }
 };
 }  // namespace std
-
 
 namespace tvm {
 namespace te {
@@ -105,12 +95,9 @@ ReadGraph CreateReadGraph(const Array<Operation>& roots) {
 
 // Do DFS visit to get the subgraph.
 // Return if op is inside the subgraph.
-bool GetSubGraphByPostDFS_(
-    const Operation& op,
-    const std::unordered_set<const Object*>& boundary,
-    bool include_bounary,
-    std::unordered_map<const Object*, bool>* visited,
-    Array<Operation>* result) {
+bool GetSubGraphByPostDFS_(const Operation& op, const std::unordered_set<const Object*>& boundary,
+                           bool include_bounary, std::unordered_map<const Object*, bool>* visited,
+                           Array<Operation>* result) {
   if (visited->count(op.get())) {
     return visited->at(op.get());
   }
@@ -127,9 +114,7 @@ bool GetSubGraphByPostDFS_(
   // check if we can reach boundary.
   bool reach_boundary = false;
   for (Tensor t : op->InputTensors()) {
-    if (GetSubGraphByPostDFS_(t->op, boundary,
-                              include_bounary,
-                              visited, result)) {
+    if (GetSubGraphByPostDFS_(t->op, boundary, include_bounary, visited, result)) {
       reach_boundary = true;
     }
   }
@@ -140,8 +125,7 @@ bool GetSubGraphByPostDFS_(
   return reach_boundary;
 }
 
-Array<Operation> GetSubGraph(const Array<Tensor>& outputs,
-                             const Array<Tensor>& inputs,
+Array<Operation> GetSubGraph(const Array<Tensor>& outputs, const Array<Tensor>& inputs,
                              bool include_inputs) {
   Array<Operation> result;
   std::unordered_set<const Object*> boundary;
@@ -150,16 +134,12 @@ Array<Operation> GetSubGraph(const Array<Tensor>& outputs,
   }
   std::unordered_map<const Object*, bool> visited;
   for (Tensor t : outputs) {
-    GetSubGraphByPostDFS_(t->op, boundary, include_inputs,
-                          &visited, &result);
+    GetSubGraphByPostDFS_(t->op, boundary, include_inputs, &visited, &result);
   }
   return result;
 }
 
-
-void PostDFSOrder(const Operation& op,
-                  const ReadGraph& g,
-                  std::unordered_set<Operation>* visited,
+void PostDFSOrder(const Operation& op, const ReadGraph& g, std::unordered_set<Operation>* visited,
                   Array<Operation>* post_order) {
   if (visited->count(op)) return;
   visited->insert(op);
@@ -169,9 +149,7 @@ void PostDFSOrder(const Operation& op,
   post_order->push_back(op);
 }
 
-Array<Operation> PostDFSOrder(
-    const Array<Operation>& roots,
-    const ReadGraph& g) {
+Array<Operation> PostDFSOrder(const Array<Operation>& roots, const ReadGraph& g) {
   std::unordered_set<Operation> visited;
   Array<Operation> post_order;
   for (Operation op : roots) {
@@ -196,8 +174,7 @@ AttachPath CreateAttachPath(Schedule sch) {
     std::unordered_set<const Object*> visited;
     Array<IterVar> path;
     for (Stage s = stage; s.defined();) {
-      CHECK(!visited.count(s.get()))
-          << "Find loop in compute_at attach group";
+      CHECK(!visited.count(s.get())) << "Find loop in compute_at attach group";
       visited.insert(s.get());
       Stage spec = s.GetAttachSpec();
       bool start_attach;
@@ -221,9 +198,8 @@ AttachPath CreateAttachPath(Schedule sch) {
         }
         if (start_attach) path.push_back(iv);
       }
-      CHECK(start_attach)
-          << "Invalid Schedule: cannot find attach point " << attach_ivar
-          << " in the schedule of " << s->op;
+      CHECK(start_attach) << "Invalid Schedule: cannot find attach point " << attach_ivar
+                          << " in the schedule of " << s->op;
     }
     if (!ret.count(stage->op)) {
       ret.Set(stage->op, path);
@@ -233,7 +209,7 @@ AttachPath CreateAttachPath(Schedule sch) {
 }
 
 // graph of push reach relation of tensor dimensions
-using ReachGraph = std::unordered_map<TensorDimKey, std::vector<TensorDimKey> >;
+using ReachGraph = std::unordered_map<TensorDimKey, std::vector<TensorDimKey>>;
 
 ReachGraph GetReachGraph(const Array<Operation>& ops) {
   ReachGraph reach;
@@ -249,10 +225,8 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
       for (size_t i = 0; i < update.size(); ++i) {
         Tensor t = op.output(i);
         for (int k = 1; k < static_cast<int>(update[i]->shape.size()); ++k) {
-          reach[TensorDimKey(t, k)].emplace_back(
-              TensorDimKey(update[i], k));
-          reach[TensorDimKey(t, k)].emplace_back(
-              TensorDimKey(init[i], k));
+          reach[TensorDimKey(t, k)].emplace_back(TensorDimKey(update[i], k));
+          reach[TensorDimKey(t, k)].emplace_back(TensorDimKey(init[i], k));
         }
       }
     } else if (const auto* compute_op = op.as<ComputeOpNode>()) {
@@ -264,19 +238,19 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
         reach[TensorDimKey(t, i)] = {};
       }
       auto fvisit = [&vmap, &reach, &bset](const ObjectRef& n) {
-        const tir::CallNode *call = n.as<tir::CallNode>();
-        if (call != nullptr && call->func.defined()) {
-          if (!bset.count(call->func.get())) return;
-          for (size_t i = 0; i < call->args.size(); ++i) {
-            TensorDimKey dkey(call, static_cast<int>(i));
+        if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+          Tensor t = Downcast<Tensor>(pload->producer);
+          if (!bset.count(t->op.get())) return;
+          for (size_t i = 0; i < pload->indices.size(); ++i) {
+            TensorDimKey dkey(t, static_cast<int>(i));
             auto fpush = [&dkey, &vmap, &reach](const ObjectRef& node) {
-              const VarNode *v = node.as<VarNode>();
+              const VarNode* v = node.as<VarNode>();
               auto it = vmap.find(v);
               if (it != vmap.end()) {
                 reach[it->second].push_back(dkey);
               }
             };
-            tir::PostOrderVisit(call->args[i], fpush);
+            tir::PostOrderVisit(pload->indices[i], fpush);
           }
         }
       };
@@ -315,8 +289,7 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
     }
   }
   // merge exact reach
-  auto f_merge_key = [&exact_reach, &fail_set](
-      const TensorDimKey& dst, const TensorDimKey& src) {
+  auto f_merge_key = [&exact_reach, &fail_set](const TensorDimKey& dst, const TensorDimKey& src) {
     auto sit = exact_reach.find(src);
     if (sit == exact_reach.end()) return;
     auto dit = exact_reach.find(dst);
@@ -343,7 +316,7 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
         }
       }
     } else if (const auto* compute_op = op.as<ComputeOpNode>()) {
-      std::unordered_map<const Object*, std::vector<TensorDimKey> > vmap;
+      std::unordered_map<const Object*, std::vector<TensorDimKey>> vmap;
       const auto& axis = compute_op->axis;
       for (size_t i = 0; i < axis.size(); ++i) {
         std::vector<TensorDimKey> keys;
@@ -352,13 +325,12 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
         }
         vmap[axis[i]->var.get()] = std::move(keys);
       }
-      auto fvisit = [&vmap, &f_merge_key, &exact_reach, &fail_set](
-          const ObjectRef& n) {
-        const tir::CallNode *call = n.as<tir::CallNode>();
-        if (call != nullptr && call->func.defined()) {
-          for (size_t i = 0; i < call->args.size(); ++i) {
-            auto it = vmap.find(call->args[i].get());
-            TensorDimKey src(call, static_cast<int>(i));
+      auto fvisit = [&vmap, &f_merge_key, &exact_reach, &fail_set](const ObjectRef& n) {
+        if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+          Tensor t = Downcast<Tensor>(pload->producer);
+          for (size_t i = 0; i < pload->indices.size(); ++i) {
+            auto it = vmap.find(pload->indices[i].get());
+            TensorDimKey src(t, static_cast<int>(i));
             if (it != vmap.end()) {
               const std::vector<TensorDimKey>& keys = it->second;
               for (const auto& key : keys) {
@@ -391,8 +363,7 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
       TensorDimKey key(scan->update[i], k);
       TensorDimKey target(scan->state_placeholder[i], k);
       IterVar sp_iv = scan->spatial_axis_[sp_idx];
-      if (fail_set.count(sp_iv.get()) ||
-          !exact_reach.count(key) ||
+      if (fail_set.count(sp_iv.get()) || !exact_reach.count(key) ||
           exact_reach.at(key) != sp_iv.get()) {
         ret.Set(sp_iv, make_const(DataType::Int(32), 0));
       } else {
@@ -407,7 +378,7 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
           if (k != target && place_holder_ref.count(k)) break;
           stack.pop_back();
           if (!reach.count(k)) {
-            LOG(FATAL) << "cannot find reach of " << k.f << "-" << k.dim;
+            LOG(FATAL) << "cannot find reach of " << k.op << "-" << k.dim;
           }
 
           for (TensorDimKey kk : reach.at(k)) {
@@ -430,24 +401,18 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
   return ret;
 }
 
-
-TVM_REGISTER_GLOBAL("schedule.CreateReadGraph")
-.set_body_typed(CreateReadGraph);
+TVM_REGISTER_GLOBAL("schedule.CreateReadGraph").set_body_typed(CreateReadGraph);
 
 TVM_REGISTER_GLOBAL("schedule.PostDFSOrder")
-.set_body_typed([](const Array<Operation>& roots,
-                   const ReadGraph& g) {
-  return PostDFSOrder(roots, g);
-});
+    .set_body_typed([](const Array<Operation>& roots, const ReadGraph& g) {
+      return PostDFSOrder(roots, g);
+    });
 
-TVM_REGISTER_GLOBAL("schedule.CreateAttachPath")
-.set_body_typed(CreateAttachPath);
+TVM_REGISTER_GLOBAL("schedule.CreateAttachPath").set_body_typed(CreateAttachPath);
 
-TVM_REGISTER_GLOBAL("schedule.ScanGetBody")
-.set_body_typed(ScanGetBody);
+TVM_REGISTER_GLOBAL("schedule.ScanGetBody").set_body_typed(ScanGetBody);
 
-TVM_REGISTER_GLOBAL("schedule.ScanFixPointAnalysis")
-.set_body_typed(ScanFixPointAnalysis);
+TVM_REGISTER_GLOBAL("schedule.ScanFixPointAnalysis").set_body_typed(ScanFixPointAnalysis);
 
 }  // namespace te
 }  // namespace tvm

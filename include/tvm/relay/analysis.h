@@ -24,11 +24,12 @@
 #ifndef TVM_RELAY_ANALYSIS_H_
 #define TVM_RELAY_ANALYSIS_H_
 
+#include <tvm/ir/module.h>
 #include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
-#include <tvm/ir/module.h>
 #include <tvm/relay/type.h>
+
 #include <string>
 #include <unordered_map>
 
@@ -73,9 +74,9 @@ TVM_DLL bool ConstantCheck(const Expr& e);
  * `let f = (\x -> x) in let g = (\x -> x + 1) in f(g(2))` also bound x twice,
  * although x is not shadowed.
  *
-  * \param expr the expression to check.
+ * \param expr the expression to check.
  *
-  * \return true iff all Var in expr is bound at most once.
+ * \return true iff all Var in expr is bound at most once.
  */
 TVM_DLL bool WellFormed(const Expr& expr);
 
@@ -233,8 +234,7 @@ TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod);
  *
  * \return The reference count mapping.
  */
-TVM_DLL std::unordered_map<const Object*, size_t>
-GetExprRefCount(const Expr& body);
+TVM_DLL std::unordered_map<const Object*, size_t> GetExprRefCount(const Expr& body);
 
 }  // namespace relay
 }  // namespace tvm

@@ -27,12 +27,15 @@ from .op import register_gradient
 from .reduce import sum as _sum
 from .tensor import (
     cos,
+    cosh,
     exp,
     less,
     negative,
     ones_like,
     power,
     sin,
+    sinh,
+    sqrt,
     zeros_like,
     equal,
     shape_of,
@@ -61,6 +64,24 @@ def log_grad(orig, grad):
     return [grad * ones_like(x) / x]
 
 
+@register_gradient("log2")
+def log2_grad(orig, grad):
+    """Returns [grad * 1 / (log(2) * x)]"""
+    x = orig.args[0]
+    ones = ones_like(x)
+    two = const(2.0)
+    return [grad * ones / (log(two) * x)]
+
+
+@register_gradient("log10")
+def log10_grad(orig, grad):
+    """Returns [grad * 1 / (log(10) * x)]"""
+    x = orig.args[0]
+    ones = ones_like(x)
+    ten = const(10.0)
+    return [grad * ones / (log(ten) * x)]
+
+
 @register_gradient("tan")
 def tan_grad(orig, grad):
     """Returns [grad / (cos^2(x))]"""
@@ -76,18 +97,74 @@ def cos_grad(orig, grad):
     return [grad * (-ones * sin(x))]
 
 
+@register_gradient("cosh")
+def cosh_grad(orig, grad):
+    """Returns [grad * sinh(x)]"""
+    x = orig.args[0]
+    return [grad * sinh(x)]
+
+
 @register_gradient("sin")
 def sin_grad(orig, grad):
     """Returns [grad * cos(x)]"""
     x = orig.args[0]
     return [grad * cos(x)]
 
+
+@register_gradient("sinh")
+def sinh_grad(orig, grad):
+    """Returns [grad * cosh(x)]"""
+    x = orig.args[0]
+    return [grad * cosh(x)]
+
+
+@register_gradient("acos")
+def acos_grad(orig, grad):
+    """Returns [grad * -1/((1 - (x ^ 2)) ^ 1/2)]"""
+    x = orig.args[0]
+    ones = ones_like(x)
+    return [grad * (-ones / sqrt(ones - (x * x)))]
+
+
+@register_gradient("acosh")
+def acosh_grad(orig, grad):
+    """Returns [grad * 1/((x - 1) ^ 1/2 * (x + 1) ^ 1/2)]"""
+    x = orig.args[0]
+    ones = ones_like(x)
+    return [grad * ones / sqrt((x * x) - ones)]
+
+
+@register_gradient("asin")
+def asin_grad(orig, grad):
+    """Returns [grad * 1/((1 - (x ^ 2)) ^ (1/2))]"""
+    x = orig.args[0]
+    ones = ones_like(x)
+    return [grad * ones / sqrt(ones - (x * x))]
+
+
+@register_gradient("asinh")
+def asinh_grad(orig, grad):
+    """Returns [grad * 1/((1 + (x ^ 2)) ^ (1/2))]"""
+    x = orig.args[0]
+    ones = ones_like(x)
+    return [grad * ones / sqrt(ones + (x * x))]
+
+
 @register_gradient("atan")
 def atan_grad(orig, grad):
     """Returns [grad * 1 / (1 + x ^ 2)]"""
     x = orig.args[0]
-    a = const(2.0)
-    return [grad * ones_like(x) / (ones_like(x) + power(x, a))]
+    ones = ones_like(x)
+    return [grad * ones / (ones + (x * x))]
+
+
+@register_gradient("atanh")
+def atanh_grad(orig, grad):
+    """Returns [grad * 1 / (1 - x ^ 2)]"""
+    x = orig.args[0]
+    ones = ones_like(x)
+    return [grad * ones / (ones - (x * x))]
+
 
 @register_gradient("exp")
 def exp_grad(orig, grad):
@@ -155,14 +232,14 @@ def divide_grad(orig, grad):
 
 @register_gradient("zeros")
 def zeros_grad(orig, grad):
-    """Returns []"""
-    return []
+    """Returns [shape]"""
+    return [orig.args[0]]
 
 
 @register_gradient("ones")
 def ones_grad(orig, grad):
-    """Returns []"""
-    return []
+    """Returns [shape]"""
+    return [orig.args[0]]
 
 
 @register_gradient("zeros_like")
@@ -313,8 +390,10 @@ def conv2d_grad(orig, grad):
     assert padded_weight_grad_h >= filter_h
     assert padded_weight_grad_w >= filter_w
     if padded_weight_grad_h > filter_h or padded_weight_grad_w > filter_w:
-        backward_weight = strided_slice(backward_weight, begin=[0, 0, 0, 0],
-                                        end=[None, None, filter_h, filter_w])
+        backward_weight = strided_slice(backward_weight,
+                                        begin=const([0, 0, 0, 0], dtype="int64"),
+                                        end=const([out_channel, in_channel // attrs.groups,
+                                                   filter_h, filter_w], dtype="int64"))
 
     return [backward_data, backward_weight]
 
@@ -395,14 +474,15 @@ def bias_add_grad(orig, grad):
 def dense_grad(orig, grad):
     """Returns [grad' @ weight, data @ grad']"""
     data, weight = orig.args
-    return [collapse_sum_like(transpose(grad) * weight, data),
-            collapse_sum_like(data * transpose(grad), weight)]
-
+    return [collapse_sum_like(_nn.dense(grad, transpose(weight),
+                                        units=weight.checked_type.shape[1]), data),
+            collapse_sum_like(_nn.dense(transpose(grad), transpose(data),
+                                        units=data.checked_type.shape[1]), weight)]
 
 @register_gradient("reshape")
 def reshape_grad(orig, grad):
     """Gradient of reshape"""
-    return [reshape_like(grad, orig.args[0])]
+    return [reshape_like(grad, orig.args[0]), orig.args[1]]
 
 
 @register_gradient("cast")

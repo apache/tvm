@@ -29,7 +29,9 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+
 #include <unordered_map>
+
 #include "pattern_util.h"
 
 namespace tvm {
@@ -37,10 +39,10 @@ namespace relay {
 
 class CommonSubexprEliminator : public ExprMutator {
  public:
-  explicit CommonSubexprEliminator(runtime::TypedPackedFunc<bool(Expr)> fskip): fskip_(fskip) {}
+  explicit CommonSubexprEliminator(runtime::TypedPackedFunc<bool(Expr)> fskip) : fskip_(fskip) {}
 
   Expr VisitExpr_(const CallNode* call) final {
-    static auto op_stateful = Op::GetAttr<TOpIsStateful>("TOpIsStateful");
+    static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
     Expr new_expr = ExprMutator::VisitExpr_(call);
     const CallNode* new_call = new_expr.as<CallNode>();
     CHECK(new_call);
@@ -76,7 +78,7 @@ class CommonSubexprEliminator : public ExprMutator {
     return new_expr;
   }
 
-  std::unordered_map<Expr, std::vector<const CallNode*>, ObjectHash, ObjectEqual> expr_map_;
+  std::unordered_map<Expr, std::vector<const CallNode*>, ObjectPtrHash, ObjectPtrEqual> expr_map_;
   runtime::TypedPackedFunc<bool(Expr)> fskip_;
 };
 
@@ -88,14 +90,14 @@ namespace transform {
 
 Pass EliminateCommonSubexpr(PackedFunc fskip) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-      return Downcast<Function>(EliminateCommonSubexpr(f, fskip));
-  };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(EliminateCommonSubexpr(f, fskip));
+      };
   return CreateFunctionPass(pass_func, 3, "EliminateCommonSubexpr", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.EliminateCommonSubexpr")
-.set_body_typed(EliminateCommonSubexpr);
+    .set_body_typed(EliminateCommonSubexpr);
 
 }  // namespace transform
 

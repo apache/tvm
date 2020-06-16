@@ -28,6 +28,9 @@ def test_schedule0():
     bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc(
+        [A, A1], stmt, None)
+    assert isinstance(func, tvm.tir.PrimFunc)
 
 
 def test_schedule1():
@@ -43,6 +46,10 @@ def test_schedule1():
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc(
+        [A, A1], stmt, None)
+    assert isinstance(func, tvm.tir.PrimFunc)
+
 
 def test_schedule2():
     m = te.var('m')
@@ -57,6 +64,9 @@ def test_schedule2():
     bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc(
+        [A, A2], stmt, None)
+    assert isinstance(func, tvm.tir.PrimFunc)
 
 
 def test_schedule_scan():
@@ -75,6 +85,7 @@ def test_schedule_scan():
     bounds = tvm.te.schedule.InferBound(s)
     assert(bounds[res.op.scan_axis].min.value == 1)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+
 
 
 def test_inline_multi_reduce():
@@ -144,7 +155,7 @@ def test_inline_mixed():
     def check(x):
         if isinstance(x, tvm.tir.Call):
             assert x.func != A2
-    tvm.tir.ir_pass.PostOrderVisit(s[C].op.body[0], check)
+    tvm.tir.stmt_functor.post_order_visit(s[C].op.body[0], check)
 
 
 def test_scan_inline1():
@@ -310,10 +321,9 @@ def intrin_gemv(m, n):
             "gemv_add", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
         return body, reset, update
 
-    with tvm.target.build_config(data_alignment=16,
-                          offset_factor=16):
-        return te.decl_tensor_intrin(z.op, intrin_func,
-                                      binds={w: Wb})
+    buffer_params = {"data_alignment": 16, "offset_factor": 16}
+    return te.decl_tensor_intrin(
+        z.op, intrin_func, binds={w: Wb}, default_buffer_params=buffer_params)
 
 
 def test_schedule_tensor_compute1():
@@ -366,8 +376,9 @@ def intrin_vadd(n, cache_read=False, cache_write=False):
         ib.emit(tvm.tir.call_extern(outs[0].dtype, 'vadd', ins[0].access_ptr("r"), ins[1].access_ptr('r'), outs[0].access_ptr('wr')))
         return ib.get()
 
-    with tvm.target.build_config(offset_factor=16):
-        return te.decl_tensor_intrin(z.op, intrin_func, binds=binds)
+    return te.decl_tensor_intrin(z.op, intrin_func, binds=binds, default_buffer_params={
+        "offset_factor": 16
+    })
 
 
 def test_schedule_tensor_compute2():
@@ -506,23 +517,23 @@ def test_local_stage_predicate():
 
     def collect_visit(stmt, f):
         ret = []
-        tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x: ret.append(f(x)))
+        tvm.tir.stmt_functor.post_order_visit(stmt, lambda x: ret.append(f(x)))
         return ret
     # local vs. threadIdx
     s = schedule(tx, "local")
-    lowered_body = tvm.lower(s, [A, C], simple_mode=True).body
+    lowered_body = tvm.lower(s, [A, C])["main"].body
     assert (not any(
         collect_visit(lowered_body,
                       lambda x: isinstance(x, tvm.tir.IfThenElse))))
     # local vs. vthread
     s = schedule(vx, "local")
-    lowered_body = tvm.lower(s, [A, C], simple_mode=True).body
+    lowered_body = tvm.lower(s, [A, C])["main"].body
     assert (not any(
         collect_visit(lowered_body,
                       lambda x: isinstance(x, tvm.tir.IfThenElse))))
     # shared vs. blockIdx
     s = schedule(by, "shared")
-    lowered_body = tvm.lower(s, [A, C], simple_mode=True).body
+    lowered_body = tvm.lower(s, [A, C])["main"].body
     assert (not any(
         collect_visit(lowered_body,
                       lambda x: isinstance(x, tvm.tir.IfThenElse))))
@@ -548,11 +559,11 @@ def test_local_stage_predicate2():
     s[AA].compute_at(s[C], ooc)
     oaa, iaa = s[AA].split(s[AA].op.axis[0], factor=32)
     s[AA].bind(iaa, thread_x)
-    lowered_body = tvm.lower(s, [A, C], simple_mode=True).body
+    lowered_body = tvm.lower(s, [A, C])["main"].body
 
     def collect_visit(stmt, f):
         ret = []
-        tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x: ret.append(f(x)))
+        tvm.tir.stmt_functor.post_order_visit(stmt, lambda x: ret.append(f(x)))
         return ret
 
     def visit_stmt(op):

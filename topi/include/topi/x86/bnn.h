@@ -24,10 +24,10 @@
 #ifndef TOPI_X86_BNN_H_
 #define TOPI_X86_BNN_H_
 
-#include <topi/tags.h>
 #include <topi/detail/fuse.h>
-#include <tvm/te/operation.h>
+#include <topi/tags.h>
 #include <tvm/target/generic_func.h>
+#include <tvm/te/operation.h>
 
 namespace topi {
 using namespace tvm;
@@ -35,14 +35,14 @@ using namespace tvm::te;
 
 namespace x86 {
 /*!
-* \brief Create a generic schedule for binarize_pack
-*
-* \param target The target to generate a schedule for.
-* \param outs The output tensors.
-*
-* \return A schedule for the given ops.
-*/
-inline Schedule schedule_binarize_pack(const Target &target, const Array<Tensor>& outs) {
+ * \brief Create a generic schedule for binarize_pack
+ *
+ * \param target The target to generate a schedule for.
+ * \param outs The output tensors.
+ *
+ * \return A schedule for the given ops.
+ */
+inline Schedule schedule_binarize_pack(const Target& target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
@@ -67,14 +67,14 @@ inline Schedule schedule_binarize_pack(const Target &target, const Array<Tensor>
 }
 
 /*!
-* \brief Create a generic schedule for binary_dense
-*
-* \param target The target to generate a schedule for.
-* \param outs The output tensors.
-*
-* \return A schedule for the given ops.
-*/
-inline Schedule schedule_binary_dense(const Target &target, const Array<Tensor>& outs) {
+ * \brief Create a generic schedule for binary_dense
+ *
+ * \param target The target to generate a schedule for.
+ * \param outs The output tensors.
+ *
+ * \return A schedule for the given ops.
+ */
+inline Schedule schedule_binary_dense(const Target& target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);

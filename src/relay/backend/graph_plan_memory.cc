@@ -22,10 +22,11 @@
  * \brief Memory index assignment pass for executing
  *   the program in the graph runtime.
  */
-#include <tvm/tir/op.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/analysis.h>
+#include <tvm/tir/op.h>
+
 #include "../../support/arena.h"
 
 namespace tvm {
@@ -60,9 +61,7 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
     }
   }
 
-  void VisitExpr_(const ConstantNode* op) final {
-    this->CreateToken(op, false);
-  }
+  void VisitExpr_(const ConstantNode* op) final { this->CreateToken(op, false); }
 
   void VisitExpr_(const VarNode* op) final {
     // Do nothing.
@@ -96,9 +95,7 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
     token_map_[op] = {tok[op->index]};
   }
 
-  void VisitExpr_(const IfNode* op) final {
-    LOG(FATAL) << "if is not supported.";
-  }
+  void VisitExpr_(const IfNode* op) final { LOG(FATAL) << "if is not supported."; }
 
   void VisitExpr_(const LetNode* op) final {
     auto token = GetToken(op->value);
@@ -131,12 +128,11 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
 
 class StorageAllocaInit : protected StorageAllocaBaseVisitor {
  public:
-  explicit StorageAllocaInit(support::Arena* arena)
-      : arena_(arena) {}
+  explicit StorageAllocaInit(support::Arena* arena) : arena_(arena) {}
 
   /*! \return The internal token map */
-  std::unordered_map<const ExprNode*, std::vector<StorageToken*> >
-  GetInitTokenMap(const Function& func) {
+  std::unordered_map<const ExprNode*, std::vector<StorageToken*> > GetInitTokenMap(
+      const Function& func) {
     node_device_map_ = CollectDeviceInfo(func);
     this->Run(func);
     return std::move(token_map_);
@@ -145,12 +141,11 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
  protected:
   using StorageAllocaBaseVisitor::VisitExpr_;
 
-  void CreateToken(const ExprNode* op, bool can_realloc)  final {
+  void CreateToken(const ExprNode* op, bool can_realloc) final {
     CHECK(!token_map_.count(op));
     std::vector<StorageToken*> tokens;
-    int device_type = node_device_map_.count(GetRef<Expr>(op))
-                          ? node_device_map_[GetRef<Expr>(op)]->value
-                          : 0;
+    int device_type =
+        node_device_map_.count(GetRef<Expr>(op)) ? node_device_map_[GetRef<Expr>(op)]->value : 0;
     if (const auto* tuple_type = op->checked_type().as<TupleTypeNode>()) {
       for (Type t : tuple_type->fields) {
         const auto* ttype = t.as<TensorTypeNode>();
@@ -227,10 +222,9 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     }
     // Either all or none of the nodes should be annotated.
     if (num_annotated_nodes != 0 && num_annotated_nodes != num_nodes) {
-      LOG(FATAL)
-          << num_annotated_nodes << " out of " << num_nodes
-          << "expressions are assigned with virtual device types. Either all "
-             "or none of the expressions are expected to be annotated.";
+      LOG(FATAL) << num_annotated_nodes << " out of " << num_nodes
+                 << "expressions are assigned with virtual device types. Either all "
+                    "or none of the expressions are expected to be annotated.";
     }
     return smap;
   }
@@ -296,12 +290,8 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     size_t size = 1;
     for (IndexExpr dim : ttype->shape) {
       const int64_t* pval = tir::as_const_int(dim);
-      CHECK(pval != nullptr)
-          << "Cannot allocate memory symbolic tensor shape "
-          << ttype->shape;
-      CHECK_GE(*pval, 0)
-          << "Cannot allocate memory for tensor with negative shape"
-          << *pval;
+      CHECK(pval != nullptr) << "Cannot allocate memory symbolic tensor shape " << ttype->shape;
+      CHECK_GE(*pval, 0) << "Cannot allocate memory for tensor with negative shape" << *pval;
       size *= static_cast<size_t>(pval[0]);
     }
     size *= DivRoundUp(ttype->dtype.bits() * ttype->dtype.lanes(), 8);
@@ -324,7 +314,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     auto end = free_.upper_bound(size * match_range_);
     // search for memory blocks larger than requested
     for (auto it = mid; it != end; ++it) {
-      StorageToken *tok = it->second;
+      StorageToken* tok = it->second;
       if (tok->device_type != prototype->device_type) continue;
       CHECK_EQ(tok->ref_counter, 0);
       // Use exect matching strategy
@@ -337,7 +327,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     // then search for memory blocks smaller than requested space
     for (auto it = mid; it != begin;) {
       --it;
-      StorageToken *tok = it->second;
+      StorageToken* tok = it->second;
       if (tok->device_type != prototype->device_type) continue;
       CHECK_EQ(tok->ref_counter, 0);
       // Use exect matching strategy
@@ -390,8 +380,7 @@ Map<Expr, Array<IntegerArray> > GraphPlanMemory(const Function& func) {
   return StorageAllocator().Plan(func);
 }
 
-TVM_REGISTER_GLOBAL("relay.backend.GraphPlanMemory")
-.set_body_typed(GraphPlanMemory);
+TVM_REGISTER_GLOBAL("relay.backend.GraphPlanMemory").set_body_typed(GraphPlanMemory);
 
 }  // namespace relay
 }  // namespace tvm

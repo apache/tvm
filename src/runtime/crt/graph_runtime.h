@@ -27,9 +27,9 @@
 #include <dlpack/dlpack.h>
 
 #include "load_json.h"
+#include "module.h"
 #include "ndarray.h"
 #include "packed_func.h"
-#include "module.h"
 
 /*! \brief operator attributes about tvm op */
 typedef struct TVMOpParam {
@@ -51,7 +51,7 @@ typedef struct TVMGraphRuntimeNodeEntry {
   uint32_t index;
   uint32_t version;
   // JSON Loader
-  void (*Load)(JSONReader *reader);
+  void (*Load)(JSONReader* reader);
 } TVMGraphRuntimeNodeEntry;
 
 // Node
@@ -63,26 +63,26 @@ typedef struct TVMGraphRuntimeNode {
   // parameters
   TVMOpParam param;
   // inputs
-  TVMGraphRuntimeNodeEntry * inputs;
+  TVMGraphRuntimeNodeEntry* inputs;
   // number of inputs
   size_t inputs_count;
   // control deps
   uint32_t control_deps[20];
   // JSON Loader
-  void (*LoadAttrs)(struct TVMGraphRuntimeNode * node, JSONReader *reader, TVMOpParam* param);
+  void (*LoadAttrs)(struct TVMGraphRuntimeNode* node, JSONReader* reader, TVMOpParam* param);
   // JSON Loader
-  int (*Load)(struct TVMGraphRuntimeNode * node, JSONReader *reader);
+  int (*Load)(struct TVMGraphRuntimeNode* node, JSONReader* reader);
 } TVMGraphRuntimeNode;
 
 // Graph attribute
 typedef struct TVMGraphRuntimeGraphAttr {
   uint32_t storage_num_not_alloctaed;
-  uint32_t * storage_id;
-  uint32_t * device_index;
-  char * dltype;  // "int8", "int16", "float32"
+  uint32_t* storage_id;
+  uint32_t* device_index;
+  char* dltype;  // "int8", "int16", "float32"
   uint32_t dltype_count;
-  int64_t * shape;
-  uint32_t * ndim;
+  int64_t* shape;
+  uint32_t* ndim;
   uint32_t shape_count;
 } TVMGraphRuntimeGraphAttr;
 
@@ -96,7 +96,7 @@ typedef DLTensor* DLTensorPtr;
  */
 /* class GraphRuntime : public ModuleNode { */
 typedef struct TVMGraphRuntime {
-  void (*Run)(struct TVMGraphRuntime * runtime);
+  void (*Run)(struct TVMGraphRuntime* runtime);
 
   /*!
    * \brief Initialize the graph executor with graph and context.
@@ -107,10 +107,8 @@ typedef struct TVMGraphRuntime {
    * \param ctxs The context of the host and devices where graph nodes will be
    *  executed on.
    */
-  void (*Init)(struct TVMGraphRuntime * runtime,
-               const char * graph_json,
-               const TVMModule * module,
-               const TVMContext * ctxs);
+  void (*Init)(struct TVMGraphRuntime* runtime, const char* graph_json, const TVMModule* module,
+               const TVMContext* ctxs);
 
   /*!
    * \brief Get the input index given the name of input.
@@ -118,7 +116,7 @@ typedef struct TVMGraphRuntime {
    * \param name The name of the input.
    * \return The index of input.
    */
-  int (*GetInputIndex)(struct TVMGraphRuntime * runtime, const char * name);
+  int (*GetInputIndex)(struct TVMGraphRuntime* runtime, const char* name);
 
   /*!
    * \brief set input to the graph based on name.
@@ -126,7 +124,7 @@ typedef struct TVMGraphRuntime {
    * \param name The name of the input.
    * \param data_in The input data.
    */
-  void (*SetInput)(struct TVMGraphRuntime * runtime, const char * name, DLTensor* data_in);
+  void (*SetInput)(struct TVMGraphRuntime* runtime, const char* name, DLTensor* data_in);
 
   /*!
    * \brief Return NDArray for given output index.
@@ -135,7 +133,7 @@ typedef struct TVMGraphRuntime {
    * \param out The DLTensor corresponding to given output node index.
    * \return The result of this function execution.
    */
-  int (*GetOutput)(struct TVMGraphRuntime * runtime, const int32_t index, DLTensor * out);
+  int (*GetOutput)(struct TVMGraphRuntime* runtime, const int32_t index, DLTensor* out);
   /*!
    * \brief Load parameters from parameter blob.
    * \param runtime The graph runtime.
@@ -143,15 +141,15 @@ typedef struct TVMGraphRuntime {
    * \param param_size The parameter size.
    * \return The result of this function execution.
    */
-  int (*LoadParams)(struct TVMGraphRuntime * runtime, const char * param_blob,
+  int (*LoadParams)(struct TVMGraphRuntime* runtime, const char* param_blob,
                     const uint32_t param_size);
 
   // The graph attribute fields.
-  int (*Load)(struct TVMGraphRuntime * runtime, JSONReader *reader);
+  int (*Load)(struct TVMGraphRuntime* runtime, JSONReader* reader);
   /*! \brief Setup the temporal storage */
-  void (*SetupStorage)(struct TVMGraphRuntime * runtime);
+  void (*SetupStorage)(struct TVMGraphRuntime* runtime);
   /*! \brief Setup the executors. */
-  int (*SetupOpExecs)(struct TVMGraphRuntime * runtime);
+  int (*SetupOpExecs)(struct TVMGraphRuntime* runtime);
 
   /*!
    * \brief Create an execution function given input.
@@ -163,25 +161,25 @@ typedef struct TVMGraphRuntime {
    * \param pf The created executor.
    * \return The result of this function execution.
    */
-  int32_t (*CreateTVMOp)(struct TVMGraphRuntime * runtime, const TVMOpParam * attrs,
-                         DLTensorPtr * args, const uint32_t args_count,
-                         uint32_t num_inputs, TVMPackedFunc * pf);
+  int32_t (*CreateTVMOp)(struct TVMGraphRuntime* runtime, const TVMOpParam* attrs,
+                         DLTensorPtr* args, const uint32_t args_count, uint32_t num_inputs,
+                         TVMPackedFunc* pf);
 
   // Get node entry index.
-  uint32_t (*GetEntryId)(struct TVMGraphRuntime * runtime, uint32_t nid, uint32_t index);
+  uint32_t (*GetEntryId)(struct TVMGraphRuntime* runtime, uint32_t nid, uint32_t index);
 
   /*! \brief The graph nodes. */
-  TVMGraphRuntimeNode * nodes;
+  TVMGraphRuntimeNode* nodes;
   /*! \brief The graph nodes counter. */
   uint32_t nodes_count;
   /*! \brief The argument nodes. */
-  uint32_t * input_nodes;
+  uint32_t* input_nodes;
   uint32_t input_nodes_count;
   /*! \brief Used for quick entry indexing. */
-  uint32_t * node_row_ptr;
+  uint32_t* node_row_ptr;
   uint32_t node_row_ptr_count;
   /*! \brief Output entries. */
-  TVMGraphRuntimeNodeEntry * outputs;
+  TVMGraphRuntimeNodeEntry* outputs;
   /*! \brief Output entries counter. */
   uint32_t outputs_count;
   /*! \brief Additional graph attributes. */
@@ -190,28 +188,28 @@ typedef struct TVMGraphRuntime {
   TVMModule module;
   /*! \brief Execution context of all devices including the host. */
   TVMContext ctxs[1];
-  uint32_t   ctxs_count;
+  uint32_t ctxs_count;
   /*! \brief Common storage pool for all devices. */
-  TVMNDArray * storage_pool;
+  TVMNDArray* storage_pool;
   uint32_t storage_pool_count;
   /*! \brief Data entry of each node. */
-  TVMNDArray * data_entry;
+  TVMNDArray* data_entry;
   uint32_t data_entry_count;
   /*! \brief Operator on each node. */
-  TVMPackedFunc * op_execs;
+  TVMPackedFunc* op_execs;
   uint32_t op_execs_count;
 } TVMGraphRuntime;
 
 // public functions
-TVMGraphRuntime * TVMGraphRuntimeCreate(const char * sym_json, const TVMModule * m,
-                                        const TVMContext * ctxs);
-void TVMGraphRuntimeRelease(TVMGraphRuntime ** runtime);
+TVMGraphRuntime* TVMGraphRuntimeCreate(const char* sym_json, const TVMModule* m,
+                                       const TVMContext* ctxs);
+void TVMGraphRuntimeRelease(TVMGraphRuntime** runtime);
 
 // private functions
-void TVMGraphRuntime_SetInput(TVMGraphRuntime * runtime, const char * name, DLTensor* data_in);
-int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blob,
+void TVMGraphRuntime_SetInput(TVMGraphRuntime* runtime, const char* name, DLTensor* data_in);
+int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
                                const uint32_t param_size);
-void TVMGraphRuntime_Run(TVMGraphRuntime * runtime);
-int TVMGraphRuntime_GetOutput(TVMGraphRuntime * runtime, const int32_t idx, DLTensor * out);
+void TVMGraphRuntime_Run(TVMGraphRuntime* runtime);
+int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t idx, DLTensor* out);
 
 #endif  // TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_

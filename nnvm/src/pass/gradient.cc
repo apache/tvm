@@ -22,8 +22,9 @@
  * \brief Passes that takes gradient of the graph
  * This code code was modified based on mxnet codebase by Min Lin
  */
-#include <nnvm/pass.h>
 #include <nnvm/op_attr_types.h>
+#include <nnvm/pass.h>
+
 #include <algorithm>
 #include <functional>
 
@@ -53,8 +54,7 @@ NodeEntry DefaultAggregateGradient(std::vector<NodeEntry>&& v) {
   }
 }
 
-bool CheckGradAllZero(const std::vector<NodeEntry>& grads,
-                      const std::vector<const Op*>& zero_ops) {
+bool CheckGradAllZero(const std::vector<NodeEntry>& grads, const std::vector<const Op*>& zero_ops) {
   if (!grads.size() || !zero_ops.size()) return false;
   for (const auto& g : grads) {
     bool found = false;
@@ -82,22 +82,18 @@ struct GradEntry {
 
 Graph Gradient(Graph src) {
   using nnvm::FGradient;
-  using MirrorFun = std::function<int (const Node& node)>;
-  using AttrHintFun = std::function<NodeEntry (const NodeEntry& src, const NodeEntry &like)>;
+  using MirrorFun = std::function<int(const Node& node)>;
+  using AttrHintFun = std::function<NodeEntry(const NodeEntry& src, const NodeEntry& like)>;
 
-  CHECK_NE(src.attrs.count("grad_ys"), 0U)
-      << "Gradient require grad_ys to be presented.";
+  CHECK_NE(src.attrs.count("grad_ys"), 0U) << "Gradient require grad_ys to be presented.";
   CHECK_NE(src.attrs.count("grad_ys_out_grad"), 0U)
       << "Gradient require grad_ys_out_grad to be presented.";
-  CHECK_NE(src.attrs.count("grad_xs"), 0U)
-      << "Gradient require grad_xs to be presented.";
-  const std::vector<NodeEntry>& ys =
-      src.GetAttr<std::vector<NodeEntry> >("grad_ys");
+  CHECK_NE(src.attrs.count("grad_xs"), 0U) << "Gradient require grad_xs to be presented.";
+  const std::vector<NodeEntry>& ys = src.GetAttr<std::vector<NodeEntry> >("grad_ys");
   const std::vector<NodeEntry>& ys_out_grad =
       src.GetAttr<std::vector<NodeEntry> >("grad_ys_out_grad");
-  const std::vector<NodeEntry>& xs =
-      src.GetAttr<std::vector<NodeEntry> >("grad_xs");
-  using AggFun = std::function<NodeEntry (std::vector<NodeEntry>&& inputs)>;
+  const std::vector<NodeEntry>& xs = src.GetAttr<std::vector<NodeEntry> >("grad_xs");
+  using AggFun = std::function<NodeEntry(std::vector<NodeEntry> && inputs)>;
   AggFun agg_fun = DefaultAggregateGradient;
   if (src.attrs.count("grad_aggregate_fun") != 0) {
     agg_fun = src.GetAttr<AggFun>("grad_aggregate_fun");
@@ -114,31 +110,30 @@ Graph Gradient(Graph src) {
   if (src.attrs.count("zero_ops") != 0) {
     zero_ops = src.GetAttr<std::vector<const Op*> >("zero_ops");
   }
-  const Op* copy_op = (src.attrs.count("copy_op") != 0) ?
-      Op::Get(src.GetAttr<std::string>("copy_op")) :
-      nullptr;
+  const Op* copy_op =
+      (src.attrs.count("copy_op") != 0) ? Op::Get(src.GetAttr<std::string>("copy_op")) : nullptr;
 
   // topo sort
   std::vector<ObjectPtr> topo_order;
   std::unordered_map<Node*, std::vector<GradEntry> > output_grads;
 
   DFSVisit(ys, [&](const ObjectPtr& node) {
-      if (output_grads.count(node.get()) == 0) {
-        output_grads[node.get()].resize(node->num_outputs());
-      }
-      topo_order.push_back(node);
-    });
+    if (output_grads.count(node.get()) == 0) {
+      output_grads[node.get()].resize(node->num_outputs());
+    }
+    topo_order.push_back(node);
+  });
 
   CHECK_EQ(ys.size(), ys_out_grad.size());
   for (size_t i = 0; i < ys.size(); ++i) {
     NodeEntry ograd = ys_out_grad[i];
-    output_grads[ys[i].node.get()][ys[i].index].grads = { ograd };
+    output_grads[ys[i].node.get()][ys[i].index].grads = {ograd};
   }
 
   // Check that all xs are reachable from ys
   for (size_t i = 0; i < xs.size(); ++i) {
     CHECK(output_grads.find(xs[i].node.get()) != output_grads.end())
-        << "Cannot differentiate with respect to the " << i+1 << "-th variable "
+        << "Cannot differentiate with respect to the " << i + 1 << "-th variable "
         << "because it is unreachable from the outputs.";
   }
 
@@ -211,8 +206,7 @@ Graph Gradient(Graph src) {
         LOG(FATAL) << "Operator " << fwd_node->op()->name << " is non-differentiable "
                    << "because it didn't register FGradient attribute.";
       }
-      for (const auto& nodeEntry : input_grads)
-        CHECK(nodeEntry.node);
+      for (const auto& nodeEntry : input_grads) CHECK(nodeEntry.node);
       auto git = input_grads.begin();
       CHECK((*rit)->inputs.size() <= input_grads.size());
       for (auto it = (*rit)->inputs.begin(); it != (*rit)->inputs.end(); ++it, ++git) {
@@ -252,12 +246,12 @@ Graph Gradient(Graph src) {
         copy_node->attrs.name = os.str();
         copy_node->inputs.emplace_back(entry.sum);
         if (copy_node->attrs.op->attr_parser != nullptr) {
-            copy_node->attrs.op->attr_parser(&(copy_node->attrs));
+          copy_node->attrs.op->attr_parser(&(copy_node->attrs));
         }
         unique_grads.emplace(NodeEntry{std::move(copy_node), 0, 0}, std::make_pair(1, counter));
       }
     } else {
-        ret.outputs[counter] = entry.sum;
+      ret.outputs[counter] = entry.sum;
     }
     ++counter;
   }
@@ -271,12 +265,12 @@ Graph Gradient(Graph src) {
 
 // register pass
 NNVM_REGISTER_PASS(Gradient)
-.describe("Return a gradient graph of src.attrs[\"ys\"] wrt src.attrs[\"xs\"]")
-.set_body(Gradient)
-.set_change_graph(true)
-.depend_graph_attr("grad_ys")
-.depend_graph_attr("grad_xs")
-.depend_graph_attr("grad_ys_out_grad");
+    .describe("Return a gradient graph of src.attrs[\"ys\"] wrt src.attrs[\"xs\"]")
+    .set_body(Gradient)
+    .set_change_graph(true)
+    .depend_graph_attr("grad_ys")
+    .depend_graph_attr("grad_xs")
+    .depend_graph_attr("grad_ys_out_grad");
 
 }  // namespace
 }  // namespace pass

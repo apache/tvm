@@ -176,8 +176,7 @@ void ArgLayout::Push(uint32_t* v, unsigned t_size, unsigned t_align) {
 
   if (!InReg) {
     // Allocate on stack.
-    CHECK_EQ((t_align & (t_align - 1)), 0)
-        << "Alignment should be a power of 2";
+    CHECK_EQ((t_align & (t_align - 1)), 0) << "Alignment should be a power of 2";
     CHECK_GE(t_align, 4) << "Alignment should be at least 4";
     // Round t_size up to a multiple of 4.
     unsigned s_size = Stack.size();
@@ -193,9 +192,8 @@ void ArgLayout::Push(uint32_t* v, unsigned t_size, unsigned t_align) {
 class HexagonModuleNode final : public runtime::ModuleNode {
  public:
   HexagonModuleNode(std::string data, std::string fmt,
-                    std::unordered_map<std::string, FunctionInfo> fmap,
-                    std::string asm_str, std::string obj_str,
-                    std::string ir_str, std::string bc_str,
+                    std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
+                    std::string obj_str, std::string ir_str, std::string bc_str,
                     const std::set<std::string>& packed_c_abi)
       : hexagon_device_(hexagon::Device::Global()),
         data_(data),
@@ -214,13 +212,11 @@ class HexagonModuleNode final : public runtime::ModuleNode {
     }
   }
 
-  PackedFunc GetFunction(const std::string& name,
-                         const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   const char* type_key() const final { return "hexagon"; }
 
-  void SaveToFile(const std::string& file_name,
-                  const std::string& format) final {
+  void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = runtime::GetFileFormat(file_name, format);
     if (fmt == "so" || fmt == "dll" || fmt == "hexagon") {
       std::string meta_file = GetMetaFilePath(file_name);
@@ -240,8 +236,7 @@ class HexagonModuleNode final : public runtime::ModuleNode {
       CHECK(!bc_.empty()) << "LLVM IR bitcode not available";
       SaveBinaryToFile(file_name, bc_);
     } else {
-      LOG(FATAL) << "HexagonModuleNode::SaveToFile: unhandled format `" << fmt
-                 << "'";
+      LOG(FATAL) << "HexagonModuleNode::SaveToFile: unhandled format `" << fmt << "'";
     }
   }
   void SaveToBinary(dmlc::Stream* stream) final {
@@ -251,10 +246,8 @@ class HexagonModuleNode final : public runtime::ModuleNode {
   }
 
  private:
-  void CallRemotePackedCABI(void* func_ptr, const TVMArgs& args,
-                            TVMRetValue* rv) const;
-  void CallRemoteDirect(void* func_ptr, const TVMArgs& args,
-                        TVMRetValue* rv) const;
+  void CallRemotePackedCABI(void* func_ptr, const TVMArgs& args, TVMRetValue* rv) const;
+  void CallRemoteDirect(void* func_ptr, const TVMArgs& args, TVMRetValue* rv) const;
   void RemapArgs(const TVMArgs& args,
                  std::vector<TVMValue>& values,              // NOLINT(*)
                  std::vector<int>& type_codes,               // NOLINT(*)
@@ -274,8 +267,7 @@ class HexagonModuleNode final : public runtime::ModuleNode {
   std::set<std::string> packed_c_abi_funcs_;
 };
 
-void HexagonModuleNode::CallRemotePackedCABI(void* func_ptr,
-                                             const TVMArgs& args,
+void HexagonModuleNode::CallRemotePackedCABI(void* func_ptr, const TVMArgs& args,
                                              TVMRetValue* rv) const {
   // Remap all arguments, creating remote DLTensors.
   std::vector<TVMValue> values;
@@ -297,8 +289,8 @@ void HexagonModuleNode::CallRemotePackedCABI(void* func_ptr,
   int num_args = args.size();
   int values_size = num_args * sizeof(TVMValue);
   int codes_size = num_args * sizeof(int);
-  void* remote = hexagon_device_->Alloc(
-      values_size + sizeof(TVMValue) + codes_size + sizeof(int), 8);
+  void* remote =
+      hexagon_device_->Alloc(values_size + sizeof(TVMValue) + codes_size + sizeof(int), 8);
 
   // Copy all argument TVMValues to the remote space.
   void* remote_values = remote;
@@ -316,12 +308,12 @@ void HexagonModuleNode::CallRemotePackedCABI(void* func_ptr,
   temp_values[2].v_int64 = num_args;
   temp_values[3].v_handle = remote_ret_value;
   temp_values[4].v_handle = remote_ret_code;
-  int temp_codes[5] = {kTVMOpaqueHandle, kTVMOpaqueHandle, kDLInt,
-                       kTVMOpaqueHandle, kTVMOpaqueHandle};
+  int temp_codes[5] = {kTVMOpaqueHandle, kTVMOpaqueHandle, kDLInt, kTVMOpaqueHandle,
+                       kTVMOpaqueHandle};
   TVMArgs temp_args(temp_values, temp_codes, 5);
   hexagon::ArgLayout as = BuildArgLayout(temp_args);
-  hexagon_device_->Call(func_ptr, as.Scalar.data(), as.Scalar.size(),
-                        as.Stack.data(), as.Stack.size());
+  hexagon_device_->Call(func_ptr, as.Scalar.data(), as.Scalar.size(), as.Stack.data(),
+                        as.Stack.size());
 
   // TODO(kparzysz-quic): copy return value back
   std::for_each(remote_tensors.begin(), remote_tensors.end(),
@@ -332,12 +324,12 @@ void HexagonModuleNode::CallRemotePackedCABI(void* func_ptr,
 void HexagonModuleNode::CallRemoteDirect(void* func_ptr, const TVMArgs& args,
                                          TVMRetValue* rv) const {
   hexagon::ArgLayout as = BuildArgLayout(args);
-  hexagon_device_->Call(func_ptr, as.Scalar.data(), as.Scalar.size(),
-                        as.Stack.data(), as.Stack.size());
+  hexagon_device_->Call(func_ptr, as.Scalar.data(), as.Scalar.size(), as.Stack.data(),
+                        as.Stack.size());
 }
 
-PackedFunc HexagonModuleNode::GetFunction(
-    const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc HexagonModuleNode::GetFunction(const std::string& name,
+                                          const ObjectPtr<Object>& sptr_to_self) {
   auto f = fmap_.find(name);
   if (f == fmap_.end()) return PackedFunc(nullptr);
 
@@ -363,8 +355,7 @@ PackedFunc HexagonModuleNode::GetFunction(
   }
 }
 
-void HexagonModuleNode::RemapArgs(const TVMArgs& args,
-                                  std::vector<TVMValue>& values,
+void HexagonModuleNode::RemapArgs(const TVMArgs& args, std::vector<TVMValue>& values,
                                   std::vector<int>& type_codes,
                                   std::vector<void*>& remote_tensors) const {
   for (unsigned i = 0, e = args.size(); i != e; ++i) {
@@ -437,18 +428,17 @@ void* HexagonModuleNode::CreateRemoteTensor(const DLTensor* t) const {
   uint32_t remote_as_int = reinterpret_cast<uintptr_t>(remote);
   void* remote_ss = reinterpret_cast<void*>(remote_as_int + size_ht);
 
-  HexagonDLTensor local = {
-      .data = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t->data)),
-      .ctx_device_type = uint8_t(t->ctx.device_type),
-      .pad0 = {0, 0, 0},
-      .ctx_device_id = t->ctx.device_id,
-      .ndim = t->ndim,
-      .dtype_code = t->dtype.code,
-      .dtype_bits = t->dtype.bits,
-      .dtype_lanes = t->dtype.lanes,
-      .shape = remote_as_int + size_ht,
-      .strides = t->strides ? remote_as_int + size_ht + size_s : 0u,
-      .byte_offset = t->byte_offset};
+  HexagonDLTensor local = {.data = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t->data)),
+                           .ctx_device_type = uint8_t(t->ctx.device_type),
+                           .pad0 = {0, 0, 0},
+                           .ctx_device_id = t->ctx.device_id,
+                           .ndim = t->ndim,
+                           .dtype_code = t->dtype.code,
+                           .dtype_bits = t->dtype.bits,
+                           .dtype_lanes = t->dtype.lanes,
+                           .shape = remote_as_int + size_ht,
+                           .strides = t->strides ? remote_as_int + size_ht + size_s : 0u,
+                           .byte_offset = t->byte_offset};
 
   std::vector<uint64_t> local_ss(size_ss / 8);
   for (int i = 0; i != ndim; ++i) local_ss[i] = t->shape[i];
@@ -505,18 +495,16 @@ hexagon::ArgLayout HexagonModuleNode::BuildArgLayout(const TVMArgs& As) const {
 }
 
 Module HexagonModuleCreate(std::string data, std::string fmt,
-                           std::unordered_map<std::string, FunctionInfo> fmap,
-                           std::string asm_str, std::string obj_str,
-                           std::string ir_str, std::string bc_str,
+                           std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
+                           std::string obj_str, std::string ir_str, std::string bc_str,
                            const std::set<std::string>& packed_c_abi) {
-  auto n = make_object<HexagonModuleNode>(data, fmt, fmap, asm_str, obj_str,
-                                          ir_str, bc_str, packed_c_abi);
+  auto n = make_object<HexagonModuleNode>(data, fmt, fmap, asm_str, obj_str, ir_str, bc_str,
+                                          packed_c_abi);
   return Module(n);
 }
 
 // Load module from file.
-Module HexagonModuleLoadFile(const std::string& file_name,
-                             const std::string& format) {
+Module HexagonModuleLoadFile(const std::string& file_name, const std::string& format) {
   std::string data = file_name;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
@@ -552,10 +540,9 @@ std::shared_ptr<Device> Device::Global() {
 
 }  // namespace hexagon
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      *rv = HexagonModuleLoadFile(args[0], args[1]);
-    });
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = HexagonModuleLoadFile(args[0], args[1]);
+});
 
 }  // namespace runtime
 }  // namespace tvm

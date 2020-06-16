@@ -20,16 +20,19 @@
 /*!
  * \file tvm/tir/stmt_functor.h
  *
- * \brief Functors for tir stmts.
+ * \brief Functors for tir stmts
+ *        utility functions to call common functors.
  */
 #ifndef TVM_TIR_STMT_FUNCTOR_H_
 #define TVM_TIR_STMT_FUNCTOR_H_
 
+#include <tvm/node/container.h>
 #include <tvm/node/functor.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/stmt.h>
 #include <tvm/tir/expr_functor.h>
+#include <tvm/tir/stmt.h>
 
+#include <unordered_map>
 #include <utility>
 
 namespace tvm {
@@ -39,22 +42,18 @@ namespace tir {
  * \tparam FType The function signature.
  * \sa ExprFunctor
  */
-template<typename FType>
+template <typename FType>
 class StmtFunctor;
 
-#define STMT_FUNCTOR_DEFAULT {                                      \
-    return VisitStmtDefault_(op, std::forward<Args>(args)...);      \
-  }
+#define STMT_FUNCTOR_DEFAULT \
+  { return VisitStmtDefault_(op, std::forward<Args>(args)...); }
 
-#define IR_STMT_FUNCTOR_DISPATCH(OP)                                    \
-  vtable.template set_dispatch<OP>(                                     \
-      [](const ObjectRef& n, TSelf* self, Args... args) {               \
-        return self->VisitStmt_(static_cast<const OP*>(n.get()),        \
-                                std::forward<Args>(args)...);           \
-      });                                                               \
+#define IR_STMT_FUNCTOR_DISPATCH(OP)                                                       \
+  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \
+    return self->VisitStmt_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
+  });
 
-
-template<typename R, typename ...Args>
+template <typename R, typename... Args>
 class StmtFunctor<R(const Stmt& n, Args... args)> {
  private:
   using TSelf = StmtFunctor<R(const Stmt& n, Args... args)>;
@@ -71,9 +70,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
    * \param args Additional arguments.
    * \return The result of the call
    */
-  R operator()(const Stmt& n, Args... args) {
-    return VisitStmt(n, std::forward<Args>(args)...);
-  }
+  R operator()(const Stmt& n, Args... args) { return VisitStmt(n, std::forward<Args>(args)...); }
   /*!
    * \brief The functor call.
    * \param n The stmt node.
@@ -92,14 +89,15 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const AllocateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const StoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const BufferStoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const BufferRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const FreeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AssertStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const ProvideNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const RealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ProducerStoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ProducerRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const PrefetchNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const SeqStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const EvaluateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmtDefault_(const Object* op, Args ...) {
+  virtual R VisitStmtDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     return R();
   }
@@ -116,11 +114,13 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(StoreNode);
     IR_STMT_FUNCTOR_DISPATCH(FreeNode);
     IR_STMT_FUNCTOR_DISPATCH(AssertStmtNode);
-    IR_STMT_FUNCTOR_DISPATCH(ProvideNode);
-    IR_STMT_FUNCTOR_DISPATCH(RealizeNode);
+    IR_STMT_FUNCTOR_DISPATCH(ProducerStoreNode);
+    IR_STMT_FUNCTOR_DISPATCH(ProducerRealizeNode);
     IR_STMT_FUNCTOR_DISPATCH(PrefetchNode);
     IR_STMT_FUNCTOR_DISPATCH(SeqStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(EvaluateNode);
+    IR_STMT_FUNCTOR_DISPATCH(BufferStoreNode);
+    IR_STMT_FUNCTOR_DISPATCH(BufferRealizeNode);
     return vtable;
   }
 };
@@ -131,8 +131,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
 /*!
  * \brief StmtVisitor.
  */
-class TVM_DLL StmtVisitor :
-      protected StmtFunctor<void(const Stmt&)> {
+class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
  public:
   using StmtFunctor::operator();
 
@@ -154,10 +153,11 @@ class TVM_DLL StmtVisitor :
   void VisitStmt_(const AllocateNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
+  void VisitStmt_(const BufferRealizeNode* op) override;
   void VisitStmt_(const FreeNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const ProvideNode* op) override;
-  void VisitStmt_(const RealizeNode* op) override;
+  void VisitStmt_(const ProducerStoreNode* op) override;
+  void VisitStmt_(const ProducerRealizeNode* op) override;
   void VisitStmt_(const PrefetchNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
@@ -166,8 +166,7 @@ class TVM_DLL StmtVisitor :
 /*!
  * \brief StmtMutator that mutates the statements.
  */
-class TVM_DLL StmtMutator :
-      protected StmtFunctor<Stmt(const Stmt&)> {
+class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
  public:
   /*!
    * \brief Mutate stmt.
@@ -203,7 +202,7 @@ class TVM_DLL StmtMutator :
    *
    * \return The result object pointer.
    */
-  template<typename TNode>
+  template <typename TNode>
   ObjectPtr<TNode> CopyOnWrite(const TNode* node) {
     if (allow_copy_on_write_) {
       // return the old node.
@@ -237,9 +236,7 @@ class TVM_DLL StmtMutator :
    *       or have a class sub-class both StmtMutator and ExprMutator
    *       and redirect Mutate to ExprMutator::Mutate(Expr)
    */
-  virtual PrimExpr VisitExpr(const PrimExpr& e) {
-    return e;
-  }
+  virtual PrimExpr VisitExpr(const PrimExpr& e) { return e; }
   // statement visitor
   Stmt VisitStmt_(const AttrStmtNode* op) override;
   Stmt VisitStmt_(const IfThenElseNode* op) override;
@@ -248,10 +245,11 @@ class TVM_DLL StmtMutator :
   Stmt VisitStmt_(const AllocateNode* op) override;
   Stmt VisitStmt_(const StoreNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
+  Stmt VisitStmt_(const BufferRealizeNode* op) override;
   Stmt VisitStmt_(const FreeNode* op) override;
   Stmt VisitStmt_(const AssertStmtNode* op) override;
-  Stmt VisitStmt_(const ProvideNode* op) override;
-  Stmt VisitStmt_(const RealizeNode* op) override;
+  Stmt VisitStmt_(const ProducerStoreNode* op) override;
+  Stmt VisitStmt_(const ProducerRealizeNode* op) override;
   Stmt VisitStmt_(const PrefetchNode* op) override;
   Stmt VisitStmt_(const SeqStmtNode* op) override;
   Stmt VisitStmt_(const EvaluateNode* op) override;
@@ -267,8 +265,7 @@ class TVM_DLL StmtMutator :
    * \param fmutate The mutate function, can be nullptr, which defaults to Visit.
    * \return The mutated result.
    */
-  Stmt VisitSeqStmt_(const SeqStmtNode* op,
-                     bool flatten_before_visit,
+  Stmt VisitSeqStmt_(const SeqStmtNode* op, bool flatten_before_visit,
                      std::function<Stmt(const Stmt&)> fmutate = nullptr);
   // internal helper.
   class Internal;
@@ -277,45 +274,37 @@ class TVM_DLL StmtMutator :
 /*!
  * \brief Visitor that recursively visit stmts and exprs on them.
  */
-class StmtExprVisitor :
-      public StmtVisitor,
-      public ExprVisitor {
+class StmtExprVisitor : public StmtVisitor, public ExprVisitor {
  public:
   using StmtVisitor::operator();
   using ExprVisitor::operator();
 
  protected:
-  using StmtVisitor::VisitStmt;
   using ExprVisitor::VisitExpr;
+  using StmtVisitor::VisitStmt;
 
-  void VisitExpr(const PrimExpr& e) override {
-    return ExprVisitor::VisitExpr(e);
-  }
+  void VisitExpr(const PrimExpr& e) override { return ExprVisitor::VisitExpr(e); }
 };
 
 /*!
  * \brief Mutator that recursively mutates stmts and exprs on them.
  */
-class StmtExprMutator :
-      public StmtMutator,
-      public ExprMutator {
+class StmtExprMutator : public StmtMutator, public ExprMutator {
  public:
   using StmtMutator::operator();
   using ExprMutator::operator();
 
  protected:
-  using StmtMutator::VisitExpr;
   using ExprMutator::VisitExpr;
+  using StmtMutator::VisitExpr;
 
-  PrimExpr VisitExpr(const PrimExpr& e) override {
-    return ExprMutator::VisitExpr(e);
-  }
+  PrimExpr VisitExpr(const PrimExpr& e) override { return ExprMutator::VisitExpr(e); }
 };
 
 /*!
- * \brief recursively visit the ir in post DFS order node, and transform it
+ * \brief recursively visit the ir nodes in post DFS order, and transform it
  *
- * \param node The ir to be transformed.
+ * \param stmt The ir to be transformed.
  * \param preorder The function called in before recursive mutation
  *          If preorder returns None, then the transform will proceed to recursive call.
  *          If preorder returns a not None Stmt/Expr, the transformer will simply return it and
@@ -323,22 +312,71 @@ class StmtExprMutator :
  * \param postorder The function called after recursive mutation.
  *          The recursive mutation result is passed to postorder for further mutation.
  * \param only_enable List of runtime::String.
- *          If it is empty, all IRNode will call preorder/postorder
- *          If it is not empty, preorder/postorder will only be called
+ *          If it is null, all IRNode will call preorder/postorder
+ *          If it is not null, preorder/postorder will only be called
  *          when the IRNode's type key is in the list.
  */
-TVM_DLL Stmt IRTransform(Stmt node,
-                         const runtime::PackedFunc& preorder,
+TVM_DLL Stmt IRTransform(Stmt stmt, const runtime::PackedFunc& preorder,
                          const runtime::PackedFunc& postorder,
-                         const Array<runtime::String>& only_enable = {});
+                         Optional<Array<String>> only_enable = NullOpt);
 
 /*!
- * \brief recursively visit the ir in post DFS order node, apply fvisit
+ * \brief Recursively visit the ir in post DFS order node, apply fvisit
  * Each node is guaranteed to be visited only once.
  * \param node The ir to be visited.
  * \param fvisit The visitor function to be applied.
  */
 TVM_DLL void PostOrderVisit(const ObjectRef& node, std::function<void(const ObjectRef&)> fvisit);
+
+/*!
+ * \brief Substitute the var specified by vmap.
+ * \param stmt The source statement to be substituted
+ * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
+ * \return The converted form.
+ */
+TVM_DLL Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var& var)> vmap);
+
+/*!
+ * \brief Substitute the var specified by vmap.
+ * \param expr The source statement to be substituted
+ * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
+ * \return The result.
+ */
+TVM_DLL PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(const Var& var)> vmap);
+
+/*!
+ * \brief Sugar for substitute via a given map.
+ * \param input The input to be updated.
+ * \param value_map The map of new values.
+ * \return The result.
+ * \tparam T the input type, can be PrimExpr or Stmt.
+ */
+template <typename T>
+inline auto Substitute(T input, const Map<Var, PrimExpr>& value_map) {
+  auto vmap = [&](const Var& var) -> Optional<PrimExpr> {
+    auto it = value_map.find(var);
+    if (it != value_map.end()) return (*it).second;
+    return Optional<PrimExpr>(nullptr);
+  };
+  return Substitute(std::move(input), vmap);
+}
+
+/*!
+ * \brief Sugar for substitute via a given map.
+ * \param input The input to be updated.
+ * \param value_map The map of new values.
+ * \return The result.
+ * \tparam T the input type, can be PrimExpr or Stmt.
+ */
+template <typename T>
+inline T Substitute(T input, const std::unordered_map<const VarNode*, PrimExpr>& value_map) {
+  auto vmap = [&](const Var& var) -> Optional<PrimExpr> {
+    auto it = value_map.find(var.get());
+    if (it != value_map.end()) return (*it).second;
+    return Optional<PrimExpr>(nullptr);
+  };
+  return Substitute(std::move(input), vmap);
+}
 
 }  // namespace tir
 }  // namespace tvm

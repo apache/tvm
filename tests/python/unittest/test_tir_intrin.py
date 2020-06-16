@@ -63,6 +63,12 @@ def test_unary_intrin():
         (tvm.tir.sinh, lambda x : np.sinh(x)),
         (tvm.tir.cosh, lambda x : np.cosh(x)),
         (tvm.tir.log1p, lambda x : np.log1p(x)),
+        (tvm.tir.asin, lambda x : np.arcsin(x)),
+        (tvm.tir.acos, lambda x : np.arccos(x)),
+        (tvm.tir.atan, lambda x : np.arctan(x)),
+        (tvm.tir.asinh, lambda x : np.arcsinh(x)),
+        (tvm.tir.acosh, lambda x : np.arccosh(x)),
+        (tvm.tir.atanh, lambda x : np.arctanh(x)),
     ]
     def run_test(tvm_intrin, np_func):
         m = te.var("m",)
@@ -72,7 +78,7 @@ def test_unary_intrin():
         f = tvm.build(s, [A, B], "llvm")
         ctx = tvm.cpu(0)
         n = 10
-        a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(0.1, 0.5, size=n).astype(A.dtype), ctx)
         b = tvm.nd.array( \
             np.random.uniform(size=n).astype(A.dtype), ctx)
         f(a, b)

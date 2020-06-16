@@ -23,6 +23,7 @@
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
+
 #include "op_common.h"
 
 namespace tvm {
@@ -44,7 +45,6 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   // Get the input dtype and shape.
   QnnBinaryOpTensorType input_type(arg_types, 0);
 
-
   // FIXME (anijain2305) - The lowering can be further optimized. Instead of inserting requantize in
   // the start, we can insert requantize at the end if both input tensors have same qnn params. In
   // that case, we can first add the tensors, subtract the zero point, and requantize at the end.
@@ -65,18 +65,14 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   //          Q_c = Q_a' + Q_b' - zp_c
   // The add op is done in int32 precision.
 
-
-
   // Requantize LHS if necessary. Computes Q_a'
-  auto requantized_lhs = RequantizeOrUpcast(args.lhs, args.lhs_scale,
-                                            args.lhs_zero_point,
-                                            args.output_scale, args.output_zero_point,
-                                            input_type.shape);
+  auto requantized_lhs =
+      RequantizeOrUpcast(args.lhs, args.lhs_scale, args.lhs_zero_point, args.output_scale,
+                         args.output_zero_point, input_type.shape);
   // Requantize RHS if necessary. Computes Q_b'
-  auto requantized_rhs = RequantizeOrUpcast(args.rhs, args.rhs_scale,
-                                            args.rhs_zero_point,
-                                            args.output_scale, args.output_zero_point,
-                                            input_type.shape);
+  auto requantized_rhs =
+      RequantizeOrUpcast(args.rhs, args.rhs_scale, args.rhs_zero_point, args.output_scale,
+                         args.output_zero_point, input_type.shape);
   // Computes Q_a' + Q_b'
   auto output = Add(requantized_lhs, requantized_rhs);
 
@@ -92,9 +88,9 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
 // QNN Addition operator.
 QNN_REGISTER_BINARY_OP("add")
-.describe("Elementwise add with with broadcasting for quantized tensors.")
-.set_support_level(11)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnAddCanonicalize);
+    .describe("Elementwise add with with broadcasting for quantized tensors.")
+    .set_support_level(11)
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnAddCanonicalize);
 
 }  // namespace qnn
 }  // namespace relay

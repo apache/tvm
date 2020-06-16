@@ -24,7 +24,7 @@ from tvm.ir import PrimExpr
 from . import _ffi_api
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Buffer")
 class Buffer(Object):
     """Symbolic data buffer in TVM.
 
@@ -245,3 +245,8 @@ def decl_buffer(shape,
     return _ffi_api.Buffer(
         data, dtype, shape, strides, elem_offset, name, scope,
         data_alignment, offset_factor, buffer_type)
+
+
+@tvm._ffi.register_object("tir.DataProducer")
+class DataProducer(Object):
+    pass

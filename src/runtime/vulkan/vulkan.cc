@@ -17,21 +17,19 @@
  * under the License.
  */
 
-#include <vulkan/vulkan.h>
 #include <dmlc/memory_io.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
+#include <vulkan/vulkan.h>
 
 #include <array>
 #include <cstring>
-
 
 #include "../file_util.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../workspace_pool.h"
-
 #include "vulkan_common.h"
 #include "vulkan_module.h"
 #include "vulkan_shader.h"
@@ -58,6 +56,8 @@ class VulkanThreadEntry {
     // the instance and device get destroyed.
     // The destruction need to be manually called
     // to ensure the destruction order.
+
+    pool.reset();
     streams_.clear();
     for (const auto& kv : staging_buffers_) {
       if (!kv.second) {
@@ -77,7 +77,7 @@ class VulkanThreadEntry {
   }
 
   TVMContext ctx;
-  WorkspacePool pool;
+  std::unique_ptr<WorkspacePool> pool;
   VulkanStream* Stream(size_t device_id);
   VulkanStagingBuffer* StagingBuffer(int device_id, size_t size);
 
@@ -117,9 +117,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
   }
   void SetDevice(TVMContext ctx) final { VulkanThreadEntry::ThreadLocal()->ctx = ctx; }
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx,
-                       size_t nbytes,
-                       size_t alignment,
+  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
                        DLDataType type_hint) final {
     const auto& vctx = context(ctx.device_id);
     VkBufferCreateInfo info;
@@ -189,6 +187,10 @@ class VulkanDeviceAPI final : public DeviceAPI {
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
+    // Before releasing the vkBuffer, call sync to
+    // finish all the vulkan commands that reference the buffer.
+    StreamSync(ctx, nullptr);
+
     const auto& vctx = context(ctx.device_id);
     auto* pbuf = static_cast<VulkanBuffer*>(ptr);
     vkDestroyBuffer(vctx.device, pbuf->buffer, nullptr);
@@ -331,11 +333,11 @@ class VulkanDeviceAPI final : public DeviceAPI {
   }
 
   void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final {
-    return VulkanThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
+    return VulkanThreadEntry::ThreadLocal()->pool->AllocWorkspace(ctx, size);
   }
 
   void FreeWorkspace(TVMContext ctx, void* data) final {
-    VulkanThreadEntry::ThreadLocal()->pool.FreeWorkspace(ctx, data);
+    VulkanThreadEntry::ThreadLocal()->pool->FreeWorkspace(ctx, data);
   }
 
   static const std::shared_ptr<VulkanDeviceAPI>& Global() {
@@ -366,7 +368,7 @@ void VulkanDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
     case kMaxThreadsPerBlock: {
       VkPhysicalDeviceProperties phy_prop;
       vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
-      int64_t value = phy_prop.limits.maxComputeWorkGroupSize[0];
+      int64_t value = phy_prop.limits.maxComputeWorkGroupInvocations;
       *rv = value;
       break;
     }
@@ -399,8 +401,18 @@ void VulkanDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
       return;
     case kExist:
       break;
-    case kMaxThreadDimensions:
+    case kMaxThreadDimensions: {
+      VkPhysicalDeviceProperties phy_prop;
+      vkGetPhysicalDeviceProperties(vctx.phy_device, &phy_prop);
+      int64_t dims[3];
+      dims[0] = phy_prop.limits.maxComputeWorkGroupSize[0];
+      dims[1] = phy_prop.limits.maxComputeWorkGroupSize[1];
+      dims[2] = phy_prop.limits.maxComputeWorkGroupSize[2];
+      std::stringstream ss;  // use json string to return multiple int values;
+      ss << "[" << dims[0] << ", " << dims[1] << ", " << dims[2] << "]";
+      *rv = ss.str();
       break;
+    }
     case kGcnArch:
       return;
   }
@@ -624,9 +636,8 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
 #ifdef USE_VULKAN_IMMEDIATE_MODE
     if (has_extension("VK_KHR_push_descriptor") &&
         has_extension("VK_KHR_descriptor_update_template")) {
-      ctx.descriptor_template_khr_functions =
-          std::unique_ptr<VulkanDescriptorTemplateKHRFunctions>(
-              new VulkanDescriptorTemplateKHRFunctions());
+      ctx.descriptor_template_khr_functions = std::unique_ptr<VulkanDescriptorTemplateKHRFunctions>(
+          new VulkanDescriptorTemplateKHRFunctions());
       ctx.descriptor_template_khr_functions->vkCreateDescriptorUpdateTemplateKHR =
           CHECK_NOTNULL((PFN_vkCreateDescriptorUpdateTemplateKHR)vkGetDeviceProcAddr(
               ctx.device, "vkCreateDescriptorUpdateTemplateKHR"));
@@ -668,9 +679,7 @@ class VulkanModuleNode;
 // a wrapped function class to get packed func.
 class VulkanWrappedFunc {
  public:
-  void Init(VulkanModuleNode* m,
-            ObjectPtr<Object> sptr,
-            const std::string& func_name,
+  void Init(VulkanModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
             const std::vector<std::string>& thread_axis_tags) {
     m_ = m;
@@ -706,13 +715,12 @@ class VulkanWrappedFunc {
 class VulkanModuleNode final : public runtime::ModuleNode {
  public:
   explicit VulkanModuleNode(std::unordered_map<std::string, VulkanShader> smap,
-                             std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
+                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : smap_(smap), fmap_(fmap), source_(source) {}
 
   const char* type_key() const final { return "vulkan"; }
 
-  PackedFunc GetFunction(const std::string& name,
-                         const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     CHECK_EQ(sptr_to_self.get(), this);
     CHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
     auto it = fmap_.find(name);
@@ -747,7 +755,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
   }
 
   std::shared_ptr<VulkanPipeline> GetPipeline(size_t device_id, const std::string& func_name,
-                                               size_t num_pack_args) {
+                                              size_t num_pack_args) {
     const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);
     std::lock_guard<std::mutex> lock(mutex_);
     const auto& cp = ecache_[device_id][func_name];
@@ -772,6 +780,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     std::vector<VkDescriptorSetLayoutBinding> arg_binding;
     std::vector<VkDescriptorUpdateTemplateEntryKHR> arg_template;
     uint32_t num_pod = 0, num_buffer = 0;
+
     {
       auto fit = fmap_.find(func_name);
       CHECK(fit != fmap_.end());
@@ -927,8 +936,6 @@ class VulkanModuleNode final : public runtime::ModuleNode {
   }
 
  private:
-  // the binary data
-  std::vector<uint32_t> data_;
   // function information table.
   std::unordered_map<std::string, VulkanShader> smap_;
   // function information table.
@@ -1004,7 +1011,8 @@ VulkanStagingBuffer* VulkanThreadEntry::StagingBuffer(int device_id, size_t size
 }
 
 VulkanThreadEntry::VulkanThreadEntry()
-    : pool(static_cast<DLDeviceType>(kDLVulkan), VulkanDeviceAPI::Global()) {
+    : pool(std::make_unique<WorkspacePool>(static_cast<DLDeviceType>(kDLVulkan),
+                                           VulkanDeviceAPI::Global())) {
   ctx.device_id = 0;
   ctx.device_type = static_cast<DLDeviceType>(kDLVulkan);
 }
@@ -1017,8 +1025,7 @@ VulkanStream* VulkanThreadEntry::Stream(size_t device_id) {
   return streams_[device_id].get();
 }
 
-void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
-                                    const ArgUnion* pack_args) const {
+void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion* pack_args) const {
   int device_id = VulkanThreadEntry::ThreadLocal()->ctx.device_id;
   CHECK_LT(device_id, kVulkanMaxNumDevice);
   const auto& vctx = VulkanDeviceAPI::Global()->context(device_id);

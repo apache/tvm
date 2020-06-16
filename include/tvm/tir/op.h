@@ -33,9 +33,8 @@
 #include <tvm/tir/stmt.h>
 
 #include <algorithm>
-#include <type_traits>
 #include <limits>
-
+#include <type_traits>
 
 namespace tvm {
 
@@ -464,6 +463,7 @@ TVM_DLL PrimExpr isinf(PrimExpr x);
  * \brief sum of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr sum(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -478,6 +478,7 @@ TVM_DLL PrimExpr all(PrimExpr source, Array<tir::IterVar> axis);
  * \brief logical Or of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -485,6 +486,7 @@ TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis);
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -492,6 +494,7 @@ TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis);
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -499,6 +502,7 @@ TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis);
  * \brief product of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
+ * \return The result.
  */
 TVM_DLL PrimExpr prod(PrimExpr source, Array<tir::IterVar> axis);
 
@@ -548,10 +552,10 @@ TVM_DLL PrimExpr trunc(PrimExpr x);
 TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                                               \
-  inline PrimExpr OpName(PrimExpr x) {                                                 \
-    return tir::CallNode::make(x.dtype(), #OpName, {x}, tir::CallNode::PureIntrinsic); \
-  }                                                                                    \
+#define TVM_DECLARE_INTRIN_UNARY(OpName)                                     \
+  inline PrimExpr OpName(PrimExpr x) {                                       \
+    return tir::Call(x.dtype(), #OpName, {x}, tir::CallNode::PureIntrinsic); \
+  }
 
 TVM_DECLARE_INTRIN_UNARY(exp);
 TVM_DECLARE_INTRIN_UNARY(exp2);
@@ -570,7 +574,12 @@ TVM_DECLARE_INTRIN_UNARY(cos);
 TVM_DECLARE_INTRIN_UNARY(cosh);
 TVM_DECLARE_INTRIN_UNARY(sin);
 TVM_DECLARE_INTRIN_UNARY(sinh);
+TVM_DECLARE_INTRIN_UNARY(asin);
+TVM_DECLARE_INTRIN_UNARY(acos);
 TVM_DECLARE_INTRIN_UNARY(atan);
+TVM_DECLARE_INTRIN_UNARY(acosh);
+TVM_DECLARE_INTRIN_UNARY(asinh);
+TVM_DECLARE_INTRIN_UNARY(atanh);
 
 namespace tir {
 /*!
@@ -580,8 +589,8 @@ namespace tir {
  * \return the result expression.
  * \tparam ValueType The constant value type
  */
-template<typename ValueType,
-         typename = typename std::enable_if<std::is_pod<ValueType>::value>::type>
+template <typename ValueType,
+          typename = typename std::enable_if<std::is_pod<ValueType>::value>::type>
 inline PrimExpr make_const(DataType t, ValueType value);
 /*!
  * \brief Make a const zero expr.
@@ -594,17 +603,13 @@ inline PrimExpr make_zero(DataType t);
  * \param lanes The number of lanes in the bool
  * \return The result expression.
  */
-inline PrimExpr const_true(int lanes = 1) {
-  return make_const(DataType::UInt(1, lanes), 1);
-}
+inline PrimExpr const_true(int lanes = 1) { return make_const(DataType::UInt(1, lanes), 1); }
 /*!
  * \brief Make a constant false expression.
  * \param lanes The number of lanes in the bool
  * \return The result expression.
  */
-inline PrimExpr const_false(int lanes = 1) {
-  return make_const(DataType::UInt(1, lanes), 0);
-}
+inline PrimExpr const_false(int lanes = 1) { return make_const(DataType::UInt(1, lanes), 0); }
 /*!
  * \brief Get x as constant int expression.
  * \param x The expression
@@ -641,9 +646,7 @@ inline bool is_no_op(const tir::Stmt& stmt);
  * \note This only return true for integer types.
  * \return whether x is constant 1
  */
-inline bool is_one(const PrimExpr& x) {
-  return is_const_int(x, 1);
-}
+inline bool is_one(const PrimExpr& x) { return is_const_int(x, 1); }
 
 /*!
  * \brief Check whether x is a constant integer 0
@@ -651,9 +654,7 @@ inline bool is_one(const PrimExpr& x) {
  * \return whether x is constant 0
  * \note This only return true for integer types.
  */
-inline bool is_zero(const PrimExpr& x) {
-  return is_const_int(x, 0);
-}
+inline bool is_zero(const PrimExpr& x) { return is_const_int(x, 0); }
 
 /*!
  * \brief Check whether x is a constant.
@@ -661,6 +662,17 @@ inline bool is_zero(const PrimExpr& x) {
  * \return whether x is constant
  */
 inline bool is_const(const PrimExpr& x);
+
+/*!
+ * \brief Left fold.
+ * \param freduce The reduction function.
+ * \param init_value The initial value.
+ * \param values The values to be folded.
+ * \return The result.
+ * \tparam FReduce The type of the reduction.
+ */
+template <typename FReduce>
+inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values);
 
 /*!
  * \brief Check whether x is a constant power of two
@@ -724,7 +736,7 @@ inline bool is_no_op(const tir::Stmt& stmt) {
   return false;
 }
 
-template<typename ValueType>
+template <typename ValueType>
 inline PrimExpr MakeConstScalar(DataType t, ValueType value) {
   if (t.is_int()) return IntImm(t, static_cast<int64_t>(value));
   if (t.is_uint()) {
@@ -744,20 +756,19 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value) {
   // datatypes lowering pass, we will lower the value to its true representation in the format
   // specified by the datatype.
   // TODO(gus) when do we need to start worrying about doubles not being precise enough?
-  if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(kTVMCustomBegin)) {
+  if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(DataType::kCustomBegin)) {
     return FloatImm(t, static_cast<double>(value));
   }
   LOG(FATAL) << "cannot make const for type " << t;
   return PrimExpr();
 }
 
-template<typename ValueType, typename>
+template <typename ValueType, typename>
 inline PrimExpr make_const(DataType t, ValueType value) {
   if (t.lanes() == 1) {
     return MakeConstScalar(t, value);
   } else {
-    return tir::BroadcastNode::make(
-        MakeConstScalar(t.element_of(), value), t.lanes());
+    return tir::Broadcast(MakeConstScalar(t.element_of(), value), t.lanes());
   }
 }
 
@@ -767,47 +778,46 @@ inline PrimExpr make_zero(DataType t) {
   }
   return make_const(t, 0);
 }
+
+template <typename FReduce>
+inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values) {
+  for (PrimExpr val : values) {
+    init_value = freduce(init_value, val);
+  }
+  return init_value;
+}
+
 }  // namespace tir
 
 // additional const expression overloading
-#define TVM_DEFINE_ASSIGN_OP_OVERLOAD(Name, OpFunc)             \
-  inline PrimExpr Name(PrimExpr& a, PrimExpr b) {\
-    a = OpFunc(a, b);                                           \
-    return a;                                                   \
+#define TVM_DEFINE_ASSIGN_OP_OVERLOAD(Name, OpFunc) \
+  inline PrimExpr Name(PrimExpr& a, PrimExpr b) {   \
+    a = OpFunc(a, b);                               \
+    return a;                                       \
   }
 
-#define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(Name)              \
-  inline PrimExpr Name(const PrimExpr& a, float b) {           \
-    return Name(a, PrimExpr(b));                               \
-  }                                                            \
-  inline PrimExpr Name(float a, const PrimExpr& b) {           \
-    return Name(PrimExpr(a), b);                               \
-  }                                                            \
-  inline PrimExpr Name(int a, const PrimExpr& b) {             \
-    return Name(tir::make_const(b.dtype(), a), b);             \
-  }                                                            \
-  inline PrimExpr Name(const PrimExpr& a, int b) {             \
-    return Name(a, tir::make_const(a.dtype(), b));             \
-  }                                                            \
-  inline PrimExpr Name(const PrimExpr& a, double b) {          \
-    return Name(a, tir::make_const(DataType::Float(64), b));   \
+#define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(Name)                                   \
+  inline PrimExpr Name(const PrimExpr& a, float b) { return Name(a, PrimExpr(b)); } \
+  inline PrimExpr Name(float a, const PrimExpr& b) { return Name(PrimExpr(a), b); } \
+  inline PrimExpr Name(int a, const PrimExpr& b) {                                  \
+    return Name(tir::make_const(b.dtype(), a), b);                                  \
+  }                                                                                 \
+  inline PrimExpr Name(const PrimExpr& a, int b) {                                  \
+    return Name(a, tir::make_const(a.dtype(), b));                                  \
+  }                                                                                 \
+  inline PrimExpr Name(const PrimExpr& a, double b) {                               \
+    return Name(a, tir::make_const(DataType::Float(64), b));                        \
   }
 
-#define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)         \
-  inline PrimExpr Name(const PrimExpr& a, bool b) {            \
-    return Name(a, PrimExpr(b));                               \
-  }                                                            \
-  inline PrimExpr Name(bool a, const PrimExpr& b) {            \
-    return Name(PrimExpr(a), b);                               \
-  }
+#define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)                             \
+  inline PrimExpr Name(const PrimExpr& a, bool b) { return Name(a, PrimExpr(b)); } \
+  inline PrimExpr Name(bool a, const PrimExpr& b) { return Name(PrimExpr(a), b); }
 
-#define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(Name)            \
-  inline PrimExpr Name(const PrimExpr& a, int b) {            \
-    return Name(a, tir::make_const(a.dtype(), b));            \
-  }                                                           \
-  inline PrimExpr Name(int a, const PrimExpr& b) {            \
-    return Name(tir::make_const(b.dtype(), a), b);            \
-  }
+#define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(Name) \
+  inline PrimExpr Name(const PrimExpr& a, int b) { \
+    return Name(a, tir::make_const(a.dtype(), b)); \
+  }                                                \
+  inline PrimExpr Name(int a, const PrimExpr& b) { return Name(tir::make_const(b.dtype(), a), b); }
 
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator+=, operator+);
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator-=, operator-);
@@ -829,8 +839,8 @@ TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(truncdiv);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(truncmod);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(floordiv);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(floormod);
-TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator>>); // NOLINT(*)
-TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator<<); // NOLINT(*)
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator>>);  // NOLINT(*)
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator<<);  // NOLINT(*)
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator&);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator|);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator^);
@@ -843,7 +853,7 @@ TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(operator||);
  * \note The call to this function will always results in a compiler error.
  * \tparam TA Any class type.
  */
-template<typename TA>
+template <typename TA>
 inline void DivAmbiguityError(const TA& a) {
   constexpr bool div_ambiguity = !std::is_class<TA>::value;
   static_assert(div_ambiguity,
@@ -859,19 +869,19 @@ inline void DivAmbiguityError(const TA& a) {
 // to use the specific division function.
 // The second template argument is necessary to make sure the
 // code compiles lazily by the compiler during invocation.
-template<typename TB>
+template <typename TB>
 inline PrimExpr operator/(const PrimExpr& a, const TB& b) {
   DivAmbiguityError(a);
   return a;
 }
 
-template<typename TB>
+template <typename TB>
 inline PrimExpr operator/=(const PrimExpr& a, const TB& b) {
   DivAmbiguityError(a);
   return a;
 }
 
-template<typename TB>
+template <typename TB>
 inline PrimExpr operator%(const PrimExpr& a, const TB& b) {
   DivAmbiguityError(a);
   return a;

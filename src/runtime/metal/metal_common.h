@@ -24,21 +24,22 @@
 #ifndef TVM_RUNTIME_METAL_METAL_COMMON_H_
 #define TVM_RUNTIME_METAL_METAL_COMMON_H_
 
-#import <Metal/MTLBuffer.h>
-#import <Metal/MTLCommandQueue.h>
-#import <Metal/MTLCommandBuffer.h>
 #import <Metal/MTLBlitCommandEncoder.h>
+#import <Metal/MTLBuffer.h>
+#import <Metal/MTLCommandBuffer.h>
+#import <Metal/MTLCommandQueue.h>
 #import <Metal/MTLDevice.h>
 #import <Metal/MTLLibrary.h>
-
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/device_api.h>
 #include <dmlc/logging.h>
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/device_api.h>
+#include <tvm/runtime/packed_func.h>
+
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
-#include <memory>
+
 #include "../workspace_pool.h"
 
 namespace tvm {
@@ -64,14 +65,14 @@ class MetalWorkspace final : public DeviceAPI {
   // Get command queue for given context.
   id<MTLCommandQueue> GetCommandQueue(TVMContext ctx) {
     CHECK_EQ(ctx.device_type, kDLMetal);
-    CHECK(ctx.device_id >= 0  && static_cast<size_t>(ctx.device_id) < queues.size())
+    CHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < queues.size())
         << "Invalid Metal device_id=" << ctx.device_id;
     return queues[ctx.device_id];
   }
   // Get device for given context
   id<MTLDevice> GetDevice(TVMContext ctx) {
     CHECK_EQ(ctx.device_type, kDLMetal);
-    CHECK(ctx.device_id >= 0  && static_cast<size_t>(ctx.device_id) < devices.size())
+    CHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < devices.size())
         << "Invalid Metal device_id=" << ctx.device_id;
     return devices[ctx.device_id];
   }
@@ -81,19 +82,10 @@ class MetalWorkspace final : public DeviceAPI {
   // override device API
   void SetDevice(TVMContext ctx) final;
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx,
-                       size_t nbytes,
-                       size_t alignment,
-                       DLDataType type_hint) final;
+  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment, DLDataType type_hint) final;
   void FreeDataSpace(TVMContext ctx, void* ptr) final;
-  void CopyDataFromTo(const void* from,
-                      size_t from_size,
-                      void* to,
-                      size_t to_size,
-                      size_t size,
-                      TVMContext ctx_from,
-                      TVMContext ctx_to,
-                      DLDataType type_hint,
+  void CopyDataFromTo(const void* from, size_t from_size, void* to, size_t to_size, size_t size,
+                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
                       TVMStreamHandle stream) final;
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
   void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
@@ -112,8 +104,7 @@ class MetalThreadEntry {
   /*! \brief workspace pool */
   WorkspacePool pool;
   // constructor
-  MetalThreadEntry()
-      : pool(static_cast<DLDeviceType>(kDLMetal), MetalWorkspace::Global()) {
+  MetalThreadEntry() : pool(static_cast<DLDeviceType>(kDLMetal), MetalWorkspace::Global()) {
     context.device_id = 0;
     context.device_type = static_cast<DLDeviceType>(kDLMetal);
   }

@@ -36,6 +36,7 @@ def conv2d_strategy_rocm(attrs, inputs, out_type, target):
     layout = attrs.data_layout
     stride_h, stride_w = attrs.get_int_tuple("strides")
     kernel_layout = attrs.kernel_layout
+    padding = attrs.get_int_tuple("padding")
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
 
@@ -77,7 +78,8 @@ def conv2d_strategy_rocm(attrs, inputs, out_type, target):
         else:
             raise RuntimeError("Unsupported conv2d layout {} for CUDA".format(layout))
         # add miopen implementation
-        if "miopen" in target.libs and layout == "NCHW":
+        if "miopen" in target.libs and layout == "NCHW" and padding[0] == padding[2] and \
+            padding[1] == padding[3]:
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.rocm.conv2d_nchw_miopen, True),
                 wrap_topi_schedule(topi.rocm.schedule_conv2d_nchw_miopen),

@@ -20,47 +20,42 @@
 /*!
  * \file make_packed_api.cc Lower PrimFunc to use the packed function API.
  */
-#include <tvm/tir/ir_pass.h>
-#include <tvm/tir/expr.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/transform.h>
-#include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/buffer.h>
-#include <tvm/target/target.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/container.h>
+#include <tvm/target/target.h>
+#include <tvm/tir/analysis.h>
+#include <tvm/tir/buffer.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
 
-#include <vector>
-#include <utility>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
-#include "../pass/ir_util.h"
-#include "../pass/arg_binder.h"
+#include "arg_binder.h"
+#include "ir_util.h"
 
 namespace tvm {
 namespace tir {
 
 inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
-  return AssertStmtNode::make(lhs == rhs, tvm::tir::StringImmNode::make(msg),
-                              EvaluateNode::make(0));
+  return AssertStmt(lhs == rhs, tvm::tir::StringImm(msg), Evaluate(0));
 }
 
-PrimFunc MakePackedAPI(PrimFunc&& func,
-                       int num_unpacked_args) {
+PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  CHECK(global_symbol)
-      << "MakePackedAPI: Expect PrimFunc to have the global_symbol attribute";
+  CHECK(global_symbol) << "MakePackedAPI: Expect PrimFunc to have the global_symbol attribute";
 
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
-  CHECK(target.defined())
-      << "MakePackedAPI: Require the target attribute";
+  CHECK(target.defined()) << "MakePackedAPI: Require the target attribute";
   int target_device_type = target.value()->device_type;
 
   std::string name_hint = global_symbol.value();
 
   auto* func_ptr = func.CopyOnWrite();
-  const Stmt nop = EvaluateNode::make(0);
+  const Stmt nop = Evaluate(0);
   int num_args = static_cast<int>(func_ptr->params.size());
   CHECK_LE(num_unpacked_args, num_args);
 
@@ -86,18 +81,14 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
   // local function definitions
   // load i-th argument as type t
   auto f_arg_value = [&](DataType t, int i) {
-    Array<PrimExpr> call_args{
-      v_packed_args,
-      IntImm(DataType::Int(32), i),
-      IntImm(DataType::Int(32), intrinsic::kTVMValueContent)};
+    Array<PrimExpr> call_args{v_packed_args, IntImm(DataType::Int(32), i),
+                              IntImm(DataType::Int(32), intrinsic::kTVMValueContent)};
     // load 64 bit version
     DataType api_type = APIType(t);
-    PrimExpr res = CallNode::make(
-        api_type, intrinsic::tvm_struct_get, call_args,
-        CallNode::PureIntrinsic);
+    PrimExpr res = Call(api_type, intrinsic::tvm_struct_get, call_args, CallNode::PureIntrinsic);
     // cast to the target version.
     if (api_type != t) {
-      res = CastNode::make(t, res);
+      res = Cast(t, res);
     }
     return res;
   };
@@ -112,8 +103,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
     std::ostringstream os;
 
     os << name_hint << ": num_args should be " << num_packed_args;
-    seq_init.emplace_back(
-        MakeAssertEQ(v_num_packed_args, num_packed_args, os.str()));
+    seq_init.emplace_back(MakeAssertEQ(v_num_packed_args, num_packed_args, os.str()));
   }
 
   // Need to re-declare vars, in case some arguments also appears in the buffer.
@@ -132,36 +122,29 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
     }
     if (i < num_packed_args) {
       // Value loads
-      seq_init.emplace_back(LetStmtNode::make(
-          v_arg, f_arg_value(v_arg.dtype(), i), nop));
+      seq_init.emplace_back(LetStmt(v_arg, f_arg_value(v_arg.dtype(), i), nop));
       // type code checks
       Var tcode(v_arg->name_hint + ".code", DataType::Int(32));
-      seq_init.emplace_back(LetStmtNode::make(
-          tcode, LoadNode::make(
-              DataType::Int(32), v_packed_arg_type_ids,
-              IntImm(DataType::Int(32), i), const_true(1)),
-          nop));
+      seq_init.emplace_back(LetStmt(tcode,
+                                    Load(DataType::Int(32), v_packed_arg_type_ids,
+                                         IntImm(DataType::Int(32), i), const_true(1)),
+                                    nop));
       DataType t = v_arg.dtype();
       if (t.is_handle()) {
         std::ostringstream msg;
         msg << name_hint << ": Expect arg[" << i << "] to be pointer";
-        seq_check.emplace_back(
-            AssertStmtNode::make(tcode == kTVMOpaqueHandle ||
-                                 tcode == kTVMNDArrayHandle ||
-                                 tcode == kTVMDLTensorHandle ||
-                                 tcode == kTVMNullptr,
-                                 tvm::tir::StringImmNode::make(msg.str()), nop));
+        seq_check.emplace_back(AssertStmt(tcode == kTVMOpaqueHandle || tcode == kTVMNDArrayHandle ||
+                                              tcode == kTVMDLTensorHandle || tcode == kTVMNullptr,
+                                          tvm::tir::StringImm(msg.str()), nop));
       } else if (t.is_int() || t.is_uint()) {
         std::ostringstream msg;
         msg << name_hint << ": Expect arg[" << i << "] to be int";
-        seq_check.emplace_back(
-            AssertStmtNode::make(tcode == kDLInt, tvm::tir::StringImmNode::make(msg.str()), nop));
+        seq_check.emplace_back(AssertStmt(tcode == kDLInt, tvm::tir::StringImm(msg.str()), nop));
       } else {
         CHECK(t.is_float());
         std::ostringstream msg;
         msg << name_hint << ": Expect arg[" << i << "] to be float";
-        seq_check.emplace_back(
-            AssertStmtNode::make(tcode == kDLFloat, tvm::tir::StringImmNode::make(msg.str()), nop));
+        seq_check.emplace_back(AssertStmt(tcode == kDLFloat, tvm::tir::StringImm(msg.str()), nop));
       }
     } else {
       args.push_back(v_arg);
@@ -189,35 +172,30 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
   }
 
   for (const auto& kv : buffer_def) {
-    binder.BindDLTensor(kv.second, device_type, device_id,
-                        kv.first, kv.first->name_hint);
+    binder.BindDLTensor(kv.second, device_type, device_id, kv.first, kv.first->name_hint);
   }
 
   if (num_unpacked_args == 0) {
     func = WithAttr(std::move(func), tvm::attr::kCallingConv, Integer(CallingConv::kCPackedFunc));
   }
 
-  auto body = AttrStmtNode::make(
-      make_zero(DataType::Int(32)), attr::compute_scope,
-      StringImmNode::make(name_hint + "_compute_"), func_ptr->body);
+  Stmt body = AttrStmt(make_zero(DataType::Int(32)), attr::compute_scope,
+                       StringImm(name_hint + "_compute_"), func_ptr->body);
   // Set device context
   if (vmap.count(device_id.get())) {
-    PrimExpr node = StringImmNode::make("default");
-    seq_check.push_back(AttrStmtNode::make(
-        node, attr::device_context_id, device_id, nop));
-    seq_check.push_back(AttrStmtNode::make(
-        node, attr::device_context_type, device_type, nop));
+    PrimExpr node = StringImm("default");
+    seq_check.push_back(AttrStmt(node, attr::device_context_id, device_id, nop));
+    seq_check.push_back(AttrStmt(node, attr::device_context_type, device_type, nop));
 
     if (runtime::DeviceAPI::NeedSetDeviceContext(target_device_type)) {
-      Stmt set_device = EvaluateNode::make(CallNode::make(
-              DataType::Int(32), intrinsic::tvm_call_packed,
-              {StringImmNode::make(runtime::symbol::tvm_set_device),
-               device_type, device_id}, CallNode::Intrinsic));
+      Stmt set_device =
+          Evaluate(Call(DataType::Int(32), intrinsic::tvm_call_packed,
+                        {StringImm(runtime::symbol::tvm_set_device), device_type, device_id},
+                        CallNode::Intrinsic));
       body = SeqStmt({set_device, body});
     }
   }
-  func_ptr->body = MergeNest(
-      {seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
+  func_ptr->body = MergeNest({seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
   func_ptr->params = args;
 
   Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
@@ -229,7 +207,6 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
     os << " is not bound to any variables";
     LOG(FATAL) << "Not all Vars are passed in api_args: " << os.str();
   }
-
 
   func_ptr->buffer_map = Map<Var, Buffer>();
   func_ptr->checked_type_ = func_ptr->func_type_annotation();
@@ -249,9 +226,8 @@ Pass MakePackedAPI(int num_unpacked_args) {
     for (const auto& kv : mptr->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {
         PrimFunc func = GetRef<PrimFunc>(n);
-        if (func->GetAttr<Integer>(
-                tvm::attr::kCallingConv,
-                Integer(CallingConv::kDefault)) == CallingConv::kDefault) {
+        if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
+            CallingConv::kDefault) {
           auto updated_func = MakePackedAPI(std::move(func), num_unpacked_args);
           updates.push_back({kv.first, updated_func});
         }
@@ -264,12 +240,10 @@ Pass MakePackedAPI(int num_unpacked_args) {
     return m;
   };
 
-  return tvm::transform::CreateModulePass(
-      pass_func, 0, "tir.MakePackedAPI", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tir.MakePackedAPI", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.MakePackedAPI")
-.set_body_typed(MakePackedAPI);
+TVM_REGISTER_GLOBAL("tir.transform.MakePackedAPI").set_body_typed(MakePackedAPI);
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

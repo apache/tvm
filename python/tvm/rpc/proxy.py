@@ -42,6 +42,7 @@ except ImportError as error_msg:
     raise ImportError(
         "RPCProxy module requires tornado package %s. Try 'pip install tornado'." % error_msg)
 
+from . import _ffi_api
 from . import base
 from .base import TrackerCode
 from .server import _server_env
@@ -129,7 +130,7 @@ class ForwardHandler(object):
     def on_close_event(self):
         """on close event"""
         assert not self._done
-        logging.info("RPCProxy:on_close %s ...", self.name())
+        logging.info("RPCProxy:on_close_event %s ...", self.name())
         if self.match_key:
             key = self.match_key
             if self._proxy._client_pool.get(key, None) == self:
@@ -157,10 +158,12 @@ class TCPHandler(tornado_util.TCPHandler, ForwardHandler):
         self.on_data(message)
 
     def on_close(self):
+        logging.info("RPCProxy: on_close %s ...", self.name())
+        self._close_process = True
+
         if self.forward_proxy:
             self.forward_proxy.signal_close()
             self.forward_proxy = None
-        logging.info("%s Close socket..", self.name())
         self.on_close_event()
 
 
@@ -186,6 +189,7 @@ class WebSocketHandler(websocket.WebSocketHandler, ForwardHandler):
             self.on_error(err)
 
     def on_close(self):
+        logging.info("RPCProxy: on_close %s ...", self.name())
         if self.forward_proxy:
             self.forward_proxy.signal_close()
             self.forward_proxy = None
@@ -549,7 +553,7 @@ def websocket_proxy_server(url, key=""):
             data = bytes(data)
             conn.write_message(data, binary=True)
             return len(data)
-        on_message = base._CreateEventDrivenServer(
+        on_message = _ffi_api.CreateEventDrivenServer(
             _fsend, "WebSocketProxyServer", "%toinit")
         return on_message
 

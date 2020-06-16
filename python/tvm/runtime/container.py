@@ -16,9 +16,10 @@
 # under the License.
 """Runtime container structures."""
 import tvm._ffi
-from tvm._ffi.base import string_types
-from tvm.runtime import Object, ObjectTypes
-from tvm.runtime import _ffi_api
+from .object import Object, PyNativeObject
+from .object_generic import ObjectTypes
+from . import _ffi_api
+
 
 def getitem_helper(obj, elem_getter, length, idx):
     """Helper function to implement a pythonic getitem function.
@@ -60,7 +61,7 @@ def getitem_helper(obj, elem_getter, length, idx):
     return elem_getter(obj, idx)
 
 
-@tvm._ffi.register_object("vm.ADT")
+@tvm._ffi.register_object("runtime.ADT")
 class ADT(Object):
     """Algebatic data type(ADT) object.
 
@@ -112,64 +113,26 @@ def tuple_object(fields=None):
 
 
 @tvm._ffi.register_object("runtime.String")
-class String(Object):
-    """The string object.
+class String(str, PyNativeObject):
+    """TVM runtime.String object, represented as a python str.
 
     Parameters
     ----------
-    string : str
-        The string used to construct a runtime String object
-
-    Returns
-    -------
-    ret : String
-        The created object.
+    content : str
+        The content string used to construct the object.
     """
-    def __init__(self, string):
-        self.__init_handle_by_constructor__(_ffi_api.String, string)
+    __slots__ = ["__tvm_object__"]
 
-    def __str__(self):
-        return _ffi_api.GetStdString(self)
+    def __new__(cls, content):
+        """Construct from string content."""
+        val = str.__new__(cls, content)
+        val.__init_tvm_object_by_constructor__(_ffi_api.String, content)
+        return val
 
-    def __len__(self):
-        return _ffi_api.GetStringSize(self)
-
-    def __hash__(self):
-        return _ffi_api.StringHash(self)
-
-    def __eq__(self, other):
-        if isinstance(other, string_types):
-            return self.__str__() == other
-
-        if not isinstance(other, String):
-            return False
-
-        return _ffi_api.CompareString(self, other) == 0
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __gt__(self, other):
-        return _ffi_api.CompareString(self, other) > 0
-
-    def __lt__(self, other):
-        return _ffi_api.CompareString(self, other) < 0
-
-    def __getitem__(self, key):
-        return self.__str__()[key]
-
-    def startswith(self, string):
-        """Check if the runtime string starts with a given string
-
-        Parameters
-        ----------
-        string : str
-            The provided string
-
-        Returns
-        -------
-        ret : boolean
-            Return true if the runtime string starts with the given string,
-        otherwise, false.
-        """
-        return self.__str__().startswith(string)
+    # pylint: disable=no-self-argument
+    def __from_tvm_object__(cls, obj):
+        """Construct from a given tvm object."""
+        content = _ffi_api.GetFFIString(obj)
+        val = str.__new__(cls, content)
+        val.__tvm_object__ = obj
+        return val

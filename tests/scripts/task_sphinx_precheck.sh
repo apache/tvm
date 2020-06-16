@@ -23,10 +23,6 @@ set -o pipefail
 
 cleanup()
 {
-    # cat error log if non zero exit
-    if [ $? ]; then
-        cat /tmp/$$.log.txt
-    fi
     rm -rf /tmp/$$.*
 }
 trap cleanup 0
@@ -40,15 +36,15 @@ make cython3
 echo "PreCheck sphinx doc generation WARNINGS.."
 cd docs
 make clean
-TVM_TUTORIAL_EXEC_PATTERN=none make html 2>/tmp/$$.log.txt
+TVM_TUTORIAL_EXEC_PATTERN=none make html |& tee /tmp/$$.log.txt
 
-grep -v -E "__mro__|RemovedInSphinx|UserWarning|FutureWarning|Keras" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
+grep -v -E "__mro__|UserWarning|FutureWarning|tensorflow|Keras|pytorch|TensorFlow|403" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
 echo "---------Sphinx Log----------"
 cat /tmp/$$.logclean.txt
 echo "-----------------------------"
 if grep --quiet -E "WARN" < /tmp/$$.logclean.txt; then
     echo "WARNINIG found in the log, please fix them."
-    echo "You can reproduce locally by running ./tests/script/task_sphinx_precheck.sh"
+    echo "You can reproduce locally by running ./tests/scripts/task_sphinx_precheck.sh"
     exit 1
 fi
 echo "No WARNINGS to be fixed."

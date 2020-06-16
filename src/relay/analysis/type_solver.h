@@ -24,21 +24,23 @@
 #ifndef TVM_RELAY_ANALYSIS_TYPE_SOLVER_H_
 #define TVM_RELAY_ANALYSIS_TYPE_SOLVER_H_
 
+#include <tvm/ir/error.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
-#include <tvm/relay/analysis.h>
-#include <tvm/ir/error.h>
-#include <vector>
+
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
+
 #include "../../support/arena.h"
 
 namespace tvm {
 namespace relay {
 
-using support::LinkNode;
 using support::LinkedList;
+using support::LinkNode;
 
 /*!
  * \brief Interface of type solver used in type inference.
@@ -166,7 +168,7 @@ class TypeSolver {
   /*! \brief Number of resolved relations */
   size_t num_resolved_rels_{0};
   /*! \brief map from types to type nodes. */
-  std::unordered_map<Type, TypeNode*, ObjectHash, ObjectEqual> tmap_;
+  std::unordered_map<Type, TypeNode*, ObjectPtrHash, ObjectPtrEqual> tmap_;
   /*! \brief Internal queue to update the relation */
   std::queue<RelationNode*> update_queue_;
   /*! \brief allocator of all the internal node obhect*/

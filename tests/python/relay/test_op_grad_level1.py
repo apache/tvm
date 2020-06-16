@@ -65,7 +65,16 @@ def test_unary_op():
                         (tvm.relay.cos, lambda x: -1.0 * np.sin(x)),
                         (tvm.relay.sin, lambda x: np.cos(x)),
                         (tvm.relay.tan, lambda x: 1.0 / (np.cos(x) ** 2)),
-                        (tvm.relay.atan, lambda x: 1 / (1 + np.power(x, 2.0)))]:
+                        (tvm.relay.atan, lambda x: 1 / (1 + np.power(x, 2.0))),
+                        (tvm.relay.log2, lambda x: 1 / (np.log(2) * x)),
+                        (tvm.relay.log10, lambda x: 1 / (np.log(10) * x)),
+                        (tvm.relay.cosh, lambda x: np.sinh(x)),
+                        (tvm.relay.sinh, lambda x: np.cosh(x)),
+                        (tvm.relay.asin, lambda x: 1. / (1. - x**2) ** (1./2.)),
+                        (tvm.relay.acos, lambda x: -1. / (1. - x**2.) ** (1./2.)),
+                        (tvm.relay.acosh, lambda x: 1./ (x**2 - 1.)**(1./2.)),
+                        (tvm.relay.asinh, lambda x: 1./ (x**2 + 1.)**(1./2.)),
+                        (tvm.relay.atanh, lambda x: -1./ (x**2 - 1.))]:
         check_single_op(opfunc, ref)
 
 

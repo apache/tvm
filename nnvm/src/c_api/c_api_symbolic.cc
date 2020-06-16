@@ -24,14 +24,14 @@
 #include <nnvm/c_api.h>
 #include <nnvm/op.h>
 #include <nnvm/symbolic.h>
+
 #include "c_api_common.h"
 
 using namespace nnvm;
 
-int NNListAllOpNames(nn_uint *out_size,
-                     const char*** out_array) {
+int NNListAllOpNames(nn_uint* out_size, const char*** out_array) {
   API_BEGIN();
-  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
+  NNAPIThreadLocalEntry* ret = NNAPIThreadLocalStore::Get();
   ret->ret_vec_str = dmlc::Registry<Op>::ListAllNames();
   ret->ret_vec_charp.resize(0);
   ret->ret_vec_charp.reserve(ret->ret_vec_str.size());
@@ -43,40 +43,31 @@ int NNListAllOpNames(nn_uint *out_size,
   API_END();
 }
 
-int NNGetOpHandle(const char* op_name,
-                  OpHandle* op_out) {
+int NNGetOpHandle(const char* op_name, OpHandle* op_out) {
   API_BEGIN();
   *op_out = (OpHandle)Op::Get(op_name);  // NOLINT(*)
   API_END();
 }
 
-int NNListUniqueOps(nn_uint *out_size,
-                    OpHandle **out_array) {
+int NNListUniqueOps(nn_uint* out_size, OpHandle** out_array) {
   API_BEGIN();
-  auto &vec = dmlc::Registry<Op>::List();
+  auto& vec = dmlc::Registry<Op>::List();
   *out_size = static_cast<nn_uint>(vec.size());
   *out_array = (OpHandle*)(dmlc::BeginPtr(vec));  //  NOLINT(*)
   API_END();
 }
 
-int NNAddControlDeps(SymbolHandle handle,
-                     SymbolHandle src_dep) {
+int NNAddControlDeps(SymbolHandle handle, SymbolHandle src_dep) {
   API_BEGIN();
-  static_cast<Symbol*>(handle)->AddControlDeps(
-      *static_cast<Symbol*>(src_dep));
+  static_cast<Symbol*>(handle)->AddControlDeps(*static_cast<Symbol*>(src_dep));
   API_END();
 }
 
-int NNGetOpInfo(OpHandle handle,
-                const char **name,
-                const char **description,
-                nn_uint *num_doc_args,
-                const char ***arg_names,
-                const char ***arg_type_infos,
-                const char ***arg_descriptions,
-                const char **return_type) {
-  const Op *op = static_cast<const Op *>(handle);
-  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
+int NNGetOpInfo(OpHandle handle, const char** name, const char** description, nn_uint* num_doc_args,
+                const char*** arg_names, const char*** arg_type_infos,
+                const char*** arg_descriptions, const char** return_type) {
+  const Op* op = static_cast<const Op*>(handle);
+  NNAPIThreadLocalEntry* ret = NNAPIThreadLocalStore::Get();
 
   API_BEGIN();
   *name = op->name.c_str();
@@ -100,12 +91,9 @@ int NNGetOpInfo(OpHandle handle,
   API_END();
 }
 
-int NNSymbolCreateAtomicSymbol(OpHandle creator,
-                               nn_uint num_param,
-                               const char **keys,
-                               const char **vals,
-                               SymbolHandle *out) {
-  Symbol *s = new Symbol();
+int NNSymbolCreateAtomicSymbol(OpHandle creator, nn_uint num_param, const char** keys,
+                               const char** vals, SymbolHandle* out) {
+  Symbol* s = new Symbol();
   API_BEGIN();
   const Op* op = static_cast<const Op*>(creator);
   std::unordered_map<std::string, std::string> kwargs;
@@ -117,19 +105,17 @@ int NNSymbolCreateAtomicSymbol(OpHandle creator,
   API_END_HANDLE_ERROR(delete s;);
 }
 
-int NNSymbolCreateVariable(const char *name, SymbolHandle *out) {
-  Symbol *s = new Symbol();
+int NNSymbolCreateVariable(const char* name, SymbolHandle* out) {
+  Symbol* s = new Symbol();
   API_BEGIN();
   *s = Symbol::CreateVariable(name);
   *out = s;
   API_END_HANDLE_ERROR(delete s);
 }
 
-int NNSymbolCreateGroup(nn_uint num_symbols,
-                        SymbolHandle *symbols,
-                        SymbolHandle *out) {
-  Symbol *s = new Symbol();
-  Symbol **sym_arr = (Symbol**)symbols; // NOLINT(*)
+int NNSymbolCreateGroup(nn_uint num_symbols, SymbolHandle* symbols, SymbolHandle* out) {
+  Symbol* s = new Symbol();
+  Symbol** sym_arr = (Symbol**)symbols;  // NOLINT(*)
   API_BEGIN();
   std::vector<Symbol> syms;
   for (nn_uint i = 0; i < num_symbols; ++i) {
@@ -140,28 +126,24 @@ int NNSymbolCreateGroup(nn_uint num_symbols,
   API_END_HANDLE_ERROR(delete s);
 }
 
-int NNSymbolGetOutput(SymbolHandle symbol,
-                      nn_uint index,
-                      SymbolHandle *out) {
-  Symbol *s = new Symbol();
+int NNSymbolGetOutput(SymbolHandle symbol, nn_uint index, SymbolHandle* out) {
+  Symbol* s = new Symbol();
   API_BEGIN();
   *s = (*static_cast<Symbol*>(symbol))[index];
   *out = s;
   API_END_HANDLE_ERROR(delete s);
 }
 
-int NNSymbolGetInternals(SymbolHandle symbol,
-                         SymbolHandle *out) {
-  Symbol *s = new Symbol();
+int NNSymbolGetInternals(SymbolHandle symbol, SymbolHandle* out) {
+  Symbol* s = new Symbol();
   API_BEGIN();
   *s = static_cast<Symbol*>(symbol)->GetInternals();
   *out = s;
   API_END_HANDLE_ERROR(delete s);
 }
 
-int NNSymbolGetChildren(SymbolHandle symbol,
-                        SymbolHandle *out) {
-  Symbol *s = new Symbol();
+int NNSymbolGetChildren(SymbolHandle symbol, SymbolHandle* out) {
+  Symbol* s = new Symbol();
   API_BEGIN();
   *s = static_cast<Symbol*>(symbol)->GetChildren();
   *out = s;
@@ -174,17 +156,17 @@ int NNSymbolFree(SymbolHandle symbol) {
   API_END();
 }
 
-int NNSymbolCopy(SymbolHandle symbol, SymbolHandle *out) {
-  Symbol *s = new Symbol();
+int NNSymbolCopy(SymbolHandle symbol, SymbolHandle* out) {
+  Symbol* s = new Symbol();
   API_BEGIN();
   *s = static_cast<const Symbol*>(symbol)->Copy();
   *out = s;
   API_END_HANDLE_ERROR(delete s);
 }
 
-int NNSymbolPrint(SymbolHandle symbol, const char **out_str) {
-  Symbol *s = static_cast<Symbol*>(symbol);
-  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
+int NNSymbolPrint(SymbolHandle symbol, const char** out_str) {
+  Symbol* s = static_cast<Symbol*>(symbol);
+  NNAPIThreadLocalEntry* ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
   std::ostringstream os;
   s->Print(os);
@@ -193,12 +175,9 @@ int NNSymbolPrint(SymbolHandle symbol, const char **out_str) {
   API_END();
 }
 
-int NNSymbolGetAttr(SymbolHandle symbol,
-                    const char* key,
-                    const char** out,
-                    int* success) {
-  Symbol *s = static_cast<Symbol*>(symbol);
-  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
+int NNSymbolGetAttr(SymbolHandle symbol, const char* key, const char** out, int* success) {
+  Symbol* s = static_cast<Symbol*>(symbol);
+  NNAPIThreadLocalEntry* ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
   if (s->GetAttr(key, &(ret->ret_str))) {
     *out = (ret->ret_str).c_str();
@@ -210,27 +189,20 @@ int NNSymbolGetAttr(SymbolHandle symbol,
   API_END();
 }
 
-int NNSymbolSetAttrs(SymbolHandle symbol,
-                     nn_uint num_param,
-                     const char** keys,
-                     const char** vals) {
-  Symbol *s = static_cast<Symbol*>(symbol);
+int NNSymbolSetAttrs(SymbolHandle symbol, nn_uint num_param, const char** keys, const char** vals) {
+  Symbol* s = static_cast<Symbol*>(symbol);
   API_BEGIN();
   std::vector<std::pair<std::string, std::string> > kwargs;
   for (nn_uint i = 0; i < num_param; ++i) {
-    kwargs.emplace_back(
-        std::make_pair(std::string(keys[i]), std::string(vals[i])));
+    kwargs.emplace_back(std::make_pair(std::string(keys[i]), std::string(vals[i])));
   }
   s->SetAttrs(kwargs);
   API_END();
 }
 
-int NNSymbolListAttrs(SymbolHandle symbol,
-                      int option,
-                      nn_uint *out_size,
-                      const char*** out) {
-  Symbol *s = static_cast<Symbol*>(symbol);
-  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
+int NNSymbolListAttrs(SymbolHandle symbol, int option, nn_uint* out_size, const char*** out) {
+  Symbol* s = static_cast<Symbol*>(symbol);
+  NNAPIThreadLocalEntry* ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
   std::unordered_map<std::string, std::string> attr =
       s->ListAttrs(static_cast<Symbol::ListAttrOption>(option));  // NOLINT(*)
@@ -252,12 +224,10 @@ int NNSymbolListAttrs(SymbolHandle symbol,
   API_END();
 }
 
-int NNSymbolListInputVariables(SymbolHandle symbol,
-                               int option,
-                               nn_uint *out_size,
+int NNSymbolListInputVariables(SymbolHandle symbol, int option, nn_uint* out_size,
                                SymbolHandle** out_sym_array) {
-  Symbol *s = static_cast<Symbol*>(symbol);
-  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
+  Symbol* s = static_cast<Symbol*>(symbol);
+  NNAPIThreadLocalEntry* ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
   std::vector<ObjectPtr> vs = s->ListInputs(Symbol::ListInputOption(option));
   ret->ret_handles.resize(0);
@@ -272,15 +242,12 @@ int NNSymbolListInputVariables(SymbolHandle symbol,
   API_END();
 }
 
-int NNSymbolListInputNames(SymbolHandle symbol,
-                           int option,
-                           nn_uint *out_size,
-                           const char ***out_str_array) {
-  Symbol *s = static_cast<Symbol*>(symbol);
-  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
+int NNSymbolListInputNames(SymbolHandle symbol, int option, nn_uint* out_size,
+                           const char*** out_str_array) {
+  Symbol* s = static_cast<Symbol*>(symbol);
+  NNAPIThreadLocalEntry* ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
-  ret->ret_vec_str =
-      s->ListInputNames(Symbol::ListInputOption(option));
+  ret->ret_vec_str = s->ListInputNames(Symbol::ListInputOption(option));
   ret->ret_vec_charp.resize(0);
   ret->ret_vec_charp.reserve(ret->ret_vec_str.size());
   for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
@@ -291,11 +258,9 @@ int NNSymbolListInputNames(SymbolHandle symbol,
   API_END();
 }
 
-int NNSymbolListOutputNames(SymbolHandle symbol,
-                            nn_uint *out_size,
-                            const char ***out_str_array) {
-  Symbol *s = static_cast<Symbol*>(symbol);
-  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
+int NNSymbolListOutputNames(SymbolHandle symbol, nn_uint* out_size, const char*** out_str_array) {
+  Symbol* s = static_cast<Symbol*>(symbol);
+  NNAPIThreadLocalEntry* ret = NNAPIThreadLocalStore::Get();
   API_BEGIN();
   ret->ret_vec_str = s->ListOutputNames();
   ret->ret_vec_charp.resize(0);
@@ -308,24 +273,19 @@ int NNSymbolListOutputNames(SymbolHandle symbol,
   API_END();
 }
 
-int NNSymbolGetNumOutputs(SymbolHandle symbol,
-                           nn_uint *output_count) {
-  Symbol *s = static_cast<Symbol*>(symbol);
+int NNSymbolGetNumOutputs(SymbolHandle symbol, nn_uint* output_count) {
+  Symbol* s = static_cast<Symbol*>(symbol);
   API_BEGIN();
   *output_count = static_cast<nn_uint>(s->outputs.size());
   API_END();
 }
 
-int NNSymbolCompose(SymbolHandle sym,
-                    const char *name,
-                    nn_uint num_args,
-                    const char** keys,
+int NNSymbolCompose(SymbolHandle sym, const char* name, nn_uint num_args, const char** keys,
                     SymbolHandle* args) {
   API_BEGIN();
-  NNAPIThreadLocalEntry *ret = NNAPIThreadLocalStore::Get();
+  NNAPIThreadLocalEntry* ret = NNAPIThreadLocalStore::Get();
   std::string& s_name = ret->ret_str;
-  std::unordered_map<std::string, const Symbol*>& kwargs
-      = ret->kwarg_symbol;
+  std::unordered_map<std::string, const Symbol*>& kwargs = ret->kwarg_symbol;
   kwargs.clear();
   if (name != nullptr) {
     s_name = name;
@@ -335,8 +295,7 @@ int NNSymbolCompose(SymbolHandle sym,
   Symbol* s = static_cast<Symbol*>(sym);
   if (keys == nullptr && num_args != 0) {
     kwargs.clear();
-    array_view<const Symbol*> parg(
-        (Symbol**)args, (Symbol**)args + num_args); // NOLINT(*)
+    array_view<const Symbol*> parg((Symbol**)args, (Symbol**)args + num_args);  // NOLINT(*)
     s->Compose(parg, kwargs, s_name);
   } else {
     for (nn_uint i = 0; i < num_args; ++i) {

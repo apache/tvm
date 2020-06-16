@@ -4,7 +4,7 @@
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
+5B * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
@@ -21,46 +21,44 @@
  * \brief Compute Op.
  * \file compute_op.cc
  */
+#include "compute_op.h"
+
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
-#include <tvm/arith/analyzer.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/stmt_functor.h>
-#include <unordered_set>
+
 #include <string>
+#include <unordered_set>
 #include <utility>
-#include "compute_op.h"
-#include "op_util.h"
-#include "../schedule/message_passing.h"
-#include "../../arith/compute_expr.h"
+
 #include "../../arith/interval_set.h"
+#include "../schedule/message_passing.h"
+#include "op_util.h"
 
 namespace tvm {
 namespace te {
 using namespace tir;
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<ComputeOpNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const ComputeOpNode*>(node.get());
-    p->stream << "compute(" << op->name << ", " << op << ")";
-});
+    .set_dispatch<ComputeOpNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const ComputeOpNode*>(node.get());
+      p->stream << "compute(" << op->name << ", " << op << ")";
+    });
 
 TVM_REGISTER_NODE_TYPE(ComputeOpNode);
 
 /// Verify if ComputeOp is valid with respect to Reduce operations.
-static void VerifyComputeOp(const ComputeOpNode *op);
+static void VerifyComputeOp(const ComputeOpNode* op);
 
 inline bool ReduceEqual(const tir::ReduceNode* a, const tir::ReduceNode* b) {
-  return (a->combiner.same_as(b->combiner)) &&
-         (a->source.same_as(b->source)) &&
-         (a->axis.same_as(b->axis)) &&
-         (a->condition.same_as(b->condition));
+  return (a->combiner.same_as(b->combiner)) && (a->source.same_as(b->source)) &&
+         (a->axis.same_as(b->axis)) && (a->condition.same_as(b->condition));
 }
 
-int ComputeOpNode::num_outputs() const {
-  return body.size();
-}
+int ComputeOpNode::num_outputs() const { return body.size(); }
 
 Array<IterVar> BaseComputeOpNode::root_iter_vars() const {
   if (reduce_axis.size() == 0) return axis;
@@ -87,11 +85,8 @@ Array<PrimExpr> BaseComputeOpNode::output_shape(size_t idx) const {
   return shape;
 }
 
-Tensor compute(Array<PrimExpr> shape,
-               FCompute fcompute,
-               std::string name,
-               std::string tag,
-               Map<std::string, ObjectRef> attrs) {
+Tensor compute(Array<PrimExpr> shape, FCompute fcompute, std::string name, std::string tag,
+               Map<String, ObjectRef> attrs) {
   auto op_node = make_object<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
@@ -100,20 +95,15 @@ Tensor compute(Array<PrimExpr> shape,
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
-    axis.emplace_back(IterVarNode::make(
-        Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
+    axis.emplace_back(IterVar(Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
-  return ComputeOpNode::make(
-      name, tag, attrs, axis, {fcompute(args)}).output(0);
+  return ComputeOp(name, tag, attrs, axis, {fcompute(args)}).output(0);
 }
 
-Array<Tensor> compute(Array<PrimExpr> shape,
-                      FBatchCompute fcompute,
-                      std::string name,
-                      std::string tag,
-                      Map<std::string, ObjectRef> attrs) {
+Array<Tensor> compute(Array<PrimExpr> shape, FBatchCompute fcompute, std::string name,
+                      std::string tag, Map<String, ObjectRef> attrs) {
   auto op_node = make_object<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
@@ -122,12 +112,11 @@ Array<Tensor> compute(Array<PrimExpr> shape,
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
-    axis.emplace_back(IterVarNode::make(
-        Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
+    axis.emplace_back(IterVar(Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
-  Operation op = ComputeOpNode::make(name, tag, attrs, axis, fcompute(args));
+  Operation op = ComputeOp(name, tag, attrs, axis, fcompute(args));
   Array<Tensor> outputs;
   for (int idx = 0; idx < op->num_outputs(); ++idx) {
     outputs.push_back(op.output(idx));
@@ -135,13 +124,10 @@ Array<Tensor> compute(Array<PrimExpr> shape,
   return outputs;
 }
 
-Operation ComputeOpNode::make(std::string name,
-                              std::string tag,
-                              Map<std::string, ObjectRef> attrs,
-                              Array<IterVar> axis,
-                              Array<PrimExpr> body) {
+ComputeOp::ComputeOp(std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                     Array<IterVar> axis, Array<PrimExpr> body) {
   if (!attrs.defined()) {
-    attrs = Map<std::string, ObjectRef>();
+    attrs = Map<String, ObjectRef>();
   }
   auto n = make_object<ComputeOpNode>();
   n->name = std::move(name);
@@ -154,12 +140,13 @@ Operation ComputeOpNode::make(std::string name,
     n->reduce_axis = reduce->axis;
   }
   VerifyComputeOp(n.get());
-  return Operation(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_GLOBAL("te.ComputeOp")
-.set_body_typed(ComputeOpNode::make);
-
+    .set_body_typed([](std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                       Array<IterVar> axis,
+                       Array<PrimExpr> body) { return ComputeOp(name, tag, attrs, axis, body); });
 
 // The schedule related logics
 Array<Tensor> ComputeOpNode::InputTensors() const {
@@ -167,22 +154,20 @@ Array<Tensor> ComputeOpNode::InputTensors() const {
   std::unordered_set<Tensor> visited;
   for (auto& e : body) {
     tir::PostOrderVisit(e, [&ret, &visited](const ObjectRef& n) {
-        const tir::CallNode *call = n.as<tir::CallNode>();
-        if (call != nullptr && call->func.defined()) {
-          Tensor t = Downcast<Operation>(call->func).output(call->value_index);
-          if (!visited.count(t)) {
-            ret.push_back(t);
-            visited.insert(t);
-          }
+      if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+        Tensor t = Downcast<Tensor>(pload->producer);
+        if (!visited.count(t)) {
+          ret.push_back(t);
+          visited.insert(t);
         }
-      });
+      }
+    });
   }
   return ret;
 }
 
-Operation ComputeOpNode::ReplaceInputs(
-    const Operation& self,
-    const std::unordered_map<Tensor, Tensor>& rmap) const {
+Operation ComputeOpNode::ReplaceInputs(const Operation& self,
+                                       const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
   VerifyComputeOp(this);
   Array<PrimExpr> arr;
@@ -202,28 +187,23 @@ Operation ComputeOpNode::ReplaceInputs(
       arr = this->body;
     }
   } else {
-    arr = UpdateArray(this->body, [&rmap] (const PrimExpr& e) {
-        return te::ReplaceTensor(e, rmap);
-      });
+    arr =
+        UpdateArray(this->body, [&rmap](const PrimExpr& e) { return te::ReplaceTensor(e, rmap); });
   }
   if (!arr.same_as(this->body)) {
-    return ComputeOpNode::make(
-        this->name, this->tag, this->attrs, this->axis, arr);
+    return ComputeOp(this->name, this->tag, this->attrs, this->axis, arr);
   } else {
     return self;
   }
 }
 
-void ComputeOpNode::PropBoundToInputs(
-    const Operation& self,
-    arith::Analyzer* analyzer,
-    const std::unordered_map<const VarNode*, IntSet>& dom_map,
-    std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
+void ComputeOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* analyzer,
+                                      const std::unordered_map<const VarNode*, IntSet>& dom_map,
+                                      std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
   auto fvisit = [&dom_map, out_dom_map, analyzer](const ObjectRef& n) {
-    auto *call = n.as<tir::CallNode>();
-    if (call != nullptr && call->func.defined()) {
-      Tensor t = Downcast<Operation>(call->func).output(call->value_index);
+    if (auto* pload = n.as<tir::ProducerLoadNode>()) {
+      Tensor t = Downcast<Tensor>(pload->producer);
       if (t->op.defined() && out_dom_map->count(t)) {
         TensorDom& dom = out_dom_map->at(t);
         for (size_t i = 0; i < t.ndim(); ++i) {
@@ -231,7 +211,7 @@ void ComputeOpNode::PropBoundToInputs(
           // undefined behaviour), so we can intersect the estimated set of the argument with the
           // range expected by the tensor. However, intersection may result in overly complex
           // expressions, so we perform a more relaxed form of intersection.
-          IntSet arg_intset = EvalSet(call->args[i], dom_map);
+          IntSet arg_intset = analyzer->int_set(pload->indices[i], ConvertDomMap(dom_map));
           const arith::IntervalSetNode* arg_interval = arg_intset.as<arith::IntervalSetNode>();
           if (arg_interval) {
             PrimExpr shape_i_min_value = make_zero(t->shape[i].dtype());
@@ -239,12 +219,14 @@ void ComputeOpNode::PropBoundToInputs(
             PrimExpr min_value = arg_interval->min_value;
             PrimExpr max_value = arg_interval->max_value;
             // Prefer the shape bounds only when we can prove they are tighter.
-            if (arith::is_neg_inf(min_value) ||
-                analyzer->CanProve(shape_i_min_value >= min_value)) {
+            // We must update bound's ends in pairs.  Here is an counter example: shape_i is
+            // [0, 0] and arg_interval is [threadIdx.y, threadIdx.y], where threadIdx.y's range is
+            // [0, 7]. If we allowed updating one end, the bound would become [threadIdx.y, 0],
+            // awkward for further analysis.
+            if ((arith::is_pos_inf(max_value) && arith::is_neg_inf(min_value)) ||
+                (analyzer->CanProve(shape_i_min_value >= min_value) &&
+                 analyzer->CanProve(shape_i_max_value <= max_value))) {
               min_value = shape_i_min_value;
-            }
-            if (arith::is_pos_inf(max_value) ||
-                analyzer->CanProve(shape_i_max_value <= max_value)) {
               max_value = shape_i_max_value;
             }
             dom.data[i].push_back(IntSet::interval(min_value, max_value));
@@ -258,10 +240,9 @@ void ComputeOpNode::PropBoundToInputs(
   for (auto& e : body) tir::PostOrderVisit(e, fvisit);
 }
 
-void BaseComputeOpNode::GatherBound(
-    const Operation& self,
-    const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-    std::unordered_map<IterVar, Range>* out_dom_map) const {
+void BaseComputeOpNode::GatherBound(const Operation& self,
+                                    const std::unordered_map<Tensor, TensorDom>& tensor_dom,
+                                    std::unordered_map<IterVar, Range>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
   const TensorDom& tdom = tensor_dom.at(self.output(0));
   for (size_t i = 0; i < this->axis.size(); ++i) {
@@ -275,10 +256,9 @@ void BaseComputeOpNode::GatherBound(
   }
 }
 
-Stmt BaseComputeOpNode::BuildRealize(
-    const Stage& stage,
-    const std::unordered_map<IterVar, Range>& realize_map,
-    const Stmt& body) const {
+Stmt BaseComputeOpNode::BuildRealize(const Stage& stage,
+                                     const std::unordered_map<IterVar, Range>& realize_map,
+                                     const Stmt& body) const {
   CHECK_EQ(stage->op.get(), this);
   Region bounds;
   for (IterVar iv : this->axis) {
@@ -286,23 +266,19 @@ Stmt BaseComputeOpNode::BuildRealize(
   }
   Stmt realize = body;
   for (int i = this->num_outputs(); i > 0; --i) {
-    Tensor t = stage->op.output(i-1);
-    realize = tir::RealizeNode::make(t->op, t->value_index,
-      t->dtype, bounds, const_true(), realize);
+    Tensor t = stage->op.output(i - 1);
+    realize = tir::ProducerRealize(t, bounds, const_true(), realize);
     // alignment requirement, only useful for compute
     for (size_t i = 0; i < num_schedulable_dims(); ++i) {
       auto it = stage->iter_var_attrs.find(this->axis[i]);
       if (it != stage->iter_var_attrs.end()) {
         IterVarAttr attr = (*it).second;
         if (attr->dim_align_factor != 0) {
-          Array<PrimExpr> tuple = {static_cast<int>(i),
-                               attr->dim_align_factor,
-                               attr->dim_align_offset};
-          realize = tir::AttrStmtNode::make(
+          Array<PrimExpr> tuple = {static_cast<int>(i), attr->dim_align_factor,
+                                   attr->dim_align_offset};
+          realize = tir::AttrStmt(
               t, tir::attr::buffer_dim_align,
-              CallNode::make(DataType::Handle(),
-                             tir::intrinsic::tvm_tuple,
-                             tuple, CallNode::Intrinsic),
+              Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
               realize);
         }
       }
@@ -311,16 +287,12 @@ Stmt BaseComputeOpNode::BuildRealize(
   return realize;
 }
 
-size_t ComputeOpNode::num_schedulable_dims() const {
-  return axis.size();
-}
+size_t ComputeOpNode::num_schedulable_dims() const { return axis.size(); }
 
 // Build a reduction body.
-void MakeReduction(const ComputeOpNode* op,
-                   const Array<Tensor>& tensors,
-                   Stmt* init,
+void MakeReduction(const ComputeOpNode* op, const Array<Tensor>& tensors, Stmt* init,
                    Stmt* provide) {
-  Array<PrimExpr>  args;
+  Array<PrimExpr> args;
   for (IterVar iv : op->axis) {
     args.push_back(iv->var);
   }
@@ -339,34 +311,30 @@ void MakeReduction(const ComputeOpNode* op,
   Array<PrimExpr> update_value = (*combiner)(lhs, reduce->source);
   for (size_t i = 0; i < size; ++i) {
     Tensor t = tensors[i];
-    inits.emplace_back(ProvideNode::make(
-          t->op, t->value_index, init_value[i], args));
-    provides.emplace_back(ProvideNode::make(
-          t->op, t->value_index, update_value[i], args));
+    inits.emplace_back(ProducerStore(t, init_value[i], args));
+    provides.emplace_back(ProducerStore(t, update_value[i], args));
   }
   *init = SeqStmt::Flatten(inits);
   *provide = SeqStmt::Flatten(provides);
   if (!is_one(reduce->condition)) {
-    *provide = IfThenElseNode::make(reduce->condition, *provide);
+    *provide = IfThenElse(reduce->condition, *provide);
   }
 }
 
 // Normal computation.
-Stmt MakeProvide(const ComputeOpNode* op,
-                 const Tensor& t) {
+Stmt MakeProvide(const ComputeOpNode* op, const Tensor& t) {
   Array<PrimExpr> args;
   for (IterVar iv : op->axis) {
     args.push_back(iv->var);
   }
-  return ProvideNode::make(t->op, t->value_index, op->body[t->value_index], args);
+  return ProducerStore(t, op->body[t->value_index], args);
 }
 
-Stmt MakeComputeStmt(const ComputeOpNode* self,
-                     const Stage& stage,
+Stmt MakeComputeStmt(const ComputeOpNode* self, const Stage& stage,
                      const std::unordered_map<IterVar, Range>& dom_map,
                      bool debug_keep_trivial_loop) {
   // grab the nest structure
-  ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map, debug_keep_trivial_loop);
+  ComputeLoopNest n = ComputeLoopNest::Create(self, stage, dom_map, debug_keep_trivial_loop);
   // Normal loop structure
   n.init_nest.emplace_back(MakeIfNest(n.init_predicates));
   n.main_nest.emplace_back(MakeIfNest(n.main_predicates));
@@ -381,10 +349,10 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
     init = MergeNest(n.init_nest, init);
     init = Substitute(init, n.init_vmap);
     // common nest
-    std::vector<std::vector<Stmt> > common(
-        n.main_nest.begin(), n.main_nest.begin() + n.num_common_loop + 1);
-    std::vector<std::vector<Stmt> > reduce(
-        n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.end());
+    std::vector<std::vector<Stmt> > common(n.main_nest.begin(),
+                                           n.main_nest.begin() + n.num_common_loop + 1);
+    std::vector<std::vector<Stmt> > reduce(n.main_nest.begin() + n.num_common_loop + 1,
+                                           n.main_nest.end());
     provide = MergeNest(reduce, provide);
     if (debug_keep_trivial_loop) {
       provide = MergeNest(common, provide);
@@ -407,14 +375,9 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
   }
 }
 
-enum class ComputeType {
-  kNormal,
-  kCrossThreadReduction,
-  kTensorize
-};
+enum class ComputeType { kNormal, kCrossThreadReduction, kTensorize };
 
-ComputeType DetectComputeType(const ComputeOpNode* self,
-                              const Stage& stage) {
+ComputeType DetectComputeType(const ComputeOpNode* self, const Stage& stage) {
   // Verify correctness of leaf nest.
   int normal_red = 0, thread_red = 0, tensorize = 0;
 
@@ -434,13 +397,11 @@ ComputeType DetectComputeType(const ComputeOpNode* self,
         ++normal_red;
       }
     } else {
-      CHECK_EQ(thread_red, 0)
-          << "Cross thread reduce cannot swap with normal data axis";
+      CHECK_EQ(thread_red, 0) << "Cross thread reduce cannot swap with normal data axis";
     }
   }
   if (tensorize != 0) {
-    CHECK(thread_red == 0)
-        << "Cannot mix cross thread reduction with Tensorize";
+    CHECK(thread_red == 0) << "Cannot mix cross thread reduction with Tensorize";
     return ComputeType::kTensorize;
   }
   if (thread_red != 0) {
@@ -451,10 +412,9 @@ ComputeType DetectComputeType(const ComputeOpNode* self,
 }
 
 // implement the provide utility.
-Stmt ComputeOpNode::BuildProvide(
-    const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
-    bool debug_keep_trivial_loop) const {
+Stmt ComputeOpNode::BuildProvide(const Stage& stage,
+                                 const std::unordered_map<IterVar, Range>& dom_map,
+                                 bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
   ComputeType ctype = DetectComputeType(this, stage);
   if (ctype == ComputeType::kCrossThreadReduction) {
@@ -467,20 +427,16 @@ Stmt ComputeOpNode::BuildProvide(
   }
 }
 
-ComputeLoopNest ComputeLoopNest::make(
-    const BaseComputeOpNode* self,
-    const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
-    bool debug_keep_trivial_loop) {
+ComputeLoopNest ComputeLoopNest::Create(const BaseComputeOpNode* self, const Stage& stage,
+                                        const std::unordered_map<IterVar, Range>& dom_map,
+                                        bool debug_keep_trivial_loop) {
   CHECK_EQ(stage->op.operator->(), self);
   ComputeLoopNest ret;
   // make main loop nest
-  ret.main_nest = MakeLoopNest(
-      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &ret.main_vmap,
-      debug_keep_trivial_loop);
-  ret.main_predicates = MakeBoundCheck(
-      stage, dom_map, ret.main_vmap, false,
-      std::unordered_set<IterVar>());
+  ret.main_nest = MakeLoopNest(stage, dom_map, 0, false, std::unordered_set<IterVar>(),
+                               &ret.main_vmap, debug_keep_trivial_loop);
+  ret.main_predicates =
+      MakeBoundCheck(stage, dom_map, ret.main_vmap, false, std::unordered_set<IterVar>());
   for (auto& e : ret.main_predicates) {
     e = likely(e);
   }
@@ -506,7 +462,8 @@ ComputeLoopNest ComputeLoopNest::make(
       auto iv = leaf_iter_vars[i];
       int flag = update_state.at(iv);
       if ((flag & 2) != 0) {
-        begin_loop = i; break;
+        begin_loop = i;
+        break;
       }
       ret.init_vmap[iv] = ret.main_vmap.at(iv);
     }
@@ -517,11 +474,9 @@ ComputeLoopNest ComputeLoopNest::make(
       int flag = kv.second;
       if (flag == 2) skip_iter.insert(kv.first);
     }
-    ret.init_nest = MakeLoopNest(
-        stage, dom_map, begin_loop, true,
-        skip_iter, &(ret.init_vmap), debug_keep_trivial_loop);
-    ret.init_predicates = MakeBoundCheck(
-        stage, dom_map, ret.init_vmap, true, skip_iter);
+    ret.init_nest = MakeLoopNest(stage, dom_map, begin_loop, true, skip_iter, &(ret.init_vmap),
+                                 debug_keep_trivial_loop);
+    ret.init_predicates = MakeBoundCheck(stage, dom_map, ret.init_vmap, true, skip_iter);
     for (auto& e : ret.init_predicates) {
       e = likely(e);
     }
@@ -561,14 +516,12 @@ class ComputeVerifier final : protected tir::ExprVisitor {
     for (const PrimExpr e : compute_->body) {
       // Check for consistency of top level reductions
       const tir::ReduceNode* reduce = e.as<tir::ReduceNode>();
-      CHECK((reduce && reduce_) || (!reduce && !reduce_))
-          << "All ComputeOp should be consistent "
-          << "with being Reduce operation or not.";
+      CHECK((reduce && reduce_) || (!reduce && !reduce_)) << "All ComputeOp should be consistent "
+                                                          << "with being Reduce operation or not.";
 
       if (reduce && reduce_) {
-        CHECK(ReduceEqual(reduce, reduce_))
-            << "The Reduce inputs of ComputeOp should "
-            << "have the same attribute except value_index";
+        CHECK(ReduceEqual(reduce, reduce_)) << "The Reduce inputs of ComputeOp should "
+                                            << "have the same attribute except value_index";
       }
 
       level_ = 0;
@@ -587,16 +540,15 @@ class ComputeVerifier final : protected tir::ExprVisitor {
 
   void VisitExpr_(const tir::ReduceNode* op) final {
     // Check for non top level reductions
-    CHECK(0 == level_)
-        << "Reductions are only allowed at the top level of compute. "
-        << "Please create another tensor for further composition.";
+    CHECK(0 == level_) << "Reductions are only allowed at the top level of compute. "
+                       << "Please create another tensor for further composition.";
   }
   //@}
 
  private:
-  const ComputeOpNode* compute_{nullptr};  ///< ComputeOpNode to verify
-  const tir::ReduceNode* reduce_{nullptr};      ///< Top level Reduce operation
-  int level_{0};                           ///< Level of op being processed
+  const ComputeOpNode* compute_{nullptr};   ///< ComputeOpNode to verify
+  const tir::ReduceNode* reduce_{nullptr};  ///< Top level Reduce operation
+  int level_{0};                            ///< Level of op being processed
 };
 }  // namespace
 
@@ -606,11 +558,8 @@ static void VerifyComputeOp(const ComputeOpNode* op) {
   v.Run();
 }
 
-Stmt TransformUpdate(const Stage& stage,
-                     const std::unordered_map<IterVar, Range>& dom_map,
-                     const ComputeLoopNest& n,
-                     Stmt body,
-                     Stmt update) {
+Stmt TransformUpdate(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
+                     const ComputeLoopNest& n, Stmt body, Stmt update) {
   Array<PrimExpr> conds;
   std::unordered_set<const VarNode*> banned;
   for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
@@ -630,15 +579,18 @@ Stmt TransformUpdate(const Stage& stage,
       banned.insert(iv->var.get());
     }
   }
+
+  auto fbanned = [&](const VarNode* node) { return banned.count(node); };
+
   for (const PrimExpr& pred : n.main_predicates) {
-    if (tir::ExprUseVar(pred, banned)) {
-      LOG(FATAL) << "Tensorize update transform failed, the condition "
-                 << pred << " has a conflict with the reset condition";
+    if (tir::ExprUseVar(pred, fbanned)) {
+      LOG(FATAL) << "Tensorize update transform failed, the condition " << pred
+                 << " has a conflict with the reset condition";
     }
   }
 
-  return IfThenElseNode::make(arith::ComputeReduce<tir::OrNode>(conds, const_true(1)),
-                          update, body);
+  auto cond = foldl([](PrimExpr a, PrimExpr b) { return a || b; }, const_false(1), conds);
+  return IfThenElse(cond, update, body);
 }
 
 }  // namespace te

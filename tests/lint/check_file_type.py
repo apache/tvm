@@ -36,6 +36,7 @@ ALLOW_EXTENSION = {
     "scala",
     "java",
     "go",
+    "ts",
     "sh",
     "py",
     "pyi",
@@ -73,12 +74,15 @@ ALLOW_EXTENSION = {
     "sdc",
     # generated parser
     "interp",
-    "tokens"
+    "tokens",
+    # interface definition
+    "idl",
     }
 
 # List of file names allowed
 ALLOW_FILE_NAME = {
     ".gitignore",
+    ".eslintignore",
     ".gitattributes",
     "README",
     "Makefile",
@@ -101,11 +105,11 @@ ALLOW_SPECIFIC_FILE = {
     "KEYS",
     "DISCLAIMER",
     "Jenkinsfile",
-    # sgx config
+    # cargo config
+    "rust/runtime/tests/test_wasm32/.cargo/config",
     "apps/sgx/.cargo/config",
     # html for demo purposes
-    "tests/webgl/test_static_webgl_library.html",
-    "web/example_rpc.html",
+    "web/apps/browser/rpc_server.html",
     # images are normally not allowed
     # discuss with committers before add more images
     "apps/android_rpc/app/src/main/res/mipmap-hdpi/ic_launcher.png",

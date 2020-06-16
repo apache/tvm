@@ -39,7 +39,7 @@ This folder contains a simple recipe to make RPC server in c++.
 - Build tvm with the argument -DUSE_CPP_RPC
 - Install [LLVM pre-build binaries](https://releases.llvm.org/download.html), making sure to select the option to add it to the PATH.
 - Verify Python 3.6 or newer is installed and in the PATH.
-- Use `<tmv_output_dir>\tvm_rpc.exe` to start the RPC server
+- Use `<tvm_output_dir>\tvm_rpc.exe` to start the RPC server
 
 ## How it works
 - The tvm runtime dll is linked along with this executable and when the RPC server starts it will load the tvm runtime library.

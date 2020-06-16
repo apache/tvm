@@ -40,13 +40,16 @@ def invoke_tvm_op(func, inputs, outputs):
     """
     return _make.invoke_tvm_op(func, inputs, outputs)
 
-def alloc_tensor(storage, shape, dtype='float32', assert_shape=None):
+def alloc_tensor(storage, offset, shape, dtype='float32', assert_shape=None):
     """Allocate a tensor with the provided shape, and dtype.
 
     Parameters
     ----------
     storage : tvm.relay.Expr
         The storage to allocate from.
+
+    offset : tvm.relay.Expr
+        The offset to allocate from.
 
     shape : tvm.relay.Expr
         The shape of the tensor to allocate.
@@ -61,7 +64,7 @@ def alloc_tensor(storage, shape, dtype='float32', assert_shape=None):
     result : tvm.relay.Expr
         The alloc_tensor expression.
     """
-    return _make.alloc_tensor(storage, shape, dtype, assert_shape)
+    return _make.alloc_tensor(storage, offset, shape, dtype, assert_shape)
 
 def alloc_storage(size, alignment, ctx, dtype_hint='float32'):
     """Allocate a piece of tensor storage.

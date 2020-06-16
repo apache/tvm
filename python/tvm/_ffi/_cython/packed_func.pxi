@@ -109,6 +109,9 @@ cdef inline int make_arg(object arg,
         value[0].v_handle = (<NDArrayBase>arg).chandle
         tcode[0] = (kTVMNDArrayHandle if
                     not (<NDArrayBase>arg).c_is_view else kTVMDLTensorHandle)
+    elif isinstance(arg, PyNativeObject):
+        value[0].v_handle = (<ObjectBase>(arg.__tvm_object__)).chandle
+        tcode[0] = kTVMObjectHandle
     elif isinstance(arg, _TVM_COMPATS):
         ptr = arg._tvm_handle
         value[0].v_handle = (<void*>ptr)
@@ -139,7 +142,13 @@ cdef inline int make_arg(object arg,
         value[0].v_ctx = (<DLContext*>(
             <unsigned long long>ctypes.addressof(arg)))[0]
         tcode[0] = kTVMContext
-    elif isinstance(arg, bytearray):
+    elif isinstance(arg, (bytes, bytearray)):
+        # from_buffer only taeks in bytearray.
+        if isinstance(arg, bytes):
+            byte_arr = bytearray(arg)
+            temp_args.append(byte_arr)
+            arg = byte_arr
+
         arr = TVMByteArray()
         arr.data = ctypes.cast(
             (ctypes.c_byte * len(arg)).from_buffer(arg),

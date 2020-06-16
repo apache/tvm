@@ -19,11 +19,11 @@
 set -e
 set -u
 
-export PYTHONPATH=python:topi/python
+source tests/scripts/setup-pytest-env.sh
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-TVM_FFI=ctypes python3 -m pytest -v tests/python/unittest
+TVM_FFI=ctypes python3 -m pytest tests/python/unittest
 make cython3
-TVM_FFI=cython python3 -m pytest -v tests/python/unittest
+TVM_FFI=cython python3 -m pytest tests/python/unittest

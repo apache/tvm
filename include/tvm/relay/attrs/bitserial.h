@@ -27,6 +27,7 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/base.h>
+
 #include <string>
 
 namespace tvm {
@@ -112,23 +113,18 @@ struct BinaryDenseAttrs : public tvm::AttrsNode<BinaryDenseAttrs> {
   bool unipolar;
 
   TVM_DECLARE_ATTRS(BinaryDenseAttrs, "relay.attrs.BinaryDenseAttrs") {
-    TVM_ATTR_FIELD(units)
-      .describe("Number of hidden units of the dense transformation.");
-    TVM_ATTR_FIELD(data_bits)
-      .set_default(1)
-      .describe("Number of bits to pack for incoming tensor.");
+    TVM_ATTR_FIELD(units).describe("Number of hidden units of the dense transformation.");
+    TVM_ATTR_FIELD(data_bits).set_default(1).describe(
+        "Number of bits to pack for incoming tensor.");
     TVM_ATTR_FIELD(weight_bits)
-      .set_default(1)
-      .describe("Number of bits to pack for weight tensor.");
+        .set_default(1)
+        .describe("Number of bits to pack for weight tensor.");
     TVM_ATTR_FIELD(pack_dtype)
-      .set_default(NullValue<DataType>())
-      .describe("Datatype to pack bits into before computation.");
-    TVM_ATTR_FIELD(out_dtype)
-      .set_default(NullValue<DataType>())
-      .describe("Output data type.");
-    TVM_ATTR_FIELD(unipolar)
-      .set_default(true)
-      .describe("Whether to use unipolar or bipolar quantization for inputs.");
+        .set_default(NullValue<DataType>())
+        .describe("Datatype to pack bits into before computation.");
+    TVM_ATTR_FIELD(out_dtype).set_default(NullValue<DataType>()).describe("Output data type.");
+    TVM_ATTR_FIELD(unipolar).set_default(true).describe(
+        "Whether to use unipolar or bipolar quantization for inputs.");
   }
 };
 

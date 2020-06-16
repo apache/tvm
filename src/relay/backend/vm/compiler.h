@@ -28,9 +28,11 @@
 #include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
-#include <tvm/support/logging.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
+#include <tvm/support/logging.h>
+#include <tvm/tir/function.h>
+
 #include <iostream>
 #include <memory>
 #include <string>
@@ -38,8 +40,9 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include "../../../runtime/vm/profiler/vm.h"
+
 #include "../../../runtime/vm/naive_allocator.h"
+#include "../../../runtime/vm/profiler/vm.h"
 #include "../../backend/compile_engine.h"
 #include "../../transforms/pass_util.h"
 
@@ -52,7 +55,7 @@ using namespace tvm::runtime::vm;
 using namespace relay::transform;
 
 template <typename T, typename U>
-using NodeMap = std::unordered_map<T, U, ObjectHash, ObjectEqual>;
+using NodeMap = std::unordered_map<T, U, ObjectPtrHash, ObjectPtrEqual>;
 using TagMap = NodeMap<tvm::relay::Constructor, Index>;
 using TagNameMap = std::unordered_map<size_t, tvm::relay::Constructor>;
 using GlobalMap = NodeMap<GlobalVar, Index>;
@@ -76,20 +79,16 @@ struct VMCompilerContext {
   // List of cached functions
   std::vector<CachedFunc> cached_funcs;
   // The functions that have been lowered.
-  std::unordered_map<tir::PrimFunc, size_t, ObjectHash, ObjectEqual> seen_funcs;
+  std::unordered_map<tir::PrimFunc, size_t, ObjectPtrHash, ObjectPtrEqual> seen_funcs;
 };
-
 
 class VMCompiler : public runtime::ModuleNode {
  public:
   virtual ~VMCompiler() {}
 
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
-  const char* type_key() const {
-    return "VMCompiler";
-  }
+  const char* type_key() const { return "VMCompiler"; }
 
   /*!
    * \brief Set the parameters
@@ -107,9 +106,7 @@ class VMCompiler : public runtime::ModuleNode {
                     to target mapping. For homogeneous compilation, it is a build target.
    * \param target_host Host compilation target, if target is device.
    */
-  void Lower(IRModule mod,
-             const TargetsMap& targets,
-             const tvm::Target& target_host);
+  void Lower(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host);
 
   /*! \brief Generate the machine code for lowered functions. */
   void Codegen();

@@ -48,17 +48,14 @@ def test_buffer_access_ptr_offset():
     n = te.size_var('n')
     Ab = tvm.tir.decl_buffer((m, n), "float32")
     aptr = Ab.access_ptr("rw", offset=100)
-    offset = tvm.tir.ir_pass.Simplify(aptr.args[2])
-    assert tvm.ir.structural_equal(offset, 100)
+    tvm.testing.assert_prim_expr_equal(aptr.args[2], 100)
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
     v = te.size_var('int32')
     aptr = Ab.access_ptr("rw", offset=100 + 100 + v)
-    offset = tvm.tir.ir_pass.Simplify(aptr.args[2])
-    assert tvm.ir.structural_equal(offset, 200 + v)
+    tvm.testing.assert_prim_expr_equal(aptr.args[2], 200 + v)
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
     aptr = Ab.access_ptr("rw", offset=tvm.tir.call_extern('int32', "test_call", 100 + 100 + v))
-    offset = tvm.tir.ir_pass.Simplify(aptr.args[2])
-    assert tvm.ir.structural_equal(offset, tvm.tir.call_extern('int32', "test_call", 200 + v))
+    tvm.testing.assert_prim_expr_equal(aptr.args[2], tvm.tir.call_extern('int32', "test_call", 200 + v))
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
 
 
@@ -80,8 +77,7 @@ def test_buffer_vload():
     n = te.size_var('n')
     Ab = tvm.tir.decl_buffer((m, n), "float32", elem_offset=100)
     load = Ab.vload([2, 3])
-    offset = tvm.tir.ir_pass.Simplify(load.index)
-    assert tvm.ir.structural_equal(offset, n * 2 + 103)
+    tvm.testing.assert_prim_expr_equal(load.index, n * 2 + 103)
 
 
 def test_buffer_index_merge_mult_mod():

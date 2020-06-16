@@ -56,6 +56,25 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     return {output};
   }
 
+  std::vector<Output> VisitExpr_(const TupleNode* node) final {
+    std::vector<Output> outs;
+    for (auto field : node->fields) {
+      auto res = VisitExpr(field);
+      CHECK_EQ(res.size(), 1U) << "Do not support tuple nest";
+      outs.push_back(res[0]);
+    }
+    return outs;
+  }
+
+  std::vector<Output> VisitExpr_(const TupleGetItemNode* op) final {
+    auto res = VisitExpr(op->tuple);
+    CHECK_GT(res.size(), static_cast<size_t>(op->index));
+
+    // Only keep the item we want for the child node.
+    // FIXME(@comaniac): The other items should still be requried for the primary outputs.
+    return {res[op->index]};
+  }
+
   std::vector<Output> VisitExpr_(const ConstantNode* cn) final {
     // Note this is for demonstration purpose. ConstantNode doesn't necessarily
     // belong to calls. We need to revisit this when tuples come into play.
@@ -68,7 +87,6 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
 
     runtime::NDArray array = cn->data;
     const auto& shape = array.Shape();
-    const DLTensor& dl_tensor = array.ToDLPack()->dl_tensor;
 
     // Get the number of elements.
     int64_t num_elems = 1;
@@ -83,11 +101,11 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     // to avoid possible stack overflow.
     buf_stream << dtype << " " << output.name << "[" << num_elems << "] = {";
     if (dtype == "float") {
-      float* p_flt = static_cast<float*>(dl_tensor.data);
+      float* p_flt = static_cast<float*>(array->data);
       for (int64_t i = 0; i < num_elems - 1; i++) buf_stream << p_flt[i] << ", ";
       if (num_elems) buf_stream << p_flt[num_elems - 1];
     } else if (dtype == "int") {
-      int* p_flt = static_cast<int*>(dl_tensor.data);
+      int* p_flt = static_cast<int*>(array->data);
       for (int64_t i = 0; i < num_elems - 1; i++) buf_stream << p_flt[i] << ", ";
       if (num_elems) buf_stream << p_flt[num_elems - 1];
     } else {
@@ -152,8 +170,8 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     for (size_t i = 0; i < out_shape.size(); ++i) {
       out_size *= out_shape[i];
     }
-    buf_stream << dtype << "* " << out <<
-      " = (" << dtype << "*)std::malloc(4 * " << out_size << ");";
+    buf_stream << dtype << "* " << out << " = (" << dtype << "*)std::malloc(4 * " << out_size
+               << ");";
     buf_decl_.push_back(buf_stream.str());
 
     decl_stream << ", " << out << ");";

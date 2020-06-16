@@ -25,8 +25,8 @@
 #ifndef TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_
 
-#include <string>
 #include <memory>
+#include <string>
 
 #include "../tflite/tflite_runtime.h"
 
@@ -44,17 +44,14 @@ class EdgeTPURuntime : public TFLiteRuntime {
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const final {
-    return "EdgeTPURuntime";
-  }
+  const char* type_key() const final { return "EdgeTPURuntime"; }
 
   /*!
    * \brief Initialize the edge TPU tflite runtime with tflite model and context.
    * \param tflite_model_bytes The tflite model.
    * \param ctx The context where the tflite model will be executed on.
    */
-  void Init(const std::string& tflite_model_bytes,
-            TVMContext ctx);
+  void Init(const std::string& tflite_model_bytes, TVMContext ctx);
 
  private:
   std::shared_ptr<edgetpu::EdgeTpuContext> edgetpu_context_;

@@ -43,22 +43,18 @@
 #include <vector>
 
 #include "../analysis/annotated_region_set.h"
+#include "pass_util.h"
 
 namespace tvm {
 namespace relay {
 namespace merge_compiler_region {
 
-// Cache compiler_begin and compiler_end annotation ops for equivalence check to
-// reduce registry lookup overhead.
-static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
-static const Op& compiler_end_op = Op::Get("annotation.compiler_end");
-
-class RegionMerger : public ExprVisitor {
+class RegionMerger : public MixedModeVisitor {
  public:
   explicit RegionMerger(AnnotatedRegionSet regions) : regions_(regions) {}
 
   void VisitExpr_(const CallNode* call) final {
-    if (call->op == compiler_end_op) {
+    if (call->op == CompilerEndOp()) {
       auto region = regions_->GetRegion(GetRef<Call>(call));
 
       // Skip this region if it has been merged to the other region.
@@ -75,7 +71,7 @@ class RegionMerger : public ExprVisitor {
         // Region inputs must be begin annotation, and the region of
         // the begin annotation's argument is the parent region.
         auto begin = Downcast<Call>(arg);
-        CHECK_EQ(begin->op, compiler_begin_op);
+        CHECK_EQ(begin->op, CompilerBeginOp());
         auto parent_region = regions_->GetRegion(begin->args[0]);
 
         // Skip this region if it has been merged.
@@ -87,10 +83,10 @@ class RegionMerger : public ExprVisitor {
       }
 
       // Collect unmerged parent regions.
-      std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual> mergeable_regions;
+      std::unordered_set<AnnotatedRegion, ObjectPtrHash, ObjectPtrEqual> mergeable_regions;
       for (const auto& arg : region->GetInputs()) {
         auto begin = Downcast<Call>(arg);
-        CHECK_EQ(begin->op, compiler_begin_op);
+        CHECK_EQ(begin->op, CompilerBeginOp());
         auto parent_region = regions_->GetRegion(begin->args[0]);
         if (parent_region.defined()) {
           mergeable_regions.insert(parent_region);
@@ -131,7 +127,6 @@ class RegionMerger : public ExprVisitor {
       }
       merged_regions_.insert(region->GetID());
     }
-    ExprVisitor::VisitExpr_(call);
   }
 
  private:
@@ -140,25 +135,26 @@ class RegionMerger : public ExprVisitor {
   std::unordered_map<int, std::unordered_set<int>> region_restrictions_;
 };
 
-class MergeAnnotations : public ExprMutator {
+class MergeAnnotations : public ExprRewriter {
  public:
   explicit MergeAnnotations(AnnotatedRegionSet regions) : regions_(regions) {}
 
-  Expr VisitExpr_(const CallNode* call) final {
+  Expr Rewrite_(const CallNode* call, const Expr& post) final {
     // Merge annotations which are now internal to a region.
     // This happens if we see a compiler begin next to a
     // compiler end and they're both in the same region.
-    if (call->op == compiler_begin_op && call->args[0]->IsInstance<CallNode>()) {
+    if (call->op == CompilerBeginOp() && call->args[0]->IsInstance<CallNode>()) {
       auto arg = Downcast<Call>(call->args[0]);
-      if (arg->op == compiler_end_op) {
+      if (arg->op == CompilerEndOp()) {
         auto region1 = regions_->GetRegion(GetRef<Call>(call));
         auto region2 = regions_->GetRegion(arg);
         if (region1 == region2) {
-          return VisitExpr(arg->args[0]);
+          auto post_arg = post.as<CallNode>()->args[0];
+          return post_arg.as<CallNode>()->args[0];
         }
       }
     }
-    return ExprMutator::VisitExpr_(call);
+    return post;
   }
 
  private:
@@ -167,7 +163,7 @@ class MergeAnnotations : public ExprMutator {
 
 Expr MergeCompilerRegions(const Expr& expr) {
   // Create regions using the annotations.
-  AnnotatedRegionSet regions = AnnotatedRegionSet::Create(expr, compiler_begin_op, compiler_end_op);
+  AnnotatedRegionSet regions = AnnotatedRegionSet::Create(expr, CompilerBeginOp(), CompilerEndOp());
 
   // Analyze the graph to explore the opportunities of merging regions.
   RegionMerger merger(regions);
@@ -175,7 +171,7 @@ Expr MergeCompilerRegions(const Expr& expr) {
 
   // Remove annotations that are not in the region boundaries.
   MergeAnnotations merge_anno(regions);
-  return merge_anno.Mutate(expr);
+  return PostOrderRewrite(expr, &merge_anno);
 }
 
 }  // namespace merge_compiler_region

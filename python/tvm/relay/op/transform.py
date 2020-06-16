@@ -20,6 +20,7 @@
 
 from . import _make
 from ..expr import TupleWrapper, const
+from ...tir import expr as _expr
 
 
 def cast(data, dtype):
@@ -201,7 +202,7 @@ def reshape(data, newshape):
     data : relay.Expr
         The input data to the operator.
 
-    newshape : Union[int, Tuple[int], List[int]]
+    newshape : Union[int, Tuple[int], List[int]] or relay.Expr
         The new shape. Should be compatible with the original shape.
 
     Returns
@@ -210,8 +211,19 @@ def reshape(data, newshape):
         The reshaped result.
     """
     if isinstance(newshape, int):
-        newshape = [newshape]
-    return _make.reshape(data, list(newshape))
+        newshape = const([newshape])
+    if isinstance(newshape, (tuple, list)):
+        tempshape = []
+        for shape in newshape:
+            if isinstance(shape, _expr.IntImm):
+                tempshape.append(shape.value)
+            else:
+                try:
+                    tempshape.append(int(shape))
+                except ValueError as err:
+                    raise RuntimeError('Unrecognized shape type: %s' % err)
+        newshape = const(tempshape)
+    return _make.reshape(data, newshape)
 
 def argwhere(condition):
     """Find the indices of elements of a tensor that are
@@ -235,6 +247,30 @@ def argwhere(condition):
         relay.argwhere(condition) = [[0, 0], [1, 1]]
     """
     return _make.argwhere(condition)
+
+def scatter(data, indices, updates, axis):
+    """Update data at positions defined by indices with values in updates
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    indices : relay.Expr
+        The index locations to update.
+
+    updates : relay.Expr
+        The values to update.
+
+    axis : int
+        The axis to scatter on
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    return _make.scatter(data, indices, updates, axis)
 
 def reshape_like(data, shape_like):
     """Reshapes the input array by the size of another array.
@@ -297,7 +333,7 @@ def full(fill_value, shape=(), dtype=""):
     fill_value : relay.Expr
         The value to fill. Must be a scalar.
 
-    shape : tuple of int
+    shape : tuple of int or relay.Expr
         The shape of the target.
 
     dtype : data type, optional (defaults to data type of the fill value)
@@ -308,6 +344,8 @@ def full(fill_value, shape=(), dtype=""):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, (list, tuple)):
+        shape = const(list(shape), "int32")
     return _make.full(fill_value, shape, dtype)
 
 
@@ -500,7 +538,7 @@ def where(condition, x, y):
     Returns
     -------
     result : relay.Expr
-		The selected array.
+        The selected array.
 
     Examples
     --------
@@ -525,7 +563,7 @@ def broadcast_to(data, shape):
     data : relay.Expr
         The input tensor.
 
-    shape : shape
+    shape : tuple of int or relay.Expr
         Provide the shape to broadcast to.
 
     Returns
@@ -533,6 +571,8 @@ def broadcast_to(data, shape):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, (list, tuple)):
+        shape = const(list(shape), "int32")
     return _make.broadcast_to(data, shape)
 
 def broadcast_to_like(data, broadcast_type):
@@ -605,7 +645,7 @@ def split(data, indices_or_sections, axis=0):
     return TupleWrapper(_make.split(data, indices_or_sections, axis), ret_size)
 
 
-def strided_slice(data, begin, end, strides=None):
+def strided_slice(data, begin, end, strides=None, slice_mode="end"):
     """Strided slice of an array.
 
     Parameters
@@ -613,23 +653,36 @@ def strided_slice(data, begin, end, strides=None):
     data : relay.Expr
         The source array to be sliced.
 
-    begin: list of int
+    begin : relay.Expr, Tuple[int], or List[int]
         The indices to begin with in the slicing.
 
-    end: list of int
+    end : relay.Expr, Tuple[int], or List[int]
         Indices indicating end of the slice.
 
-    strides: list of int, optional
+    strides : relay.Expr, Tuple[int], or List[int], optional
         Specifies the stride values, it can be negative in that case,
         the input tensor will be reversed in that particular axis.
+
+    slice_mode : str, optional
+        The slice mode [end, size].
+        end: The ending indices for the slice [default].
+        size: The input strides will be ignored, input end in this mode indicates
+        the size of a slice starting at the location specified by begin. If end[i]
+        is -1, all remaining elements in that dimension are included in the slice.
 
     Returns
     -------
     ret : relay.Expr
         The computed result.
     """
-    strides = strides or []
-    return _make.strided_slice(data, list(begin), list(end), list(strides))
+    strides = strides or const([1], dtype="int32")
+    if isinstance(begin, (tuple, list)):
+        begin = const(list(begin))
+    if isinstance(end, (tuple, list)):
+        end = const(list(end))
+    if isinstance(strides, (tuple, list)):
+        strides = const(list(strides))
+    return _make.strided_slice(data, begin, end, strides, slice_mode)
 
 
 def strided_set(data, v, begin, end, strides=None):
@@ -643,13 +696,13 @@ def strided_set(data, v, begin, end, strides=None):
     v : relay.Expr
         The data to be set.
 
-    begin: relay.Expr
+    begin: relay.Expr, Tuple[int], or List[int]
         The indices to begin with in the slicing.
 
-    end: relay.Expr
+    end: relay.Expr, Tuple[int], or List[int]
         Indices indicating end of the slice.
 
-    strides: relay.Expr, optional
+    strides: relay.Expr, Tuple[int], or List[int], optional
         Specifies the stride values, it can be negative in that case,
         the input tensor will be reversed in that particular axis.
 
@@ -659,6 +712,12 @@ def strided_set(data, v, begin, end, strides=None):
         The computed result.
     """
     strides = strides or const([1], dtype="int32")
+    if isinstance(begin, (tuple, list)):
+        begin = const(list(begin))
+    if isinstance(end, (tuple, list)):
+        end = const(list(end))
+    if isinstance(strides, (tuple, list)):
+        strides = const(list(strides))
     return _make.strided_set(data, v, begin, end, strides)
 
 
@@ -739,6 +798,43 @@ def reverse_reshape(data, newshape):
     if isinstance(newshape, int):
         newshape = [newshape]
     return _make._contrib_reverse_reshape(data, list(newshape))
+
+
+def gather(data, axis, indices):
+    """Gather values along given axis from given indices.
+
+    E.g. for a 3D tensor, output is computed as:
+
+    .. code-block:: python
+
+        out[i][j][k] = data[indices[i][j][k]][j][k]  # if axis == 0
+        out[i][j][k] = data[i][indices[i][j][k]][k]  # if axis == 1
+        out[i][j][k] = data[i][j][indices[i][j][k]]  # if axis == 2
+
+    ``indices`` must have same shape as ``data``, except at dimension ``axis``
+    which must just be not null. Output will have same shape as ``indices``.
+
+    Parameters
+    ----------
+    data: relay.Expr
+        The input data to the operator.
+
+    axis: int
+        The axis along which to index.
+
+    indices: relay.Expr
+        The indices of values to gather.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        data = [[1, 2], [3, 4]]
+        axis = 1
+        indices = [[0, 0], [1, 0]]
+        relay.gather(data, axis, indices) = [[1, 1], [4, 3]]
+    """
+    return _make.gather(data, axis, indices)
 
 
 def gather_nd(data, indices):
@@ -884,3 +980,34 @@ def unravel_index(indices, shape):
     """
 
     return _make.unravel_index(indices, shape)
+
+def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0):
+    """Converts a sparse representation into a dense tensor.
+
+    Example::
+    -   sparse_to_dense([[0, 0], [1, 1]], [2, 2], [3, 3], 0) = [[3, 0], [0, 3]]
+
+    Parameters
+    ----------
+    sparse_indices : relay.Expr
+        A 0-D, 1-D, or 2-D tensor of integers containing location of sparse values.
+
+    output_shape : relay.Expr
+        A list of integers. Shape of the dense output tensor.
+
+    sparse_values : relay.Expr
+        A 0-D or 1-D tensor containing the sparse values for the sparse indices.
+
+    default_value : relay.Expr
+        A 0-D tensor containing the default value for the remaining locations.
+        Defaults to 0.
+
+    Returns
+    -------
+    result : relay.Expr
+        Dense tensor of shape output_shape. Has the same type as sparse_values.
+    """
+
+    if default_value == 0:
+        default_value = const(0)
+    return _make.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)

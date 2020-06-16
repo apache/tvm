@@ -26,7 +26,9 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
+
 #include <numeric>
+
 #include "./quantize.h"
 
 namespace tvm {
@@ -65,8 +67,8 @@ static std::vector<float> SmoothDistribution(const std::vector<float>& p,
 }
 
 static float ComputeEntropy(float* p, float* q, size_t size) {
-  float p_sum = std::accumulate(p, p+size, 0.f);
-  float q_sum = std::accumulate(q, q+size, 0.f);
+  float p_sum = std::accumulate(p, p + size, 0.f);
+  float q_sum = std::accumulate(q, q + size, 0.f);
   float ret = 0;
   for (size_t i = 0; i < size; i++) {
     CHECK(p[i] > 0 && q[i] > 0);
@@ -77,9 +79,8 @@ static float ComputeEntropy(float* p, float* q, size_t size) {
   return ret;
 }
 
-float MinimizeKL(const std::vector<int>& hist,
-                 const std::vector<float>& hist_edges,
-                 int num_bins, int num_quantized_bins) {
+float MinimizeKL(const std::vector<int>& hist, const std::vector<float>& hist_edges, int num_bins,
+                 int num_quantized_bins) {
   const int zero_bin_idx = num_bins / 2;
   const int num_half_quantized_bins = num_quantized_bins / 2;
   std::vector<float> thresholds(num_bins / 2 + 1 - num_quantized_bins / 2, 0.f);
@@ -137,9 +138,9 @@ float MinimizeKL(const std::vector<int>& hist,
       divergence[i - num_half_quantized_bins] = ComputeEntropy(p.data(), q.data(), p.size());
     }
   }
-  auto min_divergence_idx = std::distance(divergence.begin(),
-                                          std::min_element(divergence.begin(), divergence.end()));
-  return thresholds[min_divergence_idx];;
+  auto min_divergence_idx =
+      std::distance(divergence.begin(), std::min_element(divergence.begin(), divergence.end()));
+  return thresholds[min_divergence_idx];
 }
 
 class StatsCollector : private ExprMutator {
@@ -152,7 +153,7 @@ class StatsCollector : private ExprMutator {
     CHECK(func) << "Input shoule be Function";
     Expr new_body = Tuple(std::move(profile_data_));
     return Function(FreeVars(new_body), new_body, NullValue<Type>(), func->type_params,
-            func->attrs);
+                    func->attrs);
   }
 
  private:
@@ -167,7 +168,7 @@ class StatsCollector : private ExprMutator {
       auto attrs = new_call->attrs.as<SimulatedQuantizeAttrs>();
       // rewrite the annotation
       auto new_attrs = make_object<SimulatedQuantizeAttrs>();
-      const Expr& quantize_input = new_call->args[0];  // expression being quantized
+      const Expr& quantize_input = new_call->args[0];                  // expression being quantized
       auto placeholder = MakeConstantScalar(DataType::Float(32), 0.);  // unused argument
       Array<Expr> new_args{quantize_input, placeholder, placeholder, placeholder};
       new_attrs->kind = QAnnotateKind::kQIdentity;
@@ -198,24 +199,20 @@ class StatsCollector : private ExprMutator {
  * \param expr The simulation graph after annotation.
  * \return The profile graph.
  */
-Expr CreateStatsCollector(const Expr& expr) {
-  return StatsCollector().Collect(expr);
-}
+Expr CreateStatsCollector(const Expr& expr) { return StatsCollector().Collect(expr); }
 
-TVM_REGISTER_GLOBAL("relay._quantize.CreateStatsCollector")
-.set_body_typed(CreateStatsCollector);
-
+TVM_REGISTER_GLOBAL("relay._quantize.CreateStatsCollector").set_body_typed(CreateStatsCollector);
 
 TVM_REGISTER_GLOBAL("relay._quantize.FindScaleByKLMinimization")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  int* hist_ptr = static_cast<int*>(static_cast<void*>(args[0]));
-  float* hist_edges_ptr = static_cast<float*>(static_cast<void*>(args[1]));
-  int num_bins = args[2];
-  int num_quantized_bins = args[3];
-  std::vector<int> hist(hist_ptr, hist_ptr + num_bins);
-  std::vector<float> hist_edges(hist_edges_ptr, hist_edges_ptr + num_bins + 1);
-  ret[0] = MinimizeKL(hist, hist_edges, num_bins, num_quantized_bins);
-});
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      int* hist_ptr = static_cast<int*>(static_cast<void*>(args[0]));
+      float* hist_edges_ptr = static_cast<float*>(static_cast<void*>(args[1]));
+      int num_bins = args[2];
+      int num_quantized_bins = args[3];
+      std::vector<int> hist(hist_ptr, hist_ptr + num_bins);
+      std::vector<float> hist_edges(hist_edges_ptr, hist_edges_ptr + num_bins + 1);
+      ret[0] = MinimizeKL(hist, hist_edges, num_bins, num_quantized_bins);
+    });
 
 }  // namespace quantize
 }  // namespace relay

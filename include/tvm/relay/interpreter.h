@@ -36,11 +36,10 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/relay/expr.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/container.h>
+#include <tvm/runtime/object.h>
 #include <tvm/runtime/vm.h>
 #include <tvm/target/target.h>
-
 
 namespace tvm {
 namespace relay {
@@ -64,8 +63,8 @@ namespace relay {
  * \param target Compiler target flag to compile the functions on the context.
  * \return A function that takes in an expression and returns a value.
  */
-runtime::TypedPackedFunc<ObjectRef(Expr)>
-CreateInterpreter(IRModule mod, DLContext context, Target target);
+runtime::TypedPackedFunc<ObjectRef(Expr)> CreateInterpreter(IRModule mod, DLContext context,
+                                                            Target target);
 
 /*! \brief The container type of Closures used by the interpreter. */
 class InterpreterClosureObj : public runtime::vm::ClosureObj {
@@ -96,8 +95,7 @@ class InterpreterClosureObj : public runtime::vm::ClosureObj {
 class InterpreterClosure : public runtime::vm::Closure {
  public:
   TVM_DLL InterpreterClosure(tvm::Map<Var, ObjectRef> env, Function func);
-  TVM_DEFINE_OBJECT_REF_METHODS(InterpreterClosure, runtime::vm::Closure,
-                                InterpreterClosureObj);
+  TVM_DEFINE_OBJECT_REF_METHODS(InterpreterClosure, runtime::vm::Closure, InterpreterClosureObj);
 };
 
 /*! \brief The container type of RecClosure. */
@@ -130,9 +128,7 @@ struct RefValueObj : Object {
 
   RefValueObj() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("value", &value);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("value", &value); }
 
   static constexpr const char* _type_key = "relay.RefValue";
   TVM_DECLARE_FINAL_OBJECT_INFO(RefValueObj, Object);
@@ -164,9 +160,7 @@ struct ConstructorValueObj : Object {
 
 class ConstructorValue : public ObjectRef {
  public:
-  TVM_DLL ConstructorValue(int32_t tag,
-                           tvm::Array<ObjectRef> fields,
-                           Constructor construtor = {});
+  TVM_DLL ConstructorValue(int32_t tag, tvm::Array<ObjectRef> fields, Constructor construtor = {});
 
   TVM_DEFINE_OBJECT_REF_METHODS(ConstructorValue, ObjectRef, ConstructorValueObj);
 };

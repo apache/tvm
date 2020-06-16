@@ -25,6 +25,7 @@
 #define TVM_RELAY_ATTRS_DEVICE_COPY_H_
 
 #include <tvm/ir/attrs.h>
+
 #include <string>
 
 namespace tvm {
@@ -39,13 +40,11 @@ struct DeviceCopyAttrs : public tvm::AttrsNode<DeviceCopyAttrs> {
 
   TVM_DECLARE_ATTRS(DeviceCopyAttrs, "relay.attrs.DeviceCopyAttrs") {
     TVM_ATTR_FIELD(src_dev_type)
-      .describe(
-         "The virtual device/context type where the op copies data from.")
-      .set_default(0);
+        .describe("The virtual device/context type where the op copies data from.")
+        .set_default(0);
     TVM_ATTR_FIELD(dst_dev_type)
-      .describe(
-         "The virtual device/context type where the op copies data to.")
-      .set_default(0);
+        .describe("The virtual device/context type where the op copies data to.")
+        .set_default(0);
   }
 };
 

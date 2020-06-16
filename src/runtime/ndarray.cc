@@ -22,9 +22,10 @@
  * \brief NDArray container infratructure.
  */
 #include <dmlc/logging.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/ndarray.h>
+
 #include "runtime_base.h"
 
 extern "C" {
@@ -45,9 +46,12 @@ inline void VerifyDataType(DLDataType dtype) {
     // allow uint1 as a special flag for bool.
     if (dtype.bits == 1 && dtype.code == kDLUInt) return;
     // allow int1/uint4/int4
-    else if (dtype.bits == 1 && dtype.code == kDLInt) return;
-    else if (dtype.bits == 4 && dtype.code == kDLUInt) return;
-    else if (dtype.bits == 4 && dtype.code == kDLInt) return;
+    else if (dtype.bits == 1 && dtype.code == kDLInt)
+      return;
+    else if (dtype.bits == 4 && dtype.code == kDLUInt)
+      return;
+    else if (dtype.bits == 4 && dtype.code == kDLInt)
+      return;
     else
       CHECK_EQ(dtype.bits % 8, 0);
   }
@@ -65,12 +69,10 @@ void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
   cpu_ctx.device_type = kDLCPU;
   cpu_ctx.device_id = 0;
   size_t arr_size = GetDataSize(*handle);
-  CHECK_EQ(arr_size, nbytes)
-      << "ArrayCopyFromBytes: size mismatch";
-  DeviceAPI::Get(handle->ctx)->CopyDataFromTo(
-      data, 0,
-      handle->data, static_cast<size_t>(handle->byte_offset),
-      nbytes, cpu_ctx, handle->ctx, handle->dtype, nullptr);
+  CHECK_EQ(arr_size, nbytes) << "ArrayCopyFromBytes: size mismatch";
+  DeviceAPI::Get(handle->ctx)
+      ->CopyDataFromTo(data, 0, handle->data, static_cast<size_t>(handle->byte_offset), nbytes,
+                       cpu_ctx, handle->ctx, handle->dtype, nullptr);
 }
 
 void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
@@ -78,12 +80,10 @@ void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
   cpu_ctx.device_type = kDLCPU;
   cpu_ctx.device_id = 0;
   size_t arr_size = GetDataSize(*handle);
-  CHECK_EQ(arr_size, nbytes)
-      << "ArrayCopyToBytes: size mismatch";
-  DeviceAPI::Get(handle->ctx)->CopyDataFromTo(
-      handle->data, static_cast<size_t>(handle->byte_offset),
-      data, 0,
-      nbytes, handle->ctx, cpu_ctx, handle->dtype, nullptr);
+  CHECK_EQ(arr_size, nbytes) << "ArrayCopyToBytes: size mismatch";
+  DeviceAPI::Get(handle->ctx)
+      ->CopyDataFromTo(handle->data, static_cast<size_t>(handle->byte_offset), data, 0, nbytes,
+                       handle->ctx, cpu_ctx, handle->dtype, nullptr);
 }
 
 struct NDArray::Internal {
@@ -93,8 +93,8 @@ struct NDArray::Internal {
     if (ptr->manager_ctx != nullptr) {
       static_cast<NDArray::Container*>(ptr->manager_ctx)->DecRef();
     } else if (ptr->dl_tensor.data != nullptr) {
-      tvm::runtime::DeviceAPI::Get(ptr->dl_tensor.ctx)->FreeDataSpace(
-          ptr->dl_tensor.ctx, ptr->dl_tensor.data);
+      tvm::runtime::DeviceAPI::Get(ptr->dl_tensor.ctx)
+          ->FreeDataSpace(ptr->dl_tensor.ctx, ptr->dl_tensor.data);
     }
     delete ptr;
   }
@@ -113,9 +113,7 @@ struct NDArray::Internal {
   }
   // Local create function which allocates tensor metadata
   // but does not allocate space for the data.
-  static NDArray Create(std::vector<int64_t> shape,
-                        DLDataType dtype,
-                        DLContext ctx) {
+  static NDArray Create(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {
     VerifyDataType(dtype);
 
     // critical zone: construct header
@@ -140,13 +138,11 @@ struct NDArray::Internal {
     ObjectRef::FFIClearAfterMove(&arr);
     return handle;
   }
-  static void FFIDecRef(TVMArrayHandle tensor) {
-    NDArray::FFIDecRef(tensor);
-  }
+  static void FFIDecRef(TVMArrayHandle tensor) { NDArray::FFIDecRef(tensor); }
   // Container to DLManagedTensor
   static DLManagedTensor* ToDLPack(TVMArrayHandle handle) {
-    auto* from = static_cast<NDArray::Container*>(
-        reinterpret_cast<NDArray::ContainerBase*>(handle));
+    auto* from =
+        static_cast<NDArray::Container*>(reinterpret_cast<NDArray::ContainerBase*>(handle));
     return ToDLPack(from);
   }
 
@@ -168,11 +164,9 @@ struct NDArray::Internal {
 
 NDArray NDArray::CreateView(std::vector<int64_t> shape, DLDataType dtype) {
   CHECK(data_ != nullptr);
-  CHECK(get_mutable()->dl_tensor.strides == nullptr)
-      << "Can only create view for compact tensor";
+  CHECK(get_mutable()->dl_tensor.strides == nullptr) << "Can only create view for compact tensor";
   NDArray ret = Internal::Create(shape, dtype, get_mutable()->dl_tensor.ctx);
-  ret.get_mutable()->dl_tensor.byte_offset =
-      this->get_mutable()->dl_tensor.byte_offset;
+  ret.get_mutable()->dl_tensor.byte_offset = this->get_mutable()->dl_tensor.byte_offset;
   size_t curr_size = GetDataSize(this->get_mutable()->dl_tensor);
   size_t view_size = GetDataSize(ret.get_mutable()->dl_tensor);
   CHECK_LE(view_size, curr_size)
@@ -184,20 +178,15 @@ NDArray NDArray::CreateView(std::vector<int64_t> shape, DLDataType dtype) {
   return ret;
 }
 
-DLManagedTensor* NDArray::ToDLPack() const {
-  return Internal::ToDLPack(get_mutable());
-}
+DLManagedTensor* NDArray::ToDLPack() const { return Internal::ToDLPack(get_mutable()); }
 
-NDArray NDArray::Empty(std::vector<int64_t> shape,
-                       DLDataType dtype,
-                       DLContext ctx) {
+NDArray NDArray::Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {
   NDArray ret = Internal::Create(shape, dtype, ctx);
   // setup memory content
   size_t size = GetDataSize(ret.get_mutable()->dl_tensor);
   size_t alignment = GetDataAlignment(ret.get_mutable()->dl_tensor);
   ret.get_mutable()->dl_tensor.data =
-      DeviceAPI::Get(ret->ctx)->AllocDataSpace(
-          ret->ctx, size, alignment, ret->dtype);
+      DeviceAPI::Get(ret->ctx)->AllocDataSpace(ret->ctx, size, alignment, ret->dtype);
   return ret;
 }
 
@@ -227,33 +216,28 @@ void NDArray::CopyFromBytes(const void* data, size_t nbytes) {
   ArrayCopyFromBytes(&get_mutable()->dl_tensor, data, nbytes);
 }
 
-void NDArray::CopyFromTo(const DLTensor* from,
-                         DLTensor* to,
-                         TVMStreamHandle stream) {
+void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   size_t from_size = GetDataSize(*from);
   size_t to_size = GetDataSize(*to);
-  CHECK_EQ(from_size, to_size)
-    << "TVMArrayCopyFromTo: The size must exactly match";
+  CHECK_EQ(from_size, to_size) << "TVMArrayCopyFromTo: The size must exactly match";
 
-  CHECK(from->ctx.device_type == to->ctx.device_type
-        || from->ctx.device_type == kDLCPU
-        || to->ctx.device_type == kDLCPU
-        || from->ctx.device_type == kDLCPUPinned
-        || to->ctx.device_type == kDLCPUPinned)
-    << "Can not copy across different ctx types directly";
+  CHECK(from->ctx.device_type == to->ctx.device_type || from->ctx.device_type == kDLCPU ||
+        to->ctx.device_type == kDLCPU || from->ctx.device_type == kDLCPUPinned ||
+        to->ctx.device_type == kDLCPUPinned)
+      << "Can not copy across different ctx types directly";
 
   // Use the context that is *not* a cpu context to get the correct device
   // api manager.
   TVMContext ctx = from->ctx.device_type != kDLCPU ? from->ctx : to->ctx;
 
-  DeviceAPI::Get(ctx)->CopyDataFromTo(
-    from->data, static_cast<size_t>(from->byte_offset),
-    to->data, static_cast<size_t>(to->byte_offset),
-    from_size, from->ctx, to->ctx, from->dtype, stream);
+  DeviceAPI::Get(ctx)->CopyDataFromTo(from->data, static_cast<size_t>(from->byte_offset), to->data,
+                                      static_cast<size_t>(to->byte_offset), from_size, from->ctx,
+                                      to->ctx, from->dtype, stream);
 }
 
-std::vector<int64_t> NDArray::Shape() const {
-  return get_mutable()->shape_;
+std::vector<int64_t> NDArray::Shape() const { return get_mutable()->shape_; }
+runtime::DataType NDArray::DataType() const {
+  return runtime::DataType(get_mutable()->dl_tensor.dtype);
 }
 
 TVM_REGISTER_OBJECT_TYPE(NDArray::Container);
@@ -273,14 +257,8 @@ int TVMArrayGetTypeIndex(TVMArrayHandle handle, unsigned* out_tindex) {
   API_END();
 }
 
-int TVMArrayAlloc(const tvm_index_t* shape,
-                  int ndim,
-                  int dtype_code,
-                  int dtype_bits,
-                  int dtype_lanes,
-                  int device_type,
-                  int device_id,
-                  TVMArrayHandle* out) {
+int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_bits,
+                  int dtype_lanes, int device_type, int device_id, TVMArrayHandle* out) {
   API_BEGIN();
   DLDataType dtype;
   dtype.code = static_cast<uint8_t>(dtype_code);
@@ -300,43 +278,33 @@ int TVMArrayFree(TVMArrayHandle handle) {
   API_END();
 }
 
-int TVMArrayCopyFromTo(TVMArrayHandle from,
-                       TVMArrayHandle to,
-                       TVMStreamHandle stream) {
+int TVMArrayCopyFromTo(TVMArrayHandle from, TVMArrayHandle to, TVMStreamHandle stream) {
   API_BEGIN();
   NDArray::CopyFromTo(from, to, stream);
   API_END();
 }
 
-int TVMArrayFromDLPack(DLManagedTensor* from,
-                       TVMArrayHandle* out) {
+int TVMArrayFromDLPack(DLManagedTensor* from, TVMArrayHandle* out) {
   API_BEGIN();
   *out = NDArray::Internal::MoveToFFIHandle(NDArray::FromDLPack(from));
   API_END();
 }
 
-int TVMArrayToDLPack(TVMArrayHandle from,
-                     DLManagedTensor** out) {
+int TVMArrayToDLPack(TVMArrayHandle from, DLManagedTensor** out) {
   API_BEGIN();
   *out = NDArray::Internal::ToDLPack(from);
   API_END();
 }
 
-void TVMDLManagedTensorCallDeleter(DLManagedTensor* dltensor) {
-  (*(dltensor->deleter))(dltensor);
-}
+void TVMDLManagedTensorCallDeleter(DLManagedTensor* dltensor) { (*(dltensor->deleter))(dltensor); }
 
-int TVMArrayCopyFromBytes(TVMArrayHandle handle,
-                          void* data,
-                          size_t nbytes) {
+int TVMArrayCopyFromBytes(TVMArrayHandle handle, void* data, size_t nbytes) {
   API_BEGIN();
   ArrayCopyFromBytes(handle, data, nbytes);
   API_END();
 }
 
-int TVMArrayCopyToBytes(TVMArrayHandle handle,
-                        void* data,
-                        size_t nbytes) {
+int TVMArrayCopyToBytes(TVMArrayHandle handle, void* data, size_t nbytes) {
   API_BEGIN();
   ArrayCopyToBytes(handle, data, nbytes);
   API_END();

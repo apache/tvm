@@ -211,7 +211,6 @@ impl_ctxs!((cpu, 1);
             (metal, 8);
             (vpi, 9);
             (rocm, 10);
-            (opengl, 11);
             (ext_dev, 12));
 
 impl<'a> From<&'a str> for TVMContext {

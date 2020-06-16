@@ -18,9 +18,9 @@
  */
 
 /*!
-* \file ravel_unravel.h
-* \brief Index ravel and unraval operations
-*/
+ * \file ravel_unravel.h
+ * \brief Index ravel and unraval operations
+ */
 #ifndef TOPI_DETAIL_RAVEL_UNRAVEL_H_
 #define TOPI_DETAIL_RAVEL_UNRAVEL_H_
 
@@ -34,13 +34,13 @@ using namespace tvm;
 using namespace tvm::te;
 
 /*!
-* \brief Flatten the indices to 1D
-*
-* \param indices The input coordinates
-* \param shape Shape of the tensor
-*
-* \return The index after flattening
-*/
+ * \brief Flatten the indices to 1D
+ *
+ * \param indices The input coordinates
+ * \param shape Shape of the tensor
+ *
+ * \return The index after flattening
+ */
 inline PrimExpr RavelIndex(Array<PrimExpr> indices, Array<PrimExpr> shape) {
   CHECK_EQ(indices.size(), shape.size()) << "indices and shape must have equal size";
   CHECK_GT(indices.size(), 0) << "indices must not be empty";
@@ -56,13 +56,13 @@ inline PrimExpr RavelIndex(Array<PrimExpr> indices, Array<PrimExpr> shape) {
 }
 
 /*!
-* \brief Convert flattened index to coordinate array
-*
-* \param idx The 1D index
-* \param shape Shape of the tensor
-*
-* \return The coordinate corresponding to the 1D index
-*/
+ * \brief Convert flattened index to coordinate array
+ *
+ * \param idx The 1D index
+ * \param shape Shape of the tensor
+ *
+ * \return The coordinate corresponding to the 1D index
+ */
 inline Array<PrimExpr> UnravelIndex(PrimExpr idx, Array<PrimExpr> shape) {
   std::vector<PrimExpr> indices;
 

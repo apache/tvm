@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,8 +24,8 @@
 #include <nnvm/base.h>
 #include <nnvm/op.h>
 
-#include <memory>
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <unordered_set>
 
@@ -46,7 +46,7 @@ struct OpManager {
   // storage of additional attribute table.
   std::unordered_map<std::string, std::unique_ptr<any> > attr;
   // storage of existing triggers
-  std::unordered_map<std::string, std::vector<std::function<void(Op*)>  > > tmap;
+  std::unordered_map<std::string, std::vector<std::function<void(Op*)> > > tmap;
   // group of each operator.
   std::vector<std::unordered_set<std::string> > op_group;
   // get singleton of the
@@ -70,14 +70,13 @@ Op& Op::add_alias(const std::string& alias) {  // NOLINT(*)
 // find operator by name
 const Op* Op::Get(const std::string& name) {
   const Op* op = dmlc::Registry<Op>::Find(name);
-  CHECK(op != nullptr)
-      << "Operator " << name << " is not registered";
+  CHECK(op != nullptr) << "Operator " << name << " is not registered";
   return op;
 }
 
 // Get attribute map by key
 const any* Op::GetAttrMap(const std::string& key) {
-  auto& dict =  OpManager::Global()->attr;
+  auto& dict = OpManager::Global()->attr;
   auto it = dict.find(key);
   if (it != dict.end()) {
     return it->second.get();
@@ -87,8 +86,7 @@ const any* Op::GetAttrMap(const std::string& key) {
 }
 
 // update attribute map
-void Op::UpdateAttrMap(const std::string& key,
-                       std::function<void(any*)> updater) {
+void Op::UpdateAttrMap(const std::string& key, std::function<void(any*)> updater) {
   OpManager* mgr = OpManager::Global();
   std::lock_guard<std::recursive_mutex>(mgr->mutex);
   std::unique_ptr<any>& value = mgr->attr[key];
@@ -96,16 +94,14 @@ void Op::UpdateAttrMap(const std::string& key,
   if (updater != nullptr) updater(value.get());
 }
 
-void Op::AddGroupTrigger(const std::string& group_name,
-                         std::function<void(Op*)> trigger) {
+void Op::AddGroupTrigger(const std::string& group_name, std::function<void(Op*)> trigger) {
   OpManager* mgr = OpManager::Global();
   std::lock_guard<std::recursive_mutex>(mgr->mutex);
   auto& tvec = mgr->tmap[group_name];
   tvec.push_back(trigger);
   auto& op_group = mgr->op_group;
   for (const Op* op : dmlc::Registry<Op>::List()) {
-    if (op->index_ < op_group.size() &&
-        op_group[op->index_].count(group_name) != 0) {
+    if (op->index_ < op_group.size() && op_group[op->index_].count(group_name) != 0) {
       trigger((Op*)op);  // NOLINT(*)
     }
   }

@@ -21,6 +21,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+
 #include <cassert>
 
 // The subset of the TVM runtime API that is implemented by the minimal runtime API.

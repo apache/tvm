@@ -138,7 +138,7 @@ is shown below.
       if (g->tuple == t) {
         return GetRef<Expr>(g);
       } else {
-        return TupleGetItemNode::make(t, g->index);
+        return TupleGetItem(t, g->index);
       }
     }
 
@@ -261,7 +261,7 @@ the pass.
             body.same_as(op->body)) {
           return GetRef<Expr>(op);
         } else {
-          return LetNode::make(var, value, body);
+          return Let(var, value, body);
         }
       }
     }
@@ -292,7 +292,7 @@ pointed to by ``op->index``. The reason we need to check is because
 .. code:: c
 
     Expr VisitExpr_(const CallNode* call) final {
-      static auto op_stateful = Op::GetAttr<TOpIsStateful>("TOpIsStateful");
+      static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
       Expr res = ExprMutator::VisitExpr_(call);
       call = res.as<CallNode>();
       // We don't constant fold function with zero arguments.

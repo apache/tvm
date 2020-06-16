@@ -40,8 +40,11 @@ def lower_sch(sch, args, target_bits):
             raise ValueError("args must be Tensor, Buffer or Var")
     bounds = te.schedule.InferBound(sch)
     stmt = te.schedule.ScheduleOps(sch, bounds)
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 64, False)
-    return lower_stmt(arg_list, stmt, target_bits)
+
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc(args, stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
+    return tvm.tir.transform.NarrowDataType(target_bits)(mod)["main"].body
 
 
 def test_basic():

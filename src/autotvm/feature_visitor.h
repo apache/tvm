@@ -29,6 +29,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
+
 #include <string>
 
 namespace tvm {
@@ -40,8 +41,17 @@ using namespace tvm::tir;
  * \brief Type of for loop, used as one-hot encoding in features
  */
 enum AnnotationType {
-  kBlockX, kBlockY, kBlockZ, kThreadX, kThreadY, kThreadZ,
-  kUnrolled, kVectorized, kParallel, kSerial, kVirtualThread,
+  kBlockX,
+  kBlockY,
+  kBlockZ,
+  kThreadX,
+  kThreadY,
+  kThreadZ,
+  kUnrolled,
+  kVectorized,
+  kParallel,
+  kSerial,
+  kVirtualThread,
   kNum,
 };
 
@@ -59,17 +69,17 @@ class FeatureVisitor : public StmtExprVisitor {
   void VisitExpr_(const LoadNode* op) final;
   void VisitStmt_(const StoreNode* op) final;
 
-  using StmtExprVisitor::VisitStmt_;
   using StmtExprVisitor::VisitExpr_;
+  using StmtExprVisitor::VisitStmt_;
 
  protected:
   /*!
- * \brief Enter a for loop node
- * \param var The expression to be printed.
- * \param length The output stream
- * \param ann_type The type for the for loop
- * \return skip Whether skip this node
- */
+   * \brief Enter a for loop node
+   * \param var The expression to be printed.
+   * \param length The output stream
+   * \param ann_type The type for the for loop
+   * \return skip Whether skip this node
+   */
   virtual bool EnterItervar_(tir::Var var, int64_t length, AnnotationType ann_type) = 0;
   /*! \brief Exit a for loop subtree */
   virtual void ExitItervar_() = 0;
