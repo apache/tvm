@@ -208,7 +208,7 @@ tuning_option = {
     'early_stopping': None,
 
     'measure_option': autotvm.measure_option(
-        builder=autotvm.LocalBuilder(),
+        builder=autotvm.LocalBuilder(n_parallel=1),
         runner=autotvm.RPCRunner(env.TARGET,
                                  host=tracker_host,
                                  port=tracker_port,
@@ -395,7 +395,7 @@ def tune_and_evaluate(tuning_opt):
     with autotvm.tophub.context(target, extra_files=[log_file]):
         # recompile the programs with device annotations
         print("Recompile")
-        relay_prog, params = compile_network(env, target, network, start_pack, stop_pack, device_annot=True)
+        relay_prog, params = compile_network(env, target, network, start_pack, stop_pack)
         # Compile network
         print("Compile...")
         if target.device_name != "vta":

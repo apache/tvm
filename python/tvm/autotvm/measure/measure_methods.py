@@ -83,8 +83,6 @@ class LocalBuilder(Builder):
         If is callable, use it as custom build function, expect lib_format field.
     """
     def __init__(self, timeout=10, n_parallel=None, build_func='default'):
-        # FIXME(zhanghao): quickfix - use single thread. otherwise may cause seg fault
-        n_parallel = 1
         super(LocalBuilder, self).__init__(timeout, n_parallel)
 
         if isinstance(build_func, str):
@@ -191,7 +189,7 @@ class RPCRunner(Runner):
                  timeout=10, n_parallel=None,
                  number=4, repeat=3, min_repeat_ms=0, cooldown_interval=0.1,
                  check_correctness=False):
-        static_tune = os.getenv("TVM_STATIC_TUNE")
+        static_tune = os.getenv("TVM_STATIC_TUNE_EXPERIMENTAL")
         if static_tune:
             if n_parallel is None or n_parallel > 1:
                 print("static tune only allows n_parallel == 1")
@@ -385,7 +383,7 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
             # pylint: disable=import-outside-toplevel
             import vta
 
-            static_tune = os.getenv("TVM_STATIC_TUNE")
+            static_tune = os.getenv("TVM_STATIC_TUNE_EXPERIMENTAL")
             if static_tune:
                 debug_flag = 1 << 6
             else:
@@ -483,7 +481,7 @@ def run_through_rpc(measure_input, build_result,
 
     tic = time.time()
     errno = MeasureErrorNo.NO_ERROR
-    static_tune = os.getenv("TVM_STATIC_TUNE")
+    static_tune = os.getenv("TVM_STATIC_TUNE_EXPERIMENTAL")
     try:
         # upload built module
         remote = request_remote(*remote_args)
@@ -513,8 +511,8 @@ def run_through_rpc(measure_input, build_result,
         else:
             func(*args)
             cost = 0
-            insn_dump = os.getenv('TVM_INSN_DUMP', "insn.dump")
-            insn_cost_file = os.getenv('TVM_INSN_COST', "cost.py")
+            insn_dump = os.getenv('TVM_INSN_DUMP_FILE', "insn.json")
+            insn_cost_file = os.getenv('TVM_INSN_COST_FILE', "cost.py")
             path, filename = os.path.split(insn_cost_file)
             sys.path.append(path)
             module_path = filename[:-3]  # remove the .py suffix
@@ -577,7 +575,7 @@ def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
     ------
     session: RPCSession
     """
-    static_tune = os.getenv("TVM_STATIC_TUNE")
+    static_tune = os.getenv("TVM_STATIC_TUNE_EXPERIMENTAL")
     if static_tune:
         return _rpc.LocalSession()
 

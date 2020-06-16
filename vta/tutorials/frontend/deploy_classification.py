@@ -188,7 +188,7 @@ with autotvm.tophub.context(target):
                 env.BLOCK_OUT,
                 env.WGT_WIDTH,
                 start_name=pack_dict[model][0],
-                stop_name=pack_dict[model][1], device_annot=env.TARGET == "intelfocl")
+                stop_name=pack_dict[model][1], device_annot=(env.TARGET == "intelfocl" or env.TARGET == "sim"))
     else:
         relay_prog = mod["main"]
 
@@ -199,7 +199,7 @@ with autotvm.tophub.context(target):
                 relay_prog, target=target,
                 params=params, target_host=env.target_host)
     else:
-        if env.TARGET == "intelfocl":
+        if env.TARGET == "intelfocl" or env.TARGET == "sim":
             # multiple targets to run both on cpu and vta
             target = {
                 "cpu": env.target_vta_cpu,
@@ -221,7 +221,7 @@ with autotvm.tophub.context(target):
     lib = remote.load_module("graphlib.o")
 
 
-    if env.TARGET == "intelfocl":
+    if env.TARGET == "intelfocl" or env.TARGET == "sim":
         ctxes = [remote.ext_dev(0), remote.cpu(0)]
         m = graph_runtime.create(graph, lib, ctxes)
     else:

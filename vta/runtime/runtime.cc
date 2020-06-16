@@ -1278,10 +1278,10 @@ class CommandQueue {
   }
 
   void Synchronize(uint32_t wait_cycles, bool skip=true) {
-    if (debug_flag_ & VTA_DEBUG_AUTO_TUNE) {
-      const char* insn_file = std::getenv("TVM_INSN_DUMP");
+    if (debug_flag_ & VTA_DEBUG_LOG_INSN) {
+      const char* insn_file = std::getenv("TVM_INSN_DUMP_FILE");
       if (insn_file == nullptr) {
-        insn_file = "insn.dump";
+        insn_file = "insn.json";
       }
       FILE* out = fopen(insn_file, "w+");
       if (out) {
@@ -1294,8 +1294,10 @@ class CommandQueue {
     }
 
     // FIXME(zhanghao): It is required to use force_serial
-    // by using skip and sync at the final layer, we can avoid do DeviceCopy every time
-    const char* sync_once = std::getenv("TVM_VTA_SYNC_ONCE");
+    // by using skip and sync at the final layer.
+    // By doing this, we can avoid do DeviceCopy every time
+    // consider to make it as a flag when mature
+    const char* sync_once = std::getenv("VTA_SYNC_ONCE_EXPERIMENTAL");
     if (sync_once && skip) {
       if (!(debug_flag_ & VTA_DEBUG_FORCE_SERIAL)) {
         LOG(ERROR) <<
@@ -1524,7 +1526,7 @@ void VTABufferCopy(const void* from, size_t from_offset, void* to, size_t to_off
   if (from_buffer) {
     // This is an FPGA to host mem transfer
     // NOTE: Issue synchronize manually as we delay the copy until we do it synchronously and explicitly
-    const char* sync_once = std::getenv("TVM_VTA_SYNC_ONCE");
+    const char* sync_once = std::getenv("VTA_SYNC_ONCE_EXPERIMENTAL");
     if (sync_once) VTASynchronize(VTATLSCommandHandle(), 1<<31, false);
     from_buffer->InvalidateCache(from_offset, size);
     from_buffer->MemCopyToHost(static_cast<char*>(to) + to_offset,

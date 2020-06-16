@@ -113,7 +113,7 @@ tuning_option = {
     'early_stopping': None,
 
     'measure_option': autotvm.measure_option(
-        builder=autotvm.LocalBuilder(),
+        builder=autotvm.LocalBuilder(n_parallel=1),
         runner=autotvm.RPCRunner(env.TARGET,
                                  host=tracker_host,
                                  port=tracker_port,

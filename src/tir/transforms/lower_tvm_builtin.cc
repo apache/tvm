@@ -86,7 +86,7 @@ class BuiltinLower : public StmtExprMutator {
     op = stmt.as<AllocateNode>();
     // Get constant allocation bound.
     int64_t nbytes = GetVectorBytes(op->dtype);
-    // FIXME(zhanghao): remove special handling for kDLCPU
+    // NOTE(zhanghao): remove special handling for kDLCPU
     // otherwise, may cause LLVM parameters match error
     // if in heterogenous targets
     // if (device_type_.defined()) {
