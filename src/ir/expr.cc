@@ -57,7 +57,7 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
 
 IntImm::IntImm(DataType dtype, int64_t value) {
   CHECK(dtype.is_scalar()) << "ValueError: IntImm can only take scalar.";
-  CHECK(dtype.is_int() || dtype.is_uint()) << "ValueError: IntImm can only take scalar.";
+  CHECK(dtype.is_int() || dtype.is_uint()) << "ValueError: IntImm supports only int or uint type.";
   if (dtype.is_uint()) {
     CHECK_GE(value, 0U);
   }
