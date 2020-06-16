@@ -17,8 +17,8 @@
  * under the License.
  */
 
-use crate::ir::array::Array;
-use crate::runtime::{external, function::{self, Result, ToFunction, Typed}, String as TString};
+use crate::runtime::array::Array;
+use crate::runtime::{external, function::{self, Result, ToFunction}, String as TString};
 use crate::runtime::{Object, ObjectPtr, ObjectRef};
 use crate::ir::relay::Function;
 

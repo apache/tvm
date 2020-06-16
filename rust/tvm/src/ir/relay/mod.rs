@@ -17,7 +17,7 @@
  * under the License.
  */
 
-use crate::runtime::{IsObject, Object, ObjectPtr, ObjectRef, String as TString, IsObjectRef};
+use crate::runtime::{IsObject, Object, ObjectPtr, ObjectRef, String as TString};
 use crate::runtime::array::Array;
 use crate::DataType;
 use tvm_macros::Object;
@@ -235,31 +235,32 @@ impl Function {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runtime::{as_text, String as TString};
+    use crate::runtime::{String as TString};
+    use crate::ir::as_text;
     use anyhow::Result;
 
     #[test]
     fn test_id() -> Result<()> {
         let string = TString::new("foo".to_string()).expect("bar");
         let id = Id::new(string);
-        let cstr = as_text(&id.upcast())?;
-        assert!(cstr.into_string()?.contains("relay.Id"));
+        let text = as_text(id.clone());
+        assert!(text.contains("relay.Id"));
         Ok(())
     }
 
     #[test]
     fn test_global() -> Result<()> {
         let gv = GlobalVar::new("main".to_string(), ObjectRef::null());
-        let cstr = as_text(&gv.upcast())?;
-        assert!(cstr.into_string()?.contains("@main"));
+        let text = as_text(gv.clone());
+        assert!(text.contains("@main"));
         Ok(())
     }
 
     #[test]
     fn test_var() -> Result<()> {
         let var = Var::new("local".to_string(), ObjectRef::null());
-        let cstr = as_text(&var.upcast())?;
-        assert!(cstr.into_string()?.contains("%local"));
+        let text = as_text(var.clone());
+        assert!(text.contains("%local"));
         Ok(())
     }
 
