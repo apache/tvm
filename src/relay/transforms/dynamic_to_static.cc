@@ -49,7 +49,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
     }
     return post;
   }
-  Expr DispatchVisitExpr(const Expr& expr) {
+  Expr DispatchVisitExpr(const Expr& expr) override {
     auto post = MixedModeMutator::DispatchVisitExpr(expr);
     if (auto op = post.as<FunctionNode>()) {
       return Function(op->params, op->body, NullValue<Type>(), op->type_params, op->attrs);
