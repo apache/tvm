@@ -1316,12 +1316,10 @@ class String : public ObjectRef {
    *
    * \return The concatenated char sequence
    */
-  static char* Concat(const char* lhs, size_t lhs_size, const char* rhs, size_t rhs_size) {
-    char* concat = new char[lhs_size + rhs_size + 1];
-    std::memcpy(concat, lhs, lhs_size);
-    std::memcpy(concat + lhs_size, rhs, rhs_size);
-    concat[lhs_size + rhs_size] = '\0';
-    return concat;
+  static String Concat(const char* lhs, size_t lhs_size, const char* rhs, size_t rhs_size) {
+    std::string ret(lhs, lhs_size);
+    ret.append(rhs, rhs_size);
+    return String(ret);
   }
 
   // Overload + operator
@@ -1372,36 +1370,31 @@ inline String& String::operator=(const char* other) { return operator=(std::stri
 inline String operator+(const String& lhs, const String& rhs) {
   size_t lhs_size = lhs.size();
   size_t rhs_size = rhs.size();
-  char* concat = String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
-  return String(concat);
+  return String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
 }
 
 inline String operator+(const String& lhs, const std::string& rhs) {
   size_t lhs_size = lhs.size();
   size_t rhs_size = rhs.size();
-  char* concat = String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
-  return String(concat);
+  return String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
 }
 
 inline String operator+(const std::string& lhs, const String& rhs) {
   size_t lhs_size = lhs.size();
   size_t rhs_size = rhs.size();
-  char* concat = String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
-  return String(concat);
+  return String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
 }
 
 inline String operator+(const char* lhs, const String& rhs) {
   size_t lhs_size = std::strlen(lhs);
   size_t rhs_size = rhs.size();
-  char* concat = String::Concat(lhs, lhs_size, rhs.data(), rhs_size);
-  return String(concat);
+  return String::Concat(lhs, lhs_size, rhs.data(), rhs_size);
 }
 
 inline String operator+(const String& lhs, const char* rhs) {
   size_t lhs_size = lhs.size();
   size_t rhs_size = std::strlen(rhs);
-  char* concat = String::Concat(lhs.data(), lhs_size, rhs, rhs_size);
-  return String(concat);
+  return String::Concat(lhs.data(), lhs_size, rhs, rhs_size);
 }
 
 // Overload < operator
