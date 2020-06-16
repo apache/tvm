@@ -70,7 +70,7 @@ class MetadataModuleNode : public ModuleNode {
     return PackedFunc(nullptr);
   }
 
-  const char* type_key() const { return "module_init"; }
+  const char* type_key() const { return "metadata"; }
 
   /*!
    * \brief Get the list of metadata that is required by the given module.
@@ -214,7 +214,7 @@ Module MetadataModuleCreate(
   return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_module_init")
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_metadata")
     .set_body_typed(MetadataModuleNode::LoadFromBinary);
 }  // namespace runtime
 }  // namespace tvm

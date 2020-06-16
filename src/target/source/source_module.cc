@@ -41,9 +41,20 @@ using runtime::GetFileFormat;
 using runtime::GetMetaFilePath;
 using runtime::SaveBinaryToFile;
 
-runtime::Module WrapMetadataModule(const std::unordered_map<std::string, runtime::NDArray>& params,
-                                   const runtime::Module& dso_module,
-                                   const Array<runtime::Module>& modules) {
+/*!
+ * \brief Create a metadata module wrapper. The helper is used by different
+ *        codegens, such as graph runtime codegen and the vm compiler.
+ *
+ * \param params The metadata for initialization of all modules.
+ * \param dso_module The DSO module that contains TVM primitives.
+ * \param modules The submodules that will be wrapped, e.g. CSource modules that
+ *        contain vendor library calls or customized runtime modules.
+ *
+ * \return The created metadata module that manages initialization of metadata.
+ */
+runtime::Module CreateMetadataModule(
+    const std::unordered_map<std::string, runtime::NDArray>& params,
+    const runtime::Module& dso_module, const Array<runtime::Module>& modules) {
   // Wrap all submodules in the initialization wrapper.
   std::unordered_map<std::string, std::vector<std::string>> sym_metadata;
   for (runtime::Module it : modules) {

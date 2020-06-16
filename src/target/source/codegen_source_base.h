@@ -152,9 +152,9 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
  * \param modules The modules to be wrapped.
  * \return The wrapped module.
  */
-runtime::Module WrapMetadataModule(const std::unordered_map<std::string, runtime::NDArray>& params,
-                                   const runtime::Module& dso_module,
-                                   const Array<runtime::Module>& modules);
+runtime::Module CreateMetadataModule(
+    const std::unordered_map<std::string, runtime::NDArray>& params,
+    const runtime::Module& dso_module, const Array<runtime::Module>& modules);
 
 /*!
  * \brief Create a source module for viewing and limited saving for device.
