@@ -244,7 +244,8 @@ class RelayBuildModule : public runtime::ModuleNode {
       GlobalVar main_glb_var = relay_module->GetGlobalVar("main");
       Function main_func = Downcast<Function>(relay_module->Lookup(main_glb_var));
       auto new_main = BindParamsByName(main_func, params);
-      relay_module->Update(main_glb_var, new_main);
+      IRModuleNode* relay_module_ptr = relay_module.CopyOnWrite();
+      relay_module_ptr->Update(main_glb_var, new_main);
     }
 
     Array<Pass> pass_seqs;
