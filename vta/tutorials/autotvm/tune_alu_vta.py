@@ -223,7 +223,7 @@ def register_vta_tuning_tasks():
     # init autotvm env to register VTA operator
     TaskExtractEnv()
 
-    @autotvm.register_customized_task("add.vta")
+    @autotvm.template("add.vta")
     def _topi_add(*args, **kwargs):
         assert not kwargs, "Do not support kwargs in template function call"
         A, B = args[:2]
@@ -239,7 +239,7 @@ def register_vta_tuning_tasks():
             s = te.create_schedule([res.op])
         return s, [A, B, res]
 
-    @autotvm.register_customized_task("multiply.vta")
+    @autotvm.template("multiply.vta")
     def _topi_multiply(*args, **kwargs):
         assert not kwargs, "Do not support kwargs in template function call"
         A, B = args[:2]
@@ -254,22 +254,6 @@ def register_vta_tuning_tasks():
         else:
             s = te.create_schedule([res.op])
         return s, [A, B, res]
-
-    @autotvm.register_customized_task("copy.vta")
-    def _topi_identity(*args, **kwargs):
-        assert not kwargs, "Do not support kwargs in template function call"
-        A = args[0]
-
-        with tvm.target.vta():
-            res = vta.top.op.copy_packed(*args, **kwargs)
-            res = my_clip(res, 0, 127)
-            res = topi.cast(res, "int8")
-
-        if tvm.target.Target.current().device_name == 'vta':
-            s = vta.top.op.schedule_copy_packed([res])
-        else:
-            s = te.create_schedule([res.op])
-        return s, [A, res]
 
 
 ########################################################################
