@@ -20,7 +20,6 @@
 use crate::runtime::Object;
 use crate::DataType;
 
-pub mod array;
 pub mod relay;
 
 #[repr(C)]

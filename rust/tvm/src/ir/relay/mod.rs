@@ -17,8 +17,8 @@
  * under the License.
  */
 
-use super::array::Array;
 use crate::runtime::{IsObject, Object, ObjectPtr, ObjectRef, String as TString, IsObjectRef};
+use crate::runtime::array::Array;
 use crate::DataType;
 use tvm_macros::Object;
 
@@ -40,8 +40,6 @@ impl Id {
         Id(Some(ObjectPtr::new(node)))
     }
 }
-
-// define_ref!(Id, IdNode);
 
 #[repr(C)]
 #[derive(Object)]
@@ -98,8 +96,6 @@ impl GlobalVar {
     pub fn new(name_hint: String, _span: ObjectRef) -> GlobalVar {
         let node = GlobalVarNode {
             base: RelayExpr::base::<GlobalVarNode>(),
-            // span: span,
-            // checked_type: ObjectRef(None),,
             name_hint: TString::new(name_hint).unwrap(),
         };
         GlobalVar(Some(ObjectPtr::new(node)))
@@ -264,6 +260,23 @@ mod tests {
         let var = Var::new("local".to_string(), ObjectRef::null());
         let cstr = as_text(&var.upcast())?;
         assert!(cstr.into_string()?.contains("%local"));
+        Ok(())
+    }
+
+
+    use super::Array;
+    use crate::ir::relay::Var;
+    use crate::runtime::object::ObjectRef;
+
+    #[test]
+    fn create_array_and_get() -> Result<()> {
+        let vec = vec![
+            Var::new("foo".into(), ObjectRef::null()),
+            Var::new("bar".into(), ObjectRef::null()),
+        ];
+        let array = Array::from_vec(vec)?;
+        assert_eq!(array.get(0)?.name_hint().to_string()?, "foo");
+        assert_eq!(array.get(1)?.name_hint().to_string()?, "bar");
         Ok(())
     }
 }

@@ -20,10 +20,9 @@
 use std::convert::{TryFrom, TryInto};
 use std::marker::PhantomData;
 
-use crate::runtime::object::{ObjectRef, IsObjectRef};
-
-use tvm_rt::{external, RetValue, function::{Function, Result}};
-use tvm_rt::errors::Error;
+use crate::object::{ObjectRef, IsObjectRef};
+use crate::{external, RetValue, function::{Function, Result}};
+use crate::errors::Error;
 
 #[repr(C)]
 #[derive(Clone)]
@@ -60,25 +59,5 @@ impl<T: IsObjectRef> Array<T> {
     {
        let oref: ObjectRef = array_get_item(self.object.clone(), index)?;
        oref.downcast()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Array;
-    use crate::ir::relay::Var;
-    use crate::runtime::object::ObjectRef;
-    use anyhow::Result;
-
-    #[test]
-    fn create_array_and_get() -> Result<()> {
-        let vec = vec![
-            Var::new("foo".into(), ObjectRef::null()),
-            Var::new("bar".into(), ObjectRef::null()),
-        ];
-        let array = Array::from_vec(vec)?;
-        assert_eq!(array.get(0)?.name_hint().to_string()?, "foo");
-        assert_eq!(array.get(1)?.name_hint().to_string()?, "bar");
-        Ok(())
     }
 }
