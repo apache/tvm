@@ -32,13 +32,12 @@ use std::{
     ptr, str,
 };
 
-
 use crate::errors::Error;
 
 use super::to_boxed_fn::ToBoxedFn;
 
-pub use tvm_sys::{ffi, ArgValue, RetValue};
 pub use super::to_function::{ToFunction, Typed};
+pub use tvm_sys::{ffi, ArgValue, RetValue};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -67,7 +66,11 @@ impl Function {
     }
 
     pub unsafe fn null() -> Self {
-        Function { handle: std::ptr::null_mut(), is_global: false, from_rust: false }
+        Function {
+            handle: std::ptr::null_mut(),
+            is_global: false,
+            from_rust: false,
+        }
     }
 
     /// For a given function, it returns a function by name.

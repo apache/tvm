@@ -50,9 +50,7 @@ pub trait IsObjectRef: Sized {
     }
 
     fn downcast<U: IsObjectRef>(&self) -> Result<U, Error> {
-        let ptr =
-            self.as_object_ptr()
-                .map(|ptr| ptr.downcast::<U::Object>());
+        let ptr = self.as_object_ptr().map(|ptr| ptr.downcast::<U::Object>());
         let ptr = ptr.transpose()?;
         Ok(U::from_object_ptr(ptr))
     }

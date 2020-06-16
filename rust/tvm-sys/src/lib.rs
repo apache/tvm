@@ -59,8 +59,10 @@ pub use errors::*;
 pub use packed_func::{ArgValue, RetValue};
 
 impl<T, E> std::convert::TryFrom<Result<T, E>> for RetValue
-where RetValue: std::convert::TryFrom<T>,
-      E: From<<RetValue as std::convert::TryFrom<T>>::Error> {
+where
+    RetValue: std::convert::TryFrom<T>,
+    E: From<<RetValue as std::convert::TryFrom<T>>::Error>,
+{
     type Error = E;
 
     fn try_from(val: Result<T, E>) -> Result<RetValue, Self::Error> {

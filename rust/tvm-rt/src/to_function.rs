@@ -53,7 +53,7 @@ impl<F, O, E> Typed<(), O> for F
 where
     F: Fn() -> O,
     Error: From<E>,
-    O: TryInto<RetValue, Error = E>
+    O: TryInto<RetValue, Error = E>,
 {
     fn args(_args: &[ArgValue<'static>]) -> Result<()> {
         debug_assert!(_args.len() == 0);
@@ -113,7 +113,7 @@ where
     A: TryFrom<ArgValue<'static>, Error = E1>,
     B: TryFrom<ArgValue<'static>, Error = E1>,
     C: TryFrom<ArgValue<'static>, Error = E1>,
-    O: TryInto<RetValue, Error = E2>
+    O: TryInto<RetValue, Error = E2>,
 {
     fn args(args: &[ArgValue<'static>]) -> Result<(A, B, C)> {
         debug_assert!(args.len() == 3);

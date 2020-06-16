@@ -115,8 +115,7 @@ impl Object {
     pub fn count(&self) -> i32 {
         // need to do atomic read in C++
         // ABI compatible atomics is funky/hard.
-        self.ref_count
-            .load(std::sync::atomic::Ordering::SeqCst)
+        self.ref_count.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Allocates a base object value for an object subtype of type T.
@@ -323,7 +322,6 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

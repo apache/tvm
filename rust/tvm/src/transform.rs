@@ -17,10 +17,14 @@
  * under the License.
  */
 
-use crate::runtime::array::Array;
-use crate::runtime::{external, function::{self, Result, ToFunction}, String as TString};
-use crate::runtime::{Object, ObjectPtr, ObjectRef};
 use crate::ir::relay::Function;
+use crate::runtime::array::Array;
+use crate::runtime::{
+    external,
+    function::{self, Result, ToFunction},
+    String as TString,
+};
+use crate::runtime::{Object, ObjectPtr, ObjectRef};
 
 use tvm_macros::Object;
 
@@ -64,7 +68,10 @@ external! {
     fn create_func_pass(func: function::Function, pass_info: PassInfo) -> Pass;
 }
 
-pub fn function_pass<F: Fn(Function, IRModule, PassContext) -> Function + 'static>(pass_fn: F, pass_info: PassInfo) -> Result<Pass> {
+pub fn function_pass<F: Fn(Function, IRModule, PassContext) -> Function + 'static>(
+    pass_fn: F,
+    pass_info: PassInfo,
+) -> Result<Pass> {
     let func = pass_fn.to_function();
     create_func_pass(func, pass_info)
 }
@@ -72,15 +79,15 @@ pub fn function_pass<F: Fn(Function, IRModule, PassContext) -> Function + 'stati
 #[macro_export]
 macro_rules! export_pass {
     ($name:literal,$func:expr) => {
-    #[no_mangle]
-    pub unsafe extern "C" fn initialize(
-        args: *mut tvm_sys::ffi::TVMValue,
-        type_codes: *mut c_int,
-        num_args: c_int,
-        ret: tvm_sys::ffi::TVMRetValueHandle,
-    ) -> c_int {
-        register($func, $name).unwrap();
-        return 0;
-    }
-};
+        #[no_mangle]
+        pub unsafe extern "C" fn initialize(
+            args: *mut tvm_sys::ffi::TVMValue,
+            type_codes: *mut c_int,
+            num_args: c_int,
+            ret: tvm_sys::ffi::TVMRetValueHandle,
+        ) -> c_int {
+            register($func, $name).unwrap();
+            return 0;
+        }
+    };
 }

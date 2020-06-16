@@ -20,9 +20,13 @@
 use std::convert::{TryFrom, TryInto};
 use std::marker::PhantomData;
 
-use crate::object::{ObjectRef, IsObjectRef, ObjectPtr, Object};
-use crate::{external, RetValue, function::{Function, Result}};
 use crate::errors::Error;
+use crate::object::{IsObjectRef, Object, ObjectPtr, ObjectRef};
+use crate::{
+    external,
+    function::{Function, Result},
+    RetValue,
+};
 
 #[repr(C)]
 #[derive(Clone)]
@@ -40,16 +44,24 @@ external! {
 
 impl<T: IsObjectRef> Array<T> {
     pub fn from_vec(data: Vec<T>) -> Result<Array<T>> {
-        let iter = data.iter().map(|element| element.to_object_ref().into()).collect();
+        let iter = data
+            .iter()
+            .map(|element| element.to_object_ref().into())
+            .collect();
 
-        let func = Function::get("node.Array")
-            .expect("node.Array function is not registered, this is most likely a build or linking error");
+        let func = Function::get("node.Array").expect(
+            "node.Array function is not registered, this is most likely a build or linking error",
+        );
 
         // let array_data = func.invoke(iter)?;
         // let array_data: ObjectRef = func.invoke(iter)?.try_into()?;
         let array_data: ObjectPtr<Object> = func.invoke(iter)?.try_into()?;
 
-        debug_assert!(array_data.count() >= 1, "array reference count is {}", array_data.count());
+        debug_assert!(
+            array_data.count() >= 1,
+            "array reference count is {}",
+            array_data.count()
+        );
 
         Ok(Array {
             object: ObjectRef(Some(array_data)),
@@ -61,7 +73,7 @@ impl<T: IsObjectRef> Array<T> {
     where
         T: TryFrom<RetValue, Error = Error>,
     {
-       let oref: ObjectRef = array_get_item(self.object.clone(), index)?;
-       oref.downcast()
+        let oref: ObjectRef = array_get_item(self.object.clone(), index)?;
+        oref.downcast()
     }
 }

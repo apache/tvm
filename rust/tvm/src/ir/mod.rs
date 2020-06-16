@@ -17,9 +17,9 @@
  * under the License.
  */
 
+use crate::runtime::String as TString;
+use crate::runtime::{self, external, IsObjectRef, Object, ObjectRef};
 use crate::DataType;
-use crate::runtime::{self, Object, IsObjectRef, ObjectRef, external};
-use crate::runtime::{String as TString};
 
 pub mod relay;
 
@@ -31,7 +31,10 @@ external! {
 
 pub fn as_text<T: IsObjectRef>(object: T) -> String {
     let no_func = unsafe { runtime::Function::null() };
-    _as_text(object.to_object_ref(), 0, no_func).unwrap().to_string().unwrap()
+    _as_text(object.to_object_ref(), 0, no_func)
+        .unwrap()
+        .to_string()
+        .unwrap()
 }
 
 #[repr(C)]

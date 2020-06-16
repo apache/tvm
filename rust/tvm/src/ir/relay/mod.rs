@@ -17,8 +17,8 @@
  * under the License.
  */
 
-use crate::runtime::{IsObject, Object, ObjectPtr, ObjectRef, String as TString};
 use crate::runtime::array::Array;
+use crate::runtime::{IsObject, Object, ObjectPtr, ObjectRef, String as TString};
 use crate::DataType;
 use tvm_macros::Object;
 
@@ -235,8 +235,8 @@ impl Function {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runtime::{String as TString};
     use crate::ir::as_text;
+    use crate::runtime::String as TString;
     use anyhow::Result;
 
     #[test]
@@ -263,7 +263,6 @@ mod tests {
         assert!(text.contains("%local"));
         Ok(())
     }
-
 
     use super::Array;
     use crate::ir::relay::Var;
