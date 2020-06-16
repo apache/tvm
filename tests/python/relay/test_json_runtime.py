@@ -350,6 +350,61 @@ def test_bn():
                  tol=1e-5)
 
 
+def test_multiple_ops():
+    if not tvm.get_global_func("runtime.ext.dnnl", True):
+        print("skip because DNNL codegen is not available")
+        return
+
+    dtype = 'float32'
+    ishape = (1, 32, 14, 14)
+    w1shape = (32, 32, 3, 3)
+    w2shape = (64, 32, 5, 5)
+
+    def get_net():
+        data = relay.var("data", relay.TensorType(ishape, dtype))
+        w1 = relay.var("w1", relay.TensorType(w1shape, dtype))
+        w2 = relay.var("w2", relay.TensorType(w2shape, dtype))
+
+        layer = relay.nn.conv2d(data=data, weight=w1, kernel_size=(3, 3), padding=(1, 1))
+        layer = relay.nn.relu(layer)
+        layer = relay.nn.conv2d(data=layer, weight=w2, kernel_size=(5, 5), padding=(2, 2))
+        layer = relay.nn.relu(layer)
+
+        main_f = relay.Function([data, w1, w2], layer)
+        mod = tvm.IRModule()
+        mod["main"] = main_f
+        return mod
+
+    def get_partitoned_mod(mod):
+        remove_bn_pass = tvm.transform.Sequential([
+            transform.InferType(),
+            transform.SimplifyInference(),
+            transform.FoldConstant(),
+            transform.FoldScaleAxis(),
+        ])
+        byoc_pass = tvm.transform.Sequential([
+            remove_bn_pass,
+            transform.AnnotateTarget("dnnl"),
+            transform.MergeCompilerRegions(),
+            transform.PartitionGraph()
+        ])
+
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            return byoc_pass(mod)
+
+    ref_mod = get_net()
+    mod = get_partitoned_mod(ref_mod)
+
+    data = np.random.uniform(0, 1, ishape).astype(dtype)
+    w1 = np.random.uniform(0, 1, w1shape).astype(dtype)
+    w2 = np.random.uniform(0, 1, w2shape).astype(dtype)
+    check_result(mod, ref_mod, {
+        "data": data,
+        "w1": w1,
+        "w2": w2,
+    }, (1, 64, 14, 14), tol=1e-5)
+
+
 def test_composite():
     if not tvm.get_global_func("runtime.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
@@ -400,4 +455,5 @@ if __name__ == "__main__":
     test_relu()
     test_dense()
     test_bn()
+    test_multiple_ops()
     #test_composite()
