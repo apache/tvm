@@ -2824,7 +2824,7 @@ class GraphProto(object):
                         tensor_util.TensorShapeProtoToList(node.attr['shape'].shape)
                     for idx, dim in enumerate(self._input_shapes[node.name]):
                         if dim < 0:
-                            self._input_shapes[node.name][idx] = 1
+                            self._input_shapes[node.name][idx] = Any()
                             warnings.warn("Use 1 instead of -1 in shape of operator %s."
                                           % node.name)
 
