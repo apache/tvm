@@ -27,6 +27,9 @@ endif()
 
 message(STATUS "VTA build with VTA_HW_PATH=" ${VTA_HW_PATH})
 
+# enable picojson int type support
+add_definitions(-DPICOJSON_USE_INT64)
+
 if(MSVC)
   message(STATUS "VTA build is skipped in Windows..")
 elseif(PYTHON)
@@ -108,13 +111,13 @@ elseif(PYTHON)
     # Target lib: vta
     add_library(vta SHARED ${FPGA_RUNTIME_SRCS})
     target_include_directories(vta PUBLIC vta/runtime)
+    target_include_directories(vta PUBLIC ${VTA_HW_PATH}/include)
     foreach(__def ${VTA_DEFINITIONS})
       string(SUBSTRING ${__def} 3 -1 __strip_def)
       target_compile_definitions(vta PUBLIC ${__strip_def})
     endforeach()
     if(${VTA_TARGET} STREQUAL "pynq" OR
        ${VTA_TARGET} STREQUAL "ultra96")
-      target_include_directories(vta PUBLIC ${VTA_HW_PATH}/include)
       target_link_libraries(vta ${__cma_lib})
     elseif(${VTA_TARGET} STREQUAL "de10nano")  # DE10-Nano rules
      #target_compile_definitions(vta PUBLIC VTA_MAX_XFER=2097152) # (1<<21)
@@ -124,7 +127,6 @@ elseif(PYTHON)
         "/usr/local/intelFPGA_lite/18.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/include")
     elseif(${VTA_TARGET} STREQUAL "intelfocl")  # Intel OpenCL for FPGA rules
       target_include_directories(vta PUBLIC "/opt/intelFPGA_pro/19.3.0.222/hld/host/include")
-      target_include_directories(vta PUBLIC ${VTA_HW_PATH}/include)
       set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
       target_link_libraries(vta -L/opt/intelFPGA_pro/19.3.0.222/hld/host/linux64/lib -lOpenCL)
     endif()

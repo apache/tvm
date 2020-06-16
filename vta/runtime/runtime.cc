@@ -40,9 +40,7 @@
 #include <stdlib.h>
 #include <malloc.h>
 
-#include <rapidjson/document.h>
-#include <rapidjson/writer.h>
-#include <rapidjson/stringbuffer.h>
+#include <picojson.h>
 #include <thread>
 #include <mutex>
 
@@ -845,35 +843,23 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     // Iterate over all instructions
     int insn_count = count();
     const VTAGenericInsn* insn = data();
-    // FIXME(zhanghao): rapidjson dep
-    rapidjson::StringBuffer s;
-    rapidjson::Writer<rapidjson::StringBuffer> writer(s);
+    picojson::array jarr;
 
     if (!json) {
       fprintf(out, "There are %u instructions\n", insn_count);
-    } else {
-      writer.StartArray();
     }
 
     for (int i = 0; i < insn_count; ++i) {
       // Fetch instruction and decode opcode
       c.generic = insn[i];
+      picojson::object kv;
       if (json) {
-        writer.StartObject();
-        writer.Key("name");
-        writer.String(GetOpName(c).c_str());
-
-        writer.Key("type");
-        writer.String(GetOpcodeName(c).c_str());
-
-        writer.Key("pop_prev");
-        writer.Int(c.mem.pop_prev_dep);
-        writer.Key("pop_next");
-        writer.Int(c.mem.pop_next_dep);
-        writer.Key("push_prev");
-        writer.Int(c.mem.push_prev_dep);
-        writer.Key("push_next");
-        writer.Int(c.mem.push_next_dep);
+        kv["name"] = picojson::value(GetOpName(c).c_str());
+        kv["type"] = picojson::value(GetOpcodeName(c).c_str());
+        kv["pop_prev"] = picojson::value(static_cast<int64_t>(c.mem.pop_prev_dep));
+        kv["pop_next"] = picojson::value(static_cast<int64_t>(c.mem.pop_next_dep));
+        kv["push_prev"] = picojson::value(static_cast<int64_t>(c.mem.push_prev_dep));
+        kv["push_next"] = picojson::value(static_cast<int64_t>(c.mem.push_next_dep));
       } else {
         fprintf(out, "INSTRUCTION %u: ", i);
         fprintf(out, "%s\n", GetOpName(c).c_str());
@@ -887,25 +873,21 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
 
       if (c.mem.opcode == VTA_OPCODE_LOAD || c.mem.opcode == VTA_OPCODE_STORE) {
         if (json) {
-          writer.Key("dram");
-          writer.Uint64(c.mem.dram_base);
-          writer.Key("sram");
-          writer.Uint64(c.mem.sram_base);
+          kv["dram"] = picojson::value(static_cast<int64_t>(c.mem.dram_base));
+          kv["sram"] = picojson::value(static_cast<int64_t>(c.mem.sram_base));
 
-          writer.Key("y");
-          writer.StartArray();
-          writer.Uint64(c.mem.y_size);
-          writer.Uint64(c.mem.y_pad_0);
-          writer.Uint64(c.mem.y_pad_1);
-          writer.EndArray();
+          picojson::array arr;
+          arr.push_back(picojson::value(static_cast<int64_t>(c.mem.y_size)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.mem.y_pad_0)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.mem.y_pad_1)));
+          kv["y"] = picojson::value(arr);
 
-          writer.Key("x");
-          writer.StartArray();
-          writer.Uint64(c.mem.x_size);
-          writer.Uint64(c.mem.x_pad_0);
-          writer.Uint64(c.mem.x_pad_1);
-          writer.Uint64(c.mem.x_stride);
-          writer.EndArray();
+          arr.clear();
+          arr.push_back(picojson::value(static_cast<int64_t>(c.mem.x_size)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.mem.x_pad_0)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.mem.x_pad_1)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.mem.x_stride)));
+          kv["x"] = picojson::value(arr);
         } else {
           fprintf(out, "\tDRAM: 0x%08x, SRAM:0x%04x\n",
                  static_cast<int>(c.mem.dram_base),
@@ -922,29 +904,26 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
         }
       } else if (c.mem.opcode == VTA_OPCODE_GEMM) {
         if (json) {
-          writer.Key("reset_out");
-          writer.Int(c.gemm.reset_reg);
-          writer.Key("range");
-          writer.StartArray();
-          writer.Int(c.gemm.uop_bgn);
-          writer.Int(c.gemm.uop_end);
-          writer.EndArray();
+          kv["reset_out"] = picojson::value(static_cast<int64_t>(c.gemm.reset_reg));
 
-          writer.Key("outer_loop");
-          writer.StartArray();
-          writer.Int(c.gemm.iter_out);
-          writer.Int(c.gemm.wgt_factor_out),
-          writer.Int(c.gemm.src_factor_out),
-          writer.Int(c.gemm.dst_factor_out);
-          writer.EndArray();
+          picojson::array arr;
+          arr.push_back(picojson::value(static_cast<int64_t>(c.gemm.uop_bgn)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.gemm.uop_end)));
+          kv["range"] = picojson::value(arr);
 
-          writer.Key("inner_loop");
-          writer.StartArray();
-          writer.Int(c.gemm.iter_in);
-          writer.Int(c.gemm.wgt_factor_in),
-          writer.Int(c.gemm.src_factor_in),
-          writer.Int(c.gemm.dst_factor_in);
-          writer.EndArray();
+          arr.clear();
+          arr.push_back(picojson::value(static_cast<int64_t>(c.gemm.iter_out)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.gemm.wgt_factor_out)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.gemm.src_factor_out)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.gemm.dst_factor_out)));
+          kv["outer_loop"] = picojson::value(arr);
+
+          arr.clear();
+          arr.push_back(picojson::value(static_cast<int64_t>(c.gemm.iter_in)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.gemm.wgt_factor_in)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.gemm.src_factor_in)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.gemm.dst_factor_in)));
+          kv["inner_loop"] = picojson::value(arr);
         } else {
           fprintf(out, "\treset_out: %d\n", static_cast<int>(c.gemm.reset_reg));
           fprintf(out, "\trange (%d, %d)\n",
@@ -963,27 +942,23 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
         }
       } else if (c.mem.opcode == VTA_OPCODE_ALU) {
         if (json) {
-          writer.Key("reset_out");
-          writer.Int(c.alu.reset_reg);
-          writer.Key("range");
-          writer.StartArray();
-          writer.Int(c.alu.uop_bgn);
-          writer.Int(c.alu.uop_end);
-          writer.EndArray();
+          kv["reset_out"] = picojson::value(static_cast<int64_t>(c.alu.reset_reg));
+          picojson::array arr;
+          arr.push_back(picojson::value(static_cast<int64_t>(c.alu.uop_bgn)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.alu.uop_end)));
+          kv["range"] = picojson::value(arr);
 
-          writer.Key("outer_loop");
-          writer.StartArray();
-          writer.Int(c.alu.iter_out);
-          writer.Int(c.alu.dst_factor_out),
-          writer.Int(c.alu.src_factor_out),
-          writer.EndArray();
+          arr.clear();
+          arr.push_back(picojson::value(static_cast<int64_t>(c.alu.iter_out)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.alu.dst_factor_out)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.alu.src_factor_out)));
+          kv["outer_loop"] = picojson::value(arr);
 
-          writer.Key("inner_loop");
-          writer.StartArray();
-          writer.Int(c.alu.iter_in);
-          writer.Int(c.alu.dst_factor_in);
-          writer.Int(c.alu.src_factor_in),
-          writer.EndArray();
+          arr.clear();
+          arr.push_back(picojson::value(static_cast<int64_t>(c.alu.iter_in)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.alu.dst_factor_in)));
+          arr.push_back(picojson::value(static_cast<int64_t>(c.alu.src_factor_in)));
+          kv["inner_loop"] = picojson::value(arr);
         } else {
           fprintf(out, "\treset_out: %d\n", static_cast<int>(c.alu.reset_reg));
           fprintf(out, "\trange (%d, %d)\n",
@@ -1027,16 +1002,12 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
         if (c.gemm.push_next_dep) g2s_queue++;
       }
       if (json) {
-        writer.Key("l2g_queue");
-        writer.Int(l2g_queue);
-        writer.Key("g2l_queue");
-        writer.Int(g2l_queue);
-        writer.Key("s2g_queue");
-        writer.Int(s2g_queue);
-        writer.Key("g2s_queue");
-        writer.Int(g2s_queue);
+        kv["l2g_queue"] = picojson::value(static_cast<int64_t>(l2g_queue));
+        kv["g2l_queue"] = picojson::value(static_cast<int64_t>(g2l_queue));
+        kv["s2g_queue"] = picojson::value(static_cast<int64_t>(s2g_queue));
+        kv["g2s_queue"] = picojson::value(static_cast<int64_t>(g2s_queue));
 
-        writer.EndObject();
+        jarr.push_back(picojson::value(kv));
       } else {
         fprintf(out, "\tl2g_queue = %d, g2l_queue = %d\n", l2g_queue, g2l_queue);
         fprintf(out, "\ts2g_queue = %d, g2s_queue = %d\n", s2g_queue, g2s_queue);
@@ -1044,9 +1015,8 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     }
 
     if (json) {
-      writer.EndArray();
-      auto str = s.GetString();
-      fwrite(str, 1, s.GetSize(), out);
+      auto str = picojson::value(jarr).serialize();
+      fwrite(str.c_str(), 1, str.size(), out);
     }
   }
   // Commit all pending pop of corresponding stage
