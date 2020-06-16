@@ -2825,8 +2825,6 @@ class GraphProto(object):
                     for idx, dim in enumerate(self._input_shapes[node.name]):
                         if dim < 0:
                             self._input_shapes[node.name][idx] = Any()
-                            warnings.warn("Use 1 instead of -1 in shape of operator %s."
-                                          % node.name)
 
                 self._output_shapes[node.name] = [self._input_shapes[node.name]]
                 attr = self._parse_attr(node.attr)
