@@ -142,15 +142,6 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
             }
         }
 
-        impl<'a> std::convert::TryFrom<&#tvm_rt_crate::ArgValue<'a>> for #ref_id {
-            type Error = #error;
-
-            fn try_from(arg_value: &#tvm_rt_crate::ArgValue<'a>) -> #result<#ref_id> {
-                use std::convert::TryInto;
-                let optr = arg_value.try_into()?;
-                Ok(#ref_id(Some(optr)))
-            }
-        }
 
         impl From<#ref_id> for #tvm_rt_crate::RetValue {
             fn from(object_ref: #ref_id) -> #tvm_rt_crate::RetValue {

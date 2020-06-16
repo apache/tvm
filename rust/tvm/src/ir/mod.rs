@@ -16,24 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-use std::ffi::CString;
 
 use crate::DataType;
-use crate::runtime::{Object, IsObjectRef, ObjectRef, external};
-
+use crate::runtime::{self, Object, IsObjectRef, ObjectRef, external};
+use crate::runtime::{String as TString};
 
 pub mod relay;
 
-
 // TODO: figure out how to type the last argument runtime::TypedPackedFunc<String(ObjectRef)> annotate)
-// fn _as_text(object: ObjectRef, show_meta_data: i32, annotate: runtime::Function) -> CString;
 external! {
     #[name("ir.AsText")]
-    fn _as_text(object: ObjectRef, show_meta_data: i32, annotate: ObjectRef) -> CString;
+    fn _as_text(object: ObjectRef, show_meta_data: i32, annotate: runtime::Function) -> TString;
 }
 
 pub fn as_text<T: IsObjectRef>(object: T) -> String {
-    _as_text(object.to_object_ref(), 0, ObjectRef::null()).unwrap().into_string().unwrap()
+    let no_func = unsafe { runtime::Function::null() };
+    _as_text(object.to_object_ref(), 0, no_func).unwrap().to_string().unwrap()
 }
 
 #[repr(C)]

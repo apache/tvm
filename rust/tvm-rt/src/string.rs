@@ -69,24 +69,24 @@ impl String {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::String;
-//     use crate::object::debug_print;
-//     use crate::IsObjectRef;
-//     use anyhow::{ensure, Result};
+#[cfg(test)]
+mod tests {
+    use super::String;
+    use crate::object::debug_print;
+    use crate::IsObjectRef;
+    use anyhow::{ensure, Result};
 
-//     #[test]
-//     fn test_string_debug() -> Result<()> {
-//         let s = String::new("foo".to_string()).unwrap();
-//         let object_ref = s.to_object_ref();
-//         println!("about to call");
-//         let string = debug_print(object_ref)?;
-//         println!("after call");
-//         ensure!(
-//             string.into_string().expect("is cstring").contains("foo"),
-//             "string content is invalid"
-//         );
-//         Ok(())
-//     }
-// }
+    #[test]
+    fn test_string_debug() -> Result<()> {
+        let s = String::new("foo".to_string()).unwrap();
+        let object_ref = s.to_object_ref();
+        println!("about to call");
+        let string = debug_print(object_ref)?;
+        println!("after call");
+        ensure!(
+            string.into_string().expect("is cstring").contains("foo"),
+            "string content is invalid"
+        );
+        Ok(())
+    }
+}

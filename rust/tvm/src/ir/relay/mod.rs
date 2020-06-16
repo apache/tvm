@@ -86,7 +86,7 @@ impl RelayExpr {
 #[repr(C)]
 #[derive(Object)]
 #[ref_name = "GlobalVar"]
-#[type_key = "relay.GlobalVar"]
+#[type_key = "GlobalVar"]
 pub struct GlobalVarNode {
     pub base: RelayExpr,
     pub name_hint: TString,

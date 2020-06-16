@@ -280,7 +280,7 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
             RetValue::ObjectHandle(handle) => {
                 let handle: *mut Object = unsafe { std::mem::transmute(handle) };
                 let optr = ObjectPtr::from_raw(handle).ok_or(Error::Null)?;
-                optr.inc_ref();
+                debug_assert!(optr.count() >= 1);
                 optr.downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", ret_value), "ObjectHandle")),
@@ -290,7 +290,9 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
 
 impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
     fn from(object_ptr: ObjectPtr<T>) -> ArgValue<'a> {
+        debug_assert!(object_ptr.count() >= 1);
         let raw_object_ptr = ObjectPtr::leak(object_ptr);
+
         let void_ptr = unsafe { std::mem::transmute(raw_object_ptr) };
         ArgValue::ObjectHandle(void_ptr)
     }
@@ -304,7 +306,7 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
             ArgValue::ObjectHandle(handle) => {
                 let handle = unsafe { std::mem::transmute(handle) };
                 let optr = ObjectPtr::from_raw(handle).ok_or(Error::Null)?;
-                optr.inc_ref();
+                debug_assert!(optr.count() >= 1);
                 optr.downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
@@ -312,21 +314,6 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
     }
 }
 
-impl<'a, T: IsObject> TryFrom<&ArgValue<'a>> for ObjectPtr<T> {
-    type Error = Error;
-
-    fn try_from(arg_value: &ArgValue<'a>) -> Result<ObjectPtr<T>, Self::Error> {
-        match arg_value {
-            ArgValue::ObjectHandle(handle) => {
-                let handle = unsafe { std::mem::transmute(handle) };
-                let optr = ObjectPtr::from_raw(handle).ok_or(Error::Null)?;
-                optr.inc_ref();
-                optr.downcast()
-            }
-            _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -376,6 +363,7 @@ mod tests {
     }
 
     fn test_fn(o: ObjectPtr<Object>) -> ObjectPtr<Object> {
+        // The call machinery adds at least 1 extra count while inside the call.
         assert_eq!(o.count(), 2);
         return o;
     }
@@ -384,13 +372,19 @@ mod tests {
     fn test_ref_count_boundary() {
         use super::*;
         use crate::function::{register, Function, Result};
+        // 1
         let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        assert_eq!(ptr.count(), 1);
+        // 2
         let stay = ptr.clone();
         assert_eq!(ptr.count(), 2);
         register(test_fn, "my_func").unwrap();
         let func = Function::get("my_func").unwrap();
         let func = func.to_boxed_fn::<dyn Fn(ObjectPtr<Object>) -> Result<ObjectPtr<Object>>>();
-        func(ptr).unwrap();
+        let same = func(ptr).unwrap();
+        assert_eq!(stay.count(), 2);
+        assert_eq!(same.count(), 2);
+        drop(same);
         assert_eq!(stay.count(), 1);
     }
 }

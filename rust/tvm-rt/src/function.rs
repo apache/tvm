@@ -66,6 +66,10 @@ impl Function {
         }
     }
 
+    pub unsafe fn null() -> Self {
+        Function { handle: std::ptr::null_mut(), is_global: false, from_rust: false }
+    }
+
     /// For a given function, it returns a function by name.
     pub fn get<S: AsRef<str>>(name: S) -> Option<Function> {
         let name = CString::new(name.as_ref()).unwrap();
@@ -172,7 +176,11 @@ impl TryFrom<RetValue> for Function {
 
 impl<'a> From<Function> for ArgValue<'a> {
     fn from(func: Function) -> ArgValue<'a> {
-        ArgValue::FuncHandle(func.handle)
+        if func.handle.is_null() {
+            ArgValue::Null
+        } else {
+            ArgValue::FuncHandle(func.handle)
+        }
     }
 }
 
