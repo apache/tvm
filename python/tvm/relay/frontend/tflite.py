@@ -94,10 +94,12 @@ class OperatorConverter(object):
             'HARD_SWISH': self.convert_hard_swish,
             'L2_NORMALIZATION': self.convert_l2_normalization,
             'L2_POOL_2D': self.convert_l2_pool2d,
+            'LEAKY_RELU': self.convert_leaky_relu,
             'LESS_EQUAL': self.convert_less_equal,
             'LESS': self.convert_less,
             'LOCAL_RESPONSE_NORMALIZATION': self.convert_lrn,
             'LOG': self.convert_log,
+            'LOG_SOFTMAX': self.convert_log_softmax,
             'LOGICAL_AND': self.convert_logical_and,
             'LOGICAL_NOT': self.convert_logical_not,
             'LOGICAL_OR': self.convert_logical_or,
@@ -121,6 +123,8 @@ class OperatorConverter(object):
             'REDUCE_MIN': self.convert_reduce_min,
             'REDUCE_PROD': self.convert_reduce_prod,
             'RELU':self.convert_relu,
+            'RELU6': self.convert_relu6,
+            'RELU_N1_TO_1': self.convert_relu_n1_to_1,
             'RESHAPE': self.convert_reshape,
             'RESIZE_BILINEAR': self.convert_resize_bilinear,
             'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
@@ -680,6 +684,136 @@ class OperatorConverter(object):
         out = _hard_swish(in_expr)
 
         # Go back to integer dataype if the original operator was quantized.
+        if output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
+
+        return out
+
+    def convert_relu6(self, op):
+        """Convert TFLite ReLU6"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            # Quantize a float value to an quantized integer value
+            scale_val = get_scalar_from_constant(input_tensor.qnn_params['scale'])
+            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
+            quantize = lambda x: float(int(round(x / scale_val)) + zero_point_val)
+
+            # Get min/max of the input dtype. This will be used to ensure that
+            # clip a_min/a_max are not beyond the dtype range.
+            input_tensor_type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
+            qmin = float(tvm.tir.op.min_value(input_tensor_type_str).value)
+            qmax = float(tvm.tir.op.max_value(input_tensor_type_str).value)
+
+            out = _op.clip(in_expr,
+                           a_min=max(qmin, quantize(0)),
+                           a_max=min(qmax, quantize(6.0)))
+        else:
+            out = _op.clip(in_expr, a_min=0, a_max=6)
+
+        if output_tensor.qnn_params:
+            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
+            out = _qnn.op.requantize(out,
+                                     input_scale=input_tensor.qnn_params['scale'],
+                                     input_zero_point=input_tensor.qnn_params['zero_point'],
+                                     output_scale=output_tensor.qnn_params['scale'],
+                                     output_zero_point=output_tensor.qnn_params['zero_point'],
+                                     out_dtype=output_tensor_type_str)
+
+        return out
+
+    def convert_leaky_relu(self, op):
+        """Convert TFLite LEAKY_RELU"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.LeakyReluOptions import LeakyReluOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.LeakyReluOptions
+        op_options = op.BuiltinOptions()
+        leaky_relu_options = LeakyReluOptions()
+        leaky_relu_options.Init(op_options.Bytes, op_options.Pos)
+        alpha_tensor = leaky_relu_options.Alpha()
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
+        out = _op.nn.leaky_relu(in_expr, alpha_tensor)
+        if output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
+
+        return out
+
+    def convert_relu_n1_to_1(self, op):
+        """Convert TFLite RELU_N1_TO_1"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            # Quantize a float value to an quantized integer value
+            scale_val = get_scalar_from_constant(input_tensor.qnn_params['scale'])
+            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
+            quantize = lambda x: float(int(round(x / scale_val)) + zero_point_val)
+
+            # Get min/max of the input dtype. This will be used to ensure that
+            # clip a_min/a_max are not beyond the dtype range.
+            input_tensor_type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
+            qmin = float(tvm.tir.op.min_value(input_tensor_type_str).value)
+            qmax = float(tvm.tir.op.max_value(input_tensor_type_str).value)
+
+            out = _op.clip(in_expr,
+                           a_min=max(qmin, quantize(-1.0)),
+                           a_max=min(qmax, quantize(1.0)))
+        else:
+            out = _op.clip(in_expr, a_min=-1, a_max=1)
+
+        if output_tensor.qnn_params:
+            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
+            out = _qnn.op.requantize(out,
+                                     input_scale=input_tensor.qnn_params['scale'],
+                                     input_zero_point=input_tensor.qnn_params['zero_point'],
+                                     output_scale=output_tensor.qnn_params['scale'],
+                                     output_zero_point=output_tensor.qnn_params['zero_point'],
+                                     out_dtype=output_tensor_type_str)
+
+        return out
+
+    def convert_log_softmax(self, op):
+        """Convert TFLite LOG_SOFTMAX"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
+        out = _op.nn.log_softmax(in_expr)
         if output_tensor.qnn_params:
             out = self.quantize(out, output_tensor)
 
