@@ -345,7 +345,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
       coef_lcm = LeastCommonMultiple(coef_lcm, -neg.first);
     }
 
-    // The resulting lower and upper bounds stored in sorted vectors
+    // The resulting lower and upper bounds
     std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> upper_bounds;
     std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> lower_bounds;
     upper_bounds.reserve(coef_pos.size());
@@ -482,7 +482,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
     }
   }
 
-  // Add the original conditions (with variables substituted) to the resulting conditions
+  // Add the original conditions to the resulting conditions
   arith::Analyzer analyzer;
   analyzer.Bind(vranges);
   for (const PrimExpr& old_cond : as_conditions(solved_bounds, solved_other_relations)) {

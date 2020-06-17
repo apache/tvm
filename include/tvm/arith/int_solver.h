@@ -43,7 +43,7 @@ using tir::VarNode;
 
 /*!
  * \brief Represent integer grouped bounds which are classified into
- *        lower bounds (include), upper bounds (include) and equalities.
+ *        lower bounds (inclusive), upper bounds (inclusive) and equalities.
  *        It also contains coefficient as a multiplier for the bounds, i.e.,
  *        coef * var >= lower
  *        coef * var == equal
@@ -112,8 +112,19 @@ class IntGrpBounds : public ObjectRef {
    */
   IntGrpBounds Substitute(const Map<Var, PrimExpr>& subst) const;
 
+  /*!
+   * \brief Find the best range from the grouped bounds.
+   * \param vranges_addl additional variable ranges that help infer the best range.
+   * \return The best range (has the least difference between the lower bound and upper bound).
+   *         undefined if (-inf, +inf).
+   */
   Range FindBestRange(const Map<Var, Range>& vranges_addl = {}) const;
 
+  /*!
+   * \brief Combine the bounds with another range.
+   * \param range another range to be combined.
+   * \return combined bounds.
+   */
   IntGrpBounds operator+(const Range& r);
 
   TVM_DEFINE_OBJECT_REF_METHODS(IntGrpBounds, ObjectRef, IntGrpBoundsNode);
@@ -284,18 +295,32 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
 PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_to_solve);
 
 /*!
- * \brief Solve linear inequalities.
+ * \brief Solve linear inequalities and infer the range of each variable.
  * \param system_to_solve the variables to solve, their ranges, and a list of inequalities.
  * \return The result ranges for each variables.
- *         Constrains that cannot be transformed to Range will be stored in relations.
+ *         The returned IntConstraints(variables, ranges, relations) contains,
+ *         1. variables  - the variables that have been solved.
+ *         2. ranges     - the best range of each variable.
+ *         3. relations  - constraints that cannot be transformed to
+ *                         Range will be stored in relations.
  */
 IntConstraints SolveInequalitiesToRange(const IntConstraints& system_to_solve);
 
 /*!
- * \brief Solve linear inequalities.
+ * \brief Solve linear inequalities and deskew the ranges towards zero.
  * \param system_to_solve the variables to solve, their ranges, and a list of inequalities.
- * \return Solved ranges are deskewed to be started from zero.
- *         New variables and the mapping are created accordingly.
+ * \return A transform (src IntConstraints -> dst IntConstraints)
+ *         from original variables to a set of new variables.
+ *         The ranges of new variables always start from zero,
+ *         their extents are solved from \p system_to_solve.
+ *         src IntConstraints is the same as \p system_to_solve.
+ *         dst IntConstraints(variables, ranges, relations) contains,
+ *         1. variables  - the variables that have been solved.
+ *         2. ranges     - the best range (start from zero) of each variable.
+ *         3. relations  - constraints that cannot be transformed to
+ *                         Range will be stored in relations.
+ *         Variable mapping can be obtained from
+ *         IntConstraintsTransform.src_to_dst and IntConstraintsTransform.dst_to_src.
  */
 IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& system_to_solve);
 

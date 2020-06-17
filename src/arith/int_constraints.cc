@@ -70,16 +70,17 @@ IntGrpBounds IntGrpBounds::operator+(const Range& r) {
   Array<PrimExpr> equal;
   Array<PrimExpr> lower;
   Array<PrimExpr> upper;
+  const PrimExpr& coef = operator->()->coef;
   if (tir::is_one(r->extent)) {
-    equal.push_back(analyzer.Simplify(r->min * operator->()->coef));
+    equal.push_back(analyzer.Simplify(r->min * coef));
   } else {
-    lower.push_back(analyzer.Simplify(r->min * operator->()->coef));
-    upper.push_back(analyzer.Simplify((r->min + r->extent - 1) * operator->()->coef));
+    lower.push_back(analyzer.Simplify(r->min * coef));
+    upper.push_back(analyzer.Simplify((r->min + r->extent - 1) * coef));
   }
   for (const auto& eq : operator->()->equal) equal.push_back(eq);
   for (const auto& lb : operator->()->lower) lower.push_back(lb);
   for (const auto& ub : operator->()->upper) upper.push_back(ub);
-  return IntGrpBounds(operator->()->coef, lower, equal, upper);
+  return IntGrpBounds(coef, lower, equal, upper);
 }
 
 IntGrpBounds IntGrpBounds::Substitute(const Map<Var, PrimExpr>& subst) const {
@@ -99,8 +100,11 @@ Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
     var_intsets[kv.first.get()] = IntSet::range(kv.second);
   }
 
-  std::vector<PrimExpr> lowers(operator->()->equal.begin(), operator->()->equal.end());
-  std::vector<PrimExpr> uppers(operator->()->equal.begin(), operator->()->equal.end());
+  const Array<PrimExpr>& equal = operator->()->equal;
+  const PrimExpr& coef = operator->()->coef;
+
+  std::vector<PrimExpr> lowers(equal.begin(), equal.end());
+  std::vector<PrimExpr> uppers(equal.begin(), equal.end());
   for (const auto& expr : operator->()->lower) {
     lowers.push_back(expr);
   }
@@ -108,7 +112,7 @@ Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
     uppers.push_back(expr);
   }
 
-  if (lowers.size() == 1 && uppers.size() == 1 && tir::is_one(operator->()->coef)) {
+  if (lowers.size() == 1 && uppers.size() == 1 && tir::is_one(coef)) {
     return Range(analyzer.Simplify(lowers[0]), analyzer.Simplify(uppers[0] + 1));
   }
 
@@ -123,17 +127,17 @@ Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
 
   for (const PrimExpr& low : lowers) {
     for (const PrimExpr& upp : uppers) {
-      PrimExpr diff_1 = analyzer.Simplify(floordiv(upp - low, operator->()->coef), 3);
+      PrimExpr diff_1 = analyzer.Simplify(floordiv(upp - low, coef), 3);
       // Since diff may depend on some other variables, we compute its overapproximation
       PrimExpr diff_over_1 = analyzer.Simplify(EvalSet(diff_1, var_intsets).max(), 3);
 
       // low is the lower bound for v*coef, but we need the lower bound for v.
       // We use rounding-up division to compute it. Since we want to use a single formula
       PrimExpr low_divided =
-          analyzer.Simplify(floordiv(low + operator->()->coef - 1, operator->()->coef), 3);
+          analyzer.Simplify(floordiv(low + coef - 1, coef), 3);
 
       // Compute another difference which may be more precise (or not).
-      PrimExpr diff_2 = analyzer.Simplify(floordiv(upp, operator->()->coef) - low_divided, 3);
+      PrimExpr diff_2 = analyzer.Simplify(floordiv(upp, coef) - low_divided, 3);
       PrimExpr diff_over_2 = analyzer.Simplify(EvalSet(diff_2, var_intsets).max(), 3);
 
       PrimExpr diff_over =

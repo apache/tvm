@@ -28,7 +28,7 @@ class IntGrpBounds(Object):
     Parameters
     ----------
     coef : tvm.ir.PrimExpr
-        The coefficient. Must be integer.
+        The coefficient. Must be integer type.
         coef * var >= lower
         coef * var == equal
         coef * var >= upper
@@ -171,5 +171,7 @@ def solve_linear_inequalities(equations, variables=None, ranges=None, deskew_ran
     solver = _ffi_api.SolveInequalitiesDeskewRange \
         if deskew_range else _ffi_api.SolveInequalitiesToRange
     if isinstance(equations, IntConstraints):
+        assert variables is None
+        assert ranges is None
         return solver(equations)
     return solver(variables, ranges, equations)
