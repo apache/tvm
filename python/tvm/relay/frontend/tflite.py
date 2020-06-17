@@ -130,6 +130,7 @@ class OperatorConverter(object):
             'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
             'ROUND': self.convert_round,
             'RSQRT': self.convert_rsqrt,
+            'REVERSE_SEQUENCE': self.convert_reverse_sequence,
             'SELECT': self.convert_select,
             'SHAPE': self.convert_shape,
             'SIN': self.convert_sin,
@@ -2002,6 +2003,33 @@ class OperatorConverter(object):
 
         return out
 
+    def convert_reverse_sequence(self, op):
+        """Convert TFLite REVERSE_SEQUENCE"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ReverseSequenceOptions import ReverseSequenceOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFLite does not support quantized REVERSE_SEQUENCE operator yet.')
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        length_expr = self.get_tensor_expr(input_tensors[1])
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.ReverseSequenceOptions
+        op_options = op.BuiltinOptions()
+        options = ReverseSequenceOptions()
+        options.Init(op_options.Bytes, op_options.Pos)
+        batch_axis = options.BatchDim()
+        seq_axis = options.SeqDim()
+
+        return _op.reverse_sequence(in_expr, length_expr, seq_axis, batch_axis)
+
     def convert_cast(self, op):
         """Convert TFLite CAST"""
         try:
@@ -2700,14 +2728,10 @@ class OperatorConverter(object):
         return self.exp_tab.has_expr(get_tensor_name(self.subgraph, input_tensor_idx))
 
     def get_tensor_expr(self, tensor):
-        """ Returns constant expr for constant else a tensor expr"""
+        """ Return the Relay expr for tensor. """
         if self.has_expr(tensor.tensor_idx):
-            # In most cases, we can assume that TOCO fuses elemwise operators
-            # with constants - it means both will be tensors.
             expr = self.get_expr(tensor.tensor_idx)
         else:
-            # However, in some corner cases, the elemwise operator is not fused,
-            # we can receive as constant.
             type_str = self.get_tensor_type_str(tensor.tensor.Type())
             expr = self.exp_tab.new_const(self.get_tensor_value(tensor), dtype=type_str)
 

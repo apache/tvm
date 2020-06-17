@@ -227,6 +227,10 @@ class TileAttrs(Attrs):
 class ReverseAttrs(Attrs):
     """Attributes used in reverse operators"""
 
+@tvm._ffi.register_object("relay.attrs.ReverseSequenceAttrs")
+class ReverseSequenceAttrs(Attrs):
+    """Attributes used in reverse sequence operators"""
+
 
 @tvm._ffi.register_object("relay.attrs.SqueezeAttrs")
 class SqueezeAttrs(Attrs):

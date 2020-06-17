@@ -472,6 +472,39 @@ def test_forward_slice_like():
     verify((3, 4), (2, 3), (0))
     verify((3, 4), (2, 3), (-1))
 
+def test_forward_sequence_reverse():
+    def verify(shape, seq_lengths, use_seq_lengths, seq_axis):
+        data_np = np.random.uniform(size=shape).astype("float32")
+
+        ref_res_args = [mx.nd.array(data_np), None, use_seq_lengths, seq_axis]
+        mx_sym_args = [mx.sym.var("data"), None, use_seq_lengths, seq_axis]
+        from_mxnet_args = [{"data": shape}, {"data": "float32"}]
+        in_data= [data_np]
+
+        if use_seq_lengths and seq_lengths:
+            seq_lengths_np = np.array(seq_lengths).astype("int32")
+            ref_res_args[1] = mx.nd.array(seq_lengths_np)
+            mx_sym_args[1] = mx.sym.var("seq_lengths")
+            from_mxnet_args[0].update({"seq_lengths": seq_lengths_np.shape})
+            from_mxnet_args[1].update({"seq_lengths": "int32"})
+            in_data.append(seq_lengths_np)
+
+        ref_res = mx.nd.SequenceReverse(*ref_res_args)
+        mx_sym = mx.sym.SequenceReverse(*mx_sym_args)
+        mod, _ = relay.frontend.from_mxnet(mx_sym, *from_mxnet_args)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(*in_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+
+    verify((3, 4), [1, 2, 3, 1], True, 0)
+    verify((3, 4), None, False, 0)
+    verify((3, 5, 5, 6), [1, 2, 3, 1, 3], True, 0)
+    # MXNet accepts axis value as 0 only
+    # verify((3, 4, 5, 6), None, False, 2)
+
 def test_forward_l2_normalize():
     data = mx.sym.var('data')
     mx_sym = mx.sym.L2Normalization(data, mode="channel")
@@ -1232,6 +1265,7 @@ if __name__ == '__main__':
     test_forward_scalar_ops()
     test_forward_slice_like()
     test_forward_slice_axis()
+    test_forward_sequence_reverse()
     test_forward_l2_normalize()
     test_forward_shape_array()
     test_forward_squeeze()

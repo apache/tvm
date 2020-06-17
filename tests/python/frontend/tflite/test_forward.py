@@ -2082,6 +2082,32 @@ def test_forward_spacetodepth():
     _test_spacetodepth(np.random.normal(size=[1, 32, 32, 4]).astype("float32"), 2)
     _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
 
+
+#######################################################################
+# ReverseSequence
+# ---------------
+
+def _test_reverse_sequence(shape, dtype, seq_lengths, batch_axis, seq_axis):
+    """ One iteration of reverse_sequence operation with given data and attributes """
+
+    data = np.random.uniform(0, 100, size=shape).astype(dtype)
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(dtype=dtype, name="input", shape=shape)
+        out = tf.reverse_sequence(in_data, seq_lengths=seq_lengths, batch_axis=batch_axis,
+                                   seq_axis=seq_axis)
+
+        compare_tflite_with_tvm(data, 'input', [in_data], [out])
+
+
+def test_forward_reverse_sequence():
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_reverse_sequence([4, 3], "float32", [3, 2, 1], 1, 0)
+        _test_reverse_sequence([4, 3], "float32", [3, 2, 1, 3], 0, 1)
+        _test_reverse_sequence([2, 3, 3, 3], "float32", [2, 3, 2], 2, 1)
+        _test_reverse_sequence([2, 4, 6, 4, 5], "float32", [5, 3], 0, 2)
+        _test_reverse_sequence([2, 4, 6, 4, 5], "float32", [5, 3, 1, 4], 3, 2)
+
+
 #######################################################################
 # Sparse To Dense
 # ---------------
@@ -2602,6 +2628,7 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_depthtospace()
     test_forward_spacetodepth()
+    test_forward_reverse_sequence()
     test_forward_sparse_to_dense()
     test_forward_select()
     test_forward_quantize_dequantize()
