@@ -38,7 +38,6 @@
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
 
-#include <cstdio>
 #include <functional>
 #include <limits>
 #include <mutex>

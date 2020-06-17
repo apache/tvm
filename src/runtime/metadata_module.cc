@@ -56,7 +56,7 @@ class MetadataModuleNode : public ModuleNode {
     // done at this stage. Therefore, runtime overhead is not a concern.
     if (initialized_.count(name) == 0) {
       this->InitSubModule(name);
-      initialized_[name] = true;
+      initialized_.emplace(name);
     }
 
     // Run the module.
@@ -79,7 +79,7 @@ class MetadataModuleNode : public ModuleNode {
    */
   Array<NDArray> GetRequiredMetadata(const std::string& symbol) {
     Array<NDArray> ret;
-    CHECK_GT(sym_vars_.count(symbol), 0U) << "Not symbol is recorded for " << symbol;
+    CHECK_GT(sym_vars_.count(symbol), 0U) << "No symbol is recorded for " << symbol;
     std::vector<std::string> vars = sym_vars_[symbol];
     for (const auto& it : vars) {
       CHECK_GT(metadata_.count(it), 0U) << "Found not recorded constant variable: " << it;
@@ -110,7 +110,9 @@ class MetadataModuleNode : public ModuleNode {
       if (init != nullptr) {
         auto md = GetRequiredMetadata(symbol);
         // Initialize the module with metadata.
-        init(md);
+        int ret = init(md);
+        // Report the error if initialization is failed.
+        CHECK_EQ(ret, 0) << TVMGetLastError();
         break;
       }
     }
@@ -157,7 +159,7 @@ class MetadataModuleNode : public ModuleNode {
     std::vector<std::string> variables;
     CHECK(stream->Read(&variables)) << "Loading variables failed";
     uint64_t sz;
-    CHECK(stream->Read(&sz, sizeof(sz))) << "Loading medata size failed";
+    CHECK(stream->Read(&sz, sizeof(sz))) << "Loading metadata size failed";
     CHECK_EQ(static_cast<size_t>(sz), variables.size())
         << "The number of variables and ndarray counts must match";
     // Load the list of ndarray.
@@ -169,7 +171,7 @@ class MetadataModuleNode : public ModuleNode {
     }
 
     std::unordered_map<std::string, NDArray> metadata;
-    for (size_t i = 0; i < variables.size(); i++) {
+    for (uint64_t i = 0; i < sz; i++) {
       CHECK_EQ(metadata.count(variables[i]), 0U);
       metadata[variables[i]] = arrays[i];
     }
@@ -200,7 +202,7 @@ class MetadataModuleNode : public ModuleNode {
    * \brief Record if a module is initialized. It is needed by imported
    * modules using execution engine.
    */
-  std::unordered_map<std::string, bool> initialized_;
+  std::unordered_set<std::string> initialized_;
   /*! \brief Variable name to NDArray mapping. */
   std::unordered_map<std::string, NDArray> metadata_;
   /*! \brief Symbol name to required constant variables mapping. */

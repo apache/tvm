@@ -81,27 +81,25 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     std::ostringstream buf_stream;
 
     Output output;
-    // Get const: static_cast<float*>(dnnl_0_consts[0]->data)
-    output.name = "static_cast<float*>(" + ext_func_id_ + "_consts[" + std::to_string(const_idx_) +
-                  "]->data)";
+    // Get const: static_cast<float*>(gcc_0_consts[0]->data)
+    output.name = CreateDataReference(ext_func_id_, const_idx_);
     const auto* type_node = cn->checked_type().as<TensorTypeNode>();
     CHECK(type_node);
     const auto& dtype = GetDtypeString(type_node);
 
     // Generate the global variable for needed ndarrays
-    if (const_array_.empty()) {
-      const_array_ = "Array<NDArray> " + ext_func_id_ + "_consts;";
-      std::ostringstream buf_stream;
-      buf_stream << "CHECK(!" << ext_func_id_
-                 << "_consts.empty()) << \"C source module hasn't been initialized.\";\n";
-      ext_func_body_.insert(ext_func_body_.begin(), buf_stream.str());
+    if (const_array_name_.empty()) {
+      const_array_name_ = CreateNDArrayPool(ext_func_id_);
+      std::string checker = CreateInitChecker(ext_func_id_);
+      ext_func_body_.insert(ext_func_body_.begin(), checker);
     }
 
     CHECK(dtype == "float" || dtype == "int") << "Only float and int are supported for now.";
     output.dtype = dtype;
 
-    std::string const_var_name = ext_func_id_ + "_const_" + std::to_string(const_idx_++);
+    std::string const_var_name = CreateConstVar(ext_func_id_, const_idx_);
     const_vars_.push_back(const_var_name);
+    const_idx_++;
 
     return {output};
   }
@@ -187,7 +185,7 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     for (auto decl : func_decl_) {
       code_stream_ << decl << "\n";
     }
-    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body_, const_array_, out);
+    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body_, const_array_name_, out);
   }
 
  private:
@@ -204,7 +202,7 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
   /*! \brief The statements of a C compiler compatible function. */
   std::vector<std::string> ext_func_body_;
   /*! \brief The array declared to store the constant values. */
-  std::string const_array_;
+  std::string const_array_name_;
   /*! \brief The declaration statements of a C compiler compatible function. */
   std::vector<std::string> func_decl_;
   /*! \brief The declaration statements of buffers. */
