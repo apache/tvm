@@ -108,9 +108,9 @@ from tvm import relay
 # Load the pretrained TFLite model from a file in your current
 # directory into a buffer
 
-model_url = 'https://github.com/apache/incubator-tvm/tutorials/micro/'
+model_url = 'https://people.linaro.org/~tom.gall/sine_model.tflite'
 model_file = 'sine_model.tflite'
-model_path = download_testdata(module_url, model_file, module='data')
+model_path = download_testdata(model_url, model_file, module='data')
 
 tflite_model_buf = open(model_path, "rb").read()
 
