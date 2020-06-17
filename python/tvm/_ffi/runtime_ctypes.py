@@ -99,7 +99,7 @@ class DataType(ctypes.Structure):
             bits = 64
             head = ""
         elif head.startswith("bfloat"):
-            self.type_code = 4
+            self.type_code = DataTypeCode.BFLOAT
             head = head[6:]
         elif head.startswith("custom"):
             # pylint: disable=import-outside-toplevel

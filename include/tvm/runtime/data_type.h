@@ -358,7 +358,7 @@ inline DLDataType String2DLDataType(std::string s) {
     t.lanes = 1;
     return t;
   } else if (s.substr(0, 6) == "bfloat") {
-    t.code = kDLBfloat;
+    t.code = DataType::kBFloat;
     scan = s.c_str() + 6;
   } else if (s.substr(0, 6) == "custom") {
     t.code = ParseCustomDatatype(s, &scan);

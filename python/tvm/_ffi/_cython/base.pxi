@@ -28,7 +28,6 @@ cdef enum TVMArgTypeCode:
     kFloat = 2
     kTVMOpaqueHandle = 3
     kTVMNullptr = 4
-    kBFloat = 4
     kTVMDataType = 5
     kTVMContext = 6
     kTVMDLTensorHandle = 7
