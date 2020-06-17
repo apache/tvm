@@ -78,11 +78,10 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
             # Its possible for some onnx inputs to not be needed in the tvm
             # module, confirm its present before setting.
             try:
-                m.get_input(input_names[i])
+                m.set_input(input_names[i], tvm.nd.array(
+                    input_data[i].astype(input_data[i].dtype)))
             except:
                 continue
-            m.set_input(input_names[i], tvm.nd.array(
-                input_data[i].astype(input_data[i].dtype)))
     else:
         m.set_input(input_names, tvm.nd.array(
             input_data.astype(input_data.dtype)))

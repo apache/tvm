@@ -163,9 +163,10 @@ class GraphModule(object):
             keys.sort(key=lambda x: -np.prod(params[x].shape))
             for k in keys:
                 # TODO(zhiics) Skip the weights for submodule in a better way.
-                # We could get all inputs required by graphruntime first,
-                # we should use MetadataModule for initialization.
-                if "_const_" not in k:
+                # We should use MetadataModule for initialization and remove
+                # params from set_input
+                val = self._get_input(k)
+                if val:
                     self._get_input(k).copyfrom(params[k])
 
     def run(self, **input_dict):
