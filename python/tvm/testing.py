@@ -226,10 +226,10 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
         counterex = [(str(v), i + r.min) for (v, r), i in zip(vranges.items(), indices)]
         counterex = sorted(counterex, key=lambda x: x[0])
         counterex = ", ".join([v + " = " + str(i) for v, i in counterex])
+        ana = tvm.arith.Analyzer()
         raise AssertionError("Expression {}\nis not true on {}\n"
                              "Counterexample: {}"
-                             .format(tvm.tir.ir_pass.CanonicalSimplify(bool_expr),
-                                     vranges, counterex))
+                             .format(ana.simplify(bool_expr), vranges, counterex))
 
 
 tvm._ffi._init_api("testing", __name__)

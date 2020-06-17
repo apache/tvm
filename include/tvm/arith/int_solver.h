@@ -122,7 +122,7 @@ class IntGrpBounds : public ObjectRef {
 
   /*!
    * \brief Combine the bounds with another range.
-   * \param range another range to be combined.
+   * \param r range to be combined.
    * \return combined bounds.
    */
   IntGrpBounds operator+(const Range& r);
