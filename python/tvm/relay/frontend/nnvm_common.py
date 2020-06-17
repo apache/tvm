@@ -57,7 +57,8 @@ def _init_op(new_op):
 def _softmax_op(new_op):
     """softmax/log_softmax"""
     def _impl(inputs, attrs, _dtype='float32'):
-        assert len(inputs) == 1
+        # TODO(@icemelon9): currently ignore the 2nd input to softmax for mxnet 1.6
+        # assert len(inputs) == 1
         axis = attrs.get_int("axis", -1)
         return new_op(inputs[0], axis=axis)
     return _impl
