@@ -133,8 +133,7 @@ Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
 
       // low is the lower bound for v*coef, but we need the lower bound for v.
       // We use rounding-up division to compute it. Since we want to use a single formula
-      PrimExpr low_divided =
-          analyzer.Simplify(floordiv(low + coef - 1, coef), 3);
+      PrimExpr low_divided = analyzer.Simplify(floordiv(low + coef - 1, coef), 3);
 
       // Compute another difference which may be more precise (or not).
       PrimExpr diff_2 = analyzer.Simplify(floordiv(upp, coef) - low_divided, 3);
