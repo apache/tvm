@@ -515,6 +515,53 @@ def reverse(data, axis):
     return _make.reverse(data, axis)
 
 
+def reverse_sequence(data, seq_lengths, seq_axis=1, batch_axis=0):
+    """Reverse the tensor for variable length slices.
+    Input is first sliced along batch axis and then elements are reversed along seq axis.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The tensor to be reversed.
+
+    seq_lengths : relay.Expr
+        A 1D Tensor with length a.dims[batch_axis]
+        Must be one of the following types: int32, int64
+        if seq_lengths[i] > a.dims[seq_axis], it is rounded to a.dims[seq_axis]
+        if seq_lengths[i] < 1, it is rounded to 1
+
+    seq_axis : int, optional
+        The axis along which the elements will be reversed. Default is 1.
+
+    batch_axis : int, optional
+        The axis along which the tensor will be sliced. Default is 0.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result of same shape and type as of input.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[0, 1, 2, 3],
+             [4, 5, 6, 7],
+             [8, 9, 10, 11],
+             [12, 13, 14, 15]]
+        relay.reverse(x, [1, 2, 3, 4], 0, 1) = [[0, 5, 10, 15],
+                                                [4, 1, 6, 11],
+                                                [8, 9, 2, 7],
+                                                [12, 13, 14, 3]]
+
+        relay.reverse(x, [1, 2, 3, 4], 1, 0) = [[0, 1, 2, 3],
+                                                [5, 4, 6, 7],
+                                                [10, 9, 8, 11],
+                                                [15, 14, 13, 12]]
+    """
+    return _make.reverse_sequence(data, seq_lengths, seq_axis, batch_axis)
+
+
 def where(condition, x, y):
     """Selecting elements from either x or y depending on the value of the
     condition.
