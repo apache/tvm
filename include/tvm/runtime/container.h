@@ -1176,72 +1176,6 @@ class String : public ObjectRef {
   inline String& operator=(const char* other);
 
   /*!
-   * \brief Compare is less than other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator<(const std::string& other) const { return this->compare(other) < 0; }
-  bool operator<(const String& other) const { return this->compare(other) < 0; }
-  bool operator<(const char* other) const { return this->compare(other) < 0; }
-
-  /*!
-   * \brief Compare is greater than other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator>(const std::string& other) const { return this->compare(other) > 0; }
-  bool operator>(const String& other) const { return this->compare(other) > 0; }
-  bool operator>(const char* other) const { return this->compare(other) > 0; }
-
-  /*!
-   * \brief Compare is less than or equal to other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator<=(const std::string& other) const { return this->compare(other) <= 0; }
-  bool operator<=(const String& other) const { return this->compare(other) <= 0; }
-  bool operator<=(const char* other) const { return this->compare(other) <= 0; }
-
-  /*!
-   * \brief Compare is greater than or equal to other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator>=(const std::string& other) const { return this->compare(other) >= 0; }
-  bool operator>=(const String& other) const { return this->compare(other) >= 0; }
-  bool operator>=(const char* other) const { return this->compare(other) >= 0; }
-
-  /*!
-   * \brief Compare is equal to other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator==(const std::string& other) const { return this->compare(other) == 0; }
-  bool operator==(const String& other) const { return this->compare(other) == 0; }
-  bool operator==(const char* other) const { return compare(other) == 0; }
-
-  /*!
-   * \brief Compare is not equal to other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator!=(const std::string& other) const { return this->compare(other) != 0; }
-  bool operator!=(const String& other) const { return this->compare(other) != 0; }
-  bool operator!=(const char* other) const { return this->compare(other) != 0; }
-
-  /*!
    * \brief Compares this String object to other
    *
    * \param other The String to compare with.
@@ -1372,6 +1306,29 @@ class String : public ObjectRef {
    */
   static int memncmp(const char* lhs, const char* rhs, size_t lhs_count, size_t rhs_count);
 
+  /*!
+   * \brief Concatenate two char sequences
+   *
+   * \param lhs Pointers to the lhs char array
+   * \param lhs_size The size of the lhs char array
+   * \param rhs Pointers to the rhs char array
+   * \param rhs_size The size of the rhs char array
+   *
+   * \return The concatenated char sequence
+   */
+  static String Concat(const char* lhs, size_t lhs_size, const char* rhs, size_t rhs_size) {
+    std::string ret(lhs, lhs_size);
+    ret.append(rhs, rhs_size);
+    return String(ret);
+  }
+
+  // Overload + operator
+  friend String operator+(const String& lhs, const String& rhs);
+  friend String operator+(const String& lhs, const std::string& rhs);
+  friend String operator+(const std::string& lhs, const String& rhs);
+  friend String operator+(const String& lhs, const char* rhs);
+  friend String operator+(const char* lhs, const String& rhs);
+
   friend struct tvm::ObjectEqual;
 };
 
@@ -1410,9 +1367,101 @@ inline String& String::operator=(std::string other) {
 
 inline String& String::operator=(const char* other) { return operator=(std::string(other)); }
 
-inline String operator+(const std::string lhs, const String& rhs) {
-  return lhs + rhs.operator std::string();
+inline String operator+(const String& lhs, const String& rhs) {
+  size_t lhs_size = lhs.size();
+  size_t rhs_size = rhs.size();
+  return String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
 }
+
+inline String operator+(const String& lhs, const std::string& rhs) {
+  size_t lhs_size = lhs.size();
+  size_t rhs_size = rhs.size();
+  return String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
+}
+
+inline String operator+(const std::string& lhs, const String& rhs) {
+  size_t lhs_size = lhs.size();
+  size_t rhs_size = rhs.size();
+  return String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
+}
+
+inline String operator+(const char* lhs, const String& rhs) {
+  size_t lhs_size = std::strlen(lhs);
+  size_t rhs_size = rhs.size();
+  return String::Concat(lhs, lhs_size, rhs.data(), rhs_size);
+}
+
+inline String operator+(const String& lhs, const char* rhs) {
+  size_t lhs_size = lhs.size();
+  size_t rhs_size = std::strlen(rhs);
+  return String::Concat(lhs.data(), lhs_size, rhs, rhs_size);
+}
+
+// Overload < operator
+inline bool operator<(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) < 0; }
+
+inline bool operator<(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) > 0; }
+
+inline bool operator<(const String& lhs, const String& rhs) { return lhs.compare(rhs) < 0; }
+
+inline bool operator<(const String& lhs, const char* rhs) { return lhs.compare(rhs) < 0; }
+
+inline bool operator<(const char* lhs, const String& rhs) { return rhs.compare(lhs) > 0; }
+
+// Overload > operator
+inline bool operator>(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) > 0; }
+
+inline bool operator>(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) < 0; }
+
+inline bool operator>(const String& lhs, const String& rhs) { return lhs.compare(rhs) > 0; }
+
+inline bool operator>(const String& lhs, const char* rhs) { return lhs.compare(rhs) > 0; }
+
+inline bool operator>(const char* lhs, const String& rhs) { return rhs.compare(lhs) < 0; }
+
+// Overload <= operator
+inline bool operator<=(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) <= 0; }
+
+inline bool operator<=(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) >= 0; }
+
+inline bool operator<=(const String& lhs, const String& rhs) { return lhs.compare(rhs) <= 0; }
+
+inline bool operator<=(const String& lhs, const char* rhs) { return lhs.compare(rhs) <= 0; }
+
+inline bool operator<=(const char* lhs, const String& rhs) { return rhs.compare(lhs) >= 0; }
+
+// Overload >= operator
+inline bool operator>=(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) >= 0; }
+
+inline bool operator>=(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) <= 0; }
+
+inline bool operator>=(const String& lhs, const String& rhs) { return lhs.compare(rhs) >= 0; }
+
+inline bool operator>=(const String& lhs, const char* rhs) { return lhs.compare(rhs) >= 0; }
+
+inline bool operator>=(const char* lhs, const String& rhs) { return rhs.compare(rhs) <= 0; }
+
+// Overload == operator
+inline bool operator==(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) == 0; }
+
+inline bool operator==(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) == 0; }
+
+inline bool operator==(const String& lhs, const String& rhs) { return lhs.compare(rhs) == 0; }
+
+inline bool operator==(const String& lhs, const char* rhs) { return lhs.compare(rhs) == 0; }
+
+inline bool operator==(const char* lhs, const String& rhs) { return rhs.compare(lhs) == 0; }
+
+// Overload != operator
+inline bool operator!=(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) != 0; }
+
+inline bool operator!=(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) != 0; }
+
+inline bool operator!=(const String& lhs, const String& rhs) { return lhs.compare(rhs) != 0; }
+
+inline bool operator!=(const String& lhs, const char* rhs) { return lhs.compare(rhs) != 0; }
+
+inline bool operator!=(const char* lhs, const String& rhs) { return rhs.compare(lhs) != 0; }
 
 inline std::ostream& operator<<(std::ostream& out, const String& input) {
   out.write(input.data(), input.size());
