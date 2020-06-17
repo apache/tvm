@@ -349,6 +349,8 @@ TVM_DLL Pass Inline();
  */
 TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 
+TVM_DLL Pass CalibratePartitionGraph();
+
 }  // namespace transform
 
 /*!
