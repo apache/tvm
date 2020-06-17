@@ -365,7 +365,7 @@ void IRModuleNode::ImportFromStd(const String& path) {
   auto* f = tvm::runtime::Registry::Get("tvm.relay.std_path");
   CHECK(f != nullptr) << "The Relay std_path is not set, please register tvm.relay.std_path.";
   std::string std_path = (*f)();
-  this->Import(std_path + "/" + path.operator std::string());
+  this->Import(std_path + "/" + path);
 }
 
 std::unordered_set<String> IRModuleNode::Imports() const { return this->import_set_; }
