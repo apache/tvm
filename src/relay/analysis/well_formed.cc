@@ -74,12 +74,21 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
   }
 
   void VisitExpr_(const LetNode* l) final {
-    Scope s(this);
-    // we do letrec only for FunctionNode,
-    // but shadowing let in let binding is likely programming error, and we should forbidden it.
-    Bound(l->var);
-    CheckWellFormed(l->value);
-    CheckWellFormed(l->body);
+    std::vector<Scope*> scopes;
+    Expr let = GetRef<Let>(l);
+    while (auto let_node = let.as<LetNode>()) {
+      scopes.push_back(new Scope(this));
+      // we do letrec only for FunctionNode,
+      // but shadowing let in let binding is likely programming error, and we should forbidden it.
+      Bound(let_node->var);
+      CheckWellFormed(let_node->value);
+      let = let_node->body;
+    }
+    CheckWellFormed(let);
+    while (!scopes.empty()) {
+      delete scopes.back();
+      scopes.pop_back();
+    }
   }
 
   void VisitExpr_(const FunctionNode* f) final {
