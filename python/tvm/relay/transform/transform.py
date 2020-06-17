@@ -309,22 +309,24 @@ def CombineParallelDense(min_num_branches=3):
     return _ffi_api.CombineParallelDense(min_num_branches)
 
 def CombineParallelBatchMatmul(min_num_branches=3):
-    """Combine multiple dense operators into one. For example:
+    """Combine multiple batch matmul operators into one. For example:
 
     .. code-block
-                    data
-            /              \
-        dense (2,2)         dense (2,2)
-            |                 |
-        elemwise/bcast (2,2)  elemwise/bcast (2,2)
+                             data (1, 2, 3)
+                         /                  \
+        batch_matmul(data, (1, 4, 3))    batch_matmul(data, (1, 5, 3))
+            |                                |
+        elemwise/bcast (1, 2, 4)         elemwise/bcast (1, 2, 5)
 
     Would become:
 
     .. code-block
 
-                data
+                data (1, 2, 3)
                 |
-            batch_matmul+elemwise/bcast (2,2,2)
+            batch_matmul(data, (1, 4+5, 3))
+                |
+            elemwise/bcast (1 ,2, 4+5)
 
     Parameters
     ----------
