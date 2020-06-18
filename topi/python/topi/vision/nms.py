@@ -351,8 +351,9 @@ def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors
                     a_b = max(output[batch_idx, box_a_idx, box_start_idx + 1],
                               output[batch_idx, box_a_idx, box_start_idx + 3])
 
-                    # check if current box j is valid by calculating iou with all existing valid boxes
-                    for k in parallel(j):
+                    # check if current box j is valid by calculating iou with
+                    # all existing valid boxes
+                    for k in range(j):
                         check_iou = 0
                         if is_valid_box == 1 and k < j and output[i, k, score_index] > 0 \
                                 and (id_index < 0 or output[i, k, id_index] >= 0):
