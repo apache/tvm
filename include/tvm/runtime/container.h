@@ -34,6 +34,7 @@
 #include <initializer_list>
 #include <memory>
 #include <string>
+#include <unordered_map>
 // We use c++14 std::experimental::string_view for optimizing hash computation
 // only right now, its usage is limited in this file. Any broader usage of
 // std::experiment in our core codebase is discouraged and needs community
@@ -71,10 +72,28 @@ class StringRef;
 }  // namespace llvm
 
 namespace tvm {
-
-struct ObjectEqual;
-
 namespace runtime {
+
+/*! \brief String-aware ObjectRef equal functor */
+struct ObjectHash {
+  /*!
+   * \brief Calculate the hash code of an ObjectRef
+   * \param a The given ObjectRef
+   * \return Hash code of a, string hash for strings and pointer address otherwise.
+   */
+  size_t operator()(const ObjectRef& a) const;
+};
+
+/*! \brief String-aware ObjectRef hash functor */
+struct ObjectEqual {
+  /*!
+   * \brief Check if the two ObjectRef are equal
+   * \param a One ObjectRef
+   * \param b The other ObjectRef
+   * \return String equality if both are strings, pointer address equality otherwise.
+   */
+  bool operator()(const ObjectRef& a, const ObjectRef& b) const;
+};
 
 /*!
  * \brief Base template for classes with array like memory layout.
@@ -209,7 +228,7 @@ class IterAdapter {
   using difference_type = typename std::iterator_traits<TIter>::difference_type;
   using value_type = typename Converter::ResultType;
   using pointer = typename Converter::ResultType*;
-  using reference = typename Converter::ResultType&;  // NOLINT(*)
+  using reference = typename Converter::ResultType&;
   using iterator_category = typename std::iterator_traits<TIter>::iterator_category;
 
   explicit IterAdapter(TIter iter) : iter_(iter) {}
@@ -221,12 +240,12 @@ class IterAdapter {
     --iter_;
     return *this;
   }
-  IterAdapter& operator++(int) {
+  IterAdapter operator++(int) {
     IterAdapter copy = *this;
     ++iter_;
     return copy;
   }
-  IterAdapter& operator--(int) {
+  IterAdapter operator--(int) {
     IterAdapter copy = *this;
     --iter_;
     return copy;
@@ -536,6 +555,7 @@ template <typename T,
           typename = typename std::enable_if<std::is_base_of<ObjectRef, T>::value>::type>
 class Array : public ObjectRef {
  public:
+  using value_type = T;
   // constructors
   /*!
    * \brief default constructor
@@ -1329,7 +1349,7 @@ class String : public ObjectRef {
   friend String operator+(const String& lhs, const char* rhs);
   friend String operator+(const char* lhs, const String& rhs);
 
-  friend struct tvm::ObjectEqual;
+  friend struct tvm::runtime::ObjectEqual;
 };
 
 /*! \brief An object representing string moved from std::string. */
@@ -1482,6 +1502,25 @@ inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count, s
   } else {
     return 0;
   }
+}
+
+inline size_t ObjectHash::operator()(const ObjectRef& a) const {
+  if (const auto* str = a.as<StringObj>()) {
+    return String::HashBytes(str->data, str->size);
+  }
+  return ObjectPtrHash()(a);
+}
+
+inline bool ObjectEqual::operator()(const ObjectRef& a, const ObjectRef& b) const {
+  if (a.same_as(b)) {
+    return true;
+  }
+  if (const auto* str_a = a.as<StringObj>()) {
+    if (const auto* str_b = b.as<StringObj>()) {
+      return String::memncmp(str_a->data, str_b->data, str_a->size, str_b->size) == 0;
+    }
+  }
+  return false;
 }
 
 template <>

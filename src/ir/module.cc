@@ -278,9 +278,9 @@ void IRModuleNode::UpdateTypeDef(const GlobalTypeVar& var, const TypeData& type)
 
 void IRModuleNode::Remove(const GlobalVar& var) {
   auto functions_node = this->functions.CopyOnWrite();
-  functions_node->data.erase(var);
+  functions_node->erase(var);
   auto gvar_node = global_var_map_.CopyOnWrite();
-  gvar_node->data.erase(var->name_hint);
+  gvar_node->erase(var->name_hint);
 }
 
 BaseFunc IRModuleNode::Lookup(const GlobalVar& var) const {
