@@ -135,9 +135,26 @@ runtime::Module SourceModuleCreate(std::string code, std::string fmt);
 /*!
  * \brief Create a C source module for viewing and compiling GCC code.
  * \param code The code to be viewed.
- * \param fmt The code. format.
+ * \param fmt The code format.
+ * \param symbol The symbol that the c source module represents.
+ * \param const_vars. The constant variables that the c source module needs.
+ * \return The created module.
  */
-runtime::Module CSourceModuleCreate(std::string code, std::string fmt);
+runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
+                                    const String& symbol = "",
+                                    const Array<String>& const_vars = {});
+
+/*!
+ * \brief Wrap the submodules in a metadata module.
+ * \param params The variable to constant mapping that is collected by the host
+ *        module.
+ * \param dso_module The host module to be wrapped.
+ * \param modules The modules to be wrapped.
+ * \return The wrapped module.
+ */
+runtime::Module CreateMetadataModule(
+    const std::unordered_map<std::string, runtime::NDArray>& params,
+    const runtime::Module& dso_module, const Array<runtime::Module>& modules);
 
 /*!
  * \brief Create a source module for viewing and limited saving for device.
