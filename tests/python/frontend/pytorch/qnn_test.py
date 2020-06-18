@@ -490,6 +490,7 @@ def test_serialized_modules():
     fname = "tmp.pt"
     torch.jit.save(script_module, fname)
     loaded = torch.jit.load(fname)
+    os.remove(fname)
 
     with torch.no_grad():
         pt_result = loaded(inp.clone()).numpy()
@@ -503,5 +504,3 @@ def test_serialized_modules():
     num_identical = np.sum(tvm_result == pt_result)
     match_ratio = num_identical / float(np.prod(tvm_result.shape))
     assert match_ratio > 0.2
-
-    os.remove(fname)

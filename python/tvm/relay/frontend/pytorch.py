@@ -115,6 +115,11 @@ def _should_construct_dynamic_list(list_construct_node):
     return False
 
 
+def _is_quantized_tensor(data, prelude):
+    ty = _infer_type_with_prelude(data, prelude)
+    return ty.dtype == "uint8"
+
+
 # operator implementation
 def _elemwise(name):
     def _impl(inputs, input_types):
@@ -533,9 +538,8 @@ def _linspace():
 def _relu(prelude):
     def _impl(inputs, input_types):
         data = inputs[0]
-        ty = _infer_type_with_prelude(data, prelude)
         # See the comment in adaptive avg pool2d
-        if ty.dtype == "uint8":
+        if _is_quantized_tensor(data, prelude):
             assert len(inputs) == 3, "Input quant param not found in op inputs"
             input_zero_point = _expr.const(inputs[2], dtype="int32")
             return qnn_torch.quantized_relu(data, input_zero_point)
@@ -605,11 +609,10 @@ def _adaptive_avg_pool_2d(prelude):
         def func(x):
             return _op.nn.adaptive_avg_pool2d(x, output_size=output_size)
 
-        ty = _infer_type_with_prelude(data, prelude)
         # If a quantized Torch module is saved and loaded back, dtype will be dropped
         # input_types[0] can be float even though the input is a quantized tensor
         # To reliably determine input types, we use Relay's type inference result
-        if ty.dtype == "uint8":
+        if _is_quantized_tensor(data, prelude):
             return qnn_torch.apply_with_upcast(data, func)
 
         return func(data)
@@ -1136,9 +1139,8 @@ def _avg_pool2d(prelude):
                                      ceil_mode=ceil_mode,
                                      count_include_pad=count_include_pad)
 
-        ty = _infer_type_with_prelude(data, prelude)
         # See the comment in adaptive avg pool2d
-        if ty.dtype == "uint8":
+        if _is_quantized_tensor(data, prelude):
             return qnn_torch.apply_with_upcast(data, func)
 
         return func(data)
@@ -1282,9 +1284,8 @@ def _mean(prelude):
         def func(x):
             return _op.mean(x, axis, keepdims, exclude)
 
-        ty = _infer_type_with_prelude(data, prelude)
         # See the comment in adaptive avg pool2d
-        if ty.dtype == "uint8":
+        if _is_quantized_tensor(data, prelude):
             assert len(inputs) == 6, "Input quant param not found in op inputs"
             input_scale = _expr.const(inputs[4])
             input_zero_point = _expr.const(inputs[5])
@@ -1526,9 +1527,8 @@ def _upsample(method, prelude):
         def func(x):
             return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
 
-        ty = _infer_type_with_prelude(data, prelude)
         # See the comment in adaptive avg pool2d
-        if ty.dtype == "uint8":
+        if _is_quantized_tensor(data, prelude):
             import torch
             from packaging import version
 
