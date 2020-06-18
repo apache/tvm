@@ -538,9 +538,7 @@ Map<Expr, Integer> CollectDeviceInfo(const Expr& expr) {
   return DeviceInfo::GetDeviceMap(expr);
 }
 
-Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr) {
-  return AnnotatationVisitor::GetAnnotations(expr);
-}
+Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr) { return AnnotatationVisitor::GetAnnotations(expr); }
 
 TVM_REGISTER_GLOBAL("relay.analysis.CollectDeviceInfo").set_body_typed(CollectDeviceInfo);
 

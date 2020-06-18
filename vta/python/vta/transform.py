@@ -549,7 +549,6 @@ def InjectDMAIntrin():
                 allow_fold = True
 
             _check_compact(dst)
-
             x_size, y_size, x_stride, offset = _get_2d_pattern(
                 src, elem_width, elem_bytes, data_type,
                 dst.scope, allow_fold=allow_fold)

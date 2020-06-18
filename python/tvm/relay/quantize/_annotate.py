@@ -195,8 +195,6 @@ def conv2d_transpose_rewrite(ref_call, new_args, ctx):
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
-# TODO(tmoreau89,ziheng) need to include an option to turn off dense quant
-# @register_annotate_function("nn.dense")
 @register_annotate_function("nn.dense")
 def dense_rewrite(ref_call, new_args, ctx):
     """Rewrite function for dense. Lhs of dense will be quantized to input field, and rhs of

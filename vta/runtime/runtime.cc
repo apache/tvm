@@ -733,30 +733,30 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
   }
   // Helper function: Get Opcode string
   std::string getOpcodeString(int opcode, bool use_imm, int64_t imm) {
-      // The string name
-      if (opcode == VTA_ALU_OPCODE_MIN) {
-          if (use_imm) {
-              return std::string("min imm ") + std::to_string(imm);
-          } else {
-              return "min";
-          }
-      } else if (opcode == VTA_ALU_OPCODE_MAX) {
-          if (use_imm) {
-              return (std::string("max imm ") + std::to_string(imm));
-          } else {
-              return "max";
-          }
-      } else if (opcode == VTA_ALU_OPCODE_ADD) {
-          if (use_imm) {
-              return (std::string("add imm ") + std::to_string(imm));
-          } else {
-              return "add";
-          }
-      } else if (opcode == VTA_ALU_OPCODE_SHR) {
-          return (std::string("shr ") + std::to_string(imm));
-      } else if (opcode == VTA_ALU_OPCODE_MUL) {
-        return "mul";
-      }
+    // The string name
+    if (opcode == VTA_ALU_OPCODE_MIN) {
+        if (use_imm) {
+            return std::string("min imm ") + std::to_string(imm);
+        } else {
+            return "min";
+        }
+    } else if (opcode == VTA_ALU_OPCODE_MAX) {
+        if (use_imm) {
+            return (std::string("max imm ") + std::to_string(imm));
+        } else {
+            return "max";
+        }
+    } else if (opcode == VTA_ALU_OPCODE_ADD) {
+        if (use_imm) {
+            return (std::string("add imm ") + std::to_string(imm));
+        } else {
+            return "add";
+        }
+    } else if (opcode == VTA_ALU_OPCODE_SHR) {
+        return (std::string("shr ") + std::to_string(imm));
+    } else if (opcode == VTA_ALU_OPCODE_MUL) {
+      return "mul";
+    }
 
     return "unknown op";
   }
@@ -832,7 +832,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
   }
 
   // Dump instructions in the queue
-  void DumpInsn(FILE* out = stderr, bool json=false) {
+  void DumpInsn(FILE* out = stderr, bool json = false) {
     // Keep tabs on dependence queues
     int l2g_queue = 0;
     int g2l_queue = 0;
@@ -1265,8 +1265,8 @@ class CommandQueue {
 
     // FIXME(zhanghao): It is required to use force_serial
     // by using skip and sync at the final layer.
-    // By doing this, we can avoid do DeviceCopy every time
-    // consider to make it as a flag when mature
+    // By doing this, we can avoid do DeviceCopy every time.
+    // TODO: Consider to make it as a flag when mature
     const char* sync_once = std::getenv("VTA_SYNC_ONCE_EXPERIMENTAL");
     if (sync_once && skip) {
       if (!(debug_flag_ & VTA_DEBUG_FORCE_SERIAL)) {

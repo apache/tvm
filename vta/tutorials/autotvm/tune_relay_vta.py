@@ -341,11 +341,8 @@ def tune_and_evaluate(tuning_opt):
                                                 tracker_port,
                                                 timeout=10000)
         # Reconfigure the JIT runtime and FPGA.
-        bitstream = os.environ.get("TVM_BIT", None)
-        if bitstream:
-            print("Program fpga with {}".format(bitstream))
-            vta.reconfig_runtime(remote)
-            vta.program_fpga(remote, bitstream)
+         vta.reconfig_runtime(remote)
+         vta.program_fpga(remote, bitstream)
     else:
         # In simulation mode, host the RPC server locally.
         remote = rpc.LocalSession()
@@ -393,9 +390,6 @@ def tune_and_evaluate(tuning_opt):
 
     # compile kernels with history best records
     with autotvm.tophub.context(target, extra_files=[log_file]):
-        # recompile the programs with device annotations
-        print("Recompile")
-        relay_prog, params = compile_network(env, target, network, start_pack, stop_pack)
         # Compile network
         print("Compile...")
         if target.device_name != "vta":
@@ -405,14 +399,10 @@ def tune_and_evaluate(tuning_opt):
                                                 params=params,
                                                 target_host=env.target_host)
         else:
-            targets = {
-                "cpu": env.target_vta_cpu,
-                "ext_dev": env.target
-            }
-            with vta.build_config(opt_level=3, debug_flag=32, disabled_pass={"AlterOpLayout"}):
+            with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
                 graph, lib, params = relay.build(
                     relay_prog,
-                    target=targets,
+                    target=target,
                     params=params,
                     target_host=env.target_host)
 
@@ -425,8 +415,7 @@ def tune_and_evaluate(tuning_opt):
 
         # Generate the graph runtime
         ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
-        ctxes = [ctx, remote.cpu(0)]
-        m = graph_runtime.create(graph, lib, ctxes)
+        m = graph_runtime.create(graph, lib, ctx)
 
         # upload parameters to device
         image = tvm.nd.array(

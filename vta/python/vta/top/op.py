@@ -35,6 +35,9 @@ from .vta_dense import dense_packed, schedule_dense_packed
 from ..environment import get_env
 
 
+# override to force partition at copy
+reg.register_pattern("copy", OpPattern.INJECTIVE, level=15)
+
 # add clip vta strategy
 def compute_clip_vta(attrs, inputs, output_type):
     """ Clip operator. """
@@ -63,8 +66,7 @@ reg.get("clip").get_attr("FTVMStrategy").register(clip_strategy_vta, "vta")
 
 @autotvm.register_topi_compute("add.vta")
 def add_packed(cfg, lhs, rhs):
-    ret = topi.add(lhs, rhs)
-    return ret
+    return topi.add(lhs, rhs)
 
 
 @autotvm.register_topi_compute("multiply.vta")

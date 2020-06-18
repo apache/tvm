@@ -80,19 +80,7 @@ class CopyIntrinInjector : public StmtMutator {
     }
     // for now only support true condition matching
     if (has_cond) {
-      auto true_val = sel_true_value.Eval();
-
-      // TODO(zhanghao): we do cond unfold one more further
-      // this is used to lift the pad(dilate) to one load op
-      // However, ignoring false condition may cause incorrect results
-      PVar<PrimExpr> sel_cond_extra, sel_true_value_extra, sel_false_value_extra;
-      bool has_cond_extra = if_then_else(sel_cond_extra, sel_true_value_extra, sel_false_value_extra).Match(true_val) ||
-          select(sel_cond_extra, sel_true_value_extra, sel_false_value_extra).Match(true_val);
-      if (has_cond_extra) {
-        load = sel_true_value_extra.Eval().as<LoadNode>();
-      } else {
-        load = true_val.as<LoadNode>();
-      }
+      load = sel_true_value.Eval().as<LoadNode>();
     }
     // cast can be part of the pattern
     if (cast != nullptr) {

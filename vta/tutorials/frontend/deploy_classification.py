@@ -121,12 +121,7 @@ if env.TARGET not in ["sim", "tsim", "intelfocl"]:
     # by passing the path to the bitstream file instead of None.
     reconfig_start = time.time()
     vta.reconfig_runtime(remote)
-    # vta.program_fpga(remote, bitstream=None)
-    bitstream = os.environ.get("TVM_BIT", None)
-    if bitstream:
-        print("Program fpga with {}".format(bitstream))
-        vta.program_fpga(remote, bitstream)
-
+    vta.program_fpga(remote, bitstream=None)
     reconfig_time = time.time() - reconfig_start
     print("Reconfigured FPGA and RPC runtime in {0:.2f}s!".format(reconfig_time))
 
@@ -261,7 +256,7 @@ m.set_input(**params)
 m.set_input('data', image)
 
 # Perform inference and gather execution statistics
-# More on: https://docs.tvm.ai/api/python/module.html#tvm.runtime.Module.time_evaluator
+# More on: :py:method:`tvm.runtime.Module.time_evaluator`
 num = 4 # number of times we run module for a single measurement
 rep = 3 # number of measurements (we derive std dev from this)
 timer = m.module.time_evaluator("run", ctx, number=num, repeat=rep)

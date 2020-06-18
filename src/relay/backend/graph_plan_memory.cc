@@ -311,8 +311,8 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     }
 
     // TODO(zhanghao): find a better way to do this
-    // we copy all the instructions in a single batch
-    // to avoid overwrite shared storage, we do not re-use allocation
+    // We copy all the instructions of all layers in a single batch.
+    // To avoid overwrite shared storage, we do not re-use allocation
     const char* sync_once = std::getenv("VTA_SYNC_ONCE_EXPERIMENTAL");
     if (sync_once) {
       return this->Alloc(prototype, size);

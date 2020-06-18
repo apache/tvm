@@ -104,7 +104,7 @@ start_pack = "nn.max_pool2d"
 stop_pack = "nn.global_avg_pool2d"
 
 # Tuning option
-log_file = "%s.%s.log" % (device, network)
+log_file = "%s.alu.%s.log" % (device, network)
 tuning_option = {
     'log_filename': log_file,
 
@@ -267,11 +267,8 @@ def tune_and_evaluate(tuning_opt):
                                                 tracker_port,
                                                 timeout=10000)
         # Reconfigure the JIT runtime and FPGA.
-        bitstream = os.environ.get("TVM_BIT", None)
-        if bitstream:
-            print("Program fpga with {}".format(bitstream))
-            vta.reconfig_runtime(remote)
-            vta.program_fpga(remote, bitstream)
+        vta.reconfig_runtime(remote)
+        vta.program_fpga(remote, bitstream)
     else:
         # In simulation mode, host the RPC server locally.
         remote = rpc.LocalSession()
