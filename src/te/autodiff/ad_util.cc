@@ -35,8 +35,7 @@ std::pair<Array<IterVar>, Map<Var, PrimExpr>> CloneIterVars(const Array<IterVar>
   Array<IterVar> new_vars;
   Map<Var, PrimExpr> vmap;
   for (const IterVar& iv : vars) {
-    IterVar new_v =
-        IterVarNode::make(iv->dom, iv->var.copy_with_suffix(""), iv->iter_type, iv->thread_tag);
+    IterVar new_v = IterVar(iv->dom, iv->var.copy_with_suffix(""), iv->iter_type, iv->thread_tag);
     new_vars.push_back(new_v);
     vmap.Set(iv->var, new_v->var);
   }
@@ -54,8 +53,8 @@ PrimExpr CloneReduction(const PrimExpr& expr) {
       src_with_newaxis.push_back(tir::Substitute(src, vmap));
     }
 
-    return ReduceNode::make(red->combiner, src_with_newaxis, new_axis,
-                            tir::Substitute(red->condition, vmap), red->value_index);
+    return Reduce(red->combiner, src_with_newaxis, new_axis, tir::Substitute(red->condition, vmap),
+                  red->value_index);
   } else {
     return expr;
   }

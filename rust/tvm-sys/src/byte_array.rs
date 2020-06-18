@@ -16,9 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+use std::convert::TryFrom;
 use std::os::raw::c_char;
 
+use crate::errors::ValueDowncastError;
 use crate::ffi::TVMByteArray;
+use crate::{ArgValue, RetValue};
 
 /// A newtype wrapping a raw TVM byte-array.
 ///
@@ -65,6 +68,39 @@ impl<T: AsRef<[u8]>> From<T> for ByteArray {
                 data: arg.as_ptr() as *const c_char,
                 size: arg.len(),
             },
+        }
+    }
+}
+
+impl TryFrom<ArgValue<'static>> for ByteArray {
+    type Error = ValueDowncastError;
+
+    fn try_from(val: ArgValue<'static>) -> Result<ByteArray, Self::Error> {
+        match val {
+            ArgValue::Bytes(array) => Ok(ByteArray { array: *array }),
+            _ => Err(ValueDowncastError {
+                expected_type: "ByteArray",
+                actual_type: format!("{:?}", val),
+            }),
+        }
+    }
+}
+
+impl From<ByteArray> for RetValue {
+    fn from(val: ByteArray) -> RetValue {
+        RetValue::Bytes(val.array)
+    }
+}
+
+impl TryFrom<RetValue> for ByteArray {
+    type Error = ValueDowncastError;
+    fn try_from(val: RetValue) -> Result<ByteArray, Self::Error> {
+        match val {
+            RetValue::Bytes(array) => Ok(ByteArray { array }),
+            _ => Err(ValueDowncastError {
+                expected_type: "ByteArray",
+                actual_type: format!("{:?}", val),
+            }),
         }
     }
 }

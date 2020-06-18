@@ -364,12 +364,21 @@ Doc RelayTextPrinter::VisitExpr_(const IfNode* op) {
 }
 
 Doc RelayTextPrinter::VisitExpr_(const LetNode* op) {
-  Doc doc;
-  doc << "let " << AllocVar(op->var) << " = " << Print(op->value, false, true) << ";"
-      << Doc::NewLine();
-  // we use a scope here so GNF hoisting doesn't escape too far
-  // and nested, unique lets are not hoisted
-  doc << PrintScope(op->body);
+  int n = 0;
+  Expr let = GetRef<Let>(op);
+  while (auto let_node = let.as<LetNode>()) {
+    Doc doc;
+    doc << "let " << AllocVar(let_node->var) << " = " << Print(let_node->value, false, true) << ";"
+        << Doc::NewLine();
+    doc_stack_.push_back(doc);
+    let = let_node->body;
+    ++n;
+  }
+  Doc doc = PrintScope(let);
+  for (int i = 0; i < n; ++i) {
+    doc = doc_stack_.back() << doc;
+    doc_stack_.pop_back();
+  }
   return doc;
 }
 
@@ -447,9 +456,7 @@ Doc RelayTextPrinter::VisitExpr_(const FunctionNode* op) {
   return PrintFunc(Doc::Text("fn "), GetRef<Function>(op));
 }
 
-Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) {
-  return Doc::Text('@' + op->name_hint.operator std::string());
-}
+Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) { return Doc::Text("@" + op->name_hint); }
 
 Doc RelayTextPrinter::VisitExpr_(const OpNode* op) { return Doc::Text(op->name); }
 
@@ -822,6 +829,13 @@ std::vector<Doc> RelayTextPrinter::PrintFuncAttrs(const Attrs& attrs) {
   }
   return docs;
 }
+
+TVM_REGISTER_GLOBAL("ir.TextPrinter").set_body_typed([](ObjectRef node) {
+  std::cout << "The program: " << node << std::endl;
+  auto text = AsText(node, false, nullptr);
+  std::cout << "The text " << text;
+  return text;
+});
 
 }  // namespace relay
 }  // namespace tvm

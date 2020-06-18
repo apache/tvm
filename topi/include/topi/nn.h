@@ -37,19 +37,6 @@
 namespace topi {
 using namespace tvm;
 using namespace tvm::te;
-namespace detail {
-
-template <typename T>
-tvm::PrimExpr Map(const tvm::Array<tvm::PrimExpr>& exprs, T op) {
-  CHECK_GE(exprs.size(), 1);
-  tvm::PrimExpr res = exprs[0];
-  for (size_t i = 1; i < exprs.size(); ++i) {
-    res = op(res, exprs[i]);
-  }
-  return res;
-}
-
-}  // namespace detail
 
 /*!
  * \brief Creates an operation that performs a rectified linear unit
@@ -91,7 +78,7 @@ inline tvm::te::Tensor leaky_relu(const tvm::te::Tensor& t, double alpha = 0.1,
       [&](const tvm::Array<tvm::tir::Var>& i) {
         auto value = t(i);
         auto calpha = tvm::tir::make_const(value.dtype(), alpha);
-        return tvm::tir::SelectNode::make(value > 0, value, value * calpha);
+        return tvm::tir::Select(value > 0, value, value * calpha);
       },
       name, tag);
 }
@@ -118,7 +105,7 @@ inline tvm::te::Tensor prelu(const tvm::te::Tensor& x, const tvm::te::Tensor& sl
       x->shape,
       [&](const tvm::Array<tvm::tir::Var>& indices) {
         auto xval = x(indices);
-        return tvm::tir::SelectNode::make(xval > 0, xval, xval * slope(indices[axis]));
+        return tvm::tir::Select(xval > 0, xval, xval * slope(indices[axis]));
       },
       name, tag);
 }
@@ -226,10 +213,11 @@ inline tvm::te::Tensor pad(const tvm::te::Tensor& t, const tvm::Array<tvm::PrimE
       }
     }
     if (sel.size() != 0) {
+      auto fand = [](PrimExpr a, PrimExpr b) { return a && b; };
       if (pad_mode == "constant") {
-        return tvm::if_then_else(detail::Map(sel, tvm::tir::AndNode::make), t(indices), pad_value);
+        return tvm::if_then_else(foldl(fand, const_true(1), sel), t(indices), pad_value);
       } else if (pad_mode == "edge" || pad_mode == "reflect") {
-        return tvm::if_then_else(detail::Map(sel, tvm::tir::AndNode::make), t(indices), t(pad_idx));
+        return tvm::if_then_else(foldl(fand, const_true(1), sel), t(indices), t(pad_idx));
       }
     }
     return t(indices);

@@ -76,42 +76,42 @@ class TensorToBufferMapper : public StmtExprMutator {
       Operation operation = Downcast<Operation>(op->node);
       for (int i = operation->num_outputs(); i != 0; --i) {
         Buffer buffer = GetOrAllocBuffer(operation.output(i - 1));
-        body = AttrStmtNode::make(buffer, op->attr_key, op->value, body);
+        body = AttrStmt(buffer, op->attr_key, op->value, body);
       }
       return body;
     } else if (op->attr_key == tir::attr::buffer_bind_scope) {
       Array<ObjectRef> tuple = Downcast<Array<ObjectRef>>(op->node);
       Tensor tensor = Downcast<Tensor>(tuple[1]);
-      return AttrStmtNode::make(Array<ObjectRef>{tuple[0], GetOrAllocBuffer(tensor)}, op->attr_key,
-                                op->value, op->body);
+      return AttrStmt(Array<ObjectRef>{tuple[0], GetOrAllocBuffer(tensor)}, op->attr_key, op->value,
+                      op->body);
     } else if (op->attr_key == tir::attr::buffer_dim_align ||
                op->attr_key == tir::attr::prefetch_scope) {
       Tensor tensor = Downcast<Tensor>(op->node);
       Buffer buffer = GetOrAllocBuffer(tensor);
-      return AttrStmtNode::make(buffer, op->attr_key, op->value, op->body);
+      return AttrStmt(buffer, op->attr_key, op->value, op->body);
     } else {
       return ret;
     }
   }
 
-  Stmt VisitStmt_(const RealizeNode* op) final {
-    Tensor tensor = Downcast<Operation>(op->func).output(op->value_index);
+  Stmt VisitStmt_(const ProducerRealizeNode* op) final {
+    Tensor tensor = Downcast<Tensor>(op->producer);
     Buffer buffer = GetOrAllocBuffer(tensor);
 
     auto ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<RealizeNode>();
+    op = ret.as<ProducerRealizeNode>();
 
     return BufferRealize(buffer, op->bounds, op->condition, op->body);
   }
 
-  Stmt VisitStmt_(const ProvideNode* op) final {
-    Tensor tensor = Downcast<Operation>(op->func).output(op->value_index);
+  Stmt VisitStmt_(const ProducerStoreNode* op) final {
+    Tensor tensor = Downcast<Tensor>(op->producer);
     Buffer buffer = GetBuffer(tensor);
 
     auto ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<ProvideNode>();
+    op = ret.as<ProducerStoreNode>();
 
-    return BufferStore(buffer, op->value, op->args);
+    return BufferStore(buffer, op->value, op->indices);
   }
 
   PrimExpr VisitExpr_(const ProducerLoadNode* op) final {

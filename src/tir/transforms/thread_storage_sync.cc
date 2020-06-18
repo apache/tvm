@@ -209,9 +209,8 @@ class ThreadSyncInserter : public StmtExprMutator {
       if (sync_scope_.rank == StorageRank::kGlobal) {
         barrier = MakeGlobalBarrier();
       } else {
-        barrier = EvaluateNode::make(CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
-                                                    {StringImmNode::make(sync_scope_.to_string())},
-                                                    CallNode::Intrinsic));
+        barrier = Evaluate(Call(DataType::Int(32), intrinsic::tvm_storage_sync,
+                                {StringImm(sync_scope_.to_string())}, CallNode::Intrinsic));
       }
       // Mutate after query, to avoid stmt change.
       auto ret = StmtExprMutator::VisitStmt(stmt);
@@ -252,7 +251,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       return ret;
     } else if (op->attr_key == attr::storage_scope) {
       const VarNode* buf = op->node.as<VarNode>();
-      storage_scope_[buf] = StorageScope::make(op->value.as<StringImmNode>()->value);
+      storage_scope_[buf] = StorageScope::Create(op->value.as<StringImmNode>()->value);
       return StmtExprMutator::VisitStmt_(op);
     } else {
       return StmtExprMutator::VisitStmt_(op);
@@ -298,21 +297,21 @@ class ThreadSyncInserter : public StmtExprMutator {
   // private functions.
   Stmt InitGlobalBarrier(const AttrStmtNode* op) {
     CHECK(op != nullptr);
-    Array<PrimExpr> pargs = {StringImmNode::make(runtime::symbol::tvm_prepare_global_barrier)};
-    Stmt prep = EvaluateNode::make(
-        CallNode::make(DataType::Int(32), intrinsic::tvm_call_packed, pargs, CallNode::Intrinsic));
+    Array<PrimExpr> pargs = {StringImm(runtime::symbol::tvm_prepare_global_barrier)};
+    Stmt prep =
+        Evaluate(Call(DataType::Int(32), intrinsic::tvm_call_packed, pargs, CallNode::Intrinsic));
     Stmt body = op->body;
     for (const auto& kv : rw_stats_) {
       const auto& e = kv.second;
       if (e.read_count != 0 && e.write_count != 0) {
-        body = AttrStmtNode::make(kv.first, attr::volatile_scope, 1, body);
+        body = AttrStmt(kv.first, attr::volatile_scope, 1, body);
       }
     }
     rw_stats_.clear();
-    Stmt kinit = EvaluateNode::make(CallNode::make(
-        DataType::Int(32), intrinsic::tvm_global_barrier_kinit, {}, CallNode::Intrinsic));
+    Stmt kinit = Evaluate(
+        Call(DataType::Int(32), intrinsic::tvm_global_barrier_kinit, {}, CallNode::Intrinsic));
     body = SeqStmt({kinit, body});
-    body = AttrStmtNode::make(op->node, op->attr_key, op->value, body);
+    body = AttrStmt(op->node, op->attr_key, op->value, body);
     return SeqStmt({prep, body});
   }
   Stmt MakeGlobalBarrier() {
@@ -322,7 +321,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       num_work_dim_ = thread_extents_.size();
       for (const AttrStmtNode* attr : thread_extents_) {
         IterVar iv = Downcast<IterVar>(attr->node);
-        runtime::ThreadScope s = runtime::ThreadScope::make(iv->thread_tag);
+        runtime::ThreadScope s = runtime::ThreadScope::Create(iv->thread_tag);
         if (s.rank == 0) {
           num_blocks_ = (num_blocks_.defined() ? attr->value * num_blocks_ : attr->value);
         } else if (s.rank == 1) {
@@ -333,10 +332,9 @@ class ThreadSyncInserter : public StmtExprMutator {
     } else {
       CHECK_EQ(num_work_dim_, thread_extents_.size());
     }
-    return EvaluateNode::make(
-        CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
-                       {StringImmNode::make(sync_scope_.to_string()), is_lead_, num_blocks_},
-                       CallNode::Intrinsic));
+    return Evaluate(Call(DataType::Int(32), intrinsic::tvm_storage_sync,
+                         {StringImm(sync_scope_.to_string()), is_lead_, num_blocks_},
+                         CallNode::Intrinsic));
   }
   // data structure.
   StorageScope sync_scope_;
@@ -355,7 +353,7 @@ class ThreadSyncInserter : public StmtExprMutator {
 };
 
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
-  StorageScope sync_scope = StorageScope::make(storage_scope);
+  StorageScope sync_scope = StorageScope::Create(storage_scope);
   ThreadSyncPlanner planner(sync_scope);
   planner(stmt);
   return ThreadSyncInserter(sync_scope, planner.syncs_inserted_)(std::move(stmt));
@@ -363,7 +361,7 @@ Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
 
 namespace transform {
 
-Pass ThreadSync(std::string storage_scope) {
+Pass ThreadSync(String storage_scope) {
   auto pass_func = [storage_scope](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = ThreadSync(std::move(n->body), storage_scope);

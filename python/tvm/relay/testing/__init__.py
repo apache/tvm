@@ -23,6 +23,7 @@ import tvm
 from tvm import te
 import tvm.relay as relay
 import tvm.relay.op as op
+from tvm.relay import Prelude
 
 
 from . import mlp
@@ -44,9 +45,11 @@ from .nat import add_nat_definitions, count, make_nat_value, make_nat_expr
 from .py_converter import to_python, run_as_python
 from ..transform import gradient
 
-def run_opt_pass(expr, opt_pass):
+def run_opt_pass(expr, opt_pass, import_prelude=False):
     assert isinstance(opt_pass, tvm.transform.Pass)
     mod = tvm.IRModule.from_expr(expr)
+    if import_prelude:
+        Prelude(mod)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body

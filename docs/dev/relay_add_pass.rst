@@ -138,7 +138,7 @@ is shown below.
       if (g->tuple == t) {
         return GetRef<Expr>(g);
       } else {
-        return TupleGetItemNode::make(t, g->index);
+        return TupleGetItem(t, g->index);
       }
     }
 
@@ -261,7 +261,7 @@ the pass.
             body.same_as(op->body)) {
           return GetRef<Expr>(op);
         } else {
-          return LetNode::make(var, value, body);
+          return Let(var, value, body);
         }
       }
     }

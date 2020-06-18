@@ -246,7 +246,7 @@ TVM_REGISTER_GLOBAL("relay.ir.TempExprRealize").set_body_typed([](TempExpr temp)
   return temp->Realize();
 });
 
-TVM_REGISTER_GLOBAL("relay.ir.Any").set_body_typed([]() { return Any::make(); });
+TVM_REGISTER_GLOBAL("relay.ir.Any").set_body_typed([]() { return Any(); });
 
 }  // namespace relay
 }  // namespace tvm

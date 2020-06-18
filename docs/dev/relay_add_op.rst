@@ -99,7 +99,7 @@ the arguments to the call node, as below.
     TVM_REGISTER_GLOBAL("relay.op._make.add")
         .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {
             static const Op& op = Op::Get("add");
-          return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+          return Call(op, {lhs, rhs}, Attrs(), {});
         });
 
 Including a Python API Hook

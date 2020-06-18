@@ -690,6 +690,103 @@ bool Conv1DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
 }
 
 template <typename AttrType>
+bool Conv3DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                        const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* weight = types[1].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  static const Layout kNCDHW("NCDHW");
+  static const Layout kOIDHW("OIDHW");
+
+  const Conv3DTransposeAttrs* param = attrs.as<AttrType>();
+  CHECK(param != nullptr);
+  const Layout in_layout(param->data_layout);
+  const Layout kernel_layout(param->kernel_layout);
+
+  const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCDHW);
+  CHECK(trans_in_layout.defined())
+      << "Conv3d_transpose only support input layouts that are convertible from NCDHW."
+      << " But got " << in_layout;
+
+  const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kOIDHW);
+  CHECK(trans_kernel_layout.defined())
+      << "Conv3d_transpose only support kernel layouts that are convertible from OIDHW."
+      << " But got " << kernel_layout;
+
+  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
+  const auto trans_out_layout = tir::BijectiveLayout(out_layout, kNCDHW);
+  CHECK(trans_out_layout.defined())
+      << "Conv3d_transpose only support output layouts that are convertible from NCDHW."
+      << " But got " << out_layout;
+
+  IndexExpr channels, dilated_ksize_d, dilated_ksize_y, dilated_ksize_x;
+
+  auto dshape_ncdhw = trans_in_layout.ForwardShape(data->shape);
+
+  // infer weight if the kernel_size and channels are defined
+  if (param->kernel_size.defined() && param->channels.defined()) {
+    CHECK_EQ(param->kernel_size.size(), 3);
+    CHECK_EQ(param->dilation.size(), 3);
+
+    Array<IndexExpr> wshape({dshape_ncdhw[1], indexdiv(param->channels, param->groups),
+                             param->kernel_size[0], param->kernel_size[1], param->kernel_size[2]});
+
+    wshape = trans_kernel_layout.BackwardShape(wshape);
+    dilated_ksize_d = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
+    dilated_ksize_y = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
+    dilated_ksize_x = 1 + (param->kernel_size[2] - 1) * param->dilation[2];
+    channels = param->channels;
+
+    // assign result to reporter
+    reporter->Assign(types[1], TensorType(wshape, data->dtype));
+  } else {
+    // use weight to infer the conv shape.
+    if (weight == nullptr) return false;
+    auto wshape = trans_kernel_layout.ForwardShape(weight->shape);
+    if (param->kernel_size.defined()) {
+      CHECK_EQ(param->kernel_size.size(), 3);
+      // check the size
+      CHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]) &&
+            reporter->AssertEQ(param->kernel_size[1], wshape[3]) &&
+            reporter->AssertEQ(param->kernel_size[2], wshape[4]))
+          << "Conv3D: shape of weight is inconsistent with kernel_size, "
+          << " kernel_size=" << param->kernel_size << " wshape=" << Array<IndexExpr>(wshape);
+    }
+    if (param->channels.defined()) {
+      CHECK(reporter->AssertEQ(param->channels, wshape[1]))
+          << "Conv3D: shape of weight is inconsistent with channels, "
+          << " channels=" << param->channels << " wshape=" << Array<IndexExpr>(wshape);
+    }
+    CHECK(reporter->AssertEQ(indexdiv(dshape_ncdhw[1], param->groups), wshape[0]));
+    channels = wshape[1];
+    dilated_ksize_d = 1 + (wshape[2] - 1) * param->dilation[0];
+    dilated_ksize_x = 1 + (wshape[3] - 1) * param->dilation[1];
+    dilated_ksize_y = 1 + (wshape[4] - 1) * param->dilation[2];
+  }
+
+  // dilation
+  Array<IndexExpr> oshape({dshape_ncdhw[0], channels, 0, 0, 0});
+  IndexExpr pad_d, pad_h, pad_w;
+  GetPaddingDepthHeightWidth(param->padding, &pad_d, &pad_h, &pad_w);
+  oshape.Set(2, (param->strides[0] * (dshape_ncdhw[2] - 1) + dilated_ksize_d - pad_d +
+                 param->output_padding[0]));
+  oshape.Set(3, (param->strides[1] * (dshape_ncdhw[3] - 1) + dilated_ksize_y - pad_h +
+                 param->output_padding[1]));
+  oshape.Set(4, (param->strides[2] * (dshape_ncdhw[4] - 1) + dilated_ksize_x - pad_w +
+                 param->output_padding[2]));
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+  oshape = trans_out_layout.BackwardShape(oshape);
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return true;
+}
+
+template <typename AttrType>
 bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                         const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);

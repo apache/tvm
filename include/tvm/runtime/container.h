@@ -65,6 +65,11 @@
 #include <utility>
 #include <vector>
 
+namespace llvm {
+// String to llvm object compatibility.
+class StringRef;
+}  // namespace llvm
+
 namespace tvm {
 
 struct ObjectEqual;
@@ -511,11 +516,20 @@ class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, ObjectRef> {
 };
 
 /*!
- * \brief Array container of ObjectRef in DSL graph.
- *  Array implements copy-on-write semantics, which means array is mutable
- *  but copy will happen when array is referenced in more than two places.
+ * \brief Array, container representing a contigious sequence of ObjectRefs.
  *
- * operator[] only provide const access, use Set to mutate the content.
+ *  Array implements in-place copy-on-write semantics.
+ *
+ * As in typical copy-on-write, a method which would typically mutate the array
+ * instead opaquely copies the underlying container, and then acts on its copy.
+ *
+ * If the array has reference count equal to one, we directly update the
+ * container in place without copying. This is optimization is sound because
+ * when the reference count is equal to one this reference is guranteed to be
+ * the sole pointer to the container.
+ *
+ *
+ * operator[] only provides const access, use Set to mutate the content.
  * \tparam T The content ObjectRef type.
  */
 template <typename T,
@@ -1152,73 +1166,14 @@ class String : public ObjectRef {
    * \param other The value for the new String
    *
    */
-  inline String operator=(std::string other);
+  inline String& operator=(std::string other);
 
   /*!
-   * \brief Compare is less than other std::string
+   * \brief Change the value the reference object points to.
    *
-   * \param other The other string
-   *
-   * \return the comparison result
+   * \param other The value for the new String
    */
-  bool operator<(const std::string& other) const { return this->compare(other) < 0; }
-  bool operator<(const String& other) const { return this->compare(other) < 0; }
-  bool operator<(const char* other) const { return this->compare(other) < 0; }
-
-  /*!
-   * \brief Compare is greater than other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator>(const std::string& other) const { return this->compare(other) > 0; }
-  bool operator>(const String& other) const { return this->compare(other) > 0; }
-  bool operator>(const char* other) const { return this->compare(other) > 0; }
-
-  /*!
-   * \brief Compare is less than or equal to other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator<=(const std::string& other) const { return this->compare(other) <= 0; }
-  bool operator<=(const String& other) const { return this->compare(other) <= 0; }
-  bool operator<=(const char* other) const { return this->compare(other) <= 0; }
-
-  /*!
-   * \brief Compare is greater than or equal to other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator>=(const std::string& other) const { return this->compare(other) >= 0; }
-  bool operator>=(const String& other) const { return this->compare(other) >= 0; }
-  bool operator>=(const char* other) const { return this->compare(other) >= 0; }
-
-  /*!
-   * \brief Compare is equal to other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator==(const std::string& other) const { return this->compare(other) == 0; }
-  bool operator==(const String& other) const { return this->compare(other) == 0; }
-  bool operator==(const char* other) const { return compare(other) == 0; }
-
-  /*!
-   * \brief Compare is not equal to other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator!=(const std::string& other) const { return this->compare(other) != 0; }
-  bool operator!=(const String& other) const { return this->compare(other) != 0; }
-  bool operator!=(const char* other) const { return this->compare(other) != 0; }
+  inline String& operator=(const char* other);
 
   /*!
    * \brief Compares this String object to other
@@ -1295,11 +1250,19 @@ class String : public ObjectRef {
   const char* data() const { return get()->data; }
 
   /*!
-   * \brief Convert String to an std::sting object
+   * \brief Convert String to an std::string object
    *
    * \return std::string
    */
   operator std::string() const { return std::string{get()->data, size()}; }
+
+  // LLVM compatibility function, implemented in src/target/llvm/llvm_common.h
+  /*!
+   * \brief Convert String to an llvm::StringRef object
+   *
+   * \return llvm::StringRef
+   */
+  inline operator llvm::StringRef() const;
 
   /*!
    * \brief Check if a TVMArgValue can be converted to String, i.e. it can be std::string or String
@@ -1328,9 +1291,6 @@ class String : public ObjectRef {
 #endif
   }
 
-  /*! \return the internal StringObj pointer */
-  const StringObj* get() const { return operator->(); }
-
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
 
  private:
@@ -1345,6 +1305,29 @@ class String : public ObjectRef {
    * appear before other, positive otherwise.
    */
   static int memncmp(const char* lhs, const char* rhs, size_t lhs_count, size_t rhs_count);
+
+  /*!
+   * \brief Concatenate two char sequences
+   *
+   * \param lhs Pointers to the lhs char array
+   * \param lhs_size The size of the lhs char array
+   * \param rhs Pointers to the rhs char array
+   * \param rhs_size The size of the rhs char array
+   *
+   * \return The concatenated char sequence
+   */
+  static String Concat(const char* lhs, size_t lhs_size, const char* rhs, size_t rhs_size) {
+    std::string ret(lhs, lhs_size);
+    ret.append(rhs, rhs_size);
+    return String(ret);
+  }
+
+  // Overload + operator
+  friend String operator+(const String& lhs, const String& rhs);
+  friend String operator+(const String& lhs, const std::string& rhs);
+  friend String operator+(const std::string& lhs, const String& rhs);
+  friend String operator+(const String& lhs, const char* rhs);
+  friend String operator+(const char* lhs, const String& rhs);
 
   friend struct tvm::ObjectEqual;
 };
@@ -1376,15 +1359,109 @@ inline String::String(std::string other) {
   data_ = std::move(ptr);
 }
 
-inline String String::operator=(std::string other) {
+inline String& String::operator=(std::string other) {
   String replace{std::move(other)};
   data_.swap(replace.data_);
-  return Downcast<String>(*this);
+  return *this;
 }
 
-inline String operator+(const std::string lhs, const String& rhs) {
-  return lhs + rhs.operator std::string();
+inline String& String::operator=(const char* other) { return operator=(std::string(other)); }
+
+inline String operator+(const String& lhs, const String& rhs) {
+  size_t lhs_size = lhs.size();
+  size_t rhs_size = rhs.size();
+  return String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
 }
+
+inline String operator+(const String& lhs, const std::string& rhs) {
+  size_t lhs_size = lhs.size();
+  size_t rhs_size = rhs.size();
+  return String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
+}
+
+inline String operator+(const std::string& lhs, const String& rhs) {
+  size_t lhs_size = lhs.size();
+  size_t rhs_size = rhs.size();
+  return String::Concat(lhs.data(), lhs_size, rhs.data(), rhs_size);
+}
+
+inline String operator+(const char* lhs, const String& rhs) {
+  size_t lhs_size = std::strlen(lhs);
+  size_t rhs_size = rhs.size();
+  return String::Concat(lhs, lhs_size, rhs.data(), rhs_size);
+}
+
+inline String operator+(const String& lhs, const char* rhs) {
+  size_t lhs_size = lhs.size();
+  size_t rhs_size = std::strlen(rhs);
+  return String::Concat(lhs.data(), lhs_size, rhs, rhs_size);
+}
+
+// Overload < operator
+inline bool operator<(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) < 0; }
+
+inline bool operator<(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) > 0; }
+
+inline bool operator<(const String& lhs, const String& rhs) { return lhs.compare(rhs) < 0; }
+
+inline bool operator<(const String& lhs, const char* rhs) { return lhs.compare(rhs) < 0; }
+
+inline bool operator<(const char* lhs, const String& rhs) { return rhs.compare(lhs) > 0; }
+
+// Overload > operator
+inline bool operator>(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) > 0; }
+
+inline bool operator>(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) < 0; }
+
+inline bool operator>(const String& lhs, const String& rhs) { return lhs.compare(rhs) > 0; }
+
+inline bool operator>(const String& lhs, const char* rhs) { return lhs.compare(rhs) > 0; }
+
+inline bool operator>(const char* lhs, const String& rhs) { return rhs.compare(lhs) < 0; }
+
+// Overload <= operator
+inline bool operator<=(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) <= 0; }
+
+inline bool operator<=(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) >= 0; }
+
+inline bool operator<=(const String& lhs, const String& rhs) { return lhs.compare(rhs) <= 0; }
+
+inline bool operator<=(const String& lhs, const char* rhs) { return lhs.compare(rhs) <= 0; }
+
+inline bool operator<=(const char* lhs, const String& rhs) { return rhs.compare(lhs) >= 0; }
+
+// Overload >= operator
+inline bool operator>=(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) >= 0; }
+
+inline bool operator>=(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) <= 0; }
+
+inline bool operator>=(const String& lhs, const String& rhs) { return lhs.compare(rhs) >= 0; }
+
+inline bool operator>=(const String& lhs, const char* rhs) { return lhs.compare(rhs) >= 0; }
+
+inline bool operator>=(const char* lhs, const String& rhs) { return rhs.compare(rhs) <= 0; }
+
+// Overload == operator
+inline bool operator==(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) == 0; }
+
+inline bool operator==(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) == 0; }
+
+inline bool operator==(const String& lhs, const String& rhs) { return lhs.compare(rhs) == 0; }
+
+inline bool operator==(const String& lhs, const char* rhs) { return lhs.compare(rhs) == 0; }
+
+inline bool operator==(const char* lhs, const String& rhs) { return rhs.compare(lhs) == 0; }
+
+// Overload != operator
+inline bool operator!=(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) != 0; }
+
+inline bool operator!=(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) != 0; }
+
+inline bool operator!=(const String& lhs, const String& rhs) { return lhs.compare(rhs) != 0; }
+
+inline bool operator!=(const String& lhs, const char* rhs) { return lhs.compare(rhs) != 0; }
+
+inline bool operator!=(const char* lhs, const String& rhs) { return rhs.compare(lhs) != 0; }
 
 inline std::ostream& operator<<(std::ostream& out, const String& input) {
   out.write(input.data(), input.size());
@@ -1493,6 +1570,7 @@ class Optional : public ObjectRef {
    *         otherwise return the default_value.
    */
   T value_or(T default_value) const { return data_ != nullptr ? T(data_) : default_value; }
+
   /*! \return Whether the container is not nullptr.*/
   explicit operator bool() const { return *this != nullptr; }
   // operator overloadings

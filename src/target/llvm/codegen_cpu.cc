@@ -27,6 +27,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/tir/analysis.h>
 
+#include <algorithm>
 #include <memory>
 #include <unordered_map>
 
@@ -315,7 +316,8 @@ llvm::Value* CodeGenCPU::CreateCallExtern(const CallNode* op) {
   } else {
     llvm::Function* f = module_->getFunction(op->name);
     if (f == nullptr) {
-      f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, op->name, module_.get());
+      f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
+                                 op->name.operator llvm::StringRef(), module_.get());
     }
 #if TVM_LLVM_VERSION >= 90
     auto ext_callee = llvm::FunctionCallee(f);
@@ -407,7 +409,8 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   }
   llvm::FunctionType* ftype = llvm::FunctionType::get(t_int_, arg_types, false);
   llvm::Function* fcompute = llvm::Function::Create(
-      ftype, llvm::Function::PrivateLinkage, op->value.as<StringImmNode>()->value, module_.get());
+      ftype, llvm::Function::PrivateLinkage,
+      op->value.as<StringImmNode>()->value.operator llvm::StringRef(), module_.get());
   BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
   // setup compute fuinction.
   std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
@@ -900,8 +903,7 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
   } else if (op->for_type == ForType::Parallel) {
     if (parallel_env_.penv == nullptr) {
       CreateParallelLaunch(
-          ForNode::make(op->loop_var, op->min, op->extent, op->for_type, op->device_api, op->body),
-          0);
+          For(op->loop_var, op->min, op->extent, op->for_type, op->device_api, op->body), 0);
     } else {
       // already in parallel env.
       CHECK(parallel_env_.task_id.defined());
@@ -918,8 +920,8 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
                         op->loop_var, op->body);
       } else {
         PrimExpr step = (op->extent + num_task - make_const(t, 1)) / num_task;
-        PrimExpr begin = MinNode::make(task_id * step, op->extent);
-        PrimExpr end = MinNode::make((task_id + make_const(t, 1)) * step, op->extent);
+        PrimExpr begin = min(task_id * step, op->extent);
+        PrimExpr end = min((task_id + make_const(t, 1)) * step, op->extent);
         CreateSerialFor(MakeValue(begin), MakeValue(end),
                         llvm::ConstantInt::getSigned(GetLLVMType(end), 1), op->loop_var, op->body);
       }

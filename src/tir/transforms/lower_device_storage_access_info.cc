@@ -52,7 +52,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
           << "Double allocation of " << it->second.scope.to_string();
 
       if (info->head_address.defined()) {
-        return LetStmtNode::make(op->buffer_var, info->head_address, op->body);
+        return LetStmt(op->buffer_var, info->head_address, op->body);
       } else {
         return op->body;
       }
@@ -63,7 +63,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
       const VarNode* buf = op->node.as<VarNode>();
-      StorageScope scope = StorageScope::make(op->value.as<StringImmNode>()->value);
+      StorageScope scope = StorageScope::Create(op->value.as<StringImmNode>()->value);
       StorageEntry e;
       e.scope = scope;
       if (scope.tag.length() != 0) {

@@ -16,6 +16,7 @@
 # under the License.
 """Test code for broadcasting operators."""
 import numpy as np
+import pytest
 import tvm
 from tvm import te
 import topi
@@ -289,6 +290,85 @@ def verify_flip(in_shape, axis):
     for device in ["llvm", "cuda", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
 
+
+def test_reverse_sequence():
+    def verify_reverse_sequence(in_data, seq_lengths, batch_axis, seq_axis, ref_res):
+        seq_lengths = np.array(seq_lengths).astype("int32")
+        A = te.placeholder(shape=in_data.shape, name="A", dtype=str(in_data.dtype))
+        B = te.placeholder(shape=seq_lengths.shape, name="B", dtype=str(seq_lengths.dtype))
+        C = topi.reverse_sequence(A, B, seq_axis, batch_axis)
+
+        def check_device(device):
+            ctx = tvm.context(device, 0)
+            if not ctx.exist:
+                print("Skip because %s is not enabled" % device)
+                return
+            print("Running on target: %s" % device)
+            with tvm.target.create(device):
+                s = topi.testing.get_injective_schedule(device)(C)
+
+            foo = tvm.build(s, [A, B, C], device, name="reverse_sequence")
+
+            data_nd = tvm.nd.array(in_data, ctx)
+            seq_lengths_nd = tvm.nd.array(seq_lengths, ctx)
+            out_nd = tvm.nd.empty(in_data.shape, ctx=ctx, dtype=A.dtype)
+            foo(data_nd, seq_lengths_nd, out_nd)
+            tvm.testing.assert_allclose(out_nd.asnumpy(), ref_res)
+
+        for device in get_all_backend():
+            check_device(device)
+
+    indata = np.array(np.arange(0, 16)).reshape([4, 4]).astype("int32")
+    result = [[0, 5, 10, 15],
+              [4, 1, 6, 11],
+              [8, 9, 2, 7],
+              [12, 13, 14, 3]]
+    verify_reverse_sequence(indata, [1, 2, 3, 4], 1, 0, np.array(result))
+    verify_reverse_sequence(indata, [1, 2, 3, 4], -1, 0, np.array(result))
+    verify_reverse_sequence(indata.astype("float32"), [1, 2, 3, 4], 1, 0, np.array(result).astype("float32"))
+
+    indata = np.array(np.arange(0, 16)).reshape([4, 4]).astype("int32")
+    result = [[0, 1, 2, 3],
+              [5, 4, 6, 7],
+              [10, 9, 8, 11],
+              [15, 14, 13, 12]]
+    verify_reverse_sequence(indata, [1, 2, 3, 4], 0, 1, np.array(result))
+    verify_reverse_sequence(indata, [1, 2, 3, 4], 0, -1, np.array(result))
+    verify_reverse_sequence(indata.astype("float32"), [1, 2, 3, 4], 0, 1, np.array(result).astype("float32"))
+
+    indata = np.array(np.arange(0, 16)).reshape([4, 4]).astype("int32")
+    result = [[0, 1, 2, 3],
+              [4, 5, 6, 7],
+              [8, 9, 10, 11],
+              [15, 14, 13, 12]]
+    verify_reverse_sequence(indata, [-1, 0, 1, 5], 0, 1, np.array(result))
+
+    indata = np.array(np.arange(0, 54)).reshape([2, 3, 3, 3]).astype("int32")
+    result = [[[[18, 19, 20], [21, 22, 23], [24, 25, 26]],
+               [[9, 10, 11], [12, 13, 14], [15, 16, 17]],
+               [[0,  1,  2], [3,  4,  5], [6,  7,  8]]],
+              [[[45, 46, 47], [48, 49, 50], [51, 52, 53]],
+               [[36, 37, 38], [39, 40, 41], [42, 43, 44]],
+               [[27, 28, 29], [30, 31, 32], [33, 34, 35]]]]
+    verify_reverse_sequence(indata, [3, 3], 0, 1, np.array(result))
+
+    indata = np.array(np.arange(0, 54)).reshape([2, 3, 3, 3]).astype("int32")
+    result = [[[[9, 10, 11], [21, 22, 23], [15, 16, 17]],
+               [[0, 1, 2], [12, 13, 14], [6, 7, 8]],
+               [[18, 19, 20], [3, 4, 5], [24, 25, 26]]],
+              [[[36, 37, 38], [48, 49, 50], [42, 43, 44]],
+               [[27, 28, 29], [39, 40, 41], [33, 34, 35]],
+               [[45, 46, 47], [30, 31, 32], [51, 52, 53]]]]
+    verify_reverse_sequence(indata, [2, 3, 2], 2, 1, np.array(result))
+
+    indata = np.array(np.arange(0, 16)).reshape([4, 4]).astype("int32")
+    result = []
+    with pytest.raises(Exception) as execinfo:
+        verify_reverse_sequence(indata, [2, 3, 2, 4, 5], 1, 0, np.array(result))
+
+    assert "For reverse_sequnece seq_lengths size should match with dimension of batch axis," \
+           " but got dimension of batch_axis = 4, and seq_length size = 5" in execinfo.value.args[0]
+
 def verify_take(src_shape, indices_src, axis=None, mode="clip"):
     src_dtype = "float32"
     indices_dtype = "int32"
@@ -400,6 +480,35 @@ def verify_strided_set(in_shape, v_shape, begin, end, strides=None):
         tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
+        check_device(device)
+
+def verify_gather(data, axis, indices):
+    data = np.asarray(data)
+    indices = np.asarray(indices)
+
+    var_data = te.placeholder(shape=data.shape, dtype=data.dtype.name, name="data")
+    var_indices = te.placeholder(shape=indices.shape, dtype=indices.dtype.name, name="indices")
+    out_tensor = topi.gather(var_data, axis, var_indices)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.testing.get_injective_schedule(device)(out_tensor)
+
+        func = tvm.build(s, [var_data, var_indices, out_tensor] , device, name="gather")
+        out_npys = topi.testing.gather_python(data, axis, indices)
+
+        data_nd = tvm.nd.array(data, ctx)
+        indices_nd = tvm.nd.array(indices, ctx)
+        out_nd = tvm.nd.empty(out_npys.shape, ctx=ctx, dtype=data.dtype.name)
+        func(data_nd, indices_nd, out_nd)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npys)
+
+    for device in get_all_backend():
         check_device(device)
 
 def verify_gather_nd(src_shape, indices_src, indices_dtype):
@@ -772,6 +881,15 @@ def test_take():
     verify_take((3,3,3), [[11,25]], mode="fast")
     verify_take((3,4), [0, 2], axis=0, mode="fast")
     verify_take((3,4), [0, 2], axis=1, mode="fast")
+
+def test_gather():
+    verify_gather([[1, 2], [3, 4]], 1, [[0, 0], [1, 0]])
+    verify_gather(np.random.randn(4, 7, 5), 0, np.random.randint(low=0, high=4, size=(1, 7, 5)))
+    verify_gather(np.random.randn(4, 7, 5), 0, np.random.randint(low=0, high=4, size=(4, 7, 5)))
+    verify_gather(np.random.randn(4, 7, 5), 1, np.random.randint(low=0, high=7, size=(4, 10, 5)))
+    verify_gather(np.random.randn(4, 7, 5), 1, np.random.randint(low=0, high=7, size=(4, 10, 5)))
+    verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 2)))
+    verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 10)))
 
 def test_gather_nd():
     for indices_dtype in ['int32', 'float32']:

@@ -376,8 +376,7 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 }
 
 Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                      int opt_level, const String& name,
-                      const tvm::Array<runtime::String>& required) {
+                      int opt_level, String name, tvm::Array<String> required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return ModulePass(pass_func, pass_info);
 }
@@ -385,7 +384,7 @@ Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassCont
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
 TVM_REGISTER_GLOBAL("transform.PassInfo")
-    .set_body_typed([](int opt_level, String name, tvm::Array<runtime::String> required) {
+    .set_body_typed([](int opt_level, String name, tvm::Array<String> required) {
       return PassInfo(opt_level, name, required);
     });
 

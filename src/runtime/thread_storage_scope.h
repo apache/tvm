@@ -112,11 +112,11 @@ struct StorageScope {
     }
   }
   /*!
-   * \brief make storage scope from string
+   * \brief Create storage scope from string
    * \param s The string to be parsed.
    * \return The storage scope.
    */
-  static StorageScope make(const std::string& s) {
+  static StorageScope Create(const std::string& s) {
     StorageScope r;
     if (s.compare(0, 6, "global") == 0) {
       r.rank = StorageRank::kGlobal;
@@ -153,11 +153,11 @@ struct ThreadScope {
   /*! \brief the dimension index under the rank */
   int dim_index{0};
   /*!
-   * \brief make storage scope from string
+   * \brief Create storage scope from string
    * \param s The string to be parsed.
    * \return The storage scope.
    */
-  static ThreadScope make(const std::string& s) {
+  static ThreadScope Create(const std::string& s) {
     ThreadScope r;
     if (s == "vthread" || s == "cthread") {
       // virtual thread at the same level as local
@@ -199,7 +199,7 @@ class ThreadAxisConfig {
     std::vector<bool> filled(6, false);
     for (size_t i = 0; i < thread_axis_tags.size(); ++i) {
       const std::string& tag = thread_axis_tags[i];
-      ThreadScope ts = ThreadScope::make(tag);
+      ThreadScope ts = ThreadScope::Create(tag);
       arg_index_map_.push_back(ts.rank * 3 + ts.dim_index);
       filled[ts.rank * 3 + ts.dim_index] = true;
     }

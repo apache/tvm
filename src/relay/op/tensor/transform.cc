@@ -481,7 +481,7 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
     // Doesn't support dynamic output rank
     for (int i = 0; i < newshape->shape[0].as<IntImmNode>()->value; i++) {
-      oshape.push_back(Any::make());
+      oshape.push_back(Any());
     }
 
     reporter->Assign(types[2], TensorType(oshape, data->dtype));
@@ -526,8 +526,8 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       used_input_dims.insert(src_idx);
       IndexExpr d2 = data_shape[src_idx++];
       used_output_dims.insert(oshape.size());
-      if (d1.as<Any>() || d2.as<Any>()) {
-        oshape.push_back(Any::make());
+      if (d1.as<AnyNode>() || d2.as<AnyNode>()) {
+        oshape.push_back(Any());
       } else {
         oshape.push_back(d1 * d2);
       }
@@ -543,8 +543,8 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       if (d1->value == -1) {
         CHECK(d2->value != -1) << "Split dims cannot both be -1.";
         used_output_dims.insert(oshape.size());
-        if (d0.as<Any>()) {
-          oshape.push_back(Any::make());
+        if (d0.as<AnyNode>()) {
+          oshape.push_back(Any());
         } else {
           oshape.push_back(indexdiv(d0, d2));
         }
@@ -555,8 +555,8 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         oshape.push_back(d1);
         used_output_dims.insert(oshape.size());
         if (d2->value == -1) {
-          if (d0.as<Any>()) {
-            oshape.push_back(Any::make());
+          if (d0.as<AnyNode>()) {
+            oshape.push_back(Any());
           } else {
             oshape.push_back(indexdiv(d0, d1));
           }
@@ -575,19 +575,19 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       if (used_input_dims.count(i) != 0) {
         continue;
       }
-      if (data_shape[i].as<Any>()) {
-        infer_dim = Any::make();
+      if (data_shape[i].as<AnyNode>()) {
+        infer_dim = Any();
         break;
       }
       infer_dim *= data_shape[i];
     }
-    if (!infer_dim.as<Any>()) {
+    if (!infer_dim.as<AnyNode>()) {
       for (size_t i = 0; i < oshape.size(); ++i) {
         if (used_output_dims.count(i) != 0) {
           continue;
         }
-        if (oshape[i].as<Any>()) {
-          infer_dim = Any::make();
+        if (oshape[i].as<AnyNode>()) {
+          infer_dim = Any();
           break;
         }
         infer_dim = indexdiv(infer_dim, oshape[i]);
@@ -759,7 +759,7 @@ bool ArgWhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto& input_shape = tt->shape;
   const auto& input_rank = input_shape.size();
   std::vector<IndexExpr> result_shape;
-  result_shape.push_back(Any::make());
+  result_shape.push_back(Any());
   result_shape.push_back(IntImm(DataType::Int(32), input_rank));
   reporter->Assign(types[1], TensorType(result_shape, DataType::Int(32)));
   return true;
@@ -960,7 +960,7 @@ bool FullRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
   } else {
     for (int i = 0; i < shape_shape->value; ++i) {
-      oshape.push_back(Any::make());
+      oshape.push_back(Any());
     }
   }
   reporter->Assign(types[2], TensorType(oshape, out_dtype));
@@ -1016,7 +1016,7 @@ bool InitOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
   } else {
     for (int i = 0; i < shape_shape->value; ++i) {
-      oshape.push_back(Any::make());
+      oshape.push_back(Any());
     }
   }
   reporter->Assign(types[1], TensorType(oshape, out_dtype));
@@ -1136,7 +1136,7 @@ bool ArangeRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attrs,
     reporter->Assign(types[3], TensorType({num_elem}, attrs->dtype));
     return true;
   } else {
-    reporter->Assign(types[3], TensorType({Any::make()}, attrs->dtype));
+    reporter->Assign(types[3], TensorType({Any()}, attrs->dtype));
     return true;
   }
 }
@@ -1331,7 +1331,7 @@ bool TileRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   for (size_t i = 0; i < tndim; ++i) {
     // Save Any if it is dynamic shape
     if (!data_shape[i].as<IntImmNode>()) {
-      oshape.emplace_back(Any::make());
+      oshape.emplace_back(Any());
     } else {
       oshape.emplace_back(data_shape[i] * reps_shape[i]);
     }
@@ -1397,7 +1397,8 @@ Array<te::Tensor> ReverseCompute(const Attrs& attrs, const Array<te::Tensor>& in
                                  const Type& out_type) {
   const ReverseAttrs* param = attrs.as<ReverseAttrs>();
   CHECK(param != nullptr);
-  return {topi::flip(inputs[0], param->axis)};
+  // pass empty seq_length tensor to reverse_sequence
+  return {topi::reverse_sequence(inputs[0], te::Tensor(), param->axis)};
 }
 
 Expr MakeReverse(Expr data, int axis) {
@@ -1421,6 +1422,96 @@ RELAY_REGISTER_OP("reverse")
     .set_support_level(3)
     .add_type_rel("Reverse", ReverseRel)
     .set_attr<FTVMCompute>("FTVMCompute", ReverseCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
+// reverse sequence operator
+TVM_REGISTER_NODE_TYPE(ReverseSequenceAttrs);
+
+bool ReverseSequenceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                        const TypeReporter& reporter) {
+  // `types` contains: [data, seq_lengths, result]
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "reverse_sequence: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+
+  const auto* seq_lengths = types[1].as<TensorTypeNode>();
+  if (seq_lengths == nullptr) {
+    CHECK(types[1].as<IncompleteTypeNode>())
+        << "reverse_sequence: expect input type to be TensorType but get " << types[1];
+    return false;
+  }
+
+  const int seq_lengths_dim = static_cast<int>(seq_lengths->shape.size());
+  CHECK(seq_lengths_dim == 1) << "For reverse_sequnece, seq_lengths must be a 1D vector";
+  CHECK(seq_lengths->dtype.is_int())
+      << "For reverse_sequnece, seq_lengths must be tensor of integer";
+
+  const auto* param = attrs.as<ReverseSequenceAttrs>();
+  const int ndim = static_cast<int>(data->shape.size());
+  int batch_axis = param->batch_axis;
+  CHECK(-ndim <= batch_axis && batch_axis < ndim)
+      << "reverse_sequence only accepts `batch_axis` in [-data.ndim, data.ndim - 1]"
+      << ", but got batch_axis = " << batch_axis << ", and data.ndim = " << ndim;
+
+  if (batch_axis < 0) {
+    batch_axis = static_cast<int>(data->shape.size()) + batch_axis;
+  }
+  CHECK(reporter->Assert(seq_lengths->shape[0] == data->shape[batch_axis]))
+      << "For reverse_sequnece seq_lengths size should match with dimension of batch axis"
+      << ", but got dimension of batch_axis = " << data->shape[batch_axis]
+      << ", and seq_length size = " << seq_lengths->shape[0];
+
+  const int seq_axis = param->seq_axis;
+  CHECK(-ndim <= seq_axis && seq_axis < ndim)
+      << "reverse_sequnece only accepts `seq_axis` in [-data.ndim, data.ndim - 1]"
+      << ", but got seq_axis = " << seq_axis << ", and data.ndim = " << ndim;
+
+  reporter->Assign(types[2], types[0]);
+  return true;
+}
+
+Array<te::Tensor> ReverseSequenceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                         const Type& out_type) {
+  const ReverseSequenceAttrs* param = attrs.as<ReverseSequenceAttrs>();
+  CHECK(param != nullptr);
+  return {topi::reverse_sequence(inputs[0], inputs[1], param->seq_axis, param->batch_axis)};
+}
+
+Expr MakeReverseSequence(Expr data, Expr seq_lengths, int seq_axis, int batch_axis) {
+  auto attrs = make_object<ReverseSequenceAttrs>();
+  attrs->seq_axis = seq_axis;
+  attrs->batch_axis = batch_axis;
+  static const Op& op = Op::Get("reverse_sequence");
+  return Call(op, {data, seq_lengths}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.reverse_sequence").set_body_typed(MakeReverseSequence);
+
+RELAY_REGISTER_OP("reverse_sequence")
+    .describe(R"code(Reverses the tensor for variable length slices.
+Input is first sliced along batch axis and then elements are reversed along seq axis.
+
+- **data**: The input data to the operator.
+
+- **seq_lengths**: A 1D Tensor with length data.dims[batch_axis].
+
+- **seq_axis**: The axis along which the elements will be reversed. Default is 1.
+
+- **batch_axis**: The axis along which the tensor will be sliced. Default is 0.
+
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .set_attrs_type<ReverseSequenceAttrs>()
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("seq_lengths", "Tensor", "A 1D Tensor with length data.dims[batch_axis]")
+    .set_support_level(3)
+    .add_type_rel("ReverseSequence", ReverseSequenceRel)
+    .set_attr<FTVMCompute>("FTVMCompute", ReverseSequenceCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // where operator
@@ -1641,7 +1732,7 @@ bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     }
   } else {
     for (int i = 0; i < shape_shape->value; ++i) {
-      oshape.push_back(Any::make());
+      oshape.push_back(Any());
     }
   }
   reporter->Assign(types[2], TensorType(oshape, out_dtype));
@@ -1817,7 +1908,7 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
     }
   } else {
     for (int64_t i = 0; i < num_axis; ++i) {
-      oshape[i] = Any::make();
+      oshape[i] = Any();
     }
   }
 
@@ -2088,13 +2179,19 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK_GE(axis, 0) << "axis should be within the input dimension range.";
 
   if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
-    CHECK(reporter->Assert(indexmod(data->shape[axis], sections->value) ==
-                           tir::make_zero(DataType::Int(64))))
-        << "indices_or_sections need to be able to divide input.shape[axis]";
+    if (!data->shape[axis].as<AnyNode>()) {
+      CHECK(reporter->Assert(indexmod(data->shape[axis], sections->value) ==
+                             tir::make_zero(DataType::Int(64))))
+          << "indices_or_sections need to be able to divide input.shape[axis]";
+    }
     std::vector<Type> fields;
     for (int i = 0; i < sections->value; ++i) {
       std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-      oshape[axis] = indexdiv(oshape[axis], sections->value);
+      if (data->shape[axis].as<AnyNode>()) {
+        oshape[axis] = Any();
+      } else {
+        oshape[axis] = indexdiv(oshape[axis], sections->value);
+      }
       auto vec_type = TensorType(oshape, data->dtype);
       fields.push_back(vec_type);
     }
@@ -2112,10 +2209,16 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       auto vec_type = TensorType(oshape, data->dtype);
       fields.push_back(vec_type);
     }
-    CHECK(reporter->Assert(begin < data->shape[axis]))
-        << "The sum of sections must match the input.shape[axis]";
+    if (!data->shape[axis].as<AnyNode>()) {
+      CHECK(reporter->Assert(begin < data->shape[axis]))
+          << "The sum of sections must match the input.shape[axis]";
+    }
     std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-    oshape[axis] = data->shape[axis] - begin;
+    if (data->shape[axis].as<AnyNode>()) {
+      oshape[axis] = Any();
+    } else {
+      oshape[axis] = data->shape[axis] - begin;
+    }
     auto vec_type = TensorType(oshape, data->dtype);
     fields.push_back(vec_type);
     reporter->Assign(types[1], TupleType(Array<Type>(fields)));
@@ -2383,6 +2486,88 @@ example below::
     .set_support_level(10)
     .add_type_rel("Reshape", ReshapeRel)
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
+// gather operator
+TVM_REGISTER_NODE_TYPE(GatherAttrs);
+
+bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // `types` contains: [data, indices, result]
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* indices = types[1].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "Gather: expect input data type to be TensorType but get " << types[0];
+    return false;
+  }
+  if (indices == nullptr) {
+    CHECK(types[1].as<IncompleteTypeNode>())
+        << "Gather: expect indices type to be TensorType but get " << types[1];
+    return false;
+  }
+  CHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
+  const auto param = attrs.as<GatherAttrs>();
+  CHECK(param != nullptr);
+  CHECK(param->axis.defined());
+
+  const auto ndim_data = data->shape.size();
+  const auto ndim_indices = indices->shape.size();
+  int axis = param->axis->value;
+  CHECK_EQ(ndim_data, ndim_indices);
+  CHECK_GE(axis, 0);
+  CHECK_LT(axis, ndim_data);
+
+  std::vector<IndexExpr> oshape;
+  oshape.reserve(ndim_data);
+  for (size_t i = 0; i < ndim_data; ++i) {
+    if (i == (size_t)axis) {
+      const int64_t* indice_shape_i = tir::as_const_int(indices->shape[i]);
+      CHECK_GE(*indice_shape_i, 1);
+    } else {
+      CHECK(reporter->AssertEQ(indices->shape[i], data->shape[i]));
+    }
+    oshape.emplace_back(indices->shape[i]);
+  }
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Array<te::Tensor> GatherCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                const Type& out_type) {
+  const auto* param = attrs.as<GatherAttrs>();
+  return {topi::gather(inputs[0], param->axis, inputs[1])};
+}
+
+Expr MakeGather(Expr data, Integer axis, Expr indices) {
+  auto attrs = make_object<GatherAttrs>();
+  attrs->axis = std::move(axis);
+  static const Op& op = Op::Get("gather");
+  return Call(op, {data, indices}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.gather").set_body_typed(MakeGather);
+
+RELAY_REGISTER_OP("gather")
+    .describe(R"code(Gather values along given axis from given indices.
+
+E.g. for a 3D tensor, output is computed as:
+
+	out[i][j][k] = data[indices[i][j][k]][j][k]  # if axis == 0
+	out[i][j][k] = data[i][indices[i][j][k]][k]  # if axis == 1
+	out[i][j][k] = data[i][j][indices[i][j][k]]  # if axis == 2
+
+``indices`` must have same shape as ``data``, except at dimension ``axis``
+which must just be not null. Output will have same shape as ``indices``.
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<GatherAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input data to the operator.")
+    .add_argument("indices", "Tensor", "The indices of values to gather.")
+    .set_support_level(3)
+    .add_type_rel("Gather", GatherRel)
+    .set_attr<FTVMCompute>("FTVMCompute", GatherCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // gather_nd operator

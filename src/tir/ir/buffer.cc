@@ -44,9 +44,9 @@ Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, Array<PrimExpr> array) {
   return array;
 }
 
-Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, std::string name) {
-  return BufferNode::make(Var(name, PointerType(PrimType(dtype))), dtype, shape, Array<PrimExpr>(),
-                          PrimExpr(), name, "", 0, 0, kDefault);
+Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name) {
+  return Buffer(Var(name, PointerType(PrimType(dtype))), dtype, shape, Array<PrimExpr>(),
+                PrimExpr(), name, "", 0, 0, kDefault);
 }
 
 // Split the given expression w.r.t the add operator
@@ -275,7 +275,7 @@ inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataTyp
     offset = offset * make_const(offset.dtype(), dtype.lanes());
   }
   if (dtype.lanes() != 1) {
-    return tir::RampNode::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
+    return tir::Ramp(offset, make_const(offset.dtype(), 1), dtype.lanes());
   } else {
     return offset;
   }
@@ -287,13 +287,11 @@ PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
   CHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype << " from buffer of " << n->dtype;
   if (dtype == DataType::Bool()) {
-    return tir::CastNode::make(
-        DataType::Bool(),
-        tir::LoadNode::make(DataType::Int(8), n->data, BufferOffset(n, begin, DataType::Int(8)),
-                            const_true()));
+    return tir::Cast(DataType::Bool(),
+                     tir::Load(DataType::Int(8), n->data, BufferOffset(n, begin, DataType::Int(8)),
+                               const_true()));
   } else {
-    return tir::LoadNode::make(dtype, n->data, BufferOffset(n, begin, dtype),
-                               const_true(dtype.lanes()));
+    return tir::Load(dtype, n->data, BufferOffset(n, begin, dtype), const_true(dtype.lanes()));
   }
 }
 
@@ -304,11 +302,10 @@ Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
   CHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype << " from buffer of " << n->dtype;
   if (value.dtype() == DataType::Bool()) {
-    return tir::StoreNode::make(n->data, tir::CastNode::make(DataType::Int(8), value),
-                                BufferOffset(n, begin, DataType::Int(8)), const_true());
+    return tir::Store(n->data, tir::Cast(DataType::Int(8), value),
+                      BufferOffset(n, begin, DataType::Int(8)), const_true());
   } else {
-    return tir::StoreNode::make(n->data, value, BufferOffset(n, begin, dtype),
-                                const_true(dtype.lanes()));
+    return tir::Store(n->data, value, BufferOffset(n, begin, dtype), const_true(dtype.lanes()));
   }
 }
 
@@ -351,8 +348,8 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
       return MakeStrideView().MakeSlice(begins, extents);
     }
   }
-  return BufferNode::make(n->data, n->dtype, extents, strides, elem_offset, n->name + "_slice",
-                          n->scope, n->data_alignment, 0, n->buffer_type);
+  return Buffer(n->data, n->dtype, extents, strides, elem_offset, n->name + "_slice", n->scope,
+                n->data_alignment, 0, n->buffer_type);
 }
 
 PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes,
@@ -379,13 +376,12 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
   }
   Array<PrimExpr> acc_args{e_dtype, self->data, elem_offset, extent,
                            make_const(DataType::Int(32), access_mask)};
-  return tir::CallNode::make(ptr_type, tir::intrinsic::tvm_access_ptr, acc_args,
-                             tir::CallNode::Intrinsic);
+  return tir::Call(ptr_type, tir::intrinsic::tvm_access_ptr, acc_args, tir::CallNode::Intrinsic);
 }
 
-Buffer BufferNode::make(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
-                        PrimExpr elem_offset, std::string name, std::string scope,
-                        int data_alignment, int offset_factor, BufferType buffer_type) {
+Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
+               PrimExpr elem_offset, String name, String scope, int data_alignment,
+               int offset_factor, BufferType buffer_type) {
   auto n = make_object<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
@@ -414,7 +410,7 @@ Buffer BufferNode::make(Var data, DataType dtype, Array<PrimExpr> shape, Array<P
       n->strides.push_back(Var("stride", n->shape[i].dtype()));
     }
   }
-  return Buffer(n);
+  data_ = std::move(n);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -427,10 +423,10 @@ TVM_REGISTER_NODE_TYPE(BufferNode);
 
 TVM_REGISTER_GLOBAL("tir.Buffer").set_body([](TVMArgs args, TVMRetValue* ret) {
   CHECK_EQ(args.size(), 10);
-  auto buffer_type = args[9].operator std::string();
+  auto buffer_type = args[9].operator String();
   BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  *ret = BufferNode::make(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7],
-                          args[8], type);
+  *ret =
+      Buffer(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], type);
 });
 
 TVM_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);

@@ -75,10 +75,10 @@ Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2, DataType outp
       oshape.push_back(s2);
     } else if (EqualConstInt(s2, 1)) {
       oshape.push_back(s1);
-    } else if (s1.as<Any>()) {
+    } else if (s1.as<AnyNode>()) {
       // s1 == 1 || s1 == s2
       oshape.push_back(s2);
-    } else if (s2.as<Any>()) {
+    } else if (s2.as<AnyNode>()) {
       // s2 == 1 || s2 == s1
       oshape.push_back(s1);
     } else if (EqualCheck(s1, s2)) {

@@ -28,8 +28,8 @@ from .expr import Select, BufferLoad, ProducerLoad, Load, Ramp, Broadcast, Shuff
 from .expr import IterVar, Any
 
 from .stmt import Stmt, LetStmt, AssertStmt, For
-from .stmt import BufferStore, BufferRealize, Store, Provide, Allocate, AttrStmt
-from .stmt import Free, Realize, SeqStmt
+from .stmt import BufferStore, BufferRealize, Store, ProducerStore, Allocate, AttrStmt
+from .stmt import Free, ProducerRealize, SeqStmt
 from .stmt import IfThenElse, Evaluate, Prefetch, stmt_seq, stmt_list
 
 from .function import PrimFunc
