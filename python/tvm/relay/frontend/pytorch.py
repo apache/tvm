@@ -530,10 +530,12 @@ def _linspace():
     return _impl
 
 
-def _relu():
+def _relu(prelude):
     def _impl(inputs, input_types):
         data = inputs[0]
-        if input_types[0] == "quint8":
+        ty = _infer_type_with_prelude(data, prelude)
+        # See the comment in adaptive avg pool2d
+        if ty.dtype == "uint8":
             assert len(inputs) == 3, "Input quant param not found in op inputs"
             input_zero_point = _expr.const(inputs[2], dtype="int32")
             return qnn_torch.quantized_relu(data, input_zero_point)
@@ -595,7 +597,7 @@ def _log_sigmoid():
         return _op.log(_op.tensor.sigmoid(data))
     return _impl
 
-def _adaptive_avg_pool_2d():
+def _adaptive_avg_pool_2d(prelude):
     def _impl(inputs, input_types):
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
@@ -603,7 +605,11 @@ def _adaptive_avg_pool_2d():
         def func(x):
             return _op.nn.adaptive_avg_pool2d(x, output_size=output_size)
 
-        if input_types[0] == "quint8":
+        ty = _infer_type_with_prelude(data, prelude)
+        # If a quantized Torch module is saved and loaded back, dtype will be dropped
+        # input_types[0] can be float even though the input is a quantized tensor
+        # To reliably determine input types, we use Relay's type inference result
+        if ty.dtype == "uint8":
             return qnn_torch.apply_with_upcast(data, func)
 
         return func(data)
@@ -1108,7 +1114,7 @@ def _softplus():
         return _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.)) / beta
     return _impl
 
-def _avg_pool2d():
+def _avg_pool2d(prelude):
     def _impl(inputs, input_types):
         data = inputs[0]
 
@@ -1130,7 +1136,9 @@ def _avg_pool2d():
                                      ceil_mode=ceil_mode,
                                      count_include_pad=count_include_pad)
 
-        if input_types[0] == "quint8":
+        ty = _infer_type_with_prelude(data, prelude)
+        # See the comment in adaptive avg pool2d
+        if ty.dtype == "uint8":
             return qnn_torch.apply_with_upcast(data, func)
 
         return func(data)
@@ -1254,7 +1262,7 @@ def _variance():
 
     return _impl
 
-def _mean():
+def _mean(prelude):
     def _impl(inputs, input_types):
         data = inputs[0]
 
@@ -1274,7 +1282,9 @@ def _mean():
         def func(x):
             return _op.mean(x, axis, keepdims, exclude)
 
-        if input_types[0] == "quint8":
+        ty = _infer_type_with_prelude(data, prelude)
+        # See the comment in adaptive avg pool2d
+        if ty.dtype == "uint8":
             assert len(inputs) == 6, "Input quant param not found in op inputs"
             input_scale = _expr.const(inputs[4])
             input_zero_point = _expr.const(inputs[5])
@@ -1492,7 +1502,7 @@ def _to():
 
     return _impl
 
-def _upsample(method):
+def _upsample(method, prelude):
     def _impl(inputs, input_types):
         if isinstance(inputs[1], _expr.Var):
             out_size = _infer_shape(inputs[1])
@@ -1516,7 +1526,9 @@ def _upsample(method):
         def func(x):
             return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
 
-        if input_types[0] == "quint8":
+        ty = _infer_type_with_prelude(data, prelude)
+        # See the comment in adaptive avg pool2d
+        if ty.dtype == "uint8":
             import torch
             from packaging import version
 
@@ -1835,8 +1847,8 @@ def _get_convert_map(prelude):
         "aten::take"                            : _take(),
         "aten::where"                           : _where(),
         "aten::topk"                            : _topk(),
-        "aten::relu"                            : _relu(),
-        "aten::relu_"                           : _relu(),
+        "aten::relu"                            : _relu(prelude),
+        "aten::relu_"                           : _relu(prelude),
         "aten::prelu"                           : _prelu(),
         "aten::leaky_relu"                      : _leaky_relu(),
         "aten::elu"                             : _elu(),
@@ -1845,7 +1857,7 @@ def _get_convert_map(prelude):
         "aten::gelu"                            : _gelu(),
         "aten::selu"                            : _selu(),
         "aten::log_sigmoid"                     : _log_sigmoid(),
-        "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(),
+        "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(prelude),
         "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),
         "aten::max_pool2d"                      : _maxpool_2d(),
         "aten::max_pool2d_with_indices"         : _maxpool_2d_with_indices(),
@@ -1874,13 +1886,13 @@ def _get_convert_map(prelude):
         "aten::log_softmax"                     : _log_softmax(),
         "aten::sigmoid"                         : _sigmoid(),
         "aten::softplus"                        : _softplus(),
-        "aten::avg_pool2d"                      : _avg_pool2d(),
+        "aten::avg_pool2d"                      : _avg_pool2d(prelude),
         "aten::avg_pool3d"                      : _avg_pool3d(),
         "aten::dropout"                         : _dropout(),
         "aten::dropout_"                        : _dropout(),
         "aten::feature_dropout"                 : _dropout(),
         "aten::alpha_dropout"                   : _dropout(),
-        "aten::mean"                            : _mean(),
+        "aten::mean"                            : _mean(prelude),
         "aten::chunk"                           : _chunk(prelude),
         "aten::matmul"                          : _matmul(prelude),
         "aten::expand"                          : _expand(),
@@ -1932,8 +1944,8 @@ def _get_convert_map(prelude):
         "aten::isnan"                           : _unary("isnan"),
         "aten::clamp"                           : _clamp(),
         "aten::detach"                          : _identity(),
-        "aten::upsample_bilinear2d"             : _upsample("bilinear"),
-        "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
+        "aten::upsample_bilinear2d"             : _upsample("bilinear", prelude),
+        "aten::upsample_nearest2d"              : _upsample("nearest_neighbor", prelude),
         "aten::upsample_trilinear3d"            : _upsample3d("trilinear"),
         "aten::upsample_nearest3d"              : _upsample3d("nearest_neighbor"),
         "aten::expand_as"                       : _expand_as(),
