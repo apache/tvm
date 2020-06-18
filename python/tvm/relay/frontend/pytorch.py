@@ -1760,14 +1760,12 @@ def _pytorch_result_type(dtypes, non_tensor_inputs):
 
 def _pytorch_promote_types(inputs, dtypes):
     """This promotes TVM inputs with TVM dtypes passed like PyTorch would"""
-    tensor_dtypes = [dt for inp, dt in zip(inputs, dtypes)
-                     if not isinstance(inp, (float, int, bool))]
-    non_tensor_inputs = [inp for inp in inputs
-                         if isinstance(inp, (float, int, bool))]
+    tensor_dtypes = [dt for inp, dt in zip(inputs, dtypes) if not np.isscalar(inp)]
+    non_tensor_inputs = [inp for inp in inputs if np.isscalar(inp)]
     result_type = _pytorch_result_type(tensor_dtypes, non_tensor_inputs)
     results = []
     for inp, dt in zip(inputs, dtypes):
-        if isinstance(inp, (float, int, bool)):
+        if np.isscalar(inp):
             results.append(_expr.const(inp, dtype=result_type))
         elif dt == result_type:
             results.append(inp)
@@ -2036,6 +2034,7 @@ def _run_jit_passes(graph):
 
 
 def _is_int_seq(seq):
+    # TODO (t-vi): handle non-int constants? (like numpy.intXX)
     return len(seq) > 0 and all([isinstance(i, int) for i in seq])
 
 

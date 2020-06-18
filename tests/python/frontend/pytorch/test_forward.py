@@ -2546,6 +2546,8 @@ def test_forward_pretrained_bert_base_uncased():
 
 
 if __name__ == "__main__":
+    test_forward_traced_function()
+    test_forward_dtypes()
     # Single operator tests
     test_forward_add()
     test_forward_subtract()
