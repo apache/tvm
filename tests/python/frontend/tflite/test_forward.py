@@ -39,6 +39,7 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import nn_impl
 from tensorflow.python.ops import variables
+import tensorflow_hub as hub
 try:
     from tensorflow import lite as interpreter_wrapper
 except ImportError:
@@ -72,6 +73,28 @@ def get_real_image(im_height, im_width):
     x = np.array(image).astype('uint8')
     data = np.reshape(x, (1, im_height, im_width, 3))
     return data
+
+
+def pre_processed_image(height, width):
+    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
+    img_name = 'elephant-299.jpg'
+    image_url = os.path.join(repo_base, img_name)
+    img_path = download_testdata(image_url, img_name, module='data')
+    image = tf.io.read_file(img_path)
+    image = tf.image.decode_jpeg(image, channels=3)
+    with tf.name_scope('eval_image'):
+        if image.dtype != tf.float32:
+            image = tf.image.convert_image_dtype(image, dtype=tf.float32)
+        image = tf.image.central_crop(image, central_fraction=0.875)
+    # Resize the image to the specified height and width.
+    image = tf.expand_dims(image, 0)
+    image = tf.image.resize(image, [height, width],
+                            align_corners=False)
+    image = tf.image.resize(image, [height, width])
+    image = tf.squeeze(image, [0])
+    image = tf.expand_dims(image, axis=0)
+    return image
+
 
 def get_real_image_object_detection(im_height, im_width):
     repo_base = 'https://github.com/dmlc/web-data/raw/master/gluoncv/detection/'
@@ -1707,7 +1730,6 @@ def _test_quantize_dequantize(data):
 
     # Convert the model to TensorFlow Lite format
     tflite_model_quant = converter.convert()
-
     tflite_output = run_tflite_graph(tflite_model_quant, data)
     tvm_output = run_tvm_graph(tflite_model_quant, data, 'input_1')
     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
@@ -2471,6 +2493,112 @@ def test_forward_qnn_mobilenet_v3_net():
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 
+
+def _quantize_tf_hub_keras_model(url, height, width):
+    keras_model = tf.keras.Sequential([hub.KerasLayer(url, output_shape=[1001])])
+    data = pre_processed_image(height, width)
+
+    # Set the input shapes of the keras model
+    keras_model._set_inputs(data)
+
+    # Get the converter
+    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
+
+    # To create quantized values with dynamic range of activations, needs representative dataset
+    def representative_data_gen():
+        for i in range(1):
+            yield [data]
+
+    converter.optimizations = [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
+    converter.representative_dataset = representative_data_gen
+    return converter.convert()
+
+
+def test_forward_tflite2_qnn_resnet50():
+    """Test the Quantized TFLite version 2.1.0 Resnet50 model."""
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
+        # Quantize the model
+        url = "https://tfhub.dev/tensorflow/resnet_50/classification/1"
+        tflite_model_buf = _quantize_tf_hub_keras_model(url, 224, 224)
+        data = pre_processed_image(224, 224)
+
+        tflite_output = run_tflite_graph(tflite_model_buf, data)
+        tflite_predictions = np.squeeze(tflite_output)
+        tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+        tvm_output = run_tvm_graph(tflite_model_buf, np.array(data), 'input_1')
+        tvm_predictions = np.squeeze(tvm_output)
+        tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+        tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+
+def test_forward_tflite2_qnn_inception_v1():
+    """Test the Quantized TFLite version 2.1.0 Inception V1 model."""
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
+        # Quantize the model
+        url = "https://tfhub.dev/google/imagenet/inception_v1/classification/4"
+        tflite_model_buf = _quantize_tf_hub_keras_model(url, 224, 224)
+        data = pre_processed_image(224, 224)
+
+        tflite_output = run_tflite_graph(tflite_model_buf, data)
+        tflite_predictions = np.squeeze(tflite_output)
+        tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+        tvm_output = run_tvm_graph(tflite_model_buf, np.array(data), 'input_1')
+        tvm_predictions = np.squeeze(tvm_output)
+        tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+        tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+
+def test_forward_tflite2_qnn_inception_v3():
+    """Test the Quantized TFLite version 2.1.0 Inception V3 model."""
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
+        # Quantize the model
+        url = "https://tfhub.dev/google/imagenet/inception_v3/classification/4"
+        tflite_model_buf = _quantize_tf_hub_keras_model(url, 299, 299)
+        data = pre_processed_image(299, 299)
+
+        tflite_output = run_tflite_graph(tflite_model_buf, data)
+        tflite_predictions = np.squeeze(tflite_output)
+        tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+        tvm_output = run_tvm_graph(tflite_model_buf, np.array(data), 'input_1')
+        tvm_predictions = np.squeeze(tvm_output)
+        tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+        tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+
+def test_forward_tflite2_qnn_mobilenet_v1():
+    """Test the Quantized TFLite version 2.1.0 Mobilenet V1 model."""
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
+        # Quantize the model
+        url = "https://tfhub.dev/google/imagenet/mobilenet_v1_100_224/classification/4"
+        tflite_model_buf = _quantize_tf_hub_keras_model(url, 224, 224)
+        data = pre_processed_image(224, 224)
+
+        tflite_output = run_tflite_graph(tflite_model_buf, data)
+        tflite_predictions = np.squeeze(tflite_output)
+        tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+        tvm_output = run_tvm_graph(tflite_model_buf, np.array(data), 'input_1')
+        tvm_predictions = np.squeeze(tvm_output)
+        tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+        tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+
+def test_forward_tflite2_qnn_mobilenet_v2():
+    """Test the Quantized TFLite version 2.1.0 Mobilenet V2 model."""
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
+        # Quantize the model
+        url = "https://tfhub.dev/google/imagenet/mobilenet_v2_100_224/classification/4"
+        tflite_model_buf = _quantize_tf_hub_keras_model(url, 224, 224)
+        data = pre_processed_image(224, 224)
+
+        tflite_output = run_tflite_graph(tflite_model_buf, data)
+        tflite_predictions = np.squeeze(tflite_output)
+        tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+        tvm_output = run_tvm_graph(tflite_model_buf, np.array(data), 'input_1')
+        tvm_predictions = np.squeeze(tvm_output)
+        tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+        tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+
 #######################################################################
 # Quantized SSD Mobilenet
 # -----------------------
@@ -2689,3 +2817,10 @@ if __name__ == '__main__':
     #with Tflite 1.15.2
     test_forward_qnn_mobilenet_v3_net()
     test_forward_qnn_coco_ssd_mobilenet_v1()
+
+    # TFLite 2.1.0 quantized tests
+    test_forward_tflite2_qnn_resnet50()
+    test_forward_tflite2_qnn_inception_v1()
+    test_forward_tflite2_qnn_inception_v3()
+    test_forward_tflite2_qnn_mobilenet_v1()
+    test_forward_tflite2_qnn_mobilenet_v2()

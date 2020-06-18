@@ -244,10 +244,46 @@ class OperatorConverter(object):
             qnn_params = None
             tflite_qnn_params = tensor.Quantization()
             if tflite_qnn_params is not None:
-                scale = float(tflite_qnn_params.ScaleAsNumpy())
-                zero_point = int(tflite_qnn_params.ZeroPointAsNumpy())
+                # Params might be per-tensor or per-axis quantized. For per-tensor, scale and zero
+                # points are scalar. For per-axis, scale and zero points are tensors. But as per
+                # TFLite quantization spec, the restrictions on ops suggest that for per-axis, even
+                # if zero point is a tensor - all the zero points are identical.  More infomration
+                # here - https://www.tensorflow.org/lite/performance/quantization_spec
+
+                tflite_scale = tflite_qnn_params.ScaleAsNumpy()
+                tflite_zero_point = tflite_qnn_params.ZeroPointAsNumpy()
+                is_qnn_params_valid = True
+
+                # Handle Per-axis and per-tensor cases
+                if isinstance(tflite_scale, np.ndarray):
+                    assert isinstance(tflite_zero_point, np.ndarray)
+
+                    # Tensor - Per-axis quantization
+                    if tflite_scale.shape != (1,) and tflite_zero_point.shape != (1,):
+                        scale = tflite_scale
+                        # Ensure that all zero points are identical
+                        zero_point = tflite_zero_point
+                        assert all(x == zero_point[0] for x in zero_point)
+                        zero_point = int(zero_point[0])
+
+                    # Scalar - Per-tensor quantization
+                    elif tflite_scale.shape == (1,) and tflite_zero_point.shape == (1,):
+                        scale = float(tflite_scale[0])
+                        zero_point = int(tflite_zero_point[0])
+
+                    else:
+                        raise NotImplementedError("Quantized type {} not supported"
+                                                  .format(type(tflite_scale)))
+                elif tflite_scale == 0 and tflite_zero_point == 0:
+                    # Handle corner case for ops like quantized reshape whose second operand (shape)
+                    # has zero scale and zero zero point. This is not used.
+                    is_qnn_params_valid = False
+                else:
+                    raise NotImplementedError("Quantized type {} not supported"
+                                              .format(type(tflite_scale)))
+
                 # Check that the scale and zero points are valid.
-                if scale != 0 or zero_point != 0:
+                if is_qnn_params_valid:
                     qnn_params = dict()
                     qnn_params['scale'] = relay.const(scale, 'float32')
                     qnn_params['zero_point'] = relay.const(zero_point, 'int32')
@@ -263,21 +299,25 @@ class OperatorConverter(object):
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
+        data = tensor_wrapper.buffer.DataAsNumpy()
+        shape = tensor_wrapper.tensor.ShapeAsNumpy()
+
+        # Set shape to 1 if the data is a scalar type
+        if data.shape == (1,) and isinstance(shape, int) and shape == 0:
+            shape = (1,)
+
+        if tensor_wrapper.tensor.Type() == TensorType.INT8:
+            return np.frombuffer(data, dtype=np.int8).reshape(shape)
         if tensor_wrapper.tensor.Type() == TensorType.UINT8:
-            return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.uint8).reshape(
-                tensor_wrapper.tensor.ShapeAsNumpy())
-        if tensor_wrapper.tensor.Type() == TensorType.FLOAT32:
-            return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.float32).reshape(
-                tensor_wrapper.tensor.ShapeAsNumpy())
+            return np.frombuffer(data, dtype=np.uint8).reshape(shape)
         if tensor_wrapper.tensor.Type() == TensorType.INT32:
-            return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.int32).reshape(
-                tensor_wrapper.tensor.ShapeAsNumpy())
+            return np.frombuffer(data, dtype=np.int32).reshape(shape)
         if tensor_wrapper.tensor.Type() == TensorType.INT64:
-            return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.int64).reshape(
-                tensor_wrapper.tensor.ShapeAsNumpy())
+            return np.frombuffer(data, dtype=np.int64).reshape(shape)
+        if tensor_wrapper.tensor.Type() == TensorType.FLOAT32:
+            return np.frombuffer(data, dtype=np.float32).reshape(shape)
         if tensor_wrapper.tensor.Type() == TensorType.BOOL:
-            return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.bool_).reshape(
-                tensor_wrapper.tensor.ShapeAsNumpy())
+            return np.frombuffer(data, dtype=np.bool).reshape(shape)
         raise NotImplementedError("Tensor type {} is currently not supported"
                                   .format(str(tensor_wrapper.tensor.Type())))
 
@@ -1606,7 +1646,7 @@ class OperatorConverter(object):
 
         # weight tensor type should be UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
-        assert weight_tensor_type in (TensorType.UINT8, TensorType.FLOAT32)
+        assert weight_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
         if self.has_expr(weight_tensor.tensor_idx):
@@ -1797,7 +1837,7 @@ class OperatorConverter(object):
 
         # weight tensor type should be UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
-        assert weight_tensor_type in (TensorType.UINT8, TensorType.FLOAT32)
+        assert weight_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
         in_expr = self.get_expr(input_tensor_idx)
@@ -1856,9 +1896,15 @@ class OperatorConverter(object):
         if output_tensor.qnn_params:
             # Calculate the intermediate scale and zero point of the int32 output.
             data_scale = input_tensor.qnn_params['scale']
-            weight_scale = weight_tensor.qnn_params['scale']
             data_scale_val = get_scalar_from_constant(data_scale)
-            weight_scale_val = get_scalar_from_constant(weight_scale)
+
+            weight_scale = weight_tensor.qnn_params['scale']
+            # If weight scale is scalar, it is per-tensor quantization
+            if isinstance(weight_scale, float):
+                weight_scale_val = get_scalar_from_constant(weight_scale)
+            else:
+                weight_scale_val = get_vector_from_constant(weight_scale)
+
             new_input_scale_val = data_scale_val * weight_scale_val
             new_input_scale = relay.const(new_input_scale_val, 'float32')
             new_input_zero_point = relay.const(0, 'int32')
@@ -1869,7 +1915,8 @@ class OperatorConverter(object):
                                      input_zero_point=new_input_zero_point,
                                      output_scale=output_tensor.qnn_params['scale'],
                                      output_zero_point=output_tensor.qnn_params['zero_point'],
-                                     out_dtype=output_tensor_type_str)
+                                     out_dtype=output_tensor_type_str,
+                                     axis=3)
 
             # Call activation function
             output_scale_val = get_scalar_from_constant(output_tensor.qnn_params['scale'])
@@ -2594,17 +2641,27 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
+        input_tensor_type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
+        output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
 
         # The output must be quantized
         assert output_tensor.qnn_params
-        # Quantize the input
-        out = self.quantize(in_expr, output_tensor)
 
+        # TFLite Quantize op can also act as Requantize op
+        if input_tensor_type_str == "float32":
+            out = self.quantize(in_expr, output_tensor)
+        else:
+            out = _qnn.op.requantize(in_expr,
+                                     input_scale=input_tensor.qnn_params['scale'],
+                                     input_zero_point=input_tensor.qnn_params['zero_point'],
+                                     output_scale=output_tensor.qnn_params['scale'],
+                                     output_zero_point=output_tensor.qnn_params['zero_point'],
+                                     out_dtype=output_tensor_type_str)
         return out
 
     def convert_dequantize(self, op):
@@ -2734,7 +2791,6 @@ class OperatorConverter(object):
         else:
             type_str = self.get_tensor_type_str(tensor.tensor.Type())
             expr = self.exp_tab.new_const(self.get_tensor_value(tensor), dtype=type_str)
-
         return expr
 
 
@@ -2746,6 +2802,15 @@ def get_scalar_from_constant(expr):
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), \
         "value must be float32/int32"
     return np.asscalar(value)
+
+def get_vector_from_constant(expr):
+    """ Returns scalar value from Relay constant scalar. """
+    assert isinstance(expr, _expr.Constant)
+    value = expr.data.asnumpy()
+    assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), \
+        "value must be float32/int32"
+    return value
+
 
 
 def build_str_map(obj):
