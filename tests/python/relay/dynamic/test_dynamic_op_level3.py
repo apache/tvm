@@ -24,6 +24,17 @@ from tvm import relay
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import ctx_list, check_grad, run_infer_type
 
+def verify_func(func, data, ref_res):
+    assert isinstance(data, list)
+    for target, ctx in ctx_list():
+        #TODO(mbrookhart): enable Cuda tests onces the VM supports dynamic shapes
+        if "llvm" not in target: continue
+        for kind in ["vm", "debug"]:
+            mod = tvm.ir.IRModule.from_expr(func)
+            intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+            op_res = intrp.evaluate()(*data)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+            relay.backend.compile_engine.get().clear()
 
 def test_dynamic_reshape():
     def verify_reshape(shape, newshape, oshape):
@@ -34,12 +45,7 @@ def test_dynamic_reshape():
         func = relay.Function([x, y], z)
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
         ref_res = np.reshape(x_data, oshape)
-        for target, ctx in ctx_list():
-            for kind in ["vm", "debug"]:
-                mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate()(x_data, np.array(newshape))
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+        verify_func(func, [x_data, np.array(newshape).astype("int64")], ref_res)
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
     verify_reshape((2, 3, 4), (4, 0, 2), (4, 3, 2))
@@ -60,12 +66,7 @@ def test_dynamic_shape_reshape():
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
         y_data = np.random.uniform(low=-1, high=1, size=newshape).astype("float32")
         ref_res = np.reshape(x_data, oshape)
-        for target, ctx in ctx_list():
-            for kind in ["vm", "debug"]:
-                mod = tvm.ir.IRModule.from_expr(func)
-                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate()(x_data, y_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+        verify_func(func, [x_data, y_data], ref_res)
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
 
