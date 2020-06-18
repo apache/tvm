@@ -341,8 +341,8 @@ def tune_and_evaluate(tuning_opt):
                                                 tracker_port,
                                                 timeout=10000)
         # Reconfigure the JIT runtime and FPGA.
-         vta.reconfig_runtime(remote)
-         vta.program_fpga(remote, bitstream)
+        vta.reconfig_runtime(remote)
+        vta.program_fpga(remote, bitstream=None)
     else:
         # In simulation mode, host the RPC server locally.
         remote = rpc.LocalSession()
