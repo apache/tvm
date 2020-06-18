@@ -88,7 +88,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let tvm_rt_crate = crate::util::get_tvm_rt_crate();
 
-    let err_type = quote! { #tvm_rt_crate::Error };
+    let result_type = quote! { #tvm_rt_crate::function::Result };
 
     let mut items = Vec::new();
 
@@ -142,9 +142,9 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         items.push(global);
 
         let wrapper = quote! {
-            pub fn #name<#(#ty_params),*>(#(#args : #tys),*) -> Result<#ret_type, #err_type> {
+            pub fn #name<#(#ty_params),*>(#(#args : #tys),*) -> #result_type<#ret_type> {
                 let func_ref: #tvm_rt_crate::Function = #global_name.clone();
-                let func_ref: Box<dyn Fn(#(#tys),*) -> Result<#ret_type, #err_type>> = func_ref.to_boxed_fn();
+                let func_ref: Box<dyn Fn(#(#tys),*) -> #result_type<#ret_type>> = func_ref.to_boxed_fn();
                 let res: #ret_type = func_ref(#(#args),*)?;
                 Ok(res)
             }

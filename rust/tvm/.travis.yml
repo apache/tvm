@@ -15,21 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[workspace]
-members = [
-	"common",
-	"macros",
-	"runtime",
-	"runtime/tests/test_tvm_basic",
-	"runtime/tests/test_tvm_dso",
-	"runtime/tests/test_wasm32",
-	"runtime/tests/test_nn",
-	"frontend",
-	"frontend/tests/basics",
-	"frontend/tests/callback",
-	"frontend/examples/resnet",
-	"tvm-sys",
-	"tvm-macros",
-	"tvm-rt",
-	"tvm",
-]
+language: rust
+rust:
+  - nightly
+matrix:
+  fast_finish: true

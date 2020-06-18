@@ -39,13 +39,32 @@ impl ObjectRef {
     }
 }
 
-pub trait ToObjectRef {
-    fn to_object_ref(&self) -> ObjectRef;
+pub trait IsObjectRef: Sized {
+    type Object: IsObject;
+    fn as_object_ptr(&self) -> Option<&ObjectPtr<Self::Object>>;
+    fn from_object_ptr(object_ptr: Option<ObjectPtr<Self::Object>>) -> Self;
+
+    fn to_object_ref(&self) -> ObjectRef {
+        let object_ptr = self.as_object_ptr().cloned();
+        ObjectRef(object_ptr.map(|ptr| ptr.upcast()))
+    }
+
+    fn downcast<U: IsObjectRef>(&self) -> Result<U, Error> {
+        let ptr = self.as_object_ptr().map(|ptr| ptr.downcast::<U::Object>());
+        let ptr = ptr.transpose()?;
+        Ok(U::from_object_ptr(ptr))
+    }
 }
 
-impl ToObjectRef for ObjectRef {
-    fn to_object_ref(&self) -> ObjectRef {
-        self.clone()
+impl IsObjectRef for ObjectRef {
+    type Object = Object;
+
+    fn as_object_ptr(&self) -> Option<&ObjectPtr<Self::Object>> {
+        self.0.as_ref()
+    }
+
+    fn from_object_ptr(object_ptr: Option<ObjectPtr<Self::Object>>) -> Self {
+        ObjectRef(object_ptr)
     }
 }
 
@@ -73,36 +92,20 @@ impl<'a> std::convert::TryFrom<ArgValue<'a>> for ObjectRef {
     type Error = Error;
 
     fn try_from(arg_value: ArgValue<'a>) -> Result<ObjectRef, Self::Error> {
-        let optr = arg_value.try_into()?;
+        let optr: ObjectPtr<Object> = arg_value.try_into()?;
+        debug_assert!(optr.count() >= 1);
         Ok(ObjectRef(Some(optr)))
-    }
-}
-
-impl<'a> std::convert::TryFrom<&ArgValue<'a>> for ObjectRef {
-    type Error = Error;
-
-    fn try_from(arg_value: &ArgValue<'a>) -> Result<ObjectRef, Self::Error> {
-        // TODO(@jroesch): remove the clone
-        let value: ArgValue<'a> = arg_value.clone();
-        ObjectRef::try_from(value)
     }
 }
 
 impl<'a> From<ObjectRef> for ArgValue<'a> {
     fn from(object_ref: ObjectRef) -> ArgValue<'a> {
         use std::ffi::c_void;
-        let object_ptr = &object_ref.0;
+        let object_ptr = object_ref.0;
         match object_ptr {
             None => ArgValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void),
-            Some(value) => value.clone().into(),
+            Some(value) => value.into(),
         }
-    }
-}
-
-impl<'a> From<&ObjectRef> for ArgValue<'a> {
-    fn from(object_ref: &ObjectRef) -> ArgValue<'a> {
-        let oref: ObjectRef = object_ref.clone();
-        ArgValue::<'a>::from(oref)
     }
 }
 
