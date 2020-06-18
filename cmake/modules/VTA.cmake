@@ -104,7 +104,7 @@ elseif(PYTHON)
       file(GLOB FPGA_RUNTIME_SRCS ${VTA_HW_PATH}/src/de10nano/*.cc ${VTA_HW_PATH}/src/*.cc)
     elseif(${VTA_TARGET} STREQUAL "intelfocl")  # Intel OpenCL for FPGA rules
       file(GLOB IFOCL_SRC ${VTA_HW_PATH}/src/intelfocl/*.cc)
-      file(GLOB AOCLUTIL_SRC ${VTA_HW_PATH}/src/intelfocl/AOCLUtils/*.cpp)
+      file(GLOB AOCLUTIL_SRC ${VTA_HW_PATH}/src/intelfocl/AOCLUtils/*.cc)
       list(APPEND FPGA_RUNTIME_SRCS ${IFOCL_SRC} ${AOCLUTIL_SRC})
       list(APPEND FPGA_RUNTIME_SRCS ${VTA_HW_PATH}/src/vmem/virtual_memory.cc ${VTA_HW_PATH}/src/vmem/virtual_memory.h)
     endif()
