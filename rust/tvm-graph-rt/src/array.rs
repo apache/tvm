@@ -21,10 +21,7 @@ use std::{convert::TryFrom, mem, os::raw::c_void, ptr, slice};
 
 use failure::{ensure, Error};
 use ndarray;
-use tvm_sys::{
-    DataType, Context,
-    ffi::{DLTensor},
-};
+use tvm_sys::{ffi::DLTensor, Context, DataType};
 
 use crate::allocator::Allocation;
 

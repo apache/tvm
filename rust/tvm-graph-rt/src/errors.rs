@@ -17,7 +17,7 @@
  * under the License.
  */
 
- use failure::Fail;
+use failure::Fail;
 
 #[derive(Debug, Fail)]
 pub enum GraphFormatError {

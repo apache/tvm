@@ -23,7 +23,7 @@ mod syslib;
 
 use tvm_sys::{
     ffi::BackendPackedCFunc,
-    packed_func::{PackedFunc, ArgValue, RetValue, TVMValue},
+    packed_func::{ArgValue, PackedFunc, RetValue, TVMValue},
 };
 
 #[cfg(not(any(target_arch = "wasm32", target_env = "sgx")))]

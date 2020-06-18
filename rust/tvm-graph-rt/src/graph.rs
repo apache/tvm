@@ -19,31 +19,21 @@
 
 use std::{cmp, collections::HashMap, convert::TryFrom, iter::FromIterator, mem, str};
 
-use failure::{ensure, Error, format_err};
+use failure::{ensure, format_err, Error};
 use itertools::izip;
 use nom::{
     character::complete::{alpha1, digit1},
+    complete, count, do_parse, length_count, map, named,
     number::complete::{le_i32, le_i64, le_u16, le_u32, le_u64, le_u8},
-    named,
-    do_parse,
-    take,
-    opt,
-    complete,
-    count,
-    length_count,
-    tuple, map, tag,
+    opt, tag, take, tuple,
 };
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_json;
 
 use tvm_sys::ffi::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt};
 
-use tvm_sys::{
-    DataType, Context, DeviceType,
-    ffi::DLTensor,
-    ArgValue,
-};
+use tvm_sys::{ffi::DLTensor, ArgValue, Context, DataType, DeviceType};
 
 use crate::{errors::GraphFormatError, Module, Storage, Tensor};
 
