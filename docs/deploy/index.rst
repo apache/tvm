@@ -67,4 +67,5 @@ target device without relying on RPC. see the following resources on how to do s
    cpp_deploy
    android
    integrate
-   hls
+   aocl_fpga
+   aws_fpga

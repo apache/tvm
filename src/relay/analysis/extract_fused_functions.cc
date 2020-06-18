@@ -50,7 +50,7 @@ class FusedFunctionExtractorWrapper : private ExprVisitor {
   const IRModule mod_;
   // This is not simply Map<GlobalVar, Function> because GlobalVar doesn't
   // have the desired equals property
-  Map<String, Function> functions;
+  Map<std::string, Function> functions;
 
   void VisitExpr_(const FunctionNode* n) final {
     if (n->HasNonzeroAttr(attr::kPrimitive)) {

@@ -20,10 +20,11 @@
 
 #include <functional>
 #include <memory>
-#include <unordered_map>
 #include <vector>
+#include <unordered_map>
 
 #include "vulkan_common.h"
+
 
 namespace tvm {
 namespace runtime {
@@ -43,7 +44,8 @@ struct VulkanStreamToken {
 
 class VulkanStream {
  public:
-  explicit VulkanStream(const VulkanContext* vctx) : vctx_(vctx), state_(new VulkanStreamState()) {
+  explicit VulkanStream(const VulkanContext* vctx)
+      : vctx_(vctx), state_(new VulkanStreamState()) {
     // create command pool
     VkCommandPoolCreateInfo cmd_pool_cinfo;
     cmd_pool_cinfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;

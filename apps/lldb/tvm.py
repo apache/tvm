@@ -36,6 +36,7 @@ def __lldb_init_module(debugger, _):
         "tvm::Attrs",
         "tvm::BijectiveLayout",
         "tvm::Buffer",
+        "tvm::BuildConfig",
         "tvm::Channel",
         "tvm::EnvFunc",
         "tvm::Expr",

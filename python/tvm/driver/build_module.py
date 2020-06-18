@@ -25,8 +25,8 @@ import tvm.tir
 from tvm.runtime import ndarray
 from tvm.ir import container
 from tvm.ir import CallingConv
-from tvm.ir.transform import PassContext
-from tvm.target import codegen
+from tvm.target import codegen, BuildConfig
+from tvm.tir import ir_pass
 from tvm.te import tensor
 from tvm.te import schedule
 from tvm import target as _target
@@ -57,6 +57,7 @@ def get_binds(args, compact=False, binds=None):
         The list of symbolic buffers of arguments.
     """
     binds = {} if binds is None else binds.copy()
+    cfg = BuildConfig.current()
     arg_list = []
     for x in args:
         if isinstance(x, tensor.Tensor):
@@ -67,6 +68,8 @@ def get_binds(args, compact=False, binds=None):
                     x.shape,
                     dtype=x.dtype,
                     name=x.name,
+                    data_alignment=cfg.data_alignment,
+                    offset_factor=cfg.offset_factor,
                     buffer_type=buffer_type)
                 binds[x] = buf
                 arg_list.append(buf)
@@ -81,49 +84,28 @@ def get_binds(args, compact=False, binds=None):
     return binds, arg_list
 
 
-def form_irmodule(sch, args, name, binds):
-    """According to the given schedule, form a function.
-
+def form_body(sch):
+    """According to the given schedule, form the raw body
     Parameters
     ----------
     sch : tvm.te.schedule.Schedule
-        The given scheduler to form the raw body
-
-    args : list of Buffer or Tensor or Var
-        The argument lists to the function.
-
-    name : str
-        The name of result function.
-
-    binds : dict of :any:`Tensor` to :any:`Buffer`, optional
-        The binds information
+    The given scheduler to form the raw body
 
     Returns
     -------
     The body formed according to the given schedule
     """
     # normalize schedule first
-    pass_ctx = PassContext.current()
     sch = sch.normalize()
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
-
-    compact = schedule.VerifyCompactBuffer(stmt)
-    binds, arg_list = get_binds(args, compact, binds)
-
-    stmt = schedule.SchedulePostProcRewriteForTensorCore(stmt, sch, binds)
-    func = schedule.SchedulePostProcToPrimFunc(arg_list, stmt, binds)
-
-    func = func.with_attr("global_symbol", name)
-
-    if pass_ctx.config.get("tir.noalias", True):
-        func = func.with_attr("tir.noalias", True)
-    return tvm.IRModule({name: func})
+    stmt = ir_pass.InjectPrefetch(stmt)
+    return stmt
 
 
 def lower(sch,
           args,
-          name="main",
+          name="default_function",
           binds=None,
           simple_mode=False):
     """Lowering step before build into target.
@@ -154,12 +136,10 @@ def lower(sch,
        The result IRModule, if simple_mode=False
        Then the Stmt before make api is returned.
     """
-    # config setup
-    pass_ctx = PassContext.current()
-    instrument_bound_checkers = bool(pass_ctx.config.get("tir.instrument_bound_checkers", False))
-    disable_vectorize = bool(pass_ctx.config.get("tir.disable_vectorize", False))
-    add_lower_pass = pass_ctx.config.get("tir.add_lower_pass", [])
-
+    cfg = BuildConfig.current()
+    add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
+    if cfg.dump_pass_ir:
+        add_lower_pass = BuildConfig._dump_ir.decorate_custompass(add_lower_pass)
     lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
     lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
     lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
@@ -167,48 +147,59 @@ def lower(sch,
 
     # Phase 0
     if isinstance(sch, schedule.Schedule):
-        mod = form_irmodule(sch, args, name, binds)
-    else:
-        mod = sch
+        stmt = form_body(sch)
 
-    pass_list = lower_phase0
+    for f in lower_phase0:
+        stmt = f(stmt)
+
+    compact = ir_pass.VerifyCompactBuffer(stmt)
+    binds, arg_list = get_binds(args, compact, binds)
+
     # Phase 1
-    pass_list += [
-        tvm.tir.transform.InjectPrefetch(),
-        tvm.tir.transform.StorageFlatten(64, instrument_bound_checkers),
-        tvm.tir.transform.NarrowDataType(32),
-        tvm.tir.transform.Simplify(),
-    ]
-    pass_list += lower_phase1
+    stmt = ir_pass.RewriteForTensorCore(stmt, sch, binds)
+    stmt = ir_pass.StorageFlatten(stmt, binds, 64, cfg.instrument_bound_checkers)
+    stmt = ir_pass.NarrowDataType(stmt, 32)
+    stmt = ir_pass.CanonicalSimplify(stmt)
+    for f in lower_phase1:
+        stmt = f(stmt)
 
     # Phase 2
     if not simple_mode:
-        pass_list += [(tvm.tir.transform.LoopPartition())]
-
-    pass_list += [
-        tvm.tir.transform.VectorizeLoop(not disable_vectorize),
-        tvm.tir.transform.InjectVirtualThread(),
-        tvm.tir.transform.InjectDoubleBuffer(),
-        tvm.tir.transform.StorageRewrite(),
-        tvm.tir.transform.UnrollLoop()
-    ]
-    pass_list += lower_phase2
+        stmt = ir_pass.LoopPartition(stmt, cfg.partition_const_loop)
+    if cfg.disable_vectorize:
+        stmt = ir_pass.SkipVectorize(stmt)
+    else:
+        stmt = ir_pass.VectorizeLoop(stmt)
+    stmt = ir_pass.InjectVirtualThread(stmt)
+    stmt = ir_pass.InjectDoubleBuffer(stmt, cfg.double_buffer_split_loop)
+    stmt = ir_pass.StorageRewrite(stmt)
+    stmt = ir_pass.UnrollLoop(
+        stmt,
+        cfg.auto_unroll_max_step,
+        cfg.auto_unroll_max_depth,
+        cfg.auto_unroll_max_extent,
+        cfg.unroll_explicit)
+    for f in lower_phase2:
+        stmt = f(stmt)
 
     # Phase 3
-    pass_list += [
-        tvm.tir.transform.Simplify(),
-        tvm.tir.transform.RemoveNoOp(),
-    ]
-
-    pass_list += [tvm.tir.transform.RewriteUnsafeSelect()]
-    pass_list += lower_phase3
-
+    stmt = ir_pass.Simplify(stmt)
+    stmt = ir_pass.RemoveNoOp(stmt)
+    if not cfg.disable_select_rewriting:
+        stmt = ir_pass.RewriteUnsafeSelect(stmt)
+    for f in lower_phase3:
+        stmt = f(stmt)
     # Instrument BoundCheckers
-    if instrument_bound_checkers:
-        pass_list += [tvm.tir.transform.InstrumentBoundCheckers()]
+    if cfg.instrument_bound_checkers:
+        stmt = ir_pass.InstrumentBoundCheckers(stmt)
+    if simple_mode:
+        return stmt
 
-    optimize = tvm.transform.Sequential(pass_list)
-    mod = optimize(mod)
+    f = tvm.tir.PrimFunc(arg_list, stmt).with_attr(
+        "global_symbol", tvm.runtime.String(name))
+    if cfg.restricted_func:
+        f = f.with_attr("tir.noalias", True)
+    mod = tvm.IRModule({name: f})
     return mod
 
 
@@ -241,12 +232,12 @@ def _build_for_device(input_mod, target, target_host):
 
     mod_mixed = input_mod
     mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
+    tvm.tir.analysis.verify_memory(mod_mixed)
 
-    opt_mixed = [tvm.tir.transform.VerifyMemory()]
+    opt_mixed = []
     if len(mod_mixed.functions) == 1:
         opt_mixed += [tvm.tir.transform.Apply(lambda f: f.with_attr("tir.is_entry_func", True))]
-
-    if PassContext.current().config.get("tir.detect_global_barrier", False):
+    if BuildConfig.current().detect_global_barrier:
         opt_mixed += [tvm.tir.transform.ThreadSync("global")]
     opt_mixed += [tvm.tir.transform.ThreadSync("shared"),
                   tvm.tir.transform.ThreadSync("warp"),
@@ -263,7 +254,6 @@ def _build_for_device(input_mod, target, target_host):
             lambda f: "calling_conv" in f.attrs and
             f.attrs["calling_conv"].value == CallingConv.DEVICE_KERNEL_LAUNCH),
          tvm.tir.transform.LowerWarpMemory(),
-         tvm.tir.transform.Simplify(),
          tvm.tir.transform.LowerDeviceStorageAccessInfo(),
          tvm.tir.transform.LowerIntrin()])
     mod_dev = opt_device(mod_mixed)

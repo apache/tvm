@@ -41,13 +41,15 @@ namespace tvm {
 class EnvFuncNode : public Object {
  public:
   /*! \brief Unique name of the global function */
-  String name;
+  std::string name;
   /*! \brief The internal packed function */
   runtime::PackedFunc func;
   /*! \brief constructor */
   EnvFuncNode() {}
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("name", &name);
+  }
 
   bool SEqualReduce(const EnvFuncNode* other, SEqualReducer equal) const {
     // name uniquely identifies the env function.
@@ -74,13 +76,15 @@ class EnvFunc : public ObjectRef {
   EnvFunc() {}
   explicit EnvFunc(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*! \return The internal global function pointer */
-  const EnvFuncNode* operator->() const { return static_cast<const EnvFuncNode*>(get()); }
+  const EnvFuncNode* operator->() const {
+    return static_cast<const EnvFuncNode*>(get());
+  }
   /*!
    * \brief Invoke the function.
    * \param args The arguments
    * \returns The return value.
    */
-  template <typename... Args>
+  template<typename... Args>
   runtime::TVMRetValue operator()(Args&&... args) const {
     const EnvFuncNode* n = operator->();
     CHECK(n != nullptr);
@@ -92,7 +96,7 @@ class EnvFunc : public ObjectRef {
    * \return The created global function.
    * \note The function can be unique
    */
-  TVM_DLL static EnvFunc Get(const String& name);
+  TVM_DLL static EnvFunc Get(const std::string& name);
   /*! \brief specify container node */
   using ContainerType = EnvFuncNode;
 };
@@ -100,7 +104,7 @@ class EnvFunc : public ObjectRef {
 /*!
  * \brief Please refer to \ref TypedEnvFuncAnchor "TypedEnvFunc<R(Args..)>"
  */
-template <typename FType>
+template<typename FType>
 class TypedEnvFunc;
 
 /*!
@@ -112,7 +116,7 @@ class TypedEnvFunc;
  * \tparam Args The argument signature of the function.
  * \sa EnvFunc
  */
-template <typename R, typename... Args>
+template<typename R, typename... Args>
 class TypedEnvFunc<R(Args...)> : public ObjectRef {
  public:
   /*! \brief short hand for this function type */
@@ -129,7 +133,9 @@ class TypedEnvFunc<R(Args...)> : public ObjectRef {
     return *this;
   }
   /*! \return The internal global function pointer */
-  const EnvFuncNode* operator->() const { return static_cast<const EnvFuncNode*>(get()); }
+  const EnvFuncNode* operator->() const {
+    return static_cast<const EnvFuncNode*>(get());
+  }
   /*!
    * \brief Invoke the function.
    * \param args The arguments
@@ -138,8 +144,8 @@ class TypedEnvFunc<R(Args...)> : public ObjectRef {
   R operator()(Args... args) const {
     const EnvFuncNode* n = operator->();
     CHECK(n != nullptr);
-    return runtime::detail::typed_packed_call_dispatcher<R>::run(n->func,
-                                                                 std::forward<Args>(args)...);
+    return runtime::detail::typed_packed_call_dispatcher<R>
+        ::run(n->func, std::forward<Args>(args)...);
   }
   /*! \brief specify container node */
   using ContainerType = EnvFuncNode;

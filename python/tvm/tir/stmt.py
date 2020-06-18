@@ -36,7 +36,7 @@ class Stmt(Object):
     """Base class of all the statements."""
 
 
-@tvm._ffi.register_object("tir.LetStmt")
+@tvm._ffi.register_object
 class LetStmt(Stmt):
     """LetStmt node.
 
@@ -56,7 +56,7 @@ class LetStmt(Stmt):
             _ffi_api.LetStmt, var, value, body)
 
 
-@tvm._ffi.register_object("tir.AssertStmt")
+@tvm._ffi.register_object
 class AssertStmt(Stmt):
     """AssertStmt node.
 
@@ -76,7 +76,7 @@ class AssertStmt(Stmt):
             _ffi_api.AssertStmt, condition, message, body)
 
 
-@tvm._ffi.register_object("tir.For")
+@tvm._ffi.register_object
 class For(Stmt):
     """For node.
 
@@ -116,7 +116,7 @@ class For(Stmt):
             for_type, device_api, body)
 
 
-@tvm._ffi.register_object("tir.Store")
+@tvm._ffi.register_object
 class Store(Stmt):
     """Store node.
 
@@ -140,7 +140,7 @@ class Store(Stmt):
             _ffi_api.Store, buffer_var, value, index, *args)
 
 
-@tvm._ffi.register_object("tir.BufferStore")
+@tvm._ffi.register_object
 class BufferStore(Stmt):
     """Buffer store node.
 
@@ -160,50 +160,30 @@ class BufferStore(Stmt):
             _ffi_api.BufferStore, buffer, value, indices)
 
 
-@tvm._ffi.register_object("tir.BufferRealize")
-class BufferRealize(Stmt):
-    """Buffer realize node.
+@tvm._ffi.register_object
+class Provide(Stmt):
+    """Provide node.
 
     Parameters
     ----------
-    buffer : Buffer
-        The buffer.
+    func : Operation
+        The operation to create the function.
 
-    bounds : List[Range]
-        The value we to be stored.
-
-    condition : PrimExpr
-        The realize condition.
-
-    body : Stmt
-        The body of the statement.
-    """
-    def __init__(self, buffer, bounds, condition, body):
-        self.__init_handle_by_constructor__(
-            _ffi_api.BufferRealize, buffer, bounds, condition, body)
-
-
-@tvm._ffi.register_object("tir.ProducerStore")
-class ProducerStore(Stmt):
-    """ProducerStore node.
-
-    Parameters
-    ----------
-    producer : DataProducer
-        The data producer.
+    value_index : int
+        The output value index
 
     value : PrimExpr
         The value to be stored.
 
-    indices : list of Expr
-        The index arguments of the store.
+    args : list of Expr
+        The index arguments of the Provide.
     """
-    def __init__(self, producer, value, indices):
+    def __init__(self, func, value_index, value, args):
         self.__init_handle_by_constructor__(
-            _ffi_api.ProducerStore, producer, value, indices)
+            _ffi_api.Provide, func, value_index, value, args)
 
 
-@tvm._ffi.register_object("tir.Allocate")
+@tvm._ffi.register_object
 class Allocate(Stmt):
     """Allocate node.
 
@@ -235,7 +215,7 @@ class Allocate(Stmt):
             extents, condition, body)
 
 
-@tvm._ffi.register_object("tir.AttrStmt")
+@tvm._ffi.register_object
 class AttrStmt(Stmt):
     """AttrStmt node.
 
@@ -258,7 +238,7 @@ class AttrStmt(Stmt):
             _ffi_api.AttrStmt, node, attr_key, value, body)
 
 
-@tvm._ffi.register_object("tir.Free")
+@tvm._ffi.register_object
 class Free(Stmt):
     """Free node.
 
@@ -272,14 +252,20 @@ class Free(Stmt):
             _ffi_api.Free, buffer_var)
 
 
-@tvm._ffi.register_object("tir.ProducerRealize")
-class ProducerRealize(Stmt):
-    """ProducerRealize node.
+@tvm._ffi.register_object
+class Realize(Stmt):
+    """Realize node.
 
     Parameters
     ----------
-    producer : DataProducer
-        The data producer.
+    func : Operation
+        The operation to create the function.
+
+    value_index : int
+        The output value index
+
+    dtype : str
+        The data type of the operation.
 
     bounds : list of range
         The bound of realize
@@ -291,15 +277,18 @@ class ProducerRealize(Stmt):
         The realize body
     """
     def __init__(self,
-                 producer,
+                 func,
+                 value_index,
+                 dtype,
                  bounds,
                  condition,
                  body):
         self.__init_handle_by_constructor__(
-            _ffi_api.ProducerRealize, producer, bounds, condition, body)
+            _ffi_api.Realize, func, value_index, dtype,
+            bounds, condition, body)
 
 
-@tvm._ffi.register_object("tir.SeqStmt")
+@tvm._ffi.register_object
 class SeqStmt(Stmt):
     """Sequence of statements.
 
@@ -319,7 +308,7 @@ class SeqStmt(Stmt):
         return len(self.seq)
 
 
-@tvm._ffi.register_object("tir.IfThenElse")
+@tvm._ffi.register_object
 class IfThenElse(Stmt):
     """IfThenElse node.
 
@@ -339,7 +328,7 @@ class IfThenElse(Stmt):
             _ffi_api.IfThenElse, condition, then_case, else_case)
 
 
-@tvm._ffi.register_object("tir.Evaluate")
+@tvm._ffi.register_object
 class Evaluate(Stmt):
     """Evaluate node.
 
@@ -353,21 +342,27 @@ class Evaluate(Stmt):
             _ffi_api.Evaluate, value)
 
 
-@tvm._ffi.register_object("tir.Prefetch")
+@tvm._ffi.register_object
 class Prefetch(Stmt):
     """Prefetch node.
 
     Parameters
     ----------
-    buffer : Buffer
-        The buffer to be prefetched.
+    func : Operation
+        The operation to create the function.
+
+    value_index : int
+        The output value index
+
+    dtype : str
+        The data type to be prefetched.
 
     bounds : list of Range
         The bounds to be prefetched.
     """
-    def __init__(self, buffer, bounds):
+    def __init__(self, func, value_index, dtype, bounds):
         self.__init_handle_by_constructor__(
-            _ffi_api.Prefetch, buffer, bounds)
+            _ffi_api.Prefetch, func, value_index, dtype, bounds)
 
 
 def stmt_seq(*args):

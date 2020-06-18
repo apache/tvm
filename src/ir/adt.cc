@@ -21,12 +21,14 @@
  * \file src/ir/adt.cc
  * \brief ADT type definitions.
  */
-#include <tvm/relay/adt.h>
 #include <tvm/relay/type.h>
+#include <tvm/relay/adt.h>
 
 namespace tvm {
 
-Constructor::Constructor(String name_hint, tvm::Array<Type> inputs, GlobalTypeVar belong_to) {
+Constructor::Constructor(std::string name_hint,
+                         tvm::Array<Type> inputs,
+                         GlobalTypeVar belong_to) {
   ObjectPtr<ConstructorNode> n = make_object<ConstructorNode>();
   n->name_hint = std::move(name_hint);
   n->inputs = std::move(inputs);
@@ -37,18 +39,21 @@ Constructor::Constructor(String name_hint, tvm::Array<Type> inputs, GlobalTypeVa
 TVM_REGISTER_NODE_TYPE(ConstructorNode);
 
 TVM_REGISTER_GLOBAL("ir.Constructor")
-    .set_body_typed([](String name_hint, tvm::Array<Type> inputs, GlobalTypeVar belong_to) {
-      return Constructor(name_hint, inputs, belong_to);
-    });
+.set_body_typed([](std::string name_hint,
+                   tvm::Array<Type> inputs,
+                   GlobalTypeVar belong_to) {
+  return Constructor(name_hint, inputs, belong_to);
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ConstructorNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const ConstructorNode*>(ref.get());
-      p->stream << "ConstructorNode(" << node->name_hint << ", " << node->inputs << ", "
-                << node->belong_to << ")";
-    });
+.set_dispatch<ConstructorNode>([](const ObjectRef& ref, ReprPrinter* p) {
+  auto* node = static_cast<const ConstructorNode*>(ref.get());
+  p->stream << "ConstructorNode(" << node->name_hint << ", "
+            << node->inputs << ", " << node->belong_to << ")";
+});
 
-TypeData::TypeData(GlobalTypeVar header, tvm::Array<TypeVar> type_vars,
+TypeData::TypeData(GlobalTypeVar header,
+                   tvm::Array<TypeVar> type_vars,
                    tvm::Array<Constructor> constructors) {
   ObjectPtr<TypeDataNode> n = make_object<TypeDataNode>();
   n->header = std::move(header);
@@ -60,16 +65,17 @@ TypeData::TypeData(GlobalTypeVar header, tvm::Array<TypeVar> type_vars,
 TVM_REGISTER_NODE_TYPE(TypeDataNode);
 
 TVM_REGISTER_GLOBAL("ir.TypeData")
-    .set_body_typed([](GlobalTypeVar header, tvm::Array<TypeVar> type_vars,
-                       tvm::Array<Constructor> constructors) {
-      return TypeData(header, type_vars, constructors);
-    });
+.set_body_typed([](GlobalTypeVar header,
+                   tvm::Array<TypeVar> type_vars,
+                   tvm::Array<Constructor> constructors) {
+  return TypeData(header, type_vars, constructors);
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<TypeDataNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const TypeDataNode*>(ref.get());
-      p->stream << "TypeDataNode(" << node->header << ", " << node->type_vars << ", "
-                << node->constructors << ")";
-    });
+.set_dispatch<TypeDataNode>([](const ObjectRef& ref, ReprPrinter* p) {
+  auto* node = static_cast<const TypeDataNode*>(ref.get());
+  p->stream << "TypeDataNode(" << node->header << ", " << node->type_vars << ", "
+            << node->constructors << ")";
+});
 
 }  // namespace tvm

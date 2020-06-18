@@ -21,7 +21,7 @@ public class TVMValueLong extends TVMValue {
   public final long value;
 
   public TVMValueLong(long value) {
-    super(ArgTypeCode.INT);
+    super(TypeCode.INT);
     this.value = value;
   }
 

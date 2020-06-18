@@ -139,20 +139,19 @@ def test_bound_fusesplit1():
     bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     idxdiv = tvm.tir.indexdiv
-    tvm.testing.assert_prim_expr_equal(
-        bounds[A1.op.axis[0]].min, idxdiv(xo * split1, l))
+    assert(tvm.tir.ir_pass.Simplify(
+            bounds[A1.op.axis[0]].min - idxdiv(xo * split1, l)).value == 0)
 
     expected_extent = (idxdiv((xo + 1) * split1 - 1, l) - idxdiv(xo * split1, l) + 1)
     for i in range(1, 6):
         for j in range(1, 6):
             for k in range(1, 6):
                 vars = tvm.runtime.convert({split1: tvm.tir.const(i, "int32"), l: tvm.tir.const(j, "int32"), xo.var: tvm.tir.const(k, "int32")})
-                tvm.testing.assert_prim_expr_equal(
-                    tvm.tir.stmt_functor.substitute(bounds[A1.op.axis[0]].extent, vars),
-                    tvm.tir.stmt_functor.substitute(expected_extent, vars)
-                )
+                comp_ext = tvm.tir.ir_pass.Simplify(tvm.tir.ir_pass.Substitute(bounds[A1.op.axis[0]].extent, vars)).value
+                exp_ext = tvm.tir.ir_pass.Simplify(tvm.tir.ir_pass.Substitute(expected_extent, vars)).value
+                assert(comp_ext == exp_ext)
 
-    tvm.testing.assert_prim_expr_equal(bounds[A1.op.axis[1]].extent, l)
+    assert(tvm.tir.ir_pass.Simplify(bounds[A1.op.axis[1]].extent - l).value == 0)
 
 def test_bound_fusesplit2():
     m = te.var("m")
@@ -170,10 +169,10 @@ def test_bound_fusesplit2():
     bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     vars = tvm.runtime.convert({xo.var: tvm.tir.const(5, "int32")})
-    tvm.testing.assert_prim_expr_equal(tvm.tir.stmt_functor.substitute(bounds[A1.op.axis[0]].min, vars), 2)
-    tvm.testing.assert_prim_expr_equal(tvm.tir.stmt_functor.substitute(bounds[A1.op.axis[1]].min, vars), 3)
-    tvm.testing.assert_prim_expr_equal(tvm.tir.stmt_functor.substitute(bounds[A1.op.axis[0]].extent, vars), 1)
-    tvm.testing.assert_prim_expr_equal(tvm.tir.stmt_functor.substitute(bounds[A1.op.axis[1]].extent, vars), 3)
+    assert(tvm.tir.ir_pass.Simplify(tvm.tir.ir_pass.Substitute(bounds[A1.op.axis[0]].min, vars)).value == 2)
+    assert(tvm.tir.ir_pass.Simplify(tvm.tir.ir_pass.Substitute(bounds[A1.op.axis[1]].min, vars)).value == 3)
+    assert(tvm.tir.ir_pass.Simplify(tvm.tir.ir_pass.Substitute(bounds[A1.op.axis[0]].extent, vars)).value == 1)
+    assert(tvm.tir.ir_pass.Simplify(tvm.tir.ir_pass.Substitute(bounds[A1.op.axis[1]].extent, vars)).value == 3)
 
 
 def test_bound_warp():
@@ -384,22 +383,23 @@ def test_gemm_bound():
 
 def test_bound_tensor_compute_op():
     def intrin_test():
-        m1 = te.var("m1")
-        n1 = te.var("n1")
-        a = te.placeholder((m1, n1), name='a')
-        c = te.compute((1, n1), lambda i, j : a[0, j] + a[1, j] + a[2, j], name='c')
+      m1 = te.var("m1")
+      n1 = te.var("n1")
+      a = te.placeholder((m1, n1), name='a')
+      c = te.compute((1, n1), lambda i, j : a[0, j] + a[1, j] + a[2, j], name='c')
 
-        Ab = tvm.tir.decl_buffer(a.shape, name="Abuf", offset_factor=1)
-        Cb = tvm.tir.decl_buffer(c.shape, name="Cbuf", offset_factor=1)
+      Ab = tvm.tir.decl_buffer(a.shape, name="Abuf", offset_factor=1)
+      Cb = tvm.tir.decl_buffer(c.shape, name="Cbuf", offset_factor=1)
 
-        def intrin_func(ins, outs):
-            aa = ins[0]
-            cc = outs[0]
-            def _body():
-                ib = tvm.tir.ir_builder.create()
-                ib.emit(tvm.tir.call_extern("int32", "test", cc.access_ptr("w"), aa.access_ptr("r")))
-                return ib.get()
-            return _body()
+      def intrin_func(ins, outs):
+        aa = ins[0]
+        cc = outs[0]
+        def _body():
+          ib = tvm.tir.ir_builder.create()
+          ib.emit(tvm.tir.call_extern("int32", "test", cc.access_ptr("w"), aa.access_ptr("r")))
+          return ib.get()
+        return _body()
+      with tvm.target.build_config(offset_factor=1):
         return te.decl_tensor_intrin(c.op, intrin_func, binds={a : Ab, c : Cb})
 
     test_func = intrin_test()

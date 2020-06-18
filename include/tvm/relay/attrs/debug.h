@@ -25,8 +25,6 @@
 #define TVM_RELAY_ATTRS_DEBUG_H_
 
 #include <tvm/ir/attrs.h>
-#include <tvm/ir/env_func.h>
-
 #include <string>
 
 namespace tvm {
@@ -39,7 +37,8 @@ struct DebugAttrs : public tvm::AttrsNode<DebugAttrs> {
   EnvFunc debug_func;
 
   TVM_DECLARE_ATTRS(DebugAttrs, "relay.attrs.DebugAttrs") {
-    TVM_ATTR_FIELD(debug_func).describe("The function to use when debugging.");
+    TVM_ATTR_FIELD(debug_func)
+        .describe("The function to use when debugging.");
   }
 };
 

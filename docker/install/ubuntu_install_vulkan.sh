@@ -20,7 +20,10 @@ set -e
 set -u
 set -o pipefail
 
-wget -qO - http://packages.lunarg.com/lunarg-signing-key-pub.asc | apt-key add -
-wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.135-xenial.list http://packages.lunarg.com/vulkan/1.2.135/lunarg-vulkan-1.2.135-xenial.list
-apt update
-apt install -y vulkan-sdk
+wget -q https://sdk.lunarg.com/sdk/download/1.0.65.0/linux/vulkansdk-linux-x86_64-1.0.65.0.run
+
+bash vulkansdk-linux-x86_64-1.0.65.0.run
+mv VulkanSDK /usr/local/VulkanSDK
+cd /usr/local/VulkanSDK/1.0.65.0
+./build_tools.sh
+./build_samples.sh

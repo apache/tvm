@@ -24,8 +24,8 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/runtime/registry.h>
-
 #include "codegen_cpu.h"
+
 #include "llvm/MC/MCSubtargetInfo.h"
 
 namespace tvm {
@@ -89,11 +89,14 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
           ::llvm::Intrinsic::x86_avx512_mask_vcvtph2ps_512, 16,
           DTypeToLLVMType(DataType::Float(32, from.lanes())),
           {
-              MakeValue(tir::Call(DataType::Int(16, from.lanes()), tir::CallNode::reinterpret,
-                                  {op->value}, tir::CallNode::PureIntrinsic)),
-              MakeValue(tir::Broadcast(FloatImm(DataType::Float(32), 0), from.lanes())),
-              /*mask=*/MakeValue(IntImm(DataType::Int(16), -1)),
-              /*rounding-mode=*/MakeValue(IntImm(DataType::Int(32), 4)),
+            MakeValue(tir::CallNode::make(
+                DataType::Int(16, from.lanes()), tir::CallNode::reinterpret, {op->value},
+                tir::CallNode::PureIntrinsic)),
+                MakeValue(
+                    tir::BroadcastNode::make(
+                      FloatImm(DataType::Float(32), 0), from.lanes())),
+                /*mask=*/MakeValue(IntImm(DataType::Int(16), -1)),
+                /*rounding-mode=*/MakeValue(IntImm(DataType::Int(32), 4)),
           });
     }
 
@@ -105,8 +108,9 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
       return CallVectorIntrin(
           ::llvm::Intrinsic::x86_vcvtph2ps_256, 8,
           DTypeToLLVMType(DataType::Float(32, from.lanes())),
-          {MakeValue(tir::Call(DataType::Int(16, from.lanes()), tir::CallNode::reinterpret,
-                               {op->value}, tir::CallNode::PureIntrinsic))});
+          {MakeValue(tir::CallNode::make(
+              DataType::Int(16, from.lanes()), tir::CallNode::reinterpret, {op->value},
+              tir::CallNode::PureIntrinsic))});
     }
 #endif
   }
@@ -119,20 +123,21 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
 
                                              const std::vector<llvm::Value*>& args) {
   llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), id, {});
-  size_t num_elems = llvm::cast<llvm::VectorType>(result_ty)->getNumElements();
-  if (intrin_lanes == num_elems) {
+  if (intrin_lanes == result_ty->getVectorNumElements()) {
     return builder_->CreateCall(f, args);
   }
 
   // Otherwise, we split the vector into intrin_lanes sized elements (widening where necessary),
   // compute each result, and then concatenate the vectors (slicing the result if necessary).
-  CHECK_LT(intrin_lanes, num_elems);
+  CHECK_LT(intrin_lanes, result_ty->getVectorNumElements());
   std::vector<llvm::Value*> split_results;
-  for (size_t i = 0; i < num_elems; i += intrin_lanes) {
+  for (size_t i = 0;
+       i < static_cast<size_t>(result_ty->getVectorNumElements());
+       i += intrin_lanes) {
     std::vector<llvm::Value*> split_args;
     for (const auto& v : args) {
       if (v->getType()->isVectorTy()) {
-        CHECK_EQ(llvm::cast<llvm::VectorType>(v->getType())->getNumElements(), num_elems);
+        CHECK_EQ(v->getType()->getVectorNumElements(), result_ty->getVectorNumElements());
         split_args.push_back(CreateVecSlice(v, i, intrin_lanes));
       } else {
         split_args.push_back(v);
@@ -142,14 +147,14 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
         id, intrin_lanes, llvm::VectorType::get(result_ty->getScalarType(), intrin_lanes),
         split_args));
   }
-  return CreateVecSlice(CreateVecConcat(split_results), 0, num_elems);
+  return CreateVecSlice(CreateVecConcat(split_results), 0, result_ty->getVectorNumElements());
 }
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_x86-64")
-    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
-      CodeGenLLVM* cg = new CodeGenX86_64();
-      *rv = static_cast<void*>(cg);
-    });
+.set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+    CodeGenLLVM* cg = new CodeGenX86_64();
+    *rv = static_cast<void*>(cg);
+  });
 
 }  // namespace codegen
 }  // namespace tvm

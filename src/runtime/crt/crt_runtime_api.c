@@ -17,14 +17,15 @@
  * under the License.
  */
 
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
 
-#include "graph_runtime.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <assert.h>
+#include <string.h>
+
 #include "ndarray.h"
+#include "graph_runtime.h"
 #include "packed_func.h"
 
 // Handle internal errors
@@ -40,8 +41,14 @@ const char* TVMGetLastError(void) { return g_last_error; }
 
 // Manipulate NDArray on target device
 
-int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_bits,
-                  int dtype_lanes, int device_type, int device_id, TVMArrayHandle* out) {
+int TVMArrayAlloc(const tvm_index_t* shape,
+                  int ndim,
+                  int dtype_code,
+                  int dtype_bits,
+                  int dtype_lanes,
+                  int device_type,
+                  int device_id,
+                  TVMArrayHandle* out) {
   DLDataType dtype;
   dtype.code = dtype_code;
   dtype.bits = dtype_bits;
@@ -60,10 +67,14 @@ int TVMArrayFree(TVMArrayHandle handle) {
   return TVMNDArray_Release(&arr);
 }
 
-void* SystemLibraryCreate() { return 0; }
+void * SystemLibraryCreate() {
+  return 0;
+}
 
-int TVMModGetFunction(TVMModuleHandle mod, const char* func_name, int query_imports,
-                      TVMFunctionHandle* out) {
+int TVMModGetFunction(TVMModuleHandle mod,
+                      const char* func_name,
+                      int query_imports,
+                      TVMFunctionHandle *out) {
   int status = 0;
   if (!strcmp(func_name, "load_params")) {
     *out = &TVMGraphRuntime_LoadParams;

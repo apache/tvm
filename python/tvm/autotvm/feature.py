@@ -31,6 +31,7 @@ import numpy as np
 import tvm._ffi
 
 from tvm import target as _target
+from tvm.tir import ir_pass
 from tvm.te import schedule
 from tvm.driver import build_module
 
@@ -45,12 +46,10 @@ def ana_lower(sch, args,
     # Phase 0
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds, True)
-    func = schedule.SchedulePostProcToPrimFunc(args, stmt, None)
-    mod = tvm.IRModule.from_expr(func._move())
-    mod = tvm.tir.transform.StorageFlatten(64)(mod._move())
-    mod = tvm.tir.transform.Simplify()(mod._move())
+    stmt = ir_pass.StorageFlatten(stmt, binds, 64)
+    stmt = ir_pass.CanonicalSimplify(stmt)
     assert simple_mode
-    return mod["main"].body
+    return stmt
 
 try:
     _get_buffer_curve_sample_flatten = tvm._ffi.get_global_func(

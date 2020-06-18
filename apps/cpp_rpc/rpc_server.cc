@@ -32,9 +32,9 @@
 #include <set>
 #include <string>
 
-#include "../../src/runtime/rpc/rpc_endpoint.h"
-#include "../../src/runtime/rpc/rpc_socket_impl.h"
 #include "../../src/support/socket.h"
+#include "../../src/runtime/rpc/rpc_session.h"
+#include "../../src/runtime/rpc/rpc_socket_impl.h"
 #include "rpc_env.h"
 #include "rpc_server.h"
 #include "rpc_tracker_client.h"
@@ -66,22 +66,6 @@ static pid_t waitPidEintr(int* status) {
 }
 #endif
 
-#ifdef __ANDROID__
-static std::string getNextString(std::stringstream* iss) {
-  std::string str = iss->str();
-  size_t start = iss->tellg();
-  size_t len = str.size();
-  // Skip leading spaces.
-  while (start < len && isspace(str[start])) start++;
-
-  size_t end = start;
-  while (end < len && !isspace(str[end])) end++;
-
-  iss->seekg(end);
-  return str.substr(start, end - start);
-}
-#endif
-
 /*!
  * \brief RPCServer RPC Server class.
  * \param host The hostname of the server, Default=0.0.0.0
@@ -96,15 +80,14 @@ class RPCServer {
   /*!
    * \brief Constructor.
    */
-  RPCServer(std::string host, int port, int port_end, std::string tracker_addr, std::string key,
-            std::string custom_addr)
-      : host_(std::move(host)),
-        port_(port),
-        my_port_(0),
-        port_end_(port_end),
-        tracker_addr_(std::move(tracker_addr)),
-        key_(std::move(key)),
-        custom_addr_(std::move(custom_addr)) {}
+  RPCServer(std::string host, int port, int port_end, std::string tracker_addr,
+            std::string key, std::string custom_addr) :
+    host_(std::move(host)), port_(port), my_port_(0), port_end_(port_end),
+    tracker_addr_(std::move(tracker_addr)), key_(std::move(key)),
+    custom_addr_(std::move(custom_addr))
+  {
+    
+  }
 
   /*!
    * \brief Destructor.
@@ -114,7 +97,8 @@ class RPCServer {
       // Free the resources
       tracker_sock_.Close();
       listen_sock_.Close();
-    } catch (...) {
+    } catch(...) {
+      
     }
   }
 
@@ -160,7 +144,7 @@ class RPCServer {
       }
 
       int timeout = GetTimeOutFromOpts(opts);
-#if defined(__linux__) || defined(__ANDROID__)
+#if defined(__linux__) || defined(__ANDROID__) 
       // step 3: serving
       if (timeout != 0) {
         const pid_t timer_pid = fork();
@@ -180,9 +164,9 @@ class RPCServer {
         int status = 0;
         const pid_t finished_first = waitPidEintr(&status);
         if (finished_first == timer_pid) {
-          kill(worker_pid, SIGTERM);
+          kill(worker_pid, SIGKILL);
         } else if (finished_first == worker_pid) {
-          kill(timer_pid, SIGTERM);
+          kill(timer_pid, SIGKILL);
         } else {
           LOG(INFO) << "Child pid=" << finished_first << " unexpected, but still continue.";
         }
@@ -213,6 +197,7 @@ class RPCServer {
       try {
         SpawnRPCChild(conn.sockfd, seconds(timeout));
       } catch (const std::exception&) {
+        
       }
       auto dur = high_resolution_clock::now() - start_time;
 
@@ -232,8 +217,11 @@ class RPCServer {
    * \param opts Parsed options for socket
    * \param ping_period Timeout for select call waiting
    */
-  void AcceptConnection(TrackerClient* tracker, support::TCPSocket* conn_sock,
-                        support::SockAddr* addr, std::string* opts, int ping_period = 2) {
+  void AcceptConnection(TrackerClient* tracker, 
+                        support::TCPSocket* conn_sock,
+                        support::SockAddr* addr, 
+                        std::string* opts, 
+                        int ping_period = 2) {
     std::set<std::string> old_keyset;
     std::string matchkey;
 
@@ -245,7 +233,7 @@ class RPCServer {
       support::TCPSocket conn = listen_sock_.Accept(addr);
 
       int code = kRPCMagic;
-      CHECK_EQ(conn.RecvAll(&code, sizeof(code)), sizeof(code));
+        CHECK_EQ(conn.RecvAll(&code, sizeof(code)), sizeof(code));
       if (code != kRPCMagic) {
         conn.Close();
         LOG(FATAL) << "Client connected is not TVM RPC server";
@@ -272,12 +260,7 @@ class RPCServer {
 
       std::stringstream ssin(remote_key);
       std::string arg0;
-#ifndef __ANDROID__
       ssin >> arg0;
-#else
-      arg0 = getNextString(&ssin);
-#endif
-
       if (arg0 != expect_header) {
         code = kRPCMismatch;
         CHECK_EQ(conn.SendAll(&code, sizeof(code)), sizeof(code));
@@ -291,11 +274,7 @@ class RPCServer {
         CHECK_EQ(conn.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
         CHECK_EQ(conn.SendAll(server_key.c_str(), keylen), keylen);
         LOG(INFO) << "Connection success " << addr->AsString();
-#ifndef __ANDROID__
         ssin >> *opts;
-#else
-        *opts = getNextString(&ssin);
-#endif
         *conn_sock = conn;
         return;
       }
@@ -322,9 +301,8 @@ class RPCServer {
   int GetTimeOutFromOpts(const std::string& opts) const {
     const std::string option = "-timeout=";
 
-    size_t pos = opts.rfind(option);
-    if (pos != std::string::npos) {
-      const std::string cmd = opts.substr(pos + option.size());
+    if (opts.find(option) == 0) {
+      const std::string cmd = opts.substr(opts.find_last_of(option) + 1);
       CHECK(support::IsNumber(cmd)) << "Timeout is not valid";
       return std::stoi(cmd);
     }
@@ -344,15 +322,15 @@ class RPCServer {
 
 #if defined(WIN32)
 /*!
- * \brief ServerLoopFromChild The Server loop process.
- * \param socket The socket information
- */
+* \brief ServerLoopFromChild The Server loop process.
+* \param socket The socket information
+*/
 void ServerLoopFromChild(SOCKET socket) {
   // Server loop
   tvm::support::TCPSocket sock(socket);
   const auto env = RPCEnv();
   RPCServerLoop(int(sock.sockfd));
-
+  
   sock.Close();
   env.CleanUp();
 }
@@ -363,10 +341,10 @@ void ServerLoopFromChild(SOCKET socket) {
  * \param host The hostname of the server, Default=0.0.0.0
  * \param port The port of the RPC, Default=9090
  * \param port_end The end search port of the RPC, Default=9199
- * \param tracker_addr The address of RPC tracker in host:port format e.g. 10.77.1.234:9190
- * Default="" \param key The key used to identify the device type in tracker. Default="" \param
- * custom_addr Custom IP Address to Report to RPC Tracker. Default="" \param silent Whether run in
- * silent mode. Default=True
+ * \param tracker_addr The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
+ * \param key The key used to identify the device type in tracker. Default=""
+ * \param custom_addr Custom IP Address to Report to RPC Tracker. Default=""
+ * \param silent Whether run in silent mode. Default=True
  */
 void RPCServerCreate(std::string host, int port, int port_end, std::string tracker_addr,
                      std::string key, std::string custom_addr, bool silent) {
@@ -375,13 +353,13 @@ void RPCServerCreate(std::string host, int port, int port_end, std::string track
     dmlc::InitLogging("--minloglevel=2");
   }
   // Start the rpc server
-  RPCServer rpc(std::move(host), port, port_end, std::move(tracker_addr), std::move(key),
-                std::move(custom_addr));
+  RPCServer rpc(std::move(host), port, port_end, std::move(tracker_addr), std::move(key), std::move(custom_addr));
   rpc.Start();
 }
 
-TVM_REGISTER_GLOBAL("rpc.ServerCreate").set_body([](TVMArgs args, TVMRetValue* rv) {
-  RPCServerCreate(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
-});
+TVM_REGISTER_GLOBAL("rpc._ServerCreate")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    RPCServerCreate(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+  });
 }  // namespace runtime
 }  // namespace tvm

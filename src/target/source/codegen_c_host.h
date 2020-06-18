@@ -24,12 +24,10 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_C_HOST_H_
 #define TVM_TARGET_SOURCE_CODEGEN_C_HOST_H_
 
-#include <set>
+#include <tvm/target/codegen.h>
+#include <tvm/tir/expr.h>
 #include <string>
-
 #include "codegen_c.h"
-#include "tvm/target/codegen.h"
-#include "tvm/tir/expr.h"
 
 namespace tvm {
 namespace codegen {
@@ -39,24 +37,22 @@ class CodeGenCHost final : public CodeGenC {
   CodeGenCHost();
   void Init(bool output_ssa, bool emit_asserts);
 
-  void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
-  void PrintFuncPrefix() final;                        // NOLINT(*)
-  void PrintFinalReturn() final;                       // NOLINT(*)
+  void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
+  void PrintFuncPrefix() final; // NOLINT(*)
+  void PrintFinalReturn() final; // NOLINT(*)
 
   // overload visitor functions
-  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
+  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const CallNode *op, std::ostream& os) final; // NOLINT(*)
   // overload min and max to use the ternary operator, so we don't rely on the
   // standard library implementations
-  void VisitExpr_(const MinNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const MaxNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const MinNode *op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const MaxNode *op, std::ostream& os) final;  // NOLINT(*)
 
-  void VisitStmt_(const AssertStmtNode* op) final;  // NOLINT(*)
+  void VisitStmt_(const AssertStmtNode *op) final; // NOLINT(*)
 
  private:
   std::string module_name_;
-  /* \brief tracks declared global variables which live despite GetUniqueName */
-  std::set<std::string> declared_globals_;
   /*! \brief whether to emit asserts in the resulting C code */
   bool emit_asserts_;
 
@@ -71,7 +67,8 @@ class CodeGenCHost final : public CodeGenC {
    * \param os stream reference to print into
    */
   template <typename T>
-  inline void PrintTernaryCondExpr(const T* op, const char* compare,
+  inline void PrintTernaryCondExpr(const T* op,
+                                   const char* compare,
                                    std::ostream& os);  // NOLINT(*)
 };
 

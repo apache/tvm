@@ -23,21 +23,25 @@
 #ifndef TVM_ARITH_BOUND_H_
 #define TVM_ARITH_BOUND_H_
 
-#include <tvm/arith/int_set.h>
-#include <tvm/ir/expr.h>
 #include <tvm/node/container.h>
+#include <tvm/ir/expr.h>
+#include <tvm/arith/int_set.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 
 #include <unordered_map>
 
 namespace tvm {
+// forward delcare Tensor
+namespace te {
+class Tensor;
+}
 namespace arith {
 
-using tir::Region;
-using tir::Stmt;
 using tir::Var;
 using tir::VarNode;
+using tir::Domain;
+using tir::Stmt;
 
 /*!
  * \brief Deduce the bound of the target variable in a expression,
@@ -54,7 +58,8 @@ using tir::VarNode;
  *        The deduce bound must implies e for all value in relax_map
  * \return An integer set that always satisfies the condition.
  */
-IntSet DeduceBound(PrimExpr v, PrimExpr cond, const Map<Var, IntSet>& hint_map,
+IntSet DeduceBound(PrimExpr v, PrimExpr cond,
+                   const Map<Var, IntSet>& hint_map,
                    const Map<Var, IntSet>& relax_map);
 /*!
  * \brief Same as DeduceBound with  unordered_map signature.
@@ -73,13 +78,15 @@ IntSet DeduceBound(PrimExpr v, PrimExpr cond,
 /*!
  * \brief Infer a regular domain that covers all the calls or provides within the given statement.
  * \param body The given statement.
- * \param buffer The buffer to check the access info.
- * \param consider_loads If loads are considered.
- * \param consider_stores If stores are considered.
+ * \param tensor The name of the calls or provides.
+ * \param consider_calls If calls (read) are considered.
+ * \param consider_provides If provides (write) are considered.
  * \return The domain that covers all the calls or provides within the given statement.
  */
-Region DomainTouched(const Stmt& body, const tir::Buffer& buffer, bool consider_loads,
-                     bool consider_stores);
+Domain DomainTouched(Stmt body,
+                     const te::Tensor &tensor,
+                     bool consider_calls,
+                     bool consider_provides);
 
 }  // namespace arith
 }  // namespace tvm

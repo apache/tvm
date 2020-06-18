@@ -17,6 +17,11 @@
  * under the License.
  */
 
+/*!
+ * \file utvm_init.s
+ * \brief uTVM init definition for STM32F746XX-series boards
+ */
+
 .syntax unified
 .cpu cortex-m7
 .fpu softvfp

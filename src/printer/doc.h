@@ -26,13 +26,12 @@
 #ifndef TVM_PRINTER_DOC_H_
 #define TVM_PRINTER_DOC_H_
 
-#include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/object.h>
-
+#include <tvm/node/node.h>
 #include <string>
-#include <type_traits>
 #include <vector>
+#include <type_traits>
 
 namespace tvm {
 
@@ -49,7 +48,7 @@ class DocAtomNode : public Object {
 /*!
  * \brief Managed reference to DocAtomNode.
  * \sa DocAtomNode.
- */
+*/
 class DocAtom : public ObjectRef {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(DocAtom, ObjectRef, DocAtomNode);
@@ -94,7 +93,8 @@ class Doc {
    * \tparam T the type of the value.
    * \return reference to self.
    */
-  template <typename T, typename = typename std::enable_if<!std::is_class<T>::value>::type>
+  template<typename T,
+           typename = typename std::enable_if<!std::is_class<T>::value>::type>
   Doc& operator<<(const T& value) {
     std::ostringstream os;
     os << value;
@@ -149,7 +149,10 @@ class Doc {
    * \param indent amount of indentation.
    * \return The created doc.
    */
-  static Doc Brace(std::string open, const Doc& body, std::string close, int indent = 2);
+  static Doc Brace(std::string open,
+                   const Doc& body,
+                   std::string close,
+                   int indent = 2);
   /*!
    * \brief Create a doc by concatenating  together with separator.
    * \param vec The docs to be concatenated.

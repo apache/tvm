@@ -29,10 +29,10 @@ def dilation2d_nchw(input, filter, stride, padding, dilations, out_dtype=None):
 
     Parameters
     ----------
-    input : tvm.te.Tensor
+    input : tvm.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    filter : tvm.te.Tensor
+    filter : tvm.Tensor
         3-D with shape [ in_channel, filter_height, filter_width]
 
     stride : int or a list/tuple of two ints
@@ -49,7 +49,7 @@ def dilation2d_nchw(input, filter, stride, padding, dilations, out_dtype=None):
 
     Returns
     -------
-    Output : tvm.te.Tensor
+    Output : tvm.Tensor
         4-D with shape [batch, in_channel, out_height, out_width]
     """
     if out_dtype is None:
@@ -100,10 +100,10 @@ def dilation2d_nhwc(input, filter, stride, padding, dilations, out_dtype=None):
 
     Parameters
     ----------
-    input : tvm.te.Tensor
+    input : tvm.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
 
-    filter : tvm.te.Tensor
+    filter : tvm.Tensor
         3-D with shape [filter_height, filter_width, in_channel]
 
     stride : int or a list/tuple of two ints
@@ -120,7 +120,7 @@ def dilation2d_nhwc(input, filter, stride, padding, dilations, out_dtype=None):
 
     Returns
     -------
-    Output : tvm.te.Tensor
+    Output : tvm.Tensor
         4-D with shape [batch, out_height, out_width, in_channel]
     """
     if out_dtype is None:

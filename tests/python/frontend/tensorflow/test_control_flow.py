@@ -21,7 +21,6 @@ try:
     tf.disable_v2_behavior()
 except ImportError:
     import tensorflow as tf
-from tensorflow.python.ops import control_flow_ops
 import numpy as np
 from tvm import nd
 from tvm import relay
@@ -46,7 +45,7 @@ def check_equal(graph, tf_out, input_map=None):
 def test_vanilla_loop():
     graph = tf.Graph()
     with graph.as_default():
-        i = tf.constant(0, name="while/constant")
+        i = tf.constant(0)
 
         def c(i): return tf.less(i, 10)
 
@@ -368,44 +367,6 @@ def test_nested_loop_bound():
 
     check_equal(graph, tf_out, {dname: np_data})
 
-def test_switch():
-    graph = tf.Graph()
-
-    with graph.as_default():
-        data_np = np.random.uniform(0, 5, size=(2, 4, 5, 1)).astype('float32')
-        dname = 'data'
-        flag_name = 'flag'
-        data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name=dname)
-        split = tf.split(data, 2, axis=0)
-        flag = tf.placeholder(shape={}, dtype=tf.bool, name=flag_name)
-        output_false, output_true = control_flow_ops.switch(split[1], flag)
-        with tf.Session() as sess:
-            tf_out = sess.run(output_false, feed_dict={data.name: data_np, flag.name: False})
-
-    check_equal(graph, tf_out, {dname: data_np, flag_name: False})
-
-def test_loop_tuple_input():
-    graph = tf.Graph()
-
-    with graph.as_default():
-        data_np = np.random.uniform(0, 5, size=(2, 4, 5, 1)).astype('float32')
-        dname = 'data'
-        data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name=dname)
-        split = tf.split(data, 2, axis=0)
-
-        def body(x, y):
-            return x + 2, y + 1
-
-        start = tf.constant(0)
-        def condition(x, y):
-            return tf.less(y, 20)
-
-        r = tf.while_loop(condition, body, loop_vars=[split[1], start])
-        with tf.Session() as sess:
-            tf_out = sess.run(r, feed_dict={data.name: data_np})
-
-    check_equal(graph, tf_out, {dname: data_np})
-
 
 if __name__ == "__main__":
     # tf.while_loop
@@ -429,6 +390,3 @@ if __name__ == "__main__":
     test_cond_in_loop()
     test_vanilla_loop_bound()
     test_nested_loop_bound()
-
-    test_switch()
-    test_loop_tuple_input()

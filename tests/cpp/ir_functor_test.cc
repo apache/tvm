@@ -19,10 +19,10 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/node/functor.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/expr_functor.h>
 #include <tvm/tir/op.h>
+#include <tvm/node/functor.h>
+#include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt_functor.h>
 
 TEST(IRF, Basic) {
@@ -32,10 +32,14 @@ TEST(IRF, Basic) {
   auto z = x + 1;
 
   NodeFunctor<int(const ObjectRef& n, int b)> f;
-  f.set_dispatch<VarNode>([](const ObjectRef& n, int b) { return b; });
-  f.set_dispatch<AddNode>([](const ObjectRef& n, int b) { return b + 2; });
-  CHECK_EQ(f(x, 2), 2);
-  CHECK_EQ(f(z, 2), 4);
+  f.set_dispatch<VarNode>([](const ObjectRef& n, int b) {
+      return b;
+    });
+  f.set_dispatch<AddNode>([](const ObjectRef& n, int b) {
+      return b + 2;
+    });
+  CHECK_EQ(f(x, 2),  2);
+  CHECK_EQ(f(z, 2),  4);
 }
 
 TEST(IRF, CountVar) {
@@ -47,9 +51,10 @@ TEST(IRF, CountVar) {
   auto z = x + 1 + y + y;
   tir::PostOrderVisit(z, [&n_var](const ObjectRef& n) {
     if (n.as<VarNode>()) ++n_var;
-  });
+    });
   CHECK_EQ(n_var, 2);
 }
+
 
 TEST(IRF, ExprTransform) {
   using namespace tvm;
@@ -57,21 +62,26 @@ TEST(IRF, ExprTransform) {
   Var x("x");
   auto z = x + 1;
 
-  class MyExprFunctor : public tir::ExprFunctor<int(const PrimExpr&, int)> {
+  class MyExprFunctor
+      : public tir::ExprFunctor<int(const PrimExpr&, int)> {
    public:
-    int VisitExpr_(const VarNode* op, int b) final { return b; }
-    int VisitExpr_(const IntImmNode* op, int b) final { return op->value; }
+    int VisitExpr_(const VarNode* op, int b) final {
+      return b;
+    }
+    int VisitExpr_(const IntImmNode* op, int b) final {
+      return op->value;
+    }
     int VisitExpr_(const AddNode* op, int b) final {
       return VisitExpr(op->a, b) + VisitExpr(op->b, b);
     }
   };
   MyExprFunctor f;
-  CHECK_EQ(f(x, 2), 2);
-  CHECK_EQ(f(z, 2), 3);
+  CHECK_EQ(f(x, 2),  2);
+  CHECK_EQ(f(z, 2),  3);
   try {
     f(z - 1, 2);
     LOG(FATAL) << "should fail";
-  } catch (dmlc::Error) {
+  } catch(dmlc::Error) {
   }
 }
 
@@ -81,40 +91,50 @@ TEST(IRF, ExprVisit) {
   Var x("x");
   auto z = x + 1;
 
-  class MyVisitor : public tir::ExprFunctor<void(const PrimExpr&)>,
-                    public tir::StmtFunctor<void(const Stmt&)> {
+  class MyVisitor
+      : public tir::ExprFunctor<void(const PrimExpr&)>,
+        public tir::StmtFunctor<void(const Stmt&)> {
    public:
     int count = 0;
     // implementation
-    void VisitExpr_(const VarNode* op) final { ++count; }
-    void VisitExpr_(const IntImmNode* op) final {}
+    void VisitExpr_(const VarNode* op) final {
+      ++count;
+    }
+    void VisitExpr_(const IntImmNode* op) final {
+    }
     void VisitExpr_(const AddNode* op) final {
       VisitExpr(op->a);
       VisitExpr(op->b);
     }
-    void VisitStmt_(const EvaluateNode* op) final { VisitExpr(op->value); }
+    void VisitStmt_(const EvaluateNode* op) final {
+      VisitExpr(op->value);
+    }
   };
   MyVisitor v;
-  v.VisitStmt(Evaluate(z));
+  v.VisitStmt(EvaluateNode::make(z));
   CHECK_EQ(v.count, 1);
 }
+
 
 TEST(IRF, StmtVisitor) {
   using namespace tvm;
   using namespace tvm::tir;
   Var x("x");
-  class MyVisitor : public StmtExprVisitor {
+  class MyVisitor
+      : public StmtExprVisitor {
    public:
     int count = 0;
     // implementation
-    void VisitExpr_(const VarNode* op) final { ++count; }
+    void VisitExpr_(const VarNode* op) final {
+      ++count;
+    }
   };
   MyVisitor v;
   auto fmaketest = [&]() {
     auto z = x + 1;
-    Stmt body = Evaluate(z);
+    Stmt body = EvaluateNode::make(z);
     Var buffer("b", DataType::Handle());
-    return Allocate(buffer, DataType::Float(32), {z, z}, const_true(), body);
+    return AllocateNode::make(buffer, DataType::Float(32), {z, z}, const_true(), body);
   };
   v(fmaketest());
   CHECK_EQ(v.count, 3);
@@ -125,34 +145,42 @@ TEST(IRF, StmtMutator) {
   using namespace tvm::tir;
   Var x("x");
 
-  class MyVisitor : public tir::StmtMutator, public tir::ExprMutator {
+  class MyVisitor
+      : public tir::StmtMutator,
+        public tir::ExprMutator {
    public:
     using StmtMutator::operator();
     using ExprMutator::operator();
 
    protected:
     // implementation
-    PrimExpr VisitExpr_(const AddNode* op) final { return op->a; }
-    Stmt VisitStmt_(const SeqStmtNode* op) final { return StmtMutator::VisitSeqStmt_(op, true); }
-    PrimExpr VisitExpr(const PrimExpr& expr) final { return ExprMutator::VisitExpr(expr); }
+    PrimExpr VisitExpr_(const AddNode* op) final {
+      return op->a;
+    }
+    Stmt VisitStmt_(const SeqStmtNode* op) final {
+      return StmtMutator::VisitSeqStmt_(op, true);
+    }
+    PrimExpr VisitExpr(const PrimExpr& expr) final {
+      return ExprMutator::VisitExpr(expr);
+    }
   };
   auto fmakealloc = [&]() {
     auto z = x + 1;
-    Stmt body = Evaluate(z);
+    Stmt body = EvaluateNode::make(z);
     Var buffer("b", DataType::Handle());
-    return Allocate(buffer, DataType::Float(32), {1, z}, const_true(), body);
+    return AllocateNode::make(buffer, DataType::Float(32), {1, z}, const_true(), body);
   };
 
   auto fmakeif = [&]() {
     auto z = x + 1;
-    Stmt body = Evaluate(z);
-    return IfThenElse(x, Evaluate(0), body);
+    Stmt body = EvaluateNode::make(z);
+    return IfThenElseNode::make(x, EvaluateNode::make(0), body);
   };
 
   MyVisitor v;
   {
     auto body = fmakealloc();
-    Stmt body2 = Evaluate(1);
+    Stmt body2 = EvaluateNode::make(1);
     Stmt bref = body.as<AllocateNode>()->body;
     auto* extentptr = body.as<AllocateNode>()->extents.get();
     Array<Stmt> arr{std::move(body), body2, body2};
@@ -192,13 +220,13 @@ TEST(IRF, StmtMutator) {
   }
 
   {
-    auto body = Evaluate(Call(DataType::Int(32), "xyz", {x + 1}, CallNode::Extern));
+    auto body = EvaluateNode::make(CallNode::make(DataType::Int(32), "xyz", {x + 1}, CallNode::Extern));
     auto res = v(std::move(body));
     CHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[0].same_as(x));
   }
   {
-    Stmt body = fmakealloc();
-    Stmt body2 = Evaluate(1);
+    auto body = fmakealloc();
+    Stmt body2 = EvaluateNode::make(1);
     auto* ref2 = body2.get();
     auto* extentptr = body.as<AllocateNode>()->extents.get();
     // construct a recursive SeqStmt.
@@ -214,8 +242,8 @@ TEST(IRF, StmtMutator) {
 
   {
     // Cannot cow because of bref
-    Stmt body = fmakealloc();
-    Stmt body2 = Evaluate(1);
+    auto body = fmakealloc();
+    Stmt body2 = EvaluateNode::make(1);
     auto* extentptr = body.as<AllocateNode>()->extents.get();
     // construct a recursive SeqStmt.
     body = SeqStmt({body});
@@ -227,7 +255,7 @@ TEST(IRF, StmtMutator) {
   }
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char ** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";
   return RUN_ALL_TESTS();

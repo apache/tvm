@@ -46,7 +46,6 @@ algebraic data types, and operators in Relay, respectively.
    relay_type
    relay_adt
    relay_op
-   relay_pattern
 
 Hybrid Script
 -------------

@@ -24,20 +24,20 @@
           custom layouts or other general weight pre-transformation.
  */
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/transform.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/transform.h>
 #include <tvm/te/operation.h>
-
+#include <tuple>
+#include <vector>
 #include <functional>
 #include <string>
-#include <tuple>
-#include <unordered_map>
 #include <utility>
-#include <vector>
+#include <unordered_map>
 
-#include "pattern_util.h"
 #include "transform_layout.h"
+#include "pattern_util.h"
 
 namespace tvm {
 namespace relay {
@@ -51,15 +51,13 @@ class ConvertTransformMemorizerNode : public TransformMemorizerNode {
  public:
   /*!
    * \brief Initializes the desired_layout.
-   * \param desired_layouts Specify mapping of op_name to array of desired layouts for each input.
-   *                        For example: Map("nn.conv2d", Array("NHWC", "OHWI")),
-   *                        this specifies the desired layout for data then kernel for nn.conv2d.
+   * \param desired_layout The desired layout.
    */
-  explicit ConvertTransformMemorizerNode(Map<String, Array<String>> desired_layouts)
-      : desired_layouts_(std::move(desired_layouts)) {}
+  explicit ConvertTransformMemorizerNode(const std::string& desired_layout)
+      : desired_layout_(desired_layout) {}
 
-  /*! \brief A mapping of op_name to array of desired layouts for each input. */
-  Map<String, Array<String>> desired_layouts_;
+  /*! \brief The desired layout for the Convert Layout pass */
+  std::string desired_layout_;
 };
 
 /*!
@@ -82,7 +80,7 @@ class ConvertTransformMemorizer : public TransformMemorizer {
    * \return The new Call after calling the packed func.
    */
   Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) override {
-    static auto fconvert_layout = Op::GetAttrMap<FTVMConvertOpLayout>("FTVMConvertOpLayout");
+    static auto fconvert_layout = Op::GetAttr<FTVMConvertOpLayout>("FTVMConvertOpLayout");
     Op op = Downcast<Op>(ref_call->op);
 
     Expr new_e;
@@ -93,14 +91,8 @@ class ConvertTransformMemorizer : public TransformMemorizer {
         auto ttype = expr->type_as<TensorTypeNode>();
         tinfos.push_back(tvm::te::placeholder(ttype->shape, ttype->dtype));
       }
-
-      auto desired_layouts = operator->()->desired_layouts_;
-      if (desired_layouts.find(op->name) == desired_layouts.end()) {
-        LOG(FATAL) << "Desired layout(s) not specified for op: " << op->name;
-      }
-      Array<String> op_desired_layouts = desired_layouts.at(op->name);
       Expr altered_value =
-          fconvert_layout[op](ref_call->attrs, new_args, tinfos, op_desired_layouts);
+          fconvert_layout[op](ref_call->attrs, new_args, tinfos, operator->()->desired_layout_);
       if (altered_value.defined()) {
         new_e = altered_value;
         modified = true;
@@ -123,9 +115,9 @@ class ConvertTransformMemorizer : public TransformMemorizer {
  * 1. The altered op should have the same number of arguments as the previous one.
  * 2. Do not support nested tuple arguments.
  */
-Expr ConvertLayout(const Expr& expr, const Map<String, Array<String>>& desired_layouts) {
+Expr ConvertLayout(const Expr& expr, const std::string& desired_layout) {
   ConvertTransformMemorizer transformMemorizer(
-      make_object<ConvertTransformMemorizerNode>(desired_layouts));
+      make_object<ConvertTransformMemorizerNode>(desired_layout));
   auto fcontext = [&](const Call& call) -> ObjectRef { return transformMemorizer; };
 
   return ForwardRewrite(expr, LayoutRewriter<ConvertTransformMemorizer>, fcontext);
@@ -135,12 +127,13 @@ Expr ConvertLayout(const Expr& expr, const Map<String, Array<String>>& desired_l
 
 namespace transform {
 
-Pass ConvertLayout(const Map<String, Array<String>>& desired_layouts) {
+Pass ConvertLayout(const std::string& desired_layout) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(relay::convert_op_layout::ConvertLayout(f, desired_layouts));
+        return Downcast<Function>(relay::convert_op_layout::ConvertLayout(f, desired_layout));
       };
-  return CreateFunctionPass(pass_func, 3, "ConvertLayout", {"InferType", "CanonicalizeOps"});
+  return CreateFunctionPass(
+      pass_func, 3, "ConvertLayout", {"InferType", "CanonicalizeOps"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.ConvertLayout").set_body_typed(ConvertLayout);

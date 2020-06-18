@@ -21,4 +21,3 @@ from __future__ import absolute_import as _abs
 
 from .resize import *
 from .dilation2d import *
-from .grid_sample import *

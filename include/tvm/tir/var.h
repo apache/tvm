@@ -24,10 +24,9 @@
 #ifndef TVM_TIR_VAR_H_
 #define TVM_TIR_VAR_H_
 
-#include <tvm/ir/expr.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
-
+#include <tvm/ir/expr.h>
 #include <string>
 
 namespace tvm {
@@ -50,7 +49,7 @@ class VarNode : public PrimExprNode {
    * \brief The hint to the variable name.
    * \note Each variable is uniquely identified by its address.
    */
-  String name_hint;
+  std::string name_hint;
   /*!
    * \brief type annotaion of the variable.
    *
@@ -79,11 +78,10 @@ class VarNode : public PrimExprNode {
   }
 
   static constexpr const char* _type_key = "tir.Var";
-  static constexpr const uint32_t _type_child_slots = 1;
   TVM_DECLARE_BASE_OBJECT_INFO(VarNode, PrimExprNode);
 };
 
-/*! \brief a named variable in TIR */
+/*! \brief a named variable in TVM */
 class Var : public PrimExpr {
  public:
   explicit Var(ObjectPtr<Object> n) : PrimExpr(n) {}
@@ -92,30 +90,34 @@ class Var : public PrimExpr {
    * \param name_hint variable name
    * \param dtype data type
    */
-  TVM_DLL explicit Var(String name_hint = "v", DataType dtype = DataType::Int(32));
+  TVM_DLL explicit Var(std::string name_hint = "v",
+                       DataType dtype = DataType::Int(32));
   /*!
    * \brief Constructor which provides a more detailed type annotation.
    * \param name_hint variable name.
    * \param type_annotation The type annotation.
    */
-  TVM_DLL explicit Var(String name_hint, Type type_annotation);
+  TVM_DLL explicit Var(std::string name_hint, Type type_annotation);
   /*!
    * \brief Make a new copy of var with same type, append suffix
    * \param suffix The suffix to be appended.
    * \return the new Var copy
    */
-  TVM_DLL Var copy_with_suffix(const String& suffix) const;
-
+  TVM_DLL Var copy_with_suffix(const std::string& suffix) const;
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const VarNode* operator->() const { return get(); }
+  const VarNode* operator->() const {
+    return get();
+  }
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const VarNode* get() const { return static_cast<const VarNode*>(data_.get()); }
+  const VarNode* get() const {
+    return static_cast<const VarNode*>(data_.get());
+  }
   /*! \brief type indicate the container type */
   using ContainerType = VarNode;
 };
@@ -139,20 +141,29 @@ class SizeVar : public Var {
    * \param name_hint variable name
    * \param t data type
    */
-  TVM_DLL explicit SizeVar(String name_hint = "s", DataType t = DataType::Int(32));
+  TVM_DLL explicit SizeVar(std::string name_hint = "s",
+                           DataType t = DataType::Int(32));
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const SizeVarNode* operator->() const { return get(); }
+  const SizeVarNode* operator->() const {
+    return get();
+  }
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const SizeVarNode* get() const { return static_cast<const SizeVarNode*>(data_.get()); }
+  const SizeVarNode* get() const {
+    return static_cast<const SizeVarNode*>(data_.get());
+  }
   /*! \brief type indicate the container type */
   using ContainerType = SizeVarNode;
 };
+
+
+/*! \brief container class of iteration variable. */
+class IterVarNode;
 
 using Region = Array<Range>;
 
@@ -176,7 +187,7 @@ enum IterVarType : int {
   /*!
    * \brief The IterVar itself is a thread-index
    *  of a fixed thread launching group.
-   *  Note that this is already assumed to be parallelized.
+   *  Note that this is already assumed to be paralellized.
    *
    *  Disallow: split/fuse/vectorize/parallel
    */
@@ -227,6 +238,31 @@ enum IterVarType : int {
 };
 
 /*!
+ * \brief Iteration Variable,
+ *  represents an iteration over an integer interval.
+ */
+class IterVar : public ObjectRef {
+ public:
+  // construct a new iter var without a domain
+  IterVar() {}
+  // construct from shared ptr.
+  explicit IterVar(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const IterVarNode* operator->() const;
+  /*!
+   * \return the corresponding var in the IterVar.
+   */
+  inline operator PrimExpr() const;
+  /*! \brief specify container node */
+  using ContainerType = IterVarNode;
+};
+
+using Domain = Array<Range>;
+
+/*!
  * \brief An iteration variable representing an iteration
  *  over a one dimensional interval.
  */
@@ -245,7 +281,7 @@ class IterVarNode : public Object {
    * \brief additional tag on the iteration variable,
    *  set this if this is binded already to a known thread tag.
    */
-  String thread_tag;
+  std::string thread_tag;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dom", &dom);
@@ -255,8 +291,11 @@ class IterVarNode : public Object {
   }
 
   bool SEqualReduce(const IterVarNode* other, SEqualReducer equal) const {
-    return equal(dom, other->dom) && equal.DefEqual(var, other->var) &&
-           equal(iter_type, other->iter_type) && equal(thread_tag, other->thread_tag);
+    return
+        equal(dom, other->dom) &&
+        equal.DefEqual(var, other->var) &&
+        equal(iter_type, other->iter_type) &&
+        equal(thread_tag, other->thread_tag);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -266,50 +305,36 @@ class IterVarNode : public Object {
     hash_reduce(thread_tag);
   }
 
-  static constexpr const char* _type_key = "tir.IterVar";
+  TVM_DLL static IterVar make(Range dom, Var var,
+                              IterVarType iter_type,
+                              std::string thread_tag = "");
+
+  static constexpr const char* _type_key = "IterVar";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IterVarNode, Object);
 };
 
-/*!
- * \brief Iteration Variable,
- *  represents an iteration over an integer interval.
- */
-class IterVar : public ObjectRef {
- public:
-  TVM_DLL IterVar(Range dom, Var var, IterVarType iter_type, String thread_tag = "");
-  /*!
-   * \return the corresponding var in the IterVar.
-   */
-  inline operator PrimExpr() const;
-
-  TVM_DEFINE_OBJECT_REF_METHODS(IterVar, ObjectRef, IterVarNode);
-};
-
 // inline implementations
-inline IterVar::operator PrimExpr() const { return (*this)->var; }
+inline const IterVarNode* IterVar::operator->() const {
+  return static_cast<const IterVarNode*>(data_.get());
+}
+
+inline IterVar::operator PrimExpr() const {
+  return (*this)->var;
+}
 
 inline const char* IterVarType2String(IterVarType t) {
   switch (t) {
-    case kDataPar:
-      return "DataPar";
-    case kThreadIndex:
-      return "ThreadIndex";
-    case kCommReduce:
-      return "CommReduce";
-    case kOrdered:
-      return "Ordered";
-    case kOpaque:
-      return "Opaque";
-    case kUnrolled:
-      return "Unrolled";
-    case kVectorized:
-      return "Vectorized";
-    case kParallelized:
-      return "Parallelized";
-    case kTensorized:
-      return "Tensorized";
+    case kDataPar: return "DataPar";
+    case kThreadIndex: return "ThreadIndex";
+    case kCommReduce: return "CommReduce";
+    case kOrdered: return "Ordered";
+    case kOpaque: return "Opaque";
+    case kUnrolled: return "Unrolled";
+    case kVectorized: return "Vectorized";
+    case kParallelized: return "Parallelized";
+    case kTensorized: return "Tensorized";
   }
   return "Unknown";
 }

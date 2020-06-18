@@ -162,7 +162,6 @@ def verify_dense_grad(d_shape, w_shape):
 def test_dense_grad():
     verify_dense_grad((1, 8), (16, 8))
     verify_dense_grad((1, 4), (3, 4))
-    verify_dense_grad((5, 4), (3, 4))
 
 
 def verify_batch_flatten_grad(d_shape):

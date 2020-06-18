@@ -24,10 +24,11 @@ namespace contrib {
 
 using namespace runtime;
 
-TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
-  DLTensor* B = args[1];
-  DLTensor* C = args[2];
+TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  DLTensor *A = args[0];
+  DLTensor *B = args[1];
+  DLTensor *C = args[2];
   bool transa = args[3];
   bool transb = args[4];
   // call gemm for simple compact code.
@@ -41,7 +42,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul").set_body([](TVMArgs args, TVMRetVa
   CHECK(TypeMatch(B->dtype, kDLFloat, 32));
   CHECK(TypeMatch(C->dtype, kDLFloat, 32));
   // Get Metal device API
-  MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
+  MetalThreadEntry *entry_ptr = MetalThreadEntry::ThreadLocal();
   // CHECK_EQ(A->ctx, B->ctx);
   // CHECK_EQ(A->ctx, C->ctx);
   id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(A->ctx);
@@ -54,31 +55,36 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul").set_body([](TVMArgs args, TVMRetVa
   CHECK_EQ(A->shape[1 - (transa ? 1 : 0)], K);
   // mps a
   MPSDataType dtype = MPSType::DLTypeToMPSType(A->dtype);
-  MPSMatrixDescriptor* descA =
-      [MPSMatrixDescriptor matrixDescriptorWithDimensions:M
-                                                  columns:K
-                                                 rowBytes:K * sizeof(MPSDataTypeFloat32)
-                                                 dataType:MPSDataTypeFloat32];
+  MPSMatrixDescriptor *descA = [MPSMatrixDescriptor
+      matrixDescriptorWithDimensions:M
+                             columns:K
+                            rowBytes:K * sizeof(MPSDataTypeFloat32)
+                            dataType:MPSDataTypeFloat32];
   id<MTLBuffer> bufA = (__bridge id<MTLBuffer>)(A->data);
-  MPSMatrix* matrixA = [[MPSMatrix alloc] initWithBuffer:bufA descriptor:descA];
+  MPSMatrix *matrixA =
+      [[MPSMatrix alloc] initWithBuffer:bufA descriptor:descA];
   // mps b
-  MPSMatrixDescriptor* descB = [MPSMatrixDescriptor matrixDescriptorWithDimensions:K
-                                                                           columns:N
-                                                                          rowBytes:N * sizeof(dtype)
-                                                                          dataType:dtype];
+  MPSMatrixDescriptor *descB =
+      [MPSMatrixDescriptor matrixDescriptorWithDimensions:K
+                                                  columns:N
+                                                  rowBytes:N * sizeof(dtype)
+                                                  dataType:dtype];
   id<MTLBuffer> bufB = (__bridge id<MTLBuffer>)(B->data);
-  MPSMatrix* matrixB = [[MPSMatrix alloc] initWithBuffer:bufB descriptor:descB];
+  MPSMatrix *matrixB =
+      [[MPSMatrix alloc] initWithBuffer:bufB descriptor:descB];
   // mps c
-  MPSMatrixDescriptor* descC = [MPSMatrixDescriptor matrixDescriptorWithDimensions:M
-                                                                           columns:N
-                                                                          rowBytes:N * sizeof(dtype)
-                                                                          dataType:dtype];
+  MPSMatrixDescriptor *descC =
+      [MPSMatrixDescriptor matrixDescriptorWithDimensions:M
+                                                  columns:N
+                                                 rowBytes:N * sizeof(dtype)
+                                                 dataType:dtype];
   id<MTLBuffer> bufC = (__bridge id<MTLBuffer>)(C->data);
-  MPSMatrix* matrixC = [[MPSMatrix alloc] initWithBuffer:bufC descriptor:descC];
+  MPSMatrix *matrixC =
+      [[MPSMatrix alloc] initWithBuffer:bufC descriptor:descC];
   // kernel
 
-  MPSMatrixMultiplication* mul_obj = [[MPSMatrixMultiplication alloc] init];
-  MPSMatrixMultiplication* sgemm = [mul_obj initWithDevice:dev
+  MPSMatrixMultiplication *mul_obj = [[MPSMatrixMultiplication alloc] init];
+  MPSMatrixMultiplication *sgemm = [mul_obj initWithDevice:dev
                                              transposeLeft:transa
                                             transposeRight:transb
                                                 resultRows:M
@@ -87,9 +93,13 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul").set_body([](TVMArgs args, TVMRetVa
                                                      alpha:1.0f
                                                       beta:0.0f];
   CHECK(sgemm != nil);
-  [sgemm encodeToCommandBuffer:cb leftMatrix:matrixA rightMatrix:matrixB resultMatrix:matrixC];
+  [sgemm encodeToCommandBuffer:cb
+                    leftMatrix:matrixA
+                   rightMatrix:matrixB
+                  resultMatrix:matrixC];
   [cb commit];
-});
 
-}  // namespace contrib
-}  // namespace tvm
+  });
+
+} // namespace contrib
+} // namespace tvm

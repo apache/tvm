@@ -22,10 +22,7 @@ in TensorFlow frontend when mean and variance are not given.
 """
 import tvm
 import numpy as np
-try:
-    import tensorflow.compat.v1 as tf
-except ImportError:
-    import tensorflow as tf
+import tensorflow as tf
 from tvm import relay
 from tensorflow.python.framework import graph_util
 
@@ -50,7 +47,7 @@ def verify_fused_batch_norm(shape):
             continue
         mod, params = relay.frontend.from_tensorflow(constant_graph,
                                                      outputs=['output'])
-        with tvm.transform.PassContext(opt_level=3):
+        with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(mod,
                                              target=device,
                                              params=params)

@@ -27,7 +27,6 @@
 
 #include <tvm/ir/error.h>
 #include <tvm/relay/type.h>
-
 #include <string>
 
 namespace tvm {
@@ -41,7 +40,9 @@ namespace relay {
  * \param reporter The reporter.
  * \return true whether relation has been resolved.
  */
-bool IdentityRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+bool IdentityRel(const Array<Type>& types,
+                 int num_inputs,
+                 const Attrs& attrs,
                  const TypeReporter& reporter);
 
 /*!
@@ -54,7 +55,9 @@ bool IdentityRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
  * \param reporter The reporter.
  * \return true whether relation has been resolved.
  */
-bool BroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+bool BroadcastRel(const Array<Type>& types,
+                  int num_inputs,
+                  const Attrs& attrs,
                   const TypeReporter& reporter);
 
 /*!
@@ -71,11 +74,15 @@ bool BroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
  * \param reporter The reporter.
  * \return true whether relation has been resolved.
  */
-bool BroadcastCompRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+bool BroadcastCompRel(const Array<Type>& types,
+                      int num_inputs,
+                      const Attrs& attrs,
                       const TypeReporter& reporter);
 
-bool IdentityCompRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                     const TypeReporter& reporter);
+bool IdentityCompRel(const Array<Type>& types,
+                 int num_inputs,
+                 const Attrs& attrs,
+                 const TypeReporter& reporter);
 
 Array<IndexExpr> RankShape(const Array<IndexExpr>& shape);
 

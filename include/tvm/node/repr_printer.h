@@ -24,7 +24,6 @@
 #define TVM_NODE_REPR_PRINTER_H_
 
 #include <tvm/node/functor.h>
-
 #include <iostream>
 
 namespace tvm {

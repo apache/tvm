@@ -25,10 +25,10 @@
 #ifndef TVM_TE_SCHEDULE_H_
 #define TVM_TE_SCHEDULE_H_
 
-#include <tvm/support/with.h>
+#include <tvm/tir/expr.h>
 #include <tvm/te/tensor.h>
 #include <tvm/te/tensor_intrin.h>
-#include <tvm/tir/expr.h>
+#include <tvm/support/with.h>
 
 #include <string>
 #include <unordered_map>
@@ -84,12 +84,12 @@ class Stage : public ObjectRef {
    * \param scope The iteration point to carry the schedule.
    * \return reference to self.
    */
-  TVM_DLL Stage& compute_at(Stage parent, IterVar scope);  // NOLINT(*)
+  TVM_DLL Stage& compute_at(Stage parent, IterVar scope);   // NOLINT(*)
   /*!
    * \brief Compute the function inline.
    * \return reference to self.
    */
-  TVM_DLL Stage& compute_inline();  // NOLINT(*)
+  TVM_DLL Stage& compute_inline();   // NOLINT(*)
   /*!
    * \brief Compute the function at group root.
    * \return reference to self.
@@ -131,8 +131,7 @@ class Stage : public ObjectRef {
    * \param p_inner The result inner domain.
    * \return reference to self.
    */
-  TVM_DLL Stage& split(IterVar parent, PrimExpr factor, IterVar* p_outer,
-                       IterVar* p_inner);  // NOLINT(*)
+  TVM_DLL Stage& split(IterVar parent, PrimExpr factor, IterVar* p_outer, IterVar* p_inner);  // NOLINT(*)
   /*!
    * \brief Split the iteration with given number of parts.
    *
@@ -142,8 +141,7 @@ class Stage : public ObjectRef {
    * \param p_inner The result inner domain.
    * \return reference to self.
    */
-  TVM_DLL Stage& split_by_nparts(IterVar parent, PrimExpr nparts, IterVar* p_outer,
-                                 IterVar* p_inner);  // NOLINT(*)
+  TVM_DLL Stage& split_by_nparts(IterVar parent, PrimExpr nparts, IterVar* p_outer, IterVar* p_inner);   // NOLINT(*)
   /*!
    * \brief Fuse the inner outer domain to the target
    * \param outer The outer domain to be fused.
@@ -171,7 +169,7 @@ class Stage : public ObjectRef {
    * \param order The order of iteration variable.
    * \return reference to self.
    */
-  TVM_DLL Stage& reorder(const Array<IterVar>& order);  // NOLINT(*)
+  TVM_DLL Stage& reorder(const Array<IterVar>& order);   // NOLINT(*)
   /*!
    * \brief Perform tiling on two dimensions
    *  The final loop order from outmost to inner most are
@@ -187,15 +185,16 @@ class Stage : public ObjectRef {
    * \param p_y_inner Inner axis of y dimension
    * \return reference to self.
    */
-  TVM_DLL Stage& tile(IterVar x_parent, IterVar y_parent,  // NOLINT(*)
-                      PrimExpr x_factor, PrimExpr y_factor, IterVar* p_x_outer, IterVar* p_y_outer,
-                      IterVar* p_x_inner, IterVar* p_y_inner);
+  TVM_DLL Stage& tile(IterVar x_parent, IterVar y_parent,   // NOLINT(*)
+                     PrimExpr x_factor, PrimExpr y_factor,
+                     IterVar* p_x_outer, IterVar* p_y_outer,
+                     IterVar* p_x_inner, IterVar* p_y_inner);
   /*!
    * \brief Vectorize iteration.
    * \param var The axis to be vectorized.
    * \return reference to self.
    */
-  TVM_DLL Stage& vectorize(IterVar var);  // NOLINT(*)
+  TVM_DLL Stage& vectorize(IterVar var);   // NOLINT(*)
   /*!
    * \brief Replace computation of the current stage by tensor intrinsic f.
    * \param var The axis marks beginning of tensorization.
@@ -203,19 +202,19 @@ class Stage : public ObjectRef {
    * \param f The Tensor compute intrinsics.
    * \return reference to self.
    */
-  TVM_DLL Stage& tensorize(IterVar var, TensorIntrin f);  // NOLINT(*)
+  TVM_DLL Stage& tensorize(IterVar var, TensorIntrin f);   // NOLINT(*)
   /*!
    * \brief Unroll iteration.
    * \param var The axis to be unrolled.
    * \return reference to self.
    */
-  TVM_DLL Stage& unroll(IterVar var);  // NOLINT(*)
+  TVM_DLL Stage& unroll(IterVar var);   // NOLINT(*)
   /*!
    * \brief Parallelize iteration.
    * \param var The axis to be parallelized.
    * \return reference to self.
    */
-  TVM_DLL Stage& parallel(IterVar var);  // NOLINT(*)
+  TVM_DLL Stage& parallel(IterVar var);   // NOLINT(*)
   /*!
    * \brief Annotate the iteration with pragma
    *
@@ -225,8 +224,9 @@ class Stage : public ObjectRef {
    *
    * \return reference to self.
    */
-  TVM_DLL Stage& pragma(IterVar var, const std::string& pragma_type,
-                        const PrimExpr& pragma_value = PrimExpr());  // NOLINT(*)
+  TVM_DLL Stage& pragma(IterVar var,
+                       const std::string& pragma_type,
+                       const PrimExpr& pragma_value = PrimExpr());   // NOLINT(*)
   /*!
    * \brief Fetch data in advance.
    * \param domain the tensor to be prefetched
@@ -234,7 +234,7 @@ class Stage : public ObjectRef {
    * \param offset the number of iterations be to fetched in advance
    * \return reference to self
    */
-  TVM_DLL Stage& prefetch(const Tensor& domain, IterVar var, PrimExpr offset);  // NOLINT(*)
+  TVM_DLL Stage& prefetch(const Tensor &domain, IterVar var, PrimExpr offset); //NOLINT(*)
   /*!
    * \brief Set alignment requirement for specific dimension.
    *
@@ -245,12 +245,17 @@ class Stage : public ObjectRef {
    * \param offset The required offset factor.
    * \return reference to self
    */
-  TVM_DLL Stage& storage_align(IterVar axis, int factor, int offset);  // NOLINT(*)
+  TVM_DLL Stage& storage_align(IterVar axis, int factor, int offset); //NOLINT(*)
   /*!
    * \brief Compute current stage with double buffering.
    * \return reference to self.
    */
-  TVM_DLL Stage& double_buffer();  // NOLINT(*)
+  TVM_DLL Stage& double_buffer();   // NOLINT(*)
+  /*!
+   * \brief Schedule for OpenGL fragment shader.
+   * \return reference to self.
+   */
+  Stage& opengl(); // NOLINT(*)
   /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
@@ -278,12 +283,6 @@ class Schedule : public ObjectRef {
   Schedule() {}
   explicit Schedule(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
-   * \brief Create a schedule for array of ops(and their dependencies).
-   * \param ops The ops to be scheduled.
-   * \return sch The created Schedule.
-   */
-  TVM_DLL explicit Schedule(Array<Operation> ops);
-  /*!
    * \brief Get a copy of current schedule.
    * \return The copied schedule.
    */
@@ -298,7 +297,9 @@ class Schedule : public ObjectRef {
    * \param tensor The tensor
    * \return The stage corresponding to the tensor's op
    */
-  TVM_DLL Stage operator[](const Tensor& tensor) { return this->operator[](tensor->op); }
+  TVM_DLL Stage operator[](const Tensor& tensor) {
+    return this->operator[](tensor->op);
+  }
   /*!
    * \brief Create a new stage group for all intermediate
    *  operations between inputs and outputs.
@@ -308,8 +309,9 @@ class Schedule : public ObjectRef {
    * \param include_inputs Whether include inputs if they are reachable from outputs.
    * \return The new grouped stage.
    */
-  TVM_DLL Stage create_group(const Array<Tensor>& outputs, const Array<Tensor>& inputs,
-                             bool include_inputs = false);
+  TVM_DLL Stage create_group(const Array<Tensor>& outputs,
+                     const Array<Tensor>& inputs,
+                     bool include_inputs = false);
   /*!
    * \brief create a cache read of original tensor for readers.
    *  This will mutate the body of the readers.
@@ -319,8 +321,9 @@ class Schedule : public ObjectRef {
    * \param readers The readers to redirect to the tensor.
    * \return The created tensor.
    */
-  TVM_DLL Tensor cache_read(const Tensor& tensor, const std::string& scope,
-                            const Array<Operation>& readers);
+  TVM_DLL Tensor cache_read(const Tensor& tensor,
+                    const std::string& scope,
+                    const Array<Operation>& readers);
   /*!
    * \brief Create a cache write tensor for producing tensor.
    *  The the tensor will take over body of original tensor op.
@@ -368,7 +371,9 @@ class Schedule : public ObjectRef {
    * \param factor_axis The position where the new axis is placed.
    * \return The created factored tensors.
    */
-  TVM_DLL Array<Tensor> rfactor(const Tensor& tensor, const IterVar& axis, int factor_axis = 0);
+  TVM_DLL Array<Tensor> rfactor(const Tensor& tensor,
+                        const IterVar& axis,
+                        int factor_axis = 0);
   /*!
    * \brief Normalize the schedule.
    *  This is needed before bound inference.
@@ -479,6 +484,8 @@ class StageNode : public Object {
   std::string scope;
   /*! \brief Whether this is an output stage */
   bool is_output{false};
+  /*! \brief Whether this is an OpenGL stage */
+  bool is_opengl{false};
   /*! \brief Whether apply double buffer optimization to this stage */
   bool double_buffer{false};
   /*!
@@ -502,6 +509,7 @@ class StageNode : public Object {
     v->Visit("attach_stage", &attach_stage);
     v->Visit("scope", &scope);
     v->Visit("is_output", &is_output);
+    v->Visit("is_opengl", &is_opengl);
     v->Visit("double_buffer", &double_buffer);
     v->Visit("group", &group);
     v->Visit("num_child_stages", &num_child_stages);
@@ -557,7 +565,16 @@ class ScheduleNode : public Object {
    * \param tensor The candidate tensor.
    * \return true if the schedule has the tensor. Otherwise, false.
    */
-  TVM_DLL bool Contain(const Tensor& tensor) const { return Contain(tensor->op); }
+  TVM_DLL bool Contain(const Tensor& tensor) const {
+    return Contain(tensor->op);
+  }
+
+  /*!
+   * \brief Create a schedule for array of ops(and their dependencies).
+   * \param ops The ops to be scheduled.
+   * \return sch The created Schedule.
+   */
+  TVM_DLL static Schedule make(Array<Operation> ops);
 
   static constexpr const char* _type_key = "Schedule";
   TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleNode, Object);
@@ -568,7 +585,9 @@ class ScheduleNode : public Object {
  * \param ops The ops to be scheduled.
  * \return sch The created Schedule.
  */
-inline Schedule create_schedule(Array<Operation> ops) { return Schedule(ops); }
+inline Schedule create_schedule(Array<Operation> ops) {
+  return ScheduleNode::make(ops);
+}
 
 /*! \brief node container for IterVar attr */
 class IterVarAttrNode : public Object {
@@ -647,19 +666,14 @@ class SplitNode : public IterVarRelationNode {
     v->Visit("nparts", &nparts);
   }
 
+  static IterVarRelation make(IterVar parent,
+                              IterVar outer,
+                              IterVar inner,
+                              PrimExpr factor,
+                              PrimExpr nparts);
+
   static constexpr const char* _type_key = "Split";
   TVM_DECLARE_FINAL_OBJECT_INFO(SplitNode, IterVarRelationNode);
-};
-
-/*!
- * \brief Managed reference to SplitNode
- * \sa SplitNode
- */
-class Split : public IterVarRelation {
- public:
-  TVM_DLL Split(IterVar parent, IterVar outer, IterVar inner, PrimExpr factor, PrimExpr nparts);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Split, IterVarRelation, SplitNode);
 };
 
 /*!
@@ -680,19 +694,11 @@ class FuseNode : public IterVarRelationNode {
     v->Visit("fused", &fused);
   }
 
+  static IterVarRelation make(
+      IterVar outer, IterVar inner, IterVar fused);
+
   static constexpr const char* _type_key = "Fuse";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuseNode, IterVarRelationNode);
-};
-
-/*!
- * \brief Managed reference to FuseNode
- * \sa FuseNode
- */
-class Fuse : public IterVarRelation {
- public:
-  TVM_DLL Fuse(IterVar outer, IterVar inner, IterVar fused);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Fuse, IterVarRelation, FuseNode);
 };
 
 /*!
@@ -712,20 +718,12 @@ class RebaseNode : public IterVarRelationNode {
     v->Visit("rebased", &rebased);
   }
 
+  static IterVarRelation make(IterVar parent, IterVar rebased);
+
   static constexpr const char* _type_key = "Rebase";
   TVM_DECLARE_FINAL_OBJECT_INFO(RebaseNode, IterVarRelationNode);
 };
 
-/*!
- * \brief Managed reference to RebaseNode
- * \sa RebaseNode
- */
-class Rebase : public IterVarRelation {
- public:
-  TVM_DLL Rebase(IterVar parent, IterVar rebased);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Rebase, IterVarRelation, RebaseNode);
-};
 
 /*!
  * \brief Singleton iterator [0, 1)
@@ -735,21 +733,14 @@ class SingletonNode : public IterVarRelationNode {
   /*! \brief The singleton iterator */
   IterVar iter;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("iter", &iter); }
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("iter", &iter);
+  }
+
+  static IterVarRelation make(IterVar iter);
 
   static constexpr const char* _type_key = "Singleton";
   TVM_DECLARE_FINAL_OBJECT_INFO(SingletonNode, IterVarRelationNode);
-};
-
-/*!
- * \brief Managed reference to SingletonNode
- * \sa SingletonNode
- */
-class Singleton : public IterVarRelation {
- public:
-  TVM_DLL explicit Singleton(IterVar iter);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Singleton, IterVarRelation, SingletonNode);
 };
 
 /*! \brief Container for specialization conditions. */
@@ -762,7 +753,9 @@ class SpecializedConditionNode : public Object {
    */
   Array<PrimExpr> clauses;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("clauses", &clauses); }
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("clauses", &clauses);
+  }
 
   static constexpr const char* _type_key = "SpecializedCondition";
   TVM_DECLARE_FINAL_OBJECT_INFO(SpecializedConditionNode, Object);
@@ -799,13 +792,19 @@ class SpecializedCondition : public ObjectRef {
 };
 
 // implementations
-inline const StageNode* Stage::operator->() const { return static_cast<const StageNode*>(get()); }
-inline StageNode* Stage::operator->() { return static_cast<StageNode*>(get_mutable()); }
+inline const StageNode* Stage::operator->() const {
+  return static_cast<const StageNode*>(get());
+}
+inline StageNode* Stage::operator->() {
+  return static_cast<StageNode*>(get_mutable());
+}
 
 inline const ScheduleNode* Schedule::operator->() const {
   return static_cast<const ScheduleNode*>(get());
 }
-inline ScheduleNode* Schedule::operator->() { return static_cast<ScheduleNode*>(get_mutable()); }
+inline ScheduleNode* Schedule::operator->() {
+  return static_cast<ScheduleNode*>(get_mutable());
+}
 
 inline const IterVarRelationNode* IterVarRelation::operator->() const {
   return static_cast<const IterVarRelationNode*>(get());

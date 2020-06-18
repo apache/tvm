@@ -24,10 +24,9 @@
 #ifndef TVM_RUNTIME_LIBRARY_MODULE_H_
 #define TVM_RUNTIME_LIBRARY_MODULE_H_
 
-#include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/module.h>
-
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/c_backend_api.h>
 #include <functional>
 
 namespace tvm {
@@ -48,7 +47,7 @@ class Library : public Object {
    * \param name The name of the symbol.
    * \return The symbol.
    */
-  virtual void* GetSymbol(const char* name) = 0;
+  virtual void *GetSymbol(const char* name) = 0;
   // NOTE: we do not explicitly create an type index and type_key here for libary.
   // This is because we do not need dynamic type downcasting.
 };
@@ -78,4 +77,4 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol);
 Module CreateModuleFromLibrary(ObjectPtr<Library> lib);
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_LIBRARY_MODULE_H_
+#endif   // TVM_RUNTIME_LIBRARY_MODULE_H_

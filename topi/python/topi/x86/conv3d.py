@@ -78,11 +78,11 @@ def conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, out_dtype):
 
     Parameters
     ----------
-    input : tvm.te.Tensor
+    input : tvm.Tensor
         5-D input data with shapes:
         [batch, in_channel, in_depth, in_height, in_width] for NCDHW layout
 
-    filter : tvm.te.Tensor
+    filter : tvm.Tensor
         5-D filter with shape [out_channels, in_channels, kernel_depth, kernel_height, kernel_width]
 
     strides : int or a list/tuple of three ints
@@ -96,7 +96,7 @@ def conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, out_dtype):
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : tvm.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width] for NCDHW layout
     """
     layout = "NCDHW"

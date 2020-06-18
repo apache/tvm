@@ -21,15 +21,16 @@
  * \file tir/analysis/deep_equal.cc
  * \brief Deep equality checking.
  */
-#include <tvm/node/reflection.h>
 #include <tvm/node/structural_equal.h>
+#include <tvm/node/reflection.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
 
 namespace tvm {
 namespace tir {
 
-class DeepCmpSEqualHandler : public SEqualReducer::Handler {
+class DeepCmpSEqualHandler :
+      public SEqualReducer::Handler {
  public:
   // use direct recursion.
   bool SEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars) final {
@@ -40,9 +41,12 @@ class DeepCmpSEqualHandler : public SEqualReducer::Handler {
     return vtable_->SEqualReduce(lhs.get(), rhs.get(), SEqualReducer(this, false));
   }
 
-  ObjectRef MapLhsToRhs(const ObjectRef& lhs) final { return ObjectRef(nullptr); }
+  ObjectRef MapLhsToRhs(const ObjectRef& lhs) final {
+    return ObjectRef(nullptr);
+  }
 
-  void MarkGraphNode() final {}
+  void MarkGraphNode() final {
+  }
 
  private:
   // reflection vtable
@@ -63,9 +67,9 @@ bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
 }
 
 TVM_REGISTER_GLOBAL("tir.analysis.expr_deep_equal")
-    .set_body_typed([](const PrimExpr& lhs, const PrimExpr& rhs) {
-      return ExprDeepEqual()(lhs, rhs);
-    });
+.set_body_typed([](const PrimExpr& lhs, const PrimExpr& rhs) {
+  return ExprDeepEqual()(lhs, rhs);
+});
 
 }  // namespace tir
 }  // namespace tvm

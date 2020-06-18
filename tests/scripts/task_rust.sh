@@ -24,12 +24,8 @@ export TVM_HOME="$(git rev-parse --show-toplevel)"
 export LD_LIBRARY_PATH="$TVM_HOME/lib:$TVM_HOME/build:${LD_LIBRARY_PATH:-}"
 export PYTHONPATH="$TVM_HOME/python":"$TVM_HOME/topi/python"
 export RUST_DIR="$TVM_HOME/rust"
-export LLVM_CONFIG_PATH=`which llvm-config-10`
+export LLVM_CONFIG_PATH=`which llvm-config-8`
 echo "Using $LLVM_CONFIG_PATH"
-
-# to avoid CI CPU thread throttling.
-export TVM_BIND_THREADS=0
-export OMP_NUM_THREADS=1
 
 cd $RUST_DIR
 cargo fmt -- --check
@@ -57,12 +53,6 @@ cd -
 cd tests/test_tvm_dso
 cargo run
 cd -
-
-# # run wasm32 test
-# cd tests/test_wasm32
-# cargo build
-# wasmtime $RUST_DIR/target/wasm32-wasi/debug/test-wasm32.wasm
-# cd -
 
 # run nn graph test
 cd tests/test_nn

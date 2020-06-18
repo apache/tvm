@@ -28,6 +28,7 @@ from . import quantize
 from .. import op as _op
 from .. import expr as _expr
 from .. import analysis as _analysis
+from .. import transform as _transform
 from .. import build_module as _build_module
 from ...contrib import graph_runtime
 from .kl_divergence import _find_scale_by_kl
@@ -44,7 +45,7 @@ def _get_profile_runtime(mod):
         target = 'llvm'
         ctx = tvm.context(target)
 
-    with tvm.transform.PassContext(opt_level=3):
+    with _transform.build_config(opt_level=3):
         graph, lib, params = _build_module.build(func, target=target)
     runtime = graph_runtime.create(graph, lib, ctx)
     runtime.set_input(**params)
@@ -138,14 +139,10 @@ def _set_params(mod, input_scale_func, weight_scale_func):
             const_params[nclip_min] = _make_const(- (valid_range - 1))
             const_params[nclip_max] = _make_const((valid_range - 1))
 
-    main_func = mod['main']
-    _analysis.post_order_visit(main_func, visit_func)
-    main_func = _expr.bind(main_func, const_params)
-    func_dict = {}
-    for global_var, func in mod.functions.items():
-        if global_var.name_hint != 'main':
-            func_dict[global_var] = func
-    return IRModule.from_expr(main_func, func_dict)
+    func = mod['main']
+    _analysis.post_order_visit(func, visit_func)
+    func = _expr.bind(func, const_params)
+    return IRModule.from_expr(func)
 
 
 # weight scale functions

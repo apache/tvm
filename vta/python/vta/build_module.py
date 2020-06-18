@@ -14,22 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument, invalid-name
+# pylint: disable=unused-argument
 """VTA specific buildin for runtime."""
 import tvm
-from . import transform
+from . import ir_pass
 from .environment import get_env
 
 
-def EarlyRewrite():
+def lift_coproc_scope(x):
+    """Lift coprocessings cope to the """
+    x = ir_pass.lift_alloc_to_scope_begin(x)
+    x = tvm.tir.ir_pass.LiftAttrScope(x, "coproc_scope", False)
+    return x
+
+def early_rewrite(stmt):
     """Try to do storage rewrite in early pass."""
-    def _transform(mod, ctx):
-        try:
-            return tvm.tir.transform.StorageRewrite()(mod)
-        except tvm.error.TVMError:
-            return mod
-    return tvm.transform.module_pass(
-        _transform, opt_level=0, name="tir.vta.EarlyRewrite")
+    try:
+        return tvm.tir.ir_pass.StorageRewrite(stmt)
+    except tvm.error.TVMError:
+        return stmt
 
 
 def build_config(debug_flag=0, **kwargs):
@@ -45,7 +48,7 @@ def build_config(debug_flag=0, **kwargs):
 
     Returns
     -------
-    build_config: tvm.transform.PassContext
+    build_config: BuildConfig
         The build config that can be used in TVM.
 
     Example
@@ -57,40 +60,28 @@ def build_config(debug_flag=0, **kwargs):
           vta_module = tvm.build(s, ...)
     """
     env = get_env()
-
-    @tvm.tir.transform.prim_func_pass(opt_level=0)
-    def add_debug(f, *_):
+    def add_debug(stmt):
         debug = tvm.tir.call_extern(
             "int32", "VTASetDebugMode",
             env.dev.command_handle,
             debug_flag)
 
-        return f.with_body(tvm.tir.stmt_seq(debug, f.body))
-
-
-    pass_list = [(0, transform.InjectConv2DTransposeSkip()),
-                 (1, transform.InjectDMAIntrin()),
-                 (1, transform.InjectSkipCopy()),
-                 (1, transform.AnnotateALUCoProcScope()),
-                 (1, tvm.tir.transform.LiftAttrScope("coproc_uop_scope")),
-                 (1, transform.LiftAllocToScopeBegin()),
-                 (1, tvm.tir.transform.LiftAttrScope("coproc_scope")),
-                 (1, transform.InjectCoProcSync()),
-                 (1, EarlyRewrite())]
+        return tvm.tir.stmt_seq(debug, stmt)
+    pass_list = [(0, ir_pass.inject_conv2d_transpose_skip),
+                 (1, ir_pass.inject_dma_intrin),
+                 (1, ir_pass.inject_skip_copy),
+                 (1, ir_pass.annotate_alu_coproc_scope),
+                 (1, lambda x: tvm.tir.ir_pass.LiftAttrScope(x, "coproc_uop_scope", True)),
+                 (1, lift_coproc_scope),
+                 (1, ir_pass.inject_coproc_sync),
+                 (1, early_rewrite)]
     if debug_flag:
         pass_list.append((1, add_debug))
-    pass_list.append((2, transform.InjectALUIntrin()))
-    pass_list.append((3, tvm.tir.transform.LowerDeviceStorageAccessInfo()))
-    pass_list.append((3, transform.FoldUopLoop()))
-    pass_list.append((3, transform.CPUAccessRewrite()))
-    config = {
-        "tir.add_lower_pass": pass_list
-    }
-    if kwargs.get("config"):
-        config.update(kwargs[config])
-        del kwargs["config"]
-
-    return tvm.transform.PassContext(config=config, **kwargs)
+    pass_list.append((2, ir_pass.inject_alu_intrin))
+    pass_list.append((3, tvm.tir.ir_pass.LowerStorageAccessInfo))
+    pass_list.append((3, ir_pass.fold_uop_loop))
+    pass_list.append((3, ir_pass.cpu_access_rewrite))
+    return tvm.target.build_config(add_lower_pass=pass_list, **kwargs)
 
 
 def lower(*args, **kwargs):
@@ -103,8 +94,8 @@ def lower(*args, **kwargs):
     --------
     tvm.lower : The original TVM's lower function
     """
-    pass_ctx = tvm.transform.PassContext.current()
-    if not pass_ctx.config.get("add_lower_pass"):
+    cfg = tvm.target.BuildConfig.current()
+    if not cfg.add_lower_pass:
         with build_config():
             return tvm.lower(*args, **kwargs)
     return tvm.lower(*args, **kwargs)
@@ -120,8 +111,8 @@ def build(*args, **kwargs):
     --------
     tvm.build : The original TVM's build function
     """
-    pass_ctx = tvm.transform.PassContext.current()
-    if not pass_ctx.config.get("tir.add_lower_pass"):
+    cfg = tvm.target.BuildConfig.current()
+    if not cfg.add_lower_pass:
         with build_config():
             return tvm.build(*args, **kwargs)
     return tvm.build(*args, **kwargs)

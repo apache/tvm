@@ -112,12 +112,14 @@ def test_expr_constructor():
     assert x.vectors[0] == a
     assert x.indices[0].value == 0
 
-    x = tvm.tir.Call("float32", "xyz", [a], tvm.tir.Call.Extern)
+    x = tvm.tir.Call("float32", "xyz", [a], tvm.tir.Call.Extern, None, 0)
     assert isinstance(x, tvm.tir.Call)
     assert x.dtype == "float32"
     assert x.name == "xyz"
     assert x.args[0] == a
     assert x.call_type == tvm.tir.Call.Extern
+    assert x.func == None
+    assert x.value_index == 0
 
     v = te.var("aa")
     x = tvm.tir.Let(v, 1, v)
@@ -158,6 +160,12 @@ def test_stmt_constructor():
     assert x.index.value == 10
     assert x.value.value == 1
 
+    tensor = te.placeholder((), dtype="float32")
+    x = tvm.tir.Provide(tensor.op, 0, 10, [])
+    assert isinstance(x, tvm.tir.Provide)
+    assert x.value_index == 0
+    assert x.value.value == 10
+
     x = tvm.tir.Allocate(buffer_var, "float32", [10],
                           tvm.tir.const(1, "uint1"), nop)
     assert isinstance(x, tvm.tir.Allocate)
@@ -175,6 +183,10 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tir.Free)
     assert x.buffer_var == buffer_var
 
+    x = tvm.tir.Realize(None, 0, "float", [], tvm.tir.const(1, "uint1"), nop)
+    assert isinstance(x, tvm.tir.Realize)
+    assert x.body == nop
+
     x = tvm.tir.IfThenElse(tvm.tir.const(1, "uint1"),
                             tvm.tir.Evaluate(11),
                             nop)
@@ -182,9 +194,9 @@ def test_stmt_constructor():
     assert x.then_case.value.value == 11
     assert x.else_case == nop
 
-    b = tvm.tir.decl_buffer((1, 2))
-    x = tvm.tir.Prefetch(b, [])
+    x = tvm.tir.Prefetch(None, 1, "float32", [])
     assert isinstance(x, tvm.tir.Prefetch)
+    assert x.value_index == 1
 
 
 if __name__ == "__main__":

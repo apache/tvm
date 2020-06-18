@@ -21,6 +21,7 @@ from tvm.ir import container as _container
 
 from . import stmt as _stmt
 from . import expr as _expr
+from . import ir_pass as _pass
 
 
 class WithScope(object):
@@ -211,7 +212,7 @@ class IRBuilder(object):
             self.nidx += 1
         self._seq_stack.append([])
         loop_var = _expr.Var(name, dtype=dtype)
-        extent = end if begin == 0 else (end - begin)
+        extent = end if begin == 0 else _pass.Simplify(end - begin)
         def _exit_cb():
             if for_type == "serial":
                 for_type_id = 0
@@ -380,7 +381,7 @@ class IRBuilder(object):
             The expression will likely tag.
         """
         return _expr.Call(expr.dtype, "likely", [expr],
-                          _expr.Call.PureIntrinsic)
+                          _expr.Call.PureIntrinsic, None, 0)
 
     def get(self):
         """Return the builded IR.

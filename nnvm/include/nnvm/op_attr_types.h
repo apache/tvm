@@ -24,16 +24,15 @@
 #ifndef NNVM_OP_ATTR_TYPES_H_
 #define NNVM_OP_ATTR_TYPES_H_
 
-#include <functional>
-#include <string>
-#include <unordered_map>
-#include <utility>
 #include <vector>
-
+#include <string>
+#include <utility>
+#include <functional>
+#include <unordered_map>
 #include "base.h"
-#include "layout.h"
 #include "node.h"
 #include "tuple.h"
+#include "layout.h"
 
 namespace nnvm {
 
@@ -49,7 +48,7 @@ namespace nnvm {
  *
  *  FListInputNames enables automatic variable creation for missing arguments.
  */
-using FListInputNames = std::function<std::vector<std::string>(const NodeAttrs& attrs)>;
+using FListInputNames = std::function<std::vector<std::string> (const NodeAttrs& attrs)>;
 
 /*!
  * \brief Return number of visible outputs by the user.
@@ -61,7 +60,7 @@ using FListInputNames = std::function<std::vector<std::string>(const NodeAttrs& 
  *  but the additional outputs can be used to pass information from
  *  forward to gradient pass.
  */
-using FNumVisibleOutputs = std::function<uint32_t(const NodeAttrs& attrs)>;
+using FNumVisibleOutputs = std::function<uint32_t (const NodeAttrs& attrs)>;
 
 /*!
  * \brief Return list of output arguments names of each operator.
@@ -72,7 +71,7 @@ using FNumVisibleOutputs = std::function<uint32_t(const NodeAttrs& attrs)>;
  *
  *  FListOutputNames customized naming for operator outputs.
  */
-using FListOutputNames = std::function<std::vector<std::string>(const NodeAttrs& attrs)>;
+using FListOutputNames = std::function<std::vector<std::string> (const NodeAttrs& attrs)>;
 
 /*!
  * \brief Check whether operator will mutate k-th input.
@@ -82,16 +81,17 @@ using FListOutputNames = std::function<std::vector<std::string>(const NodeAttrs&
  * \note Register under "FMutateInputs", default return false
  * FMutateInputs enables mutation order handling correctly.
  */
-using FMutateInputs = std::function<std::vector<uint32_t>(const NodeAttrs& attrs)>;
+using FMutateInputs = std::function<std::vector<uint32_t> (const NodeAttrs& attrs)>;
 
 /*!
  * \brief Inference function of certain type.
  * \tparam AttrType The type of the attribute to be infered.
  * \return whether all attributes are inferred.
  */
-template <typename AttrType>
-using FInferNodeEntryAttr = std::function<bool(
-    const NodeAttrs& attrs, std::vector<AttrType>* in_attrs, std::vector<AttrType>* out_attrs)>;
+template<typename AttrType>
+using FInferNodeEntryAttr = std::function<bool (const NodeAttrs& attrs,
+                                                std::vector<AttrType> *in_attrs,
+                                                std::vector<AttrType> *out_attrs)>;
 
 /*!
  * \brief Get attribute dictionary from node.
@@ -100,8 +100,9 @@ using FInferNodeEntryAttr = std::function<bool(
  * \return The attribute dict.
  * \note Register under "FUpdateAttrDict"
  */
-using FGetAttrDict =
-    std::function<std::unordered_map<std::string, std::string>(const NodeAttrs& attrs)>;
+using FGetAttrDict = std::function<
+  std::unordered_map<std::string, std::string>
+  (const NodeAttrs& attrs)>;
 
 /*!
  * \brief Shape inference function.
@@ -154,7 +155,8 @@ using TIsGhost = bool;
  *
  * \note Register under "FInplaceOption", by default no inplace can happen.
  */
-using FInplaceOption = std::function<std::vector<std::pair<int, int> >(const NodeAttrs& attrs)>;
+using FInplaceOption = std::function<
+  std::vector<std::pair<int, int> > (const NodeAttrs& attrs)>;
 
 /*!
  * \brief Get if the inplace option is an identity
@@ -166,7 +168,7 @@ using FInplaceOption = std::function<std::vector<std::pair<int, int> >(const Nod
  *
  * \note Register under "FInplaceIdentity", by default no identities.
  */
-using FInplaceIdentity = std::function<std::vector<bool>(const NodeAttrs& attrs)>;
+using FInplaceIdentity = std::function<std::vector<bool> (const NodeAttrs& attrs)>;
 
 /*!
  * \brief Get list of inputs in the op whose content are actually not used by the operator
@@ -177,7 +179,8 @@ using FInplaceIdentity = std::function<std::vector<bool>(const NodeAttrs& attrs)
  *
  * \note Register under "FIgnoreInputs".
  */
-using FIgnoreInputs = std::function<std::vector<uint32_t>(const NodeAttrs& attrs)>;
+using FIgnoreInputs = std::function<
+  std::vector<uint32_t> (const NodeAttrs& attrs)>;
 
 /*!
  * \brief Get the gradient node of the op node
@@ -188,8 +191,9 @@ using FIgnoreInputs = std::function<std::vector<uint32_t>(const NodeAttrs& attrs
  *
  * \note Register under "FGradient"
  */
-using FGradient = std::function<std::vector<NodeEntry>(const ObjectPtr& nodeptr,
-                                                       const std::vector<NodeEntry>& out_grads)>;
+using FGradient = std::function<std::vector<NodeEntry>(
+    const ObjectPtr& nodeptr,
+    const std::vector<NodeEntry>& out_grads)>;
 
 /*!
  * \brief Set the attributes of input variable.
@@ -198,8 +202,10 @@ using FGradient = std::function<std::vector<NodeEntry>(const ObjectPtr& nodeptr,
  *  \param var the input variable
  *  \param index index of var in all inputs
  */
-using FSetInputVarAttrOnCompose =
-    std::function<void(const NodeAttrs& attrs, ObjectPtr var, const int index)>;
+using FSetInputVarAttrOnCompose = std::function<void(
+    const NodeAttrs& attrs,
+    ObjectPtr var,
+    const int index)>;
 
 /*!
  * \brief Infer & correct function of node layout. See \p Layout for layout convention
@@ -220,9 +226,12 @@ using FSetInputVarAttrOnCompose =
  * \param olayouts Inferred output layouts.
  * \return success flag.
  */
-using FCorrectLayout =
-    std::function<bool(const NodeAttrs& attrs, std::vector<Layout>* ilayouts,
-                       const std::vector<Layout>* last_ilayouts, std::vector<Layout>* olayouts)>;
+using FCorrectLayout = std::function<bool(
+    const NodeAttrs& attrs,
+    std::vector<Layout> *ilayouts,
+    const std::vector<Layout> *last_ilayouts,
+    std::vector<Layout> *olayouts)>;
+
 
 /*!
  * \brief Infer & correct function of node layout. See \p Layout for layout convention
@@ -245,8 +254,12 @@ using FCorrectLayout =
  * \return success flag.
  */
 using FCorrectLayoutEx = std::function<bool(
-    const NodeAttrs& attrs, std::vector<TShape>* ishapes, std::vector<Layout>* ilayouts,
-    const std::vector<Layout>* last_ilayouts, std::vector<Layout>* olayouts)>;
+    const NodeAttrs& attrs,
+    std::vector<TShape>* ishapes,
+    std::vector<Layout>* ilayouts,
+    const std::vector<Layout>* last_ilayouts,
+    std::vector<Layout>* olayouts)>;
+
 
 /*!
  * \brief Get a list of inputs that represent graphs instead of data.

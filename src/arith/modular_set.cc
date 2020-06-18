@@ -21,15 +21,13 @@
  * \file modular_set.cc
  * \brief Modular set analysis
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/tir/expr_functor.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/tir/op.h>
-
+#include <tvm/tir/expr_functor.h>
 #include <limits>
-#include <unordered_map>
 #include <utility>
-
+#include <unordered_map>
 #include "pattern_match.h"
 
 namespace tvm {
@@ -48,15 +46,19 @@ ModularSet::ModularSet(int64_t coeff, int64_t base) {
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ModularSetNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const ModularSetNode*>(node.get());
-      p->stream << "ModularSet("
-                << "coeff=" << op->coeff << ", base=" << op->base << ')';
-    });
+.set_dispatch<ModularSetNode>([](const ObjectRef& node, ReprPrinter* p) {
+    auto* op = static_cast<const ModularSetNode*>(node.get());
+    p->stream << "ModularSet("
+              << "coeff=" << op->coeff << ", base="
+              << op->base << ')';
+  });
 
-ModularSet MakeModularSet(int64_t coeff, int64_t base) { return ModularSet(coeff, base); }
+ModularSet MakeModularSet(int64_t coeff, int64_t base) {
+  return ModularSet(coeff, base);
+}
 
-TVM_REGISTER_GLOBAL("arith.ModularSet").set_body_typed(MakeModularSet);
+TVM_REGISTER_GLOBAL("arith.ModularSet")
+.set_body_typed(MakeModularSet);
 
 // internal entry for const int bound
 struct ModularSetAnalyzer::Entry {
@@ -75,27 +77,37 @@ struct ModularSetAnalyzer::Entry {
     this->base = base;
   }
 
-  bool is_const() const { return coeff == 0; }
+  bool is_const() const {
+    return coeff == 0;
+  }
 
-  bool operator==(const Entry& other) const { return coeff == other.coeff && base == other.base; }
+  bool operator==(const Entry& other) const {
+    return coeff == other.coeff && base == other.base;
+  }
 
   bool operator==(const ModularSet& other) const {
-    return other.defined() && coeff == other->coeff && base == other->base;
+    return other.defined() &&
+        coeff == other->coeff && base == other->base;
   }
 };
 
-class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(const PrimExpr&)> {
+class ModularSetAnalyzer::Impl :
+      public ExprFunctor<ModularSetAnalyzer::Entry(const PrimExpr&)> {
  public:
-  explicit Impl(Analyzer* parent) : parent_(parent) {}
+  explicit Impl(Analyzer* parent)
+      : parent_(parent) {}
 
-  void Update(const Var& var, const ModularSet& info, bool override) {
+  void Update(const Var& var,
+              const ModularSet& info,
+              bool override) {
     if (!override) {
       auto it = var_map_.find(var);
       if (it != var_map_.end()) {
-        CHECK(it->second == info) << "Trying to update var \'" << var << "\'"
-                                  << " with a different const bound: "
-                                  << "original=" << ModularSet(it->second.coeff, it->second.base)
-                                  << ", new=" << info;
+        CHECK(it->second == info)
+            << "Trying to update var \'" << var << "\'"
+            << " with a different const bound: "
+            << "original=" << ModularSet(it->second.coeff, it->second.base)
+            << ", new=" << info;
       }
     }
     var_map_[var] = Entry(info->coeff, info->base);
@@ -115,11 +127,17 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   }
 
   // Override visitor behaviors
-  Entry VisitExprDefault_(const Object* op) final { return Everything(); }
+  Entry VisitExprDefault_(const Object* op) final {
+    return Everything();
+  }
 
-  Entry VisitExpr_(const CastNode* op) final { return VisitExpr(op->value); }
+  Entry VisitExpr_(const CastNode* op) final {
+    return VisitExpr(op->value);
+  }
 
-  Entry VisitExpr_(const IntImmNode* op) final { return Entry(0, op->value); }
+  Entry VisitExpr_(const IntImmNode* op) final {
+    return Entry(0, op->value);
+  }
 
   Entry VisitExpr_(const AddNode* op) final {
     Entry a = VisitExpr(op->a);
@@ -149,7 +167,9 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     return Entry(coeff, a.base * b.base);
   }
 
-  Entry DivByConst(const PrimExpr& lhs, int64_t val, bool round_down) {
+  Entry DivByConst(const PrimExpr& lhs,
+                   int64_t val,
+                   bool round_down) {
     Entry a = VisitExpr(lhs);
     CHECK_NE(val, 0);
     if (a.coeff % val == 0) {
@@ -159,7 +179,8 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
       }
       // positive division have a clear rounding mode.
       // Only handle case where we clearly know we need to round down.
-      if (a.base > 0 && val > 0 && (round_down || parent_->CanProveGreaterEqual(lhs, 0))) {
+      if (a.base > 0 && val > 0 &&
+          (round_down || parent_->CanProveGreaterEqual(lhs, 0))) {
         return Entry(a.coeff / val, a.base / val);
       }
     }
@@ -233,7 +254,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   /*! \brief pointer to parent. */
   Analyzer* parent_{nullptr};
   // internal variable map
-  std::unordered_map<Var, Entry, ObjectPtrHash, ObjectPtrEqual> var_map_;
+  std::unordered_map<Var, Entry, ObjectHash, ObjectEqual> var_map_;
   /*!
    * \brief Update var by intersecting entry with var's current set.
    * \param var The variable.
@@ -248,7 +269,9 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     }
     var_map_[var] = Intersect(old, entry);
     // reover function.
-    return [this, old, var]() { var_map_[var] = old; };
+    return [this, old, var]() {
+      var_map_[var] = old;
+    };
   }
   /*!
    * \brief Create union of two sets.
@@ -270,7 +293,49 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
       return Entry(ZeroAwareGCD(ZeroAwareGCD(base0, base1), coeff), base0);
     }
   }
+  /*!
+   * \brief Use Extended Euclidean algorithm to solve ax + by = gcd(a, b)
+   * \param a The first coefficient.
+   * \param b The second coefficient.
+   * \param x The solution of x.
+   * \param y The solution of y.
+   * \return The GCD of a and b.
+   */
+  static int64_t ExtendedEuclidean(int64_t a, int64_t b, int64_t* x, int64_t* y) {
+    // Extended Euclidean algorithm
+    // if a < 0, the problem can be convert into
+    // |a|* (-x) + b * y = gcd(|a|, b)
+    //
+    // initial condition:
+    // a * 0 + b * 1 = b
+    // a * 1 + b * 0 = a
+    int64_t s = 0, old_s = 1;
+    int64_t r = b, old_r = a >= 0 ? a : -a;
+    // Iteration (r2 < r1):
+    // a * x1 + b * y1 = r1
+    // a * x2 + b * y2 = r2
+    // The above two eqs can derive the following eq (q = r1 / r2)
+    // a * (x1 - x2 * q) + b * (y1 - y2 * q) = r1 - r2 * q = r3
+    // Because r3 < r2, the iteration can eventually terminate
+    while (r != 0) {
+      int64_t q = old_r / r;
+      int64_t tmp = old_r;
+      old_r = r;
+      r = tmp - q * r;
+      tmp = old_s;
+      old_s = s;
+      s = tmp - q * s;
+    }
 
+    *x = a >= 0 ? old_s : -old_s;
+    if (b != 0) {
+      *y = (old_r - (*x) * a) / b;
+    } else {
+      *y = 1;
+    }
+
+    return old_r;
+  }
   /*!
    * \brief Create interect of two sets.
    * \param a The left operand.
@@ -298,15 +363,38 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     }
   }
   /*!
+   * \brief Take GCD of a and b.
+   * \param a The first operand.
+   * \param b The second operand.
+   * \return The result.
+   */
+  static int64_t ZeroAwareGCD(int64_t a, int64_t b) {
+    if (a < 0) a = -a;
+    if (b < 0) b = -b;
+    if (a < b) std::swap(a, b);
+    if (b == 0) return a;
+    // perform GCD (greatest common divisor)
+    // ax + by = gcd(a, b) z if a != 0, b != 0
+    while (a % b != 0) {
+      a = a % b;
+      std::swap(a, b);
+    }
+    return b;
+  }
+  /*!
    * \brief return everything dtype can represent.
    * \return Bound that represent everything dtype can represent.
    */
-  static Entry Everything() { return Entry(1, 0); }
+  static Entry Everything() {
+    return Entry(1, 0);
+  }
   /*!
    * \brief return an empty set
    * \return Bound that represent everything dtype can represent.
    */
-  static Entry Nothing() { return Entry(0, 1); }
+  static Entry Nothing() {
+    return Entry(0, 1);
+  }
 };
 
 ModularSet ModularSetAnalyzer::operator()(const PrimExpr& expr) {
@@ -314,7 +402,9 @@ ModularSet ModularSetAnalyzer::operator()(const PrimExpr& expr) {
   return ModularSet(ret.coeff, ret.base);
 }
 
-void ModularSetAnalyzer::Update(const Var& var, const ModularSet& info, bool override) {
+void ModularSetAnalyzer::Update(const Var& var,
+                                const ModularSet& info,
+                                bool override) {
   impl_->Update(var, info, override);
 }
 
@@ -322,9 +412,13 @@ std::function<void()> ModularSetAnalyzer::EnterConstraint(const PrimExpr& constr
   return impl_->EnterConstraint(constraint);
 }
 
-ModularSetAnalyzer::ModularSetAnalyzer(Analyzer* parent) : impl_(new Impl(parent)) {}
+ModularSetAnalyzer::ModularSetAnalyzer(Analyzer* parent)
+    : impl_(new Impl(parent)) {
+}
 
-ModularSetAnalyzer::~ModularSetAnalyzer() { delete impl_; }
+ModularSetAnalyzer::~ModularSetAnalyzer() {
+  delete impl_;
+}
 
 }  // namespace arith
 }  // namespace tvm

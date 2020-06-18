@@ -25,11 +25,10 @@
 #ifndef TVM_TE_SCHEDULE_MESSAGE_PASSING_H_
 #define TVM_TE_SCHEDULE_MESSAGE_PASSING_H_
 
-#include <tvm/arith/analyzer.h>
-#include <tvm/te/operation.h>
-#include <tvm/te/schedule.h>
 #include <tvm/tir/expr.h>
-
+#include <tvm/te/schedule.h>
+#include <tvm/te/operation.h>
+#include <tvm/arith/analyzer.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -46,8 +45,11 @@ namespace te {
  * \param analyzer Analyzer context, storing information about bounds in p_state.
  * \param allow_missing Whether allow missing value.
  */
-void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_state,
-                    arith::Analyzer* analyzer, bool allow_missing = false);
+void PassDownDomain(
+    const Stage& stage,
+    std::unordered_map<IterVar, Range>* p_state,
+    arith::Analyzer* analyzer,
+    bool allow_missing = false);
 
 /*!
  * \param Upward inference of index of each IterVar.
@@ -58,8 +60,10 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
  * \param p_state The index state of each IterVar.
  * \param allow_missing Whether allow missing value.
  */
-void PassUpIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
-                 std::unordered_map<IterVar, PrimExpr>* p_state, bool allow_missing = false);
+void PassUpIndex(const Stage& stage,
+                 const Map<IterVar, Range>& dom_map,
+                 std::unordered_map<IterVar, PrimExpr>* p_state,
+                 bool allow_missing = false);
 
 /*!
  * \param Downward inference of index of each IterVar.
@@ -70,8 +74,10 @@ void PassUpIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
  * \param p_state The index state of each IterVar.
  * \param allow_missing Whether allow missing value.
  */
-void PassDownIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
-                   std::unordered_map<IterVar, PrimExpr>* p_state, bool allow_missing = false);
+void PassDownIndex(const Stage& stage,
+                   const Map<IterVar, Range>& dom_map,
+                   std::unordered_map<IterVar, PrimExpr>* p_state,
+                   bool allow_missing = false);
 
 /*!
  * \param Upward inference of domain set of each IterVar.
@@ -81,7 +87,8 @@ void PassDownIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
  * \param dom_map The domain map of each iteration variable's maximum domain.
  * \param p_state The index state of each IterVar.
  */
-void PassUpDomain(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
+void PassUpDomain(const Stage& stage,
+                  const std::unordered_map<IterVar, Range>& dom_map,
                   std::unordered_map<IterVar, IntSet>* p_state);
 
 /*!
@@ -90,7 +97,8 @@ void PassUpDomain(const Stage& stage, const std::unordered_map<IterVar, Range>& 
  * \param p_state The index state of each IterVar.
  * \param allow_missing Whether allow missing value.
  */
-void PassUpBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_state,
+void PassUpBitMaskOr(const Stage& stage,
+                     std::unordered_map<IterVar, int>* p_state,
                      bool allow_missing = false);
 
 /*!
@@ -99,7 +107,8 @@ void PassUpBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_sta
  * \param p_state The index state of each IterVar.
  * \param allow_missing Whether allow missing value.
  */
-void PassDownBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_state,
+void PassDownBitMaskOr(const Stage& stage,
+                       std::unordered_map<IterVar, int>* p_state,
                        bool allow_missing = false);
 
 /*!
@@ -111,10 +120,13 @@ void PassDownBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_s
  * \param skip_iter The set of variables to skip bound condition.
  * \return List of predicates that we need to check.
  */
-std::vector<PrimExpr> MakeBoundCheck(const Stage& stage, const Map<IterVar, Range>& dom_map,
-                                     const std::unordered_map<IterVar, PrimExpr>& value_map,
-                                     bool skip_ivar_domain,
-                                     const std::unordered_set<IterVar>& skip_iter);
+std::vector<PrimExpr>
+MakeBoundCheck(
+    const Stage& stage,
+    const Map<IterVar, Range>& dom_map,
+    const std::unordered_map<IterVar, PrimExpr>& value_map,
+    bool skip_ivar_domain,
+    const std::unordered_set<IterVar>& skip_iter);
 
 }  // namespace te
 }  // namespace tvm

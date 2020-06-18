@@ -27,7 +27,7 @@ public class NDArrayBase extends TVMValue {
   private boolean isReleased = false;
 
   NDArrayBase(long handle, boolean isView) {
-    super(ArgTypeCode.ARRAY_HANDLE);
+    super(TypeCode.ARRAY_HANDLE);
     this.handle = handle;
     this.isView = isView;
   }

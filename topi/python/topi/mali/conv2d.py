@@ -138,7 +138,11 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
         s[data_vec].unroll(vw)
 
     if isinstance(kernel_vec.op, tvm.te.ComputeOp) and kernel_vec.name == 'kernel_vec':
-        if not autotvm.GLOBAL_SCOPE.in_tuning:
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            # kernel packing will be pre-computed during compilation, so we skip
+            # this part to make tuning records correct
+            s[kernel_vec].pragma(s[kernel_vec].op.axis[0], 'debug_skip_region')
+        else:
             max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
             co, ci, kh, kw, vc = s[kernel_vec].op.axis
             fused = s[kernel_vec].fuse(co, ci, kh, kw, vc)
@@ -275,21 +279,15 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
             data_pad[(b*bnb+bb) // (nH*nW)][ci][(b*bnb+bb) // nW % nH * m + eps]
             [(b*bnb+bb) % nW * m + nu], tvm.tir.const(0, data_pad.dtype)), name='d')
 
-    if autotvm.GLOBAL_SCOPE.in_tuning:
-        VC = cfg['tile_k'].size[-1]
-        kvshape = (KH + tile_size - 1, KW + tile_size - 1, tvm.tir.indexdiv(CO, VC), CI, VC)
-        U = tvm.te.placeholder(kvshape, kernel.dtype, name="U")
+    # transform kernel
+    if pre_computed:
+        U = kernel
     else:
-        # transform kernel
-        if pre_computed:
-            U = kernel
-        else:
-            r_kh = te.reduce_axis((0, KH), 'r_kh')
-            r_kw = te.reduce_axis((0, KW), 'r_kw')
-            U = te.compute((alpha, alpha, CO // bna, CI, bna), lambda eps, nu, co, ci, vco:
-                           te.sum(kernel[co * bna + vco][ci][r_kh][r_kw] *
-                                  G[eps][r_kh] * G[nu][r_kw],
-                                  axis=[r_kh, r_kw]), name='U')
+        r_kh = te.reduce_axis((0, KH), 'r_kh')
+        r_kw = te.reduce_axis((0, KW), 'r_kw')
+        U = te.compute((alpha, alpha, CO // bna, CI, bna), lambda eps, nu, co, ci, vco:
+                       te.sum(kernel[co * bna + vco][ci][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw],
+                              axis=[r_kh, r_kw]), name='U')
 
     # transform image
     r_a = te.reduce_axis((0, alpha), 'r_a')
@@ -347,7 +345,11 @@ def _schedule_winograd(cfg, s, op):
         kernel, G = s[U].op.input_tensors
         s[G].compute_inline()
         eps, nu, co, ci, vco, = s[U].op.axis
-        if not autotvm.GLOBAL_SCOPE.in_tuning:
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            # kernel transformation will be pre-computed during compilation, so we skip
+            # this part to make tuning records correct
+            s[U].pragma(eps, 'debug_skip_region')
+        else:
             r_kh, r_kw = s[U].op.reduce_axis
             s[U].reorder(co, ci, eps, nu, r_kh, r_kw, vco)
             _ = [s[U].unroll(x) for x in [eps, nu, r_kh, r_kw]]

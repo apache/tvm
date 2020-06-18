@@ -24,17 +24,16 @@
 #ifndef TVM_SUPPORT_PIPE_H_
 #define TVM_SUPPORT_PIPE_H_
 
-#include <dmlc/io.h>
 #include <dmlc/logging.h>
+#include <dmlc/io.h>
 
 #ifdef _WIN32
 #include <windows.h>
 #else
-#include <errno.h>
 #include <unistd.h>
-
-#include <cstdlib>
+#include <errno.h>
 #include <cstring>
+#include <cstdlib>
 #endif
 
 namespace tvm {
@@ -49,9 +48,12 @@ class Pipe : public dmlc::Stream {
   using PipeHandle = int;
 #endif
   /*! \brief Construct a pipe from system handle. */
-  explicit Pipe(int64_t handle) : handle_(static_cast<PipeHandle>(handle)) {}
+  explicit Pipe(int64_t handle)
+      : handle_(static_cast<PipeHandle>(handle)) {}
   /*! \brief destructor */
-  ~Pipe() { Flush(); }
+  ~Pipe() {
+    Flush();
+  }
   using Stream::Read;
   using Stream::Write;
   /*!
@@ -60,16 +62,18 @@ class Pipe : public dmlc::Stream {
    * \param size block size
    * \return the size of data read
    */
-  size_t Read(void* ptr, size_t size) final {
+  size_t Read(void *ptr, size_t size) final {
     if (size == 0) return 0;
 #ifdef _WIN32
     DWORD nread;
-    CHECK(ReadFile(handle_, static_cast<TCHAR*>(ptr), &nread, nullptr))
+    CHECK(ReadFile(handle_, static_cast<TCHAR*>(ptr),
+                   &nread, nullptr))
         << "Read Error: " << GetLastError();
 #else
     ssize_t nread;
     nread = read(handle_, ptr, size);
-    CHECK_GE(nread, 0) << "Write Error: " << strerror(errno);
+    CHECK_GE(nread, 0)
+        << "Write Error: " << strerror(errno);
 #endif
     return static_cast<size_t>(nread);
   }
@@ -79,17 +83,19 @@ class Pipe : public dmlc::Stream {
    * \param size block size
    * \return the size of data read
    */
-  void Write(const void* ptr, size_t size) final {
+  void Write(const void *ptr, size_t size) final {
     if (size == 0) return;
 #ifdef _WIN32
     DWORD nwrite;
-    CHECK(WriteFile(handle_, static_cast<const TCHAR*>(ptr), &nwrite, nullptr) &&
+    CHECK(WriteFile(handle_, static_cast<const TCHAR*>(ptr),
+                    &nwrite, nullptr) &&
           static_cast<size_t>(nwrite) == size)
         << "Write Error: " << GetLastError();
 #else
     ssize_t nwrite;
     nwrite = write(handle_, ptr, size);
-    CHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << strerror(errno);
+    CHECK_EQ(static_cast<size_t>(nwrite), size)
+        << "Write Error: " << strerror(errno);
 #endif
   }
   /*!

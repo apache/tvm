@@ -24,11 +24,10 @@
 #ifndef TVM_RUNTIME_VM_H_
 #define TVM_RUNTIME_VM_H_
 
-#include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/memory.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -45,8 +44,8 @@ namespace vm {
  */
 class ClosureObj : public Object {
  public:
-  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeClosure;
-  static constexpr const char* _type_key = "runtime.Closure";
+  static constexpr const uint32_t _type_index = TypeIndex::kClosure;
+  static constexpr const char* _type_key = "Closure";
   TVM_DECLARE_BASE_OBJECT_INFO(ClosureObj, Object);
 };
 
@@ -136,8 +135,6 @@ struct Instruction {
     struct /* AllocTensor Operands */ {
       /*! \brief The storage to allocate from. */
       RegName storage;
-      /*! \brief The offset into the storage to allocate from. */
-      Index offset;
       /*! \brief The number of dimensions. */
       uint32_t ndim;
       /*! \brief The shape of tensor. */
@@ -148,8 +145,6 @@ struct Instruction {
     struct /* AllocTensorReg Operands */ {
       /*! \brief The storage to allocate from. */
       RegName storage;
-      /*! \brief The offset into the storage to allocate from. */
-      Index offset;
       /*! \brief The register to read the shape out of. */
       RegName shape_register;
       /*! \brief The datatype of tensor to be allocated. */
@@ -271,25 +266,23 @@ struct Instruction {
   /*!
    * \brief Construct an allocate tensor instruction with constant shape.
    * \param storage The storage to allocate out of.
-   * \param offset The offset to allocate at.
    * \param shape The shape of the tensor.
    * \param dtype The dtype of the tensor.
    * \param dst The destination register.
    * \return The allocate tensor instruction.
    */
-  static Instruction AllocTensor(RegName storage, Index offset, const std::vector<int64_t>& shape,
-                                 DLDataType dtype, RegName dst);
+  static Instruction AllocTensor(RegName storage,
+                                 const std::vector<int64_t>& shape, DLDataType dtype, RegName dst);
   /*!
    * \brief Construct an allocate tensor instruction with register.
    * \param storage The storage to allocate out of.
-   * \param offset The offset into the storage to allocate from.
    * \param shape_register The register containing the shape.
    * \param dtype The dtype of the tensor.
    * \param dst The destination register.
    * \return The allocate tensor instruction.
    */
-  static Instruction AllocTensorReg(RegName storage, Index offset, RegName shape_register,
-                                    DLDataType dtype, RegName dst);
+  static Instruction AllocTensorReg(RegName storage,
+                                    RegName shape_register, DLDataType dtype, RegName dst);
   /*!
    * \brief Construct an allocate datatype instruction.
    * \param tag The datatype tag.
@@ -386,8 +379,8 @@ struct Instruction {
    * \param dst The destination to place the storage.
    * \return The alloc storage instruction.
    */
-  static Instruction AllocStorage(RegName size, RegName alignment, DLDataType dtype_hint,
-                                  RegName dst);
+  static Instruction AllocStorage(RegName size, RegName alignment,
+                                  DLDataType dtype_hint, RegName dst);
 
   Instruction();
   Instruction(const Instruction& instr);
@@ -414,7 +407,8 @@ struct VMFunction {
   Index register_file_size;
 
   VMFunction(const std::string& name, std::vector<std::string> params,
-             const std::vector<Instruction>& instructions, Index register_file_size)
+             const std::vector<Instruction>& instructions,
+             Index register_file_size)
       : name(name),
         params(params),
         instructions(instructions),
@@ -479,7 +473,8 @@ class Executable : public ModuleNode {
    *
    * \return PackedFunc or nullptr when it is not available.
    */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const std::string& name,
+                         const ObjectPtr<Object>& sptr_to_self) final;
 
   /*!
    * \brief Serialize the executable into global section, constant section, and
@@ -564,7 +559,9 @@ class Executable : public ModuleNode {
 
   virtual ~Executable() {}
 
-  const char* type_key() const final { return "VMExecutable"; }
+  const char* type_key() const final {
+    return "VMExecutable";
+  }
 
   /*! \brief The runtime module/library that contains both the host and also the device
    * code when executing on non-CPU devices. */
@@ -671,11 +668,14 @@ class VirtualMachine : public runtime::ModuleNode {
    *   If the function needs resource from the module(e.g. late linking),
    *   it should capture sptr_to_self.
    */
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const std::string& name,
+                                 const ObjectPtr<Object>& sptr_to_self);
 
   virtual ~VirtualMachine() {}
 
-  const char* type_key() const final { return "VirtualMachine"; }
+  const char* type_key() const final {
+    return "VirtualMachine";
+  }
 
   VirtualMachine() : frames_(), func_index_(0), code_(nullptr), pc_(0), exec_(nullptr) {}
 
@@ -763,8 +763,11 @@ class VirtualMachine : public runtime::ModuleNode {
    *
    * \note The return value will be stored in the last output_size slots of args.
    */
-  virtual void InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
-                            Index output_size, const std::vector<ObjectRef>& args);
+  virtual void InvokePacked(Index packed_index,
+                            const PackedFunc& func,
+                            Index arg_count,
+                            Index output_size,
+                            const std::vector<ObjectRef>& args);
 
   /*!
    * \brief Initialize the virtual machine for a set of contexts.

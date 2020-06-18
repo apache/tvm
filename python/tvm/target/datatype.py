@@ -88,7 +88,7 @@ def register_op(lower_func, op_name, target, type_name, src_type_name=None):
 
     op_name : str
         The name of the operation which the function computes, given by its
-        class name (e.g. Add, LE, Cast).
+        Halide::Internal class name (e.g. Add, LE, Cast).
 
     target : str
         The name of codegen target.
@@ -136,8 +136,8 @@ def create_lower_func(extern_func_name):
                 dtype += "x" + str(t.lanes)
         if isinstance(op, (_Cast, _FloatImm)):
             return _Call(dtype, extern_func_name, convert([op.value]),
-                         _Call.Extern)
+                         _Call.Extern, None, 0)
         return _Call(dtype, extern_func_name, convert([op.a, op.b]),
-                     _Call.Extern)
+                     _Call.Extern, None, 0)
 
     return lower

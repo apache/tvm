@@ -38,10 +38,3 @@ tvm.tir.analysis
    :members:
    :imported-members:
    :autosummary:
-
-
-tvm.tir.stmt_functor
---------------------
-.. automodule:: tvm.tir.stmt_functor
-   :members:
-   :autosummary:

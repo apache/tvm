@@ -26,7 +26,6 @@
 #define TVM_SUPPORT_WITH_H_
 
 #include <dmlc/logging.h>
-
 #include <utility>
 
 namespace tvm {
@@ -53,19 +52,22 @@ namespace tvm {
  *
  * \tparam ContextType Type of the context object.
  */
-template <typename ContextType>
+template<typename ContextType>
 class With {
  public:
   /*!
    * \brief constructor.
    *  Enter the scope of the context.
    */
-  template <typename... Args>
-  explicit With(Args&&... args) : ctx_(std::forward<Args>(args)...) {
+  template<typename ...Args>
+  explicit With(Args&& ...args)
+      : ctx_(std::forward<Args>(args)...) {
     ctx_.EnterWithScope();
   }
   /*! \brief destructor, leaves the scope of the context. */
-  ~With() DMLC_THROW_EXCEPTION { ctx_.ExitWithScope(); }
+  ~With() DMLC_THROW_EXCEPTION {
+    ctx_.ExitWithScope();
+  }
 
  private:
   /*! \brief internal context type. */

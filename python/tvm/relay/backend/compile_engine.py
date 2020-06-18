@@ -26,6 +26,7 @@ from tvm.runtime import Object
 from ... import target as _target
 from ... import autotvm
 from .. import function as _function
+from .. import op as _op
 from .. import ty as _ty
 from . import _backend
 
@@ -97,7 +98,7 @@ def get_valid_implementations(op, attrs, inputs, out_type, target):
 
     Parameters
     ----------
-    op : tvm.ir.Op
+    op : relay.op.Op
         Relay operator.
 
     attrs : object
@@ -156,7 +157,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
 
     Parameters
     ----------
-    op : tvm.ir.Op
+    op : relay.op.Op
         Relay operator.
 
     attrs : object
@@ -214,7 +215,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
 @tvm._ffi.register_func("relay.backend.lower_call")
 def lower_call(call, inputs, target):
     """Lower the call expression to op implementation and tensor outputs."""
-    assert isinstance(call.op, tvm.ir.Op)
+    assert isinstance(call.op, _op.Op)
     op = call.op
 
     # Prepare the call_node->checked_type(). For the call node inputs, we ensure that

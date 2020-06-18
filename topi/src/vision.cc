@@ -18,20 +18,22 @@
  */
 
 /*!
- * \brief Registration of vision operators
- * \file vision.cc
- */
-#include <topi/vision/reorg.h>
+* \brief Registration of vision operators
+* \file vision.cc
+*/
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+
+#include <topi/vision/reorg.h>
 
 namespace topi {
 
 using namespace tvm;
 using namespace tvm::runtime;
 
-TVM_REGISTER_GLOBAL("topi.vision.reorg").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("topi.vision.reorg")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = vision::reorg(args[0], args[1]);
-});
+  });
 
 }  // namespace topi

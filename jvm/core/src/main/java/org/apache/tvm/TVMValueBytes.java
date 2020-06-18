@@ -21,7 +21,7 @@ public class TVMValueBytes extends TVMValue {
   public final byte[] value;
 
   public TVMValueBytes(byte[] value) {
-    super(ArgTypeCode.BYTES);
+    super(TypeCode.BYTES);
     this.value = value;
   }
 

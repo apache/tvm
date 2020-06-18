@@ -25,10 +25,9 @@
 #define TVM_RELAY_BACKEND_CONTRIB_CODEGEN_C_CODEGEN_C_H_
 
 #include <tvm/relay/expr.h>
-#include <tvm/relay/function.h>
 #include <tvm/relay/op.h>
+#include <tvm/relay/function.h>
 #include <tvm/runtime/container.h>
-
 #include <sstream>
 #include <string>
 #include <utility>
@@ -70,7 +69,8 @@ class CSourceModuleCodegenBase {
    * \return An external symbol.
    */
   std::string GetExtSymbol(const Function& func) const {
-    const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    const auto name_node =
+        func->GetAttr<String>(tvm::attr::kGlobalSymbol);
     CHECK(name_node.defined()) << "Fail to retrieve external symbol.";
     return std::string(name_node.value());
   }
@@ -124,8 +124,9 @@ class CodegenCBase {
    *
    * \endcode
    */
-  void GenerateBackendCFunc(const std::string& func_name, const Array<Var>& args,
-                            const std::vector<Output>& outs) {
+  void GenerateBackendCFunc(const std::string& func_name,
+                            const Array<Var>& args,
+                            const Output& out) {
     // Print signature
     code_stream_ << "\n";
     code_stream_ << "extern \"C\" int " << func_name << "_wrapper_(";
@@ -133,11 +134,9 @@ class CodegenCBase {
       code_stream_ << "DLTensor* arg" << i << ",\n";
       code_stream_ << "\t";
     }
-    for (size_t i = 0; i < outs.size() - 1; i++) {
-      code_stream_ << "DLTensor* out" << i << ",\n";
-      code_stream_ << "\t";
+    if (args.size() > 0) {
+      code_stream_ << "DLTensor* arg" << args.size() << ") {\n";
     }
-    code_stream_ << "DLTensor* out" << outs.size() - 1 << ") {\n";
 
     EnterScope();
 
@@ -149,20 +148,18 @@ class CodegenCBase {
       code_stream_ << "static_cast<" << dtype_str << "*>(arg" << i << "->data),\n";
       PrintIndents();
     }
-    for (size_t i = 0; i < outs.size() - 1; i++) {
-      code_stream_ << "static_cast<" << outs[i].dtype << "*>(out" << i << "->data),\n";
-      PrintIndents();
+    if (args.size() > 0) {
+      code_stream_ << "static_cast<" << out.dtype << "*>(arg" << args.size() << "->data)";
     }
-    code_stream_ << "static_cast<" << outs.back().dtype << "*>(out" << outs.size() - 1
-                 << "->data));\n";
+    code_stream_ << ");\n";
     PrintIndents();
     code_stream_ << "return 0;\n";
     ExitScope();
     code_stream_ << "}\n\n";
 
     // Generate the macro
-    code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(" << func_name << ", " << func_name
-                 << "_wrapper_);\n\n";
+    code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(" << func_name << ", "
+                 << func_name << "_wrapper_);\n\n";
   }
 
   /*!
@@ -190,19 +187,19 @@ class CodegenCBase {
    */
   std::string JitImpl(const std::string& ext_func_id, const Array<Var>& args,
                       const std::vector<std::string>& buf_decl,
-                      const std::vector<std::string>& body, const std::vector<Output>& outs) {
+                      const std::vector<std::string>& body,
+                      const std::vector<Output>& out) {
     // Create the signature. For example, it could be:
-    // extern "C" void dnnl_0_(float* in0, float* in1, float* out0, float* out1) {}
+    // extern "C" void dnnl_0_(float* input0, float* input1, float* out, int M, int N) {}
     code_stream_ << "extern \"C\" void " << ext_func_id << "_(";
+
+    CHECK_EQ(out.size(), 1U) << "Internal error: only single output is support.";
 
     for (const auto& arg : args) {
       const auto& dtype_str = GetDtypeString(arg);
       code_stream_ << dtype_str << "* " << arg->name_hint() << ", ";
     }
-    for (size_t i = 0; i < outs.size() - 1; ++i) {
-      code_stream_ << outs[i].dtype << "* out" << i << ", ";
-    }
-    code_stream_ << outs.back().dtype << "* out" << outs.size() - 1 << ") {\n";
+    code_stream_ << out[0].dtype << "* out) {\n";
     this->EnterScope();
 
     // Function body
@@ -217,26 +214,22 @@ class CodegenCBase {
     }
 
     // Copy output
-    for (size_t i = 0; i < outs.size(); ++i) {
-      if (!outs[i].need_copy) {
-        continue;
-      }
+    if (out[0].need_copy) {
       this->PrintIndents();
-      code_stream_ << "std::memcpy(out" << i << ", " << outs[i].name << ", 4 * " << outs[i].size
-                   << ");\n";
-    }
+      code_stream_ << "std::memcpy(out, " << out[0].name << ", 4 * " << out[0].size << ");\n";
 
-    // Free buffers
-    for (size_t i = 0; i < buf_decl.size(); i++) {
-      this->PrintIndents();
-      code_stream_ << "std::free(buf_" << i << ");\n";
+      // Free buffers
+      for (size_t i = 0; i < buf_decl.size(); i++) {
+        this->PrintIndents();
+        code_stream_ << "std::free(buf_" << i << ");\n";
+      }
     }
 
     this->ExitScope();
     code_stream_ << "}\n";
 
     // Create the wrapper to call the ext_func
-    this->GenerateBackendCFunc(ext_func_id, args, outs);
+    this->GenerateBackendCFunc(ext_func_id, args, out[0]);
     return code_stream_.str();
   }
 

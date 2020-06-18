@@ -21,12 +21,11 @@
  * \brief Example code on load and run TVM module.s
  * \file cpp_deploy.cc
  */
+#include <cstdio>
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-
-#include <cstdio>
+#include <tvm/runtime/packed_func.h>
 
 void Verify(tvm::runtime::Module mod, std::string fname) {
   // Get the function from the module.
@@ -53,8 +52,10 @@ void Verify(tvm::runtime::Module mod, std::string fname) {
   int device_type = kDLCPU;
   int device_id = 0;
   int64_t shape[1] = {10};
-  TVMArrayAlloc(shape, ndim, dtype_code, dtype_bits, dtype_lanes, device_type, device_id, &x);
-  TVMArrayAlloc(shape, ndim, dtype_code, dtype_bits, dtype_lanes, device_type, device_id, &y);
+  TVMArrayAlloc(shape, ndim, dtype_code, dtype_bits, dtype_lanes,
+                device_type, device_id, &x);
+  TVMArrayAlloc(shape, ndim, dtype_code, dtype_bits, dtype_lanes,
+                device_type, device_id, &y);
   for (int i = 0; i < shape[0]; ++i) {
     static_cast<float*>(x->data)[i] = i;
   }
@@ -71,7 +72,8 @@ void Verify(tvm::runtime::Module mod, std::string fname) {
 
 int main(void) {
   // Normally we can directly
-  tvm::runtime::Module mod_dylib = tvm::runtime::Module::LoadFromFile("lib/test_addone_dll.so");
+  tvm::runtime::Module mod_dylib =
+      tvm::runtime::Module::LoadFromFile("lib/test_addone_dll.so");
   LOG(INFO) << "Verify dynamic loading from test_addone_dll.so";
   Verify(mod_dylib, "addone");
   // For libraries that are directly packed as system lib and linked together with the app

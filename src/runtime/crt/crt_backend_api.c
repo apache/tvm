@@ -17,14 +17,13 @@
  * under the License.
  */
 
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/crt/memory.h>
 
-#include "packed_func.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <assert.h>
+#include <string.h>
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, int dtype_code_hint,
                                int dtype_bits_hint) {
@@ -49,7 +48,7 @@ int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_ta
 
 int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr) {
   g_fexecs = vrealloc(g_fexecs, sizeof(TVMPackedFunc) * (g_fexecs_count + 1));
-  snprintf(g_fexecs[g_fexecs_count].name, sizeof(g_fexecs[g_fexecs_count].name), "%s", name);
+  snprintf(g_fexecs[g_fexecs_count].name, sizeof(g_fexecs[g_fexecs_count].name), name);
   g_fexecs[g_fexecs_count].fexec = ptr;
   g_fexecs_count++;
   return 0;

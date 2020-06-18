@@ -1,0 +1,61 @@
+<html>
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
+ <head><title> TVM RPC Test Page </title></head>
+ <script src="libtvm_web_runtime.js"></script>
+ <script src="tvm_runtime.js"></script>
+ <script>
+   tvm = tvm_runtime.create(Module);
+   tvm.logger = function(message) {
+     console.log(message);
+     var d = document.createElement("div");
+     d.innerHTML = message;
+     document.getElementById("log").appendChild(d);
+   };
+   function clear_log() {
+     var node = document.getElementById("log");
+     while (node.hasChildNodes()) {
+       node.removeChild(node.lastChild);
+     }
+   }
+   function connect_rpc() {
+     var proxyurl = document.getElementById("proxyURL").value;
+     var key = document.getElementById("proxyKey").value;
+     tvm.startRPCServer(proxyurl, key, 100);
+   }
+ </script>
+ <body>
+   <h1>TVM Test Page</h1>
+   To use this page, the easiest way is to do
+   <ul>
+     <li> run "python -m tvm.exec.rpc_proxy --example-rpc=1" to start proxy.
+     <li> Click Connect to proxy.
+     <li> run "python tests/web/websock_rpc_test.py" to run the rpc client.
+   </ul>
+   <h2>Options</h2>
+   Proxy URL<input name="proxyurl" id="proxyURL" type="text" value="ws://localhost:9190/ws"><br>
+   RPC Server Key<input name="serverkey" id="proxyKey" type="text" value="js"><br>
+   <button onclick="connect_rpc()">Connect To Proxy</button>
+   <button onclick="clear_log()">Clear Log</button>
+   <div id="log"></div>
+   <canvas id="canvas"></canvas>
+   <script>
+    Module["canvas"] = document.getElementById("canvas");
+   </script>
+ </body>
+</html>

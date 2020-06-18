@@ -24,14 +24,13 @@
 #ifndef TVM_RELAY_ADT_H_
 #define TVM_RELAY_ADT_H_
 
-#include <tvm/ir/adt.h>
 #include <tvm/ir/attrs.h>
+#include <tvm/ir/adt.h>
 #include <tvm/relay/base.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
-
-#include <functional>
 #include <string>
+#include <functional>
 #include <utility>
 
 namespace tvm {
@@ -73,11 +72,16 @@ class PatternWildcard;
 /*! \brief PatternWildcard container node */
 class PatternWildcardNode : public PatternNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("span", &span); }
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("span", &span);
+  }
 
-  bool SEqualReduce(const PatternNode* other, SEqualReducer equal) const { return true; }
+  bool SEqualReduce(const PatternNode* other, SEqualReducer equal) const {
+    return true;
+  }
 
-  void SHashReduce(SHashReducer hash_reduce) const {}
+  void SHashReduce(SHashReducer hash_reduce) const {
+  }
 
   static constexpr const char* _type_key = "relay.PatternWildcard";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternWildcardNode, PatternNode);
@@ -127,7 +131,9 @@ class PatternVarNode : public PatternNode {
     return equal.DefEqual(var, other->var);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce.DefHash(var); }
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(var);
+  }
 
   static constexpr const char* _type_key = "relay.PatternVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternVarNode, PatternNode);
@@ -161,7 +167,9 @@ class PatternConstructorNode : public PatternNode {
   }
 
   bool SEqualReduce(const PatternConstructorNode* other, SEqualReducer equal) const {
-    return equal(constructor, other->constructor) && equal(patterns, other->patterns);
+    return
+        equal(constructor, other->constructor) &&
+        equal(patterns, other->patterns);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -202,7 +210,9 @@ class PatternTupleNode : public PatternNode {
     return equal(patterns, other->patterns);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(patterns); }
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(patterns);
+  }
 
   static constexpr const char* _type_key = "relay.PatternTuple";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternTupleNode, PatternNode);
@@ -287,8 +297,10 @@ class MatchNode : public ExprNode {
 
   bool SEqualReduce(const MatchNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return equal(data, other->data) && equal(clauses, other->clauses) &&
-           equal(complete, other->complete);
+    return
+        equal(data, other->data) &&
+        equal(clauses, other->clauses) &&
+        equal(complete, other->complete);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {

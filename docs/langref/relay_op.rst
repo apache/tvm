@@ -69,8 +69,6 @@ This level enables typical convnet models.
 
    tvm.relay.nn.conv2d
    tvm.relay.nn.conv2d_transpose
-   tvm.relay.nn.conv3d
-   tvm.relay.nn.conv3d_transpose
    tvm.relay.nn.dense
    tvm.relay.nn.max_pool2d
    tvm.relay.nn.max_pool3d
@@ -120,7 +118,6 @@ This level enables additional math and transform operators.
    tvm.relay.zeros_like
    tvm.relay.ones
    tvm.relay.ones_like
-   tvm.relay.gather
    tvm.relay.gather_nd
    tvm.relay.full
    tvm.relay.full_like
@@ -133,7 +130,6 @@ This level enables additional math and transform operators.
    tvm.relay.tile
    tvm.relay.reverse
    tvm.relay.unravel_index
-   tvm.relay.sparse_to_dense
 
 
 **Level 4: Broadcast and Reductions**

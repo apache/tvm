@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
+ * 
  *   http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,9 +24,8 @@
 #ifndef NNVM_PASS_H_
 #define NNVM_PASS_H_
 
-#include <functional>
 #include <vector>
-
+#include <functional>
 #include "base.h"
 #include "graph.h"
 
@@ -43,7 +42,7 @@ namespace nnvm {
  * \param src The graph to be transformed.
  * \return The generated graph.
  */
-typedef std::function<Graph(Graph src)> PassFunction;
+typedef std::function<Graph (Graph src)> PassFunction;
 
 /*!
  * \brief Apply a series of pass transformations on the input graph.
@@ -51,7 +50,8 @@ typedef std::function<Graph(Graph src)> PassFunction;
  * \param passes A list of pass names to be applied.
  * \return The transformed graph
  */
-Graph ApplyPasses(Graph src, const std::vector<std::string>& passes);
+Graph ApplyPasses(Graph src,
+                  const std::vector<std::string>& passes);
 
 /*!
  * \brief Apply one pass to the graph.
@@ -59,12 +59,17 @@ Graph ApplyPasses(Graph src, const std::vector<std::string>& passes);
  * \param pass The name of pass to be applied.
  * \return The transformed graph.
  */
-inline Graph ApplyPass(Graph src, const std::string& pass) { return ApplyPasses(src, {pass}); }
+inline Graph ApplyPass(Graph src, const std::string& pass) {
+  return ApplyPasses(src, {pass});
+}
+
 
 /*!
  * \brief Registry entry for pass functions.
  */
-struct PassFunctionReg : public dmlc::FunctionRegEntryBase<PassFunctionReg, PassFunction> {
+struct PassFunctionReg
+    : public dmlc::FunctionRegEntryBase<PassFunctionReg,
+                                        PassFunction> {
   /*!
    * \brief Whether the pass will change graph structure
    *  If this is false, the pass will only change attributes.
@@ -133,7 +138,7 @@ struct PassFunctionReg : public dmlc::FunctionRegEntryBase<PassFunctionReg, Pass
  *   });
  * \endcode
  */
-#define NNVM_REGISTER_PASS(name) \
+#define NNVM_REGISTER_PASS(name)                                     \
   DMLC_REGISTRY_REGISTER(::nnvm::PassFunctionReg, PassFunctionReg, name)
 
 }  // namespace nnvm

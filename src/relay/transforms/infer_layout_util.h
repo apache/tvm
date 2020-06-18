@@ -27,13 +27,11 @@
 #ifndef TVM_RELAY_TRANSFORMS_INFER_LAYOUT_UTIL_H_
 #define TVM_RELAY_TRANSFORMS_INFER_LAYOUT_UTIL_H_
 
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/tir/data_layout.h>
-
 #include <string>
 #include <tuple>
-
 #include "pattern_util.h"
 
 namespace tvm {
@@ -96,15 +94,17 @@ inline Layout AdjustSubordinateFactors(const Layout& src_layout, const Layout& o
  * \return infered_layout An array of two elements that are inferred input layouts and
  *                        inferred output layouts.
  */
-using FInferCorrectLayout = runtime::TypedPackedFunc<Array<Array<Layout>>(
-    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
-    const Array<tvm::relay::Type>& old_in_types)>;
+using FInferCorrectLayout = runtime::TypedPackedFunc<
+    Array<Array<Layout>>(const Attrs& attrs,
+                         const Array<Layout>& new_in_layouts,
+                         const Array<Layout>& old_in_layouts,
+                         const Array<tvm::relay::Type> &old_in_types)>;
 
 /*! \brief take arbitrary input layout and copy to output */
-inline Array<Array<Layout>> ElemwiseArbitraryLayout(const Attrs& attrs,
-                                                    const Array<Layout>& new_in_layouts,
-                                                    const Array<Layout>& old_in_layouts,
-                                                    const Array<tvm::relay::Type>& old_in_types) {
+inline Array<Array<Layout> > ElemwiseArbitraryLayout(const Attrs& attrs,
+                                                     const Array<Layout>& new_in_layouts,
+                                                     const Array<Layout>& old_in_layouts,
+                                                     const Array<tvm::relay::Type> &old_in_types) {
   Layout ret;
 
   if (new_in_layouts.defined()) {
@@ -119,14 +119,14 @@ inline Array<Array<Layout>> ElemwiseArbitraryLayout(const Attrs& attrs,
     }
   }
 
-  return Array<Array<Layout>>{Array<Layout>(old_in_layouts.size(), ret), {ret}};
+  return Array<Array<Layout> >{Array<Layout>(old_in_layouts.size(), ret), {ret}};
 }
 
 /*! \brief Infer layout for binary broadcast operators */
-inline Array<Array<Layout>> BinaryBroadcastLayout(const Attrs& attrs,
-                                                  const Array<Layout>& new_in_layouts,
-                                                  const Array<Layout>& old_in_layouts,
-                                                  const Array<tvm::relay::Type>& old_in_types) {
+inline Array<Array<Layout> > BinaryBroadcastLayout(const Attrs& attrs,
+                                                   const Array<Layout>& new_in_layouts,
+                                                   const Array<Layout>& old_in_layouts,
+                                                   const Array<tvm::relay::Type> &old_in_types) {
   Array<Layout> layouts;
   Array<Array<IndexExpr>> old_in_shapes;
   for (auto old_in_t : old_in_types) {
@@ -135,34 +135,35 @@ inline Array<Array<Layout>> BinaryBroadcastLayout(const Attrs& attrs,
   }
 
   if (new_in_layouts.defined()) {
-    layouts.Assign(new_in_layouts.begin(), new_in_layouts.end());
+    layouts.assign(new_in_layouts.begin(), new_in_layouts.end());
   } else {
-    layouts.Assign(old_in_layouts.begin(), old_in_layouts.end());
+    layouts.assign(old_in_layouts.begin(), old_in_layouts.end());
   }
 
   if (!layouts[0].defined() && !layouts[1].defined()) {
     // both undefined, infer fails
-    return Array<Array<Layout>>{{Layout::Undef()}, {Layout::Undef()}};
+    return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
   } else if (!layouts[0].defined() || !layouts[1].defined()) {
     // only one is defined, use shape information to help infer
     int defined_idx = layouts[0].defined() ? 0 : 1;
     int undef_idx = 1 - defined_idx;
 
     if (old_in_shapes[defined_idx].size() >= old_in_shapes[undef_idx].size()) {
-      layouts.Set(undef_idx, layouts[defined_idx].SubLayout(old_in_shapes[defined_idx].size() -
-                                                                old_in_shapes[undef_idx].size(),
-                                                            old_in_shapes[undef_idx].size()));
-      return Array<Array<Layout>>{layouts, {layouts[defined_idx]}};
+      layouts.Set(undef_idx,
+                  layouts[defined_idx].SubLayout(
+                      old_in_shapes[defined_idx].size() - old_in_shapes[undef_idx].size(),
+                      old_in_shapes[undef_idx].size()));
+      return Array<Array<Layout> >{layouts, {layouts[defined_idx]}};
     } else {
       // only know the tensor with smaller dimensions,
       // so we cannot infer the final broadcasted output.
       // fails in this case.
-      return Array<Array<Layout>>{{Layout::Undef()}, {Layout::Undef()}};
+      return Array<Array<Layout> >{{Layout::Undef()}, {Layout::Undef()}};
     }
   } else if (layouts[0].defined() && layouts[1].defined() &&
-             (layouts[0].ndim() == 0 || layouts[1].ndim() == 0)) {
+            (layouts[0].ndim() == 0 || layouts[1].ndim() == 0)) {
     int scalar = layouts[0].ndim() == 0 ? 0 : 1;
-    return Array<Array<Layout>>{layouts, {layouts[1 - scalar]}};
+    return Array<Array<Layout> >{layouts, {layouts[1-scalar]}};
   } else {
     // Set the layout of the larger dimension. If one dimension size is lower, we call expand dims
     // while transforming layout.
@@ -208,7 +209,7 @@ inline Array<Array<Layout>> BinaryBroadcastLayout(const Attrs& attrs,
 static inline std::tuple<Array<Layout>, Array<Layout>, bool> InferCorrectLayouts(
     const Call& call, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
     const Array<tvm::relay::Type>& old_in_types) {
-  static auto finfer_layout = Op::GetAttrMap<FInferCorrectLayout>("FInferCorrectLayout");
+  static auto finfer_layout = Op::GetAttr<FInferCorrectLayout>("FInferCorrectLayout");
   if (!call->op.as<OpNode>()) {
     return std::make_tuple<>(Array<Layout>(nullptr), Array<Layout>(nullptr), false);
   }
@@ -216,7 +217,8 @@ static inline std::tuple<Array<Layout>, Array<Layout>, bool> InferCorrectLayouts
   Op op = Downcast<Op>(call->op);
   if (finfer_layout.count(op)) {
     Array<Array<Layout>> inferred_layouts;
-    inferred_layouts = finfer_layout[op](call->attrs, new_in_layouts, old_in_layouts, old_in_types);
+    inferred_layouts =
+        finfer_layout[op](call->attrs, new_in_layouts, old_in_layouts, old_in_types);
     CHECK_EQ(inferred_layouts.size(), 2)
         << "FInferCorrectLayout should return an array with size of 2";
     for (auto x : inferred_layouts) {

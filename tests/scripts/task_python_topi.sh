@@ -19,11 +19,7 @@
 set -e
 set -u
 
-source tests/scripts/setup-pytest-env.sh
-
-# to avoid CI thread throttling.
-export TVM_BIND_THREADS=0
-export OMP_NUM_THREADS=1
+export PYTHONPATH=python:topi/python
 
 # Rebuild cython
 make cython3
@@ -31,4 +27,4 @@ make cython3
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-python3 -m pytest topi/tests/python
+python3 -m pytest -v topi/tests/python

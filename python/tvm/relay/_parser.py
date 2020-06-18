@@ -114,12 +114,7 @@ class FuncOp(OpWrapper):
     def __call__(self, args, attrs, type_args):
         if attrs is None:
             attrs = {}
-        if self.operator in (op.reshape, op.strided_slice):
-            x = self.operator(*args)
-        elif self.operator in (op.zeros, op.ones, op.full, op.broadcast_to):
-            x = self.operator(*args, dtype=attrs["dtype"])
-        else:
-            x = self.operator(*args, **{k: self.convert(v) for k, v in attrs.items()})
+        x = self.operator(*args, **{k: self.convert(v) for k, v in attrs.items()})
         if isinstance(x, expr.TupleWrapper):
             x = x.astuple()
         return x
@@ -156,9 +151,7 @@ FUNC_OPS = {
     "nn.dropout": op.nn.dropout_raw,
     "zeros": op.zeros,
     "split": op.split,
-    "cast": op.cast,
-    "clip": op.clip,
-    "right_shift": op.right_shift,
+    "cast": op.cast
 }
 
 TYPE_PREFIXES = [
@@ -378,7 +371,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         return self.module
 
     # Exprs
-    def visitOpIdent(self, ctx) -> tvm.ir.Op:
+    def visitOpIdent(self, ctx) -> op.Op:
         op_name = ".".join([name.getText() for name in ctx.CNAME()])
         if op_name in FUNC_OPS:
             return FuncOp(FUNC_OPS[op_name])

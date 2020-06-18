@@ -25,8 +25,8 @@
 #ifndef TVM_RELAY_QNN_TRANSFORM_H_
 #define TVM_RELAY_QNN_TRANSFORM_H_
 
-#include <tvm/relay/transform.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/relay/transform.h>
 
 namespace tvm {
 namespace relay {

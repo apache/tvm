@@ -83,14 +83,12 @@ ${DOCKER_BINARY} run --rm --pid=host\
     -v ${WORKSPACE}:/workspace \
     -v ${SCRIPT_DIR}:/docker \
     -w /workspace \
-    --ulimit stack=16777216:16777216 \
     -e "CI_BUILD_HOME=/workspace" \
     -e "CI_BUILD_USER=$(id -u -n)" \
     -e "CI_BUILD_UID=$(id -u)" \
     -e "CI_BUILD_GROUP=$(id -g -n)" \
     -e "CI_BUILD_GID=$(id -g)" \
-    -e "PYTHONPATH=/workspace/python:/workspace/topi/python"\
-    -e "CI_PYTEST_ADD_OPTIONS=$CI_PYTEST_ADD_OPTIONS" \
+    -e "PYTHONPATH=python:topi/python"\
     ${CUDA_ENV}\
     ${CI_DOCKER_EXTRA_PARAMS[@]} \
     ${DOCKER_IMAGE_NAME}\

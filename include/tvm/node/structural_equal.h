@@ -23,10 +23,9 @@
 #ifndef TVM_NODE_STRUCTURAL_EQUAL_H_
 #define TVM_NODE_STRUCTURAL_EQUAL_H_
 
-#include <tvm/node/container.h>
-#include <tvm/node/functor.h>
 #include <tvm/runtime/data_type.h>
-
+#include <tvm/node/functor.h>
+#include <tvm/node/container.h>
 #include <string>
 
 namespace tvm {
@@ -44,13 +43,26 @@ class BaseValueEqual {
     return diff > -atol && diff < atol;
   }
 
-  bool operator()(const int64_t& lhs, const int64_t& rhs) const { return lhs == rhs; }
-  bool operator()(const uint64_t& lhs, const uint64_t& rhs) const { return lhs == rhs; }
-  bool operator()(const int& lhs, const int& rhs) const { return lhs == rhs; }
-  bool operator()(const bool& lhs, const bool& rhs) const { return lhs == rhs; }
-  bool operator()(const std::string& lhs, const std::string& rhs) const { return lhs == rhs; }
-  bool operator()(const DataType& lhs, const DataType& rhs) const { return lhs == rhs; }
-  template <typename ENum, typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
+  bool operator()(const int64_t& lhs, const int64_t& rhs) const {
+    return lhs == rhs;
+  }
+  bool operator()(const uint64_t& lhs, const uint64_t& rhs) const {
+    return lhs == rhs;
+  }
+  bool operator()(const int& lhs, const int& rhs) const {
+    return lhs == rhs;
+  }
+  bool operator()(const bool& lhs, const bool& rhs) const {
+    return lhs == rhs;
+  }
+  bool operator()(const std::string& lhs, const std::string& rhs) const {
+    return lhs == rhs;
+  }
+  bool operator()(const DataType& lhs, const DataType& rhs) const {
+    return lhs == rhs;
+  }
+  template<typename ENum,
+           typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
   bool operator()(const ENum& lhs, const ENum& rhs) const {
     return lhs == rhs;
   }
@@ -115,7 +127,9 @@ class SEqualReducer : public BaseValueEqual {
      * \note This function may save the equality condition of (lhs == rhs) in an internal
      *       stack and try to resolve later.
      */
-    virtual bool SEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars) = 0;
+    virtual bool SEqualReduce(const ObjectRef& lhs,
+                              const ObjectRef& rhs,
+                              bool map_free_vars) = 0;
     /*!
      * \brief Lookup the graph node equal map for vars that are already mapped.
      *
@@ -171,7 +185,7 @@ class SEqualReducer : public BaseValueEqual {
    * \param rhs The right operand.
    * \return the immediate check result.
    */
-  template <typename T>
+  template<typename T>
   bool operator()(const Array<T>& lhs, const Array<T>& rhs) const {
     // quick specialization for Array to reduce amount of recursion
     // depth as array comparison is pretty common.
@@ -196,7 +210,9 @@ class SEqualReducer : public BaseValueEqual {
   }
 
   /*! \return Get the internal handler. */
-  Handler* operator->() const { return handler_; }
+  Handler* operator->() const {
+    return handler_;
+  }
 
  private:
   /*! \brief Internal class pointer. */

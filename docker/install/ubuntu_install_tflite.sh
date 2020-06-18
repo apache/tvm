@@ -6,9 +6,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-#
+# 
 #   http://www.apache.org/licenses/LICENSE-2.0
-#
+# 
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,26 +21,21 @@ set -u
 set -o pipefail
 
 # Download, build and install flatbuffers
-git clone --branch=v1.12.0 --depth=1 --recursive https://github.com/google/flatbuffers.git
+git clone --branch=v1.10.0 --depth=1 --recursive https://github.com/google/flatbuffers.git
 cd flatbuffers
 cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
 make install -j8
 cd ..
+rm -rf flatbuffers
 
 # Install flatbuffers python packages.
 pip3 install flatbuffers
-
-# Build the TFLite static library, necessary for building with TFLite ON.
-# The library is built at:
-# tensorflow/tensorflow/lite/tools/make/gen/*/lib/libtensorflow-lite.a.
-git clone https://github.com/tensorflow/tensorflow --branch=r2.1
-./tensorflow/tensorflow/lite/tools/make/download_dependencies.sh
-./tensorflow/tensorflow/lite/tools/make/build_lib.sh
+pip2 install flatbuffers
 
 # Setup tflite from schema
 mkdir tflite
 cd tflite
-wget -q https://raw.githubusercontent.com/tensorflow/tensorflow/r2.1/tensorflow/lite/schema/schema.fbs
+wget -q https://raw.githubusercontent.com/tensorflow/tensorflow/r1.13/tensorflow/lite/schema/schema.fbs
 flatc --python schema.fbs
 
 cat <<EOM >setup.py
@@ -48,7 +43,7 @@ import setuptools
 
 setuptools.setup(
     name="tflite",
-    version="2.1.0",
+    version="1.13.1",
     author="google",
     author_email="google@google.com",
     description="TFLite",
@@ -68,8 +63,9 @@ cat <<EOM >__init__.py
 name = "tflite"
 EOM
 
-# Install tflite over python3
+# Install tflite over python2 and python3
 python3 setup.py install
+python2 setup.py install
 
 cd ..
 rm -rf tflite

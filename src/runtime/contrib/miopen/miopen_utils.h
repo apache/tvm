@@ -27,9 +27,7 @@
 #include <dmlc/logging.h>
 #include <miopen/miopen.h>
 #include <tvm/runtime/device_api.h>
-
 #include <string>
-
 #include "../../rocm/rocm_common.h"
 
 namespace tvm {
@@ -38,10 +36,11 @@ namespace miopen {
 
 std::string miopenGetErrorString(int error_code);
 
-#define MIOPEN_CALL(func)                                                            \
-  {                                                                                  \
-    miopenStatus_t e = (func);                                                       \
-    CHECK_EQ(e, miopenStatusSuccess) << "miopen error: " << miopenGetErrorString(e); \
+#define MIOPEN_CALL(func)                                                      \
+  {                                                                            \
+    miopenStatus_t e = (func);                                                 \
+    CHECK_EQ(e, miopenStatusSuccess)                                           \
+        << "miopen error: " << miopenGetErrorString(e);                        \
   }
 
 struct ConvEntry {
@@ -53,8 +52,8 @@ struct ConvEntry {
   miopenTensorDescriptor_t output_desc;
   miopenConvFwdAlgorithm_t fwd_algo;
   TVMContext ctx;
-  runtime::DeviceAPI* rocm_api;
-  void* workspace{nullptr};
+  runtime::DeviceAPI *rocm_api;
+  void *workspace{nullptr};
   size_t workspace_size{0};
   ConvEntry();
   ~ConvEntry();
@@ -67,8 +66,8 @@ struct MIOpenThreadEntry {
   ~MIOpenThreadEntry();
   miopenHandle_t handle{nullptr};
   ConvEntry conv_entry;
-  runtime::DeviceAPI* rocm_api{nullptr};
-  static MIOpenThreadEntry* ThreadLocal();
+  runtime::DeviceAPI *rocm_api{nullptr};
+  static MIOpenThreadEntry *ThreadLocal();
 };  // MIOpenThreadEntry
 
 }  // namespace miopen

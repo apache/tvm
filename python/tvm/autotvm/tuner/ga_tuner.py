@@ -50,11 +50,7 @@ class GATuner(Tuner):
 
         # space info
         self.space = task.config_space
-        self.dim_keys = []
-        self.dims = []
-        for k, v in self.space.space_map.items():
-            self.dim_keys.append(k)
-            self.dims.append(len(v))
+        self.dims = [len(x) for x in self.space.space_map.values()]
 
         self.visited = set([])
 
@@ -127,7 +123,7 @@ class GATuner(Tuner):
                 if len(self.visited) < len(self.space):
                     while knob2point(tmp_gene, self.dims) in self.visited:
                         j = np.random.randint(len(self.dims))
-                        tmp_gene[j] = np.random.randint(self.dims[j])  # pylint: disable=invalid-sequence-index
+                        tmp_gene[j] = np.random.randint(self.dims[j])
                     next_genes.append(tmp_gene)
                     self.visited.add(knob2point(tmp_gene, self.dims))
                 else:

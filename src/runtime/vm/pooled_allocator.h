@@ -24,7 +24,6 @@
 #define TVM_RUNTIME_VM_POOLED_ALLOCATOR_H_
 
 #include <tvm/runtime/device_api.h>
-
 #include <atomic>
 #include <mutex>
 #include <unordered_map>

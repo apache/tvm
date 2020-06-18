@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for graph partitioning."""
-# pylint: disable=not-callable
 import os
 import sys
 
@@ -195,22 +194,19 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
 
     def check_vm_result():
         compile_engine.get().clear()
-        with tvm.transform.PassContext(opt_level=3):
+        with relay.build_config(opt_level=3):
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         lib = update_lib(lib)
         exe = runtime.vm.Executable.load_exec(code, lib)
         vm = runtime.vm.VirtualMachine(exe)
         vm.init(ctx)
-        outs = vm.run(**map_inputs)
-        outs = outs if isinstance(outs, runtime.container.ADT) else [outs]
-        results = result if isinstance(result, list) else [result]
-        for out, ref in zip(outs, results):
-            tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=tol, atol=tol)
+        out = vm.run(**map_inputs)
+        tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
     def check_graph_runtime_result():
         compile_engine.get().clear()
-        with tvm.transform.PassContext(opt_level=3):
+        with relay.build_config(opt_level=3):
             json, lib, param = relay.build(mod, target=target, params=params)
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
@@ -219,14 +215,10 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
             rt_mod.set_input(name, data)
         rt_mod.set_input(**param)
         rt_mod.run()
+        out = tvm.nd.empty(out_shape, ctx=ctx)
+        out = rt_mod.get_output(0, out)
 
-        out_shapes = out_shape if isinstance(out_shape, list) else [out_shape]
-        results = result if isinstance(result, list) else [result]
-
-        for idx, shape in enumerate(out_shapes):
-            out = tvm.nd.empty(shape, ctx=ctx)
-            out = rt_mod.get_output(idx, out)
-            tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=tol, atol=tol)
+        tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
     check_vm_result()
     check_graph_runtime_result()
@@ -465,6 +457,7 @@ def test_extern_dnnl_mobilenet():
     mod, params = relay.testing.mobilenet.get_workload(
         batch_size=1, dtype='float32')
 
+    mod["main"] = bind_params_by_name(mod["main"], params)
     mod = transform.AnnotateTarget(["dnnl"])(mod)
     mod = transform.MergeCompilerRegions()(mod)
     mod = transform.PartitionGraph()(mod)
@@ -512,7 +505,7 @@ def test_function_lifting():
             transform.AlterOpLayout(),
         ])
 
-        with tvm.transform.PassContext(opt_level=3):
+        with relay.build_config(opt_level=3):
             mod = opt_pass(mod)
 
         return mod
@@ -530,8 +523,8 @@ def test_function_lifting():
         bn = relay.nn.batch_norm(data0, bn_gamma, bn_beta, bn_mmean, bn_mvar)
         func0 = relay.Function([data0, bn_gamma, bn_beta, bn_mmean, bn_mvar],
                                bn.astuple())
-        func0 = set_func_attr(func0, "test_compiler", "test_compiler_2")
-        gv0 = relay.GlobalVar("test_compiler_2")
+        func0 = set_func_attr(func0, "test_compiler", "test_compiler_0")
+        gv0 = relay.GlobalVar("test_compiler_0")
         mod[gv0] = func0
 
         # function for conv2d
@@ -544,8 +537,8 @@ def test_function_lifting():
             channels=16,
             padding=(1, 1))
         func1 = relay.Function([data1, weight1], conv)
-        func1 = set_func_attr(func1, "test_compiler", "test_compiler_0")
-        gv1 = relay.GlobalVar("test_compiler_0")
+        func1 = set_func_attr(func1, "test_compiler", "test_compiler_1")
+        gv1 = relay.GlobalVar("test_compiler_1")
         mod[gv1] = func1
 
         # main function
@@ -595,7 +588,7 @@ def test_function_lifting_inline():
             transform.Inline(),
         ])
 
-        with tvm.transform.PassContext(opt_level=3):
+        with relay.build_config(opt_level=3):
             mod = opt_pass(mod)
 
         return mod
@@ -638,6 +631,7 @@ def test_constant_propagation():
 
     def expected():
         mod = tvm.IRModule()
+        x = relay.const(ones)
         y = relay.var("y", shape=(8, 8))
         x0 = relay.const(ones)
         y0 = relay.var("y0", shape=(8, 8))
@@ -719,12 +713,12 @@ def test_multiple_outputs():
         mod = tvm.IRModule()
 
         # function 0
-        data = relay.var("test_target_0_i0", relay.TensorType((1, 3, 224, 224), "float32"))
-        weight = relay.var("test_target_0_i1", relay.TensorType((16, 3, 3, 3), "float32"))
-        bn_gamma = relay.var("test_target_0_i2", relay.TensorType((16, ), "float32"))
-        bn_beta = relay.var("test_target_0_i3", relay.TensorType((16, ), "float32"))
-        bn_mean = relay.var("test_target_0_i4", relay.TensorType((16, ), "float32"))
-        bn_var = relay.var("test_target_0_i5", relay.TensorType((16, ), "float32"))
+        data = relay.var("test_target_2_i0", relay.TensorType((1, 3, 224, 224), "float32"))
+        weight = relay.var("test_target_2_i1", relay.TensorType((16, 3, 3, 3), "float32"))
+        bn_gamma = relay.var("test_target_2_i2", relay.TensorType((16, ), "float32"))
+        bn_beta = relay.var("test_target_2_i3", relay.TensorType((16, ), "float32"))
+        bn_mean = relay.var("test_target_2_i4", relay.TensorType((16, ), "float32"))
+        bn_var = relay.var("test_target_2_i5", relay.TensorType((16, ), "float32"))
 
         conv_o = relay.nn.conv2d(
             data=data,
@@ -737,12 +731,12 @@ def test_multiple_outputs():
                                    bn_var)
 
         relu_o = relay.nn.relu(bn_o[0])
-        tuple_o = relay.Tuple((relu_o, bn_o[1], bn_o[2]))
+        tuple_o = relay.Tuple((bn_o[2], bn_o[1], relu_o))
 
         func0 = relay.Function([data, weight, bn_gamma, bn_beta,
                                 bn_mean, bn_var], tuple_o)
-        func0 = set_func_attr(func0, "test_target", "test_target_0")
-        gv0 = relay.GlobalVar("test_target_0")
+        func0 = set_func_attr(func0, "test_target", "test_target_2")
+        gv0 = relay.GlobalVar("test_target_2")
         mod[gv0] = func0
 
         # body
@@ -754,9 +748,9 @@ def test_multiple_outputs():
         bn_var = relay.var("bn_var", relay.TensorType((16, ), "float32"))
 
         f0_o = gv0(data, weight, bn_gamma, bn_beta, bn_mean, bn_var)
-        f0_relu_o = relay.TupleGetItem(f0_o, 0)
+        f0_relu_o = relay.TupleGetItem(f0_o, 2)
         f0_mean_o = relay.TupleGetItem(f0_o, 1)
-        f0_var_o = relay.TupleGetItem(f0_o, 2)
+        f0_var_o = relay.TupleGetItem(f0_o, 0)
 
         f0_mean_abs = relay.abs(f0_mean_o)
         f0_var_abs = relay.abs(f0_var_o)
@@ -798,22 +792,22 @@ def test_mixed_single_multiple_outputs():
         mod = tvm.IRModule()
 
         # function 1
-        f1_cb1 = relay.var('test_target_0_i0', shape=(10, 10))
+        f1_cb1 = relay.var('test_target_1_i0', shape=(10, 10))
         f1_O_1 = relay.abs(f1_cb1)
         f1_O_2 = relay.nn.relu(f1_O_1)
         f1_out = relay.Tuple((f1_O_2, f1_O_1))
         func1 = relay.Function([f1_cb1], f1_out)
-        func1 = set_func_attr(func1, "test_target", "test_target_0")
-        gv1 = relay.GlobalVar("test_target_0")
+        func1 = set_func_attr(func1, "test_target", "test_target_1")
+        gv1 = relay.GlobalVar("test_target_1")
         mod[gv1] = func1
 
         # function 0
-        f2_cb3 = relay.var('test_target_1_i0', shape=(10, 10))
-        f2_cb4 = relay.var('test_target_1_i1', shape=(10, 10))
+        f2_cb3 = relay.var('test_target_0_i0', shape=(10, 10))
+        f2_cb4 = relay.var('test_target_0_i1', shape=(10, 10))
         f2_O_3 = relay.add(f2_cb3, f2_cb4)
         func0 = relay.Function([f2_cb3, f2_cb4], f2_O_3)
-        func0 = set_func_attr(func0, "test_target", "test_target_1")
-        gv0 = relay.GlobalVar("test_target_1")
+        func0 = set_func_attr(func0, "test_target", "test_target_0")
+        gv0 = relay.GlobalVar("test_target_0")
         mod[gv0] = func0
 
         # body
@@ -885,8 +879,7 @@ def test_dnnl_fuse():
             transform.PartitionGraph()
         ])
 
-        with tvm.transform.PassContext(opt_level=3,
-                                       disabled_pass=["AlterOpLayout"]):
+        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
             return composite_partition(mod)
 
     def test_detect_pattern(pattern_table, include_bn, include_sigmoid,
@@ -1034,7 +1027,7 @@ def test_multiple_use_of_an_output():
 def test_duplicate_outputs():
     target = "test_duplicate_outputs"
 
-    @tvm.ir.register_op_attr("abs", "target." + target)
+    @reg.register("abs", "target." + target)
     def abs(attrs, args): # pylint: disable=unused-variable
         return True
 
@@ -1090,12 +1083,12 @@ def test_duplicate_outputs():
 def test_duplicate_merge_and_tuplegetitem():
     target = "test_duplicate_merge_and_tuplegetitem"
 
-    @tvm.ir.register_op_attr("nn.batch_norm", "target." + target)
-    def batch_norm(attrs, args): # pylint: disable=unused-variable
+    @reg.register("nn.batch_norm", "target." + target)
+    def abs(attrs, args): # pylint: disable=unused-variable
         return True
 
-    @tvm.ir.register_op_attr("nn.relu", "target." + target)
-    def relu(attrs, args): # pylint: disable=unused-variable
+    @reg.register("nn.relu", "target." + target)
+    def abs(attrs, args): # pylint: disable=unused-variable
         return True
 
     def create_graph():
@@ -1117,22 +1110,22 @@ def test_duplicate_merge_and_tuplegetitem():
         mod = tvm.IRModule()
 
         # function 0
-        f0_i0 = relay.var(target + "_0_i0", shape=(10, 10))
-        f0_i1 = relay.var(target + "_0_i1")
-        f0_i2 = relay.var(target + "_0_i2")
-        f0_i3 = relay.var(target + "_0_i3")
-        f0_i4 = relay.var(target + "_0_i4")
+        f0_i0 = relay.var(target+"_1_i0", shape=(10, 10))
+        f0_i1 = relay.var(target+"_1_i1")
+        f0_i2 = relay.var(target+"_1_i2")
+        f0_i3 = relay.var(target+"_1_i3")
+        f0_i4 = relay.var(target+"_1_i4")
         f0_n0 = relay.nn.batch_norm(f0_i0, f0_i1, f0_i2, f0_i3, f0_i4)
         f0_n1 = f0_n0[1]
         f0_n2 = relay.nn.relu(f0_n0[0])
-        f0_o0 = relay.Tuple([f0_n2, f0_n1])
+        f0_o0 = relay.Tuple([f0_n1, f0_n2])
         func0 = relay.Function([f0_i0, f0_i1, f0_i2, f0_i3, f0_i4], f0_o0)
 
         func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Compiler", target)
-        func0 = func0.with_attr("global_symbol", target + "_0")
-        gv0 = relay.GlobalVar(target + "_0")
+        func0 = func0.with_attr("global_symbol", target+"_1")
+        gv0 = relay.GlobalVar(target+"_1")
         mod[gv0] = func0
 
         # body
@@ -1144,9 +1137,9 @@ def test_duplicate_merge_and_tuplegetitem():
         function_out = gv0(data, bn_gamma, bn_beta, bn_mmean, bn_mvar)
         get_out0 = relay.TupleGetItem(function_out, 0)
         get_out1 = relay.TupleGetItem(function_out, 1)
-        out_2 = relay.tanh(get_out1)
-        out_3 = relay.log(get_out1)
-        out = relay.Tuple([get_out0, out_2, out_3])
+        out_2 = relay.tanh(get_out0)
+        out_3 = relay.log(get_out0)
+        out = relay.Tuple([get_out1, out_2, out_3])
         func = relay.Function([data, bn_gamma, bn_beta, bn_mmean, bn_mvar], out)
         mod["main"] = func
         return mod
@@ -1164,132 +1157,6 @@ def test_duplicate_merge_and_tuplegetitem():
     partitioned = seq(mod)
     assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
 
-def test_constant_tuples():
-    @tvm.ir.register_op_attr("qnn.concatenate", "target.const_tuples")
-    def add(attrs, args):  # pylint: disable=unused-variable
-        return True
-
-    def create_graph():
-        a = relay.var('a', shape=(10, 10), dtype="uint8")
-        b = relay.var('b', shape=(10, 10), dtype="uint8")
-        a1 = relay.abs(a)
-
-        zeroi = relay.const(1, "int32")
-        zerof = relay.const(0, "float32")
-        con = relay.qnn.op.concatenate((a1, b),
-                                       input_scales=(zerof, zerof),
-                                       input_zero_points=(zeroi, zeroi),
-                                       output_scale=zerof,
-                                       output_zero_point=zeroi,
-                                       axis=1)
-
-        f = relay.Function([a, b], con)
-        mod = tvm.IRModule.from_expr(f)
-        return mod
-
-    seq = tvm.transform.Sequential([
-        transform.AnnotateTarget("const_tuples"),
-        transform.MergeCompilerRegions(),
-        transform.PartitionGraph(),
-    ])
-
-    partitioned = seq(create_graph())
-    concat = partitioned["const_tuples_0"].body
-    assert type(concat.args[1]) == relay.Tuple
-    assert type(concat.args[2]) == relay.Tuple
-    assert type(concat.args[3]) == relay.Constant
-    assert type(concat.args[4]) == relay.Constant
-
-def test_flatten_tuple_output():
-    target = "test_flatten_tuple_output"
-
-    @tvm.ir.register_op_attr("split", "target." + target)
-    def split(attrs, args): # pylint: disable=unused-variable
-        return True
-
-    @tvm.ir.register_op_attr("abs", "target." + target)
-    def abs(attrs, args): # pylint: disable=unused-variable
-        return True
-
-    def create_graph():
-        a = relay.var('a', shape=(10, 10), dtype="uint8")
-
-        a_split = relay.split(a, 2)
-        a_split_0 = relay.TupleGetItem(a_split.astuple(),0)
-        a_split_0_abs = relay.abs(a_split_0)
-
-        a_con = relay.concatenate(a_split, 0)
-        a_split_0_relu = relay.nn.relu(a_split_0_abs)
-
-        out = relay.Tuple((a_con, a_split_0_relu))
-        f = relay.Function([a], out)
-        mod = tvm.IRModule.from_expr(f)
-        return mod
-
-    def expected():
-        mod = tvm.IRModule()
-
-        # function 0
-        f0_i0 = relay.var(target + "_0_i0", shape=(10, 10), dtype="uint8")
-        a_split = relay.split(f0_i0, 2)
-        a_split_0 = relay.TupleGetItem(a_split.astuple(), 0)
-        a_split_1 = relay.TupleGetItem(a_split.astuple(), 1)
-        a_split_abs_in = relay.TupleGetItem(a_split.astuple(), 0)
-        abs = relay.abs(a_split_abs_in)
-        tuple_out = relay.Tuple((a_split_0, a_split_1, abs))
-        func0 = relay.Function([f0_i0], tuple_out)
-
-        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Compiler", target)
-        func0 = func0.with_attr("global_symbol", target + "_0")
-        gv0 = relay.GlobalVar(target + "_0")
-        mod[gv0] = func0
-
-        #body
-        data = relay.var('a', shape=(10, 10), dtype="uint8")
-        f_out = gv0(data)
-        f_out_0 = relay.TupleGetItem(f_out, 0)
-        f_out_1 = relay.TupleGetItem(f_out, 1)
-        tuple = relay.Tuple((f_out_0, f_out_1))
-        concat = relay.concatenate(tuple,0)
-        f_out_2 = relay.TupleGetItem(f_out, 2)
-        relu = relay.nn.relu(f_out_2)
-        ret_tuple = relay.Tuple((concat, relu))
-        mod["main"] = relay.Function([data], ret_tuple)
-        return mod
-
-    seq = tvm.transform.Sequential([
-        transform.AnnotateTarget(target),
-        transform.MergeCompilerRegions(),
-        transform.PartitionGraph(),
-    ])
-
-    partitioned = seq(create_graph())
-    assert tvm.ir.structural_equal(partitioned, expected(), map_free_vars=True)
-
-def test_tuple_output_exec():
-    """Test C codegen and runtime for a subgraph with a tuple output"""
-    a = relay.var('a', shape=(10, 10), dtype='float32')
-    b = relay.var('b', shape=(10, 10), dtype='float32')
-    ba = relay.annotation.compiler_begin(a, 'ccompiler')
-    bb = relay.annotation.compiler_begin(b, 'ccompiler')
-    add = relay.add(ba, bb)
-    sub = relay.subtract(ba, bb)
-    out = relay.Tuple((add, sub))
-    eout = relay.annotation.compiler_end(out, 'ccompiler')
-    func=relay.Function([a, b], eout)
-    mod = tvm.IRModule()
-    mod["main"] = func
-    mod = transform.PartitionGraph()(mod)
-
-    a_data = np.random.rand(10, 10).astype('float32')
-    b_data = np.random.rand(10, 10).astype('float32')
-
-    check_result(mod, {'a': a_data, 'b': b_data},
-                 [(10, 10), (10, 10)],
-                 [(a_data + b_data), (a_data - b_data)])
-
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
@@ -1306,6 +1173,3 @@ if __name__ == "__main__":
     test_multiple_use_of_an_output()
     test_duplicate_outputs()
     test_duplicate_merge_and_tuplegetitem()
-    test_constant_tuples()
-    test_flatten_tuple_output()
-    test_tuple_output_exec()

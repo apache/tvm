@@ -26,5 +26,6 @@ from . import cuda
 from . import hls
 from . import mali
 from . import bifrost
+from . import opengl
 from . import rocm
 from . import intel_graphics

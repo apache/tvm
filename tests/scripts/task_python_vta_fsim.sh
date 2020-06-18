@@ -19,12 +19,8 @@
 set -e
 set -u
 
-source tests/scripts/setup-pytest-env.sh
-# to avoid CI thread throttling.
-export TVM_BIND_THREADS=0
-export OMP_NUM_THREADS=1
-
-export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/vta/python
+export TVM_PATH=`pwd`
+export PYTHONPATH=${TVM_PATH}/python:${TVM_PATH}/vta/python:${TVM_PATH}/topi/python
 export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
 
 # cleanup pycache
@@ -40,8 +36,8 @@ cp ${VTA_HW_PATH}/config/fsim_sample.json ${VTA_HW_PATH}/config/vta_config.json
 
 # Run unit tests in functional/fast simulator
 echo "Running unittest in fsim..."
-python3 -m pytest ${TVM_PATH}/vta/tests/python/unittest
+python3 -m pytest -v ${TVM_PATH}/vta/tests/python/unittest
 
 # Run unit tests in functional/fast simulator
 echo "Running integration test in fsim..."
-python3 -m pytest ${TVM_PATH}/vta/tests/python/integration
+python3 -m pytest -v ${TVM_PATH}/vta/tests/python/integration

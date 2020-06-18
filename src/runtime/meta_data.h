@@ -24,13 +24,11 @@
 #ifndef TVM_RUNTIME_META_DATA_H_
 #define TVM_RUNTIME_META_DATA_H_
 
-#include <dmlc/io.h>
 #include <dmlc/json.h>
+#include <dmlc/io.h>
 #include <tvm/runtime/packed_func.h>
-
 #include <string>
 #include <vector>
-
 #include "runtime_base.h"
 
 namespace tvm {
@@ -42,10 +40,10 @@ struct FunctionInfo {
   std::vector<DLDataType> arg_types;
   std::vector<std::string> thread_axis_tags;
 
-  void Save(dmlc::JSONWriter* writer) const;
-  void Load(dmlc::JSONReader* reader);
-  void Save(dmlc::Stream* writer) const;
-  bool Load(dmlc::Stream* reader);
+  void Save(dmlc::JSONWriter *writer) const;
+  void Load(dmlc::JSONReader *reader);
+  void Save(dmlc::Stream *writer) const;
+  bool Load(dmlc::Stream *reader);
 };
 }  // namespace runtime
 }  // namespace tvm

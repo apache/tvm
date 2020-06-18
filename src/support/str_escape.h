@@ -25,8 +25,8 @@
 #ifndef TVM_SUPPORT_STR_ESCAPE_H_
 #define TVM_SUPPORT_STR_ESCAPE_H_
 
-#include <sstream>
 #include <string>
+#include <sstream>
 
 namespace tvm {
 namespace support {
@@ -76,7 +76,9 @@ inline std::string StrEscape(const char* data, size_t size) {
  * \param size The size of the string.
  * \return the Result string.
  */
-inline std::string StrEscape(const std::string& val) { return StrEscape(val.data(), val.length()); }
+inline std::string StrEscape(const std::string& val) {
+  return StrEscape(val.data(), val.length());
+}
 
 }  // namespace support
 }  // namespace tvm

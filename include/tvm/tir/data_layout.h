@@ -25,19 +25,19 @@
 #ifndef TVM_TIR_DATA_LAYOUT_H_
 #define TVM_TIR_DATA_LAYOUT_H_
 
+
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
-#include <algorithm>
-#include <sstream>
 #include <string>
-#include <utility>
+#include <sstream>
 #include <vector>
+#include <utility>
+#include <algorithm>
+
 
 namespace tvm {
 namespace tir {
-
-class Layout;
 
 class LayoutAxis {
  public:
@@ -47,7 +47,7 @@ class LayoutAxis {
   static const LayoutAxis& Get(const tir::IterVar& itvar);
 
   // Get the singleton LayoutAxis using name[0] (size of name must be 1).
-  static const LayoutAxis& Get(const std::string& name);
+  static const LayoutAxis& make(const std::string& name);
 
   inline bool IsPrimal() const { return name_ >= 'A' && name_ <= 'Z'; }
   inline std::string name() const { return std::string(1, name_); }
@@ -63,12 +63,18 @@ class LayoutAxis {
   }
 
   // return the primal axis. If it is already primal, return itself.
-  const LayoutAxis& ToPrimal() const { return IsPrimal() ? *this : ToDual(); }
+  const LayoutAxis& ToPrimal() const {
+    return IsPrimal() ? *this : ToDual();
+  }
 
   // return the subordinate axis. If it is already subordinate, return itself.
-  const LayoutAxis& ToSubordinate() const { return IsPrimal() ? ToDual() : *this; }
+  const LayoutAxis& ToSubordinate() const {
+    return IsPrimal() ? ToDual() : *this;
+  }
 
-  inline bool operator==(const LayoutAxis& rhs) const { return name_ == rhs.name_; }
+  inline bool operator==(const LayoutAxis& rhs) const {
+    return name_ == rhs.name_;
+  }
 
   friend std::ostream& operator<<(std::ostream& os, const LayoutAxis& l) {
     os << l.name();
@@ -85,20 +91,12 @@ class LayoutAxis {
   const char name_;
 };
 
-/*!
- * \brief Layout is to describe how data is organized within an N-dimention tensor.
- *  It is composed of upper cases, lower cases and numbers,
- *  where upper case indicates a primal axis and
- *  the corresponding lower case with factor size indicates the subordinate axis.
- *  For example, NCHW16c can describe a 5-D tensor of
- *  [batch_size, channel, height, width, channel_block].
- *  Here subordinate axis channel_block=16 is the factor size of the primal axis C (channel).
- *  Layout for scalar is defined, while both its name and axes have size 0.
- */
+class Layout;
+// Internal node container Buffer
 class LayoutNode : public Object {
  public:
   /*! \brief string representation of layout, "" for scalar. */
-  String name;
+  std::string name;
   /*! \brief specify each axis of the layout,
    *   in which the variable name is the name of the axis.
    *   The IterVar's extent indicates the size of the axis,
@@ -112,20 +110,33 @@ class LayoutNode : public Object {
     v->Visit("axes", &axes);
   }
 
-  static constexpr const char* _type_key = "tir.Layout";
+  TVM_DLL static Layout make(const std::string& layout);
+
+  static constexpr const char* _type_key = "Layout";
   TVM_DECLARE_FINAL_OBJECT_INFO(LayoutNode, Object);
 };
 
 /*!
- * \brief Managed reference to LayoutNode
- * \sa LayoutNode
+ * \brief Layout is to describe how data is organized within an N-dimention tensor.
+ *  It is composed of upper cases, lower cases and numbers,
+ *  where upper case indicates a primal axis and
+ *  the corresponding lower case with factor size indicates the subordinate axis.
+ *  For example, NCHW16c can describe a 5-D tensor of
+ *  [batch_size, channel, height, width, channel_block].
+ *  Here subordinate axis channel_block=16 is the factor size of the primal axis C (channel).
+ *  Layout for scalar is defined, while both its name and axes have size 0.
  */
 class Layout : public ObjectRef {
  public:
+  explicit Layout(ObjectPtr<Object> n) : ObjectRef(n) {}
+
+  /*! \brief default constructor */
+  Layout() = default;
+
   explicit Layout(const Array<tir::IterVar>& axes);
 
   /*! \brief construct from a string */
-  Layout(const char* name) : Layout(std::string(name)) {}  // NOLINT(*)
+  Layout(const char* name) : Layout(std::string(name)) {} // NOLINT(*)
 
   /*!
    * \brief construct from a string.
@@ -135,13 +146,23 @@ class Layout : public ObjectRef {
    *        indicates the split dimension.
    *        return undefined layout if "__undef__" is passed.
    */
-  TVM_DLL Layout(const std::string& name);  // NOLINT(*)
+  Layout(const std::string& name); // NOLINT(*)
 
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
    */
-  LayoutNode* operator->() { return static_cast<LayoutNode*>(get_mutable()); }
+  const LayoutNode* operator->() const {
+    return static_cast<const LayoutNode*>(get());
+  }
+
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  LayoutNode* operator->() {
+    return static_cast<LayoutNode*>(get_mutable());
+  }
 
   /*!
    * \brief Return an undefined layout.
@@ -169,7 +190,8 @@ class Layout : public ObjectRef {
    * \param factor size of the sub-dimension.
    * \return A newly constructed Layout object.
    */
-  Layout Split(const LayoutAxis& axis, size_t target_pos, int32_t factor) const;
+  Layout Split(const LayoutAxis &axis, size_t target_pos, int32_t factor) const;
+
 
   /*! \return number of dimensions */
   inline size_t ndim() const {
@@ -270,7 +292,9 @@ class Layout : public ObjectRef {
    * \param rhs Another layout.
    * \return whether the two layouts are equal.
    */
-  inline bool Equals(const Layout& rhs) const { return name() == rhs.name(); }
+  inline bool Equals(const Layout &rhs) const {
+    return name() == rhs.name();
+  }
 
   /*!
    * \brief allow output string of layout to ostream
@@ -283,9 +307,10 @@ class Layout : public ObjectRef {
     return os;
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Layout, ObjectRef, LayoutNode);
+  using ContainerType = LayoutNode;
 };
 
+class BijectiveLayout;
 // Internal node container BijectiveLayout
 class BijectiveLayoutNode : public Object {
  public:
@@ -308,7 +333,7 @@ class BijectiveLayoutNode : public Object {
     v->Visit("backward_rule", &backward_rule);
   }
 
-  static constexpr const char* _type_key = "tir.BijectiveLayout";
+  static constexpr const char* _type_key = "BijectiveLayout";
   TVM_DECLARE_FINAL_OBJECT_INFO(BijectiveLayoutNode, Object);
 };
 
@@ -319,6 +344,8 @@ class BijectiveLayoutNode : public Object {
  */
 class BijectiveLayout : public ObjectRef {
  public:
+  BijectiveLayout() = default;
+  explicit BijectiveLayout(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief The constructor
    * \param src_layout The source layout
@@ -335,9 +362,19 @@ class BijectiveLayout : public ObjectRef {
   // Given the destination indices, recover the source indices.
   TVM_DLL Array<PrimExpr> BackwardIndex(const Array<PrimExpr>& dst_index) const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(BijectiveLayout, ObjectRef, BijectiveLayoutNode);
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const BijectiveLayoutNode* operator->() const;
+
+  /*! \brief specify container node */
+  using ContainerType = BijectiveLayoutNode;
 };
 
+inline const BijectiveLayoutNode* BijectiveLayout::operator->() const {
+  return static_cast<const BijectiveLayoutNode*>(get());
+}
 }  // namespace tir
 }  // namespace tvm
 

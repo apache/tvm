@@ -27,18 +27,9 @@ def pool3d_ncdhw_python(np_data, kernel,
                         ceil_mode=False, dtype="float32"):
     """baseline for max_pool3d and avg_pool3d, default layout is "NCDHW"""
     in_n, in_c, in_d, in_h, in_w = in_shape = np_data.shape
-    if isinstance(kernel, int):
-        k_d = k_h = k_w = kernel
-    else:
-        k_d, k_h, k_w = kernel
-    if isinstance(strides, int):
-        s_d = s_h = s_w = strides
-    else:
-        s_d, s_h, s_w = strides
-    if isinstance(padding, int):
-        pf = pt = pl = pk = pb = pr = padding
-    else:
-        pf, pt, pl, pk, pb, pr = padding
+    k_d, k_h, k_w = kernel
+    s_d, s_h, s_w = strides
+    pf, pt, pl, pk, pb, pr = padding
 
     if ceil_mode:
         assert out_shape[2] == int(math.ceil(float(in_shape[2] - k_d + pf + pk) / s_d) + 1)

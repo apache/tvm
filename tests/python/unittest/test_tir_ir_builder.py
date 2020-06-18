@@ -28,6 +28,7 @@ def test_for():
             A[j] = A[j] + 2
 
     body = ib.get()
+    print(body)
     assert isinstance(body, tvm.tir.AttrStmt)
     body = body.body
     assert isinstance(body, tvm.tir.Allocate)
@@ -58,13 +59,14 @@ def test_if():
     assert body.else_case.index.value == 0
 
 def test_prefetch():
-    A = tvm.tir.decl_buffer((10, 20), name="A")
+    A = te.placeholder((10, 20), name="A")
     ib = tvm.tir.ir_builder.create()
     n = te.size_var("n")
 
     with ib.for_range(0, n, name="i") as i:
         ib.emit(
-            tvm.tir.Prefetch(A,
+            tvm.tir.Prefetch(
+                A.op, A.value_index, A.dtype,
                 [tvm.ir.Range.make_by_min_extent(i+1, 2),
                  tvm.ir.Range.make_by_min_extent(0, 20)]))
     body = ib.get()

@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
-# pylint: disable=import-outside-toplevel, redefined-builtin
+# pylint: disable=import-outside-toplevel
 """TF: Tensorflow frontend."""
 import warnings
 from collections import defaultdict
@@ -27,7 +27,7 @@ import tvm
 
 from tvm.ir import IRModule
 from tvm.relay.prelude import Prelude, StaticTensorArrayOps, get_tensor_array_shape
-from topi.util import get_const_tuple
+from tvm.ir import structural_hash as s_hash
 
 from .. import analysis
 from .. import expr as _expr
@@ -40,6 +40,7 @@ from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape
 from .common import infer_channels as _infer_channels
 from .common import infer_value as _infer_value
+from .common import infer_value_simulated as _infer_value_simulated
 
 __all__ = ['from_tensorflow']
 
@@ -94,23 +95,6 @@ def _get_tuple_param(params, input_node):
 
 def _need_prelude_for_shape_inference(op):
     return "TensorArray" in op
-
-def _get_more_static_shape(shape0, shape1):
-    """Compare two shapes with the same rank,
-    and return the one with fewer symbolic dimension.
-    """
-    assert len(shape0) == len(shape1)
-    num_sym_dim0 = 0
-    num_sym_dim1 = 0
-    for dim0, dim1 in zip(list(shape0), list(shape1)):
-        if not isinstance(dim0, int):
-            num_sym_dim0 += 1
-        if not isinstance(dim1, int):
-            num_sym_dim1 += 1
-
-    if num_sym_dim0 < num_sym_dim1:
-        return shape0
-    return shape1
 
 def _rsqrt():
     def _impl(inputs, attr, params, mod):
@@ -291,7 +275,7 @@ def _conv(opname):
         inputs_data = inputs[0] if opname != 'conv_transpose' else inputs[2]
 
         # NCHW Layout require weights transpose
-        weights_shape = _infer_shape(inputs[1], mod)
+        weights_shape = _infer_shape(inputs[1])
         if attr['data_format'] == 'NCHW':
             tmp_shape = weights_shape
             if opname in ['conv', 'conv_transpose']:
@@ -303,7 +287,7 @@ def _conv(opname):
             weights_shape = tmp_shape
 
 
-        input_shape = _infer_shape(inputs_data, mod)
+        input_shape = _infer_shape(inputs_data)
         if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
             input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
             inputs_data = _op.transpose(inputs_data, axes=(0, 3, 1, 2))
@@ -395,6 +379,9 @@ def _conv(opname):
             else:
                 attr['kernel_layout'] = 'HWOI' if attr['data_format'] == 'NHWC' else 'OIHW'
 
+        use_bias = len(inputs) == (3 if opname != 'conv_transpose' else 4)
+        channel_axis = 1 if attr['data_format'] == "NCHW" else 3
+
         # Ignore the new attributes from TF2.0, for now.
         out = AttrCvt(
             op_name=_dimension_picker('conv',
@@ -406,6 +393,11 @@ def _conv(opname):
                 'dilations': ('dilation', (0, 0)),
                 'group': ('groups', 1)},
             custom_check=_dimension_constraint())([inputs_data, inputs[1]], attr)
+
+        if use_bias:
+            out = _op.nn.bias_add(out,
+                                  inputs[2] if opname != 'conv_transpose' else inputs[3],
+                                  axis=channel_axis)
 
         if flip_layout:
             out = _op.transpose(out, axes=(0, 2, 3, 1))
@@ -603,7 +595,7 @@ def _conv3d(opname):
         out = AttrCvt(
             op_name=_dimension_picker('conv',
                                       surfix="_transpose" if opname == 'conv_transpose' else ""),
-            ignores=['explicit_paddings', 'Tshape'],
+            ignores=['explicit_paddings'],
             transforms={
                 'kernel_shape': 'kernel_size',
                 'data_format': 'data_layout',
@@ -620,62 +612,6 @@ def _conv3d(opname):
             out = _op.transpose(out, axes=(0, 2, 3, 4, 1))
 
         return out
-    return _impl
-
-def _nms():
-    def _impl(inputs, attr, params, mod):
-        # Get parameter values
-        # TODO(yongwww) change nms in relay to support symbolic max_output_size
-        try:
-            max_output_size = int(np.atleast_1d(inputs[2].data.asnumpy()
-                                                .astype("int64"))[0])
-        except Exception:
-            try:
-                max_output_size = _infer_value(inputs[2], params,
-                                               mod).asnumpy().astype("int64").tolist()[0]
-            except Exception:
-                max_output_size = -1
-        iou_threshold = np.atleast_1d(inputs[3].data.asnumpy())[0]
-        # score_threshold was introduced from V3
-        score_threshold = np.atleast_1d(inputs[4].data.asnumpy())[0] if len(inputs) > 4 else 0.0
-
-        # Generate data with shape (1, num_anchors, 5)
-        scores = AttrCvt(op_name="expand_dims",
-                         ignores=['T_threshold'],
-                         extras={'axis': -1, 'num_newaxis': 1})([inputs[1]], attr)
-        data = get_relay_op('concatenate')([scores, inputs[0]], -1)
-        data = get_relay_op('expand_dims')(data, 0, 1)
-
-        # reason why using get_valid_counts is for inference performance
-        ct, data, indices = get_relay_op('get_valid_counts')(data,
-                                                             score_threshold=score_threshold,
-                                                             id_index=-1,
-                                                             score_index=0)
-        # TensorFlow NMS doesn't have parameter top_k
-        top_k = -1
-        # TF doesn't have class id for nms input
-        score_index = 0
-        nms_ret = get_relay_op('non_max_suppression')(data=data,
-                                                      valid_count=ct,
-                                                      indices=indices,
-                                                      max_output_size=max_output_size,
-                                                      iou_threshold=iou_threshold,
-                                                      force_suppress=True,
-                                                      top_k=top_k,
-                                                      coord_start=1,
-                                                      score_index=score_index,
-                                                      id_index=-1,
-                                                      return_indices=True,
-                                                      invalid_to_bottom=False)
-
-        # squeeze it, TF NMS is not batched
-        size = get_relay_op("squeeze")(nms_ret[1], axis=[1])
-        data_slice = get_relay_op("squeeze")(nms_ret[0], axis=[0])
-
-        # slice to get the dynamic result
-        ret = get_relay_op("strided_slice")(data_slice, begin=_expr.const([0]),
-                                            end=size, slice_mode="size")
-        return ret
     return _impl
 
 def _decode_image():
@@ -697,7 +633,7 @@ def _crop_and_resize():
         try:
             crop_size = _get_list_param(params, inputs[3])
         except (IndexError, KeyError):
-            crop_size = _infer_value(inputs[3], params, mod).asnumpy().tolist()
+            crop_size = _infer_value(inputs[3], params).asnumpy().tolist()
 
         method = attr['method'].decode()
         method = 'nearest_neighbor' if method == 'nearest' else method
@@ -731,9 +667,9 @@ def _resize(method):
             # Important that the size is defined. If an axis is not, we need to infer what
             # the shape should be.
             if -1 in size:
-                size = _infer_value(inputs[1], params, mod).asnumpy().reshape([-1]).tolist()
+                size = _infer_value(inputs[1], params).asnumpy().reshape([-1]).tolist()
         else:
-            size = _infer_value(inputs[1], params, mod).asnumpy().reshape([-1]).tolist()
+            size = _infer_value(inputs[1], params).asnumpy().reshape([-1]).tolist()
 
         attr['size'] = size
         inputs.pop(1)
@@ -852,20 +788,52 @@ def _pack():
 
 def _tensor_array():
     def _impl(inputs, attr, params, prelude):
+        try:
+            from tensorflow.python.framework import tensor_util
+        except ImportError as e:
+            raise ImportError(
+                "Unable to import tensorflow which is required {}".format(e))
+
         dtype_str = attr.get('dtype').name
         assert not attr["dynamic_size"], "Dynamic size tensor array is " \
                                          "not supported in TVM yet."
 
-        if "shape" in attr:
-            shape = attr["shape"]
+        raw_elem_shape = tensor_util.TensorShapeProtoToList(attr['element_shape'])
+        elem_shape = []
+        for dim in raw_elem_shape:
+            if dim < 0:
+                elem_shape.append(Any())
+            else:
+                elem_shape.append(dim)
+
+        if elem_shape:
+            # Element shape is specified.
+            # Directly create static tensor array with given shape.
             static_tensor_array_ops = StaticTensorArrayOps(prelude,
                                                            dtype_str,
-                                                           shape)
+                                                           elem_shape)
             static_tensor_array_ops.register()
             tensor_array_constructor = prelude.get_var_static('tensor_array',
                                                               dtype_str,
-                                                              shape)
+                                                              elem_shape)
             tensor_array = tensor_array_constructor(inputs[0])
+            _static_tensor_array_map[tensor_array] = tensor_array
+        elif attr['identical_element_shapes']:
+            # identical_element_shapes is set but element shape is not given.
+            # We create a static tensor array with dummy shape and record it in
+            # _static_tensor_array_map. Later when creating other tensor array ops
+            # which uses this tensor array, we reconstruct this tensor array with
+            # actual shape.
+            dummy_shape = ()
+            static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                           dtype_str,
+                                                           dummy_shape)
+            static_tensor_array_ops.register()
+            tensor_array_constructor = prelude.get_var_static('tensor_array',
+                                                              dtype_str,
+                                                              dummy_shape)
+            tensor_array = tensor_array_constructor(inputs[0])
+            _static_tensor_array_map[tensor_array] = None
         else:
             tensor_array_constructor = prelude.get_var('tensor_array', dtype_str)
             tensor_array = tensor_array_constructor(inputs[0])
@@ -888,12 +856,21 @@ def _tensor_array_scatter():
             values = unstack_function(inputs[2])
             tensor_array_scatter_func = prelude.get_var('tensor_array_scatter', dtype_str)
         else:
-            input_t_shape = _get_more_static_shape(input_t_shape, input_shape)
-            values_shape = (values_shape[0],) + input_t_shape
             static_tensor_array_ops = StaticTensorArrayOps(prelude,
                                                            dtype_str,
                                                            input_t_shape)
             static_tensor_array_ops.register()
+            # For scatter operation, it is possible to write to a newly create
+            # tensor array. We need to check and recreate its input tensor array.
+            if input_ta in _static_tensor_array_map and \
+                    _static_tensor_array_map[input_ta] is None:
+                ta_constructor = prelude.get_var_static('tensor_array',
+                                                        dtype_str,
+                                                        input_t_shape)
+                new_ta = ta_constructor(input_ta.args[0])
+                _static_tensor_array_map[input_ta] = new_ta
+                input_ta = new_ta
+
             # Register static indices shape
             if isinstance(indices_shape[0], int):
                 static_tensor_array_ops.define_tensor_array_scatter(indices_shape, True)
@@ -927,28 +904,24 @@ def _tensor_array_gather():
                                                            dtype_str,
                                                            input_shape)
             static_tensor_array_ops.register()
-
             if not isinstance(indices_shape[0], int):
                 gather_function = prelude.get_var_static('tensor_array_gather',
                                                          dtype_str,
                                                          input_shape)
                 out_tensor_t = gather_function(inputs[2], inputs[1])
-                out_shape = (indices_shape[0],) + input_shape
-                static_tensor_array_ops = StaticTensorArrayOps(prelude,
-                                                               dtype_str,
-                                                               out_shape)
-                static_tensor_array_ops.register()
 
                 # Output shape is (indices_shape[0],) + input_shape
+                static_tensor_array_ops.define_tensor_get_data((indices_shape[0],) + input_shape)
                 get_data_func = prelude.get_var_static('tensor_get_data',
                                                        dtype_str,
-                                                       out_shape)
+                                                       input_shape)
                 out = get_data_func(out_tensor_t)
             else:
                 # For fixed length indices, directly generate static shape output
                 read_func = prelude.get_var_static('tensor_array_read',
                                                    dtype_str,
                                                    input_shape)
+                static_tensor_array_ops.define_tensor_get_data(input_shape)
                 get_data_func = prelude.get_var_static('tensor_get_data',
                                                        dtype_str,
                                                        input_shape)
@@ -958,10 +931,7 @@ def _tensor_array_gather():
                     out_tensor = get_data_func(read_func(inputs[2], index))
                     tensor_list.append(_op.expand_dims(out_tensor, axis=0))
 
-                if indices_shape[0] > 1:
-                    out = _op.concatenate(tensor_list, axis=0)
-                else:
-                    out = tensor_list[0]
+                out = _op.concatenate(tensor_list, axis=0)
 
         return out
     return _impl
@@ -985,30 +955,34 @@ def _tensor_array_write():
             v = tensor_func(inputs[2])
             write_func = prelude.get_var('tensor_array_write', dtype_str)
         else:
-            input_ta_rank = len(input_ta_shape)
-            assert input_ta_rank == input_rank, "Shape rank mismatch: {} vs {}". \
-                format(input_ta_rank, input_rank)
-            static_tensor_array_ops = StaticTensorArrayOps(prelude,
-                                                           dtype_str,
-                                                           input_ta_shape)
-            static_tensor_array_ops.register()
+            # For write operation, it is possible to write to a newly create
+            # tensor array. We need to check and recreate its input tensor array.
+            if input_ta in _static_tensor_array_map and \
+                    _static_tensor_array_map[input_ta] is None:
+                static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                               dtype_str,
+                                                               input_t_shape)
+                static_tensor_array_ops.register()
+                ta_constructor = prelude.get_var_static('tensor_array',
+                                                        dtype_str,
+                                                        input_t_shape)
+                new_ta = ta_constructor(input_ta.args[0])
+                _static_tensor_array_map[input_ta] = new_ta
+                input_ta = new_ta
+                input_ta_shape = input_t_shape
+            else:
+                input_ta_rank = len(input_ta_shape)
+                assert input_ta_rank == input_rank, "Shape rank mismatch: {} vs {}". \
+                    format(input_ta_rank, input_rank)
+                static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                               dtype_str,
+                                                               input_ta_shape)
+                static_tensor_array_ops.register()
 
             tensor_func = prelude.get_var_static("tensor_constructor",
                                                  dtype_str,
                                                  input_ta_shape)
             v = tensor_func(inputs[2])
-            # Write tensor with more static shape
-            actual_shape = _get_more_static_shape(input_t_shape, input_ta_shape)
-            if actual_shape != input_t_shape:
-                new_shape = []
-                num_any_dim = 0
-                for dim in actual_shape:
-                    if not isinstance(dim, int):
-                        num_any_dim += 1
-                    new_shape.append(dim if isinstance(dim, int) else -1)
-                if num_any_dim <= 1:
-                    v = tensor_func(_op.reshape(inputs[2], new_shape))
-
             write_func = prelude.get_var_static('tensor_array_write',
                                                 dtype_str,
                                                 input_ta_shape)
@@ -1029,6 +1003,7 @@ def _tensor_array_read():
                                                            dtype_str,
                                                            input_shape)
             static_tensor_array_ops.register()
+            static_tensor_array_ops.define_tensor_get_data(input_shape)
             read_func = prelude.get_var_static("tensor_array_read", dtype_str, input_shape)
             out_tensor = read_func(inputs[2], _op.take(inputs[1], tvm.relay.const(0)))
             get_data_func = prelude.get_var_static('tensor_get_data',
@@ -1044,22 +1019,39 @@ def _tensor_array_split():
         dtype_str = attr.get('T').name
         input_ta = inputs[0]
         input_ta_shape = get_tensor_array_shape(input_ta, dtype_str, prelude)
+        input_t_shape = _infer_shape(inputs[1], prelude.mod)
+        input_rank = len(input_t_shape)
         lengths = _op.cast(inputs[2], 'int32')
         lengths_shape = _infer_shape(lengths, prelude.mod)
         value_shape = _infer_shape(inputs[1], prelude.mod)
-        input_rank = len(value_shape)
 
         if input_ta_shape is None:
             v = prelude.get_var("tensor{}".format(input_rank), dtype_str)(inputs[1])
             split_func = prelude.get_var('tensor_array_split', dtype_str)
         else:
-            input_ta_rank = len(input_ta_shape)
-            assert input_ta_rank == input_rank, "Shape rank mismatch: {} vs {}". \
-                format(input_ta_rank, input_rank)
-            static_tensor_array_ops = StaticTensorArrayOps(prelude,
-                                                           dtype_str,
-                                                           input_ta_shape)
-            static_tensor_array_ops.register()
+            # For split operation, it is possible to write to a newly create
+            # tensor array. We need to check and recreate its input tensor array.
+            if input_ta in _static_tensor_array_map and \
+                    _static_tensor_array_map[input_ta] is None:
+                input_ta_shape = (Any(),) + input_t_shape[1:]
+                static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                               dtype_str,
+                                                               input_ta_shape)
+                static_tensor_array_ops.register()
+                ta_constructor = prelude.get_var_static('tensor_array',
+                                                        dtype_str,
+                                                        input_ta_shape)
+                new_ta = ta_constructor(input_ta.args[0])
+                _static_tensor_array_map[input_ta] = new_ta
+                input_ta = new_ta
+            else:
+                input_ta_rank = len(input_ta_shape)
+                assert input_ta_rank == input_rank, "Shape rank mismatch: {} vs {}". \
+                    format(input_ta_rank, input_rank)
+                static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                               dtype_str,
+                                                               input_ta_shape)
+                static_tensor_array_ops.register()
 
             # Check static value/indices shape
             if isinstance(value_shape[0], int) or isinstance(lengths_shape[0], int):
@@ -1101,14 +1093,10 @@ def _tensor_array_concat():
             static_tensor_array_ops.register()
             concat_func = prelude.get_var_static("tensor_array_concat", dtype_str, input_shape)
             out_tensor = concat_func(inputs[1])
-            out_shape = (Any(),) + input_shape[1:]
-            static_tensor_array_ops = StaticTensorArrayOps(prelude,
-                                                           dtype_str,
-                                                           out_shape)
-            static_tensor_array_ops.register()
+            static_tensor_array_ops.define_tensor_get_data((Any(),) + input_shape[1:])
             get_data_func = prelude.get_var_static('tensor_get_data',
                                                    dtype_str,
-                                                   out_shape)
+                                                   input_shape)
             out = get_data_func(out_tensor)
 
         return out
@@ -1116,13 +1104,9 @@ def _tensor_array_concat():
 
 def _tile():
     def _impl(inputs, attr, params, mod):
-        reps_input = inputs.pop()
-        if isinstance(reps_input, _expr.Call):
-            np_reps = _infer_value(reps_input, params, mod).asnumpy()
-            reps = [np_reps.flatten()[i] for i in range(np_reps.flatten().shape[0])]
-        else:
-            reps = _get_list_param(params, reps_input)
-        new_input = [inputs.pop(0)]
+        reps = _get_list_param(params, inputs.pop())
+        new_input = []
+        new_input.append(inputs.pop(0))
 
         return AttrCvt(
             op_name='tile',
@@ -1135,31 +1119,25 @@ def _slice():
         try:
             begin = _get_list_param(params, inputs[1])
         except (IndexError, KeyError, AttributeError):
-            # Handle symbolic begin
-            try:
-                begin = _infer_value(inputs[1], params, mod).asnumpy().tolist()
-            except Exception:
-                begin = inputs[1]
+            begin = _infer_value(inputs[1], params).asnumpy().tolist()[0]
         try:
             size = _get_list_param(params, inputs[2])
         except (IndexError, KeyError, AttributeError):
             # Handle symbolic size
             try:
-                size = _infer_value(inputs[2], params, mod).asnumpy().tolist()
+                size = _infer_value(inputs[2], params).asnumpy().tolist()[0]
             except Exception:
                 size = inputs[2]
-
-        # Align begin and strides for dynamic shape.
-        data_dim = len(_infer_shape(inputs[0], mod))
-        strides = [1] * data_dim
-        if not isinstance(begin, (_expr.Call, _expr.Var)):
-            for _ in range(len(begin), data_dim):
-                begin.append(0)
-        elif not isinstance(size, (_expr.Call, _expr.Var)):
-            for _ in range(len(size), data_dim):
-                size.append(-1)
-        return _op.strided_slice(inputs[0], begin=begin, end=size,
-                                 strides=strides, slice_mode="size")
+        data_shape = _infer_shape(inputs[0], mod)
+        data_dim = len(data_shape)
+        end = size
+        if not isinstance(end, (_expr.Call, _expr.Var)):
+            for i in range(data_dim):
+                if size[i] == -1:
+                    end[i] = data_shape[i]
+                else:
+                    end[i] += begin[i]
+        return _op.strided_slice(inputs[0], begin=begin, end=end)
     return _impl
 
 
@@ -1173,22 +1151,23 @@ def _reshape():
             # Shape operator is already pruned, hence
             # try to infer shape by precompute prune if possible.
             try:
-                params_new = _infer_value(pop_node, params, mod)
-                shape_arg = tuple(params_new.asnumpy().astype('int32').flatten())
+                params_new = _infer_value(pop_node, params)
+                shape_arg = tuple(params_new.asnumpy().astype('int64').flatten())
             except Exception:
                 # Deal with symbolic shape case.
-                if isinstance(pop_node, _expr.Call) and \
-                        "shape_of" in str(pop_node.op):
-                    # shape_of is the direct ancestor.
-                    return _op.reshape_like(inputs[0], pop_node.args[0])
-                shape_arg = pop_node
-
+                # Currently only shape_of can be the direct ancestor.
+                if not isinstance(pop_node, tvm.relay.expr.Call) or \
+                        "shape_of" not in str(pop_node.op):
+                    raise RuntimeError("If shape operator is used in reshape to "
+                                       "express reshape_like, shape_of must be "
+                                       "the direct ancestor of reshape when input "
+                                       "shape is symbolic.")
+                return _op.reshape_like(inputs[0], pop_node.args[0])
         return AttrCvt(
             op_name="reshape",
             extras={'newshape': shape_arg},
             ignores=['Tshape'])(inputs, attr)
     return _impl
-
 
 
 def _depth_to_space():
@@ -1212,8 +1191,7 @@ def _space_to_depth():
 def _bias_add():
     def _impl(inputs, attr, params, mod):
         # Must expand for proper broadcasting in NCHW.
-        if 'data_format' in attr and \
-                attr['data_format'].decode("utf-8") == 'NCHW':
+        if attr['data_format'].decode("utf-8") == 'NCHW':
             bias = _op.reshape(inputs[1], newshape=(1, -1, 1, 1))
         else:
             bias = inputs[1]
@@ -1225,7 +1203,7 @@ def _broadcast_to():
         if isinstance(inputs[1], _expr.Var):
             shape = params[inputs[1].name_hint]
         else:
-            shape = _infer_value(inputs[1], params, mod)
+            shape = _infer_value(inputs[1], params)
         shape = list(shape.asnumpy().reshape([-1]))
         return _op.broadcast_to(inputs[0], shape)
     return _impl
@@ -1252,7 +1230,7 @@ def _fused_batch_norm():
             attr['data_format'] = attr['data_format'].decode("utf-8")
             if attr['data_format'] == 'NCHW':
                 axis = 1
-        if 'U' in attr and attr['U'].name != attr['T'].name:
+        if 'U' in attr:
             need_cast = True
             inputs[0] = _op.cast(inputs[0], dtype=attr['U'].name)
         # Check if mean and variance are empty
@@ -1260,7 +1238,7 @@ def _fused_batch_norm():
         # For run-time calculation
         moving_mean_shape = [int(n) for n in inputs[3].type_annotation.shape]
         moving_variance_shape = [int(n) for n in inputs[4].type_annotation.shape]
-        if moving_mean_shape[0] == 0 and moving_variance_shape[0] == 0:
+        if (moving_mean_shape[0] == 0 and moving_variance_shape[0] == 0):
             inputs[3] = _op.mean(inputs[0], axis=axis, keepdims=False, exclude=True)
             inputs[4] = _op.variance(inputs[0], axis=axis, keepdims=False, exclude=True)
         out = AttrCvt(op_name='batch_norm',
@@ -1322,12 +1300,16 @@ def _shape():
 
 def _fill():
     def _impl(inputs, attr, params, mod):
-        try:
-            output_shape = _infer_value(inputs[0], params, mod).asnumpy().tolist()
-        except Exception:
-            output_shape = inputs[0]
+        output_shape = attr['_output_shapes'][0]
+        # Output shape must be defined to avoid errors. If any axis is not, we must
+        # try to compute its shape.
+        if output_shape is None or -1 in output_shape:
+            output_shape = _infer_value(inputs[0], params).asnumpy().reshape([-1]).tolist()
 
-        return _op.full(inputs[1], output_shape, attr['T'].name)
+        fill_arg = _get_num_param(params, inputs.pop(1))
+        dtype = attr['T'].name
+        return _op.full(tvm.relay.const(fill_arg, dtype),
+                        output_shape, dtype)
     return _impl
 
 def _lrn():
@@ -1357,8 +1339,6 @@ def _reduce(op):
     def _impl(inputs, attr, params, mod):
         axis = _get_list_param(params, inputs[1])
         axis = tuple(axis)
-        if not axis:
-            axis = None
         return AttrCvt(
             op_name=op,
             extras={'axis': axis},
@@ -1416,48 +1396,14 @@ def _stridedSlice():
         begin = _get_list_param(params, inputs[1])
         end = _get_list_param(params, inputs[2])
         stride = _get_list_param(params, inputs[3])
-
         begin_mask = int(attr.get('begin_mask', 0))
         end_mask = int(attr.get('end_mask', 0))
         ellipsis_mask = int(attr.get('ellipsis_mask', 0))
         new_axis_mask = int(attr.get('new_axis_mask', 0))
         shrink_axis_mask = int(attr.get('shrink_axis_mask', 0))
-        in_type = _infer_type(inputs[0], mod)
-        data_shape = get_const_tuple(in_type.checked_type.shape)
+        data_shape = _infer_shape(inputs[0], mod)
         data_dim = len(data_shape)
         stride_dim = len(stride)
-
-        # This is a special routine to handle strided_slice after shape_of.
-        # We need this since in some cases we want to do strided_slice on
-        # a partial symbolic shape, such as (1, ?), and get a static shape
-        # (1,). Directly slice on shape_of will result in fully dynamic shape.
-        # TODO(kevinthesun): Can we generalize this process with partial eval?
-        if isinstance(inputs[0], _expr.Call) and inputs[0].op == _op.get("shape_of"):
-            bg = begin[0]
-            ed = end[0]
-            st = stride[0]
-
-            if ed <= 0 < st:
-                ed += data_shape[0]
-
-            in_shape = _infer_shape(inputs[0].args[0], mod)
-            dtype = in_type.checked_type.dtype
-            out_data = []
-            idx = bg
-            while idx < ed:
-                if isinstance(in_shape[idx], int):
-                    out_data.append(in_shape[idx])
-                else:
-                    break
-                idx += st
-
-            # Only return when in_shape is fully static in the range from begin to end.
-            if idx >= st:
-                ret = _expr.const(out_data, dtype)
-                if shrink_axis_mask:
-                    ret = _op.squeeze(ret)
-
-                return ret
 
         def _transform_mask(stride_dim, ellipsis_mask):
             """Handle mask inputs to create new begin, end, stride and output shape"""
@@ -1498,19 +1444,19 @@ def _stridedSlice():
                         break
                     if mask & begin_mask:
                         m_begin[final_index] = data_shape[final_index] \
-                            if stride[index] < 0 else 0
+                                                     if stride[index] < 0 else 0
                     elif begin[index]:
                         m_begin[final_index] = begin[index]
                     if mask & end_mask:
                         m_end[final_index] = 0 if stride[index] < 0 \
-                            else data_shape[final_index]
+                                                 else data_shape[final_index]
                     elif end[index]:
                         m_end[final_index] = end[index]
                     m_stride[final_index] = stride[index]
                     if mask & shrink_axis_mask:
                         #Tensorflow make axis with shrink_axis_mask as dimension 1
                         m_begin[final_index] = data_shape[final_index] + begin[index] \
-                            if begin[index] < 0 else begin[index]
+                                                 if begin[index] < 0 else begin[index]
                         m_end[final_index] = begin[index] + 1
                         m_stride[final_index] = 1
                         fshape_indices.append(-2)
@@ -1523,11 +1469,8 @@ def _stridedSlice():
         fshape_indices = None
         if begin_mask or end_mask or ellipsis_mask or new_axis_mask or shrink_axis_mask:
             begin, end, stride, fshape_indices = _transform_mask(stride_dim, ellipsis_mask)
-        out = _op.strided_slice(inputs[0],
-                                begin=begin,
-                                end=end,
-                                strides=stride)
-        out_shape = _infer_shape(out, mod=mod)
+        out = _op.strided_slice(inputs[0], begin=begin, end=end, strides=stride)
+        out_shape = _infer_shape(out, mod)
         if not fshape_indices:
             fshape_indices = range(len(out_shape))
 
@@ -1594,7 +1537,7 @@ def _transpose():
         try:
             axes = _get_list_param(params, inputs[1])
         except (IndexError, KeyError, AttributeError):
-            axes = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+            axes = _infer_value_simulated(inputs[1], params).asnumpy()
         return _op.transpose(inputs[0], axes=axes)
     return _impl
 
@@ -1626,8 +1569,7 @@ def _rank():
         input_shape = _infer_shape(inputs[0], mod)
 
         name = attr["_node_name"]
-        params[name] = tvm.nd.array(np.array([len(input_shape)])
-                                    .astype("int32"))
+        params[name] = tvm.nd.array([len(input_shape)])
         return [_expr.var(name,
                           shape=params[name].shape,
                           dtype='int32')]
@@ -1640,22 +1582,24 @@ def _range():
             start = _get_param(params, inputs[0])[0]
         except (IndexError, KeyError, AttributeError):
             try:
-                start = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+                start = _infer_value(inputs[1], params).asnumpy().tolist()
                 start = start if not isinstance(start, list) else start[0]
             except Exception:
                 # Symbolic start
                 start = inputs[0]
 
-        try:
-            limit = _get_param(params, inputs[1])[0] \
-                if hasattr(inputs[1], "name_hint") or isinstance(inputs[1], _expr.Constant) \
-                else params.pop('Rank').asnumpy()[0]
-        except (IndexError, KeyError, AttributeError):
-            try:
-                limit = _infer_value(inputs[1], params, mod).asnumpy().tolist()
-                limit = limit if not isinstance(limit, list) else limit[0]
-            except Exception:
-                limit = inputs[1]
+        if hasattr(inputs[1], "name_hint") or isinstance(inputs[1], _expr.Constant):
+            limit = _get_param(params, inputs[1])[0]
+        else:
+            if any(['Rank' in param for param in params]):
+                limit = params.pop('Rank').asnumpy()[0]
+            else:
+                try:
+                    limit = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+                    limit = limit if not isinstance(limit, list) else limit[0]
+                except Exception:
+                    # Symbolic limit
+                    limit = inputs[1]
 
         try:
             delta = _get_param(params, inputs[2])[0]
@@ -1790,21 +1734,16 @@ def _topk():
         try:
             k = int(_get_num_param(params, k_input))
         except (IndexError, KeyError, AttributeError):
-            try:
-                k = int(_infer_value(k_input, params, mod).asnumpy().tolist())
-            except Exception:
-                k = k_input
-        if isinstance(k, int):
-            if k < 1:
-                raise tvm.error.OpAttributeInvalid(
-                    'Attribute k must be positive in operator TopKV2')
-            k = _expr.const(k)
+            k = int(_infer_value(k_input, params).asnumpy().tolist())
+        if k < 1:
+            raise tvm.error.OpAttributeInvalid(
+                'Attribute k must be positive in operator TopKV2')
         if attr['sorted'] is False:
             raise tvm.error.OpAttributeUnImplemented(
                 'Attribute sorted=False is not supported in operator TopKV2')
         return AttrCvt(op_name='topk',
                        ignores=['sorted'],
-                       extras={'k': k, 'is_ascend': False, 'dtype': 'int32'})([inputs[0]], attr)
+                       extras={'k': k, 'is_ascend': False, 'dtype': 'int32'})(inputs, attr)
     return _impl
 
 def _floordiv():
@@ -1831,12 +1770,12 @@ def _space_to_batch_nd():
         try:
             block_shape = _get_list_param(params, inputs[1])
         except (IndexError, KeyError, AttributeError):
-            block_shape = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+            block_shape = _infer_value(inputs[1], params).asnumpy().tolist()
 
         try:
             paddings = _get_list_param(params, inputs[2])
         except (IndexError, KeyError, AttributeError):
-            paddings = _infer_value(inputs[2], params, mod).asnumpy()
+            paddings = _infer_value(inputs[2], params).asnumpy()
             paddings = np.squeeze(paddings)
             if len(paddings.shape) == 1:
                 paddings = np.expand_dims(paddings, axis=0)
@@ -1861,7 +1800,7 @@ def _space_to_batch_nd():
         axes = [2 * i + 2 for i in range(M)] + [0] + [2 * i + 1 for i in range(M)] + \
                list(range(1 + 2 * M, 1 + 2 * M + remaining_shape_length))
         permuted_reshaped_padded = tvm.relay.transpose(reshaped_padded, axes=axes)
-        permuted_reshaped_padded_shape = _infer_shape(permuted_reshaped_padded, mod)
+        permuted_reshaped_padded_shape = _infer_shape(permuted_reshaped_padded)
         # Reshape permuted_reshaped_padded to flatten block_shape into the batch dimension,
         # producing an output tensor of shape:
         # [batch * prod(block_shape)] + [padded_shape[1] / block_shape[0], ...,
@@ -1881,12 +1820,12 @@ def _batch_to_space_nd():
         try:
             block_shape = _get_list_param(params, inputs[1])
         except (IndexError, KeyError, AttributeError):
-            block_shape = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+            block_shape = _infer_value(inputs[1], params).asnumpy().tolist()
 
         try:
             crops = _get_list_param(params, inputs[2])
         except (IndexError, KeyError, AttributeError):
-            crops = _infer_value(inputs[2], params, mod).asnumpy()
+            crops = _infer_value(inputs[2], params).asnumpy()
             crops = np.squeeze(crops)
             if len(crops.shape) == 1:
                 crops = np.expand_dims(crops, axis=0)
@@ -1915,7 +1854,7 @@ def _batch_to_space_nd():
         # [batch / prod(block_shape), input_shape[1] * block_shape[0] - crops[0,0] - crops[0,1],
         #  ..., input_shape[M] * block_shape[M-1] - crops[M-1,0] - crops[M-1,1],
         #  input_shape[M+1], ..., input_shape[N-1]]
-        reshaped_permuted_shape = _infer_shape(reshaped_permuted, mod)
+        reshaped_permuted_shape = _infer_shape(reshaped_permuted)
         cropped = reshaped_permuted
         for axis in range(1, M+1):
             crop = crops[axis - 1]
@@ -1991,6 +1930,7 @@ def _add_n():
         return  _res
     return _impl
 
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -2007,8 +1947,6 @@ _freezed_graph_pruned_op_list = ['ReadVariableOp', 'ResourceGather', 'Variable',
 # for N to 1 mapping, currently not supported(?)
 _convert_map = {
     'Abs'                               : AttrCvt('abs'),
-    'Acos'                              : AttrCvt('acos'),
-    'Acosh'                             : AttrCvt('acosh'),
     'Add'                               : _elemwise('add'),
     'AddN'                              : _add_n(),
     'AddV2'                             : _elemwise('add'),
@@ -2016,11 +1954,8 @@ _convert_map = {
     'Any'                               : _reduce('any'),
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
-    'Asin'                              : AttrCvt('asin'),
-    'Asinh'                             : AttrCvt('asinh'),
     'Assert'                            : _assert(),
     'Atan'                              : AttrCvt('atan'),
-    'Atanh'                             : AttrCvt('atanh'),
     'Atan2'                             : _atan2(),
     'AvgPool'                           : _pooling('avg_pool'),
     'AvgPool3D'                         : _pool3d('avg_pool3d'),
@@ -2039,9 +1974,7 @@ _convert_map = {
     'Conv2D'                            : _conv('conv'),
     'Conv2DBackpropInput'               : _conv('conv_transpose'),
     'Conv3D'                            : _conv3d('conv'),
-    'Conv3DBackpropInputV2'             : _conv3d('conv_transpose'),
     'Cos'                               : AttrCvt('cos'),
-    'Cosh'                              : AttrCvt('cosh'),
     'CropAndResize'                     : _crop_and_resize(),
     'DecodeJpeg'                        : _decode_image(),
     'DepthToSpace'                      : _depth_to_space(),
@@ -2091,8 +2024,6 @@ _convert_map = {
     'Mod'                               : _elemwise('mod'),
     'Mul'                               : _elemwise('multiply'),
     'Neg'                               : AttrCvt('negative'),
-    'NonMaxSuppressionV2'               : _nms(),
-    'NonMaxSuppressionV3'               : _nms(),
     'NoOp'                              : _no_op(),
     'NotEqual'                          : _broadcast('not_equal'),
     'OneHot'                            : _one_hot(),
@@ -2120,7 +2051,6 @@ _convert_map = {
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Sign'                              : AttrCvt('sign'),
     'Sin'                               : AttrCvt('sin'),
-    'Sinh'                              : AttrCvt('sinh'),
     'Size'                              : _size(),
     'Slice'                             : _slice(),
     'Softmax'                           : _softmax(),
@@ -2406,36 +2336,29 @@ class RecurrentNetworks(object):
 # 1.x.
 _control_flow_nodes = ['Merge', 'Switch', 'NextIteration', 'Exit', 'Enter', 'LoopCond']
 
-# A map to record tensor array write ops and input ta/tensor indices
-# Value is (index of tensor array, index of written node)
-_tensor_array_write_ops = {
-    "TensorArrayWrite"   : (3, 2),
-    "TensorArrayScatter" : (0, 2),
-    "TensorArraySplit"   : (0, 1),
-}
+# A map to record tensor array with fixed rank shape
+_static_tensor_array_map = {}
 
-def is_tensor_array_constuctor(tf_node):
-    """Check whether is tensor array constructor node."""
-    is_ta = False
-    ta_start = "TensorArrayV"
-    if tf_node.op.startswith(ta_start):
-        is_ta = tf_node.op[len(ta_start)].isnumeric()
-    return is_ta
+class RewriteSubgraph(ExprMutator):
+    """
+    A helper class to rewrite expr in while loop function to variable
 
-def find_parent_loop_name(node_name, while_loop_name_set):
-    """Find name of direct parent while loop."""
-    ploop_name = ""
-    name_prefix = node_name.rsplit('/', 1)[0]
-    if name_prefix.startswith("^"):
-        name_prefix = name_prefix[1:]
-    for lname in while_loop_name_set:
-        if name_prefix.startswith(lname) and len(ploop_name) < len(lname):
-            ploop_name = lname
+    Parameters
+    ----------
+    rewrite_map : Dict[expr, expr]
+        A dictionay contains a set of expr to var mapping.
+    """
+    def __init__(self, rewrite_map):
+        ExprMutator.__init__(self)
+        self.rewrite_map = rewrite_map
 
-    if len(ploop_name) == 0:
-        ploop_name = name_prefix
+    def visit(self, expr):
+        if expr in self.rewrite_map:
+            return self.rewrite_map[expr]
+        return super().visit(expr)
 
-    return ploop_name
+def rewrite_subgraph(expr, rewrites):
+    return RewriteSubgraph(rewrites).visit(expr)
 
 def _in_while_loop(control_flow_node_map, op_name):
     """
@@ -2461,28 +2384,6 @@ def _in_while_loop(control_flow_node_map, op_name):
     """
     return op_name in control_flow_node_map and \
             "LoopCond" in control_flow_node_map[op_name]
-
-class RewriteSubgraph(ExprMutator):
-    """
-    A helper class to rewrite expr in while loop function to variable.
-
-    Parameters
-    ----------
-    rewrite_map : Dict[expr, expr]
-        A dictionay contains a set of expr to var mapping.
-    """
-    def __init__(self, rewrite_map):
-        ExprMutator.__init__(self)
-        self.rewrite_map = rewrite_map
-
-    def visit(self, expr):
-        if expr in self.rewrite_map:
-            return self.rewrite_map[expr]
-        return super().visit(expr)
-
-def rewrite_subgraph(expr, rewrites):
-    """Rewrite loop body."""
-    return RewriteSubgraph(rewrites).visit(expr)
 
 class Branch:
     """A class contains the components that are used to build up a Relay if
@@ -2564,50 +2465,118 @@ class Branch:
             self._if = self._if_node()
         return self._if
 
-class VarChecker(ExprVisitor):
-    """Check whether a Variable is used in loop body.
 
-    Parameters
-    ----------
-    var : relay.expr.Var
-        Relay Variable to be checked.
+class LoopBound(ExprVisitor):
     """
-    def __init__(self, var):
+    When a loop body is create, we get a Relay expression backtracing all
+    the way back to input node. This will result in lots of unnecessary
+    expression placed into loop body and compute multiple times. For example,
+    consider the following tensorflow code:
+
+    .. code-block:: python
+
+        i = tf.constant(0)
+        data = tf.compat.v1.placeholder(tf.float32, shape=(1024, 1024))
+        slice = tf.strided_slice(data, 0, 512)
+        def c(i): return tf.less(i, 10)
+        def b(i): return [tf.add(i, 1), tf.add(i, 1) + slice]
+        r = tf.while_loop(c, b, [i])
+
+    If we directly create recursive function, slice will be placed into function body.
+    Instead, we recognize whether slice is inside while_loop block and pass it as an
+    extra loop variable to avoid duplicate computation.
+
+    TODO(kevinthesun): Add a LICM pass for Relay to handle generic loop/function.
+    """
+    def __init__(self, loop_name, hash2tfnode, while_loop_name_set):
         ExprVisitor.__init__(self)
-        self._var = var
-        self.used = False
+        self._loop_name = loop_name
+        self._hash2tfnode = hash2tfnode
+        self._while_loop_name_set = while_loop_name_set
+        self.extra_loop_var_names = set()
+
+    def _find_parent_loop_name(self, node_name):
+        """Find name of direct parent while loop."""
+        ploop_name = ""
+        name_prefix = node_name.rsplit('/', 1)[0]
+        if name_prefix.startswith("^"):
+            name_prefix = name_prefix[1:]
+        # To get the name of the direct parent while loop for a given node,
+        # we iterate all the while loop names inside TensorFlow graph def.
+        # If we find a loop name with which current node name starts,
+        # it means current node is under this loop. However, due to nested
+        # loop, this loop may not be the direct parent while loop of current
+        # node. We need to keep the longest loop name, which represents the
+        # innermost while loop corresponding to current node.
+        for lname in self._while_loop_name_set:
+            if name_prefix.startswith(lname) and len(ploop_name) < len(lname):
+                ploop_name = lname
+
+        if len(ploop_name) == 0:
+            ploop_name = name_prefix
+
+        return ploop_name
 
     def visit(self, expr):
-        if self._var == expr:
-            self.used = True
+        """
+        For each expression in the body, look up the corresponding
+        TensorFlow node with its structural hash. If the current loop is the
+        direct parent of this node, we check whether its every input node belongs
+        to the current loop. If not, we mark this input node as an extra loop
+        variable to the current loop.
+        """
+        expr_hash = s_hash(expr)
+
+        if expr_hash in self._hash2tfnode:
+            node = self._hash2tfnode[expr_hash]
+            ploop_name = self._find_parent_loop_name(node.name)
+            # It is possibel that a node is under nested loop of current loop.
+            # We only check the direct children of current loop.
+            if ploop_name == self._loop_name:
+                for iname in node.input:
+                    iploop_name = self._find_parent_loop_name(iname)
+                    # Use startswith to deal with nested loop
+                    if not iploop_name.startswith(self._loop_name):
+                        if iname not in self.extra_loop_var_names:
+                            self.extra_loop_var_names.add(iname)
         super().visit(expr)
+
 
 class Loop:
     """
     A class contains the components that are used to build up a Relay
     recursive call.
+
     Parameters
     ----------
-    mod : tvm.IRModule
-        Module for current parsed IR.
+    loop_vars : List[tvm.relay.Expr]
+        The loop variables that used in a while loop.
 
-    loop_name : str
-        Name prefix of while loop in TensorFlow graph.
+    cond : tvm.relay.Expr
+        The condition of a while loop.
 
-    lvar2expr : dict from str to dict from Relay.expr.Var to Relay.expr
-        A dictionary recording all loop vars and corresponding
-        relay expression.
+    body : tvm.relay.Expr
+        The body of a matched while loop.
+
+    _loop : tvm.relay.Expr
+        An internal variable indicates where a recursive call is already created
+        for a matched TF while loop construct.
 
     Examples
     --------
     The following is a vanilla loop from TensorFlow:
+
     .. code-block:: python
+
         i = tf.constant(0)
         c = lambda i: tf.less(i, 10)
         b = lambda i: tf.add(i, 1)
         r = tf.while_loop(c, b, [i])
+
     It will be converted to the following recursive call in Relay:
+
     .. code-block:: python
+
         fn (%while/Less/y: Tensor[(1,), int32],
             %while/Add/y: Tensor[(1,), int32],
             %Const: Tensor[(1,), int32]) {
@@ -2629,74 +2598,86 @@ class Loop:
           %6
         }
     """
-    def __init__(self, mod, loop_name, lvar2expr):
+    def __init__(self, mod, loop_name, hash2tfnode,
+                 node_map, while_loop_name_set):
+        self.loop_vars = []
         self.cond = None
         self.body = []
         self._loop = None
         self._mod = mod
         self._loop_name = loop_name
-        self._lvar2expr = lvar2expr
-        self.loop_vars = []
-
+        self._hash2tfnode = hash2tfnode
+        self._node_map = node_map
+        self._while_loop_name_set = while_loop_name_set
         self.aligned = False
 
     def _while_loop(self):
         """An internal API to create a Relay recursive call for a matched TF
         `while_loop` construct.
         """
-        bind_map = {}
         wl = tvm.relay.var('while_loop')
+
         sb = tvm.relay.scope_builder.ScopeBuilder()
 
-        lv_list = []
-        expr_list = []
-        extra_vars = []
+        loop_checker = LoopBound(self._loop_name,
+                                 self._hash2tfnode,
+                                 self._while_loop_name_set)
+        for body in self.body:
+            loop_checker.visit(body)
 
-        for i, lv in enumerate(self.loop_vars):
-            if self._loop_name not in self._lvar2expr:
-                self._lvar2expr[self._loop_name] = {}
+        loop_vars = []
+        bind_map = {}
+        loop_var_hash_set = set()
+        for var in self.loop_vars:
+            loop_var_hash_set.add(s_hash(var))
 
-            # Handle the case when loop var is not properly lifted.
-            # This can happen when loop var node name is set accidentally
-            # beginning with loop name.
-            if lv not in self._lvar2expr[self._loop_name]:
-                var_name = "{}_loop_var_{}".format(self._loop_name, i)
-                var_type = _infer_type(lv, self._mod).checked_type
-                loop_var = tvm.relay.var(var_name, type_annotation=var_type)
-                self._lvar2expr[self._loop_name][loop_var] = lv
-                bind_map[lv] = loop_var
-                self.loop_vars[i] = loop_var
-                lv = loop_var
+        extra_nodes = []
+        for extra_loop_var_name in loop_checker.extra_loop_var_names:
+            extra_loop_var_name = extra_loop_var_name.split(':')[0].split("^")[-1]
+            extra_node = self._node_map[extra_loop_var_name]
+            extra_node = extra_node if isinstance(extra_node, _expr.Tuple) else extra_node[0]
+            if s_hash(extra_node) not in loop_var_hash_set:
+                self.loop_vars.append(extra_node)
+                extra_nodes.append(extra_node)
 
-            lv_list.append(lv)
-            expr_list.append(self._lvar2expr[self._loop_name][lv])
+        for i, var in enumerate(self.loop_vars):
+            if not isinstance(var, _expr.Var):
+                var_chk = _infer_type(var, self._mod)
+                var_type = var_chk.checked_type
+            else:
+                var_type = var.type_annotation
 
-        if bind_map:
-            self.cond = rewrite_subgraph(self.cond, bind_map)
-            self.body = [rewrite_subgraph(b, bind_map) for b in self.body]
+            v = tvm.relay.var("loop_var" + str(i), type_annotation=var_type)
+            loop_vars.append(v)
+            bind_map[var] = v
+
+
+        self.cond = rewrite_subgraph(self.cond, bind_map)
+        self.body = [rewrite_subgraph(b, bind_map) for b in self.body]
+
+        self.body_shape = []
+        for body in self.body:
+            current_node = body
+            shape = _infer_shape(current_node, self._mod)
+            while not isinstance(shape, (tuple, list)):
+                current_node = current_node.args[-1]
+                shape = _infer_shape(current_node, self._mod)
+            self.body_shape.append(shape)
 
         cond = tvm.relay.op.min(self.cond)
 
-        for lv, exp in self._lvar2expr[self._loop_name].items():
-            if lv not in self.loop_vars:
-                var_checker = VarChecker(lv)
-                for bd in self.body + [cond]:
-                    var_checker.visit(bd)
-                    if var_checker.used:
-                        lv_list.append(lv)
-                        expr_list.append(exp)
-                        extra_vars.append(lv)
-                        break
-
         with sb.if_scope(cond):
-            sb.ret(wl(*list(self.body + extra_vars)))
+            extra_args = []
+            if extra_nodes:
+                extra_args = list(loop_vars[-len(extra_nodes):])
+            sb.ret(wl(*list(self.body + extra_args)))
         with sb.else_scope():
-            sb.ret(tvm.relay.Tuple(lv_list))
+            sb.ret(tvm.relay.Tuple(loop_vars))
 
-        loop_fn = tvm.relay.Function(lv_list, sb.get())
+        loop_fn = tvm.relay.Function(loop_vars, sb.get())
         sb = tvm.relay.scope_builder.ScopeBuilder()
         sb.let(wl, loop_fn)
-        loop_ret = wl(*expr_list)
+        loop_ret = wl(*self.loop_vars)
 
         sb.ret(loop_ret)
         ret = sb.get()
@@ -2730,15 +2711,10 @@ class GraphProto(object):
         self._control_flow_node_map = defaultdict(set)
         self._loop_body_order = {}
         self._loop_var_order = {}
-        self._lvar2expr = {}
-        self._lname_map = {}
-        self._sorted_cf_node_names = []
+        self._hash2tfnode = {}
         self._while_loop_name_set = set()
-        self._main_graph_proto = self
-        self._tensor_array_shapes = {}
-        self._tensor_array_shape_nodes = {}
 
-    def _get_relay_func(self, graph, layout="NHWC", shape=None, outputs=None):
+    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
 
         Follow the tensorflow graph definition to parse and convert it to Relay.
@@ -2784,9 +2760,6 @@ class GraphProto(object):
 
         missing_operators = self._parse_import_prerequisites(graph)
         control_flow_nodes = []
-        ta_write_nodes = []
-        ta_gather_nodes = []
-        ta_construct_nodes = []
         self._in_shape = shape
         self._layout = layout
         self._graph = graph
@@ -2850,50 +2823,6 @@ class GraphProto(object):
                 if node.op == "Exit":
                     self._while_loop_name_set.add(node_name_prefix)
                 control_flow_nodes.append(node)
-            elif node.op.startswith("TensorArray"):
-                if is_tensor_array_constuctor(node):
-                    ta_construct_nodes.append(node)
-                else:
-                    for ta_write_name, idx in _tensor_array_write_ops.items():
-                        if node.op.startswith(ta_write_name):
-                            ta_write_nodes.append((node, idx))
-                            break
-                    if node.op.startswith("TensorArrayGather"):
-                        ta_gather_nodes.append(node)
-
-        # Use tensor array gather to infer static tensor array shape
-        for gather_node in ta_gather_nodes:
-            input_ta_name = gather_node.input[0]
-            input_ta_node = self._tf_node_map[input_ta_name]
-            if is_tensor_array_constuctor(input_ta_node):
-                gather_attr = self._parse_attr(gather_node.attr)
-                if "element_shape" not in gather_attr:
-                    continue
-                raw_elem_shape = tensor_util.TensorShapeProtoToList(gather_attr["element_shape"])
-                elem_shape = []
-                for dim in raw_elem_shape:
-                    if dim < 0:
-                        elem_shape.append(Any())
-                    else:
-                        elem_shape.append(int(dim))
-                self._tensor_array_shapes[input_ta_node.name] = elem_shape
-
-        # Fetch node contains static tensor array shape
-        for item in ta_write_nodes:
-            wnode = item[0]
-            ta_idx, inode_idx = item[1]
-
-            stack = [self._tf_node_map[wnode.input[ta_idx].split(":")[0]]]
-            while stack:
-                cnode = stack.pop(0)
-                if not cnode.op.startswith("TensorArray"):
-                    for iname in cnode.input:
-                        stack.append(self._tf_node_map[iname.split(":")[0]])
-                elif cnode.name != wnode.name:
-                    if is_tensor_array_constuctor(cnode):
-                        inode = self._tf_node_map[wnode.input[inode_idx].split(":")[0]]
-                        self._tensor_array_shape_nodes[cnode.name] = (inode, wnode.op)
-                    break
 
         # First, parse all control flow nodes.
         # Convert tf.cond to Branch and tf.while_loop to Loop.
@@ -2917,9 +2846,6 @@ class GraphProto(object):
 
             if i == len(control_flow_nodes) - 1:
                 sorted_cf_nodes.extend(exits)
-
-        for node in sorted_cf_nodes:
-            self._sorted_cf_node_names.append(node.name)
 
         for node in sorted_cf_nodes:
             self._backtrack_construct(node.name)
@@ -2954,20 +2880,7 @@ class GraphProto(object):
                 out.append(out_rnn)
 
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
-        fvars = analysis.free_vars(out)
-        func = _function.Function(fvars, out)
-        final_params = {}
-        for fv in fvars:
-            if fv.name_hint in self._params:
-                final_params[fv.name_hint] = self._params[fv.name_hint]
-        self._params = final_params
-        return func
-
-    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
-        """ Wrapper to _get_relay_func which converts Tensorflow graph to Relay function
-        which is used as main function for the Relay module
-        """
-        func = self._get_relay_func(graph, layout=layout, shape=shape, outputs=outputs)
+        func = _function.Function(analysis.free_vars(out), out)
         self._mod["main"] = func
         return self._mod, self._params
 
@@ -2978,24 +2891,16 @@ class GraphProto(object):
                 which are not supported
         """
         missing_operators = set()
-        from tensorflow.python.framework import op_def_registry
         for node in graph.node:
-            getOpDef = op_def_registry._registered_ops.get if hasattr(op_def_registry,\
-                        "_registered_ops") else op_def_registry.get
-            op_def = getOpDef(node.op)
             if node.op == "Placeholder" or node.op == 'PlaceholderWithDefault':
                 pass
             elif node.op == "Const":
-                pass
-            elif node.op in ["PartitionedCall", "StatefulPartitionedCall"]:
                 pass
             else:
                 if any([node.op in t for t in [_identity_list, _convert_map,
                                                _convert_map_rnn,
                                                _control_flow_nodes]]):
                     pass
-                elif op_def is not None and op_def.is_stateful:
-                    missing_operators.add(node.op)
                 else:
                     missing_operators.add(node.op)
 
@@ -3148,40 +3053,37 @@ class GraphProto(object):
             Converted relay expression.
         """
         node_name_prefix = node.name.rsplit('/', 1)[0]
-        plname = find_parent_loop_name(node.name, self._while_loop_name_set)
         if node.op == "Merge":
             if _in_while_loop(self._control_flow_node_map, node_name_prefix):
-                op = self._licm_construct(plname, node.input[0])
+                op = self._backtrack_construct(node.input[0])
                 if node_name_prefix not in self._loops:
                     self._loops[node_name_prefix] = Loop(self._mod,
-                                                         plname,
-                                                         self._lvar2expr)
+                                                         node_name_prefix,
+                                                         self._hash2tfnode,
+                                                         self._nodes,
+                                                         self._while_loop_name_set)
             else:
-                if node_name_prefix not in self._branches:
-                    switch_prefix = node_name_prefix + "/Switch"
-                    merge_idx = self._sorted_cf_node_names.index(node.name)
-                    for i in range(merge_idx - 1, -1, -1):
-                        cf_name = self._sorted_cf_node_names[i]
-                        if cf_name.startswith(switch_prefix):
-                            self._backtrack_construct(cf_name)
-                            break
-
+                if len(self._branches) == 0:
+                    raise RuntimeError("Cannot find a created "
+                                       "conditional for merge node")
                 branch = self._branches[node_name_prefix]
-                false_br = self._licm_construct(plname, node.input[0])
-                true_br = self._licm_construct(plname, node.input[1])
-                branch.true_branch = true_br
-                branch.false_branch = false_br
-                op = branch.if_node()
+                false_br = self._backtrack_construct(node.input[0])
+                true_br = self._backtrack_construct(node.input[1])
+                assert len(true_br) == 1
+                assert len(false_br) == 1
+                branch.true_branch = true_br[0]
+                branch.false_branch = false_br[0]
+                op = [branch.if_node()]
                 if node_name_prefix not in self._while_loop_name_set:
                     try:
                         cond_val = np.all(_infer_value(branch.cond, self._params,
                                                        self._mod).asnumpy())
                         if cond_val:
-                            op = branch.true_branch
+                            op = [branch.true_branch]
                         else:
-                            op = branch.false_branch
+                            op = [branch.false_branch]
                     except Exception:
-                        op = branch.if_node()
+                        op = [branch.if_node()]
         elif node.op == "Exit":
             loop = self._loops[node_name_prefix]
 
@@ -3207,15 +3109,17 @@ class GraphProto(object):
                 if exit_number == j:
                     body_pos = i
                     break
-            op = _expr.TupleGetItem(expr, body_pos)
+            op = [_expr.TupleGetItem(expr, body_pos)]
         elif node.op == "Enter":
-            op = self._licm_construct(plname, node.input[0])
+            op = self._backtrack_construct(node.input[0])
         elif node.op == "LoopCond":
-            op = self._licm_construct(plname, node.input[0])
-            self._loops[node_name_prefix].cond = op
+            op = self._backtrack_construct(node.input[0])
+            assert len(op) == 1
+            self._loops[node_name_prefix].cond = op[0]
         elif node.op == "Switch":
-            op = self._licm_construct(plname, node.input[0])
-            cond = self._licm_construct(plname, node.input[1])
+            op = self._backtrack_construct(node.input[0])
+            cond = self._backtrack_construct(node.input[1])
+            assert len(op) == 1
             if _in_while_loop(self._control_flow_node_map, node_name_prefix):
                 if node_name_prefix not in self._loop_var_order:
                     self._loop_var_order[node_name_prefix] = []
@@ -3224,11 +3128,11 @@ class GraphProto(object):
                 else:
                     self._loop_var_order[node_name_prefix].\
                         append(int(node.name.split("Switch_")[-1]))
-                self._loops[node_name_prefix].loop_vars.append(op)
+                self._loops[node_name_prefix].loop_vars.append(op[0])
             else:
                 if node_name_prefix not in self._branches:
                     self._branches[node_name_prefix] = Branch()
-                self._branches[node_name_prefix].cond = cond
+                self._branches[node_name_prefix].cond = cond[0]
         elif node.op == "NextIteration":
             if node_name_prefix not in self._loop_body_order:
                 self._loop_body_order[node_name_prefix] = []
@@ -3237,98 +3141,15 @@ class GraphProto(object):
             else:
                 self._loop_body_order[node_name_prefix].\
                     append(int(node.name.split("NextIteration_")[-1]))
-            op = self._licm_construct(plname, node.input[0])
-            self._loops[node_name_prefix].body.append(op)
+            op = self._backtrack_construct(node.input[0])
+
+            assert len(op) == 1
+            self._loops[node_name_prefix].body.append(op[0])
         else:
             raise Exception("Cannot identify control flow operator: " +
                             "{}".format(node.op))
 
         return op
-
-    def _partition_call_operator(self, inputs, attr):
-        """
-        Convert the Relay Partition call ops into Relay Function calls and
-        function definitions from Tensorflow graph library attribute to Relay global
-        functions
-
-        Parameters
-        ----------
-        node: TensorFlow graph node object.
-            A TensorFlow graph node object.
-
-        inputs : List[tvm.relay.Expr]
-            List of input symbols.
-
-        attrs : Dict[tvm.Attrs]
-            Dict of operator attributes.
-
-        Returns
-        -------
-        op : tvm.relay.Expr
-            Converted relay expression.
-        """
-
-        try:
-            from tensorflow.python.framework import function_def_to_graph
-        except ImportError as e:
-            raise ImportError(
-                "Unable to import tensorflow which is required {}".format(e))
-
-        main_graph_proto = self._main_graph_proto
-        outer_graph_def = main_graph_proto._graph
-
-        node_func_name = attr.get('f').name
-        func = next((f for f in outer_graph_def.library.function
-                     if f.signature.name == node_func_name), None)
-        if func:
-            devices = set(node.device for node in func.node_def)
-            if len(devices) > 1:
-                raise Exception("Found inconsistent Device assignment in the "\
-                                "Stateful Partitioned SubGraph. Rejecting "\
-                                "the subgraph ")
-            # Convert function definition to graph
-            func_input_shapes = func.attr["_input_shapes"].list.shape
-            subgraph, _ = function_def_to_graph.\
-                function_def_to_graph_def(func, func_input_shapes)
-
-            # Computing subgraph's input shape dictionary
-            subgraph_shape_dict, input_expr_dict = {}, {}
-            for f_arg, input in zip(func.signature.input_arg, inputs):
-                input_expr_dict[f_arg.name] = input
-                subgraph_shape_dict[f_arg.name] = _infer_shape(input, main_graph_proto._mod)
-
-            func_name = 'func_{}'.format(func.signature.name)
-            try:
-                global_func = main_graph_proto._mod[func_name]
-                sub_func = global_func
-                sub_params = main_graph_proto._params
-            except ValueError:
-                # Construct relay nodes from the subgraph
-                g1 = SubGraphProto(main_graph_proto)
-                sub_func, sub_params = g1.from_tensorflow(subgraph, shape=subgraph_shape_dict)
-                main_graph_proto._params.update(sub_params)
-                func_expr = _function.Function(sub_func.params, sub_func.body)
-                global_func = tvm.relay.GlobalVar(func_name)
-                main_graph_proto._mod[global_func] = func_expr
-
-            param_exprs = []
-            for param_expr in sub_func.params:
-                # sub_params is subset of sub_func.params
-                param_name = param_expr.vid.name_hint
-                if param_name in input_expr_dict.keys():
-                    param_exprs.append(input_expr_dict[param_name])
-                elif param_name in sub_params.keys():
-                    param_exprs.append(param_expr)
-                else:
-                    raise Exception("Input parameter {} not found".format(param_name))
-
-            sb = tvm.relay.scope_builder.ScopeBuilder()
-            loop_ret = global_func(*param_exprs)
-            sb.ret(loop_ret)
-            ret = sb.get()
-        else:
-            raise Exception("Function not found - {}".format(node_func_name))
-        return ret
 
     def _convert_operator(self, op_name, inputs, attrs,
                           graph, identity_list=None, convert_map=None):
@@ -3371,61 +3192,9 @@ class GraphProto(object):
             sym = self._convert_rnn_operator(op_name, inputs, attrs,
                                              self._params, graph,
                                              convert_map_rnn)
-
-        elif op_name in ["PartitionedCall", "StatefulPartitionedCall"]:
-            sym = self._partition_call_operator(inputs, attrs)
         else:
             raise NotImplementedError("Operator {} not implemented.".format(op_name))
         return sym
-
-    def _licm_construct(self, loop_name, node_name):
-        """Construct a node by considering whether it is
-        loop invariant with the given while loop. If yes, we
-        generate a loop Variable. Otherwise, return regular
-        converted relay expression.
-
-        Parameters
-        ----------
-        loop_name : str
-            TensorFlow while loop name to be checked.
-
-        node_name : str
-            TensorFlow node name.
-
-        Returns
-        -------
-        out : relay.Expr or relay.Var
-            Converted relay expression or loop var.
-        """
-        actual_expr = self._backtrack_construct(node_name)
-        tn = node_name.split(':')
-        node_name = tn[0].split("^")[-1]
-        cloop_name = find_parent_loop_name(node_name, self._while_loop_name_set)
-
-        if loop_name in self._while_loop_name_set and not cloop_name.startswith(loop_name):
-            if loop_name not in self._lvar2expr:
-                self._lvar2expr[loop_name] = {}
-            if loop_name not in self._lname_map:
-                self._lname_map[loop_name] = {}
-
-            if node_name not in self._lname_map[loop_name]:
-                var_name = "{}_loop_var".format(node_name)
-                var_type = _infer_type(actual_expr, self._mod).checked_type
-                loop_var = tvm.relay.var(var_name, type_annotation=var_type)
-                try:
-                    extra_param = _infer_value(actual_expr, self._params, self._mod)
-                    self._params[var_name] = extra_param
-                except Exception:
-                    pass
-                self._lvar2expr[loop_name][loop_var] = actual_expr
-                self._lname_map[loop_name][node_name] = loop_var
-                ret = loop_var
-            else:
-                ret = self._lname_map[loop_name][node_name]
-        else:
-            ret = actual_expr
-
-        return ret
 
     def _backtrack_construct(self, node_name):
         """Convert a specific tensorflow node to relay expression.
@@ -3439,23 +3208,17 @@ class GraphProto(object):
         Parameters
         ----------
         node_name : str
-            TensorFlow node name.
+            Tensorflow node name.
 
         Returns
         -------
         op : relay.Expr
             Converted relay expression
         """
-        try:
-            from tensorflow.python.framework import tensor_util
-        except ImportError as e:
-            raise ImportError(
-                "Unable to import tensorflow which is required {}".format(e))
+        node_name = node_name.split(':')[0].split("^")[-1]
 
-        input_op_name = node_name.split(':')[0].split("^")[-1]
-
-        if input_op_name not in self._nodes:
-            node = self._tf_node_map[input_op_name]
+        if node_name not in self._nodes:
+            node = self._tf_node_map[node_name]
             attr = self._parse_attr(node.attr)
 
             if node.op in _control_flow_nodes:
@@ -3464,50 +3227,20 @@ class GraphProto(object):
                                                          attr,
                                                          self._control_flow_node_map)
             else:
-                attr["_output_shapes"] = self._output_shapes[input_op_name]
+                attr["_output_shapes"] = self._output_shapes[node_name]
                 attr["_node_name"] = node.name
                 attr["_target_layout"] = self._layout
+                inputs = []
+                for iname in node.input:
+                    in_op = self._backtrack_construct(iname)
+                    if isinstance(in_op, _expr.TupleWrapper):
+                        tn = iname.split(':')
+                        tensor_slot = int(tn[1]) if len(tn) > 1 else 0
+                        in_op = in_op[tensor_slot]
+                    else:
+                        in_op = in_op[0]
 
-                inputs = [self._backtrack_construct(iname) for iname in node.input]
-
-                plname = find_parent_loop_name(node_name, self._while_loop_name_set)
-
-                # For TensorArrayV3 op, we need to infer shape first
-                if is_tensor_array_constuctor(node):
-                    raw_elem_shape = tensor_util.TensorShapeProtoToList(attr['element_shape'])
-                    elem_shape = []
-                    for dim in raw_elem_shape:
-                        if dim < 0:
-                            elem_shape.append(Any())
-                        else:
-                            elem_shape.append(dim)
-
-                    if elem_shape:
-                        attr["shape"] = elem_shape
-                    if attr['identical_element_shapes'] or elem_shape:
-                        shape_node, wnode_op = self._tensor_array_shape_nodes[node.name]
-                        converted = self._backtrack_construct(shape_node.name)
-                        shape = _infer_shape(converted, self._mod)
-                        if wnode_op.startswith("TensorArraySplit"):
-                            shape = (Any(),) + shape[1:]
-                        elif wnode_op.startswith("TensorArrayScatter"):
-                            shape = shape[1:]
-
-                        if node.name in self._tensor_array_shapes:
-                            preset_shape = self._tensor_array_shapes[node.name]
-                            shape = _get_more_static_shape(shape, preset_shape)
-
-                        if "shape" in attr:
-                            attr["shape"] = _get_more_static_shape(shape, attr["shape"])
-                        else:
-                            attr["shape"] = shape
-
-                # LICM
-                if plname in self._while_loop_name_set:
-                    for i, iname in enumerate(node.input):
-                        actual_input = self._licm_construct(plname, iname)
-                        inputs[i] = actual_input
-
+                    inputs.append(in_op)
                 op = self._convert_operator(node.op, inputs, attr, self._graph)
 
             if isinstance(op, np.ndarray):
@@ -3519,32 +3252,11 @@ class GraphProto(object):
             elif isinstance(op, (_expr.Expr, _expr.TupleGetItem)):
                 op = [op]
 
-            self._nodes[input_op_name] = op
+            node_hash = s_hash(op) if isinstance(op, _expr.Tuple) else s_hash(op[0])
+            self._hash2tfnode[node_hash] = node
+            self._nodes[node_name] = op
 
-        out = self._nodes[input_op_name]
-
-        if isinstance(out, _expr.TupleWrapper):
-            tn = node_name.split(':')
-            tensor_slot = int(tn[1]) if len(tn) > 1 else 0
-            return out[tensor_slot]
-
-        return out[0]
-
-
-class SubGraphProto(GraphProto):
-    """ A helper class for handling relay subgraph copying from Tensorflow GraphDef.
-    """
-    def __init__(self, main_graph_proto):
-        super().__init__()
-        self._main_graph_proto = main_graph_proto  # holds main graph proto object
-
-    def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
-        """ Wrapper to _get_relay_func which converts Tensorflow graph to Relay function.
-        Return Relay function and params
-        """
-        func = self._get_relay_func(graph, layout=layout, shape=shape, outputs=outputs)
-        return func, self._params
-
+        return self._nodes[node_name]
 
 def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
     """Load tensorflow graph which is a python tensorflow graph object into relay.
@@ -3572,7 +3284,6 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
     params : dict of str to tvm.nd.NDArray
         Dict of converted parameters stored in tvm.nd.NDArray format
     """
-
     g = GraphProto()
     mod, params = g.from_tensorflow(graph, layout, shape, outputs)
     return mod, params

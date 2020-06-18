@@ -22,16 +22,18 @@
  * \brief Implementations of type functors.
  */
 #include <tvm/ir/type_functor.h>
-
 #include <utility>
 
 namespace tvm {
 
-void TypeVisitor::VisitType_(const TypeVarNode* op) {}
+void TypeVisitor::VisitType_(const TypeVarNode* op) {
+}
 
-void TypeVisitor::VisitType_(const TensorTypeNode* op) {}
+void TypeVisitor::VisitType_(const TensorTypeNode* op) {
+}
 
-void TypeVisitor::VisitType_(const IncompleteTypeNode* op) {}
+void TypeVisitor::VisitType_(const IncompleteTypeNode* op) {
+}
 
 void TypeVisitor::VisitType_(const FuncTypeNode* op) {
   for (auto type_param : op->type_params) {
@@ -54,7 +56,9 @@ void TypeVisitor::VisitType_(const TupleTypeNode* op) {
   }
 }
 
-void TypeVisitor::VisitType_(const RelayRefTypeNode* op) { this->VisitType(op->value); }
+void TypeVisitor::VisitType_(const RelayRefTypeNode* op) {
+  this->VisitType(op->value);
+}
 
 void TypeVisitor::VisitType_(const TypeRelationNode* op) {
   for (const Type& t : op->args) {
@@ -62,7 +66,8 @@ void TypeVisitor::VisitType_(const TypeRelationNode* op) {
   }
 }
 
-void TypeVisitor::VisitType_(const GlobalTypeVarNode* op) {}
+void TypeVisitor::VisitType_(const GlobalTypeVarNode* op) {
+}
 
 void TypeVisitor::VisitType_(const TypeCallNode* op) {
   this->VisitType(op->func);
@@ -85,9 +90,12 @@ void TypeVisitor::VisitType_(const TypeDataNode* op) {
   }
 }
 
-void TypeVisitor::VisitType_(const PrimTypeNode* op) {}
+void TypeVisitor::VisitType_(const PrimTypeNode* op) {
+}
 
-void TypeVisitor::VisitType_(const PointerTypeNode* op) { this->VisitType(op->element_type); }
+void TypeVisitor::VisitType_(const PointerTypeNode* op) {
+  this->VisitType(op->element_type);
+}
 
 Type TypeMutator::VisitType(const Type& t) {
   return t.defined() ? TypeFunctor<Type(const Type&)>::VisitType(t) : t;
@@ -107,14 +115,18 @@ Array<Type> TypeMutator::MutateArray(Array<Type> arr) {
   return arr;
 }
 
-Type TypeMutator::VisitType_(const TypeVarNode* op) { return GetRef<TypeVar>(op); }
+Type TypeMutator::VisitType_(const TypeVarNode* op) {
+  return GetRef<TypeVar>(op);
+}
 
 Type TypeMutator::VisitType_(const TensorTypeNode* op) {
   // TODO(tvm-team) recursively visit to replace Var
   return GetRef<Type>(op);
 }
 
-Type TypeMutator::VisitType_(const IncompleteTypeNode* op) { return GetRef<Type>(op); }
+Type TypeMutator::VisitType_(const IncompleteTypeNode* op) {
+  return GetRef<Type>(op);
+}
 
 Type TypeMutator::VisitType_(const FuncTypeNode* op) {
   bool changed = false;
@@ -133,7 +145,8 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
   for (auto type_cs : op->type_constraints) {
     auto new_type_cs = VisitType(type_cs);
     changed = changed || !new_type_cs.same_as(type_cs);
-    if (const TypeConstraintNode* tin = new_type_cs.as<TypeConstraintNode>()) {
+    if (const TypeConstraintNode* tin =
+        new_type_cs.as<TypeConstraintNode>()) {
       type_constraints.push_back(GetRef<TypeConstraint>(tin));
     } else {
       LOG(FATAL) << new_type_cs;
@@ -147,7 +160,10 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
   changed = changed || !new_ret_type.same_as(op->ret_type);
 
   if (!changed) return GetRef<Type>(op);
-  return FuncType(new_args, new_ret_type, type_params, type_constraints);
+  return FuncType(new_args,
+                            new_ret_type,
+                            type_params,
+                            type_constraints);
 }
 
 Type TypeMutator::VisitType_(const TupleTypeNode* op) {
@@ -168,11 +184,16 @@ Type TypeMutator::VisitType_(const TypeRelationNode* type_rel) {
   if (new_args.same_as(type_rel->args)) {
     return GetRef<Type>(type_rel);
   } else {
-    return TypeRelation(type_rel->func, new_args, type_rel->num_inputs, type_rel->attrs);
+    return TypeRelation(type_rel->func,
+                                  new_args,
+                                  type_rel->num_inputs,
+                                  type_rel->attrs);
   }
 }
 
-Type TypeMutator::VisitType_(const GlobalTypeVarNode* op) { return GetRef<Type>(op); }
+Type TypeMutator::VisitType_(const GlobalTypeVarNode* op) {
+  return GetRef<Type>(op);
+}
 
 Type TypeMutator::VisitType_(const TypeCallNode* op) {
   Type new_func = VisitType(op->func);
@@ -184,9 +205,13 @@ Type TypeMutator::VisitType_(const TypeCallNode* op) {
   }
 }
 
-Type TypeMutator::VisitType_(const TypeDataNode* op) { return GetRef<Type>(op); }
+Type TypeMutator::VisitType_(const TypeDataNode* op) {
+  return GetRef<Type>(op);
+}
 
-Type TypeMutator::VisitType_(const PrimTypeNode* op) { return GetRef<Type>(op); }
+Type TypeMutator::VisitType_(const PrimTypeNode* op) {
+  return GetRef<Type>(op);
+}
 
 Type TypeMutator::VisitType_(const PointerTypeNode* op) {
   Type element_type = VisitType(op->element_type);
@@ -201,7 +226,8 @@ Type TypeMutator::VisitType_(const PointerTypeNode* op) {
 // Implements bind.
 class TypeBinder : public TypeMutator {
  public:
-  explicit TypeBinder(const tvm::Map<TypeVar, Type>& args_map) : args_map_(args_map) {}
+  explicit TypeBinder(const tvm::Map<TypeVar, Type>& args_map)
+    : args_map_(args_map) {}
 
   Type VisitType_(const TypeVarNode* op) override {
     auto id = GetRef<TypeVar>(op);

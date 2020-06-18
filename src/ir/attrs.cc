@@ -22,22 +22,26 @@
  */
 #include <tvm/ir/attrs.h>
 #include <tvm/runtime/registry.h>
-
 #include "attr_functor.h"
 
 namespace tvm {
 
-void DictAttrsNode::VisitAttrs(AttrVisitor* v) { v->Visit("__dict__", &dict); }
+void DictAttrsNode::VisitAttrs(AttrVisitor* v)  {
+  v->Visit("__dict__", &dict);
+}
 
-void DictAttrsNode::VisitNonDefaultAttrs(AttrVisitor* v) { v->Visit("__dict__", &dict); }
+void DictAttrsNode::VisitNonDefaultAttrs(AttrVisitor* v) {
+  v->Visit("__dict__", &dict);
+}
 
-void DictAttrsNode::InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) {
+void DictAttrsNode::InitByPackedArgs(
+    const runtime::TVMArgs& args, bool allow_unknown) {
   for (int i = 0; i < args.size(); i += 2) {
     std::string key = args[i];
     runtime::TVMArgValue val = args[i + 1];
     if (val.IsObjectRef<ObjectRef>()) {
       dict.Set(key, val.operator ObjectRef());
-    } else if (String::CanConvertFrom(val)) {
+    } else if (val.type_code() == kTVMStr) {
       dict.Set(key, val.operator String());
     } else {
       dict.Set(key, val.operator PrimExpr());
@@ -45,29 +49,33 @@ void DictAttrsNode::InitByPackedArgs(const runtime::TVMArgs& args, bool allow_un
   }
 }
 
-Array<AttrFieldInfo> DictAttrsNode::ListFieldInfo() const { return {}; }
+Array<AttrFieldInfo> DictAttrsNode::ListFieldInfo() const {
+  return {};
+}
 
-DictAttrs::DictAttrs(Map<String, ObjectRef> dict) {
+DictAttrs::DictAttrs(Map<std::string, ObjectRef> dict) {
   ObjectPtr<DictAttrsNode> n = make_object<DictAttrsNode>();
   n->dict = std::move(dict);
   data_ = std::move(n);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<DictAttrsNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const DictAttrsNode*>(node.get());
-      p->stream << op->dict;
-    });
+.set_dispatch<DictAttrsNode>([](const ObjectRef& node, ReprPrinter* p) {
+  auto* op = static_cast<const DictAttrsNode*>(node.get());
+  p->stream << op->dict;
+});
 
 TVM_REGISTER_NODE_TYPE(DictAttrsNode);
 
 TVM_REGISTER_NODE_TYPE(AttrFieldInfoNode);
 
-TVM_REGISTER_GLOBAL("ir.DictAttrsGetDict").set_body_typed([](DictAttrs attrs) {
+TVM_REGISTER_GLOBAL("ir.DictAttrsGetDict")
+.set_body_typed([](DictAttrs attrs) {
   return attrs->dict;
 });
 
-TVM_REGISTER_GLOBAL("ir.AttrsListFieldInfo").set_body_typed([](Attrs attrs) {
+TVM_REGISTER_GLOBAL("ir.AttrsListFieldInfo")
+.set_body_typed([](Attrs attrs) {
   return attrs->ListFieldInfo();
 });
 

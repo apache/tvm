@@ -24,15 +24,13 @@
  * \brief This is a backend-aware optimization pass.
  *   Fuse necessary ops into a single one.
  */
+#include <tvm/tir/op.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
-#include <tvm/tir/op.h>
-
-#include "../../support/arena.h"
-#include "pass_util.h"
 #include "pattern_util.h"
+#include "../../support/arena.h"
 
 namespace tvm {
 namespace relay {
@@ -55,9 +53,8 @@ namespace relay {
   However, at the point of conv2d we do not necessarily know that all the future paths
   will merge at the elemwise add. The fusion algorithm applies post-dominator analysis.
 
-  The immediate post-dominator of a node defined by the closest node where all the future path goes
-  into. In the above case, the elemwise add is the post-dominator of conv2d. The general algorithm
-  is as follows:
+  The immediate post-dominator of a node defined by the closest node where all the future path goes into.
+  In the above case, the elemwise add is the post-dominator of conv2d. The general algorithm is as follows:
 
   - Construct a DAG of dataflow graph for dominator analysis
   - Construct a post-dominator tree which gives immediate post dominator of each node.
@@ -76,8 +73,8 @@ namespace relay {
   - CommitFuse: mark all the nodes between source and post-dominator as the same group.
   - We use an Union-Find data structure to manage the groups.
 */
-using support::LinkedList;
 using support::LinkNode;
+using support::LinkedList;
 
 constexpr uint32_t kMaxFusedOps = 256;
 
@@ -126,7 +123,9 @@ class IndexedForwardGraph {
     std::ostringstream os;
     for (size_t i = 0; i < post_dfs_order.size(); ++i) {
       Node* node = post_dfs_order[i];
-      os << "node[" << i << "], " << GetRef<ObjectRef>(node->ref) << " outputs=[";
+      os << "node[" << i << "], "
+         << GetRef<ObjectRef>(node->ref)
+         << " outputs=[";
       for (auto* link = node->outputs.head; link != nullptr; link = link->next) {
         os << link->value.node->index << ", ";
       }
@@ -148,7 +147,8 @@ class IndexedForwardGraph {
 // Creator of post dominator tree of the dataflow
 class IndexedForwardGraph::Creator : private ExprVisitor {
  public:
-  explicit Creator(support::Arena* arena) : arena_(arena) {}
+  explicit Creator(support::Arena* arena)
+      : arena_(arena) {}
 
   IndexedForwardGraph Prepare(const Expr& body) {
     this->Update(body, nullptr, kOpaque);
@@ -164,7 +164,9 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   // attribute equal comparator
   StructuralEqual attr_equal_;
   // Update the message stored at the node.
-  void Update(const Expr& node, IndexedForwardGraph::Node* parent, OpPatternKind pattern) {
+  void Update(const Expr& node,
+              IndexedForwardGraph::Node* parent,
+              OpPatternKind pattern) {
     const tvm::Object* key = node.get();
     IndexedForwardGraph::Node* current;
     auto it = graph_.node_map.find(key);
@@ -186,7 +188,8 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
 
   void AddNode(const tvm::Object* key) {
     auto it = graph_.node_map.find(key);
-    CHECK(it != graph_.node_map.end()) << "Cannot find node " << GetRef<ObjectRef>(key);
+    CHECK(it != graph_.node_map.end())
+        << "Cannot find node " << GetRef<ObjectRef>(key);
     IndexedForwardGraph::Node* node = it->second;
     CHECK(node->ref == nullptr);
     node->ref = key;
@@ -196,9 +199,6 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
 
   // Post order tree
   void VisitExpr_(const FunctionNode* op) final {
-    // Skip the function that should be handled by external codegen.
-    if (op->GetAttr<String>(attr::kCompiler).defined()) return;
-
     for (auto param : op->params) {
       this->Update(param, nullptr, kOpaque);
     }
@@ -211,9 +211,12 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     Node* node = graph_.node_map.at(op);
     DataType dtype = DataType(op->data->dtype);
     // This rule must be consistent with code generator.
-    bool is_simple_const =
-        (dtype == DataType::Int(32) || dtype == DataType::Int(64) || dtype == DataType::Float(32) ||
-         dtype == DataType::Float(64) || dtype == DataType::Bool());
+    bool is_simple_const = (
+        dtype == DataType::Int(32) ||
+        dtype == DataType::Int(64) ||
+        dtype == DataType::Float(32) ||
+        dtype == DataType::Float(64) ||
+        dtype == DataType::Bool());
     if (op->is_scalar() && is_simple_const) {
       node->pattern = kElemWise;
     } else {
@@ -226,7 +229,8 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void VisitExpr_(const CallNode* call) final {
     CHECK(graph_.node_map.count(call));
     Node* node = graph_.node_map.at(call);
-    static auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
+    static auto fpattern =
+        Op::GetAttr<TOpPattern>("TOpPattern");
     // Now we set the pattern of this call.
     //
     // If we see a call mentioning an operator we should mark it with its
@@ -238,13 +242,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     // need to call Update, as it may be an arbitrary expression.
     OpPatternKind op_pattern = kOpaque;
     if (const OpNode* opnode = call->op.as<OpNode>()) {
-      auto op = GetRef<Op>(opnode);
-      if (IsDynamic(call->checked_type()) && IsDataDependant(call)) {
-        // output of a shape func can't be fed to a data-dependent shape func
-        op_pattern = kOpaque;
-      } else {
-        op_pattern = static_cast<OpPatternKind>(fpattern[op]);
-      }
+      op_pattern = static_cast<OpPatternKind>(fpattern[GetRef<Op>(opnode)]);
     } else {
       this->Update(call->op, node, kOpaque);
     }
@@ -254,10 +252,13 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     const auto* rtype = call->checked_type().as<TensorTypeNode>();
     // pass the analysis back to all the children it references.
     for (size_t i = 0; i < call->args.size(); ++i) {
-      const auto* arg_type = call->args[i]->checked_type().as<TensorTypeNode>();
+      const auto* arg_type =
+          call->args[i]->checked_type().as<TensorTypeNode>();
       // specifically check if result type is the same as arguments type
       OpPatternKind edge_pattern = op_pattern;
-      if (edge_pattern == kBroadcast && arg_type != nullptr && rtype != nullptr &&
+      if (edge_pattern == kBroadcast &&
+          arg_type != nullptr &&
+          rtype != nullptr &&
           attr_equal_(rtype->shape, arg_type->shape)) {
         edge_pattern = kElemWise;
       }
@@ -309,7 +310,9 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     this->AddNode(op);
   }
 
-  void VisitExpr_(const VarNode* op) final { this->AddNode(op); }
+  void VisitExpr_(const VarNode* op) final {
+    this->AddNode(op);
+  }
 
   void VisitExpr_(const LetNode* op) final {
     // do not fuse through let.
@@ -358,7 +361,8 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   }
 };
 
-IndexedForwardGraph IndexedForwardGraph::Create(support::Arena* arena, const Expr& body) {
+IndexedForwardGraph IndexedForwardGraph::Create(
+    support::Arena* arena, const Expr& body) {
   return Creator(arena).Prepare(body);
 }
 
@@ -391,11 +395,13 @@ class DominatorTree {
    * \note This algorithm makes use of the fact that graph is DAG,
    *       and runs a single pass algorithm via LCA (Least Common Ancestor)
    */
-  static DominatorTree PostDom(support::Arena* arena, const IndexedForwardGraph& graph);
+  static DominatorTree PostDom(support::Arena* arena,
+                               const IndexedForwardGraph& graph);
 
  private:
   // Combine pattern together.
-  static OpPatternKind CombinePattern(OpPatternKind lhs, OpPatternKind rhs) {
+  static OpPatternKind CombinePattern(
+      OpPatternKind lhs, OpPatternKind rhs) {
     if (lhs > rhs) return lhs;
     return rhs;
   }
@@ -407,19 +413,26 @@ class DominatorTree {
    *        The combined edge pattern across all the parents.
    * \return The least common ancestor of the two.
    */
-  static Node* LeastCommonAncestor(Node* lhs, Node* rhs, OpPatternKind* edge_pattern) {
+  static Node* LeastCommonAncestor(
+      Node* lhs,
+      Node* rhs,
+      OpPatternKind* edge_pattern) {
     while (lhs != rhs) {
       if (lhs == nullptr) return nullptr;
       if (rhs == nullptr) return nullptr;
       if (lhs->depth < rhs->depth) {
-        edge_pattern[0] = CombinePattern(edge_pattern[0], rhs->pattern);
+        edge_pattern[0] = CombinePattern(
+            edge_pattern[0], rhs->pattern);
         rhs = rhs->parent;
       } else if (rhs->depth < lhs->depth) {
-        edge_pattern[0] = CombinePattern(edge_pattern[0], lhs->pattern);
+        edge_pattern[0] = CombinePattern(
+            edge_pattern[0], lhs->pattern);
         lhs = lhs->parent;
       } else {
-        edge_pattern[0] = CombinePattern(edge_pattern[0], lhs->pattern);
-        edge_pattern[0] = CombinePattern(edge_pattern[0], rhs->pattern);
+        edge_pattern[0] = CombinePattern(
+            edge_pattern[0], lhs->pattern);
+        edge_pattern[0] = CombinePattern(
+            edge_pattern[0], rhs->pattern);
         lhs = lhs->parent;
         rhs = rhs->parent;
       }
@@ -480,7 +493,9 @@ class DominatorTree {
   }
 };
 
-DominatorTree DominatorTree::PostDom(support::Arena* arena, const IndexedForwardGraph& graph) {
+
+DominatorTree DominatorTree::PostDom(support::Arena* arena,
+                                     const IndexedForwardGraph& graph) {
   DominatorTree tree;
   tree.nodes.resize(graph.post_dfs_order.size(), nullptr);
   // reverse topo order
@@ -554,11 +569,13 @@ class GraphPartitioner {
   /*! \brief internal field used for deduplication */
   std::unordered_set<IndexedForwardGraph::Node*> visited_;
   // Internal implelementation of CheckPath
-  template <typename F>
-  bool CheckPath_(IndexedForwardGraph::Node* src, IndexedForwardGraph::Node* sink, F fcond) {
+  template<typename F>
+  bool CheckPath_(IndexedForwardGraph::Node* src,
+                  IndexedForwardGraph::Node* sink,
+                  F fcond) {
     if (visited_.count(src)) return true;
     visited_.insert(src);
-    Group* gnode = groups_[src->index];
+    Group* gnode =  groups_[src->index];
     CHECK(gnode != nullptr);
     gnode = gnode->FindRoot();
     if (!fcond(gnode->pattern, src == sink)) return false;
@@ -580,8 +597,10 @@ class GraphPartitioner {
    * \tparam F the condition function, with signature
    * \note sink must be a post-dominator of src.
    */
-  template <typename F>
-  bool CheckPath(IndexedForwardGraph::Node* src, IndexedForwardGraph::Node* sink, F fcond) {
+  template<typename F>
+  bool CheckPath(IndexedForwardGraph::Node* src,
+                 IndexedForwardGraph::Node* sink,
+                 F fcond) {
     CHECK(!src->extern_ref);
     visited_.clear();
     CHECK(src != sink);
@@ -591,7 +610,8 @@ class GraphPartitioner {
     return true;
   }
   // Combine two patterns together.
-  static OpPatternKind CombinePattern(OpPatternKind lhs, OpPatternKind rhs) {
+  static OpPatternKind CombinePattern(
+      OpPatternKind lhs, OpPatternKind rhs) {
     if (lhs > kBroadcast && rhs > kBroadcast) {
       LOG(FATAL) << "Cannot merge two complex group together";
     }
@@ -614,11 +634,14 @@ class GraphPartitioner {
     if (child->master_ref != nullptr) {
       CHECK(parent->master_ref == nullptr);
       parent->master_ref = child->master_ref;
-      parent->pattern = CombinePattern(child->pattern, parent->pattern);
+      parent->pattern = CombinePattern(
+          child->pattern, parent->pattern);
     }
   }
   // Internal implelementation of CommitFuse
-  void CommitFuse_(IndexedForwardGraph::Node* src, IndexedForwardGraph::Node* sink, Group* target) {
+  void CommitFuse_(IndexedForwardGraph::Node* src,
+                   IndexedForwardGraph::Node* sink,
+                   Group* target) {
     if (src == sink) return;
     if (visited_.count(src)) return;
     visited_.insert(src);
@@ -636,7 +659,8 @@ class GraphPartitioner {
    * \param sink The termination node.
    * \note sink must be a post-dominator of src.
    */
-  void CommitFuse(IndexedForwardGraph::Node* src, IndexedForwardGraph::Node* sink) {
+  void CommitFuse(IndexedForwardGraph::Node* src,
+                  IndexedForwardGraph::Node* sink) {
     Group* target = groups_[sink->index];
     visited_.clear();
     CHECK(src != sink);
@@ -660,7 +684,9 @@ class GraphPartitioner {
   }
 
   // execute the fusion algorithm.
-  void RunFuse(const IndexedForwardGraph& graph, const DominatorTree& post_dom_tree, int phase) {
+  void RunFuse(const IndexedForwardGraph& graph,
+               const DominatorTree& post_dom_tree,
+               int phase) {
     for (size_t nid = 0; nid < groups_.size(); ++nid) {
       // the group of current node has been specified already.
       auto* graph_node = graph.post_dfs_order[nid];
@@ -675,7 +701,8 @@ class GraphPartitioner {
       size_t dom_parent_gindex = dom_node->parent->gnode->index;
 
       // refuse the fusion if too many ops are going to be fused together
-      if (groups_[dom_parent_gindex]->num_nodes + group_node->num_nodes > kMaxFusedOps) continue;
+      if (groups_[dom_parent_gindex]->num_nodes + group_node->num_nodes > kMaxFusedOps)
+        continue;
 
       if (phase == 2) {
         // Fuse injective ops into intermediate tuples, if any
@@ -686,7 +713,9 @@ class GraphPartitioner {
         if (dom_root_group->pattern == kTuple) continue;
         if (dom_parent_group->pattern == kTuple && dom_root_group->pattern <= kInjective) {
           // Now we know the tuple has been fused into subsequent injective ops
-          auto fcond = [](OpPatternKind kind, bool is_sink) { return kind <= kInjective; };
+          auto fcond = [](OpPatternKind kind, bool is_sink) {
+            return kind <= kInjective;
+          };
           // dom_root_group can also be tuple, as in inception layers
           // CheckPath is needed to avoid fusing two intermediate tuples
           if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
@@ -711,7 +740,9 @@ class GraphPartitioner {
         if (dom_node->parent != nullptr && dom_node->pattern == kElemWise) {
           CHECK(dom_node->parent->gnode != nullptr);
           // The fuse can be executed if all the intermediate ops are still broadcast.
-          auto fcond = [](OpPatternKind kind, bool is_sink) { return kind <= kBroadcast; };
+          auto fcond = [](OpPatternKind kind, bool is_sink) {
+            return kind <= kBroadcast;
+          };
           if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
             CommitFuse(graph_node, dom_node->parent->gnode);
           }
@@ -719,7 +750,8 @@ class GraphPartitioner {
       } else if (group_node->pattern <= kBroadcast) {
         // Pre-condition: can only be fused to parent which is injective or reduction.
         if (dom_node->parent != nullptr &&
-            (dom_node->pattern <= kInjective || dom_node->pattern == kCommReduce)) {
+            (dom_node->pattern <= kInjective ||
+             dom_node->pattern == kCommReduce)) {
           // Check if all the intermediate ops are still broadcast.
           // The final terminal node can already be fused to a OutEWiseFusable group.
           auto fcond = [](OpPatternKind kind, bool is_sink) {
@@ -728,7 +760,9 @@ class GraphPartitioner {
               // are allowed be fused to the elemwise/broadcast master.
               return kind <= kInjective;
             } else {
-              return (kind <= kBroadcast || kind == kCommReduce || kind == kInjective ||
+              return (kind <= kBroadcast ||
+                      kind == kCommReduce ||
+                      kind == kInjective ||
                       kind == kOutEWiseFusable);
             }
           };
@@ -741,7 +775,9 @@ class GraphPartitioner {
         // so conv2d always finishes fusing.
         if (phase != 1) continue;
         // Check if all path are injective.
-        auto fcond = [](OpPatternKind kind, bool is_sink) { return kind <= kInjective; };
+        auto fcond = [](OpPatternKind kind, bool is_sink) {
+          return kind <= kInjective;
+        };
         if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
           CommitFuse(graph_node, dom_node->parent->gnode);
         }
@@ -753,8 +789,8 @@ class GraphPartitioner {
   }
 };
 
-std::vector<GraphPartitioner::Group*> GraphPartitioner::Partition(
-    const IndexedForwardGraph& graph) {
+std::vector<GraphPartitioner::Group*>
+GraphPartitioner::Partition(const IndexedForwardGraph& graph) {
   this->InitGroups(graph);
   if (opt_level_ == 0) return std::move(groups_);
   // get post dominator tree
@@ -772,7 +808,8 @@ class FuseMutator : private ExprMutator {
   Expr Transform(const Expr& body, int fuse_opt_level) {
     // setup the group map.
     auto graph = IndexedForwardGraph::Create(&arena_, body);
-    auto groups = GraphPartitioner(&arena_, fuse_opt_level).Partition(graph);
+    auto groups = GraphPartitioner(&arena_, fuse_opt_level).Partition(
+        graph);
     for (size_t nid = 0; nid < graph.post_dfs_order.size(); ++nid) {
       CHECK(graph.post_dfs_order[nid]->ref != nullptr);
       gmap_[graph.post_dfs_order[nid]->ref] = groups[nid];
@@ -781,6 +818,7 @@ class FuseMutator : private ExprMutator {
     // this->DebugDumpGroup(body);
     return this->Mutate(body);
   }
+
 
  private:
   /*! \brief Temporary information from each group. */
@@ -824,7 +862,8 @@ class FuseMutator : private ExprMutator {
   // Transform calls.
   Expr VisitExpr_(const CallNode* call) {
     if (call->op.as<OpNode>()) {
-      static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
+      static auto fnoncomputational =
+        Op::GetAttr<TNonComputational>("TNonComputational");
 
       if (fnoncomputational.get(Downcast<Op>(call->op), false)) {
         return ExprMutator::VisitExpr_(call);
@@ -839,7 +878,8 @@ class FuseMutator : private ExprMutator {
       auto* ret_group = gmap_.at(call)->FindRoot();
       Array<Expr> new_args = GetNewArguments(call->args, ret_group);
 
-      auto new_call = Call(call->op, new_args, call->attrs, call->type_args);
+      auto new_call = Call(
+          call->op, new_args, call->attrs, call->type_args);
 
       if (ret_group->root_ref == call) {
         // This is the root of the group
@@ -886,7 +926,9 @@ class FuseMutator : private ExprMutator {
     // If the function has no call, it is not a primitive function.
     struct HasCallVisitor : ExprVisitor {
       bool has_call = false;
-      void VisitExpr_(const CallNode* op) final { has_call = true; }
+      void VisitExpr_(const CallNode* op) final {
+        has_call = true;
+      }
     } visitor;
     visitor(body);
     const GroupInfo& ginfo = ginfo_[group];
@@ -915,13 +957,13 @@ class FuseMutator : private ExprMutator {
   // Debug function, dump the group assignment in text.
   void DebugDumpGroup(const Expr& body) {
     std::string text = AsText(body, false, [this](const ObjectRef& expr) -> std::string {
-      auto it = gmap_.find(expr.get());
-      if (it == gmap_.end()) return "";
-      std::ostringstream os;
-      auto* group = it->second->FindRoot();
-      os << " /* group=" << group << " */";
-      return os.str();
-    });
+        auto it = gmap_.find(expr.get());
+        if (it == gmap_.end()) return "";
+        std::ostringstream os;
+        auto *group = it->second->FindRoot();
+        os << " /* group=" << group << " */";
+        return os.str();
+      });
     LOG(INFO) << "Dump of group info:\n" << text;
   }
 };
@@ -934,14 +976,15 @@ namespace transform {
 
 Pass FuseOps(int fuse_opt_level) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
-        return Downcast<Function>(FuseOps(f, opt_level, m));
-      };
+    [=](Function f, IRModule m, PassContext pc) {
+    int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
+    return Downcast<Function>(FuseOps(f, opt_level, m));
+  };
   return CreateFunctionPass(pass_func, 1, "FuseOps", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.FuseOps").set_body_typed(FuseOps);
+TVM_REGISTER_GLOBAL("relay._transform.FuseOps")
+.set_body_typed(FuseOps);
 
 }  // namespace transform
 

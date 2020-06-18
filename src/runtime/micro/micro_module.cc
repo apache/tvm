@@ -21,17 +21,15 @@
  * \file micro_module.cc
  */
 
+#include <tvm/runtime/registry.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
-
-#include <string>
 #include <unordered_map>
-
-#include "../pack_args.h"
+#include <string>
+#include "micro_session.h"
 #include "low_level_device.h"
 #include "micro_common.h"
-#include "micro_session.h"
+#include "../pack_args.h"
 
 namespace tvm {
 namespace runtime {
@@ -44,17 +42,18 @@ class MicroModuleNode final : public ModuleNode {
 
   ~MicroModuleNode() {}
 
-  const char* type_key() const final { return "micro"; }
+  const char* type_key() const final {
+    return "micro";
+  }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const std::string& name,
+                         const ObjectPtr<Object>& sptr_to_self) final;
 
   /*!
    * \brief initializes module by establishing device connection and loads binary
    * \param binary_path path of the binary to be loaded
    */
   void InitMicroModule(const std::string& binary_path) {
-    // std::cout << "[MicroModuleNode::InitMicroModule]" << std::endl;
-    // std::cout << "  start" << std::endl;
     session_ = MicroSession::Current();
     symbol_map_ = session_->LoadBinary(binary_path, true).symbol_map;
   }
@@ -67,25 +66,27 @@ class MicroModuleNode final : public ModuleNode {
 
 class MicroWrappedFunc {
  public:
-  MicroWrappedFunc(ObjectPtr<MicroSession> session, TargetPtr func_ptr) {
+  MicroWrappedFunc(ObjectPtr<MicroSession> session,
+                   DevPtr func_ptr) {
     session_ = session;
     func_ptr_ = func_ptr;
   }
 
   void operator()(TVMArgs args, TVMRetValue* rv) const {
-    session_->PushToTaskQueue(func_ptr_, args);
+    *rv = session_->PushToExecQueue(func_ptr_, args);
   }
 
  private:
   /*! \brief reference to the session for this function (to keep the session alive) */
   ObjectPtr<MicroSession> session_;
   /*! \brief offset of the function to be called */
-  TargetPtr func_ptr_;
+  DevPtr func_ptr_;
 };
 
-PackedFunc MicroModuleNode::GetFunction(const std::string& name,
-                                        const ObjectPtr<Object>& sptr_to_self) {
-  TargetPtr func_ptr;
+PackedFunc MicroModuleNode::GetFunction(
+    const std::string& name,
+    const ObjectPtr<Object>& sptr_to_self) {
+  DevPtr func_ptr;
   if (name == tvm::runtime::symbol::tvm_module_main) {
     if (symbol_map_.HasSymbol(tvm::runtime::symbol::tvm_module_main)) {
       func_ptr = symbol_map_[tvm::runtime::symbol::tvm_module_main];
@@ -101,10 +102,10 @@ PackedFunc MicroModuleNode::GetFunction(const std::string& name,
 
 // register loadfile function to load module from Python frontend
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_micro_dev")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      auto n = make_object<MicroModuleNode>();
-      n->InitMicroModule(args[0]);
-      *rv = runtime::Module(n);
-    });
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    auto n = make_object<MicroModuleNode>();
+    n->InitMicroModule(args[0]);
+    *rv = runtime::Module(n);
+  });
 }  // namespace runtime
 }  // namespace tvm

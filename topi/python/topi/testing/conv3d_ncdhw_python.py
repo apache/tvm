@@ -73,7 +73,6 @@ def conv3d_ncdhw_python(a_np, w_np, stride, padding, groups=1):
 
     padding : int or str or a list/tuple of three ints
         Padding size, or ['VALID', 'SAME'], or [pad_depth, pad_height, pad_width]
-
     groups : int
         Number of groups
 

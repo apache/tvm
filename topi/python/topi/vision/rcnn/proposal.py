@@ -82,10 +82,10 @@ def predict_bbox_ir(cls_prob_buf, bbox_pred_buf, im_info_buf, out_buf, scales, r
         The last dimension is in format of [w_start, h_start, w_end, h_end, score]
 
     scales : list/tuple of float
-        Scales of anchor windows.
+        Scales of anchor windoes.
 
     ratios : list/tuple of float
-        Ratios of anchor windows.
+        Ratios of anchor windoes.
 
     feature_stride : int
         The size of the receptive field each unit in the convolution layer of the rpn, for example
@@ -335,10 +335,10 @@ def proposal(cls_prob, bbox_pred, im_info, scales, ratios, feature_stride, thres
         2-D with shape [batch, 3]
 
     scales : list/tuple of float
-        Scales of anchor windows.
+        Scales of anchor windoes.
 
     ratios : list/tuple of float
-        Ratios of anchor windows.
+        Ratios of anchor windoes.
 
     feature_stride : int
         The size of the receptive field each unit in the convolution layer of the rpn, for example

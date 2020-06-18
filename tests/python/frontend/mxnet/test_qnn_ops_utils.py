@@ -15,15 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import numpy as np
 import tvm
+from tvm import te
+import numpy as np
 from tvm import relay
 from tvm.contrib import graph_runtime
-from tvm.relay.frontend.mxnet_qnn_op_utils import dequantize_mxnet_min_max, \
-                                                  quantize_mxnet_min_max,   \
-                                                  get_mkldnn_int8_scale,    \
-                                                  get_mkldnn_uint8_scale,   \
-                                                  quantize_conv_bias_mkldnn_from_var
 
 
 def test_mkldnn_dequantize():
@@ -33,13 +29,14 @@ def test_mkldnn_dequantize():
         input_data = relay.var("input_data", shape=shape, dtype=in_dtype)
         min_range = quant_args['min_range']
         max_range = quant_args['max_range']
-        dequantized_output = dequantize_mxnet_min_max(input_data,
-                                                      min_range=min_range,
-                                                      max_range=max_range,
-                                                      in_dtype=in_dtype)
+        dequantized_output = \
+            relay.frontend.dequantize_mxnet_min_max(input_data,
+                                                    min_range=min_range,
+                                                    max_range=max_range,
+                                                    in_dtype=in_dtype)
         mod = relay.Function(relay.analysis.free_vars(dequantized_output), dequantized_output)
         mod = tvm.IRModule.from_expr(mod)
-        with tvm.transform.PassContext(opt_level=3):
+        with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(mod, "llvm", params=None)
             rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
             rt_mod.set_input(input_data=in_data)
@@ -82,18 +79,20 @@ def test_mkldnn_dequantize():
 
 
 def test_mkldnn_quantize():
+
     def quantize_test_driver(out_dtype, quant_args, in_data, verify_output_data):
         shape = in_data.shape
         input_data = relay.var("input_data", shape=shape, dtype='float32')
         min_range = quant_args['min_range']
         max_range = quant_args['max_range']
-        quantized_output, _, _ = quantize_mxnet_min_max(input_data,
-                                                        min_range=min_range,
-                                                        max_range=max_range,
-                                                        out_dtype=out_dtype)
+        quantized_output, _, _ = \
+            relay.frontend.quantize_mxnet_min_max(input_data,
+                                                  min_range=min_range,
+                                                  max_range=max_range,
+                                                  out_dtype=out_dtype)
         mod = relay.Function(relay.analysis.free_vars(quantized_output), quantized_output)
         mod = tvm.IRModule.from_expr(mod)
-        with tvm.transform.PassContext(opt_level=3):
+        with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(mod, "llvm", params=None)
             rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
             rt_mod.set_input(input_data=in_data)
@@ -141,8 +140,8 @@ def test_get_mkldnn_int8_scale():
     range_min = -3.904039
     range_max = 3.904039
     expected = 0.03061991354976495
-    output = get_mkldnn_int8_scale(range_max=range_max,
-                                   range_min=range_min)
+    output = relay.frontend.get_mkldnn_int8_scale(range_max=range_max,
+                                                  range_min=range_min)
     assert np.allclose(output, expected)
 
 
@@ -150,15 +149,15 @@ def test_get_mkldnn_uint8_scale():
     range_min = 0.0
     range_max = 55.77269
     expected = 0.21828841189047482
-    output = get_mkldnn_uint8_scale(range_max=range_max,
-                                    range_min=range_min)
+    output = relay.frontend.get_mkldnn_uint8_scale(range_max=range_max,
+                                                   range_min=range_min)
     assert np.allclose(output, expected)
 
 
 def test_quantize_conv_bias_mkldnn_from_var():
     bias_var = relay.var('bias', shape=(3,), dtype='float32')
     bias_scale = tvm.nd.array(np.array([0.5, 0.6, 0.7]))
-    output = quantize_conv_bias_mkldnn_from_var(bias_var, bias_scale)
+    output = relay.frontend.quantize_conv_bias_mkldnn_from_var(bias_var, bias_scale)
     assert isinstance(output, tvm.relay.expr.Call)
     attrs = output.attrs
     assert attrs.axis == 0

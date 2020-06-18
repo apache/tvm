@@ -32,7 +32,6 @@
 
 #include <tvm/node/functor.h>
 #include <tvm/tir/expr.h>
-
 #include <utility>
 
 namespace tvm {
@@ -40,13 +39,16 @@ namespace tvm {
 template <typename FType>
 class AttrFunctor;
 
-#define ATTR_FUNCTOR_DEFAULT \
+#define ATTR_FUNCTOR_DEFAULT                                        \
   { return VisitAttrDefault_(op, std::forward<Args>(args)...); }
 
-#define ATTR_FUNCTOR_DISPATCH(OP)                                                          \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \
-    return self->VisitAttr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
-  });
+
+#define ATTR_FUNCTOR_DISPATCH(OP)                                       \
+  vtable.template set_dispatch<OP>(                                     \
+      [](const ObjectRef& n, TSelf* self, Args... args) {               \
+        return self->VisitAttr_(static_cast<const OP*>(n.get()),        \
+                                std::forward<Args>(args)...);           \
+      });                                                               \
 
 // A functor for common attribute information.
 template <typename R, typename... Args>
@@ -76,6 +78,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
   }
   virtual R VisitAttrDefault_(const Object* node, Args... args) = 0;
   virtual R VisitAttr_(const ArrayNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const StrMapNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const tir::IntImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const tir::FloatImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const tir::StringImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
@@ -112,6 +115,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
     using namespace tir;
     FType vtable;
     // Set dispatch
+    ATTR_FUNCTOR_DISPATCH(StrMapNode);
     ATTR_FUNCTOR_DISPATCH(ArrayNode);
     ATTR_FUNCTOR_DISPATCH(IntImmNode);
     ATTR_FUNCTOR_DISPATCH(FloatImmNode);

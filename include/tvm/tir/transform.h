@@ -35,11 +35,11 @@ namespace tir {
 namespace transform {
 
 using tvm::transform::Pass;
-using tvm::transform::PassContext;
-using tvm::transform::PassContextNode;
+using tvm::transform::PassNode;
 using tvm::transform::PassInfo;
 using tvm::transform::PassInfoNode;
-using tvm::transform::PassNode;
+using tvm::transform::PassContext;
+using tvm::transform::PassContextNode;
 using tvm::transform::Sequential;
 
 /*
@@ -52,134 +52,11 @@ using tvm::transform::Sequential;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreatePrimFuncPass(
-    const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required);
-
-/*!
- * \brief Inject prefetch instructions into stmt.
- *
- * \return The pass.
- */
-TVM_DLL Pass InjectPrefetch();
-
-// TODO(tvm-team): consolidate configs to the PassContext
-/*!
- * \brief Flatten the multi-dimensional read/write
- *  to single dimensional Load/Store
- *
- * \param cache_line_size The size of CPU cache line.
- * \param create_bound_attribute Whether to create bound attributes.
- *
- * \return The Pass
- */
-TVM_DLL Pass StorageFlatten(int cache_line_size, bool create_bound_attribute = false);
-
-/*!
- * \brief Inject copy intrinsics with optional pad.
- *
- * \param pragma_key The pragma key for hint of copy.
- * \param fintrin The function with signature
- *
- *   Stmt fintrin(Buffer src,
- *                Buffer dst,
- *                Array<Expr> pad_before,
- *                Array<Expr> pad_after,
- *                Expr pad_value)
- * \return The pass.
- */
-TVM_DLL Pass InjectCopyIntrin(String pragma_key, runtime::PackedFunc fintrin);
-
-/*!
- * \brief Detect and insert sync points to co-processor.
- *
- * \return The pass.
- */
-TVM_DLL Pass CoProcSync();
-
-/*!
- * \brief Lift common attrs with attr_key to outer scope.
- *
- * \param attr_key The attribute key to be checked.
- * \return The pass.
- */
-TVM_DLL Pass LiftAttrScope(String attr_key);
-
-/*!
- * \brief partition loops in the stmt.
- *
- * \return The pass.
- */
-TVM_DLL Pass LoopPartition();
-
-/*!
- * \brief Lower vectorization loops.
- *
- * \param enable_vectorize Whether vectorization is enabled.
- *
- * \return The pass.
- */
-TVM_DLL Pass VectorizeLoop(bool enable_vectorize = true);
-
-/*!
- * \brief Inject virtual thread loops.
- *
- * \return The pass.
- */
-TVM_DLL Pass InjectVirtualThread();
-
-/*!
- * \brief Inject double buffer statements.
- *
- * \return The pass.
- */
-TVM_DLL Pass InjectDoubleBuffer();
-
-/*!
- * \brief Rewrite storage allocation pattern.
- *  Moves the allocation to outer most possible scope.
- *  Trying to share space between allocations to make
- *  a static allocation plan when possible.
- *
- * \return The pass.
- */
-TVM_DLL Pass StorageRewrite();
-
-/*!
- * \brief unroll the constant loop marked by unroll.
- * This pass also automatically attach pragma unroll tag to loops which meets the standard.
- *
- * \return The pass.
- */
-TVM_DLL Pass UnrollLoop();
-
-/*!
- * \brief Remove No Op from the Stmt.
- *
- * \return The pass.
- */
-TVM_DLL Pass RemoveNoOp();
-
-/*!
- * \brief Detect and rewrite unsafe select that contains memory access.
- *
- * \return The pass.
- */
-TVM_DLL Pass RewriteUnsafeSelect();
-
-/*!
- * \brief Run arithmetic simplifications on the statements and expressions.
- *
- * \return The pass.
- */
-TVM_DLL Pass Simplify();
-
-/*!
- * \brief Instruments bound checkers.
- *
- * \return The pass.
- */
-TVM_DLL Pass InstrumentBoundCheckers();
+TVM_DLL Pass CreatePrimFuncPass(const runtime::TypedPackedFunc<
+                                PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
+                                int opt_level,
+                                const std::string& name,
+                                const tvm::Array<runtime::String>& required);
 
 /*!
  * \brief Transform the high-level PrimFunc to a low-level version
@@ -212,6 +89,7 @@ TVM_DLL Pass InstrumentBoundCheckers();
  */
 TVM_DLL Pass MakePackedAPI(int num_unpacked_args);
 
+
 /*!
  * \brief Remap the thread axis
  *
@@ -222,7 +100,8 @@ TVM_DLL Pass MakePackedAPI(int num_unpacked_args);
  *
  * \return The pass.
  */
-TVM_DLL Pass RemapThreadAxis(Map<String, IterVar> axis_map);
+TVM_DLL Pass RemapThreadAxis(Map<runtime::String, IterVar> axis_map);
+
 
 /*!
  * \brief Lower custom datatypes.
@@ -232,13 +111,6 @@ TVM_DLL Pass RemapThreadAxis(Map<String, IterVar> axis_map);
  * \return The pass.
  */
 TVM_DLL Pass LowerCustomDatatypes();
-
-/*!
- * \brief Decorate all the function's body as device function.
- *
- * \return The pass.
- */
-TVM_DLL Pass DecorateDeviceScope();
 
 /*!
  * \brief Split the function into a host function and device functions.
@@ -260,7 +132,8 @@ TVM_DLL Pass SkipAssert();
  * \param storage_scope The storage scope considered.
  * \return The pass.
  */
-TVM_DLL Pass ThreadSync(String storage_scope);
+TVM_DLL Pass ThreadSync(std::string storage_scope);
+
 
 /*!
  * \brief Lower cross thread alleduce.
@@ -311,6 +184,7 @@ TVM_DLL Pass LowerDeviceStorageAccessInfo();
  */
 TVM_DLL Pass CombineContextCall();
 
+
 /*!
  * \brief Narrow down PrimExpr datatype in stmt to target_bits.
  *
@@ -320,16 +194,6 @@ TVM_DLL Pass CombineContextCall();
  * \return The pass.
  */
 TVM_DLL Pass NarrowDataType(int target_bits);
-
-/*!
- * \brief Rewrite the pointer content type of arguments,
- *  as well as Alloc internal to the function to use
- *  the most frequently accessed type for load/store
- *  to avoid pointer casting in backend when possible.
- *
- * \return The pass.
- */
-TVM_DLL Pass PointerValueTypeRewrite();
 
 }  // namespace transform
 }  // namespace tir

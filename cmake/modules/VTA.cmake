@@ -89,8 +89,7 @@ elseif(PYTHON)
 
   # VTA FPGA driver sources
   if(USE_VTA_FPGA)
-    file(GLOB FSIM_RUNTIME_SRCS ${VTA_HW_PATH}/src/*.cc)
-    file(GLOB FPGA_RUNTIME_SRCS vta/runtime/*.cc)
+    file(GLOB FPGA_RUNTIME_SRCS ${VTA_HW_PATH}/src/*.cc)
     # Rules for Zynq-class FPGAs with pynq OS support (see pynq.io)
     if(${VTA_TARGET} STREQUAL "pynq" OR
        ${VTA_TARGET} STREQUAL "ultra96")
@@ -102,14 +101,13 @@ elseif(PYTHON)
     endif()
     # Target lib: vta
     add_library(vta SHARED ${FPGA_RUNTIME_SRCS})
-    target_include_directories(vta PUBLIC vta/runtime)
+    target_include_directories(vta PUBLIC vta/include)
     foreach(__def ${VTA_DEFINITIONS})
       string(SUBSTRING ${__def} 3 -1 __strip_def)
       target_compile_definitions(vta PUBLIC ${__strip_def})
     endforeach()
     if(${VTA_TARGET} STREQUAL "pynq" OR
        ${VTA_TARGET} STREQUAL "ultra96")
-      target_include_directories(vta PUBLIC ${VTA_HW_PATH}/include)
       target_link_libraries(vta ${__cma_lib})
     elseif(${VTA_TARGET} STREQUAL "de10nano")  # DE10-Nano rules
      #target_compile_definitions(vta PUBLIC VTA_MAX_XFER=2097152) # (1<<21)

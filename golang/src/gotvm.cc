@@ -24,17 +24,14 @@
 
 // Standard includes
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <stdint.h>
 
 // golang string compatible definition
-typedef struct {
-  char* p;
-  int n;
-} _gostring_;
+typedef struct { char *p; int n; } _gostring_;
 #include <string>
 
 #ifdef __cplusplus
@@ -42,8 +39,8 @@ extern "C" {
 #endif
 
 // TVM runtime C interface
-#include <dlpack/dlpack.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <dlpack/dlpack.h>
 
 /*!
  * \brief Convert native char array to _gostring_ structure.
@@ -56,7 +53,7 @@ extern "C" {
  * \return _gostring_ object corresponding to native char array.
  * Caller is responsible to free the memory block allocated here.
  */
-static _gostring_ _native_to_gostring(const char* p, size_t l) {
+static _gostring_ _native_to_gostring(const char *p, size_t l) {
   _gostring_ ret;
   ret.p = reinterpret_cast<char*>(malloc(l));
   if (NULL == ret.p) {
@@ -75,10 +72,10 @@ static _gostring_ _native_to_gostring(const char* p, size_t l) {
  * \param off is the offset in the string object.
  * \param v is the uint64_t value which need to embed into given string.
  */
-static void putuint64(std::string* s, size_t off, uint64_t v) {
-  for (int i = 0; i < 8; i++) {
-    (*s)[off + i] = (v >> (i * 8)) & 0xff;
-  }
+static void putuint64(std::string *s, size_t off, uint64_t v) {
+    for (int i = 0; i < 8; i++) {
+        (*s)[off + i] = (v >> (i * 8)) & 0xff;
+    }
 }
 
 // TVM runtime C interface wrappers
@@ -89,7 +86,7 @@ static void putuint64(std::string* s, size_t off, uint64_t v) {
  * \return char pointer to TVM-VERSION
  */
 const char* _TVM_VERSION(void) {
-  const char* version = TVM_VERSION;
+  const char *version = TVM_VERSION;
   return version;
 }
 
@@ -104,16 +101,16 @@ const char* _TVM_VERSION(void) {
  */
 int _TVMFuncListGlobalNames(_gostring_* names) {
   int names_size;
-  char** names_array;
+  char **names_array;
   int result;
 
-  result = TVMFuncListGlobalNames(&names_size, (char const***)&names_array);
+  result = TVMFuncListGlobalNames(&names_size, (char const ***)&names_array);
   if (result) {
     return result;
   }
 
   size_t tot = 8;
-  for (int ii = 0; ii < names_size; ++ii) {
+  for (int ii = 0; ii < names_size ; ++ii) {
     tot += 8 + strlen(names_array[ii]);
   }
 
@@ -121,7 +118,7 @@ int _TVMFuncListGlobalNames(_gostring_* names) {
   str.resize(tot);
   putuint64(&str, 0, names_size);
   size_t off = 8;
-  for (int64_t ii = 0; ii < names_size; ++ii) {
+  for (int64_t ii = 0; ii < names_size ; ++ii) {
     putuint64(&str, off, strlen(names_array[ii]));
     off += 8;
     str.replace(off, strlen(names_array[ii]), names_array[ii]);
@@ -146,9 +143,9 @@ int _TVMFuncListGlobalNames(_gostring_* names) {
  * \param array index in native array.
  */
 void _TVMValueNativeSet(void* to_ptr, void* from_ptr, int ind) {
-  TVMValue* from_p = reinterpret_cast<TVMValue*>(from_ptr);
-  TVMValue* to_p = reinterpret_cast<TVMValue*>(to_ptr);
-  memcpy(to_p + ind, from_p, sizeof(TVMValue));
+  TVMValue *from_p = reinterpret_cast<TVMValue*>(from_ptr);
+  TVMValue *to_p = reinterpret_cast<TVMValue*>(to_ptr);
+  memcpy(to_p+ind, from_p, sizeof(TVMValue));
 }
 
 /*!
@@ -160,9 +157,9 @@ void _TVMValueNativeSet(void* to_ptr, void* from_ptr, int ind) {
  * \param array index in native array.
  */
 void _TVMValueNativeGet(void* to_ptr, void* from_ptr, int ind) {
-  TVMValue* from_p = reinterpret_cast<TVMValue*>(from_ptr);
-  TVMValue* to_p = reinterpret_cast<TVMValue*>(to_ptr);
-  memcpy(to_p, from_p + ind, sizeof(TVMValue));
+  TVMValue *from_p = reinterpret_cast<TVMValue*>(from_ptr);
+  TVMValue *to_p = reinterpret_cast<TVMValue*>(to_ptr);
+  memcpy(to_p, from_p+ind, sizeof(TVMValue));
 }
 
 extern int goTVMCallback(void*, void*, int, void*, void*);
@@ -178,16 +175,21 @@ extern int goTVMCallback(void*, void*, int, void*, void*);
  *
  * \returns the error status as TVM_DLL
  */
-int _TVMCallback(TVMValue* args, int* type_codes, int num_args, TVMRetValueHandle ret,
+int _TVMCallback(TVMValue* args,
+                 int* type_codes,
+                 int num_args,
+                 TVMRetValueHandle ret,
                  void* resource_handle) {
-  return goTVMCallback(args, type_codes, num_args, ret, resource_handle);
+    return goTVMCallback(args, type_codes, num_args, ret, resource_handle);
 }
 
 /*!
  * _TVMPackedCFuncFinalizer is finalizer for packed function system.
  *
  */
-void _TVMPackedCFuncFinalizer(void* resource_handle) { return; }
+void _TVMPackedCFuncFinalizer(void* resource_handle) {
+    return;
+}
 
 /*!
  * /brief _ConvertFunction creates a packed function for with given resource handle.
@@ -197,8 +199,11 @@ void _TVMPackedCFuncFinalizer(void* resource_handle) { return; }
  *
  * /return is an int indicating the return status.
  */
-int _ConvertFunction(void* fptr, TVMFunctionHandle* fhandle) {
-  int ret = TVMFuncCreateFromCFunc(_TVMCallback, fptr, _TVMPackedCFuncFinalizer, fhandle);
+int _ConvertFunction(void* fptr, TVMFunctionHandle *fhandle) {
+  int ret = TVMFuncCreateFromCFunc(_TVMCallback,
+                                   fptr,
+                                   _TVMPackedCFuncFinalizer,
+                                   fhandle);
   return ret;
 }
 

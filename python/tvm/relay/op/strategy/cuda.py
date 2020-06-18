@@ -58,7 +58,7 @@ def schedule_pool_grad_cuda(attrs, outs, target):
 def schedule_adaptive_pool_cuda(attrs, outs, target):
     """schedule adaptive pooling ops for cuda"""
     with target:
-        return topi.cuda.schedule_adaptive_pool(outs, attrs.layout)
+        return topi.cuda.schedule_adaptive_pool(outs)
 
 @softmax_strategy.register(["cuda", "gpu"])
 def softmax_strategy_cuda(attrs, inputs, out_type, target):
@@ -136,32 +136,8 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_compute_conv2d(topi.cuda.conv2d_nhwc),
                 wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc),
                 name="conv2d_nhwc.cuda")
-            N, H, W, _ = get_const_tuple(data.shape)
-            KH, KW, CI, CO = get_const_tuple(kernel.shape)
-            # Winograd shape related judgment
-            judge_winograd_tensorcore, judge_winograd_shape = winograd_judge(N, H, W, KH, KW,
-                                                                             CI, CO, padding,
-                                                                             stride_h, stride_w,
-                                                                             dilation_h, dilation_w,
-                                                                             pre_flag=False)
-            if judge_winograd_shape:
-                if target.target_name == "cuda" and \
-                    nvcc.have_tensorcore(tvm.gpu(0).compute_version) and \
-                    judge_winograd_tensorcore:
-                    strategy.add_implementation(
-                        wrap_compute_conv2d(topi.cuda.conv2d_nhwc_winograd_tensorcore),
-                        wrap_topi_schedule(
-                            topi.cuda.schedule_conv2d_nhwc_winograd_tensorcore),
-                        name="conv2d_nhwc_winograd_tensorcore.cuda",
-                        plevel=5)
-                else:
-                    strategy.add_implementation(
-                        wrap_compute_conv2d(
-                            topi.cuda.conv2d_nhwc_winograd_direct),
-                        wrap_topi_schedule(
-                            topi.cuda.schedule_conv2d_nhwc_winograd_direct),
-                        name="conv2d_nhwc_winograd_direct.cuda",
-                        plevel=5)
+            N, _, _, _ = get_const_tuple(data.shape)
+            _, _, CI, CO = get_const_tuple(kernel.shape)
             if target.target_name == "cuda":
                 if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
                     if (N % 16 == 0 and CI % 16 == 0 and CO % 16 == 0) or \
@@ -185,9 +161,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             if layout in ["NCHW", "NHWC"] and padding[0] == padding[2] and \
                     padding[1] == padding[3]:
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.cuda.conv2d_cudnn,
-                                        need_data_layout=True,
-                                        has_groups=True),
+                    wrap_compute_conv2d(topi.cuda.conv2d_cudnn, True),
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_cudnn),
                     name="conv2d_cudnn.cuda",
                     plevel=15)
@@ -207,20 +181,6 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
     else: # group_conv2d
-        # add cudnn implementation, if any
-        cudnn_impl = False
-        if target.target_name == "cuda" and "cudnn" in target.libs:
-            if layout in ["NCHW", "NHWC"] and padding[0] == padding[2] and \
-                    padding[1] == padding[3]:
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.cuda.conv2d_cudnn,
-                                        need_data_layout=True,
-                                        has_groups=True),
-                    wrap_topi_schedule(topi.cuda.schedule_conv2d_cudnn),
-                    name="conv2d_cudnn.cuda",
-                    plevel=15)
-                cudnn_impl = True
-
         if layout == 'NCHW':
             # TODO(@vinx13, @icemelon9): Use group_conv2d_NCHWc_int8 when dtype is int8/uint8.
             assert kernel_layout == "OIHW"
@@ -234,7 +194,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_compute_conv2d(topi.cuda.group_conv2d_NCHWc_int8, True),
                 wrap_topi_schedule(topi.cuda.schedule_group_conv2d_NCHWc_int8),
                 name="group_conv2d_NCHWc_int8.cuda")
-        elif not cudnn_impl:
+        else:
             raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
     return strategy
 
@@ -244,9 +204,6 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
-    data, kernel = inputs
-    stride_h, stride_w = attrs.get_int_tuple("strides")
-    padding = attrs.get_int_tuple("padding")
     assert dilation == (1, 1), "Do not support dilate now"
     assert groups == 1, "Do not supoort arbitrary group number"
     strategy = _op.OpStrategy()
@@ -256,30 +213,6 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
             wrap_topi_schedule(
                 topi.cuda.schedule_conv2d_nchw_winograd_without_weight_transform),
             name="conv2d_nchw_winograd_without_weight_transform.cuda")
-    elif layout == "NHWC":
-        N, H, W, _ = get_const_tuple(data.shape)
-        alpha, _, CI, CO = get_const_tuple(kernel.shape)
-        dilation_h, dilation_w = dilation
-        judge_winograd_tensorcore, _ = winograd_judge(N, H, W, alpha, alpha, CI, CO,
-                                                      padding, stride_h, stride_w,
-                                                      dilation_h, dilation_w,
-                                                      pre_flag=True)
-        if target.target_name == "cuda" and \
-            nvcc.have_tensorcore(tvm.gpu(0).compute_version) and \
-            judge_winograd_tensorcore:
-            strategy.add_implementation(
-                wrap_compute_conv2d(
-                    topi.cuda.conv2d_nhwc_winograd_tensorcore_without_weight_transform),
-                wrap_topi_schedule(
-                    topi.cuda.schedule_conv2d_nhwc_winograd_tensorcore_without_weight_transform),
-                name="conv2d_nhwc_winograd_tensorcore_without_weight_transform.cuda")
-        else:
-            strategy.add_implementation(
-                wrap_compute_conv2d(
-                    topi.cuda.conv2d_nhwc_winograd_direct_without_weight_transform),
-                wrap_topi_schedule(
-                    topi.cuda.schedule_conv2d_nhwc_winograd_direct_without_weight_transform),
-                name="conv2d_nhwc_winograd_direct_without_weight_transform.cuda")
     else:
         raise RuntimeError("Unsupported conv2d_winograd_without_weight_transfrom layout {}".
                            format(layout))
@@ -312,24 +245,6 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
         name="conv2d_transpose_nchw.cuda")
     return strategy
-
-
-@conv3d_transpose_strategy.register(["cuda", "gpu"])
-def conv3d_transpose_strategy_cuda(attrs, inputs, out_type, target):
-    """conv3d_transpose cuda strategy"""
-    layout = attrs.data_layout
-    dilation = get_const_tuple(attrs.dilation)
-    groups = attrs.groups
-    assert layout == "NCDHW", "only support ncdhw for now"
-    assert dilation == (1, 1, 1), "not support dilate now"
-    assert groups == 1, "only support groups == 1 for now"
-    strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_conv3d_transpose(topi.cuda.conv3d_transpose_ncdhw),
-        wrap_topi_schedule(topi.cuda.schedule_conv3d_transpose_ncdhw),
-        name="conv3d_transpose_ncdhw.cuda")
-    return strategy
-
 
 @conv3d_strategy.register(["cuda", "gpu"])
 def conv3d_strategy_cuda(attrs, inputs, out_type, target):
@@ -458,16 +373,15 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.cuda.schedule_dense_large_batch),
                 name="dense_large_batch.cuda",
                 plevel=5)
-        if target.target_name == "cuda":
-            if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-                if(i % 16 == 0 and b % 16 == 0 and o % 16 == 0) \
-                        or (i % 16 == 0 and b % 8 == 0 and o % 32 == 0) \
-                        or (i % 16 == 0 and b % 32 == 0 and o % 8 == 0):
-                    strategy.add_implementation(
-                        wrap_compute_dense(topi.cuda.dense_tensorcore),
-                        wrap_topi_schedule(topi.cuda.schedule_dense_tensorcore),
-                        name="dense_tensorcore.cuda",
-                        plevel=20)
+        if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
+            if(i % 16 == 0 and b % 16 == 0 and o % 16 == 0) \
+                    or (i % 16 == 0 and b % 8 == 0 and o % 32 == 0) \
+                    or (i % 16 == 0 and b % 32 == 0 and o % 8 == 0):
+                strategy.add_implementation(
+                    wrap_compute_dense(topi.cuda.dense_tensorcore),
+                    wrap_topi_schedule(topi.cuda.schedule_dense_tensorcore),
+                    name="dense_tensorcore.cuda",
+                    plevel=20)
     if target.target_name == "cuda" and "cublas" in target.libs:
         strategy.add_implementation(
             wrap_compute_dense(topi.cuda.dense_cublas),
@@ -481,7 +395,7 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
     """batch_matmul cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_batch_matmul(topi.cuda.batch_matmul),
+        wrap_compute_batch_matmul(topi.nn.batch_matmul),
         wrap_topi_schedule(topi.cuda.schedule_batch_matmul),
         name="batch_matmul.cuda",
         plevel=10)
@@ -492,19 +406,6 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
             name="batch_matmul_cublas.cuda",
             plevel=15)
     return strategy
-
-
-@sparse_dense_strategy.register(["cuda", "gpu"])
-def sparse_dense_strategy_cuda(attrs, inputs, out_type, target):
-    """sparse dense cuda strategy"""
-    strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_sparse_dense(topi.cuda.sparse_dense),
-        wrap_topi_schedule(topi.cuda.schedule_sparse_dense),
-        name="sparse_dense.cuda",
-        plevel=10)
-    return strategy
-
 
 @argsort_strategy.register(["cuda", "gpu"])
 def argsort_strategy_cuda(attrs, inputs, out_type, target):
@@ -597,39 +498,4 @@ def proposal_strategy_cuda(attrs, inputs, out_type, target):
     strategy.add_implementation(wrap_compute_proposal(topi.cuda.proposal),
                                 wrap_topi_schedule(topi.cuda.schedule_proposal),
                                 name="proposal.cuda")
-    return strategy
-
-def winograd_judge(N, H, W, KH, KW, CI, CO, padding, stride_h,
-                   stride_w, dilation_h, dilation_w, pre_flag):
-    """Winograd judgement about tensorcore and shape"""
-    if H % 8 == 0:
-        tile_size = 4
-    else:
-        tile_size = 2
-    if pre_flag:
-        alpha = KH
-        KH = KW = alpha + 1 - tile_size
-    pt, pl, pb, pr = topi.nn.get_pad_tuple(padding, (KH, KW))
-    OH = (H + pt + pb - KH) // stride_h + 1
-    OW = (W + pl + pr - KW) // stride_w + 1
-    nH, nW = (OH + tile_size - 1) // tile_size, (OW + tile_size - 1) // tile_size
-    P = N * nH * nW
-    judge_winograd_tensorcore = (P % 16 == 0 and CI % 16 == 0 and CO % 16 == 0) or \
-                                   (P % 8 == 0 and CI % 16 == 0 and CO % 32 == 0) or \
-                                   (P % 32 == 0 and CI % 16 == 0 and CO % 8 == 0)
-    judge_winograd_shape = 2 < KH < 8 and 2 < KW < 8 and KH == KW and \
-                              stride_h == 1 and stride_w == 1 and \
-                              dilation_h == 1 and dilation_w == 1
-    return judge_winograd_tensorcore, judge_winograd_shape
-
-@correlation_strategy.register(["cuda", "gpu"])
-def correlation_strategy_cuda(attrs, inputs, out_type, target):
-    """correlation cuda strategy"""
-    layout = attrs.layout
-    assert layout == "NCHW", "Only support NCHW layout"
-    strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_correlation(topi.cuda.correlation_nchw),
-        wrap_topi_schedule(topi.cuda.schedule_correlation_nchw),
-        name="correlation.cuda")
     return strategy

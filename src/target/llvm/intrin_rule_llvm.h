@@ -25,18 +25,17 @@
 #define TVM_TARGET_LLVM_INTRIN_RULE_LLVM_H_
 #ifdef TVM_LLVM_VERSION
 
-#include <tvm/runtime/registry.h>
-#include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
+#include <tvm/runtime/registry.h>
 
+#include <tvm/target/codegen.h>
 #include <string>
-
 #include "llvm_common.h"
 
 namespace tvm {
 namespace codegen {
 // num_signature means number of arguments used to query signature
-template <unsigned id, int num_signature>
+template<unsigned id, int num_signature>
 inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e = targs[0];
   const tir::CallNode* call = e.as<tir::CallNode>();
@@ -49,10 +48,11 @@ inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = tir::Call(call->dtype, "llvm_intrin", cargs, tir::CallNode::PureIntrinsic);
+  *rv = tir::CallNode::make(
+      call->dtype, "llvm_intrin", cargs, tir::CallNode::PureIntrinsic);
 }
 
-template <unsigned id, int num_signature>
+template<unsigned id, int num_signature>
 inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e = targs[0];
   const tir::CallNode* call = e.as<tir::CallNode>();
@@ -64,7 +64,8 @@ inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = tir::Call(call->dtype, "llvm_intrin", cargs, tir::CallNode::Intrinsic);
+  *rv = tir::CallNode::make(
+      call->dtype, "llvm_intrin", cargs, tir::CallNode::Intrinsic);
 }
 
 }  // namespace codegen

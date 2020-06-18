@@ -27,11 +27,10 @@
  * code correctness, since hitting an unmatched case results in a
  * dynamic error unless exhaustiveness is checked in advance.
  */
-#include <tvm/ir/error.h>
 #include <tvm/relay/adt.h>
+#include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
-
 #include <stack>
 
 namespace tvm {
@@ -155,14 +154,17 @@ Array<Array<Pattern>> CartesianProduct(Array<Array<Pattern>> fields) {
 }
 
 Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
-                                          const Pattern& cand, const IRModule& mod);
+                                          const Pattern& cand,
+                                          const IRModule& mod);
 
-Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple, const Pattern& cand,
+Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple,
+                                    const Pattern& cand,
                                     const IRModule& mod);
 
 // Expands all wildcards in the candidate pattern once
 // Returns a list of all possible expansions.
-Array<Pattern> ExpandWildcards(const Pattern& clause_pat, const Pattern& cand,
+Array<Pattern> ExpandWildcards(const Pattern& clause_pat,
+                               const Pattern& cand,
                                const IRModule& mod) {
   if (auto clause_ctor = clause_pat.as<PatternConstructorNode>()) {
     return ExpandWildcardsConstructor(GetRef<PatternConstructor>(clause_ctor), cand, mod);
@@ -177,7 +179,8 @@ Array<Pattern> ExpandWildcards(const Pattern& clause_pat, const Pattern& cand,
 // Use the pattern to decide which constructors to insert.
 // Returns a list of all possible expansions.
 Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
-                                          const Pattern& cand, const IRModule& mod) {
+                                          const Pattern& cand,
+                                          const IRModule& mod) {
   auto gtv = Downcast<GlobalTypeVar>(clause_ctor->constructor->belong_to);
 
   // for a wildcard node, create constructor nodes with wildcards for all args.
@@ -200,8 +203,9 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
   // for constructors, we will expand the wildcards in any field that is an ADT.
   Array<Array<Pattern>> values_by_field;
   for (size_t i = 0; i < ctor_cand->constructor->inputs.size(); i++) {
-    values_by_field.push_back(
-        ExpandWildcards(clause_ctor->patterns[i], ctor_cand->patterns[i], mod));
+    values_by_field.push_back(ExpandWildcards(clause_ctor->patterns[i],
+                                              ctor_cand->patterns[i],
+                                              mod));
   }
 
   // generate new candidates using a cartesian product.
@@ -215,7 +219,8 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
 
 // Expands all wildcards in the candidate pattern once.
 // Returns a list of all possible expansions.
-Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple, const Pattern& cand,
+Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple,
+                                    const Pattern& cand,
                                     const IRModule& mod) {
   // for a wildcard node, create constructor nodes with wildcards for all args.
   if (cand.as<PatternWildcardNode>()) {
@@ -231,8 +236,9 @@ Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple, const Patt
   // for constructors, we will expand the wildcards in any field that is an ADT.
   Array<Array<Pattern>> values_by_field;
   for (size_t i = 0; i < tuple_cand->patterns.size(); i++) {
-    values_by_field.push_back(
-        ExpandWildcards(clause_tuple->patterns[i], tuple_cand->patterns[i], mod));
+    values_by_field.push_back(ExpandWildcards(clause_tuple->patterns[i],
+                                              tuple_cand->patterns[i],
+                                              mod));
   }
 
   // generate new candidates using a cartesian product
@@ -305,10 +311,14 @@ Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod) {
 
 // expose for testing only
 TVM_REGISTER_GLOBAL("relay.analysis.unmatched_cases")
-    .set_body_typed([](const Match& match, const Optional<IRModule>& mod_ref) {
-      IRModule call_mod = mod_ref.defined() ? mod_ref.value() : IRModule({}, {});
-      return UnmatchedCases(match, call_mod);
-    });
+.set_body_typed(
+  [](const Match& match, const IRModule& mod_ref) {
+    IRModule call_mod = mod_ref;
+    if (!call_mod.defined()) {
+      call_mod = IRModule({}, {});
+    }
+    return UnmatchedCases(match, call_mod);
+  });
 
 }  // namespace relay
 }  // namespace tvm

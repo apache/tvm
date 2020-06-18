@@ -110,10 +110,8 @@ def dot_16x1x16_uint8_int8_int32_skylake():
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
 
-    buffer_params = {"offset_factor" : 1}
-    return te.decl_tensor_intrin(
-        C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer},
-        default_buffer_params=buffer_params)
+    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
+        return te.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
 
 
 def dot_16x1x16_uint8_int8_int16():
@@ -193,10 +191,9 @@ def dot_16x1x16_uint8_int8_int16():
 
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
-    buffer_params = {"offset_factor" : 1}
-    return te.decl_tensor_intrin(
-        C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer},
-        default_buffer_params=buffer_params)
+
+    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
+        return te.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
 
 
 def dot_16x1x16_uint8_int8_int32_cascadelake():
@@ -290,7 +287,5 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
 
-    buffer_params = {"offset_factor" : 1}
-    return te.decl_tensor_intrin(
-        C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer},
-        default_buffer_params=buffer_params)
+    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
+        return te.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})

@@ -24,12 +24,10 @@
 #ifndef TVM_PRINTER_META_DATA_H_
 #define TVM_PRINTER_META_DATA_H_
 
-#include <tvm/node/container.h>
 #include <tvm/node/serialization.h>
-
+#include <tvm/node/container.h>
 #include <string>
 #include <unordered_map>
-
 #include "doc.h"
 
 namespace tvm {
@@ -100,7 +98,8 @@ class TextMetaDataContext {
     }
     std::string type_key = node->GetTypeKey();
     CHECK(!type_key.empty());
-    Array<ObjectRef>& mvector = meta_data_[type_key];
+    Array<ObjectRef>& mvector =
+        meta_data_[type_key];
     int64_t index = static_cast<int64_t>(mvector.size());
     mvector.push_back(node);
     Doc doc;
@@ -108,13 +107,6 @@ class TextMetaDataContext {
     meta_repr_[node] = doc;
     return meta_repr_[node];
   }
-
-  /*!
-   * \brief Test whether a node has been put in meta
-   * \param node The query node
-   * \return whether the node has been put in meta
-   */
-  bool InMeta(const ObjectRef& node) { return meta_repr_.find(node) != meta_repr_.end(); }
 
   /*!
    * \brief Print a key value pair
@@ -129,17 +121,20 @@ class TextMetaDataContext {
    */
   Doc GetMetaSection() const {
     if (meta_data_.size() == 0) return Doc();
-    return Doc::RawText(SaveJSON(Map<String, ObjectRef>(meta_data_.begin(), meta_data_.end())));
+    return Doc::RawText(
+        SaveJSON(Map<std::string, ObjectRef>(meta_data_.begin(), meta_data_.end())));
   }
 
   /*! \return whether the meta data context is empty. */
-  bool empty() const { return meta_data_.empty(); }
+  bool empty() const {
+    return meta_data_.empty();
+  }
 
  private:
   /*! \brief additional metadata stored in TVM json format */
-  std::unordered_map<String, Array<ObjectRef> > meta_data_;
+  std::unordered_map<std::string, Array<ObjectRef> > meta_data_;
   /*! \brief map from meta data into its string representation */
-  std::unordered_map<ObjectRef, Doc, ObjectPtrHash, ObjectPtrEqual> meta_repr_;
+  std::unordered_map<ObjectRef, Doc, ObjectHash, ObjectEqual> meta_repr_;
 };
 }  // namespace tvm
 #endif  // TVM_PRINTER_META_DATA_H_

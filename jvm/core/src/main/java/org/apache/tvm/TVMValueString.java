@@ -21,7 +21,7 @@ public class TVMValueString extends TVMValue {
   public final String value;
 
   public TVMValueString(String value) {
-    super(ArgTypeCode.STR);
+    super(TypeCode.STR);
     this.value = value;
   }
 

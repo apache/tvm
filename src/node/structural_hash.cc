@@ -19,23 +19,25 @@
 /*!
  * \file src/node/structural_hash.cc
  */
+#include <tvm/node/structural_hash.h>
+#include <tvm/node/reflection.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
-#include <tvm/node/reflection.h>
-#include <tvm/node/structural_hash.h>
 #include <tvm/runtime/registry.h>
 
-#include <algorithm>
 #include <unordered_map>
+#include <algorithm>
+
 
 namespace tvm {
 
 // Define the dispatch functio here since primary user is in this file.
-void ReflectionVTable::SHashReduce(const Object* self, SHashReducer reducer) const {
+void ReflectionVTable::
+SHashReduce(const Object* self, SHashReducer reducer) const {
   uint32_t tindex = self->type_index();
   if (tindex >= fshash_reduce_.size() || fshash_reduce_[tindex] == nullptr) {
     LOG(FATAL) << "TypeError: SHashReduce of " << self->GetTypeKey()
-               << " is not registered via TVM_REGISTER_NODE_TYPE";
+        << " is not registered via TVM_REGISTER_NODE_TYPE";
   }
   fshash_reduce_[tindex](self, reducer);
 }
@@ -47,7 +49,8 @@ void ReflectionVTable::SHashReduce(const Object* self, SHashReducer reducer) con
 // In particular, when we traverse unordered_map, we should first sort
 // the entries by keys(or hash of keys) before traversing.
 
-class VarCountingSHashHandler : public SHashReducer::Handler {
+class VarCountingSHashHandler :
+      public SHashReducer::Handler {
  public:
   /*! \brief Pending reduce tasks. */
   struct Task {
@@ -73,6 +76,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
         : object(object), reduced_hash(reduced_hash), map_free_vars(map_free_vars) {}
   };
 
+
   VarCountingSHashHandler() {}
 
   void MarkGraphNode() final {
@@ -91,7 +95,8 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
   }
 
   void SHashReduceHashedValue(size_t hashed_value) final {
-    pending_tasks_.emplace_back(Task(ObjectRef(nullptr), hashed_value, false));
+    pending_tasks_.emplace_back(
+        Task(ObjectRef(nullptr), hashed_value, false));
   }
 
   void SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) final {
@@ -99,11 +104,13 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     if (map_free_vars) {
       // use counter value.
       size_t value = std::hash<size_t>()(free_var_counter_++);
-      pending_tasks_.emplace_back(Task(ObjectRef(nullptr), value, false));
+      pending_tasks_.emplace_back(
+          Task(ObjectRef(nullptr), value, false));
     } else {
       // use pointer hash
       size_t value = std::hash<const runtime::Object*>()(var);
-      pending_tasks_.emplace_back(Task(ObjectRef(nullptr), value, false));
+      pending_tasks_.emplace_back(
+          Task(ObjectRef(nullptr), value, false));
     }
   }
 
@@ -117,10 +124,12 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     }
     auto it = hash_memo_.find(object);
     if (it != hash_memo_.end()) {
-      pending_tasks_.emplace_back(Task(ObjectRef(nullptr), it->second, false));
+      pending_tasks_.emplace_back(
+          Task(ObjectRef(nullptr), it->second, false));
     } else {
       // Push a pending task with initial value.
-      pending_tasks_.emplace_back(Task(object, object->GetTypeKeyHash(), map_free_vars));
+      pending_tasks_.emplace_back(
+          Task(object, object->GetTypeKeyHash(), map_free_vars));
     }
   }
 
@@ -186,8 +195,9 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
           // Append the graph node counter to the hash
           // so that we can distinguish DAG from trees.
           if (entry.graph_node_hash) {
-            entry.reduced_hash =
-                HashCombine(entry.reduced_hash, std::hash<size_t>()(graph_node_counter_++));
+            entry.reduced_hash = HashCombine(
+                entry.reduced_hash,
+                std::hash<size_t>()(graph_node_counter_++));
           }
           hash_memo_[entry.object] = entry.reduced_hash;
         }
@@ -255,14 +265,16 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
   // reflection vtable
   ReflectionVTable* vtable_ = ReflectionVTable::Global();
   // map from lhs to rhs
-  std::unordered_map<ObjectRef, size_t, ObjectPtrHash, ObjectPtrEqual> hash_memo_;
+  std::unordered_map<ObjectRef, size_t, ObjectHash, ObjectEqual> hash_memo_;
 };
 
+
 TVM_REGISTER_GLOBAL("node.StructuralHash")
-    .set_body_typed([](const ObjectRef& object, bool map_free_vars) -> int64_t {
-      size_t hashed_value = VarCountingSHashHandler().Hash(object, map_free_vars);
-      return static_cast<int64_t>(hashed_value);
-    });
+.set_body_typed([](const ObjectRef& object, bool map_free_vars) -> int64_t {
+  size_t hashed_value =
+      VarCountingSHashHandler().Hash(object, map_free_vars);
+  return static_cast<int64_t>(hashed_value);
+});
 
 size_t StructuralHash::operator()(const ObjectRef& object) const {
   return VarCountingSHashHandler().Hash(object, false);

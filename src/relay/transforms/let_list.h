@@ -29,14 +29,12 @@
 #ifndef TVM_RELAY_TRANSFORMS_LET_LIST_H_
 #define TVM_RELAY_TRANSFORMS_LET_LIST_H_
 
-#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
-
-#include <string>
-#include <tuple>
+#include <tvm/relay/analysis.h>
 #include <utility>
 #include <vector>
-
+#include <tuple>
+#include <string>
 #include "tvm/relay/type.h"
 
 namespace tvm {
@@ -79,7 +77,9 @@ class LetList {
    *
    * \return a Var that hold the inserted expr.
    */
-  Var Push(Expr expr, Type ty) { return Push(Var("x", ty), expr); }
+  Var Push(Expr expr, Type ty) {
+    return Push(Var("x", ty), expr);
+  }
 
   /*!
    * \brief insert a binding.
@@ -88,7 +88,9 @@ class LetList {
    *
    *  \return a Var that hold the inserted expr.
    */
-  Var Push(Expr expr) { return Push(expr, Type()); }
+  Var Push(Expr expr) {
+    return Push(expr, Type());
+  }
 
   /*!
    * \brief wrap an expr around the LetList.
@@ -128,14 +130,16 @@ class LetList {
    *
    *  \return the wrapped Expr.
    */
-  template <typename F>
+  template<typename F>
   static Expr With(F&& f) {
     LetList ll;
     return ll.Get(f(&ll));
   }
 
   static Expr LetBind(const Expr& e, const std::function<Expr(const Var&)>& f) {
-    return With([&](LetList* ll) { return f(ll->Push(e)); });
+    return With([&](LetList* ll) {
+      return f(ll->Push(e));
+    });
   }
 
  private:

@@ -24,12 +24,11 @@
 #ifndef TVM_TE_AUTODIFF_AD_UTIL_H_
 #define TVM_TE_AUTODIFF_AD_UTIL_H_
 
-#include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
-
+#include <tvm/te/operation.h>
+#include <vector>
 #include <unordered_map>
 #include <utility>
-#include <vector>
 
 namespace tvm {
 namespace te {

@@ -22,37 +22,44 @@
  * \brief Build SPIRV block
  */
 // Use libspirv for parsing and validating code.
-#include <dmlc/memory_io.h>
 #include <libspirv.h>
-#include <tvm/tir/transform.h>
+#include <dmlc/memory_io.h>
+#include <tvm/tir/ir_pass.h>
 
-#include "../../runtime/vulkan/vulkan_module.h"
-#include "../../runtime/vulkan/vulkan_shader.h"
-#include "../build_common.h"
 #include "codegen_spirv.h"
+#include "../build_common.h"
+
+#include "../../runtime/vulkan/vulkan_shader.h"
+#include "../../runtime/vulkan/vulkan_module.h"
 
 namespace tvm {
 namespace codegen {
 
 class SPIRVTools {
  public:
-  SPIRVTools() { ctx_ = spvContextCreate(SPV_ENV_VULKAN_1_0); }
-  ~SPIRVTools() { spvContextDestroy(ctx_); }
+  SPIRVTools() {
+    ctx_ = spvContextCreate(SPV_ENV_VULKAN_1_0);
+  }
+  ~SPIRVTools() {
+    spvContextDestroy(ctx_);
+  }
   std::string BinaryToText(const std::vector<uint32_t>& bin) {
     spv_text text = nullptr;
     spv_diagnostic diagnostic;
     spv_const_binary_t spv_bin{bin.data(), bin.size()};
     spv_result_t res;
 
-    res =
-        spvBinaryToText(ctx_, spv_bin.code, spv_bin.wordCount,
-                        SPV_BINARY_TO_TEXT_OPTION_FRIENDLY_NAMES | SPV_BINARY_TO_TEXT_OPTION_INDENT,
-                        &text, &diagnostic);
+    res = spvBinaryToText(
+       ctx_, spv_bin.code, spv_bin.wordCount,
+      SPV_BINARY_TO_TEXT_OPTION_FRIENDLY_NAMES |
+           SPV_BINARY_TO_TEXT_OPTION_INDENT,
+        &text, &diagnostic);
 
-    CHECK_EQ(res, SPV_SUCCESS) << " line=" << diagnostic->position.line
-                               << " column=" << diagnostic->position.column
-                               << " index=" << diagnostic->position.index
-                               << " error:" << diagnostic->error;
+    CHECK_EQ(res, SPV_SUCCESS)
+        << " line=" << diagnostic->position.line
+        << " column=" << diagnostic->position.column
+        << " index=" << diagnostic->position.index
+        << " error:" << diagnostic->error;
 
     std::string ret(text->str);
     spvTextDestroy(text);
@@ -63,7 +70,7 @@ class SPIRVTools {
   spv_context ctx_;
 };
 
-runtime::Module BuildSPIRV(IRModule mod, std::string target, bool webgpu_restriction) {
+runtime::Module BuildSPIRV(IRModule mod) {
   using tvm::runtime::Registry;
   using tvm::runtime::VulkanShader;
 
@@ -73,12 +80,11 @@ runtime::Module BuildSPIRV(IRModule mod, std::string target, bool webgpu_restric
 
   const auto* postproc = Registry::Get("tvm_callback_vulkan_postproc");
 
-  mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
-
   CodeGenSPIRV cg;
 
-  for (auto kv : mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenSPIRV: Can only take PrimFunc";
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "CodeGenSPIRV: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
@@ -88,16 +94,9 @@ runtime::Module BuildSPIRV(IRModule mod, std::string target, bool webgpu_restric
         << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
 
     std::string f_name = global_symbol.value();
-
+    f = PointerValueTypeRewrite(std::move(f));
     VulkanShader shader;
-    std::string entry = webgpu_restriction ? "main" : f_name;
-    shader.data = cg.BuildFunction(f, entry);
-
-    if (webgpu_restriction) {
-      for (auto param : f->params) {
-        CHECK(param.dtype().is_handle()) << "WebGPU does not yet support non-buffer arguments";
-      }
-    }
+    shader.data = cg.BuildFunction(f);
 
     if (postproc != nullptr) {
       TVMByteArray arr;
@@ -113,16 +112,12 @@ runtime::Module BuildSPIRV(IRModule mod, std::string target, bool webgpu_restric
     smap[f_name] = std::move(shader);
   }
 
-  return runtime::VulkanModuleCreate(smap, ExtractFuncInfo(mod), code_data.str());
+  return runtime::VulkanModuleCreate(
+     smap, ExtractFuncInfo(mod), code_data.str());
 }
 
-TVM_REGISTER_GLOBAL("target.build.vulkan").set_body_typed([](IRModule mod, std::string target) {
-  return BuildSPIRV(mod, target, false);
-});
-
-TVM_REGISTER_GLOBAL("target.build.webgpu").set_body_typed([](IRModule mod, std::string target) {
-  return BuildSPIRV(mod, target, true);
-});
+TVM_REGISTER_GLOBAL("target.build.vulkan")
+.set_body_typed(BuildSPIRV);
 
 }  // namespace codegen
 }  // namespace tvm

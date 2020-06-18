@@ -29,10 +29,8 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 
-#include <algorithm>
 #include <cstring>
 #include <initializer_list>
-#include <memory>
 #include <string>
 // We use c++14 std::experimental::string_view for optimizing hash computation
 // only right now, its usage is limited in this file. Any broader usage of
@@ -41,7 +39,8 @@
 // string_view:
 // https://isocpp.org/std/standing-documents/sd-6-sg10-feature-test-recommendations
 // https://en.cppreference.com/w/User:D41D8CD98F/feature_testing_macros
-#if defined(__cpp_lib_experimental_string_view) && __cpp_lib_experimental_string_view >= 201411
+#if defined(__cpp_lib_experimental_string_view) && \
+    __cpp_lib_experimental_string_view >= 201411
 #define TVM_USE_CXX14_STRING_VIEW_HASH 1
 #else
 #define TVM_USE_CXX14_STRING_VIEW_HASH 0
@@ -65,15 +64,7 @@
 #include <utility>
 #include <vector>
 
-namespace llvm {
-// String to llvm object compatibility.
-class StringRef;
-}  // namespace llvm
-
 namespace tvm {
-
-struct ObjectEqual;
-
 namespace runtime {
 
 /*!
@@ -144,7 +135,8 @@ class InplaceArrayBase {
    * \brief Destroy the Inplace Array Base object
    */
   ~InplaceArrayBase() {
-    if (!(std::is_standard_layout<ElemType>::value && std::is_trivial<ElemType>::value)) {
+    if (!(std::is_standard_layout<ElemType>::value &&
+          std::is_trivial<ElemType>::value)) {
       size_t size = Self()->GetSize();
       for (size_t i = 0; i < size; ++i) {
         ElemType* fp = reinterpret_cast<ElemType*>(AddressOf(i));
@@ -170,6 +162,7 @@ class InplaceArrayBase {
     new (field_ptr) ElemType(std::forward<Args>(args)...);
   }
 
+ private:
   /*!
    * \brief Return the self object for the array.
    *
@@ -186,10 +179,10 @@ class InplaceArrayBase {
    * \return Raw pointer to the element.
    */
   void* AddressOf(size_t idx) const {
-    static_assert(
-        alignof(ArrayType) % alignof(ElemType) == 0 && sizeof(ArrayType) % alignof(ElemType) == 0,
-        "The size and alignment of ArrayType should respect "
-        "ElemType's alignment.");
+    static_assert(alignof(ArrayType) % alignof(ElemType) == 0 &&
+                      sizeof(ArrayType) % alignof(ElemType) == 0,
+                  "The size and alignment of ArrayType should respect "
+                  "ElemType's alignment.");
 
     size_t kDataStart = sizeof(ArrayType);
     ArrayType* self = Self();
@@ -197,788 +190,6 @@ class InplaceArrayBase {
     return data_start + idx * sizeof(ElemType);
   }
 };
-
-/*!
- * \brief iterator adapter that adapts TIter to return another type.
- * \tparam Converter a struct that contains converting function
- * \tparam TIter the content iterator type.
- */
-template <typename Converter, typename TIter>
-class IterAdapter {
- public:
-  using difference_type = typename std::iterator_traits<TIter>::difference_type;
-  using value_type = typename Converter::ResultType;
-  using pointer = typename Converter::ResultType*;
-  using reference = typename Converter::ResultType&;  // NOLINT(*)
-  using iterator_category = typename std::iterator_traits<TIter>::iterator_category;
-
-  explicit IterAdapter(TIter iter) : iter_(iter) {}
-  IterAdapter& operator++() {
-    ++iter_;
-    return *this;
-  }
-  IterAdapter& operator--() {
-    --iter_;
-    return *this;
-  }
-  IterAdapter& operator++(int) {
-    IterAdapter copy = *this;
-    ++iter_;
-    return copy;
-  }
-  IterAdapter& operator--(int) {
-    IterAdapter copy = *this;
-    --iter_;
-    return copy;
-  }
-
-  IterAdapter operator+(difference_type offset) const { return IterAdapter(iter_ + offset); }
-
-  template <typename T = IterAdapter>
-  typename std::enable_if<std::is_same<iterator_category, std::random_access_iterator_tag>::value,
-                          typename T::difference_type>::type inline
-  operator-(const IterAdapter& rhs) const {
-    return iter_ - rhs.iter_;
-  }
-
-  bool operator==(IterAdapter other) const { return iter_ == other.iter_; }
-  bool operator!=(IterAdapter other) const { return !(*this == other); }
-  const value_type operator*() const { return Converter::convert(*iter_); }
-
- private:
-  TIter iter_;
-};
-
-/*!
- * \brief iterator adapter that adapts TIter to return another type.
- * \tparam Converter a struct that contains converting function
- * \tparam TIter the content iterator type.
- */
-template <typename Converter, typename TIter>
-class ReverseIterAdapter {
- public:
-  using difference_type = typename std::iterator_traits<TIter>::difference_type;
-  using value_type = typename Converter::ResultType;
-  using pointer = typename Converter::ResultType*;
-  using reference = typename Converter::ResultType&;  // NOLINT(*)
-  using iterator_category = typename std::iterator_traits<TIter>::iterator_category;
-
-  explicit ReverseIterAdapter(TIter iter) : iter_(iter) {}
-  ReverseIterAdapter& operator++() {
-    --iter_;
-    return *this;
-  }
-  ReverseIterAdapter& operator--() {
-    ++iter_;
-    return *this;
-  }
-  ReverseIterAdapter& operator++(int) {
-    ReverseIterAdapter copy = *this;
-    --iter_;
-    return copy;
-  }
-  ReverseIterAdapter& operator--(int) {
-    ReverseIterAdapter copy = *this;
-    ++iter_;
-    return copy;
-  }
-  ReverseIterAdapter operator+(difference_type offset) const {
-    return ReverseIterAdapter(iter_ - offset);
-  }
-
-  template <typename T = ReverseIterAdapter>
-  typename std::enable_if<std::is_same<iterator_category, std::random_access_iterator_tag>::value,
-                          typename T::difference_type>::type inline
-  operator-(const ReverseIterAdapter& rhs) const {
-    return rhs.iter_ - iter_;
-  }
-
-  bool operator==(ReverseIterAdapter other) const { return iter_ == other.iter_; }
-  bool operator!=(ReverseIterAdapter other) const { return !(*this == other); }
-  const value_type operator*() const { return Converter::convert(*iter_); }
-
- private:
-  TIter iter_;
-};
-
-/*! \brief array node content in array */
-class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, ObjectRef> {
- public:
-  /*! \return The size of the array */
-  size_t size() const { return this->size_; }
-
-  /*!
-   * \brief Read i-th element from array.
-   * \param i The index
-   * \return the i-th element.
-   */
-  const ObjectRef at(int64_t i) const { return this->operator[](i); }
-
-  /*! \return begin constant iterator */
-  const ObjectRef* begin() const { return static_cast<ObjectRef*>(InplaceArrayBase::AddressOf(0)); }
-
-  /*! \return end constant iterator */
-  const ObjectRef* end() const { return begin() + size_; }
-
-  /*! \brief Release reference to all the elements */
-  void clear() { ShrinkBy(size_); }
-
-  /*!
-   * \brief Set i-th element of the array in-place
-   * \param i The index
-   * \param item The value to be set
-   */
-  void SetItem(int64_t i, ObjectRef item) { this->operator[](i) = std::move(item); }
-
-  /*!
-   * \brief Constructs a container and copy from another
-   * \param cap The capacity of the container
-   * \param from Source of the copy
-   * \return Ref-counted ArrayNode requested
-   */
-  static ObjectPtr<ArrayNode> CopyFrom(int64_t cap, ArrayNode* from) {
-    int64_t size = from->size_;
-    CHECK_GE(cap, size) << "ValueError: not enough capacity";
-    ObjectPtr<ArrayNode> p = ArrayNode::Empty(cap);
-    ObjectRef* write = p->MutableBegin();
-    ObjectRef* read = from->MutableBegin();
-    // To ensure exception safety, size is only incremented after the initialization succeeds
-    for (int64_t& i = p->size_ = 0; i < size; ++i) {
-      new (write++) ObjectRef(*read++);
-    }
-    return p;
-  }
-
-  /*!
-   * \brief Constructs a container and move from another
-   * \param cap The capacity of the container
-   * \param from Source of the move
-   * \return Ref-counted ArrayNode requested
-   */
-  static ObjectPtr<ArrayNode> MoveFrom(int64_t cap, ArrayNode* from) {
-    int64_t size = from->size_;
-    CHECK_GE(cap, size) << "ValueError: not enough capacity";
-    ObjectPtr<ArrayNode> p = ArrayNode::Empty(cap);
-    ObjectRef* write = p->MutableBegin();
-    ObjectRef* read = from->MutableBegin();
-    // To ensure exception safety, size is only incremented after the initialization succeeds
-    for (int64_t& i = p->size_ = 0; i < size; ++i) {
-      new (write++) ObjectRef(std::move(*read++));
-    }
-    from->size_ = 0;
-    return p;
-  }
-
-  /*!
-   * \brief Constructs a container with n elements. Each element is a copy of val
-   * \param n The size of the container
-   * \param val The init value
-   * \return Ref-counted ArrayNode requested
-   */
-  static ObjectPtr<ArrayNode> CreateRepeated(int64_t n, const ObjectRef& val) {
-    ObjectPtr<ArrayNode> p = ArrayNode::Empty(n);
-    ObjectRef* itr = p->MutableBegin();
-    for (int64_t& i = p->size_ = 0; i < n; ++i) {
-      new (itr++) ObjectRef(val);
-    }
-    return p;
-  }
-
-  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeArray;
-  static constexpr const char* _type_key = "Array";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ArrayNode, Object);
-
- private:
-  /*! \return Size of initialized memory, used by InplaceArrayBase. */
-  size_t GetSize() const { return this->size_; }
-
-  /*! \return begin mutable iterator */
-  ObjectRef* MutableBegin() const {
-    return static_cast<ObjectRef*>(InplaceArrayBase::AddressOf(0));
-  }
-
-  /*! \return end mutable iterator */
-  ObjectRef* MutableEnd() const { return MutableBegin() + size_; }
-
-  /*!
-   * \brief Create an ArrayNode with the given capacity.
-   * \param n Required capacity
-   * \return Ref-counted ArrayNode requested
-   */
-  static ObjectPtr<ArrayNode> Empty(int64_t n = kInitSize) {
-    CHECK_GE(n, 0);
-    ObjectPtr<ArrayNode> p = make_inplace_array_object<ArrayNode, ObjectRef>(n);
-    p->capacity_ = n;
-    p->size_ = 0;
-    return p;
-  }
-
-  /*!
-   * \brief Inplace-initialize the elements starting idx from [first, last)
-   * \param idx The starting point
-   * \param first Begin of iterator
-   * \param last End of iterator
-   * \tparam IterType The type of iterator
-   * \return Self
-   */
-  template <typename IterType>
-  ArrayNode* InitRange(int64_t idx, IterType first, IterType last) {
-    ObjectRef* itr = MutableBegin() + idx;
-    for (; first != last; ++first) {
-      ObjectRef ref = *first;
-      new (itr++) ObjectRef(std::move(ref));
-    }
-    return this;
-  }
-
-  /*!
-   * \brief Move elements from right to left, requires src_begin > dst
-   * \param dst Destination
-   * \param src_begin The start point of copy (inclusive)
-   * \param src_end The end point of copy (exclusive)
-   * \return Self
-   */
-  ArrayNode* MoveElementsLeft(int64_t dst, int64_t src_begin, int64_t src_end) {
-    ObjectRef* from = MutableBegin() + src_begin;
-    ObjectRef* to = MutableBegin() + dst;
-    while (src_begin++ != src_end) {
-      *to++ = std::move(*from++);
-    }
-    return this;
-  }
-
-  /*!
-   * \brief Move elements from left to right, requires src_begin < dst
-   * \param dst Destination
-   * \param src_begin The start point of move (inclusive)
-   * \param src_end The end point of move (exclusive)
-   * \return Self
-   */
-  ArrayNode* MoveElementsRight(int64_t dst, int64_t src_begin, int64_t src_end) {
-    ObjectRef* from = MutableBegin() + src_end;
-    ObjectRef* to = MutableBegin() + (src_end - src_begin + dst);
-    while (src_begin++ != src_end) {
-      *--to = std::move(*--from);
-    }
-    return this;
-  }
-
-  /*!
-   * \brief Enlarges the size of the array
-   * \param delta Size enlarged, should be positive
-   * \param val Default value
-   * \return Self
-   */
-  ArrayNode* EnlargeBy(int64_t delta, const ObjectRef& val = ObjectRef(nullptr)) {
-    ObjectRef* itr = MutableEnd();
-    while (delta-- > 0) {
-      new (itr++) ObjectRef(val);
-      ++size_;
-    }
-    return this;
-  }
-
-  /*!
-   * \brief Shrinks the size of the array
-   * \param delta Size shrinked, should be positive
-   * \return Self
-   */
-  ArrayNode* ShrinkBy(int64_t delta) {
-    ObjectRef* itr = MutableEnd();
-    while (delta-- > 0) {
-      (--itr)->ObjectRef::~ObjectRef();
-      --size_;
-    }
-    return this;
-  }
-
-  /*! \brief Number of elements used */
-  int64_t size_;
-
-  /*! \brief Number of elements allocated */
-  int64_t capacity_;
-
-  /*! \brief Initial size of ArrayNode */
-  static constexpr int64_t kInitSize = 4;
-
-  /*! \brief Expansion factor of the Array */
-  static constexpr int64_t kIncFactor = 2;
-
-  // CRTP parent class
-  friend InplaceArrayBase<ArrayNode, ObjectRef>;
-
-  // Reference class
-  template <typename, typename>
-  friend class Array;
-
-  // To specialize make_object<ArrayNode>
-  friend ObjectPtr<ArrayNode> make_object<>();
-};
-
-/*!
- * \brief Array, container representing a contigious sequence of ObjectRefs.
- *
- *  Array implements in-place copy-on-write semantics.
- *
- * As in typical copy-on-write, a method which would typically mutate the array
- * instead opaquely copies the underlying container, and then acts on its copy.
- *
- * If the array has reference count equal to one, we directly update the
- * container in place without copying. This is optimization is sound because
- * when the reference count is equal to one this reference is guranteed to be
- * the sole pointer to the container.
- *
- *
- * operator[] only provides const access, use Set to mutate the content.
- * \tparam T The content ObjectRef type.
- */
-template <typename T,
-          typename = typename std::enable_if<std::is_base_of<ObjectRef, T>::value>::type>
-class Array : public ObjectRef {
- public:
-  // constructors
-  /*!
-   * \brief default constructor
-   */
-  Array() { data_ = ArrayNode::Empty(); }
-
-  /*!
-   * \brief move constructor
-   * \param other source
-   */
-  Array(Array<T>&& other) : ObjectRef() {  // NOLINT(*)
-    data_ = std::move(other.data_);
-  }
-
-  /*!
-   * \brief copy constructor
-   * \param other source
-   */
-  Array(const Array<T>& other) : ObjectRef() {  // NOLINT(*)
-    data_ = other.data_;
-  }
-
-  /*!
-   * \brief constructor from pointer
-   * \param n the container pointer
-   */
-  explicit Array(ObjectPtr<Object> n) : ObjectRef(n) {}
-
-  /*!
-   * \brief Constructor from iterator
-   * \param first begin of iterator
-   * \param last end of iterator
-   * \tparam IterType The type of iterator
-   */
-  template <typename IterType>
-  Array(IterType first, IterType last) {
-    Assign(first, last);
-  }
-
-  /*!
-   * \brief constructor from initializer list
-   * \param init The initializer list
-   */
-  Array(std::initializer_list<T> init) {  // NOLINT(*)
-    Assign(init.begin(), init.end());
-  }
-
-  /*!
-   * \brief constructor from vector
-   * \param init The vector
-   */
-  Array(const std::vector<T>& init) {  // NOLINT(*)
-    Assign(init.begin(), init.end());
-  }
-
-  /*!
-   * \brief Constructs a container with n elements. Each element is a copy of val
-   * \param n The size of the container
-   * \param val The init value
-   */
-  explicit Array(const size_t n, const T& val) { data_ = ArrayNode::CreateRepeated(n, val); }
-
-  /*!
-   * \brief move assign operator
-   * \param other The source of assignment
-   * \return reference to self.
-   */
-  Array<T>& operator=(Array<T>&& other) {
-    data_ = std::move(other.data_);
-    return *this;
-  }
-
-  /*!
-   * \brief copy assign operator
-   * \param other The source of assignment
-   * \return reference to self.
-   */
-  Array<T>& operator=(const Array<T>& other) {
-    data_ = other.data_;
-    return *this;
-  }
-
- public:
-  // iterators
-  struct ValueConverter {
-    using ResultType = T;
-    static T convert(const ObjectRef& n) { return DowncastNoCheck<T>(n); }
-  };
-
-  using iterator = IterAdapter<ValueConverter, const ObjectRef*>;
-  using reverse_iterator = ReverseIterAdapter<ValueConverter, const ObjectRef*>;
-
-  /*! \return begin iterator */
-  iterator begin() const { return iterator(GetArrayNode()->begin()); }
-
-  /*! \return end iterator */
-  iterator end() const { return iterator(GetArrayNode()->end()); }
-
-  /*! \return rbegin iterator */
-  reverse_iterator rbegin() const {
-    // ArrayNode::end() is never nullptr
-    return reverse_iterator(GetArrayNode()->end() - 1);
-  }
-
-  /*! \return rend iterator */
-  reverse_iterator rend() const {
-    // ArrayNode::begin() is never nullptr
-    return reverse_iterator(GetArrayNode()->begin() - 1);
-  }
-
- public:
-  // const methods in std::vector
-  /*!
-   * \brief Immutably read i-th element from array.
-   * \param i The index
-   * \return the i-th element.
-   */
-  const T operator[](int64_t i) const {
-    ArrayNode* p = GetArrayNode();
-    CHECK(p != nullptr) << "ValueError: cannot index a null array";
-    CHECK(0 <= i && i < p->size_) << "IndexError: indexing " << i << " on an array of size "
-                                  << p->size_;
-    return DowncastNoCheck<T>(*(p->begin() + i));
-  }
-
-  /*! \return The size of the array */
-  size_t size() const {
-    ArrayNode* p = GetArrayNode();
-    return p == nullptr ? 0 : GetArrayNode()->size_;
-  }
-
-  /*! \return The capacity of the array */
-  size_t capacity() const {
-    ArrayNode* p = GetArrayNode();
-    return p == nullptr ? 0 : GetArrayNode()->capacity_;
-  }
-
-  /*! \return Whether array is empty */
-  bool empty() const { return size() == 0; }
-
-  /*! \return The first element of the array */
-  const T front() const {
-    ArrayNode* p = GetArrayNode();
-    CHECK(p != nullptr) << "ValueError: cannot index a null array";
-    CHECK_GT(p->size_, 0) << "IndexError: cannot index an empty array";
-    return DowncastNoCheck<T>(*(p->begin()));
-  }
-
-  /*! \return The last element of the array */
-  const T back() const {
-    ArrayNode* p = GetArrayNode();
-    CHECK(p != nullptr) << "ValueError: cannot index a null array";
-    CHECK_GT(p->size_, 0) << "IndexError: cannot index an empty array";
-    return DowncastNoCheck<T>(*(p->end() - 1));
-  }
-
- public:
-  // mutation in std::vector, implements copy-on-write
-
-  /*!
-   * \brief push a new item to the back of the list
-   * \param item The item to be pushed.
-   */
-  void push_back(const T& item) {
-    ArrayNode* p = CopyOnWrite(1);
-    p->EmplaceInit(p->size_++, item);
-  }
-
-  /*!
-   * \brief Insert an element into the given position
-   * \param position An iterator pointing to the insertion point
-   * \param val The element to insert
-   */
-  void insert(iterator position, const T& val) {
-    CHECK(data_ != nullptr) << "ValueError: cannot insert a null array";
-    int64_t idx = std::distance(begin(), position);
-    int64_t size = GetArrayNode()->size_;
-    auto addr = CopyOnWrite(1)                               //
-                    ->EnlargeBy(1)                           //
-                    ->MoveElementsRight(idx + 1, idx, size)  //
-                    ->MutableBegin();
-    new (addr + idx) ObjectRef(val);
-  }
-
-  /*!
-   * \brief Insert a range of elements into the given position
-   * \param position An iterator pointing to the insertion point
-   * \param first The begin iterator of the range
-   * \param last The end iterator of the range
-   */
-  template <typename IterType>
-  void insert(iterator position, IterType first, IterType last) {
-    if (first == last) {
-      return;
-    }
-    CHECK(data_ != nullptr) << "ValueError: cannot insert a null array";
-    int64_t idx = std::distance(begin(), position);
-    int64_t size = GetArrayNode()->size_;
-    int64_t numel = std::distance(first, last);
-    CopyOnWrite(numel)
-        ->EnlargeBy(numel)
-        ->MoveElementsRight(idx + numel, idx, size)
-        ->InitRange(idx, first, last);
-  }
-
-  /*! \brief Remove the last item of the list */
-  void pop_back() {
-    CHECK(data_ != nullptr) << "ValueError: cannot pop_back because array is null";
-    int64_t size = GetArrayNode()->size_;
-    CHECK_GT(size, 0) << "ValueError: cannot pop_back because array is empty";
-    CopyOnWrite()->ShrinkBy(1);
-  }
-
-  /*!
-   * \brief Erase an element on the given position
-   * \param position An iterator pointing to the element to be erased
-   */
-  void erase(iterator position) {
-    CHECK(data_ != nullptr) << "ValueError: cannot erase a null array";
-    int64_t st = std::distance(begin(), position);
-    int64_t size = GetArrayNode()->size_;
-    CHECK(0 <= st && st < size) << "ValueError: cannot erase at index " << st
-                                << ", because Array size is " << size;
-    CopyOnWrite()                             //
-        ->MoveElementsLeft(st, st + 1, size)  //
-        ->ShrinkBy(1);
-  }
-
-  /*!
-   * \brief Erase a given range of elements
-   * \param first The begin iterator of the range
-   * \param last The end iterator of the range
-   */
-  void erase(iterator first, iterator last) {
-    if (first == last) {
-      return;
-    }
-    CHECK(data_ != nullptr) << "ValueError: cannot erase a null array";
-    int64_t size = GetArrayNode()->size_;
-    int64_t st = std::distance(begin(), first);
-    int64_t ed = std::distance(begin(), last);
-    CHECK_LT(st, ed) << "ValueError: cannot erase array in range [" << st << ", " << ed << ")";
-    CHECK(0 <= st && st <= size && 0 <= ed && ed <= size)
-        << "ValueError: cannot erase array in range [" << st << ", " << ed << ")"
-        << ", because array size is " << size;
-    CopyOnWrite()                         //
-        ->MoveElementsLeft(st, ed, size)  //
-        ->ShrinkBy(ed - st);
-  }
-
-  /*!
-   * \brief Resize the array.
-   * \param n The new size.
-   */
-  void resize(int64_t n) {
-    CHECK_GE(n, 0) << "ValueError: cannot resize an Array to negative size";
-    if (data_ == nullptr) {
-      SwitchContainer(n);
-      return;
-    }
-    int64_t size = GetArrayNode()->size_;
-    if (size < n) {
-      CopyOnWrite(n - size)->EnlargeBy(n - size);
-    } else if (size > n) {
-      CopyOnWrite()->ShrinkBy(size - n);
-    }
-  }
-
-  /*!
-   * \brief Make sure the list has the capacity of at least n
-   * \param n lower bound of the capacity
-   */
-  void reserve(int64_t n) {
-    if (data_ == nullptr || n > GetArrayNode()->capacity_) {
-      SwitchContainer(n);
-    }
-  }
-
-  /*! \brief Release reference to all the elements */
-  void clear() {
-    if (data_ != nullptr) {
-      ArrayNode* p = CopyOnWrite();
-      p->clear();
-    }
-  }
-
- public:
-  // Array's own methods
-
-  /*!
-   * \brief set i-th element of the array.
-   * \param i The index
-   * \param value The value to be setted.
-   */
-  void Set(int64_t i, T value) {
-    ArrayNode* p = this->CopyOnWrite();
-    CHECK(0 <= i && i < p->size_) << "IndexError: indexing " << i << " on an array of size "
-                                  << p->size_;
-    *(p->MutableBegin() + i) = std::move(value);
-  }
-
-  /*! \return The underlying ArrayNode */
-  ArrayNode* GetArrayNode() const { return static_cast<ArrayNode*>(data_.get()); }
-
-  /*!
-   * \brief Helper function to apply fmutate to mutate an array.
-   * \param fmutate The transformation function T -> T.
-   * \tparam F the type of the mutation function.
-   * \note This function performs copy on write optimization.
-   */
-  template <typename F>
-  void MutateByApply(F fmutate) {
-    if (data_ == nullptr) {
-      return;
-    }
-    struct StackFrame {
-      ArrayNode* p;
-      ObjectRef* itr;
-      int64_t i;
-      int64_t size;
-    };
-    std::unique_ptr<StackFrame> s = std::make_unique<StackFrame>();
-    s->p = GetArrayNode();
-    s->itr = s->p->MutableBegin();
-    s->i = 0;
-    s->size = s->p->size_;
-    if (!data_.unique()) {
-      // Loop invariant: keeps iterating when
-      // 1) data is not unique
-      // 2) no elements are actually mutated yet
-      for (; s->i < s->size; ++s->i, ++s->itr) {
-        T new_elem = fmutate(DowncastNoCheck<T>(*s->itr));
-        // do nothing when there is no mutation
-        if (new_elem.same_as(*s->itr)) {
-          continue;
-        }
-        // loop invariant breaks when the first real mutation happens
-        // we copy the elements into a new unique array
-        ObjectPtr<ArrayNode> copy = ArrayNode::CopyFrom(s->p->capacity_, s->p);
-        s->itr = copy->MutableBegin() + (s->i++);
-        *s->itr++ = std::move(new_elem);
-        data_ = std::move(copy);
-        // make sure `data_` is unique and break
-        break;
-      }
-    }
-    // when execution comes to this line, it is guaranteed that either
-    //    1) i == size
-    // or 2) data_.unique() is true
-    for (; s->i < s->size; ++s->i, ++s->itr) {
-      *s->itr = std::move(fmutate(std::move(DowncastNoCheck<T>(std::move(*s->itr)))));
-    }
-  }
-
-  /*!
-   * \brief reset the array to content from iterator.
-   * \param first begin of iterator
-   * \param last end of iterator
-   * \tparam IterType The type of iterator
-   */
-  template <typename IterType>
-  void Assign(IterType first, IterType last) {
-    int64_t cap = std::distance(first, last);
-    CHECK_GE(cap, 0) << "ValueError: cannot construct an Array of negative size";
-    ArrayNode* p = GetArrayNode();
-    if (p != nullptr && data_.unique() && p->capacity_ >= cap) {
-      // do not have to make new space
-      p->clear();
-    } else {
-      // create new space
-      data_ = ArrayNode::Empty(cap);
-      p = GetArrayNode();
-    }
-    // To ensure exception safety, size is only incremented after the initialization succeeds
-    ObjectRef* itr = p->MutableBegin();
-    for (int64_t& i = p->size_ = 0; i < cap; ++i, ++first, ++itr) {
-      new (itr) ObjectRef(*first);
-    }
-  }
-
-  /*!
-   * \brief Copy on write semantics
-   *  Do nothing if current handle is the unique copy of the array.
-   *  Otherwise make a new copy of the array to ensure the current handle
-   *  hold a unique copy.
-   *
-   * \return Handle to the internal node container(which ganrantees to be unique)
-   */
-  ArrayNode* CopyOnWrite() {
-    if (data_ == nullptr) {
-      return SwitchContainer(ArrayNode::kInitSize);
-    }
-    if (!data_.unique()) {
-      return SwitchContainer(capacity());
-    }
-    return static_cast<ArrayNode*>(data_.get());
-  }
-
-  /*! \brief specify container node */
-  using ContainerType = ArrayNode;
-
- private:
-  /*!
-   * \brief Implement copy-on-write semantics, and ensures capacity is enough for extra elements.
-   * \param reserve_extra Number of extra slots needed
-   * \return ArrayNode pointer to the unique copy
-   */
-  ArrayNode* CopyOnWrite(int64_t reserve_extra) {
-    ArrayNode* p = GetArrayNode();
-    if (p == nullptr) {
-      // necessary to get around the constexpr address issue before c++17
-      const int64_t kInitSize = ArrayNode::kInitSize;
-      return SwitchContainer(std::max(kInitSize, reserve_extra));
-    }
-    if (p->capacity_ >= p->size_ + reserve_extra) {
-      return CopyOnWrite();
-    }
-    int64_t cap = p->capacity_ * ArrayNode::kIncFactor;
-    cap = std::max(cap, p->size_ + reserve_extra);
-    return SwitchContainer(cap);
-  }
-
-  /*!
-   * \brief Move or copy the ArrayNode to new address with the given capacity
-   * \param capacity The capacity requirement of the new address
-   */
-  ArrayNode* SwitchContainer(int64_t capacity) {
-    if (data_ == nullptr) {
-      data_ = ArrayNode::Empty(capacity);
-    } else if (data_.unique()) {
-      data_ = ArrayNode::MoveFrom(capacity, GetArrayNode());
-    } else {
-      data_ = ArrayNode::CopyFrom(capacity, GetArrayNode());
-    }
-    return static_cast<ArrayNode*>(data_.get());
-  }
-};
-
-// Specialize make_object<ArrayNode> to make sure it is correct.
-template <>
-inline ObjectPtr<ArrayNode> make_object() {
-  return ArrayNode::Empty();
-}
 
 /*! \brief An object representing a structure or enumeration. */
 class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
@@ -989,8 +200,8 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
   uint32_t size;
   // The fields of the structure follows directly in memory.
 
-  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeADT;
-  static constexpr const char* _type_key = "runtime.ADT";
+  static constexpr const uint32_t _type_index = TypeIndex::kVMADT;
+  static constexpr const char* _type_key = "vm.ADT";
   TVM_DECLARE_FINAL_OBJECT_INFO(ADTObj, Object);
 
  private:
@@ -1031,7 +242,8 @@ class ADT : public ObjectRef {
    * \param fields The fields of the ADT object.
    * \return The constructed ADT object reference.
    */
-  ADT(int32_t tag, std::vector<ObjectRef> fields) : ADT(tag, fields.begin(), fields.end()){};
+  ADT(int32_t tag, std::vector<ObjectRef> fields)
+      : ADT(tag, fields.begin(), fields.end()){};
 
   /*!
    * \brief construct an ADT object reference.
@@ -1055,7 +267,8 @@ class ADT : public ObjectRef {
    * \param init The initializer list of fields.
    * \return The constructed ADT object reference.
    */
-  ADT(int32_t tag, std::initializer_list<ObjectRef> init) : ADT(tag, init.begin(), init.end()){};
+  ADT(int32_t tag, std::initializer_list<ObjectRef> init)
+      : ADT(tag, init.begin(), init.end()){};
 
   /*!
    * \brief Access element at index.
@@ -1063,7 +276,9 @@ class ADT : public ObjectRef {
    * \param idx The array index
    * \return const ObjectRef
    */
-  const ObjectRef& operator[](size_t idx) const { return operator->()->operator[](idx); }
+  const ObjectRef& operator[](size_t idx) const {
+    return operator->()->operator[](idx);
+  }
 
   /*!
    * \brief Return the ADT tag.
@@ -1099,7 +314,7 @@ class StringObj : public Object {
   /*! \brief The length of the string object. */
   uint64_t size;
 
-  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeString;
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "runtime.String";
   TVM_DECLARE_FINAL_OBJECT_INFO(StringObj, Object);
 
@@ -1166,58 +381,7 @@ class String : public ObjectRef {
    * \param other The value for the new String
    *
    */
-  inline String& operator=(std::string other);
-
-  /*!
-   * \brief Change the value the reference object points to.
-   *
-   * \param other The value for the new String
-   */
-  inline String& operator=(const char* other);
-
-  /*!
-   * \brief Compare is less than other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator<(const std::string& other) const { return this->compare(other) < 0; }
-  bool operator<(const String& other) const { return this->compare(other) < 0; }
-  bool operator<(const char* other) const { return this->compare(other) < 0; }
-
-  /*!
-   * \brief Compare is greater than other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator>(const std::string& other) const { return this->compare(other) > 0; }
-  bool operator>(const String& other) const { return this->compare(other) > 0; }
-  bool operator>(const char* other) const { return this->compare(other) > 0; }
-
-  /*!
-   * \brief Compare is less than or equal to other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator<=(const std::string& other) const { return this->compare(other) <= 0; }
-  bool operator<=(const String& other) const { return this->compare(other) <= 0; }
-  bool operator<=(const char* other) const { return this->compare(other) <= 0; }
-
-  /*!
-   * \brief Compare is greater than or equal to other std::string
-   *
-   * \param other The other string
-   *
-   * \return the comparison result
-   */
-  bool operator>=(const std::string& other) const { return this->compare(other) >= 0; }
-  bool operator>=(const String& other) const { return this->compare(other) >= 0; }
-  bool operator>=(const char* other) const { return this->compare(other) >= 0; }
+  inline String operator=(std::string other);
 
   /*!
    * \brief Compare is equal to other std::string
@@ -1226,9 +390,9 @@ class String : public ObjectRef {
    *
    * \return the comparison result
    */
-  bool operator==(const std::string& other) const { return this->compare(other) == 0; }
-  bool operator==(const String& other) const { return this->compare(other) == 0; }
-  bool operator==(const char* other) const { return compare(other) == 0; }
+  bool operator==(const std::string& other) const {
+    return this->compare(other) == 0;
+  }
 
   /*!
    * \brief Compare is not equal to other std::string
@@ -1237,9 +401,25 @@ class String : public ObjectRef {
    *
    * \return the comparison result
    */
-  bool operator!=(const std::string& other) const { return this->compare(other) != 0; }
-  bool operator!=(const String& other) const { return this->compare(other) != 0; }
-  bool operator!=(const char* other) const { return this->compare(other) != 0; }
+  bool operator!=(const std::string& other) const { return !operator==(other); }
+
+  /*!
+   * \brief Compare is equal to other char string
+   *
+   * \param other The other char string
+   *
+   * \return the comparison result
+   */
+  bool operator==(const char* other) const { return compare(other) == 0; }
+
+  /*!
+   * \brief Compare is not equal to other char string
+   *
+   * \param other The other char string
+   *
+   * \return the comparison result
+   */
+  bool operator!=(const char* other) const { return !operator==(other); }
 
   /*!
    * \brief Compares this String object to other
@@ -1316,28 +496,11 @@ class String : public ObjectRef {
   const char* data() const { return get()->data; }
 
   /*!
-   * \brief Convert String to an std::string object
+   * \brief Convert String to an std::sting object
    *
    * \return std::string
    */
   operator std::string() const { return std::string{get()->data, size()}; }
-
-  // LLVM compatibility function, implemented in src/target/llvm/llvm_common.h
-  /*!
-   * \brief Convert String to an llvm::StringRef object
-   *
-   * \return llvm::StringRef
-   */
-  inline operator llvm::StringRef() const;
-
-  /*!
-   * \brief Check if a TVMArgValue can be converted to String, i.e. it can be std::string or String
-   * \param val The value to be checked
-   * \return A boolean indicating if val can be converted to String
-   */
-  static bool CanConvertFrom(const TVMArgValue& val) {
-    return val.type_code() == kTVMStr || val.IsObjectRef<tvm::runtime::String>();
-  }
 
   /*!
    * \brief Hash the binary bytes
@@ -1349,13 +512,18 @@ class String : public ObjectRef {
     // This function falls back to string copy with c++11 compiler and is
     // recommended to be compiled with c++14
 #if TVM_USE_CXX17_STRING_VIEW_HASH
-    return std::hash<std::string_view>()(std::string_view(data, size));
+    return std::hash<std::string_view>()(
+        std::string_view(data, size));
 #elif TVM_USE_CXX14_STRING_VIEW_HASH
-    return std::hash<std::experimental::string_view>()(std::experimental::string_view(data, size));
+    return std::hash<std::experimental::string_view>()(
+        std::experimental::string_view(data, size));
 #else
     return std::hash<std::string>()(std::string(data, size));
 #endif
   }
+
+  /*! \return the internal StringObj pointer */
+  const StringObj* get() const { return operator->(); }
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
 
@@ -1370,9 +538,8 @@ class String : public ObjectRef {
    * \return int zero if both char sequences compare equal. negative if this
    * appear before other, positive otherwise.
    */
-  static int memncmp(const char* lhs, const char* rhs, size_t lhs_count, size_t rhs_count);
-
-  friend struct tvm::ObjectEqual;
+  static int memncmp(const char* lhs, const char* rhs, size_t lhs_count,
+                     size_t rhs_count);
 };
 
 /*! \brief An object representing string moved from std::string. */
@@ -1402,24 +569,14 @@ inline String::String(std::string other) {
   data_ = std::move(ptr);
 }
 
-inline String& String::operator=(std::string other) {
+inline String String::operator=(std::string other) {
   String replace{std::move(other)};
   data_.swap(replace.data_);
-  return *this;
+  return Downcast<String>(*this);
 }
 
-inline String& String::operator=(const char* other) { return operator=(std::string(other)); }
-
-inline String operator+(const std::string lhs, const String& rhs) {
-  return lhs + rhs.operator std::string();
-}
-
-inline std::ostream& operator<<(std::ostream& out, const String& input) {
-  out.write(input.data(), input.size());
-  return out;
-}
-
-inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count, size_t rhs_count) {
+inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count,
+                           size_t rhs_count) {
   if (lhs == rhs && lhs_count == rhs_count) return 0;
 
   for (size_t i = 0; i < lhs_count && i < rhs_count; ++i) {
@@ -1435,7 +592,7 @@ inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count, s
   }
 }
 
-template <>
+template<>
 struct PackedFuncValueConverter<::tvm::runtime::String> {
   static String From(const TVMArgValue& val) {
     if (val.IsObjectRef<tvm::runtime::String>()) {
@@ -1454,9 +611,6 @@ struct PackedFuncValueConverter<::tvm::runtime::String> {
   }
 };
 
-/*! \brief Helper to represent nullptr for optional. */
-struct NullOptType {};
-
 /*!
  * \brief Optional container that to represent to a Nullable variant of T.
  * \tparam T The original ObjectRef.
@@ -1470,11 +624,12 @@ struct NullOptType {};
  *
  * \endcode
  */
-template <typename T>
+template<typename T>
 class Optional : public ObjectRef {
  public:
   using ContainerType = typename T::ContainerType;
-  static_assert(std::is_base_of<ObjectRef, T>::value, "Optional is only defined for ObjectRef.");
+  static_assert(std::is_base_of<ObjectRef, T>::value,
+                "Optional is only defined for ObjectRef.");
   // default constructors.
   Optional() = default;
   Optional(const Optional<T>&) = default;
@@ -1487,8 +642,6 @@ class Optional : public ObjectRef {
    * \param ptr
    */
   explicit Optional(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
-  /*! \brief Nullopt handling */
-  Optional(NullOptType) {}  // NOLINT(*)
   // nullptr handling.
   // disallow implicit conversion as 0 can be implicitly converted to nullptr_t
   explicit Optional(std::nullptr_t) {}
@@ -1497,8 +650,9 @@ class Optional : public ObjectRef {
     return *this;
   }
   // normal value handling.
-  Optional(T other)  // NOLINT(*)
-      : ObjectRef(std::move(other)) {}
+  Optional(T other)             // NOLINT(*)
+      : ObjectRef(std::move(other)) {
+  }
   Optional<T>& operator=(T other) {
     ObjectRef::operator=(std::move(other));
     return *this;
@@ -1520,13 +674,20 @@ class Optional : public ObjectRef {
    * \return The contained value if the Optional is not null
    *         otherwise return the default_value.
    */
-  T value_or(T default_value) const { return data_ != nullptr ? T(data_) : default_value; }
-
+  T value_or(T default_value) const {
+    return data_ != nullptr ? T(data_) : default_value;
+  }
   /*! \return Whether the container is not nullptr.*/
-  explicit operator bool() const { return *this != nullptr; }
+  explicit operator bool() const {
+    return *this != nullptr;
+  }
   // operator overloadings
-  bool operator==(std::nullptr_t) const { return data_ == nullptr; }
-  bool operator!=(std::nullptr_t) const { return data_ != nullptr; }
+  bool operator==(std::nullptr_t) const {
+    return data_ == nullptr;
+  }
+  bool operator!=(std::nullptr_t) const {
+    return data_ != nullptr;
+  }
   auto operator==(const Optional<T>& other) const {
     // support case where sub-class returns a symbolic ref type.
     using RetType = decltype(value() == other.value());
@@ -1555,14 +716,16 @@ class Optional : public ObjectRef {
     if (*this != nullptr) return value() == other;
     return RetType(false);
   }
-  auto operator!=(const T& other) const { return !(*this == other); }
-  template <typename U>
+  auto operator!=(const T& other) const {
+    return !(*this == other);
+  }
+  template<typename U>
   auto operator==(const U& other) const {
     using RetType = decltype(value() == other);
     if (*this == nullptr) return RetType(false);
     return value() == other;
   }
-  template <typename U>
+  template<typename U>
   auto operator!=(const U& other) const {
     using RetType = decltype(value() != other);
     if (*this == nullptr) return RetType(true);
@@ -1571,7 +734,7 @@ class Optional : public ObjectRef {
   static constexpr bool _type_is_nullable = true;
 };
 
-template <typename T>
+template<typename T>
 struct PackedFuncValueConverter<Optional<T>> {
   static Optional<T> From(const TVMArgValue& val) {
     if (val.type_code() == kTVMNullptr) return Optional<T>(nullptr);
@@ -1586,9 +749,8 @@ struct PackedFuncValueConverter<Optional<T>> {
 }  // namespace runtime
 
 // expose the functions to the root namespace.
-using runtime::Optional;
 using runtime::String;
-constexpr runtime::NullOptType NullOpt{};
+using runtime::Optional;
 }  // namespace tvm
 
 namespace std {

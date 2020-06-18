@@ -27,11 +27,10 @@
 
 #include <dmlc/registry.h>
 #include <tvm/ir/attrs.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
 #include <tvm/ir/type_relation.h>
-#include <tvm/node/attr_registry_map.h>
-#include <tvm/runtime/registry.h>
 
 #include <string>
 #include <utility>
@@ -40,8 +39,10 @@
 namespace tvm {
 
 // forward declare name.
-template <typename>
-class OpAttrMap;
+template <typename ValueType>
+class OpMap;
+class GenericOpMap;
+class OpRegistry;
 
 // TODO(tvm-team): migrate low-level intrinsics to use Op
 /*!
@@ -58,21 +59,21 @@ class OpAttrMap;
 class OpNode : public RelayExprNode {
  public:
   /*! \brief name of the operator */
-  String name;
+  std::string name;
   /*! \brief the type of the operator */
   mutable FuncType op_type;
   /*!
    * \brief detailed description of the operator
    *  This can be used to generate docstring automatically for the operator.
    */
-  String description;
+  std::string description;
   /* \brief Information of input arguments to the operator */
   Array<AttrFieldInfo> arguments;
   /*!
    * \brief The type key of the attribute field
    *  This can be empty, in which case it defaults to anything.
    */
-  String attrs_type_key;
+  std::string attrs_type_key;
   /*!
    * \brief attribute type index,
    * this field varies in each run and is not exposed to frontend.
@@ -121,22 +122,13 @@ class OpNode : public RelayExprNode {
     return is_primitive_ != 0;
   }
 
-  static constexpr const char* _type_key = "Op";
+  static constexpr const char* _type_key = "relay.Op";
   TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, RelayExprNode);
 
  private:
-  /*! \return the internal attr registry index. */
-  uint32_t AttrRegistryIndex() const { return index_; }
-  /*! \brief repr to be printed in registry*/
-  std::string AttrRegistryName() const { return name; }
-
   // friend class
-  template <typename>
-  friend class AttrRegistryMapContainerMap;
-  template <typename, typename>
-  friend class AttrRegistry;
-  friend class OpRegEntry;
-
+  friend class GenericOpMap;
+  friend class OpRegistry;
   friend bool IsPrimitiveOp(const RelayExpr&);
   // Program internal unique index of operator.
   // Used to help index the program.
@@ -174,26 +166,26 @@ class Op : public RelayExpr {
   inline const OpNode* operator->() const;
   /*!
    * \brief Get additional registered attribute about operators.
-   *  If nothing has been registered, an empty OpAttrMap will be returned.
+   *  If nothing has been registered, an empty OpMap will be returned.
    * \param attr_name The name of the attribute.
-   * \return An OpAttrMap of specified attr_name.
+   * \return An OpMap of specified attr_name.
    * \tparam ValueType The type of the attribute.
    */
   template <typename ValueType>
-  inline static OpAttrMap<ValueType> GetAttrMap(const String& attr_name);
+  inline static OpMap<ValueType> GetAttr(const std::string& attr_name);
   /*!
-   * \brief Checks if an attr map is present in the registry.
+   * \brief Checks if an attr is present in the registry.
    * \param attr_name The name of the attribute.
    * \return bool True if the attr is present.
    */
-  TVM_DLL static bool HasAttrMap(const String& attr_name);
+  inline static bool HasAttr(const std::string& attr_name);
   /*!
    * \brief Get an Op for a given operator name.
    *  Will raise an error if the op has not been registered.
    * \param op_name Name of the operator.
    * \return Pointer to a Op, valid throughout program lifetime.
    */
-  TVM_DLL static const Op& Get(const String& op_name);
+  TVM_DLL static const Op& Get(const std::string& op_name);
 
   /*! \brief specify container node */
   using ContainerType = OpNode;
@@ -202,16 +194,22 @@ class Op : public RelayExpr {
   /*!
    * \brief Get generic attrmap given attr name
    * \param key The attribute key
-   * \return The attr map.
+   * \return reference to GenericOpMap
    */
-  TVM_DLL static const AttrRegistryMapContainerMap<Op>& GetAttrMapContainer(const String& key);
+  TVM_DLL static const GenericOpMap& GetGenericAttr(const std::string& key);
+  /*!
+   * \brief Checks if the key is present in the registry
+   * \param key The attribute key
+   * \return bool True if the key is present
+   */
+  TVM_DLL static bool HasGenericAttr(const std::string& key);
 };
 
 /*!
  * \brief Helper structure to register operators
  * \sa TVM_REGISTER_OP
  */
-class OpRegEntry {
+class OpRegistry {
  public:
   /*! \return the operator */
   const Op& op() const { return op_; }
@@ -221,7 +219,7 @@ class OpRegEntry {
    * \param descr the description string.
    * \return reference to self.
    */
-  inline OpRegEntry& describe(const std::string& descr);  // NOLINT(*)
+  inline OpRegistry& describe(const std::string& descr);  // NOLINT(*)
   /*!
    * \brief Add argument information to the function.
    * \param name Name of the argument.
@@ -229,7 +227,8 @@ class OpRegEntry {
    * \param description Description of the argument.
    * \return reference to self.
    */
-  inline OpRegEntry& add_argument(const std::string& name, const std::string& type,
+  inline OpRegistry& add_argument(const std::string& name,
+                                  const std::string& type,
                                   const std::string& description);
   /*!
    * \brief Attach the type function corresponding to the return type.
@@ -238,29 +237,31 @@ class OpRegEntry {
    * relation on variables.
    * \return reference to self.
    */
-  inline OpRegEntry& add_type_rel(
+  inline OpRegistry& add_type_rel(
       const std::string& rel_name,
-      runtime::TypedPackedFunc<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>
-          type_rel_func);
+      runtime::TypedPackedFunc<bool(const Array<Type>&,
+                                    int,
+                                    const Attrs&,
+                                    const TypeReporter&)> type_rel_func);
   /*!
    * \brief Set the the attrs type key and index to be AttrsType.
    * \tparam AttrsType the attribute type to b set.
    * \return reference to self.
    */
-  template <typename AttrsType>
-  inline OpRegEntry& set_attrs_type();
+  template<typename AttrsType>
+  inline OpRegistry& set_attrs_type();
   /*!
    * \brief Set the num_inputs
    * \param n The number of inputs to be set.
    * \return reference to self.
    */
-  inline OpRegEntry& set_num_inputs(int32_t n);  // NOLINT(*)
+  inline OpRegistry& set_num_inputs(int32_t n);  // NOLINT(*)
   /*!
    * \brief Set the support level of op.
    * \param level The support level.
    * \return reference to self.
    */
-  inline OpRegEntry& set_support_level(int32_t level);  // NOLINT(*)
+  inline OpRegistry& set_support_level(int32_t level);  // NOLINT(*)
   /*!
    * \brief Register additional attributes to operator.
    * \param attr_name The name of the attribute.
@@ -275,7 +276,7 @@ class OpRegEntry {
    * \tparam ValueType The type of the value to be set.
    */
   template <typename ValueType>
-  inline OpRegEntry& set_attr(const std::string& attr_name,  // NOLINT(*)
+  inline OpRegistry& set_attr(const std::string& attr_name,  // NOLINT(*)
                               const ValueType& value, int plevel = 10);
 
   /*!
@@ -285,32 +286,76 @@ class OpRegEntry {
   inline void reset_attr(const std::string& attr_name);
 
   // set the name of the op to be the same as registry
-  inline OpRegEntry& set_name() {  // NOLINT(*)
+  inline OpRegistry& set_name() {  // NOLINT(*)
     if (get()->name.length() == 0) {
       get()->name = name;
     }
     return *this;
   }
-  /*!
-   * \brief Register or get a new entry.
-   * \param name The name of the operator.
-   * \return the corresponding entry.
-   */
-  TVM_DLL static OpRegEntry& RegisterOrGet(const String& name);
+  /*! \return The global single registry */
+  TVM_DLL static ::dmlc::Registry<OpRegistry>* Registry();
 
  private:
-  template <typename, typename>
-  friend class AttrRegistry;
+  friend class ::dmlc::Registry<OpRegistry>;
   // the name
   std::string name;
   /*! \brief The operator */
   Op op_;
   // private constructor
-  TVM_DLL OpRegEntry(uint32_t reg_index);
+  TVM_DLL OpRegistry();
   // return internal pointer to op.
   inline OpNode* get();
-  // update the attribute OpAttrMap
-  TVM_DLL void UpdateAttr(const String& key, runtime::TVMRetValue value, int plevel);
+  // update the attribute OpMap
+  TVM_DLL void UpdateAttr(const std::string& key,
+                          runtime::TVMRetValue value,
+                          int plevel);
+};
+
+/*!
+ * \brief Generic map to store additional information of Op.
+ */
+class GenericOpMap {
+ public:
+  /*!
+   * \brief Check if the map has op as key.
+   * \param op The key to the map
+   * \return 1 if op is contained in map, 0 otherwise.
+   */
+  inline int count(const Op& op) const;
+  /*!
+   * \brief get the corresponding value element at op
+   * \param op The key to the map
+   * \return the const reference to the content value.
+   */
+  inline const runtime::TVMRetValue& operator[](const Op& op) const;
+  /*!
+   * \brief get the corresponding value element at op with default value.
+   * \param op The key to the map
+   * \param def_value The default value when the key does not exist.
+   * \return the const reference to the content value.
+   * \tparam ValueType The content value type.
+   */
+  template <typename ValueType>
+  inline ValueType get(const Op& op, ValueType def_value) const;
+  /*!
+   * \brief get the corresponding value element at op with default value.
+   * \param expr The key to the map
+   * \param def_value The default value when the key does not exist
+   *         or if expr is not an Op.
+   * \return the const reference to the content value.
+   * \tparam ValueType The content value type.
+   */
+  template <typename ValueType>
+  inline ValueType get(const RelayExpr& expr, ValueType def_value) const;
+
+ private:
+  friend class OpRegistry;
+  // the attribute field.
+  std::string attr_name_;
+  // internal data
+  std::vector<std::pair<runtime::TVMRetValue, int> > data_;
+  // The value
+  GenericOpMap() = default;
 };
 
 /*!
@@ -318,8 +363,27 @@ class OpRegEntry {
  * \tparam ValueType The type of the value stored in map.
  */
 template <typename ValueType>
-class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
+class OpMap {
  public:
+  /*!
+   * \brief Check if the map has op as key.
+   * \param op The key to the map
+   * \return 1 if op is contained in map, 0 otherwise.
+   */
+  inline int count(const Op& op) const;
+  /*!
+   * \brief get the corresponding value element at op
+   * \param op The key to the map
+   * \return the const reference to the content value.
+   */
+  inline ValueType operator[](const Op& op) const;
+  /*!
+   * \brief get the corresponding value element at op with default value.
+   * \param op The key to the map
+   * \param def_value The default value when the key does not exist.
+   * \return the const reference to the content value.
+   */
+  inline ValueType get(const Op& op, ValueType def_value) const;
   /*!
    * \brief get the corresponding value element at op with default value.
    * \param expr The key to the map
@@ -329,15 +393,12 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
    */
   inline ValueType get(const RelayExpr& expr, ValueType def_value) const;
 
-  using TParent = AttrRegistryMap<Op, ValueType>;
-  using TParent::count;
-  using TParent::get;
-  using TParent::operator[];
-
  private:
   friend class Op;
   // constructor
-  explicit OpAttrMap(const AttrRegistryMapContainerMap<Op>& map) : TParent(map) {}
+  explicit OpMap(const GenericOpMap& map) : map_(map) {}
+  /*! \brief The internal map field */
+  const GenericOpMap& map_;
 };
 
 #define TVM_STRINGIZE_DETAIL(x) #x
@@ -349,7 +410,8 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
 #define TVM_ADD_FILELINE "\n\nDefined in " __FILE__ ":L" TVM_STRINGIZE(__LINE__)
 
 // internal macros to make
-#define TVM_OP_REGISTER_VAR_DEF static DMLC_ATTRIBUTE_UNUSED ::tvm::OpRegEntry& __make_##Op
+#define TVM_OP_REGISTER_VAR_DEF \
+  static DMLC_ATTRIBUTE_UNUSED ::tvm::OpRegistry& __make_##Op
 
 /*!
  * \def TVM_REGISTER_OP
@@ -366,26 +428,38 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
  *
  * \endcode
  */
-#define TVM_REGISTER_OP(OpName)                          \
-  TVM_STR_CONCAT(TVM_OP_REGISTER_VAR_DEF, __COUNTER__) = \
-      ::tvm::OpRegEntry::RegisterOrGet(OpName).set_name()
+#define TVM_REGISTER_OP(OpName)                                \
+  TVM_STR_CONCAT(TVM_OP_REGISTER_VAR_DEF, __COUNTER__) =       \
+  ::tvm::OpRegistry::Registry()                                \
+          ->__REGISTER_OR_GET__(OpName)                        \
+          .set_name()
 
 // implementations
-inline const OpNode* Op::operator->() const { return static_cast<const OpNode*>(get()); }
-
-template <typename ValueType>
-inline OpAttrMap<ValueType> Op::GetAttrMap(const String& key) {
-  return OpAttrMap<ValueType>(Op::GetAttrMapContainer(key));
+inline const OpNode* Op::operator->() const {
+  return static_cast<const OpNode*>(get());
 }
 
-inline OpNode* OpRegEntry::get() { return const_cast<OpNode*>(op_.operator->()); }
+template <typename ValueType>
+inline OpMap<ValueType> Op::GetAttr(const std::string& key) {
+  return OpMap<ValueType>(Op::GetGenericAttr(key));
+}
 
-inline OpRegEntry& OpRegEntry::describe(const std::string& descr) {  // NOLINT(*)
+inline bool Op::HasAttr(const std::string& key) {
+  return Op::HasGenericAttr(key);
+}
+
+inline OpNode* OpRegistry::get() {
+  return const_cast<OpNode*>(op_.operator->());
+}
+
+inline OpRegistry& OpRegistry::describe(
+    const std::string& descr) {  // NOLINT(*)
   get()->description = descr;
   return *this;
 }
 
-inline OpRegEntry& OpRegEntry::add_argument(const std::string& name, const std::string& type,
+inline OpRegistry& OpRegistry::add_argument(const std::string& name,
+                                            const std::string& type,
                                             const std::string& description) {
   auto n = make_object<AttrFieldInfoNode>();
   n->name = name;
@@ -395,10 +469,12 @@ inline OpRegEntry& OpRegEntry::add_argument(const std::string& name, const std::
   return *this;
 }
 
-inline OpRegEntry& OpRegEntry::add_type_rel(
+inline OpRegistry& OpRegistry::add_type_rel(
     const std::string& rel_name,
-    runtime::TypedPackedFunc<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>
-        type_rel_func) {
+    runtime::TypedPackedFunc<bool(const Array<Type>&,
+                                  int,
+                                  const Attrs&,
+                                  const TypeReporter&)> type_rel_func) {
   auto func_name = std::string("tvm.relay.type_relation.") + rel_name;
   TypeRelationFn env_type_rel_func;
 
@@ -406,7 +482,8 @@ inline OpRegEntry& OpRegEntry::add_type_rel(
     auto env_func = EnvFunc::Get(func_name);
     env_type_rel_func = env_func;
   } else {
-    runtime::Registry::Register(func_name).set_body(type_rel_func.packed());
+    runtime::Registry::Register(func_name)
+        .set_body(type_rel_func.packed());
     auto env_func = EnvFunc::Get(func_name);
     env_type_rel_func = env_func;
   }
@@ -440,34 +517,38 @@ inline OpRegEntry& OpRegEntry::add_type_rel(
   // A common example is sum(x, axis), where the choice of axis
   // can affect the type of the function.
   TypeConstraint type_rel =
-      TypeRelation(env_type_rel_func, ty_call_args, arg_types.size(), Attrs());
+      TypeRelation(env_type_rel_func,
+                             ty_call_args,
+                             arg_types.size(),
+                             Attrs());
 
-  auto func_type = FuncType(arg_types, out_param, type_params, {type_rel});
+  auto func_type =
+      FuncType(arg_types, out_param, type_params, {type_rel});
 
   get()->op_type = func_type;
 
   return *this;
 }
 
-inline OpRegEntry& OpRegEntry::set_num_inputs(int32_t n) {  // NOLINT(*)
+inline OpRegistry& OpRegistry::set_num_inputs(int32_t n) {  // NOLINT(*)
   get()->num_inputs = n;
   return *this;
 }
 
-template <typename AttrsType>
-inline OpRegEntry& OpRegEntry::set_attrs_type() {  // NOLINT(*)
+template<typename AttrsType>
+inline OpRegistry& OpRegistry::set_attrs_type() {  // NOLINT(*)
   get()->attrs_type_key = AttrsType::_type_key;
   get()->attrs_type_index = AttrsType::RuntimeTypeIndex();
   return *this;
 }
 
-inline OpRegEntry& OpRegEntry::set_support_level(int32_t n) {  // NOLINT(*)
+inline OpRegistry& OpRegistry::set_support_level(int32_t n) {  // NOLINT(*)
   get()->support_level = n;
   return *this;
 }
 
 template <typename ValueType>
-inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
+inline OpRegistry& OpRegistry::set_attr(  // NOLINT(*)
     const std::string& attr_name, const ValueType& value, int plevel) {
   CHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
   runtime::TVMRetValue rv;
@@ -476,16 +557,72 @@ inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
   return *this;
 }
 
-// member functions of OpAttrMap
+// member functions of OpMap
+inline int GenericOpMap::count(const Op& op) const {
+  if (op.defined()) {
+    const uint32_t idx = op->index_;
+    return idx < data_.size() ? (data_[idx].second != 0) : 0;
+  } else {
+    return 0;
+  }
+}
+
+inline const runtime::TVMRetValue&
+GenericOpMap::operator[](const Op& op) const {
+  CHECK(op.defined());
+  const uint32_t idx = op->index_;
+  CHECK(idx < data_.size() && data_[idx].second != 0)
+      << "Attribute " << attr_name_ << " has not been registered for Operator "
+      << op->name;
+  return data_[idx].first;
+}
 
 template <typename ValueType>
-inline ValueType OpAttrMap<ValueType>::get(const RelayExpr& expr, ValueType def_value) const {
+inline ValueType GenericOpMap::get(const Op& op, ValueType value) const {
+  CHECK(op.defined());
+  const uint32_t idx = op->index_;
+  if (idx < data_.size() && data_[idx].second != 0) {
+    return data_[idx].first;
+  } else {
+    return value;
+  }
+}
+
+template <typename ValueType>
+inline ValueType GenericOpMap::get(const RelayExpr& expr, ValueType value) const {
   CHECK(expr.defined());
   if (const OpNode* op = expr.as<OpNode>()) {
-    return this->map_.get(GetRef<Op>(op), def_value);
+    const uint32_t idx = op->index_;
+    if (idx < data_.size() && data_[idx].second != 0) {
+      return data_[idx].first;
+    } else {
+      return value;
+    }
   } else {
-    return def_value;
+    return value;
   }
+}
+
+template <typename ValueType>
+inline int OpMap<ValueType>::count(const Op& op) const {
+  return map_.count(op);
+}
+
+template <typename ValueType>
+inline ValueType OpMap<ValueType>::operator[](const Op& op) const {
+  return map_[op];
+}
+
+template <typename ValueType>
+inline ValueType OpMap<ValueType>::get(const Op& op,
+                                       ValueType def_value) const {
+  return map_.get<ValueType>(op, def_value);
+}
+
+template <typename ValueType>
+inline ValueType OpMap<ValueType>::get(const RelayExpr& expr,
+                                       ValueType def_value) const {
+  return map_.get<ValueType>(expr, def_value);
 }
 
 /*!

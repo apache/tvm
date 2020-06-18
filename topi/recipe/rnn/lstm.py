@@ -188,12 +188,10 @@ def lstm():
         print("Time cost=%g" % eval_result.mean)
 
     # set unroll_explicit for more readable code.
-    with tvm.transform.PassContext(config={
-        "tir.UnrollLoop": {
-            "auto_max_step": 128,
-        },
-        "tir.detect_global_barrier": DETECT_GLOBAL_BARRIER
-    }):
+    with tvm.target.build_config(
+            detect_global_barrier=DETECT_GLOBAL_BARRIER,
+            auto_unroll_max_step=128,
+            unroll_explicit=False):
         check_device("cuda")
 
 if __name__ == "__main__":

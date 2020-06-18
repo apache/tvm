@@ -91,7 +91,8 @@ def test_add_pipeline():
         tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-    check_c()
+    with tvm.target.build_config(offset_factor=4):
+        check_c()
 
 
 def test_reinterpret():

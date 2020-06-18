@@ -105,7 +105,7 @@ def test_with_params():
     mod.run()
     res = mod.get_output(0).asnumpy()
     ref_res = np.exp(y_data + x_data)
-    tvm.testing.assert_allclose(res, ref_res, atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(res, ref_res)
 
 
 def test_plan_memory():
@@ -166,7 +166,7 @@ def test_gru_like():
     z = unit(rnn_dim)
 
     for target, ctx in ctx_list():
-        with tvm.transform.PassContext(opt_level=2):
+        with relay.build_config(opt_level=2):
             graph, lib, params = relay.build(tvm.IRModule.from_expr(z), target)
             m = graph_runtime.create(graph, lib, ctx)
             m.set_input("X", tvm.nd.array(x.astype(dtype)))

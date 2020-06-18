@@ -24,13 +24,12 @@
 
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
-#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/support/logging.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
-#include <tvm/support/logging.h>
-
 #include <iostream>
 #include <vector>
 
@@ -45,7 +44,9 @@ inline std::string GenerateName(const Function& func) {
   return std::string("lifted_name") + std::to_string(hash);
 }
 
-bool IsClosure(const Function& func) { return func->GetAttr<Integer>(attr::kClosure, 0) != 0; }
+bool IsClosure(const Function& func) {
+  return func->GetAttr<Integer>(attr::kClosure, 0) != 0;
+}
 
 Function MarkClosure(Function func) {
   return WithAttr(std::move(func), attr::kClosure, tvm::Integer(1));
@@ -84,7 +85,8 @@ class LambdaLifter : public ExprMutator {
       if (!letrec_.empty() && var == letrec_.back()) {
         auto it = lambda_map_.find(var);
         CHECK(it != lambda_map_.end());
-        return Call(it->second, call->args, call_node->attrs, call_node->type_args);
+        return Call(it->second, call->args, call_node->attrs,
+                              call_node->type_args);
       }
     }
     return std::move(call);
@@ -151,15 +153,18 @@ class LambdaLifter : public ExprMutator {
     if (captured_vars.size() == 0 && free_type_vars.size() == 0) {
       lifted_func = Function(body->params, body->body, body->ret_type, body->type_params);
     } else {
-      lifted_func = Function(captured_vars, body, func->func_type_annotation(), free_type_vars);
+      lifted_func =
+          Function(captured_vars, body, func->func_type_annotation(), free_type_vars);
       lifted_func = MarkClosure(lifted_func);
     }
 
     CHECK(lifted_func.defined());
 
+
     if (module_->ContainGlobalVar(name)) {
       const auto existing_func = module_->Lookup(name);
-      CHECK(tvm::StructuralEqual()(lifted_func, existing_func)) << "lifted function hash collision";
+      CHECK(tvm::StructuralEqual()(lifted_func, existing_func))
+        << "lifted function hash collision";
       // If an identical function already exists, use its global var.
       global = module_->GetGlobalVar(name);
     } else {
@@ -187,7 +192,10 @@ class LambdaLifter : public ExprMutator {
       if (auto* n = pair.second.as<FunctionNode>()) {
         if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
         auto func = GetRef<Function>(n);
-        func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
+        func = Function(func->params,
+                        VisitExpr(func->body),
+                        func->ret_type,
+                        func->type_params,
                         func->attrs);
         module_->Add(pair.first, func, true);
       }
@@ -196,7 +204,7 @@ class LambdaLifter : public ExprMutator {
   }
 
  private:
-  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> lambda_map_;
+  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> lambda_map_;
   std::vector<Var> letrec_;
   IRModule module_;
 };
@@ -207,11 +215,14 @@ namespace transform {
 
 Pass LambdaLift() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relay::vm::LambdaLifter(m).Lift(); };
+    [=](IRModule m, PassContext pc) {
+    return relay::vm::LambdaLifter(m).Lift();
+  };
   return CreateModulePass(pass_func, 1, "LambdaLift", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.LambdaLift").set_body_typed(LambdaLift);
+TVM_REGISTER_GLOBAL("relay._transform.LambdaLift")
+.set_body_typed(LambdaLift);
 
 }  // namespace transform
 

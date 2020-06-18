@@ -18,10 +18,9 @@ import tvm
 from tvm import te
 import numpy as np
 
-
 @tvm.register_extension
 class MyTensorView(object):
-    _tvm_tcode = tvm._ffi.runtime_ctypes.ArgTypeCode.DLTENSOR_HANDLE
+    _tvm_tcode = tvm.TypeCode.DLTENSOR_HANDLE
     def __init__(self, arr):
         self.arr = arr
 

@@ -21,12 +21,25 @@ Compile TFLite Models
 
 This article is an introductory tutorial to deploy TFLite models with Relay.
 
-To get started, TFLite package needs to be installed as prerequisite.
+To get started, Flatbuffers and TFLite package needs to be installed as prerequisites.
+A quick solution is to install Flatbuffers via pip
 
 .. code-block:: bash
 
-    # install tflite
-    pip install tflite=2.1.0 --user
+    pip install flatbuffers --user
+
+
+To install TFlite packages, you could use our prebuilt wheel:
+
+.. code-block:: bash
+
+    # For python3:
+    wget https://github.com/FrozenGene/tflite/releases/download/v1.13.1/tflite-1.13.1-py3-none-any.whl
+    pip3 install -U tflite-1.13.1-py3-none-any.whl --user
+
+    # For python2:
+    wget https://github.com/FrozenGene/tflite/releases/download/v1.13.1/tflite-1.13.1-py2-none-any.whl
+    pip install -U tflite-1.13.1-py2-none-any.whl --user
 
 
 or you could generate TFLite package yourself. The steps are the following:
@@ -128,14 +141,14 @@ input_shape = (1, 224, 224, 3)
 input_dtype = "float32"
 
 # Parse TFLite model and convert it to a Relay module
-from tvm import relay, transform
+from tvm import relay
 mod, params = relay.frontend.from_tflite(tflite_model,
                                          shape_dict={input_tensor: input_shape},
                                          dtype_dict={input_tensor: input_dtype})
 
 # Build the module against to x86 CPU
 target = "llvm"
-with transform.PassContext(opt_level=3):
+with relay.build_config(opt_level=3):
     graph, lib, params = relay.build(mod, target, params=params)
 
 ######################################################################

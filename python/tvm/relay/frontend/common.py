@@ -497,15 +497,15 @@ def infer_value(input_val, params, mod=None):
     portion of the relay graph. This is often needed for functions that
     whose output shape depends on the value of a tensor.
     """
-    # Check that all free variables have associated parameters.
-    assert all(var.name_hint in params.keys() for var in analysis.free_vars(
-        input_val)), "All inputs to infer must be available in params."
     try:
         # TODO(kevinthesun): Use VM for all cases.
         # pylint: disable=import-outside-toplevel
         from tvm.contrib import graph_runtime
+        # Check that all free variables have associated parameters.
+        assert all(var.name_hint in params.keys() for var in analysis.free_vars(
+            input_val)), "All inputs to infer must be available in params."
         func = _function.Function(analysis.free_vars(input_val), input_val)
-        with tvm.transform.PassContext(opt_level=0):
+        with tvm.relay.build_config(opt_level=0):
             graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
         ctx = tvm.cpu(0)
         m = graph_runtime.create(graph, lib, ctx)
@@ -520,7 +520,7 @@ def infer_value(input_val, params, mod=None):
         exc = tvm.relay.create_executor("debug", mod=mod, ctx=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod['main'].params:
-            inputs.append(params[param.name_hint])
+            inputs.append(tvm.nd.array(params[param.name_hint]))
         result = exc.evaluate()(*inputs)
         return result
 

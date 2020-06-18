@@ -71,19 +71,22 @@ namespace tir {
  * \tparam FType function signiture
  *  This type if only defined for FType with function signiture R(const Expr&, Args...)
  */
-template <typename FType>
+template<typename FType>
 class ExprFunctor;
 
 // functions to be overriden.
-#define EXPR_FUNCTOR_DEFAULT \
-  { return VisitExprDefault_(op, std::forward<Args>(args)...); }
+#define EXPR_FUNCTOR_DEFAULT {                                      \
+    return VisitExprDefault_(op, std::forward<Args>(args)...);      \
+  }
 
-#define IR_EXPR_FUNCTOR_DISPATCH(OP)                                                       \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \
-    return self->VisitExpr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
-  });
+#define IR_EXPR_FUNCTOR_DISPATCH(OP)                                    \
+  vtable.template set_dispatch<OP>(                                     \
+      [](const ObjectRef& n, TSelf* self, Args... args) {               \
+        return self->VisitExpr_(static_cast<const OP*>(n.get()),        \
+                                std::forward<Args>(args)...);           \
+      });                                                               \
 
-template <typename R, typename... Args>
+template<typename R, typename ...Args>
 class ExprFunctor<R(const PrimExpr& n, Args...)> {
  private:
   using TSelf = ExprFunctor<R(const PrimExpr& n, Args...)>;
@@ -119,7 +122,6 @@ class ExprFunctor<R(const PrimExpr& n, Args...)> {
     return VisitExpr_(static_cast<const VarNode*>(op), std::forward<Args>(args)...);
   }
   virtual R VisitExpr_(const BufferLoadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const ProducerLoadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const LoadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const LetNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const CallNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -150,7 +152,7 @@ class ExprFunctor<R(const PrimExpr& n, Args...)> {
   virtual R VisitExpr_(const IntImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const FloatImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const StringImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExprDefault_(const Object* op, Args...) {
+  virtual R VisitExprDefault_(const Object* op, Args ...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     return R();
   }
@@ -164,7 +166,6 @@ class ExprFunctor<R(const PrimExpr& n, Args...)> {
     IR_EXPR_FUNCTOR_DISPATCH(SizeVarNode);
     IR_EXPR_FUNCTOR_DISPATCH(LoadNode);
     IR_EXPR_FUNCTOR_DISPATCH(BufferLoadNode);
-    IR_EXPR_FUNCTOR_DISPATCH(ProducerLoadNode);
     IR_EXPR_FUNCTOR_DISPATCH(LetNode);
     IR_EXPR_FUNCTOR_DISPATCH(CallNode);
     IR_EXPR_FUNCTOR_DISPATCH(AddNode);
@@ -204,7 +205,8 @@ class ExprFunctor<R(const PrimExpr& n, Args...)> {
 /*!
  * \brief ExprVisitor
  */
-class TVM_DLL ExprVisitor : public ExprFunctor<void(const PrimExpr&)> {
+class TVM_DLL ExprVisitor :
+      public ExprFunctor<void(const PrimExpr&)> {
  public:
   using ExprFunctor::operator();
 
@@ -215,7 +217,6 @@ class TVM_DLL ExprVisitor : public ExprFunctor<void(const PrimExpr&)> {
   void VisitExpr_(const SizeVarNode* op) override;
   void VisitExpr_(const LoadNode* op) override;
   void VisitExpr_(const BufferLoadNode* op) override;
-  void VisitExpr_(const ProducerLoadNode* op) override;
   void VisitExpr_(const LetNode* op) override;
   void VisitExpr_(const CallNode* op) override;
   void VisitExpr_(const AddNode* op) override;
@@ -250,7 +251,8 @@ class TVM_DLL ExprVisitor : public ExprFunctor<void(const PrimExpr&)> {
 /*!
  * \brief ExprMutator that mutates expressions.
  */
-class TVM_DLL ExprMutator : protected ExprFunctor<PrimExpr(const PrimExpr&)> {
+class TVM_DLL ExprMutator :
+      protected ExprFunctor<PrimExpr(const PrimExpr&)> {
  public:
   using ExprFunctor::operator();
 
@@ -261,7 +263,6 @@ class TVM_DLL ExprMutator : protected ExprFunctor<PrimExpr(const PrimExpr&)> {
   PrimExpr VisitExpr_(const SizeVarNode* op) override;
   PrimExpr VisitExpr_(const LoadNode* op) override;
   PrimExpr VisitExpr_(const BufferLoadNode* op) override;
-  PrimExpr VisitExpr_(const ProducerLoadNode* op) override;
   PrimExpr VisitExpr_(const LetNode* op) override;
   PrimExpr VisitExpr_(const CallNode* op) override;
   PrimExpr VisitExpr_(const AddNode* op) override;

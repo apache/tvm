@@ -18,10 +18,9 @@
 import numpy as np
 import tvm._ffi
 
-from tvm.rpc import _ffi_api as _rpc_ffi_api
-from tvm.rpc import base as rpc_base
-from tvm._ffi.base import string_types
-from tvm._ffi.runtime_ctypes import TVMContext
+from .._ffi.base import string_types
+from .._ffi.runtime_ctypes import TVMContext
+from ..rpc import base as rpc_base
 
 
 def create(graph_json_str, libmod, ctx):
@@ -100,7 +99,7 @@ def get_device_ctx(libmod, ctx):
         device_type = cur_ctx.device_type
         if device_type >= rpc_base.RPC_SESS_MASK:
             assert libmod.type_key == "rpc"
-            assert _rpc_ffi_api.SessTableIndex(
+            assert rpc_base._SessTableIndex(
                 libmod) == cur_ctx._rpc_sess._tbl_index
             num_rpc_ctx += 1
             device_type = cur_ctx.device_type % rpc_base.RPC_SESS_MASK

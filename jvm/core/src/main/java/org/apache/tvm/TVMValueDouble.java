@@ -21,7 +21,7 @@ public class TVMValueDouble extends TVMValue {
   public final double value;
 
   public TVMValueDouble(double value) {
-    super(ArgTypeCode.FLOAT);
+    super(TypeCode.FLOAT);
     this.value = value;
   }
 

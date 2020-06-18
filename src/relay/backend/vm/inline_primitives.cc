@@ -24,10 +24,9 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/support/logging.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
-#include <tvm/support/logging.h>
-
 #include <iostream>
 #include <vector>
 
@@ -54,7 +53,7 @@ namespace vm {
  */
 struct PrimitiveInliner : ExprMutator {
   IRModule module_;
-  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> var_map;
+  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> var_map;
 
   explicit PrimitiveInliner(const IRModule& module) : module_(module) {}
 
@@ -126,13 +125,18 @@ struct PrimitiveInliner : ExprMutator {
         if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
         auto func = GetRef<Function>(n);
 
-        DLOG(INFO) << "Before inlining primitives: " << global << std::endl << AsText(func, false);
+        DLOG(INFO) << "Before inlining primitives: " << global
+                   << std::endl << AsText(func, false);
 
-        func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
+        func = Function(func->params,
+                        VisitExpr(func->body),
+                        func->ret_type,
+                        func->type_params,
                         func->attrs);
         module_->Add(global, func, true);
 
-        DLOG(INFO) << "After inlining primitives: " << global << std::endl << AsText(func, false);
+        DLOG(INFO) << "After inlining primitives: " << global
+                   << std::endl << AsText(func, false);
       }
     }
     return module_;
@@ -145,13 +149,16 @@ namespace transform {
 
 Pass InlinePrimitives() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relay::vm::PrimitiveInliner(m).Inline(); };
+    [=](IRModule m, PassContext pc) {
+      return relay::vm::PrimitiveInliner(m).Inline();
+  };
   auto inline_pass = CreateModulePass(pass_func, 1, "Inline", {});
   // Eliminate dead code for each function after inlining.
   return Sequential({inline_pass, DeadCodeElimination()}, "InlinePrimitives");
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.InlinePrimitives").set_body_typed(InlinePrimitives);
+TVM_REGISTER_GLOBAL("relay._transform.InlinePrimitives")
+.set_body_typed(InlinePrimitives);
 
 }  // namespace transform
 

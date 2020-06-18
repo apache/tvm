@@ -27,14 +27,13 @@
 
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
+#include <tvm/runtime/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relay/op_strategy.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/module.h>
-
-#include <functional>
+#include <tvm/relay/op_strategy.h>
 #include <string>
+#include <functional>
 
 namespace tvm {
 namespace relay {
@@ -82,7 +81,7 @@ struct CachedFuncNode : public Object {
   /*! \brief The schedule to the function */
   te::Schedule schedule;
   /*! \brief The lowered functions to support the function. */
-  IRModule funcs = IRModule();
+  IRModule funcs = IRModule::Empty();
 
   /*! \brief Parameter usage states in the shape function. */
   tvm::Array<Integer> shape_func_param_states;
@@ -151,7 +150,9 @@ class CCacheKey : public ObjectRef {
    */
   TVM_DLL CCacheKey(Function source_func, Target target);
 
-  const CCacheKeyNode* operator->() const { return static_cast<const CCacheKeyNode*>(get()); }
+  const CCacheKeyNode* operator->() const {
+    return static_cast<const CCacheKeyNode*>(get());
+  }
   // comparator
   inline bool operator==(const CCacheKey& other) const {
     CHECK(defined() && other.defined());
@@ -183,8 +184,12 @@ class CCacheValue : public ObjectRef {
  public:
   CCacheValue() {}
   explicit CCacheValue(ObjectPtr<Object> n) : ObjectRef(n) {}
-  CCacheValueNode* operator->() { return static_cast<CCacheValueNode*>(get_mutable()); }
-  const CCacheValueNode* operator->() const { return static_cast<const CCacheValueNode*>(get()); }
+  CCacheValueNode* operator->() {
+    return static_cast<CCacheValueNode*>(get_mutable());
+  }
+  const CCacheValueNode* operator->() const {
+    return static_cast<const CCacheValueNode*>(get());
+  }
   using ContainerType = CCacheValueNode;
 };
 
@@ -235,7 +240,9 @@ class CompileEngine : public ObjectRef {
  public:
   CompileEngine() {}
   explicit CompileEngine(ObjectPtr<Object> n) : ObjectRef(n) {}
-  CompileEngineNode* operator->() { return static_cast<CompileEngineNode*>(get_mutable()); }
+  CompileEngineNode* operator->() {
+    return static_cast<CompileEngineNode*>(get_mutable());
+  }
   using ContainerType = CompileEngineNode;
   /*! \brief The global compile engine. */
   TVM_DLL static const CompileEngine& Global();
@@ -253,15 +260,17 @@ inline size_t CCacheKeyNode::Hash() const {
   if (hash_ != 0) return hash_;
   // do structral hash, avoid 0.
   hash_ = tvm::StructuralHash()(this->source_func);
-  hash_ = dmlc::HashCombine(hash_, std::hash<std::string>()(target->str()));
+  hash_ = dmlc::HashCombine(
+      hash_, std::hash<std::string>()(target->str()));
   if (hash_ == 0) hash_ = 1;
   return hash_;
 }
 
-inline bool CCacheKeyNode::Equal(const CCacheKeyNode* other) const {
+inline bool CCacheKeyNode::Equal(
+    const CCacheKeyNode* other) const {
   if (Hash() != other->Hash()) return false;
   return this->target->str() == other->target->str() &&
-         tvm::StructuralEqual()(this->source_func, other->source_func);
+      tvm::StructuralEqual()(this->source_func, other->source_func);
 }
 
 }  // namespace relay
@@ -269,7 +278,7 @@ inline bool CCacheKeyNode::Equal(const CCacheKeyNode* other) const {
 
 namespace std {
 // overload hash
-template <>
+template<>
 struct hash<::tvm::relay::CCacheKey> {
   size_t operator()(const ::tvm::relay::CCacheKey& key) const {
     CHECK(key.defined());

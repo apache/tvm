@@ -14,14 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
 from tvm import relay
 from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 def test_op_attr():
     log_op = relay.op.get("log")
 
-    @tvm.ir.register_op_attr("exp", "ftest")
+    @relay.op.register("exp", "ftest")
     def test(x):
         return x + 1
 
@@ -38,9 +37,9 @@ def test_op_reset_attr():
         return x + 2
 
     # Register fadd1 and fadd2 attributes.
-    tvm.ir.register_op_attr("exp", "fadd1", add1)
-    tvm.ir.register_op_attr("log", "fadd1", add1)
-    tvm.ir.register_op_attr("log", "fadd2", add2)
+    relay.op.register("exp", "fadd1", add1)
+    relay.op.register("log", "fadd1", add1)
+    relay.op.register("log", "fadd2", add2)
 
     # Reset log fadd1 attr.
     log_op = relay.op.get("log")
@@ -64,7 +63,7 @@ def test_op_temp_attr():
         return x + 2
 
     # Set original attr value is add1.
-    tvm.ir.register_op_attr("sqrt", "ftest", add1)
+    relay.op.register("sqrt", "ftest", add1)
 
     with TempOpAttr("sqrt", "ftest", add2):
         # Check that the attr value is updated to add2.

@@ -30,7 +30,7 @@ def sparse_dense(data, weight_data, weight_indices, weight_indptr):
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    x : tvm.te.Tensor
         2-D with shape [M, K], float32
 
     weight_data : tvm.te.Tensor

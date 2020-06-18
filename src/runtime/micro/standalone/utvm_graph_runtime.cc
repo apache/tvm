@@ -20,10 +20,8 @@
 #include "utvm_graph_runtime.h"
 
 #include <dlfcn.h>
-
 #include <cassert>
 #include <string>
-
 #include "picojson.h"
 
 namespace tvm {
@@ -327,7 +325,7 @@ std::function<void()> CreateTVMOp(const DSOModule& module, const TVMOpParam& par
   } TVMValue;
   /*typedef*/ enum {
     kTVMDLTensorHandle = 7U,
-  } /*TVMArgTypeCode*/;
+  } /*TVMTypeCode*/;
   struct OpArgs {
     DynArray<DLTensor> args;
     DynArray<TVMValue> arg_values;

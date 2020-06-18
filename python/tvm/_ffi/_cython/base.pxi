@@ -22,7 +22,7 @@ from cpython cimport pycapsule
 from libc.stdint cimport int32_t, int64_t, uint64_t, uint32_t, uint8_t, uint16_t
 import ctypes
 
-cdef enum TVMArgTypeCode:
+cdef enum TVMTypeCode:
     kInt = 0
     kUInt = 1
     kFloat = 2

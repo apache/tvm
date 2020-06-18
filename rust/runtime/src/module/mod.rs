@@ -44,17 +44,9 @@ fn wrap_backend_packed_func(func_name: String, func: BackendPackedCFunc) -> Box<
                 (val, code as i32)
             })
             .unzip();
-        let ret: TVMRetValue = TVMRetValue::default();
-        let (mut ret_val, mut ret_type_code) = ret.to_tvm_value();
-        let exit_code = func(
-            values.as_ptr(),
-            type_codes.as_ptr(),
-            values.len() as i32,
-            &mut ret_val,
-            &mut ret_type_code,
-        );
+        let exit_code = func(values.as_ptr(), type_codes.as_ptr(), values.len() as i32);
         if exit_code == 0 {
-            Ok(TVMRetValue::from_tvm_value(ret_val, ret_type_code))
+            Ok(TVMRetValue::default())
         } else {
             Err(tvm_common::errors::FuncCallError::get_with_context(
                 func_name.clone(),

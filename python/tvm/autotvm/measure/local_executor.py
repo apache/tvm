@@ -145,7 +145,7 @@ class LocalExecutor(executor.Executor):
         if not self.do_fork:
             return LocalFutureNoFork(func(*args, **kwargs))
 
-        queue = Queue(2)  # Size of 2 to avoid a race condition with size 1.
+        queue = Queue(2)
         process = Process(target=call_with_timeout,
                           args=(queue, self.timeout, func, args, kwargs))
         process.start()

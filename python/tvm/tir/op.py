@@ -30,9 +30,9 @@ def _pack_buffer(buf):
     """
     assert buf.shape
     shape = Call("handle", "tvm_stack_make_shape", buf.shape,
-                 Call.Intrinsic)
+                 Call.Intrinsic, None, 0)
     strides = Call("handle", "tvm_stack_make_shape", buf.strides,
-                   Call.Intrinsic) if buf.strides else 0
+                   Call.Intrinsic, None, 0) if buf.strides else 0
     pack_args = [buf.data,
                  shape,
                  strides,
@@ -40,7 +40,7 @@ def _pack_buffer(buf):
                  const(0, dtype=buf.dtype),
                  buf.elem_offset]
     return Call("handle", "tvm_stack_make_array",
-                pack_args, Call.Intrinsic)
+                pack_args, Call.Intrinsic, None, 0)
 
 def call_packed(*args):
     """Build expression by call an external packed function.
@@ -68,7 +68,7 @@ def call_packed(*args):
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
     return Call(
-        "int32", "tvm_call_packed", call_args, Call.Intrinsic)
+        "int32", "tvm_call_packed", call_args, Call.Intrinsic, None, 0)
 
 
 def call_pure_intrin(dtype, func_name, *args):
@@ -95,7 +95,7 @@ def call_pure_intrin(dtype, func_name, *args):
     """
     args = convert(args)
     return Call(
-        dtype, func_name, convert(args), Call.PureIntrinsic)
+        dtype, func_name, convert(args), Call.PureIntrinsic, None, 0)
 
 
 def call_intrin(dtype, func_name, *args):
@@ -122,7 +122,7 @@ def call_intrin(dtype, func_name, *args):
     """
     args = convert(args)
     return Call(
-        dtype, func_name, convert(args), Call.Intrinsic)
+        dtype, func_name, convert(args), Call.Intrinsic, None, 0)
 
 
 def call_pure_extern(dtype, func_name, *args):
@@ -145,7 +145,7 @@ def call_pure_extern(dtype, func_name, *args):
         The call expression.
     """
     return Call(
-        dtype, func_name, convert(args), Call.PureExtern)
+        dtype, func_name, convert(args), Call.PureExtern, None, 0)
 
 
 def call_extern(dtype, func_name, *args):
@@ -168,7 +168,7 @@ def call_extern(dtype, func_name, *args):
         The call expression.
     """
     return Call(
-        dtype, func_name, convert(args), Call.Extern)
+        dtype, func_name, convert(args), Call.Extern, None, 0)
 
 
 def call_llvm_intrin(dtype, name, *args):
@@ -278,7 +278,7 @@ def trace(args, trace_action="tvm.default_trace_action"):
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
     call_args.insert(0, trace_action)
     return tvm.tir.Call(
-        args[-1].dtype, "tvm_call_trace_packed", call_args, tvm.tir.Call.Intrinsic)
+        args[-1].dtype, "tvm_call_trace_packed", call_args, tvm.tir.Call.Intrinsic, None, 0)
 
 
 
@@ -522,38 +522,6 @@ def cosh(x):
     return call_pure_intrin(x.dtype, "cosh", x)
 
 
-def acos(x):
-    """Take acos of input x.
-
-    Parameters
-    ----------
-    x : PrimExpr
-        Input argument.
-
-    Returns
-    -------
-    y : PrimExpr
-        The result.
-    """
-    return call_pure_intrin(x.dtype, "acos", x)
-
-
-def acosh(x):
-    """Take acos of input x.
-
-    Parameters
-    ----------
-    x : PrimExpr
-        Input argument.
-
-    Returns
-    -------
-    y : PrimExpr
-        The result.
-    """
-    return call_pure_intrin(x.dtype, "acosh", x)
-
-
 def sin(x):
     """Take sin of input x.
 
@@ -571,7 +539,7 @@ def sin(x):
 
 
 def sinh(x):
-    """Take sinh of input x.
+    """Take sin of input x.
 
     Parameters
     ----------
@@ -584,38 +552,6 @@ def sinh(x):
         The result.
     """
     return call_pure_intrin(x.dtype, "sinh", x)
-
-
-def asin(x):
-    """Take asin of input x.
-
-    Parameters
-    ----------
-    x : PrimExpr
-        Input argument.
-
-    Returns
-    -------
-    y : PrimExpr
-        The result.
-    """
-    return call_pure_intrin(x.dtype, "asin", x)
-
-
-def asinh(x):
-    """Take asinh of input x.
-
-    Parameters
-    ----------
-    x : PrimExpr
-        Input argument.
-
-    Returns
-    -------
-    y : PrimExpr
-        The result.
-    """
-    return call_pure_intrin(x.dtype, "asinh", x)
 
 
 def atan(x):
@@ -632,22 +568,6 @@ def atan(x):
         The result.
     """
     return call_pure_intrin(x.dtype, "atan", x)
-
-
-def atanh(x):
-    """Take atanh of input x.
-
-    Parameters
-    ----------
-    x : PrimExpr
-        Input argument.
-
-    Returns
-    -------
-    y : PrimExpr
-        The result.
-    """
-    return call_pure_intrin(x.dtype, "atanh", x)
 
 
 def atan2(x1, x2):

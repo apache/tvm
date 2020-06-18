@@ -22,39 +22,38 @@
  * \brief Property def of nn operators.
  */
 
-#include <topi/elemwise.h>
-#include <tvm/relay/attrs/debug.h>
-#include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
-
+#include <tvm/relay/op.h>
+#include <tvm/relay/attrs/debug.h>
+#include <topi/elemwise.h>
 #include <vector>
-
-#include "./op_common.h"
 #include "./type_relations.h"
+#include "./op_common.h"
 
 namespace tvm {
 namespace relay {
 
 TVM_REGISTER_NODE_TYPE(DebugAttrs);
 
-Array<te::Tensor> DebugCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+Array<te::Tensor> DebugCompute(const Attrs& attrs,
+                               const Array<te::Tensor>& inputs,
                                const Type& out_type) {
-  return Array<te::Tensor>{topi::identity(inputs[0])};
+  return Array<te::Tensor>{ topi::identity(inputs[0]) };
 }
 
 RELAY_REGISTER_OP("debug")
-    .describe(R"code(Enter the interpreter's debugger.
+.describe(R"code(Enter the interpreter's debugger.
 
 )code" TVM_ADD_FILELINE)
-    .set_num_inputs(1)
-    .add_argument("program", "Tuple", "The program to execute before debugging.")
-    .set_support_level(1)
-    .set_attrs_type<DebugAttrs>()
-    .add_type_rel("Debug", IdentityRel)
-    .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<FTVMCompute>("FTVMCompute", DebugCompute);
+.set_num_inputs(1)
+.add_argument("program", "Tuple", "The program to execute before debugging.")
+.set_support_level(1)
+.set_attrs_type<DebugAttrs>()
+.add_type_rel("Debug", IdentityRel)
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
+.set_attr<FTVMCompute>("FTVMCompute", DebugCompute);
 
-Expr MakeDebug(Expr expr, String name) {
+Expr MakeDebug(Expr expr, std::string name) {
   auto dattrs = make_object<DebugAttrs>();
   if (name.size() > 0) {
     dattrs->debug_func = EnvFunc::Get(name);
@@ -65,7 +64,9 @@ Expr MakeDebug(Expr expr, String name) {
   return Call(op, {expr}, Attrs(dattrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.debug").set_body_typed(MakeDebug);
+TVM_REGISTER_GLOBAL("relay.op._make.debug")
+.set_body_typed(MakeDebug);
 
 }  // namespace relay
 }  // namespace tvm
+

@@ -101,10 +101,10 @@ def proposal(cls_prob,
         [im_height, im_width, im_scale]
 
     scales : list/tuple of float
-        Scales of anchor windows.
+        Scales of anchor windoes.
 
     ratios : list/tuple of float
-        Ratios of anchor windows.
+        Ratios of anchor windoes.
 
     feature_stride : int
         The size of the receptive field each unit in the convolution layer of the rpn, for example

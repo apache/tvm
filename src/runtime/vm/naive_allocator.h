@@ -24,7 +24,6 @@
 #define TVM_RUNTIME_VM_NAIVE_ALLOCATOR_H_
 
 #include <tvm/runtime/device_api.h>
-
 #include <atomic>
 
 #include "memory_manager.h"
@@ -53,7 +52,9 @@ class NaiveAllocator final : public Allocator {
     DLOG(INFO) << "free " << buffer.size << " B, used memory " << used_memory_ << " B";
   }
 
-  size_t UsedMemory() const override { return used_memory_.load(std::memory_order_relaxed); }
+  size_t UsedMemory() const override {
+    return used_memory_.load(std::memory_order_relaxed);
+  }
 
  private:
   std::atomic<size_t> used_memory_;

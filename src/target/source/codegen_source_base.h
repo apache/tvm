@@ -24,15 +24,13 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 #define TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 
-#include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
-
-#include <functional>
+#include <tvm/target/codegen.h>
 #include <string>
-#include <unordered_map>
 #include <vector>
-
+#include <functional>
+#include <unordered_map>
 #include "../../runtime/meta_data.h"
 
 namespace tvm {
@@ -105,7 +103,8 @@ class CodeGenSourceBase {
    * \param src The source expression.
    * \param t The type of target.
    */
-  virtual void PrintSSAAssign(const std::string& target, const std::string& src, DataType t) = 0;
+  virtual void PrintSSAAssign(
+      const std::string& target, const std::string& src, DataType t) = 0;
 
   /*! \brief the declaration stream */
   std::ostringstream decl_stream;
@@ -148,8 +147,11 @@ runtime::Module CSourceModuleCreate(std::string code, std::string fmt);
  * \param fget_source a closure to replace default get source behavior.
  */
 runtime::Module DeviceSourceModuleCreate(
-    std::string data, std::string fmt, std::unordered_map<std::string, runtime::FunctionInfo> fmap,
-    std::string type_key, std::function<std::string(const std::string&)> fget_source = nullptr);
+  std::string data,
+  std::string fmt,
+  std::unordered_map<std::string, runtime::FunctionInfo> fmap,
+  std::string type_key,
+  std::function<std::string(const std::string&)> fget_source = nullptr);
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_

@@ -26,6 +26,4 @@ upload and run remote RPC server, get the result back to verify correctness.
 """
 
 from .server import Server
-from .client import connect, connect_tracker
-from .client import RPCSession, LocalSession, PopenSession, TrackerSession
-from .minrpc import with_minrpc
+from .client import RPCSession, LocalSession, TrackerSession, connect, connect_tracker

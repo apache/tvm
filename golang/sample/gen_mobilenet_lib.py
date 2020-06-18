@@ -16,8 +16,9 @@
 # under the License.
 
 import os
-from tvm import relay, transform
+from tvm import relay
 from tvm.contrib.download import download_testdata
+import tflite.Model
 
 
 ################################################
@@ -48,12 +49,7 @@ model_file = os.path.join(model_dir, "mobilenet_v2_1.4_224.tflite")
 
 # get TFLite model from buffer
 tflite_model_buf = open(model_file, "rb").read()
-try:
-    import tflite
-    tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
-except AttributeError:
-    import tflite.Model
-    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
 
 
 ##############################
@@ -77,7 +73,7 @@ mod, params = relay.frontend.from_tflite(tflite_model,
 target = 'llvm'
 
 # Build with Relay
-with transform.PassContext(opt_level=3):
+with relay.build_config(opt_level=3):
     graph, lib, params = relay.build_module.build(
         mod, target, params=params)
 

@@ -27,7 +27,6 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/runtime/data_type.h>
 
 #include "../../transforms/infer_layout_util.h"
 #include "../op_common.h"
@@ -92,7 +91,7 @@ RELAY_REGISTER_OP("memory.alloc_storage")
                            });
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor")
-    .set_body_typed([](Expr storage, Expr offset, tvm::relay::Expr shape, DataType dtype,
+    .set_body_typed([](Expr storage, tvm::relay::Expr shape, DataType dtype,
                        Array<IndexExpr> assert_shape) {
       auto attrs = make_object<AllocTensorAttrs>();
       attrs->dtype = dtype;
@@ -102,27 +101,27 @@ TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor")
         attrs->const_shape = Downcast<Constant>(shape);
       }
       static const Op& op = Op::Get("memory.alloc_tensor");
-      return Call(op, {storage, offset, shape}, Attrs(attrs), {});
+      return Call(op, {storage, shape}, Attrs(attrs), {});
     });
 
 std::vector<int64_t> FromConstShape(Constant konst) {
   runtime::NDArray shape = konst->data;
   std::vector<int64_t> raw_shape;
-  CHECK_EQ(shape->ndim, 1u);
-  CHECK_EQ(shape->dtype.code, 0U) << "The dtype of constant shape must be int32 or int64, but got "
-                                  << runtime::DLDataType2String(shape->dtype);
-  CHECK(shape->dtype.bits == 64 || shape->dtype.bits == 32)
-      << "The dtype of constant shape must be int32 or int64, but got"
-      << runtime::DLDataType2String(shape->dtype);
+  DLTensor tensor = shape.ToDLPack()->dl_tensor;
+  CHECK_EQ(tensor.ndim, 1u);
+  CHECK_EQ(tensor.dtype.code, 0U) << "found " << tensor.dtype.code;
 
-  if (shape->dtype.bits == 32) {
-    const int32_t* int_ptr = reinterpret_cast<int32_t*>(shape->data);
-    for (auto i = 0; i < shape->shape[0]; i++) {
+  CHECK(tensor.dtype.bits == 64 || tensor.dtype.bits == 32)
+      << "found " << static_cast<int>(tensor.dtype.bits);
+
+  if (tensor.dtype.bits == 32) {
+    const int32_t* int_ptr = reinterpret_cast<int32_t*>(tensor.data);
+    for (auto i = 0; i < tensor.shape[0]; i++) {
       raw_shape.push_back(int_ptr[i]);
     }
-  } else if (shape->dtype.bits == 64) {
-    const int64_t* int_ptr = reinterpret_cast<int64_t*>(shape->data);
-    for (auto i = 0; i < shape->shape[0]; i++) {
+  } else if (tensor.dtype.bits == 64) {
+    const int64_t* int_ptr = reinterpret_cast<int64_t*>(tensor.data);
+    for (auto i = 0; i < tensor.shape[0]; i++) {
       raw_shape.push_back(int_ptr[i]);
     }
   }
@@ -132,7 +131,7 @@ std::vector<int64_t> FromConstShape(Constant konst) {
 
 bool AllocTensorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 4u);
+  CHECK_EQ(types.size(), 3u);
   auto alloc_attrs = attrs.as<AllocTensorAttrs>();
   CHECK(alloc_attrs != nullptr) << "must be alloc_tensor attributes";
   // First argument should be storage.
@@ -141,28 +140,18 @@ bool AllocTensorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   auto storage_name = mod->GetGlobalTypeVar("Storage");
   auto storage = relay::TypeCall(storage_name, {});
   reporter->Assign(types[0], storage);
-  // Second argument should be the offset.
-  auto offset_type = types[1].as<TensorTypeNode>();
-  CHECK(offset_type != nullptr) << "must be a scalar type";
-
-  // Third argument should be shape tensor.
-  auto tt = types[2].as<TensorTypeNode>();
+  // Second argument should be shape tensor.
+  auto tt = types[1].as<TensorTypeNode>();
   CHECK(tt != nullptr) << "must be tensor type";
-
-  // Be careful about having to allocate scalars.
-  int64_t dims = 0;
-  if (tt->shape.size() != 0) {
-    auto rank = tt->shape[0].as<tvm::IntImmNode>();
-    CHECK(rank != nullptr);
-    dims = rank->value;
-  }
+  auto rank = tt->shape[0].as<tvm::IntImmNode>();
+  CHECK(rank != nullptr);
+  auto dims = rank->value;
 
   // Constant node case.
   Type alloc_type;
   if (alloc_attrs->const_shape.defined()) {
     auto con = alloc_attrs->const_shape;
     auto sh = FromConstShape(con);
-    CHECK_EQ(sh.size(), dims);
     Array<IndexExpr> out_shape;
     for (auto i = 0u; i < dims; i++) {
       out_shape.push_back(tvm::Integer(sh[i]));
@@ -175,15 +164,14 @@ bool AllocTensorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     return true;
   }
 
-  reporter->Assign(types[3], alloc_type);
+  reporter->Assign(types[2], alloc_type);
   return true;
 }
 
 RELAY_REGISTER_OP("memory.alloc_tensor")
     .describe(R"code(Explicitly allocate storage to be used by tensors.)code" TVM_ADD_FILELINE)
-    .set_num_inputs(3)
+    .set_num_inputs(2)
     .add_argument("storage", "Storage", "The storage to allocate from.")
-    .add_argument("offset", "Tensor", "The offset into the backing storage.")
     .add_argument("shape", "Tensor", "The shape of the tensor to allocate.")
     .add_type_rel("AllocTensor", AllocTensorRel)
     .set_support_level(10)
@@ -341,12 +329,14 @@ Expr ToTupleType(const Type& t, const std::vector<Expr>& exprs) {
   }
 }
 
-TVM_REGISTER_GLOBAL("relay.op.memory._make.FlattenTupleType").set_body_typed([](Type type) {
+TVM_REGISTER_GLOBAL("relay.op.memory._make.FlattenTupleType")
+.set_body_typed([](Type type) {
   auto types = FlattenTupleType(type);
   return Array<Type>(types.begin(), types.end());
 });
 
-TVM_REGISTER_GLOBAL("relay.op.memory._make.FromTupleType").set_body_typed([](Type type, Expr expr) {
+TVM_REGISTER_GLOBAL("relay.op.memory._make.FromTupleType")
+.set_body_typed([](Type type, Expr expr) {
   auto exprs = FromTupleType(type, expr);
   return Array<Expr>(exprs.begin(), exprs.end());
 });
@@ -368,23 +358,12 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   auto tuple = TupleType(func_type->arg_types);
   auto in_types = FlattenTupleType(tuple);
   auto out_types = FlattenTupleType(func_type->ret_type);
-  Array<Integer> is_input;
-  for (size_t i = 0; i < func_type->arg_types.size(); ++i) {
-    auto const& aty = func_type->arg_types[i];
-    size_t num_types = 1;
-    if (aty.as<TupleTypeNode>()) {
-      num_types = FlattenTupleType(aty).size();
-    }
-    for (size_t j = 0; j < num_types; ++j) {
-      is_input.push_back(shape_func_attrs->is_input[i]);
-    }
-  }
 
   Array<Type> shape_func_ins, shape_func_outs;
   for (size_t i = 0; i < in_types.size(); i++) {
     auto in_type = in_types[i];
 
-    if (is_input[i]) {
+    if (shape_func_attrs->is_input[i]) {
       shape_func_ins.push_back(in_type);
     } else {
       auto shape = RankShape(in_type->shape);
