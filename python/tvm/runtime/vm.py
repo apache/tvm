@@ -106,7 +106,7 @@ class Executable(object):
 
             import numpy as np
             import tvm
-from tvm import te
+            from tvm import te
             from tvm import relay
             # define a simple network.
             x = relay.var('x', shape=(10, 10))
@@ -309,12 +309,17 @@ class VirtualMachine(object):
             Named arguments to the function.
         """
         if kwargs:
+            # kwargs is a super set of the required function parameters. We
+            # only find the ones that are needed.
             func_params = self._exec.get_function_params(func_name)
             new_args = [None] * len(func_params)
-            assert len(args) + len(kwargs) == len(func_params)
+            cnt = 0
             for k in kwargs:
-                idx = func_params.index(k)
-                new_args[idx] = kwargs[k]
+                if k in func_params:
+                    idx = func_params.index(k)
+                    new_args[idx] = kwargs[k]
+                    cnt += 1
+            assert len(args) + cnt == len(func_params)
             idx = 0
             for i, arg in enumerate(new_args):
                 if arg is None:

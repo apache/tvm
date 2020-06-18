@@ -165,33 +165,27 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 
   std::vector<Output> VisitExpr_(const ConstantNode* cn) final {
     Output output;
-    output.name = "const_" + std::to_string(const_idx_++);
+    // Get const: static_cast<float*>(dnnl_0_consts[0]->data)
+    output.name = CreateDataReference(ext_func_id_, const_idx_);
     output.dtype = "float";
 
-    runtime::NDArray array = cn->data;
+    // Generate the global variable for needed ndarrays
+    if (const_array_name_.empty()) {
+      const_array_name_ = CreateNDArrayPool(ext_func_id_);
+      std::string checker = CreateInitChecker(ext_func_id_);
+      ext_func_body_.insert(ext_func_body_.begin(), checker);
+    }
 
-    // Get the number of elements.
-    int64_t num_elems = 1;
-    for (auto i : array.Shape()) num_elems *= i;
+    // Give the ndarray a unique name to ease the initialization of it at
+    // runtime.
+    std::string const_var_name = CreateConstVar(ext_func_id_, const_idx_);
+    const_vars_.push_back(const_var_name);
+    const_idx_++;
 
     const auto* type_node = cn->checked_type().as<TensorTypeNode>();
     CHECK(type_node);
     CHECK_EQ(GetDtypeString(type_node), "float") << "Only float is supported for now.";
 
-    std::ostringstream buf_stream;
-    const float* ptr = static_cast<float*>(array->data);
-
-    // Allocate large arrays on the static section to avoid stakc overflow.
-    // Note that this would probably increase compilation time as the source
-    // file could be really large.
-    buf_stream << "static float " << output.name << "[" << num_elems << "] = {";
-    for (int64_t i = 0; i < num_elems - 1; i++) {
-      buf_stream << ptr[i] << ",";
-    }
-    if (num_elems > 0) buf_stream << ptr[num_elems - 1];
-    buf_stream << "};\n";
-
-    ext_func_body.insert(ext_func_body.begin(), buf_stream.str());
     return {output};
   }
 
@@ -204,12 +198,12 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     }
 
     buf_decl_.insert(buf_decl_.end(), ret.buffers.begin(), ret.buffers.end());
-    ext_func_body.push_back(ret.decl);
+    ext_func_body_.push_back(ret.decl);
     return ret.outputs;
   }
 
   std::string JIT(const std::vector<Output>& out) {
-    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out);
+    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body_, const_array_name_, out);
   }
 
  private:
@@ -341,10 +335,16 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
   int const_idx_{0};
   /*! \brief The arguments used by a wrapped function that calls DNNL kernels. */
   Array<Var> ext_func_args_;
-  /*! \brief statement of the function that will be compiled using DNNL kernels. */
-  std::vector<std::string> ext_func_body;
+  /*! \brief Statement of the function that will be compiled using DNNL kernels. */
+  std::vector<std::string> ext_func_body_;
+  /*! \brief The array declared to store the constant values. */
+  std::string const_array_name_;
   /*! \brief The declaration of intermeidate buffers. */
   std::vector<std::string> buf_decl_;
+  /*! \brief The variable name to constant mapping. */
+  Array<String> const_vars_;
+
+  friend class DNNLModuleCodegen;
 };
 
 /*!
@@ -355,7 +355,7 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 class DNNLModuleCodegen : public CSourceModuleCodegenBase {
  public:
   // Create a corresponding DNNL function for the given relay Function.
-  void GenDNNLFunc(const Function& func) {
+  std::pair<std::string, Array<String>> GenDNNLFunc(const Function& func) {
     CHECK(func.defined()) << "Input error: expect a Relay function.";
 
     // Record the external symbol for runtime lookup.
@@ -364,6 +364,8 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     CodegenDNNL builder(sid);
     auto out = builder.VisitExpr(func->body);
     code_stream_ << builder.JIT(out);
+
+    return {sid, builder.const_vars_};
   }
 
   /*!
@@ -382,32 +384,29 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cstdint>\n";
     code_stream_ << "#include <cstdlib>\n";
     code_stream_ << "#include <cstring>\n";
+    code_stream_ << "#include <vector>\n";
     code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
+    code_stream_ << "#include <tvm/runtime/container.h>\n";
     code_stream_ << "#include <tvm/runtime/packed_func.h>\n";
     code_stream_ << "#include <dlpack/dlpack.h>\n";
     // dnnl_kernel file is saved under src/runtime/contrib/dnnl so that we don't
     // expose it to ordinary users. To make export_library use it, users need to
     // pass -I${PATH_TO_TVM}/src/runtime/contrib
     code_stream_ << "#include <dnnl/dnnl_kernel.h>\n";
+    code_stream_ << "using namespace tvm::runtime;\n";
     code_stream_ << "using namespace tvm::runtime::contrib;\n";
     code_stream_ << "\n";
 
-    if (ref->IsInstance<FunctionNode>()) {
-      GenDNNLFunc(Downcast<Function>(ref));
-    } else if (ref->IsInstance<IRModuleNode>()) {
-      IRModule mod = Downcast<IRModule>(ref);
-      for (const auto& it : mod->functions) {
-        GenDNNLFunc(Downcast<Function>(it.second));
-      }
-    } else {
-      LOG(FATAL) << "The input ref is expected to be a Relay function or module"
-                 << "\n";
-    }
+    CHECK(ref->IsInstance<FunctionNode>());
+    auto res = GenDNNLFunc(Downcast<Function>(ref));
+    std::string code = code_stream_.str();
+    String sym = std::get<0>(res);
+    Array<String> variables = std::get<1>(res);
 
-    // Create a CSourceModule
+    // Create a CSource module
     const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
     CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
-    return (*pf)(code_stream_.str(), "cc");
+    return (*pf)(code, "c", sym, variables);
   }
 
  private:
