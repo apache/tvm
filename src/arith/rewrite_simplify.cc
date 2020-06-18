@@ -361,14 +361,16 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
                        c2.Eval()->value > 0 && c3.Eval()->value > 0 && c4.Eval()->value >= 0 &&
                            CanProveGreaterEqual(x.Eval(), 0) &&
                            std::abs(c4.Eval()->value - c2.Eval()->value) >= c3.Eval()->value);
-    TVM_TRY_REWRITE_IF(truncdiv(x * c1 + c2, y) - truncdiv(x * c1 + c4, y), truncdiv(c2 - c4, y),
-                       c1.Eval()->value >= 0 && c2.Eval()->value > 0 && c4.Eval()->value >= 0 &&
-                           CanProveGreaterEqual(x.Eval(), 0) && CanProveGreaterEqual(y.Eval(), 1) &&
-                           CanProveLessEqual(y.Eval(), std::abs(c4.Eval()->value - c2.Eval()->value)));
-    TVM_TRY_REWRITE_IF(truncdiv(x + c2, y) - truncdiv(x + c4, y), truncdiv(c2 - c4, y),
-                       c2.Eval()->value > 0 && c4.Eval()->value >= 0 &&
-                           CanProveGreaterEqual(x.Eval(), 0) && CanProveGreaterEqual(y.Eval(), 1) &&
-                           CanProveLessEqual(y.Eval(), std::abs(c4.Eval()->value - c2.Eval()->value)));
+    TVM_TRY_REWRITE_IF(
+        truncdiv(x * c1 + c2, y) - truncdiv(x * c1 + c4, y), truncdiv(c2 - c4, y),
+        c1.Eval()->value >= 0 && c2.Eval()->value > 0 && c4.Eval()->value >= 0 &&
+            CanProveGreaterEqual(x.Eval(), 0) && CanProveGreaterEqual(y.Eval(), 1) &&
+            CanProveLessEqual(y.Eval(), std::abs(c4.Eval()->value - c2.Eval()->value)));
+    TVM_TRY_REWRITE_IF(
+        truncdiv(x + c2, y) - truncdiv(x + c4, y), truncdiv(c2 - c4, y),
+        c2.Eval()->value > 0 && c4.Eval()->value >= 0 && CanProveGreaterEqual(x.Eval(), 0) &&
+            CanProveGreaterEqual(y.Eval(), 1) &&
+            CanProveLessEqual(y.Eval(), std::abs(c4.Eval()->value - c2.Eval()->value)));
 
     // floordiv
     TVM_TRY_REWRITE_IF(x - floordiv(x, c1) * c1, floormod(x, c1), c1.Eval()->value != 0);
