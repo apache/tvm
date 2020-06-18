@@ -191,6 +191,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     // canonicalization rule
     // will try rewrite again after canonicalization.
     TVM_TRY_RECURSIVE_REWRITE(x + (c1 - y), (x - y) + c1);
+    TVM_TRY_RECURSIVE_REWRITE((c1 - y) + x, (x - y) + c1);
     TVM_TRY_RECURSIVE_REWRITE(x + c1 + y, (x + y) + c1);
     TVM_TRY_RECURSIVE_REWRITE(x + (c1 + y), (x + y) + c1);
     TVM_TRY_RECURSIVE_REWRITE(x + max(y, z), max(y, z) + x);
