@@ -458,23 +458,54 @@ TEST(String, compare) {
 
   // compare with string
   CHECK_EQ(str_source.compare(source), 0);
+  CHECK(str_source == source);
+  CHECK(source == str_source);
+  CHECK(str_source <= source);
+  CHECK(source <= str_source);
+  CHECK(str_source >= source);
+  CHECK(source >= str_source);
   CHECK_LT(str_source.compare(mismatch1), 0);
+  CHECK(str_source < mismatch1);
+  CHECK(mismatch1 != str_source);
   CHECK_GT(str_source.compare(mismatch2), 0);
+  CHECK(str_source > mismatch2);
+  CHECK(mismatch2 < str_source);
   CHECK_GT(str_source.compare(mismatch3), 0);
+  CHECK(str_source > mismatch3);
   CHECK_LT(str_source.compare(mismatch4), 0);
+  CHECK(str_source < mismatch4);
+  CHECK(mismatch4 > str_source);
 
   // compare with char*
   CHECK_EQ(str_source.compare(source.data()), 0);
+  CHECK(str_source == source.data());
+  CHECK(source.data() == str_source);
+  CHECK(str_source <= source.data());
+  CHECK(source <= str_source.data());
+  CHECK(str_source >= source.data());
+  CHECK(source >= str_source.data());
   CHECK_LT(str_source.compare(mismatch1.data()), 0);
+  CHECK(str_source < mismatch1.data());
+  CHECK(str_source != mismatch1.data());
+  CHECK(mismatch1.data() != str_source);
   CHECK_GT(str_source.compare(mismatch2.data()), 0);
+  CHECK(str_source > mismatch2.data());
+  CHECK(mismatch2.data() < str_source);
   CHECK_GT(str_source.compare(mismatch3.data()), 0);
+  CHECK(str_source > mismatch3.data());
   CHECK_LT(str_source.compare(mismatch4.data()), 0);
+  CHECK(str_source < mismatch4.data());
+  CHECK(mismatch4.data() > str_source);
 
   // compare with String
   CHECK_LT(str_source.compare(str_mismatch1), 0);
+  CHECK(str_source < str_mismatch1);
   CHECK_GT(str_source.compare(str_mismatch2), 0);
+  CHECK(str_source > str_mismatch2);
   CHECK_GT(str_source.compare(str_mismatch3), 0);
+  CHECK(str_source > str_mismatch3);
   CHECK_LT(str_source.compare(str_mismatch4), 0);
+  CHECK(str_source < str_mismatch4);
 }
 
 TEST(String, c_str) {
@@ -511,6 +542,23 @@ TEST(String, Cast) {
   String s{source};
   ObjectRef r = s;
   String s2 = Downcast<String>(r);
+}
+
+TEST(String, Concat) {
+  String s1("hello");
+  String s2("world");
+  std::string s3("world");
+  String res1 = s1 + s2;
+  String res2 = s1 + s3;
+  String res3 = s3 + s1;
+  String res4 = s1 + "world";
+  String res5 = "world" + s1;
+
+  CHECK_EQ(res1.compare("helloworld"), 0);
+  CHECK_EQ(res2.compare("helloworld"), 0);
+  CHECK_EQ(res3.compare("worldhello"), 0);
+  CHECK_EQ(res4.compare("helloworld"), 0);
+  CHECK_EQ(res5.compare("worldhello"), 0);
 }
 
 TEST(Optional, Composition) {

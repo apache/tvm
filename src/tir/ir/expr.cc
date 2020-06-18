@@ -83,7 +83,7 @@ Var Var::copy_with_suffix(const String& suffix) const {
   } else {
     new_ptr = make_object<VarNode>(*node);
   }
-  new_ptr->name_hint = new_ptr->name_hint.operator std::string() + suffix.operator std::string();
+  new_ptr->name_hint = new_ptr->name_hint + suffix;
   return Var(new_ptr);
 }
 
