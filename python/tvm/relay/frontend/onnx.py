@@ -1944,13 +1944,11 @@ class GraphProto(ExprFunctor):
         self._infer_simulated = False
         self._mod = mod
         return self.visit(input_val).data
-        #return _infer_value(input_val, params, mod)
 
     def infer_value_simulated(self, input_val, params):
         self._tmp_params = params
         self._infer_simulated = True
         return self.visit(input_val).data
-        #return _infer_value_simulated(input_val, params)
 
     def infer(self, expr):
         if self._infer_simulated:
@@ -1978,7 +1976,10 @@ class GraphProto(ExprFunctor):
     def visit_call(self, call):
         new_fn = self.visit(call.op)
         new_args = [self.visit(arg) for arg in call.args]
-        return self.infer(Call(new_fn, new_args, call.attrs))
+        call = Call(new_fn, new_args, call.attrs)
+        if new_fn == _op.get("nn.batch_norm"):
+            return call
+        return self.infer(call)
 
     def visit_var(self, var):
         return self.infer(var)
