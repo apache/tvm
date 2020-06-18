@@ -61,7 +61,7 @@ class ExprOp(object):
         return _generic.add(self, other)
 
     def __radd__(self, other):
-        return self.__add__(other)
+        return _generic.add(other, self)
 
     def __sub__(self, other):
         return _generic.subtract(self, other)
