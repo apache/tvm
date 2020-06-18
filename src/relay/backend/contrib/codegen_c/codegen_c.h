@@ -110,8 +110,10 @@ class CodegenCBase {
    *
    * \code
    *
+   * Array<NDArray> foo_consts;
+   *
    * // An example code for the generated C function.
-   * extern "C" void foo_wrapper_(DLTensor* arg0,
+   * extern "C" int foo_wrapper_(DLTensor* arg0,
    *                              DLTensor* arg1,
    *                              DLTensor* out) {
    *   foo_(static_cast<float*>(arg0->data),
@@ -122,10 +124,17 @@ class CodegenCBase {
    *
    * TVM_DLL_EXPORT_TYPED_FUNC(foo, foo_wrapper_);
    *
+   * int foo_init_wrapper_(Array<NDArray> arr) {
+   *   foo_consts = arr;
+   *   return 0;
+   * }
+   *
+   * TVM_DLL_EXPORT_TYPED_FUNC(__init_foo, foo_init_wrapper_);
+   *
    * \endcode
    */
   void GenerateBackendCFunc(const std::string& func_name, const Array<Var>& args,
-                            const std::vector<Output>& outs) {
+                            const std::string& const_arr_name, const std::vector<Output>& outs) {
     // Print signature
     code_stream_ << "\n";
     code_stream_ << "extern \"C\" int " << func_name << "_wrapper_(";
@@ -163,6 +172,18 @@ class CodegenCBase {
     // Generate the macro
     code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(" << func_name << ", " << func_name
                  << "_wrapper_);\n\n";
+
+    if (!const_arr_name.empty()) {
+      code_stream_ << "int " << func_name << "_init_wrapper_(Array<NDArray> arr) {\n";
+      EnterScope();
+      PrintIndents();
+      code_stream_ << func_name << "_consts = arr;\n";
+      code_stream_ << "return 0;\n";
+      ExitScope();
+      code_stream_ << "}\n\n";
+      code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(__init_" << func_name << ", " << func_name
+                   << "_init_wrapper_);\n\n";
+    }
   }
 
   /*!
@@ -190,7 +211,12 @@ class CodegenCBase {
    */
   std::string JitImpl(const std::string& ext_func_id, const Array<Var>& args,
                       const std::vector<std::string>& buf_decl,
-                      const std::vector<std::string>& body, const std::vector<Output>& outs) {
+                      const std::vector<std::string>& body, const std::string& const_arr_name,
+                      const std::vector<Output>& outs) {
+    // Create a declaration for global ndarrays that contain constant data.
+    if (!const_arr_name.empty()) {
+      code_stream_ << const_arr_name << "\n\n";
+    }
     // Create the signature. For example, it could be:
     // extern "C" void dnnl_0_(float* in0, float* in1, float* out0, float* out1) {}
     code_stream_ << "extern \"C\" void " << ext_func_id << "_(";
@@ -236,7 +262,7 @@ class CodegenCBase {
     code_stream_ << "}\n";
 
     // Create the wrapper to call the ext_func
-    this->GenerateBackendCFunc(ext_func_id, args, outs);
+    this->GenerateBackendCFunc(ext_func_id, args, const_arr_name, outs);
     return code_stream_.str();
   }
 
@@ -273,6 +299,55 @@ class CodegenCBase {
     }
 
     return dtype;
+  }
+
+  /*!
+   * \brief Creates a checker to check if the NDArray pool is initialized
+   *
+   * \param symobl The Symbol of the current function
+   *
+   * \return The created checker
+   */
+  std::string CreateInitChecker(const std::string& symbol) const {
+    std::ostringstream oss;
+    oss << "CHECK(!" << symbol
+        << "_consts.empty()) << \"C source module hasn't been initialized.\";\n";
+    return oss.str();
+  }
+
+  /*!
+   * \brief Generates the global ndarray pool declaration
+   *
+   * \param symobl The Symbol of the current function
+   *
+   * \return The created declaration
+   */
+  std::string CreateNDArrayPool(const std::string& symbol) const {
+    return "Array<NDArray> " + symbol + "_consts;";
+  }
+
+  /*!
+   * \brief Generates the reference to the data of a constant ndarray
+   *
+   * \param symobl The Symbol of the current function
+   * \param symobl const_id The index of the constant
+   *
+   * \return The created reference
+   */
+  std::string CreateDataReference(const std::string& symbol, int const_id) const {
+    return "static_cast<float*>(" + symbol + "_consts[" + std::to_string(const_id) + "]->data)";
+  }
+
+  /*!
+   * \brief Returns the variable name for a constant variable
+   *
+   * \param symobl The Symbol of the current function
+   * \param symobl const_id The index of the constant
+   *
+   * \return The created variable name
+   */
+  std::string CreateConstVar(const std::string& symbol, int const_id) const {
+    return symbol + "_const_" + std::to_string(const_id++);
   }
 
   /*! \brief The external function source code stream. */

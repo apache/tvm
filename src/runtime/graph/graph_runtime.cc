@@ -247,7 +247,7 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   CHECK(size == weight_names_.size()) << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
     int in_idx = GetInputIndex(weight_names_[i]);
-    CHECK_GE(in_idx, 0) << "Found param for non-existent input: " << weight_names_[i];
+    if (in_idx < 0) continue;
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     CHECK_LT(eid, data_entry_.size());
 
@@ -271,7 +271,7 @@ void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
   CHECK(size == names.size()) << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
     int in_idx = GetInputIndex(names[i]);
-    CHECK_GE(in_idx, 0) << "Found param for non-existent input: " << names[i];
+    if (in_idx < 0) continue;
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     CHECK_LT(eid, data_entry_.size());
     CHECK_EQ(data_entry_[eid].use_count(), 1);
@@ -471,8 +471,9 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
       } else {
         in_idx = args[0];
       }
-      CHECK_GE(in_idx, 0);
-      *rv = this->GetInput(in_idx);
+      if (in_idx >= 0) {
+        *rv = this->GetInput(in_idx);
+      }
     });
   } else if (name == "get_num_outputs") {
     return PackedFunc(
