@@ -19,12 +19,14 @@
 
 use std::{path::PathBuf, process::Command};
 
-fn main() {
+use anyhow::{Context, Result};
+
+fn main() -> Result<()> {
     let mut out_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     out_dir.push("lib");
 
     if !out_dir.is_dir() {
-        std::fs::create_dir(&out_dir).unwrap();
+        std::fs::create_dir(&out_dir).context("failed to create directory for WASM outputs")?;
     }
 
     let obj_file = out_dir.join("test.o");
@@ -36,7 +38,8 @@ fn main() {
     ))
     .arg(&out_dir)
     .output()
-    .expect("Failed to execute command");
+    .context("failed to execute Python script for generating TVM library")?;
+
     assert!(
         obj_file.exists(),
         "Could not build tvm lib: {}",
@@ -49,12 +52,14 @@ fn main() {
     );
 
     let ar = option_env!("LLVM_AR").unwrap_or("llvm-ar-8");
+
     let output = Command::new(ar)
         .arg("rcs")
         .arg(&lib_file)
         .arg(&obj_file)
         .output()
-        .expect("Failed to execute command");
+        .context("failed to run LLVM_AR command")?;
+
     assert!(
         lib_file.exists(),
         "Could not create archive: {}",
@@ -68,4 +73,5 @@ fn main() {
 
     println!("cargo:rustc-link-lib=static=test_wasm32");
     println!("cargo:rustc-link-search=native={}", out_dir.display());
+    Ok(())
 }

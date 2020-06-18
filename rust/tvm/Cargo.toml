@@ -15,21 +15,31 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[workspace]
-members = [
-	"common",
-	"macros",
-	"runtime",
-	"runtime/tests/test_tvm_basic",
-	"runtime/tests/test_tvm_dso",
-	"runtime/tests/test_wasm32",
-	"runtime/tests/test_nn",
-	"frontend",
-	"frontend/tests/basics",
-	"frontend/tests/callback",
-	"frontend/examples/resnet",
-	"tvm-sys",
-	"tvm-macros",
-	"tvm-rt",
-	"tvm",
-]
+[package]
+name = "tvm"
+version = "0.1.0"
+license = "Apache-2.0"
+description = "Rust frontend support for TVM"
+repository = "https://github.com/apache/incubator-tvm"
+homepage = "https://github.com/apache/incubator-tvm"
+readme = "README.md"
+keywords = ["rust", "tvm"]
+categories = ["api-bindings", "science"]
+authors = ["TVM Contributors"]
+edition = "2018"
+
+[dependencies]
+thiserror = "^1.0"
+anyhow = "^1.0"
+lazy_static = "1.1"
+ndarray = "0.12"
+num-traits = "0.2"
+tvm-rt = { version = "0.1", path = "../tvm-rt/" }
+tvm-sys = { version = "0.1", path = "../tvm-sys/" }
+tvm-macros = { version = "*", path = "../tvm-macros/" }
+paste = "0.1"
+mashup = "0.1"
+once_cell = "^1.3.1"
+
+[features]
+blas = ["ndarray/blas"]
