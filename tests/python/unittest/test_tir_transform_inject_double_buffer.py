@@ -56,7 +56,7 @@ def test_double_buffer():
     f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
     count = [0]
     def count_sync(op):
-        if isinstance(op, tvm.tir.Call) and op.name == "tvm_storage_sync":
+        if isinstance(op, tvm.tir.Call) and op.op.same_as(tvm.ir.Op.get("tir.tvm_storage_sync")):
             count[0] += 1
     tvm.tir.stmt_functor.post_order_visit(f.body, count_sync)
     assert count[0] == 4

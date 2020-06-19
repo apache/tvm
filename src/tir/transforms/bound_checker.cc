@@ -24,6 +24,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -66,7 +67,7 @@ class BoundChecker : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (process_store_ && op->is_intrinsic(intrinsic::tvm_if_then_else)) {
+    if (process_store_ && op->op.same_as(builtin::if_then_else())) {
       unsafe_rewritten_ = true;
     }
     return StmtExprMutator::VisitExpr_(op);

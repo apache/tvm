@@ -22,6 +22,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -209,7 +210,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       if (sync_scope_.rank == StorageRank::kGlobal) {
         barrier = MakeGlobalBarrier();
       } else {
-        barrier = Evaluate(Call(DataType::Int(32), intrinsic::tvm_storage_sync,
+        barrier = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
                                 {StringImm(sync_scope_.to_string())}, CallNode::Intrinsic));
       }
       // Mutate after query, to avoid stmt change.
@@ -259,7 +260,7 @@ class ThreadSyncInserter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
       PrimExpr expr = StmtExprMutator::VisitExpr_(op);
       op = expr.as<CallNode>();
       CHECK_EQ(op->args.size(), 5U);
@@ -299,7 +300,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     CHECK(op != nullptr);
     Array<PrimExpr> pargs = {StringImm(runtime::symbol::tvm_prepare_global_barrier)};
     Stmt prep =
-        Evaluate(Call(DataType::Int(32), intrinsic::tvm_call_packed, pargs, CallNode::Intrinsic));
+        Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), pargs, CallNode::Intrinsic));
     Stmt body = op->body;
     for (const auto& kv : rw_stats_) {
       const auto& e = kv.second;
@@ -309,7 +310,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     }
     rw_stats_.clear();
     Stmt kinit = Evaluate(
-        Call(DataType::Int(32), intrinsic::tvm_global_barrier_kinit, {}, CallNode::Intrinsic));
+        Call(DataType::Int(32), builtin::tvm_global_barrier_kinit(), {}, CallNode::Intrinsic));
     body = SeqStmt({kinit, body});
     body = AttrStmt(op->node, op->attr_key, op->value, body);
     return SeqStmt({prep, body});
@@ -332,7 +333,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     } else {
       CHECK_EQ(num_work_dim_, thread_extents_.size());
     }
-    return Evaluate(Call(DataType::Int(32), intrinsic::tvm_storage_sync,
+    return Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
                          {StringImm(sync_scope_.to_string()), is_lead_, num_blocks_},
                          CallNode::Intrinsic));
   }

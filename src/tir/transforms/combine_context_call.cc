@@ -25,6 +25,7 @@
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
@@ -40,7 +41,7 @@ namespace tir {
 class ContextCallCombiner final : public StmtExprMutator {
  public:
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_thread_context)) {
+    if (op->op.same_as(builtin::tvm_thread_context())) {
       CHECK_EQ(op->args.size(), 1U);
       PrimExpr ctx = op->args[0];
       auto it = ctx_map_.find(ctx);
@@ -48,13 +49,7 @@ class ContextCallCombiner final : public StmtExprMutator {
         return it->second;
       } else {
         CHECK(ctx.dtype().is_handle());
-        std::string name;
-        if (const CallNode* call = ctx.as<CallNode>()) {
-          name = call->name + "_cache";
-        } else {
-          name = "ctx_cache_";
-        }
-        Var ctx_var(name, ctx.dtype());
+        Var ctx_var("ctx_cache_", ctx.dtype());
         ctx_map_[ctx] = ctx_var;
         return std::move(ctx_var);
       }

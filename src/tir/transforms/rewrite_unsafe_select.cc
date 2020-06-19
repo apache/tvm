@@ -22,6 +22,7 @@
  * \brief Rewrite uinsafe select expression.
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -37,9 +38,9 @@ class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
   // Because we will issue guard to make sure it is.
   bool VisitExpr_(const SelectNode* op) { return VisitExpr(op->condition); }
   bool VisitExpr_(const CallNode* op) {
-    if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
+    if (op->op.same_as(builtin::if_then_else())) {
       return VisitExpr(op->args[0]);
-    } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
+    } else if (op->op.same_as(builtin::address_of())) {
       const LoadNode* l = op->args[0].as<LoadNode>();
       return this->VisitExpr(l->index);
     } else if (op->is_pure()) {
@@ -104,7 +105,7 @@ class UnsafeSelectRewriter : public StmtExprMutator {
     bool cond_is_scalar_bool = op->condition.dtype().is_bool() && op->condition.dtype().is_scalar();
     if ((unsafe.VisitExpr(op->true_value) || unsafe.VisitExpr(op->false_value)) &&
         cond_is_scalar_bool) {
-      return Call(op->dtype, intrinsic::tvm_if_then_else,
+      return Call(op->dtype, builtin::if_then_else(),
                   {op->condition, op->true_value, op->false_value}, CallNode::Intrinsic);
     } else {
       return expr;

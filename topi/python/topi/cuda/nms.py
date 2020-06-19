@@ -113,7 +113,7 @@ def get_valid_counts_ir(data, valid_count, out, out_indices,
         with ib.if_scope(
                 tvm.tir.all(data[tid * elem_length + score_index] > score_threshold,
                             tvm.tir.any(id_index < 0, data[tid * elem_length + id_index] >= 0))):
-            atomic_add_return[0] = atomic_add(tvm.tir.call_pure_intrin("handle", "tvm_address_of",
+            atomic_add_return[0] = atomic_add(tvm.tir.call_pure_intrin("handle", "tir.address_of",
                                                                        valid_count[i]), one_count)
             with ib.for_range(0, elem_length) as k:
                 out[tid * elem_length + k] = data[tid * elem_length + k]

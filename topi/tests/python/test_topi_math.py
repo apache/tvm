@@ -50,7 +50,7 @@ def test_ewise():
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
         if not skip_name_check:
-            assert B.op.body[0].name == name
+            assert B.op.body[0].op.name == "tir." + name
         a_np = np.random.uniform(low=low, high=high, size=shape).astype(A.dtype) * 10
         # avoid round check too close to boundary
         if check_round:
@@ -89,7 +89,7 @@ def test_ewise():
         B = topi.isnan(A)
         assert tuple(B.shape) == tuple(A.shape)
         if not skip_name_check:
-            assert B.op.body[0].name == "isnan"
+            assert B.op.body[0].op.name == "tir.isnan"
         a_np = np.random.uniform(low=low, high=high, size=shape).astype(A.dtype) * 10
         a_np.ravel()[np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)] = np.nan
         # avoid round check too close to boundary

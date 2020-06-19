@@ -24,6 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -71,7 +72,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<EvaluateNode>();
     const CallNode* call = op->value.as<CallNode>();
-    if (call && call->is_intrinsic(intrinsic::tvm_thread_allreduce)) {
+    if (call && call->op.same_as(builtin::tvm_thread_allreduce())) {
       return MakeAllreduce(call);
     } else {
       return stmt;
@@ -242,7 +243,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       {
         PrimExpr pred = const_true(1);
         PrimExpr mask =
-            Call(DataType::UInt(32), intrinsic::tvm_warp_activemask, {}, CallNode::Intrinsic);
+            Call(DataType::UInt(32), builtin::tvm_warp_activemask(), {}, CallNode::Intrinsic);
         seq.emplace_back(Store(mask_var, mask, index, pred));
         // Push allocation with an empty body. Later this will be fixed
         // when the entire body is ready.
@@ -273,8 +274,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
           // The former may cause dead lock as there is a divergent
           // branch with a warp sync call inside.
           //
-          const char* shfl_func = intrinsic::tvm_warp_shuffle_down;
-          PrimExpr other = WarpShuffle(shfl_func, mask_var, val, offset);
+          PrimExpr other = WarpShuffle(builtin::tvm_warp_shuffle_down(), mask_var, val, offset);
           const AllocateNode* repl = local_vars[i].as<AllocateNode>();
           Stmt s = Store(repl->buffer_var, other, index, pred);
           seq.push_back(s);
@@ -303,9 +303,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       for (size_t i = 0; i < size; ++i) {
         Var var = shared_bufs[i];
         PrimExpr pred = const_true(types[i].lanes());
-        const char* shfl_func = intrinsic::tvm_warp_shuffle;
         PrimExpr val = Load(types[i], var, index, pred);
-        PrimExpr splat = WarpShuffle(shfl_func, mask_var, val, 0);
+        PrimExpr splat = WarpShuffle(builtin::tvm_warp_shuffle(), mask_var, val, 0);
         seq.push_back(Store(var, splat, index, pred));
       }
 
@@ -465,18 +464,18 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
-    return Evaluate(Call(DataType::Int(32), intrinsic::tvm_storage_sync, {StringImm(sync)},
+    return Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(), {StringImm(sync)},
                          CallNode::Intrinsic));
   }
 
-  // Emit warp shuffle intrinsic calls.
-  PrimExpr WarpShuffle(const char* name, Var mask_var, PrimExpr val, int delta_or_lane) {
+  // Emit warp shuffle  calls.
+  PrimExpr WarpShuffle(const Op& op, Var mask_var, PrimExpr val, int delta_or_lane) {
     PrimExpr pred = const_true(1);
     PrimExpr index(0);
     PrimExpr mask = Load(DataType::UInt(32), mask_var, index, pred);
     PrimExpr width = IntImm(DataType::Int(32), warp_size_);
     Array<PrimExpr> args{mask, val, IntImm(DataType::Int(32), delta_or_lane), width, width};
-    return Call(val.dtype(), name, args, CallNode::Intrinsic);
+    return Call(val.dtype(), op, args, CallNode::Intrinsic);
   }
 
   // Check if this is a reduction on threadIdx.x and its extent matches
