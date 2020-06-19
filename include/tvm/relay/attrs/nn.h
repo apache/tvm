@@ -192,12 +192,9 @@ struct ConvGemmWeightTransformAttrs : public tvm::AttrsNode<ConvGemmWeightTransf
   int tile_rows;
   int tile_cols;
 
-  TVM_DECLARE_ATTRS(ConvGemmWeightTransformAttrs,
-                    "relay.attrs.ConvGemmWeightTransformAttrs") {
-    TVM_ATTR_FIELD(tile_rows).describe(
-        "Tile rows of the weight transformation for ConvGemm.");
-    TVM_ATTR_FIELD(tile_cols).describe(
-        "Tile columns of the weight transformation for ConvGemm.");
+  TVM_DECLARE_ATTRS(ConvGemmWeightTransformAttrs, "relay.attrs.ConvGemmWeightTransformAttrs") {
+    TVM_ATTR_FIELD(tile_rows).describe("Tile rows of the weight transformation for ConvGemm.");
+    TVM_ATTR_FIELD(tile_cols).describe("Tile columns of the weight transformation for ConvGemm.");
   }
 };
 
