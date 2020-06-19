@@ -22,7 +22,8 @@ def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose
             measure_ctx = ansor.LocalRPCMeasureContext(repeat=1, min_repeat_ms=400)
             runner = measure_ctx.runner
         else:
-            runner = ansor.LocalRunner(repeat=1, min_repeat_ms=400)
+            os.environ['TVM_AUTO_CACHE_FLUSH'] = "1"
+            runner = ansor.LocalRunner(repeat=10, number=1, min_repeat_ms=0, timeout=run_timeout)
     else:
         os.environ['TVM_NDK_CC'] = ndk_cc
         builder = ansor.LocalBuilder(timeout=build_timeout, build_func='ndk')
