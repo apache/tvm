@@ -39,6 +39,7 @@ import subprocess
 import time
 import sys
 import signal
+import platform
 
 from .._ffi.function import register_func
 from .._ffi.base import py_str
