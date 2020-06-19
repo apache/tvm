@@ -22,9 +22,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/memory.h>
-
-#include "packed_func.h"
+#include <tvm/runtime/crt/internal/common/packed_func.h>
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, int dtype_code_hint,
                                int dtype_bits_hint) {

@@ -21,7 +21,9 @@
  * \file load_json.c
  * \brief Load graph from JSON file.
  */
-#include "load_json.h"
+#include <tvm/runtime/crt/internal/graph_runtime/load_json.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include <tvm/runtime/crt/memory.h>
 

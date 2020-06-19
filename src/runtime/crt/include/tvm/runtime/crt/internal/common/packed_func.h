@@ -21,14 +21,15 @@
  * \file tvm/runtime/packed_func.h
  * \brief Type-erased function used across TVM API.
  */
-#ifndef TVM_RUNTIME_CRT_PACKED_FUNC_H_
-#define TVM_RUNTIME_CRT_PACKED_FUNC_H_
+#ifndef TVM_RUNTIME_CRT_COMMON_PACKED_FUNC_H_
+#define TVM_RUNTIME_CRT_COMMON_PACKED_FUNC_H_
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <tvm/runtime/c_runtime_api.h>
 
+#include "crt_config.h"
 #include "module.h"
 
 static inline DLDataType String2DLDataType(const char* s) {
@@ -117,8 +118,8 @@ static inline void TVMPackedFunc_SetArgs(TVMPackedFunc* pf, const TVMArgs* args)
   memcpy(&(pf->args), args, sizeof(TVMArgs));
 }
 
-TVMPackedFunc* g_fexecs = 0;
-uint32_t g_fexecs_count = 0;
+extern TVMPackedFunc* g_fexecs;
+extern uint32_t g_fexecs_count;
 
 // Implement TVMModule::GetFunction
 // Put implementation in this file so we have seen the TVMPackedFunc
@@ -141,4 +142,4 @@ static inline void TVMModule_GetFunction(TVMModule* mod, const char* name, TVMPa
   }
 }
 
-#endif  // TVM_RUNTIME_CRT_PACKED_FUNC_H_
+#endif  // TVM_RUNTIME_CRT_COMMON_PACKED_FUNC_H_

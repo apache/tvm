@@ -17,11 +17,13 @@
  * under the License.
  */
 
-/* Explicitly declare posix_memalign function */
-#if _POSIX_C_SOURCE < 200112L
-#undef _POSIX_C_SOURCE
-#define _POSIX_C_SOURCE 200809L
-#endif
+/*!
+ * \file tvm/runtime/host/crt_config.h
+ * \brief CRT configuration for the host-linked CRT.
+ */
+#ifndef TVM_RUNTIME_CRT_CONFIG_H_
+#define TVM_RUNTIME_CRT_CONFIG_H_
+
 
 /*! Support low-level debugging in MISRA-C runtime */
 #define TVM_CRT_DEBUG 0
@@ -58,9 +60,5 @@
 /*! \brief Page size for virtual memory allocation */
 #define TVM_CRT_PAGE_BYTES 4096
 
-#include "../../src/runtime/crt/crt_backend_api.c"
-#include "../../src/runtime/crt/crt_runtime_api.c"
-#include "../../src/runtime/crt/graph_runtime.c"
-#include "../../src/runtime/crt/load_json.c"
-#include "../../src/runtime/crt/memory.c"
-#include "../../src/runtime/crt/ndarray.c"
+
+#endif  // TVM_RUNTIME_CRT_CONFIG_H_

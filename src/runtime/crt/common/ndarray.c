@@ -22,9 +22,10 @@
  * \brief NDArray container infratructure.
  */
 
-#include "ndarray.h"
+#include <tvm/runtime/crt/internal/common/ndarray.h>
 
 #include <tvm/runtime/crt/memory.h>
+#include "crt_config.h"
 
 TVMNDArray TVMNDArray_Create(uint32_t ndim, const tvm_index_t* shape, DLDataType dtype,
                              DLContext ctx) {

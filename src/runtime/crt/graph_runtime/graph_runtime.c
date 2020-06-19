@@ -22,11 +22,14 @@
  * \brief implement graph runtime in pure C
  */
 
-#include "graph_runtime.h"
+#include <tvm/runtime/crt/internal/graph_runtime/graph_runtime.h>
 
 #include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/internal/common/logging.h>
+#include <tvm/runtime/crt/internal/common/module.h>
+#include <tvm/runtime/crt/internal/common/packed_func.h>
 
-#include "logging.h"
+#include "crt_config.h"
 
 #ifndef MAX
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
@@ -504,11 +507,13 @@ uint32_t TVMGraphRuntime_GetEntryId(TVMGraphRuntime* runtime, uint32_t nid, uint
 
 /*!
  * \brief Get the input index given the name of input.
- * \param runtime The graph runtime.
+ * \param api The graph runtime.
  * \param name The name of the input.
  * \return The index of input.
  */
-int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name) {
+int TVMGraphRuntime_GetInputIndex(TVMGraphRuntimeAPI* api, const char* name) {
+  TVMGraphRuntime* runtime = (TVMGraphRuntime*) api;
+
   uint32_t i;
   int32_t rv = -1;
   for (i = 0; i < runtime->input_nodes_count; ++i) {
@@ -524,28 +529,31 @@ int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name) {
 
 /*!
  * \brief set input to the graph based on name.
- * \param runtime The graph runtime.
+ * \param api The graph runtime.
  * \param name The name of the input.
  * \param data_in The input data.
  */
-void TVMGraphRuntime_SetInput(TVMGraphRuntime* runtime, const char* name, DLTensor* data_in) {
-  uint32_t index = runtime->GetInputIndex(runtime, name);
+void TVMGraphRuntime_SetInput(TVMGraphRuntimeAPI* api, const char* name, DLTensor* data_in) {
+  TVMGraphRuntime* runtime = (TVMGraphRuntime*) api;
+  uint32_t index = runtime->api.GetInputIndex(&runtime->api, name);
   if (index >= runtime->input_nodes_count) {
     fprintf(stderr, "given index is greater than num of input nodes.\n");
   }
-  uint32_t eid = runtime->GetEntryId(runtime, runtime->input_nodes[index], 0);
+  uint32_t eid = TVMGraphRuntime_GetEntryId(runtime, runtime->input_nodes[index], 0);
   runtime->data_entry[eid].dl_tensor.data = data_in->data;
 }
 
 /*!
  * \brief Load parameters from parameter blob.
- * \param runtime The graph runtime.
+ * \param api The graph runtime.
  * \param param_blob A binary blob of parameter.
  * \param param_size The parameter size.
  * \return The result of this function execution.
  */
-int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
+int TVMGraphRuntime_LoadParams(TVMGraphRuntimeAPI* api, const char* param_blob,
                                const uint32_t param_size) {
+  TVMGraphRuntime* runtime = (TVMGraphRuntime*) api;
+
   int status = 0;
   const char* bptr = param_blob;
   uint64_t header, reserved;
@@ -588,10 +596,10 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
   }
 
   for (idx = 0; idx < size; idx++) {
-    int32_t in_idx = runtime->GetInputIndex(runtime, names + TVM_CRT_STRLEN_NAME * idx);
+    int32_t in_idx = runtime->api.GetInputIndex(&runtime->api, names + TVM_CRT_STRLEN_NAME * idx);
     CHECK_GT(in_idx, 0, "Found param for non-existent input: %s\n",
              names + TVM_CRT_STRLEN_NAME * idx);
-    uint32_t eid = runtime->GetEntryId(runtime, runtime->input_nodes[in_idx], 0);
+    uint32_t eid = TVMGraphRuntime_GetEntryId(runtime, runtime->input_nodes[in_idx], 0);
     if (!(eid < runtime->data_entry_count)) {
       fprintf(stderr, "`entry_id`=%d is greater than expected(%d).\n", eid,
               runtime->data_entry_count);
@@ -623,9 +631,11 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
 
 /*!
  * \brief Run all the operations one by one.
- * \param runtime The graph runtime.
+ * \param api The graph runtime.
  */
-void TVMGraphRuntime_Run(TVMGraphRuntime* runtime) {
+void TVMGraphRuntime_Run(TVMGraphRuntimeAPI* api) {
+  TVMGraphRuntime* runtime = (TVMGraphRuntime*) api;
+
   // setup the array and requirements.
   uint32_t idx;
   for (idx = 0; idx < runtime->op_execs_count; ++idx) {
@@ -638,11 +648,13 @@ void TVMGraphRuntime_Run(TVMGraphRuntime* runtime) {
   }
 }
 
-int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t idx, DLTensor* out) {
+int TVMGraphRuntime_GetOutput(TVMGraphRuntimeAPI* api, const int32_t idx, DLTensor* out) {
+  TVMGraphRuntime* runtime = (TVMGraphRuntime*) api;
+
   int status = 0;
   uint32_t nid = runtime->outputs[idx].node_id;
   uint32_t index = runtime->outputs[idx].index;
-  uint32_t eid = runtime->GetEntryId(runtime, nid, index);
+  uint32_t eid = TVMGraphRuntime_GetEntryId(runtime, nid, index);
 
   // copy data section to allocated output tensor
   int32_t elem_bytes = out->dtype.bits / 8;
@@ -737,12 +749,12 @@ int TVMGraphRuntime_SetupOpExecs(TVMGraphRuntime* runtime) {
       uint32_t args_count = 0;
       for (idx = 0; idx < inode->inputs_count; idx++) {
         const TVMGraphRuntimeNodeEntry* entry = inode->inputs + idx;
-        uint32_t eid = runtime->GetEntryId(runtime, entry->node_id, entry->index);
+        uint32_t eid = TVMGraphRuntime_GetEntryId(runtime, entry->node_id, entry->index);
         args[idx] = &(runtime->data_entry[eid].dl_tensor);
         args_count++;
       }
       for (idx = 0; idx < inode->param.num_outputs; idx++) {
-        uint32_t eid = runtime->GetEntryId(runtime, nid, idx);
+        uint32_t eid = TVMGraphRuntime_GetEntryId(runtime, nid, idx);
         args[args_count] = &(runtime->data_entry[eid].dl_tensor);
         args_count++;
       }
@@ -761,7 +773,7 @@ int TVMGraphRuntime_SetupOpExecs(TVMGraphRuntime* runtime) {
       printf("tvm_op: creating %s with node_id=%d\n", inode->param.func_name, nid);
 #endif  // TVM_CRT_DEBUG
       TVMPackedFunc pf;
-      runtime->CreateTVMOp(runtime, &(inode->param), args, args_count, inode->inputs_count, &pf);
+      TVMGraphRuntime_CreateTVMOp(runtime, &(inode->param), args, args_count, inode->inputs_count, &pf);
       runtime->op_execs[nid] = pf;
     }
   }
@@ -829,37 +841,31 @@ int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime* runtime, const TVMOpParam* 
 void TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json, const TVMModule* module,
                           const TVMContext* ctxs) {
   JSONReader reader = JSONReader_Create(graph_json);
-  runtime->Load(runtime, &reader);
+  TVMGraphRuntime_Load(runtime, &reader);
   JSONReader_Release(&reader);
   runtime->ctxs[0] = ctxs[0];
-  runtime->SetupStorage(runtime);
-  runtime->SetupOpExecs(runtime);
+  TVMGraphRuntime_SetupStorage(runtime);
+  TVMGraphRuntime_SetupOpExecs(runtime);
 }
 
-TVMGraphRuntime* TVMGraphRuntimeCreate(const char* sym_json, const TVMModule* m,
-                                       const TVMContext* ctxs) {
+TVMGraphRuntimeAPI* TVMGraphRuntimeCreate(const char* sym_json, const TVMModule* m,
+                                          const TVMContext* ctxs) {
   TVMGraphRuntime* runtime = (TVMGraphRuntime*)vmalloc(sizeof(TVMGraphRuntime));  // NOLINT(*)
   memset(runtime, 0, sizeof(TVMGraphRuntime));
-  runtime->GetEntryId = TVMGraphRuntime_GetEntryId;
-  runtime->GetInputIndex = TVMGraphRuntime_GetInputIndex;
-  runtime->Init = TVMGraphRuntime_Init;
-  runtime->Load = TVMGraphRuntime_Load;
-  runtime->SetInput = TVMGraphRuntime_SetInput;
-  runtime->LoadParams = TVMGraphRuntime_LoadParams;
-  runtime->Run = TVMGraphRuntime_Run;
-  runtime->GetOutput = TVMGraphRuntime_GetOutput;
-  runtime->SetupStorage = TVMGraphRuntime_SetupStorage;
-  runtime->SetupOpExecs = TVMGraphRuntime_SetupOpExecs;
-  runtime->CreateTVMOp = TVMGraphRuntime_CreateTVMOp;
+  runtime->api.GetInputIndex = TVMGraphRuntime_GetInputIndex;
+  runtime->api.SetInput = TVMGraphRuntime_SetInput;
+  runtime->api.LoadParams = TVMGraphRuntime_LoadParams;
+  runtime->api.Run = TVMGraphRuntime_Run;
+  runtime->api.GetOutput = TVMGraphRuntime_GetOutput;
   runtime->module.GetFunction = TVMModule_GetFunction;
   // init
-  runtime->Init(runtime, sym_json, m, ctxs);
-  return runtime;
+  TVMGraphRuntime_Init(runtime, sym_json, m, ctxs);
+  return &runtime->api;
 }
 
-void TVMGraphRuntimeRelease(TVMGraphRuntime** pptr) {
+void TVMGraphRuntimeRelease(TVMGraphRuntimeAPI** pptr) {
   int32_t idx;
-  TVMGraphRuntime* runtime = *pptr;
+  TVMGraphRuntime* runtime = (TVMGraphRuntime*) (*pptr);
   for (idx = 0; idx < runtime->nodes_count; ++idx) {
     TVMGraphRuntimeNodeRelease(&(runtime->nodes[idx]));
   }

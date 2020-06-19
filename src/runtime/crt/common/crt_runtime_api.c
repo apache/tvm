@@ -22,10 +22,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
-
-#include "graph_runtime.h"
-#include "ndarray.h"
-#include "packed_func.h"
+#include <tvm/runtime/crt/internal/common/ndarray.h>
+#include <tvm/runtime/crt/internal/common/packed_func.h>
+#include <tvm/runtime/crt/internal/graph_runtime/graph_runtime.h>
+#include <tvm/runtime/crt/memory.h>
 
 // Handle internal errors
 

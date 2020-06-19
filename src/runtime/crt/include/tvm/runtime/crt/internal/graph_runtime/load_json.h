@@ -18,13 +18,14 @@
  */
 
 /*!
- * \file load_json.h
+ * \file src/runtime/crt/graph_runtime/load_json.h
  * \brief Lightweight JSON Reader that read save into C++ data structs.
  */
-#ifndef TVM_RUNTIME_CRT_LOAD_JSON_H_
-#define TVM_RUNTIME_CRT_LOAD_JSON_H_
+#ifndef TVM_RUNTIME_CRT_GRAPH_RUNTIME_LOAD_JSON_H_
+#define TVM_RUNTIME_CRT_GRAPH_RUNTIME_LOAD_JSON_H_
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
 
 enum {
@@ -89,4 +90,4 @@ JSONReader JSONReader_Create(const char* is);
 
 void JSONReader_Release(JSONReader* reader);
 
-#endif  // TVM_RUNTIME_CRT_LOAD_JSON_H_
+#endif  // TVM_RUNTIME_CRT_GRAPH_RUNTIME_LOAD_JSON_H_
