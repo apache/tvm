@@ -214,8 +214,10 @@ def multiply_rewrite(ref_call, new_args, ctx):
         # quantize lhs to INPUT field
         if lhs_kind == QAnnotateKind.ACTIVATION:
             lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
-        # quantize rhs to WEIGHT field
-        rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
+        if _analysis.check_constant(rhs_expr):
+            rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
+        else:
+            rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
         return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
