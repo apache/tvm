@@ -75,14 +75,15 @@ class GraphRuntimeFactoryModule(Module):
 
     def __init__(self, module):
         self.module = module
-        self._select_module = module.get_function("select_module")
-        self._import_module = module.get_function("import_module")
+        self._select_module = module["select_module"]
+        self._import_module = module["import_module"]
         self.selected_module = None
-        self.graph_json = module.get_function("get_json")()
-        self.lib = module.get_function("get_lib")()
+        self.graph_json = module["get_json"]()
+        self.lib = module["get_lib"]()
         self.params = {}
-        for k, v in module.get_function("get_params")().items():
-            self.params[k] = v
+        # TODO (FrozenGene): Enable it
+        # for k, v in module["get_params"]().items():
+        #     self.params[k] = v
         self.iter_cnt = 0
         super(GraphRuntimeFactoryModule, self).__init__(self.module.handle)
 

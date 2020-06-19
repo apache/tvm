@@ -160,7 +160,12 @@ class RPCSession(object):
         m : Module
             The remote module containing remote function.
         """
-        return _ffi_api.LoadRemoteModule(self._sess, path)
+        module = _ffi_api.LoadRemoteModule(self._sess, path)
+        type_key = self.get_function("runtime.ModuleGetTypeKey")(module)
+        if type_key == "GraphRuntimeFactory":
+            from tvm.runtime.graph_runtime_factory import GraphRuntimeFactoryModule
+            return GraphRuntimeFactoryModule(module)
+        return module
 
     def cpu(self, dev_id=0):
         """Construct CPU device."""

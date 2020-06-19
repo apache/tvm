@@ -283,7 +283,7 @@ def test_rpc_export(format=".so"):
     set_input = gmod["set_input"]
     run = gmod["run"]
     get_output = gmod["get_output"]
-    set_input("data", data)
+    set_input("data", tvm.nd.array(data, ctx=ctx))
     run()
     out = get_output(0).asnumpy()
 
@@ -355,16 +355,16 @@ def test_rpc_export(format=".so"):
 #
 #     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 if __name__ == "__main__":
-    test_legacy_compatibility()
-    test_cpu()
-    test_gpu()
-    test_multi_models()
-    test_cpu_export(".so")
-    test_cpu_export(".tar")
+    # test_legacy_compatibility()
+    # test_cpu()
     # test_gpu()
-    test_gpu_export(".so")
+    # test_multi_models()
+    # test_cpu_export(".so")
+    # test_cpu_export(".tar")
+    # test_gpu()
+    # test_gpu_export(".so")
     # test_gpu_export(".tar")
-    # test_rpc_export(".so")
+    test_rpc_export(".so")
     # test_rpc_export(".tar")
     # test_previous_cpu_export(".so")
     # test_previous_cpu_export(".tar")
