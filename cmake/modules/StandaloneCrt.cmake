@@ -72,8 +72,63 @@ if(USE_STANDALONE_CRT)
           BUILD_DIR=${host_build_dir_abspath} all ${make_quiet}
       WORKING_DIRECTORY standalone_crt
       DEPENDS ${host_isolated_build_deps})
+  add_custom_target(host_standalone_crt SOURCES  host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a)
 
-  add_custom_target(host_standalone_crt ALL
-      DEPENDS host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a)
+#  add_custom_target(host_standalone_crt ALL
+#      DEPENDS host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a)
+  add_library(host_standalone_crt_common INTERFACE)
+  add_dependencies(host_standalone_crt_common host_standalone_crt)
+  target_link_libraries(host_standalone_crt_common
+      INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/crt/common/libcommon.a)
+  # set_target_properties(host_standalone_crt_common PROPERTIES
+  #     IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/crt/common
+  #     IMPORTED_OBJECTS ${CMAKE_CURRENT_BINARY_DIR}/crt/common/libcommon.a
+  #     PUBLIC_HEADER ${crt_headers})
+  add_dependencies(host_standalone_crt_common host_standalone_crt)
+#      ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common/libcommon.a)
+
+  add_library(host_standalone_crt_graph_runtime INTERFACE IMPORTED)
+  add_dependencies(host_standalone_crt_graph_runtime host_standalone_crt)
+  target_link_libraries(host_standalone_crt_graph_runtime
+      INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/crt/graph_runtime/libgraph_runtime.a)
+
+  # set_target_properties(host_standalone_crt_graph_runtime PROPERTIES
+  #     IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/crt/graph_runtime
+  #     IMPORTED_OBJECTS ${CMAKE_CURRENT_BINARY_DIR}/crt/graph_runtime/libgraph_runtime.a
+  #     PUBLIC_HEADER ${crt_headers})
+  add_dependencies(host_standalone_crt_graph_runtime host_standalone_crt)
+#      ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime/libgraph_runtime.a)
+
+  # Standalone CRT tests
+  file(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*.cc)
+  find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
+  find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
+
+  # Create the `crttest` target if we can find GTest.  If not, we create dummy
+  # targets that give the user an informative error message.
+  if(GTEST_INCLUDE_DIR AND GTEST_LIB)
+    foreach(__srcpath ${TEST_SRCS})
+      get_filename_component(__srcname ${__srcpath} NAME)
+      string(REPLACE ".cc" "" __execname ${__srcname})
+      add_executable(${__execname} ${__srcpath})
+      list(APPEND TEST_EXECS ${__execname})
+      target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR})
+      target_link_directories(${__execname} PRIVATE
+          ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common
+          ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime)
+      target_link_libraries(${__execname} common graph_runtime ${GTEST_LIB})
+      set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
+      set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+    endforeach()
+    add_custom_target(crttest DEPENDS ${TEST_EXECS})
+  elseif(NOT GTEST_INCLUDE_DIR)
+    add_custom_target(crttest
+        COMMAND echo "Missing Google Test headers in include path"
+        COMMAND exit 1)
+  elseif(NOT GTEST_LIB)
+    add_custom_target(crttest
+        COMMAND echo "Missing Google Test library"
+        COMMAND exit 1)
+  endif()
 
 endif(USE_STANDALONE_CRT)
