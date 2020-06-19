@@ -330,7 +330,7 @@ class BF16LowerRewriter : StmtExprMutator {
       }
     }
     if (buffer_remap.size() != 0) {
-      op->buffer_map.assign(changes.begin(), changes.end());
+      op->buffer_map = Map<Var, Buffer>(changes.begin(), changes.end());
     }
   }
 };
