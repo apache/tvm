@@ -18,9 +18,11 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- * \file builtin_fp16.cc
+ * \file builtin_fp16.h
  * \brief Functions for conversion between fp32 and fp16, adopted from compiler-rt.
  */
+#ifndef COMPILER_RT_BUILTIN_FP16_H_
+#define COMPILER_RT_BUILTIN_FP16_H_
 
 #include <cstdint>
 
@@ -236,3 +238,5 @@ static inline DST_T __extendXfYf2__(SRC_T a) {
   dst_rep.i = result;
   return dst_rep.f;
 }
+
+#endif  // COMPILER_RT_BUILTIN_FP16_H_
