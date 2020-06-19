@@ -228,7 +228,7 @@ struct array_type_info<NDArray> {
  * \param strm The outpu stream
  * \param tensor The tensor to be saved.
  */
-inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor);
+inline bool SaveDLTensor(dmlc::Stream* strm, DLTensor* tensor);
 
 /*!
  * \brief Reference counted Container object used to back NDArray.
