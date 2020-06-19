@@ -2149,7 +2149,7 @@ def _get_constant(node):
         if ty == "IntType":
             return node.i(attr_name)
         elif ty == "BoolType":
-            return node.i(attr_name)
+            return bool(node.i(attr_name))
         elif ty in ["FloatType", "LongType"]:
             return node.f(attr_name)
         elif ty in ["TensorType", "CompleteTensorType"]:
