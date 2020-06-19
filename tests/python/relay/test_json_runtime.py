@@ -94,7 +94,7 @@ def check_result(mod,
 
 
 def test_conv2d():
-    if not tvm.get_global_func("runtime.ext.dnnl", True):
+    if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -163,12 +163,11 @@ def test_conv2d():
         return mod, ref_mod, {"data": i_data, "weight": w_data}, (1, 32, 14, 14)
 
     for mod, ref_mod, map_inputs, out_shape in [conv2d_direct(), group_conv2d()]:
-        # FIXME: Check accuracy. Current avg error: ~0.03
-        check_result(mod, ref_mod, map_inputs, out_shape, tol=1e-1)
+        check_result(mod, ref_mod, map_inputs, out_shape, tol=1e-5)
 
 
 def test_add():
-    if not tvm.get_global_func("runtime.ext.dnnl", True):
+    if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -208,7 +207,7 @@ def test_add():
 
 
 def test_relu():
-    if not tvm.get_global_func("runtime.ext.dnnl", True):
+    if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -244,7 +243,7 @@ def test_relu():
 
 
 def test_dense():
-    if not tvm.get_global_func("runtime.ext.dnnl", True):
+    if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -285,7 +284,7 @@ def test_dense():
 
 
 def test_bn():
-    if not tvm.get_global_func("runtime.ext.dnnl", True):
+    if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -350,7 +349,7 @@ def test_bn():
 
 
 def test_multiple_ops():
-    if not tvm.get_global_func("runtime.ext.dnnl", True):
+    if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -405,15 +404,16 @@ def test_multiple_ops():
 
 
 def test_composite():
-    if not tvm.get_global_func("runtime.ext.dnnl", True):
+    if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
 
     dtype = 'float32'
-    ishape = (1, 32, 14, 14)
-    w1shape = (32, 32, 3, 3)
 
-    def after_partition():
+    def conv2d_relu():
+        ishape = (1, 32, 14, 14)
+        w1shape = (32, 32, 3, 3)
+
         # Composite function
         in_1 = relay.var("in_1", shape=ishape, dtype=dtype)
         in_2 = relay.var("in_2", shape=w1shape, dtype=dtype)
@@ -435,15 +435,77 @@ def test_composite():
 
         # Main function
         data = relay.var("data", shape=ishape, dtype=dtype)
-        weight = relay.var("input", shape=w1shape, dtype=dtype)
+        weight = relay.var("weight", shape=w1shape, dtype=dtype)
         main_func = relay.Function([data, weight], glb_var(data, weight))
         mod["main"] = main_func
-        return mod
 
-    mod = after_partition()
-    for global_var, func in mod.functions.items():
-        if global_var.name_hint != 'main':
-            print(global_var)
+        # Reference module
+        data = relay.var("data", shape=ishape, dtype=dtype)
+        weight = relay.var("weight", shape=w1shape, dtype=dtype)
+        conv2d = relay.nn.conv2d(data, weight, kernel_size=(3, 3), padding=(1, 1))
+        relu = relay.nn.relu(conv2d)
+        main_func = relay.Function([data, weight], relu)
+        ref_mod = tvm.IRModule()
+        ref_mod["main"] = main_func
+
+        i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+        w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
+
+        return mod, ref_mod, {'data': i_data, 'weight': w1_data}, (1, 32, 14, 14)
+
+    def conv2d_bias_relu():
+        ishape = (1, 32, 14, 14)
+        w1shape = (32, 32, 3, 3)
+        bshape = (32, 1, 1)
+
+        # Composite function
+        in_1 = relay.var("in_1", shape=ishape, dtype=dtype)
+        in_2 = relay.var("in_2", shape=w1shape, dtype=dtype)
+        in_3 = relay.var("in_3", shape=bshape, dtype=dtype)
+        conv2d = relay.nn.conv2d(in_1, in_2, kernel_size=(3, 3), padding=(1, 1))
+        add = relay.add(conv2d, in_3)
+        relu = relay.nn.relu(add)
+        func = relay.Function([in_1, in_2, in_3], relu)
+        func = func.with_attr('Composite', 'conv2d_bias_relu')
+        func = func.with_attr('PartitionedFromPattern', 'nn.conv2d_add_nn.relu_')
+
+        # Partition function
+        arg_1 = relay.var("arg_1", shape=ishape, dtype=dtype)
+        arg_2 = relay.var("arg_2", shape=w1shape, dtype=dtype)
+        arg_3 = relay.var("arg_3", shape=bshape, dtype=dtype)
+        call = relay.Call(func, [arg_1, arg_2, arg_3])
+        p_func = relay.Function([arg_1, arg_2, arg_3], call)
+        p_func = set_func_attr(p_func, "dnnl", "dnnl_0")
+        glb_var = relay.GlobalVar("dnnl_0")
+        mod = tvm.IRModule()
+        mod[glb_var] = p_func
+
+        # Main function
+        data = relay.var("data", shape=ishape, dtype=dtype)
+        weight = relay.var("weight", shape=w1shape, dtype=dtype)
+        bias = relay.var('bias', shape=bshape, dtype=dtype)
+        main_func = relay.Function([data, weight, bias], glb_var(data, weight, bias))
+        mod["main"] = main_func
+
+        # Reference module
+        data = relay.var("data", shape=ishape, dtype=dtype)
+        weight = relay.var("weight", shape=w1shape, dtype=dtype)
+        bias = relay.var('bias', shape=bshape, dtype=dtype)
+        conv2d = relay.nn.conv2d(data, weight, kernel_size=(3, 3), padding=(1, 1))
+        add = relay.add(conv2d, bias)
+        relu = relay.nn.relu(add)
+        main_func = relay.Function([data, weight, bias], relu)
+        ref_mod = tvm.IRModule()
+        ref_mod["main"] = main_func
+
+        i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+        w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
+        b_data = np.random.uniform(0, 1, bshape).astype(dtype)
+
+        return mod, ref_mod, {'data': i_data, 'weight': w1_data, 'bias': b_data}, (1, 32, 14, 14)
+
+    for mod, ref_mod, input_maps, out_shape in [conv2d_relu(), conv2d_bias_relu()]:
+        check_result(mod, ref_mod, input_maps, out_shape, tol=1e-5)
 
 
 if __name__ == "__main__":
@@ -453,4 +515,4 @@ if __name__ == "__main__":
     test_dense()
     test_bn()
     test_multiple_ops()
-    #test_composite()
+    test_composite()

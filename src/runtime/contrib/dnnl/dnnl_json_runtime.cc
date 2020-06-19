@@ -49,11 +49,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       : JSONRuntimeBase(graph_json), func_name_(func_name), const_names_(const_names) {}
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
-    if (!this->is_init_) {
-      Init();
-      BuildEngine();
-    }
-    this->is_init_ = true;
 
     if (this->func_name_ == name) {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -86,10 +81,13 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
             this->data_entry_[idx].CopyTo(arg);
           }
         }
-
-        // FIXME: Multiple outputs.
-        //*rv = data_entry_.back();
       });
+    } else if ("__init_" + this->func_name_ == name) {
+      if (!this->is_init_) {
+        Init();
+      }
+      this->is_init_ = true;
+      return PackedFunc();
     } else {
       LOG(WARNING) << "Unknown DNNL symbol " << name;
       return PackedFunc();
@@ -128,9 +126,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   void Init() override {
     engine_ = dnnl::engine(dnnl::engine::kind::cpu, 0);
     stream_ = dnnl::stream(engine_);
-  }
 
-  void BuildEngine() {
     // Build subgraph engine.
     for (size_t nid = 0; nid < this->nodes_.size(); ++nid) {
       const auto& node = nodes_[nid];
@@ -139,6 +135,10 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
         auto op_name = node.GetOpName();
         if ("nn.conv2d" == op_name) {
           Conv2d(nid);
+        } else if ("conv2d_relu" == op_name) {
+          Conv2d(nid, true, false);
+        } else if ("conv2d_bias_relu" == op_name) {
+          Conv2d(nid, true, true);
         } else if ("nn.dense" == op_name) {
           Dense(nid);
         } else if ("nn.batch_norm" == op_name) {
@@ -194,7 +194,7 @@ private:
    return node_out_mem_[entry.id_][entry.index_].first;
  }
 
-  void Conv2d(const size_t& nid) {
+  void Conv2d(const size_t& nid, const bool has_relu=false, const bool has_bias=false) {
     auto node = this->nodes_[nid];
 
     // Setup attributes.
@@ -250,7 +250,15 @@ private:
     auto conv_desc = dnnl::convolution_forward::desc(
         dnnl::prop_kind::forward_inference, dnnl::algorithm::convolution_direct, conv_src_md,
         conv_weights_md, conv_bias_md, conv_dst_md, strides_dims, padding_dims_l, padding_dims_r);
+
+    // Enable ReLU
     dnnl::primitive_attr attr;
+    if (has_relu) {
+      dnnl::post_ops ops;
+      ops.append_eltwise(1.f, dnnl::algorithm::eltwise_relu, 0.f, 0.f);
+      attr.set_post_ops(ops);
+    }
+    
     auto conv2d_prim_desc = dnnl::convolution_forward::primitive_desc(conv_desc, attr, engine_);
 
     // Push to the network.
@@ -266,10 +274,15 @@ private:
     auto conv2d_weights_memory = BindDNNLMemory(
         weight_entry, {weights_dims, dt::f32, (groups > 1) ? tag::goihw : tag::oihw});
 
-    // Bias memory (useless for now as TVM conv2d op has no bias).
-    std::vector<float> bias(OC, 0);
+    // Bias memory.
     auto conv2d_bias_memory = dnnl::memory({bias_dims, dt::f32, tag::x}, engine_);
-    write_to_dnnl_memory(bias.data(), conv2d_bias_memory, OC * 4);
+    if (has_bias) {
+      auto bias_entry = node.GetInputs()[2];
+      BindDNNLMemory(bias_entry, conv2d_bias_memory);
+    } else {
+      float bias[OC] = {0};
+      write_to_dnnl_memory(bias, conv2d_bias_memory, OC * sizeof(float));
+    }
 
     // Output memory.
     JSONGraphNodeEntry out_entry(nid, 0);

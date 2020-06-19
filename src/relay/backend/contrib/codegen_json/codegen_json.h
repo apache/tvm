@@ -162,8 +162,10 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
    *
    * \param expr The Relay expression to be converted to the JSON form.
    */
-  JSONSerializer(const std::string& symbol, const Expr& expr) : symbol_(symbol) {
-    relay::Function func = Downcast<relay::Function>(expr);
+  JSONSerializer(const std::string& symbol, const Expr& expr) : symbol_(symbol), func_(expr) {}
+
+  void serialize() {
+    relay::Function func = Downcast<relay::Function>(func_);
     // First we convert all the parameters into input nodes.
     for (const auto& param : func->params) {
       auto node_ptr = std::make_shared<JSONGraphNode>(param->name_hint(), "input" /* op_type_ */);
@@ -247,24 +249,24 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
     }
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExprDefault_(const Object* op) final {
+  std::vector<JSONGraphNodeEntry> VisitExprDefault_(const Object* op) {
     LOG(FATAL) << "JSON runtime currently doesn't support " << op->GetTypeKey();
     return {};
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const VarNode* vn) final {
+  std::vector<JSONGraphNodeEntry> VisitExpr_(const VarNode* vn) {
     CHECK(memo_.count(GetRef<Expr>(vn)));
     return memo_[GetRef<Expr>(vn)];
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const ConstantNode* cn) final {
+  std::vector<JSONGraphNodeEntry> VisitExpr_(const ConstantNode* cn) {
     std::string name = symbol_ + "_const_" + std::to_string(params_.size());
     params_.push_back(name);
     auto node = std::make_shared<JSONGraphNode>(name, "const" /* op_type_ */);
     return AddNode(node, GetRef<Expr>(cn));
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const TupleNode* tn) final {
+  std::vector<JSONGraphNodeEntry> VisitExpr_(const TupleNode* tn) {
     std::vector<JSONGraphNodeEntry> fields;
     for (const auto& field : tn->fields) {
       auto ref = VisitExpr(field);
@@ -273,7 +275,7 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
     return fields;
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* cn) final {
+  std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* cn) {
     Expr expr = GetRef<Expr>(cn);
     std::string name;
     if (const auto* op_node = cn->op.as<OpNode>()) {
@@ -299,18 +301,18 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
     return AddNode(node, GetRef<Expr>(cn));
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const LetNode* ln) final {
+  std::vector<JSONGraphNodeEntry> VisitExpr_(const LetNode* ln) {
     CHECK_EQ(memo_.count(ln->var), 0);
     memo_[ln->var] = VisitExpr(ln->value);
     return VisitExpr(ln->body);
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const TupleGetItemNode* gtn) final {
+  std::vector<JSONGraphNodeEntry> VisitExpr_(const TupleGetItemNode* gtn) {
     auto vtuple = VisitExpr(gtn->tuple);
     return {vtuple[gtn->index]};
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const FunctionNode* fn) final {
+  std::vector<JSONGraphNodeEntry> VisitExpr_(const FunctionNode* fn) {
     CHECK(fn->GetAttr<String>(attr::kComposite).defined())
         << "JSON runtime only supports composite functions";
     // FunctionNode should be handled by the caller.
@@ -347,6 +349,8 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
  private:
   /*! \brief The symbol that represents the json graph. */
   std::string symbol_;
+  /*! \brief The function to be serialized. */
+  const Expr func_;
   /*! \brief JSON graph nodes. */
   std::vector<JSONGraphObjectPtr> nodes_;
   /*! \brief Output of the JSON graph. */

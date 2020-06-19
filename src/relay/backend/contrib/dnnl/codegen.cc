@@ -33,6 +33,7 @@
 #include <numeric>
 #include <sstream>
 
+#include "../../../../runtime/json/json_node.h"
 #include "../../utils.h"
 #include "../codegen_c/codegen_c.h"
 #include "../codegen_json/codegen_json.h"
@@ -42,6 +43,7 @@ namespace relay {
 namespace contrib {
 
 using namespace backend;
+using namespace tvm::runtime::json;
 
 inline size_t GetShape1DSize(const Type& type) {
   const auto shape = GetShape(type);
@@ -419,6 +421,46 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
   std::ostringstream code_stream_;
 };
 
+class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
+ public:
+  DNNLJSONSerializer(const std::string& symbol, const Expr& expr) : JSONSerializer(symbol, expr) {}
+
+  std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* cn) override {
+    Expr expr = GetRef<Expr>(cn);
+    std::string name;
+    const CallNode* call = cn;
+    if (const auto* op_node = cn->op.as<OpNode>()) {
+      name = op_node->name;
+    } else if (const auto* fn = cn->op.as<FunctionNode>()) {
+      auto comp = fn->GetAttr<String>(attr::kComposite);
+      CHECK(comp.defined()) << "DNNL JSON runtime only supports composite functions.";
+      name = comp.value().operator std::string();
+
+      if (name == "conv2d_bias_relu") {
+        call = GetRootCall(fn->body.as<CallNode>(), 2, {"nn.conv2d", "add", "nn.relu"});
+      } else if (name == "conv2d_relu") {
+        call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.conv2d", "nn.relu"});
+        CHECK(call->op.as<OpNode>()) << "Not op node";
+      } else {
+        LOG(FATAL) << "Unrecognized DNNL pattern: " << name;
+      }
+    } else {
+      LOG(FATAL) << "DNNL JSON runtime does not support calls to " << cn->op->GetTypeKey();
+    }
+
+    std::vector<JSONGraphNodeEntry> inputs;
+    for (const auto& arg : cn->args) {
+      auto res = VisitExpr(arg);
+      inputs.insert(inputs.end(), res.begin(), res.end());
+    }
+    auto node = std::make_shared<JSONGraphNode>(name,     /* name_ */
+                                                "kernel", /* op_type_ */
+                                                inputs, 1 /* num_outputs_ */);
+    SetCallNodeAttribute(node, call);
+    return AddNode(node, GetRef<Expr>(cn));
+  }
+};
+
 /*!
  * \brief Get the external symbol of the Relay function name.
  *
@@ -442,9 +484,10 @@ runtime::Module DNNLCompiler(const ObjectRef& ref) {
   CHECK(ref->IsInstance<FunctionNode>());
   auto func = Downcast<Function>(ref);
   auto func_name = GetExtSymbol(func);
-  backend::contrib::JSONSerializer converter(func_name, func);
-  std::string graph_json = converter.GetJSON();
-  auto params = converter.GetParams();
+  DNNLJSONSerializer serializer(func_name, func);
+  serializer.serialize();
+  std::string graph_json = serializer.GetJSON();
+  auto params = serializer.GetParams();
 
   const auto* pf = runtime::Registry::Get("runtime.DNNLJSONRuntimeCreate");
   CHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
