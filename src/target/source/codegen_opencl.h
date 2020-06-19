@@ -54,6 +54,7 @@ class CodeGenOpenCL final : public CodeGenC {
   std::string CastFromTo(std::string value, DataType from, DataType target);  // NOLINT(*)
 
   // overload visitor
+  void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
 

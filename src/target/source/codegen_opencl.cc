@@ -70,6 +70,10 @@ std::string CodeGenOpenCL::Finish() {
                    "#endif\n\n";
   }
 
+  // Enable atomic_add used by get_valid_counts. Only needed for OpenCL < 1.1.
+  decl_stream << "#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable\n"
+                 "#pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics : enable\n\n";
+
   return CodeGenC::Finish();
 }
 
@@ -222,6 +226,25 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
     os << "(" << value << "))";
   }
   return os.str();
+}
+
+void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
+  if (op->is_intrinsic(intrinsic::tvm_address_of)) {
+    // Overload tvm_address_of to add storage scope.
+    const LoadNode* l = op->args[0].as<LoadNode>();
+    CHECK(op->args.size() == 1 && l);
+    os << "((";
+    auto it = alloc_storage_scope_.find(l->buffer_var.get());
+    if (it != alloc_storage_scope_.end()) {
+      PrintStorageScope(it->second, os);
+    }
+    this->PrintType(l->dtype.element_of(), os);
+    os << " *)" << this->GetVarID(l->buffer_var.get()) << " + ";
+    this->PrintExpr(l->index, os);
+    os << ')';
+  } else {
+    CodeGenC::VisitExpr_(op, os);
+  }
 }
 
 void CodeGenOpenCL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
