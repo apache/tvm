@@ -43,7 +43,6 @@ class Module(object):
         self.entry_name = "__tvm_main__"
         # TODO:(FrozenGene): support rpc
         if self.type_key == 'GraphRuntimeFactory':
-            #from tvm.runtime.graph_runtime_factory import GraphRuntimeFactoryModule
             self._entry = self.runtime_create
 
     def __del__(self):
