@@ -253,7 +253,8 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
   void SetCallNodeAttribute(JSONGraphObjectPtr node, const CallNode* cn) {
     if (cn->op.as<OpNode>()) {
       OpAttrExtractor extractor(node);
-      extractor.Extract(const_cast<Object*>(cn->attrs.get()));
+      const Object* call_attr = cn->attrs.get();
+      extractor.Extract(const_cast<Object*>(call_attr));
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
       auto pattern = fn->GetAttr<String>(attr::kPartitionedFromPattern);
       CHECK(pattern.defined());
