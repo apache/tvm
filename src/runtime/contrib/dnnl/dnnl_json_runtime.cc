@@ -44,11 +44,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   using dt = dnnl::memory::data_type;
 
  public:
-  explicit DNNLJSONRuntime(const std::string& func_name, const std::string& graph_json)
-      : JSONRuntimeBase(graph_json), func_name_(func_name) {}
-  ~DNNLJSONRuntime() = default;
-
-  const char* type_key() const { return "dnnljsonruntime"; }
+  explicit DNNLJSONRuntime(const std::string& func_name, const std::string& graph_json,
+                           const Array<String> const_names)
+      : JSONRuntimeBase(graph_json), func_name_(func_name), const_names_(const_names) {}
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (!this->is_init_) {
@@ -494,17 +492,14 @@ inline size_t GetNDArraySize(const NDArray& arr) {
   bool is_init_ = false;
   /* The only subgraph name for this module. */
   std::string func_name_;
+  /* The required constant names. */
+  Array<String> const_names_;
 };
 
-TVM_REGISTER_GLOBAL("runtime.ext.dnnl")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-  auto n = tvm::runtime::make_object<DNNLJSONRuntime>(
-      args[0].operator std::string(), args[1].operator std::string());
-  *rv = Module(n);
-});
-
-runtime::Module DNNLJSONRuntimeCreate(std::string func_name, std::string graph_json) {
-  auto n = make_object<DNNLJSONRuntime>(func_name, graph_json);
+runtime::Module DNNLJSONRuntimeCreate(String func_name, String graph_json,
+                                      const Array<String>& const_names) {
+  auto n = make_object<DNNLJSONRuntime>(func_name.operator std::string(),
+                                        graph_json.operator std::string(), const_names);
   return runtime::Module(n);
 }
 

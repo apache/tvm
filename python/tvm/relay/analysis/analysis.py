@@ -313,10 +313,6 @@ def detect_feature(a, b=None):
     return {Feature(int(x)) for x in _ffi_api.detect_feature(a, b)}
 
 
-def to_json(expr):
-    return _ffi_api.ToJSON(expr)
-
-
 def extract_fused_functions(mod):
     """Pass to extract IRModule of only fused primitive functions.
 

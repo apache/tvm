@@ -439,27 +439,16 @@ std::string GetExtSymbol(const Function& func) {
 runtime::Module DNNLCompiler(const ObjectRef& ref) {
   // DNNLModuleCodegen dnnl;
   // return dnnl.CreateCSourceModule(ref);
-  std::string func_name;
-  std::string graph_json;
-  if (ref->IsInstance<FunctionNode>()) {
-    auto func = Downcast<Function>(ref);
-    func_name = GetExtSymbol(func);
-    graph_json = ToJSON(func);
-  } else if (ref->IsInstance<IRModuleNode>()) {
-    IRModule mod = Downcast<IRModule>(ref);
-    CHECK_EQ(mod->functions.size(), 1U) << "Only support single subgraph";
-    for (const auto& it : mod->functions) {
-      auto func = Downcast<Function>(it.second);
-      func_name = GetExtSymbol(func);
-      graph_json = ToJSON(func);
-    }
-  } else {
-    LOG(FATAL) << "The input ref is expected to be a Relay function or module\n";
-  }
+  CHECK(ref->IsInstance<FunctionNode>());
+  auto func = Downcast<Function>(ref);
+  auto func_name = GetExtSymbol(func);
+  backend::contrib::JSONSerializer converter(func_name, func);
+  std::string graph_json = converter.GetJSON();
+  auto params = converter.GetParams();
 
   const auto* pf = runtime::Registry::Get("runtime.DNNLJSONRuntimeCreate");
-  CHECK(pf != nullptr) << "Cannot find JSON runtime driver module to create";
-  auto mod = (*pf)(func_name, graph_json);
+  CHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
+  auto mod = (*pf)(func_name, graph_json, params);
   return mod;
 }
 

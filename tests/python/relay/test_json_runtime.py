@@ -26,7 +26,6 @@ import tvm.relay.testing
 from tvm import relay, runtime
 from tvm.contrib import util
 from tvm.relay import transform
-from tvm.relay.analysis.analysis import to_json
 from tvm.relay.backend import compile_engine
 from tvm.relay.build_module import bind_params_by_name
 
@@ -445,8 +444,6 @@ def test_composite():
     for global_var, func in mod.functions.items():
         if global_var.name_hint != 'main':
             print(global_var)
-            print(to_json(func))
-
 
 
 if __name__ == "__main__":

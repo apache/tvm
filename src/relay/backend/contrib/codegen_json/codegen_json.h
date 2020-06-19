@@ -50,12 +50,6 @@ using ShapeVector = std::vector<std::vector<int64_t> >;
 using TypeVector = std::vector<std::string>;
 using JSONGraphObjectPtr = std::shared_ptr<JSONGraphNode>;
 
-/*! \brief The artifacts that needs to be serialized. */
-struct JSONOutput {
-  std::string graph_json;
-  std::unordered_map<std::string, tvm::runtime::NDArray> params;
-};
-
 /*!
  * \brief Helper class to extract all attributes of a certain op and save them
  * into text format.
@@ -163,8 +157,13 @@ class OpAttrExtractor : public AttrVisitor {
 /*! \brief Serialize a Relay expression to JSON. */
 class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEntry>> {
  public:
-  void Serialize(const Expr& expr) {
-     relay::Function func = Downcast<relay::Function>(expr);
+  /*!
+   * \brief Constructor
+   *
+   * \param expr The Relay expression to be converted to the JSON form.
+   */
+  JSONSerializer(const std::string& symbol, const Expr& expr) : symbol_(symbol) {
+    relay::Function func = Downcast<relay::Function>(expr);
     // First we convert all the parameters into input nodes.
     for (const auto& param : func->params) {
       auto node_ptr = std::make_shared<JSONGraphNode>(param->name_hint(), "input" /* op_type_ */);
@@ -173,35 +172,17 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
     heads_ = VisitExpr(func->body);
   }
 
-  /*!
-   * \brief Save to JSON graph
-   *
-   * \param writer A json writer
-   */
-  void Save(dmlc::JSONWriter* writer) {
-    std::vector<size_t> arg_nodes;
-    for (size_t i = 0; i < nodes_.size(); ++i) {
-      auto node = nodes_[i];
-      if (node->IsLeaf()) {
-        arg_nodes.push_back(i);
-      }
-    }
-    size_t num_entry = 0;
-    std::vector<size_t> node_row_ptr{0};
-    for (auto node : nodes_) {
-      num_entry += node->GetNumOutput();
-      node_row_ptr.push_back(num_entry);
-    }
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("nodes", nodes_);
-    writer->WriteObjectKeyValue("arg_nodes", arg_nodes);
-    writer->WriteObjectKeyValue("heads", heads_);
-    writer->WriteObjectKeyValue("node_row_ptr", node_row_ptr);
-    writer->EndObject();
+  /*!\brief Return the required params. */
+  Array<String> GetParams() const {
+    return params_;
   }
 
-  std::unordered_map<std::string, runtime::NDArray> GetParams() const {
-    return params_;
+  /*!\brief Return the generated json. */
+  std::string GetJSON() {
+    std::ostringstream os;
+    dmlc::JSONWriter writer(&os);
+    Save(&writer);
+    return os.str();
   }
 
  protected:
@@ -277,8 +258,8 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
   }
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const ConstantNode* cn) final {
-    std::string name = "const_" + std::to_string(params_.size());
-    params_[name] = cn->data;
+    std::string name = symbol_ + "_const_" + std::to_string(params_.size());
+    params_.push_back(name);
     auto node = std::make_shared<JSONGraphNode>(name, "const" /* op_type_ */);
     return AddNode(node, GetRef<Expr>(cn));
   }
@@ -336,36 +317,46 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
     return {};
   }
 
+  /*!
+   * \brief Save to JSON graph
+   *
+   * \param writer A json writer
+   */
+  void Save(dmlc::JSONWriter* writer) {
+    std::vector<size_t> arg_nodes;
+    for (size_t i = 0; i < nodes_.size(); ++i) {
+      auto node = nodes_[i];
+      if (node->IsLeaf()) {
+        arg_nodes.push_back(i);
+      }
+    }
+    size_t num_entry = 0;
+    std::vector<size_t> node_row_ptr{0};
+    for (auto node : nodes_) {
+      num_entry += node->GetNumOutput();
+      node_row_ptr.push_back(num_entry);
+    }
+    writer->BeginObject();
+    writer->WriteObjectKeyValue("nodes", nodes_);
+    writer->WriteObjectKeyValue("arg_nodes", arg_nodes);
+    writer->WriteObjectKeyValue("heads", heads_);
+    writer->WriteObjectKeyValue("node_row_ptr", node_row_ptr);
+    writer->EndObject();
+  }
+
  private:
+  /*! \brief The symbol that represents the json graph. */
+  std::string symbol_;
   /*! \brief JSON graph nodes. */
   std::vector<JSONGraphObjectPtr> nodes_;
   /*! \brief Output of the JSON graph. */
   std::vector<JSONGraphNodeEntry> heads_;
-  /*! \brief Constants. */
-  std::unordered_map<std::string, runtime::NDArray> params_;
+  /*! \brief The list of required constants. */
+  Array<String> params_;
 };
 
 }  // namespace contrib
 }  // namespace backend
-
-std::string ToJSON(const Expr& expr) {
-  backend::contrib::JSONSerializer converter;
-  converter.Serialize(expr);
-
-  std::ostringstream os;
-  dmlc::JSONWriter writer(&os);
-  converter.Save(&writer);
-  backend::contrib::JSONOutput ret;
-  ret.graph_json = os.str();
-  ret.params = converter.GetParams();
-
-  backend::contrib::JSONRuntimeBase jr(ret.graph_json);
-  return ret.graph_json;
-}
-
-TVM_REGISTER_GLOBAL("relay.analysis.ToJSON")
-.set_body_typed(ToJSON);
-
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_BACKEND_CONTRIB_CODEGEN_JSON_CODEGEN_JSON_H_
