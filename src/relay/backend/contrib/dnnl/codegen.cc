@@ -436,9 +436,9 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
       CHECK(comp.defined()) << "DNNL JSON runtime only supports composite functions.";
       name = comp.value().operator std::string();
 
-      if (name == "conv2d_bias_relu") {
+      if (name == "dnnl.conv2d_bias_relu") {
         call = GetRootCall(fn->body.as<CallNode>(), 2, {"nn.conv2d", "add", "nn.relu"});
-      } else if (name == "conv2d_relu") {
+      } else if (name == "dnnl.conv2d_relu") {
         call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.conv2d", "nn.relu"});
         CHECK(call->op.as<OpNode>()) << "Not op node";
       } else {

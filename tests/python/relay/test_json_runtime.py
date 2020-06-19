@@ -28,6 +28,7 @@ from tvm.contrib import util
 from tvm.relay import transform
 from tvm.relay.backend import compile_engine
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.op.contrib.register import get_pattern_table
 
 
 def set_func_attr(func, compile_name, symbol_name):
@@ -420,7 +421,7 @@ def test_composite():
         conv2d = relay.nn.conv2d(in_1, in_2, kernel_size=(3, 3), padding=(1, 1))
         relu = relay.nn.relu(conv2d)
         func = relay.Function([in_1, in_2], relu)
-        func = func.with_attr('Composite', 'conv2d_relu')
+        func = func.with_attr('Composite', 'dnnl.conv2d_relu')
         func = func.with_attr('PartitionedFromPattern', 'nn.conv2d_nn.relu_')
 
         # Partition function
@@ -466,7 +467,7 @@ def test_composite():
         add = relay.add(conv2d, in_3)
         relu = relay.nn.relu(add)
         func = relay.Function([in_1, in_2, in_3], relu)
-        func = func.with_attr('Composite', 'conv2d_bias_relu')
+        func = func.with_attr('Composite', 'dnnl.conv2d_bias_relu')
         func = func.with_attr('PartitionedFromPattern', 'nn.conv2d_add_nn.relu_')
 
         # Partition function
@@ -508,6 +509,54 @@ def test_composite():
         check_result(mod, ref_mod, input_maps, out_shape, tol=1e-5)
 
 
+def test_constant():
+    if not tvm.get_global_func("relay.ext.dnnl", True):
+        print("skip because DNNL codegen is not available")
+        return
+
+    dtype = 'float32'
+    ishape = (1, 32, 14, 14)
+    wshape = (32, 32, 3, 3)
+
+    data = relay.var("data", shape=ishape, dtype=dtype)
+    weight = relay.var("weight", shape=wshape, dtype=dtype)
+    bn_gamma = relay.var("bn_gamma")
+    bn_beta = relay.var("bn_beta")
+    bn_mmean = relay.var("bn_mean")
+    bn_mvar = relay.var("bn_var")
+
+    layer = relay.nn.conv2d(data=data, weight=weight, kernel_size=(3, 3), padding=(1, 1))
+    bn_output = relay.nn.batch_norm(layer, bn_gamma, bn_beta, bn_mmean, bn_mvar)
+    out = bn_output[0]
+    out = relay.nn.relu(out)
+
+    func = relay.Function(relay.analysis.free_vars(out), out)
+    ref_mod, params = tvm.relay.testing.create_workload(func)
+    ref_mod["main"] = bind_params_by_name(ref_mod["main"], params)
+
+    remove_bn_pass = tvm.transform.Sequential([
+        transform.InferType(),
+        transform.SimplifyInference(),
+        transform.FoldConstant(),
+        transform.FoldScaleAxis(),
+    ])
+
+    dnnl_patterns = get_pattern_table("dnnl")
+    composite_partition = tvm.transform.Sequential([
+        transform.MergeComposite(dnnl_patterns),
+        transform.AnnotateTarget("dnnl"),
+        transform.PartitionGraph()
+    ])
+
+    with tvm.transform.PassContext(opt_level=3,
+                                    disabled_pass=["AlterOpLayout"]):
+        ref_mod = remove_bn_pass(ref_mod)
+        mod = composite_partition(ref_mod)
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    check_result(mod, ref_mod, {'data': i_data}, (1, 32, 14, 14), tol=1e-5)
+
+
 if __name__ == "__main__":
     test_conv2d()
     test_add()
@@ -516,3 +565,4 @@ if __name__ == "__main__":
     test_bn()
     test_multiple_ops()
     test_composite()
+    test_constant()

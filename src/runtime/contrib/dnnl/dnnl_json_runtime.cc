@@ -49,45 +49,73 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       : JSONRuntimeBase(graph_json), func_name_(func_name), const_names_(const_names) {}
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
-
-    if (this->func_name_ == name) {
+    if (name == "get_symbol") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->func_name_; });
+    } else if (name == "get_const_vars") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->const_names_; });
+    } else if (this->func_name_ == name) {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        for (auto i = 0; i < args.size(); ++i) {
-          // Setup data entries.
-          CHECK(args[i].type_code() == kTVMNDArrayHandle ||
-                args[i].type_code() == kTVMDLTensorHandle)
-              << "Expect NDArray or DLTensor as inputs\n";
-          if (args[i].type_code() == kTVMDLTensorHandle) {
-            DLTensor* arg = args[i];
-            this->data_entry_[i].CopyFrom(arg);
-          } else {
-            NDArray arg = args[i];
-            this->data_entry_[i].CopyFrom(arg);
+        size_t arg_idx = 0;
+
+        // Set input data entries.
+        for (size_t i = 0; i < this->input_nodes_.size(); ++i) {
+          if (this->is_const_input_[i]) {
+            continue;
           }
+          auto nid = this->input_nodes_[i];
+
+          CHECK(args[arg_idx].type_code() == kTVMNDArrayHandle ||
+                args[arg_idx].type_code() == kTVMDLTensorHandle)
+              << "Expect NDArray or DLTensor as inputs\n";
+          if (args[arg_idx].type_code() == kTVMDLTensorHandle) {
+            DLTensor* arg = args[arg_idx];
+            this->data_entry_[nid][0].CopyFrom(arg);
+          } else {
+            NDArray arg = args[arg_idx];
+            this->data_entry_[nid][0].CopyFrom(arg);
+          }
+          CHECK_LT(arg_idx, args.size()) << "Too less arguments: " << args.size();
+          arg_idx++;
         }
 
         // Execute the subgraph.
         this->Run();
 
-        // Get result.
-        auto offset = this->input_nodes_.size();
+        // Copy result to output buffer.
         for (size_t i = 0; i < this->outputs_.size(); ++i) {
-          size_t idx = i + offset;
-          if (args[idx].type_code() == kTVMDLTensorHandle) {
-            DLTensor* arg = args[idx];
-            this->data_entry_[idx].CopyTo(arg);
+          auto entry = this->outputs_[i];
+
+          if (args[arg_idx].type_code() == kTVMDLTensorHandle) {
+            DLTensor* arg = args[arg_idx];
+            this->data_entry_[entry.id_][entry.index_].CopyTo(arg);
           } else {
-            NDArray arg = args[idx];
-            this->data_entry_[idx].CopyTo(arg);
+            NDArray arg = args[arg_idx];
+            this->data_entry_[entry.id_][entry.index_].CopyTo(arg);
           }
+          CHECK_LT(arg_idx, args.size()) << "Too less arguments: " << args.size();
+          arg_idx++;
         }
       });
     } else if ("__init_" + this->func_name_ == name) {
+      // Build DNNL engine and memory.
       if (!this->is_init_) {
         Init();
       }
       this->is_init_ = true;
-      return PackedFunc();
+
+      // The function to initialize constant tensors.
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        CHECK_EQ(args.size(), 1U);
+        Array<NDArray> consts = args[0];
+        for (size_t i = 0; i < consts.size(); ++i) {
+          CHECK_GT(const_idx_to_nid_.count(i), 0U) << "Const #" << i << " is not initialized";
+          auto nid = const_idx_to_nid_[i];
+          this->data_entry_[nid][0].CopyFrom(consts[i]);
+        }
+        *rv = 0;
+      });
     } else {
       LOG(WARNING) << "Unknown DNNL symbol " << name;
       return PackedFunc();
@@ -100,8 +128,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       auto nid = this->input_nodes_[i];
       // TODO: Support other data lengths.
       size_t offset_in_bytes = this->node_out_mem_[nid][0].second * 4;
-      write_to_dnnl_memory(this->data_entry_[i]->data, this->node_out_mem_[nid][0].first,
-                           GetNDArraySize(this->data_entry_[i]), offset_in_bytes);
+      write_to_dnnl_memory(this->data_entry_[nid][0]->data, this->node_out_mem_[nid][0].first,
+                           GetNDArraySize(this->data_entry_[nid][0]), offset_in_bytes);
     }
 
     // Invoke the engine.
@@ -111,15 +139,13 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     stream_.wait();
 
     // Read output buffers.
-    auto offset = this->input_nodes_.size();
     for (size_t i = 0; i < this->outputs_.size(); ++i) {
       auto out_entry = this->outputs_[i];
       auto nid = out_entry.id_;
       auto idx = out_entry.index_;
       size_t offset_in_bytes = this->node_out_mem_[nid][idx].second * 4;
-      read_from_dnnl_memory(this->data_entry_[offset + i]->data,
-                            this->node_out_mem_[nid][idx].first,
-                            GetNDArraySize(this->data_entry_[offset + i]), offset_in_bytes);
+      read_from_dnnl_memory(this->data_entry_[nid][idx]->data, this->node_out_mem_[nid][idx].first,
+                            GetNDArraySize(this->data_entry_[nid][idx]), offset_in_bytes);
     }
   }
 
@@ -135,9 +161,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
         auto op_name = node.GetOpName();
         if ("nn.conv2d" == op_name) {
           Conv2d(nid);
-        } else if ("conv2d_relu" == op_name) {
+        } else if ("dnnl.conv2d_relu" == op_name) {
           Conv2d(nid, true, false);
-        } else if ("conv2d_bias_relu" == op_name) {
+        } else if ("dnnl.conv2d_bias_relu" == op_name) {
           Conv2d(nid, true, true);
         } else if ("nn.dense" == op_name) {
           Dense(nid);
@@ -150,6 +176,30 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
+      } else if (node.GetOpType() == "const") {
+        auto name = node.GetOpName();
+        bool found = false;
+        for (size_t cid = 0; cid < const_names_.size(); ++cid) {
+          if (name == const_names_[cid]) {
+            found = true;
+            const_idx_to_nid_[cid] = nid;
+            break;
+          }
+        }
+        if (!found) {
+          LOG(FATAL) << "Unrecognized constant node: " << name;
+        }
+      }
+    }
+
+    this->is_const_input_.resize(this->input_nodes_.size());
+    for (size_t nid = 0; nid < this->input_nodes_.size(); ++nid) {
+      const auto& node = nodes_[nid];
+      if (node.GetOpType() == "input") {
+        this->is_const_input_[nid] = false;
+      } else {
+        CHECK_EQ(node.GetOpType(), "const");
+        this->is_const_input_[nid] = true;
       }
     }
 
@@ -159,12 +209,14 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     ctx.device_id = 0;
     for (size_t i = 0; i < this->input_nodes_.size(); ++i) {
       auto shape = this->nodes_[this->input_nodes_[i]].GetOpShape()[0];
-      this->data_entry_.push_back(NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx));
+      auto nid = this->input_nodes_[i];
+      this->data_entry_[nid][0] = NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx);
     }
     for (size_t i = 0; i < this->outputs_.size(); ++i) {
       auto entry = this->outputs_[i];
       auto shape = this->nodes_[entry.id_].GetOpShape()[entry.index_];
-      this->data_entry_.push_back(NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx));
+      this->data_entry_[entry.id_][entry.index_] =
+          NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx);
     }
   }
 
@@ -492,8 +544,8 @@ inline size_t GetNDArraySize(const NDArray& arr) {
   dnnl::engine engine_;
   /* The dnnl stream. */
   dnnl::stream stream_;
-  /* \brief A simple pool to contain the tensor for each node in the graph. */
-  std::vector<NDArray> data_entry_;
+  /* \brief A simple pool to map from node ID to the output tensors. */
+  std::unordered_map<size_t, std::unordered_map<size_t, NDArray>> data_entry_;
   /* The network layers that are represented in dnnl primitives. */
   std::vector<dnnl::primitive> net_;
   /* The memory that is consumed by arguments. */
@@ -507,6 +559,10 @@ inline size_t GetNDArraySize(const NDArray& arr) {
   std::string func_name_;
   /* The required constant names. */
   Array<String> const_names_;
+  /* Indicate if an input node is a constant node. */
+  std::vector<bool> is_const_input_;
+  /* Map from constant index to JSON constant node ID. */
+  std::unordered_map<size_t, size_t> const_idx_to_nid_;
 };
 
 runtime::Module DNNLJSONRuntimeCreate(String func_name, String graph_json,
