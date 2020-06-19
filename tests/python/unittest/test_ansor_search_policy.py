@@ -80,6 +80,7 @@ def test_search_basic():
     t.start()
     t.join()
 
+
 def test_search_xgb_model_rpc_runner():
     measure_ctx = ansor.LocalRPCMeasureContext()
     search_common(seed=456787236, cost_model=ansor.XGBModel(),
@@ -123,13 +124,13 @@ def test_search_custom_sketch_rule():
         # Stage by stage way
         ret = []
         if stage_id == 2:
-            state = ansor.loop_state.State(state)
+            state = ansor.loop_state.State(state, meta_policy.cur_task.compute_dag)
             state.split(2, state.stages[2].iters[0], [4, 4])
             state.split(2, state.stages[2].iters[3], [4, 4])
             ret.append([state.state_object, stage_id - 1])
         elif stage_id == 1:
-            state = ansor.loop_state.State(state)
-            state.cache_read(1, "global", [2], meta_policy.cur_task.compute_dag)
+            state = ansor.loop_state.State(state, meta_policy.cur_task.compute_dag)
+            state.cache_read(1, "global", [2])
             state.compute_at(2, 3, state.stages[3].iters[4])
             ret.append([state.state_object, stage_id - 1])
         else:
@@ -139,11 +140,11 @@ def test_search_custom_sketch_rule():
     def apply_func2(meta_policy, state, stage_id):
         # More template like way
         ret = []
-        state = ansor.loop_state.State(state)
+        state = ansor.loop_state.State(state, meta_policy.cur_task.compute_dag)
 
         state.split(2, state.stages[2].iters[0], [4, 4])
         state.split(2, state.stages[2].iters[3], [4, 4])
-        state.cache_read(1, "global", [2], meta_policy.cur_task.compute_dag)
+        state.cache_read(1, "global", [2])
         state.compute_at(2, 3, state.stages[3].iters[4])
 
         ret.append([state.state_object, -1])

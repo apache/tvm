@@ -49,7 +49,7 @@ class ComputeDAG(Object):
         -------
         state : State
         """
-        return State(_ffi_api.ComputeDAGGetInitState(self))
+        return State(_ffi_api.ComputeDAGGetInitState(self), self)
 
     def apply_steps_from_state(self, state, layout_rewrite_level=None):
         """
@@ -98,9 +98,9 @@ class ComputeDAG(Object):
         state : StateObject
         """
         if isinstance(state, State):
-            return State(_ffi_api.ComputeDAGInferBoundFromState(self, state.state_object))
+            return State(_ffi_api.ComputeDAGInferBoundFromState(self, state.state_object), self)
         elif isinstance(state, StateObject):
-            return State(_ffi_api.ComputeDAGInferBoundFromState(self, state))
+            return State(_ffi_api.ComputeDAGInferBoundFromState(self, state), self)
         else:
             raise ValueError("The input must be a State or StateObject")
 

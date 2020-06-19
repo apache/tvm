@@ -77,16 +77,48 @@ class State:
     -----
     This is a wrapper class of StateObject to deal with copy-on-write property
     """
-    def __init__(self, state_object):
+    def __init__(self, state_object, dag):
         self.state_object = state_object
+        self.compute_dag = dag
 
         self.stages_cache = None
+        self.stage_id_map = {}
+        self.__update_tensor_stage_map()
+
+    def __getitem__(self, k):
+        if not self.stages_cache:
+            self.stages_cache = _ffi_api.StateGetStages(self.state_object)
+        if isinstance(k, tvm.te.Tensor):
+            return self.stages_cache[self.stage_id_map[k.op]]
+        else:
+            raise ValueError("Item must be Tensor")
+
+    def __update_tensor_stage_map(self):
+        if not self.stages_cache:
+            self.stages_cache = _ffi_api.StateGetStages(self.state_object)
+        for index, stage in enumerate(self.stages_cache):
+            self.stage_id_map[stage.op] = index
+
+    def __insert_new_stage(self, new_stage_id):
+        new_stage_id = int(new_stage_id)
+        self.stages_cache = _ffi_api.StateGetStages(self.state_object)
+        added_stage_tensor = self.stages_cache[new_stage_id].op.output(0)
+
+        for key, value in self.stage_id_map.items():
+            if value >= new_stage_id:
+                self.stage_id_map[key] = value + 1
+        self.stage_id_map[added_stage_tensor.op] = new_stage_id
+        self.__update_tensor_stage_map()
+
+        return added_stage_tensor
 
     def clear_cache(self):
         self.stages_cache = None
 
     def copy(self):
-        return State(self.state_object)
+        state = State(self.state_object, self.compute_dag)
+        state.stage_id_map = self.stage_id_map.copy()
+        return state
 
     @property
     def stages(self):
@@ -98,6 +130,17 @@ class State:
         if not self.stages_cache:
             self.stages_cache = _ffi_api.StateGetStages(self.state_object)
         return self.stages_cache
+
+    @property
+    def stage_tensors(self):
+        """
+        Returns
+        -------
+        Tensor
+        """
+        if not self.stages_cache:
+            self.stages_cache = _ffi_api.StateGetStages(self.state_object)
+        return [stage.op.output(0) for stage in self.stages_cache]
 
     def transform_steps_size(self):
         """ Return the size of transform_steps
@@ -113,6 +156,11 @@ class State:
         order : List[Iterator]
             Iterators in the expected order
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object = _ffi_api.StateReorder(self.state_object, stage_id, order)
         self.clear_cache()
 
@@ -135,6 +183,11 @@ class State:
         res_its : List[Iterator]
             The splitted new Iterators
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object, res = _ffi_api.StateSplit(self.state_object, stage_id, it, lengths,
                                                      inner_to_outer)
         self.clear_cache()
@@ -158,6 +211,11 @@ class State:
         res_its : List[Iterator]
             The splitted new Iterators
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object, res = _ffi_api.StateFollowSplit(self.state_object, stage_id, it,
                                                            src_step_id, n_split)
         self.clear_cache()
@@ -185,6 +243,11 @@ class State:
         res_its : List[Iterator]
             The splitted new Iterators
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object, res = _ffi_api.StateFollowFusedSplit(self.state_object, stage_id, it,
                                                                 src_step_ids, level,
                                                                 factor_or_nparts)
@@ -205,6 +268,11 @@ class State:
         res_it : Iterator
             The fused Iterator
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object, res = _ffi_api.StateFuse(self.state_object, stage_id, iters)
         self.clear_cache()
         return res
@@ -223,6 +291,11 @@ class State:
         res_it : Iterator
             The vectorized Iterator
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object, res = _ffi_api.StateVectorize(self.state_object, stage_id, it)
         self.clear_cache()
         return res
@@ -241,6 +314,11 @@ class State:
         res_it : Iterator
             The parallelized Iterator
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object, res = _ffi_api.StateParallel(self.state_object, stage_id, it)
         self.clear_cache()
         return res
@@ -261,6 +339,11 @@ class State:
         res_it : Iterator
             The unrolled Iterator
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object, res = _ffi_api.StateUnroll(self.state_object, stage_id, it, max_unroll)
         self.clear_cache()
         return res
@@ -290,6 +373,11 @@ class State:
         }
         thread_id = trans_table[thread_name]
 
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object, res = _ffi_api.StateBindThread(self.state_object, stage_id, it, thread_id)
         self.clear_cache()
         return res
@@ -305,6 +393,15 @@ class State:
         target_iter : Iterator
             The target Iterator of compute_at
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+        if isinstance(target_stage_id, tvm.te.Tensor):
+            target_stage_id = self.stage_id_map[target_stage_id.op]
+        elif not isinstance(target_stage_id, int):
+            raise ValueError("target_stage_id must be Tensor or Int")
+
         self.state_object = _ffi_api.StateComputeAt(self.state_object, stage_id,
                                                      target_stage_id, target_iter)
         self.clear_cache()
@@ -316,6 +413,11 @@ class State:
         stage_id : Int
             The index of the stage to compute root
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object = _ffi_api.StateComputeRoot(self.state_object, stage_id)
         self.clear_cache()
 
@@ -326,10 +428,15 @@ class State:
         stage_id : Int
             The index of the stage to compute inline
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object = _ffi_api.StateComputeInline(self.state_object, stage_id)
         self.clear_cache()
 
-    def cache_read(self, stage_id, scope_name, reader_stage_ids, task_dag):
+    def cache_read(self, stage_id, scope_name, reader_stage_ids):
         """
         Parameters
         ----------
@@ -337,37 +444,55 @@ class State:
             The index of the stage to do cache_read
         scope_name : Str
         reader_stage_ids : List[Int]
-        task_dag : ComputeDAG
 
         Returns
         -------
         new_stage_id : Int
             The added staged id
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+        if isinstance(reader_stage_ids, list):
+            tmp_list = []
+            for reader_stage_id in reader_stage_ids:
+                if isinstance(reader_stage_id, tvm.te.Tensor):
+                    tmp_list.append(self.stage_id_map[reader_stage_id.op])
+                elif isinstance(reader_stage_id, int):
+                    tmp_list.append(reader_stage_id)
+                else:
+                    raise ValueError("reader_stage_id must be Tensor or Int")
+            reader_stage_ids = tmp_list
+        else:
+            raise ValueError("reader_stage_ids must be list of Tensor or Int")
+
         self.state_object, new_stage_id = _ffi_api.StateCacheRead(self.state_object, stage_id,
                                                                   scope_name, reader_stage_ids,
-                                                                  task_dag)
-        self.clear_cache()
-        return int(new_stage_id)
+                                                                  self.compute_dag)
+        return self.__insert_new_stage(new_stage_id)
 
-    def cache_write(self, stage_id, scope_name, task_dag):
+    def cache_write(self, stage_id, scope_name):
         """
         Parameters
         ----------
         stage_id : Int
             The index of the stage to do cache read
         scope_name : Str
-        task_dag : ComputeDAG
 
         Returns
         -------
         new_stage_id : Int
             The added staged id
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object, new_stage_id = _ffi_api.StateCacheWrite(self.state_object, stage_id,
-                                                                   scope_name, task_dag)
-        self.clear_cache()
-        return int(new_stage_id)
+                                                                   scope_name, self.compute_dag)
+        return self.__insert_new_stage(new_stage_id)
 
     def pragma(self, stage_id, it, pragma_type):
         """
@@ -379,10 +504,15 @@ class State:
             The iterator to add pragma
         pragma_type : Str
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object = _ffi_api.StatePragma(self.state_object, stage_id, it, pragma_type)
         self.clear_cache()
 
-    def rfactor(self, stage_id, it, factor_iter_id, task_dag):
+    def rfactor(self, stage_id, it, factor_iter_id):
         """
         Parameters
         ----------
@@ -390,17 +520,20 @@ class State:
             The index of the stage to do reduction factor
         it : Iterator
         factor_iter_id : Int
-        task_dag : ComputeDAG
 
         Returns
         -------
         new_stage_id : Int
             The added staged id
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object, new_stage_id = _ffi_api.StateRfactor(self.state_object, stage_id, it,
-                                                                factor_iter_id, task_dag)
-        self.clear_cache()
-        return int(new_stage_id)
+                                                                factor_iter_id, self.compute_dag)
+        return self.__insert_new_stage(new_stage_id)
 
     def storage_align(self, stage_id, it, factor, offset):
         """
@@ -412,6 +545,11 @@ class State:
         factor : Int
         offset : Int
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object = _ffi_api.StateStorageAlign(self.state_object, stage_id, it, factor, offset)
         self.clear_cache()
 
@@ -433,6 +571,11 @@ class State:
         res_it : Iterator
             The tensorized Iterator
         """
+        if isinstance(stage_id, tvm.te.Tensor):
+            stage_id = self.stage_id_map[stage_id.op]
+        elif not isinstance(stage_id, int):
+            raise ValueError("stage_id must be Tensor or Int")
+
         self.state_object, res = _ffi_api.StateTensorize(self.state_object,
                                                          stage_id, it,
                                                          ti_func_name)

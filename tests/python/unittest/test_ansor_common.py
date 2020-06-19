@@ -56,26 +56,19 @@ def conv2d_nchw_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation
 
 
 def get_tiled_matmul():
-    dag = ansor.ComputeDAG(matmul_ansor_test(512, 512, 512))
+    A, B, C = matmul_ansor_test(512, 512, 512)
+    dag = ansor.ComputeDAG([A, B, C])
 
     s0 = dag.get_init_state()
-    A, B, C = 0, 1, 2
-    C_global = s0.cache_write(C, "global", dag)
-    C += 1
-    its0 = s0.split(C, s0.stages[C].iters[0], [4, 8, 8])
-    its1 = s0.split(C, s0.stages[C].iters[4], [8, 4, 4])
+    C_global = s0.cache_write(C, "global")
+    its0 = s0.split(C, s0[C].iters[0], [4, 8, 8])
+    its1 = s0.split(C, s0[C].iters[4], [8, 4, 4])
     s0.reorder(C, [its0[0], its1[0], its0[1], its1[1], its0[2], its1[2], its0[3], its1[3]])
-    s0.compute_at(C_global, C, s0.stages[C].iters[3])
-    s0.split(C_global, s0.stages[C_global].iters[2], [16])
-    B_global = s0.cache_read(B, "global", [C_global], dag)
-    C += 1
-    C_global += 1
-    s0.compute_at(B_global, C_global, s0.stages[C_global].iters[0])
-    A_global = s0.cache_read(A, "global", [C_global], dag)
-    B += 1
-    B_global += 1
-    C += 1
-    C_global += 1
-    s0.compute_at(A_global, C_global, s0.stages[C_global].iters[2])
+    s0.compute_at(C_global, C, s0[C].iters[3])
+    s0.split(C_global, s0[C_global].iters[2], [16])
+    B_global = s0.cache_read(B, "global", [C_global])
+    s0.compute_at(B_global, C_global, s0[C_global].iters[0])
+    A_global = s0.cache_read(A, "global", [C_global])
+    s0.compute_at(A_global, C_global, s0[C_global].iters[2])
     return dag, s0
 

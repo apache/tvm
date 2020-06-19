@@ -34,12 +34,14 @@ def test_infer_bound():
     dag, s = get_tiled_matmul()
     s = dag.infer_bound_from_state(s)
 
-    A_global, B_global, C_global = 1, 3, 4
-    assert s.stages[B_global].iters[0].range.extent == 512
-    assert s.stages[B_global].iters[1].range.extent == 16
-    assert s.stages[A_global].iters[0].range.extent == 1
-    assert s.stages[A_global].iters[1].range.extent == 16
-    assert s.stages[C_global].iters[0].range.extent == 64
+    A_global = s.stage_tensors[1]
+    B_global = s.stage_tensors[3]
+    C_global = s.stage_tensors[4]
+    assert s[B_global].iters[0].range.extent == 512
+    assert s[B_global].iters[1].range.extent == 16
+    assert s[A_global].iters[0].range.extent == 1
+    assert s[A_global].iters[1].range.extent == 16
+    assert s[C_global].iters[0].range.extent == 64
 
 
 def test_estimate_flop():
@@ -57,9 +59,8 @@ def test_lower_legalize_invalid_attach():
     dag = ansor.ComputeDAG([A, B])
     s = dag.get_init_state()
 
-    A, B = 0, 1
-    s.compute_at(A, B, s.stages[B].iters[1])
-    s.split(B, s.stages[B].iters[1], [2])
+    s.compute_at(A, B, s[B].iters[1])
+    s.split(B, s[B].iters[1], [2])
 
     sch, tensors = dag.apply_steps_from_state(s)
     stmt = tvm.lower(sch, tensors, simple_mode=True)

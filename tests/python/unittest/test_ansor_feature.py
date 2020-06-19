@@ -33,9 +33,9 @@ def fequal(a, b):
 def test_cpu_matmul():
     dag = ansor.ComputeDAG(matmul_ansor_test(512, 512, 512))
     s = dag.get_init_state()
-    C = 2
+    C = s.stage_tensors[2]
 
-    i, j, k = s.stages[C].iters
+    i, j, k = s[C].iters
     io, ii = s.split(C, i, [16])
     jo, ji = s.split(C, j, [8])
     s.reorder(C, [io, jo, k, ji, ii])

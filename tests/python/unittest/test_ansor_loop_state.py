@@ -17,6 +17,8 @@
 
 """Test loop state and schedule primitives"""
 
+import numpy as np
+
 import tvm
 from tvm import ansor, te
 import topi
@@ -25,16 +27,16 @@ from test_ansor_common import matmul_ansor_test, conv2d_nchw_bn_relu
 
 
 def test_split_fuse_reorder_annotation():
-    dag = ansor.ComputeDAG(matmul_ansor_test(512, 512, 512))
+    A, B, C = matmul_ansor_test(512, 512, 512)
+    dag = ansor.ComputeDAG([A, B, C])
     s0 = dag.get_init_state()
-    C = 2
-    i, j, k = s0.stages[C].iters
+    i, j, k = s0[C].iters
 
     assert i.range.extent == 512
 
     io, ii = s0.split(C, i, [16])
-    assert s0.stages[C].iters[0] == io
-    assert s0.stages[C].iters[1] == ii
+    assert s0[C].iters[0] == io
+    assert s0[C].iters[1] == ii
     assert io.range.extent == 32
     assert ii.range.extent == 16
 
@@ -43,21 +45,21 @@ def test_split_fuse_reorder_annotation():
     assert ji.range.extent == 8
 
     s0.reorder(C, [io, jo, k, ji, ii])
-    assert s0.stages[C].iters[2].range.extent == 512
+    assert s0[C].iters[2].range.extent == 512
 
     fused_it = s0.fuse(C, [io, jo])
     assert fused_it.range.extent == 2048
 
     s1 = dag.get_init_state()
-    i, j, _ = s1.stages[C].iters
+    i, j, _ = s1[C].iters
     i1, i2, i3 = s1.split(C, i, [8, 2])
     j1, j2, j3 = s1.split(C, j, [32, 8], False)
-    assert s1.stages[C].iters[0].range.extent == 32
-    assert s1.stages[C].iters[1].range.extent == 8
-    assert s1.stages[C].iters[2].range.extent == 2
-    assert s1.stages[C].iters[3].range.extent == 32
-    assert s1.stages[C].iters[4].range.extent == 8
-    assert s1.stages[C].iters[5].range.extent == 2
+    assert s1[C].iters[0].range.extent == 32
+    assert s1[C].iters[1].range.extent == 8
+    assert s1[C].iters[2].range.extent == 2
+    assert s1[C].iters[3].range.extent == 32
+    assert s1[C].iters[4].range.extent == 8
+    assert s1[C].iters[5].range.extent == 2
 
     s1.parallel(C, j1)
     s1.unroll(C, j2)
@@ -68,23 +70,22 @@ def test_split_fuse_reorder_annotation():
 
 
 def test_follow_split_follow_fused_split():
-    dag = ansor.ComputeDAG(matmul_ansor_test(512, 512, 512))
+    A, B, C = matmul_ansor_test(512, 512, 512)
+    dag = ansor.ComputeDAG([A, B, C])
     s0 = dag.get_init_state()
-    C = 2
 
-    C_global = s0.cache_write(C, "global", dag)
-    C += 1
+    C_global = s0.cache_write(C, "global")
 
-    its0 = s0.split(C, s0.stages[C].iters[0], [4, 2, 8, 4], True)
+    its0 = s0.split(C, s0[C].iters[0], [4, 2, 8, 4], True)
     split_step0 = s0.transform_steps_size() - 1
     for level in range(1, 6):
         tmp = s0.copy()
-        tmp.follow_split(C_global, tmp.stages[C_global].iters[0], split_step0, level)
+        tmp.follow_split(C_global, tmp[C_global].iters[0], split_step0, level)
         for i in range(0, level):
-            assert tmp.stages[C].iters[i].range.extent == \
-                   tmp.stages[C_global].iters[i].range.extent
+            assert tmp[C].iters[i].range.extent == \
+                   tmp[C_global].iters[i].range.extent
 
-    its1 = s0.split(C, s0.stages[C].iters[5], [2, 2, 4, 8])
+    its1 = s0.split(C, s0[C].iters[5], [2, 2, 4, 8])
     split_step1 = s0.transform_steps_size() - 1
     its = []
     for i0, i1 in zip(its0, its1):
@@ -92,40 +93,41 @@ def test_follow_split_follow_fused_split():
         its.append(i1)
     s0.reorder(C, its)
     for i in range(0, 5):
-        s0.fuse(C, [s0.stages[C].iters[i], s0.stages[C].iters[i + 1]])
+        s0.fuse(C, [s0[C].iters[i], s0[C].iters[i + 1]])
 
     for level in range(0, 4):
         tmp = s0.copy()
-        tmp.follow_fused_split(C_global, tmp.stages[C_global].iters[0],
+        tmp.follow_fused_split(C_global, tmp[C_global].iters[0],
                                [split_step0, split_step1], level, False)
-        assert tmp.stages[C].iters[level + 1].range.extent == \
-               tmp.stages[C_global].iters[0].range.extent
+        assert tmp[C].iters[level + 1].range.extent == \
+               tmp[C_global].iters[0].range.extent
 
     for level in range(0, 4):
         tmp = s0.copy()
-        tmp.follow_fused_split(C_global, tmp.stages[C_global].iters[0],
+        tmp.follow_fused_split(C_global, tmp[C_global].iters[0],
                                [split_step0, split_step1], level, True)
-        assert tmp.stages[C].iters[level + 1].range.extent == \
-               tmp.stages[C_global].iters[1].range.extent
+        assert tmp[C].iters[level + 1].range.extent == \
+               tmp[C_global].iters[1].range.extent
 
 
 def test_compute_at_root_inline():
     dag = ansor.ComputeDAG(conv2d_nchw_bn_relu(1, 224, 224, 3, 64, 7, 2, 3))
+    s0 = dag.get_init_state()
 
     # data, padding, kernel = 0, 1, 2
-    conv = 3
+    conv = s0.stage_tensors[3]
     # bias = 4
-    bias_add = 5
+    bias_add = s0.stage_tensors[5]
     # bn_scale = 6
-    bn_mul = 7
+    bn_mul = s0.stage_tensors[7]
     # bn_offset = 8
-    bn_add, relu = 9, 10
+    bn_add = s0.stage_tensors[9]
+    relu = s0.stage_tensors[10]
 
-    s0 = dag.get_init_state()
     s0.compute_inline(bn_add)
     s0.compute_inline(bn_mul)
     s0.compute_inline(bias_add)
-    s0.compute_at(conv, relu, s0.stages[relu].iters[2])
+    s0.compute_at(conv, relu, s0[relu].iters[2])
     assert str(s0) == \
         "Placeholder: Data, Kernel, Bias, Bn_scale, Bn_offset\n" + \
         "for i1 (0,3)\n" + \
@@ -186,33 +188,27 @@ def test_cache_read_write():
                         name='Kernel')
     conv = topi.nn.conv2d_nchw(data, kernel, strides, padding, dilation=1)
     relu = topi.nn.relu(conv)
-    out = topi.add(data, relu)
+    add = topi.add(data, relu)
 
-    dag = ansor.ComputeDAG([data, kernel_data, out])
-    data, pad_temp, kernel_data, kernel_split, kernel, conv, relu, add = 0, 1, 2, 3, 4, 5, 6, 7
+    dag = ansor.ComputeDAG([data, kernel_data, add])
+    s0 = dag.get_init_state()
+
+    pad_temp = s0.stage_tensors[1]
+    kernel_split = s0.stage_tensors[3]
 
     # 0: init state
-    s0 = dag.get_init_state()
-    ori_its = s0.stages[add].iters
-    its = s0.split(add, s0.stages[add].iters[0], [2])
+    ori_its = s0[add].iters
+    its = s0.split(add, s0[add].iters[0], [2])
     s0.reorder(add, [its[0], ori_its[1], its[1], ori_its[2], ori_its[3]])
     s0.compute_inline(relu)
 
     # 1: simple cache_write with compute_at
-    conv_global = s0.cache_write(conv, "global", dag)
-    conv += 1
-    relu += 1
-    add += 1
-    s0.compute_at(conv_global, conv, s0.stages[conv].iters[3])
+    conv_global = s0.cache_write(conv, "global")
+    s0.compute_at(conv_global, conv, s0[conv].iters[3])
 
     # 2: simple cache_read with compute_at
-    kernel_global = s0.cache_read(kernel, "global", [conv_global], dag)
-    conv_global += 1
-    conv += 1
-    relu += 1
-    add += 1
-    s0.compute_at(kernel_global, conv_global,
-                  s0.stages[conv_global].iters[4])
+    kernel_global = s0.cache_read(kernel, "global", [conv_global])
+    s0.compute_at(kernel_global, conv_global, s0[conv_global].iters[4])
     assert str(s0) == \
         "Placeholder: Data, Kernel_data\n" + \
         "for i0 (0,4)\n" + \
@@ -257,41 +253,14 @@ def test_cache_read_write():
 
     # 3: two level cache_read with compute_at
     #    preparing for GPU's shared memory & local memory
-    pad_temp_global = s0.cache_read(pad_temp, "global", [conv_global], dag)
-    kernel_data += 1
-    kernel_split += 1
-    kernel += 1
-    kernel_global += 1
-    conv_global += 1
-    conv += 1
-    relu += 1
-    add += 1
-    pad_temp_shared = s0.cache_read(pad_temp_global, "shared", [conv_global], dag)
-    kernel_data += 1
-    kernel_split += 1
-    kernel += 1
-    kernel_global += 1
-    conv_global += 1
-    conv += 1
-    relu += 1
-    add += 1
-    s0.compute_at(pad_temp_global, conv_global, s0.stages[conv_global].iters[2])
-    s0.compute_at(pad_temp_shared, conv_global, s0.stages[conv_global].iters[4])
+    pad_temp_global = s0.cache_read(pad_temp, "global", [conv_global])
+    pad_temp_shared = s0.cache_read(pad_temp_global, "shared", [conv_global])
+    s0.compute_at(pad_temp_global, conv_global, s0[conv_global].iters[2])
+    s0.compute_at(pad_temp_shared, conv_global, s0[conv_global].iters[4])
 
     # 4: cache_read with multi readers
     #    This stage cannot be compute at to its consumer
-    data_global = s0.cache_read(data, "global", [pad_temp, add], dag)
-    pad_temp += 1
-    pad_temp_global += 1
-    pad_temp_shared += 1
-    kernel_data += 1
-    kernel_split += 1
-    kernel += 1
-    kernel_global += 1
-    conv_global += 1
-    conv += 1
-    relu += 1
-    add += 1
+    s0.cache_read(data, "global", [pad_temp, add])
     assert str(s0) == \
         "Placeholder: Data, Kernel_data\n" + \
         "for ax0 (0,4)\n" + \
@@ -364,7 +333,7 @@ def test_cache_read_write():
     # Seems there's bug with the input/output tensor. Such multi outputs case
     # should be unusual, so we make some hack on DoCacheWrite
     # To be fixed in the future
-    s0.cache_write(kernel_split, "global", dag)
+    s0.cache_write(kernel_split, "global")
     assert str(s0) == \
         "Placeholder: Data, Kernel_data\n" + \
         "for ax0 (0,4)\n" + \
@@ -434,14 +403,14 @@ def test_cache_read_write():
 
 
 def test_rfactor():
-    dag = ansor.ComputeDAG(matmul_ansor_test(8, 8, 512))
+    A, B, C = matmul_ansor_test(8, 8, 512)
+    dag = ansor.ComputeDAG([A, B, C])
     s0 = dag.get_init_state()
-    C = 2
 
-    ko, ki = s0.split(C, s0.stages[C].iters[2], [16])
+    ko, ki = s0.split(C, s0[C].iters[2], [16])
 
     s1 = s0.copy()
-    s1.rfactor(C, ko, 2, dag)
+    s1.rfactor(C, ko, 2)
     assert str(s1) == \
         "Placeholder: A, B\n" + \
         "for i (0,8)\n" + \
@@ -455,7 +424,7 @@ def test_rfactor():
         "      C.repl = ...\n"
 
     s2 = s0.copy()
-    s2.rfactor(C, ki, 2, dag)
+    s2.rfactor(C, ki, 2)
     assert str(s2) == \
         "Placeholder: A, B\n" + \
         "for i (0,8)\n" + \
@@ -467,6 +436,122 @@ def test_rfactor():
         "  for ax1 (0,8)\n" + \
         "    for k_i_v (0,16)\n" + \
         "      C.repl = ...\n"
+
+
+def vcf_init_common():
+    A, B, C = matmul_ansor_test(512, 512, 512)
+    dag = ansor.ComputeDAG([A, B, C])
+    s0 = dag.get_init_state()
+    B_shared = s0.cache_read(B, "shared", [C])
+    B_local = s0.cache_read(B_shared, "local", [C])
+    A_shared = s0.cache_read(A, "shared", [C])
+    A_local = s0.cache_read(A_shared, "local", [C])
+
+    return A_shared, A_local, B_shared, B_local, C, dag, s0
+
+
+def vcf_check_common(dag, state):
+    s, args = dag.apply_steps_from_state(state)
+    # To check if every vectorize loop transforms to ramp expr successfully
+    # TODO(jcf94): Find a better way to process the check in AST
+    print(tvm.lower(s, args))
+
+    if tvm.context("cuda", 0).exist:
+        tgt = tvm.target.cuda()
+        mod = tvm.build(s, args, tgt)
+        # To check if every vectorize loop transforms to correct instruction
+        print(mod.imported_modules[0].get_source())
+
+        ctx = tvm.context("cuda", 0)
+        dtype = dag.tensors[0].dtype
+        a = tvm.nd.array(np.random.uniform(size=(512, 512)).astype(dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=(512, 512)).astype(dtype), ctx)
+        c = tvm.nd.array(np.zeros((512, 512), dtype=dtype), ctx)
+        mod(a, b, c)
+        tvm.testing.assert_allclose(c.asnumpy(), np.dot(
+            a.asnumpy(), b.asnumpy()), rtol=1e-5)
+    else:
+        print("CUDA device not found, skip this test.")
+
+
+def test_vectorized_cooperative_fetching_x():
+    A_shared, A_local, B_shared, B_local, C, dag, s0 = vcf_init_common()
+
+    its0 = s0.split(C, s0[C].iters[0], [1, 8, 2, 4])
+    its1 = s0.split(C, s0[C].iters[5], [2, 8, 2, 4])
+    its2 = s0.split(C, s0[C].iters[10], [8, 8])
+    s0.reorder(C, [its0[0], its1[0], its0[1], its1[1], its0[2], its1[2], its2[0],
+                   its2[1], its0[3], its1[3], its2[2], its0[4], its1[4]])
+    s0.fuse(C, [s0[C].iters[0], s0[C].iters[1]])
+    s0.bind_thread(C, s0[C].iters[0], "blockIdx.x")
+    s0.fuse(C, [s0[C].iters[1], s0[C].iters[2]])
+    s0.bind_thread(C, s0[C].iters[1], "vthread")
+    s0.fuse(C, [s0[C].iters[2], s0[C].iters[3]])
+    s0.bind_thread(C, s0[C].iters[2], "threadIdx.x")
+    s0.vectorize(C, its1[4])
+
+    s0.compute_at(B_shared, C, s0[C].iters[3])
+    fused_it = s0.fuse(B_shared, s0[B_shared].iters[:])
+    its = s0.split(B_shared, fused_it, [64, 4])
+    s0.bind_thread(B_shared, its[1], "threadIdx.x")
+    s0.vectorize(B_shared, its[2])
+    s0.compute_at(B_local, C, s0[C].iters[4])
+    fused_it = s0.fuse(B_local, s0[B_local].iters[:])
+    its = s0.split(B_local, fused_it, [4])
+    s0.vectorize(B_local, its[1])
+
+    s0.compute_at(A_shared, C, s0[C].iters[3])
+    fused_it = s0.fuse(A_shared, s0[A_shared].iters[:])
+    its = s0.split(A_shared, fused_it, [64, 4])
+    s0.bind_thread(A_shared, its[1], "threadIdx.x")
+    s0.vectorize(A_shared, its[2])
+    s0.compute_at(A_local, C, s0[C].iters[4])
+    fused_it = s0.fuse(A_local, s0[A_local].iters[:])
+    its = s0.split(A_local, fused_it, [4])
+    s0.vectorize(A_local, its[1])
+
+    vcf_check_common(dag, s0)
+
+
+def test_vectorized_cooperative_fetching_xy():
+    A_shared, A_local, B_shared, B_local, C, dag, s0 = vcf_init_common()
+
+    its0 = s0.split(C, s0[C].iters[0], [1, 8, 2, 4])
+    its1 = s0.split(C, s0[C].iters[5], [2, 8, 2, 4])
+    its2 = s0.split(C, s0[C].iters[10], [8, 8])
+    s0.reorder(C, [its0[0], its1[0], its0[1], its1[1], its0[2], its1[2], its2[0],
+                   its2[1], its0[3], its1[3], its2[2], its0[4], its1[4]])
+    s0.fuse(C, [s0[C].iters[0], s0[C].iters[1]])
+    s0.bind_thread(C, s0[C].iters[0], "blockIdx.x")
+    s0.fuse(C, [s0[C].iters[1], s0[C].iters[2]])
+    s0.bind_thread(C, s0[C].iters[1], "vthread")
+    s0.bind_thread(C, s0[C].iters[2], "threadIdx.x")
+    s0.bind_thread(C, s0[C].iters[3], "threadIdx.y")
+    s0.vectorize(C, its1[4])
+
+    s0.compute_at(B_shared, C, s0[C].iters[4])
+    fused_it = s0.fuse(B_shared, s0[B_shared].iters[:])
+    its = s0.split(B_shared, fused_it, [8, 8, 4])
+    s0.bind_thread(B_shared, its[1], "threadIdx.x")
+    s0.bind_thread(B_shared, its[2], "threadIdx.y")
+    s0.vectorize(B_shared, its[3])
+    s0.compute_at(B_local, C, s0[C].iters[5])
+    fused_it = s0.fuse(B_local, s0[B_local].iters[:])
+    its = s0.split(B_local, fused_it, [4])
+    s0.vectorize(B_local, its[1])
+
+    s0.compute_at(A_shared, C, s0[C].iters[4])
+    fused_it = s0.fuse(A_shared, s0[A_shared].iters[:])
+    its = s0.split(A_shared, fused_it, [8, 8, 4])
+    s0.bind_thread(A_shared, its[1], "threadIdx.x")
+    s0.bind_thread(A_shared, its[2], "threadIdx.y")
+    s0.vectorize(A_shared, its[3])
+    s0.compute_at(A_local, C, s0[C].iters[5])
+    fused_it = s0.fuse(A_local, s0[A_local].iters[:])
+    its = s0.split(A_local, fused_it, [4])
+    s0.vectorize(A_local, its[1])
+
+    vcf_check_common(dag, s0)
 
 
 @tvm._ffi.register_func
@@ -495,11 +580,11 @@ def test_intrin_gemv():
     return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
 
 def test_tensorize():
-    dag = ansor.ComputeDAG(matmul_ansor_test(1024, 512, 64))
+    A, B, C = matmul_ansor_test(1024, 512, 64)
+    dag = ansor.ComputeDAG([A, B, C])
     s0 = dag.get_init_state()
-    C = 2
 
-    its = s0.split(C, s0.stages[C].iters[1], [16])
+    its = s0.split(C, s0[C].iters[1], [16])
     s0.tensorize(C, its[1], "test_intrin_gemv")
 
     sch, tensors = dag.apply_steps_from_state(s0)
@@ -511,4 +596,6 @@ if __name__ == "__main__":
     test_compute_at_root_inline()
     test_cache_read_write()
     test_rfactor()
+    test_vectorized_cooperative_fetching_x()
+    test_vectorized_cooperative_fetching_xy()
     test_tensorize()

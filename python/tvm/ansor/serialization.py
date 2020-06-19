@@ -76,7 +76,7 @@ def write_measure_records_to_file(filename, inputs, results):
 def get_states_from_measure_inputs(inputs, task):
     """Get states from measure inputs"""
     state_objects = _ffi_api.GetStatesFromMeasureInputs(inputs, task)
-    return [State(s) for s in state_objects]
+    return [State(s, task.compute_dag) for s in state_objects]
 
 
 def best_measure_pair_in_file(filename, workload_key=None, target=None):

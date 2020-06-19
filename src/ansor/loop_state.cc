@@ -1063,10 +1063,6 @@ TVM_REGISTER_GLOBAL("ansor.StateGetStages").set_body_typed([](const State& state
   return Array<Stage>(state->stages);
 });
 
-TVM_REGISTER_GLOBAL("ansor.StateGetStage").set_body_typed([](const State& state, int index) {
-  return state->stages[index];
-});
-
 TVM_REGISTER_GLOBAL("ansor.StateGetTransformStepsSize").set_body_typed([](const State& state) {
   return static_cast<int64_t>(state->transform_steps.size());
 });
