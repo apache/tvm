@@ -277,11 +277,6 @@ def test_sub_index_simplify():
     ck.verify(tdiv(x * 0 + 6, 3) - tdiv(x * 0 + 2, 3),  2)
     ck.verify(tdiv(x + 2, 3) - tdiv(x + 5, 3),  tdiv(-3, 3))
     ck.verify(tdiv(x + 2, 3)  + 2 - tdiv(x + 5, 3),  2 + tdiv(-3, 3))
-    ck.analyzer.update(y, tvm.arith.ConstIntBound(1, 3), override=True)
-    ck.verify(tdiv(x * 2 + 2, y) - tdiv(x * 2+ 5, y),  tdiv(-3, y))
-    ck.verify(tdiv(x * 2 + 2, y) + 2 - tdiv(x * 2+ 5, y),  2 + tdiv(-3, y))
-    ck.verify(tdiv(x + 2, y) - tdiv(x + 5, y),  tdiv(-3, y))
-    ck.verify(tdiv(x + 2, y)  + 2 - tdiv(x + 5, y),  2 + tdiv(-3, y))
 
     ck.verify(y - tdiv(y, (-5)) * (-5), tmod(y, 5))
     ck.verify(tdiv(y, 3) * 3 - y, 0 - tmod(y, 3))
