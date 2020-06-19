@@ -456,7 +456,7 @@ reg.register_pattern("nn.contrib_conv2d_gemm_without_weight_transform",
 def compute_contrib_conv2d_gemm_weight_transform(attrs, inputs, out_dtype):
     """Compute definition of contrib_conv2d_gemm_weight_transform"""
     out = topi.nn.conv2d_gemm_weight_transform(
-        inputs[0])
+        inputs[0], attrs.tile_rows, attrs.tile_cols)
     return [out]
 
 reg.register_schedule("nn.contrib_conv2d_gemm_weight_transform",

@@ -384,31 +384,58 @@ inline bool Conv2DWinogradWeightTransformRel(const Array<Type>& types, int num_i
 }
 
 // Gemm convolution shape relations
+// In order to run GEMM we need to block-transpose and interleave the K x N weights matrix W.
+// The high level idea is to subdivide W in tiles of tile_cols x tile_rows, and transpose and
+// interleave them. The final output is a [N//tile_rows, K//tile_cols, tile_rows, tile_cols]
+// matrix that we call W_interleaved_t.
+//
+// In the following picture, we show how the first [tile_cols,tile_rows] block of W is transformed
+// for tile_rows = 4 and tile_cols = 16
+//
+//              W[0,0,:,:]                        W_interleaved_t[0,0,:,:]
+//  +-------------------------------+     +----------------------------------- +
+//  |W[0,0]  W[0,1]  W[0,2]  W[0,3] |     |W[0,0]  W[1,0]  W[2,0]  ...  W[15,0]|
+//  |W[1,0]  W[1,1]  W[1,2]  W[1,3] | --\ |W[0,1]  W[1,1]  W[2,1]  ...  W[15,1]|
+//  |W[2,0]  W[2,1]  W[2,2]  W[2,3] | --/ |W[0,2]  W[1,2]  W[2,2]  ...  W[15,2]|
+//  |  ...     ...    ...      ...  |     |W[0,3]  W[1,3]  W[2,3]  ...  W[15,3]|
+//  |  ...     ...    ...      ...  |     +------------------------------------+
+//  |W[15,0] W[15,1] W[15,2] W[15,3]|
+//  +-------------------------------+
+//
+// Tile columns is usually the direction of the reduction. So, if our target can reduce k elements
+// at the time, we should set tile_cols = k.
+// Tile rows is connected with the number of registers available for the given target.
+//
 inline bool Conv2DGemmWeightTransformRel(const Array<Type>& types, int num_inputs,
                                          const Attrs& attrs, const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
+  const ConvGemmWeightTransformAttrs* param = attrs.as<ConvGemmWeightTransformAttrs>();
+  CHECK(param != nullptr);
+  int n = param->tile_rows;
+  int k = param->tile_cols;
+
   CHECK_EQ(data->shape.size(), 4) << "Only support HWIO kernel layout";
 
   const auto K = data->shape[0] * data->shape[1] * data->shape[2];
   const auto N = data->shape[3];
 
-  auto k_mod_16 = indexmod(K, 16);
-  auto n_mod_4 = indexmod(N, 4);
+  auto K_mod_k = indexmod(K, k);
+  auto N_mod_n = indexmod(N, n);
 
-  auto pad_k = tvm::if_then_else(k_mod_16 != 0, 16 - k_mod_16, tir::make_zero(DataType::Int(32)));
-  auto pad_n = tvm::if_then_else(n_mod_4 != 0, 4 - n_mod_4, tir::make_zero(DataType::Int(32)));
+  auto pad_K = tvm::if_then_else(K_mod_k != 0, k - K_mod_k, tir::make_zero(DataType::Int(32)));
+  auto pad_N = tvm::if_then_else(N_mod_n != 0, n - N_mod_n, tir::make_zero(DataType::Int(32)));
 
-  const auto N_padded = N + pad_n;
-  const auto K_padded = K + pad_k;
+  const auto N_padded = N + pad_N;
+  const auto K_padded = K + pad_K;
 
   Array<IndexExpr> oshape{
-      indexdiv(N_padded, 4),
-      indexdiv(K_padded, 16),
-      4,
-      16,
+      indexdiv(N_padded, n),
+      indexdiv(K_padded, k),
+      n,
+      k,
   };
 
   reporter->Assign(types[1], TensorType(oshape, data->dtype));

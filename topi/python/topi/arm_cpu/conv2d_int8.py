@@ -116,7 +116,9 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
 def compute_conv2d_NHWC_quantized(cfg, data, kernel, strides, padding, dilation, out_dtype):
     N, IH, IW, IC = get_const_tuple(data.shape)
     KH, KW, _, OC = get_const_tuple(kernel.shape)
-    kernel = nn.conv2d_gemm_weight_transform(kernel)
+    tile_rows = 4
+    tile_cols = 16
+    kernel = nn.conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols)
     return  compute_conv2d_gemm_without_weight_transform(cfg,
                                                          data, kernel, strides, padding,
                                                          dilation, out_dtype, (KH, KW), OC)

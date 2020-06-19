@@ -124,8 +124,6 @@ def compute_conv2d_gemm_without_weight_transform(cfg,
     return out
 
 # Schedules
-
-
 def schedule_conv2d_gemm(cfg, s, out):
     """Create schedule for tensors"""
     C = out.op.input_tensors[0]

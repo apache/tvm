@@ -244,28 +244,28 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     if topi_tmpl == "conv2d_NHWC_quantized.arm_cpu":
         assert (data.dtype == 'int8' and kernel.dtype == 'int8' or
                 data.dtype == 'uint8' and kernel.dtype == 'uint8')
-
         assert data_layout == "NHWC" and kernel_layout == "HWIO"
-
         CO, IC, KH, KW = get_const_tuple(kernel.shape)
-
         K = KH * KW * IC
         N = CO
 
-        pad_k = 0
-        pad_n = 0
+        tile_rows = 4
+        tile_cols = 16
+        pad_K = 0
+        pad_N = 0
 
-        if N % 4 != 0:
-            pad_n = 4 - (N % 4)
+        if N % tile_rows != 0:
+            pad_N = tile_rows - (N % tile_rows)
+        if K % tile_cols != 0:
+            pad_k = tile_cols - (K % tile_cols)
 
-        if K % 16 != 0:
-            pad_k = 16 - (K % 16)
-
-        N_padded = N + pad_n
-        K_padded = K + pad_k
-
-        kernel_expr = relay.nn.contrib_conv2d_gemm_weight_transform(inputs[1])
-        new_kernel = te.placeholder((N_padded // 4, K_padded // 16, 4, 16), kernel.dtype)
+        N_padded = N + pad_N
+        K_padded = K + pad_K
+        kernel_expr = relay.nn.contrib_conv2d_gemm_weight_transform(inputs[1], tile_rows, tile_cols)
+        new_kernel = te.placeholder((N_padded // tile_rows,
+                                     K_padded // tile_cols,
+                                     tile_rows,
+                                     tile_cols), kernel.dtype)
 
         new_workload = autotvm.task.args_to_workload([data, new_kernel,
                                                       strides, padding, dilation,

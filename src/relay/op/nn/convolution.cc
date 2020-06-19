@@ -104,9 +104,12 @@ Expr MakeConvWinogradWeightTransform(Expr weight, int tile_size, std::string op_
   return Call(op, {weight}, Attrs(attrs), {});
 }
 
-Expr MakeConvGemmWeightTransform(Expr weight, std::string op_name) {
+Expr MakeConvGemmWeightTransform(Expr weight, int tile_rows, int tile_cols, std::string op_name) {
+  auto attrs = make_object<ConvGemmWeightTransformAttrs>();
+  attrs->tile_rows = tile_rows;
+  attrs->tile_cols = tile_cols;
   const Op& op = Op::Get(op_name);
-  return Call(op, {weight});
+  return Call(op, {weight}, Attrs(attrs), {});
 }
 
 template <typename T>
@@ -562,9 +565,12 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_gemm_without_weight_transform")
 
 // relay.nn.contrib_conv2d_gemm_weight_transform
 
+TVM_REGISTER_NODE_TYPE(ConvGemmWeightTransformAttrs);
+
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_gemm_weight_transform")
-    .set_body_typed([](Expr weights) {
-      return MakeConvGemmWeightTransform(weights, "nn.contrib_conv2d_gemm_weight_transform");
+    .set_body_typed([](Expr weights, int tile_rows, int tile_cols) {
+      return MakeConvGemmWeightTransform(weights, tile_rows, tile_cols,
+                                         "nn.contrib_conv2d_gemm_weight_transform");
     });
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_gemm_weight_transform")
@@ -574,6 +580,7 @@ Separate this into another operator in order to enable Precompute Pass to comput
 weight transformation in advance.
 
 )code" TVM_ADD_FILELINE)
+    .set_attrs_type<ConvGemmWeightTransformAttrs>()
     .set_num_inputs(1)
     .add_argument("weights", "Tensor", "The weights tensor.")
     .set_support_level(10)
