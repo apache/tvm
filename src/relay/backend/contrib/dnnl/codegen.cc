@@ -408,6 +408,7 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
     CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
     return (*pf)(code, "c", sym, variables);
+    std::cout << code_stream_.str();
   }
 
  private:
@@ -436,6 +437,8 @@ std::string GetExtSymbol(const Function& func) {
  * compile it into a runtime module.
  */
 runtime::Module DNNLCompiler(const ObjectRef& ref) {
+  // DNNLModuleCodegen dnnl;
+  // return dnnl.CreateCSourceModule(ref);
   std::string func_name;
   std::string graph_json;
   if (ref->IsInstance<FunctionNode>()) {

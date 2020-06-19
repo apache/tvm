@@ -207,7 +207,7 @@ private:
         this->nodes_[weight_entry.id_].GetOpShape()[weight_entry.index_];
     std::vector<std::string> str_strides = node.GetAttr<std::vector<std::string>>("strides");
     std::vector<std::string> str_padding = node.GetAttr<std::vector<std::string>>("padding");
-    int groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
+    dnnl::memory::dim groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
 
     dnnl::memory::dim N = input_shape[0],       // batch size
         IC = input_shape[1],                    // input channels
@@ -245,8 +245,8 @@ private:
     // Memory descriptions.
     auto conv_src_md = dnnl::memory::desc(src_dims, dt::f32, tag::any);
     auto conv_weights_md = dnnl::memory::desc(weights_dims, dt::f32, tag::any);
+    auto conv_bias_md = dnnl::memory::desc(bias_dims, dt::f32, tag::any);
     auto conv_dst_md = dnnl::memory::desc(dst_dims, dt::f32, tag::nchw);
-    auto conv_bias_md = dnnl::memory::desc(bias_dims, dt::f32, tag::a);
 
     // Covn2d description.
     auto conv_desc = dnnl::convolution_forward::desc(
@@ -270,7 +270,8 @@ private:
 
     // Bias memory (useless for now as TVM conv2d op has no bias).
     std::vector<float> bias(OC, 0);
-    auto conv2d_bias_memory = dnnl::memory({bias_dims, dt::f32, tag::x}, engine_, bias.data());
+    auto conv2d_bias_memory = dnnl::memory({bias_dims, dt::f32, tag::x}, engine_);
+    write_to_dnnl_memory(bias.data(), conv2d_bias_memory, OC * 4);
 
     // Output memory.
     JSONGraphNodeEntry out_entry(nid, 0);
@@ -433,7 +434,7 @@ private:
   inline void read_from_dnnl_memory(void* handle, const dnnl::memory& mem, size_t size,
                                     size_t offset = 0) {
     uint8_t* src = static_cast<uint8_t*>(mem.get_data_handle());
-    std::copy(src + offset, src + size, reinterpret_cast<uint8_t*>(handle));
+    std::copy(src + offset, src + offset + size, (uint8_t*)handle);
   }
 
   // Read from the handle and write to DNNL memory (+offset).
