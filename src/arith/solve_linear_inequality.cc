@@ -443,7 +443,6 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
   Map<Var, IntGrpBounds> solved_bounds = solved_system.first;
   Array<PrimExpr> solved_other_relations = solved_system.second;
 
-  Array<Var> res_variables;
   Array<PrimExpr> res_relations;
 
   // this keeps being updated during determining the range of each variable.
@@ -476,6 +475,11 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
       auto best_range = bnd.FindBestRange(vranges);
 
       if (best_range.defined()) {
+        if (analyzer.CanProveGreaterEqual(-best_range->extent, 0)) {
+          // range.extent <= 0 implies the input inequality system is unsolvable
+          return IntConstraints(/*variables=*/{}, /*ranges=*/{},
+                                /*relations=*/{tir::make_zero(DataType::Bool())});
+        }
         res_ranges.Set(var, best_range);
         vranges.Set(var, best_range);
       }
@@ -549,6 +553,14 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
       } else if (is_const_int(best_range->extent, 1)) {
         // Don't create an itervar, just replace it everywhere with its min
         res_src_to_dst.Set(var, best_range->min);
+      } else if (analyzer.CanProveGreaterEqual(-best_range->extent, 0)) {
+        // range.extent <= 0 implies the input inequality system is unsolvable
+        return IntConstraintsTransform(inequalities,
+                                       IntConstraints(
+                                           /*variables=*/{},
+                                           /*ranges=*/{},
+                                           /*relations=*/{tir::make_zero(DataType::Bool())}),
+                                       {}, {});
       } else {
         // created new_var starts from 0
         res_src_to_dst.Set(var, new_var + best_range->min);
