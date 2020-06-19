@@ -354,6 +354,9 @@ class GraphExecutor(_interpreter.Executor):
         if expr:
             self.mod["main"] = expr
         ret_type = self.mod["main"].checked_type.ret_type
+        if _ty.type_has_any(ret_type):
+            raise ValueError("Graph Runtime only supports static graphs, got output type",
+                             ret_type)
         num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
         graph_json, mod, params = build(self.mod, target=self.target)
         gmodule = _graph_rt.create(graph_json, mod, self.ctx)
