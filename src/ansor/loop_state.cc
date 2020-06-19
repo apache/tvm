@@ -39,7 +39,8 @@ TVM_REGISTER_NODE_TYPE(IteratorNode);
 // Maker for other classes
 Iterator IteratorNode::make(std::string name, Range range,
                             IteratorType iter_type, IteratorAnnotation annotation,
-                            const std::vector<Iterator>* ori_iters) {
+                            const std::vector<Iterator>* ori_iters,
+                            std::string attr) {
   auto node = make_object<IteratorNode>();
   node->name = std::move(name);
   node->range = std::move(range);
@@ -48,6 +49,7 @@ Iterator IteratorNode::make(std::string name, Range range,
   if (ori_iters != nullptr) {
     node->ori_iters = *ori_iters;
   }
+  node->attr = std::move(attr);
   return Iterator(node);
 }
 
@@ -310,6 +312,15 @@ void State::storage_align(int stage_id, const Iterator& it, int factor,
   return DoStorageAlignStep(step);
 }
 
+Iterator State::tensorize(int stage_id, const Iterator& it,
+                          std::string ti_func_name) {
+  const Stage& stage = operator->()->stages[stage_id];
+  TensorizeStep step = TensorizeStepNode::make(
+      stage_id, GetIndex(stage->iters, it), ti_func_name);
+  CopyOnWrite()->transform_steps.push_back(step);
+  return DoTensorizeStep(step);
+}
+
 // Steps' implementations
 void State::DoReorderStep(const ReorderStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
@@ -509,8 +520,10 @@ Iterator State::DoAnnotationStep(const AnnotationStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
   Iterator it = stage->iters[step->iter_id];
 
+  CHECK_EQ(it->annotation, IteratorAnnotation::kNone);
   Iterator new_it = IteratorNode::make(it->name, it->range, it->iter_type,
-                                       step->annotation, &it->ori_iters);
+                                       step->annotation, &it->ori_iters,
+                                       it->attr);
   Stage new_stage = stage;
   new_stage.CopyOnWrite()->iters[step->iter_id] = new_it;
   StateNode* pstate = CopyOnWrite();
@@ -538,7 +551,8 @@ void State::DoComputeAtStep(const ComputeAtStep& step) {
       new_iters.push_back(it);
     } else {
       new_iters.push_back(IteratorNode::make(it->name, Range(), it->iter_type,
-                                             it->annotation, &it->ori_iters));
+                                             it->annotation, &it->ori_iters,
+                                             it->attr));
     }
   }
 
@@ -559,7 +573,8 @@ void State::DoComputeRootStep(const ComputeRootStep& step) {
   std::vector<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
     new_iters.push_back(IteratorNode::make(it->name, Range(), it->iter_type,
-                                           it->annotation, &it->ori_iters));
+                                           it->annotation, &it->ori_iters,
+                                           it->attr));
   }
 
   // update attach map
@@ -747,6 +762,18 @@ void State::DoStorageAlignStep(const StorageAlignStep& step) {
   stage->storage_offset = step->offset;
 }
 
+Iterator State::DoTensorizeStep(const TensorizeStep& step) {
+  const Stage& stage = operator->()->stages[step->stage_id];
+  Iterator it = stage->iters[step->iter_id];
+  Iterator new_it = IteratorNode::make(it->name, it->range, it->iter_type,
+      IteratorAnnotation::kTensorized, &it->ori_iters, step->ti_func_name);
+  Stage new_stage = stage;
+  new_stage.CopyOnWrite()->iters[step->iter_id] = new_it;
+  StateNode* pstate = CopyOnWrite();
+  pstate->stages[step->stage_id] = std::move(new_stage);
+  return new_it;
+}
+
 void State::DoStep(const Step& step, const ComputeDAG& dag) {
   if (auto ps = step.as<ReorderStepNode>()) {
     DoReorderStep(GetRef<ReorderStep>(ps));
@@ -776,6 +803,8 @@ void State::DoStep(const Step& step, const ComputeDAG& dag) {
     DoRfactorStep(GetRef<RfactorStep>(ps), dag);
   } else if (auto ps = step.as<StorageAlignStepNode>()) {
     DoStorageAlignStep(GetRef<StorageAlignStep>(ps));
+  } else if (auto ps = step.as<TensorizeStepNode>()) {
+    DoTensorizeStep(GetRef<TensorizeStep>(ps));
   } else {
     LOG(FATAL) << "Invalid step: " << step;
   }
@@ -854,15 +883,22 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state,
         case kThreadY:
           *os << "gpu.threadIdx.y ";
           break;
+        case kTensorized:
+          *os << "tensorize ";
+          break;
+        default:
+          LOG(FATAL) << "Invalid Annotation " << iter->annotation; break;
       }
       if (iter->range.defined()) {
         *os << iter->name << " (" << iter->range->min << ","
-            << iter->range->extent << ")"
-            << "\n";
+            << iter->range->extent << ")";
       } else {
-        *os << iter->name << " (None)"
-            << "\n";
+        *os << iter->name << " (None)";
       }
+      if (!iter->attr.empty()) {
+        *os << " " << iter->attr;
+      }
+      *os << "\n";
 
       indent += 2;
     }
@@ -1172,6 +1208,13 @@ TVM_REGISTER_GLOBAL("ansor.StateStorageAlign")
                    int factor, int offset) {
   state.storage_align(stage_id, it, factor, offset);
   return state;
+});
+
+TVM_REGISTER_GLOBAL("ansor.StateTensorize")
+.set_body_typed([](State state, int stage_id, const Iterator& it,
+                   std::string ti_func) {
+  const auto& res = state.tensorize(stage_id, it, ti_func);
+  return Array<ObjectRef>{state, res};
 });
 
 TVM_REGISTER_GLOBAL("ansor.StateEqual")

@@ -74,7 +74,8 @@ enum IteratorType {
 /*! \brief The type of an iterator's annotation */
 enum IteratorAnnotation {
   kNone, kUnroll, kVectorize, kParallel,
-  kVThread, kBlockX, kThreadX, kBlockY, kThreadY
+  kVThread, kBlockX, kThreadX, kBlockY, kThreadY,
+  kTensorized
 };
 
 class Iterator;
@@ -90,14 +91,17 @@ class IteratorNode : public Object {
   IteratorType iter_type;
   IteratorAnnotation annotation;
   std::vector<Iterator> ori_iters;  // The original iterators before fusion
+  std::string attr;
 
   static Iterator make(std::string name, Range range,
                        IteratorType iter_type, IteratorAnnotation annotation,
-                       const std::vector<Iterator>* ori_iters = nullptr);
+                       const std::vector<Iterator>* ori_iters = nullptr,
+                       std::string attr = "");
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("range", &range);
+    v->Visit("attr", &attr);
   }
 
   static constexpr const char *_type_key = "ansor.Iterator";
@@ -115,6 +119,7 @@ class FuseStep; class AnnotationStep;
 class ComputeAtStep; class ComputeRootStep; class ComputeInlineStep;
 class CacheReadStep; class CacheWriteStep;
 class PragmaStep; class RfactorStep; class StorageAlignStep;
+class TensorizeStep;
 
 /*!
  * \brief A stage in the compute declaration
@@ -254,19 +259,21 @@ class State : public ObjectRef {
   Iterator unroll(int stage_id, const Iterator& it, int max_unroll = -1);
   Iterator bind_thread(int stage_id, const Iterator& it,
                        IteratorAnnotation thread_type);
+  Iterator tensorize(int stage_id, const Iterator& it,
+                     std::string ti_func_name);
   void compute_at(int stage_id, int target_stage_id,
                   const Iterator& target_iter);
   void compute_root(int stage_id);
   void compute_inline(int stage_id);
+  void pragma(int stage_id, const Iterator& it, const std::string& pragma_type);
+  void storage_align(int stage_id, const Iterator& it, int factor, int offset);
   int cache_read(int stage_id, const std::string& scope_name,
                  const std::vector<int>& reader_stage_ids,
                  const ComputeDAG& task_dag);
   int cache_write(int stage_id, const std::string& scope_name,
                   const ComputeDAG& task_dag);
-  void pragma(int stage_id, const Iterator& it, const std::string& pragma_type);
   int rfactor(int stage_id, const Iterator& it, int factor_iter_id,
               const ComputeDAG& task_dag);
-  void storage_align(int stage_id, const Iterator& it, int factor, int offset);
 
   /* Do transform steps
    * Note: The following functions only change loop state but do not change transform_history.
@@ -278,14 +285,15 @@ class State : public ObjectRef {
   std::vector<Iterator> DoFollowFusedSplitStep(const FollowFusedSplitStep& step);
   Iterator DoFuseStep(const FuseStep& step);
   Iterator DoAnnotationStep(const AnnotationStep& step);
+  Iterator DoTensorizeStep(const TensorizeStep& step);
   void DoComputeAtStep(const ComputeAtStep& step);
   void DoComputeRootStep(const ComputeRootStep& step);
   void DoComputeInlineStep(const ComputeInlineStep& step);
+  void DoPragmaStep(const PragmaStep& step);
+  void DoStorageAlignStep(const StorageAlignStep& step);
   int DoCacheReadStep(const CacheReadStep& step, const ComputeDAG& dag);
   int DoCacheWriteStep(const CacheWriteStep& step, const ComputeDAG& dag);
-  void DoPragmaStep(const PragmaStep& step);
   int DoRfactorStep(const RfactorStep& step, const ComputeDAG& dag);
-  void DoStorageAlignStep(const StorageAlignStep& step);
 
   // General do step functions with a runtime dynamic dispatcher
   void DoStep(const Step& step, const ComputeDAG& dag);

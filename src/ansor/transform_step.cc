@@ -26,6 +26,7 @@
 
 #include "transform_step.h"
 #include <tvm/te/operation.h>
+#include <tvm/runtime/registry.h>
 #include <utility>
 #include "utils.h"
 
@@ -796,6 +797,41 @@ std::string StorageAlignStepNode::PrintAsPythonAPI(
   ss << "s[" << CleanName(stage->op->func_name()) << "].storage_align("
      << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint) << ", "
      << factor << ", " << offset << ")\n";
+
+  ApplyToSchedule(stages, stage_to_axes);
+  return ss.str();
+}
+
+/********** Tensorize **********/
+TensorizeStep TensorizeStepNode::make(int stage_id, int iter_id,
+                                      std::string ti_func_name) {
+  auto node = make_object<TensorizeStepNode>();
+  node->stage_id = stage_id;
+  node->iter_id = iter_id;
+  node->ti_func_name = ti_func_name;
+  return TensorizeStep(node);
+}
+
+void TensorizeStepNode::ApplyToSchedule(std::vector<te::Stage> *stages,
+    StageToAxesMap *stage_to_axes) const {
+  te::Stage& stage = (*stages)[stage_id];
+  const std::vector<IterVar>& axes = (*stage_to_axes)[stage];
+  auto func = tvm::runtime::Registry::Get(ti_func_name);
+  CHECK(func != nullptr) << "Cannot find the tensorize intrinsic func";
+  tvm::te::TensorIntrin res = (*func)();
+  CHECK(res.defined()) << "Tensorize intrinsic func must return a "
+                       << "tvm::te::TensorIntrin object";
+  stage.tensorize(axes[iter_id], res);
+}
+
+std::string TensorizeStepNode::PrintAsPythonAPI(
+    std::vector<te::Stage> *stages, StageToAxesMap *stage_to_axes,
+    te::Schedule *schedule, const std::vector<Step>& transform_steps) const {
+  std::stringstream ss;
+  const auto& stage = (*stages)[stage_id];
+  ss << "s[" << CleanName(stage->op->func_name()) << "].tensorize("
+     << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint) << ", "
+     << ti_func_name << "())\n";
 
   ApplyToSchedule(stages, stage_to_axes);
   return ss.str();

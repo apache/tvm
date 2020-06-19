@@ -751,6 +751,11 @@ int InitPopulationThreadBind(const MetaTileRewritePolicyNode* policy,
       continue;
     }
 
+    if (HasAnnotationIter(stage, IteratorAnnotation::kThreadX)) {
+      // Skip if this stage has already done thread bind
+      continue;
+    }
+
     std::vector<Iterator> to_fuse;
 
     // This stage has not been tiled, but in GPU schedule, we must tile it
@@ -861,10 +866,16 @@ int InitPopulationCooperativeFetching(const MetaTileRewritePolicyNode* policy,
          !HasCacheWriteStage((*state), stage_id - 1)) ||
         (stage_id > 1 && HasCacheReadStage((*state), stage_id - 2) &&
          HasCacheWriteStage((*state), stage_id - 2))) {
+      const Stage& target_stage = (*state)->stages[stage_id];
+      if (HasAnnotationIter(target_stage, IteratorAnnotation::kThreadX) ||
+          HasAnnotationIter(target_stage, IteratorAnnotation::kTensorized)) {
+        // Skip if this stage has already done thread bind or has been
+        // tensorized
+        continue;
+      }
       // Get spatial_split_step_ids from the root stage
       std::unordered_set<te::Operation, ObjectHash, ObjectEqual> consumers;
       std::vector<int> spatial_split_step_ids;
-      const Stage& target_stage = (*state)->stages[stage_id];
       GetConsumers(policy->cur_task_, (*state), target_stage->op, &consumers);
       CHECK_EQ(consumers.size(), 1);
       int target_stage_id = OperationToStage(*consumers.begin(), (*state));
@@ -1129,6 +1140,11 @@ int InitPopulationVectorization(const MetaTileRewritePolicyNode* policy,
       continue;
     }
 
+    if (HasAnnotationIter(stage, IteratorAnnotation::kTensorized)) {
+      // Skip if this stage has been tensorized
+      continue;
+    }
+
     // try to fuse and vectorize the space iterators in the inner most tile
     int cum_length_prod = 1;
 
@@ -1224,7 +1240,7 @@ int InitPopulationUnroll(const MetaTileRewritePolicyNode* policy,
 
         n--;
       }
-    }  else if (stage->op->attrs.count(policy->always_unroll_key)) {
+    } else if (stage->op->attrs.count(policy->always_unroll_key)) {
       // Special unroll policy
       auto to_unroll_name_set = GetIterNameSetParam(stage->op->attrs,
                                                     policy->always_unroll_key);

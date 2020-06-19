@@ -23,17 +23,18 @@
  *
  * \Note How to add a new transform step.
  * Take fuse for example:
- * 1. Define class FuseStepNode, FuseStep in transform_steps.h, and implement its make function
- *    in  FuseStepNode::make(...)  transform_steps.cc
- * 2. Implement FuseStepNode::ApplyToSchedule and FuseStepNode::PrintAsPythonAPI.
- *    - In these two functions you need to lower this step with tvm's schedule API
- * 3. Implement State::fuse and State::DoFuseStep.
+ * 1. Define class `FuseStepNode`, `FuseStep` in `transform_steps.h`, and implement its make function
+ *    `FuseStepNode::make(...)` in `transform_steps.cc`
+ * 2. Implement `FuseStepNode::ApplyToSchedule` and `FuseStepNode::PrintAsPythonAPI`.
+ *    - In these two functions you need to lower this step with tvm's te schedule API
+ * 3. Implement `State::fuse` and `State::DoFuseStep`.
  *    - In these two functions you need to incrementally update all data structures in State with
  *       CopyOnWrite style
- * 4. Add you step to ComputeDAG::ReplaySteps and make sure it works.
+ * 4. Add you step to `ComputeDAG::ReplaySteps` and make sure it works.
  * 5. Add serialization support in `struct Handler<std::vector<::tvm::ansor::Step> >`
- *    (in serialization.cc)
+ *    in `serialization.cc`
  * 6. Add hash support in `struct hash<::tvm::ansor::Step>` (search for this function in this file)
+ * 7. Add its corresponding Python API to `loop_state.py` and necessary unit test
  */
 
 #ifndef TVM_ANSOR_TRANSFORM_STEP_H_
@@ -365,6 +366,29 @@ class StorageAlignStepNode: public StepNode {
 };
 TVM_DEFINE_COW_OBJECT_REF(StorageAlignStep, Step, StorageAlignStepNode);
 
+/*! \brief Tensorize step that corresponds to te::Schedule::tensorize
+ *  \Note This step takes a global registered function name as input. */
+class TensorizeStepNode: public StepNode {
+ public:
+  int iter_id;
+  std::string ti_func_name;
+
+  static TensorizeStep make(int stage_id, int iter_id,
+                            std::string ti_func_name);
+
+  void ApplyToSchedule(std::vector<te::Stage> *stages,
+                       StageToAxesMap *stage_to_axes) const;
+
+  std::string PrintAsPythonAPI(std::vector<te::Stage> *stages,
+                               StageToAxesMap *stage_to_axes,
+                               te::Schedule *schedule,
+                               const std::vector<Step>& transform_steps) const final;
+
+  static constexpr const char* _type_key = "ansor.TensorizeStep";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorizeStepNode, Object);
+};
+TVM_DEFINE_COW_OBJECT_REF(TensorizeStep, Step, TensorizeStepNode);
+
 }  // namespace ansor
 }  // namespace tvm
 
@@ -451,6 +475,11 @@ struct hash<::tvm::ansor::Step> {
              ::dmlc::HashCombine(std::hash<int>()(ps->iter_id),
              ::dmlc::HashCombine(std::hash<int>()(ps->factor),
                                  ps->offset))));
+    } else if (auto ps = step.as<::tvm::ansor::TensorizeStepNode>()) {
+      return ::dmlc::HashCombine(15,
+             ::dmlc::HashCombine(std::hash<int>()(ps->stage_id),
+             ::dmlc::HashCombine(std::hash<int>()(ps->iter_id),
+                                 ps->ti_func_name)));
     } else {
       LOG(FATAL) << "Invalid step";
     }

@@ -167,6 +167,11 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         writer->WriteArrayItem(ps->iter_id);
         writer->WriteArrayItem(ps->factor);
         writer->WriteArrayItem(ps->offset);
+      } else if (auto ps = data[i].as<::tvm::ansor::TensorizeStepNode>()) {
+        writer->WriteArrayItem(std::string("TS"));
+        writer->WriteArrayItem(ps->stage_id);
+        writer->WriteArrayItem(ps->iter_id);
+        writer->WriteArrayItem(ps->ti_func_name);
       } else {
         LOG(FATAL) << "Invalid step: " << data[i];
       }
@@ -179,7 +184,7 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
                           std::vector<::tvm::ansor::Step> * data) {
     std::vector<int> int_list;
     bool s, inner_to_outer, factor_or_nparts;
-    std::string name, scope_name, pragma_type;
+    std::string name, scope_name, pragma_type, ti_func_name;
     int stage_id, target_stage_id, iter_id, src_step_id, n_split, ann, extent;
     int level, factor_iter_id, factor, offset;
 
@@ -311,6 +316,15 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         reader->Read(&offset);
         data->push_back(::tvm::ansor::StorageAlignStepNode::make(
             stage_id, iter_id, factor, offset));
+      } else if (name == "TS") {
+        s = reader->NextArrayItem(); CHECK(s);
+        reader->Read(&stage_id);
+        s = reader->NextArrayItem(); CHECK(s);
+        reader->Read(&iter_id);
+        s = reader->NextArrayItem(); CHECK(s);
+        reader->Read(&ti_func_name);
+        data->push_back(::tvm::ansor::TensorizeStepNode::make(
+            stage_id, iter_id, ti_func_name));
       } else {
         LOG(FATAL) << "Invalid step format";
       }

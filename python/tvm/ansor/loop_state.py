@@ -411,14 +411,33 @@ class State:
         it : Iterator
         factor : Int
         offset : Int
-
-        Returns
-        -------
-        state : State
-            The updated state
         """
         self.state_object = _ffi_api.StateStorageAlign(self.state_object, stage_id, it, factor, offset)
         self.clear_cache()
+
+    def tensorize(self, stage_id, it, ti_func_name):
+        """ The `ti_func_name` corresponds to a global registered funcion
+        that returns a TensorIntrin
+
+        Parameters
+        ----------
+        stage_id : Int
+            The index of the stage to do storage align
+        it : Iterator
+            The target iterator
+        ti_func_name : Str
+            Tensorize intrinsic function name
+
+        Returns
+        -------
+        res_it : Iterator
+            The tensorized Iterator
+        """
+        self.state_object, res = _ffi_api.StateTensorize(self.state_object,
+                                                         stage_id, it,
+                                                         ti_func_name)
+        self.clear_cache()
+        return res
 
     def __str__(self):
         return str(self.state_object)

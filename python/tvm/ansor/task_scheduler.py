@@ -248,6 +248,8 @@ class SimpleTaskScheduler(TaskScheduler):
             else:
                 raise ValueError("Invalid strategy: " + self.strategy)
 
+            if self.verbose >= 1:
+                print("Next tuning task: %d" % task_idx)
             self.tune_task(task_idx)
 
     def tune_task(self, task_idx):

@@ -143,6 +143,16 @@ inline bool HasReduceIter(const Stage& stage) {
   return false;
 }
 
+// Return whether the stage has specific annotated iterators
+inline bool HasAnnotationIter(const Stage& stage, IteratorAnnotation type) {
+  for (const auto& iter : stage->iters) {
+    if (iter->annotation == type) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Return whether an op needs multi level tiling
 inline bool NeedsMultilevelTiling(const SearchTask& task,
     const State& state, const te::Operation& op) {

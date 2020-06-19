@@ -1086,7 +1086,8 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
         new_iters.push_back(IteratorNode::make(iter->name, (*find_res).second,
                                                iter->iter_type,
                                                iter->annotation,
-                                               &iter->ori_iters));
+                                               &iter->ori_iters,
+                                               iter->attr));
       } else {
         LOG(FATAL) << "Infer bound fails";
       }
@@ -1160,6 +1161,8 @@ std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
     } else if (auto ps = step.as<RfactorStepNode>()) {
       ps->ApplyToSchedule(stages, stage_to_axes, &schedule);
     } else if (auto ps = step.as<StorageAlignStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<TensorizeStepNode>()) {
       ps->ApplyToSchedule(stages, stage_to_axes);
     } else {
       LOG(FATAL) << "Invalid Step";
