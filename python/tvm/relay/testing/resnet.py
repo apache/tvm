@@ -162,6 +162,8 @@ def resnet(units,
     data = relay.var("data", shape=data_shape, dtype=dtype)
     data = layers.batch_norm_infer(data=data, epsilon=2e-5, scale=False, name='bn_data')
     (_, _, height, _) = data_shape
+    if layout == "NHWC":
+        (_, height, _, _) = data_shape
     if height <= 32:            # such as cifar10
         body = layers.conv2d(
             data=data, channels=filter_list[0], kernel_size=(3, 3),
@@ -209,6 +211,8 @@ def get_net(batch_size,
     Original author Wei Wu
     """
     (_, height, _) = image_shape
+    if layout == "NHWC":
+        (height, _, _) = image_shape
     data_shape = (batch_size,) + image_shape
     if height <= 28:
         num_stages = 3

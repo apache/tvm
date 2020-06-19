@@ -815,6 +815,27 @@ def layout_transform(data, src_layout, dst_layout):
     """
     return _make.layout_transform(data, src_layout, dst_layout)
 
+def kernel_layout_transform(data, src_layout, dst_layout):
+    """Transform the layout of a kernel
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The source tensor to be transformed
+
+    src_layout: str
+        The source layout.  (e.g 1N32C112H112W)
+
+    dst_layout: str
+        The destination layout.  (e.g. 1N2C112H112W16c)
+
+    Returns
+    -------
+    ret : relay.Expr
+        The transformed tensor.
+    """
+    return _make.kernel_layout_transform(data, src_layout, dst_layout)
+
 
 def reverse_reshape(data, newshape):
     """Reshapes the input array where the special values are inferred from

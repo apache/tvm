@@ -64,11 +64,16 @@ class ComputeDAG(Object):
         args : List[Tensor]
         """
         if isinstance(state, State):
-            return _ffi_api.ComputeDAGApplyStepsFromState(self, state.state_object)
+            return _ffi_api.ComputeDAGApplyStepsFromState(self, state.state_object,
+                                                          layout_rewrite_level)
         elif isinstance(state, StateObject):
-            return _ffi_api.ComputeDAGApplyStepsFromState(self, state)
+            return _ffi_api.ComputeDAGApplyStepsFromState(self, state,
+                                                          layout_rewrite_level)
         else:
             raise ValueError("The input must be a State or StateObject")
+
+    def rewrite_layout_from_state(self, state: State):
+        return _ffi_api.ComputeDAGRewriteLayoutFromState(self, state)
 
     def print_python_code_from_state(self, state):
         """

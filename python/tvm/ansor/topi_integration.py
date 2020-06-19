@@ -26,14 +26,17 @@ we will serialize it to a hashable tuple.
 
 See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
 """
+import os
+import json
 import tvm.te._ffi_api
 from tvm import target as _target
 from tvm.te import tensor
 from tvm.te.tensor import PlaceholderOp, ComputeOp
 
-from .dispatcher import DispatchContext
+from .dispatcher import DispatchContext, BlockingEmptyContext
 from .workload_registry import register_auto_scheduler_workload_bufs, \
     make_workload_key_bufs, compute_dag_hash
+from .compute_dag import ComputeDAG
 
 def traverse_to_get_io_tensors(outs):
     layout_free_ops = []
@@ -77,11 +80,14 @@ class TaskExtractEnv:
     def __enter__(self):
         self.tracing = True
         self.wkl_key_collection = {}
+        self.relay_disable_build_cache_ = os.environ.get("TVM_RELAY_DISABLE_BUILD_CACHE", "false")
+        os.environ["TVM_RELAY_DISABLE_BUILD_CACHE"] = "true"
 
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.tracing = False
+        os.environ["TVM_RELAY_DISABLE_BUILD_CACHE"] = self.relay_disable_build_cache_
 
     def reset(self, wanted_relay_ops=None):
         """Reset task collections
@@ -144,7 +150,7 @@ class TaskExtractEnv:
             The single instance of TaskExtractEnv
         """
         if not TaskExtractEnv.current:
-            TaskExtractEnv.current = TaskExtractEnv()
+            TaskExtractEnv.current = TaskExtractEnv(do_layout_rewrite)
         else:
             TaskExtractEnv.current.do_layout_rewrite = do_layout_rewrite
         return TaskExtractEnv.current
@@ -188,7 +194,7 @@ def register_topi_schedule(func=None):
                     # Rewrite the dag and update the transform history for
                     # the new dag in DispatchContext
                     dispatch_ctx = DispatchContext.current
-                    tgt = _target.current_target()
+                    tgt = _target.Target.current()
                     state = dispatch_ctx.query(tgt, key)
                     dag = ComputeDAG(outs)
                     new_dag = dag.rewrite_layout_from_state(state)
@@ -199,7 +205,6 @@ def register_topi_schedule(func=None):
                         task_env.layout_rewrite_success_ct += 1
 
                     # Call schedule_func under FallbackContext() to avoid layout rewrite
-                    tgt = _target.Target.current()
                     cfg = BlockingEmptyContext().query(tgt, key)
                     return topi_schedule(cfg, outs)
 

@@ -57,8 +57,10 @@ class Tensor(DataProducer, _expr.ExprOp):
 
     def __call__(self, *indices):
         ndim = self.ndim
-        if len(indices) != ndim:
-            raise ValueError("Need to provide %d index in tensor slice" % ndim)
+        # After ansor kernel layout rewrite, len(indices) <= ndim,
+        # and the indices will get modified by Ansor during schedule generation. 
+        # if len(indices) != ndim:
+        #     raise ValueError("Need to provide %d index in tensor slice" % ndim)
         indices = convert_to_object(indices)
         args = []
         for x in indices:

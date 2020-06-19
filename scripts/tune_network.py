@@ -49,9 +49,10 @@ def get_network(name, model_path, batch_size, layout):
         input_shape = (batch_size, 100)
         mod, params = relay.testing.dcgan.get_workload(batch_size=batch_size)
     elif name == 'dqn':
-        image_shape = (4, 84, 84)
+        layout = "NHWC"
+        image_shape = (84, 84, 4)
         input_shape = (batch_size, *image_shape)
-        mod, params = relay.testing.dqn.get_workload(batch_size=batch_size, image_shape=image_shape, dtype=dtype)
+        mod, params = relay.testing.dqn.get_workload(batch_size=batch_size, image_shape=image_shape, dtype=dtype, layout=layout)
     elif name == 'mobilenet':
         image_shape = (224, 224, 3) if layout == 'NHWC' else (3, 224, 224)
         input_shape = (batch_size, *image_shape)
@@ -229,7 +230,7 @@ def tune_and_evaluate(target, target_host, log_n_lines, search_policy, tune,
         if measure_ctx:
             del measure_ctx
 
-    kernel_layout_rewrite =  False
+    kernel_layout_rewrite = False
 
     # Compile graph with best states found by auto-scheduler
     print("=============== Compile ===============")
@@ -245,7 +246,7 @@ def tune_and_evaluate(target, target_host, log_n_lines, search_policy, tune,
             ansor.LayoutRewriteLevel.BOTH_REWRITE = ansor.LayoutRewriteLevel.NO_REWRITE
             ansor.LayoutRewriteLevel.COMPUTE_REWRITE = ansor.LayoutRewriteLevel.NO_REWRITE
 
-        with relay.build_config(opt_level=3):
+        with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             graph, lib, opt_params = relay.build_module.build(
                 mod, target=target, params=params)
 

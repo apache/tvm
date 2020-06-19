@@ -278,6 +278,20 @@ TVM_DLL Pass CanonicalizeOps();
 TVM_DLL Pass AlterOpLayout();
 
 /*!
+ * \brief Alternate the layouts of kernels.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass KernelLayoutTransform();
+
+/*!
+ * \brief The reverse of FuseOps.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass DeFuseOps();
+
+/*!
  * \brief Given a dest layout, this pass transforms the expr such that most of the ops input data
  * layout is changed to the dest layout. In ideal situation, there are only 2 layout transforms, one
  * at the start and one at the end.

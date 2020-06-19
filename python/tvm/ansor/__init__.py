@@ -44,4 +44,4 @@ from .dispatcher import DispatchContext, ApplyConfig, ApplyHistoryBest as apply_
     FallbackContext, clear_fallback_cache, ApplyGraphBest, BlockingEmptyContext
 from .topi_integration import register_topi_schedule, TaskExtractEnv
 from .relay_integration import extract_from_program, extract_from_multiple_program, \
-    finish_layout_rewrite
+    finish_layout_rewrite, prepare_layout_rewrite

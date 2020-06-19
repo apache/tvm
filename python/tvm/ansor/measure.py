@@ -534,4 +534,3 @@ def local_run(inputs: List[MeasureInput], build_results: List[BuildResult],
         print("")
 
     return measure_results
-

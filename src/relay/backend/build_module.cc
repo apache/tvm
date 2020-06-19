@@ -287,6 +287,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Alter layout transformation is only applied to homogeneous execution yet.
     if (targets.size() == 1) {
       pass_seqs.push_back(transform::AlterOpLayout());
+      //pass_seqs.push_back(transform::KernelLayoutTransform());
     }
 
     // Fast math optimizations.
@@ -315,6 +316,18 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // Fuse the operations if it is needed.
     relay_module = transform::FuseOps()(relay_module);
+
+    if (targets.size() == 1) {
+      pass_seqs.push_back(transform::KernelLayoutTransform());
+      pass_seqs.push_back(transform::DeFuseOps());
+      pass_seqs.push_back(transform::FoldConstant());
+      transform::Pass seq = transform::Sequential(pass_seqs);
+      const auto& it = targets.begin();
+      With<Target> tctx((*it).second);
+      relay_module = seq(relay_module);
+      relay_module = transform::FuseOps()(relay_module);
+    }
+
     relay_module = transform::InferType()(relay_module);
     // Inline the functions that have been lifted by the module scope.
     //

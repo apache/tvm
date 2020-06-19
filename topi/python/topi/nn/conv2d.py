@@ -342,7 +342,24 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
         dilation_h, dilation_w = dilation
 
     batch, in_height, in_width, in_channel = Input.shape
-    kernel_h, kernel_w, channel, num_filter = Filter.shape
+    if len(Filter.shape) == 10:
+      kernel_h = Filter.shape[2] * Filter.shape[6]
+      kernel_w = Filter.shape[3] * Filter.shape[7]
+      channel = Filter.shape[4] * Filter.shape[8]
+      num_filter = Filter.shape[0] * Filter.shape[1] * Filter.shape[5] * Filter.shape[9]
+    elif len(Filter.shape) == 11:
+      kernel_h = Filter.shape[3] * Filter.shape[7]
+      kernel_w = Filter.shape[4] * Filter.shape[8]
+      channel = Filter.shape[5] * Filter.shape[9]
+      num_filter = Filter.shape[0] * Filter.shape[1] * Filter.shape[2] * Filter.shape[6] * Filter.shape[10]
+    elif len(Filter.shape) == 12:
+      kernel_h = Filter.shape[4] * Filter.shape[8]
+      kernel_w = Filter.shape[5] * Filter.shape[9]
+      channel = Filter.shape[6] * Filter.shape[10]
+      num_filter = Filter.shape[0] * Filter.shape[1] * Filter.shape[2] * Filter.shape[3] * Filter.shape[7] * Filter.shape[11]
+    else:
+      kernel_h, kernel_w, channel, num_filter = Filter.shape
+
     # compute the output shape
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
@@ -362,8 +379,9 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
         lambda nn, yy, xx, ff: te.sum(
             PaddedInput[nn, yy * stride_h + ry * dilation_h,
                         xx * stride_w + rx * dilation_w, rc].astype(out_dtype) *
-            Filter[ry, rx, rc, ff].astype(out_dtype), axis=[ry, rx, rc]),
-        name="Conv2dOutput", tag="conv2d_nhwc")
+            Filter[ry, rx, rc, ff].astype(out_dtype)
+            , axis=[ry, rx, rc]),
+        name="Conv2dOutput", tag="conv2d_nhwc", attrs={"layout_free_placeholders": [Filter]})
     return Output
 
 

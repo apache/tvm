@@ -261,6 +261,9 @@ class ClipAttrs(Attrs):
 class LayoutTransformAttrs(Attrs):
     """Attributes for transform.layout_transform"""
 
+@tvm._ffi.register_object("relay.attrs.KernelLayoutTransformAttrs")
+class KernelLayoutTransformAttrs(Attrs):
+    """Attributes for transform.kernel_layout_transform"""
 
 @tvm._ffi.register_object("relay.attrs.ShapeOfAttrs")
 class ShapeOfAttrs(Attrs):

@@ -37,8 +37,8 @@
 #include <set>
 #include <vector>
 #include "transform_step.h"
-#include "utils.h"
-// #include "../relay/pass/kernel_layout_transform.h"
+#include "search_policy/utils.h"
+#include "../relay/transforms/kernel_layout_transform.h"
 
 namespace tvm {
 namespace ansor {
@@ -595,325 +595,383 @@ std::string BaseName(const std::string& str) {
   return str.substr(0, str.rfind("_"));
 }
 
-// class IndexRewriter : public ExprMutator {
-//  public:
-//   IndexRewriter(const OperationMap<std::vector<std::string> >& placeholder_new_names,
-//                 const OperationMap<Array<PrimExpr> >& placeholder_new_shapes):
-//                 placeholder_new_names_(placeholder_new_names),
-//                 placeholder_new_shapes_(placeholder_new_shapes) {}
+class IndexRewriter : public StmtExprMutator {
+ public:
+  IndexRewriter(const OperationMap<std::vector<std::string> >& placeholder_new_names,
+                const OperationMap<Array<PrimExpr> >& placeholder_new_shapes):
+                placeholder_new_names_(placeholder_new_names),
+                placeholder_new_shapes_(placeholder_new_shapes) {}
 
-//   Expr Mutate_(const Call* op, const Expr& e) {
-//     Expr op_ = IRMutator::Mutate_(op, e);
+  PrimExpr Rewrite(PrimExpr expr) {
+    return this->VisitExpr(expr);
+  }
 
-//     const Call* call = op_.as<Call>();
+  PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
+      te::Tensor t = Downcast<te::Tensor>(op->producer);
+      auto it = placeholder_new_names_.find(t->op);
+      if (it != placeholder_new_names_.end()) {
+        const std::vector<std::string>& new_names = it->second;
+        const Array<PrimExpr>& new_shape = placeholder_new_shapes_.at(t->op);
+        std::unordered_map<std::string, PrimExpr> name_to_arg;
+        for (const auto& arg : op->indices) {
+          std::string axis_name;
+          if (const auto* pimm = arg.as<IntImmNode>()) {
+              CHECK_EQ(pimm->value, 0);
+            axis_name = "IntImm";
+          } else {
+            axis_name = BaseName(CleanName(Downcast<Var>(arg)->name_hint));
+            CHECK_EQ(name_to_arg.count(axis_name), 0);
+            name_to_arg[axis_name] = arg;
+          }
+        }
 
-//     if (call->call_type == Call::CallType::Halide) {
-//       Tensor t = Downcast<Operation>(call->func).output(call->value_index);
-//       auto it = placeholder_new_names_.find(t->op);
-//       if (it != placeholder_new_names_.end()) {
-//         const std::vector<std::string>& new_names = it->second;
-//         const Array<Expr>& new_shape = placeholder_new_shapes_.at(t->op);
-//         std::unordered_map<std::string, Expr> name_to_arg;
-//         for (const auto& arg : call->args) {
-//           std::string axis_name;
-//           if (const auto* pimm = arg.as<IntImm>()) {
-//               CHECK_EQ(pimm->value, 0);
-//            axis_name = "IntImm";
-//           } else {
-//             axis_name = BaseName(CleanName(Downcast<Var>(arg)->name_hint));
-//             CHECK_EQ(name_to_arg.count(axis_name), 0);
-//             name_to_arg[axis_name] = arg;
-//           }
-//         }
+        std::unordered_map<std::string, PrimExpr> div_factors;
+        std::vector<PrimExpr> r_new_args;
+        for (int i = new_names.size() - 1; i >= 0; --i) {
+          auto ori_iter_name = new_names[i];
+          auto name_it = name_to_arg.find(ori_iter_name);
+          CHECK(name_it != name_to_arg.end());
+          PrimExpr ori_arg = name_it->second;
 
-//         std::unordered_map<std::string, Expr> div_factors;
-//         std::vector<Expr> r_new_args;
-//         for (int i = new_names.size() - 1; i >= 0; --i) {
-//           auto ori_iter_name = new_names[i];
-//           auto name_it = name_to_arg.find(ori_iter_name);
-//           CHECK(name_it != name_to_arg.end());
-//           Expr ori_arg = name_it->second;
+          PrimExpr mod_factor = new_shape[i];
 
-//           Expr mod_factor = new_shape[i];
+          PrimExpr div_factor = 1;
+          if (div_factors.count(ori_iter_name)) {
+            div_factor = div_factors[ori_iter_name];
+          }
+          div_factors[ori_iter_name] = div_factor * new_shape[i];
 
-//           Expr div_factor = 1;
-//           if (div_factors.count(ori_iter_name)) {
-//             div_factor = div_factors[ori_iter_name];
-//           }
-//           div_factors[ori_iter_name] = div_factor * new_shape[i];
+          PrimExpr new_arg = indexmod(indexdiv(ori_arg, div_factor), mod_factor);
 
-//           Expr new_arg = indexmod(indexdiv(ori_arg, div_factor), mod_factor);
+          r_new_args.push_back(new_arg);
+        }
 
-//           r_new_args.push_back(new_arg);
-//         }
+        Array<PrimExpr> new_args(std::make_move_iterator(r_new_args.rbegin()),
+                             std::make_move_iterator(r_new_args.rend()));
 
-//         Array<Expr> new_args(std::make_move_iterator(r_new_args.rbegin()),
-//                              std::make_move_iterator(r_new_args.rend()));
+        return ProducerLoad(op->producer, new_args);
+      }
+      return GetRef<PrimExpr>(op);
+  }
 
-//         return Call::make(call->type, call->name, new_args, call->call_type,
-//                 call->func, call->value_index);
-//       }
-//     }
-//     return op_;
-//   }
+  /*
+  PrimExpr Mutate_(const Call* op, const PrimExpr& e) {
+    PrimExpr op_ = IRMutator::Mutate_(op, e);
 
-//  private:
-//   const OperationMap<std::vector<std::string> >& placeholder_new_names_;
-//   const OperationMap<Array<PrimExpr> >& placeholder_new_shapes_;
-// };
+    const Call* call = op_.as<Call>();
 
-// // TODO(minminsun): spill out new functions
-// void ComputeDAG::RewriteLayout(
-//     const std::vector<Step> &transform_steps, LayoutRewriteLevel layout_rewrite_level) const {
-//   ComputeDAGNode* pdag = const_cast<ComputeDAG*>(this)->CopyOnWrite();
-//   const State& state = ReplayAndInferBound(transform_steps);
+    if (call->call_type == Call::CallType::Halide) {
+      te::Tensor t = Downcast<Operation>(call->func).output(call->value_index);
+      auto it = placeholder_new_names_.find(t->op);
+      if (it != placeholder_new_names_.end()) {
+        const std::vector<std::string>& new_names = it->second;
+        const Array<PrimExpr>& new_shape = placeholder_new_shapes_.at(t->op);
+        std::unordered_map<std::string, PrimExpr> name_to_arg;
+        for (const auto& arg : call->args) {
+          std::string axis_name;
+          if (const auto* pimm = arg.as<IntImm>()) {
+              CHECK_EQ(pimm->value, 0);
+           axis_name = "IntImm";
+          } else {
+            axis_name = BaseName(CleanName(Downcast<Var>(arg)->name_hint));
+            CHECK_EQ(name_to_arg.count(axis_name), 0);
+            name_to_arg[axis_name] = arg;
+          }
+        }
 
-//   OperationMap<std::vector<std::string> > placeholder_new_names;
-//   OperationMap<Array<PrimExpr> > placeholder_new_shapes;
-//   int stage_id = -1;
-//   for (const auto& stage : state->stages) {
-//     stage_id += 1;
-//     const Operation& op = stage->op;
-//     if (op->IsInstance<ComputeOpNode>()) {
-//       const Map<std::string, ObjectRef>& attrs = op->attrs;
-//       if (attrs.count(layout_free_placeholders_key)) {
-//         const ObjectRef& attr_value = attrs[layout_free_placeholders_key];
-//         Array<Tensor> placeholders = Downcast<Array<Tensor>>(attr_value);
-//         for (auto& placeholder : placeholders) {
-//           const auto placeholder_op = placeholder->op;
+        std::unordered_map<std::string, PrimExpr> div_factors;
+        std::vector<PrimExpr> r_new_args;
+        for (int i = new_names.size() - 1; i >= 0; --i) {
+          auto ori_iter_name = new_names[i];
+          auto name_it = name_to_arg.find(ori_iter_name);
+          CHECK(name_it != name_to_arg.end());
+          PrimExpr ori_arg = name_it->second;
 
-//           // Check whether this placeholder has already been handled
-//           if (placeholder_new_names.count(placeholder_op)) {
-//             continue;
-//           }
+          PrimExpr mod_factor = new_shape[i];
 
-//           // skip the op that is not direct consumer of this placeholder,
-//           // mostly due to cache read/write.
-//           bool direct_consumer = false;
-//           for (auto& t : op->InputTensors()) {
-//             if (t->op == placeholder_op) {
-//               direct_consumer = true;
-//               break;
-//             }
-//           }
-//           if (!direct_consumer) {
-//             continue;
-//           }
+          PrimExpr div_factor = 1;
+          if (div_factors.count(ori_iter_name)) {
+            div_factor = div_factors[ori_iter_name];
+          }
+          div_factors[ori_iter_name] = div_factor * new_shape[i];
 
-//           std::set<std::string> placeholder_axis_names;
-//           TensorAccessExtractor extractor;
-//           for (const auto& exp : op.as<ComputeOpNode>()->body) {
-//             extractor.Extract(exp);
-//           }
-//           bool rewrite_placeholder = (layout_rewrite_level == kPlaceholderRewrite ||
-//                                       layout_rewrite_level == kBothRewrite);
-//           bool rewrite_body = (layout_rewrite_level == kComputeRewrite ||
-//                                layout_rewrite_level == kBothRewrite);
-//           std::ostringstream os;
+          PrimExpr new_arg = indexmod(indexdiv(ori_arg, div_factor), mod_factor);
 
-//           uint i = 0;
-//           if (extractor.buf_accesses.count(placeholder_op)) {
-//             for (const auto& ev : extractor.buf_accesses[placeholder_op]) {
-//               for (const auto& e : ev) {
-//                 // TODO(minminsun): check whether the extents match the shape of placeholder
-//                 std::string axis_name;
-//                 if (const auto* pimm = e.as<IntImm>()) {
-//                   CHECK_EQ(pimm->value, 0);
-//                   // CHECK_EQ(placeholder->shape[i].as<IntImm>()->value, 1);
-//                   axis_name = "IntImm";
-//                 } else {
-//                   axis_name = BaseName(CleanName(Downcast<Var>(e)->name_hint));
-//                 }
+          r_new_args.push_back(new_arg);
+        }
 
-//                 placeholder_axis_names.insert(axis_name);
-//                 if (rewrite_placeholder) {
-//                   os << placeholder->shape[i++] << axis_name;
-//                 }
-//               }
-//             }
+        Array<PrimExpr> new_args(std::make_move_iterator(r_new_args.rbegin()),
+                             std::make_move_iterator(r_new_args.rend()));
 
-//             if (rewrite_placeholder) {
-//               CHECK_EQ(placeholder_axis_names.size(), placeholder->shape.size());
-//               std::string ori_layout = os.str();
-//               os.str("");
-//               ::tvm::relay::KernelLayoutVisitor::global_ori_layouts_queue.push_back(ori_layout);
-//             }
-//           }
+        return Call::make(call->type, call->name, new_args, call->call_type,
+                call->func, call->value_index);
+      }
+    }
+    return op_;
+  }
+  */
 
-//           std::vector<Iterator> stage_iters;
+ private:
+  const OperationMap<std::vector<std::string> >& placeholder_new_names_;
+  const OperationMap<Array<PrimExpr> >& placeholder_new_shapes_;
+};
 
-//           auto attach_it = state->attach_map->stage_to_attach_iter.find(stage_id);
-//           int attach_pos = -1;
-//           size_t iters_before_attach = 0;
-//           if (attach_it != state->attach_map->stage_to_attach_iter.end()) {
-//             auto attach = attach_it->second;
-//             const auto& attach_stage = state->stages[attach.first];
-//             attach_pos = attach.second;
-//             stage_iters.insert(stage_iters.end(),
-//                                attach_stage->iters.begin(),
-//                                attach_stage->iters.begin() + attach_pos + 1);
-//           }
+void ComputeDAG::RewriteLayout(
+    const std::vector<Step> &transform_steps, LayoutRewriteLevel layout_rewrite_level) const {
+  ComputeDAGNode* pdag = const_cast<ComputeDAG*>(this)->CopyOnWrite();
+  const State& state = ReplayAndInferBound(transform_steps);
 
-//           stage_iters.insert(stage_iters.end(), stage->iters.begin(), stage->iters.end());
+  OperationMap<std::vector<std::string> > placeholder_new_names;
+  OperationMap<Array<PrimExpr> > placeholder_new_shapes;
+  int stage_id = -1;
+  for (const auto& stage : state->stages) {
+    stage_id += 1;
+    const te::Operation& op = stage->op;
+    if (op->IsInstance<te::ComputeOpNode>()) {
+      const Map<String, ObjectRef>& attrs = op->attrs;
+      if (attrs.count(layout_free_placeholders_key)) {
+        const ObjectRef& attr_value = attrs[layout_free_placeholders_key];
+        Array<te::Tensor> placeholders = Downcast<Array<te::Tensor>>(attr_value);
+        for (auto& placeholder : placeholders) {
+          const auto placeholder_op = placeholder->op;
 
-//           std::vector<Iterator> iters;
-//           for (size_t i = 0; i < stage_iters.size(); ++i) {
-//             const auto& iter = stage_iters[i];
-//             if (iter->ori_iters.empty()) {
-//               iters.push_back(iter);
-//             } else {
-//               for (const Iterator& ori_iter : iter->ori_iters) {
-//                 iters.push_back(ori_iter);
-//               }
-//             }
-//             if (static_cast<int>(i) == attach_pos) {
-//               iters_before_attach = iters.size();
-//             }
-//           }
+          // Check whether this placeholder has already been handled
+          if (placeholder_new_names.count(placeholder_op)) {
+            continue;
+          }
 
-//           std::vector<std::string> new_names;
-//           Array<Expr> new_shape;
-//           std::vector<std::string> new_axis_names;
-//           for (const Iterator& iter : iters) {
-//             std::set<std::string> ori_iter_names;
-//             ExtractOriginalIterators(iter->name, &ori_iter_names);
-//             // fused iters have been replaced with iter->ori_iters.
-//             // So there should be only one ori iter name extracted from iter->name.
-//             CHECK_EQ(ori_iter_names.size(), 1);
-//             auto ori_iter_name = BaseName(*ori_iter_names.begin());
-//             new_axis_names.push_back(ori_iter_name);
-//           }
-//           for (size_t i = 0; i < new_axis_names.size(); ++i) {
-//             auto iter = iters[i];
-//             std::string ori_iter_name;
-//             if (i < iters_before_attach) {
-//               ori_iter_name = new_axis_names[i + iters_before_attach];
-//             } else {
-//               ori_iter_name = new_axis_names[i];
-//             }
-//             if (placeholder_axis_names.count(ori_iter_name)) {
-//               os << iter->range->extent << ori_iter_name;
-//               new_names.push_back(ori_iter_name);
-//               new_shape.push_back(iter->range->extent);
-//             }
-//           }
-//           std::string new_layout = os.str();
-//           os.str("");
-//           ::tvm::relay::KernelLayoutVisitor::global_new_layouts_queue.push_back(new_layout);
-//           placeholder_new_names[placeholder_op] = new_names;
-//           placeholder_new_shapes[placeholder_op] = new_shape;
+          // skip the op that is not direct consumer of this placeholder,
+          // mostly due to cache read/write.
+          bool direct_consumer = false;
+          for (auto& t : op->InputTensors()) {
+            if (t->op == placeholder_op) {
+              direct_consumer = true;
+              break;
+            }
+          }
+          if (!direct_consumer) {
+            continue;
+          }
 
-//           Array<Operation> old_ops = pdag->ops;
-//           ArrayNode* pops = pdag->ops.CopyOnWrite();
+          std::set<std::string> placeholder_axis_names;
+          TensorAccessExtractor extractor;
+          for (const auto& exp : op.as<te::ComputeOpNode>()->body) {
+            extractor.Extract(exp);
+          }
+          bool rewrite_placeholder = (layout_rewrite_level == kPlaceholderRewrite ||
+                                      layout_rewrite_level == kBothRewrite);
+          bool rewrite_body = (layout_rewrite_level == kComputeRewrite ||
+                               layout_rewrite_level == kBothRewrite);
+          std::ostringstream os;
 
-//           // Create new placeholder
-//           Operation new_placeholder_op;
-//           if (rewrite_placeholder) {
-//             new_placeholder_op =
-//               te::PlaceholderOpNode::make(placeholder_op->name,
-//                                       new_shape,
-//                                       placeholder_op.as<te::PlaceholderOpNode>()->dtype);
-//           } else {
-//             new_placeholder_op = placeholder_op;
-//           }
+          uint i = 0;
+          if (extractor.buf_accesses.count(placeholder_op)) {
+            for (const auto& ev : extractor.buf_accesses[placeholder_op]) {
+              for (const auto& e : ev) {
+                // TODO(minminsun): check whether the extents match the shape of placeholder
+                std::string axis_name;
+                if (const auto* pimm = e.as<IntImmNode>()) {
+                  CHECK_EQ(pimm->value, 0);
+                  // CHECK_EQ(placeholder->shape[i].as<IntImmNode>()->value, 1);
+                  axis_name = "IntImm";
+                } else {
+                  axis_name = BaseName(CleanName(Downcast<Var>(e)->name_hint));
+                }
 
-//           Operation new_compute_op, old_compute_op;
-//           if (rewrite_body) {
-//             Array<Expr> new_body;
-//             IndexRewriter index_rewriter(placeholder_new_names,
-//                                          placeholder_new_shapes);
-//             for (auto& op : old_ops) {
-//               if (auto* pop = op.as<ComputeOpNode>()) {
-//                 bool need_update = false;
-//                 for (auto& t : op->InputTensors()) {
-//                   if (t->op == placeholder_op) {
-//                     need_update = true;
-//                     break;
-//                   }
-//                 }
-//                 if (need_update) {
-//                   for (auto& body : pop->body) {
-//                     new_body.push_back(index_rewriter.Mutate(body));
-//                   }
-//                   old_compute_op = op;
-//                   CHECK(!new_compute_op.defined());
-//                   new_compute_op = ComputeOpNode::make(
-//                     pop->name, pop->tag, pop->attrs, pop->axis, new_body);
-//                 }
-//               }
-//             }
-//           }
+                placeholder_axis_names.insert(axis_name);
+                if (rewrite_placeholder) {
+                  os << placeholder->shape[i++] << axis_name;
+                }
+              }
+            }
 
-//           // construct the map from old_op to new_op
-//           std::unordered_map<Operation, Operation> updated_ops;
-//           for (size_t i = 0; i < old_ops.size(); ++i) {
-//             auto old_op = old_ops[i];
-//             if (rewrite_placeholder && old_op == placeholder_op) {
-//               pops->data[i] = new_placeholder_op;
-//               updated_ops[placeholder_op] = new_placeholder_op;
-//             } else if (rewrite_body && old_op == old_compute_op) {
-//               pops->data[i] = new_compute_op;
-//               updated_ops[old_compute_op] = new_compute_op;
-//             } else {
-//               pops->data[i] = old_op;
-//             }
-//           }
+            if (rewrite_placeholder) {
+              CHECK_EQ(placeholder_axis_names.size(), placeholder->shape.size());
+              std::string ori_layout = os.str();
+              os.str("");
+              ::tvm::relay::KernelLayoutVisitor::global_ori_layouts_queue.push_back(ori_layout);
+            }
+          }
 
-//           // Because ops is sorted in topo-order, only do one pass linear scan here.
-//           for (size_t i = 0; i < pops->data.size(); ++i) {
-//             auto old_op = Downcast<Operation>(pops->data[i]);
-//             if (auto* pop = old_op.as<ComputeOpNode>()) {
-//               auto inputs = pop->InputTensors();
-//               std::unordered_map<Tensor, Tensor> rmap;
-//               for (auto input : inputs) {
-//                 auto it = updated_ops.find(input->op);
-//                 Operation new_op;
-//                 while (it != updated_ops.end()) {
-//                   new_op = it->second;
-//                   it = updated_ops.find(new_op);
-//                 }
-//                 if (new_op.defined()) {
-//                   int index = input->value_index;
-//                   rmap[input] = new_op.output(index);
-//                 }
-//               }
-//               if (!rmap.empty()) {
-//                 Operation new_op = pop->ReplaceInputs(old_op, rmap);
-//                 updated_ops[old_op] = new_op;
-//                 pops->data[i] = new_op;
-//               }
-//             }
-//           }
+          std::vector<Iterator> stage_iters;
 
-//           pdag->init_state = StateNode::make(pdag->ops);
+          auto attach_it = state->attach_map->stage_to_attach_iter.find(stage_id);
+          int attach_pos = -1;
+          size_t iters_before_attach = 0;
+          if (attach_it != state->attach_map->stage_to_attach_iter.end()) {
+            auto attach = attach_it->second;
+            const auto& attach_stage = state->stages[attach.first];
+            attach_pos = attach.second;
+            stage_iters.insert(stage_iters.end(),
+                               attach_stage->iters.begin(),
+                               attach_stage->iters.begin() + attach_pos + 1);
+          }
 
-//           Array<Tensor> old_tensors = pdag->tensors;
-//           ArrayNode* ptensors = pdag->tensors.CopyOnWrite();
+          stage_iters.insert(stage_iters.end(), stage->iters.begin(), stage->iters.end());
 
-//           for (size_t i = 0; i < old_tensors.size(); ++i) {
-//             const auto& old_tensor = old_tensors[i];
-//             auto it =  updated_ops.find(old_tensor->op);
-//             Operation new_op;
-//             while (it != updated_ops.end()) {
-//               new_op = it->second;
-//               it = updated_ops.find(new_op);
-//             }
-//             if (new_op.defined()) {
-//               if (layout_rewrite_level == kBothRewrite) {
-//                 auto index = old_tensor->value_index;
-//                 ptensors->data[i] = new_op.output(index);
-//               } else if (layout_rewrite_level == kComputeRewrite) {
-//                 TensorNode* old_tensor_node =
-//                   const_cast<TensorNode*>(old_tensor.as<TensorNode>());
-//                 old_tensor_node->op = new_op;
-//               }
-//             }
-//           }
-//         }  // end for placeholder
-//       }
-//     }
-//   }  // end for stage
-// }
+          std::vector<Iterator> iters;
+          for (size_t i = 0; i < stage_iters.size(); ++i) {
+            const auto& iter = stage_iters[i];
+            if (iter->ori_iters.empty()) {
+              iters.push_back(iter);
+            } else {
+              for (const Iterator& ori_iter : iter->ori_iters) {
+                iters.push_back(ori_iter);
+              }
+            }
+            if (static_cast<int>(i) == attach_pos) {
+              iters_before_attach = iters.size();
+            }
+          }
+
+          std::vector<std::string> new_names;
+          Array<PrimExpr> new_shape;
+          std::vector<std::string> new_axis_names;
+          for (const Iterator& iter : iters) {
+            std::set<std::string> ori_iter_names;
+            ExtractOriginalIterators(iter->name, &ori_iter_names);
+            // fused iters have been replaced with iter->ori_iters.
+            // So there should be only one ori iter name extracted from iter->name.
+            CHECK_EQ(ori_iter_names.size(), 1);
+            auto ori_iter_name = BaseName(*ori_iter_names.begin());
+            new_axis_names.push_back(ori_iter_name);
+          }
+          for (size_t i = 0; i < new_axis_names.size(); ++i) {
+            auto iter = iters[i];
+            std::string ori_iter_name;
+            if (i < iters_before_attach) {
+              ori_iter_name = new_axis_names[i + iters_before_attach];
+            } else {
+              ori_iter_name = new_axis_names[i];
+            }
+            if (placeholder_axis_names.count(ori_iter_name)) {
+              os << iter->range->extent << ori_iter_name;
+              new_names.push_back(ori_iter_name);
+              new_shape.push_back(iter->range->extent);
+            }
+          }
+          std::string new_layout = os.str();
+          os.str("");
+          ::tvm::relay::KernelLayoutVisitor::global_new_layouts_queue.push_back(new_layout);
+          placeholder_new_names[placeholder_op] = new_names;
+          placeholder_new_shapes[placeholder_op] = new_shape;
+
+          Array<te::Operation> old_ops = pdag->ops;
+          ArrayNode* pops = pdag->ops.CopyOnWrite();
+
+          // Create new placeholder
+          te::Operation new_placeholder_op;
+          if (rewrite_placeholder) {
+            new_placeholder_op =
+              te::PlaceholderOpNode::make(placeholder_op->name,
+                                      new_shape,
+                                      placeholder_op.as<te::PlaceholderOpNode>()->dtype);
+          } else {
+            new_placeholder_op = placeholder_op;
+          }
+
+          te::Operation new_compute_op, old_compute_op;
+          if (rewrite_body) {
+            Array<PrimExpr> new_body;
+            IndexRewriter index_rewriter(placeholder_new_names,
+                                         placeholder_new_shapes);
+            for (auto& op : old_ops) {
+              if (auto* pop = op.as<te::ComputeOpNode>()) {
+                bool need_update = false;
+                for (auto& t : op->InputTensors()) {
+                  if (t->op == placeholder_op) {
+                    need_update = true;
+                    break;
+                  }
+                }
+                if (need_update) {
+                  for (auto& body : pop->body) {
+                    new_body.push_back(index_rewriter.Rewrite(body));
+                  }
+                  old_compute_op = op;
+                  CHECK(!new_compute_op.defined());
+                  new_compute_op = te::ComputeOpNode::make(
+                    pop->name, pop->tag, pop->attrs, pop->axis, new_body);
+                }
+              }
+            }
+          }
+
+          // construct the map from old_op to new_op
+          std::unordered_map<te::Operation, te::Operation> updated_ops;
+          for (size_t i = 0; i < old_ops.size(); ++i) {
+            auto old_op = old_ops[i];
+            if (rewrite_placeholder && old_op == placeholder_op) {
+              //pops->data[i] = new_placeholder_op;
+              pops->SetItem(i, new_placeholder_op);
+              updated_ops[placeholder_op] = new_placeholder_op;
+            } else if (rewrite_body && old_op == old_compute_op) {
+              //pops->data[i] = new_compute_op;
+              pops->SetItem(i, new_compute_op);
+              updated_ops[old_compute_op] = new_compute_op;
+            } else {
+              //pops->data[i] = old_op;
+              pops->SetItem(i, old_op);
+            }
+          }
+
+          // Because ops is sorted in topo-order, only do one pass linear scan here.
+          for (size_t i = 0; i < pops->size(); ++i) {
+            auto old_op = Downcast<te::Operation>(pops->at(i));
+            if (auto* pop = old_op.as<te::ComputeOpNode>()) {
+              auto inputs = pop->InputTensors();
+              std::unordered_map<te::Tensor, te::Tensor> rmap;
+              for (auto input : inputs) {
+                auto it = updated_ops.find(input->op);
+                te::Operation new_op;
+                while (it != updated_ops.end()) {
+                  new_op = it->second;
+                  it = updated_ops.find(new_op);
+                }
+                if (new_op.defined()) {
+                  int index = input->value_index;
+                  rmap[input] = new_op.output(index);
+                }
+              }
+              if (!rmap.empty()) {
+                te::Operation new_op = pop->ReplaceInputs(old_op, rmap);
+                updated_ops[old_op] = new_op;
+                //pops->data[i] = new_op;
+                pops->SetItem(i, new_op);
+              }
+            }
+          }
+
+          pdag->init_state = StateNode::make(pdag->ops);
+
+          Array<te::Tensor> old_tensors = pdag->tensors;
+          ArrayNode* ptensors = pdag->tensors.CopyOnWrite();
+
+          for (size_t i = 0; i < old_tensors.size(); ++i) {
+            const auto& old_tensor = old_tensors[i];
+            auto it =  updated_ops.find(old_tensor->op);
+            te::Operation new_op;
+            while (it != updated_ops.end()) {
+              new_op = it->second;
+              it = updated_ops.find(new_op);
+            }
+            if (new_op.defined()) {
+              if (layout_rewrite_level == kBothRewrite) {
+                auto index = old_tensor->value_index;
+                //ptensors->data[i] = new_op.output(index);
+                ptensors->SetItem(i, new_op.output(index));
+              } else if (layout_rewrite_level == kComputeRewrite) {
+                te::TensorNode* old_tensor_node =
+                  const_cast<te::TensorNode*>(old_tensor.as<te::TensorNode>());
+                old_tensor_node->op = new_op;
+              }
+            }
+          }
+        }  // end for placeholder
+      }
+    }
+  }  // end for stage
+}
 
 
 void UpdateStageAxis(const te::Stage& stage, StageToAxesMap *stage_to_axes) {
@@ -1273,6 +1331,30 @@ TVM_REGISTER_GLOBAL("ansor.ComputeDAG")
 TVM_REGISTER_GLOBAL("ansor.ComputeDAGGetInitState")
 .set_body_method(&ComputeDAG::GetInitState);
 
+TVM_REGISTER_GLOBAL("ansor.ComputeDAGRewriteLayoutFromState")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  ComputeDAG dag = args[0];
+  State state = args[1];
+
+  dag.RewriteLayout(state->transform_steps, kPlaceholderRewrite);
+  *ret = dag;
+});
+
+TVM_REGISTER_GLOBAL("ansor.ComputeDAGApplyStepsFromState")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  ComputeDAG dag = args[0];
+  State state = args[1];
+  LayoutRewriteLevel layout_rewrite_level = kNoRewrite;
+  if (args.size() >= 3) {
+    layout_rewrite_level = LayoutRewriteLevel(static_cast<int>((args[2])));
+  }
+
+  te::Schedule sch;
+  Array<te::Tensor> return_tensors;
+  std::tie(sch, return_tensors) = dag.ApplySteps(state->transform_steps, layout_rewrite_level);
+  *ret = Array<ObjectRef>{sch, return_tensors};
+});
+/*
 TVM_REGISTER_GLOBAL("ansor.ComputeDAGApplyStepsFromState")
 .set_body_typed([](const ComputeDAG& dag, const State& state) {
   te::Schedule sch;
@@ -1280,6 +1362,7 @@ TVM_REGISTER_GLOBAL("ansor.ComputeDAGApplyStepsFromState")
   std::tie(sch, return_tensors) = dag.ApplySteps(state->transform_steps);
   return Array<ObjectRef>{sch, return_tensors};
 });
+*/
 
 TVM_REGISTER_GLOBAL("ansor.ComputeDAGPrintPythonCodeFromState")
 .set_body_typed([](const ComputeDAG& dag, const State& state) {

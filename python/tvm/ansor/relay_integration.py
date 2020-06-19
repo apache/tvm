@@ -54,7 +54,7 @@ def _lower(mod,
     # If failed to compile, then fallback to use VM compiler.
     # TODO: Currently VM compiler is likely to stack overflow for large models.
     try:
-      with relay.build_config(opt_level=3):
+      with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
         opt_mod, _ = relay.optimize(mod, target, params)
         grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
         grc.codegen(opt_mod["main"])
@@ -191,7 +191,7 @@ def prepare_layout_rewrite(mod, params, ops, target):
     """Prepare for kernel layout rewrite. This function will write layout infos to a global static variable,
        then these layout info will be used by a relay pass `kernel_layout_transform`.
     """
-    from .. import relay
+    from tvm import relay
 
     env = TaskExtractEnv.get(do_layout_rewrite=True)
 
@@ -203,9 +203,8 @@ def prepare_layout_rewrite(mod, params, ops, target):
         else:
             warnings.warn("Op %s is not tunable, ignored." % op_name)
 
+    env.reset(topi_scheds)
     with env:
-        env.reset(topi_scheds)
-
         # wrap build call in thread to avoid multiprocessing problems
         build_thread = threading.Thread(target=_lower,
                                         args=(mod, target, params))

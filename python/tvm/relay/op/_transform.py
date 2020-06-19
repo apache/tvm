@@ -74,6 +74,8 @@ _reg.register_injective_schedule("strided_set")
 # layout_transform
 _reg.register_injective_schedule("layout_transform")
 _reg.register_pattern("layout_transform", OpPattern.INJECTIVE)
+_reg.register_injective_schedule("kernel_layout_transform")
+_reg.register_pattern("kernel_layout_transform", OpPattern.INJECTIVE)
 
 # argwhere
 @_reg.register_compute("argwhere")
