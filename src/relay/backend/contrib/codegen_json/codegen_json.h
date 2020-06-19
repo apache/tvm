@@ -160,6 +160,7 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
   /*!
    * \brief Constructor
    *
+   * \param symbol The symbol that represents the graph being converted.
    * \param expr The Relay expression to be converted to the JSON form.
    */
   JSONSerializer(const std::string& symbol, const Expr& expr) : symbol_(symbol), func_(expr) {}
@@ -175,9 +176,7 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
   }
 
   /*!\brief Return the required params. */
-  Array<String> GetParams() const {
-    return params_;
-  }
+  Array<String> GetParams() const { return params_; }
 
   /*!\brief Return the generated json. */
   std::string GetJSON() {
