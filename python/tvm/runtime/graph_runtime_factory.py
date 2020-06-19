@@ -78,12 +78,9 @@ class GraphRuntimeFactoryModule(Module):
         self._select_module = module["select_module"]
         self._import_module = module["import_module"]
         self.selected_module = None
-        self.graph_json = module["get_json"]()
-        self.lib = module["get_lib"]()
+        self.graph_json = None
+        self.lib = None
         self.params = {}
-        # TODO (FrozenGene): Enable it
-        # for k, v in module["get_params"]().items():
-        #     self.params[k] = v
         self.iter_cnt = 0
         super(GraphRuntimeFactoryModule, self).__init__(self.module.handle)
 
@@ -132,6 +129,10 @@ class GraphRuntimeFactoryModule(Module):
         warnings.warn(
             "legacy graph runtime behaviour of producing json / lib / params will be removed in the next release ",
             DeprecationWarning, 2)
+        self.graph_json = self.module["get_json"]()
+        self.lib = self.module["get_lib"]()
+        for k, v in self.module["get_params"]().items():
+            self.params[k] = v
         return self
 
 
