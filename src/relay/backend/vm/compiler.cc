@@ -41,6 +41,7 @@
 #include <tuple>
 #include <vector>
 
+#include "../../../target/source/codegen_source_base.h"
 #include "../../backend/compile_engine.h"
 #include "../../op/op_common.h"
 #include "../../transforms/pass_util.h"
@@ -996,6 +997,10 @@ void VMCompiler::Codegen() {
     mod.CopyOnWrite();
 
     if (target_str == "ext_dev") {
+      // Collect metadata in functions that are handled by external codegen.
+      CHECK(mod->ContainGlobalVar(cfunc->func_name));
+      backend::ConstantUpdater const_visit(cfunc->func_name, &params_);
+      const_visit(Downcast<Function>(mod->Lookup(cfunc->func_name)));
       continue;
     } else if (funcs.count(target_str) == 0) {
       funcs.emplace(target_str, mod);
@@ -1006,29 +1011,20 @@ void VMCompiler::Codegen() {
 
   auto compile_engine = CompileEngine::Global();
   auto ext_mods = compile_engine->LowerExternalFunctions();
-  runtime::Module mod;
   if (funcs.size() > 0) {
     Map<String, IRModule> build_funcs;
     for (const auto& i : funcs) {
       build_funcs.Set(i.first, i.second);
     }
-    mod = tvm::build(build_funcs, target_host_);
-    CHECK(mod.operator->());
+    exec_->lib = tvm::build(build_funcs, target_host_);
   } else {
-    CHECK_EQ(ext_mods.size(), 1U)
-        << "Expect to have a TVM DSOModule when multiple runtime modules exist";
+    // There is no function handled by TVM. We create a virtual master module
+    // to make sure a DSO module will be also available.
+    exec_->lib = codegen::CSourceModuleCreate(";", "");
   }
   if (!ext_mods.empty()) {
-    if (funcs.size() == 0) {
-      mod = ext_mods[0];
-    } else {
-      // Import all external runtime modules.
-      for (auto it : ext_mods) {
-        mod.Import(it);
-      }
-    }
+    exec_->lib = codegen::CreateMetadataModule(params_, exec_->lib, ext_mods);
   }
-  exec_->lib = mod;
 }
 
 runtime::Module CreateVMCompiler() {

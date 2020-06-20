@@ -130,6 +130,12 @@ def test_pass_config():
             "tir.UnrollLoop": 1
         })
 
+def test_dict():
+    x = tvm.tir.const(1) # a class that has Python-defined methods
+    # instances should see the full class dict
+    assert set(dir(x.__class__)) <= set(dir(x))
+
+
 if __name__ == "__main__":
     test_string()
     test_env_func()
@@ -138,3 +144,4 @@ if __name__ == "__main__":
     test_const_saveload_json()
     test_make_sum()
     test_pass_config()
+    test_dict()

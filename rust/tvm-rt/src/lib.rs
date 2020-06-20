@@ -91,10 +91,10 @@ pub(crate) fn set_last_error<E: std::error::Error>(err: &E) {
     }
 }
 
-#[macro_use]
-pub mod function;
+pub mod array;
 pub mod context;
 pub mod errors;
+pub mod function;
 pub mod module;
 pub mod ndarray;
 pub mod to_boxed_fn;

@@ -106,7 +106,7 @@ def test_conv2d_nchw():
         skip("nnpack is not available")
 
     devices = ['llvm -device=arm_cpu']
-    autotvm.DispatchContext.current.silent = True
+    autotvm.GLOBAL_SCOPE.silent = True
     with WinogradFallback():
         # resnet 18 workloads
         verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1, devices=devices)
@@ -137,8 +137,9 @@ def test_conv2d_nchw():
         # werid workloads
         verify_conv2d_nchw(1, 3, 3, 3, 3, 1, 1, devices=devices)
         verify_conv2d_nchw(1, 13, 71, 59, 3, 1, 1, devices=devices)
+    autotvm.GLOBAL_SCOPE.silent = False
 
 
 if __name__ == "__main__":
     import pytest
-    pytest.main()
+    pytest.main([__file__])

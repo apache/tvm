@@ -57,7 +57,7 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
 
 IntImm::IntImm(DataType dtype, int64_t value) {
   CHECK(dtype.is_scalar()) << "ValueError: IntImm can only take scalar.";
-  CHECK(dtype.is_int() || dtype.is_uint()) << "ValueError: IntImm can only take scalar.";
+  CHECK(dtype.is_int() || dtype.is_uint()) << "ValueError: IntImm supports only int or uint type.";
   if (dtype.is_uint()) {
     CHECK_GE(value, 0U);
   }
@@ -171,8 +171,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<MapNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const MapNode*>(node.get());
       p->stream << '{';
-      for (auto it = op->data.begin(); it != op->data.end(); ++it) {
-        if (it != op->data.begin()) {
+      for (auto it = op->begin(); it != op->end(); ++it) {
+        if (it != op->begin()) {
           p->stream << ", ";
         }
         if (it->first->IsInstance<StringObj>()) {

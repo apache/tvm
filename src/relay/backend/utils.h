@@ -44,6 +44,26 @@ namespace relay {
 namespace backend {
 
 /*!
+ * \brief A helper to expand the params by adding the ones used in a given expression.
+ */
+struct ConstantUpdater : public ExprVisitor {
+ public:
+  ConstantUpdater(const std::string& symbol,
+                  std::unordered_map<std::string, runtime::NDArray>* params)
+      : symbol_(symbol), params_(params) {}
+
+  void VisitExpr_(const ConstantNode* cn) final {
+    std::string name = symbol_ + "_const_" + std::to_string(const_idx_++);
+    (*params_)[name] = cn->data;
+  }
+
+ private:
+  int const_idx_{0};
+  std::string symbol_;
+  std::unordered_map<std::string, runtime::NDArray>* params_;
+};
+
+/*!
  * \brief A simple wrapper around ExprFunctor for a single argument case.
  *  The result of visit is memoized.
  */

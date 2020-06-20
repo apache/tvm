@@ -35,6 +35,7 @@ import logging
 import numpy as np
 
 from .space import FallbackConfigEntity
+from .. import env as _env
 
 logger = logging.getLogger('autotvm')
 
@@ -47,6 +48,8 @@ class DispatchContext(object):
     specific dispatch mechanism for templates.
     """
     current = None
+    # a set to prevent print duplicated message
+    warning_messages = set()
 
     def __init__(self):
         self._old_ctx = DispatchContext.current
@@ -295,21 +298,17 @@ class FallbackContext(DispatchContext):
     def __init__(self):
         super(FallbackContext, self).__init__()
         self.memory = {}
-        self.silent = False
-
-        # a set to prevent print duplicated message
-        self.messages = set()
 
     def _query_inside(self, target, workload):
         key = (str(target), workload)
         if key in self.memory:
             return self.memory[key]
 
-        if not self.silent:
+        if not _env.GLOBAL_SCOPE.silent:
             msg = "Cannot find config for target=%s, workload=%s. A fallback configuration "\
                   "is used, which may bring great performance regression." % (target, workload)
-            if msg not in self.messages:
-                self.messages.add(msg)
+            if msg not in DispatchContext.warning_messages:
+                DispatchContext.warning_messages.add(msg)
                 logger.warning(msg)
         cfg = FallbackConfigEntity()
 
