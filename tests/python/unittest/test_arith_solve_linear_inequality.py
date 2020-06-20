@@ -203,5 +203,24 @@ def test_multi_equal():
     assert solution.src_to_dst[x] == 6
 
 
+def test_no_solution():
+    x = te.var("x0")
+    vranges = {x: tvm.ir.Range.make_by_min_extent(-20, 41)}
+    problem = [-x - 4 <= -5*x + 2, x*4 + 5 <= x*5]
+
+    solution = arith.solve_linear_inequalities(problem, [x], vranges, deskew_range=True)
+    assert list(solution.dst.variables) == []
+    [rel] = solution.dst.relations
+    assert ir.structural_equal(rel, False)
+    assert len(solution.src_to_dst) == 0
+    assert len(solution.dst_to_src) == 0
+
+    solution = arith.solve_linear_inequalities(problem, [x], vranges)
+    assert len(solution.variables) == 0
+    assert len(solution.ranges) == 0
+    [rel] = solution.relations
+    assert not rel
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
