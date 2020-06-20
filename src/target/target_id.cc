@@ -30,20 +30,20 @@ namespace tvm {
 
 using TargetIdRegistry = AttrRegistry<TargetIdRegEntry, TargetId>;
 
-TVM_DLL TargetIdRegEntry& TargetIdRegEntry::RegisterOrGet(const String& target_id_name) {
+TargetIdRegEntry& TargetIdRegEntry::RegisterOrGet(const String& target_id_name) {
   return TargetIdRegistry::Global()->RegisterOrGet(target_id_name);
 }
 
-TVM_DLL void TargetIdRegEntry::UpdateAttr(const String& key, TVMRetValue value, int plevel) {
+void TargetIdRegEntry::UpdateAttr(const String& key, TVMRetValue value, int plevel) {
   TargetIdRegistry::Global()->UpdateAttr(key, id_, value, plevel);
 }
 
-TVM_DLL const AttrRegistryMapContainerMap<TargetId>& TargetId::GetAttrMapContainer(
+const AttrRegistryMapContainerMap<TargetId>& TargetId::GetAttrMapContainer(
     const String& attr_name) {
   return TargetIdRegistry::Global()->GetAttrMap(attr_name);
 }
 
-TVM_DLL const TargetId& TargetId::Get(const String& target_id_name) {
+const TargetId& TargetId::Get(const String& target_id_name) {
   const TargetIdRegEntry* reg = TargetIdRegistry::Global()->Get(target_id_name);
   CHECK(reg != nullptr) << "TargetId " << target_id_name << " is not registered";
   return reg->id_;
@@ -91,37 +91,73 @@ void VerifyTypeInfo(const ObjectRef& obj, const TargetIdNode::ValueTypeInfo& inf
   }
 }
 
-TVM_DLL void TargetIdNode::ValidateSchema(const Map<String, ObjectRef>& config) const {
+void TargetIdNode::ValidateSchema(const Map<String, ObjectRef>& config) const {
+  const String kTargetId = "id";
   for (const auto& kv : config) {
-    auto it = key2vtype_.find(kv.first);
+    const String& name = kv.first;
+    const ObjectRef& obj = kv.second;
+    if (name == kTargetId) {
+      CHECK(obj->IsInstance<StringObj>())
+          << "AttributeError: \"id\" is not a string, but its type is " << obj->GetTypeKey();
+      CHECK(Downcast<String>(obj) == this->name)
+          << "AttributeError: \"id\" = " << obj << " is inconsistent with TargetId " << this->name;
+      continue;
+    }
+    auto it = key2vtype_.find(name);
     if (it == key2vtype_.end()) {
       std::ostringstream os;
-      os << "AttributeError: Invalid config option, cannot recognize \'" << kv.first
-         << "\' candidates are:";
-      bool is_first = true;
+      os << "AttributeError: Invalid config option, cannot recognize \'" << name
+         << "\'. Candidates are:";
       for (const auto& kv : key2vtype_) {
-        if (is_first) {
-          is_first = false;
-        } else {
-          os << ',';
-        }
-        os << ' ' << kv.first;
+        os << "\n  " << kv.first;
       }
       LOG(FATAL) << os.str();
       throw;
     }
-    const auto& obj = kv.second;
     const auto& info = it->second;
     try {
       VerifyTypeInfo(obj, info);
     } catch (const tvm::Error& e) {
-      LOG(FATAL) << "AttributeError: Schema validation failed for TargetId " << name
+      LOG(FATAL) << "AttributeError: Schema validation failed for TargetId " << this->name
                  << ", details:\n"
                  << e.what() << "\n"
-                 << "The given config is:\n"
+                 << "The config is:\n"
                  << config;
       throw;
     }
+  }
+}
+
+inline String GetId(const Map<String, ObjectRef>& target, const char* name) {
+  const String kTargetId = "id";
+  CHECK(target.count(kTargetId)) << "AttributeError: \"id\" does not exist in " << name << "\n"
+                                 << name << " = " << target;
+  const ObjectRef& obj = target[kTargetId];
+  CHECK(obj->IsInstance<StringObj>()) << "AttributeError: \"id\" is not a string in " << name
+                                      << ", but its type is " << obj->GetTypeKey() << "\n"
+                                      << name << " = " << target;
+  return Downcast<String>(obj);
+}
+
+void TargetValidateSchema(const Map<String, ObjectRef>& config) {
+  try {
+    const String kTargetHost = "target_host";
+    Map<String, ObjectRef> target = config;
+    Map<String, ObjectRef> target_host;
+    String target_id = GetId(target, "target");
+    String target_host_id;
+    if (config.count(kTargetHost)) {
+      target.erase(kTargetHost);
+      target_host = Downcast<Map<String, ObjectRef>>(config[kTargetHost]);
+      target_host_id = GetId(target_host, "target_host");
+    }
+    TargetId::Get(target_id)->ValidateSchema(target);
+    if (!target_host.empty()) {
+      TargetId::Get(target_host_id)->ValidateSchema(target_host);
+    }
+  } catch (const tvm::Error& e) {
+    LOG(INFO) << e.what();
+    throw e;
   }
 }
 

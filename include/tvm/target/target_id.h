@@ -43,6 +43,9 @@ template <typename, typename, typename>
 struct ValueTypeInfoMaker;
 }
 
+/*! \brief Perform schema validation */
+TVM_DLL void TargetValidateSchema(const Map<String, ObjectRef>& config);
+
 template <typename>
 class TargetIdAttrMap;
 
@@ -51,8 +54,6 @@ class TargetIdNode : public Object {
  public:
   /*! \brief Name of the target id */
   String name;
-  /*! \brief Perform schema validation */
-  TVM_DLL void ValidateSchema(const Map<String, ObjectRef>& config) const;
   /*! \brief Stores the required type_key and type_index of a specific attr of a target */
   struct ValueTypeInfo {
     String type_key;
@@ -67,10 +68,13 @@ class TargetIdNode : public Object {
  private:
   uint32_t AttrRegistryIndex() const { return index_; }
   String AttrRegistryName() const { return name; }
+  /*! \brief Perform schema validation */
+  void ValidateSchema(const Map<String, ObjectRef>& config) const;
   /*! \brief A hash table that stores the type information of each attr of the target key */
   std::unordered_map<String, ValueTypeInfo> key2vtype_;
   /*! \brief Index used for internal lookup of attribute registry */
   uint32_t index_;
+  friend void TargetValidateSchema(const Map<String, ObjectRef>&);
   friend class TargetId;
   template <typename, typename>
   friend class AttrRegistry;
@@ -284,6 +288,8 @@ inline TargetIdRegEntry& TargetIdRegEntry::set_attr(const String& attr_name, con
 
 template <typename ValueType>
 inline TargetIdRegEntry& TargetIdRegEntry::add_attr_option(const String& key) {
+  CHECK(!id_->key2vtype_.count(key))
+      << "AttributeError: add_attr_option failed because '" << key << "' has been set once";
   id_->key2vtype_[key] = detail::ValueTypeInfoMaker<ValueType>()();
   return *this;
 }

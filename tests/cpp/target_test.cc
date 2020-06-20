@@ -40,38 +40,41 @@ TEST(TargetId, GetAttrMap) {
 }
 
 TEST(TargetId, SchemaValidation) {
-  tvm::Map<String, ObjectRef> schema;
+  tvm::Map<String, ObjectRef> target;
   {
     tvm::Array<String> your_names{"junru", "jian"};
     tvm::Map<String, Integer> her_maps{
         {"a", 1},
         {"b", 2},
     };
-    schema.Set("my_bool", Bool(true));
-    schema.Set("your_names", your_names);
-    schema.Set("her_maps", her_maps);
+    target.Set("my_bool", Bool(true));
+    target.Set("your_names", your_names);
+    target.Set("her_maps", her_maps);
+    target.Set("id", String("TestTargetId"));
   }
-  const TargetId& target_id = tvm::TargetId::Get("TestTargetId");
-  target_id->ValidateSchema(schema);
+  TargetValidateSchema(target);
+  tvm::Map<String, ObjectRef> target_host(target.begin(), target.end());
+  target.Set("target_host", target_host);
+  TargetValidateSchema(target);
 }
 
 TEST(TargetId, SchemaValidationFail) {
-  tvm::Map<String, ObjectRef> schema;
+  tvm::Map<String, ObjectRef> target;
   {
     tvm::Array<String> your_names{"junru", "jian"};
     tvm::Map<String, Integer> her_maps{
         {"a", 1},
         {"b", 2},
     };
-    schema.Set("my_bool", Bool(true));
-    schema.Set("your_names", your_names);
-    schema.Set("her_maps", her_maps);
-    schema.Set("ok", ObjectRef(nullptr));
+    target.Set("my_bool", Bool(true));
+    target.Set("your_names", your_names);
+    target.Set("her_maps", her_maps);
+    target.Set("ok", ObjectRef(nullptr));
+    target.Set("id", String("TestTargetId"));
   }
-  const TargetId& target_id = tvm::TargetId::Get("TestTargetId");
   bool failed = false;
   try {
-    target_id->ValidateSchema(schema);
+    TargetValidateSchema(target);
   } catch (...) {
     failed = true;
   }
