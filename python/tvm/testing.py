@@ -232,4 +232,50 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
                              .format(ana.simplify(bool_expr), vranges, counterex))
 
 
+def check_int_constraints_trans_consistency(constraints_trans, vranges={}):
+    """ Check IntConstraintsTransform is a bijective transformation.
+
+    Parameters
+    ----------
+    constraints_trans : arith.IntConstraintsTransform
+        Integer constraints transformation
+    vranges: Dict[tvm.tir.expr.Var, tvm.ir.Range]
+        Free variables and their ranges
+    """
+    def _check_forward(constraints1, constraints2, varmap, backvarmap):
+        ana = tvm.arith.Analyzer()
+        all_vranges = vranges.copy()
+        all_vranges.update({v: r for v, r in constraints1.ranges.items()})
+
+        # Check that the transformation is injective
+        cond_on_vars = tvm.tir.const(1, 'bool')
+        for v in constraints1.variables:
+            # variable mapping is consistent
+            v_back = ana.simplify(tvm.tir.stmt_functor.substitute(varmap[v], backvarmap))
+            cond_on_vars = tvm.te.all(cond_on_vars, v == v_back)
+        # Also we have to check that the new relations are true when old relations are true
+        cond_subst = tvm.tir.stmt_functor.substitute(
+            tvm.te.all(tvm.tir.const(1, 'bool'), *constraints2.relations), backvarmap)
+        # We have to include relations from vranges too
+        for v in constraints2.variables:
+            if v in constraints2.ranges:
+                r = constraints2.ranges[v]
+                range_cond = tvm.te.all(v >= r.min, v < r.min + r.extent)
+                range_cond = tvm.tir.stmt_functor.substitute(range_cond, backvarmap)
+                cond_subst = tvm.te.all(cond_subst, range_cond)
+        cond_subst = ana.simplify(cond_subst)
+        check_bool_expr_is_true(
+            tvm.te.all(cond_subst, cond_on_vars), all_vranges,
+            cond=tvm.te.all(tvm.tir.const(1, 'bool'), *constraints1.relations))
+
+    rels = constraints_trans.dst.relations
+    if len(rels) == 1 and tvm.ir.structural_equal(rels[0], False):
+        # not solvable, skip
+        return
+    _check_forward(constraints_trans.src, constraints_trans.dst,
+                   constraints_trans.src_to_dst, constraints_trans.dst_to_src)
+    _check_forward(constraints_trans.dst, constraints_trans.src,
+                   constraints_trans.dst_to_src, constraints_trans.src_to_dst)
+
+
 tvm._ffi._init_api("testing", __name__)
