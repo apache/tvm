@@ -26,9 +26,9 @@ Basically this is a simplified TVM IR with schedule primitives.
 We don't use the existing TVM IR because
 1. We want fast incremental change to the loop structures
 2. We want serializable history for replay and backtracking
-3. We may create some Macro schedule primitives
+3. We may create some new macro schedule primitives
 
-After search is done, we will lower this IR to TVM IR with TVM schedule primitives.
+After search is done, we will lower this IR to TVM IR with TVM's schedule primitives.
 Because we share a lot common objects during search,  the transformation is
 implemented in copy on write style.  All objects are immutable, which is
 similar to TVM IR.

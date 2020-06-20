@@ -20,7 +20,8 @@ class KernelLayoutVisitor : public ExprVisitor {
         !global_ori_layouts_queue.empty() && !global_new_layouts_queue.empty()) {
       ori_layouts_map[n] = global_ori_layouts_queue.front();
       new_layouts_map[n] = global_new_layouts_queue.front();
-      std::cout << "ori_layout " << global_ori_layouts_queue.front() << " Filter_shape " << n->args[1]->type_as<TensorTypeNode>()->shape << std::endl;
+      // std::cout << "ori_layout " << global_ori_layouts_queue.front()
+      //     << " Filter_shape " << n->args[1]->type_as<TensorTypeNode>()->shape << std::endl;
       global_ori_layouts_queue.pop_front();
       global_new_layouts_queue.pop_front();
     }

@@ -105,7 +105,7 @@ typedef std::unordered_map<tvm::te::Stage, std::vector<tir::IterVar>, ObjectHash
 void UpdateStageAxis(const tvm::te::Stage& stage, StageToAxesMap *stage_to_axes);
 
 
-/*! \brief Compute declaration graph */
+/*! \brief Computation declaration graph */
 class ComputeDAGNode : public Object {
  public:
   Array<te::Tensor> tensors;       // Input and output tensors

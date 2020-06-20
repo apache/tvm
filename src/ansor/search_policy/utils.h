@@ -464,14 +464,6 @@ State RandomMutateTileSize(const State& old_state, SplitFactorizationMemo* split
 State RandomMutateMaxUnrollStep(const State& old_state, std::mt19937* random_gen,
                                 const std::vector<int>& auto_unroll_configs);
 
-// Mutate a parallel loop.
-State MutataParallel(const State& old_state, SplitFactorizationMemo* split_memo,
-                     std::mt19937* random_gen, const SearchTask& task, int verbose = 0);
-
-// Create all possible tile size states for all SplitStep
-void GridMutateTileSize(const State& old_state, std::vector<State>* cands,
-                        SplitFactorizationMemo* split_memo, int max_innermost_split_factor);
-
 // GA: Crossover two states
 State CrossOverState(const State& p1, const State& p2);
 

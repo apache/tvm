@@ -16,13 +16,15 @@
 # under the License.
 """Definition of x86 operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
-import logging
 
-import re
-import topi
+import os
 from tvm.te import SpecializedCondition
+from tvm import ansor
 from .generic import *
 from .. import op as _op
+
+# Set the priority level to use the Ansor auto-scheduler
+ansor_plevel = 11
 
 logger = logging.getLogger('strategy')
 
@@ -39,7 +41,7 @@ def schedule_injective_cpu(attrs, outs, target):
 def schedule_reduce_cpu(attrs, outs, target):
     """schedule reduction ops for x86"""
     with target:
-        return topi.x86.schedule_reduce(outs)
+        return ansor.auto_schedule_topi(outs)
 
 @schedule_concatenate.register("cpu")
 def schedule_concatenate_cpu(attrs, outs, target):
@@ -51,13 +53,13 @@ def schedule_concatenate_cpu(attrs, outs, target):
 def schedule_pool_cpu(attrs, outs, target):
     """schedule pooling ops for x86"""
     with target:
-        return topi.x86.schedule_pool(outs, attrs.layout)
+        return ansor.auto_schedule_topi(outs)
 
 @schedule_adaptive_pool.register("cpu")
 def schedule_adaptive_pool_cpu(attrs, outs, target):
     """schedule adaptive pooling ops for x86"""
     with target:
-        return topi.x86.schedule_adaptive_pool(outs)
+        return ansor.auto_schedule_topi(outs)
 
 @softmax_strategy.register("cpu")
 def softmax_strategy_cpu(attrs, inputs, out_type, target):
@@ -65,15 +67,15 @@ def softmax_strategy_cpu(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_softmax(topi.nn.softmax),
-        wrap_topi_schedule(topi.x86.schedule_softmax),
-        name="softmax.x86")
+        wrap_topi_schedule(ansor.auto_schedule_topi),
+        name="ansor")
     return strategy
 
 @schedule_log_softmax.register("cpu")
 def schedule_log_softmax_cpu(attrs, outs, target):
     """schedule log_softmax op for x86"""
     with target:
-        return topi.x86.schedule_softmax(outs)
+        return ansor.auto_schedule_topi(outs)
 
 @conv2d_strategy.register("cpu")
 def conv2d_strategy_cpu(attrs, inputs, out_type, target):
@@ -105,18 +107,18 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             return conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
-            logger.warning("For x86 target, NCHW layout is recommended for conv2d.")
+            #logger.warning("For x86 target, NCHW layout is recommended for conv2d.")
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.conv2d_nhwc),
-                wrap_topi_schedule(topi.x86.schedule_conv2d_nhwc),
-                name="conv2d_nhwc.x86")
+                wrap_topi_schedule(ansor.auto_schedule_topi),
+                name="ansor")
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
-            logger.warning("conv2d HWCN layout is not optimized for x86.")
+            #logger.warning("conv2d HWCN layout is not optimized for x86.")
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.conv2d_hwcn),
-                wrap_topi_schedule(topi.generic.schedule_conv2d_hwcn),
-                name="conv2d_hwcn.generic")
+                wrap_topi_schedule(ansor.auto_schedule_topi),
+                name="ansor")
         else:
             raise RuntimeError("Unsupported conv2d layout {} for x86".format(layout))
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
@@ -143,8 +145,8 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             logger.warning("depthwise_conv2d NHWC layout is not optimized for x86.")
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
-                wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nhwc),
-                name="depthwise_conv2d_nhwc.generic")
+                wrap_topi_schedule(ansor.auto_schedule_topi),
+                name="ansor")
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
     else: # group_conv2d
@@ -153,8 +155,8 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             logger.warning("group_conv2d is not optimized for x86.")
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.group_conv2d_nchw, has_groups=True),
-                wrap_topi_schedule(topi.generic.schedule_group_conv2d_nchw),
-                name="group_conv2d_nchw.generic")
+                wrap_topi_schedule(ansor.auto_schedule_topi),
+                name="ansor")
         else:
             raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
     return strategy
@@ -231,8 +233,8 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
                                     name="conv3d_ncdhw.x86")
     elif layout == "NDHWC":
         strategy.add_implementation(wrap_compute_conv3d(topi.x86.conv3d_ndhwc),
-                                    wrap_topi_schedule(topi.x86.schedule_conv3d_ndhwc),
-                                    name="conv3d_ndhwc.x86")
+                                    wrap_topi_schedule(ansor.auto_schedule_topi),
+                                    name="ansor")
     else:
         raise ValueError("Not support this layout {} yet".format(layout))
     return strategy
@@ -251,8 +253,8 @@ def conv1d_strategy_cpu(attrs, inputs, out_type, target):
                                     name="conv1d_ncw.x86")
     elif layout == "NWC":
         strategy.add_implementation(wrap_compute_conv1d(topi.nn.conv1d_nwc),
-                                    wrap_topi_schedule(topi.x86.schedule_conv1d_nwc),
-                                    name="conv1d_nwc.x86")
+                                    wrap_topi_schedule(ansor.auto_schedule_topi),
+                                    name="ansor")
     else:
         raise ValueError("Unsupported conv1d layout {}".format(layout))
     return strategy
@@ -261,16 +263,23 @@ def conv1d_strategy_cpu(attrs, inputs, out_type, target):
 def dense_strategy_cpu(attrs, inputs, out_type, target):
     """dense x86 strategy"""
     strategy = _op.OpStrategy()
-    m, _ = inputs[0].shape
+
+    strategy.add_implementation(wrap_compute_dense(topi.nn.dense),
+                                wrap_topi_schedule(ansor.auto_schedule_topi),
+                                name='ansor',
+                                plevel=ansor_plevel)
+
     strategy.add_implementation(wrap_compute_dense(topi.x86.dense_nopack),
                                 wrap_topi_schedule(topi.x86.schedule_dense_nopack),
                                 name="dense_nopack.x86",
                                 plevel=10)
+
     if "cblas" in target.libs:
         strategy.add_implementation(wrap_compute_dense(topi.x86.dense_cblas),
                                     wrap_topi_schedule(topi.x86.schedule_dense_cblas),
                                     name="dense_cblas.x86",
                                     plevel=15)
+    m, _ = inputs[0].shape
     with SpecializedCondition(m >= 16):
         # this implementation may not be well-optimized, so use plevel=8 for now.
         strategy.add_implementation(wrap_compute_dense(topi.x86.dense_pack),
@@ -283,6 +292,12 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
 def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     """batch_matmul x86 strategy"""
     strategy = _op.OpStrategy()
+
+    strategy.add_implementation(wrap_compute_dense(topi.nn.batch_matmul),
+                                wrap_topi_schedule(ansor.auto_schedule_topi),
+                                name='ansor',
+                                plevel=ansor_plevel)
+
     strategy.add_implementation(wrap_compute_batch_matmul(topi.x86.batch_matmul),
                                 wrap_topi_schedule(topi.x86.schedule_batch_matmul),
                                 name="batch_matmul.x86",

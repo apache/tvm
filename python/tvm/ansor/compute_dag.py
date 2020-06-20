@@ -19,7 +19,6 @@
 
 import tvm._ffi
 from tvm.runtime import Object
-from tvm import te
 from .loop_state import State, StateObject
 from . import _ffi_api
 
@@ -34,11 +33,12 @@ class LayoutRewriteLevel(object):
 @tvm._ffi.register_object("ansor.ComputeDAG")
 class ComputeDAG(Object):
     """
+    Computation declaration graph
+
     Parameters
     ----------
     tensors : List[Tensor]
     """
-
     def __init__(self, tensors):
         self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, tensors)
 
@@ -51,29 +51,20 @@ class ComputeDAG(Object):
         """
         return State(_ffi_api.ComputeDAGGetInitState(self), self)
 
-    def apply_steps_from_state(self, state, layout_rewrite_level=None):
+    def apply_steps_from_state(self, state, layout_rewrite_level=LayoutRewriteLevel.NO_REWRITE):
         """
         Parameters
         ----------
         state : StateObject
-        layout_rewrite_level : LayoutRewriteLevel(***)
+        layout_rewrite_level : LayoutRewriteLevel
 
         Returns
         -------
         sch : Schedule
         args : List[Tensor]
         """
-        if isinstance(state, State):
-            return _ffi_api.ComputeDAGApplyStepsFromState(self, state.state_object,
-                                                          layout_rewrite_level)
-        elif isinstance(state, StateObject):
-            return _ffi_api.ComputeDAGApplyStepsFromState(self, state,
-                                                          layout_rewrite_level)
-        else:
-            raise ValueError("The input must be a State or StateObject")
-
-    def rewrite_layout_from_state(self, state: State):
-        return _ffi_api.ComputeDAGRewriteLayoutFromState(self, state)
+        state_obj = state if isinstance(state, StateObject) else state.state_object
+        return _ffi_api.ComputeDAGApplyStepsFromState(self, state_obj, layout_rewrite_level)
 
     def print_python_code_from_state(self, state):
         """
@@ -85,12 +76,8 @@ class ComputeDAG(Object):
         -------
         str : Str
         """
-        if isinstance(state, State):
-            return _ffi_api.ComputeDAGPrintPythonCodeFromState(self, state.state_object)
-        elif isinstance(state, StateObject):
-            return _ffi_api.ComputeDAGPrintPythonCodeFromState(self, state)
-        else:
-            raise ValueError("The input must be a State or StateObject")
+        state_obj = state if isinstance(state, StateObject) else state.state_object
+        return _ffi_api.ComputeDAGPrintPythonCodeFromState(self, state_obj)
 
     def infer_bound_from_state(self, state):
         """
@@ -102,19 +89,8 @@ class ComputeDAG(Object):
         -------
         state : StateObject
         """
-        if isinstance(state, State):
-            return State(_ffi_api.ComputeDAGInferBoundFromState(self, state.state_object), self)
-        elif isinstance(state, StateObject):
-            return State(_ffi_api.ComputeDAGInferBoundFromState(self, state), self)
-        else:
-            raise ValueError("The input must be a State or StateObject")
+        state_obj = state if isinstance(state, StateObject) else state.state_object
+        return State(_ffi_api.ComputeDAGInferBoundFromState(self, state_obj), self)
 
-def gen_schedule(state, bufs):
-    if not state or not state.complete:
-        return te.create_schedule([x.op for x in bufs])
-    else:
-        dag = ComputeDAG(bufs)
-        # only update compute body, layout_rewrite_level = LayoutRewriteLevel.COMPUTE_REWRITE,
-        # since kernel layout has already been rewritten in relay pass
-        schedule, _ = dag.apply_steps_from_state(state, layout_rewrite_level=LayoutRewriteLevel.COMPUTE_REWRITE)
-    return schedule
+    def rewrite_layout_from_state(self, state: State):
+        return _ffi_api.ComputeDAGRewriteLayoutFromState(self, state)

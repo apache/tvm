@@ -124,7 +124,7 @@ search_policy = ansor.MetaTileRewritePolicy(cost_model, seed=seed)
 # in the tuning logs.
 # :code:`ansor.LogToFile` callback will log the tuning results into a
 # log file, which can be used to get the best config later.
-# :code:`ansor.PreLoadMeasuredStates` callback will load measured states
+# :code:`ansor.PreloadMeasuredStates` callback will load measured states
 # from history log before schedule search, we can add this callback to make
 # sure a same schedule will never be measured for multiple times.
 
@@ -132,7 +132,7 @@ measure_ctx = ansor.LocalRPCMeasureContext(repeat=3, min_repeat_ms=100, timeout=
 tune_option = ansor.TuneOption(n_trials=20,
                                runner=measure_ctx.runner,
                                measure_callbacks=[ansor.LogToFile(log_file)],
-                               pre_search_callbacks=[ansor.PreLoadMeasuredStates(log_file)])
+                               pre_search_callbacks=[ansor.PreloadMeasuredStates(log_file)])
 s, arg_bufs = ansor.auto_schedule(task, search_policy=search_policy, tune_option=tune_option)
 
 print("==== Get Lowered Stmt ====")

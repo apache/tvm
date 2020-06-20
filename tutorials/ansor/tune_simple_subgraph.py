@@ -148,7 +148,7 @@ task = ansor.SearchTask(dag, "test", tgt)
 # you can do more trials according to your time budget.
 # :code:`ansor.LogToFile` callback will log the tuning results into a
 # log file, which can be used to get the best config later.
-# :code:`ansor.PreLoadMeasuredStates` callback will load measured states
+# :code:`ansor.PreloadMeasuredStates` callback will load measured states
 # from history log before schedule search, we can add this callback to make
 # sure a same schedule will never be measured for multiple times.
 
@@ -161,7 +161,7 @@ search_policy = ansor.MetaTileRewritePolicy(cost_model, seed=seed)
 
 tune_option = ansor.TuneOption(n_trials=5,
                                measure_callbacks=[ansor.LogToFile(log_file)],
-                               pre_search_callbacks=[ansor.PreLoadMeasuredStates(log_file)])
+                               pre_search_callbacks=[ansor.PreloadMeasuredStates(log_file)])
 
 ################################################################
 # Then just call :code:`ansor.auto_schedule` and Ansor will try to find a high

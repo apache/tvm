@@ -72,6 +72,7 @@ class BuildModule(object):
         self._get_module = self.mod["get_module"]
         self._build = self.mod["build"]
         self._optimize = self.mod["optimize"]
+        self._call_all_topi_funcs = self.mod["call_all_topi_funcs"]
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
 
@@ -160,6 +161,12 @@ class BuildModule(object):
 
         return mod, params
 
+    def call_all_topi_funcs(self, mod, target=None, target_host=None, params=None):
+        """Call all topi compute and schedule used in a relay function"""
+        target = _update_target(target)
+        if params:
+            self._set_params(params)
+        self._call_all_topi_funcs(mod, target, target_host)
 
     def _set_params(self, params):
         self._set_params_func(_convert_param_map(params))

@@ -20,7 +20,7 @@
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
-from tvm import te
+from tvm import te, ansor
 
 from .pad import pad
 from .util import get_pad_tuple
@@ -342,23 +342,36 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
         dilation_h, dilation_w = dilation
 
     batch, in_height, in_width, in_channel = Input.shape
-    if len(Filter.shape) == 10:
-      kernel_h = Filter.shape[2] * Filter.shape[6]
-      kernel_w = Filter.shape[3] * Filter.shape[7]
-      channel = Filter.shape[4] * Filter.shape[8]
-      num_filter = Filter.shape[0] * Filter.shape[1] * Filter.shape[5] * Filter.shape[9]
-    elif len(Filter.shape) == 11:
-      kernel_h = Filter.shape[3] * Filter.shape[7]
-      kernel_w = Filter.shape[4] * Filter.shape[8]
-      channel = Filter.shape[5] * Filter.shape[9]
-      num_filter = Filter.shape[0] * Filter.shape[1] * Filter.shape[2] * Filter.shape[6] * Filter.shape[10]
-    elif len(Filter.shape) == 12:
-      kernel_h = Filter.shape[4] * Filter.shape[8]
-      kernel_w = Filter.shape[5] * Filter.shape[9]
-      channel = Filter.shape[6] * Filter.shape[10]
-      num_filter = Filter.shape[0] * Filter.shape[1] * Filter.shape[2] * Filter.shape[3] * Filter.shape[7] * Filter.shape[11]
+    if ansor.GLOBAL_SCOPE.topi_in_compute_rewrite_mode:
+        # infer shape for the rewritten layout
+        if len(Filter.shape) >= 10:
+            # For cpu tile structure SSRSRS
+            base = len(Filter.shape) - 10
+            kernel_h = Filter.shape[2 + base] * Filter.shape[6 + base]
+            kernel_w = Filter.shape[3 + base] * Filter.shape[7 + base]
+            channel = Filter.shape[4 + base] * Filter.shape[8 + base]
+            num_filter = Filter.shape[5 + base] * Filter.shape[9 + base]
+            for i in range(base + 2):
+                num_filter *= Filter.shape[i]
+        elif len(Filter.shape) == 6:
+            # For cpu tile structure SRS
+            num_filter = Filter.shape[0] * Filter.shape[1] * Filter.shape[5]
+            kernel_h = Filter.shape[2]
+            kernel_w = Filter.shape[3]
+            channel = Filter.shape[4]
+        elif len(Filter.shape) == 5:
+            # For cpu tile structure SRS
+            num_filter = Filter.shape[0] * Filter.shape[4]
+            kernel_h = Filter.shape[1]
+            kernel_w = Filter.shape[2]
+            channel = Filter.shape[3]
+        elif len(Filter.shape) == 4:
+            num_filter, kernel_h, kernel_w, channel = Filter.shape
+        else:
+            raise ValueError("Don't know how to infer layout for filter shape: %s. " \
+                             "You can add a new branch for it to fix this." % str(Filter))
     else:
-      kernel_h, kernel_w, channel, num_filter = Filter.shape
+        kernel_h, kernel_w, channel, num_filter = Filter.shape
 
     # compute the output shape
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1

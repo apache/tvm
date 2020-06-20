@@ -25,12 +25,12 @@
 #ifndef TVM_ANSOR_SEARCH_POLICY_SEARCH_POLICY_H_
 #define TVM_ANSOR_SEARCH_POLICY_SEARCH_POLICY_H_
 
+#include "../search_task.h"
 #include <tvm/node/node.h>
 #include <unordered_set>
 #include <vector>
 #include <utility>
 #include <string>
-#include "../search_task.h"
 #include "../measure.h"
 
 namespace tvm {
@@ -39,6 +39,7 @@ namespace ansor {
 class SearchPolicy;
 class SearchPolicyNode;
 
+/*! Callback function to be called before or after the search process */
 class SearchCallbackNode : public Object {
  public:
   virtual void callback(SearchPolicyNode* policy) = 0;
@@ -47,7 +48,9 @@ class SearchCallbackNode : public Object {
 };
 TVM_DEFINE_MUTABLE_OBJECT_REF(SearchCallback, SearchCallbackNode);
 
-class PreLoadMeasuredStatesNode : public SearchCallbackNode {
+/*! \brief Preload measured states from a log file.
+ * This can resume the state of the search policy */
+class PreloadMeasuredStatesNode : public SearchCallbackNode {
  public:
   std::string filename;
 
@@ -55,44 +58,48 @@ class PreLoadMeasuredStatesNode : public SearchCallbackNode {
 
   void callback(SearchPolicyNode* policy) final;
 
-  static constexpr const char *_type_key = "ansor.PreLoadMeasuredStates";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PreLoadMeasuredStatesNode, SearchCallbackNode);
+  static constexpr const char *_type_key = "ansor.PreloadMeasuredStates";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PreloadMeasuredStatesNode, SearchCallbackNode);
 };
 
 /*! \brief The base class for search policy */
 class SearchPolicyNode : public Object {
  public:
+  SearchTask cur_task;   // The current task
+  int verbose;           // Verbose level (0 means silent)
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("cur_task", &cur_task);
+    v->Visit("verbose", &verbose);
+  }
+
+  // Search for a task
   virtual State Search(SearchTask task, int n_trials,
                        int early_stopping, int num_measure_per_iter,
                        int verbose, ProgramMeasurer measurer,
                        Array<SearchCallback> pre_search_callbacks) = 0;
 
+  // Continue search one round for a task.
+  // This is used in the task scheduler for searching for multiple tasks together.
   virtual std::pair<Array<MeasureInput>, Array<MeasureResult> > ContinueSearchOneRound(
       SearchTask task, int num_measure, int verbose, ProgramMeasurer measurer) = 0;
 
-  void PreLoadMeasuredStates(const std::string& log_file);
+  // Preload measured states from a log file to resume the state of the search policy
+  void PreloadMeasuredStates(const std::string& log_file);
+
+  // Run a list of callback functions
   void RunCallbacks(const Array<SearchCallback>& callbacks);
 
-  SearchTask cur_task_;               // The current task
-  int verbose_;                       // Verbose level (0 means silent)
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("cur_task", &cur_task_);
-  }
-
-  // Dict keys
+  // Dict keys to give hints to the policy
   static constexpr const char* always_unroll_inner_key = "ansor_always_unroll_inner";
   static constexpr const char* always_unroll_key = "ansor_always_unroll";
   static constexpr const char* no_split_at_inner_key = "ansor_no_split_at_inner";
   static constexpr const char* no_split_at_outer_key = "ansor_no_split_at_outer";
-  static constexpr const char* debug_skip_region_key = "ansor_debug_skip_region";
   static constexpr const char* last_split_is_one_key = "ansor_last_split_is_one";
-
-  // Flag keys
+  // Flag keys to give hints to the policy
   static constexpr const char* always_compute_inline_key = "ansor_always_compute_inline";
   static constexpr const char* no_cache_write_key = "ansor_no_cache_write";
   static constexpr const char* no_cache_read_key = "ansor_no_cache_read";
-  static constexpr const char* tensor_core_support_key = "ansor_tensor_core_support";
 
   static constexpr const char *_type_key = "ansor.SearchPolicy";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchPolicyNode, Object);

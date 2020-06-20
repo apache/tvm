@@ -902,15 +902,12 @@ void ComputeDAG::RewriteLayout(
           for (size_t i = 0; i < old_ops.size(); ++i) {
             auto old_op = old_ops[i];
             if (rewrite_placeholder && old_op == placeholder_op) {
-              //pops->data[i] = new_placeholder_op;
               pops->SetItem(i, new_placeholder_op);
               updated_ops[placeholder_op] = new_placeholder_op;
             } else if (rewrite_body && old_op == old_compute_op) {
-              //pops->data[i] = new_compute_op;
               pops->SetItem(i, new_compute_op);
               updated_ops[old_compute_op] = new_compute_op;
             } else {
-              //pops->data[i] = old_op;
               pops->SetItem(i, old_op);
             }
           }
@@ -936,7 +933,6 @@ void ComputeDAG::RewriteLayout(
               if (!rmap.empty()) {
                 te::Operation new_op = pop->ReplaceInputs(old_op, rmap);
                 updated_ops[old_op] = new_op;
-                //pops->data[i] = new_op;
                 pops->SetItem(i, new_op);
               }
             }
@@ -958,7 +954,6 @@ void ComputeDAG::RewriteLayout(
             if (new_op.defined()) {
               if (layout_rewrite_level == kBothRewrite) {
                 auto index = old_tensor->value_index;
-                //ptensors->data[i] = new_op.output(index);
                 ptensors->SetItem(i, new_op.output(index));
               } else if (layout_rewrite_level == kComputeRewrite) {
                 te::TensorNode* old_tensor_node =

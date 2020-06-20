@@ -22,19 +22,18 @@ import numpy as np
 import tvm
 from tvm import ansor, relay
 import tvm.contrib.graph_runtime as runtime
+from tvm.relay.testing import dqn
 
-from test_ansor_common import get_tiled_matmul
+def test_tune_dense_graph():
+    def dense_graph(N, dtype="float32"):
+        ori_data = relay.var("data", shape=(N, N), dtype=dtype)
+        weight = relay.var("weight", shape=(N, N), dtype=dtype)
+        data = relay.multiply(ori_data, relay.const(2, dtype=dtype))
+        dense = relay.nn.dense(data, weight, out_dtype=dtype)
+        dense = relay.add(dense, weight)
+        dense = relay.nn.dense(dense, weight, out_dtype=dtype)
+        return ori_data, weight, dense
 
-def dense_graph(N, dtype="float32"):
-    ori_data = relay.var("data", shape=(N, N), dtype=dtype)
-    weight = relay.var("weight", shape=(N, N), dtype=dtype)
-    data = relay.multiply(ori_data, relay.const(2, dtype=dtype))
-    dense = relay.nn.dense(data, weight, out_dtype=dtype)
-    dense = relay.add(dense, weight)
-    dense = relay.nn.dense(dense, weight, out_dtype=dtype)
-    return ori_data, weight, dense
-
-def test_dense_integration():
     N = 128
     data, weight, dense = dense_graph(N)
     mod = relay.Function([data, weight], dense)
@@ -44,34 +43,23 @@ def test_dense_integration():
     target = tvm.target.create("llvm")
     d = tvm.nd.array(np.random.uniform(size=(N, N)).astype(data.type_annotation.dtype), ctx)
     w = tvm.nd.array(np.random.uniform(size=(N, N)).astype(weight.type_annotation.dtype), ctx)
-    workloads, wkl_weights = ansor.extract_from_program(mod, {}, target=target)
+    wkl_keys, wkl_weights = ansor.extract_from_program(mod, {}, target=target)
 
-    assert len(workloads) == 2
+    assert len(wkl_keys) == 2
     assert len(wkl_weights) == 2
 
     tasks = []
-    for wkl_key in workloads:
+    for wkl_key in wkl_keys:
         dag = ansor.workload_key_to_dag(wkl_key)
         tasks.append(ansor.SearchTask(dag, wkl_key, target))
-
-    assert str(tasks[0].compute_dag) == "placeholder = PLACEHOLDER [128, 128]\n" + \
-        "placeholder = PLACEHOLDER [128, 128]\n" + \
-        "compute(z, y, x) += (placeholder[z, ((k*16) + x)]*placeholder[y, ((k*16) + x)])\n" + \
-        "compute(y, x) += compute[y, x, kk]\n"
-
-    assert str(tasks[1].compute_dag) == "placeholder = PLACEHOLDER [128, 128]\n" + \
-        "placeholder = PLACEHOLDER [128, 128]\n" + \
-        "compute(z, y, x) += (placeholder[z, ((k*16) + x)]*placeholder[y, ((k*16) + x)])\n" + \
-        "compute(y, x) += compute[y, x, kk]\n" + \
-        "T_add(ax0, ax1) = (compute[ax0, ax1] + placeholder[ax0, ax1])\n"
 
     tuner = ansor.SimpleTaskScheduler(tasks)
     measure_ctx = ansor.LocalRPCMeasureContext()
     with tempfile.NamedTemporaryFile() as fp:
-        tuner.tune(ansor.TuneOption(n_trials=4, runner=measure_ctx.runner,
+        tuner.tune(ansor.TuneOption(n_trials=2, runner=measure_ctx.runner,
                                     measure_callbacks=[ansor.LogToFile(fp.name)]))
         with ansor.apply_history_best(fp.name):
-            with relay.build_config(opt_level=3):
+            with tvm.transform.PassContext(opt_level=3,  disabled_pass={"AlterOpLayout"}):
                 graph, lib, opt_params = relay.build_module.build(
                     mod, target=target)
 
@@ -80,8 +68,8 @@ def test_dense_integration():
                 m.set_input('weight', w)
                 m.run()
                 res = m.get_output(0)
-    if measure_ctx:
-        del measure_ctx
+
+    del measure_ctx
 
     d = d.asnumpy()
     d = d * 2
@@ -92,5 +80,36 @@ def test_dense_integration():
 
     tvm.testing.assert_allclose(res.asnumpy(), d, rtol=1e-5)
 
+
+def test_tune_dqn():
+    mod, params = dqn.get_workload(1, image_shape=(84, 84, 4), layout='NHWC')
+    target = tvm.target.create('llvm')
+    ctx = tvm.context("llvm")
+
+    wkl_keys, wkl_weights = ansor.extract_from_program(mod, params, target)
+
+    tasks = []
+    for wkl_key in wkl_keys:
+        dag = ansor.workload_key_to_dag(wkl_key)
+        tasks.append(ansor.SearchTask(dag, wkl_key, target))
+
+    assert len(tasks) == 5
+
+    tuner = ansor.SimpleTaskScheduler(tasks)
+    measure_ctx = ansor.LocalRPCMeasureContext()
+    with tempfile.NamedTemporaryFile() as fp:
+        tuner.tune(ansor.TuneOption(n_trials=len(tasks), runner=measure_ctx.runner,
+                                    measure_callbacks=[ansor.LogToFile('tmp.json')]),
+                   search_policy='meta-rewrite.random')
+        with ansor.apply_history_best('tmp.json'):
+            ansor.prepare_layout_rewrite(mod, params, target)
+            with tvm.transform.PassContext(opt_level=3,  disabled_pass={"AlterOpLayout"}):
+                graph, lib, opt_params = relay.build_module.build(mod, target=target)
+            ansor.finish_layout_rewrite()
+
+    del measure_ctx
+
 if __name__ == "__main__":
-    test_dense_integration()
+    test_tune_dense_graph()
+    test_tune_dqn()
+

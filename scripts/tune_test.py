@@ -36,7 +36,7 @@ def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose
                                    builder=builder,
                                    runner=runner,
                                    measure_callbacks=[ansor.LogToFile(log_file)],
-                                   pre_search_callbacks=[ansor.PreLoadMeasuredStates(log_file)])
+                                   pre_search_callbacks=[ansor.PreloadMeasuredStates(log_file)])
 
     return tune_option, measure_ctx
 

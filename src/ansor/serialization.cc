@@ -28,6 +28,7 @@
 #include <sstream>
 #include <vector>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include "serialization.h"
 #include "loop_state.h"

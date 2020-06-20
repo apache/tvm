@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""""Python API for Feature extraction.
+""""
+Python API for Feature extraction.
 The specification of features can be found in `autoscheduler_doc/per_stage_feature.md`
 """
 
@@ -28,8 +29,10 @@ from .measure import MeasureInput, MeasureResult
 from . import _ffi_api
 
 
+# Maximum number of buffers for one statement to extract feature for
 DEFAULT_MAX_N_BUFS = 5
 
+# The length of the feature vector
 DEFAULT_FEATURE_VEC_LEN = 164
 
 
@@ -145,6 +148,6 @@ def get_per_stmt_features_from_states(states,
 
 
 def get_per_stmt_feature_names(max_n_bufs: int = None) -> List[str]:
-    """Get names of the elements in the flatten feature vector"""
+    """Get names for the elements in the flatten feature vector"""
     return [x for x in
             _ffi_api.GetPerStmtFeatureNames(max_n_bufs or DEFAULT_MAX_N_BUFS)]

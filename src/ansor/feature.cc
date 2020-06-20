@@ -653,9 +653,9 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
         fea.vec_prod *= GetIntImm(pfor->extent);
       }
       fea.vec_type = kPosMixed;
-          // todo(lmzheng): this feature requires operation (tvm.compute) information
-          //GetAnnotationPosEncoding(vec_for_stack.back()->loop_var,
-          //node->args, pcompute->axis, pcompute->reduce_axis);
+      // todo(lmzheng): this feature requires operation (tvm.compute) information
+      // GetAnnotationPosEncoding(vec_for_stack.back()->loop_var,
+      // node->args, pcompute->axis, pcompute->reduce_axis);
     }
 
     fea.unroll_num = unroll_for_stack.size();
@@ -666,8 +666,8 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
         fea.unroll_prod *= GetIntImm(pfor->extent);
       }
       fea.unroll_type = kPosMixed;
-          //GetAnnotationPosEncoding(unroll_for_stack.back()->loop_var,
-          //node->args, pcompute->axis, pcompute->reduce_axis);
+      // GetAnnotationPosEncoding(unroll_for_stack.back()->loop_var,
+      // node->args, pcompute->axis, pcompute->reduce_axis);
     }
 
     fea.parallel_num = parallel_for_stack.size();
@@ -678,8 +678,8 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
         fea.parallel_prod *= GetIntImm(pfor->extent);
       }
       fea.parallel_type = kPosMixed;
-          //GetAnnotationPosEncoding(parallel_for_stack.back()->loop_var,
-          //node->args, pcompute->axis, pcompute->reduce_axis);
+      // GetAnnotationPosEncoding(parallel_for_stack.back()->loop_var,
+      // node->args, pcompute->axis, pcompute->reduce_axis);
     }
 
     // GPU threads
@@ -1213,7 +1213,8 @@ void GetPerStmtFeaturesWorkerFunc(const SearchTask& task, const State& state,
       const auto& optimize = tir::transform::Sequential(pass_list);
       optimize(mod);
     }
-    const auto& optimize = tir::transform::Sequential(Array<tvm::transform::Pass>{tir::transform::Simplify()});
+    const auto& optimize = tir::transform::Sequential(
+        Array<tvm::transform::Pass>{tir::transform::Simplify()});
     mod = optimize(std::move(mod));
     const auto& it = mod->functions.find(global_var);
     CHECK(it != mod->functions.end());
@@ -1241,8 +1242,8 @@ void GetPerStmtFeaturesFromStates(const Array<State>& states,
   for (size_t i = skip_first_n_feature_extraction; i < states.size(); ++i) {
     pool.Enqueue(GetPerStmtFeaturesWorkerFunc, task, states[i],
         max_n_bufs, &(*features)[i], &error_ct);
-    //GetPerStmtFeaturesWorkerFunc(task, states[i],
-    //    max_n_bufs, &(*features)[i], &error_ct);
+    // GetPerStmtFeaturesWorkerFunc(task, states[i],
+    //     max_n_bufs, &(*features)[i], &error_ct);
   }
   pool.WaitBatch();
 

@@ -62,8 +62,8 @@ State MetaTileRewritePolicyNode::Search(SearchTask task, int n_trials,
                                         int verbose, ProgramMeasurer measurer,
                                         Array<SearchCallback> pre_search_callbacks) {
   std::vector<State> best_states, random_states;
-  cur_task_ = task;
-  verbose_ = verbose;
+  this->cur_task = task;
+  this->verbose = verbose;
   num_measure_per_iter_ = num_measure_per_iter;
 
   RunCallbacks(pre_search_callbacks);
@@ -85,17 +85,17 @@ State MetaTileRewritePolicyNode::Search(SearchTask task, int n_trials,
     while (ct < n_trials) {
       if (!inputs.empty()) {
         // retrain cost models
-        PrintTitle("Train cost model", verbose_);
+        PrintTitle("Train cost model", verbose);
         program_cost_model->Update(inputs, results);
       }
 
       // Search one round to get promising states
-      PrintTitle("Search", verbose_);
+      PrintTitle("Search", verbose);
       SearchOneRound(&best_states, num_random, &random_states);
 
       // Fill correct bound.This is necessary for computing the correct ToStr() for reduncency check
-      cur_task_->compute_dag.InferBound(&best_states);
-      cur_task_->compute_dag.InferBound(&random_states);
+      cur_task->compute_dag.InferBound(&best_states);
+      cur_task->compute_dag.InferBound(&random_states);
 
       // Pick `num_measure_per_iter` states to measure, check hash to remove already measured state
       // Also pick some random states to do eps-greedy
@@ -108,11 +108,11 @@ State MetaTileRewritePolicyNode::Search(SearchTask task, int n_trials,
       }
 
       // Measure candidate states
-      PrintTitle("Measure", verbose_);
-      measurer->Measure(cur_task_, GetRef<SearchPolicy>(this), inputs, &results);
+      PrintTitle("Measure", verbose);
+      measurer->Measure(cur_task, GetRef<SearchPolicy>(this), inputs, &results);
       ct += inputs.size();
 
-      if (ct - measurer->best_ct[cur_task_->workload_key] > early_stopping) {
+      if (ct - measurer->best_ct[cur_task->workload_key] > early_stopping) {
         StdCout(verbose) << "Meet the early stopping condition." << std::endl;
         break;
       }
@@ -122,21 +122,21 @@ State MetaTileRewritePolicyNode::Search(SearchTask task, int n_trials,
         measured_states_throughputs_.push_back(1.0 / FloatArrayMean(res->costs));
       }
     }
-    PrintTitle("Done", verbose_);
+    PrintTitle("Done", verbose);
 
-    return measurer->best_state[cur_task_->workload_key];
+    return measurer->best_state[cur_task->workload_key];
   }
 }
 
 std::pair<Array<MeasureInput>, Array<MeasureResult> >
     MetaTileRewritePolicyNode::ContinueSearchOneRound(
     SearchTask task, int num_measure, int verbose, ProgramMeasurer measurer) {
-  if (cur_task_.defined()) {
-    CHECK_EQ(cur_task_, task);
+  if (cur_task.defined()) {
+    CHECK_EQ(cur_task, task);
   } else {
-    cur_task_ = task;
+    cur_task = task;
   }
-  verbose_ = verbose;
+  this->verbose = verbose;
   num_measure_per_iter_ = num_measure;
 
   std::vector<State> best_states, random_states;
@@ -149,8 +149,8 @@ std::pair<Array<MeasureInput>, Array<MeasureResult> >
   SearchOneRound(&best_states, num_random * 2, &random_states);
 
   // Fill correct bound. This is necessary for computing the correct ToStr() for reduncency check
-  cur_task_->compute_dag.InferBound(&best_states);
-  cur_task_->compute_dag.InferBound(&random_states);
+  cur_task->compute_dag.InferBound(&best_states);
+  cur_task->compute_dag.InferBound(&random_states);
 
   // Pick `num_measure` states to measure, check hash to remove already measured state
   // Also pick some random states to do eps-greedy
@@ -158,7 +158,7 @@ std::pair<Array<MeasureInput>, Array<MeasureResult> >
 
   // Measure candidate states
   PrintTitle("Measure", verbose);
-  measurer->Measure(cur_task_, GetRef<SearchPolicy>(this), inputs, &results);
+  measurer->Measure(cur_task, GetRef<SearchPolicy>(this), inputs, &results);
 
   // Update throughputs of measured states. These states will join the LocalMutation in later rounds
   for (const auto& res : results) {
@@ -219,7 +219,7 @@ void MetaTileRewritePolicyNode::PickStatesWithEpsGreedy(
     if (measured_states_set_.count(state_str)) { continue; }
     measured_states_set_.insert(state_str);
 
-    inputs->push_back(MeasureInputNode::make(cur_task_, *pstate));
+    inputs->push_back(MeasureInputNode::make(cur_task, *pstate));
     measured_states_vector_.push_back(std::move(*pstate));
   }
 }
@@ -288,7 +288,7 @@ class SketchGenerationRule {
 
 static inline bool ShouldBeCacheRead(
     const MetaTileRewritePolicyNode* policy, const State& state, int stage_id) {
-  const SearchTask& task = policy->cur_task_;
+  const SearchTask& task = policy->cur_task;
   const Stage& stage = state->stages[stage_id];
 
   if (HasAttrsFlag(state, stage_id,
@@ -320,7 +320,7 @@ static inline bool ShouldBeCacheRead(
 
 static inline bool ShouldAlwaysBeInlined(
     const MetaTileRewritePolicyNode* policy, const State& state, int stage_id) {
-  const SearchTask& task = policy->cur_task_;
+  const SearchTask& task = policy->cur_task;
   const Stage& stage = state->stages[stage_id];
 
   if (stage->op->IsInstance<te::PlaceholderOpNode>()) {
@@ -336,7 +336,7 @@ static inline bool ShouldAlwaysBeInlined(
     if (HasAttrsFlag(state, stage_id,
                      SearchPolicyNode::always_compute_inline_key) ||
         IsStrictInlineable(task, state, stage->op) ||
-        (IS_GPU(policy->cur_task_) &&
+        (IS_GPU(policy->cur_task) &&
          !ShouldBeCacheRead(policy, state, stage_id))) {
       return true;
     }
@@ -367,7 +367,7 @@ class RuleSkipStage : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
                               const State& state, int stage_id) final {
-    const SearchTask& task = policy->cur_task_;
+    const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
 
     const auto& attrs = stage->op->attrs;
@@ -392,16 +392,16 @@ class RuleMultiLevelTiling : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
                               const State& state, int stage_id) final {
-    const SearchTask& task = policy->cur_task_;
+    const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
 
     return NeedsMultilevelTiling(task, state, stage->op) ?
-        (IS_GPU(policy->cur_task_) ? kApplyAndSkipRest : kApply) : kPass;
+           (IS_GPU(policy->cur_task) ? kApplyAndSkipRest : kApply) : kPass;
   }
 
   std::vector<std::pair<State, int> > Apply(const MetaTileRewritePolicyNode* policy,
                                             const State& state, int stage_id) final {
-    std::string multi_level_tiling_structure = IS_GPU(policy->cur_task_) ?
+    std::string multi_level_tiling_structure = IS_GPU(policy->cur_task) ?
         GetStringParam(policy->params, "gpu_multi_level_tiling_structure") :
         GetStringParam(policy->params, "cpu_multi_level_tiling_structure");
 
@@ -418,12 +418,12 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
                               const State& state, int stage_id) final {
-    const SearchTask& task = policy->cur_task_;
+    const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
 
     int target_stage_id;
 
-    if (IS_GPU(policy->cur_task_)) {
+    if (IS_GPU(policy->cur_task)) {
       return NeedsMultilevelTiling(task, state, stage->op) &&
              HasSingleElementwiseMatchedConsumer(task, state, stage,
                                                  &target_stage_id) &&
@@ -440,9 +440,9 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
 
   std::vector<std::pair<State, int> > Apply(const MetaTileRewritePolicyNode* policy,
                                             const State& state, int stage_id) final {
-    const SearchTask& task = policy->cur_task_;
+    const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
-    std::string multi_level_tiling_structure = IS_GPU(policy->cur_task_) ?
+    std::string multi_level_tiling_structure = IS_GPU(policy->cur_task) ?
         GetStringParam(policy->params, "gpu_multi_level_tiling_structure") :
         GetStringParam(policy->params, "cpu_multi_level_tiling_structure");
 
@@ -457,7 +457,7 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
     base_state = DoMultiLevelTiling(base_state, stage_id,
         multi_level_tiling_structure, &spatial_split_step_ids);
     std::vector<int> follow_tiling_levels;
-    if (IS_GPU(policy->cur_task_)) {
+    if (IS_GPU(policy->cur_task)) {
       follow_tiling_levels.push_back(3);
     } else {
       follow_tiling_levels.push_back(1);
@@ -487,7 +487,7 @@ class RuleAddCacheWrite : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
                               const State& state, int stage_id) final {
-    const SearchTask& task = policy->cur_task_;
+    const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
 
     int target_stage_id;
@@ -505,7 +505,7 @@ class RuleAddCacheWrite : public SketchGenerationRule {
 
   std::vector<std::pair<State, int> > Apply(const MetaTileRewritePolicyNode* policy,
                                             const State& state, int stage_id) final {
-    const SearchTask& task = policy->cur_task_;
+    const SearchTask& task = policy->cur_task;
 
     State tmp_s = state;
     tmp_s.cache_write(stage_id, "local", task->compute_dag);
@@ -526,7 +526,7 @@ class RuleAddCacheRead : public SketchGenerationRule {
 
   std::vector<std::pair<State, int> > Apply(const MetaTileRewritePolicyNode* policy,
                                             const State& state, int stage_id) final {
-    const SearchTask& task = policy->cur_task_;
+    const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
 
     std::unordered_set<te::Operation, ObjectHash, ObjectEqual> consumers;
@@ -551,7 +551,7 @@ class RuleAddRfactor : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
                               const State& state, int stage_id) final {
-    const SearchTask& task = policy->cur_task_;
+    const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
 
     return NeedsRfactor(task, state, stage->op) &&
@@ -561,7 +561,7 @@ class RuleAddRfactor : public SketchGenerationRule {
 
   std::vector<std::pair<State, int> > Apply(const MetaTileRewritePolicyNode* policy,
                                             const State& state, int stage_id) final {
-    const SearchTask& task = policy->cur_task_;
+    const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
 
     std::vector<std::pair<State, int> > ret;
@@ -613,7 +613,7 @@ class RuleAddRfactor : public SketchGenerationRule {
 
 void MetaTileRewritePolicyNode::GenerateMetaSketch(
     std::vector<State>* out_states) {
-  State init_state = cur_task_->compute_dag.GetInitState();
+  State init_state = cur_task->compute_dag.GetInitState();
   std::string cpu_multi_level_tiling_structure =
       GetStringParam(params, "cpu_multi_level_tiling_structure");
 
@@ -644,7 +644,7 @@ void MetaTileRewritePolicyNode::GenerateMetaSketch(
     sketch_rules.push_back(&rule_multi_level_tiling);
     sketch_rules.push_back(&rule_add_rfactor);
     sketch_rules.push_back(&rule_skip_stage);
-    if (IS_GPU(cur_task_)) {
+    if (IS_GPU(cur_task)) {
       // Try cache read first before cache write
       sketch_rules.insert(sketch_rules.begin() + 1, &rule_add_cache_read_stage);
     }
@@ -705,7 +705,7 @@ void MetaTileRewritePolicyNode::GenerateMetaSketch(
     }
   }
 
-  StdCout(verbose_) << "Synthesize Meta Structure\t\t#s: " << out_states->size() << std::endl;
+  StdCout(verbose) << "Synthesize Meta Structure\t\t#s: " << out_states->size() << std::endl;
 }
 
 int InitPopulationFillTileSize(const MetaTileRewritePolicyNode* policy,
@@ -728,7 +728,7 @@ int InitPopulationFillTileSize(const MetaTileRewritePolicyNode* policy,
       const std::vector<std::vector<PrimExpr> >& candidate_lens =
           split_memo->GetFactorizationSchemes(
               extent, ps->lengths.size(),
-              policy->cur_task_->hardware_params->max_innermost_split_factor);
+              policy->cur_task->hardware_params->max_innermost_split_factor);
 
       StateNode* pstate = state->CopyOnWrite();
       pstate->transform_steps[step_id] = SplitStepNode::make(
@@ -771,11 +771,11 @@ int InitPopulationThreadBind(const MetaTileRewritePolicyNode* policy,
       // Set default vthread=1 & threadIdx.x=default_warp_size
       // EvolutionarySearch will try more possiblity
       if (GetExtent(fused_it) <=
-          policy->cur_task_->hardware_params->warp_size) {
+          policy->cur_task->hardware_params->warp_size) {
         state->bind_thread(stage_id, fused_it, kThreadX);
       } else {
         const auto& split_its = state->split(stage_id, fused_it,
-            {1, policy->cur_task_->hardware_params->warp_size});
+            {1, policy->cur_task->hardware_params->warp_size});
         state->bind_thread(stage_id, split_its[0], kBlockX);
         state->bind_thread(stage_id, split_its[1], kVThread);
         state->bind_thread(stage_id, split_its[2], kThreadX);
@@ -793,7 +793,7 @@ int InitPopulationThreadBind(const MetaTileRewritePolicyNode* policy,
     }
 
     // TODO(..): Add ThreadBind support for rfactor
-    if (total_space_extent <= policy->cur_task_->hardware_params->warp_size) {
+    if (total_space_extent <= policy->cur_task->hardware_params->warp_size) {
       for (const auto& it : (*state)->stages[stage_id]->iters) {
         if (it->iter_type == kReduce) {
           break;
@@ -828,7 +828,7 @@ int InitPopulationThreadBind(const MetaTileRewritePolicyNode* policy,
     }
     const auto& vthread_it = state->fuse(stage_id, to_fuse);
     if (GetExtent(vthread_it) >
-        policy->cur_task_->hardware_params->max_vthread_extent) {
+        policy->cur_task->hardware_params->max_vthread_extent) {
       return -1;
     }
     state->bind_thread(stage_id, vthread_it, kVThread);
@@ -844,7 +844,7 @@ int InitPopulationThreadBind(const MetaTileRewritePolicyNode* policy,
     }
     const auto& threadidx_it = state->fuse(stage_id, to_fuse);
     if (GetExtent(threadidx_it) <
-        policy->cur_task_->hardware_params->warp_size) {
+        policy->cur_task->hardware_params->warp_size) {
       return -1;
     }
     state->bind_thread(stage_id, threadidx_it, kThreadX);
@@ -876,7 +876,7 @@ int InitPopulationCooperativeFetching(const MetaTileRewritePolicyNode* policy,
       // Get spatial_split_step_ids from the root stage
       std::unordered_set<te::Operation, ObjectHash, ObjectEqual> consumers;
       std::vector<int> spatial_split_step_ids;
-      GetConsumers(policy->cur_task_, (*state), target_stage->op, &consumers);
+      GetConsumers(policy->cur_task, (*state), target_stage->op, &consumers);
       CHECK_EQ(consumers.size(), 1);
       int target_stage_id = OperationToStage(*consumers.begin(), (*state));
       GetSpaceSplitStepIds((*state), target_stage_id, &spatial_split_step_ids);
@@ -915,13 +915,13 @@ int InitPopulationChangeComputeLocation(const MetaTileRewritePolicyNode* policy,
       continue;
     }
 
-    if (NeedsMultilevelTiling(policy->cur_task_, (*state), stage->op)) {
+    if (NeedsMultilevelTiling(policy->cur_task, (*state), stage->op)) {
       continue;
     }
 
     std::unordered_set<te::Operation, ObjectHash, ObjectEqual> consumers;
 
-    GetConsumers(policy->cur_task_, (*state), stage->op, &consumers);
+    GetConsumers(policy->cur_task, (*state), stage->op, &consumers);
     if (consumers.empty()) {
       continue;
     }
@@ -1083,7 +1083,7 @@ int InitPopulationParallel(const MetaTileRewritePolicyNode* policy,
       to_fuse.push_back(it);
       parallel_degree *= GetExtent(it);
 
-      if (parallel_degree > policy->cur_task_->hardware_params->num_cores * 16) {
+      if (parallel_degree > policy->cur_task->hardware_params->num_cores * 16) {
         break;
       }
 
@@ -1135,7 +1135,7 @@ int InitPopulationVectorization(const MetaTileRewritePolicyNode* policy,
     }
 
     // Skip cooperative fetching stage
-    if (IS_GPU(policy->cur_task_) && 
+    if (IS_GPU(policy->cur_task) &&
         HasCacheReadStage((*state), stage_id - 1)) {
       continue;
     }
@@ -1179,7 +1179,7 @@ int InitPopulationVectorization(const MetaTileRewritePolicyNode* policy,
       }
 
       cum_length_prod *= GetExtent(it);
-      if (cum_length_prod > policy->cur_task_->hardware_params->max_unroll_vec) {
+      if (cum_length_prod > policy->cur_task->hardware_params->max_unroll_vec) {
         break;
       }
 
@@ -1278,13 +1278,13 @@ void MetaTileRewritePolicyNode::SampleInitPopulation(const std::vector<State>& m
 
     InitPopulationFillTileSize(this, &tmp_s, &rand_gen_, &split_memo_);
 
-    if (IS_GPU(cur_task_)) {
-      tmp_s = cur_task_->compute_dag.InferBound(tmp_s);
+    if (IS_GPU(cur_task)) {
+      tmp_s = cur_task->compute_dag.InferBound(tmp_s);
 
       if (InitPopulationThreadBind(this, &tmp_s)) {
         continue_count++;
         if (continue_count == out_size) {
-          StdCout(verbose_) << "Initial Population Sampling..." << std::endl;
+          StdCout(verbose) << "Initial Population Sampling..." << std::endl;
         }
         continue;
       }
@@ -1293,7 +1293,7 @@ void MetaTileRewritePolicyNode::SampleInitPopulation(const std::vector<State>& m
     } else {
       InitPopulationChangeComputeLocation(this, &tmp_s, &rand_gen_);
 
-      tmp_s = cur_task_->compute_dag.InferBound(tmp_s);
+      tmp_s = cur_task->compute_dag.InferBound(tmp_s);
 
       InitPopulationParallel(this, &tmp_s);
     }
@@ -1305,8 +1305,8 @@ void MetaTileRewritePolicyNode::SampleInitPopulation(const std::vector<State>& m
     out_states->push_back(std::move(tmp_s));
   }
 
-  StdCout(verbose_) << "Sample Initial Population\t\t#s: "
-                    << out_states->size() << std::endl;
+  StdCout(verbose) << "Sample Initial Population\t\t#s: "
+                   << out_states->size() << std::endl;
 }
 
 void MetaTileRewritePolicyNode::EvolutionarySearch(
@@ -1350,9 +1350,9 @@ void MetaTileRewritePolicyNode::EvolutionarySearch(
   // Genetic Algorithm
   for (int k = 0; k < num_iters + 1; ++k) {
     // Maintain the heap
-    cur_task_->compute_dag.InferBound(pnow);
+    cur_task->compute_dag.InferBound(pnow);
     PruneUndefined(pnow);
-    cost_model->Predict(cur_task_, *pnow, &scores);
+    cost_model->Predict(cur_task, *pnow, &scores);
 
     for (size_t i = 0; i < pnow->size(); ++i) {
       const State& state = (*pnow)[i];
@@ -1379,10 +1379,10 @@ void MetaTileRewritePolicyNode::EvolutionarySearch(
     }
 
     if (k % 5 == 0 || k == num_iters) {
-      StdCout(verbose_) << "GA Iter: " << k << std::fixed << std::setprecision(4)
-                        << "\tMax score: " << max_score
-                        << "\tMin score: " << heap.front().second
-                        << "\tPop size: " << pnow->size() << std::endl;
+      StdCout(verbose) << "GA Iter: " << k << std::fixed << std::setprecision(4)
+                       << "\tMax score: " << max_score
+                       << "\tMin score: " << heap.front().second
+                       << "\tPop size: " << pnow->size() << std::endl;
     }
 
     if (k == num_iters) {
@@ -1431,7 +1431,7 @@ void MetaTileRewritePolicyNode::EvolutionarySearch(
         if (rule_id == 0) {
           // Mutate Tile Size
           State tmp_s = RandomMutateTileSize((*pnow)[id], &split_memo_, &rand_gen_,
-              cur_task_->hardware_params->max_innermost_split_factor);
+                                             cur_task->hardware_params->max_innermost_split_factor);
           if (tmp_s.defined()) {
             pnext->push_back(std::move(tmp_s));
           } else {
@@ -1463,9 +1463,9 @@ void MetaTileRewritePolicyNode::EvolutionarySearch(
 
   double duration = std::chrono::duration_cast<std::chrono::duration<double> >(
       std::chrono::high_resolution_clock::now()-  tic_begin).count();
-  StdCout(verbose_) << "EvolutionarySearch\t\t#s: " << best_states->size()
-                    << "\tTime elapsed: "
-                    << std::fixed << std::setprecision(2) << duration << std::endl;
+  StdCout(verbose) << "EvolutionarySearch\t\t#s: " << best_states->size()
+                   << "\tTime elapsed: "
+                   << std::fixed << std::setprecision(2) << duration << std::endl;
 }
 
 class RuleCustomSketch : public SketchGenerationRule {
@@ -1519,7 +1519,7 @@ void PreAddCustomRuleNode::callback(SearchPolicyNode* policy) {
   auto meta_policy = dynamic_cast<MetaTileRewritePolicyNode*>(policy);
   meta_policy->sketch_rules.emplace_back(
       new RuleCustomSketch(meet_condition_func, apply_func));
-  StdCout(policy->verbose_) << "Custom sketch rule added." << std::endl;
+  StdCout(policy->verbose) << "Custom sketch rule added." << std::endl;
 }
 
 TVM_REGISTER_GLOBAL("ansor.MetaTileRewritePolicy")

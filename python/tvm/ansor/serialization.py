@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Tuning log I/O Utilities"""
+"""Serialization and other I/O support for tuning logs (measurement records)"""
 
 import numpy as np
 
@@ -29,7 +29,7 @@ from . import _ffi_api
 @tvm._ffi.register_object("ansor.LogToFile")
 class LogToFile(MeasureCallback):
     """
-    A measurement callback that writes tuning logs into a file
+    A measurement callback that writes measurement records into a file
 
     Parameters
     ----------
@@ -65,6 +65,7 @@ class LogReader(Object):
             yield ret[0], ret[1]  # (input, result)
 
 def load_from_file(filename: str):
+    """Load measurement records from a file"""
     return zip(*LogReader(filename).read_lines())
 
 
@@ -80,7 +81,7 @@ def get_states_from_measure_inputs(inputs, task):
 
 
 def best_measure_pair_in_file(filename, workload_key=None, target=None):
-    """ Return best results form log file
+    """ Return the best measurement pair form a log file
 
     Parameters
     ----------

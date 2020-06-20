@@ -36,9 +36,7 @@ import numpy as np
 from decorator import decorate
 
 from tvm import target as _target
-from tvm.tir.expr import StringImm, FloatImm
-
-from .loop_state import State, StateObject
+from tvm.tir.expr import FloatImm
 
 logger = logging.getLogger('auto_scheduler')
 
@@ -360,19 +358,6 @@ class ApplyHistoryBest(DispatchContext):
             self._best_user_defined[key] = state
 
 
-class BlockingEmptyContext(DispatchContext):
-    """
-    An empty context which returns emtpy State() for all queries.
-    This also blocks the queries, so the queries won't affect the global FallbackContext.
-    """
-    def __init__(self):
-        super(BlockingEmptyContext, self).__init__()
-
-    def query(self, target, workload):
-        #return StateObject()
-        return None
-
-
 class FallbackContext(DispatchContext):
     """
     A fallback dispatch context.
@@ -400,7 +385,6 @@ class FallbackContext(DispatchContext):
             if msg not in self.messages:
                 self.messages.add(msg)
                 logger.warning(msg)
-        #cfg = StateObject()
         cfg = None
 
         # cache this config

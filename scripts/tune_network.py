@@ -200,14 +200,7 @@ def tune_and_evaluate(target, target_host, log_n_lines, search_policy, tune,
 
     if tune:
         print("=============== Extracting workloads ===============")
-        workloads, wkl_weights = ansor.extract_from_program(mod, target=target,
-                params=params, ops=(relay.op.nn.dense, relay.op.nn.softmax,
-                                    relay.op.nn.conv2d, relay.op.nn.conv2d_transpose,
-                                    relay.op.nn.max_pool2d, relay.op.nn.avg_pool2d,
-                                    relay.op.nn.global_max_pool2d, relay.op.nn.global_avg_pool2d,
-                                    relay.op.nn.conv3d, relay.op.nn.adaptive_avg_pool3d,
-                                    relay.op.nn.batch_matmul, relay.op.mean,
-                                    ))
+        workloads, wkl_weights = ansor.extract_from_program(mod, target=target, params=params)
         print("Totally %d workload extracted." % (len(workloads)))
 
         # Tune workloads with auto scheduler
@@ -238,15 +231,13 @@ def tune_and_evaluate(target, target_host, log_n_lines, search_policy, tune,
         os.environ['TVM_AUTO_CACHE_FLUSH'] = "0"
         os.environ['TVM_BIND_MASTER_CORE_0'] = "1"
         if kernel_layout_rewrite:
-            ansor.prepare_layout_rewrite(mod, target=target,
-                                         params=params,
-                                         ops=(relay.op.nn.dense, relay.op.nn.conv2d, relay.op.nn.conv3d))
+            ansor.prepare_layout_rewrite(mod, target=target, params=params)
         else:
             # disable layout rewrite
             ansor.LayoutRewriteLevel.BOTH_REWRITE = ansor.LayoutRewriteLevel.NO_REWRITE
             ansor.LayoutRewriteLevel.COMPUTE_REWRITE = ansor.LayoutRewriteLevel.NO_REWRITE
 
-        with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
+        with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
             graph, lib, opt_params = relay.build_module.build(
                 mod, target=target, params=params)
 

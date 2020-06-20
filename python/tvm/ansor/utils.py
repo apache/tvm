@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Common utilities"""
+"""Common utilities for ansor"""
 
 import multiprocessing
 import multiprocessing.pool
@@ -30,7 +30,7 @@ try:
 except ImportError:
     psutil = None
 
-from .. import rpc as _rpc
+from tvm import rpc
 from tvm.tir import expr
 from tvm.tir.transform import Simplify
 from tvm.ir.transform import Sequential
@@ -205,7 +205,7 @@ def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
     host = host or os.environ['TVM_TRACKER_HOST']
     port = port or int(os.environ['TVM_TRACKER_PORT'])
 
-    tracker = _rpc.connect_tracker(host, port)
+    tracker = rpc.connect_tracker(host, port)
     remote = tracker.request(device_key, priority=priority,
                              session_timeout=timeout)
     return remote

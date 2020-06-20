@@ -38,18 +38,20 @@ from tvm.ir import transform
 from tvm.rpc.tracker import Tracker
 from tvm.rpc.server import Server
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
-from ..contrib import tar, ndk
+from tvm.contrib import tar, ndk
+from . import _ffi_api
 from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout, request_remote, check_remote
 from .compute_dag import LayoutRewriteLevel
-from . import _ffi_api
 
 logger = logging.getLogger('ansor')
 
+# The maximum length of error message
 MAX_ERROR_MSG_LEN = 512
 
 
 @tvm._ffi.register_object("ansor.MeasureCallback")
 class MeasureCallback(Object):
+    """Base class for measurement callback function"""
     pass
 
 @tvm._ffi.register_object("ansor.MeasureInput")
@@ -103,7 +105,7 @@ class MeasureResult(Object):
 
 @tvm._ffi.register_object("ansor.Builder")
 class Builder(Object):
-    def build(self, measure_inputs, verbose=0):
+    def build(self, measure_inputs, verbose=1):
         """
         Parameters
         ----------
@@ -119,7 +121,7 @@ class Builder(Object):
 
 @tvm._ffi.register_object("ansor.Runner")
 class Runner(Object):
-    def run(self, measure_inputs, build_results, verbose=0):
+    def run(self, measure_inputs, build_results, verbose=1):
         """
         Parameters
         ----------

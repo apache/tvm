@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Meta information for a search task"""
+"""User interface for auto-scheduler"""
 
 import random
 
@@ -29,35 +29,36 @@ from . import _ffi_api
 @tvm._ffi.register_object("ansor.HardwareParams")
 class HardwareParams(Object):
     """
+    The parameters of target hardware
+
     Parameters
     ----------
-    num_cores : Int
-    vector_unit_bytes : Int
-    cache_line_bytes : Int
-    max_unroll_vec : Int
-    max_innermost_split_factor : Int
+    num_cores : int
+    vector_unit_bytes : int
+    cache_line_bytes : int
+    max_unroll_vec : int
+    max_innermost_split_factor : int
     """
-
     def __init__(self, num_cores, vector_unit_bytes, cache_line_bytes,
                  max_unroll_vec, max_innermost_split_factor):
         self.__init_handle_by_constructor__(_ffi_api.HardwareParams, num_cores,
                                             vector_unit_bytes, cache_line_bytes,
-                                            max_unroll_vec,
-                                            max_innermost_split_factor)
+                                            max_unroll_vec, max_innermost_split_factor)
 
 
 @tvm._ffi.register_object("ansor.SearchTask")
 class SearchTask(Object):
     """
+    The meta-information of a search task
+
     Parameters
     ----------
     dag : ComputeDAG
-    workload_key : Str
-    target : tvm.target
-    target_host : tvm.target
+    workload_key : str
+    target : tvm.target.Target
+    target_host : tvm.target.Target
     hardware_params : HardwareParams
     """
-
     def __init__(self, dag, workload_key, target, target_host=None,
                  hardware_params=None):
         self.__init_handle_by_constructor__(_ffi_api.SearchTask, dag,
@@ -67,10 +68,10 @@ class SearchTask(Object):
 
 @tvm._ffi.register_object("ansor.SearchPolicy")
 class SearchPolicy(Object):
-    """ The base search policy class
-    """
+    """ The base class for search policy  """
     def continue_search(self, task, num_measure, verbose, measurer):
-        return _ffi_api.SearchPolicyContinueSearchOneRound(self, task, num_measure, verbose, measurer)
+        return _ffi_api.SearchPolicyContinueSearchOneRound(self, task,
+                                                           num_measure, verbose, measurer)
 
     def set_task(self, task):
         _ffi_api.SearchPolicySetTask(self, task)
@@ -89,7 +90,7 @@ class MetaTileRewritePolicy(SearchPolicy):
     Parameters
     ----------
     program_cost_model: CostModel
-        Cost model for complete programs
+        Cost model for programs
     params: int
         Parameters of the search policy, go meta_tile_rewrite_policy.h to find the
         definitions. See code below to find the default values
@@ -130,21 +131,22 @@ class MetaTileRewritePolicy(SearchPolicy):
 
 @tvm._ffi.register_object("ansor.SearchCallback")
 class SearchCallback(Object):
+    """Callback function before or after search process"""
     pass
 
 
-@tvm._ffi.register_object("ansor.PreLoadMeasuredStates")
-class PreLoadMeasuredStates(SearchCallback):
-    """ A SearchCallback that used for search policy to load measured hash
-        from the log file.
+@tvm._ffi.register_object("ansor.PreloadMeasuredStates")
+class PreloadMeasuredStates(SearchCallback):
+    """ A SearchCallback to load measured states from the log file for a search policy.
+    This can resume the state of the search policy.
 
     Parameters
     ----------
-    filename: Str
+    filename: str
     """
     def __init__(self, filename: str):
         self.__init_handle_by_constructor__(
-            _ffi_api.PreLoadMeasuredStates, filename)
+            _ffi_api.PreloadMeasuredStates, filename)
 
 
 @tvm._ffi.register_object("ansor.PreAddCustomRule")
@@ -153,8 +155,10 @@ class PreAddCustomRule(SearchCallback):
     A SearchCallback for MetaTileRewritePolicy that allowing users to add
     custom sketch rule.
 
-        Notice: This is an advanced feature, make sure you're clear how it
-        works and this should only be used in MetaTileRewritePolicy.
+    Notes
+    -----
+    This is an advanced feature. Make sure you're clear how it
+    works and this should only be used in MetaTileRewritePolicy.
 
     Parameters
     ----------
@@ -193,7 +197,7 @@ class TuneOption(Object):
     pre_search_callbacks: List[SearchCallback]
       Callback functions called before the search process
       Candidates:
-        - ansor.PreLoadMeasuredStates
+        - ansor.PreloadMeasuredStates
         - ansor.PreAddCustomRule
     """
     def __init__(self, n_trials=0, early_stopping=-1, num_measure_per_iter=64,
@@ -225,7 +229,7 @@ class TuneOption(Object):
 def auto_schedule(workload, target=None,
                   target_host=None, search_policy='default',
                   hardware_params=None, tune_option=None):
-    """ Do auto schedule for a compute declaration.
+    """ Do auto scheduling for a computation declaration.
 
     The workload parameter can be a `string` as workload_key, or directly
     passing a `SearchTask` as input.
@@ -233,21 +237,15 @@ def auto_schedule(workload, target=None,
     Parameters
     ----------
     workload : Union[SearchTask, str]
-
     target : Target
-
     target_host : Target = None
-
     search_policy : Union[SearchPolicy, str]
-
     hardware_params : HardwareParams
-
     tune_option : TuneOption
 
     Returns
     -------
     sch : tvm.Schedule
-
     tensors : List[Tensor]
     """
     if isinstance(search_policy, str):
@@ -267,5 +265,4 @@ def auto_schedule(workload, target=None,
         sch, tensors = _ffi_api.AutoScheduleBySearchTask(workload, search_policy, tune_option)
         return sch, tensors
     else:
-        raise ValueError("Invalid workload: " + workload +
-                         ". Expect a string or SearchTask")
+        raise ValueError("Invalid workload: " + workload + ". Expect a string or SearchTask")

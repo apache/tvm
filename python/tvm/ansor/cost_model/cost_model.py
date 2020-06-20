@@ -34,6 +34,7 @@ class RandomModel(Object):
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.RandomModel)
 
+
 # A random number generator func for c++'s RandomModel
 @tvm._ffi.register_func("ansor.cost_model.random_number")
 def random_number(n, return_ptr):
@@ -42,6 +43,7 @@ def random_number(n, return_ptr):
     return_ptr = ctypes.cast(return_ptr, ctypes.POINTER(ctypes.c_float))
     array_wrapper = np.ctypeslib.as_array(return_ptr, shape=(n,))
     array_wrapper[:] = np.random.uniform(0, 1, (n,))
+
 
 @tvm._ffi.register_object("ansor.PythonBasedModel")
 class PythonBasedModel(CostModel):

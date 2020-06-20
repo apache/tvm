@@ -153,6 +153,11 @@ class RelayBuildModule : public runtime::ModuleNode {
         CHECK_EQ(args.num_args, 2);
         *rv = this->Optimize(args[0], args[1], this->params_);
       });
+    } else if (name == "call_all_topi_funcs") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue *rv) {
+        CHECK_EQ(args.num_args, 3);
+        this->CallAllTopiFuncs(args[0], args[1], args[2]);
+      });
     } else {
       LOG(FATAL) << "Unknown packed function: " << name;
       return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
@@ -227,6 +232,21 @@ class RelayBuildModule : public runtime::ModuleNode {
     BuildRelay(mod, params_);
   }
 
+  /*! \brief Call all used TOPI compute and schedule in a relay function */
+  void CallAllTopiFuncs(IRModule mod,
+                        const TargetsMap& targets,
+                        const tvm::Target& target_host) {
+    targets_ = targets;
+    target_host_ = target_host;
+
+    IRModule relay_module = Optimize(mod, targets_, params_);
+    auto func = Downcast<Function>(relay_module->Lookup("main"));
+
+    graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());
+    graph_codegen_->Init(nullptr, targets_);
+    graph_codegen_->Codegen(func);
+  }
+
  protected:
   /*!
    * \brief Optimize a Relay IRModule.
@@ -287,7 +307,6 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Alter layout transformation is only applied to homogeneous execution yet.
     if (targets.size() == 1) {
       pass_seqs.push_back(transform::AlterOpLayout());
-      //pass_seqs.push_back(transform::KernelLayoutTransform());
     }
 
     // Fast math optimizations.

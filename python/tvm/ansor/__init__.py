@@ -28,10 +28,9 @@ from . import workload_registry
 from . import task_scheduler
 
 # Shortcut
-from .compute_dag import ComputeDAG, LayoutRewriteLevel, gen_schedule
+from .compute_dag import ComputeDAG, LayoutRewriteLevel
 from .auto_schedule import SearchTask, MetaTileRewritePolicy, TuneOption, HardwareParams, \
-    PreLoadMeasuredStates, PreAddCustomRule
-from .auto_schedule import auto_schedule
+    PreloadMeasuredStates, PreAddCustomRule, auto_schedule
 from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, LocalRPCMeasureContext
 from .cost_model import RandomModel
 from .cost_model.xgb_model import XGBModel
@@ -41,7 +40,7 @@ from .workload_registry import register_auto_scheduler_workload_func, \
     workload_key_to_dag, make_workload_key_func
 from .task_scheduler import TaskScheduler, SimpleTaskScheduler
 from .dispatcher import DispatchContext, ApplyConfig, ApplyHistoryBest as apply_history_best, \
-    FallbackContext, clear_fallback_cache, ApplyGraphBest, BlockingEmptyContext
-from .topi_integration import register_topi_schedule, TaskExtractEnv
+    FallbackContext, clear_fallback_cache, ApplyGraphBest
 from .relay_integration import extract_from_program, extract_from_multiple_program, \
-    finish_layout_rewrite, prepare_layout_rewrite
+    finish_layout_rewrite, prepare_layout_rewrite, auto_schedule_topi
+from .env import GLOBAL_SCOPE

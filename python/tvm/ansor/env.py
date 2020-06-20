@@ -1,4 +1,4 @@
-""" The scope to store global variables in auto_scheduelr """
+""" The scope to store global variables in ansor """
 
 class AutoschedulerGlobalScope(object):
     def __init__(self):
