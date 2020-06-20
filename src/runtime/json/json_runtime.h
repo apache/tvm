@@ -29,6 +29,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 
+#include <cstddef>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -113,14 +114,68 @@ class JSONRuntimeBase : public ModuleNode {
   }
 
  protected:
+  void SetInputs(const TVMArgs& args) {
+    CHECK_EQ(args.size(), input_var_idx_.size() + outputs_.size())
+        << "Found mismatch in the number of provided data entryies and required.";
+
+    for (size_t i = 0; i < input_var_idx_.size(); i++) {
+      auto eid = EntryID(input_var_idx_[i], 0);
+      CHECK(args[i].type_code() == kTVMNDArrayHandle || args[i].type_code() == kTVMDLTensorHandle)
+          << "Expect NDArray or DLTensor as inputs";
+      if (args[i].type_code() == kTVMDLTensorHandle) {
+        DLTensor* arg = args[i];
+        this->data_entry_[eid].CopyFrom(arg);
+      } else {
+        // Zero copy for input because the tensor is managed by the host.
+        this->data_entry_[eid] = args[i];
+      }
+    }
+  }
+
+  void GetOutput(const TVMArgs& args) {
+    // Copy result to output buffer.
+    size_t arg_idx = input_var_idx_.size();
+    CHECK_EQ(args.size(), arg_idx + outputs_.size())
+        << "Found mismatch in the number of provided data entryies and required.";
+
+    for (size_t i = 0; i < this->outputs_.size(); i++) {
+      auto eid = EntryID(outputs_[i]);
+
+      if (args[arg_idx].type_code() == kTVMDLTensorHandle) {
+        DLTensor* arg = args[arg_idx];
+        this->data_entry_[eid].CopyTo(arg);
+      } else {
+        NDArray arg = args[arg_idx];
+        this->data_entry_[eid].CopyTo(arg);
+      }
+      arg_idx++;
+    }
+  }
+
   void LoadGraph(const std::string& graph_json) {
     std::istringstream is(graph_json);
     dmlc::JSONReader reader(&is);
     this->Load(&reader);
+    std::vector<std::string> consts;
     for (size_t i = 0; i < input_nodes_.size(); i++) {
       uint32_t nid = input_nodes_[i];
-      std::string& name = nodes_[nid].name_;
-      input_map_[name] = i;
+      std::string name = nodes_[nid].name_;
+      if (nodes_[nid].op_type_ == "input") {
+        input_var_idx_.push_back(nid);
+      } else {
+        CHECK_EQ(nodes_[nid].op_type_, "const");
+        auto pos = std::find(std::begin(const_names_), std::end(const_names_), name);
+        CHECK(pos != std::end(const_names_)) << "Found non-existent constant: " << name;
+        const_idx_.push_back(nid);
+        consts.push_back(name);
+      }
+    }
+    CHECK_EQ(consts.size(), const_names_.size())
+        << "Found mismatch for the number of constants in the graph and required.";
+
+    for (size_t i = 0; i < consts.size(); i++) {
+      CHECK_EQ(consts[i], const_names_[i])
+          << "The position of constant in the graph must be the same as the required.";
     }
   }
 
@@ -169,7 +224,9 @@ class JSONRuntimeBase : public ModuleNode {
   /*! \brief Data of that entry. */
   std::vector<NDArray> data_entry_;
   /*! \brief Map the input name to index. */
-  std::unordered_map<std::string, uint32_t> input_map_;
+  std::vector<uint32_t> input_var_idx_;
+  /*! \brief input const index. */
+  std::vector<uint32_t> const_idx_;
 };
 
 }  // namespace json
