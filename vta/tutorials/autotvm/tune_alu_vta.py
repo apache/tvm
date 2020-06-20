@@ -290,8 +290,6 @@ def tune_and_evaluate(tuning_opt):
     tasks = list(filter(lambda t: len(t.args[0][1]) > 4, tasks))
     # filter out float alu task
     tasks = list(filter(lambda t: t.args[0][2] != "float32", tasks))
-    # filter const rhs, which will be fused with conv2d
-    # tasks = list(filter(lambda t: len(t.args[1][1]) < 1, tasks))
 
     # We should have extracted 10 convolution tasks
     tasks_set = {}
