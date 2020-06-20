@@ -105,13 +105,13 @@ Array<PrimExpr> as_conditions(const Map<Var, IntGrpBounds>& bounds,
     const auto& bnds = iter.second;
     PrimExpr lhs = bnds->coef * v;
     for (const PrimExpr& rhs : bnds->equal) {
-      res.push_back(tir::EQNode::make(lhs, rhs));
+      res.push_back(tir::EQ(lhs, rhs));
     }
     for (const PrimExpr& rhs : bnds->lower) {
-      res.push_back(tir::GENode::make(lhs, rhs));
+      res.push_back(tir::GE(lhs, rhs));
     }
     for (const PrimExpr& rhs : bnds->upper) {
-      res.push_back(tir::LENode::make(lhs, rhs));
+      res.push_back(tir::LE(lhs, rhs));
     }
   }
   for (const PrimExpr& e : relations) {
@@ -155,21 +155,21 @@ void DebugPrint(
  */
 class NormalizeComparisons : public ExprMutator {
  public:
-  PrimExpr VisitExpr_(const EQNode* op) override { return Make<EQNode>(op->a, op->b); }
-  PrimExpr VisitExpr_(const NENode* op) override { return Make<NENode>(op->a, op->b); }
-  PrimExpr VisitExpr_(const LTNode* op) override { return Make<LTNode>(op->a, op->b); }
-  PrimExpr VisitExpr_(const LENode* op) override { return Make<LENode>(op->a, op->b); }
-  PrimExpr VisitExpr_(const GTNode* op) override { return Make<LTNode>(op->b, op->a); }
-  PrimExpr VisitExpr_(const GENode* op) override { return Make<LENode>(op->b, op->a); }
+  PrimExpr VisitExpr_(const EQNode* op) override { return Make<EQ>(op->a, op->b); }
+  PrimExpr VisitExpr_(const NENode* op) override { return Make<NE>(op->a, op->b); }
+  PrimExpr VisitExpr_(const LTNode* op) override { return Make<LT>(op->a, op->b); }
+  PrimExpr VisitExpr_(const LENode* op) override { return Make<LE>(op->a, op->b); }
+  PrimExpr VisitExpr_(const GTNode* op) override { return Make<LT>(op->b, op->a); }
+  PrimExpr VisitExpr_(const GENode* op) override { return Make<LE>(op->b, op->a); }
 
  private:
-  template <class TNode>
+  template <class T>
   PrimExpr Make(const PrimExpr& a, const PrimExpr& b) {
     // rewrite LT to LE for ints
-    if (std::is_same<TNode, LTNode>::value && (a.dtype().is_int() || a.dtype().is_uint())) {
-      return LENode::make(analyzer_.Simplify(a - b + 1), make_zero(a.dtype()));
+    if (std::is_same<T, LT>::value && (a.dtype().is_int() || a.dtype().is_uint())) {
+      return LE(analyzer_.Simplify(a - b + 1), make_zero(a.dtype()));
     }
-    return TNode::make(analyzer_.Simplify(a - b), make_zero(a.dtype()));
+    return T(analyzer_.Simplify(a - b), make_zero(a.dtype()));
   }
   arith::Analyzer analyzer_;
 };
@@ -324,7 +324,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         PrimExpr c_neg = make_const(v.dtype(), pos.first / first_gcd);
         // eliminate the current variable
         PrimExpr new_lhs = c_neg * neg.second - c_pos * pos.second;
-        PrimExpr new_ineq = LENode::make(new_lhs, make_zero(pos.second.dtype()));
+        PrimExpr new_ineq = LE(new_lhs, make_zero(pos.second.dtype()));
         // we need rewrite_simplify -> canonical_simplify -> rewrite_simplify
         // to help simplify things like (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // with steps = 2 it's (y*2) - 10 <= 0

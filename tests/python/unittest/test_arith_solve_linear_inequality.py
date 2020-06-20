@@ -91,11 +91,10 @@ def test_dual_variable():
 
     # solution as conditions
     solution = arith._ffi_api.SolveInequalitiesAsCondition(variables, ranges, problem)
-    assert len(solution) == 4
-    assert ir.structural_equal(solution[0], y >= 0)
-    assert ir.structural_equal(solution[1], y <= 5)
-    assert ir.structural_equal(solution[2], x >= (y + 10))
-    assert ir.structural_equal(solution[3], x <= (20 - y))
+    assert ir.structural_equal(solution[0], x >= (y + 10))
+    assert ir.structural_equal(solution[1], x <= (20 - y))
+    assert ir.structural_equal(solution[2], y >= 0)
+    assert ir.structural_equal(solution[3], y <= 5)
 
     # solve and get the ranges
     solution = arith.solve_linear_inequalities([
