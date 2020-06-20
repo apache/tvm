@@ -115,6 +115,14 @@ def _should_construct_dynamic_list(list_construct_node):
     return False
 
 
+def _is_quantized_tensor(data, prelude):
+    # If a quantized Torch module is saved and loaded back, dtype will be dropped
+    # Since dtypes from Torch tensors are not reliable in such cases, we use
+    # Relay's type inference result to decide if an input tensor is quantized
+    ty = _infer_type_with_prelude(data, prelude)
+    return ty.dtype == "uint8"
+
+
 # operator implementation
 def _elemwise(name):
     def _impl(inputs, input_types):
@@ -211,12 +219,12 @@ def _concatenate(prelude):
         assert axis == 0, "Tensor array concat supported only for axis 0"
         tensor_array, shape = _convert_to_tensor_array(lst, prelude)
         concat_shape = (Any(),) + shape[1:]
-        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
-        static_tensor_array_ops.define_tensor_get_data(concat_shape)
-
         concat = prelude.get_var_static('tensor_array_concat', "float32", shape)
         concatenated = concat(tensor_array)
-        get_tensor = prelude.get_var_static('tensor_get_data', "float32", shape)
+
+        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", concat_shape)
+        static_tensor_array_ops.register()
+        get_tensor = prelude.get_var_static('tensor_get_data', "float32", concat_shape)
         return get_tensor(concatenated)
 
     def _impl(inputs, input_types):
@@ -264,7 +272,11 @@ def _slice():
                 end[dim] = inputs[3]
 
         strides.append(int(inputs[4]))
-        return _op.transform.strided_slice(data, begin, end, strides)
+        return _op.transform.strided_slice(data,
+                                           begin=_expr.const(begin),
+                                           end=_expr.const(end),
+                                           strides=_expr.const(strides),
+                                           slice_mode="size")
     return _impl
 
 def _split():
@@ -477,7 +489,10 @@ def _full():
             msg = "Data type %s could not be parsed in zeros op" % (type(data))
             raise AssertionError(msg)
 
-        dtype = _convert_data_type(_convert_dtype_value(inputs[2]))
+        if inputs[2] is not None: # dtype given
+            dtype = _convert_data_type(_convert_dtype_value(inputs[2]))
+        else:
+            dtype = data.type_annotation.dtype
 
         return _op.full(_expr.const(fill_value), shape, dtype=dtype)
     return _impl
@@ -523,10 +538,10 @@ def _linspace():
     return _impl
 
 
-def _relu():
+def _relu(prelude):
     def _impl(inputs, input_types):
         data = inputs[0]
-        if input_types[0] == "quint8":
+        if _is_quantized_tensor(data, prelude):
             assert len(inputs) == 3, "Input quant param not found in op inputs"
             input_zero_point = _expr.const(inputs[2], dtype="int32")
             return qnn_torch.quantized_relu(data, input_zero_point)
@@ -563,14 +578,13 @@ def _celu():
 
 def _gelu():
     def _impl(inputs, input_types):
-        import math
         data = inputs[0]
-
-        def _pow3(x):
-            return x * x * x
-        return _expr.const(0.5) * data * (_expr.const(1.0) +
-                                          _op.tanh(_expr.const(math.sqrt(2.0 / math.pi)) *
-                                                   (data + _expr.const(0.044715) * _pow3(data))))
+        # gelu is data  * normcdf(data)
+        # normcdf expressed as erf because we don't currently have that intrinsic
+        # note that there is also a fastgelu variant approximating normcdf
+        # with tanh and third order polynomials, but this is "true" gelu
+        return data * (_expr.const(0.5) +
+                       _op.erf(data * _expr.const(0.5**0.5)) * _expr.const(0.5))
     return _impl
 
 def _selu():
@@ -589,7 +603,7 @@ def _log_sigmoid():
         return _op.log(_op.tensor.sigmoid(data))
     return _impl
 
-def _adaptive_avg_pool_2d():
+def _adaptive_avg_pool_2d(prelude):
     def _impl(inputs, input_types):
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
@@ -597,7 +611,7 @@ def _adaptive_avg_pool_2d():
         def func(x):
             return _op.nn.adaptive_avg_pool2d(x, output_size=output_size)
 
-        if input_types[0] == "quint8":
+        if _is_quantized_tensor(data, prelude):
             return qnn_torch.apply_with_upcast(data, func)
 
         return func(data)
@@ -750,17 +764,24 @@ def _convolution():
         if isinstance(dilation, _expr.Expr):
             dilation = _infer_shape(dilation)
 
-        data_layout = "NCHW"
-        kernel_layout = "OIHW"
-        conv_op = _op.nn.conv2d
-
         if use_transpose:
-            assert len(kernel_size) == 2, "ConvTranspose 3D not supported"
-            conv_op = _op.nn.conv2d_transpose
+            if len(kernel_size) == 3:
+                conv_op = _op.nn.conv3d_transpose
+            else:
+                conv_op = _op.nn.conv2d_transpose
+        else:
+            if len(kernel_size) == 3:
+                conv_op = _op.nn.conv3d
+            else:
+                conv_op = _op.nn.conv2d
+
         if len(kernel_size) == 3:
-            conv_op = _op.nn.conv3d
             data_layout = "NCDHW"
             kernel_layout = "OIDHW"
+        else:
+            data_layout = "NCHW"
+            kernel_layout = "OIHW"
+
 
         conv_out = conv_op(data,
                            weight,
@@ -1095,7 +1116,7 @@ def _softplus():
         return _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.)) / beta
     return _impl
 
-def _avg_pool2d():
+def _avg_pool2d(prelude):
     def _impl(inputs, input_types):
         data = inputs[0]
 
@@ -1117,7 +1138,7 @@ def _avg_pool2d():
                                      ceil_mode=ceil_mode,
                                      count_include_pad=count_include_pad)
 
-        if input_types[0] == "quint8":
+        if _is_quantized_tensor(data, prelude):
             return qnn_torch.apply_with_upcast(data, func)
 
         return func(data)
@@ -1171,6 +1192,44 @@ def _reduce(name):
 
     return _impl
 
+def _norm():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        axis = None
+        keepdims = False
+        if len(inputs) > 3:
+            axis = list(_infer_shape(inputs[2]))
+            keepdims = bool(inputs[3])
+
+        order = inputs[1]
+        if order == np.inf:
+            return _op.reduce.max(_op.abs(data), axis=axis, keepdims=keepdims)
+        elif order == np.NINF:
+            return _op.reduce.min(_op.abs(data), axis=axis, keepdims=keepdims)
+        else:
+            reci_order = _expr.const(1.0 / order)
+            order = _expr.const(order)
+            return _op.power(_op.reduce.sum(_op.power(_op.abs(data), order),
+                                            axis=axis,
+                                            keepdims=keepdims),
+                             reci_order)
+    return _impl
+
+
+def _frobenius_norm():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        axis = None
+        keepdims = False
+        if len(inputs) > 2:
+            axis = list(_infer_shape(inputs[1]))
+            keepdims = bool(inputs[2])
+
+        return _op.sqrt(_op.reduce.sum((data * data), axis=axis, keepdims=keepdims))
+
+    return _impl
+
+
 def _std():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -1203,7 +1262,7 @@ def _variance():
 
     return _impl
 
-def _mean():
+def _mean(prelude):
     def _impl(inputs, input_types):
         data = inputs[0]
 
@@ -1223,7 +1282,7 @@ def _mean():
         def func(x):
             return _op.mean(x, axis, keepdims, exclude)
 
-        if input_types[0] == "quint8":
+        if _is_quantized_tensor(data, prelude):
             assert len(inputs) == 6, "Input quant param not found in op inputs"
             input_scale = _expr.const(inputs[4])
             input_zero_point = _expr.const(inputs[5])
@@ -1263,7 +1322,10 @@ def _chunk(prelude):
             end[axis] = i + unif_size
             stride = [1] * len(shape)
 
-            chunk_out = _op.transform.strided_slice(data, begin, end, stride)
+            chunk_out = _op.transform.strided_slice(data,
+                                                    begin=_expr.const(begin),
+                                                    end=_expr.const(end),
+                                                    strides=_expr.const(stride))
             chunks.append(chunk_out)
 
         if dim % num_chunks:
@@ -1273,7 +1335,10 @@ def _chunk(prelude):
             end[axis] = dim
             stride = [1] * len(shape)
 
-            chunk_out = _op.transform.strided_slice(data, begin, end, stride)
+            chunk_out = _op.transform.strided_slice(data,
+                                                    begin=_expr.const(begin),
+                                                    end=_expr.const(end),
+                                                    strides=_expr.const(stride))
             chunks.append(chunk_out)
 
         return chunks
@@ -1435,7 +1500,7 @@ def _to():
 
     return _impl
 
-def _upsample(method):
+def _upsample(method, prelude):
     def _impl(inputs, input_types):
         if isinstance(inputs[1], _expr.Var):
             out_size = _infer_shape(inputs[1])
@@ -1459,7 +1524,7 @@ def _upsample(method):
         def func(x):
             return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
 
-        if input_types[0] == "quint8":
+        if _is_quantized_tensor(data, prelude):
             import torch
             from packaging import version
 
@@ -1588,6 +1653,14 @@ def _list_len(prelude):
     return _impl
 
 
+def _type_as():
+    def _impl(inputs, input_types):
+        assert len(inputs) == 2
+        assert len(input_types) == 2
+        return _op.cast(inputs[0], _convert_data_type(input_types[1]))
+    return _impl
+
+
 def _add(prelude):
     # add_ is overloaded for tensor add and list concat
     def _impl(inputs, input_types):
@@ -1600,14 +1673,14 @@ def _add(prelude):
 def _tensor_array_stack(prelude):
     def _impl(inputs, input_types):
         tensor_array, shape = _convert_to_tensor_array(inputs[0], prelude)
+
+        stacked_shape = (Any(),) + shape
         stack = prelude.get_var_static('tensor_array_stack', "float32", shape)
         stacked = stack(tensor_array)
 
-        stacked_shape = (Any(),) + shape
-        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
-        static_tensor_array_ops.define_tensor_get_data(stacked_shape)
-        # passing stacked_shape below gives "'Prelude' object has no attribute" error
-        get_tensor = prelude.get_var_static('tensor_get_data', "float32", shape)
+        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", stacked_shape)
+        static_tensor_array_ops.register()
+        get_tensor = prelude.get_var_static('tensor_get_data', "float32", stacked_shape)
         return get_tensor(stacked)
     return _impl
 
@@ -1770,8 +1843,8 @@ def _get_convert_map(prelude):
         "aten::take"                            : _take(),
         "aten::where"                           : _where(),
         "aten::topk"                            : _topk(),
-        "aten::relu"                            : _relu(),
-        "aten::relu_"                           : _relu(),
+        "aten::relu"                            : _relu(prelude),
+        "aten::relu_"                           : _relu(prelude),
         "aten::prelu"                           : _prelu(),
         "aten::leaky_relu"                      : _leaky_relu(),
         "aten::elu"                             : _elu(),
@@ -1780,7 +1853,7 @@ def _get_convert_map(prelude):
         "aten::gelu"                            : _gelu(),
         "aten::selu"                            : _selu(),
         "aten::log_sigmoid"                     : _log_sigmoid(),
-        "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(),
+        "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(prelude),
         "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),
         "aten::max_pool2d"                      : _maxpool_2d(),
         "aten::max_pool2d_with_indices"         : _maxpool_2d_with_indices(),
@@ -1809,19 +1882,20 @@ def _get_convert_map(prelude):
         "aten::log_softmax"                     : _log_softmax(),
         "aten::sigmoid"                         : _sigmoid(),
         "aten::softplus"                        : _softplus(),
-        "aten::avg_pool2d"                      : _avg_pool2d(),
+        "aten::avg_pool2d"                      : _avg_pool2d(prelude),
         "aten::avg_pool3d"                      : _avg_pool3d(),
         "aten::dropout"                         : _dropout(),
         "aten::dropout_"                        : _dropout(),
         "aten::feature_dropout"                 : _dropout(),
         "aten::alpha_dropout"                   : _dropout(),
-        "aten::mean"                            : _mean(),
+        "aten::mean"                            : _mean(prelude),
         "aten::chunk"                           : _chunk(prelude),
         "aten::matmul"                          : _matmul(prelude),
         "aten::expand"                          : _expand(),
         "aten::Int"                             : _int(),
         "prim::NumToTensor"                     : _numtotensor(),
         "prim::ImplicitTensorToNum"             : _tensortonum(),
+        "aten::ScalarImplicit"                  : _tensortonum(),
         "aten::constant_pad_nd"                 : _pad("constant"),
         "aten::reflection_pad1d"                : _pad("reflect"),
         "aten::reflection_pad2d"                : _pad("reflect"),
@@ -1833,6 +1907,8 @@ def _get_convert_map(prelude):
         "aten::prod"                            : _reduce("prod"),
         "aten::argmin"                          : _reduce("argmin"),
         "aten::argmax"                          : _reduce("argmax"),
+        "aten::norm"                            : _norm(),
+        "aten::frobenius_norm"                  : _frobenius_norm(),
         "aten::std"                             : _std(),
         "aten::var"                             : _variance(),
         "aten::abs"                             : _unary("abs"),
@@ -1860,11 +1936,12 @@ def _get_convert_map(prelude):
         "aten::floor"                           : _unary("floor"),
         "aten::round"                           : _unary("round"),
         "aten::isfinite"                        : _unary("isfinite"),
+        "aten::isinf"                           : _unary("isinf"),
         "aten::isnan"                           : _unary("isnan"),
         "aten::clamp"                           : _clamp(),
         "aten::detach"                          : _identity(),
-        "aten::upsample_bilinear2d"             : _upsample("bilinear"),
-        "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
+        "aten::upsample_bilinear2d"             : _upsample("bilinear", prelude),
+        "aten::upsample_nearest2d"              : _upsample("nearest_neighbor", prelude),
         "aten::upsample_trilinear3d"            : _upsample3d("trilinear"),
         "aten::upsample_nearest3d"              : _upsample3d("nearest_neighbor"),
         "aten::expand_as"                       : _expand_as(),
@@ -1892,6 +1969,7 @@ def _get_convert_map(prelude):
         "aten::stack"                           : _tensor_array_stack(prelude),
         "aten::__getitem__"                     : _list_getitem(prelude),
         "aten::len"                             : _list_len(prelude),
+        "aten::type_as"                         : _type_as(),
     }
     return convert_map
 

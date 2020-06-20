@@ -41,7 +41,8 @@ namespace relay {
 
 // namespace update for backward compact
 // will be removed later.
-using Any = tvm::tir::AnyNode;
+using AnyNode = tvm::tir::AnyNode;
+using Any = tvm::tir::Any;
 using Kind = TypeKind;
 using Type = tvm::Type;
 using TypeNode = tvm::TypeNode;

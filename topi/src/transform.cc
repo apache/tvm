@@ -40,7 +40,12 @@ TVM_REGISTER_GLOBAL("topi.transpose").set_body([](TVMArgs args, TVMRetValue* rv)
 });
 
 TVM_REGISTER_GLOBAL("topi.flip").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = flip(args[0], args[1]);
+  // pass empty seq_lengths tensor to reverse_sequence
+  *rv = reverse_sequence(args[0], Tensor(), args[1]);
+});
+
+TVM_REGISTER_GLOBAL("topi.reverse_sequence").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = reverse_sequence(args[0], args[1], args[2], args[3]);
 });
 
 TVM_REGISTER_GLOBAL("topi.reshape").set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -112,6 +117,10 @@ TVM_REGISTER_GLOBAL("topi.tile").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = tile(args[0], args[1]);
 });
 
+TVM_REGISTER_GLOBAL("topi.gather").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = gather(args[0], args[1], args[2]);
+});
+
 TVM_REGISTER_GLOBAL("topi.gather_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = gather_nd(args[0], args[1]);
 });
@@ -152,7 +161,7 @@ TVM_REGISTER_GLOBAL("topi.tensordot").set_body([](TVMArgs args, TVMRetValue* rv)
 });
 
 TVM_REGISTER_GLOBAL("topi.strided_slice").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = strided_slice(args[0], args[1], args[2], args[3]);
+  *rv = strided_slice(args[0], args[1], args[2], args[3], args[4]);
 });
 
 TVM_REGISTER_GLOBAL("topi.one_hot").set_body([](TVMArgs args, TVMRetValue* rv) {

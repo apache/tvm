@@ -50,9 +50,9 @@ DataType ExternOpNode::output_dtype(size_t i) const { return output_placeholders
 
 Array<PrimExpr> ExternOpNode::output_shape(size_t i) const { return output_placeholders[i]->shape; }
 
-Operation ExternOpNode::make(std::string name, std::string tag, Map<String, ObjectRef> attrs,
-                             Array<Tensor> inputs, Array<Buffer> input_placeholders,
-                             Array<Buffer> output_placeholders, Stmt body) {
+ExternOp::ExternOp(std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                   Array<Tensor> inputs, Array<Buffer> input_placeholders,
+                   Array<Buffer> output_placeholders, Stmt body) {
   if (!attrs.defined()) {
     attrs = Map<String, ObjectRef>();
   }
@@ -73,10 +73,15 @@ Operation ExternOpNode::make(std::string name, std::string tag, Map<String, Obje
   n->input_placeholders = std::move(input_placeholders);
   n->output_placeholders = std::move(output_placeholders);
   n->body = std::move(body);
-  return Operation(n);
+  data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("te.ExternOp").set_body_typed(ExternOpNode::make);
+TVM_REGISTER_GLOBAL("te.ExternOp")
+    .set_body_typed([](std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                       Array<Tensor> inputs, Array<Buffer> input_placeholders,
+                       Array<Buffer> output_placeholders, Stmt body) {
+      return ExternOp(name, tag, attrs, inputs, input_placeholders, output_placeholders, body);
+    });
 
 Array<Tensor> ExternOpNode::InputTensors() const { return inputs; }
 
@@ -128,8 +133,7 @@ Stmt ExternOpNode::BuildRealize(const Stage& stage,
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(Range::make_by_min_extent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body =
-        tir::RealizeNode::make(t->op, t->value_index, t->dtype, bounds, const_true(), realize_body);
+    realize_body = tir::ProducerRealize(t, bounds, const_true(), realize_body);
   }
   return realize_body;
 }
@@ -138,8 +142,7 @@ Stmt ExternOpNode::BuildProvide(const Stage& stage,
                                 const std::unordered_map<IterVar, Range>& dom_map,
                                 bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt ret =
-      AttrStmtNode::make(make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
+  Stmt ret = AttrStmt(make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
   auto f_push_bind = [&ret](Buffer buffer, Tensor tensor) {
     Array<ObjectRef> bind_spec;
     Array<PrimExpr> tuple;
@@ -149,9 +152,8 @@ Stmt ExternOpNode::BuildProvide(const Stage& stage,
       tuple.push_back(make_const(buffer->shape[k].dtype(), 0));
       tuple.push_back(buffer->shape[k]);
     }
-    ret = AttrStmtNode::make(
-        bind_spec, tir::attr::buffer_bind_scope,
-        CallNode::make(DataType::Handle(), intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), ret);
+    ret = AttrStmt(bind_spec, tir::attr::buffer_bind_scope,
+                   Call(DataType::Handle(), intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), ret);
   };
   for (size_t i = output_placeholders.size(); i != 0; --i) {
     f_push_bind(output_placeholders[i - 1], stage->op.output(i - 1));

@@ -47,14 +47,18 @@ def get_valid_counts(data,
 
     out_tensor : relay.Expr
         Rearranged data tensor.
+
+    out_indices: relay.Expr
+        Indices in input data
     """
     return expr.TupleWrapper(
         _make.get_valid_counts(data, score_threshold,
-                               id_index, score_index), 2)
+                               id_index, score_index), 3)
 
 
 def non_max_suppression(data,
                         valid_count,
+                        indices,
                         max_output_size=-1,
                         iou_threshold=0.5,
                         force_suppress=False,
@@ -69,12 +73,23 @@ def non_max_suppression(data,
     Parameters
     ----------
     data : relay.Expr
-        3-D tensor with shape [batch_size, num_anchors, 6].
+        3-D tensor with shape [batch_size, num_anchors, 6]
+        or [batch_size, num_anchors, 5].
         The last dimension should be in format of
-        [class_id, score, box_left, box_top, box_right, box_bottom].
+        [class_id, score, box_left, box_top, box_right, box_bottom]
+        or [score, box_left, box_top, box_right, box_bottom]. It could
+        be the second output out_tensor of get_valid_counts.
 
     valid_count : relay.Expr
-        1-D tensor for valid number of boxes.
+        1-D tensor for valid number of boxes. It could be the output
+        valid_count of get_valid_counts.
+
+    indices: relay.Expr
+        2-D tensor with shape [batch_size, num_anchors], represents
+        the index of box in original data. It could be the third
+        output out_indices of get_valid_counts. The values in the
+        second dimension are like the output of arange(num_anchors)
+        if get_valid_counts is not used before non_max_suppression.
 
     max_output_size : int, optional
         Max number of output valid boxes for each instance.
@@ -106,10 +121,24 @@ def non_max_suppression(data,
 
     Returns
     -------
-    out : relay.Expr
-        3-D tensor with shape [batch_size, num_anchors, 6].
+    out : relay.Expr or relay.Tuple
+        return relay.Expr if return_indices is disabled, a 3-D tensor
+        with shape [batch_size, num_anchors, 6] or [batch_size, num_anchors, 5].
+        if return_indices is True, return relay.Tuple of two 2-D tensors, with
+        shape [batch_size, num_anchors] and [batch_size, num_valid_anchors] respectively.
     """
-    return _make.non_max_suppression(data, valid_count, max_output_size,
-                                     iou_threshold, force_suppress, top_k,
-                                     coord_start, score_index, id_index,
-                                     return_indices, invalid_to_bottom)
+    out = _make.non_max_suppression(data,
+                                    valid_count,
+                                    indices,
+                                    max_output_size,
+                                    iou_threshold,
+                                    force_suppress,
+                                    top_k,
+                                    coord_start,
+                                    score_index,
+                                    id_index,
+                                    return_indices,
+                                    invalid_to_bottom)
+    if return_indices:
+        return expr.TupleWrapper(out, 2)
+    return out

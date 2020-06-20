@@ -28,5 +28,8 @@ members = [
 	"frontend/tests/basics",
 	"frontend/tests/callback",
 	"frontend/examples/resnet",
-        "tvm-sys"
+	"tvm-sys",
+	"tvm-macros",
+	"tvm-rt",
+	"tvm",
 ]

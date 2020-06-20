@@ -310,9 +310,7 @@ TEST(Map, Mutate) {
   CHECK(it != dict.end() && (*it).second.same_as(x));
 
   it = dict2.find(zz);
-  CHECK(it == dict.end());
-
-  LOG(INFO) << dict;
+  CHECK(it == dict2.end());
 }
 
 TEST(Map, Iterator) {
@@ -322,6 +320,51 @@ TEST(Map, Iterator) {
   std::unordered_map<PrimExpr, PrimExpr, ObjectPtrHash, ObjectPtrEqual> map2(map1.begin(),
                                                                              map1.end());
   CHECK(map2[a].as<IntImmNode>()->value == 2);
+}
+
+TEST(Map, Insert) {
+  using namespace tvm;
+  auto check = [](const Map<String, Integer>& result,
+                  std::unordered_map<std::string, int64_t> expected) {
+    CHECK_EQ(result.size(), expected.size());
+    for (const auto& kv : result) {
+      CHECK(expected.count(kv.first));
+      CHECK_EQ(expected[kv.first], kv.second.operator int64_t());
+      expected.erase(kv.first);
+    }
+  };
+  Map<String, Integer> result;
+  std::unordered_map<std::string, int64_t> expected;
+  char key = 'a';
+  int64_t val = 1;
+  for (int i = 0; i < 26; ++i, ++key, ++val) {
+    std::string s(1, key);
+    result.Set(s, val);
+    expected[s] = val;
+    check(result, expected);
+  }
+}
+
+TEST(Map, Erase) {
+  auto check = [](const Map<String, Integer>& result,
+                  std::unordered_map<std::string, int64_t> expected) {
+    CHECK_EQ(result.size(), expected.size());
+    for (const auto& kv : result) {
+      CHECK(expected.count(kv.first));
+      CHECK_EQ(expected[kv.first], kv.second.operator int64_t());
+      expected.erase(kv.first);
+    }
+  };
+  Map<String, Integer> map{{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"e", 5}};
+  std::unordered_map<std::string, int64_t> stl(map.begin(), map.end());
+  for (char c = 'a'; c <= 'e'; ++c) {
+    Map<String, Integer> result = map;
+    std::unordered_map<std::string, int64_t> expected(stl);
+    std::string key(1, c);
+    result.erase(key);
+    expected.erase(key);
+    check(result, expected);
+  }
 }
 
 TEST(String, MoveFromStd) {
@@ -458,23 +501,54 @@ TEST(String, compare) {
 
   // compare with string
   CHECK_EQ(str_source.compare(source), 0);
+  CHECK(str_source == source);
+  CHECK(source == str_source);
+  CHECK(str_source <= source);
+  CHECK(source <= str_source);
+  CHECK(str_source >= source);
+  CHECK(source >= str_source);
   CHECK_LT(str_source.compare(mismatch1), 0);
+  CHECK(str_source < mismatch1);
+  CHECK(mismatch1 != str_source);
   CHECK_GT(str_source.compare(mismatch2), 0);
+  CHECK(str_source > mismatch2);
+  CHECK(mismatch2 < str_source);
   CHECK_GT(str_source.compare(mismatch3), 0);
+  CHECK(str_source > mismatch3);
   CHECK_LT(str_source.compare(mismatch4), 0);
+  CHECK(str_source < mismatch4);
+  CHECK(mismatch4 > str_source);
 
   // compare with char*
   CHECK_EQ(str_source.compare(source.data()), 0);
+  CHECK(str_source == source.data());
+  CHECK(source.data() == str_source);
+  CHECK(str_source <= source.data());
+  CHECK(source <= str_source.data());
+  CHECK(str_source >= source.data());
+  CHECK(source >= str_source.data());
   CHECK_LT(str_source.compare(mismatch1.data()), 0);
+  CHECK(str_source < mismatch1.data());
+  CHECK(str_source != mismatch1.data());
+  CHECK(mismatch1.data() != str_source);
   CHECK_GT(str_source.compare(mismatch2.data()), 0);
+  CHECK(str_source > mismatch2.data());
+  CHECK(mismatch2.data() < str_source);
   CHECK_GT(str_source.compare(mismatch3.data()), 0);
+  CHECK(str_source > mismatch3.data());
   CHECK_LT(str_source.compare(mismatch4.data()), 0);
+  CHECK(str_source < mismatch4.data());
+  CHECK(mismatch4.data() > str_source);
 
   // compare with String
   CHECK_LT(str_source.compare(str_mismatch1), 0);
+  CHECK(str_source < str_mismatch1);
   CHECK_GT(str_source.compare(str_mismatch2), 0);
+  CHECK(str_source > str_mismatch2);
   CHECK_GT(str_source.compare(str_mismatch3), 0);
+  CHECK(str_source > str_mismatch3);
   CHECK_LT(str_source.compare(str_mismatch4), 0);
+  CHECK(str_source < str_mismatch4);
 }
 
 TEST(String, c_str) {
@@ -511,6 +585,23 @@ TEST(String, Cast) {
   String s{source};
   ObjectRef r = s;
   String s2 = Downcast<String>(r);
+}
+
+TEST(String, Concat) {
+  String s1("hello");
+  String s2("world");
+  std::string s3("world");
+  String res1 = s1 + s2;
+  String res2 = s1 + s3;
+  String res3 = s3 + s1;
+  String res4 = s1 + "world";
+  String res5 = "world" + s1;
+
+  CHECK_EQ(res1.compare("helloworld"), 0);
+  CHECK_EQ(res2.compare("helloworld"), 0);
+  CHECK_EQ(res3.compare("worldhello"), 0);
+  CHECK_EQ(res4.compare("helloworld"), 0);
+  CHECK_EQ(res5.compare("worldhello"), 0);
 }
 
 TEST(Optional, Composition) {

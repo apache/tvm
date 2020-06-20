@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, no-else-return, too-many-lines
 """MXNet symbol frontend."""
 import json
+import math
 import numpy as np
 import tvm
 from tvm.ir import IRModule
@@ -87,10 +88,12 @@ def _mx_fully_connected(inputs, attrs):
 
 
 def _get_channel_axis(layout, op_name):
-    if layout == "NCHW":
+    if layout in ["NCHW", "NCDHW"]:
         return 1
     if layout == "NHWC":
         return 3
+    if layout == "NDHWC":
+        return 4
     raise tvm.error.OpAttributeInvalid(
         'Value {} in attribute "layout" of operator {} is not valid.'.format(layout, op_name))
 
@@ -149,13 +152,15 @@ def _mx_zeros(inputs, attrs):
 
 def _mx_conv(inputs, attrs):
     kernel_size = attrs.get_int_tuple("kernel")
-    if len(kernel_size) == 2:
+    if len(kernel_size) == 3:
+        return _mx_conv3d(inputs, attrs)
+    elif len(kernel_size) == 2:
         return _mx_conv2d(inputs, attrs)
     elif len(kernel_size) == 1:
         return _mx_conv1d(inputs, attrs)
     else:
         raise tvm.error.OpAttributeInvalid(
-            '1D or 2D kernels only are supported for operator Convolution')
+            '1D, 2D or 3D kernels only are supported for operator Convolution')
 
 def _mx_conv1d(inputs, attrs):
     kernel_size = attrs.get_int_tuple("kernel")
@@ -226,15 +231,53 @@ def _mx_conv2d(inputs, attrs):
     return res
 
 
+def _get_mx_conv3d_attrs(attrs):
+    kernel_size = attrs.get_int_tuple("kernel")
+    data_layout = attrs.get_str("layout", "NCDHW")
+    if "kernel_layout" in attrs.attrs:
+        kernel_layout = attrs.get_str("kernel_layout")
+    else:
+        kernel_layout = "DHWIO" if data_layout == "NDHWC" else "OIDHW"
+    new_attrs = {}
+    new_attrs["channels"] = attrs.get_int("num_filter")
+    new_attrs["kernel_size"] = kernel_size
+    new_attrs["strides"] = attrs.get_int_tuple("stride", (1, 1, 1))
+    new_attrs["padding"] = attrs.get_int_tuple("pad", (0, 0, 0))
+    new_attrs["dilation"] = attrs.get_int_tuple("dilate", (1, 1, 1))
+    new_attrs["groups"] = attrs.get_int("num_group", 1)
+    new_attrs["data_layout"] = data_layout
+    new_attrs["kernel_layout"] = kernel_layout
+    return new_attrs
+
+
+def _mx_conv3d(inputs, attrs):
+    kernel_size = attrs.get_int_tuple("kernel")
+    data_layout = attrs.get_str("layout", "NCDHW")
+    if len(kernel_size) != 3:
+        raise tvm.error.OpAttributeInvalid(
+            'Only 3D kernels are supported for operator Convolution')
+
+    new_attrs = _get_mx_conv3d_attrs(attrs)
+    channel_axis = _get_channel_axis(data_layout, "conv3d")
+    use_bias = not attrs.get_bool("no_bias", False)
+    res = _op.nn.conv3d(inputs[0], inputs[1], **new_attrs)
+    if use_bias:
+        assert len(inputs) == 3
+        res = _op.nn.bias_add(res, inputs[2], axis=channel_axis)
+    return res
+
+
 def _mx_conv_transpose(inputs, attrs):
     kernel_size = attrs.get_int_tuple("kernel")
-    if len(kernel_size) == 2:
+    if len(kernel_size) == 3:
+        return _mx_conv3d_transpose(inputs, attrs)
+    elif len(kernel_size) == 2:
         return _mx_conv2d_transpose(inputs, attrs)
     elif len(kernel_size) == 1:
         return _mx_conv1d_transpose(inputs, attrs)
     else:
         raise tvm.error.OpAttributeInvalid(
-            '1D or 2D kernels only are supported for operator Convolution')
+            '1D, 2D or 3D kernels only are supported for operator Convolution')
 
 
 def _mx_conv1d_transpose(inputs, attrs):
@@ -293,6 +336,41 @@ def _mx_conv2d_transpose(inputs, attrs):
     new_attrs["kernel_layout"] = kernel_layout
     use_bias = not attrs.get_bool("no_bias", True)
     res = _op.nn.conv2d_transpose(inputs[0], inputs[1], **new_attrs)
+
+    if use_bias:
+        assert len(inputs) == 3
+        res = _op.nn.bias_add(res, inputs[2], axis=channel_axis)
+    return res
+
+
+def _mx_conv3d_transpose(inputs, attrs):
+    if "target_shape" in attrs.attrs:
+        raise tvm.error.OpAttributeUnImplemented(
+            'Attribute "target_shape" is not supported for operator Conv3D-transpose.')
+    kernel_size = attrs.get_int_tuple("kernel")
+    if len(kernel_size) != 3:
+        raise tvm.error.OpAttributeInvalid(
+            'Non-3D kernels are not supported for operator Conv3D-transpose.')
+    data_layout = attrs.get_str("layout", "NCDHW")
+    channel_axis = _get_channel_axis(data_layout, "conv3d_transpose")
+
+    if "kernel_layout" in attrs.attrs:
+        kernel_layout = attrs.get_str("kernel_layout")
+    else:
+        kernel_layout = "DHWIO" if data_layout == "NDHWC" else "OIDHW"
+
+    new_attrs = {}
+    new_attrs["channels"] = attrs.get_int("num_filter")
+    new_attrs["kernel_size"] = kernel_size
+    new_attrs["strides"] = attrs.get_int_tuple("stride", (1, 1, 1))
+    new_attrs["output_padding"] = attrs.get_int_tuple("adj", (0, 0, 0))
+    new_attrs["padding"] = attrs.get_int_tuple("pad", (0, 0, 0))
+    new_attrs["dilation"] = attrs.get_int_tuple("dilate", (1, 1, 1))
+    new_attrs["groups"] = attrs.get_int("num_group", 1)
+    new_attrs["data_layout"] = data_layout
+    new_attrs["kernel_layout"] = kernel_layout
+    use_bias = not attrs.get_bool("no_bias", True)
+    res = _op.nn.conv3d_transpose(inputs[0], inputs[1], **new_attrs)
 
     if use_bias:
         assert len(inputs) == 3
@@ -411,16 +489,22 @@ def _mx_slice(inputs, attrs):
     begin = list(attrs.get_int_tuple('begin', None))
     end = list(attrs.get_int_tuple('end', None))
     stride = attrs.get_int_tuple('step', None)
+    input_shape = _infer_type(inputs[0]).checked_type.shape
     if begin is None:
         raise tvm.error.OpAttributeRequired(
             'Attribute "begin" not found in operator Slice.')
     if end is None:
         raise tvm.error.OpAttributeRequired(
             'Attribute "end" not found in operator Slice.')
-    begin = tuple(x if x is not None else 0 for x in begin)
-    new_attrs = {'begin': begin, 'end': end}
+    begin = (x if x is not None else 0 for x in begin)
+    for i, ed in enumerate(end):
+        if ed is None:
+            end[i] = input_shape[i]
+    new_attrs = {'begin': _expr.const(list(begin), dtype="int32"),
+                 'end': _expr.const(list(end), dtype="int32")}
     if stride is not None:
-        new_attrs['strides'] = stride
+        stride = (x if x is not None else 1 for x in stride)
+        new_attrs['strides'] = _expr.const(list(stride), dtype="int32")
     return _op.strided_slice(inputs[0], **new_attrs)
 
 
@@ -460,7 +544,9 @@ def _mx_slice_axis(inputs, attrs):
         else:
             begin.append(ax_beg)
             end.append(ax_end)
-    return _op.strided_slice(inputs[0], begin, end)
+    return _op.strided_slice(inputs[0],
+                             _expr.const(begin, dtype="int32"),
+                             _expr.const(end, dtype="int32"))
 
 
 def _mx_crop_like(inputs, attrs):
@@ -480,9 +566,9 @@ def _mx_crop_like(inputs, attrs):
         return _op.slice_like(*inputs, **new_attrs)
     expr = _infer_type(inputs[1])
     like_shape = expr.checked_type.shape
-    new_attrs['begin'] = [0, 0, offset[0], offset[1]]
-    new_attrs['end'] = [like_shape[0], like_shape[1], offset[0]+like_shape[2],
-                        offset[1]+like_shape[3]]
+    new_attrs['begin'] = _expr.const([0, 0, offset[0], offset[1]], dtype="int32")
+    new_attrs['end'] = _expr.const([like_shape[0], like_shape[1], offset[0]+like_shape[2],
+                                    offset[1]+like_shape[3]], dtype="int32")
     return _op.strided_slice(inputs[0], **new_attrs)
 
 
@@ -570,6 +656,15 @@ def _mx_leaky_relu(inputs, attrs):
         upper_bound = attrs.get_float("upper_bound")
         alpha = (lower_bound + upper_bound) / 2.0
         return _op.nn.leaky_relu(inputs[0], alpha=alpha)
+    if act_type == "gelu":
+        # 0.5 * x * (1 + erf(x / sqrt(2)))
+        sqrt2 = _expr.const(math.sqrt(2), dtype="float32")
+        erf = _op.erf(_op.divide(inputs[0], sqrt2))
+        one = _expr.const(1, dtype="float32")
+        erf_plus_one = _op.add(one, erf)
+        half = _expr.const(0.5, dtype="float32")
+        half_x = _op.multiply(inputs[0], half)
+        return _op.multiply(half_x, erf_plus_one)
     raise tvm.error.OpNotImplemented(
         'Operator {} is not supported for frontend MXNet.'.format(act_type))
 
@@ -656,7 +751,7 @@ def _mx_multibox_detection(inputs, attrs):
 
     ret = _op.vision.multibox_transform_loc(inputs[0], inputs[1],
                                             inputs[2], **new_attrs0)
-    return _op.vision.non_max_suppression(ret[0], ret[1], **new_attrs1)
+    return _op.vision.non_max_suppression(ret[0], ret[1], ret[1], **new_attrs1)
 
 
 def _mx_batch_dot(inputs, attrs):
@@ -699,6 +794,42 @@ def _mx_make_loss(inputs, attrs):
     return inputs[0]
 
 
+def _mx_contrib_arange_like(inputs, attrs):
+    assert len(inputs) == 1
+    if attrs.get_int("repeat", 1) != 1:
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "repeat" is not supported in operator arange_like.')
+    ty = _infer_type(inputs[0]).checked_type
+    assert ty
+    shape, dtype = get_const_tuple(ty.shape), ty.dtype
+    axis = attrs.get_int("axis", None)
+    if axis is None:
+        n_elems = 1
+        for dim in shape:
+            if not isinstance(dim, int):
+                raise tvm.error.OpError("Don't support arange_like with symbolic input shape.")
+            n_elems *= dim
+    else:
+        axis = axis + len(shape) if axis < 0 else axis
+        assert 0 <= axis < len(shape)
+        n_elems = shape[axis]
+        if not isinstance(n_elems, int):
+            raise tvm.error.OpError("Don't support arange_like with symbolic input shape.")
+        shape = (n_elems,)
+    start = attrs.get_float("start", 0.)
+    step = attrs.get_float("step", 1.)
+    stop = start + step * n_elems
+    new_attrs = {}
+    new_attrs["start"] = _expr.const(start, dtype=dtype)
+    new_attrs["stop"] = _expr.const(stop, dtype=dtype)
+    new_attrs["step"] = _expr.const(step, dtype=dtype)
+    new_attrs["dtype"] = dtype
+    ret = _op.arange(**new_attrs)
+    if len(shape) > 1:
+        ret = _op.reshape(ret, shape)
+    return ret
+
+
 def _mx_repeat(inputs, attrs):
     assert len(inputs) == 1
     new_attrs = {}
@@ -732,6 +863,21 @@ def _mx_reverse(inputs, attrs):
     new_attrs = {}
     new_attrs["axis"] = attrs.get_int("axis")
     return _op.reverse(inputs[0], **new_attrs)
+
+
+def _mx_sequence_reverse(inputs, attrs):
+    new_attrs = {}
+    use_seq_lengths = attrs.get_bool("use_sequence_length")
+    if not use_seq_lengths:
+        assert len(inputs) == 1
+        new_attrs["axis"] = attrs.get_int("axis")
+        return _op.reverse(inputs[0], **new_attrs)
+
+    assert len(inputs) == 2
+    new_attrs["seq_axis"] = attrs.get_int("axis")
+    # MXNet assumes batch_axis as 1.
+    new_attrs["batch_axis"] = 1
+    return _op.reverse_sequence(inputs[0], inputs[1], **new_attrs)
 
 
 def _mx_roi_align(inputs, attrs):
@@ -820,6 +966,7 @@ def _mx_box_nms(inputs, attrs):
                                       id_index=id_index, score_index=score_index)
     nms_out = _op.vision.non_max_suppression(ret[1],
                                              ret[0],
+                                             ret[2],
                                              iou_threshold=iou_thresh,
                                              force_suppress=force_suppress,
                                              top_k=top_k,
@@ -1175,6 +1322,56 @@ def _mx_contrib_fifo_buffer(inputs, attrs):
     new_attrs = {}
     new_attrs['axis'] = attrs.get_int('axis')
     return _op.nn.fifo_buffer(*inputs, **new_attrs)
+
+
+def _mx_contrib_interleaved_matmul_selfatt_qk(inputs, attrs):
+    """
+    tmp = mx.nd.reshape(queries_keys_values, shape=(0, 0, num_heads, 3, -1))
+    q_proj = mx.nd.transpose(tmp[:,:,:,0,:], axes=(1, 2, 0, 3))
+    q_proj = mx.nd.reshape(q_proj, shape=(-1, 0, 0), reverse=True)
+    q_proj = mx.nd.contrib.div_sqrt_dim(q_proj)
+    k_proj = mx.nd.transpose(tmp[:,:,:,1,:], axes=(1, 2, 0, 3))
+    k_proj = mx.nd.reshape(k_proj, shape=(-1, 0, 0), reverse=True)
+    output = mx.nd.batch_dot(q_proj, k_proj, transpose_b=True)
+    """
+    assert len(inputs) == 1
+    qkv = inputs[0]
+    num_heads = attrs.get_int('heads')
+    qkv = _op.reshape(qkv, newshape=(0, 0, num_heads, 3, -1))
+    q_proj = _op.take(qkv, _expr.const(0, "int32"), axis=3)
+    q_proj = _op.transpose(q_proj, axes=[1, 2, 0, 3])
+    q_proj = _op.reverse_reshape(q_proj, newshape=(-1, 0, 0))
+    q_proj = _mx_contrib_div_sqrt_dim([q_proj], None)
+    k_proj = _op.take(qkv, _expr.const(1, "int32"), axis=3)
+    k_proj = _op.transpose(k_proj, axes=[1, 2, 0, 3])
+    k_proj = _op.reverse_reshape(k_proj, newshape=(-1, 0, 0))
+    ret = _op.nn.batch_matmul(q_proj, k_proj)
+    return ret
+
+
+def _mx_contrib_interleaved_matmul_selfatt_valatt(inputs, attrs):
+    """
+    tmp = mx.nd.reshape(queries_keys_values, shape=(0, 0, num_heads, 3, -1))
+    v_proj = mx.nd.transpose(tmp[:,:,:,2,:], axes=(1, 2, 0, 3))
+    v_proj = mx.nd.reshape(v_proj, shape=(-1, 0, 0), reverse=True)
+    output = mx.nd.batch_dot(attention, v_proj)
+    output = mx.nd.reshape(output, shape=(-1, num_heads, 0, 0), reverse=True)
+    output = mx.nd.transpose(output, axes=(2, 0, 1, 3))
+    output = mx.nd.reshape(output, shape=(0, 0, -1))
+    """
+    assert len(inputs) == 2
+    qkv, att = inputs
+    num_heads = attrs.get_int("heads")
+    qkv = _op.reshape(qkv, newshape=(0, 0, num_heads, 3, -1))
+    v_proj = _op.take(qkv, _expr.const(2, "int32"), axis=3)
+    v_proj = _op.transpose(v_proj, axes=(1, 2, 0, 3))
+    v_proj = _op.reverse_reshape(v_proj, newshape=(-1, 0, 0))
+    v_proj = _op.transpose(v_proj, axes=[0, 2, 1])
+    out = _op.nn.batch_matmul(att, v_proj)
+    out = _op.reverse_reshape(out, newshape=(-1, num_heads, 0, 0))
+    out = _op.transpose(out, axes=(2, 0, 1, 3))
+    out = _op.reshape(out, newshape=(0, 0, -1))
+    return out
 
 
 def _mx_cond(inputs, attrs, subgraphs):
@@ -1992,6 +2189,7 @@ _convert_map = {
     "take"          : _mx_take,
     "gather_nd"     : _mx_gather_nd,
     "reverse"       : _mx_reverse,
+    "SequenceReverse"  : _mx_sequence_reverse,
     "squeeze"       : _mx_squeeze,
     "broadcast_axis": _mx_broadcast_axis,
     "broadcast_axes": _mx_broadcast_axis,
@@ -2008,6 +2206,7 @@ _convert_map = {
     "smooth_l1"     : _mx_smooth_l1,
     "make_loss"     : _mx_make_loss,
     "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
+    "_contrib_arange_like": _mx_contrib_arange_like,
     "one_hot"           : _mx_one_hot,
     "depth_to_space"    : _mx_depth_to_space,
     "space_to_depth"    : _mx_space_to_depth,
@@ -2028,6 +2227,8 @@ _convert_map = {
     # NLP
     "RNN"               : _mx_rnn_layer,
     "_rnn_param_concat" : _mx_rnn_param_concat,
+    "_contrib_interleaved_matmul_selfatt_qk" : _mx_contrib_interleaved_matmul_selfatt_qk,
+    "_contrib_interleaved_matmul_selfatt_valatt" : _mx_contrib_interleaved_matmul_selfatt_valatt,
     # control flow
     "_cond"             : _mx_cond,
     # Depricated:

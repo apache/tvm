@@ -78,11 +78,10 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
             # Its possible for some onnx inputs to not be needed in the tvm
             # module, confirm its present before setting.
             try:
-                m.get_input(input_names[i])
+                m.set_input(input_names[i], tvm.nd.array(
+                    input_data[i].astype(input_data[i].dtype)))
             except:
                 continue
-            m.set_input(input_names[i], tvm.nd.array(
-                input_data[i].astype(input_data[i].dtype)))
     else:
         m.set_input(input_names, tvm.nd.array(
             input_data.astype(input_data.dtype)))
@@ -406,6 +405,41 @@ def test_gather():
     verify_gather((2, 2), [[[1, 0], [0, 1]]], 1, 'int32')
     verify_gather((3, 3, 3), [[[1, 0]]], -1, 'int32')
     verify_gather((4, 3, 5, 6), [[2, 1, 0, 0]], 0, 'float32')
+
+
+def verify_scatter(in_shape, indices, axis):
+    x = np.random.uniform(size=in_shape).astype("float32")
+    indices = np.array(indices, dtype="int32")
+    updates = np.random.uniform(size=indices.shape).astype("float32")
+
+    y = helper.make_node("ScatterElements", ['data', 'indices', 'updates'], ['output'], axis=axis)
+
+    graph = helper.make_graph([y],
+                              'scatter_test',
+                              inputs=[helper.make_tensor_value_info("data",
+                                                                    TensorProto.FLOAT, list(in_shape)),
+                                      helper.make_tensor_value_info("indices",
+                                                                    TensorProto.INT32, list(indices.shape)),
+                                      helper.make_tensor_value_info("updates",
+                                                                    TensorProto.FLOAT, list(indices.shape))],
+                              outputs=[helper.make_tensor_value_info("output",
+                                                                     TensorProto.FLOAT, list(in_shape))])
+    model = helper.make_model(graph, producer_name='scatter_test')
+    onnx_out = get_onnxruntime_output(model, [x, indices, updates])
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(
+            model, [x, indices, updates], target, ctx, onnx_out[0].shape)
+        tvm.testing.assert_allclose(onnx_out[0], tvm_out)
+
+
+def test_scatter():
+    verify_scatter((4,), [1], 0)
+    verify_scatter((1, 4), [[0]], 0)
+    verify_scatter((4,), [2, 3], 0)
+    verify_scatter((2, 2), [[1, 0], [0, 1]], 1)
+    verify_scatter((3, 3, 3), [[[-1, -3]]], -1)
+    verify_scatter((4, 3, 5, 6), [[[[2, 1, 0, 0]]]], 0)
 
 
 def _test_slice_iteration_v1(indata, outdata, starts, ends, axes=None):
@@ -1986,6 +2020,89 @@ def test_or():
     verify_or(indata=[x, y], dtype=bool)
 
 
+def test_batch_norm():
+    def verify_batch_norm(in_shape):
+        batchnorm = onnx.helper.make_node('BatchNormalization',
+                                          inputs=["x", "scale", "B", "mean", "var"],
+                                          outputs=['Y'])
+
+        graph = helper.make_graph([batchnorm],
+                                  "batchnorm_test",
+                                  inputs=[helper.make_tensor_value_info("x",
+                                                                        TensorProto.FLOAT, list(in_shape)),
+                                          helper.make_tensor_value_info("scale",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("B",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("mean",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("var",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                         ],
+                                  outputs=[helper.make_tensor_value_info("Y",
+                                                                         TensorProto.FLOAT, list(in_shape))])
+
+        model = helper.make_model(graph, producer_name='batchnorm_test')
+
+        for target, ctx in ctx_list():
+            x = np.random.uniform(size=in_shape).astype('float32')
+            scale = np.random.uniform(size=in_shape[1]).astype('float32')
+            b = np.random.uniform(size=in_shape[1]).astype('float32')
+            mean = np.random.uniform(size=in_shape[1]).astype('float32')
+            var = np.random.uniform(size=in_shape[1]).astype('float32')
+            onnx_out = get_onnxruntime_output(model, [x, scale, b, mean, var], 'float32')[0]
+            tvm_out = get_tvm_output(model, [x, scale, b, mean, var], target, ctx, in_shape, 'float32')
+            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+    verify_batch_norm([1, 3, 224, 224])
+    verify_batch_norm([1, 3, 24, 24])
+    verify_batch_norm([16, 3, 24, 24])
+    verify_batch_norm([16, 16, 24, 24])
+    verify_batch_norm([16, 16, 10, 10])
+
+
+def test_batch_norm_dynamic_subgraph():
+    def verify_batch_norm_dynamic_subgraph(in_shape, o_shape):
+        batchnorm = onnx.helper.make_node('BatchNormalization',
+                                          inputs=["x", "scale", "B", "mean", "var"],
+                                          outputs=['Y'])
+
+        shape_node = helper.make_node("Shape", ['Y'], ['shape'])
+        reshape_node = helper.make_node("Reshape", ["in", "shape"], ["out"])
+        graph = helper.make_graph([batchnorm, shape_node, reshape_node],
+                                  "batchnorm_test",
+                                  inputs=[helper.make_tensor_value_info("x",
+                                                                        TensorProto.FLOAT, list(in_shape)),
+                                          helper.make_tensor_value_info("in",
+                                                                        TensorProto.FLOAT, list(o_shape)),
+                                          helper.make_tensor_value_info("scale",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("B",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("mean",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("var",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                         ],
+                                  outputs=[helper.make_tensor_value_info("out",
+                                                                         TensorProto.FLOAT, list(in_shape))])
+
+        model = helper.make_model(graph, producer_name='batchnorm_test')
+
+        for target, ctx in ctx_list():
+            x = np.random.uniform(size=in_shape).astype('float32')
+            inp = np.random.uniform(size=o_shape).astype('float32')
+            scale = np.random.uniform(size=in_shape[1]).astype('float32')
+            b = np.random.uniform(size=in_shape[1]).astype('float32')
+            mean = np.random.uniform(size=in_shape[1]).astype('float32')
+            var = np.random.uniform(size=in_shape[1]).astype('float32')
+            onnx_out = get_onnxruntime_output(model, [x, inp, scale, b, mean, var], 'float32')[0]
+            tvm_out = get_tvm_output(model, [x, inp, scale, b, mean, var], target, ctx, in_shape, 'float32')
+            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+    verify_batch_norm_dynamic_subgraph([16, 16, 10, 10], [160, 160])
+
+
 def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilations, auto_pad="NOTSET", unset_pad=False):
     if unset_pad:
         node = helper.make_node('Conv',
@@ -2152,20 +2269,18 @@ def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_p
     else:
         raise ValueError("Pool method {} is not supported.".format(mode))
 
+    pool_node = helper.make_node(
+        node_type, inputs=["x"], outputs=["y"], kernel_shape=kernel_shape, strides=strides)
+
     if pads is None:
-        pool_node = helper.make_node(node_type,
-                                    inputs=["x"],
-                                    outputs=["y"],
-                                    kernel_shape=kernel_shape,
-                                    auto_pad=auto_pad,
-                                    strides=strides)
+        pad_attr = helper.make_attribute('auto_pad', auto_pad)
     else:
-        pool_node = helper.make_node(node_type,
-                                    inputs=["x"],
-                                    outputs=["y"],
-                                    kernel_shape=kernel_shape,
-                                    pads=pads,
-                                    strides=strides)
+        pad_attr = helper.make_attribute('pads', pads)
+    pool_node.attribute.append(pad_attr)
+
+    if mode == 'max':
+        storage_attr = helper.make_attribute('storage_order', 0)
+        pool_node.attribute.append(storage_attr)
 
     graph = helper.make_graph([pool_node],
                               "pooling_test",
@@ -2823,6 +2938,7 @@ if __name__ == '__main__':
     test_batch_matmul()
     test_gather()
     test_gather_nd()
+    test_scatter()
     test_lrn()
     test_instance_norm()
     test_upsample()
@@ -2859,6 +2975,8 @@ if __name__ == '__main__':
     test_or()
     test_depth_to_space()
     test_space_to_depth()
+    test_batch_norm()
+    test_batch_norm_dynamic_subgraph()
     test_conv()
     test_convtranspose()
     test_unsqueeze_constant()
@@ -2871,4 +2989,4 @@ if __name__ == '__main__':
     test_mod()
     test_xor()
     test_max_roi_pool()
-    test_roialign()
+    test_roi_align()

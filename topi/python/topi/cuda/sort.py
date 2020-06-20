@@ -117,7 +117,7 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
                         tvm.tir.generic.cast(tid, indices_out.dtype)
     ib.emit(tvm.tir.Call(None, 'tvm_storage_sync',
                          tvm.runtime.convert(['shared']),
-                         tvm.tir.Call.Intrinsic, None, 0))
+                         tvm.tir.Call.Intrinsic))
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
 
@@ -145,7 +145,7 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
                             indices_out[offset + axis_mul_after] = temp_index[0]
                 ib.emit(tvm.tir.Call(None, 'tvm_storage_sync',
                                      tvm.runtime.convert(['shared']),
-                                     tvm.tir.Call.Intrinsic, None, 0))
+                                     tvm.tir.Call.Intrinsic))
 
     return ib.get()
 
@@ -237,7 +237,7 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
                         output[offset + axis_mul_after] = temp_index[0]
                 ib.emit(tvm.tir.Call(None, 'tvm_storage_sync',
                                      tvm.runtime.convert(['shared']),
-                                     tvm.tir.Call.Intrinsic, None, 0))
+                                     tvm.tir.Call.Intrinsic))
 
     return ib.get()
 

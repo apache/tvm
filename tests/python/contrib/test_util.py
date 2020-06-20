@@ -39,6 +39,7 @@ def test_tempdir():
   assert os.path.exists(temp_dir.temp_dir)
 
   old_debug_mode = util.TempDirectory._KEEP_FOR_DEBUG
+  old_tempdirs = util.TempDirectory.TEMPDIRS
   try:
     for temp_dir_number in range(0, 3):
       with util.TempDirectory.set_keep_for_debug():
@@ -80,6 +81,7 @@ def test_tempdir():
 
   finally:
     util.TempDirectory.DEBUG_MODE = old_debug_mode
+    util.TempDirectory.TEMPDIRS = old_tempdirs
 
 
 if __name__ == '__main__':

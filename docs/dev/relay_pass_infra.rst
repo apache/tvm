@@ -344,13 +344,13 @@ registration.
 .. code:: c++
 
     // Create a simple Relay program.
-    auto tensor_type = relay::TensorTypeNode::make({}, tvm::Bool());
-    auto x = relay::VarNode::make("x", relay::Type());
-    auto f = relay::FunctionNode::make(tvm::Array<relay::Var>{ x }, x, relay::Type(), {});
+    auto tensor_type = relay::TensorType({}, tvm::Bool());
+    auto x = relay::Var("x", relay::Type());
+    auto f = relay::Function(tvm::Array<relay::Var>{ x }, x, relay::Type(), {});
 
-    auto y = relay::VarNode::make("y", tensor_type);
-    auto call = relay::CallNode::make(f, tvm::Array<relay::Expr>{ y });
-    auto fx = relay::FunctionNode::make(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
+    auto y = relay::Var("y", tensor_type);
+    auto call = relay::Call(f, tvm::Array<relay::Expr>{ y });
+    auto fx = relay::Function(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
 
     // Create a module for optimization.
     auto mod = IRModule::FromExpr(fx);

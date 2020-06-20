@@ -22,6 +22,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
+import topi.testing
 
 def int32(val):
     return relay.const(val, 'int32')
@@ -642,6 +643,52 @@ def test_arange_with_dynamic_shape():
         result = ex.evaluate()(data)
         tvm.testing.assert_allclose(result.asnumpy(), np.array(range(10)).astype("int32")+1)
 
+def verify_any_strided_slice(data_shape, begin_shape, end_shape, strides_shape,
+                             data_np_shape, slice_mode="end", const_attrs=False):
+    # Generate random numpy input data
+    np_data = np.random.uniform(size=data_np_shape).astype('float32')
+    np_begin = np.random.randint(2, size=begin_shape, dtype="int32")
+    np_end = np.random.randint(5, 10, size=end_shape, dtype="int32")
+    np_strides = np.random.randint(1, 2 if slice_mode == "size" else 3, size=strides_shape, dtype="int32")
+    # target numpy result
+    ref_res = topi.testing.strided_slice_python(np_data, np_begin, np_end, np_strides, slice_mode)
+
+    # Relay Module
+    mod = tvm.IRModule()
+    data = relay.var('data', shape=data_shape, dtype='float32')
+    if const_attrs:
+        data = relay.var('data', shape=data_np_shape, dtype='float32')
+        begin = relay.const(np_begin)
+        end = relay.const(np_end)
+        strides = relay.const(np_strides)
+        args = [data]
+        np_inputs = [np_data]
+    else:
+        begin = relay.var('begin', shape=begin_shape, dtype="int32")
+        end = relay.var('end', shape=end_shape, dtype="int32")
+        strides = relay.var('strides', shape=strides_shape, dtype="int32")
+        args = [data, begin, end, strides]
+        np_inputs = [np_data, np_begin, np_end, np_strides]
+
+    y = relay.strided_slice(data, begin=begin, end=end,
+                            strides=strides, slice_mode=slice_mode)
+    mod["main"] = relay.Function(args, y)
+
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(*np_inputs)
+        tvm.testing.assert_allclose(result.asnumpy(), ref_res)
+
+
+def test_any_strided_slice():
+    verify_any_strided_slice(any_dims(2), (2,), (2,), (2,), (15, 21))
+    verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (15, 17, 21))
+    verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (23, 29, 41))
+    verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70))
+    verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (15, 17, 21), slice_mode="size")
+    verify_any_strided_slice(any_dims(2), (2,), (2,), (2,), (15, 21), const_attrs=True)
+
+
 def test_recursive_concat():
     """
     fn @concat_loop(%i: int32, %st: (any, 1)) -> (any, 1) {
@@ -767,7 +814,7 @@ def test_mixed_input_type():
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()([[data_np0, data_np0], data_np0], data_np1)
         assert result.asnumpy().shape == ref_out_shape, \
-            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(ret.asnumpy().shape))
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
 
 if __name__ == "__main__":
     test_any_full()
@@ -796,7 +843,9 @@ if __name__ == "__main__":
     test_any_softmax()
     test_any_topk()
     test_fused_ops()
+    test_any_argwhere()
     test_arange_with_dynamic_shape()
+    test_any_strided_slice()
     test_recursive_concat()
     test_recursive_concat_with_wrong_annotation()
     test_tuple_get_item()

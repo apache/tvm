@@ -26,6 +26,7 @@ from topi.util import get_const_int, get_const_tuple
 from . import op as _reg
 from . import strategy
 from .op import OpPattern
+from ._tensor import elemwise_shape_func
 
 _reg.register_broadcast_schedule("broadcast_to")
 _reg.register_broadcast_schedule("broadcast_to_like")
@@ -40,6 +41,7 @@ _reg.register_injective_schedule("full")
 _reg.register_injective_schedule("full_like")
 _reg.register_injective_schedule("arange")
 _reg.register_injective_schedule("reverse")
+_reg.register_injective_schedule("reverse_sequence")
 _reg.register_injective_schedule("cast")
 _reg.register_injective_schedule("cast_like")
 _reg.register_injective_schedule("reinterpret")
@@ -50,6 +52,7 @@ _reg.register_injective_schedule("take")
 _reg.register_injective_schedule("transpose")
 _reg.register_injective_schedule("stack")
 _reg.register_injective_schedule("_contrib_reverse_reshape")
+_reg.register_injective_schedule("gather")
 _reg.register_injective_schedule("gather_nd")
 _reg.register_injective_schedule("sequence_mask")
 _reg.register_injective_schedule("one_hot")
@@ -88,6 +91,14 @@ def compute_argwhere(attrs, inputs, output_type):
 
 _reg.register_schedule("argwhere", strategy.schedule_argwhere)
 
+# scatter
+@_reg.register_compute("scatter")
+def compute_scatter(attrs, inputs, output_type):
+    """Compute definition of scatter"""
+    return [topi.scatter(inputs[0], inputs[1], inputs[2], attrs.axis)]
+
+_reg.register_schedule("scatter", strategy.schedule_scatter)
+
 #####################
 #  Shape functions  #
 #####################
@@ -100,7 +111,76 @@ def _arange_shape_func(start, stop, step):
 
 @_reg.register_shape_func("arange", True)
 def arange_shape_func(attrs, inputs, _):
+    """
+    Shape func for arange
+    """
     return [_arange_shape_func(*inputs)]
+
+@script
+def _strided_slice_shape_func_input_data(data, begin, end, strides,
+                                         slice_mode):
+    ndim = len(data.shape)
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        cbegin = 0
+        cend = data.shape[i]
+        cstride = 1
+        if strides.shape[0] > i:
+            cstride = strides[i]
+        if begin.shape[0] > i:
+            cbegin = begin[i]
+        if end.shape[0] <= i:
+            cend = data.shape[i]
+        elif slice_mode != 0:
+            cstride = 1
+            if end[i] < 0:
+                cend = data.shape[i]
+            else:
+                cend = cbegin + end[i]
+        else:
+            cend = end[i]
+        assert cstride != 0, "Strides can't be zero."
+        out[i] = int64(ceil_div((int64(cend) - int64(cbegin)), int64(cstride)))
+    return out
+
+@script
+def _strided_slice_shape_func_input_shape(data_shape, begin, end, strides, slice_mode):
+    ndim = data_shape.shape[0]
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        cbegin = int64(0)
+        cend = int64(data_shape[i])
+        cstride = int64(1)
+        if len(strides) > i:
+            cstride = int64(strides[i])
+        if len(begin) > i:
+            cbegin = int64(begin[i])
+        if len(end) <= i:
+            cend = int64(data_shape[i])
+        elif slice_mode != 0:
+            cstride = int64(1)
+            if end[i] < 0:
+                cend = int64(data_shape[i])
+            else:
+                cend = cbegin + int64(end[i])
+        else:
+            cend = int64(end[i])
+        assert cstride != 0, "Strides can't be zero."
+        out[i] = int64(ceil_div((int64(cend) - int64(cbegin)), int64(cstride)))
+    return out
+
+
+@_reg.register_shape_func("strided_slice", True)
+def strided_slice_shape_func(attrs, inputs, _):
+    """
+    Shape func for strided_slice
+    """
+    slice_mode = convert(0 if attrs.slice_mode == "end" else 1)
+    # data independent if begin, end and strides exist
+    if attrs.begin and attrs.end and attrs.strides:
+        return [_strided_slice_shape_func_input_shape(inputs[0], attrs.begin, attrs.end,
+                                                      attrs.strides, slice_mode)]
+    return [_strided_slice_shape_func_input_data(*inputs, slice_mode)]
 
 @script
 def _concatenate_shape_func(inputs, axis):
@@ -383,6 +463,8 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
     if len(inputs[0].shape) == 5:
         return [_argwhere_shape_func_5d(inputs[0])]
     return ValueError("Does not support rank higher than 5 in argwhere")
+
+_reg.register_shape_func("scatter", False, elemwise_shape_func)
 
 @script
 def _layout_transform_shape_func(data_shape,

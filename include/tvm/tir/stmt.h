@@ -37,7 +37,7 @@ namespace tir {
 /*! \brief Base node of all statements. */
 class StmtNode : public Object {
  public:
-  static constexpr const char* _type_key = "Stmt";
+  static constexpr const char* _type_key = "tir.Stmt";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 15;
@@ -79,10 +79,19 @@ class LetStmtNode : public StmtNode {
     hash_reduce(body);
   }
 
-  TVM_DLL static Stmt make(Var var, PrimExpr value, Stmt body);
-
-  static constexpr const char* _type_key = "LetStmt";
+  static constexpr const char* _type_key = "tir.LetStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(LetStmtNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to LetStmtNode.
+ * \sa LetStmtNode
+ */
+class LetStmt : public Stmt {
+ public:
+  TVM_DLL LetStmt(Var var, PrimExpr value, Stmt body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(LetStmt, Stmt, LetStmtNode);
 };
 
 /*!
@@ -100,7 +109,7 @@ class AttrStmtNode : public StmtNode {
   /*! \brief this is attribute about certain node */
   ObjectRef node;
   /*! \brief the type key of the attribute */
-  std::string attr_key;
+  String attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
   PrimExpr value;
   /*! \brief The body statement to be executed */
@@ -125,10 +134,19 @@ class AttrStmtNode : public StmtNode {
     hash_reduce(body);
   }
 
-  TVM_DLL static Stmt make(ObjectRef node, std::string type_key, PrimExpr value, Stmt body);
-
-  static constexpr const char* _type_key = "AttrStmt";
+  static constexpr const char* _type_key = "tir.AttrStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrStmtNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to AttrStmtNode.
+ * \sa AttrStmtNode
+ */
+class AttrStmt : public Stmt {
+ public:
+  TVM_DLL AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(AttrStmt, Stmt, AttrStmtNode);
 };
 
 /*!
@@ -163,10 +181,19 @@ class AssertStmtNode : public StmtNode {
     hash_reduce(body);
   }
 
-  TVM_DLL static Stmt make(PrimExpr condition, PrimExpr message, Stmt body);
-
-  static constexpr const char* _type_key = "AssertStmt";
+  static constexpr const char* _type_key = "tir.AssertStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(AssertStmtNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to AssertStmtNode.
+ * \sa AssertStmtNode
+ */
+class AssertStmt : public Stmt {
+ public:
+  TVM_DLL AssertStmt(PrimExpr condition, PrimExpr message, Stmt body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(AssertStmt, Stmt, AssertStmtNode);
 };
 
 /*!
@@ -217,10 +244,19 @@ class StoreNode : public StmtNode {
     hash_reduce(predicate);
   }
 
-  TVM_DLL static Stmt make(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate);
-
-  static constexpr const char* _type_key = "Store";
+  static constexpr const char* _type_key = "tir.Store";
   TVM_DECLARE_FINAL_OBJECT_INFO(StoreNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to StoreNode.
+ * \sa StoreNode
+ */
+class Store : public Stmt {
+ public:
+  TVM_DLL Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Store, Stmt, StoreNode);
 };
 
 /*!
@@ -259,7 +295,7 @@ class BufferStoreNode : public StmtNode {
     hash_reduce(indices);
   }
 
-  static constexpr const char* _type_key = "BufferStore";
+  static constexpr const char* _type_key = "tir.BufferStore";
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferStoreNode, StmtNode);
 };
 
@@ -270,6 +306,7 @@ class BufferStoreNode : public StmtNode {
 class BufferStore : public Stmt {
  public:
   TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
+
   TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
 };
 
@@ -318,7 +355,7 @@ class BufferRealizeNode : public StmtNode {
   BufferRealizeNode(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body)
       : buffer(buffer), bounds(bounds), condition(condition), body(body) {}
 
-  static constexpr const char* _type_key = "BufferRealize";
+  static constexpr const char* _type_key = "tir.BufferRealize";
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferRealizeNode, StmtNode);
 };
 
@@ -334,44 +371,110 @@ class BufferRealize : public Stmt {
 };
 
 /*!
- * \brief Store value into mult-dimensional array defined by func.
+ * \brief Store value into mult-dimensional array that will be read by the consumer
+ *        of the producer.
  *
- * \note Deprecated, move to BufferStore in the future.
+ * \note This node only appears in high-level DSLs that are built on top of the TIR.
+ *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
+ *       this node before TIR transformations.
+ *
+ * \sa DataProducer
  */
-class ProvideNode : public StmtNode {
+class ProducerStoreNode : public StmtNode {
  public:
-  /*! \brief The function to be updated. */
-  FunctionRef func;
-  /*! \brief The output value index if func's value is a tuple. */
-  int value_index{0};
+  /*! \brief The producer to store the results into. */
+  DataProducer producer;
   /*! \brief The value to be stored. */
   PrimExpr value;
   /*! \brief The index arguments of the function. */
-  Array<PrimExpr> args;
+  Array<PrimExpr> indices;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("func", &func);
-    v->Visit("value_index", &value_index);
+    v->Visit("producer", &producer);
     v->Visit("value", &value);
-    v->Visit("args", &args);
+    v->Visit("indices", &indices);
   }
 
-  bool SEqualReduce(const ProvideNode* other, SEqualReducer equal) const {
-    return equal(func, other->func) && equal(value_index, other->value_index) &&
-           equal(value, other->value) && equal(args, other->args);
+  bool SEqualReduce(const ProducerStoreNode* other, SEqualReducer equal) const {
+    return equal(producer, other->producer) && equal(value, other->value) &&
+           equal(indices, other->indices);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(func);
-    hash_reduce(value_index);
+    hash_reduce(producer);
     hash_reduce(value);
-    hash_reduce(args);
+    hash_reduce(indices);
   }
 
-  TVM_DLL static Stmt make(FunctionRef func, int value_index, PrimExpr value, Array<PrimExpr> args);
+  static constexpr const char* _type_key = "tir.ProducerStore";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerStoreNode, StmtNode);
+};
 
-  static constexpr const char* _type_key = "Provide";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProvideNode, StmtNode);
+/*!
+ * \brief Managed reference to ProducerStoreNode.
+ * \sa ProducerStoreNode
+ */
+class ProducerStore : public Stmt {
+ public:
+  TVM_DLL ProducerStore(DataProducer producer, PrimExpr value, Array<PrimExpr> indices);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ProducerStore, Stmt, ProducerStoreNode);
+};
+
+/*!
+ * \brief Annotate the bounds where the data produced by the producer
+ *  need to be written and read in body.
+ *  We will need to allocate space for the corresponding regions.
+ *
+ * \note This node only appears in high-level DSLs that are built on top of the TIR.
+ *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
+ *       this node before TIR transformations.
+ *
+ * \sa DataProducer
+ */
+class ProducerRealizeNode : public StmtNode {
+ public:
+  /*! \brief The producer that produces the data. */
+  DataProducer producer;
+  /*! \brief Bounds to be realized. */
+  Region bounds;
+  /*! \brief Only realize if condition holds. */
+  PrimExpr condition;
+  /*! \brief The body of realization. */
+  Stmt body;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("producer", &producer);
+    v->Visit("bounds", &bounds);
+    v->Visit("condition", &condition);
+    v->Visit("body", &body);
+  }
+
+  bool SEqualReduce(const ProducerRealizeNode* other, SEqualReducer equal) const {
+    return equal(producer, other->producer) && equal(bounds, other->bounds) &&
+           equal(condition, other->condition) && equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(producer);
+    hash_reduce(bounds);
+    hash_reduce(condition);
+    hash_reduce(body);
+  }
+
+  static constexpr const char* _type_key = "tir.ProducerRealize";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerRealizeNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to ProducerRealizeNode.
+ * \sa ProducerRealizeNode
+ */
+class ProducerRealize : public Stmt {
+ public:
+  TVM_DLL ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition, Stmt body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ProducerRealize, Stmt, ProducerRealizeNode);
 };
 
 /*!
@@ -412,9 +515,6 @@ class AllocateNode : public StmtNode {
     hash_reduce(body);
   }
 
-  TVM_DLL static Stmt make(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
-                           PrimExpr condition, Stmt body);
-
   /*!
    * \brief If the buffer size is constant, return the size.
    *        Otherwise return 0.
@@ -429,8 +529,20 @@ class AllocateNode : public StmtNode {
    */
   TVM_DLL static int32_t constant_allocation_size(const Array<PrimExpr>& extents);
 
-  static constexpr const char* _type_key = "Allocate";
+  static constexpr const char* _type_key = "tir.Allocate";
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to AllocateNode.
+ * \sa AllocateNode
+ */
+class Allocate : public Stmt {
+ public:
+  TVM_DLL Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
+                   Stmt body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
 };
 
 /*! \brief Free the resources in the buffer before the scope ends. */
@@ -447,62 +559,19 @@ class FreeNode : public StmtNode {
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(buffer_var); }
 
-  TVM_DLL static Stmt make(Var buffer_var);
-
-  static constexpr const char* _type_key = "Free";
+  static constexpr const char* _type_key = "tir.Free";
   TVM_DECLARE_FINAL_OBJECT_INFO(FreeNode, StmtNode);
 };
 
 /*!
- * \brief Annotate the bounds where func need to be written and read in body.
- *  We will need to allocate space for the corresponding regions.
- *
- * \note Deprecated, move to BufferRealize in the future.
+ * \brief Managed reference to FreeNode.
+ * \sa FreeNode
  */
-class RealizeNode : public StmtNode {
+class Free : public Stmt {
  public:
-  /*! \brief The function to be realized. */
-  FunctionRef func;
-  /*! \brief The output value index if func's value is a tuple. */
-  int value_index;
-  /*! \brief The data type of the array. */
-  DataType dtype;
-  /*! \brief Bounds to be realized. */
-  Region bounds;
-  /*! \brief Only realize if condition holds. */
-  PrimExpr condition;
-  /*! \brief The body of realization. */
-  Stmt body;
+  TVM_DLL Free(Var buffer_var);
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("func", &func);
-    v->Visit("value_index", &value_index);
-    v->Visit("dtype", &dtype);
-    v->Visit("bounds", &bounds);
-    v->Visit("condition", &condition);
-    v->Visit("body", &body);
-  }
-
-  TVM_DLL static Stmt make(FunctionRef func, int value_index, DataType dtype, Region bounds,
-                           PrimExpr condition, Stmt body);
-
-  bool SEqualReduce(const RealizeNode* other, SEqualReducer equal) const {
-    return equal(func, other->func) && equal(value_index, other->value_index) &&
-           equal(dtype, other->dtype) && equal(bounds, other->bounds) &&
-           equal(condition, other->condition) && equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(func);
-    hash_reduce(value_index);
-    hash_reduce(dtype);
-    hash_reduce(bounds);
-    hash_reduce(condition);
-    hash_reduce(body);
-  }
-
-  static constexpr const char* _type_key = "Realize";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RealizeNode, StmtNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Free, Stmt, FreeNode);
 };
 
 /*!
@@ -529,7 +598,7 @@ class SeqStmtNode : public StmtNode {
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(seq); }
 
-  static constexpr const char* _type_key = "SeqStmt";
+  static constexpr const char* _type_key = "tir.SeqStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(SeqStmtNode, StmtNode);
 };
 
@@ -628,10 +697,19 @@ class IfThenElseNode : public StmtNode {
     hash_reduce(else_case);
   }
 
-  TVM_DLL static Stmt make(PrimExpr condition, Stmt then_case, Stmt else_case = Stmt());
-
-  static constexpr const char* _type_key = "IfThenElse";
+  static constexpr const char* _type_key = "tir.IfThenElse";
   TVM_DECLARE_FINAL_OBJECT_INFO(IfThenElseNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to IfThenElseNode.
+ * \sa IfThenElseNode
+ */
+class IfThenElse : public Stmt {
+ public:
+  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case, Stmt else_case = Stmt());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(IfThenElse, Stmt, IfThenElseNode);
 };
 
 /*!
@@ -653,10 +731,21 @@ class EvaluateNode : public StmtNode {
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
 
-  TVM_DLL static Stmt make(PrimExpr v);
-
-  static constexpr const char* _type_key = "Evaluate";
+  static constexpr const char* _type_key = "tir.Evaluate";
   TVM_DECLARE_FINAL_OBJECT_INFO(EvaluateNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to EvaluateNode.
+ * \sa EvaluateNode
+ */
+class Evaluate : public Stmt {
+ public:
+  TVM_DLL explicit Evaluate(PrimExpr value);
+
+  explicit Evaluate(int value) : Evaluate(PrimExpr(value)) {}
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Evaluate, Stmt, EvaluateNode);
 };
 
 /*! \brief Additional annotation of for loop. */
@@ -704,9 +793,6 @@ class ForNode : public StmtNode {
   /*! \brief The body of the for loop. */
   Stmt body;
 
-  TVM_DLL static Stmt make(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type,
-                           DeviceAPI device_api, Stmt body);
-
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("loop_var", &loop_var);
     v->Visit("min", &min);
@@ -731,8 +817,20 @@ class ForNode : public StmtNode {
     hash_reduce(body);
   }
 
-  static constexpr const char* _type_key = "For";
+  static constexpr const char* _type_key = "tir.For";
   TVM_DECLARE_FINAL_OBJECT_INFO(ForNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to ForNode.
+ * \sa ForNode
+ */
+class For : public Stmt {
+ public:
+  TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, DeviceAPI device_api,
+              Stmt body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
 };
 
 /*!
@@ -762,7 +860,7 @@ class PrefetchNode : public StmtNode {
   PrefetchNode() = default;
   PrefetchNode(Buffer buffer, Array<Range> bounds) : buffer(buffer), bounds(bounds) {}
 
-  static constexpr const char* _type_key = "Prefetch";
+  static constexpr const char* _type_key = "tir.Prefetch";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrefetchNode, StmtNode);
 };
 
@@ -775,24 +873,6 @@ class Prefetch : public Stmt {
   TVM_DLL explicit Prefetch(Buffer buffer, Array<Range> bounds);
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Prefetch, Stmt, PrefetchNode);
-};
-
-/*!
- * \brief Auxiliary data structure used in IR Pass to indicate a tensor.
- */
-struct TensorKey {
-  FunctionRef f;
-  int value_index;
-
-  inline bool operator==(const TensorKey& other) const {
-    return f == other.f && value_index == other.value_index;
-  }
-  inline std::string GetName() const {
-    if (f->num_outputs() == 1) return f->func_name();
-    std::ostringstream os;
-    os << f->func_name() << ".v" << value_index;
-    return os.str();
-  }
 };
 
 /*! \brief namespace of possible attribute sin AttrStmt.attr_key */
@@ -925,7 +1005,7 @@ inline bool IsPragmaKey(const std::string& attr_key) {
  * \return Expr a expression with dtype.
  */
 inline PrimExpr TypeAnnotation(DataType dtype) {
-  return tir::CallNode::make(dtype, "type_annotation", {}, tir::CallNode::PureIntrinsic);
+  return tir::Call(dtype, "type_annotation", {}, tir::CallNode::PureIntrinsic);
 }
 
 // overload printing of for type.
@@ -933,17 +1013,4 @@ TVM_DLL std::ostream& operator<<(std::ostream& os, ForType for_type);
 
 }  // namespace tir
 }  // namespace tvm
-
-namespace std {
-template <>
-struct hash<::tvm::tir::TensorKey> {
-  std::size_t operator()(const ::tvm::tir::TensorKey& k) const {
-    size_t lhs = ::tvm::ObjectPtrHash()(k.f);
-    size_t rhs = static_cast<size_t>(k.value_index);
-    lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);
-    return lhs;
-  }
-};
-}  // namespace std
-
 #endif  // TVM_TIR_STMT_H_
