@@ -863,9 +863,9 @@ void ComputeDAG::RewriteLayout(
           te::Operation new_placeholder_op;
           if (rewrite_placeholder) {
             new_placeholder_op =
-              te::PlaceholderOpNode::make(placeholder_op->name,
-                                      new_shape,
-                                      placeholder_op.as<te::PlaceholderOpNode>()->dtype);
+              te::PlaceholderOp(placeholder_op->name,
+                                new_shape,
+                                placeholder_op.as<te::PlaceholderOpNode>()->dtype);
           } else {
             new_placeholder_op = placeholder_op;
           }
@@ -890,7 +890,7 @@ void ComputeDAG::RewriteLayout(
                   }
                   old_compute_op = op;
                   CHECK(!new_compute_op.defined());
-                  new_compute_op = te::ComputeOpNode::make(
+                  new_compute_op = te::ComputeOp(
                     pop->name, pop->tag, pop->attrs, pop->axis, new_body);
                 }
               }
@@ -1028,8 +1028,8 @@ std::string ComputeDAG::PrintStepsAsPython(const std::vector<Step>& transform_st
           ss << ", ";
         }
       }
-      ss << " = " << "tuple(" << stage->op->func_name() << ".op.axis)"
-         << " + " << "tuple(" << stage->op->func_name() << ".op.reduce_axis)\n";
+      ss << " = " << "tuple(" << stage->op->name << ".op.axis)"
+         << " + " << "tuple(" << stage->op->name << ".op.reduce_axis)\n";
     }
   }
 
@@ -1231,10 +1231,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
   for (const auto& op : node->ops) {
     if (op->IsInstance<te::PlaceholderOpNode>()) {
-      ss << op->func_name() << " = PLACEHOLDER " << op.output(0)->shape << "\n";
+      ss << op->name << " = PLACEHOLDER " << op.output(0)->shape << "\n";
     } else if (auto pop = op.as<te::ComputeOpNode>()) {
       for (size_t k = 0; k < pop->body.size(); ++k) {
-        ss << op->func_name() << "(";
+        ss << op->name << "(";
         for (size_t i = 0; i < pop->axis.size(); i++) {
           ss << pop->axis[i]->var->name_hint;
           if (i != pop->axis.size() - 1) {
@@ -1288,14 +1288,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     p->stream << "Read from:\t";
     for (const auto& pair : node->read_from.at(op)) {
       for (const auto& index : pair.second) {
-        p->stream << pair.first->func_name() << Array<PrimExpr>(index) << ", ";
+        p->stream << pair.first->name << Array<PrimExpr>(index) << ", ";
       }
     }
     p->stream << "\n";
     p->stream << "Read by:\t";
     for (const auto& pair : node->read_by.at(op)) {
       for (const auto& index : pair.second) {
-        p->stream << pair.first->func_name() << Array<PrimExpr>(index) << ", ";
+        p->stream << pair.first->name << Array<PrimExpr>(index) << ", ";
       }
     }
     p->stream << "\n";
@@ -1310,8 +1310,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       if (i == j) { continue; }
       if (ana.ElementWiseMatch(node->ops_topo_order[i],
                                node->ops_topo_order[j])) {
-        p->stream << node->ops_topo_order[i]->func_name() << " -> "
-                  << node->ops_topo_order[j]->func_name() << "\n";
+        p->stream << node->ops_topo_order[i]->name << " -> "
+                  << node->ops_topo_order[j]->name << "\n";
       }
     }
   }

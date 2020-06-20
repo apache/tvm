@@ -832,14 +832,14 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state,
     for (size_t j = 0; j < base_indent; ++j) {
       *os << " ";
     }
-    *os << stage->op->func_name()
+    *os << stage->op->name
         << " auto_unroll: " << stage->attrs.auto_unroll_max_step << "\n";
   }
   if (stage->attrs.storage_offset != 0) {
     for (size_t j = 0; j < base_indent; ++j) {
       *os << " ";
     }
-    *os << stage->op->func_name()
+    *os << stage->op->name
         << " storage_offset: " << stage->attrs.storage_offset << "\n";
   }
 
@@ -915,7 +915,7 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state,
   for (size_t j = 0; j < base_indent + indent; ++j) {
     *os << " ";
   }
-  *os << stage->op->func_name() << " = ...\n";
+  *os << stage->op->name << " = ...\n";
 }
 
 void PrintState(std::ostream* os, const StateNode* node,

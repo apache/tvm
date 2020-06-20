@@ -568,7 +568,7 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
       is_gpu = true;
 
       // make a fake for node for blockIdx.x or threadIdx.x
-      Stmt fake_for_node = ForNode::make(var, 0, extent, ForType::Parallel,
+      Stmt fake_for_node = For(var, 0, extent, ForType::Parallel,
               DeviceAPI::None, node->body);
 
       outer_loop_prod *= extent;

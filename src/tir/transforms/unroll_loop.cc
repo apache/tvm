@@ -173,7 +173,7 @@ class LoopUnroller : public StmtExprMutator {
     if (explicit_unroll_max_extent_ > 0 && value > explicit_unroll_max_extent_ && explicit_unroll_) {
       // Do not unroll too long loops
       ForType for_type = op->for_type == ForType::Unrolled ? ForType::Serial : op->for_type;
-      return ForNode::make(op->loop_var, op->min, op->extent, for_type, op->device_api, op->body);
+      return For(op->loop_var, op->min, op->extent, for_type, op->device_api, op->body);
     }
     Stmt body = op->body;
     Map<Var, PrimExpr> vmap;

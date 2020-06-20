@@ -2455,6 +2455,62 @@ the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
     .set_support_level(5)
     .set_attr<FTVMCompute>("FTVMCompute", LayoutTransformCompute);
 
+// relay.kernel_layout_transform
+TVM_REGISTER_NODE_TYPE(KernelLayoutTransformAttrs);
+
+Array<te::Tensor> KernelLayoutTransformCompute(const Attrs& attrs,
+                                               const Array<te::Tensor>& inputs,
+                                               const Type& out_type) {
+  //const Target& target) {
+  const auto* param = attrs.as<KernelLayoutTransformAttrs>();
+  CHECK(param != nullptr);
+  return Array<te::Tensor>{
+      topi::kernel_layout_transform(inputs[0], param->src_layout, param->dst_layout)
+  };
+}
+
+bool KernelLayoutTransformRel(const Array<Type>& types,
+                              int num_inputs,
+                              const Attrs& attrs,
+                              const TypeReporter& reporter) {
+
+  const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
+  const KernelLayoutTransformAttrs* params = attrs.as<KernelLayoutTransformAttrs>();
+
+  Array<IndexExpr> dst_shape;
+  std::vector<std::string> dst_axes;
+
+  topi::parse_kernel_layout(params->dst_layout, &dst_shape, &dst_axes);
+
+  reporter->Assign(types[1], TensorType(dst_shape, data->dtype));
+  return true;
+}
+
+Expr MakeKernelLayoutTransform(Expr data,
+                               String src_layout,
+                               String dst_layout) {
+  auto attrs = make_object<KernelLayoutTransformAttrs>();
+  attrs->src_layout = std::move(src_layout);
+  attrs->dst_layout = std::move(dst_layout);
+  static const Op& op = Op::Get("kernel_layout_transform");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.kernel_layout_transform")
+.set_body_typed(MakeKernelLayoutTransform);
+
+RELAY_REGISTER_OP("kernel_layout_transform")
+    .describe(R"code(Transform the input kernel layout.
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<KernelLayoutTransformAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_type_rel("kernel_layout_transform", KernelLayoutTransformRel)
+    .set_support_level(5)
+    .set_attr<FTVMCompute>("FTVMCompute", KernelLayoutTransformCompute);
+
+
 /* relay._contrib_reverse_reshape */
 Expr MakeReverseReshape(Expr data, Array<Integer> newshape) {
   auto attrs = make_object<ReshapeAttrs>();
