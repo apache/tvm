@@ -289,6 +289,18 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
 /*!
  * \brief Solve linear inequalities.
  * \param system_to_solve the variables to solve, their ranges, and a list of inequalities.
+ *        The inequalities are rewritten using Fourier-Motzkin elimination.
+ *        This function takes an array of (in)equalities and an array of variables, and essentially
+ *        rewrites the (in)equalities into an array of (in)equalities of the following form,
+ *
+ *        x0 >= f0(x1, x2, ..., xn)
+ *        x0 <= g0(x1, x2, ..., xn)
+ *        x1 >= f1(x2, ..., xn)
+ *        x1 <= g1(x2, ..., xn)
+ *        ...
+ *        xn >= fn()  // just a constant
+ *        xn <= gn()  // just a constant
+ *
  * \return A map of variables and their solved bounds,
  *         and constrains that cannot be solved to bounds.
  */
