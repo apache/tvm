@@ -145,7 +145,17 @@ Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
       // If it is provable that the new one is strictly better than the current best one,
       // then replace it. Note that we are biased towards earlier pairs which should be simpler.
       if (!best_diff_over.defined() || analyzer.CanProve(diff_over - best_diff_over < 0)) {
-        best_lower = low_divided;
+        if (tir::is_const_int(diff_over, 0)) {
+          // we need to be very careful with equations,
+          // as the division cannot be rounded in such case.
+          if (tir::is_const(best_lower) && !analyzer.CanProve(floormod(low, coef) == 0)) {
+            // we don't support non-integer case so far.
+            return Range::make_by_min_extent(best_lower, 0);
+          }
+          best_lower = analyzer.Simplify(low / coef);
+        } else {
+          best_lower = low_divided;
+        }
         best_diff_over = diff_over;
       }
     }

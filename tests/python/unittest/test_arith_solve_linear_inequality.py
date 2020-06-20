@@ -83,12 +83,7 @@ def test_solve_system_of_inequalities():
         after = te.all(tir.const(1, 'bool'), *after)
         testing.check_bool_expr_is_true(before == after, vranges)
 
-        print("-------------")
-        print(fs)
-        print(vs)
-        print(vranges)
         solution = arith.solve_linear_inequalities(fs, vs, vranges, deskew_range=True)
-        print(solution)
         check_solution(solution)
 
     for i in range(3):
@@ -209,5 +204,4 @@ def test_multi_equal():
 
 
 if __name__ == "__main__":
-    test_solve_system_of_inequalities()
-    # pytest.main([__file__])
+    pytest.main([__file__])
