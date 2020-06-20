@@ -29,11 +29,12 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 
+#include <string>
 #include <tuple>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <string>
 
 #include "json_node.h"
 
@@ -47,16 +48,19 @@ namespace json {
  */
 class JSONRuntimeBase : public ModuleNode {
  public:
-  explicit JSONRuntimeBase(const std::string& graph_json) {
-    LoadGraph(graph_json);
+  JSONRuntimeBase(const std::string& symbol_name, const std::string& graph_json,
+                  const Array<String> const_names)
+      : symbol_name_(symbol_name), graph_json_(graph_json), const_names_(const_names) {
+    LoadGraph(graph_json_);
   }
 
-  // The type key of each subclass can be saved to the json file and them
-  // used to create the specific runtime during deserialization.
-  // virtual const char* type_key() const = 0;
   const char* type_key() const { return "json"; }
 
-  virtual void Init() { LOG(FATAL) << "NYI"; }
+  /*! \brief Initialize a specific json runtime. */
+  virtual void Init(const Array<NDArray>& consts) = 0;
+
+  /*! \brief Invoke the execution engine to inteprete a specific json runtime. */
+  virtual void Run() = 0;
 
   /*!
    * \brief Get a packed function.
@@ -64,43 +68,48 @@ class JSONRuntimeBase : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The packed function.
    */
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self) {
-    return PackedFunc();
-  }
-
-  // Run(TVMValue*,value, int* type_code, int nargs), or
-  // Run(TVMArgs arg, TVMRetValue rv) ?
-  virtual void Run() { LOG(FATAL) << "NYI"; }
-
-  void SetInput(const std::string& name, const NDArray& data) {
-    auto it = input_map_.find(name);
-    CHECK(it != input_map_.end()) << "Not found input: " << name;
-    SetInput(it->second, data);
-  }
-
-  void SetInput(uint32_t index, const NDArray& data) {
-    CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
-    uint32_t eid = EntryID(input_nodes_[index], 0);
-    data_entry_[eid] = data;
-  }
-
-  size_t NumOutputs() const { return outputs_.size(); }
-
-  ObjectRef GetOutput() {
-    // Return the NDArray directly if there is only one outpput.
-    if (NumOutputs() == 1) {
-      uint32_t eid = EntryID(outputs_[0]);
-      return data_entry_[eid];
+  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+    if (name == "get_symbol") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_name_; });
+    } else if (name == "get_const_vars") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->const_names_; });
+    } else {
+      return PackedFunc(nullptr);
     }
+  }
 
-    // We need to return an ADTObj if there are multiple outputs.
-    std::vector<ObjectRef> outs;
-    for (size_t i = 0; i < NumOutputs(); i++) {
-      uint32_t eid = EntryID(outputs_[i]);
-      outs.push_back(data_entry_[eid]);
+  virtual void SaveToBinary(dmlc::Stream* stream) {
+    // Save the symbol
+    stream->Write(symbol_name_);
+    // Save the graph
+    stream->Write(graph_json_);
+    // Save the required const names
+    std::vector<std::string> consts;
+    for (const auto& it : const_names_) {
+      consts.push_back(it);
     }
-    return ADT::Tuple(outs);
+    stream->Write(consts);
+  }
+
+  template <typename T,
+            typename = typename std::enable_if<std::is_base_of<JSONRuntimeBase, T>::value>::type>
+  static Module LoadFromBinary(void* strm) {
+    dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+    std::string symbol;
+    std::string graph_json;
+    std::vector<std::string> consts;
+    // Load the symbol
+    CHECK(stream->Read(&symbol)) << "Loading symbol name failed";
+    CHECK(stream->Read(&graph_json)) << "Loading graph json failed";
+    CHECK(stream->Read(&consts)) << "Loading the const name list failed";
+    Array<String> const_names;
+    for (const auto& it : consts) {
+      const_names.push_back(it);
+    }
+    auto n = make_object<T>(symbol, graph_json, const_names);
+    return Module(n);
   }
 
  protected:
@@ -108,7 +117,6 @@ class JSONRuntimeBase : public ModuleNode {
     std::istringstream is(graph_json);
     dmlc::JSONReader reader(&is);
     this->Load(&reader);
-
     for (size_t i = 0; i < input_nodes_.size(); i++) {
       uint32_t nid = input_nodes_[i];
       std::string& name = nodes_[nid].name_;
@@ -135,21 +143,21 @@ class JSONRuntimeBase : public ModuleNode {
   }
 
   // Get the node entry index.
-  uint32_t EntryID(uint32_t nid, uint32_t index) const {
-    return node_row_ptr_[nid] + index;
-  }
+  uint32_t EntryID(uint32_t nid, uint32_t index) const { return node_row_ptr_[nid] + index; }
 
   // Get the node entry index.
-  uint32_t EntryID(const JSONGraphNodeEntry& e) const {
-    return EntryID(e.id_, e.index_);
-  }
+  uint32_t EntryID(const JSONGraphNodeEntry& e) const { return EntryID(e.id_, e.index_); }
 
   // Number of node entries.
-  uint32_t NumEntries() const {
-    return node_row_ptr_.back();
-  }
+  uint32_t NumEntries() const { return node_row_ptr_.back(); }
 
  protected:
+  /* The only subgraph name for this module. */
+  std::string symbol_name_;
+  /* The graph. */
+  std::string graph_json_;
+  /* The required constant names. */
+  Array<String> const_names_;
   /*! \brief The json graph nodes. */
   std::vector<JSONGraphNode> nodes_;
   /*! \brief The input nodes, including variables and constants. */
