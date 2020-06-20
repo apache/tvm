@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,unnecessary-comprehension
 """ TVM testing utilities """
 import logging
 import numpy as np
@@ -232,7 +232,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
                              .format(ana.simplify(bool_expr), vranges, counterex))
 
 
-def check_int_constraints_trans_consistency(constraints_trans, vranges={}):
+def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
     """ Check IntConstraintsTransform is a bijective transformation.
 
     Parameters
@@ -242,6 +242,9 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges={}):
     vranges: Dict[tvm.tir.expr.Var, tvm.ir.Range]
         Free variables and their ranges
     """
+    if vranges is None:
+        vranges = {}
+
     def _check_forward(constraints1, constraints2, varmap, backvarmap):
         ana = tvm.arith.Analyzer()
         all_vranges = vranges.copy()
