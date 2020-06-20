@@ -24,6 +24,7 @@
 #ifndef TVM_NODE_ATTR_REGISTRY_H_
 #define TVM_NODE_ATTR_REGISTRY_H_
 
+#include <tvm/node/attr_registry_map.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/packed_func.h>
 

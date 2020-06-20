@@ -289,6 +289,14 @@ class Registry {
 #define TVM_REGISTER_GLOBAL(OpName) \
   TVM_STR_CONCAT(TVM_FUNC_REG_VAR_DEF, __COUNTER__) = ::tvm::runtime::Registry::Register(OpName)
 
+#define TVM_STRINGIZE_DETAIL(x) #x
+#define TVM_STRINGIZE(x) TVM_STRINGIZE_DETAIL(x)
+#define TVM_DESCRIBE(...) describe(__VA_ARGS__ "\n\nFrom:" __FILE__ ":" TVM_STRINGIZE(__LINE__))
+/*!
+ * \brief Macro to include current line as string
+ */
+#define TVM_ADD_FILELINE "\n\nDefined in " __FILE__ ":L" TVM_STRINGIZE(__LINE__)
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_REGISTRY_H_
