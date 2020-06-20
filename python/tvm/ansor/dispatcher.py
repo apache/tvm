@@ -15,16 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Template dispatcher module.
-
-A dispatcher is a function that can contains multiple behaviors.
-Its specific behavior is can be controlled by DispatchContext.
-
-DispatchContext is used in two ways, usually via different implementation
-of the DispatchContext base class.
-
-- During search, we can use it to pass the current proposal from tuner.
-- During evaluation, we can use it to set pick the best policy.
+The global context that dispatches best configurations to workloads
 """
 # pylint: disable=invalid-name
 
@@ -33,9 +24,7 @@ from __future__ import absolute_import as _abs
 import logging
 
 import numpy as np
-from decorator import decorate
 
-from tvm import target as _target
 from tvm.tir.expr import FloatImm
 
 logger = logging.getLogger('auto_scheduler')
@@ -44,9 +33,6 @@ logger = logging.getLogger('auto_scheduler')
 class DispatchContext(object):
     """
     Base class of dispatch context.
-
-    DispatchContext enables the target and workload
-    specific dispatch mechanism for templates.
     """
     current = None 
 
@@ -55,7 +41,7 @@ class DispatchContext(object):
 
     def query(self, target, workload):
         """
-        Query the context to get the specific config for a template.
+        Query the context to get the specific config for a workload.
         If cannot find the result inside this context, this function will query it
         from the upper contexts.
 
@@ -63,22 +49,20 @@ class DispatchContext(object):
         ----------
         target: Target
             The current target
-        workload : Workload
-            The current workload.
+        workload : str
+            The current workload
 
         Returns
         -------
-        cfg : State or str
-            The specific state for auto scheduler.
+        cfg : State
+            The schedule configuration for the workload
         """
         ret = self._query_inside(target, workload)
-        #if ret is None:
-        #    ret = self._old_ctx.query(target, workload)
         return ret
 
     def update(self, target, workload, cfg):
         """
-        Update context with a specific config.
+        Update the config for a workload
 
         Parameters
         ----------
@@ -86,46 +70,14 @@ class DispatchContext(object):
             The current target
         workload : Workload
             The current workload.
-        cfg : State or str
-            The specific state for auto scheduler.
-
-        Note
-        ----
-        This interface is for cases when TVM decides to replace an operator in the graph.
-        For example, `AlterOpLayout` pass (enables when `opt_level = 3`) replaces `NCHW`
-        convolution with `NCHW[x]c` implementation on x86 CPUs.
-        Thus in TOPI, we first query schedule using original `NCHW` workload,
-        then update the dispatcher with the new `NCHW[x]c` workload.
-        So that later on, `NCHW[x]c` convolution can get schedule from the dispatcher using
-        its own workload directly.
-
-        .. code-block:: python
-
-            @conv2d_alter_layout.register("cpu")
-            def _alter_conv2d_layout(attrs, inputs, tinfo):
-                workload = get_conv2d_workload(...)
-                dispatch_ctx = auto_scheduler.DispatchContext.current
-                target = tvm.target.current_target()
-                config = dispatch_ctx.query(target, workload)
-
-                # Get conv2d_NCHWc workload from config
-                # new_workload = ...
-                # new_inputs = ...
-                # new_attrs = ...
-
-                # Store altered operator's config
-                dispatch_ctx.update(target, new_workload, config)
-                return sym.contrib.conv2d_NCHWc(*new_inputs, **new_attrs)
-
-        We directly store `config` back because `conv2d_NCHW` and `conv2d_NCHWc`
-        share the same schedule parameters.
-        One can construct a new `State` if this is not the case.
+        cfg : State
+            The schedule configuration for the workload
         """
         raise NotImplementedError()
 
     def _query_inside(self, target, workload):
         """
-        Query the context to get the specific config for a template.
+        Query the context to get the specific config for a workload.
         This function only query config inside this context.
 
         Parameters
@@ -138,7 +90,7 @@ class DispatchContext(object):
         Returns
         -------
         cfg : State or str
-            The specific state for auto scheduler.
+            The schedule configuration for the workload
         """
         raise NotImplementedError()
 
@@ -151,78 +103,13 @@ class DispatchContext(object):
         DispatchContext.current = self._old_ctx
 
 
-def dispatcher(fworkload):
-    """Wrap a workload dispatcher function.
-
-    Parameters
-    ----------
-    fworkload : function
-        The workload extraction function from arguments.
-
-    Returns
-    -------
-    fdispatcher : function
-        A wrapped dispatcher function, which will
-        dispatch based on DispatchContext and
-        the current workload.
-    """
-    dispatch_dict = {}
-    func_name = fworkload.__name__
-
-    def register(key, func=None, override=False):
-        """Register template function.
-
-        Parameters
-        ----------
-        key : str or List of str
-            The template key to identify the template
-            under this dispatcher.
-        func : function
-            The function to be registered.
-            The first argument of the function is always
-            cfg returned by DispatchContext,
-            the rest arguments are the same as the fworkload.
-        override : bool
-            Whether override existing registration.
-
-        Returns
-        -------
-        The register function if necessary.
-        """
-        if isinstance(key, str):
-            key = [key]
-
-        def _do_reg(myf):
-            for x in key:
-                if x in dispatch_dict and not override:
-                    raise ValueError(
-                        "Key %s is already registered for %s" % (x, func_name))
-                dispatch_dict[x] = myf
-            return myf
-
-        if func:
-            return _do_reg(func)
-        return _do_reg
-
-    def dispatch_func(func, *args, **kwargs):
-        """The wrapped dispatch function"""
-        tgt = _target.current_target()
-        workload = func(*args, **kwargs)
-        cfg = DispatchContext.current.query(tgt, workload)
-        return dispatch_dict['direct'](cfg, *args, **kwargs)
-
-    fdecorate = decorate(fworkload, dispatch_func)
-    fdecorate.register = register
-    return fdecorate
-
-
 class ApplyConfig(DispatchContext):
-    """Apply a deterministic config entity for all queries.
+    """Apply a deterministic config for all queries.
 
     Parameters
     ----------
     config : State
-        The specific state for auto scheduler.
+        The schedule configuration
     """
     def __init__(self, config):
         super(ApplyConfig, self).__init__()
@@ -361,9 +248,7 @@ class ApplyHistoryBest(DispatchContext):
 class FallbackContext(DispatchContext):
     """
     A fallback dispatch context.
-
-    Any tunable template can be called under this context.
-    This is the root context.
+    This is used as the root context.
     """
 
     def __init__(self):
@@ -387,7 +272,7 @@ class FallbackContext(DispatchContext):
                 logger.warning(msg)
         cfg = None
 
-        # cache this config
+        # cache this config to avoid duplicated warning message
         self.memory[key] = cfg
         return cfg
 
@@ -412,91 +297,3 @@ class FallbackContext(DispatchContext):
 
 
 DispatchContext.current = FallbackContext()
-
-
-def clear_fallback_cache(target, workload):
-    """Clear fallback cache. Pass the same argument as _query_inside to this function
-    to clean the cache.
-
-    Parameters
-    ----------
-    target: Target
-        The current target
-    workload : Workload
-        The current workload.
-
-    Note
-    ----
-    This is used in alter_op_layout to clear the bad cache created before call topi compute function
-    """
-    context = DispatchContext.current
-    while not isinstance(context, FallbackContext):
-        context = context._old_ctx
-    context.clear_cache(target, workload)
-
-
-class ApplyGraphBest(DispatchContext):
-    """Load the graph level tuning optimal schedules.
-
-    The input records should be in the ascending order of
-    node index for target operator. Usually this can be obtained
-    with graph tuner.
-
-    This context maintains an internal counter to indicate the current
-    node index.
-    """
-    def __init__(self, records):
-        """
-        Parameters
-        ----------
-        records : str or iterator of (MeasureInput, MeasureResult)
-            Collection of tuning records.
-            If is str, then it should be the filename of a records log file.
-                   Each row of this file is an encoded record pair.
-            Otherwise, it is an iterator.
-        """
-        from . import load_from_file
-
-        super(ApplyGraphBest, self).__init__()
-        if isinstance(records, str):
-            records = load_from_file(records)
-        self._records = list(records)
-        self._counter = 0
-        self._global_cfg_dict = {}
-
-    def _query_inside(self, target, workload):
-        """
-        Query the context to get config from records.
-
-        Parameters
-        ----------
-        target : Target
-            The current target
-        workload : Workload
-            The current workload.
-
-        Returns
-        -------
-        cfg : State or str
-            The specific state for auto scheduler.
-        """
-        if self._counter < len(self._records):
-            cfg = self._records[self._counter][0].config
-            self._counter += 1
-            self.update(target, workload, cfg)
-            return cfg
-        key = (str(target), workload)
-        if key not in self._global_cfg_dict:
-            msg = "Config for target=%s, workload=%s is missing in ApplyGraphBest context. " \
-                  "A fallback configuration is used, which may bring great performance " \
-                  "regression." % (target, workload)
-            logger.warning(msg)
-            cfg = None
-            self._global_cfg_dict[key] = cfg
-        else:
-            cfg = self._global_cfg_dict[key]
-        return cfg
-
-    def update(self, target, workload, cfg):
-        key = (str(target), workload)
-        self._global_cfg_dict[key] = cfg

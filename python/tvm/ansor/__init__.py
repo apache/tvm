@@ -40,7 +40,7 @@ from .workload_registry import register_auto_scheduler_workload_func, \
     workload_key_to_dag, make_workload_key_func
 from .task_scheduler import TaskScheduler, SimpleTaskScheduler
 from .dispatcher import DispatchContext, ApplyConfig, ApplyHistoryBest as apply_history_best, \
-    FallbackContext, clear_fallback_cache, ApplyGraphBest
+    FallbackContext
 from .relay_integration import extract_from_program, extract_from_multiple_program, \
     finish_layout_rewrite, prepare_layout_rewrite, auto_schedule_topi
 from .env import GLOBAL_SCOPE

@@ -16,16 +16,14 @@
 # under the License.
 
 """Cost model based on xgboost"""
-from typing import List
 import multiprocessing
 import logging
-import time
 from collections import defaultdict
 
 import numpy as np
 import xgboost as xgb
 
-from ...autotvm.tuner.xgboost_cost_model import get_rank, recall_curve, max_curve
+from tvm.autotvm.tuner.xgboost_cost_model import get_rank, recall_curve, max_curve
 from .cost_model import PythonBasedModel
 from ..feature import get_per_stmt_features_from_measure_pairs, get_per_stmt_features_from_states
 from ..serialization import LogReader
@@ -65,8 +63,8 @@ class XGBModel(PythonBasedModel):
             # todo(lmzheng): automatically decrease learning rate when the loss is too large
 
             'n_gpus': 0,
-            'n_threads': multiprocessing.cpu_count() / 2,
-            'silent': 0,
+            'nthread': multiprocessing.cpu_count() // 2,
+            'verbosity': 0,
             'seed': seed or 43,
             'disable_default_eval_metric': 1
         }
@@ -180,7 +178,7 @@ def pack_sum_xgbmatrix_for_prediction(xs):
             x_flatten.append(row)
             pack_ids.append(ct)
 
-    return xgb.DMatrix(x_flatten), pack_ids
+    return xgb.DMatrix(np.array(x_flatten)), pack_ids
 
 
 def pack_sum_xgbmatrix(xs, ys, gids=None, weights=None):
@@ -214,7 +212,7 @@ def pack_sum_xgbmatrix(xs, ys, gids=None, weights=None):
                 y_flatten.append(y)
                 pack_ids.append(ct)
 
-    ret = xgb.DMatrix(x_flatten, y_flatten)
+    ret = xgb.DMatrix(np.array(x_flatten), y_flatten)
     if weights is not None:
         ret.set_weight(weights_flatten)
     dmatrix_context.put('pack_ids', ret, np.array(pack_ids))

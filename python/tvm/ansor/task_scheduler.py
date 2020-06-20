@@ -147,13 +147,12 @@ class SimpleTaskScheduler(TaskScheduler):
     def tune(self, tune_option: TuneOption, search_policy: Union[str, List[SearchPolicy]] = 'default'):
         """ Tune tasks.
 
-            Notice: This method does not have return value, make sure to set `LogToFile`
-            measure callback in `tune_option`.
+        Notice: This method does not have return value, make sure to set `LogToFile`
+        measure callback in `tune_option`.
 
         Parameters
         ----------
         tune_option: TuneOption
-
         search_policy: Str or List[SearchPolicy]
         """
         # init members

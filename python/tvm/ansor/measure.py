@@ -230,7 +230,8 @@ class RPCRunner(Runner):
 
 
 class LocalRPCMeasureContext:
-    """ A context wrapper for RPCRunner.
+    """ A context wrapper for running RPCRunner locally.
+    This will launch a local RPC Tracker and local RPC Server.
 
     Parameters
     ----------
@@ -276,10 +277,10 @@ class MeasureErrorNo(object):
     """Error type for MeasureResult"""
     NO_ERROR = 0              # No error
     INSTANTIATION_ERROR = 1   # Errors happen when apply transform steps from init state
-    # Errors happen when compiling code on host (e.g. tvm.build)
+                              # Errors happen when compiling code on host (e.g. tvm.build)
     COMPILE_HOST = 2
     COMPILE_DEVICE = 3        # Errors happen when compiling code on device
-    # (e.g. OpenCL JIT on the device)
+                              # (e.g. OpenCL JIT on the device)
     RUNTIME_DEVICE = 4        # Errors happen when run program on device
     WRONG_ANSWER = 5          # Answer is wrong when compared to a reference output
     BUILD_TIMEOUT = 6         # Timeout during compilation
@@ -288,6 +289,7 @@ class MeasureErrorNo(object):
 
 
 def make_error_msg():
+    """Get the error message from traceback"""
     error_msg = str(traceback.format_exc())
     if len(error_msg) > MAX_ERROR_MSG_LEN:
         error_msg = error_msg[:MAX_ERROR_MSG_LEN//2] + \

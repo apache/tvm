@@ -53,6 +53,8 @@ class ComputeDAG(Object):
 
     def apply_steps_from_state(self, state, layout_rewrite_level=LayoutRewriteLevel.NO_REWRITE):
         """
+        Apply transform steps according to the history of a state
+
         Parameters
         ----------
         state : StateObject
@@ -68,6 +70,8 @@ class ComputeDAG(Object):
 
     def print_python_code_from_state(self, state):
         """
+        Print transform steps in the history of a state as TVM's python schedule primitive
+
         Parameters
         ----------
         state : StateObject
@@ -81,6 +85,23 @@ class ComputeDAG(Object):
 
     def infer_bound_from_state(self, state):
         """
+        Infer bound for a state
+
+        Parameters
+        ----------
+        state : StateObject
+
+        Returns
+        -------
+        state : State
+        """
+        state_obj = state if isinstance(state, StateObject) else state.state_object
+        return State(_ffi_api.ComputeDAGInferBoundFromState(self, state_obj), self)
+
+    def rewrite_layout_from_state(self, state: State):
+        """
+        Rewrite the layout according to the transform steps in the history of a state
+
         Parameters
         ----------
         state : StateObject
@@ -89,8 +110,4 @@ class ComputeDAG(Object):
         -------
         state : StateObject
         """
-        state_obj = state if isinstance(state, StateObject) else state.state_object
-        return State(_ffi_api.ComputeDAGInferBoundFromState(self, state_obj), self)
-
-    def rewrite_layout_from_state(self, state: State):
         return _ffi_api.ComputeDAGRewriteLayoutFromState(self, state)

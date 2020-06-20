@@ -26,18 +26,20 @@ from .. import _ffi_api
 
 @tvm._ffi.register_object("ansor.CostModel")
 class CostModel(Object):
+    """The base class for cost model"""
     pass
 
 
 @tvm._ffi.register_object("ansor.RandomModel")
 class RandomModel(Object):
+    """A model returns random estimation for all inputs"""
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.RandomModel)
 
 
-# A random number generator func for c++'s RandomModel
 @tvm._ffi.register_func("ansor.cost_model.random_number")
 def random_number(n, return_ptr):
+    """ A random number generator func for c++'s RandomModel """
     if n == 0:
         return
     return_ptr = ctypes.cast(return_ptr, ctypes.POINTER(ctypes.c_float))
@@ -47,6 +49,7 @@ def random_number(n, return_ptr):
 
 @tvm._ffi.register_object("ansor.PythonBasedModel")
 class PythonBasedModel(CostModel):
+    """Base class for cost models implemented in python"""
     def __init__(self):
         def update_func(inputs, results):
             self.update(inputs, results)

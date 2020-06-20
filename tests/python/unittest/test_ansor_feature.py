@@ -148,4 +148,3 @@ if __name__ == "__main__":
     test_cpu_matmul()
     test_cpu_fusion()
     test_gpu_feature()
-

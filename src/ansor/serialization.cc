@@ -55,7 +55,6 @@ template <>
 struct Handler<std::vector<::tvm::ansor::Stage> > {
   inline static void Write(dmlc::JSONWriter* writer,
                            const std::vector<::tvm::ansor::Stage> & data) {
-    // todo(lmzheng): support serialization of Stage
     writer->BeginArray(false);
     writer->EndArray();
   }
@@ -456,7 +455,7 @@ namespace ansor {
 TVM_REGISTER_OBJECT_TYPE(LogToFileNode);
 TVM_REGISTER_OBJECT_TYPE(LogReaderNode);
 
-const std::string ANSOR_LOG_VERSION = "v0.1";    // NOLINT(*)
+const std::string ANSOR_LOG_VERSION = "v0.2";    // NOLINT(*)
 
 MeasureCallback LogToFileNode::make(std::string filename) {
   auto node = make_object<LogToFileNode>();

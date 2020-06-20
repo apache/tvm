@@ -64,6 +64,7 @@ class LogReader(Object):
                 break
             yield ret[0], ret[1]  # (input, result)
 
+
 def load_from_file(filename: str):
     """Load measurement records from a file"""
     return zip(*LogReader(filename).read_lines())

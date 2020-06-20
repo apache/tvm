@@ -97,7 +97,6 @@ class MetaTileRewritePolicy(SearchPolicy):
     seed: int
         Random seed
     """
-
     def __init__(self,
                  program_cost_model,
                  params=None,

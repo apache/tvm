@@ -17,7 +17,6 @@
 
 """"
 Python API for Feature extraction.
-The specification of features can be found in `autoscheduler_doc/per_stage_feature.md`
 """
 
 from typing import List, Tuple
