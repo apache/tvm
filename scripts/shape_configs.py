@@ -1,5 +1,5 @@
-""" Shape configurations for single operator evaluation
-This file is shared by tune_all_single_op.py and scripts in baseline/
+""" Shape configurations for single operator / subgraph evaluation
+This file is shared by tune_op_subgraph.py and scripts in scripts/baseline/
 """
 
 matmul_shapes = [
@@ -142,13 +142,6 @@ norm_shapes = [
     (1, 4096, 1024),
 ]
 
-softmax_shapes = [
-    (1, 1024),
-    (1, 4096),
-    (1, 16384),
-    (1, 65536),
-]
-
 single_op_shape_dict = {
     'C1D': conv1d_shapes,
     'C2D': conv2d_shapes,
@@ -160,12 +153,11 @@ single_op_shape_dict = {
     'T2D': conv2d_transpose_shapes,
     'CAP': conv2d_capsule_shapes,
     'NRM': norm_shapes,
-    #'SMX': softmax_shapes,
 
 #    The following workloads are not in our sinle op evaluation plan.
 #    They should be moved to `common.py` and be used by `tune_wkl.py`.
 #    'C2D_NCHW': conv2d_nchw_shapes,
-    'C2DWG_NHWC': conv2d_winograd_nhwc_shapes,
+#    'C2DWG_NHWC': conv2d_winograd_nhwc_shapes,
 #    'C2DWG_NCHW': conv2d_winograd_nchw_shapes,
 #    'GMM_TC': matmul_tensor_core_shapes,
 }
@@ -192,19 +184,9 @@ transpose_batch_matmul_shapes = [
     (16,  128, 12, 128),
 ]
 
-
-batch_norm_shapes = [
-    (16, 256),
-    (16, 1024),
-    (16, 4096),
-    (16, 16384),
-    (16, 65536),
-]
-
 subgraph_shape_dict = {
     "conv2d_bn_relu": conv2d_bn_relu_shapes,
     "transpose_batch_matmul": transpose_batch_matmul_shapes,
-    #"batch_norm": batch_norm_shapes,
 }
 
 resnet_shapes = [

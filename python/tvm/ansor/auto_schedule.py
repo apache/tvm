@@ -83,17 +83,19 @@ class SearchPolicy(Object):
         _ffi_api.SearchPolicyRunCallbacks(self, callbacks)
 
 
-@tvm._ffi.register_object("ansor.MetaTileRewritePolicy")
-class MetaTileRewritePolicy(SearchPolicy):
-    """ The search policy that searches with meta tiling and random rewrite
+@tvm._ffi.register_object("ansor.SketchSearchPolicy")
+class SketchSearchPolicy(SearchPolicy):
+    """  The search policy that searches in a hierarchical search space defined by sketches.
+    The policy randomly samples programs from the space defined by sketches
+    and use evolutionary search to fine-tune them.
 
     Parameters
     ----------
     program_cost_model: CostModel
         Cost model for programs
     params: int
-        Parameters of the search policy, go meta_tile_rewrite_policy.h to find the
-        definitions. See code below to find the default values
+        Parameters of the search policy. See `src/ansor/search_policy/sketch_search_policy.h`
+        to find the definitions. See code below to find the default values
     seed: int
         Random seed
     """
@@ -124,7 +126,7 @@ class MetaTileRewritePolicy(SearchPolicy):
                     params[key] = value
 
         self.__init_handle_by_constructor__(
-            _ffi_api.MetaTileRewritePolicy, program_cost_model, params,
+            _ffi_api.SketchSearchPolicy, program_cost_model, params,
             seed or random.randint(1, 1 << 30))
 
 
@@ -148,16 +150,16 @@ class PreloadMeasuredStates(SearchCallback):
             _ffi_api.PreloadMeasuredStates, filename)
 
 
-@tvm._ffi.register_object("ansor.PreAddCustomRule")
-class PreAddCustomRule(SearchCallback):
+@tvm._ffi.register_object("ansor.PreloadCustomSketchRule")
+class PreloadCustomSketchRule(SearchCallback):
     """
-    A SearchCallback for MetaTileRewritePolicy that allowing users to add
+    A SearchCallback for SketchSearchPolicy that allowing users to add
     custom sketch rule.
 
     Notes
     -----
     This is an advanced feature. Make sure you're clear how it
-    works and this should only be used in MetaTileRewritePolicy.
+    works and this should only be used in SketchSearchPolicy.
 
     Parameters
     ----------
@@ -168,7 +170,7 @@ class PreAddCustomRule(SearchCallback):
     """
     def __init__(self, meet_condition_func, apply_func):
         self.__init_handle_by_constructor__(
-            _ffi_api.PreAddCustomRule, meet_condition_func, apply_func)
+            _ffi_api.PreloadCustomSketchRule, meet_condition_func, apply_func)
 
 
 @tvm._ffi.register_object("ansor.TuneOption")
@@ -197,7 +199,7 @@ class TuneOption(Object):
       Callback functions called before the search process
       Candidates:
         - ansor.PreloadMeasuredStates
-        - ansor.PreAddCustomRule
+        - ansor.PreloadCustomSketchRule
     """
     def __init__(self, n_trials=0, early_stopping=-1, num_measure_per_iter=64,
                  verbose=1, builder='local', runner='local', measure_callbacks=None,
@@ -249,7 +251,7 @@ def auto_schedule(workload, target=None,
     """
     if isinstance(search_policy, str):
         if search_policy == 'default':
-            search_policy = MetaTileRewritePolicy(RandomModel())
+            search_policy = SketchSearchPolicy(RandomModel())
         else:
             raise ValueError("Invalid search policy: " + search_policy)
 

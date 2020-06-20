@@ -14,7 +14,7 @@ import topi
 import tvm
 from tvm import te
 from tvm.ansor import (LogReader, make_workload_key_func,
-                       register_auto_scheduler_workload_func,
+                       register_workload_func,
                        write_measure_records_to_file)
 from tvm.contrib import ndk, util
 
@@ -22,28 +22,28 @@ from tvm.contrib import ndk, util
 ######################  Test Workloads  ####################
 ############################################################
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def min_mn(M, N):
     A = te.placeholder((M, N), name='A')
     B = topi.min(A, axis=1)
 
     return [A, B]
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def argmin_mn(M, N):
     A = te.placeholder((M, N), name='A')
     B = topi.argmin(A, axis=1)
 
     return [A, B]
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def softmax_mn(M, N):
     A = te.placeholder((M, N), name='A')
     B = topi.nn.softmax(A, axis=1)
 
     return [A, B]
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def norm_bmn(B, M, N):
     A = te.placeholder((B, M, N), name='A')
     i = te.reduce_axis((0, M))
@@ -53,7 +53,7 @@ def norm_bmn(B, M, N):
 
     return [A, D]
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def add_mn(M, N):
     A = te.placeholder((M, N), name='A')
     B = te.placeholder((M, N), name='B')
@@ -61,7 +61,7 @@ def add_mn(M, N):
 
     return [A, B, C]
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def matmul_nkkm(N, M, K, in_type='float32', out_type='float32',
                 tensor_core_support=False):
     A = te.placeholder((N, K), name='A', dtype=in_type)
@@ -73,7 +73,7 @@ def matmul_nkkm(N, M, K, in_type='float32', out_type='float32',
         C = te.compute((N, M),
                         lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]),
                         name='C',
-                        attrs={"auto_scheduler_tensor_core_support": "True" if tensor_core_support else "False"})
+                        attrs={"ansor_tensor_core_support": "True" if tensor_core_support else "False"})
     else:
         if not ((in_type == 'float16' and out_type == 'float32') or \
                 (in_type == 'int8' and out_type == 'int32')):
@@ -82,11 +82,11 @@ def matmul_nkkm(N, M, K, in_type='float32', out_type='float32',
                         lambda i, j: te.sum(A[i][k].astype(out_type) * B[k][j].astype(out_type),
                                              axis=[k]),
                         name='C',
-                        attrs={"auto_scheduler_tensor_core_support": "True" if tensor_core_support else "False"})
+                        attrs={"ansor_tensor_core_support": "True" if tensor_core_support else "False"})
 
     return [A, B, C]
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def dense_layer(batch, in_dim, out_dim):
     A = te.placeholder((batch, in_dim), name='A')
     B = te.placeholder((out_dim, in_dim), name='B')
@@ -95,7 +95,7 @@ def dense_layer(batch, in_dim, out_dim):
 
     return [A, B, C]
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def max_pool_2d_nchw(N, C, H, W):
     data = te.placeholder((N, C, H, W), name='data')
     out = topi.nn.pool(data, (2, 2), (1, 1), (0, 0, 0, 0), pool_type='max', ceil_mode=True,
@@ -103,7 +103,7 @@ def max_pool_2d_nchw(N, C, H, W):
 
     return [data, out]
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def add_min_relu(M, N):
     A = te.placeholder((M, N), name='A')
     B = te.placeholder((M, N), name='B')
@@ -112,7 +112,7 @@ def add_min_relu(M, N):
     out = topi.nn.relu(D)
     return [A, B, out]
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def conv2d_relu_softmax_min(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
     data = te.placeholder((N, CI, H, W), name='data')
     kernel = te.placeholder((CO, CI, KH, KW), name='kernel')
@@ -123,7 +123,7 @@ def conv2d_relu_softmax_min(N, H, W, CI, CO, KH, KW, strides, padding, dilation)
 
     return [data, kernel, out]
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def conv2d_nchw_bias(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
     data = te.placeholder((N, CI, H, W), name='data')
     kernel = te.placeholder((CO, CI, KH, KW), name='kernel')
@@ -190,7 +190,7 @@ def conv2d_nhwc_without_layout_rewrite(Input, Filter, stride, padding, dilation,
     return Output
 
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def conv2d_nhwc_bias_with_rewrite(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
     data = te.placeholder((N, H, W, CI), name='data')
     kernel = te.placeholder((KH, KW, CI, CO), name='kernel')
@@ -199,7 +199,7 @@ def conv2d_nhwc_bias_with_rewrite(N, H, W, CI, CO, KH, KW, strides, padding, dil
     out = topi.add(conv, bias)
     return [data, kernel, bias, out]
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def depthwise_conv2d_nhwc_bias_with_rewrite(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
     data = te.placeholder((N, H, W, CI), name='data')
     kernel = te.placeholder((KH, KW, CI, 1), name='kernel')
@@ -208,7 +208,7 @@ def depthwise_conv2d_nhwc_bias_with_rewrite(N, H, W, CI, CO, KH, KW, strides, pa
     out = topi.add(conv, bias)
     return [data, kernel, bias, out]
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def conv2d_nhwc_bias(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
     data = te.placeholder((N, H, W, CI), name='data')
     kernel = te.placeholder((KH, KW, CI, CO), name='kernel')
@@ -218,7 +218,7 @@ def conv2d_nhwc_bias(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
     return [data, kernel, bias, out]
 
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def conv2d_nchw_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation=1):
     data = te.placeholder((N, CI, H, W), name='data')
     kernel = te.placeholder((CO, CI, kernel_size, kernel_size), name='kernel')
@@ -243,7 +243,7 @@ def conv2d_nchw_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation
 
     return [data, kernel, bias, bn_offset, bn_scale, out]
 
-@register_auto_scheduler_workload_func
+@register_workload_func
 def conv2d_nhwc_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation=1):
     data = te.placeholder((N, H, W, CI), name='data')
     kernel = te.placeholder((kernel_size, kernel_size, CI, CO), name='kernel')

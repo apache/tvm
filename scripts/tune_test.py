@@ -13,8 +13,8 @@ from tvm.ansor.utils import request_remote
 from common import get_workload_keys, get_workload_weights, measure_schedule, str2bool
 
 def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose,
-                      n_parallel, build_timeout, local_measure, device_key, host,
-                      port, ndk_cc, early_stopping=-1, run_timeout=10):
+                       n_parallel, build_timeout, local_measure, rpc_device_key, rpc_host,
+                       rpc_port, rpc_num_threads, ndk_cc, early_stopping=-1, run_timeout=10):
     builder = runner = measure_ctx = None
     if local_measure:
         builder = ansor.LocalBuilder(timeout=build_timeout)
@@ -27,8 +27,13 @@ def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose
     else:
         os.environ['TVM_NDK_CC'] = ndk_cc
         builder = ansor.LocalBuilder(timeout=build_timeout, build_func='ndk')
-        runner = ansor.RPCRunner(key=device_key, host=host, port=port, timeout=run_timeout,
-                                 n_parallel=n_parallel, repeat=1, min_repeat_ms=400)
+        runner = ansor.RPCRunner(key=rpc_device_key, host=rpc_host, port=rpc_port,
+                                 timeout=run_timeout, n_parallel=n_parallel,
+                                 repeat=1, min_repeat_ms=200)
+        remote = request_remote(rpc_device_key, rpc_host, rpc_port)
+        if rpc_num_threads:
+            config_threadpool = remote.get_function('runtime.config_threadpool')
+            config_threadpool(0, rpc_num_threads)
 
     tune_option = ansor.TuneOption(n_trials=n_trials, early_stopping=early_stopping,
                                    num_measure_per_iter=num_measure_per_iter,
@@ -42,16 +47,17 @@ def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose
 
 
 def replay_workload(wkl_key, target, target_host, log_file,
-                    local_measure=True, device_key=None, host="0.0.0.0",
-                    port=9190, ndk_cc=None, show_lower_result=True):
+                    local_measure=True, rpc_device_key=None, rpc_host="0.0.0.0",
+                    rpc_port=9190, rpc_num_threads=None, ndk_cc=None,
+                    show_lower_result=True):
     cost = gflops = None
 
     inp, res = ansor.best_measure_pair_in_file(log_file, wkl_key, target)
     if inp is None:
-        print("Cannot find log for: %s" % (wkl_key))
+        print("Cannot find log for: %s" % wkl_key)
     else:
         dag = ansor.workload_key_to_dag(inp.task.workload_key)
-        print("Found schedule for: %s" % (wkl_key))
+        print("Found schedule for: %s" % wkl_key)
 
         s, bufs = dag.apply_steps_from_state(inp.state)
         if show_lower_result:
@@ -60,18 +66,21 @@ def replay_workload(wkl_key, target, target_host, log_file,
         if local_measure:
             remote = None
         else:
-            remote = request_remote(device_key, host, port, 1)
+            remote = request_remote(rpc_device_key, rpc_host, rpc_port)
+            if rpc_num_threads:
+                config_threadpool = remote.get_function('runtime.config_threadpool')
+                config_threadpool(0, rpc_num_threads)
 
-        cost = np.mean((measure_schedule(s, bufs, target, remote=remote, ndk_cc=ndk_cc)))
+        cost = np.mean((measure_schedule(s, bufs, target, target_host,
+                                         remote=remote, ndk_cc=ndk_cc)))
         gflops = ansor.ComputeDAG(bufs).flop_ct / cost / 1e9
-        print("Best schedule: %.2f GFLOPS\tcost: %.3f ms" %
-                (gflops, cost * 1e3))
+        print("Best schedule: %.2f GFLOPS\tcost: %.3f ms" % (gflops, cost * 1e3))
 
     return cost, gflops
 
 
-def tune_workload(wkl_key, target, target_host, policy, model_type, load_model_file,
-                  load_log_file, tune_option):
+def tune_workload(wkl_key, target, target_host, policy, model_type,
+                  load_model_file, load_log_file, tune_option):
     """Tune a workload"""
 
     if False:
@@ -92,11 +101,11 @@ def tune_workload(wkl_key, target, target_host, policy, model_type, load_model_f
         else:
             raise ValueError("Invalid model: " + model_type)
 
-    if policy == 'meta-rewrite':
-        policy = ansor.MetaTileRewritePolicy(program_cost_model=model)
+    if policy == 'sketch':
+        policy = ansor.SketchSearchPolicy(program_cost_model=model)
     elif policy == 'beam-search':
-        policy = ansor.MetaTileRewritePolicy(program_cost_model=model,
-                                             params={'use_beam_search': 1})
+        policy = ansor.SketchSearchPolicy(program_cost_model=model,
+                                          params={'use_beam_search': 1})
     else:
         raise ValueError("Invalid search policy: " + policy)
 
@@ -105,12 +114,10 @@ def tune_workload(wkl_key, target, target_host, policy, model_type, load_model_f
                                   search_policy=policy,
                                   tune_option=tune_option)
 
-
 def tune_workloads_jointly(wkl_keys, weights, task_scheduler, target, target_host,
                            search_policy, model_type, load_model_file, load_log_file,
                            tune_option):
-    """Tune for multiple workloads jointly"""
-
+    """Tune for multiple workloads together with TaksScheduler"""
     tasks = []
     for wkl_key in wkl_keys:
         dag = ansor.workload_key_to_dag(wkl_key)
@@ -127,36 +134,37 @@ def tune_workloads_jointly(wkl_keys, weights, task_scheduler, target, target_hos
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # Task related options
+    # Search task related arguments
     parser.add_argument("--wkl", type=str, required=True)
     parser.add_argument("--target", type=str, default='llvm -mcpu=core-avx2')
     parser.add_argument("--target-host", type=str, default=None)
-    parser.add_argument("--n-trials", type=int, default=1000)
-    parser.add_argument("--num-measure-per-iter", type=int, default=48,
-                        help="The number of programs to be measured at each iteration")
     parser.add_argument("--tune", type=str2bool, nargs='?', const=True, default=True)
 
-    # Strategy related options
-    parser.add_argument("--seed", type=int, default=0, help='random seed')
-    parser.add_argument("--policy", type=str, choices=['meta-rewrite', 'beam-search'], default='meta-rewrite')
+    # Search strategy related arguments
+    parser.add_argument("--n-trials", type=int, default=1000)
+    parser.add_argument("--policy", type=str, choices=['sketch', 'beam-search'], default='sketch')
     parser.add_argument("--model-type", type=str, choices=['xgb', 'random', 'no-share'], default='xgb')
     parser.add_argument("--task-scheduler", type=str, default='no',
                         choices=['no', 'gradient', 'round-robin'],
                         help='The strategy of task scheduler')
+    parser.add_argument("--seed", type=int, default=0, help='random seed')
 
-    # File related options
-    parser.add_argument("--log-file", type=str, help="Write log of measurement results to this file")
-    parser.add_argument("--load-model", type=str, help="Load pre trained cost model file")
-    parser.add_argument("--load-log", type=str, help="Load history log for pre-training the cost model")
+    # Log file related arguments
+    parser.add_argument("--log-file", type=str, help="Write measurement records to this log file")
+    parser.add_argument("--load-log", type=str, help="Load history log to resume the status of search")
+    parser.add_argument("--load-model", type=str, help="Load pre-trained cost model from this file")
 
-    # Detailed control options
+    # Measurement related and other arguments
+    parser.add_argument("--num-measure-per-iter", type=int, default=48,
+                        help="The number of programs to be measured at each iteration")
     parser.add_argument("--build-timeout", type=int, default=10)
     parser.add_argument("--run-timeout", type=int, default=60)
     parser.add_argument("--verbose", type=int, default=1)
     parser.add_argument("--local-measure", type=str2bool, nargs='?', const=True, default=True)
-    parser.add_argument("--device-key", type=str, default=None)
-    parser.add_argument("--host", type=str, default='0.0.0.0')
-    parser.add_argument("--port", type=int, default=9190)
+    parser.add_argument("--rpc-device-key", type=str, default=None)
+    parser.add_argument("--rpc-host", type=str, default='0.0.0.0')
+    parser.add_argument("--rpc-port", type=int, default=9190)
+    parser.add_argument("--rpc-num-threads", type=int, default=None)
     parser.add_argument("--n-parallel", type=int, default=1)
     parser.add_argument("--ndk-cc", type=str, default=None)
     args = parser.parse_args()
@@ -170,14 +178,16 @@ if __name__ == "__main__":
     target = tvm.target.create(args.target)
     log_file = args.log_file or args.wkl + ".json"
 
+    # Tune workloads
     if args.tune:
         load_log_file = args.load_log or log_file
         weights = get_workload_weights(args.wkl)
 
         tune_option, measure_ctx = create_tune_option(target, log_file,
-                args.n_trials, args.num_measure_per_iter, args.verbose,
-                args.n_parallel, args.build_timeout, args.local_measure,
-                args.device_key, args.host, args.port, args.ndk_cc)
+            args.n_trials, args.num_measure_per_iter, args.verbose,
+            args.n_parallel, args.build_timeout, args.local_measure,
+            args.rpc_device_key, args.rpc_host, args.rpc_port, args.rpc_num_threads,
+            args.ndk_cc)
 
         if args.task_scheduler == 'no':
             # tune workloads one by one
@@ -186,7 +196,7 @@ if __name__ == "__main__":
                               args.model_type, args.load_model, load_log_file,
                               tune_option)
         else:
-            # tune workloads jointly using JointTuner
+            # tune workloads jointly with TaskScheduler
             tune_workloads_jointly(wkl_keys, weights, args.task_scheduler,
                                    target, args.target_host, args.policy,
                                    args.model_type, args.load_model, load_log_file,
@@ -194,8 +204,9 @@ if __name__ == "__main__":
         if measure_ctx:
             del measure_ctx
 
-    if not args.tune or len(wkl_keys) == 1:
+    # Replay the best found schedule
+    if len(wkl_keys) == 1 or not args.tune:
         for wkl_key in wkl_keys:
             replay_workload(wkl_key, target, args.target_host, log_file,
-                            args.local_measure, args.device_key, args.host,
-                            args.port, args.ndk_cc)
+                            args.local_measure, args.rpc_device_key, args.rpc_host,
+                            args.rpc_port, args.rpc_num_threads, args.ndk_cc)

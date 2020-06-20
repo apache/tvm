@@ -80,7 +80,7 @@ from tvm import ansor
 # recommended.
 
 # Use an extra function decorator to regist this workload
-@ansor.register_auto_scheduler_workload_func
+@ansor.register_workload_func
 def conv2d_nchw(N, H, W, CO, CI, KH, KW, stride, padding):
     data = te.placeholder((N, CI, H, W), name='data')
     kernel = te.placeholder((CO, CI, KH, KW), name='kernel')
@@ -111,7 +111,7 @@ log_file = "conv2d_nchw.json"
 seed = 0
 random.seed(seed)
 cost_model = ansor.XGBModel(seed=seed)
-search_policy = ansor.MetaTileRewritePolicy(cost_model, seed=seed)
+search_policy = ansor.SketchSearchPolicy(cost_model, seed=seed)
 
 #########################################################################
 # The :code:`ansor.LocalRPCMeasureContext` is used to create a RPC runner environment.

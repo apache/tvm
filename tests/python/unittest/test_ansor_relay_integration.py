@@ -84,7 +84,6 @@ def test_tune_dense_graph():
 def test_tune_dqn():
     mod, params = dqn.get_workload(1, image_shape=(84, 84, 4), layout='NHWC')
     target = tvm.target.create('llvm')
-    ctx = tvm.context("llvm")
 
     wkl_keys, wkl_weights = ansor.extract_from_program(mod, params, target)
 
@@ -100,7 +99,7 @@ def test_tune_dqn():
     with tempfile.NamedTemporaryFile() as fp:
         tuner.tune(ansor.TuneOption(n_trials=len(tasks), runner=measure_ctx.runner,
                                     measure_callbacks=[ansor.LogToFile('tmp.json')]),
-                   search_policy='meta-rewrite.random')
+                   search_policy='sketch.random')
         with ansor.apply_history_best('tmp.json'):
             ansor.prepare_layout_rewrite(mod, params, target)
             with tvm.transform.PassContext(opt_level=3,  disabled_pass={"AlterOpLayout"}):

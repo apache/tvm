@@ -43,6 +43,7 @@ class SearchPolicyNode;
 class SearchCallbackNode : public Object {
  public:
   virtual void callback(SearchPolicyNode* policy) = 0;
+
   static constexpr const char *_type_key = "ansor.SearchCallback";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchCallbackNode, Object);
 };

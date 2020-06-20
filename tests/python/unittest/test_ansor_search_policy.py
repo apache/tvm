@@ -42,8 +42,7 @@ def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
 
-        search_policy = ansor.MetaTileRewritePolicy(cost_model, params=params,
-                                                    seed=seed)
+        search_policy = ansor.SketchSearchPolicy(cost_model, params=params, seed=seed)
         tune_option = ansor.TuneOption(n_trials=n_trials, runner=runner,
                                        measure_callbacks=[ansor.LogToFile(log_file)],
                                        pre_search_callbacks=pre_search_callbacks)
@@ -74,8 +73,8 @@ def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'
 
 
 def test_search_basic():
-    # Ansor search process with local runner has some modification on thread
-    # binding, wrap this to a subprocess to eliminate the impacts to other tests
+    # wrap the search in a new thread to avoid the conflict
+    # between python's multiprocessing and tvm's thread pool
     t = threading.Thread(target=search_common, kwargs={'seed': 944563397})
     t.start()
     t.join()
@@ -152,12 +151,12 @@ def test_search_custom_sketch_rule():
 
     measure_ctx = ansor.LocalRPCMeasureContext()
     search_common(seed=887823438, runner=measure_ctx.runner,
-                  pre_search_callbacks=[ansor.PreAddCustomRule(meet_condition_func,
-                                                               apply_func1)],
+                  pre_search_callbacks=[ansor.PreloadCustomSketchRule(
+                      meet_condition_func, apply_func1)],
                   params={'disable_change_compute_location': 1})
     search_common(seed=887823438, runner=measure_ctx.runner,
-                  pre_search_callbacks=[ansor.PreAddCustomRule(meet_condition_func,
-                                                               apply_func2)],
+                  pre_search_callbacks=[ansor.PreloadCustomSketchRule(
+                      meet_condition_func, apply_func2)],
                   params={'disable_change_compute_location': 1})
 
 

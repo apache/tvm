@@ -42,19 +42,19 @@ from .compute_dag import ComputeDAG
 WORKLOAD_FUNC_REGISTRY = {}
 
 
-def register_auto_scheduler_workload_func(func: Callable):
+def register_workload_func(func: Callable):
     """Register a workload generation function
     The input function should take hashable and jsonable arguments
     (int, float, tuple of int, tvm.tensor.Tensor, ...) and return a list of tvm.tensor.Tensor.
 
     Examples
     --------
-    @register_auto_scheduler_workload_func
+    @register_workload_func
     def matmul(N, M, K):
-        A = tvm.placeholder((N, K), name='A')
-        B = tvm.placeholder((K, M), name='B')
-        k = tvm.reduce_axis((0, K), name='k')
-        C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+        A = te.placeholder((N, K), name='A')
+        B = te.placeholder((K, M), name='B')
+        k = te.reduce_axis((0, K), name='k')
+        C = te.compute((N, M), lambda i, j: tvm.sum(A[i][k] * B[k][j], axis=[k]), name='C')
         return [A, B, C]
     """
     func_name = func.__name__
@@ -84,7 +84,7 @@ def compute_dag_hash(dag: ComputeDAG):
     return hashlib.md5(str_key).hexdigest()
 
 
-def register_auto_scheduler_workload_bufs(bufs: List[Tensor]) -> str:
+def register_workload_bufs(bufs: List[Tensor]) -> str:
     """Directly register buffers of a workload and return the workload_key
     The buffers can be looked up with workload_key_to_tensors by the workload_key
     """

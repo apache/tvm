@@ -21,7 +21,7 @@ import time
 
 import numpy as np
 
-from .auto_schedule import SearchTask, SearchPolicy, MetaTileRewritePolicy, TuneOption
+from .auto_schedule import SearchTask, SearchPolicy, SketchSearchPolicy, TuneOption
 from .cost_model import RandomModel, XGBModel
 from .measure import ProgramMeasurer
 from .utils import array_mean, to_str_round
@@ -42,7 +42,7 @@ class TaskScheduler:
 def get_search_policies(search_policy: Union[str, List[SearchPolicy]], tasks: List[SearchTask],
                         num_measure_per_iter, load_model_file=None, load_log_file=None):
     if search_policy == 'default':
-        search_policy = 'meta-rewrite.xgb'
+        search_policy = 'sketch.xgb'
 
     if isinstance(search_policy, str):
         policy_type, model_type = search_policy.split('.')
@@ -58,16 +58,16 @@ def get_search_policies(search_policy: Union[str, List[SearchPolicy]], tasks: Li
         else:
             raise ValueError("Invalid search policy: " + search_policy)
 
-        if policy_type == 'meta-rewrite':
-            search_policies = [MetaTileRewritePolicy(cost_model) for _ in range(len(tasks))]
+        if policy_type == 'sketch':
+            search_policies = [SketchSearchPolicy(cost_model) for _ in range(len(tasks))]
         elif policy_type == 'limit-space':
-            search_policies = [MetaTileRewritePolicy(cost_model,
-                                                     params={'cpu_multi_level_tiling_structure': 'SRS',
-                                                             'disable_change_compute_location': 1})
+            search_policies = [SketchSearchPolicy(cost_model,
+                                                  params={'cpu_multi_level_tiling_structure': 'SRS',
+                                                          'disable_change_compute_location': 1})
                                for _ in range(len(tasks))]
         elif policy_type == 'beam-search':
-            search_policies = [MetaTileRewritePolicy(cost_model,
-                                                     params={'use_beam_search': 1})
+            search_policies = [SketchSearchPolicy(cost_model,
+                                                  params={'use_beam_search': 1})
                                for _ in range(len(tasks))]
         else:
             raise ValueError("Invalid search policy: " + search_policy)

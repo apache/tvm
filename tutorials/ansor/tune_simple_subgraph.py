@@ -142,7 +142,7 @@ task = ansor.SearchTask(dag, "test", tgt)
 
 ################################################################
 # Next, we choose random model and create a default search policy:
-# :code:`ansor.MetaTileRewritePolicy`.
+# :code:`ansor.SketchSearchPolicy`.
 #
 # We only make 5 trials in this tutorial for demonstration. In practice,
 # you can do more trials according to your time budget.
@@ -157,7 +157,7 @@ log_file = "matmul_add.json"
 seed = 0
 random.seed(seed)
 cost_model = ansor.RandomModel()
-search_policy = ansor.MetaTileRewritePolicy(cost_model, seed=seed)
+search_policy = ansor.SketchSearchPolicy(cost_model, seed=seed)
 
 tune_option = ansor.TuneOption(n_trials=5,
                                measure_callbacks=[ansor.LogToFile(log_file)],

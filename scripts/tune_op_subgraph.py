@@ -1,7 +1,6 @@
-"""Tune all operators for single op & subgraph evaluation"""
+"""Tune all workloads for single op & subgraph evaluation"""
 import argparse
 import logging
-import os
 import random
 
 import numpy as np
@@ -12,14 +11,13 @@ import topi
 from topi.nn.winograd_util import winograd_transform_matrices
 from topi.util import get_const_tuple
 
-from common import measure_schedule, str2bool, \
-    norm_bmn, softmax_mn, conv2d_nhwc_bn_relu, conv2d_nchw_bn_relu
+from common import measure_schedule, str2bool, norm_bmn, conv2d_nhwc_bn_relu, conv2d_nchw_bn_relu
 from shape_configs import single_op_shape_dict, subgraph_shape_dict
 from tune_test import tune_workloads_jointly, replay_workload, create_tune_option
 
 # ========================== Single Ops ==========================
 
-@ansor.register_auto_scheduler_workload_func
+@ansor.register_workload_func
 def batch_matmul_nkkm(B, N, M, K):
     X = te.placeholder((B, N, K), name='A')
     Y = te.placeholder((B, K, M), name='B')
@@ -27,7 +25,7 @@ def batch_matmul_nkkm(B, N, M, K):
     Z = te.compute((B, N, M), lambda b, i, j: te.sum(X[b][i][k] * Y[b][k][j], axis=[k]), name='C')
     return [X, Y, Z]
 
-@ansor.register_auto_scheduler_workload_func
+@ansor.register_workload_func
 def conv1d_nlc(N, L, CI, CO, kernel_size, stride=1, padding=0, dilation=1, groups=1):
     inputs = te.placeholder((N, L, CI), name='inputs')
     weight = te.placeholder((kernel_size, CI//groups, CO), name='weight')
@@ -49,7 +47,7 @@ def conv1d_nlc(N, L, CI, CO, kernel_size, stride=1, padding=0, dilation=1, group
     )
     return [inputs, weight, output]
 
-@ansor.register_auto_scheduler_workload_func
+@ansor.register_workload_func
 def conv2d_nhwc(N, H, W, CI, CO, kernel_size, stride=1, padding=0, dilation=1, groups=1):
     inputs = te.placeholder((N, H, W, CI), name='inputs')
     weight = te.placeholder((kernel_size, kernel_size, CI//groups, CO), name='weight')
@@ -75,7 +73,7 @@ def conv2d_nhwc(N, H, W, CI, CO, kernel_size, stride=1, padding=0, dilation=1, g
     )
     return [inputs, weight, output]
 
-@ansor.register_auto_scheduler_workload_func
+@ansor.register_workload_func
 def conv2d_nchw(N, CI, H, W, CO, kernel_size, stride=1, padding=0, dilation=1, groups=1):
     inputs = te.placeholder((N, CI, H, W), name='inputs')
     weight = te.placeholder((CO, CI//groups, kernel_size, kernel_size), name='weight')
@@ -101,7 +99,7 @@ def conv2d_nchw(N, CI, H, W, CO, kernel_size, stride=1, padding=0, dilation=1, g
     )
     return [inputs, weight, output]
 
-@ansor.register_auto_scheduler_workload_func
+@ansor.register_workload_func
 def conv3d_ndhwc(N, D, H, W, CI, CO, kernel_size, stride=1, padding=0, dilation=1, groups=1):
     inputs = te.placeholder((N, D, H, W, CI))
     weight = te.placeholder((kernel_size, kernel_size, kernel_size, CI//groups, CO))
@@ -131,7 +129,7 @@ def conv3d_ndhwc(N, D, H, W, CI, CO, kernel_size, stride=1, padding=0, dilation=
     )
     return [inputs, weight, output]
 
-@ansor.register_auto_scheduler_workload_func
+@ansor.register_workload_func
 def depthwise_conv2d_nhwc(N, H, W, C, kernel_size, stride=1, padding=0, dilation=1, factor=1):
     inputs = te.placeholder((N, H, W, C))
     weight = te.placeholder((factor, kernel_size, kernel_size, C))
@@ -159,7 +157,7 @@ def depthwise_conv2d_nhwc(N, H, W, C, kernel_size, stride=1, padding=0, dilation
     )
     return [inputs, weight, output]
 
-@ansor.register_auto_scheduler_workload_func
+@ansor.register_workload_func
 def conv2d_transpose_nhwc(N, H, W, CI, CO, kernel_size, stride=1, padding=0):
     inputs = te.placeholder((N, H, W, CI), name='inputs')
     weight = te.placeholder((kernel_size, kernel_size, CI, CO), name='weight')
@@ -222,12 +220,12 @@ def conv2d_transpose_nhwc(N, H, W, CI, CO, kernel_size, stride=1, padding=0):
             weight[filter_h - 1 - rh, filter_w - 1 - rw, rc, co],
             axis=[rh, rw, rc]),
         name="conv2d_transpose_nhwc",
-        attrs={"auto_scheduler_always_unroll_inner": ["h", "w", "rh", "rw", "h_c", "w_c"]})
+        attrs={"ansor_always_unroll_inner": ["h", "w", "rh", "rw", "h_c", "w_c"]})
     # todo(lmzheng): add constraints on the tile size of h and w
 
     return [inputs, weight, output]
 
-@ansor.register_auto_scheduler_workload_func
+@ansor.register_workload_func
 def conv2d_capsule_nhwijc(N, H, W, CI, CO, kernel_size, stride=1, padding=0, capsule_size=4):
     inputs = te.placeholder((N, H, W, capsule_size, capsule_size, CI), name='inputs')
     weight = te.placeholder((kernel_size, kernel_size, capsule_size, capsule_size, CI, CO), name='weight')
@@ -254,7 +252,7 @@ def conv2d_capsule_nhwijc(N, H, W, CI, CO, kernel_size, stride=1, padding=0, cap
     return [inputs, weight, output]
 
 
-@ansor.register_auto_scheduler_workload_func
+@ansor.register_workload_func
 def conv2d_winograd_nhwc(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, dilation=1):
     # TODO: implement tile_size
     tile_size = 4 #_infer_tile_size(data, kernel)
@@ -304,10 +302,10 @@ def conv2d_winograd_nhwc(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, di
     data_pack = te.compute((alpha, alpha, P, CI), lambda eps, nu, p, ci:
                             te.sum(input_tile[r_a][r_b][p][ci] * B[r_a][eps] * B[r_b][nu],
                                     axis=[r_a, r_b]), name='data_pack',
-                                    attrs={"auto_scheduler_no_split_at_inner": ["eps", "nu", "r_a", "r_b"],
-                                           "auto_scheduler_last_split_is_one": ["ci", "p"],
-                                           "auto_scheduler_always_unroll": ["eps", "nu", "r_a", "r_b"],
-                                           "auto_scheduler_no_cache_write": "True",
+                                    attrs={"ansor_no_split_at_inner": ["eps", "nu", "r_a", "r_b"],
+                                           "ansor_last_split_is_one": ["ci", "p"],
+                                           "ansor_always_unroll": ["eps", "nu", "r_a", "r_b"],
+                                           "ansor_no_cache_write": "True",
                                            })
 
     # do batch gemm
@@ -323,10 +321,10 @@ def conv2d_winograd_nhwc(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, di
     inverse = te.compute((m, m, P, CO), lambda vh, vw, p, co:
                           te.sum(bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw],
                                   axis=[r_a, r_b]), name='inverse',
-                          attrs={"auto_scheduler_no_split_at_inner": ["vh", "vw", "r_a", "r_b"],
-                                 "auto_scheduler_always_unroll": ["vh", "vw", "r_a", "r_b"],
-                                 "auto_scheduler_last_split_is_one": ["co", "p"],
-                                 "auto_scheduler_no_cache_write": "True",
+                          attrs={"ansor_no_split_at_inner": ["vh", "vw", "r_a", "r_b"],
+                                 "ansor_always_unroll": ["vh", "vw", "r_a", "r_b"],
+                                 "ansor_last_split_is_one": ["co", "p"],
+                                 "ansor_no_cache_write": "True",
                                  })
 
     # output
@@ -337,10 +335,10 @@ def conv2d_winograd_nhwc(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, di
                                  co],
                          name='conv2d_winograd',
                          tag='conv2d_winograd_nhwc',
-                         attrs={"auto_scheduler_no_split_at_outer": ["n", "h", "w", "co"],})
+                         attrs={"ansor_no_split_at_outer": ["n", "h", "w", "co"],})
     return [inputs, kernel_pack, output]
 
-@ansor.register_auto_scheduler_workload_func
+@ansor.register_workload_func
 def conv2d_winograd_nchw(N, CI, H, W, CO, kernel_size=3, stride=1, padding=0, dilation=1, precompute=False):
     # TODO: implement tile_size
     tile_size = 4 #_infer_tile_size(data, kernel)
@@ -390,10 +388,10 @@ def conv2d_winograd_nchw(N, CI, H, W, CO, kernel_size=3, stride=1, padding=0, di
     data_pack = te.compute((alpha, alpha, CI, P), lambda eps, nu, ci, p:
                             te.sum(input_tile[ci][p][r_a][r_b] * B[r_a][eps] * B[r_b][nu],
                                     axis=[r_a, r_b]), name='data_pack',
-                                    attrs={"auto_scheduler_no_split_at_inner": ["eps", "nu", "r_a", "r_b"],
-                                           "auto_scheduler_no_split_at_outer": ["ci", "p"],
-                                           "auto_scheduler_always_unroll": ["eps", "nu", "r_a", "r_b"],
-                                           "auto_scheduler_no_cache_write": "True",
+                                    attrs={"ansor_no_split_at_inner": ["eps", "nu", "r_a", "r_b"],
+                                           "ansor_no_split_at_outer": ["ci", "p"],
+                                           "ansor_always_unroll": ["eps", "nu", "r_a", "r_b"],
+                                           "ansor_no_cache_write": "True",
                                            })
 
     # do batch gemm
@@ -409,9 +407,9 @@ def conv2d_winograd_nchw(N, CI, H, W, CO, kernel_size=3, stride=1, padding=0, di
     inverse = te.compute((CO, P, m, m), lambda co, p, vh, vw:
                           te.sum(bgemm[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw],
                                   axis=[r_a, r_b]), name='inverse',
-                          attrs={"auto_scheduler_no_split_at_outer": ["co", "p", "vh", "vw", "r_a", "r_b"],
-                                 "auto_scheduler_always_unroll": ["vh", "vw", "r_a", "r_b"],
-                                 "auto_scheduler_no_cache_write": "True"})
+                          attrs={"ansor_no_split_at_outer": ["co", "p", "vh", "vw", "r_a", "r_b"],
+                                 "ansor_always_unroll": ["vh", "vw", "r_a", "r_b"],
+                                 "ansor_no_cache_write": "True"})
 
     # output
     output = te.compute((N, CO, H, W), lambda n, co, h, w:
@@ -419,12 +417,12 @@ def conv2d_winograd_nchw(N, CI, H, W, CO, kernel_size=3, stride=1, padding=0, di
                                  idxmod(h, m),
                                  idxmod(w, m)],
                          name='conv2d_winograd',
-                         attrs={"auto_scheduler_no_split_at_outer": ["n", "co", "h", "w"],})
+                         attrs={"ansor_no_split_at_outer": ["n", "co", "h", "w"],})
     return [inputs, kernel_pack, output]
 
 # ========================== Subgraphs ==========================
 
-@ansor.register_auto_scheduler_workload_func
+@ansor.register_workload_func
 def transpose_batch_matmul(batch, seq_len, n_head, n_dim):
     query = te.placeholder((batch, seq_len, n_head, n_dim), name='query')
     value = te.placeholder((batch, seq_len, n_head, n_dim), name='value')
@@ -433,23 +431,12 @@ def transpose_batch_matmul(batch, seq_len, n_head, n_dim):
     value_T = te.compute((batch, n_head, n_dim, seq_len),
                       lambda b, h, d, l: value[b, l, h, d], name="value_T")
     k = te.reduce_axis((0, n_dim), name='k')
-    out = te.compute((batch, n_head, seq_len, seq_len), lambda b, h, i, j: te.sum(query_T[b][h][i][k] * value_T[b][h][k][j], axis=[k]), name='C')
+    out = te.compute((batch, n_head, seq_len, seq_len),
+                 lambda b, h, i, j: te.sum(query_T[b][h][i][k] * value_T[b][h][k][j], axis=[k]),
+                 name='C')
     return [query, value, out]
 
-@ansor.register_auto_scheduler_workload_func
-def batch_norm(M, N, eps=1e-5):
-    A = te.placeholder((M, N), name='A')
-    k1 = te.reduce_axis((0, M), name='k1')
-    k2 = te.reduce_axis((0, M), name='k2')
-    mean = te.compute((N,), lambda j: te.sum(A[k1][j] / M, axis=k1), name="mean")
-    var = te.compute((N,),
-                      lambda j: te.sum((A[k2][j] - mean[j]) * (A[k2][j] - mean[j]) / (M - 1), k2),
-                      name="var")
-    B = te.compute((M, N), lambda i, j: (A[i][j] - mean[j]) / te.sqrt(var[j] + eps), name='B')
-
-    return [A, B]
-
-# ========================== Tune func & Dicts ==========================
+# ========================== Tune function & Task dicts ==========================
 
 def tune_wkl(task_func_dict, shape_dict, wkl_type, args):
     target = tvm.target.create(args.target)
@@ -464,8 +451,8 @@ def tune_wkl(task_func_dict, shape_dict, wkl_type, args):
             if shape[0] == 1:
                 shape = list(shape)
                 shape[0] = args.batch_size
-            wkl_key = ansor.make_workload_key_func(func, shape)
 
+            wkl_key = ansor.make_workload_key_func(func, shape)
             wkl_keys.append(wkl_key)
             if args.fast_check:
                 break
@@ -473,9 +460,8 @@ def tune_wkl(task_func_dict, shape_dict, wkl_type, args):
             if not args.tune:
                 cost, gflops = replay_workload(
                         wkl_key, target, args.target_host, log_file,
-                        args.local_measure, args.device_key, args.host,
-                        args.port, args.ndk_cc, False)
-                # TODO(): Add log record
+                        args.local_measure, args.rpc_device_key, args.rpc_host,
+                        args.rpc_port, args.rpc_num_threads, args.ndk_cc, False)
                 # log_line(BenchmarkRecord(target.name, 'gpu' if target.name == 'cuda' else 'cpu', 'subgraph',
                 #                          workload_name, "AutoSchedule", "default",
                 #                          {"costs": [cost]}, time.time()), args.out_file)
@@ -489,7 +475,8 @@ def tune_wkl(task_func_dict, shape_dict, wkl_type, args):
             tune_option, measure_ctx = create_tune_option(target, log_file,
                     n_trials, args.num_measure_per_iter, args.verbose,
                     args.n_parallel, args.build_timeout, args.local_measure,
-                    args.device_key, args.host, args.port, args.ndk_cc)
+                    args.rpc_device_key, args.rpc_host, args.rpc_port,
+                    args.rpc_num_threads, args.ndk_cc)
 
             # tune workloads jointly using JointTuner
             tune_workloads_jointly(wkl_keys, np.ones(len(wkl_keys)), args.task_scheduler,
@@ -516,7 +503,7 @@ single_op_task_func_dict = {
 #    The following workloads are not in our sinle op evaluation plan.
 #    They should be moved to `common.py` and be used by `tune_wkl.py`.
 #    'C2D_NCHW': conv2d_nchw,
-   'C2DWG_NHWC': conv2d_winograd_nhwc,
+#    'C2DWG_NHWC': conv2d_winograd_nhwc,
 #    'C2DWG_NCHW': conv2d_winograd_nchw,
 #    'GMM_TC': matmul_nkkm,
 }
@@ -529,44 +516,43 @@ subgraph_task_func_dict = {
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # Task related options
-    parser.add_argument("--wkl", type=str, required=True, 
-                        help="all - For all workloads; \
-                              op       - For all single ops; \
-                              subgraph - For all subgraphs; \
-                              Or specific wkl name")
+    # Search task related arguments
+    parser.add_argument("--wkl", type=str, required=True,
+                        help="all      - Tune all workloads; \
+                              op       - Tune all single ops; \
+                              subgraph - Tune all subgraphs; \
+                              specific wkl name - Tune a specific workload")
+    parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--target", type=str, default='llvm -mcpu=core-avx2')
     parser.add_argument("--target-host", type=str, default=None)
-    parser.add_argument("--n-trials-per-shape", type=int, default=1000)
-    parser.add_argument("--num-measure-per-iter", type=int, default=48,
-                        help="The number of programs to be measured at each iteration")
-    parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--tune", type=str2bool, nargs='?', const=True, default=True)
     parser.add_argument("--fast-check", action='store_true',
                         help='Only run one shape for each workload. This is used for fast checking')
 
-    # Strategy related options
-    parser.add_argument("--seed", type=int, default=0, help='random seed')
-    parser.add_argument("--policy", type=str, choices=['meta-rewrite', 'beam-search'], default='meta-rewrite')
+    # Search strategy related arguments
+    parser.add_argument("--n-trials-per-shape", type=int, default=1000)
+    parser.add_argument("--policy", type=str, choices=['sketch', 'beam-search'], default='sketch')
     parser.add_argument("--model-type", type=str, choices=['xgb', 'random', 'no-share'], default='xgb')
-    parser.add_argument("--task-scheduler", type=str, default='gradient',
-                        choices=['no', 'gradient', 'round-robin'],
-                        help='The strategy of task scheduler')
+    parser.add_argument("--task-scheduler", type=str, default='round-robin',
+                        choices=['no', 'gradient', 'round-robin'], help='The strategy of task scheduler')
+    parser.add_argument("--seed", type=int, default=0, help='random seed')
 
-    # File related options
-    parser.add_argument("--log-file", type=str, help="Write log of measurement results to this file")
-    parser.add_argument("--load-model", type=str, help="Load pre trained cost model file")
-    parser.add_argument("--load-log", type=str, help="Load history log for pre-training the cost model")
-    parser.add_argument("--out-file", type=str, default='results.tsv')
+    # Log file related arguments
+    parser.add_argument("--log-file", type=str, help="Write measurement records to this log file")
+    parser.add_argument("--load-log", type=str, help="Load history log to resume the status of search")
+    parser.add_argument("--load-model", type=str, help="Load pre-trained cost model from this file")
 
-    # Detailed control options
+    # Measurement related and other arguments
+    parser.add_argument("--num-measure-per-iter", type=int, default=48,
+                        help="The number of programs to be measured at each iteration")
     parser.add_argument("--build-timeout", type=int, default=10)
     parser.add_argument("--run-timeout", type=int, default=60)
     parser.add_argument("--verbose", type=int, default=1)
     parser.add_argument("--local-measure", type=str2bool, nargs='?', const=True, default=True)
-    parser.add_argument("--device-key", type=str, default=None)
-    parser.add_argument("--host", type=str, default='0.0.0.0')
-    parser.add_argument("--port", type=int, default=9190)
+    parser.add_argument("--rpc-device-key", type=str, default=None)
+    parser.add_argument("--rpc-host", type=str, default='0.0.0.0')
+    parser.add_argument("--rpc-port", type=int, default=9190)
+    parser.add_argument("--rpc-num-threads", type=int, default=None)
     parser.add_argument("--n-parallel", type=int, default=1)
     parser.add_argument("--ndk-cc", type=str, default=None)
     args = parser.parse_args()

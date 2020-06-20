@@ -18,11 +18,13 @@
  */
 
 /*!
- * \file ansor/search_policy/meta_tile_rewrite_policy.h
- * \brief The search policy that searches by program sampling and evolutionary search
+ * \file ansor/search_policy/sketch_search_policy.h
+ * \brief The search policy that searches in a hierarchical search space defined by sketches.
+ * The policy randomly samples programs from the space defined by sketches
+ * and use evolutionary search to fine-tune them.
  */
 
-#include "meta_tile_rewrite_policy.h"
+#include "sketch_search_policy.h"
 #include <tvm/runtime/registry.h>
 #include <iomanip>
 #include <vector>
@@ -41,23 +43,23 @@
 namespace tvm {
 namespace ansor {
 
-TVM_REGISTER_NODE_TYPE(MetaTileRewritePolicyNode);
-TVM_REGISTER_OBJECT_TYPE(PreAddCustomRuleNode);
+TVM_REGISTER_NODE_TYPE(SketchSearchPolicyNode);
+TVM_REGISTER_OBJECT_TYPE(PreloadCustomSketchRuleNode);
 
 // All possible candidates for auto_unroll
-const std::vector<int> MetaTileRewritePolicyNode::auto_unroll_configs{0, 16, 64, 512, 1024};
+const std::vector<int> SketchSearchPolicyNode::auto_unroll_configs{0, 16, 64, 512, 1024};
 
-SearchPolicy MetaTileRewritePolicyNode::make(CostModel program_cost_model,
+SearchPolicy SketchSearchPolicyNode::make(CostModel program_cost_model,
                                         Map<String, ObjectRef> params,
                                         int seed) {
-  auto node = make_object<MetaTileRewritePolicyNode>();
+  auto node = make_object<SketchSearchPolicyNode>();
   node->program_cost_model = std::move(program_cost_model);
   node->rand_gen_ = std::mt19937(seed);
   node->params = std::move(params);
   return SearchPolicy(node);
 }
 
-State MetaTileRewritePolicyNode::Search(SearchTask task, int n_trials,
+State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
                                         int early_stopping, int num_measure_per_iter,
                                         int verbose, ProgramMeasurer measurer,
                                         Array<SearchCallback> pre_search_callbacks) {
@@ -129,7 +131,7 @@ State MetaTileRewritePolicyNode::Search(SearchTask task, int n_trials,
 }
 
 std::pair<Array<MeasureInput>, Array<MeasureResult> >
-    MetaTileRewritePolicyNode::ContinueSearchOneRound(
+    SketchSearchPolicyNode::ContinueSearchOneRound(
     SearchTask task, int num_measure, int verbose, ProgramMeasurer measurer) {
   if (cur_task.defined()) {
     CHECK_EQ(cur_task, task);
@@ -176,7 +178,7 @@ std::pair<Array<MeasureInput>, Array<MeasureResult> >
   return std::make_pair(std::move(inputs_arr), std::move(results_arr));
 }
 
-void MetaTileRewritePolicyNode::PickStatesWithEpsGreedy(
+void SketchSearchPolicyNode::PickStatesWithEpsGreedy(
     std::vector<MeasureInput>* inputs,
     const std::vector<State>& best_states,
     const std::vector<State>& random_states,
@@ -224,7 +226,7 @@ void MetaTileRewritePolicyNode::PickStatesWithEpsGreedy(
   }
 }
 
-void MetaTileRewritePolicyNode::SearchOneRound(std::vector<State>* best_states,
+void SketchSearchPolicyNode::SearchOneRound(std::vector<State>* best_states,
     int num_random_states, std::vector<State>* random_states) {
   best_states->clear();
   random_states->clear();
@@ -240,16 +242,16 @@ void MetaTileRewritePolicyNode::SearchOneRound(std::vector<State>* best_states,
     num_use_measured = 0;
   }
 
-  // Synthesize meta structure
-  std::vector<State> meta_structures;
-  GenerateMetaSketch(&meta_structures);
+  // Generate sketches
+  std::vector<State> sketches;
+  GenerateSketch(&sketches);
 
-  // PrintAllStates(meta_structures);
+  // PrintAllStates(sketches);
   // exit(0);
 
   // Sample the init population
   std::vector<State> init_population;
-  SampleInitPopulation(meta_structures, population - num_use_measured, &init_population);
+  SampleInitPopulation(sketches, population - num_use_measured, &init_population);
 
   // PrintAllStates(init_population);
   // exit(0);
@@ -273,21 +275,21 @@ void MetaTileRewritePolicyNode::SearchOneRound(std::vector<State>* best_states,
   RandomSampleStates(init_population, &rand_gen_, num_random_states * 10, random_states);
 }
 
-// The baseclass of derivation rules used in meta sketch generation
+// The baseclass of derivation rules used in sketch generation
 class SketchGenerationRule {
  public:
   enum ConditionEnum {
     kPass, kApply, kApplyAndSkipRest
   };
 
-  virtual ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
+  virtual ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
       const State& state, int stage_id) = 0;
-  virtual std::vector<std::pair<State, int> > Apply(const MetaTileRewritePolicyNode* policy,
+  virtual std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
       const State& state, int stage_id) = 0;
 };
 
 static inline bool ShouldBeCacheRead(
-    const MetaTileRewritePolicyNode* policy, const State& state, int stage_id) {
+    const SketchSearchPolicyNode* policy, const State& state, int stage_id) {
   const SearchTask& task = policy->cur_task;
   const Stage& stage = state->stages[stage_id];
 
@@ -319,7 +321,7 @@ static inline bool ShouldBeCacheRead(
 }
 
 static inline bool ShouldAlwaysBeInlined(
-    const MetaTileRewritePolicyNode* policy, const State& state, int stage_id) {
+    const SketchSearchPolicyNode* policy, const State& state, int stage_id) {
   const SearchTask& task = policy->cur_task;
   const Stage& stage = state->stages[stage_id];
 
@@ -348,13 +350,13 @@ static inline bool ShouldAlwaysBeInlined(
 // The rule that inlines simple elementwise ops
 class RuleAlwaysInline : public SketchGenerationRule {
  public:
-  ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
+  ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
       const State& state, int stage_id) final {
     return ShouldAlwaysBeInlined(policy, state, stage_id) ?
         kApplyAndSkipRest : kPass;
   }
 
-  std::vector<std::pair<State, int> > Apply(const MetaTileRewritePolicyNode* policy,
+  std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
       const State& state, int stage_id) final {
     State tmp_s = state;
     tmp_s.compute_inline(stage_id);
@@ -365,7 +367,7 @@ class RuleAlwaysInline : public SketchGenerationRule {
 // The rule that simply skip the current stage
 class RuleSkipStage : public SketchGenerationRule {
  public:
-  ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
+  ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
                               const State& state, int stage_id) final {
     const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
@@ -381,7 +383,7 @@ class RuleSkipStage : public SketchGenerationRule {
     return kApply;
   }
 
-  std::vector<std::pair<State, int> > Apply(const MetaTileRewritePolicyNode* policy,
+  std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
                                             const State& state, int stage_id) final {
     return {std::make_pair(state, stage_id - 1)};
   }
@@ -390,7 +392,7 @@ class RuleSkipStage : public SketchGenerationRule {
 // The rule that performs multi-level tiling
 class RuleMultiLevelTiling : public SketchGenerationRule {
  public:
-  ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
+  ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
                               const State& state, int stage_id) final {
     const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
@@ -399,7 +401,7 @@ class RuleMultiLevelTiling : public SketchGenerationRule {
            (IS_GPU(policy->cur_task) ? kApplyAndSkipRest : kApply) : kPass;
   }
 
-  std::vector<std::pair<State, int> > Apply(const MetaTileRewritePolicyNode* policy,
+  std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
                                             const State& state, int stage_id) final {
     std::string multi_level_tiling_structure = IS_GPU(policy->cur_task) ?
         GetStringParam(policy->params, "gpu_multi_level_tiling_structure") :
@@ -416,7 +418,7 @@ class RuleMultiLevelTiling : public SketchGenerationRule {
 // The rule that performs multi-level tiling and fuses later consumers
 class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
  public:
-  ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
+  ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
                               const State& state, int stage_id) final {
     const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
@@ -438,7 +440,7 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
         kApply : kPass;
   }
 
-  std::vector<std::pair<State, int> > Apply(const MetaTileRewritePolicyNode* policy,
+  std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
                                             const State& state, int stage_id) final {
     const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
@@ -485,7 +487,7 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
 // The rule that adds a cache write stage
 class RuleAddCacheWrite : public SketchGenerationRule {
  public:
-  ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
+  ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
                               const State& state, int stage_id) final {
     const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
@@ -503,7 +505,7 @@ class RuleAddCacheWrite : public SketchGenerationRule {
         kApply : kPass;
   }
 
-  std::vector<std::pair<State, int> > Apply(const MetaTileRewritePolicyNode* policy,
+  std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
                                             const State& state, int stage_id) final {
     const SearchTask& task = policy->cur_task;
 
@@ -518,13 +520,13 @@ class RuleAddCacheWrite : public SketchGenerationRule {
 // Currently only support 1 to 1 match cache read
 class RuleAddCacheRead : public SketchGenerationRule {
  public:
-  ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
+  ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
                               const State& state, int stage_id) final {
     return ShouldBeCacheRead(policy, state, stage_id) ?
         kApplyAndSkipRest : kPass;
   }
 
-  std::vector<std::pair<State, int> > Apply(const MetaTileRewritePolicyNode* policy,
+  std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
                                             const State& state, int stage_id) final {
     const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
@@ -549,7 +551,7 @@ class RuleAddCacheRead : public SketchGenerationRule {
 // The rule that adds rfactor stage
 class RuleAddRfactor : public SketchGenerationRule {
  public:
-  ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
+  ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
                               const State& state, int stage_id) final {
     const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
@@ -559,7 +561,7 @@ class RuleAddRfactor : public SketchGenerationRule {
         kApply : kPass;
   }
 
-  std::vector<std::pair<State, int> > Apply(const MetaTileRewritePolicyNode* policy,
+  std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
                                             const State& state, int stage_id) final {
     const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
@@ -611,7 +613,7 @@ class RuleAddRfactor : public SketchGenerationRule {
   }
 };
 
-void MetaTileRewritePolicyNode::GenerateMetaSketch(
+void SketchSearchPolicyNode::GenerateSketch(
     std::vector<State>* out_states) {
   State init_state = cur_task->compute_dag.GetInitState();
   std::string cpu_multi_level_tiling_structure =
@@ -705,10 +707,10 @@ void MetaTileRewritePolicyNode::GenerateMetaSketch(
     }
   }
 
-  StdCout(verbose) << "Synthesize Meta Structure\t\t#s: " << out_states->size() << std::endl;
+  StdCout(verbose) << "Generate Sketches\t\t#s: " << out_states->size() << std::endl;
 }
 
-int InitPopulationFillTileSize(const MetaTileRewritePolicyNode* policy,
+int InitPopulationFillTileSize(const SketchSearchPolicyNode* policy,
                                State* state, std::mt19937* rand_gen,
                                SplitFactorizationMemo* split_memo) {
   for (size_t step_id = 0; step_id < (*state)->transform_steps.size(); ++step_id) {
@@ -741,7 +743,7 @@ int InitPopulationFillTileSize(const MetaTileRewritePolicyNode* policy,
   return 0;
 }
 
-int InitPopulationThreadBind(const MetaTileRewritePolicyNode* policy,
+int InitPopulationThreadBind(const SketchSearchPolicyNode* policy,
                              State* state) {
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
@@ -853,7 +855,7 @@ int InitPopulationThreadBind(const MetaTileRewritePolicyNode* policy,
   return 0;
 }
 
-int InitPopulationCooperativeFetching(const MetaTileRewritePolicyNode* policy,
+int InitPopulationCooperativeFetching(const SketchSearchPolicyNode* policy,
                                       State* state) {
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     // Do cooperative fetching with cache read stage
@@ -898,7 +900,7 @@ int InitPopulationCooperativeFetching(const MetaTileRewritePolicyNode* policy,
   return 0;
 }
 
-int InitPopulationChangeComputeLocation(const MetaTileRewritePolicyNode* policy,
+int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
                                         State* state, std::mt19937* rand_gen) {
   if(GetIntParam(policy->params, "disable_change_compute_location")) {
     return 0;
@@ -1060,12 +1062,12 @@ int InitPopulationChangeComputeLocation(const MetaTileRewritePolicyNode* policy,
   return 0;
 }
 
-int InitPopulationParallel(const MetaTileRewritePolicyNode* policy,
+int InitPopulationParallel(const SketchSearchPolicyNode* policy,
                            State* state) {
-  std::function<void(const MetaTileRewritePolicyNode*, State*, int stage_id, int iter_offset)> annotate_parallel;
+  std::function<void(const SketchSearchPolicyNode*, State*, int stage_id, int iter_offset)> annotate_parallel;
 
   annotate_parallel = [&annotate_parallel](
-          const MetaTileRewritePolicyNode* policy, State* state, int stage_id, int iter_offset) {
+          const SketchSearchPolicyNode* policy, State* state, int stage_id, int iter_offset) {
     const Stage& stage = (*state)->stages[stage_id];
 
     std::vector<Iterator> to_fuse;
@@ -1125,7 +1127,7 @@ int InitPopulationParallel(const MetaTileRewritePolicyNode* policy,
   return 0;
 }
 
-int InitPopulationVectorization(const MetaTileRewritePolicyNode* policy,
+int InitPopulationVectorization(const SketchSearchPolicyNode* policy,
                                 State* state, std::mt19937* rand_gen) {
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
@@ -1202,7 +1204,7 @@ int InitPopulationVectorization(const MetaTileRewritePolicyNode* policy,
   return 0;
 }
 
-int InitPopulationUnroll(const MetaTileRewritePolicyNode* policy,
+int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
                          State* state, std::mt19937* rand_gen) {
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
@@ -1266,7 +1268,7 @@ int InitPopulationUnroll(const MetaTileRewritePolicyNode* policy,
   return 0;
 }
 
-void MetaTileRewritePolicyNode::SampleInitPopulation(const std::vector<State>& meta_structures,
+void SketchSearchPolicyNode::SampleInitPopulation(const std::vector<State>& sketches,
     int out_size, std::vector<State>* out_states) {
   std::uniform_real_distribution<> dis(0.0, 1.0);
   int continue_count = 0;
@@ -1274,7 +1276,7 @@ void MetaTileRewritePolicyNode::SampleInitPopulation(const std::vector<State>& m
   // TODO(...): Maybe try muti thread here
   while (static_cast<int>(out_states->size()) < out_size &&
          continue_count < out_size * 10) {
-    State tmp_s = meta_structures[rand_gen_() % meta_structures.size()];
+    State tmp_s = sketches[rand_gen_() % sketches.size()];
 
     InitPopulationFillTileSize(this, &tmp_s, &rand_gen_, &split_memo_);
 
@@ -1305,11 +1307,11 @@ void MetaTileRewritePolicyNode::SampleInitPopulation(const std::vector<State>& m
     out_states->push_back(std::move(tmp_s));
   }
 
-  StdCout(verbose) << "Sample Initial Population\t\t#s: "
+  StdCout(verbose) << "Sample Initial Population\t#s: "
                    << out_states->size() << std::endl;
 }
 
-void MetaTileRewritePolicyNode::EvolutionarySearch(
+void SketchSearchPolicyNode::EvolutionarySearch(
     const std::vector<State>& init_population,
     int num_best_states, std::vector<State>* best_states) {
   auto tic_begin = std::chrono::high_resolution_clock::now();
@@ -1473,10 +1475,10 @@ class RuleCustomSketch : public SketchGenerationRule {
   RuleCustomSketch(PackedFunc meet_condition_func, PackedFunc apply_func) :
       meet_condition_func_(meet_condition_func), apply_func_(apply_func) {}
 
-  inline ConditionEnum MeetCondition(const MetaTileRewritePolicyNode* policy,
+  inline ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
                                      const State& state, int stage_id) final {
     auto ret = meet_condition_func_(
-        tvm::runtime::GetRef<MetaTileRewritePolicy>(policy), state, stage_id);
+        tvm::runtime::GetRef<SketchSearchPolicy>(policy), state, stage_id);
     if (ret.type_code() == 0) {
       return ConditionEnum(static_cast<int>(ret));
     } else {
@@ -1485,12 +1487,12 @@ class RuleCustomSketch : public SketchGenerationRule {
   }
 
   inline std::vector<std::pair<State, int> > Apply(
-      const MetaTileRewritePolicyNode* policy,
+      const SketchSearchPolicyNode* policy,
       const State& state, int stage_id) final {
     std::vector<std::pair<State, int> > ret;
 
     Array<Array<ObjectRef>> apply_ret = apply_func_(
-        tvm::runtime::GetRef<MetaTileRewritePolicy>(policy), state, stage_id);
+        tvm::runtime::GetRef<SketchSearchPolicy>(policy), state, stage_id);
 
     for (const auto& item : apply_ret) {
       CHECK_EQ(item.size(), 2);
@@ -1506,32 +1508,32 @@ class RuleCustomSketch : public SketchGenerationRule {
   PackedFunc apply_func_;
 };
 
-SearchCallback PreAddCustomRuleNode::make(PackedFunc meet_condition_func,
+SearchCallback PreloadCustomSketchRuleNode::make(PackedFunc meet_condition_func,
                                           PackedFunc apply_func) {
-  auto node = make_object<PreAddCustomRuleNode>();
+  auto node = make_object<PreloadCustomSketchRuleNode>();
   node->meet_condition_func = meet_condition_func;
   node->apply_func = apply_func;
   return SearchCallback(node);
 }
 
-void PreAddCustomRuleNode::callback(SearchPolicyNode* policy) {
-  CHECK(policy->IsInstance<MetaTileRewritePolicyNode>());
-  auto meta_policy = dynamic_cast<MetaTileRewritePolicyNode*>(policy);
-  meta_policy->sketch_rules.emplace_back(
+void PreloadCustomSketchRuleNode::callback(SearchPolicyNode* policy) {
+  CHECK(policy->IsInstance<SketchSearchPolicyNode>());
+  auto sketch_policy = dynamic_cast<SketchSearchPolicyNode*>(policy);
+  sketch_policy->sketch_rules.emplace_back(
       new RuleCustomSketch(meet_condition_func, apply_func));
   StdCout(policy->verbose) << "Custom sketch rule added." << std::endl;
 }
 
-TVM_REGISTER_GLOBAL("ansor.MetaTileRewritePolicy")
+TVM_REGISTER_GLOBAL("ansor.SketchSearchPolicy")
 .set_body_typed([](CostModel program_cost_model,
                    Map<String, ObjectRef> params,
                    int seed){
-  return MetaTileRewritePolicyNode::make(program_cost_model, params, seed);
+  return SketchSearchPolicyNode::make(program_cost_model, params, seed);
 });
 
-TVM_REGISTER_GLOBAL("ansor.PreAddCustomRule")
+TVM_REGISTER_GLOBAL("ansor.PreloadCustomSketchRule")
 .set_body_typed([](PackedFunc meet_condition_func, PackedFunc apply_func) {
-  return PreAddCustomRuleNode::make(meet_condition_func, apply_func);
+  return PreloadCustomSketchRuleNode::make(meet_condition_func, apply_func);
 });
 
 }  // namespace ansor

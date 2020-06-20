@@ -1147,8 +1147,7 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
     }
 
     pstate->stages[i] = StageNode::make(stage->op, stage->op_type,
-            std::move(new_iters), stage->compute_at,
-            stage->auto_unroll_max_step, stage->storage_offset);
+            std::move(new_iters), stage->compute_at, stage->attrs);
   }
 }
 

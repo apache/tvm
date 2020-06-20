@@ -121,6 +121,12 @@ class CacheReadStep; class CacheWriteStep;
 class PragmaStep; class RfactorStep; class StorageAlignStep;
 class TensorizeStep;
 
+/*! \brief Stage-level attributes */
+struct StageAttributes {
+  int auto_unroll_max_step;
+  int storage_offset;
+};
+
 /*!
  * \brief A stage in the compute declaration
  * Similar to te::Stage in `include/schedule.h`
@@ -131,8 +137,7 @@ class StageNode : public Object {
   StageType op_type;
   std::vector<Iterator> iters;
   ComputeAtType compute_at;
-  int auto_unroll_max_step;
-  int storage_offset;
+  StageAttributes attrs;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("op", &op);
@@ -141,12 +146,10 @@ class StageNode : public Object {
   static Stage make(te::Operation op);
   static Stage make(te::Operation op, StageType op_type,
                     const std::vector<Iterator>& iters,
-                    ComputeAtType compute_at, int auto_unroll_max_step,
-                    int storage_offset);
+                    ComputeAtType compute_at, StageAttributes attrs);
   static Stage make(te::Operation op, StageType op_type,
                     std::vector<Iterator>&& iters,
-                    ComputeAtType compute_at, int auto_unroll_max_step,
-                    int storage_offset);
+                    ComputeAtType compute_at, StageAttributes attrs);
 
   static constexpr const char *_type_key = "ansor.Stage";
   TVM_DECLARE_FINAL_OBJECT_INFO(StageNode, Object);

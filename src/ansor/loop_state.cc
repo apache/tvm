@@ -76,35 +76,32 @@ Stage StageNode::make(te::Operation op) {
 
   node->compute_at = kRoot;
   node->op = std::move(op);
-  node->auto_unroll_max_step = 0;
-  node->storage_offset = 0;
+  node->attrs.auto_unroll_max_step = 0;
+  node->attrs.storage_offset = 0;
   return Stage(node);
 }
 
 Stage StageNode::make(te::Operation op, StageType op_type,
                       const std::vector<Iterator>& iters,
-                      ComputeAtType compute_at, int auto_unroll_max_step,
-                      int storage_offset) {
+                      ComputeAtType compute_at, StageAttributes attrs) {
   auto node = make_object<StageNode>();
   node->op = std::move(op);
   node->op_type = op_type;
   node->iters = iters;
   node->compute_at = compute_at;
-  node->auto_unroll_max_step = auto_unroll_max_step;
-  node->storage_offset = storage_offset;
+  node->attrs = attrs;
   return Stage(node);
 }
 
 Stage StageNode::make(te::Operation op, StageType op_type,
                       std::vector<Iterator>&& iters, ComputeAtType compute_at,
-                      int auto_unroll_max_step, int storage_offset) {
+                      StageAttributes attrs) {
   auto node = make_object<StageNode>();
   node->op = std::move(op);
   node->op_type = op_type;
   node->iters = std::move(iters);
   node->compute_at = compute_at;
-  node->auto_unroll_max_step = auto_unroll_max_step;
-  node->storage_offset = storage_offset;
+  node->attrs = attrs;
   return Stage(node);
 }
 
@@ -333,7 +330,7 @@ void State::DoReorderStep(const ReorderStep& step) {
   StateNode* pstate = CopyOnWrite();
   pstate->stages[step->stage_id] = StageNode::make(
       stage->op, stage->op_type, std::move(iters), stage->compute_at,
-      stage->auto_unroll_max_step, stage->storage_offset);
+      stage->attrs);
 }
 
 // common part for DoSplitStep, DoFollowSplitStep, and DoFollowFusedSplitStep
@@ -400,7 +397,7 @@ std::vector<Iterator> State::DoSplitStepCommon(
   StateNode* pstate = CopyOnWrite();
   pstate->stages[stage_id] = StageNode::make(
       stage->op, stage->op_type, std::move(new_iters), stage->compute_at,
-      stage->auto_unroll_max_step, stage->storage_offset);
+      stage->attrs);
 
   // we have to replace the iterators in attach map,
   // these two vectors keep the replacement mapping
@@ -494,7 +491,7 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   StateNode* pstate = CopyOnWrite();
   pstate->stages[stage_id] = StageNode::make(
       stage->op, stage->op_type, std::move(new_iters), stage->compute_at,
-      stage->auto_unroll_max_step, stage->storage_offset);
+      stage->attrs);
 
   // we have to replace the iterators in attach map,
   // these two vectors keep the replacement mapping
@@ -559,7 +556,7 @@ void State::DoComputeAtStep(const ComputeAtStep& step) {
   StateNode* pstate = CopyOnWrite();
   pstate->stages[step->stage_id] =
       StageNode::make(stage->op, stage->op_type, std::move(new_iters), kIter,
-                      stage->auto_unroll_max_step, stage->storage_offset);
+                      stage->attrs);
   pstate->attach_map.SetComputeAtIter(step->stage_id, step->target_stage_id,
                                       step->target_iter_id);
 }
@@ -581,7 +578,7 @@ void State::DoComputeRootStep(const ComputeRootStep& step) {
   StateNode* pstate = CopyOnWrite();
   pstate->stages[step->stage_id] =
       StageNode::make(stage->op, stage->op_type, std::move(new_iters), kRoot,
-                      stage->auto_unroll_max_step, stage->storage_offset);
+                      stage->attrs);
   pstate->attach_map.DeleteStage(step->stage_id);
 }
 
@@ -716,7 +713,7 @@ void State::DoPragmaStep(const PragmaStep& step) {
     StateNode* pstate = CopyOnWrite();
     StageNode* stage = pstate->stages[step->stage_id].CopyOnWrite();
     size_t pos = step->pragma_type.find('$');
-    stage->auto_unroll_max_step = atoi(step->pragma_type.c_str() + pos + 1);
+    stage->attrs.auto_unroll_max_step = atoi(step->pragma_type.c_str() + pos + 1);
   } else if (step->pragma_type == "tensor_core") {
     // Nothing needs to be done here
   } else {
@@ -759,7 +756,7 @@ int State::DoRfactorStep(const RfactorStep& step, const ComputeDAG& dag) {
 void State::DoStorageAlignStep(const StorageAlignStep& step) {
   StateNode* pstate = CopyOnWrite();
   StageNode* stage = pstate->stages[step->stage_id].CopyOnWrite();
-  stage->storage_offset = step->offset;
+  stage->attrs.storage_offset = step->offset;
 }
 
 Iterator State::DoTensorizeStep(const TensorizeStep& step) {
@@ -831,19 +828,19 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state,
                 size_t base_indent, bool delete_trivial_loop) {
   const Stage& stage = state->stages[stage_id];
 
-  if (stage->auto_unroll_max_step != 0) {
+  if (stage->attrs.auto_unroll_max_step != 0) {
     for (size_t j = 0; j < base_indent; ++j) {
       *os << " ";
     }
     *os << stage->op->func_name()
-        << " auto_unroll: " << stage->auto_unroll_max_step << "\n";
+        << " auto_unroll: " << stage->attrs.auto_unroll_max_step << "\n";
   }
-  if (stage->storage_offset != 0) {
+  if (stage->attrs.storage_offset != 0) {
     for (size_t j = 0; j < base_indent; ++j) {
       *os << " ";
     }
     *os << stage->op->func_name()
-        << " storage_offset: " << stage->storage_offset << "\n";
+        << " storage_offset: " << stage->attrs.storage_offset << "\n";
   }
 
   size_t indent = 0;

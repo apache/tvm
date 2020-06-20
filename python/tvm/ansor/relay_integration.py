@@ -28,7 +28,7 @@ import threading
 from tvm import target, te, transform
 from tvm.te.tensor import PlaceholderOp, ComputeOp
 from .dispatcher import DispatchContext
-from .workload_registry import register_auto_scheduler_workload_bufs, compute_dag_hash
+from .workload_registry import register_workload_bufs, compute_dag_hash
 from .compute_dag import ComputeDAG, LayoutRewriteLevel
 from .env import GLOBAL_SCOPE
 
@@ -203,11 +203,14 @@ def traverse_to_get_io_tensors(outs):
 def auto_schedule_topi(outs):
     """ Use ansor to auto-schedule a topi compute declaration """
     io_tensors, has_layout_free = traverse_to_get_io_tensors(outs)
-    key = register_auto_scheduler_workload_bufs(io_tensors)
+    key = register_workload_bufs(io_tensors)
 
     env = TracingEnvironment.current
     if env is None:  # in the final build mode
         state = DispatchContext.current.query(target.Target.current(), key)
+        if state is None:
+            return te.create_schedule([x.op for x in outs])
+
         dag = ComputeDAG(io_tensors)
         # Only update compute body, layout_rewrite_level = LayoutRewriteLevel.COMPUTE_REWRITE,
         # Since kernel layout has already been rewritten in relay pass
