@@ -22,6 +22,7 @@
  * \brief A simple JSON runtime for DNNL.
  */
 
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
 #include <cstddef>
@@ -74,54 +75,59 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     }
   }
 
+  void Init(const Array<NDArray>& consts) override {
+    BuildEngine();
+
+    CHECK_EQ(consts.size(), const_idx_.size())
+        << "The number of input constants must match the number of required.";
+
+    // Pre-allocate buffers on CPU for input and output entries.
+    DLContext ctx;
+    ctx.device_type = static_cast<DLDeviceType>(kDLCPU);
+    ctx.device_id = 0;
+    AllocateInputOutputBuffer(ctx);
+
+    // Setup constants entries for weights.
+    SetupConstants(consts);
+
+    initialized_ = true;
+  }
+
   void Run() override {
     // Fill in the input buffers.
-    for (size_t i = 0; i < this->input_nodes_.size(); ++i) {
-      auto nid = this->input_nodes_[i];
-      auto eid = EntryID(nid, 0);
+    for (size_t i = 0; i < input_nodes_.size(); ++i) {
+      auto eid = EntryID(input_nodes_[i], 0);
       // TODO: Support other data lengths.
-      size_t offset_in_bytes = this->entry_out_mem_[eid].second * 4;
-      write_to_dnnl_memory(this->data_entry_[nid]->data, this->entry_out_mem_[eid].first,
-                           GetNDArraySize(this->data_entry_[eid]), offset_in_bytes);
+      size_t offset_in_bytes = entry_out_mem_[eid].second * 4;
+      size_t buffer_size = GetDataSize(*(data_entry_[eid].operator->()));
+      write_to_dnnl_memory(data_entry_[eid]->data, entry_out_mem_[eid].first, buffer_size,
+                           offset_in_bytes);
     }
 
-    // Invoke the engine.
+    // Invoke the engine through intepreting the stream.
     for (size_t i = 0; i < net_.size(); ++i) {
       net_.at(i).execute(stream_, net_args_.at(i));
     }
     stream_.wait();
 
     // Read output buffers.
-    for (size_t i = 0; i < this->outputs_.size(); ++i) {
-      auto out_entry = this->outputs_[i];
-      auto eid = EntryID(out_entry);
-      size_t offset_in_bytes = this->entry_out_mem_[eid].second * 4;
-      read_from_dnnl_memory(this->data_entry_[eid]->data, this->entry_out_mem_[eid].first,
-                            GetNDArraySize(this->data_entry_[eid]), offset_in_bytes);
+    for (size_t i = 0; i < outputs_.size(); ++i) {
+      auto eid = EntryID(outputs_[i]);
+      size_t offset_in_bytes = entry_out_mem_[eid].second * 4;
+      size_t buffer_size = GetDataSize(*(data_entry_[eid].operator->()));
+      read_from_dnnl_memory(data_entry_[eid]->data, entry_out_mem_[eid].first, buffer_size,
+                            offset_in_bytes);
     }
   }
 
-  void Init(const Array<NDArray>& consts) override {
-    data_entry_.resize(NumEntries());
-    BuildEngine();
-
-    CHECK_EQ(consts.size(), const_idx_.size())
-        << "The number of input constants must match the number of required.";
-
-    // Initialize consts
-    for (size_t i = 0; i < consts.size(); ++i) {
-      this->data_entry_[const_idx_[i]].CopyFrom(consts[i]);
-    }
-
-    initialized_ = true;
-  }
-
+ private:
+  // Build up the engine based on the input graph.
   void BuildEngine() {
     engine_ = dnnl::engine(dnnl::engine::kind::cpu, 0);
     stream_ = dnnl::stream(engine_);
 
     // Build subgraph engine.
-    for (size_t nid = 0; nid < this->nodes_.size(); ++nid) {
+    for (size_t nid = 0; nid < nodes_.size(); ++nid) {
       const auto& node = nodes_[nid];
       if (node.GetOpType() == "kernel") {
         CHECK_EQ(node.GetOpType(), "kernel");
@@ -145,24 +151,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
         }
       }
     }
-
-    // Initialize input/output entries.
-    DLContext ctx;
-    ctx.device_type = static_cast<DLDeviceType>(1);
-    ctx.device_id = 0;
-    for (size_t i = 0; i < this->input_nodes_.size(); ++i) {
-      auto shape = this->nodes_[this->input_nodes_[i]].GetOpShape()[0];
-      auto nid = this->input_nodes_[i];
-      this->data_entry_[EntryID(nid, 0)] = NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx);
-    }
-    for (size_t i = 0; i < this->outputs_.size(); ++i) {
-      auto entry = this->outputs_[i];
-      auto shape = this->nodes_[entry.id_].GetOpShape()[entry.index_];
-      this->data_entry_[EntryID(entry)] = NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx);
-    }
   }
 
- private:
   // Bind a JSON graph node entry to a DNNL memory.
   dnnl::memory BindDNNLMemory(const JSONGraphNodeEntry& entry, dnnl::memory::desc mem_desc,
                               size_t offset = 0) {
@@ -191,14 +181,13 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   void Conv2d(const size_t& nid, const bool has_relu = false, const bool has_bias = false) {
-    auto node = this->nodes_[nid];
+    auto node = nodes_[nid];
 
     // Setup attributes.
     auto data_entry = node.GetInputs()[0];
     auto weight_entry = node.GetInputs()[1];
-    dnnl::memory::dims input_shape = this->nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
-    dnnl::memory::dims weight_shape =
-        this->nodes_[weight_entry.id_].GetOpShape()[weight_entry.index_];
+    dnnl::memory::dims input_shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
+    dnnl::memory::dims weight_shape = nodes_[weight_entry.id_].GetOpShape()[weight_entry.index_];
     std::vector<std::string> str_strides = node.GetAttr<std::vector<std::string>>("strides");
     std::vector<std::string> str_padding = node.GetAttr<std::vector<std::string>>("padding");
     dnnl::memory::dim groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
@@ -292,14 +281,13 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   void Dense(const size_t& nid) {
-    auto node = this->nodes_[nid];
+    auto node = nodes_[nid];
 
     // Setup attributes.
     auto data_entry = node.GetInputs()[0];
     auto weight_entry = node.GetInputs()[1];
-    dnnl::memory::dims input_shape = this->nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
-    dnnl::memory::dims weight_shape =
-        this->nodes_[weight_entry.id_].GetOpShape()[weight_entry.index_];
+    dnnl::memory::dims input_shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
+    dnnl::memory::dims weight_shape = nodes_[weight_entry.id_].GetOpShape()[weight_entry.index_];
 
     dnnl::memory::dim B = input_shape[0],  // batch size
         IC = input_shape[1],               // input channels
@@ -340,14 +328,14 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   void BatchNorm(const size_t& nid) {
-    auto node = this->nodes_[nid];
+    auto node = nodes_[nid];
 
     auto data_entry = node.GetInputs()[0];
     auto gamma_entry = node.GetInputs()[1];
     auto beta_entry = node.GetInputs()[2];
     auto mean_entry = node.GetInputs()[3];
     auto variance_entry = node.GetInputs()[4];
-    dnnl::memory::dims data_shape = this->nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
+    dnnl::memory::dims data_shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
     dnnl::memory::dim IC = data_shape[1];
     float epsilon = std::stof(node.GetAttr<std::vector<std::string>>("epsilon")[0]);
 
@@ -382,10 +370,10 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   void Relu(const size_t& nid) {
-    auto node = this->nodes_[nid];
+    auto node = nodes_[nid];
 
     auto data_entry = node.GetInputs()[0];
-    dnnl::memory::dims shape = this->nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
+    dnnl::memory::dims shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
     auto data_md = dnnl::memory::desc{{shape}, dt::f32, tag::abcd};
 
     auto relu_desc = dnnl::eltwise_forward::desc(dnnl::prop_kind::forward_inference,
@@ -405,7 +393,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   void Add(const size_t& nid) {
-    auto node = this->nodes_[nid];
+    auto node = nodes_[nid];
 
     // Memory and compute description.
     std::vector<dnnl::memory::dims> data_dims;
@@ -414,7 +402,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     CHECK_EQ(node.GetInputs().size(), 2U);
     for (auto entry : node.GetInputs()) {
-      auto data_shape = this->nodes_[entry.id_].GetOpShape()[entry.index_];
+      auto data_shape = nodes_[entry.id_].GetOpShape()[entry.index_];
       dnnl::memory::desc data_md = GenDNNLMemDescByShape(data_shape, dt::f32);
 
       data_dims.push_back(data_shape);
@@ -472,16 +460,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
         break;
     }
     return data_md;
-  }
-
-  // Calculate the size of a given NDArray in bytes.
-  inline size_t GetNDArraySize(const NDArray& arr) {
-    size_t size = 1;
-    for (tvm_index_t i = 0; i < arr->ndim; ++i) {
-      size *= static_cast<size_t>(arr->shape[i]);
-    }
-    size *= (arr->dtype.bits * arr->dtype.lanes + 7) / 8;
-    return size;
   }
 
   /* The dnnl engine. */

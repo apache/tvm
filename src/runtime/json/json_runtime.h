@@ -114,6 +114,11 @@ class JSONRuntimeBase : public ModuleNode {
   }
 
  protected:
+  /*!
+   * \brief Set up the inputs for inference.
+   *
+   * \param args The packed args.
+   */
   void SetInputs(const TVMArgs& args) {
     CHECK_EQ(args.size(), input_var_idx_.size() + outputs_.size())
         << "Found mismatch in the number of provided data entryies and required.";
@@ -122,36 +127,73 @@ class JSONRuntimeBase : public ModuleNode {
       auto eid = EntryID(input_var_idx_[i], 0);
       CHECK(args[i].type_code() == kTVMNDArrayHandle || args[i].type_code() == kTVMDLTensorHandle)
           << "Expect NDArray or DLTensor as inputs";
+      size_t to_size = GetDataSize(*(data_entry_[eid].operator->()));
       if (args[i].type_code() == kTVMDLTensorHandle) {
         DLTensor* arg = args[i];
-        this->data_entry_[eid].CopyFrom(arg);
+        data_entry_[eid].CopyFrom(arg);
       } else {
         // Zero copy for input because the tensor is managed by the host.
-        this->data_entry_[eid] = args[i];
+        NDArray arg = args[i];
+        size_t from_size = GetDataSize(*(arg.operator->()));
+        CHECK_EQ(from_size, to_size);
+        if (data_entry_[eid]->ctx.device_type == arg->ctx.device_type) {
+          data_entry_[eid] = args[i];
+        } else {
+          data_entry_[eid].CopyFrom(arg);
+        }
       }
     }
   }
 
+  /*!
+   * \brief Return the results through packed args.
+   *
+   * \param args The packed args.
+   */
   void GetOutput(const TVMArgs& args) {
     // Copy result to output buffer.
     size_t arg_idx = input_var_idx_.size();
     CHECK_EQ(args.size(), arg_idx + outputs_.size())
         << "Found mismatch in the number of provided data entryies and required.";
 
-    for (size_t i = 0; i < this->outputs_.size(); i++) {
+    for (size_t i = 0; i < outputs_.size(); i++) {
       auto eid = EntryID(outputs_[i]);
 
       if (args[arg_idx].type_code() == kTVMDLTensorHandle) {
         DLTensor* arg = args[arg_idx];
-        this->data_entry_[eid].CopyTo(arg);
+        data_entry_[eid].CopyTo(arg);
       } else {
         NDArray arg = args[arg_idx];
-        this->data_entry_[eid].CopyTo(arg);
+        data_entry_[eid].CopyTo(arg);
       }
       arg_idx++;
     }
   }
 
+  /*!
+   * \brief Pre-allocate empty buffers for input and output entries.
+   *
+   * \param ctx The context for the pre-allocated buffer.
+   */
+  void AllocateInputOutputBuffer(const DLContext& ctx) {
+    for (size_t i = 0; i < this->input_nodes_.size(); ++i) {
+      auto shape = this->nodes_[this->input_nodes_[i]].GetOpShape()[0];
+      auto nid = this->input_nodes_[i];
+      this->data_entry_[EntryID(nid, 0)] = NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx);
+    }
+
+    for (size_t i = 0; i < this->outputs_.size(); ++i) {
+      auto entry = this->outputs_[i];
+      auto shape = this->nodes_[entry.id_].GetOpShape()[entry.index_];
+      this->data_entry_[EntryID(entry)] = NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx);
+    }
+  }
+
+  /*!
+   * \brief Load the graph and record the entries for inputs and constants.
+   *
+   * \param graph_json The graph in the json format.
+   */
   void LoadGraph(const std::string& graph_json) {
     std::istringstream is(graph_json);
     dmlc::JSONReader reader(&is);
@@ -177,8 +219,24 @@ class JSONRuntimeBase : public ModuleNode {
       CHECK_EQ(consts[i], const_names_[i])
           << "The position of constant in the graph must be the same as the required.";
     }
+
+    // Reserve data entries.
+    data_entry_.resize(NumEntries());
   }
 
+  /*!
+   * \brief Set up the constants/weights for inference.
+   *
+   * \param consts The constant to be filled.
+   */
+  void SetupConstants(const Array<NDArray>& consts) {
+    // Initialize consts
+    for (size_t i = 0; i < consts.size(); ++i) {
+      data_entry_[const_idx_[i]].CopyFrom(consts[i]);
+    }
+  }
+
+  // Load the graph.
   void Load(dmlc::JSONReader* reader) {
     reader->BeginObject();
     std::string key;
