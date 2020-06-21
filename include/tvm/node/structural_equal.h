@@ -89,8 +89,6 @@ class StructuralEqual : public BaseValueEqual {
    * \return The comparison result.
    */
   TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs) const;
-
-  TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars) const;
 };
 
 /*!
