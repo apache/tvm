@@ -109,6 +109,15 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   // inference the type of expr.
   Expr Infer(Expr expr);
 
+  void SetCurrentFunc(GlobalVar current_func) {
+    this->current_func_ = current_func;
+    this->solver_.SetCurrentFunc(current_func);
+  }
+
+  void GenerateConstraints(Expr expr);
+  void Solve();
+  Expr ResolveType(Expr expr);
+
  private:
   // type resolver that maps back to type
   class Resolver;
@@ -544,13 +553,6 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     return FuncType(c->inputs, TypeCall(c->belong_to, types), td->type_vars, {});
   }
 
-  void Solve() {
-    solver_.Solve();
-
-    if (err_reporter.AnyErrors()) {
-      err_reporter.RenderErrors(mod_);
-    }
-  }
 };
 
 class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
@@ -698,6 +700,24 @@ Expr TypeInferencer::Infer(Expr expr) {
   return resolved_expr;
 }
 
+void TypeInferencer::GenerateConstraints(Expr expr) {
+  GetType(expr);
+}
+
+void TypeInferencer::Solve() {
+  solver_.Solve();
+
+  if (err_reporter.AnyErrors()) {
+    err_reporter.RenderErrors(mod_);
+  }
+}
+
+Expr TypeInferencer::ResolveType(Expr expr) {
+  auto resolved_expr = Resolver(type_map_, &solver_).VisitExpr(expr);
+  CHECK(WellFormed(resolved_expr));
+  return resolved_expr;
+}
+
 struct AllCheckTypePopulated : ExprVisitor {
   void VisitExpr(const Expr& e) {
     if (e.as<OpNode>()) {
@@ -742,6 +762,45 @@ Function InferType(const Function& func, const IRModule& mod, const GlobalVar& v
   return Downcast<Function>(func_ret);
 }
 
+IRModule InferTypeAll(const IRModule& mod) {
+  CHECK(mod.defined()) << "internal error: module must be set for type inference";
+  const auto& globalvars = mod->GetGlobalVars();
+
+  // first pass: fill in type for all functions
+  for (const auto& var : globalvars) {
+    relay::Function func = Downcast<relay::Function>(mod->Lookup(var));
+    func->checked_type_ = func->func_type_annotation();
+    mod->AddUnchecked(var, func);
+  }
+
+  TypeInferencer ti = TypeInferencer(mod, GlobalVar("all"));
+
+  // second pass, fill in constraints
+  for (const auto& var : globalvars) {
+    relay::Function func = Downcast<relay::Function>(mod->Lookup(var));
+    ti.SetCurrentFunc(var);
+    ti.GenerateConstraints(func);
+    // ti.Infer(func);
+  }
+
+  std::cout << "done generating constraints" << std::endl;
+
+  ti.Solve();
+
+  std::cout << "done solving" << std::endl;
+
+  // third pass
+  for (const auto& var : globalvars) {
+    relay::Function func = Downcast<relay::Function>(mod->Lookup(var));
+    ti.SetCurrentFunc(var);
+    Expr func_ret = ti.ResolveType(func);
+    //Expr func_ret = ti.Infer(func);
+    mod->AddUnchecked(var, Downcast<relay::Function>(func_ret));
+  }
+
+  return mod;
+}
+
 namespace transform {
 
 Pass InferType() {
@@ -750,7 +809,16 @@ Pass InferType() {
   return CreateFunctionPass(pass_func, 0, "InferType", {});
 }
 
+Pass InferTypeAll() {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+      [=](IRModule m, PassContext pc) { return relay::InferTypeAll(m); };
+  return CreateModulePass(pass_func, 0, "InferTypeAll", {});
+}
+
+
 TVM_REGISTER_GLOBAL("relay._transform.InferType").set_body_typed([]() { return InferType(); });
+
+TVM_REGISTER_GLOBAL("relay._transform.InferTypeAll").set_body_typed([]() { return InferTypeAll(); });
 
 }  // namespace transform
 

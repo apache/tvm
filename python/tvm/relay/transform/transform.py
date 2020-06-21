@@ -98,7 +98,9 @@ def InferType():
     """
     return _ffi_api.InferType()
 
-
+def InferTypeAll():
+    return _ffi_api.InferTypeAll()
+    
 def FoldScaleAxis():
     """Fold the scaling of axis into weights of conv2d/dense. This pass will
     invoke both forward and backward scale folding.

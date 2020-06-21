@@ -20,6 +20,8 @@
 import pytest
 import tvm
 from tvm import te
+import numpy as np
+from tvm.relay.prelude import Prelude
 from tvm import relay
 from tvm.relay import op, transform, analysis
 from tvm.relay import Any
@@ -361,6 +363,68 @@ def test_let_polymorphism():
     body = run_infer_type(body)
     int32 = relay.TensorType((), "int32")
     tvm.ir.assert_structural_equal(body.checked_type, relay.TupleType([int32, relay.TupleType([])]))
+
+def test_mutual_recursion2():
+    # f(x) = if x > 0 then g(x - 1) else 0
+    # g(y) = if y > 0 then f(y - 1) else 0
+    tensortype = relay.TensorType((), 'float32')
+
+    x = relay.Var("x", tensortype)
+    y = relay.Var("y", tensortype)
+
+    zero = relay.Constant(tvm.nd.array(np.array(0, dtype='float32')))
+    one = relay.Constant(tvm.nd.array(np.array(1, dtype='float32')))
+
+    f_gv = relay.GlobalVar('f')
+    g_gv = relay.GlobalVar('g')
+
+    def body(var, call_func):
+        subtract_one = relay.op.subtract(var, one)
+        cond = relay.If(relay.op.greater(var, zero),
+                        relay.Call(call_func, [subtract_one]),
+                        zero)
+        func = relay.Function([var], cond)
+        return func
+
+    f = body(x, g_gv)
+    g = body(y, f_gv)
+
+    mod = tvm.IRModule()
+    p = Prelude(mod)
+    mod.add_unchecked(f_gv, f)
+    mod.add_unchecked(g_gv, g)
+    mod = transform.InferTypeAll()(mod)
+
+    expected = relay.FuncType([tensortype], tensortype)
+    tvm.ir.assert_structural_equal(mod[f_gv].checked_type, expected)
+    tvm.ir.assert_structural_equal(mod[g_gv].checked_type, expected)
+
+def test_id_mutual():
+    # f(x) = g(x)
+    # g(y) = f(y)
+
+    tx = relay.TypeVar("x")
+    ty = relay.TypeVar("y")
+
+    x = relay.Var("x", tx)
+    y = relay.Var("y", ty)
+
+    f_gv = relay.GlobalVar('f')
+    g_gv = relay.GlobalVar('g')
+
+    def body(var, call_func, type_param):
+        body = relay.Call(call_func, [var])
+        func = relay.Function([var], body, type_params=type_param)
+        return func
+
+    f = body(x, g_gv, [tx])
+    g = body(y, f_gv, [ty])
+
+    mod = tvm.IRModule()
+    p = Prelude(mod)
+    mod.add_unchecked(f_gv, f)
+    mod.add_unchecked(g_gv, g)
+    mod = transform.InferTypeAll()(mod)
 
 
 def test_if():

@@ -210,6 +210,8 @@ TVM_DLL Pass FastMath();
  */
 TVM_DLL Pass InferType();
 
+TVM_DLL Pass InferTypeAll();
+
 /*!
  * \brief Search and eliminate common subexpression. For example, if there are
  * two expressions evaluated to an identical value, a single variable is created
