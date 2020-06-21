@@ -258,7 +258,7 @@ class VMExecutor(Executor):
             if type_has_any(ret_type) and "llvm" not in str(self.target) and "arm" not in str(
                     self.target):
                 raise ValueError(
-                    "Virtual Machine only supports static graphs on CPU, got output type",
+                    "Virtual Machine only supports dynamic graphs on CPU, got output type",
                     ret_type, "on target", self.target)
             return self.vm.run(*args)
 
