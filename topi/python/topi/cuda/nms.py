@@ -38,9 +38,10 @@ def cuda_atomic_add_rule(op):
 tvm.target.intrin.register_intrin_rule(
     "cuda", "atomic_add", cuda_atomic_add_rule, override=True)
 
+tvm.ir.register_op_attr("tir.atomic_add", "TVectorizable", False)
 
 def atomic_add(x, y):
-    return tvm.tir.call_pure_intrin(y.dtype, "atomic_add", x, y)
+    return tvm.tir.call_pure_intrin(y.dtype, "tir.atomic_add", x, y)
 
 
 def get_valid_counts_ir(data, valid_count, out, out_indices,
