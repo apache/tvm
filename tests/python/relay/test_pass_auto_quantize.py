@@ -21,6 +21,7 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm.relay import testing
+from tvm.relay.expr import Call
 
 
 def quantize_and_build(out):
@@ -32,6 +33,7 @@ def quantize_and_build(out):
 
     relay.build(qmod, "llvm", params=params)
 
+    return qmod
 
 def test_mul_rewrite():
     """a test case where rhs of mul is not constant"""
@@ -49,6 +51,26 @@ def test_mul_rewrite():
 
     quantize_and_build(act * pool)
 
+def test_batch_flatten_rewrite():
+
+    data = relay.var("data", shape=(1, 16, 64, 64), dtype="float32")
+
+    out = relay.nn.conv2d(data, relay.var("weight"),
+                          kernel_size=(3, 3),
+                          padding=(1, 1),
+                          channels=16)
+
+    out = relay.nn.batch_flatten(out)
+
+    qmod = quantize_and_build(out)
+
+    def _check_batch_flatten(node):
+        if isinstance(node, Call):
+            if(node.op.name == "nn.batch_flatten"):
+               assert node.checked_type.dtype == "int8"
+
+    # check if batch_flatten is quantized
+    relay.analysis.post_order_visit(qmod["main"], _check_batch_flatten)
 
 def get_calibration_dataset(input_name):
     dataset = []
@@ -83,6 +105,7 @@ def test_calibrate_memory_bound():
 
 if __name__ == "__main__":
     test_mul_rewrite()
+    test_batch_flatten_rewrite()
     test_calibrate_target(False)
     test_calibrate_target(True)
     test_calibrate_memory_bound()
