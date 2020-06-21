@@ -258,7 +258,7 @@ class Base64OutStream: public dmlc::Stream {
    * \brief finish writing of all current base64 stream, do some post processing
    * \param endch character to put to end of stream, if it is EOF, then nothing will be appended.
    */
-  void Finish(char endch = EOF) {
+  void Finish(int endch = EOF) {
     using base64::EncodeTable;
     if (buf__top_ == 1) {
       PutChar(EncodeTable[buf_[1] >> 2]);
