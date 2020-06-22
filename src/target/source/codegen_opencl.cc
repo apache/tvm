@@ -71,9 +71,10 @@ std::string CodeGenOpenCL::Finish() {
   }
 
   // Enable atomic_add used by get_valid_counts. Only needed for OpenCL < 1.1.
-  decl_stream << "#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable\n"
-                 "#pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics : enable\n\n";
-
+  if (enable_atomics_) {
+    decl_stream << "#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable\n"
+                   "#pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics : enable\n\n";
+  }
   return CodeGenC::Finish();
 }
 
@@ -230,18 +231,24 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
 
 void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
   if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-    // Overload tvm_address_of to add storage scope.
-    const LoadNode* l = op->args[0].as<LoadNode>();
-    CHECK(op->args.size() == 1 && l);
+    // Overload tvm_address_of to add storage scope (e.g. __global).
+    const LoadNode* load = op->args[0].as<LoadNode>();
+    CHECK(op->args.size() == 1 && load);
     os << "((";
-    auto it = alloc_storage_scope_.find(l->buffer_var.get());
+    auto it = alloc_storage_scope_.find(load->buffer_var.get());
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, os);
     }
-    this->PrintType(l->dtype.element_of(), os);
-    os << " *)" << this->GetVarID(l->buffer_var.get()) << " + ";
-    this->PrintExpr(l->index, os);
+    this->PrintType(load->dtype.element_of(), os);
+    os << " *)" << this->GetVarID(load->buffer_var.get()) << " + ";
+    this->PrintExpr(load->index, os);
     os << ')';
+  } else if (op->call_type == CallNode::Extern || op->call_type == CallNode::PureExtern) {
+    // Enable atomics extension if used.
+    if (op->name == "atomic_add") {
+      enable_atomics_ = true;
+    }
+    CodeGenC::VisitExpr_(op, os);
   } else {
     CodeGenC::VisitExpr_(op, os);
   }

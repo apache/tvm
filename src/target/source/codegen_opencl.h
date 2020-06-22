@@ -62,6 +62,8 @@ class CodeGenOpenCL final : public CodeGenC {
   // whether enable fp16 and fp64 extension
   bool enable_fp16_{false};
   bool enable_fp64_{false};
+  // Whether to enable atomics extension.
+  bool enable_atomics_{false};
 };
 
 }  // namespace codegen
