@@ -376,7 +376,7 @@ def test_multi_models_package_params(format=".so"):
         assert format == ".tar"
         file_name = "deploy_lib.tar"
     path_lib = temp.relpath(file_name)
-    complied_graph_lib.export_library(path_lib, package_params=True)
+    complied_graph_lib.export_library(path_lib, package_params=False)
     loaded_lib = tvm.runtime.load_module(path_lib)
 
     # resnet18
@@ -387,13 +387,12 @@ def test_multi_models_package_params(format=".so"):
     get_output = gmod["get_output"]
     load_params = gmod["load_params"]
     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
-    # loaded_params = bytearray(open(temp.relpath("deploy_0.params"), "rb").read())
+    loaded_params = bytearray(open(temp.relpath("deploy_0.params"), "rb").read())
     set_input("data", tvm.nd.array(data))
-    # load_params(loaded_params)
+    load_params(loaded_params)
     run()
     out = get_output(0).asnumpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
-    print("CPU PASS")
 
     # resnet50
     ctx = tvm.gpu()
@@ -403,29 +402,29 @@ def test_multi_models_package_params(format=".so"):
     get_output = gmod["get_output"]
     load_params = gmod["load_params"]
     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
-    # loaded_params = bytearray(open(temp.relpath("deploy_1.params"), "rb").read())
+    loaded_params = bytearray(open(temp.relpath("deploy_1.params"), "rb").read())
     set_input("data", tvm.nd.array(data))
-    # load_params(loaded_params)
+    load_params(loaded_params)
     run()
     out = get_output(0).asnumpy()
     tvm.testing.assert_allclose(out, verify(data, num_layers=50), atol=1e-5)
 
 if __name__ == "__main__":
-    test_legacy_compatibility()
-    test_cpu()
-    test_gpu()
-    test_multi_models()
-    test_cpu_export(".so")
-    test_cpu_export(".tar")
-    test_gpu_export(".so")
-    test_gpu_export(".tar")
-    test_rpc_export(".so")
-    test_rpc_export(".tar")
-    test_previous_cpu_export(".so")
-    test_previous_cpu_export(".tar")
-    test_previous_gpu_export(".so")
-    test_previous_gpu_export(".tar")
-    test_previous_rpc_export(".so")
-    test_previous_rpc_export(".tar")
-    test_package_params(".so")
-    # test_multi_models_package_params(".so")
+    # test_legacy_compatibility()
+    # test_cpu()
+    # test_gpu()
+    # test_multi_models()
+    # test_cpu_export(".so")
+    # test_cpu_export(".tar")
+    # test_gpu_export(".so")
+    # test_gpu_export(".tar")
+    # test_rpc_export(".so")
+    # test_rpc_export(".tar")
+    # test_previous_cpu_export(".so")
+    # test_previous_cpu_export(".tar")
+    # test_previous_gpu_export(".so")
+    # test_previous_gpu_export(".tar")
+    # test_previous_rpc_export(".so")
+    # test_previous_rpc_export(".tar")
+    # test_package_params(".so")
+    test_multi_models_package_params(".so")

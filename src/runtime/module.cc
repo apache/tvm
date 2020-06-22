@@ -66,9 +66,19 @@ PackedFunc ModuleNode::GetFunction(const std::string& name, bool query_imports) 
   PackedFunc pf = self->GetFunction(name, GetObjectPtr<Object>(this));
   if (pf != nullptr) return pf;
   if (query_imports) {
-    for (Module& m : self->imports_) {
-      pf = m->GetFunction(name, m.data_);
-      if (pf != nullptr) return pf;
+    std::unordered_set<ModuleNode*> visited{self};
+    std::vector<ModuleNode*> stack{self};
+    while (!stack.empty()) {
+      ModuleNode* n = stack.back();
+      stack.pop_back();
+      for (Module& m : n->imports_) {
+        ModuleNode* next = m.operator->();
+        if (visited.count(next)) continue;
+        pf = m->GetFunction(name, m.data_);
+        if (pf != nullptr) return pf;
+        visited.insert(next);
+        stack.push_back(next);
+      }
     }
   }
   return pf;
