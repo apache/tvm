@@ -86,11 +86,6 @@ class IRModuleNode : public Object {
   TVM_DLL void AddUnchecked(const GlobalVar& var, const BaseFunc& func);
 
   /*!
-   * \brief Infer the type of all global functions
-   */
-  TVM_DLL void Check();
-
-  /*!
    * \brief Add a type-level definition to the global environment.
    * \param var The var of the global type definition.
    * \param type The ADT.
