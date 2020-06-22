@@ -60,5 +60,10 @@
 /*! \brief Page size for virtual memory allocation */
 #define TVM_CRT_PAGE_BYTES 4096
 
+/*! Maximum number of registered modules. */
+#define TVM_CRT_MAX_REGISTERED_MODULES 2
 
-#endif  // TVM_RUNTIME_CRT_CONFIG_H_
+/*! Size of the global function registry, in bytes. */
+#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 200
+
+#endif  // TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_

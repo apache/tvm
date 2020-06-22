@@ -892,3 +892,11 @@ void TVMGraphRuntimeRelease(TVMGraphRuntimeAPI** pptr) {
 
   CHECK_EQ(vleak_size, 0, "found memory leak, leak size=%d", vleak_size);
 }
+
+void TVMGraphRuntimeRegisterGlobals(void) {
+  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.create", &TVMGraphRuntimeCreate, 0), 0);
+  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.set_input", &TVMGraphRuntime_SetInput, 0), 0);
+  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.run", &TVMGraphRuntime_Run, 0), 0);
+  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.get_output", &TVMGraphRuntime_GetOutput, 0), 0);
+  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.release", &TVMGraphRuntime_Release, 0), 0);
+}

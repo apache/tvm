@@ -33,6 +33,8 @@ extern "C" {
 
 typedef uint16_t tvm_function_index_t;
 
+typedef uint16_t tvm_module_index_t;
+
 /*!
  * \brief A data structure that facilitates function lookup by C-string name.
  */

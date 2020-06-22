@@ -105,4 +105,6 @@ TVMGraphRuntimeAPI* TVMGraphRuntimeCreate(const char* sym_json, const TVMModule*
                                           const TVMContext* ctxs);
 void TVMGraphRuntimeRelease(TVMGraphRuntimeAPI** runtime);
 
+void TVMGraphRuntimeRegisterGlobals(void);
+
 #endif  // TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_

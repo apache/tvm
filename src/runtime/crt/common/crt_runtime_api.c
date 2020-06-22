@@ -17,12 +17,16 @@
  * under the License.
  */
 
+#include <tvm/runtime/c_runtime_api.h>
 #include <assert.h>
+#include <inttypes.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/func_registry.h>
+#include <tvm/runtime/crt/platform.h>
 #include <tvm/runtime/crt/internal/common/ndarray.h>
 #include <tvm/runtime/crt/internal/common/packed_func.h>
 #include <tvm/runtime/crt/internal/graph_runtime/graph_runtime.h>
@@ -71,38 +75,233 @@ int TVMArrayFree(TVMArrayHandle handle) {
   return TVMNDArray_Release(&arr);
 }
 
-void* SystemLibraryCreate() { return 0; }
 
-int TVMModGetFunction(TVMModuleHandle mod, const char* func_name, int query_imports,
-                      TVMFunctionHandle* out) {
-  int status = 0;
-  if (!strcmp(func_name, "load_params")) {
-    *out = &TVMGraphRuntime_LoadParams;
-  } else {
-    status = -1;
+static TVMMutableFuncRegistry global_func_registry;
+
+int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {
+  return TVMMutableFuncRegistry_Set(&global_func_registry, name, f, override != 0);
+}
+
+static const TVMModule* registered_modules[TVM_CRT_MAX_REGISTERED_MODULES];
+
+/*! \brief Passed as `module_index` to EncodeFunctionHandle. */
+static const tvm_module_index_t kGlobalFuncModuleIndex = TVM_CRT_MAX_REGISTERED_MODULES;
+
+static int DecodeModuleHandle(TVMModuleHandle handle, tvm_module_index_t* out_module_index) {
+  tvm_module_index_t module_index;
+
+  module_index = ((tvm_module_index_t) ((uintptr_t) handle)) & ~0x8000;
+  if (module_index > TVM_CRT_MAX_REGISTERED_MODULES ||
+      registered_modules[module_index] == NULL) {
+    TVMAPIErrorf("invalid module handle: %08x", module_index);
+    return -1;
   }
-  return status;
+
+  *out_module_index = module_index;
+  return 0;
+}
+
+static TVMModuleHandle EncodeModuleHandle(tvm_module_index_t module_index) {
+  return (TVMModuleHandle) ((uintptr_t) (module_index | 0x8000));
+}
+
+static int _TVMModCreateFromCModule(const TVMModule* mod, TVMModuleHandle* out_handle) {
+  tvm_module_index_t idx;
+
+  for (idx = 0; idx < TVM_CRT_MAX_REGISTERED_MODULES; idx++) {
+    if (registered_modules[idx] == NULL) {
+      registered_modules[idx] = mod;
+      *out_handle = EncodeModuleHandle(idx);
+      return 0;
+    }
+  }
+
+  return -1;
+}
+
+int TVMModFree(TVMModuleHandle mod) {
+  tvm_module_index_t module_index;
+  if (DecodeModuleHandle(mod, &module_index) != 0) {
+    return -1;
+  }
+
+  registered_modules[module_index] = NULL;
+  return 0;
+}
+
+static const TVMModuleHandle kTVMModuleHandleUninitialized = (TVMModuleHandle) (~0UL);
+
+static TVMModuleHandle system_lib_handle;
+
+int SystemLibraryCreate(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_val, int* ret_type_codes) {
+  const TVMModule* system_lib;
+
+  if (system_lib_handle == kTVMModuleHandleUninitialized) {
+    system_lib = TVMSystemLibEntryPoint();
+    if (_TVMModCreateFromCModule(system_lib, &system_lib_handle) != 0) {
+      TVMAPIErrorf("error registering system lib");
+      return -1;
+    }
+  }
+
+  ret_val[0].v_handle = system_lib_handle;
+  ret_type_codes[0] = kTVMModuleHandle;
+  return 0;
+}
+
+static TVMFunctionHandle EncodeFunctionHandle(tvm_module_index_t module_index, tvm_function_index_t function_index) {
+  return (TVMFunctionHandle) ((uintptr_t) (((module_index | 0x8000) << (sizeof(tvm_function_index_t) * 8)) | (function_index | 0x8000)));
+}
+
+static int DecodeFunctionHandle(TVMFunctionHandle handle, tvm_module_index_t* module_index, tvm_function_index_t* function_index) {
+  tvm_module_index_t unvalidated_module_index;
+  unvalidated_module_index = (tvm_module_index_t) (((uintptr_t) handle) >> (sizeof(tvm_function_index_t) * 8));
+  unvalidated_module_index &= ~0x8000;
+
+  if (unvalidated_module_index > kGlobalFuncModuleIndex) {
+    TVMAPIErrorf("invalid module handle: index=%08x", unvalidated_module_index);
+    return -1;
+  } else if (unvalidated_module_index < kGlobalFuncModuleIndex &&
+             registered_modules[unvalidated_module_index] == NULL) {
+    TVMAPIErrorf("unregistered module: index=%08x", unvalidated_module_index);
+    return -1;
+  }
+
+  *function_index = ((uint32_t) handle) & ~0x8000;
+  *module_index = unvalidated_module_index;
+  return 0;
+}
+
+int TVMFuncCall(TVMFunctionHandle func_handle, TVMValue* arg_values, int* type_codes, int num_args,
+                TVMValue* ret_val, int* ret_type_code) {
+  tvm_module_index_t module_index;
+  tvm_function_index_t function_index;
+  void* resource_handle;
+  const TVMFuncRegistry* registry;
+  TVMBackendPackedCFunc func;
+
+  if (DecodeFunctionHandle(func_handle, &module_index, &function_index) != 0) {
+    return -1;
+  }
+
+  if (module_index == kGlobalFuncModuleIndex) {
+    resource_handle = NULL;
+    registry = &global_func_registry.registry;
+  } else {
+    resource_handle = (void*) registered_modules[module_index]->registry;
+    registry = registered_modules[module_index]->registry;
+  }
+
+  if (TVMFuncRegistry_GetByIndex(registry, function_index, &func) != 0) {
+    TVMAPIErrorf("invalid function index: %04" PRIx16, function_index);
+    return -1;
+  }
+
+  ret_type_code[0] = kTVMNullptr;
+  ret_val[0].v_handle = NULL;
+  return func(arg_values, type_codes, num_args, ret_val, ret_type_code, resource_handle);
+}
+
+static int FindFunctionOrSetAPIError(tvm_module_index_t module_index, const TVMFuncRegistry* registry, const char* name,
+                                     TVMFunctionHandle* out) {
+  tvm_function_index_t function_index;
+  if (TVMFuncRegistry_Lookup(registry, name, &function_index) != 0) {
+    TVMAPIErrorf("failed to get function: mod_index=%04" PRIx16 ", name=%s", module_index, name);
+    return -1;
+  }
+
+  *out = EncodeFunctionHandle(module_index, function_index);
+  return 0;
 }
 
 int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
-  int status = 0;
-  if (!strcmp(name, "tvm.graph_runtime.create")) {
-    *out = &TVMGraphRuntimeCreate;
-  } else if (!strcmp(name, "tvm.graph_runtime.set_input")) {
-    *out = &TVMGraphRuntime_SetInput;
-  } else if (!strcmp(name, "tvm.graph_runtime.run")) {
-    *out = &TVMGraphRuntime_Run;
-  } else if (!strcmp(name, "tvm.graph_runtime.get_output")) {
-    *out = &TVMGraphRuntime_GetOutput;
-  } else if (!strcmp(name, "tvm.graph_runtime.release")) {
-    *out = &TVMGraphRuntimeRelease;
-  } else if (!strcmp(name, "runtime.SystemLib")) {
-    *out = &SystemLibraryCreate;
-  } else {
-    char msg[200];
-    snprintf(msg, sizeof(msg), "fail to get global: name=%s", name);
-    TVMAPISetLastError(msg);
-    status = -1;
+  return FindFunctionOrSetAPIError(kGlobalFuncModuleIndex, &global_func_registry.registry, name, out);
+}
+
+int TVMModGetFunction(TVMModuleHandle mod, const char* func_name, int query_imports,
+                      TVMFunctionHandle* out) {
+  tvm_module_index_t module_index;
+  if (DecodeModuleHandle(mod, &module_index) != 0) {
+    return -1;
   }
-  return status;
+
+  return FindFunctionOrSetAPIError(module_index, registered_modules[module_index]->registry, func_name, out);
+}
+
+int ModuleGetFunction(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_value, int* ret_type_codes) {
+  int function_index;
+  TVMModuleHandle mod;
+  int module_index;
+  const char* name;
+  int to_return;
+  int query_imports;
+
+  ret_value[0].v_handle = NULL;
+  ret_type_codes[0] = kTVMNullptr;
+  if (num_args != 3 ||
+      type_codes[0] != kTVMModuleHandle ||
+      type_codes[1] != kTVMStr ||
+      type_codes[2] != kDLInt) {
+    return 0;
+  }
+
+  mod = (TVMModuleHandle) args[0].v_handle;
+  name = args[1].v_str;
+  query_imports = args[2].v_int64 != 0;
+  to_return = TVMModGetFunction(mod, name, query_imports, &ret_value->v_handle);
+
+  if (to_return == 0) {
+    ret_type_codes[0] = kTVMPackedFuncHandle;
+  }
+
+  return to_return;
+}
+
+typedef struct TVMCReturnValue {
+  TVMValue* ret_val;
+  int* ret_type_code;
+} TVMCReturnValue;
+
+int TVMCFuncSetReturn(TVMRetValueHandle ret, TVMValue* value, int* type_code, int num_ret) {
+  TVMCReturnValue* ret_val;
+  int idx;
+
+  ret_val = (TVMCReturnValue*) ret;
+  for (idx = 0; idx < num_ret; idx++) {
+    ret_val->ret_val[idx] = value[idx];
+    ret_val->ret_type_code[idx] = type_code[idx];
+  }
+
+  return 0;
+}
+
+int TVMFuncFree(TVMFunctionHandle func) {
+  // A no-op, since we don't actually allocate anything in GetFunction
+  return 0;
+}
+
+int TVMInitializeRuntime() {
+  int idx;
+  int error;
+
+  system_lib_handle = kTVMModuleHandleUninitialized;
+
+  TVMMutableFuncRegistry_Create(&global_func_registry,
+                                vmalloc(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES),
+                                TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES);
+  for (idx = 0; idx < TVM_CRT_MAX_REGISTERED_MODULES; idx++) {
+    registered_modules[idx] = NULL;
+  }
+
+  error = TVMFuncRegisterGlobal("runtime.SystemLib", &SystemLibraryCreate, 0);
+  if (error != 0) {
+    return error;
+  }
+
+  error = TVMFuncRegisterGlobal("tvm.rpc.server.ModuleGetFunction", &ModuleGetFunction, 0);
+  if (error != 0) {
+    return error;
+  }
+
+  return 0;
 }
