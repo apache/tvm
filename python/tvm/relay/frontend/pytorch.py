@@ -2354,8 +2354,8 @@ def convert_params(graph, state_dict):
             elif full_attr in state_dict:
                 torch_tensor = state_dict[full_attr]
                 tensor, var = _get_tensor_and_var(torch_tensor,
-                                                  full_attr_node_name)
-                param_tensors[full_attr_node_name] = tensor
+                                                  full_attr)
+                param_tensors[full_attr] = tensor
                 params[full_attr_node_name] = var
 
     return params, param_tensors, packed_param_map

@@ -2384,6 +2384,12 @@ def test_forward_dtypes():
         verify_model(fn, input_data=[tensor1, tensor2])
 
 
+def test_weight_names():
+    tm = torch.jit.trace(torch.nn.Linear(3, 4), [torch.randn(2, 3)])
+    mod, params = relay.frontend.from_pytorch(tm, [('input', (2, 3))])
+    assert set(params.keys()) == set(n for n, p in tm.named_parameters())
+
+
 def test_forward_matmul():
     torch.set_grad_enabled(False)
 
@@ -2546,8 +2552,11 @@ def test_forward_pretrained_bert_base_uncased():
 
 
 if __name__ == "__main__":
+    # some structural tests
     test_forward_traced_function()
     test_forward_dtypes()
+    test_weight_names()
+
     # Single operator tests
     test_forward_add()
     test_forward_subtract()
