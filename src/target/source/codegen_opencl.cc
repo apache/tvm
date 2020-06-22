@@ -230,7 +230,7 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
 }
 
 void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
-  if (op->is_intrinsic(intrinsic::tvm_address_of)) {
+  if (op->op.same_as(builtin::address_of())) {
     // Overload tvm_address_of to add storage scope (e.g. __global).
     const LoadNode* load = op->args[0].as<LoadNode>();
     CHECK(op->args.size() == 1 && load);
@@ -243,9 +243,10 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << " *)" << this->GetVarID(load->buffer_var.get()) << " + ";
     this->PrintExpr(load->index, os);
     os << ')';
-  } else if (op->call_type == CallNode::Extern || op->call_type == CallNode::PureExtern) {
+  } else if (op->op.same_as(builtin_call_extern_)) {
+    auto func = Downcast<StringImm>(op->args[0]);
     // Enable atomics extension if used.
-    if (op->name == "atomic_add") {
+    if (func->value == "atomic_add") {
       enable_atomics_ = true;
     }
     CodeGenC::VisitExpr_(op, os);
