@@ -58,9 +58,10 @@ runtime::Module CreateMetadataModule(
   // Wrap all submodules in the initialization wrapper.
   std::unordered_map<std::string, std::vector<std::string>> sym_metadata;
   for (runtime::Module it : modules) {
-    CHECK_EQ(it->type_key(), "c") << "Only csource submodule is handled for now";
+    auto pf = it.GetFunction("get_const_vars");
+    if (pf == nullptr) continue;
+    Array<String> variables = pf();
     String symbol = it.GetFunction("get_symbol")();
-    Array<String> variables = it.GetFunction("get_const_vars")();
     std::vector<std::string> arrays;
     for (size_t i = 0; i < variables.size(); i++) {
       arrays.push_back(variables[i].operator std::string());
