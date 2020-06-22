@@ -44,19 +44,20 @@ IRModule CalibratePartition(IRModule module) {
 
     Expr Rewrite_(const CallNode* call, const Expr& post) final {
       if (call->op->IsInstance<GlobalVarNode>()) {
-        LOG(INFO) << call->op;
         auto var = Downcast<GlobalVar>(call->op);
-        output_map.Set(var, post);
+        for (size_t i = 0; i < call->args.size(); i++)
+          new_outputs.push_back(call->args[i]);
+        new_outputs.push_back(post);
       }
       return post;
     }
 
-    Map<GlobalVar, Expr> GetOutputMap() {
-      return output_map;
+    Array<Expr> GetNewOutputs() {
+      return new_outputs;
     }
 
    private:
-    Map<GlobalVar, Expr> output_map; 
+    Array<Expr> new_outputs;
 
   };
 
@@ -69,11 +70,16 @@ IRModule CalibratePartition(IRModule module) {
       // Collect the output
       OutputCollector output_collector;
       auto body = PostOrderRewrite(func->body, &output_collector);
-      auto output_map = output_collector.GetOutputMap();
-      for (const auto& kv : output_map) {
-        LOG(INFO) << kv.first << " " << kv.second;
+      auto new_outputs = output_collector.GetNewOutputs();
+      if (!new_outputs.empty()) {
+        Array<Expr> fields;
+        fields.push_back(body);
+        for (const auto& output : new_outputs) {
+          fields.push_back(output);
+        }
+        auto tuple = Tuple(fields);
+        func = Function(func->params, tuple, tuple->checked_type_, func->type_params, func->attrs);
       }
-      func = Function(func->params, body, func->ret_type, func->type_params, func->attrs);
       // Reset the compiler attribute to null
       func = WithAttr(std::move(func), attr::kCompiler, NullValue<ObjectRef>());
       module->Update(pair.first, func);
