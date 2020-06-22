@@ -314,10 +314,11 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     net_.push_back(dense);
 
     // Memories.
-    std::vector<float> bias(OC, 0);
     auto data_memory = BindDNNLMemory(data_entry, data_md);
     auto weight_memory = BindDNNLMemory(weight_entry, weight_md);
-    auto bias_memory = dnnl::memory(bias_md, engine_, bias.data());
+    auto bias_memory = dnnl::memory(bias_md, engine_);
+    float bias[OC] = {0};
+    write_to_dnnl_memory(bias, bias_memory, OC * sizeof(float));
     JSONGraphNodeEntry out_entry(nid, 0);
     auto dst_memory = BindDNNLMemory(out_entry, dense_prim_desc.dst_desc());
 
