@@ -97,8 +97,7 @@ struct ExprLess {
 /*!
  * \brief Combine the information into an array of (in)equalities.
  */
-Array<PrimExpr> as_conditions(const Array<Var>& variables,
-                              const Map<Var, IntGrpBounds>& bounds,
+Array<PrimExpr> as_conditions(const Array<Var>& variables, const Map<Var, IntGrpBounds>& bounds,
                               const Array<PrimExpr>& relations) {
   Array<PrimExpr> res;
   // use variables to keep the order of iteration
@@ -493,8 +492,8 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
   // Add the original conditions to the resulting conditions
   arith::Analyzer analyzer;
   analyzer.Bind(vranges);
-  for (const PrimExpr& old_cond : as_conditions(
-           inequalities->variables, solved_bounds, solved_other_relations)) {
+  for (const PrimExpr& old_cond :
+       as_conditions(inequalities->variables, solved_bounds, solved_other_relations)) {
     if (!analyzer.CanProve(old_cond)) {
       // those not represented in vranges (res_ranges)
       res_relations.push_back(old_cond);
@@ -586,8 +585,8 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   }
 
   // Add the original conditions (with variables substituted) to the resulting conditions
-  for (const PrimExpr& old_cond : as_conditions(
-           inequalities->variables, solved_bounds, solved_other_relations)) {
+  for (const PrimExpr& old_cond :
+       as_conditions(inequalities->variables, solved_bounds, solved_other_relations)) {
     PrimExpr new_cond = analyzer.Simplify(Substitute(old_cond, res_src_to_dst));
     if (!is_const_int(new_cond, 1)) {
       // those not represented in vranges (res_ranges)
