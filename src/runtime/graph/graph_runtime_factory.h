@@ -127,6 +127,8 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
   std::string kind_;
   /*! \brief module names list */
   std::vector<std::string> module_names_;
+  /*! \brief whether to package params */
+  bool package_params_ = true;
 
 };
 

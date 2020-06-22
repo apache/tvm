@@ -144,12 +144,3 @@ class GraphRuntimeFactoryModule(Module):
         obj = objs[self.iter_cnt]
         self.iter_cnt += 1
         return obj
-
-    def get_json(self):
-        return self.graph_json
-
-    def get_lib(self):
-        return self.lib
-
-    def get_params(self):
-        return self.params

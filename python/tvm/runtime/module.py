@@ -19,6 +19,7 @@
 """Runtime Module namespace."""
 import ctypes
 import struct
+import os
 from collections import namedtuple
 
 import tvm._ffi
@@ -222,29 +223,31 @@ class Module(object):
         except NameError:
             raise NameError("time_evaluate is only supported when RPC is enabled")
 
-    def _collect_dso_modules(self):
-        """Helper function to collect dso modules, then return it."""
-        visited, stack, dso_modules = set(), [], []
+    def _collect_modules(self, module_type_keys):
+        """Helper function to collect specifit modules, then return it."""
+        visited, stack, modules = set(), [], []
+        type_keys = module_type_keys if isinstance(module_type_keys, (list, tuple)) else [module_type_keys]
         # append root module
         visited.add(self)
         stack.append(self)
         while stack:
             module = stack.pop()
-            if module._dso_exportable():
-                dso_modules.append(module)
+            if module.type_key in type_keys:
+                modules.append(module)
             for m in module.imported_modules:
                 if m not in visited:
                     visited.add(m)
                     stack.append(m)
-        return dso_modules
+        return modules
 
     def _dso_exportable(self):
-        return self.type_key == "llvm" or self.type_key == "c"
+        return ["llvm", "c"]
 
     def export_library(self,
                        file_name,
                        fcompile=None,
                        addons=None,
+                       package_params=True,
                        **kwargs):
         """Export the module and its imported device code one library.
 
@@ -260,6 +263,13 @@ class Module(object):
             Compilation function to use create dynamic library.
             If fcompile has attribute object_format, will compile host library
             to that format. Otherwise, will use default format "o".
+
+        addons : str, optional
+            Extra files needed to be passed to compiler.
+
+        package_params: bool, optional.
+            Whether we will package params into library.
+            The default value is True.
 
         kwargs : dict, optional
             Additional arguments passed to fcompile
@@ -282,7 +292,19 @@ class Module(object):
             self.save(file_name)
             return
 
-        modules = self._collect_dso_modules()
+        graph_runtime_factory_modules = self._collect_modules("GraphRuntimeFactory")
+        for index, module in enumerate(graph_runtime_factory_modules):
+            if not package_params:
+                module.get_function("diable_package_params")()
+                path_params = os.path.join(os.path.dirname(file_name), "deploy_" + str(index) + ".params")
+                from tvm import relay
+                with open(path_params, "wb") as fo:
+                    graph_params = {}
+                    for k, v in module.get_function("get_params")().items():
+                        graph_params[k] = v
+                    fo.write(relay.save_param_dict(graph_params))
+
+        modules = self._collect_modules(self._dso_exportable())
         temp = _util.tempdir()
         files = addons if addons else []
         is_system_lib = False

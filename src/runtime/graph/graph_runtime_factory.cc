@@ -89,6 +89,10 @@ PackedFunc GraphRuntimeFactory::GetFunction(const std::string& name,
       }
       *rv = ret;
     });
+  } else if (name == "diable_package_params") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      this->package_params_ = false;
+    });
   } else {
     return PackedFunc();
   }
@@ -98,18 +102,21 @@ void GraphRuntimeFactory::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(module_names_);
   stream->Write(kind_);
   stream->Write(graph_json_);
-  std::vector<std::string> names;
-  std::vector<DLTensor*> arrays;
-  for (const auto& v : params_) {
-    names.emplace_back(v.first);
-    arrays.emplace_back(const_cast<DLTensor*>(v.second.operator->()));
-  }
-  stream->Write(names);
-  uint64_t sz = arrays.size();
-  CHECK(sz == names.size());
-  stream->Write(sz);
-  for (size_t i = 0; i < sz; ++i) {
-    tvm::runtime::SaveDLTensor(stream, arrays[i]);
+  stream->Write(package_params_);
+  if (package_params_) {
+    std::vector<std::string> names;
+    std::vector<DLTensor*> arrays;
+    for (const auto& v : params_) {
+      names.emplace_back(v.first);
+      arrays.emplace_back(const_cast<DLTensor*>(v.second.operator->()));
+    }
+    uint64_t sz = arrays.size();
+    CHECK(sz == names.size());
+    stream->Write(sz);
+    stream->Write(names);
+    for (size_t i = 0; i < sz; ++i) {
+      tvm::runtime::SaveDLTensor(stream, arrays[i]);
+    }
   }
 }
 
@@ -145,21 +152,24 @@ Module GraphRuntimeFactoryModuleLoadBinary(void* strm) {
   std::vector<std::string> module_names;
   std::string kind;
   std::string graph_json;
+  bool package_params;
+  std::unordered_map<std::string, tvm::runtime::NDArray> params;
   CHECK(stream->Read(&module_names));
   CHECK(stream->Read(&kind));
   CHECK(stream->Read(&graph_json));
-  std::vector<std::string> names;
-  CHECK(stream->Read(&names));
-  uint64_t sz;
-  CHECK(stream->Read(&sz));
-  CHECK(sz == names.size());
-  std::unordered_map<std::string, tvm::runtime::NDArray> params;
-  for (size_t i = 0; i < sz; ++i) {
-    tvm::runtime::NDArray temp;
-    temp.Load(stream);
-    params[names[i]] = temp;
+  CHECK(stream->Read(&package_params));
+  if (package_params) {
+    uint64_t sz;
+    CHECK(stream->Read(&sz));
+    std::vector<std::string> names;
+    CHECK(stream->Read(&names));
+    CHECK(sz == names.size());
+    for (size_t i = 0; i < sz; ++i) {
+      tvm::runtime::NDArray temp;
+      temp.Load(stream);
+      params[names[i]] = temp;
+    }
   }
-
   auto exec = make_object<GraphRuntimeFactory>();
   exec->Init(kind, graph_json, params);
   exec->SetModuleNames(module_names);

@@ -185,12 +185,12 @@ def test_gpu_export(format=".so"):
     out = get_output(0).asnumpy()
 
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
-#
+
 def test_previous_cpu_export(format=".so"):
     mod, params = get_workload()
     with relay.build_config(opt_level=3):
         graph, lib, graph_params = relay.build_module.build(
-            mod, "llvm --system-lib", params=params, export_graph_module=True)
+            mod, "llvm", params=params, export_graph_module=True)
 
     from tvm.contrib import util
     temp = util.tempdir()
@@ -206,12 +206,7 @@ def test_previous_cpu_export(format=".so"):
     with open(temp.relpath("deploy_param.params"), "wb") as fo:
         fo.write(relay.save_param_dict(graph_params))
     loaded_json = open(temp.relpath("deploy_graph.json")).read()
-    #loaded_lib = tvm.module.load(path_lib)
-    import ctypes
-    # Load dll, will trigger system library registration
-    dll = ctypes.CDLL(path_lib)
-    # Load the system wide library
-    loaded_lib = tvm.runtime.system_lib()
+    loaded_lib = tvm.runtime.load_module(path_lib)
     loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
     ctx = tvm.cpu()
@@ -222,40 +217,39 @@ def test_previous_cpu_export(format=".so"):
     out = module.get_output(0).asnumpy()
 
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
-#
-# def test_previous_gpu_export(format=".so"):
-#     #mod, params = get_workload()
-#     net, params = nnvm.testing.resnet.get_workload(num_layers=18)
-#     with nnvm.compiler.build_config(opt_level=3):
-#         graph, lib, graph_params = nnvm.compiler.build(
-#             net, "opencl", shape={'data': (1,3,224,224)}, params=params)
-#
-#     from tvm.contrib import util
-#     temp = "tvm_deploy/"
-#     if format == ".so":
-#         file_name = "deploy_lib.so"
-#     else:
-#         assert format == ".tar"
-#         file_name = "deploy_lib.tar"
-#     path_lib = temp + file_name
-#     lib.export_library(path_lib)
-#     with open("tvm_deploy/deploy_graph.json", "w") as fo:
-#         fo.write(graph.json())
-#     with open("tvm_deploy/deploy_param.params", "wb") as fo:
-#         fo.write(nnvm.compiler.save_param_dict(graph_params))
-#     # loaded_json = open(temp.relpath("deploy_graph.json")).read()
-#     # loaded_lib = tvm.module.load(path_lib)
-#     # loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
-#     # data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
-#     # ctx = tvm.gpu()
-#     # module = graph_runtime.create(loaded_json, loaded_lib, ctx)
-#     # module.load_params(loaded_params)
-#     # module.set_input("data", data)
-#     # module.run()
-#     # out = module.get_output(0).asnumpy()
-#     #
-#     # tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
-#
+
+def test_previous_gpu_export(format=".so"):
+    mod, params = get_workload()
+    with relay.build_config(opt_level=3):
+        graph, lib, graph_params = relay.build_module.build(
+            mod, "cuda", params=params, export_graph_module=True)
+
+    from tvm.contrib import util
+    temp = util.tempdir()
+    if format == ".so":
+        file_name = "deploy_lib.so"
+    else:
+        assert format == ".tar"
+        file_name = "deploy_lib.tar"
+    path_lib = temp.relpath(file_name)
+    lib.export_library(path_lib)
+    with open(temp.relpath("deploy_graph.json"), "w") as fo:
+        fo.write(graph)
+    with open(temp.relpath("deploy_param.params"), "wb") as fo:
+        fo.write(relay.save_param_dict(graph_params))
+    loaded_json = open(temp.relpath("deploy_graph.json")).read()
+    loaded_lib = tvm.runtime.load_module(path_lib)
+    loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
+    data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
+    ctx = tvm.gpu()
+    module = graph_runtime.create(loaded_json, loaded_lib, ctx)
+    module.load_params(loaded_params)
+    module.set_input("data", data)
+    module.run()
+    out = module.get_output(0).asnumpy()
+
+    tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+
 def test_rpc_export(format=".so"):
     mod, params = get_workload()
     with relay.build_config(opt_level=3):
@@ -294,72 +288,128 @@ def test_rpc_export(format=".so"):
     out = gmod.get_output(0).asnumpy()
 
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
-#
-# def test_previous_rpc_export(format=".so"):
-#     mod, params = get_workload()
-#     with relay.build_config(opt_level=3):
-#         graph, lib, graph_params = relay.build_module.build(
-#             mod, "llvm", params=params, export_graph_module=False)
-#
-#     from tvm.contrib import util
-#     temp = util.tempdir()
-#     if format == ".so":
-#         file_name = "deploy_lib.so"
-#     else:
-#         assert format == ".tar"
-#         file_name = "deploy_lib.tar"
-#     path_lib = temp.relpath(file_name)
-#     lib.export_library(path_lib)
-#     with open(temp.relpath("deploy_graph.json"), "w") as fo:
-#         fo.write(graph)
-#     with open(temp.relpath("deploy_param.params"), "wb") as fo:
-#         fo.write(relay.save_param_dict(graph_params))
-#
-#     from tvm import rpc
-#     server = rpc.Server("localhost", use_popen=True)
-#     remote = rpc.connect(server.host, server.port)
-#     remote.upload(path_lib)
-#     loaded_json = open(temp.relpath("deploy_graph.json")).read()
-#     loaded_lib = remote.load_module(path_lib)
-#     loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
-#     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
-#     ctx = remote.cpu()
-#     module = graph_runtime.create(loaded_json, loaded_lib, ctx)
-#     module.load_params(loaded_params)
-#     module.set_input("data", data)
-#     module.run()
-#     out = module.get_output(0).asnumpy()
-#
-#     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
-#
-#
-# def test_previous_gpu_load():
-#     loaded_json = open("tvm_deploy/deploy_graph.json").read()
-#     loaded_lib = tvm.module.load("tvm_deploy/deploy_lib.so")
-#     loaded_params = bytearray(open("tvm_deploy/deploy_param.params", "rb").read())
-#     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
-#     ctx = tvm.gpu()
-#     module = graph_runtime.create(loaded_json, loaded_lib, ctx)
-#     module.load_params(loaded_params)
-#     module.set_input("data", data)
-#     module.run()
-#     out = module.get_output(0).asnumpy()
-#
-#     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
-#
-# def test_previous_cpu_load():
-#     loaded_json = open("tvm_deploy/deploy_cpu_graph.json").read()
-#     loaded_lib = tvm.module.load("tvm_deploy/deploy_cpu_lib.so")
-#     loaded_params = bytearray(open("tvm_deploy/deploy_cpu_param.params", "rb").read())
-#     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
-#     ctx = tvm.cpu()
-#     module = graph_runtime.create(loaded_json, loaded_lib, ctx)
-#     module.load_params(loaded_params)
-#     module.set_input("data", data)
-#     module.run()
-#     out = module.get_output(0).asnumpy()
-#
-#     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+
+def test_previous_rpc_export(format=".so"):
+    mod, params = get_workload()
+    with relay.build_config(opt_level=3):
+        graph, lib, graph_params = relay.build_module.build(
+            mod, "llvm", params=params, export_graph_module=True)
+
+    from tvm.contrib import util
+    temp = util.tempdir()
+    if format == ".so":
+        file_name = "deploy_lib.so"
+    else:
+        assert format == ".tar"
+        file_name = "deploy_lib.tar"
+    path_lib = temp.relpath(file_name)
+    lib.export_library(path_lib)
+    with open(temp.relpath("deploy_graph.json"), "w") as fo:
+        fo.write(graph)
+    with open(temp.relpath("deploy_param.params"), "wb") as fo:
+        fo.write(relay.save_param_dict(graph_params))
+
+    from tvm import rpc
+    server = rpc.Server("localhost", use_popen=True)
+    remote = rpc.connect(server.host, server.port)
+    remote.upload(path_lib)
+    loaded_json = open(temp.relpath("deploy_graph.json")).read()
+    loaded_lib = remote.load_module(path_lib)
+    loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
+    data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
+    ctx = remote.cpu()
+    module = graph_runtime.create(loaded_json, loaded_lib, ctx)
+    module.load_params(loaded_params)
+    module.set_input("data", data)
+    module.run()
+    out = module.get_output(0).asnumpy()
+
+    tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+
+def test_package_params(format=".so"):
+    mod, params = get_workload()
+    with relay.build_config(opt_level=3):
+        complied_graph_lib = relay.build_module.build(
+            mod, "llvm", params=params, export_graph_module=True)
+
+    from tvm.contrib import util
+    temp = util.tempdir()
+    if format == ".so":
+        file_name = "deploy_lib.so"
+    else:
+        assert format == ".tar"
+        file_name = "deploy_lib.tar"
+    path_lib = temp.relpath(file_name)
+    complied_graph_lib.export_library(path_lib, package_params=False)
+    loaded_lib = tvm.runtime.load_module(path_lib)
+    ctx = tvm.cpu(0)
+    gmod = loaded_lib['default'](ctx)
+    set_input = gmod["set_input"]
+    run = gmod["run"]
+    get_output = gmod["get_output"]
+    load_params = gmod["load_params"]
+    data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
+    loaded_params = bytearray(open(temp.relpath("deploy_0.params"), "rb").read())
+    set_input("data", tvm.nd.array(data))
+    load_params(loaded_params)
+    run()
+    out = get_output(0).asnumpy()
+
+    tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+
+def test_multi_models_package_params(format=".so"):
+    resnet18_mod, resnet18_params = get_workload()
+    resnet50_mod, resnet50_params = get_workload(50)
+    with relay.build_config(opt_level=3):
+        complied_graph_lib = relay.build_module.build(
+            resnet18_mod, "llvm", params=resnet18_params, mod_name='resnet18', export_graph_module=True)
+    with relay.build_config(opt_level=3):
+        resnet50_gpu_lib = relay.build_module.build(
+            resnet50_mod, "cuda", params=resnet50_params, mod_name='resnet50', export_graph_module=True)
+    complied_graph_lib.import_module(resnet50_gpu_lib, "resnet50")
+
+    from tvm.contrib import util
+    temp = util.tempdir()
+    if format == ".so":
+        file_name = "deploy_lib.so"
+    else:
+        assert format == ".tar"
+        file_name = "deploy_lib.tar"
+    path_lib = temp.relpath(file_name)
+    complied_graph_lib.export_library(path_lib, package_params=True)
+    loaded_lib = tvm.runtime.load_module(path_lib)
+
+    # resnet18
+    ctx = tvm.cpu(0)
+    gmod = loaded_lib['resnet18'](ctx)
+    set_input = gmod["set_input"]
+    run = gmod["run"]
+    get_output = gmod["get_output"]
+    load_params = gmod["load_params"]
+    data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
+    # loaded_params = bytearray(open(temp.relpath("deploy_0.params"), "rb").read())
+    set_input("data", tvm.nd.array(data))
+    # load_params(loaded_params)
+    run()
+    out = get_output(0).asnumpy()
+    tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+    print("CPU PASS")
+
+    # resnet50
+    ctx = tvm.gpu()
+    gmod = loaded_lib['resnet50'](ctx)
+    set_input = gmod["set_input"]
+    run = gmod["run"]
+    get_output = gmod["get_output"]
+    load_params = gmod["load_params"]
+    data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
+    # loaded_params = bytearray(open(temp.relpath("deploy_1.params"), "rb").read())
+    set_input("data", tvm.nd.array(data))
+    # load_params(loaded_params)
+    run()
+    out = get_output(0).asnumpy()
+    tvm.testing.assert_allclose(out, verify(data, num_layers=50), atol=1e-5)
+
 if __name__ == "__main__":
     test_legacy_compatibility()
     test_cpu()
@@ -370,12 +420,12 @@ if __name__ == "__main__":
     test_gpu_export(".so")
     test_gpu_export(".tar")
     test_rpc_export(".so")
-    # test_rpc_export(".tar")
-    # test_previous_cpu_export(".so")
-    # test_previous_cpu_export(".tar")
-    #test_previous_gpu_export(".so")
-    # test_previous_gpu_export(".tar")
-    # test_previous_rpc_export(".so")
-    # test_previous_rpc_export(".tar")
-    #test_previous_gpu_load()
-    #test_previous_cpu_load()
+    test_rpc_export(".tar")
+    test_previous_cpu_export(".so")
+    test_previous_cpu_export(".tar")
+    test_previous_gpu_export(".so")
+    test_previous_gpu_export(".tar")
+    test_previous_rpc_export(".so")
+    test_previous_rpc_export(".tar")
+    test_package_params(".so")
+    # test_multi_models_package_params(".so")
