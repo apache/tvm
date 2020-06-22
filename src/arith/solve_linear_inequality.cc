@@ -97,12 +97,16 @@ struct ExprLess {
 /*!
  * \brief Combine the information into an array of (in)equalities.
  */
-Array<PrimExpr> as_conditions(const Map<Var, IntGrpBounds>& bounds,
+Array<PrimExpr> as_conditions(const Array<Var>& variables,
+                              const Map<Var, IntGrpBounds>& bounds,
                               const Array<PrimExpr>& relations) {
   Array<PrimExpr> res;
-  for (const auto iter : bounds) {
-    const Var& v = iter.first;
-    const auto& bnds = iter.second;
+  // use variables to keep the order of iteration
+  // so as to get rid of any non-determinism.
+  CHECK_EQ(variables.size(), bounds.size());
+  for (const auto v : variables) {
+    CHECK(bounds.count(v));
+    const auto& bnds = bounds[v];
     PrimExpr lhs = bnds->coef * v;
     for (const PrimExpr& rhs : bnds->equal) {
       res.push_back(tir::EQ(lhs, rhs));
@@ -489,7 +493,8 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
   // Add the original conditions to the resulting conditions
   arith::Analyzer analyzer;
   analyzer.Bind(vranges);
-  for (const PrimExpr& old_cond : as_conditions(solved_bounds, solved_other_relations)) {
+  for (const PrimExpr& old_cond : as_conditions(
+           inequalities->variables, solved_bounds, solved_other_relations)) {
     if (!analyzer.CanProve(old_cond)) {
       // those not represented in vranges (res_ranges)
       res_relations.push_back(old_cond);
@@ -581,7 +586,8 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   }
 
   // Add the original conditions (with variables substituted) to the resulting conditions
-  for (const PrimExpr& old_cond : as_conditions(solved_bounds, solved_other_relations)) {
+  for (const PrimExpr& old_cond : as_conditions(
+           inequalities->variables, solved_bounds, solved_other_relations)) {
     PrimExpr new_cond = analyzer.Simplify(Substitute(old_cond, res_src_to_dst));
     if (!is_const_int(new_cond, 1)) {
       // those not represented in vranges (res_ranges)
@@ -600,17 +606,19 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
 
 TVM_REGISTER_GLOBAL("arith.SolveInequalitiesAsCondition")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
+      IntConstraints problem;
       PartialSolvedInequalities ret_ineq;
       if (args.size() == 1) {
-        ret_ineq = SolveLinearInequalities(args[0]);
+        problem = args[0];
+        ret_ineq = SolveLinearInequalities(problem);
       } else if (args.size() == 3) {
-        IntConstraints problem(args[0], args[1], args[2]);
+        problem = IntConstraints(args[0], args[1], args[2]);
         ret_ineq = SolveLinearInequalities(problem);
       } else {
         LOG(FATAL) << "arith.SolveInequalitiesAsCondition expects 1 or 3 arguments, gets "
                    << args.size();
       }
-      *ret = as_conditions(ret_ineq.first, ret_ineq.second);
+      *ret = as_conditions(problem->variables, ret_ineq.first, ret_ineq.second);
     });
 
 TVM_REGISTER_GLOBAL("arith.SolveInequalitiesToRange").set_body([](TVMArgs args, TVMRetValue* ret) {
