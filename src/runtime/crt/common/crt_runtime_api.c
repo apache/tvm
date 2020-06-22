@@ -18,6 +18,7 @@
  */
 
 #include <assert.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,8 +33,18 @@
 static char g_last_error[1024];
 
 void TVMAPISetLastError(const char* msg) {
-  assert(strlen(msg) < sizeof(g_last_error));
-  snprintf(g_last_error, sizeof(g_last_error), "%s", msg);
+  strncpy(g_last_error, msg, sizeof(g_last_error));
+}
+
+__attribute__((format(printf, 1, 2))) int TVMAPIErrorf(const char* msg, ...) {
+  va_list args;
+  int to_return;
+
+  va_start(args, msg);
+  to_return = vsnprintf(g_last_error, sizeof(g_last_error), msg, args);
+  va_end(args);
+
+  return to_return;
 }
 
 const char* TVMGetLastError(void) { return g_last_error; }
