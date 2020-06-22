@@ -26,7 +26,7 @@
 
 namespace tvm {
 namespace relay {
-namespace dynamic {}  // namespace dynamic
+namespace dyn {}  // namespace dynamic
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_DYNAMIC_TENSOR_TRANSFORM_H_

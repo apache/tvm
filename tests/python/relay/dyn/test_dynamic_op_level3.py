@@ -36,11 +36,11 @@ def verify_func(func, data, ref_res):
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
             relay.backend.compile_engine.get().clear()
 
-def test_dynamic_reshape():
+def test_dyn_reshape():
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         y = relay.var("y", relay.TensorType((len(newshape), ), "int64"))
-        z = relay.dynamic.reshape(x, y)
+        z = relay.dyn.reshape(x, y)
 
         func = relay.Function([x, y], z)
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
@@ -56,11 +56,11 @@ def test_dynamic_reshape():
     verify_reshape((2, 3, 4, 5), (-3, -3), (6, 20))
     verify_reshape((2, 3, 4), (0, -3), (2, 12))
 
-def test_dynamic_shape_reshape():
+def test_dyn_shape_reshape():
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         y = relay.var("y", relay.TensorType(newshape, "float32"))
-        z = relay.dynamic.reshape(x, relay.shape_of(y))
+        z = relay.dyn.reshape(x, relay.shape_of(y))
 
         func = relay.Function([x, y], z)
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
@@ -71,5 +71,5 @@ def test_dynamic_shape_reshape():
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
 
 if __name__ == "__main__":
-    test_dynamic_reshape()
-    test_dynamic_shape_reshape()
+    test_dyn_reshape()
+    test_dyn_shape_reshape()

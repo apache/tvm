@@ -31,7 +31,7 @@
 
 namespace tvm {
 namespace relay {
-namespace dynamic {
+namespace dyn {
 
 /* relay.reshape */
 // TVM_REGISTER_NODE_TYPE(ReshapeAttrs);
@@ -78,13 +78,13 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
 Expr MakeReshape(Expr data, Expr newshape) {
   auto attrs = make_object<ReshapeAttrs>();
   attrs->reverse = false;
-  static const Op& op = Op::Get("dynamic.reshape");
+  static const Op& op = Op::Get("dyn.reshape");
   return Call(op, {data, newshape}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.dynamic._make.reshape").set_body_typed(MakeReshape);
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.reshape").set_body_typed(MakeReshape);
 
-RELAY_REGISTER_OP("dynamic.reshape")
+RELAY_REGISTER_OP("dyn.reshape")
     .describe(R"code(Reshapes the input array based on the values in the newshape array.
     
     To give user more convenience in without doing manual shape inference,
@@ -131,6 +131,6 @@ RELAY_REGISTER_OP("dynamic.reshape")
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
-}  // namespace dynamic
+}  // namespace dyn
 }  // namespace relay
 }  // namespace tvm

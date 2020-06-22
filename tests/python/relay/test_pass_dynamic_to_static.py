@@ -34,8 +34,6 @@ def run_opt_pass(expr, opt_pass):
 def verify_func(func, data, ref_res):
     assert isinstance(data, list)
     for target, ctx in ctx_list():
-        #TODO(mbrookhart): enable Cuda tests onces the VM supports dynamic shapes
-        if "llvm" not in target: continue
         for kind in ["graph", "vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
@@ -46,7 +44,7 @@ def test_dynamic_to_static_reshape():
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         y = relay.var("y", relay.TensorType(newshape, "float32"))
-        z = relay.dynamic.reshape(x, relay.shape_of(y))
+        z = relay.dyn.reshape(x, relay.shape_of(y))
         func = run_infer_type(relay.Function([x, y], z))
         func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
 
@@ -68,8 +66,8 @@ def test_dynamic_to_static_double_reshape():
     def verify_reshape(shape, newshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         y = relay.var("y", relay.TensorType(newshape, "float32"))
-        z = relay.dynamic.reshape(x, relay.shape_of(y))
-        z = relay.dynamic.reshape(z, relay.shape_of(x))
+        z = relay.dyn.reshape(x, relay.shape_of(y))
+        z = relay.dyn.reshape(z, relay.shape_of(x))
         func = run_infer_type(relay.Function([x, y], z))
         func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
 
@@ -90,10 +88,10 @@ def test_dynamic_to_static_quad_reshape():
     def verify_reshape(shape, newshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         y = relay.var("y", relay.TensorType(newshape, "float32"))
-        z1 = relay.dynamic.reshape(x, relay.shape_of(y))
-        z2 = relay.dynamic.reshape(z1, relay.shape_of(x))
-        z3 = relay.dynamic.reshape(z2, relay.shape_of(z1))
-        z4 = relay.dynamic.reshape(z3, relay.shape_of(z2))
+        z1 = relay.dyn.reshape(x, relay.shape_of(y))
+        z2 = relay.dyn.reshape(z1, relay.shape_of(x))
+        z3 = relay.dyn.reshape(z2, relay.shape_of(z1))
+        z4 = relay.dyn.reshape(z3, relay.shape_of(z2))
         func = run_infer_type(relay.Function([x, y], z4))
         func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
 

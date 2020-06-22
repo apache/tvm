@@ -32,7 +32,7 @@ namespace relay {
 
 class DynamicToStaticMutator : public MixedModeMutator {
  public:
-  DynamicToStaticMutator() : dyn_reshape_op_(Op::Get("dynamic.reshape")) {}
+  DynamicToStaticMutator() : dyn_reshape_op_(Op::Get("dyn.reshape")) {}
 
  private:
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {

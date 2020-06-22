@@ -20,7 +20,7 @@ from __future__ import absolute_import
 from tvm.te.hybrid import script
 from .. import op as _reg
 
-_reg.register_injective_schedule("dynamic.reshape")
+_reg.register_injective_schedule("dyn.reshape")
 
 @script
 def _reshape_shape_func_input_data(data, newshape, ndim):
@@ -78,6 +78,6 @@ def _reshape_shape_func_input_data(data, newshape, ndim):
             out[infer_idx] = old_size // new_size
     return out
 
-@_reg.register_shape_func("dynamic.reshape", True)
+@_reg.register_shape_func("dyn.reshape", True)
 def dynamic_reshape_shape_func(attrs, inputs, out_ndims):
     return [_reshape_shape_func_input_data(*inputs, out_ndims[0])]
