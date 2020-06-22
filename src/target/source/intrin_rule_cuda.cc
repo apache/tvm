@@ -99,15 +99,12 @@ struct CUDAWarpIntrinsic {
   const Op operator()(DataType t, const Op& orig_op) const {
     if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
       return Op::Get("tir.cuda.__shfl_sync");
-    }
-    if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
+    } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
       return Op::Get("tir.cuda.__shfl_up_sync");
-    }
-
-    if (orig_op.same_as(builtin::tvm_warp_shuffle_down())) {
+    } else {
+      CHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
       return Op::Get("tir.cuda.__shfl_down_sync");
     }
-    return Op(nullptr);
   }
 };
 
