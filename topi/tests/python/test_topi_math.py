@@ -54,7 +54,7 @@ def test_ewise():
         a_np = np.random.uniform(low=low, high=high, size=shape).astype(A.dtype) * 10
         # avoid round check too close to boundary
         if check_round:
-            a_np += ((np.abs(np.fmod(a_np, 1)) - 0.5) < 1e-6) * 1e-5
+            a_np += ((np.abs(np.fmod(a_np, 1)) - 0.5) < 1e-6) * 1e-4
         b_np = f_numpy(a_np)
 
         def check_device(device):
