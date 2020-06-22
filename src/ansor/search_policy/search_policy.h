@@ -36,10 +36,9 @@
 namespace tvm {
 namespace ansor {
 
-class SearchPolicy;
 class SearchPolicyNode;
 
-/*! Callback function to be called before or after the search process */
+/*! \brief Callback function to be called before or after the search process */
 class SearchCallbackNode : public Object {
  public:
   virtual void callback(SearchPolicyNode* policy) = 0;
@@ -55,12 +54,22 @@ class PreloadMeasuredStatesNode : public SearchCallbackNode {
  public:
   std::string filename;
 
-  static SearchCallback make(std::string filename);
-
   void callback(SearchPolicyNode* policy) final;
 
   static constexpr const char *_type_key = "ansor.PreloadMeasuredStates";
   TVM_DECLARE_FINAL_OBJECT_INFO(PreloadMeasuredStatesNode, SearchCallbackNode);
+};
+
+/*!
+ * \brief Managed reference to PreloadMeasuredStatesNode.
+ * \sa PreloadMeasuredStatesNode
+ */
+class PreloadMeasuredStates : public SearchCallback {
+ public:
+  explicit PreloadMeasuredStates(std::string filename);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PreloadMeasuredStates, SearchCallback,
+                                        PreloadMeasuredStatesNode);
 };
 
 /*! \brief The base class for search policy */

@@ -79,7 +79,7 @@ using namespace tvm::ansor;
 // Test Access Analyzer
 TEST(ComputeDAG, GetProducersConsumers) {
   const auto& tensors = conv2d_nchw_bn_relu_func(1, 224, 224, 3, 64, 7, 2, 3);
-  const auto& dag = tvm::ansor::ComputeDAGNode::make(tensors);
+  const auto& dag = tvm::ansor::ComputeDAG(tensors);
   int data = 0, padding = 1, kernel = 2, conv = 3, bias = 4, bias_add = 5;
   int bn_scale = 6, bn_mul = 7, bn_offset = 8, bn_add = 9, relu = 10;
 

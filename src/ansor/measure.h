@@ -56,7 +56,7 @@ extern const char *ErrorNoToStr[];
 
 // Inputs and results of one measurement
 
-/* \brief Store the input of a measurement */
+/*! \brief Store the input of a measurement */
 class MeasureInputNode: public Object {
  public:
   SearchTask task;   // The search task
@@ -67,20 +67,30 @@ class MeasureInputNode: public Object {
     v->Visit("state", &state);
   }
 
-  static MeasureInput make(SearchTask task, State state);
   MeasureInput copy() const;  // Do deep copy
 
   static constexpr const char* _type_key = "ansor.MeasureInput";
   TVM_DECLARE_FINAL_OBJECT_INFO(MeasureInputNode, Object);
 };
-TVM_DEFINE_OBJECT_REF(MeasureInput, MeasureInputNode);
 
-/* \brief Store the input of a build */
+/*!
+ * \brief Managed reference to MeasureInputNode.
+ * \sa MeasureInputNode
+ */
+class MeasureInput : public ObjectRef {
+ public:
+  MeasureInput(SearchTask task, State state);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(MeasureInput, ObjectRef, MeasureInputNode);
+};
+
+/*! \brief Store the input of a build */
 class BuildResultNode: public Object {
  public:
   std::string filename;    // The filename of built binary file
   Array<te::Tensor> args;  // The arguments
-  int error_no;            // The error code (see MeasureErrorNO). 0 means no error.
+  int error_no;            // The error code (see MeasureErrorNO).
+                           // 0 means no error.
   std::string error_msg;   // The error message if there is any error
   double time_cost;        // The time cost of build
 
@@ -92,19 +102,27 @@ class BuildResultNode: public Object {
     v->Visit("time_cost", &time_cost);
   }
 
-  static BuildResult make(std::string filename, Array<te::Tensor> args,
-                          int error_no, std::string error_msg, double time_cost);
-
   static constexpr const char* _type_key = "ansor.BuildResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(BuildResultNode, Object);
 };
-TVM_DEFINE_OBJECT_REF(BuildResult, BuildResultNode);
 
-/* \brief Store the results of a measurement */
+/*!
+ * \brief Managed reference to BuildResultNode.
+ * \sa BuildResultNode
+ */
+class BuildResult : public ObjectRef {
+ public:
+  BuildResult(std::string filename, Array<te::Tensor> args,
+              int error_no, std::string error_msg, double time_cost);
+  TVM_DEFINE_OBJECT_REF_METHODS(BuildResult, ObjectRef, BuildResultNode);
+};
+
+/*! \brief Store the results of a measurement */
 class MeasureResultNode: public Object {
  public:
   Array<PrimExpr> costs;   // The time costs of execution
-  int error_no;            // The error code (see MeasureErrorNO). 0 means no error.
+  int error_no;            // The error code (see MeasureErrorNO).
+                           // 0 means no error.
   std::string error_msg;   // The error message if there is any error
   double all_cost;         // The time cost of build and run
   double timestamp;        // The time stamps of this measurement
@@ -119,16 +137,23 @@ class MeasureResultNode: public Object {
 
   MeasureResult copy() const;  // Do deep copy
 
-  static MeasureResult make(Array<PrimExpr> costs, int error_no, std::string error_msg,
-                            double all_cost, double timestamp);
-
   static constexpr const char* _type_key = "ansor.MeasureResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(MeasureResultNode, Object);
 };
-TVM_DEFINE_OBJECT_REF(MeasureResult, MeasureResultNode);
 
+/*!
+ * \brief Managed reference to MeasureResultNode.
+ * \sa MeasureResultNode
+ */
+class MeasureResult : public ObjectRef {
+ public:
+  MeasureResult(Array<PrimExpr> costs, int error_no, std::string error_msg,
+                double all_cost, double timestamp);
 
-/* \brief Bass class of measurement callbacks */
+  TVM_DEFINE_OBJECT_REF_METHODS(MeasureResult, ObjectRef, MeasureResultNode);
+};
+
+/*! \brief Bass class of measurement callbacks */
 class MeasureCallbackNode: public Object {
  public:
   /*! \biref Callback function that will be called on measurement input/result pairs
@@ -141,10 +166,8 @@ class MeasureCallbackNode: public Object {
 };
 TVM_DEFINE_MUTABLE_OBJECT_REF(MeasureCallback, MeasureCallbackNode);
 
-
 // Base class for builder and runner
-
-/* \brief Builder that builds the programs */
+/*! \brief Builder that builds the programs */
 class BuilderNode: public Object {
  public:
   int n_parallel;  // The number of tasks to run in parallel
@@ -158,7 +181,7 @@ class BuilderNode: public Object {
 };
 TVM_DEFINE_MUTABLE_OBJECT_REF(Builder, BuilderNode);
 
-/* \brief Runner that runs the built programs and measure the time cost */
+/*! \brief Runner that runs the built programs and measure the time cost */
 class RunnerNode: public Object {
  public:
   int timeout;   // Timeout of a run
@@ -175,12 +198,10 @@ TVM_DEFINE_MUTABLE_OBJECT_REF(Runner, RunnerNode);
 
 
 // Implementation of various builders and runners
-/* \brief LocalBuilder use local CPU cores to build programs in parallel */
+/*! \brief LocalBuilder use local CPU cores to build programs in parallel */
 class LocalBuilderNode: public BuilderNode {
  public:
   std::string build_func;  // Build function
-
-  static Builder make(int timeout, int n_parallel, const std::string& build_func);
 
   Array<BuildResult> Build(const Array<MeasureInput>& inputs, int verbose) final;
 
@@ -188,7 +209,19 @@ class LocalBuilderNode: public BuilderNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(LocalBuilderNode, BuilderNode);
 };
 
-/* \brief RPCRunner that uses RPC call to measures the time cost of programs on remote devices */
+/*!
+ * \brief Managed reference to LocalBuilderNode.
+ * \sa LocalBuilderNode
+ */
+class LocalBuilder: public Builder {
+ public:
+  LocalBuilder(int timeout, int n_parallel, const std::string& build_func);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(LocalBuilder, Builder, LocalBuilderNode);
+};
+
+/*! \brief RPCRunner that uses RPC call to measures the time cost of programs
+ *  on remote devices */
 class RPCRunnerNode : public RunnerNode {
  public:
   std::string key;
@@ -201,10 +234,6 @@ class RPCRunnerNode : public RunnerNode {
   int min_repeat_ms;
   double cooldown_interval;
 
-  static Runner make(const std::string& key, const std::string& host, int port,
-                     int priority, int timeout, int n_parallel, int number,
-                     int repeat, int min_repeat_ms, double cooldown_interval);
-
   /*! \biref Run measurement and return results */
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
                            const Array<BuildResult>& build_results,
@@ -214,16 +243,26 @@ class RPCRunnerNode : public RunnerNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(RPCRunnerNode, RunnerNode);
 };
 
-/* \brief LocalRunner that uses local CPU/GPU to measures the time cost of programs */
+/*!
+ * \brief Managed reference to RPCRunnerNode.
+ * \sa RPCRunnerNode
+ */
+class RPCRunner : public Runner {
+ public:
+  RPCRunner(const std::string& key, const std::string& host, int port,
+            int priority, int timeout, int n_parallel, int number,
+            int repeat, int min_repeat_ms, double cooldown_interval);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RPCRunner, Runner, RPCRunnerNode);
+};
+
+/*! \brief LocalRunner that uses local CPU/GPU to measures the time cost of programs */
 class LocalRunnerNode: public RunnerNode {
  public:
   int number;
   int repeat;
   int min_repeat_ms;
   double cooldown_interval;
-
-  static Runner make(int timeout, int number, int repeat,
-                     int min_repeat_ms, double cooldown_interval);
 
   /*! \biref Run measurement and return results */
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
@@ -234,6 +273,18 @@ class LocalRunnerNode: public RunnerNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(LocalRunnerNode, RunnerNode);
 };
 
+/*!
+ * \brief Managed reference to LocalRunnerNode.
+ * \sa LocalRunnerNode
+ */
+class LocalRunner: public Runner {
+ public:
+  LocalRunner(int timeout, int number, int repeat,
+              int min_repeat_ms, double cooldown_interval);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LocalRunner, Runner,
+                                        LocalRunnerNode);
+};
 
 /*!
  * \brief Measurer that measures the time costs of tvm programs
@@ -254,11 +305,6 @@ class ProgramMeasurerNode: public Object {
   int verbose;
   int max_continous_error;
 
-  static ProgramMeasurer make(Builder builder, Runner runner,
-                              Array<MeasureCallback> callbacks,
-                              int verbose,
-                              int max_continous_error = -1);
-
   /*! \brief Reset book keeping variables */
   void Reset();
 
@@ -277,8 +323,19 @@ class ProgramMeasurerNode: public Object {
   static constexpr const char* _type_key = "ansor.ProgramMeasurer";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProgramMeasurerNode, Object);
 };
-TVM_DEFINE_MUTABLE_OBJECT_REF(ProgramMeasurer, ProgramMeasurerNode);
 
+/*!
+ * \brief Managed reference to ProgramMeasurerNode.
+ * \sa ProgramMeasurerNode
+ */
+class ProgramMeasurer : public ObjectRef {
+ public:
+  ProgramMeasurer(Builder builder, Runner runner,
+                  Array<MeasureCallback> callbacks,
+                  int verbose, int max_continous_error = -1);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ProgramMeasurer, ObjectRef, ProgramMeasurerNode);
+};
 
 }  // namespace ansor
 }  // namespace tvm

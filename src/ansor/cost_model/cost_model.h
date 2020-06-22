@@ -36,20 +36,20 @@ namespace ansor {
 
 using runtime::PackedFunc;
 
-class CostModel;
-
 /*! \brief The base class for cost model */
 class CostModelNode: public Object {
  public:
   // Update the cost model according to new measurement pairs
-  virtual void Update(const Array<MeasureInput>& inputs, const Array<MeasureResult>& results) = 0;
+  virtual void Update(const Array<MeasureInput>& inputs,
+                      const Array<MeasureResult>& results) = 0;
 
   // Predict the scores of states
   virtual void Predict(const SearchTask& task, const std::vector<State>& states,
       std::vector<float>* scores) = 0;
 
   // Predict the scores of all stages in states
-  virtual void PredictStages(const SearchTask& task, const std::vector<State>& states,
+  virtual void PredictStages(const SearchTask& task,
+                             const std::vector<State>& states,
                              std::vector<float>* state_scores,
                              std::vector<std::vector<float>>* stage_scores) {
     LOG(FATAL) << "Not Implemented";
@@ -65,9 +65,8 @@ class RandomModelNode: public CostModelNode {
  public:
   const PackedFunc* random_number_func;
 
-  static CostModel make();
-
-  void Update(const Array<MeasureInput>& inputs, const Array<MeasureResult>& results) final;
+  void Update(const Array<MeasureInput>& inputs,
+              const Array<MeasureResult>& results) final;
   void Predict(const SearchTask& task, const std::vector<State>& states,
       std::vector<float>* scores) final;
 
@@ -75,19 +74,48 @@ class RandomModelNode: public CostModelNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(RandomModelNode, CostModelNode);
 };
 
+/*!
+ * \brief Managed reference to RandomModelNode.
+ * \sa RandomModelNode
+ */
+class RandomModel : public CostModel {
+ public:
+  RandomModel();
+  explicit RandomModel(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)
+      : CostModel(n) {}
+
+  RandomModelNode* operator->() const {
+    return static_cast<RandomModelNode*>(data_.get());
+  }
+
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(RandomModel);
+  using ContainerType = RandomModelNode;
+};
+
 /*! \brief The cost model returns actual cost by measurement */
 class MeasureModelNode : public CostModelNode {
  public:
   ProgramMeasurer measurer;
 
-  static CostModel make(Builder builder, Runner runner);
-
-  void Update(const Array<MeasureInput>& inputs, const Array<MeasureResult>& results) final;
+  void Update(const Array<MeasureInput>& inputs,
+              const Array<MeasureResult>& results) final;
   void Predict(const SearchTask& task, const std::vector<State>& states,
                std::vector<float>* scores) final;
 
   static constexpr const char* _type_key = "ansor.MeasureModel";
   TVM_DECLARE_FINAL_OBJECT_INFO(MeasureModelNode, CostModelNode);
+};
+
+/*!
+ * \brief Managed reference to MeasureModelNode.
+ * \sa MeasureModelNode
+ */
+class MeasureModel : public CostModel {
+ public:
+  MeasureModel(Builder builder, Runner runner);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MeasureModel, CostModel,
+                                        MeasureModelNode);
 };
 
 /*! \brief  A wrapper for cost model defined by python code
@@ -98,10 +126,8 @@ class PythonBasedModelNode: public CostModelNode {
   PackedFunc predict_func;
   PackedFunc predict_stage_func;
 
-  static CostModel make(PackedFunc update_func, PackedFunc predict_func,
-                        PackedFunc predict_stage_func);
-
-  void Update(const Array<MeasureInput>& inputs, const Array<MeasureResult>& results) final;
+  void Update(const Array<MeasureInput>& inputs,
+              const Array<MeasureResult>& results) final;
   void Predict(const SearchTask& task, const std::vector<State>& states,
       std::vector<float>* scores) final;
   void PredictStages(const SearchTask& task, const std::vector<State>& states,
@@ -110,6 +136,19 @@ class PythonBasedModelNode: public CostModelNode {
 
   static constexpr const char *_type_key = "ansor.PythonBasedModel";
   TVM_DECLARE_FINAL_OBJECT_INFO(PythonBasedModelNode, CostModelNode);
+};
+
+/*!
+ * \brief Managed reference to PythonBasedModelNode.
+ * \sa PythonBasedModelNode
+ */
+class PythonBasedModel : public CostModel {
+ public:
+  PythonBasedModel(PackedFunc update_func, PackedFunc predict_func,
+                   PackedFunc predict_stage_func);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PythonBasedModel, CostModel,
+                                        PythonBasedModelNode);
 };
 
 }  // namespace ansor

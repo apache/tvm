@@ -37,10 +37,10 @@ TVM_REGISTER_NODE_TYPE(StateNode);
 TVM_REGISTER_NODE_TYPE(IteratorNode);
 
 // Maker for other classes
-Iterator IteratorNode::make(std::string name, Range range,
-                            IteratorType iter_type, IteratorAnnotation annotation,
-                            const std::vector<Iterator>* ori_iters,
-                            std::string attr) {
+Iterator::Iterator(std::string name, Range range, IteratorType iter_type,
+                   IteratorAnnotation annotation,
+                   const std::vector<Iterator>* ori_iters,
+                   std::string attr) {
   auto node = make_object<IteratorNode>();
   node->name = std::move(name);
   node->range = std::move(range);
@@ -50,23 +50,22 @@ Iterator IteratorNode::make(std::string name, Range range,
     node->ori_iters = *ori_iters;
   }
   node->attr = std::move(attr);
-  return Iterator(node);
+  data_ = std::move(node);
 }
 
-
-Stage StageNode::make(te::Operation op) {
+Stage::Stage(te::Operation op) {
   auto node = make_object<StageNode>();
   if (op->IsInstance<te::ComputeOpNode>()) {
     node->op_type = kCompute;
     auto* pop = op.as<te::ComputeOpNode>();
 
     for (const auto& axis : pop->axis) {
-      node->iters.push_back(IteratorNode::make(CleanName(axis->var->name_hint),
-                                               axis->dom, kSpace, kNone));
+      node->iters.push_back(Iterator(CleanName(axis->var->name_hint),
+                                     axis->dom, kSpace, kNone));
     }
     for (const auto& axis : pop->reduce_axis) {
-      node->iters.push_back(IteratorNode::make(CleanName(axis->var->name_hint),
-                                               axis->dom, kReduce, kNone));
+      node->iters.push_back(Iterator(CleanName(axis->var->name_hint),
+                                     axis->dom, kReduce, kNone));
     }
   } else if (op->IsInstance<te::PlaceholderOpNode>()) {
     node->op_type = kPlaceholder;
@@ -78,67 +77,53 @@ Stage StageNode::make(te::Operation op) {
   node->op = std::move(op);
   node->attrs.auto_unroll_max_step = 0;
   node->attrs.storage_offset = 0;
-  return Stage(node);
+  data_ = std::move(node);
 }
 
-Stage StageNode::make(te::Operation op, StageType op_type,
-                      const std::vector<Iterator>& iters,
-                      ComputeAtType compute_at, StageAttributes attrs) {
+Stage::Stage(te::Operation op, StageType op_type,
+             const std::vector<Iterator>& iters, ComputeAtType compute_at,
+             StageAttributes attrs) {
   auto node = make_object<StageNode>();
   node->op = std::move(op);
   node->op_type = op_type;
   node->iters = iters;
   node->compute_at = compute_at;
   node->attrs = attrs;
-  return Stage(node);
+  data_ = std::move(node);
 }
 
-Stage StageNode::make(te::Operation op, StageType op_type,
-                      std::vector<Iterator>&& iters, ComputeAtType compute_at,
-                      StageAttributes attrs) {
+Stage::Stage(te::Operation op, StageType op_type, std::vector<Iterator>&& iters,
+             ComputeAtType compute_at, StageAttributes attrs) {
   auto node = make_object<StageNode>();
   node->op = std::move(op);
   node->op_type = op_type;
   node->iters = std::move(iters);
   node->compute_at = compute_at;
   node->attrs = attrs;
-  return Stage(node);
+  data_ = std::move(node);
 }
 
-State StateNode::make_empty_state() {
-  auto node = make_object<StateNode>();
-  node->attach_map = AttachMapNode::make();
-  node->complete = false;
-  node->aux_info = ObjectRef();
-  return State(node);
-}
-
-State StateNode::make(const Array<te::Operation>& ops) {
+State::State(const Array<te::Operation>& ops) {
   auto node = make_object<StateNode>();
   for (const auto& op : ops) {
-    node->stages.push_back(StageNode::make(op));
+    node->stages.push_back(Stage(op));
   }
-  node->attach_map = AttachMapNode::make();
+  node->attach_map = AttachMap(make_object<AttachMapNode>());
   node->complete = true;
   node->aux_info = ObjectRef();
-  return State(node);
+  data_ = std::move(node);
 }
 
-State StateNode::make(const std::vector<Stage>& stages,
-                      const std::vector<Step>& transform_steps, bool complete,
-                      ObjectRef aux_info) {
+State::State(const std::vector<Stage>& stages,
+             const std::vector<Step>& transform_steps, bool complete,
+             ObjectRef aux_info) {
   auto node = make_object<StateNode>();
   node->stages = stages;
   node->transform_steps = transform_steps;
-  node->attach_map = AttachMapNode::make();
+  node->attach_map = AttachMap(make_object<AttachMapNode>());
   node->complete = complete;
   node->aux_info = std::move(aux_info);
-  return State(node);
-}
-
-AttachMap AttachMapNode::make() {
-  auto node = make_object<AttachMapNode>();
-  return AttachMap(node);
+  data_ = std::move(node);
 }
 
 // Schedule primitives api
@@ -149,7 +134,7 @@ void State::reorder(int stage_id, const std::vector<Iterator>& order) {
                                                  "should be specified";
   std::vector<int> after_ids;
   GetIndices(stage->iters, order, &after_ids);
-  ReorderStep step = ReorderStepNode::make(stage_id, after_ids);
+  ReorderStep step = ReorderStep(stage_id, after_ids);
   CopyOnWrite()->transform_steps.push_back(step);
   DoReorderStep(step);
 }
@@ -160,9 +145,9 @@ std::vector<Iterator> State::split(int stage_id, const Iterator& it,
   const Stage& stage = operator->()->stages[stage_id];
 
   SplitStep step =
-      SplitStepNode::make(stage_id, GetIndex(stage->iters, it),
-                          it->range.defined() ? it->range->extent : PrimExpr(),
-                          lengths, inner_to_outer);
+      SplitStep(stage_id, GetIndex(stage->iters, it),
+                it->range.defined() ? it->range->extent : PrimExpr(),
+                lengths, inner_to_outer);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoSplitStep(step);
 }
@@ -171,7 +156,7 @@ std::vector<Iterator> State::follow_split(int stage_id, const Iterator& it,
                                           int src_step_id, int n_split) {
   const Stage& stage = operator->()->stages[stage_id];
 
-  FollowSplitStep step = FollowSplitStepNode::make(
+  FollowSplitStep step = FollowSplitStep(
       stage_id, GetIndex(stage->iters, it), src_step_id, n_split);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoFollowSplitStep(step);
@@ -183,8 +168,8 @@ std::vector<Iterator> State::follow_fused_split(
   const Stage& stage = operator->()->stages[stage_id];
 
   FollowFusedSplitStep step =
-      FollowFusedSplitStepNode::make(stage_id, GetIndex(stage->iters, it),
-                                     src_step_ids, level, factor_or_nparts);
+      FollowFusedSplitStep(stage_id, GetIndex(stage->iters, it),
+                           src_step_ids, level, factor_or_nparts);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoFollowFusedSplitStep(step);
 }
@@ -193,14 +178,14 @@ Iterator State::fuse(int stage_id, const std::vector<Iterator>& iters) {
   const Stage& stage = operator->()->stages[stage_id];
   std::vector<int> indices;
   GetIndices(stage->iters, iters, &indices);
-  FuseStep step = FuseStepNode::make(stage_id, indices);
+  FuseStep step = FuseStep(stage_id, indices);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoFuseStep(step);
 }
 
 Iterator State::vectorize(int stage_id, const Iterator& it) {
   const Stage& stage = operator->()->stages[stage_id];
-  AnnotationStep step = AnnotationStepNode::make(
+  AnnotationStep step = AnnotationStep(
       stage_id, GetIndex(stage->iters, it), kVectorize);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoAnnotationStep(step);
@@ -209,7 +194,7 @@ Iterator State::vectorize(int stage_id, const Iterator& it) {
 Iterator State::parallel(int stage_id, const Iterator& it) {
   const Stage& stage = operator->()->stages[stage_id];
   AnnotationStep step =
-      AnnotationStepNode::make(stage_id, GetIndex(stage->iters, it), kParallel);
+      AnnotationStep(stage_id, GetIndex(stage->iters, it), kParallel);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoAnnotationStep(step);
 }
@@ -217,7 +202,7 @@ Iterator State::parallel(int stage_id, const Iterator& it) {
 Iterator State::unroll(int stage_id, const Iterator& it, int max_unroll) {
   const Stage& stage = operator->()->stages[stage_id];
   AnnotationStep step =
-      AnnotationStepNode::make(stage_id, GetIndex(stage->iters, it), kUnroll);
+      AnnotationStep(stage_id, GetIndex(stage->iters, it), kUnroll);
 
   // don't unroll if the extent is larger than max_unroll
   if (max_unroll != -1 && it->range.defined()) {
@@ -235,20 +220,20 @@ Iterator State::unroll(int stage_id, const Iterator& it, int max_unroll) {
 void State::compute_at(int stage_id, int target_stage_id,
                        const Iterator& target_iter) {
   const Stage& target_stage = operator->()->stages[target_stage_id];
-  ComputeAtStep step = ComputeAtStepNode::make(
+  ComputeAtStep step = ComputeAtStep(
       stage_id, target_stage_id, GetIndex(target_stage->iters, target_iter));
   CopyOnWrite()->transform_steps.push_back(step);
   return DoComputeAtStep(step);
 }
 
 void State::compute_root(int stage_id) {
-  ComputeRootStep step = ComputeRootStepNode::make(stage_id);
+  ComputeRootStep step = ComputeRootStep(stage_id);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoComputeRootStep(step);
 }
 
 void State::compute_inline(int stage_id) {
-  ComputeInlineStep step = ComputeInlineStepNode::make(stage_id);
+  ComputeInlineStep step = ComputeInlineStep(stage_id);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoComputeInlineStep(step);
 }
@@ -257,10 +242,10 @@ Iterator State::bind_thread(int stage_id, const Iterator& it,
                             IteratorAnnotation thread_type) {
   const Stage& stage = operator->()->stages[stage_id];
   if (thread_type < kVThread || thread_type > kThreadY) {
-    LOG(FATAL) << "thread_type error, valide: kVThread, kBlockX, kThreadX, "
-               << "kThreadY";
+    LOG(FATAL) << "thread_type error, valide: kVThread, kBlockX, kBlockY, "
+               << "kThreadX, kThreadY";
   }
-  AnnotationStep step = AnnotationStepNode::make(
+  AnnotationStep step = AnnotationStep(
       stage_id, GetIndex(stage->iters, it), thread_type);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoAnnotationStep(step);
@@ -270,14 +255,14 @@ int State::cache_read(int stage_id, const std::string& scope_name,
                       const std::vector<int>& reader_stage_ids,
                       const ComputeDAG& task_dag) {
   CacheReadStep step =
-      CacheReadStepNode::make(stage_id, scope_name, reader_stage_ids);
+      CacheReadStep(stage_id, scope_name, reader_stage_ids);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoCacheReadStep(step, task_dag);
 }
 
 int State::cache_write(int stage_id, const std::string& scope_name,
                        const ComputeDAG& task_dag) {
-  CacheWriteStep step = CacheWriteStepNode::make(stage_id, scope_name);
+  CacheWriteStep step = CacheWriteStep(stage_id, scope_name);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoCacheWriteStep(step, task_dag);
 }
@@ -286,7 +271,7 @@ void State::pragma(int stage_id, const Iterator& it,
                    const std::string& pragma_type) {
   const Stage& stage = operator->()->stages[stage_id];
   PragmaStep step =
-      PragmaStepNode::make(stage_id, GetIndex(stage->iters, it), pragma_type);
+      PragmaStep(stage_id, GetIndex(stage->iters, it), pragma_type);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoPragmaStep(step);
 }
@@ -294,8 +279,8 @@ void State::pragma(int stage_id, const Iterator& it,
 int State::rfactor(int stage_id, const Iterator& it, int factor_iter_id,
                    const ComputeDAG& task_dag) {
   const Stage& stage = operator->()->stages[stage_id];
-  RfactorStep step = RfactorStepNode::make(stage_id, GetIndex(stage->iters, it),
-                                           factor_iter_id);
+  RfactorStep step = RfactorStep(stage_id, GetIndex(stage->iters, it),
+                                 factor_iter_id);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoRfactorStep(step, task_dag);
 }
@@ -303,7 +288,7 @@ int State::rfactor(int stage_id, const Iterator& it, int factor_iter_id,
 void State::storage_align(int stage_id, const Iterator& it, int factor,
                           int offset) {
   const Stage& stage = operator->()->stages[stage_id];
-  StorageAlignStep step = StorageAlignStepNode::make(
+  StorageAlignStep step = StorageAlignStep(
       stage_id, GetIndex(stage->iters, it), factor, offset);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoStorageAlignStep(step);
@@ -312,7 +297,7 @@ void State::storage_align(int stage_id, const Iterator& it, int factor,
 Iterator State::tensorize(int stage_id, const Iterator& it,
                           std::string ti_func_name) {
   const Stage& stage = operator->()->stages[stage_id];
-  TensorizeStep step = TensorizeStepNode::make(
+  TensorizeStep step = TensorizeStep(
       stage_id, GetIndex(stage->iters, it), ti_func_name);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoTensorizeStep(step);
@@ -328,7 +313,7 @@ void State::DoReorderStep(const ReorderStep& step) {
   }
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages[step->stage_id] = StageNode::make(
+  pstate->stages[step->stage_id] = Stage(
       stage->op, stage->op_type, std::move(iters), stage->compute_at,
       stage->attrs);
 }
@@ -362,12 +347,12 @@ std::vector<Iterator> State::DoSplitStepCommon(
     }
     Iterator res;
     if (l.defined() && tosplit_min.defined() && tosplit_extent.defined()) {
-      res = IteratorNode::make(name, Range::make_by_min_extent(tosplit_min, l),
-                               it->iter_type, kNone);
+      res = Iterator(name, Range::make_by_min_extent(tosplit_min, l),
+                     it->iter_type, kNone);
       tosplit_min = 0;
       tosplit_extent = indexdiv(tosplit_extent + l - 1, l);
     } else {
-      res = IteratorNode::make(name, Range(), it->iter_type, kNone);
+      res = Iterator(name, Range(), it->iter_type, kNone);
       tosplit_min = tosplit_extent = PrimExpr();
     }
     outs.push_back(std::move(res));
@@ -379,12 +364,12 @@ std::vector<Iterator> State::DoSplitStepCommon(
   }
   if (inner_to_outer) {
     outs.push_back(
-        IteratorNode::make(it->name + ".0", range, it->iter_type, kNone));
+        Iterator(it->name + ".0", range, it->iter_type, kNone));
     std::reverse(outs.begin(), outs.end());
   } else {
     outs.push_back(
-        IteratorNode::make(it->name + "." + std::to_string(lengths.size()),
-                           range, it->iter_type, kNone));
+        Iterator(it->name + "." + std::to_string(lengths.size()),
+                 range, it->iter_type, kNone));
   }
 
   std::vector<Iterator> new_iters;
@@ -395,7 +380,7 @@ std::vector<Iterator> State::DoSplitStepCommon(
                    stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages[stage_id] = StageNode::make(
+  pstate->stages[stage_id] = Stage(
       stage->op, stage->op_type, std::move(new_iters), stage->compute_at,
       stage->attrs);
 
@@ -479,7 +464,7 @@ Iterator State::DoFuseStep(const FuseStep& step) {
     range = Range::make_by_min_extent(0, new_extent);
   }
   Iterator new_it =
-      IteratorNode::make(new_name, range, new_iter_type, kNone, &ori_iters);
+      Iterator(new_name, range, new_iter_type, kNone, &ori_iters);
   std::vector<Iterator> new_iters;
   new_iters.insert(new_iters.end(), stage->iters.begin(),
                    stage->iters.begin() + step->fused_ids.front());
@@ -489,7 +474,7 @@ Iterator State::DoFuseStep(const FuseStep& step) {
                    stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages[stage_id] = StageNode::make(
+  pstate->stages[stage_id] = Stage(
       stage->op, stage->op_type, std::move(new_iters), stage->compute_at,
       stage->attrs);
 
@@ -518,9 +503,9 @@ Iterator State::DoAnnotationStep(const AnnotationStep& step) {
   Iterator it = stage->iters[step->iter_id];
 
   CHECK_EQ(it->annotation, IteratorAnnotation::kNone);
-  Iterator new_it = IteratorNode::make(it->name, it->range, it->iter_type,
-                                       step->annotation, &it->ori_iters,
-                                       it->attr);
+  Iterator new_it = Iterator(it->name, it->range, it->iter_type,
+                             step->annotation, &it->ori_iters,
+                             it->attr);
   Stage new_stage = stage;
   new_stage.CopyOnWrite()->iters[step->iter_id] = new_it;
   StateNode* pstate = CopyOnWrite();
@@ -547,15 +532,14 @@ void State::DoComputeAtStep(const ComputeAtStep& step) {
       // We do this to keep the AnnotateCPU pass to annotate more efficiently.
       new_iters.push_back(it);
     } else {
-      new_iters.push_back(IteratorNode::make(it->name, Range(), it->iter_type,
-                                             it->annotation, &it->ori_iters,
-                                             it->attr));
+      new_iters.push_back(Iterator(it->name, Range(), it->iter_type,
+                          it->annotation, &it->ori_iters, it->attr));
     }
   }
 
   StateNode* pstate = CopyOnWrite();
   pstate->stages[step->stage_id] =
-      StageNode::make(stage->op, stage->op_type, std::move(new_iters), kIter,
+      Stage(stage->op, stage->op_type, std::move(new_iters), kIter,
                       stage->attrs);
   pstate->attach_map.SetComputeAtIter(step->stage_id, step->target_stage_id,
                                       step->target_iter_id);
@@ -569,16 +553,15 @@ void State::DoComputeRootStep(const ComputeRootStep& step) {
   // ComputeDAG::ReplayAndInferBound
   std::vector<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
-    new_iters.push_back(IteratorNode::make(it->name, Range(), it->iter_type,
-                                           it->annotation, &it->ori_iters,
-                                           it->attr));
+    new_iters.push_back(Iterator(it->name, Range(), it->iter_type,
+                                 it->annotation, &it->ori_iters, it->attr));
   }
 
   // update attach map
   StateNode* pstate = CopyOnWrite();
-  pstate->stages[step->stage_id] =
-      StageNode::make(stage->op, stage->op_type, std::move(new_iters), kRoot,
-                      stage->attrs);
+  pstate->stages[step->stage_id] = Stage(stage->op, stage->op_type,
+                                         std::move(new_iters), kRoot,
+                                         stage->attrs);
   pstate->attach_map.DeleteStage(step->stage_id);
 }
 
@@ -647,7 +630,7 @@ int State::DoCacheReadStep(const CacheReadStep& step, const ComputeDAG& dag) {
   operator->()->task_dag->ops[step->stage_id];
   pstate->stages.insert(
       pstate->stages.begin() + step->stage_id + 1,
-      StageNode::make(operator->()->task_dag->ops[step->stage_id + 1]));
+      Stage(operator->()->task_dag->ops[step->stage_id + 1]));
   for (size_t i = step->stage_id + 2; i < operator->()->stages.size(); ++i) {
     pstate->stages[i].CopyOnWrite()->op = operator->()->task_dag->ops[i];
   }
@@ -667,9 +650,8 @@ int State::DoCacheWriteStep(const CacheWriteStep& step, const ComputeDAG& dag) {
     }
   }
 
-  int last_dag_op_size = pstate->task_dag.defined()
-                             ? pstate->task_dag->ops.size()
-                             : dag->ops.size();
+  int last_dag_op_size = pstate->task_dag.defined() ?
+      pstate->task_dag->ops.size() : dag->ops.size();
   dag.ReplayAndGetDAG(replay_steps, &(pstate->task_dag));
   int added_ops = pstate->task_dag->ops.size() - last_dag_op_size;
   CHECK_GE(added_ops, 1);
@@ -679,9 +661,9 @@ int State::DoCacheWriteStep(const CacheWriteStep& step, const ComputeDAG& dag) {
   // Should insert new stage, update target stage, update the later stage's op
   pstate->stages.insert(
       pstate->stages.begin() + step->stage_id,
-      StageNode::make(operator->()->task_dag->ops[step->stage_id]));
+      Stage(operator->()->task_dag->ops[step->stage_id]));
   pstate->stages[step->stage_id + 1] =
-      StageNode::make(operator->()->task_dag->ops[step->stage_id + 1]);
+      Stage(operator->()->task_dag->ops[step->stage_id + 1]);
   int next_stage_id = step->stage_id + 2;
   // Notice: added_ops should actually assert to be 1
   // branch of 2 here is somehow a hack to TVM's cache_write bug with
@@ -691,7 +673,7 @@ int State::DoCacheWriteStep(const CacheWriteStep& step, const ComputeDAG& dag) {
   if (added_ops == 2) {
     pstate->stages.insert(
         pstate->stages.begin() + next_stage_id,
-        StageNode::make(operator->()->task_dag->ops[next_stage_id]));
+        Stage(operator->()->task_dag->ops[next_stage_id]));
     next_stage_id++;
   } else if (added_ops > 2) {
     LOG(ERROR) << "Unexpected behavior of CacheWrite.";
@@ -737,10 +719,10 @@ int State::DoRfactorStep(const RfactorStep& step, const ComputeDAG& dag) {
   // Should insert new stage, update target stage, update the later stage's op
   pstate->stages.insert(
       pstate->stages.begin() + step->stage_id,
-      StageNode::make(operator->()->task_dag->ops[step->stage_id]));
+      Stage(operator->()->task_dag->ops[step->stage_id]));
   // maintain the compute_at type of target stage
   Stage target_stage =
-      StageNode::make(operator->()->task_dag->ops[step->stage_id + 1]);
+      Stage(operator->()->task_dag->ops[step->stage_id + 1]);
   target_stage.CopyOnWrite()->compute_at = compute_at_type;
   pstate->stages[step->stage_id + 1] = target_stage;
 
@@ -762,7 +744,7 @@ void State::DoStorageAlignStep(const StorageAlignStep& step) {
 Iterator State::DoTensorizeStep(const TensorizeStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
   Iterator it = stage->iters[step->iter_id];
-  Iterator new_it = IteratorNode::make(it->name, it->range, it->iter_type,
+  Iterator new_it = Iterator(it->name, it->range, it->iter_type,
       IteratorAnnotation::kTensorized, &it->ori_iters, step->ti_func_name);
   Stage new_stage = stage;
   new_stage.CopyOnWrite()->iters[step->iter_id] = new_it;
@@ -1017,7 +999,7 @@ void AttachMap::DeleteStageEntry(AttachMapNode* pnode, int stage_id) {
 }
 
 AttachMap AttachMap::ApplyStageIdOfffset(int start_id, int offset) const {
-  AttachMap map = AttachMapNode::make();
+  AttachMap map = AttachMap(make_object<AttachMapNode>());
   auto pmap = map.CopyOnWrite();
   for (const auto& x : operator->()->stage_to_attach_iter) {
     auto key = x.first;

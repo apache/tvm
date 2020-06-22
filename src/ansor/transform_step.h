@@ -21,15 +21,15 @@
  * \file ansor/transform_step.h
  * \brief  Transformation steps. For each schedule primitive, there is a corresponding transform step.
  *
- * \Note How to add a new transform step.
+ * \note How to add a new transform step.
  * Take fuse for example:
- * 1. Define class `FuseStepNode`, `FuseStep` in `transform_steps.h`, and implement its make function
- *    `FuseStepNode::make(...)` in `transform_steps.cc`
+ * 1. Define class `FuseStepNode`, `FuseStep` in `transform_steps.h`, and implement its construction
+ *    function `FuseStep::FuseStep(...)` in `transform_steps.cc`
  * 2. Implement `FuseStepNode::ApplyToSchedule` and `FuseStepNode::PrintAsPythonAPI`.
  *    - In these two functions you need to lower this step with tvm's te schedule API
  * 3. Implement `State::fuse` and `State::DoFuseStep`.
  *    - In these two functions you need to incrementally update all data structures in State with
- *       CopyOnWrite style
+ *      CopyOnWrite style
  * 4. Add you step to `ComputeDAG::ReplaySteps` and make sure it works.
  * 5. Add serialization support in `struct Handler<std::vector<::tvm::ansor::Step> >`
  *    in `serialization.cc`
@@ -56,8 +56,6 @@ class ReorderStepNode: public StepNode {
   std::vector<int> after_ids;  // The iterator ids after reorder.
   // This array should specify the order of all iterators.
 
-  static ReorderStep make(int stage_id, const std::vector<int>& after_ids);
-
   void ApplyToSchedule(std::vector<te::Stage> *stages,
                        StageToAxesMap *stage_to_axes) const;
 
@@ -69,7 +67,18 @@ class ReorderStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.ReorderStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReorderStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(ReorderStep, Step, ReorderStepNode);
+
+/*!
+ * \brief Managed reference to ReorderStepNode.
+ * \sa ReorderStepNode
+ */
+class ReorderStep : public Step {
+ public:
+  ReorderStep(int stage_id, const std::vector<int>& after_ids);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ReorderStep, Step, ReorderStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ReorderStepNode);
+};
 
 /*! \brief Split step that corresponds to te::Stage::split with additional
  *  support of multiple-level of factors */
@@ -80,10 +89,6 @@ class SplitStepNode: public StepNode {
   std::vector<PrimExpr> lengths;  // The split factors
   bool inner_to_outer;            // If true, the `lengths` denote the lengths of
                                   // iterators from inner level to outer level
-
-  static SplitStep make(int stage_id, int iter_id, PrimExpr extent,
-                        const std::vector<PrimExpr>& lengths,
-                        bool inner_to_outer);
 
   std::vector<IterVar> ApplyToSchedule(std::vector<te::Stage> *stages,
                                        StageToAxesMap *stage_to_axes) const;
@@ -96,7 +101,20 @@ class SplitStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.SplitStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(SplitStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(SplitStep, Step, SplitStepNode);
+
+/*!
+ * \brief Managed reference to SplitStepNode.
+ * \sa SplitStepNode
+ */
+class SplitStep : public Step {
+ public:
+  SplitStep(int stage_id, int iter_id, PrimExpr extent,
+            const std::vector<PrimExpr>& lengths,
+            bool inner_to_outer);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(SplitStep, Step, SplitStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SplitStepNode);
+};
 
 /*! \brief Similar to SplitStepNode, but use split factor from another step
  * (i.e. Follow another split step) */
@@ -105,9 +123,6 @@ class FollowSplitStepNode: public StepNode {
   int iter_id;      // The id of the iter to split
   int src_step_id;  // The index of the split step to follow in the history
   int n_split;      // The number of split level
-
-  static FollowSplitStep make(int stage_id, int iter_id,
-                              int src_step_id, int n_split);
 
   void ExtractSplitLengths(const std::vector<Step>& transform_steps,
                            std::vector<PrimExpr>* lengths) const;
@@ -124,7 +139,19 @@ class FollowSplitStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.FollowSplitStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(FollowSplitStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(FollowSplitStep, Step, FollowSplitStepNode);
+
+/*!
+ * \brief Managed reference to FollowSplitStepNode.
+ * \sa FollowSplitStepNode
+ */
+class FollowSplitStep : public Step {
+ public:
+  FollowSplitStep(int stage_id, int iter_id, int src_step_id, int n_split);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(FollowSplitStep, Step, FollowSplitStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(FollowSplitStepNode);
+};
+
 
 /*! \brief Similar to FollowSplitStep, but use split factors from multiple steps.
  *  \Note This can be used for the split in cooperative fetching
@@ -135,10 +162,6 @@ class FollowFusedSplitStepNode: public StepNode {
   std::vector<int> src_step_ids;  // The indices of the split steps to follow in the history
   int level;                      // Use the length in this split level
   bool factor_or_nparts;          // If this is true, use factor. Otherwise, use nparts
-
-  static FollowFusedSplitStep make(int stage_id, int iter_id,
-                                   const std::vector<int>& src_step_ids,
-                                   int level, bool factor_or_nparts);
 
   PrimExpr ExtractSplitLength(const std::vector<Step>& transform_steps) const;
 
@@ -154,14 +177,25 @@ class FollowFusedSplitStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.FollowFusedSplitStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(FollowFusedSplitStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(FollowFusedSplitStep, Step, FollowFusedSplitStepNode);
+
+/*!
+ * \brief Managed reference to FollowFusedSplitStepNode.
+ * \sa FollowFusedSplitStepNode
+ */
+class FollowFusedSplitStep : public Step {
+ public:
+  FollowFusedSplitStep(int stage_id, int iter_id,
+                       const std::vector<int>& src_step_ids,
+                       int level, bool factor_or_nparts);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(FollowFusedSplitStep, Step, FollowFusedSplitStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(FollowFusedSplitStepNode);
+};
 
 /*! \brief Fuse step that corresponds to te::Stage::fuse */
 class FuseStepNode: public StepNode {
  public:
   std::vector<int> fused_ids;  // The ids of iterators to fuse
-
-  static FuseStep make(int stage_id, const std::vector<int>& fused_ids);
 
   IterVar ApplyToSchedule(std::vector<te::Stage> *stages,
                           StageToAxesMap *stage_to_axes) const;
@@ -174,7 +208,18 @@ class FuseStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.FuseStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuseStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(FuseStep, Step, FuseStepNode);
+
+/*!
+ * \brief Managed reference to FuseStepNode.
+ * \sa FuseStepNode
+ */
+class FuseStep : public Step {
+ public:
+  FuseStep(int stage_id, const std::vector<int>& fused_ids);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(FuseStep, Step, FuseStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(FuseStepNode);
+};
 
 /*! \brief Annotation step that corresponds to vectorize, parallel, unroll and thread binding.
  * (i.e. te::Stage::vectorize, te::Stage::parallel, te::Stage::vectorize, te::Stage::bind)
@@ -183,8 +228,6 @@ class AnnotationStepNode: public StepNode {
  public:
   int iter_id;
   IteratorAnnotation annotation;
-
-  static AnnotationStep make(int stage_id, int iter_id, IteratorAnnotation ann);
 
   void ApplyToSchedule(std::vector<te::Stage> *stages,
                        StageToAxesMap *stage_to_axes) const;
@@ -197,16 +240,24 @@ class AnnotationStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.AnnotationStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(AnnotationStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(AnnotationStep, Step, AnnotationStepNode);
+
+/*!
+ * \brief Managed reference to AnnotationStepNode.
+ * \sa AnnotationStepNode
+ */
+class AnnotationStep : public Step {
+ public:
+  AnnotationStep(int stage_id, int iter_id, IteratorAnnotation ann);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(AnnotationStep, Step, AnnotationStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AnnotationStepNode);
+};
 
 /*! \brief Fuse step that corresponds to te::Stage::compute_at */
 class ComputeAtStepNode: public StepNode {
  public:
   int target_stage_id;
   int target_iter_id;
-
-  static ComputeAtStep make(int stage_id, int target_stage_id,
-                            int target_iter_id);
 
   void ApplyToSchedule(std::vector<te::Stage> *stages,
                        StageToAxesMap *stage_to_axes) const;
@@ -219,12 +270,22 @@ class ComputeAtStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.ComputeAtStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeAtStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(ComputeAtStep, Step, ComputeAtStepNode);
+
+/*!
+ * \brief Managed reference to ComputeAtStepNode.
+ * \sa ComputeAtStepNode
+ */
+class ComputeAtStep : public Step {
+ public:
+ ComputeAtStep(int stage_id, int target_stage_id, int target_iter_id);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ComputeAtStep, Step, ComputeAtStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeAtStepNode);
+};
 
 /*! \brief Fuse step that corresponds to te::Stage::compute_root */
 class ComputeRootStepNode: public StepNode {
  public:
-  static ComputeRootStep make(int stage_id);
 
   void ApplyToSchedule(std::vector<te::Stage> *stages,
                        StageToAxesMap *stage_to_axes) const;
@@ -237,13 +298,22 @@ class ComputeRootStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.ComputeRootStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeRootStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(ComputeRootStep, Step, ComputeRootStepNode);
+
+/*!
+ * \brief Managed reference to ComputeRootStepNode.
+ * \sa ComputeRootStepNode
+ */
+class ComputeRootStep : public Step {
+ public:
+  explicit ComputeRootStep(int stage_id);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ComputeRootStep, Step, ComputeRootStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeRootStepNode);
+};
 
 /*! \brief Fuse step that corresponds to te::Stage::compute_inline */
 class ComputeInlineStepNode: public StepNode {
  public:
-  static ComputeInlineStep make(int stage_id);
-
   void ApplyToSchedule(std::vector<te::Stage> *stages,
                        StageToAxesMap *stage_to_axes) const;
 
@@ -255,7 +325,18 @@ class ComputeInlineStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.ComputeInlineStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeInlineStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(ComputeInlineStep, Step, ComputeInlineStepNode);
+
+/*!
+ * \brief Managed reference to ComputeInlineStepNode.
+ * \sa ComputeInlineStepNode
+ */
+class ComputeInlineStep : public Step {
+ public:
+  explicit ComputeInlineStep(int stage_id);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ComputeInlineStep, Step, ComputeInlineStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeInlineStepNode);
+};
 
 /*! \brief Cache read step that corresponds to te::Schedule::cache_read */
 class CacheReadStepNode: public StepNode {
@@ -263,11 +344,9 @@ class CacheReadStepNode: public StepNode {
   std::string scope_name;
   std::vector<int> reader_stage_ids;
 
-  static CacheReadStep make(int stage_id, std::string scope_name,
-      const std::vector<int>& reader_stage_id);
-
   te::Tensor ApplyToSchedule(std::vector<te::Stage> *stages,
-      StageToAxesMap *stage_to_axes, te::Schedule *schedule) const;
+                             StageToAxesMap *stage_to_axes,
+                             te::Schedule *schedule) const;
 
   std::string PrintAsPythonAPI(std::vector<te::Stage> *stages,
                                StageToAxesMap *stage_to_axes,
@@ -277,7 +356,19 @@ class CacheReadStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.CacheReadStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(CacheReadStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(CacheReadStep, Step, CacheReadStepNode);
+
+/*!
+ * \brief Managed reference to CacheReadStepNode.
+ * \sa CacheReadStepNode
+ */
+class CacheReadStep : public Step {
+ public:
+  CacheReadStep(int stage_id, std::string scope_name,
+                const std::vector<int>& reader_stage_id);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(CacheReadStep, Step, CacheReadStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(CacheReadStepNode);
+};
 
 /*! \brief Cache read step that corresponds to te::Schedule::cache_write
  *  \Note This step will cache_write all output tensors of target stage */
@@ -285,10 +376,9 @@ class CacheWriteStepNode: public StepNode {
  public:
   std::string scope_name;
 
-  static CacheWriteStep make(int stage_id, std::string scope_name);
-
   Array<te::Tensor> ApplyToSchedule(std::vector<te::Stage> *stages,
-      StageToAxesMap *stage_to_axes, te::Schedule *schedule) const;
+                                    StageToAxesMap *stage_to_axes,
+                                    te::Schedule *schedule) const;
 
   std::string PrintAsPythonAPI(std::vector<te::Stage> *stages,
                                StageToAxesMap *stage_to_axes,
@@ -298,15 +388,24 @@ class CacheWriteStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.CacheWriteStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(CacheWriteStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(CacheWriteStep, Step, CacheWriteStepNode);
+
+/*!
+ * \brief Managed reference to CacheWriteStepNode.
+ * \sa CacheWriteStepNode
+ */
+class CacheWriteStep : public Step {
+ public:
+  CacheWriteStep(int stage_id, std::string scope_name);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(CacheWriteStep, Step, CacheWriteStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(CacheWriteStepNode);
+};
 
 /*! \brief Cache read step that corresponds to te::Schedule::pragma */
 class PragmaStepNode: public StepNode {
  public:
   int iter_id;
   std::string pragma_type;
-
-  static PragmaStep make(int stage_id, int iter_id, std::string pragma_type);
 
   void ApplyToSchedule(std::vector<te::Stage> *stages,
                        StageToAxesMap *stage_to_axes) const;
@@ -319,7 +418,18 @@ class PragmaStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.PragmaStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(PragmaStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(PragmaStep, Step, PragmaStepNode);
+
+/*!
+ * \brief Managed reference to PragmaStepNode.
+ * \sa PragmaStepNode
+ */
+class PragmaStep : public Step {
+ public:
+  PragmaStep(int stage_id, int iter_id, std::string pragma_type);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(PragmaStep, Step, PragmaStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(PragmaStepNode);
+};
 
 /*! \brief Reduction factor step that corresponds to te::Schedule::rfactor */
 class RfactorStepNode: public StepNode {
@@ -327,11 +437,9 @@ class RfactorStepNode: public StepNode {
   int iter_id;
   int factor_iter_id;
 
-  static RfactorStep make(int stage_id, int iter_id, int factor_iter_id);
-
   Array<te::Tensor> ApplyToSchedule(std::vector<te::Stage> *stages,
-                                StageToAxesMap *stage_to_axes,
-                                te::Schedule *schedule) const;
+                                    StageToAxesMap *stage_to_axes,
+                                    te::Schedule *schedule) const;
 
   std::string PrintAsPythonAPI(std::vector<te::Stage> *stages,
                                StageToAxesMap *stage_to_axes,
@@ -341,7 +449,18 @@ class RfactorStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.RfactorStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(RfactorStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(RfactorStep, Step, RfactorStepNode);
+
+/*!
+ * \brief Managed reference to RfactorStepNode.
+ * \sa RfactorStepNode
+ */
+class RfactorStep : public Step {
+ public:
+  RfactorStep(int stage_id, int iter_id, int factor_iter_id);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(RfactorStep, Step, RfactorStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(RfactorStepNode);
+};
 
 /*! \brief Storage align step that corresponds to te::Schedule::storage_align */
 class StorageAlignStepNode: public StepNode {
@@ -349,9 +468,6 @@ class StorageAlignStepNode: public StepNode {
   int iter_id;
   int factor;
   int offset;
-
-  static StorageAlignStep make(int stage_id, int iter_id, int factor,
-                               int offset);
 
   void ApplyToSchedule(std::vector<te::Stage> *stages,
                        StageToAxesMap *stage_to_axes) const;
@@ -364,7 +480,18 @@ class StorageAlignStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.StorageAlignStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(StorageAlignStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(StorageAlignStep, Step, StorageAlignStepNode);
+
+/*!
+ * \brief Managed reference to StorageAlignStepNode.
+ * \sa StorageAlignStepNode
+ */
+class StorageAlignStep : public Step {
+ public:
+  StorageAlignStep(int stage_id, int iter_id, int factor, int offset);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(StorageAlignStep, Step, StorageAlignStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(StorageAlignStepNode);
+};
 
 /*! \brief Tensorize step that corresponds to te::Schedule::tensorize
  *  \Note This step takes a global registered function name as input. */
@@ -372,9 +499,6 @@ class TensorizeStepNode: public StepNode {
  public:
   int iter_id;
   std::string ti_func_name;
-
-  static TensorizeStep make(int stage_id, int iter_id,
-                            std::string ti_func_name);
 
   void ApplyToSchedule(std::vector<te::Stage> *stages,
                        StageToAxesMap *stage_to_axes) const;
@@ -387,7 +511,18 @@ class TensorizeStepNode: public StepNode {
   static constexpr const char* _type_key = "ansor.TensorizeStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorizeStepNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(TensorizeStep, Step, TensorizeStepNode);
+
+/*!
+ * \brief Managed reference to TensorizeStepNode.
+ * \sa TensorizeStepNode
+ */
+class TensorizeStep : public Step {
+ public:
+  TensorizeStep(int stage_id, int iter_id, std::string ti_func_name);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorizeStep, Step, TensorizeStepNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TensorizeStepNode);
+};
 
 }  // namespace ansor
 }  // namespace tvm

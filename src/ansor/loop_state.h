@@ -93,11 +93,6 @@ class IteratorNode : public Object {
   std::vector<Iterator> ori_iters;  // The original iterators before fusion
   std::string attr;
 
-  static Iterator make(std::string name, Range range,
-                       IteratorType iter_type, IteratorAnnotation annotation,
-                       const std::vector<Iterator>* ori_iters = nullptr,
-                       std::string attr = "");
-
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("range", &range);
@@ -107,19 +102,21 @@ class IteratorNode : public Object {
   static constexpr const char *_type_key = "ansor.Iterator";
   TVM_DECLARE_FINAL_OBJECT_INFO(IteratorNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(Iterator, ObjectRef, IteratorNode);
 
-// Forward decelerations
-class Stage; class State;
-class AttachMap;
+/*!
+ * \brief Managed reference to IteratorNode.
+ * \sa IteratorNode
+ */
+class Iterator : public ObjectRef {
+ public:
+  Iterator(std::string name, Range range, IteratorType iter_type,
+           IteratorAnnotation annotation,
+           const std::vector<Iterator>* ori_iters = nullptr,
+           std::string attr = "");
 
-class ReorderStep; class SplitStep; class FollowSplitStep;
-class FollowFusedSplitStep;
-class FuseStep; class AnnotationStep;
-class ComputeAtStep; class ComputeRootStep; class ComputeInlineStep;
-class CacheReadStep; class CacheWriteStep;
-class PragmaStep; class RfactorStep; class StorageAlignStep;
-class TensorizeStep;
+  TVM_DEFINE_OBJECT_REF_METHODS(Iterator, ObjectRef, IteratorNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IteratorNode);
+};
 
 /*! \brief Stage-level attributes */
 struct StageAttributes {
@@ -143,35 +140,26 @@ class StageNode : public Object {
     v->Visit("op", &op);
   }
 
-  static Stage make(te::Operation op);
-  static Stage make(te::Operation op, StageType op_type,
-                    const std::vector<Iterator>& iters,
-                    ComputeAtType compute_at, StageAttributes attrs);
-  static Stage make(te::Operation op, StageType op_type,
-                    std::vector<Iterator>&& iters,
-                    ComputeAtType compute_at, StageAttributes attrs);
-
   static constexpr const char *_type_key = "ansor.Stage";
   TVM_DECLARE_FINAL_OBJECT_INFO(StageNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(Stage, ObjectRef, StageNode);
 
-/*! \brief stores the compute_at relation between stages
- * This stores a bi-directional mapping from stages and iter:
- * 1. Stage to its attached iterator 2. Iterator to the stage attached to it
+/*!
+ * \brief Managed reference to StageNode.
+ * \sa StageNode
  */
-class AttachMapNode: public Object {
+class Stage : public ObjectRef {
  public:
-  using StageKey = int;
-  using IterKey = std::pair<int, int>;  // stage_id and iter_id
+  explicit Stage(te::Operation op);
+  Stage(te::Operation op, StageType op_type,
+        const std::vector<Iterator>& iters,
+        ComputeAtType compute_at, StageAttributes attrs);
+  Stage(te::Operation op, StageType op_type,
+        std::vector<Iterator>&& iters,
+        ComputeAtType compute_at, StageAttributes attrs);
 
-  std::unordered_map<StageKey, IterKey> stage_to_attach_iter;
-  std::unordered_map<IterKey, std::vector<StageKey>> iter_to_attached_stages;
-
-  static AttachMap make();
-
-  static constexpr const char* _type_key = "ansor.AttachMap";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttachMapNode, Object);
+  TVM_DEFINE_OBJECT_REF_METHODS(Stage, ObjectRef, StageNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(StageNode);
 };
 
 /*! \brief stores the compute_at relation between stages
@@ -180,6 +168,22 @@ class AttachMapNode: public Object {
  *
  * You can use AttachMapNode::stage_to_attach_iter and AttachMapNode::iter_to_attached_stages
  * to query the relations */
+class AttachMapNode: public Object {
+ public:
+  using StageKey = int;
+  using IterKey = std::pair<int, int>;  // stage_id and iter_id
+
+  std::unordered_map<StageKey, IterKey> stage_to_attach_iter;
+  std::unordered_map<IterKey, std::vector<StageKey>> iter_to_attached_stages;
+
+  static constexpr const char* _type_key = "ansor.AttachMap";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AttachMapNode, Object);
+};
+
+/*!
+ * \brief Managed reference to AttachMapNode.
+ * \sa AttachMapNode
+ */
 class AttachMap : public ObjectRef {
  public:
   using StageKey = int;
@@ -214,7 +218,17 @@ class StepNode: public Object {
 };
 TVM_DEFINE_MUTABLE_OBJECT_REF(Step, StepNode);
 
-/*! \brief The loop state and corresponding history steps to reach this state */
+// Step forward decelerations
+class ReorderStep; class SplitStep; class FollowSplitStep;
+class FollowFusedSplitStep;
+class FuseStep; class AnnotationStep;
+class ComputeAtStep; class ComputeRootStep; class ComputeInlineStep;
+class CacheReadStep; class CacheWriteStep;
+class PragmaStep; class RfactorStep; class StorageAlignStep;
+class TensorizeStep;
+
+/*! \brief A state in the search process.
+ *  It consists of the current loop structure and the history steps to reach this state. */
 class StateNode: public Object {
  public:
   std::vector<Stage> stages;           // Current stages and loop structures
@@ -232,22 +246,29 @@ class StateNode: public Object {
     v->Visit("task_dag", &task_dag);
   }
 
-  static State make_empty_state();
-  static State make(const Array<te::Operation>& ops);
-  static State make(const std::vector<Stage>& stages,
-                    const std::vector<Step>& transform_steps, bool complete,
-                    ObjectRef aux_info);
-
   static constexpr const char* _type_key = "ansor.State";
   TVM_DECLARE_FINAL_OBJECT_INFO(StateNode, Object);
 };
 
-/*! \brief A state in the search process.
- *  It consists of the current loop structure and the history steps to reach this state. */
+/*!
+ * \brief Managed reference to StateNode.
+ * \sa StateNode
+ */
 class State : public ObjectRef {
  public:
+  explicit State(const Array<te::Operation>& ops);
+  State(const std::vector<Stage>& stages,
+        const std::vector<Step>& transform_steps, bool complete,
+        ObjectRef aux_info);
+
   // Schedule primitives
   void reorder(int stage_id, const std::vector<Iterator>& order);
+  void compute_at(int stage_id, int target_stage_id,
+                  const Iterator& target_iter);
+  void compute_root(int stage_id);
+  void compute_inline(int stage_id);
+  void pragma(int stage_id, const Iterator& it, const std::string& pragma_type);
+  void storage_align(int stage_id, const Iterator& it, int factor, int offset);
   std::vector<Iterator> split(int stage_id, const Iterator& it,
                               const std::vector<PrimExpr>& lengths,
                               bool inner_to_outer = true);
@@ -264,12 +285,6 @@ class State : public ObjectRef {
                        IteratorAnnotation thread_type);
   Iterator tensorize(int stage_id, const Iterator& it,
                      std::string ti_func_name);
-  void compute_at(int stage_id, int target_stage_id,
-                  const Iterator& target_iter);
-  void compute_root(int stage_id);
-  void compute_inline(int stage_id);
-  void pragma(int stage_id, const Iterator& it, const std::string& pragma_type);
-  void storage_align(int stage_id, const Iterator& it, int factor, int offset);
   int cache_read(int stage_id, const std::string& scope_name,
                  const std::vector<int>& reader_stage_ids,
                  const ComputeDAG& task_dag);
@@ -283,17 +298,17 @@ class State : public ObjectRef {
    * We separate these functions out,
    * so you can call them for replay easily given history steps */
   void DoReorderStep(const ReorderStep& step);
+  void DoComputeAtStep(const ComputeAtStep& step);
+  void DoComputeRootStep(const ComputeRootStep& step);
+  void DoComputeInlineStep(const ComputeInlineStep& step);
+  void DoPragmaStep(const PragmaStep& step);
+  void DoStorageAlignStep(const StorageAlignStep& step);
   std::vector<Iterator> DoSplitStep(const SplitStep& step);
   std::vector<Iterator> DoFollowSplitStep(const FollowSplitStep& step);
   std::vector<Iterator> DoFollowFusedSplitStep(const FollowFusedSplitStep& step);
   Iterator DoFuseStep(const FuseStep& step);
   Iterator DoAnnotationStep(const AnnotationStep& step);
   Iterator DoTensorizeStep(const TensorizeStep& step);
-  void DoComputeAtStep(const ComputeAtStep& step);
-  void DoComputeRootStep(const ComputeRootStep& step);
-  void DoComputeInlineStep(const ComputeInlineStep& step);
-  void DoPragmaStep(const PragmaStep& step);
-  void DoStorageAlignStep(const StorageAlignStep& step);
   int DoCacheReadStep(const CacheReadStep& step, const ComputeDAG& dag);
   int DoCacheWriteStep(const CacheWriteStep& step, const ComputeDAG& dag);
   int DoRfactorStep(const RfactorStep& step, const ComputeDAG& dag);

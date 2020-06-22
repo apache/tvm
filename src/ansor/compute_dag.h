@@ -37,7 +37,6 @@
 namespace tvm {
 namespace ansor {
 
-class ComputeDAG; class AccessAnalyzer;
 class StateNode; class State; class Step;
 
 /*! \brief Read/Write access static analysis result */
@@ -54,15 +53,17 @@ class AccessAnalyzerNode : public Object {
   OperationMap<bool> is_output;
   std::vector<te::Operation> ops_topo_order;
 
-  static AccessAnalyzer make(const Array<te::Tensor>& tensors);
-
   static constexpr const char* _type_key = "ansor.AccessAnalyzer";
   TVM_DECLARE_FINAL_OBJECT_INFO(AccessAnalyzerNode, Object);
 };
 
-/*! \brief Read/Write access static analysis result */
+/*!
+ * \brief Managed reference to AccessAnalyzerNode.
+ * \sa AccessAnalyzerNode
+ */
 class AccessAnalyzer : public ObjectRef {
  public:
+  explicit AccessAnalyzer(const Array<te::Tensor>& tensors);
   // read/write access analysis
   bool NeedsMultiLevelTiling(const te::Operation& op) const;
   bool IsInjective(const te::Operation& op) const;
@@ -121,9 +122,6 @@ class ComputeDAGNode : public Object {
     v->Visit("access_analyzer", &access_analyzer);
   }
 
-  static ComputeDAG make(Array<te::Tensor> tensors);
-  static ComputeDAG make_by_workload_key(const std::string& workload_key);
-
   static constexpr const char* _type_key = "ansor.ComputeDAG";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeDAGNode, Object);
 };
@@ -135,9 +133,15 @@ enum LayoutRewriteLevel {
   kBothRewrite = 3,         // Rewrite both placeholder and compute body in the compute dag
 };
 
-/*! \brief Compute declaration graph */
+/*!
+ * \brief Managed reference to ComputeDAGNode.
+ * \sa ComputeDAGNode
+ */
 class ComputeDAG: public ObjectRef {
  public:
+  explicit ComputeDAG(Array<te::Tensor> tensors);
+  explicit ComputeDAG(const std::string& workload_key);
+
   // Apply transform steps to the init state of this DAG, and get the equivalent tvm::schedule.
   // The return values can be used as arguments to tvm.build or tvm.lower
   std::pair<te::Schedule, Array<te::Tensor> > ApplySteps(

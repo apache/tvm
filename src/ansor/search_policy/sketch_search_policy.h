@@ -51,7 +51,8 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
  public:
   /*! \brief The cost model for complete programs */
   CostModel program_cost_model;
-
+  /*! \brief Random generator */
+  std::mt19937 rand_gen_;
   /*! \brief The parameters for search. It stores the following parameters:
    * int evolutionary_search_population    // The population size for evolutionary search
    * int evolutionary_search_mutation_prob // The probability of mutation for evolutionary search
@@ -63,13 +64,8 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
    * str gpu_multi_level_tiling_structure // The structure of multi-level tiling for GPU
    */
   Map<String, ObjectRef> params;
-
   /*! \brief The rules to generate sketches */
   std::vector<SketchGenerationRule*> sketch_rules;
-
-  static SearchPolicy make(CostModel program_cost_model,
-                           Map<String, ObjectRef> params,
-                           int seed);
 
   /*! \brief Search and make n_trails measurements.
    *  \returns the best state */
@@ -92,7 +88,8 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
   /*! \brief Pick states from best states and random states with eps-greedy policy */
   void PickStatesWithEpsGreedy(std::vector<MeasureInput>* inputs,
                                const std::vector<State>& best_states,
-                               const std::vector<State>& random_states, int remaining_n_trials);
+                               const std::vector<State>& random_states,
+                               int remaining_n_trials);
 
  private:
   // Run one round of the search pipeline
@@ -111,10 +108,22 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
       int num_best_states, std::vector<State>* best_states);
 
   SplitFactorizationMemo split_memo_;  // Memorize split space for Split
-  std::mt19937 rand_gen_;              // Random generator
   int num_measure_per_iter_;   // The number of states to measure per iteration
 };
-TVM_DEFINE_MUTABLE_OBJECT_REF(SketchSearchPolicy, SketchSearchPolicyNode);
+
+/*!
+ * \brief Managed reference to SketchSearchPolicyNode.
+ * \sa SketchSearchPolicyNode
+ */
+class SketchSearchPolicy : public SearchPolicy {
+ public:
+  SketchSearchPolicy(CostModel program_cost_model,
+                     Map<String, ObjectRef> params,
+                     int seed);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SketchSearchPolicy, SearchPolicy,
+                                        SketchSearchPolicyNode);
+};
 
 /*! \brief Pre-search callback function to load custom rules for sketch generation */
 class PreloadCustomSketchRuleNode : public SearchCallbackNode {
@@ -123,13 +132,23 @@ class PreloadCustomSketchRuleNode : public SearchCallbackNode {
   PackedFunc meet_condition_func;
   PackedFunc apply_func;
 
-  static SearchCallback make(PackedFunc meet_condition_func,
-                             PackedFunc apply_func);
-
   void callback(SearchPolicyNode* policy) final;
 
   static constexpr const char *_type_key = "ansor.PreloadCustomSketchRule";
   TVM_DECLARE_FINAL_OBJECT_INFO(PreloadCustomSketchRuleNode, SearchCallbackNode);
+};
+
+/*!
+ * \brief Managed reference to PreloadCustomSketchRuleNode.
+ * \sa PreloadCustomSketchRuleNode
+ */
+class PreloadCustomSketchRule : public SearchCallback {
+ public:
+  PreloadCustomSketchRule(PackedFunc meet_condition_func,
+                          PackedFunc apply_func);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PreloadCustomSketchRule, SearchCallback,
+                                        PreloadCustomSketchRuleNode);
 };
 
 }  // namespace ansor

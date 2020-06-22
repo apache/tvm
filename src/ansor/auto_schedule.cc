@@ -33,11 +33,10 @@ namespace ansor {
 
 TVM_REGISTER_NODE_TYPE(TuneOptionNode);
 
-TuneOption TuneOptionNode::make(int n_trials, int early_stopping,
-                                int num_measure_per_iter, int verbose,
-                                Builder builder, Runner runner,
-                                Array<MeasureCallback> measure_callbacks,
-                                Array<SearchCallback> pre_search_callbacks) {
+TuneOption::TuneOption(int n_trials, int early_stopping,
+                       int num_measure_per_iter, int verbose, Builder builder,
+                       Runner runner, Array<MeasureCallback> measure_callbacks,
+                       Array<SearchCallback> pre_search_callbacks) {
   auto node = make_object<TuneOptionNode>();
   node->n_trials = n_trials;
   node->early_stopping = early_stopping;
@@ -47,16 +46,16 @@ TuneOption TuneOptionNode::make(int n_trials, int early_stopping,
   node->runner = std::move(runner);
   node->measure_callbacks = std::move(measure_callbacks);
   node->pre_search_callbacks = std::move(pre_search_callbacks);
-  return TuneOption(node);
+  data_ = std::move(node);
 }
 
 std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(SearchTask task,
     SearchPolicy search_policy, TuneOption tune_option) {
   // Search for the best schedule
   ProgramMeasurer measurer =
-      ProgramMeasurerNode::make(tune_option->builder, tune_option->runner,
-                                tune_option->measure_callbacks,
-                                tune_option->verbose);
+      ProgramMeasurer(tune_option->builder, tune_option->runner,
+                      tune_option->measure_callbacks,
+                      tune_option->verbose);
 
   State state = search_policy->Search(
       task, tune_option->n_trials, tune_option->early_stopping,
@@ -70,8 +69,8 @@ std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
     std::string workload_key, Target target, Target target_host,
     SearchPolicy search_policy, HardwareParams hardware_params,
     TuneOption tune_option) {
-  ComputeDAG dag = ComputeDAGNode::make_by_workload_key(workload_key);
-  SearchTask task = SearchTaskNode::make(
+  ComputeDAG dag = ComputeDAG(workload_key);
+  SearchTask task = SearchTask(
       std::move(dag), std::move(workload_key), std::move(target),
       std::move(target_host), std::move(hardware_params));
   return AutoSchedule(std::move(task), std::move(search_policy),
@@ -83,9 +82,8 @@ TVM_REGISTER_GLOBAL("ansor.TuneOption")
                    int num_measure_per_iter, int verbose, Builder builder,
                    Runner runner, Array<MeasureCallback> measure_callbacks,
                    Array<SearchCallback> pre_search_callbacks) {
-  return TuneOptionNode::make(n_trials, early_stopping,
-                              num_measure_per_iter, verbose, builder,
-                              runner, measure_callbacks, pre_search_callbacks);
+  return TuneOption(n_trials, early_stopping, num_measure_per_iter, verbose,
+                    builder, runner, measure_callbacks, pre_search_callbacks);
 });
 
 TVM_REGISTER_GLOBAL("ansor.AutoScheduleBySearchTask")

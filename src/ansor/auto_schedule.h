@@ -34,7 +34,6 @@ namespace tvm {
 namespace ansor {
 
 /*! \brief Tuning and measurement options */
-class TuneOption;
 class TuneOptionNode : public Object {
  public:
   int n_trials;              // Number of total measurement trials
@@ -61,15 +60,24 @@ class TuneOptionNode : public Object {
     v->Visit("pre_search_callbacks", &pre_search_callbacks);
   }
 
-  static TuneOption make(int n_trials, int early_stopping,
-                         int num_measure_per_iter, int verbose, Builder builder,
-                         Runner runner, Array<MeasureCallback> measure_callbacks,
-                         Array<SearchCallback> pre_search_callbacks);
-
   static constexpr const char* _type_key = "ansor.TuneOption";
   TVM_DECLARE_FINAL_OBJECT_INFO(TuneOptionNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(TuneOption, ObjectRef, TuneOptionNode);
+
+/*!
+ * \brief Managed reference to TuneOptionNode.
+ * \sa TuneOptionNode
+ */
+class TuneOption : public ObjectRef {
+ public:
+  TuneOption(int n_trials, int early_stopping, int num_measure_per_iter,
+             int verbose, Builder builder, Runner runner,
+             Array<MeasureCallback> measure_callbacks,
+             Array<SearchCallback> pre_search_callbacks);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(TuneOption, ObjectRef, TuneOptionNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TuneOptionNode);
+};
 
 /*! \brief Auto schedule for a compute declaration */
 std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(

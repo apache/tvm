@@ -48,7 +48,7 @@ void RandomNumber(TVMArgs args, TVMRetValue* rv) {
   }
 }
 
-CostModel RandomModelNode::make() {
+RandomModel::RandomModel() {
   ObjectPtr<RandomModelNode> node = make_object<RandomModelNode>();
   node->random_number_func =
       runtime::Registry::Get("ansor.cost_model.random_number");
@@ -58,7 +58,7 @@ CostModel RandomModelNode::make() {
     static PackedFunc cost_model_random_number(RandomNumber);
     node->random_number_func = &cost_model_random_number;
   }
-  return CostModel(node);
+  data_ = std::move(node);
 }
 
 void RandomModelNode::Update(const Array<MeasureInput>& inputs,
@@ -71,11 +71,11 @@ void RandomModelNode::Predict(const SearchTask& task,
   (*random_number_func)(states.size(), static_cast<void*>(scores->data()));
 }
 
-CostModel MeasureModelNode::make(Builder builder, Runner runner) {
+MeasureModel::MeasureModel(Builder builder, Runner runner) {
   ObjectPtr<MeasureModelNode> node = make_object<MeasureModelNode>();
-  node->measurer = ProgramMeasurerNode::make(
-      std::move(builder), std::move(runner), Array<MeasureCallback>(), 0);
-  return CostModel(node);
+  node->measurer = ProgramMeasurer(std::move(builder), std::move(runner),
+                                   Array<MeasureCallback>(), 0);
+  data_ = std::move(node);
 }
 
 void MeasureModelNode::Update(const Array<MeasureInput>& inputs,
@@ -90,7 +90,7 @@ void MeasureModelNode::Predict(const SearchTask& task,
   inputs.clear();
   inputs.reserve(states.size());
   for (const auto& state : states) {
-    inputs.push_back(MeasureInputNode::make(task, state));
+    inputs.push_back(MeasureInput(task, state));
   }
   measurer->SilentMeasure(task, inputs, &results);
 
@@ -101,14 +101,14 @@ void MeasureModelNode::Predict(const SearchTask& task,
   }
 }
 
-CostModel PythonBasedModelNode::make(PackedFunc update_func,
-                                     PackedFunc predict_func,
-                                     PackedFunc predict_stage_func) {
+PythonBasedModel::PythonBasedModel(PackedFunc update_func,
+                                   PackedFunc predict_func,
+                                   PackedFunc predict_stage_func) {
   auto node = make_object<PythonBasedModelNode>();
   node->update_func = std::move(update_func);
   node->predict_func = std::move(predict_func);
   node->predict_stage_func = std::move(predict_stage_func);
-  return CostModel(node);
+  data_ = std::move(node);
 }
 
 void PythonBasedModelNode::Update(const Array<MeasureInput>& inputs,
@@ -124,9 +124,8 @@ void PythonBasedModelNode::Predict(const SearchTask& task,
                static_cast<void*>(scores->data()));
 }
 
-void PythonBasedModelNode::PredictStages(
-    const SearchTask& task, const std::vector<State>& states,
-    std::vector<float>* state_scores,
+void PythonBasedModelNode::PredictStages(const SearchTask& task,
+    const std::vector<State>& states, std::vector<float>* state_scores,
     std::vector<std::vector<float>>* stage_scores) {
   int n_states = states.size();
   int n_stages = task->compute_dag.GetInitState()->stages.size();
@@ -185,14 +184,14 @@ void PythonBasedModelNode::PredictStages(
 }
 
 TVM_REGISTER_GLOBAL("ansor.RandomModel").set_body_typed([]() {
-  return RandomModelNode::make();
+  return RandomModel();
 });
 
 TVM_REGISTER_GLOBAL("ansor.PythonBasedModel")
 .set_body_typed([](PackedFunc update_func, PackedFunc predict_func,
                    PackedFunc predict_stage_func) {
-  return PythonBasedModelNode::make(update_func, predict_func,
-                                    predict_stage_func);
+  return PythonBasedModel(update_func, predict_func,
+                          predict_stage_func);
 });
 
 }  // namespace ansor

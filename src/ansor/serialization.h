@@ -38,8 +38,6 @@ class LogToFileNode : public MeasureCallbackNode {
  public:
   std::string filename;
 
-  static MeasureCallback make(std::string filename);
-
   /*! \brief Log measure pairs to file. This is called by the search policy */
   void callback(const SearchPolicy& policy,
                 const Array<MeasureInput>& inputs,
@@ -49,15 +47,23 @@ class LogToFileNode : public MeasureCallbackNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(LogToFileNode, MeasureCallbackNode);
 };
 
-class LogReader;
+/*!
+ * \brief Managed reference to LogToFileNode.
+ * \sa LogToFileNode
+ */
+class LogToFile : public MeasureCallback {
+ public:
+  explicit LogToFile(std::string filename);
 
-/*! \brief Log reader */
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LogToFile, MeasureCallback, LogToFileNode);
+};
+
+/*! \brief Log reader to load step logs from a target file.*/
 class LogReaderNode : public Object {
  public:
   std::string filename;
   std::ifstream infile;
 
-  static LogReader make(std::string filename);
   ~LogReaderNode();
 
   /*! \brief Read next line in the log file
@@ -76,7 +82,17 @@ class LogReaderNode : public Object {
  private:
   std::string cur_line;
 };
-TVM_DEFINE_MUTABLE_OBJECT_REF(LogReader, LogReaderNode);
+
+/*!
+ * \brief Managed reference to LogReaderNode.
+ * \sa LogReaderNode
+ */
+class LogReader : public ObjectRef {
+ public:
+  explicit LogReader(std::string filename);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LogReader, ObjectRef, LogReaderNode);
+};
 
 /*! \brief Write measure records to an output stream */
 void WriteMeasureRecords(std::ostream* os,

@@ -371,7 +371,7 @@ State RandomMutateTileSize(const State& old_state, SplitFactorizationMemo* split
 
     auto pstate = tmp_s.CopyOnWrite();
     pstate->transform_steps[step_id] =
-        SplitStepNode::make(ps->stage_id, ps->iter_id, ps->extent, new_lengths, ps->inner_to_outer);
+        SplitStep(ps->stage_id, ps->iter_id, ps->extent, new_lengths, ps->inner_to_outer);
     return tmp_s;
   }
 
@@ -401,7 +401,7 @@ State RandomMutateMaxUnrollStep(const State& old_state, std::mt19937* random_gen
   auto val = std::to_string(auto_unroll_configs[(*random_gen)() % auto_unroll_configs.size()]);
 
   auto pstate = tmp_s.CopyOnWrite();
-  pstate->transform_steps[step_id] = PragmaStepNode::make(
+  pstate->transform_steps[step_id] = PragmaStep(
       ps->stage_id, ps->iter_id, std::string("auto_unroll_max_step") + "$" + val);
   return tmp_s;
 }

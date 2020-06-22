@@ -33,7 +33,7 @@ TVM_REGISTER_OBJECT_TYPE(SearchPolicyNode);
 TVM_REGISTER_OBJECT_TYPE(PreloadMeasuredStatesNode);
 
 void SearchPolicyNode::PreloadMeasuredStates(const std::string& log_file) {
-  LogReader reader = LogReaderNode::make(log_file);
+  LogReader reader = LogReader(log_file);
   const auto& res = reader->ReadLines(-1);
   size_t log_size = res.first.size();
   CHECK_EQ(log_size, res.second.size());
@@ -84,10 +84,10 @@ void SearchPolicyNode::RunCallbacks(const Array<SearchCallback>& callbacks) {
   }
 }
 
-SearchCallback PreloadMeasuredStatesNode::make(std::string filename) {
+PreloadMeasuredStates::PreloadMeasuredStates(std::string filename) {
   auto node = make_object<PreloadMeasuredStatesNode>();
   node->filename = std::move(filename);
-  return SearchCallback(node);
+  data_ = std::move(node);
 }
 
 void PreloadMeasuredStatesNode::callback(SearchPolicyNode* policy) {
@@ -121,7 +121,7 @@ TVM_REGISTER_GLOBAL("ansor.SearchPolicySetVerbose")
 
 TVM_REGISTER_GLOBAL("ansor.PreloadMeasuredStates")
 .set_body_typed([](std::string filename) {
-  return PreloadMeasuredStatesNode::make(filename);
+  return PreloadMeasuredStates(filename);
 });
 
 }  // namespace ansor

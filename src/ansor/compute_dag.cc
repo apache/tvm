@@ -241,7 +241,7 @@ static bool HasExpensiveOp(const PrimExpr& expr) {
   return found;
 }
 
-AccessAnalyzer AccessAnalyzerNode::make(const Array<te::Tensor>& tensors) {
+AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
   auto node = make_object<AccessAnalyzerNode>();
   OperationMap<bool> has_branch;
 
@@ -290,8 +290,8 @@ AccessAnalyzer AccessAnalyzerNode::make(const Array<te::Tensor>& tensors) {
       for (const auto& pair : node->read_from[op]) {
         const std::vector<std::vector<PrimExpr> >& access = pair.second;
         for (const auto& index : access) {
-          if (!IsInjective(op, index, &axis_missing, &axis_duplicated,
-                           &same_order)) {
+          if (!ansor::IsInjective(op, index, &axis_missing, &axis_duplicated,
+                                  &same_order)) {
             is_injective = false;
             is_strict_inlineable = false;
             break;
@@ -356,7 +356,7 @@ AccessAnalyzer AccessAnalyzerNode::make(const Array<te::Tensor>& tensors) {
     }
   }
 
-  return AccessAnalyzer(node);
+  data_ = std::move(node);
 }
 
 bool AccessAnalyzer::NeedsMultiLevelTiling(const te::Operation &op) const {
@@ -554,7 +554,6 @@ class FlopEstimator: public ExprFunctor<double(const PrimExpr& n)> {
     return ret;
   }
 
-
   double VisitExprDefault_(const Object* op) final {
     fail = true;
     return -1.0;
@@ -567,20 +566,20 @@ State ComputeDAG::GetInitState() const {
   return Downcast<State>(operator->()->init_state);
 }
 
-ComputeDAG ComputeDAGNode::make(Array<te::Tensor> tensors) {
+ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   auto node = make_object<ComputeDAGNode>();
   FlopEstimator estimator;
 
   node->tensors = std::move(tensors);
-  node->access_analyzer = AccessAnalyzerNode::make(node->tensors);
+  node->access_analyzer = AccessAnalyzer(node->tensors);
   node->ops = Array<te::Operation>(node->access_analyzer->ops_topo_order);
   node->flop_ct = estimator.EstimateFlop(node->ops);
-  node->init_state = StateNode::make(node->ops);
+  node->init_state = State(node->ops);
 
-  return ComputeDAG(node);
+  data_ = std::move(node);
 }
 
-ComputeDAG ComputeDAGNode::make_by_workload_key(const std::string& workload_key) {
+ComputeDAG::ComputeDAG(const std::string& workload_key) {
   Array<te::Tensor> tens;
   // Call python function to decode the workload_key and get the I/O tensors
   if (const auto* f = runtime::Registry::Get("ansor.workload_key_to_tensors")) {
@@ -588,7 +587,7 @@ ComputeDAG ComputeDAGNode::make_by_workload_key(const std::string& workload_key)
   } else {
     LOG(FATAL) << "ansor.workload_key_to_tensors is not registered";
   }
-  return ComputeDAGNode::make(std::move(tens));
+  ComputeDAG(std::move(tens));
 }
 
 std::string BaseName(const std::string& str) {
@@ -938,7 +937,7 @@ void ComputeDAG::RewriteLayout(
             }
           }
 
-          pdag->init_state = StateNode::make(pdag->ops);
+          pdag->init_state = State(pdag->ops);
 
           Array<te::Tensor> old_tensors = pdag->tensors;
           ArrayNode* ptensors = pdag->tensors.CopyOnWrite();
@@ -1105,7 +1104,7 @@ void ComputeDAG::ReplayAndGetDAG(const std::vector<Step> &transform_steps,
     }
   }
 
-  *task_dag = ComputeDAGNode::make(new_tensors);
+  *task_dag = ComputeDAG(new_tensors);
 }
 
 
@@ -1136,18 +1135,16 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
 
       auto find_res = bounds.find(axis);
       if (find_res != bounds.end()) {
-        new_iters.push_back(IteratorNode::make(iter->name, (*find_res).second,
-                                               iter->iter_type,
-                                               iter->annotation,
-                                               &iter->ori_iters,
-                                               iter->attr));
+        new_iters.push_back(Iterator(iter->name, (*find_res).second,
+                                     iter->iter_type, iter->annotation,
+                                     &iter->ori_iters, iter->attr));
       } else {
         LOG(FATAL) << "Infer bound fails";
       }
     }
 
-    pstate->stages[i] = StageNode::make(stage->op, stage->op_type,
-            std::move(new_iters), stage->compute_at, stage->attrs);
+    pstate->stages[i] = Stage(stage->op, stage->op_type, std::move(new_iters),
+                              stage->compute_at, stage->attrs);
   }
 }
 
@@ -1319,7 +1316,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_GLOBAL("ansor.ComputeDAG")
 .set_body_typed([](Array<te::Tensor> tensors) {
-  return ComputeDAGNode::make(tensors);
+  return ComputeDAG(tensors);
 });
 
 TVM_REGISTER_GLOBAL("ansor.ComputeDAGGetInitState")

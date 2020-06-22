@@ -32,7 +32,7 @@
 namespace tvm {
 namespace ansor {
 
-class HardwareParams; class SearchTask;
+class HardwareParams;
 
 /*! \brief Hardware related parameters */
 class HardwareParamsNode : public Object {
@@ -69,17 +69,25 @@ class HardwareParamsNode : public Object {
     v->Visit("warp_size", &warp_size);
   }
 
-  static HardwareParams make(int num_cores, int vector_unit_bytes,
-                             int cache_line_bytes, int max_unroll_vec,
-                             int max_innermost_split_factor);
-
   static HardwareParams GetDefaultHardwareParams(const Target& target,
                                                  const Target& target_host);
 
   static constexpr const char* _type_key = "ansor.HardwareParams";
   TVM_DECLARE_FINAL_OBJECT_INFO(HardwareParamsNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(HardwareParams, ObjectRef, HardwareParamsNode);
+
+/*!
+ * \brief Managed reference to HardwareParamsNode.
+ * \sa HardwareParamsNode
+ */
+class HardwareParams : public ObjectRef {
+ public:
+  HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes,
+                 int max_unroll_vec, int max_innermost_split_factor);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(HardwareParams, ObjectRef, HardwareParamsNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(HardwareParamsNode);
+};
 
 /*! \brief Meta-info for a search task */
 class SearchTaskNode : public Object {
@@ -98,14 +106,23 @@ class SearchTaskNode : public Object {
     v->Visit("hardware_params", &hardware_params);
   }
 
-  static SearchTask make(ComputeDAG compute_dag, std::string workload_key,
-                         Target target, Target target_host,
-                         HardwareParams hardware_params);
-
   static constexpr const char* _type_key = "ansor.SearchTask";
   TVM_DECLARE_FINAL_OBJECT_INFO(SearchTaskNode, Object);
 };
-TVM_DEFINE_COW_OBJECT_REF(SearchTask, ObjectRef, SearchTaskNode);
+
+/*!
+ * \brief Managed reference to SearchTaskNode.
+ * \sa SearchTaskNode
+ */
+class SearchTask : public ObjectRef {
+ public:
+  SearchTask(ComputeDAG compute_dag, std::string workload_key,
+             Target target, Target target_host,
+             HardwareParams hardware_params);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(SearchTask, ObjectRef, SearchTaskNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SearchTaskNode);
+};
 
 }  // namespace ansor
 }  // namespace tvm

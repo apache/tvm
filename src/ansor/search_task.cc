@@ -35,28 +35,27 @@ namespace ansor {
 TVM_REGISTER_NODE_TYPE(HardwareParamsNode);
 TVM_REGISTER_NODE_TYPE(SearchTaskNode);
 
-HardwareParams HardwareParamsNode::make(int num_cores, int vector_unit_bytes,
-                                        int cache_line_bytes,
-                                        int max_unroll_vec,
-                                        int max_innermost_split_factor) {
+HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes,
+                               int cache_line_bytes, int max_unroll_vec,
+                               int max_innermost_split_factor) {
   auto node = make_object<HardwareParamsNode>();
   node->num_cores = num_cores;
   node->vector_unit_bytes = vector_unit_bytes;
   node->cache_line_bytes = cache_line_bytes;
   node->max_unroll_vec = max_unroll_vec;
   node->max_innermost_split_factor = max_innermost_split_factor;
-  return HardwareParams(node);
+  data_ = std::move(node);
 }
 
 HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
     const Target& target, const Target& target_host) {
   if (target->target_name == "llvm") {
-    return HardwareParamsNode::make(tvm::runtime::threading::MaxConcurrency(),
-                                    32, 64, 16, 64);
+    return HardwareParams(tvm::runtime::threading::MaxConcurrency(),
+                          32, 64, 16, 64);
   } else if (target->device_type == kDLGPU) {
     // TODO(jcf94): temp implementation, max vectorize size in GPU is related
     // to the data type
-    auto hardware_params = HardwareParamsNode::make(100000, 16, 64, 4, 64);
+    auto hardware_params = HardwareParams(100000, 16, 64, 4, 64);
     auto* p_hardware_params = hardware_params.CopyOnWrite();
 
     auto ctx = TVMContext{kDLGPU, 0};
@@ -87,7 +86,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
     return hardware_params;
   } else if (target->device_type == kDLOpenCL) {
     // TODO(jcf94): temp implementation
-    auto hardware_params = HardwareParamsNode::make(100000, 16, 64, 4, 64);
+    auto hardware_params = HardwareParams(100000, 16, 64, 4, 64);
     auto p_hardware_params = hardware_params.CopyOnWrite();
 
     auto ctx = TVMContext{kDLOpenCL, 0};
@@ -118,10 +117,9 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
   return HardwareParams();
 }
 
-SearchTask SearchTaskNode::make(ComputeDAG compute_dag,
-                                std::string workload_key, Target target,
-                                Target target_host,
-                                HardwareParams hardware_params) {
+SearchTask::SearchTask(ComputeDAG compute_dag, std::string workload_key,
+                       Target target, Target target_host,
+                       HardwareParams hardware_params) {
   auto node = make_object<SearchTaskNode>();
   node->compute_dag = std::move(compute_dag);
   node->workload_key = std::move(workload_key);
@@ -133,24 +131,23 @@ SearchTask SearchTaskNode::make(ComputeDAG compute_dag,
     node->hardware_params = HardwareParamsNode::GetDefaultHardwareParams(
         node->target, node->target_host);
   }
-  return SearchTask(node);
+  data_ = std::move(node);
 }
 
 TVM_REGISTER_GLOBAL("ansor.HardwareParams")
 .set_body_typed([](int num_cores, int vector_unit_bytes,
                    int cache_line_bytes, int max_unroll_vec,
                    int max_innermost_split_factor) {
-  return HardwareParamsNode::make(num_cores, vector_unit_bytes,
-                                  cache_line_bytes, max_unroll_vec,
-                                  max_innermost_split_factor);
+  return HardwareParams(num_cores, vector_unit_bytes, cache_line_bytes,
+                        max_unroll_vec, max_innermost_split_factor);
 });
 
 TVM_REGISTER_GLOBAL("ansor.SearchTask")
 .set_body_typed([](ComputeDAG compute_dag, std::string workload_key,
                    Target target, Target target_host,
                    HardwareParams hardware_params) {
-  return SearchTaskNode::make(compute_dag, workload_key, target,
-                              target_host, hardware_params);
+  return SearchTask(compute_dag, workload_key, target, target_host,
+                    hardware_params);
 });
 
 }  // namespace ansor

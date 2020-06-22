@@ -49,20 +49,19 @@ TVM_REGISTER_OBJECT_TYPE(PreloadCustomSketchRuleNode);
 // All possible candidates for auto_unroll
 const std::vector<int> SketchSearchPolicyNode::auto_unroll_configs{0, 16, 64, 512, 1024};
 
-SearchPolicy SketchSearchPolicyNode::make(CostModel program_cost_model,
-                                        Map<String, ObjectRef> params,
-                                        int seed) {
+SketchSearchPolicy::SketchSearchPolicy(CostModel program_cost_model,
+                                       Map<String, ObjectRef> params,
+                                       int seed) {
   auto node = make_object<SketchSearchPolicyNode>();
   node->program_cost_model = std::move(program_cost_model);
   node->rand_gen_ = std::mt19937(seed);
   node->params = std::move(params);
-  return SearchPolicy(node);
+  data_ = std::move(node);
 }
 
 State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
-                                        int early_stopping, int num_measure_per_iter,
-                                        int verbose, ProgramMeasurer measurer,
-                                        Array<SearchCallback> pre_search_callbacks) {
+    int early_stopping, int num_measure_per_iter, int verbose,
+    ProgramMeasurer measurer, Array<SearchCallback> pre_search_callbacks) {
   std::vector<State> best_states, random_states;
   this->cur_task = task;
   this->verbose = verbose;
@@ -221,7 +220,7 @@ void SketchSearchPolicyNode::PickStatesWithEpsGreedy(
     if (measured_states_set_.count(state_str)) { continue; }
     measured_states_set_.insert(state_str);
 
-    inputs->push_back(MeasureInputNode::make(cur_task, *pstate));
+    inputs->push_back(MeasureInput(cur_task, *pstate));
     measured_states_vector_.push_back(std::move(*pstate));
   }
 }
@@ -701,8 +700,8 @@ void SketchSearchPolicyNode::GenerateSketch(
         auto step = pstate->transform_steps[split_step_id].as<SplitStepNode>();
         CHECK(step != nullptr);
         pstate->transform_steps[split_step_id]
-            = SplitStepNode::make(step->stage_id, step->iter_id, step->extent, {PrimExpr()},
-                                  step->inner_to_outer);
+            = SplitStep(step->stage_id, step->iter_id, step->extent, {PrimExpr()},
+                        step->inner_to_outer);
       }
     }
   }
@@ -733,7 +732,7 @@ int InitPopulationFillTileSize(const SketchSearchPolicyNode* policy,
               policy->cur_task->hardware_params->max_innermost_split_factor);
 
       StateNode* pstate = state->CopyOnWrite();
-      pstate->transform_steps[step_id] = SplitStepNode::make(
+      pstate->transform_steps[step_id] = SplitStep(
           ps->stage_id, ps->iter_id, ps->extent,
           candidate_lens[(*rand_gen)() % candidate_lens.size()],
           ps->inner_to_outer);
@@ -1508,12 +1507,12 @@ class RuleCustomSketch : public SketchGenerationRule {
   PackedFunc apply_func_;
 };
 
-SearchCallback PreloadCustomSketchRuleNode::make(PackedFunc meet_condition_func,
-                                          PackedFunc apply_func) {
+PreloadCustomSketchRule::PreloadCustomSketchRule(PackedFunc meet_condition_func,
+                                                 PackedFunc apply_func) {
   auto node = make_object<PreloadCustomSketchRuleNode>();
   node->meet_condition_func = meet_condition_func;
   node->apply_func = apply_func;
-  return SearchCallback(node);
+  data_ = std::move(node);
 }
 
 void PreloadCustomSketchRuleNode::callback(SearchPolicyNode* policy) {
@@ -1525,15 +1524,14 @@ void PreloadCustomSketchRuleNode::callback(SearchPolicyNode* policy) {
 }
 
 TVM_REGISTER_GLOBAL("ansor.SketchSearchPolicy")
-.set_body_typed([](CostModel program_cost_model,
-                   Map<String, ObjectRef> params,
+.set_body_typed([](CostModel program_cost_model, Map<String, ObjectRef> params,
                    int seed){
-  return SketchSearchPolicyNode::make(program_cost_model, params, seed);
+  return SketchSearchPolicy(program_cost_model, params, seed);
 });
 
 TVM_REGISTER_GLOBAL("ansor.PreloadCustomSketchRule")
 .set_body_typed([](PackedFunc meet_condition_func, PackedFunc apply_func) {
-  return PreloadCustomSketchRuleNode::make(meet_condition_func, apply_func);
+  return PreloadCustomSketchRule(meet_condition_func, apply_func);
 });
 
 }  // namespace ansor

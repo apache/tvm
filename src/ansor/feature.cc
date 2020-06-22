@@ -1297,7 +1297,7 @@ void GetPerStmtFeaturesFromFile(const std::string& filename,
   std::vector<float> min_costs;
 
   // read from file
-  LogReader reader = LogReaderNode::make(filename);
+  LogReader reader = LogReader(filename);
   auto cur_inp = make_object<MeasureInputNode>();
   auto cur_res = make_object<MeasureResultNode>();
   while (reader->ReadNext(cur_inp.get(), cur_res.get())) {
@@ -1310,11 +1310,9 @@ void GetPerStmtFeaturesFromFile(const std::string& filename,
     auto find_res = task_cache.find(key);
     if (find_res == task_cache.end()) {
       // rebuild task
-      task = SearchTaskNode::make(ComputeDAGNode::make_by_workload_key(workload_key),
-                                  workload_key,
-                                  cur_inp->task->target,
-                                  cur_inp->task->target_host,
-                                  cur_inp->task->hardware_params);
+      task = SearchTask(ComputeDAG(workload_key), workload_key,
+                        cur_inp->task->target, cur_inp->task->target_host,
+                        cur_inp->task->hardware_params);
       task_id = task_cache.size();
 
       // compute min cost for each task
@@ -1378,11 +1376,9 @@ void GetPerStmtFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
           task = inputs[i]->task;
       } else {  // the measure input is incomplete
           // rebuild task for incomplete measure pairs read from file
-          task = SearchTaskNode::make(ComputeDAGNode::make_by_workload_key(workload_key),
-                                      workload_key,
-                                      inputs[i]->task->target,
-                                      inputs[i]->task->target_host,
-                                      inputs[i]->task->hardware_params);
+          task = SearchTask(ComputeDAG(workload_key), workload_key,
+                            inputs[i]->task->target, inputs[i]->task->target_host,
+                            inputs[i]->task->hardware_params);
       }
       task_id = task_cache.size();
 

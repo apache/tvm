@@ -199,7 +199,7 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         reader->Read(&stage_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&int_list);
-        data->push_back(::tvm::ansor::ReorderStepNode::make(stage_id, int_list));
+        data->push_back(::tvm::ansor::ReorderStep(stage_id, int_list));
       } else if (name == "SP") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
@@ -211,7 +211,7 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         reader->Read(&int_list);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&inner_to_outer);
-        data->push_back(::tvm::ansor::SplitStepNode::make(
+        data->push_back(::tvm::ansor::SplitStep(
             stage_id, iter_id, extent,
             std::vector<::tvm::PrimExpr>(int_list.begin(), int_list.end()),
             inner_to_outer));
@@ -224,7 +224,7 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         reader->Read(&src_step_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&n_split);
-        data->push_back(::tvm::ansor::FollowSplitStepNode::make(
+        data->push_back(::tvm::ansor::FollowSplitStep(
             stage_id, iter_id, src_step_id, n_split));
       } else if (name == "FFSP") {
         s = reader->NextArrayItem(); CHECK(s);
@@ -237,14 +237,14 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         reader->Read(&level);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&factor_or_nparts);
-        data->push_back(::tvm::ansor::FollowFusedSplitStepNode::make(
+        data->push_back(::tvm::ansor::FollowFusedSplitStep(
             stage_id, iter_id, int_list, level, factor_or_nparts));
       } else if (name == "FU") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&int_list);
-        data->push_back(::tvm::ansor::FuseStepNode::make(stage_id, int_list));
+        data->push_back(::tvm::ansor::FuseStep(stage_id, int_list));
       } else if (name == "AN") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
@@ -252,7 +252,7 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         reader->Read(&iter_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&ann);
-        data->push_back(::tvm::ansor::AnnotationStepNode::make(stage_id,
+        data->push_back(::tvm::ansor::AnnotationStep(stage_id,
             iter_id, ::tvm::ansor::IteratorAnnotation(ann)));
       } else if (name == "CA") {
         s = reader->NextArrayItem(); CHECK(s);
@@ -261,16 +261,16 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         reader->Read(&target_stage_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&iter_id);
-        data->push_back(::tvm::ansor::ComputeAtStepNode::make(
+        data->push_back(::tvm::ansor::ComputeAtStep(
             stage_id, target_stage_id, iter_id));
       } else if (name == "CR") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
-        data->push_back(::tvm::ansor::ComputeRootStepNode::make(stage_id));
+        data->push_back(::tvm::ansor::ComputeRootStep(stage_id));
       } else if (name == "CI") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
-        data->push_back(::tvm::ansor::ComputeInlineStepNode::make(stage_id));
+        data->push_back(::tvm::ansor::ComputeInlineStep(stage_id));
       } else if (name == "CHR") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
@@ -278,14 +278,14 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         reader->Read(&scope_name);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&int_list);
-        data->push_back(::tvm::ansor::CacheReadStepNode::make(
+        data->push_back(::tvm::ansor::CacheReadStep(
             stage_id, scope_name, int_list));
       } else if (name == "CHW") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&scope_name);
-        data->push_back(::tvm::ansor::CacheWriteStepNode::make(
+        data->push_back(::tvm::ansor::CacheWriteStep(
             stage_id, scope_name));
       } else if (name == "PR") {
         s = reader->NextArrayItem(); CHECK(s);
@@ -294,7 +294,7 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         reader->Read(&iter_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&pragma_type);
-        data->push_back(::tvm::ansor::PragmaStepNode::make(
+        data->push_back(::tvm::ansor::PragmaStep(
             stage_id, iter_id, pragma_type));
       } else if (name == "RF") {
         s = reader->NextArrayItem(); CHECK(s);
@@ -303,7 +303,7 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         reader->Read(&iter_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&factor_iter_id);
-        data->push_back(::tvm::ansor::RfactorStepNode::make(
+        data->push_back(::tvm::ansor::RfactorStep(
             stage_id, iter_id, factor_iter_id));
       } else if (name == "SA") {
         s = reader->NextArrayItem(); CHECK(s);
@@ -314,7 +314,7 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         reader->Read(&factor);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&offset);
-        data->push_back(::tvm::ansor::StorageAlignStepNode::make(
+        data->push_back(::tvm::ansor::StorageAlignStep(
             stage_id, iter_id, factor, offset));
       } else if (name == "TS") {
         s = reader->NextArrayItem(); CHECK(s);
@@ -323,7 +323,7 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         reader->Read(&iter_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&ti_func_name);
-        data->push_back(::tvm::ansor::TensorizeStepNode::make(
+        data->push_back(::tvm::ansor::TensorizeStep(
             stage_id, iter_id, ti_func_name));
       } else {
         LOG(FATAL) << "Invalid step format";
@@ -457,10 +457,10 @@ TVM_REGISTER_OBJECT_TYPE(LogReaderNode);
 
 const std::string ANSOR_LOG_VERSION = "v0.2";    // NOLINT(*)
 
-MeasureCallback LogToFileNode::make(std::string filename) {
+LogToFile::LogToFile(std::string filename) {
   auto node = make_object<LogToFileNode>();
   node->filename = std::move(filename);
-  return MeasureCallback(node);
+  data_ = std::move(node);
 }
 
 void WriteMeasureRecords(std::ostream* os,
@@ -506,11 +506,11 @@ void LogToFileNode::callback(const SearchPolicy& policy,
   WriteMeasureRecords(&ofs, inputs, results);
 }
 
-LogReader LogReaderNode::make(std::string filename) {
+LogReader::LogReader(std::string filename) {
   auto node = make_object<LogReaderNode>();
   node->filename = filename;
   node->infile.open(filename, std::ifstream::in);
-  return LogReader(node);
+  data_ = std::move(node);
 }
 
 LogReaderNode::~LogReaderNode() {
@@ -556,15 +556,15 @@ std::pair<Array<MeasureInput>, Array<MeasureResult> > LogReaderNode::ReadLines(
   return std::make_pair(inputs, results);
 }
 
-std::pair<MeasureInput, MeasureResult> BestMeasurePairInFile(const std::string& filename,
-                                                             const std::string& workload_key,
-                                                             const Target& target) {
+std::pair<MeasureInput, MeasureResult> BestMeasurePairInFile(
+    const std::string& filename, const std::string& workload_key,
+    const Target& target) {
   std::pair<MeasureInput, MeasureResult> best_pair;
   double best_cost = 1e30;
 
   auto inp = make_object<MeasureInputNode>();
   auto res = make_object<MeasureResultNode>();
-  LogReader reader = LogReaderNode::make(filename);
+  LogReader reader = LogReader(filename);
 
   while (reader->ReadNext(inp.get(), res.get())) {
     if (res->error_no != kNoError || inp->task->workload_key != workload_key
@@ -594,12 +594,12 @@ TVM_REGISTER_GLOBAL("ansor.WriteMeasureRecordsToFile")
 
 TVM_REGISTER_GLOBAL("ansor.LogToFile")
 .set_body_typed([](const std::string& filename) {
-  return LogToFileNode::make(filename);
+  return LogToFile(filename);
 });
 
 TVM_REGISTER_GLOBAL("ansor.LogReader")
 .set_body_typed([](const std::string& filename) {
-  return LogReaderNode::make(filename);
+  return LogReader(filename);
 });
 
 TVM_REGISTER_GLOBAL("ansor.LogReaderReadLines")
@@ -648,8 +648,8 @@ TVM_REGISTER_GLOBAL("ansor.GetStatesFromMeasureInputs")
           ptask = inp->task.operator->();
         } else {  // the measure input is incomplete
           // rebuild task for incomplete measure pairs read from file
-          SearchTask new_task = SearchTaskNode::make(
-            ComputeDAGNode::make_by_workload_key(workload_key),
+          SearchTask new_task = SearchTask(
+            ComputeDAG(workload_key),
             workload_key,
             inp->task->target,
             inp->task->target_host,
