@@ -75,6 +75,32 @@ int TVMArrayFree(TVMArrayHandle handle) {
   return TVMNDArray_Release(&arr);
 }
 
+int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignment, DLDataType type_hint,
+                            void** out_data) {
+  if (alignment != 1) {
+    nbytes = (nbytes + alignment - 1) / alignment * alignment;
+  }
+
+  *out_data = vmalloc(nbytes);
+  return 0;
+}
+
+int TVMDeviceFreeDataSpace(TVMContext ctx, void *ptr) {
+  vfree(ptr);
+  return 0;
+}
+
+int TVMDeviceCopyDataFromTo(const void* from, size_t from_offset, void* to,
+                            size_t to_offset, size_t num_bytes, TVMContext ctx_from,
+                            TVMContext ctx_to, DLDataType type_hint,
+                            TVMStreamHandle stream) {
+  memcpy(((uint8_t*) to) + to_offset, ((uint8_t*) from) + from_offset, num_bytes);
+  return 0;
+}
+
+int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) {
+  return 0;
+}
 
 static TVMMutableFuncRegistry global_func_registry;
 
