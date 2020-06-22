@@ -501,6 +501,10 @@ def test_serialized_modules():
     runtime.run()
     tvm_result = runtime.get_output(0).asnumpy()
 
-    num_identical = np.sum(tvm_result == pt_result)
+    # with 0.5ish results, 1e-2 is relative accuracy close to 2**-6.
+    # for simple layers like here this should be achievable
+    # with 8 bit quantization
+    # we only require 90% match just to be sure
+    num_identical = np.sum(np.abs(tvm_result - pt_result) < 1e-2)
     match_ratio = num_identical / float(np.prod(tvm_result.shape))
-    assert match_ratio > 0.2
+    assert match_ratio > 0.90
