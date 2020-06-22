@@ -21,12 +21,12 @@
  * \file src/relay/op/tensor/transform.h
  * \brief Transform op attributes that can be shared among Relay and its dialects.
  */
-#ifndef TVM_RELAY_OP_DYNAMIC_TENSOR_TRANSFORM_H_
-#define TVM_RELAY_OP_DYNAMIC_TENSOR_TRANSFORM_H_
+#ifndef TVM_RELAY_OP_DYN_TENSOR_TRANSFORM_H_
+#define TVM_RELAY_OP_DYN_TENSOR_TRANSFORM_H_
 
 namespace tvm {
 namespace relay {
 namespace dyn {}  // namespace dynamic
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_OP_DYNAMIC_TENSOR_TRANSFORM_H_
+#endif  // TVM_RELAY_OP_DYN_TENSOR_TRANSFORM_H_
