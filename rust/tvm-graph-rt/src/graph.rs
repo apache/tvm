@@ -19,19 +19,21 @@
 
 use std::{cmp, collections::HashMap, convert::TryFrom, iter::FromIterator, mem, str};
 
-use failure::Error;
+use failure::{ensure, format_err, Error};
+use itertools::izip;
 use nom::{
     character::complete::{alpha1, digit1},
+    complete, count, do_parse, length_count, map, named,
     number::complete::{le_i32, le_i64, le_u16, le_u32, le_u64, le_u8},
+    opt, tag, take, tuple,
 };
 
-use serde;
+use serde::{Deserialize, Serialize};
 use serde_json;
-use tvm_common::{
-    array::{DataType, TVMContext},
-    ffi::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt, DLTensor},
-    TVMArgValue,
-};
+
+use tvm_sys::ffi::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt};
+
+use tvm_sys::{ffi::DLTensor, ArgValue, Context, DataType, DeviceType};
 
 use crate::{errors::GraphFormatError, Module, Storage, Tensor};
 
@@ -226,7 +228,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                 let storage = storages[storage_id].view();
                 Tensor {
                     data: mem::replace(&mut storages[storage_id], storage),
-                    ctx: TVMContext::default(),
+                    ctx: Context::default(),
                     dtype,
                     size: shape.iter().product::<i64>() as usize,
                     shape,
@@ -286,7 +288,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                 let args = dl_tensors
                     .iter()
                     .map(|t| t.into())
-                    .collect::<Vec<TVMArgValue>>();
+                    .collect::<Vec<ArgValue>>();
                 func(&args).unwrap();
             });
             op_execs.push(op);
@@ -364,18 +366,18 @@ named! {
     bits:      digit1 >>
     lanes:     opt!(complete!(tuple!(tag!("x"), digit1))) >>
     (
-        DataType {
-            code: match type_name {
+        DataType::new(
+            match type_name {
                 "int" => DLDataTypeCode_kDLInt,
                 "uint" => DLDataTypeCode_kDLUInt,
                 "float" => DLDataTypeCode_kDLFloat,
                 _ => DLDataTypeCode_kDLFloat,
-            } as usize,
-            bits: bits.parse::<u8>().unwrap() as usize,
-            lanes: lanes
-                .map(|(_, lanes)| lanes.parse::<u16>().unwrap() as usize)
-                .unwrap_or(1)
-        }
+            } as u8,
+            bits.parse::<u8>().unwrap() as u8,
+            lanes
+                .map(|(_, lanes)| lanes.parse::<u16>().unwrap() as u16)
+                .unwrap_or(1),
+        )
     )
   )
 }
@@ -397,15 +399,15 @@ named! {
     )
 }
 
-// Parses a TVMContext
+// Parses a Context
 named! {
-  tvm_ctx<&[u8], TVMContext>,
+  tvm_ctx<&[u8], Context>,
   do_parse!(
     device_type: le_u32 >>
     device_id:   le_i32 >>
     (
-        TVMContext {
-            device_type: device_type as usize,
+        Context {
+            device_type: DeviceType::from(device_type),
             device_id: device_id as usize,
         }
     )
@@ -419,8 +421,7 @@ named! {
     code:  le_u8  >>
     bits:  le_u8  >>
     lanes: le_u16 >>
-    (DataType { code: code as usize, bits: bits as usize, lanes: lanes as usize })
-  )
+    (DataType::new(code, bits, lanes)))
 }
 
 // Parses a Tensor from a TVM array file.
@@ -484,19 +485,11 @@ mod tests {
     fn test_str_to_type() {
         assert_eq!(
             tvm_str_to_type("float24").unwrap().1,
-            DataType {
-                code: DLDataTypeCode_kDLFloat as usize,
-                bits: 24,
-                lanes: 1
-            }
+            DataType::float(24, 1)
         );
         assert_eq!(
             tvm_str_to_type("uint111x44").unwrap().1,
-            DataType {
-                code: DLDataTypeCode_kDLUInt as usize,
-                bits: 111,
-                lanes: 44
-            }
+            DataType::uint(111, 44)
         );
     }
 }
