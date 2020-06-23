@@ -529,8 +529,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     }
     case Opcode::AllocTensorReg: {
       os << "alloc_tensor_reg $" << instr.dst << " $" << instr.alloc_tensor_reg.storage << " $"
-         << instr.alloc_tensor_reg.storage << " $" << instr.alloc_tensor_reg.offset << " $"
-         << instr.alloc_tensor_reg.shape_register << " ";
+         << instr.alloc_tensor_reg.offset << " $" << instr.alloc_tensor_reg.shape_register << " ";
       DLDatatypePrint(os, instr.alloc_tensor_reg.dtype);
       break;
     }
@@ -581,7 +580,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::AllocStorage: {
-      os << "alloc_storage $" << instr.dst << " $" << instr.alloc_storage.allocation_size << " $"
+      os << "alloc_storage $" << instr.dst << " $" << instr.alloc_storage.allocation_size << " "
          << instr.alloc_storage.alignment << " "
          << DLDataType2String(instr.alloc_storage.dtype_hint);
       break;
@@ -1030,7 +1029,7 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::AllocStorage: {
         auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
-        auto alignment = LoadScalarInt(instr.alloc_storage.alignment);
+        auto alignment = instr.alloc_storage.alignment;
 
         DLOG(INFO) << "AllocStorage: allocation_size=" << size << "alignment=" << alignment
                    << "dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint);
