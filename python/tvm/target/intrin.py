@@ -83,7 +83,7 @@ def _rule_float_suffix(op):
     --------
     register_intrin_rule : The registeration function for intrin rule.
     """
-    name = op.name
+    name = op.op.name
     assert name.startswith("tir.")
     prefix = name[4:]
 
