@@ -427,7 +427,7 @@ RELAY_REGISTER_OP("memory.shape_func")
                              return {topi::identity(inputs[0])};
                            });
 
-RELAY_REGISTER_OP("memory.shape_of")
+RELAY_REGISTER_OP("vm.shape_of")
     .describe(R"code(Get the shape of an input tensor.
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
@@ -442,7 +442,7 @@ RELAY_REGISTER_OP("memory.shape_of")
 TVM_REGISTER_GLOBAL("relay.op.memory._make.shape_of").set_body_typed([](Expr expr) {
   auto attrs = make_object<ShapeOfAttrs>();
   attrs->dtype = DataType::Int(64);
-  static const Op& op = Op::Get("memory.shape_of");
+  static const Op& op = Op::Get("vm.shape_of");
   return Call(op, {expr}, Attrs(attrs), {});
 });
 

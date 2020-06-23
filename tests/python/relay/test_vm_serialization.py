@@ -284,7 +284,7 @@ def test_mobilenet():
     run_network(mod, params)
 
 
-def test_memory_shape_of():
+def test_vm_shape_of():
     x = relay.var('x', shape=(relay.Any(), relay.Any(), relay.Any()), dtype="float32")
     relu_x = relay.nn.relu(x)
     data = np.random.uniform(size=(2, 3, 4)).astype('float32')
@@ -310,4 +310,4 @@ if __name__ == "__main__":
     test_closure()
     test_resnet()
     test_mobilenet()
-    test_memory_shape_of()
+    test_vm_shape_of()

@@ -585,7 +585,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                    auto outputs = Downcast<Tuple>(args[2]);
                    EmitShapeFunc(shape_func, inputs->fields, outputs->fields);
                  })
-          .Match("memory.shape_of",
+          .Match("vm.shape_of",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
                    CHECK_EQ(args.size(), 1U);
                    // Get the attributes.
