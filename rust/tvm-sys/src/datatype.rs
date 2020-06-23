@@ -83,7 +83,7 @@ impl DataType {
     }
 
     pub const fn uint(bits: u8, lanes: u16) -> DataType {
-        DataType::new(DL_FLOAT_CODE, bits, lanes)
+        DataType::new(DL_UINT_CODE, bits, lanes)
     }
 }
 
