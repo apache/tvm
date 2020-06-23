@@ -33,7 +33,7 @@
 #include <numeric>
 #include <sstream>
 
-#include "../../../../runtime/json/json_node.h"
+#include "../../../../runtime/contrib/json/json_node.h"
 #include "../../utils.h"
 #include "../codegen_c/codegen_c.h"
 #include "../codegen_json/codegen_json.h"

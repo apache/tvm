@@ -317,12 +317,6 @@ class JSONGraphNode {
 
 namespace dmlc {
 namespace json {
-// JSON utils
-template <typename T>
-inline bool SameType(const dmlc::any& data) {
-  return std::type_index(data.type()) == std::type_index(typeid(T));
-}
-
 template <>
 struct Handler<std::shared_ptr<tvm::runtime::json::JSONGraphNode>> {
   inline static void Write(
@@ -336,69 +330,6 @@ struct Handler<std::shared_ptr<tvm::runtime::json::JSONGraphNode>> {
     (*data)->Load(reader);
   }
 };
-
-template <>
-struct Handler<std::vector<dmlc::any>> {
-  inline static void Write(dmlc::JSONWriter* writer,
-                           const std::vector<dmlc::any>& data) {
-    writer->BeginArray();
-    for (const auto& v : data) {
-      if (SameType<std::string>(v)) {
-        writer->WriteArrayItem(dmlc::get<std::string>(v));
-      } else if (SameType<int>(v)) {
-        writer->WriteArrayItem(dmlc::get<int>(v));
-      } else if (SameType<std::vector<size_t>>(v)) {
-        writer->WriteArrayItem(dmlc::get<std::vector<size_t>>(v));
-      } else if (SameType<std::vector<std::vector<int64_t>>>(v)) {
-        writer->WriteArrayItem(dmlc::get<std::vector<std::vector<int64_t>>>(v));
-      } else if (SameType<std::vector<std::string>>(v)) {
-        writer->WriteArrayItem(dmlc::get<std::vector<std::string>>(v));
-      } else {
-        LOG(FATAL) << "Not supported";
-      }
-    }
-    writer->EndArray();
-  }
-
-  inline static void Read(dmlc::JSONReader* reader,
-                          std::vector<dmlc::any>* data) {
-    LOG(FATAL) << "Not implemented.";
-  }
-};
-
-template <>
-struct Handler<std::unordered_map<std::string, dmlc::any>> {
-  inline static void Write(dmlc::JSONWriter* writer,
-                           const std::unordered_map<std::string, dmlc::any>& data) {
-    writer->BeginObject();
-    for (const auto& kv : data) {
-      auto k = kv.first;
-      const dmlc::any& v = kv.second;
-      if (SameType<std::string>(v)) {
-        writer->WriteObjectKeyValue(k, dmlc::get<std::string>(v));
-      } else if (SameType<int>(v)) {
-        writer->WriteObjectKeyValue(k, dmlc::get<int>(v));
-      } else if (SameType<std::vector<size_t>>(v)) {
-        writer->WriteObjectKeyValue(k, dmlc::get<std::vector<size_t>>(v));
-      } else if (SameType<std::vector<std::vector<int64_t>>>(v)) {
-        writer->WriteObjectKeyValue(k, dmlc::get<std::vector<std::vector<int64_t>>>(v));
-      } else if (SameType<std::vector<std::string>>(v)) {
-        writer->WriteObjectKeyValue(k, dmlc::get<std::vector<std::string>>(v));
-      } else if (SameType<std::vector<dmlc::any>>(v)) {
-        writer->WriteObjectKeyValue(k, dmlc::get<std::vector<dmlc::any>>(v));
-      } else {
-        LOG(FATAL) << "Not supported";
-      }
-    }
-    writer->EndObject();
-  }
-
-  inline static void Read(dmlc::JSONReader* reader,
-                          std::unordered_map<std::string, dmlc::any>* data) {
-    LOG(FATAL) << "Not implemented.";
-  }
-};
-
 }  // namespace json
 }  // namespace dmlc
 

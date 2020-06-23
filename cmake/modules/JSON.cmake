@@ -17,6 +17,6 @@
 
 if(USE_JSON_RUNTIME)
   message(STATUS "Build with JSON runtime support")
-  file(GLOB RUNTIME_JSON_SRCS src/runtime/json/*.cc)
+  file(GLOB RUNTIME_JSON_SRCS src/runtime/contrib/json/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_JSON_SRCS})
 endif(USE_JSON_RUNTIME)

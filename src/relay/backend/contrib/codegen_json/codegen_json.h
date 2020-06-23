@@ -35,8 +35,8 @@
 #include <string>
 #include <vector>
 
-#include "../../../../runtime/json/json_node.h"
-#include "../../../../runtime/json/json_runtime.h"
+#include "../../../../runtime/contrib/json/json_node.h"
+#include "../../../../runtime/contrib/json/json_runtime.h"
 #include "../../utils.h"
 
 namespace tvm {

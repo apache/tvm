@@ -29,8 +29,8 @@
 #include <string>
 #include <vector>
 
-#include "../../json/json_node.h"
-#include "../../json/json_runtime.h"
+#include "../json/json_node.h"
+#include "../json/json_runtime.h"
 #include "dnnl.hpp"
 
 namespace tvm {
@@ -207,11 +207,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
         SW = std::stoi(str_strides[0]),         // weight-wise stride
         OH = (IH - KH + PH_L + PH_R) / SH + 1,  // output height
         OW = (IW - KW + PW_L + PW_R) / SW + 1;  // output width
-    // std::cerr << N << ", " << IC << ", " << IH << ", " << IW << "\n";
-    // std::cerr << OC << ", " << IC << ", " << KH << ", " << KW << "\n";
-    // std::cerr << PH_L << ", " << PH_R << ", " << PW_L << ", " << PW_R << "\n";
-    // std::cerr << SH << ", " << SW << "\n";
-    // std::cerr << OH << ", " << OW << "\n";
 
     // Memory shapes.
     dnnl::memory::dims src_dims = {N, IC, IH, IW};
