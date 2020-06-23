@@ -16,6 +16,10 @@
 # under the License.
 
 if(USE_DNNL_CODEGEN STREQUAL "ON")
+  if(USE_JSON_RUNTIME STREQUAL "OFF")
+      message(FATAL_ERROR "USE_JSON_RUNTIME must be ON to use DNNL JSON RUNTIME")
+  endif()
+
   file(GLOB DNNL_RELAY_CONTRIB_SRC src/relay/backend/contrib/dnnl/*.cc)
   file(GLOB JSON_RELAY_CONTRIB_SRC src/relay/backend/contrib/codegen_json/*.h)
   list(APPEND COMPILER_SRCS ${DNNL_RELAY_CONTRIB_SRC})
@@ -25,6 +29,16 @@ if(USE_DNNL_CODEGEN STREQUAL "ON")
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_LIBRARY_DNNL})
   file(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/*)
   list(APPEND RUNTIME_SRCS ${DNNL_CONTRIB_SRC})
-  message(STATUS "Build with DNNL codegen: " ${EXTERN_LIBRARY_DNNL})
+  message(STATUS "Build with DNNL JSON runtime: " ${EXTERN_LIBRARY_DNNL})
+elseif(USE_DNNL_CODEGEN STREQUAL "C_SRC")
+  add_definitions(-DDNNL_WITH_C_SOURCE_MODULE=1)
+  file(GLOB DNNL_RELAY_CONTRIB_SRC src/relay/backend/contrib/dnnl/*.cc)
+  list(APPEND COMPILER_SRCS ${DNNL_RELAY_CONTRIB_SRC})
+
+  find_library(EXTERN_LIBRARY_DNNL dnnl)
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_LIBRARY_DNNL})
+  file(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/*)
+  list(APPEND RUNTIME_SRCS ${DNNL_CONTRIB_SRC})
+  message(STATUS "Build with DNNL C source module: " ${EXTERN_LIBRARY_DNNL})
 endif()
 
