@@ -266,6 +266,12 @@ def conv2d_winograd_without_weight_transfrom_strategy(attrs, inputs, out_type, t
     """conv2d_winograd_without_weight_transfrom generic strategy"""
     raise ValueError("No generic implemenation for conv2d_winograd_without_weight_transform")
 
+# conv2d_gemm_without_weight_transform
+@override_native_generic_func("conv2d_gemm_without_weight_transform_strategy")
+def conv2d_gemm_without_weight_transform_strategy(attrs, inputs, out_type, target):
+    """conv2d_gemm_without_weight_transfrom generic strategy"""
+    raise ValueError("No generic implemenation for conv2d_gemm_without_weight_transform")
+
 # conv2d_winograd_weight_transform
 @generic_func
 def schedule_conv2d_winograd_weight_transform(attrs, outs, target):
@@ -279,6 +285,13 @@ def schedule_conv2d_winograd_nnpack_weight_transform(attrs, outs, target):
     """Schedule conv2d_winograd_nnpack_weight_transform"""
     with target:
         return topi.generic.schedule_conv2d_winograd_nnpack_weight_transform(outs)
+
+# conv2d_gemm_weight_transform
+@generic_func
+def schedule_conv2d_gemm_weight_transform(attrs, outs, target):
+    """Schedule conv2d_gemm_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv2d_gemm_weight_transform(outs)
 
 # deformable_conv2d
 def wrap_compute_deformable_conv2d(topi_compute):
