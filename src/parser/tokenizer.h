@@ -52,8 +52,12 @@ enum TokenType {
     Equal,
     Semicolon,
     Colon,
-    Number,
+    Integer,
+    Float,
     Division,
+    Boolean,
+    Plus,
+    Star,
     Let,
     Unknown,
     EndOfFile,
@@ -105,12 +109,20 @@ std::string ToString(const TokenType& token_type) {
             return "Period";
         case TokenType::Equal:
             return "Equal";
-        case TokenType::Number:
-            return "Number";
+        case TokenType::Integer:
+            return "Integer";
+        case TokenType::Float:
+            return "Float";
         case TokenType::Division:
             return "Division";
+        case TokenType::Plus:
+            return "Plus";
+         case TokenType::Star:
+            return "Star";
         case TokenType::Let:
             return "Let";
+        case TokenType::Boolean:
+            return "Boolean";
         case TokenType::Unknown:
             return "Unknown";
         case TokenType::EndOfFile:
@@ -170,6 +182,10 @@ bool IsDigit(char c) {
 
 bool IsWhitespace(char c) {
     return ' ' == c || c == '\t' || c == '\n';
+}
+
+bool IsNumeric(char c) {
+    return (IsDigit(c) || c == '.' || c == 'e' || c == '-' || c == '+' || c == 'E') && !IsWhitespace(c);
 }
 
 struct Tokenizer {
@@ -258,6 +274,36 @@ struct Tokenizer {
         }
     }
 
+    Token ParseNumber(bool is_pos, std::string number) {
+        std::cout << "number: " << number;
+        try {
+            auto token = NewToken(TokenType::Integer);
+            size_t index = 0;
+            int value = std::stoi(number, &index);
+            std::cout << "Index" << index << std::endl;
+            std::cout << "Size" << number.size() << std::endl;
+            if (number.size() > index) {
+                std::cout << "inside" << std::endl;
+                throw std::invalid_argument("floating point");
+            }
+            value = is_pos ? value : -value;
+            token->data = tvm::Integer(value);
+            return token;
+        } catch (const std::invalid_argument& ia) {
+            std::cout << "in float" << std::endl;
+            auto token = NewToken(TokenType::Float);
+
+            if (number.back() == 'f') {
+                number.pop_back();
+            }
+
+            double value = stod(number);
+            value = is_pos ? value : -value;
+            token->data = tvm::FloatImm(DataType::Float(64), value);
+            return token;
+        }
+    }
+
     inline Token TokenizeOnce() {
         auto next = Peek();
         std::cout << next << std::endl;
@@ -277,15 +323,19 @@ struct Tokenizer {
             auto token = NewToken(TokenType::Whitespace);
             Next();
             return token;
-        } else if (IsDigit(next)) {
-            auto token = NewToken(TokenType::Number);
+        } else if (IsDigit(next) || next == '-') {
+            int negs = 0;
+            while (More() && Peek() == '-') {
+                Next();
+                negs++;
+            }
+            bool is_neg = negs % 2 == 1;
             std::stringstream ss;
-            while (More() && IsDigit(Peek())) {
+            while (More() && IsNumeric(Peek())) {
                 ss << Next();
             }
-            int value = stoi(ss.str());
-            token->data = tvm::Integer(value);
-            return token;
+            std::cout << "Number: " << ss.str() << std::endl;
+            return ParseNumber(!is_neg, ss.str());
         } else if (next == '.') {
             auto token = NewToken(TokenType::Period);
             Next();
@@ -371,13 +421,26 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
                     i += 1;
                     out.push_back(Token(current->line, current->column, TokenType::Local, next->data));
                     continue;
-                } else if (next->token_type == TokenType::Number) {
+                } else if (next->token_type == TokenType::Integer) {
                     i += 1;
                     out.push_back(Token(current->line, current->column, TokenType::Graph, next->data));
                     continue;
                 } else {
                     out.push_back(current);
                 }
+            }
+            case TokenType::Unknown: {
+                std::string str = Downcast<tvm::String>(current->data);
+                Token tok;
+                if (str == "True") {
+                    auto data = tvm::Integer(1);
+                    tok = Token(current->line, current->column, TokenType::Boolean, data);
+                } else if (str == "False") {
+                    auto data = tvm::Integer(0);
+                    tok = Token(current->line, current->column, TokenType::Boolean, data);
+                }
+                out.push_back(tok);
+                continue;
             }
             default: {
                 out.push_back(current);

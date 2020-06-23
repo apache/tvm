@@ -271,14 +271,31 @@ MetaRefExpr::MetaRefExpr(std::string type_key, uint64_t node_index) {
   data_ = std::move(rnode);
 }
 
+struct Rule {
+  std::vector<TokenType> tokens;
+  int precedence;
+  int arity;
+  tvm::Op op;
+
+  Rule(std::vector<TokenType> tokens, tvm::Op op, int precedence, int arity = 2)
+      : tokens(tokens), precedence(precedence), arity(arity), op(op) {}
+};
+
+struct OperatorTable {
+  std::vector<Rule> rules;
+  OperatorTable(std::vector<Rule> rules) : rules(rules) {}
+};
+
 struct Parser {
   int pos;
   std::vector<Token> tokens;
+  OperatorTable op_table;
   bool ignore_whitespace;
 
   std::unordered_map<int, Expr> graph_ctx;
 
-  Parser(std::vector<Token> tokens) : pos(0), tokens(tokens) {}
+  Parser(std::vector<Token> tokens, OperatorTable op_table)
+      : pos(0), tokens(tokens), op_table(op_table) {}
 
   void DisplayNextN(int n) {
     std::cout << "remaining tokens: " << std::endl;
@@ -339,14 +356,37 @@ struct Parser {
     return this->graph_ctx.at(graph_no);
   }
 
-  NDArray NumberToNDArray(const Token& token_type) {
+  NDArray NumberToNDArray(const Token& token) {
+    if (token->token_type == TokenType::Integer) {
+      DLContext ctx({.device_type = DLDeviceType::kDLCPU, .device_id = 0});
+      auto dtype = String2DLDataType("int32");
+      auto data = NDArray::Empty({}, dtype, ctx);
+      auto array = reinterpret_cast<int32_t*>(data->data);
+      // revisit this, literal node issue.
+      int64_t value = Downcast<tvm::Integer>(token->data);
+      array[0] = (int32_t)value;
+      return data;
+    } else if (token->token_type == TokenType::Float) {
+      DLContext ctx({.device_type = DLDeviceType::kDLCPU, .device_id = 0});
+      auto dtype = String2DLDataType("float32");
+      auto data = NDArray::Empty({}, dtype, ctx);
+      auto array = reinterpret_cast<float*>(data->data);
+      // revisit this, literal node issue.
+      float value = Downcast<tvm::FloatImm>(token->data)->value;
+      std::cout << "value: " << value << std::endl;
+      array[0] = value;
+      return data;
+    } else {
+      throw "foo";
+    }
+  }
+
+  NDArray BooleanToNDarray(bool value) {
     DLContext ctx({.device_type = DLDeviceType::kDLCPU, .device_id = 0});
-    auto dtype = String2DLDataType("int32");
+    auto dtype = String2DLDataType("bool");
     auto data = NDArray::Empty({}, dtype, ctx);
-    auto array = reinterpret_cast<int32_t*>(data->data);
-    // revisit this, literal node issue.
-    int64_t value = Downcast<Integer>(token_type->data);
-    array[0] = (int32_t)value;
+    auto array = reinterpret_cast<bool*>(data->data);
+    array[0] = value;
     return data;
   }
 
@@ -452,21 +492,56 @@ struct Parser {
     }
   }
 
+  Rule ParseOp() {}
+
   Expr ParseExpr() {
+    return ConsumeWhitespace<Expr>([this] {
+      std::vector<Rule> ops;
+      std::vector<Expr> exprs;
+
+      Expr left = ParseExprNoOp();
+      exprs.push_back(left);
+
+      while (true) {
+        auto op = ParseOp();
+        if (ops.size() == 0) {
+          ops.push_back(op);
+        }
+
+        while (op.precedence < ops.back().precedence ||
+               op.precedence == ops.back().precedence) {
+            auto right = exprs.back();
+            exprs.pop_back();
+            left = relay::Call(op.op, { left, right });
+        }
+
+      }
+    });
+  }
+
+  Expr ParseExprNoOp() {
     return ConsumeWhitespace<Expr>([this] {
       auto next = Peek();
       switch (next->token_type) {
+        case TokenType::Integer:
+        case TokenType::Float: {
+          Consume(next->token_type);
+          auto number = NumberToNDArray(next);
+          Expr e = Constant(number);
+          return e;
+        }
+        case TokenType::Boolean: {
+          Consume(TokenType::Boolean);
+          int value = Downcast<tvm::Integer>(next->data);
+          auto boolean = BooleanToNDarray(value);
+          Expr e = Constant(boolean);
+          return e;
+        }
         // For graph or let, match first rhs, then invoke ParseBindingExpr
         // ParseBindingExpression then parse_lhs() parse_rhs() ';' continue
         case TokenType::Graph:
         case TokenType::Let:
           return ParseBindingExpr();
-        case TokenType::Number: {
-          Consume(TokenType::Number);
-          auto data = NumberToNDArray(next);
-          Expr e = Constant(data);
-          return e;
-        }
         case TokenType::OpenParen: {
           Consume(TokenType::OpenParen);
           // parse '(' ')'
@@ -516,12 +591,16 @@ struct Parser {
   ObjectRef ParseMetadata() { return ObjectRef(); }
 };
 
+OperatorTable DefaultOpTable() {
+  return OperatorTable({Rule({TokenType::Plus}, Op::Get("add"), 2, 2)});
+}
+
 IRModule ParseModule(std::string file_name, std::string file_content) {
   auto tokens = Tokenize(file_content);
   for (auto token : tokens) {
     std::cout << token << std::endl;
   }
-  Parser parser(tokens);
+  Parser parser(tokens, DefaultOpTable());
   return parser.ParseModule();
 }
 
@@ -530,7 +609,7 @@ Expr ParseExpr(std::string file_name, std::string file_content) {
   for (auto token : tokens) {
     std::cout << token << std::endl;
   }
-  Parser parser(tokens);
+  Parser parser(tokens, DefaultOpTable());
   return parser.ParseExpr();
 }
 
