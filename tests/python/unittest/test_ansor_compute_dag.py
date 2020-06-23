@@ -34,9 +34,9 @@ def test_infer_bound():
     dag, s = get_tiled_matmul()
     s = dag.infer_bound_from_state(s)
 
-    A_global = s.stage_tensors[1]
-    B_global = s.stage_tensors[3]
-    C_global = s.stage_tensors[4]
+    A_global = s.stage_ops[1]
+    B_global = s.stage_ops[3]
+    C_global = s.stage_ops[4]
     assert s[B_global].iters[0].range.extent == 512
     assert s[B_global].iters[1].range.extent == 16
     assert s[A_global].iters[0].range.extent == 1

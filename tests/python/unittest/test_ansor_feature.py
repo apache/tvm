@@ -33,7 +33,7 @@ def fequal(a, b):
 def test_cpu_matmul():
     dag = ansor.ComputeDAG(matmul_ansor_test(512, 512, 512))
     s = dag.get_init_state()
-    C = s.stage_tensors[2]
+    C = s.stage_ops[2]
 
     i, j, k = s[C].iters
     io, ii = s.split(C, i, [16])
@@ -42,7 +42,7 @@ def test_cpu_matmul():
     s.vectorize(C, ji)
     s.parallel(C, io)
     s.parallel(C, jo)
-    s.unroll(2, k)
+    s.unroll(C, k)
 
     target = tvm.target.create('llvm')
     task = ansor.SearchTask(dag, "test", target)

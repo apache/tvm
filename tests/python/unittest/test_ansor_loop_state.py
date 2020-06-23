@@ -115,14 +115,14 @@ def test_compute_at_root_inline():
     s0 = dag.get_init_state()
 
     # data, padding, kernel = 0, 1, 2
-    conv = s0.stage_tensors[3]
+    conv = s0.stage_ops[3]
     # bias = 4
-    bias_add = s0.stage_tensors[5]
+    bias_add = s0.stage_ops[5]
     # bn_scale = 6
-    bn_mul = s0.stage_tensors[7]
+    bn_mul = s0.stage_ops[7]
     # bn_offset = 8
-    bn_add = s0.stage_tensors[9]
-    relu = s0.stage_tensors[10]
+    bn_add = s0.stage_ops[9]
+    relu = s0.stage_ops[10]
 
     s0.compute_inline(bn_add)
     s0.compute_inline(bn_mul)
@@ -193,8 +193,8 @@ def test_cache_read_write():
     dag = ansor.ComputeDAG([data, kernel_data, add])
     s0 = dag.get_init_state()
 
-    pad_temp = s0.stage_tensors[1]
-    kernel_split = s0.stage_tensors[3]
+    pad_temp = s0.stage_ops[1]
+    kernel_split = s0.stage_ops[3]
 
     # 0: init state
     ori_its = s0[add].iters
