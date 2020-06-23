@@ -844,7 +844,6 @@ inline int64_t VirtualMachine::LoadScalarInt(Index r) const {
   switch (array->dtype.bits) {
     case 1: {
       result = reinterpret_cast<bool*>(array->data)[0];
-      LOG(INFO) << result;
       break;
     }
     case 8: {
