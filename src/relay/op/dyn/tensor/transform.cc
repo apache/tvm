@@ -116,7 +116,6 @@ RELAY_REGISTER_OP("dyn.reshape")
             data.shape = (2,3,4), newshape = (-3,4), result.shape = (6,4)
             data.shape = (2,3,4,5), newshape = (-3,-3), result.shape = (6,20)
             data.shape = (2,3,4), newshape = (0,-3), result.shape = (2,12)
-            data.shape = (2,3,4), newshape = (-3,-2), result.shape = (6,4)
 
     Special values -2 and -4 from the standard reshape op would introduce dynamic rank 
     in this op. Thus, they are not permitted.
