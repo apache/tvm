@@ -99,11 +99,11 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
     return graph_json_;
   }
 
-  inline std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() const {
+  std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() const {
     return params_;
   }
 
-  inline Module GetLib() const {
+  Module GetLib() const {
     CHECK_GT(this->imports().size(), 0);
     return this->imports_[0];
   }
