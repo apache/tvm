@@ -22,19 +22,21 @@
  * \brief Graph runtime factory implementations
  */
 
-#include <tvm/runtime/registry.h>
+#include "./graph_runtime_factory.h"
+
 #include <tvm/node/container.h>
-#include <vector>
+#include <tvm/runtime/registry.h>
+
 #include <algorithm>
 #include <iterator>
-#include "./graph_runtime_factory.h"
+#include <vector>
+
 #include "./graph_runtime.h"
 
 namespace tvm {
 namespace runtime {
 
-void GraphRuntimeFactory::Init(const std::string& kind,
-                               const std::string& graph_json,
+void GraphRuntimeFactory::Init(const std::string& kind, const std::string& graph_json,
                                const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
                                const std::string& module_name) {
   kind_ = kind;
@@ -47,12 +49,12 @@ void GraphRuntimeFactory::Init(const std::string& kind,
 void GraphRuntimeFactory::ImportModule(Module other) {
   this->Import(other);
   auto module = other.as<GraphRuntimeFactory>();
-  CHECK(module) << "should only import graph runtiem factory module";
+  CHECK(module) << "should only import graph runtime factory module";
   graph_runtime_factory_module_list_.push_back(module->GetModuleName());
 }
 
-PackedFunc GraphRuntimeFactory::GetFunction(const std::string& name,
-                                            const tvm::runtime::ObjectPtr<tvm::runtime::Object>& sptr_to_self) {
+PackedFunc GraphRuntimeFactory::GetFunction(
+    const std::string& name, const tvm::runtime::ObjectPtr<tvm::runtime::Object>& sptr_to_self) {
   if (name == "runtime_create") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       std::vector<TVMContext> contexts;
@@ -78,9 +80,8 @@ PackedFunc GraphRuntimeFactory::GetFunction(const std::string& name,
       *rv = this->SelectModule(args[0]);
     });
   } else if (name == "get_json") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->GetJson();
-    });
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetJson(); });
   } else if (name == "get_lib") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_GT(this->imports().size(), 0);
@@ -95,9 +96,8 @@ PackedFunc GraphRuntimeFactory::GetFunction(const std::string& name,
       *rv = ret;
     });
   } else if (name == "diable_package_params") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      this->package_params_ = false;
-    });
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->package_params_ = false; });
   } else {
     return PackedFunc();
   }
@@ -125,7 +125,7 @@ void GraphRuntimeFactory::SaveToBinary(dmlc::Stream* stream) {
   }
 }
 
-Module GraphRuntimeFactory::RuntimeCreate(Module module, const std::vector<TVMContext> &ctxs) {
+Module GraphRuntimeFactory::RuntimeCreate(Module module, const std::vector<TVMContext>& ctxs) {
   auto factory_module = module.as<GraphRuntimeFactory>();
   CHECK(factory_module != nullptr);
   if (factory_module->GetKind() == "graph") {
@@ -138,7 +138,7 @@ Module GraphRuntimeFactory::RuntimeCreate(Module module, const std::vector<TVMCo
   return Module();
 }
 
-Module GraphRuntimeFactory::SelectModule(const std::string &name) {
+Module GraphRuntimeFactory::SelectModule(const std::string& name) {
   auto iter = std::find(graph_runtime_factory_module_list_.begin(),
                         graph_runtime_factory_module_list_.end(), name);
   CHECK(iter != graph_runtime_factory_module_list_.end());
@@ -181,7 +181,7 @@ Module GraphRuntimeFactoryModuleLoadBinary(void* strm) {
   return Module(exec);
 }
 
-Module RuntimeCreate(Module module, const std::vector<TVMContext> &ctxs) {
+Module RuntimeCreate(Module module, const std::vector<TVMContext>& ctxs) {
   auto mod = module.as<GraphRuntimeFactory>();
   CHECK(mod != nullptr);
   if (mod->GetKind() == "graph") {
@@ -196,42 +196,41 @@ Module RuntimeCreate(Module module, const std::vector<TVMContext> &ctxs) {
   return Module();
 }
 
-TVM_REGISTER_GLOBAL("tvm.graph_runtime_factory.create")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
-                                       "graph_runtime_factory.create needs at least 3, "
-                                       "but it has "
-                                    << args.num_args;
-    auto exec = make_object<GraphRuntimeFactory>();
-    // The argument order is graph_runtime_kind, graph_json, module, module_name, params.
-    CHECK_EQ((args.size() - 4) % 2, 0);
-    std::unordered_map<std::string, tvm::runtime::NDArray> params;
-    for (size_t i = 4; i < static_cast<size_t>(args.size()); i += 2) {
-      std::string name = args[i].operator String();
-      params[name] = args[i + 1].operator tvm::runtime::NDArray();
-    }
-    exec->Init(args[0], args[1], params, args[3]);
-    exec->Import(args[2]);
-    *rv = Module(exec);
-  });
-
-TVM_REGISTER_GLOBAL("tvm.graph_runtime_factory.runtime_create")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::vector<TVMContext> contexts;
-  TVMContext ctx;
-  // arg is: module, ctxs
-  CHECK_EQ((args.size() - 1) % 2, 0);
-  for (int i = 1; i < args.num_args; i += 2) {
-    int dev_type = args[i];
-    ctx.device_type = static_cast<DLDeviceType>(dev_type);
-    ctx.device_id = args[i + 1];
-    contexts.push_back(ctx);
+TVM_REGISTER_GLOBAL("tvm.graph_runtime_factory.create").set_body([](TVMArgs args, TVMRetValue* rv) {
+  CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
+                                "graph_runtime_factory.create needs at least 3, "
+                                "but it has "
+                             << args.num_args;
+  auto exec = make_object<GraphRuntimeFactory>();
+  // The argument order is graph_runtime_kind, graph_json, module, module_name, params.
+  CHECK_EQ((args.size() - 4) % 2, 0);
+  std::unordered_map<std::string, tvm::runtime::NDArray> params;
+  for (size_t i = 4; i < static_cast<size_t>(args.size()); i += 2) {
+    std::string name = args[i].operator String();
+    params[name] = args[i + 1].operator tvm::runtime::NDArray();
   }
-  *rv = RuntimeCreate(args[0], contexts);
+  exec->Init(args[0], args[1], params, args[3]);
+  exec->Import(args[2]);
+  *rv = Module(exec);
 });
 
+TVM_REGISTER_GLOBAL("tvm.graph_runtime_factory.runtime_create")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      std::vector<TVMContext> contexts;
+      TVMContext ctx;
+      // arg is: module, ctxs
+      CHECK_EQ((args.size() - 1) % 2, 0);
+      for (int i = 1; i < args.num_args; i += 2) {
+        int dev_type = args[i];
+        ctx.device_type = static_cast<DLDeviceType>(dev_type);
+        ctx.device_id = args[i + 1];
+        contexts.push_back(ctx);
+      }
+      *rv = RuntimeCreate(args[0], contexts);
+    });
+
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_GraphRuntimeFactory")
-.set_body_typed(GraphRuntimeFactoryModuleLoadBinary);
+    .set_body_typed(GraphRuntimeFactoryModuleLoadBinary);
 
 }  // namespace runtime
 }  // namespace tvm

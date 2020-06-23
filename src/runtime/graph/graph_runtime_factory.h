@@ -22,39 +22,38 @@
  * \brief Graph runtime factory creating graph runtime.
  */
 
-#ifndef TVM_RUNTIME_GRAPH_RUNTIME_FACTORY_H_
-#define TVM_RUNTIME_GRAPH_RUNTIME_FACTORY_H_
+#ifndef TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
+#define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
-#include <string>
-#include <vector>
-#include <unordered_map>
+#include <tvm/runtime/packed_func.h>
 
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
 
 class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
-
  public:
-
   /*!
    * \brief Initialize the GraphRuntimeFactory with graph and context.
    * \param graph_json The execution graph.
    * \param params The params of graph.
    * \param kind The runtime kind to be created.
    */
-
-  void Init(const std::string& kind,
-            const std::string& graph_json,
+  void Init(const std::string& kind, const std::string& graph_json,
             const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
             const std::string& module_name = "default");
 
+  /*!
+   * \brief Import other GraphRuntimeFactory module.
+   * \param other The GraphRuntimeFactory module we want to import.
+   */
   void ImportModule(Module other);
-
 
   /*!
    * \brief Get member function to front-end
@@ -62,22 +61,18 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const override {
-    return "GraphRuntimeFactory";
-  }
+  const char* type_key() const override { return "GraphRuntimeFactory"; }
 
   /*!
    * \brief Save the module to binary stream.
    * \param stream The binary stream to save to.
    */
   void SaveToBinary(dmlc::Stream* stream) override;
-
 
   /*!
    * \brief Create a specific runtime module
@@ -95,26 +90,18 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
    */
   Module SelectModule(const std::string& name);
 
-  const std::string& GetJson() const {
-    return graph_json_;
-  }
+  const std::string& GetJson() const { return graph_json_; }
 
-  std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() const {
-    return params_;
-  }
+  std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() const { return params_; }
 
   Module GetLib() const {
     CHECK_GT(this->imports().size(), 0);
     return this->imports_[0];
   }
 
-  const std::string& GetKind() const {
-    return kind_;
-  }
+  const std::string& GetKind() const { return kind_; }
 
-  const std::string& GetModuleName() const {
-    return module_name_;
-  }
+  const std::string& GetModuleName() const { return module_name_; }
 
   const std::vector<std::string>& GetGraphRuntimeFactoryModuleList() const {
     return graph_runtime_factory_module_list_;
@@ -140,7 +127,7 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
   std::vector<std::string> graph_runtime_factory_module_list_;
 };
 
-} // namespace runtime
-} // namespace tvm
+}  // namespace runtime
+}  // namespace tvm
 
-#endif // TVM_RUNTIME_GRAPH_RUNTIME_FACTORY_H_
+#endif  // TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
