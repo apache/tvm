@@ -345,7 +345,14 @@ inline const char* CallType2String(CallNode::CallType t) {
 
 Doc TIRTextPrinter::VisitExpr_(const CallNode* op) {
   Doc doc;
-  doc << "@" << Doc::Text(op->name) << "(";
+  if (auto* ptr_op = op->op.as<OpNode>()) {
+    doc << "@" << Doc::Text(ptr_op->name) << "(";
+  } else {
+    // TODO(bohan): Print out the name by he global var in the module.
+    auto* op_gvar = op->op.as<GlobalVarNode>();
+    CHECK(op_gvar != nullptr);
+    doc << "@" << Doc::Text(op_gvar->name_hint) << "(";
+  }
   std::vector<Doc> args;
   for (const auto& arg : op->args) {
     args.push_back(Print(arg));
@@ -370,7 +377,7 @@ Doc TIRTextPrinter::VisitExpr_(const ReduceNode* op) {
 
 Doc TIRTextPrinter::VisitStmt_(const LetStmtNode* op) {
   Doc doc;
-  doc << "let " << Print(op->var) << " = " << Print(op->value) << PrintBody(op->body);
+  doc << "let " << Print(op->var) << " = " << Print(op->value) << Doc::NewLine() << Print(op->body);
   return doc;
 }
 
@@ -389,8 +396,8 @@ Doc TIRTextPrinter::VisitStmt_(const AttrStmtNode* op) {
 
 Doc TIRTextPrinter::VisitStmt_(const AssertStmtNode* op) {
   Doc doc;
-  doc << "assert(" << Print(op->condition) << ", " << Print(op->message) << ")"
-      << PrintBody(op->body);
+  doc << "assert(" << Print(op->condition) << ", " << Print(op->message) << ")" << Doc::NewLine()
+      << Print(op->body);
   return doc;
 }
 

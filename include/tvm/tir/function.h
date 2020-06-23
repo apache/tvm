@@ -87,8 +87,6 @@ class PrimFuncNode : public BaseFuncNode {
    *  While we could have express parameter unpacking and constraint using
    *  normal statements, making buffer_map as first class citizen of PrimFunc
    *  will make program analysis much easier.
-   *
-   * \note This field can be nullptr
    */
   Map<tir::Var, Buffer> buffer_map;
 
@@ -144,7 +142,7 @@ class PrimFunc : public BaseFunc {
    * \param attrs Additional function attributes.
    */
   TVM_DLL PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type = VoidType(),
-                   Map<tir::Var, Buffer> buffer_map = NullValue<Map<tir::Var, Buffer>>(),
+                   Map<tir::Var, Buffer> buffer_map = Map<tir::Var, Buffer>(),
                    DictAttrs attrs = NullValue<DictAttrs>());
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimFunc, BaseFunc, PrimFuncNode);

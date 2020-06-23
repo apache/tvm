@@ -30,6 +30,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -250,8 +251,8 @@ class WarpAccessRewriter : protected StmtExprMutator {
           << " local_index=" << local_index;
       PrimExpr load_value = Load(op->dtype, op->buffer_var, local_index, op->predicate);
       PrimExpr mask =
-          Call(DataType::UInt(32), intrinsic::tvm_warp_activemask, {}, CallNode::Intrinsic);
-      return Call(load_value.dtype(), intrinsic::tvm_warp_shuffle,
+          Call(DataType::UInt(32), builtin::tvm_warp_activemask(), {}, CallNode::Intrinsic);
+      return Call(load_value.dtype(), builtin::tvm_warp_shuffle(),
                   {mask, load_value, group, width_, warp_size_}, CallNode::Intrinsic);
     } else {
       return StmtExprMutator::VisitExpr_(op);

@@ -23,6 +23,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/bound.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -140,11 +141,11 @@ class CandidateSelector final : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(CallNode::likely)) {
+    if (op->op.same_as(builtin::likely())) {
       in_likely_ = true;
       StmtExprVisitor::VisitExpr_(op);
       in_likely_ = false;
-    } else if (op->is_intrinsic(intrinsic::tvm_thread_allreduce)) {
+    } else if (op->op.same_as(builtin::tvm_thread_allreduce())) {
       // no split if the body contains allreduce.
       no_split_ = true;
       return;
@@ -214,7 +215,7 @@ class PartitionFinder : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(CallNode::likely)) {
+    if (op->op.same_as(builtin::likely())) {
       PrimExpr cond = op->args[0];
       if (ExprUseVars(cond, std::unordered_set<const VarNode*>({current_var_.get()}))) {
         // For cond, find out the interval, if exists, in which we can prove that cond is
@@ -596,7 +597,7 @@ inline Stmt LoopPartitioner::MakeFor(const Object* node, PrimExpr extent, Stmt b
 class RemoveLikelyTags : public StmtExprMutator {
  public:
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(CallNode::likely)) {
+    if (op->op.same_as(builtin::likely())) {
       CHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::VisitExpr(op->args[0]);
     } else {

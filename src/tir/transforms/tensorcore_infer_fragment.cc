@@ -53,8 +53,8 @@ class FragmentGetter : public StmtExprVisitor {
   void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
 
-    if (op->is_intrinsic(intrinsic::tvm_load_matrix_sync) ||
-        op->is_intrinsic(intrinsic::tvm_store_matrix_sync)) {
+    if (op->op.same_as(builtin::tvm_load_matrix_sync()) ||
+        op->op.same_as(builtin::tvm_store_matrix_sync())) {
       // Get shape and layout information from load and store intrinsic
       CHECK_EQ(op->args.size(), 8U);
       const VarNode* buffer_var = op->args[0].as<VarNode>();
@@ -89,7 +89,7 @@ class FragmentGetter : public StmtExprVisitor {
         }
         fragments[buffer_var] = info;
       }
-    } else if (op->is_intrinsic(intrinsic::tvm_fill_fragment)) {
+    } else if (op->op.same_as(builtin::tvm_fill_fragment())) {
       // Get shape information from fill intrinsic
       CHECK_EQ(op->args.size(), 6U);
       const VarNode* buffer_var = op->args[0].as<VarNode>();
@@ -141,7 +141,7 @@ class FragmentChecker : public StmtExprVisitor {
   void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     // Check shape when calling tvm_mma_sync
-    if (op->is_intrinsic(intrinsic::tvm_mma_sync) || op->is_intrinsic(intrinsic::tvm_bmma_sync)) {
+    if (op->op.same_as(builtin::tvm_mma_sync()) || op->op.same_as(builtin::tvm_bmma_sync())) {
       CHECK_EQ(op->args.size(), 8U);
       const VarNode* buffer_var_d = op->args[0].as<VarNode>();
       const VarNode* buffer_var_a = op->args[2].as<VarNode>();
