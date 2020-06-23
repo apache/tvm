@@ -583,9 +583,9 @@ TVM_DECLARE_INTRIN_UNARY(acosh);
 TVM_DECLARE_INTRIN_UNARY(asinh);
 TVM_DECLARE_INTRIN_UNARY(atanh);
 
-#define TVM_DECLARE_INTRIN_BINARY(OpName)                                       \
-  inline PrimExpr OpName(PrimExpr x, PrimExpr y) {                              \
-    static const Op& op = Op::Get("tir." #OpName);                      \
+#define TVM_DECLARE_INTRIN_BINARY(OpName)                                  \
+  inline PrimExpr OpName(PrimExpr x, PrimExpr y) {                         \
+    static const Op& op = Op::Get("tir." #OpName);                         \
     return tir::Call(x.dtype(), op, {x, y}, tir::CallNode::PureIntrinsic); \
   }
 
