@@ -541,7 +541,7 @@ struct Parser {
 
       // Now we parse an optional op.
       std::vector<Rule> ops;
-      ops.push_back(Rule({}, tvm::Op(), 1000));
+      ops.push_back(Rule({}, tvm::Op(), 0));
 
       // We will now parse 0 or more operator occurrences.
       while (true) {
@@ -574,15 +574,19 @@ struct Parser {
         std::cout << "Parsed rhs=" << right << std::endl;
         std::cout << "ops.back()=" << ops.back().op << std::endl;
 
-        std::cout << "will reduce? " << bool(op.precedence <= ops.back().precedence) << std::endl;
+        std::cout << "will reduce? " << bool(op.precedence >= ops.back().precedence) << std::endl;
 
-        while (exprs.size() >= 1 && op.precedence <= ops.back().precedence) {
+        while (exprs.size() >= 1 && op.precedence >= ops.back().precedence) {
           auto left = exprs.back();
           exprs.pop_back();
           right = relay::Call(op.op, { left, right });
+          if (ops.size() > 1) {
+              op = ops.back();
+              ops.pop_back();
+          }
         }
 
-        if (op.precedence > ops.back().precedence) {
+        if (op.precedence < ops.back().precedence) {
           ops.push_back(op);
         }
 
@@ -608,7 +612,9 @@ struct Parser {
         CHECK_EQ(ops.size(), 1);
         return exprs[0];
       } else {
-        LOG(FATAL) << "YOLO";
+        CHECK_EQ(ops.size(), 2);
+        CHECK_EQ(exprs.size(), 2);
+        return Expr(relay::Call(ops[1].op, { exprs[0], exprs[1] }));
       }
     });
   }
@@ -687,16 +693,16 @@ struct Parser {
 
 OperatorTable DefaultOpTable() {
   return OperatorTable({
-      Rule({TokenType::Plus}, Op::Get("add"), 4, 2),
-      Rule({TokenType::Minus}, Op::Get("subtract"), 4, 2, true),
-      Rule({TokenType::Star}, Op::Get("multiply"), 2, 2),
-      Rule({TokenType::Division}, Op::Get("divide"), 2, 2, true),
-      Rule({TokenType::LAngle}, Op::Get("less"), 6, 2),
-      Rule({TokenType::LAngle, TokenType::Equal}, Op::Get("less_equal"), 6, 2),
-      Rule({TokenType::RAngle}, Op::Get("greater"), 6, 2),
-      Rule({TokenType::RAngle, TokenType::Equal}, Op::Get("greater_equal"), 6, 2),
-      Rule({TokenType::Equal, TokenType::Equal}, Op::Get("equal"), 7, 2),
-      Rule({TokenType::Bang, TokenType::Equal}, Op::Get("not_equal"), 7, 2)
+      Rule({TokenType::Star}, Op::Get("multiply"), 12, 2),
+      Rule({TokenType::Division}, Op::Get("divide"), 12, 2, true),
+      Rule({TokenType::Plus}, Op::Get("add"), 10, 2),
+      Rule({TokenType::Minus}, Op::Get("subtract"), 10, 2, true),
+      Rule({TokenType::Equal, TokenType::Equal}, Op::Get("equal"), 9, 2),
+      Rule({TokenType::Bang, TokenType::Equal}, Op::Get("not_equal"), 9, 2),
+      Rule({TokenType::LAngle}, Op::Get("less"), 8, 2),
+      Rule({TokenType::LAngle, TokenType::Equal}, Op::Get("less_equal"), 8, 2),
+      Rule({TokenType::RAngle}, Op::Get("greater"), 8, 2),
+      Rule({TokenType::RAngle, TokenType::Equal}, Op::Get("greater_equal"), 8, 2)
     });
 }
 
