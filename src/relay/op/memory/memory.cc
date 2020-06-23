@@ -36,10 +36,6 @@
 namespace tvm {
 namespace relay {
 
-// Forward declare the shape_of type relation function.
-bool ShapeOfRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                const TypeReporter& reporter);
-
 TVM_REGISTER_NODE_TYPE(AllocStorageAttrs);
 TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
 TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
@@ -426,25 +422,6 @@ RELAY_REGISTER_OP("memory.shape_func")
                               const Type& out_dtype) -> Array<te::Tensor> {
                              return {topi::identity(inputs[0])};
                            });
-
-RELAY_REGISTER_OP("vm.shape_of")
-    .describe(R"code(Get the shape of an input tensor.
-)code" TVM_ADD_FILELINE)
-    .set_num_inputs(1)
-    .add_argument("tensor", "Tensor", "The input tensor")
-    .add_type_rel("ShapeOf", ShapeOfRel)
-    .set_support_level(10)
-    .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<TOpIsStateful>("TOpIsStateful", false)
-    .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
-
-TVM_REGISTER_GLOBAL("relay.op.memory._make.shape_of").set_body_typed([](Expr expr) {
-  auto attrs = make_object<ShapeOfAttrs>();
-  attrs->dtype = DataType::Int(64);
-  static const Op& op = Op::Get("vm.shape_of");
-  return Call(op, {expr}, Attrs(attrs), {});
-});
 
 }  // namespace relay
 }  // namespace tvm

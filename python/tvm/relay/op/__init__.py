@@ -30,6 +30,7 @@ from .algorithm import *
 from . import nn
 from . import annotation
 from . import memory
+from . import dialect
 from . import image
 from . import vision
 from . import op_attrs

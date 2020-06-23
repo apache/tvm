@@ -104,21 +104,6 @@ def shape_func(func, inputs, outputs, dependent=False):
     """
     return _make.shape_func(func, inputs, outputs, dependent)
 
-def shape_of(expr):
-    """Invoke a function to get the shape of a tensor.
-
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The expr used to evaluate its tensor shape.
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The expression with the evaluated tensor shape.
-    """
-    return _make.shape_of(expr)
-
 def flatten_tuple_type(ty):
     """Return a sequence of the types contained in the tuple type in order.
 
