@@ -182,7 +182,7 @@ class BuildModule(object):
         return ret
 
 
-def build(mod, target=None, target_host=None, params=None, mod_name='default', export_graph_module=False):
+def build(mod, target=None, target_host=None, params=None, mod_name='default'):
     """Helper function that builds a Relay function to run on TVM graph
     runtime.
 
@@ -250,10 +250,8 @@ def build(mod, target=None, target_host=None, params=None, mod_name='default', e
     with tophub_context:
         bld_mod = BuildModule()
         graph_json, mod, params = bld_mod.build(mod, target, target_host, params)
-        if export_graph_module:
-            mod = _graph_runtime_factory.create("graph", graph_json, mod, params, mod_name)
-            return mod
-        return graph_json, mod, params
+        mod = _graph_runtime_factory.create("graph", graph_json, mod, params, mod_name)
+        return mod
 
 
 def optimize(mod, target=None, params=None):

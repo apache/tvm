@@ -42,8 +42,7 @@ def verify(data, num_layers=18):
 def test_legacy_compatibility():
     mod, params = get_workload()
     with relay.build_config(opt_level=3):
-        graph, lib, graph_params = relay.build_module.build(
-            mod, "llvm", params=params, export_graph_module=True)
+        graph, lib, graph_params = relay.build_module.build(mod, "llvm", params=params)
     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
     ctx = tvm.cpu()
     module = graph_runtime.create(graph, lib, ctx)
@@ -56,8 +55,7 @@ def test_legacy_compatibility():
 def test_cpu():
     mod, params = get_workload()
     with relay.build_config(opt_level=3):
-        complied_graph_lib = relay.build_module.build(
-            mod, "llvm", params=params, export_graph_module=True)
+        complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
     # raw api
     ctx = tvm.cpu()
@@ -81,8 +79,7 @@ def test_cpu():
 def test_gpu():
     mod, params = get_workload()
     with relay.build_config(opt_level=3):
-        complied_graph_lib = relay.build_module.build(
-            mod, "cuda", params=params, export_graph_module=True)
+        complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
     ctx = tvm.gpu()
     gmod = complied_graph_lib['default'](ctx)
@@ -100,10 +97,10 @@ def test_multi_models():
     resnet50_mod, resnet50_params = get_workload(50)
     with relay.build_config(opt_level=3):
         complied_graph_lib = relay.build_module.build(
-            resnet18_mod, "llvm", params=resnet18_params, mod_name='resnet18', export_graph_module=True)
+            resnet18_mod, "llvm", params=resnet18_params, mod_name='resnet18')
     with relay.build_config(opt_level=3):
         resnet50_gpu_lib = relay.build_module.build(
-            resnet50_mod, "cuda", params=resnet50_params, mod_name='resnet50', export_graph_module=True)
+            resnet50_mod, "cuda", params=resnet50_params, mod_name='resnet50')
     complied_graph_lib.import_module(resnet50_gpu_lib)
     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
     # resnet18
@@ -132,8 +129,7 @@ def test_multi_models():
 def test_cpu_export(format=".so"):
     mod, params = get_workload()
     with relay.build_config(opt_level=3):
-        complied_graph_lib = relay.build_module.build(
-            mod, "llvm", params=params, export_graph_module=True)
+        complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
     from tvm.contrib import util
     temp = util.tempdir()
@@ -160,8 +156,7 @@ def test_cpu_export(format=".so"):
 def test_gpu_export(format=".so"):
     mod, params = get_workload()
     with relay.build_config(opt_level=3):
-        complied_graph_lib = relay.build_module.build(
-            mod, "cuda", params=params, export_graph_module=True)
+        complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
     from tvm.contrib import util
     temp = util.tempdir()
@@ -188,8 +183,7 @@ def test_gpu_export(format=".so"):
 def test_previous_cpu_export(format=".so"):
     mod, params = get_workload()
     with relay.build_config(opt_level=3):
-        graph, lib, graph_params = relay.build_module.build(
-            mod, "llvm", params=params, export_graph_module=True)
+        graph, lib, graph_params = relay.build_module.build(mod, "llvm", params=params)
 
     from tvm.contrib import util
     temp = util.tempdir()
@@ -220,8 +214,7 @@ def test_previous_cpu_export(format=".so"):
 def test_previous_gpu_export(format=".so"):
     mod, params = get_workload()
     with relay.build_config(opt_level=3):
-        graph, lib, graph_params = relay.build_module.build(
-            mod, "cuda", params=params, export_graph_module=True)
+        graph, lib, graph_params = relay.build_module.build(mod, "cuda", params=params)
 
     from tvm.contrib import util
     temp = util.tempdir()
@@ -252,8 +245,7 @@ def test_previous_gpu_export(format=".so"):
 def test_rpc_export(format=".so"):
     mod, params = get_workload()
     with relay.build_config(opt_level=3):
-        complied_graph_lib = relay.build_module.build(
-            mod, "llvm", params=params, export_graph_module=True)
+        complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
     from tvm.contrib import util
     temp = util.tempdir()
@@ -291,8 +283,7 @@ def test_rpc_export(format=".so"):
 def test_previous_rpc_export(format=".so"):
     mod, params = get_workload()
     with relay.build_config(opt_level=3):
-        graph, lib, graph_params = relay.build_module.build(
-            mod, "llvm", params=params, export_graph_module=True)
+        graph, lib, graph_params = relay.build_module.build(mod, "llvm", params=params)
 
     from tvm.contrib import util
     temp = util.tempdir()
@@ -328,8 +319,7 @@ def test_previous_rpc_export(format=".so"):
 def test_package_params(format=".so"):
     mod, params = get_workload()
     with relay.build_config(opt_level=3):
-        complied_graph_lib = relay.build_module.build(
-            mod, "llvm", params=params, export_graph_module=True)
+        complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
     from tvm.contrib import util
     temp = util.tempdir()
@@ -361,10 +351,10 @@ def test_multi_models_package_params(format=".so"):
     resnet50_mod, resnet50_params = get_workload(50)
     with relay.build_config(opt_level=3):
         complied_graph_lib = relay.build_module.build(
-            resnet18_mod, "llvm", params=resnet18_params, mod_name='resnet18', export_graph_module=True)
+            resnet18_mod, "llvm", params=resnet18_params, mod_name='resnet18')
     with relay.build_config(opt_level=3):
         resnet50_gpu_lib = relay.build_module.build(
-            resnet50_mod, "cuda", params=resnet50_params, mod_name='resnet50', export_graph_module=True)
+            resnet50_mod, "cuda", params=resnet50_params, mod_name='resnet50')
     complied_graph_lib.import_module(resnet50_gpu_lib)
 
     from tvm.contrib import util
