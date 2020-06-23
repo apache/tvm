@@ -119,7 +119,6 @@ class CSourceModuleNode : public runtime::ModuleNode {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->const_vars_; });
     } else {
-      LOG(FATAL) << "Unknown packed function: " << name;
       return PackedFunc(nullptr);
     }
   }
