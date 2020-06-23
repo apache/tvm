@@ -413,6 +413,8 @@ void VulkanDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
       *rv = ss.str();
       break;
     }
+    case kMaxRegistersPerBlock:
+      return;
     case kGcnArch:
       return;
   }
