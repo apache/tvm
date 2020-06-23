@@ -95,6 +95,7 @@ def check_result(mod,
 
 
 def test_conv2d():
+    """Test a subgraph with a single conv2d operator."""
     if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
@@ -168,6 +169,7 @@ def test_conv2d():
 
 
 def test_add():
+    """Test a subgraph with a single add operator."""
     if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
@@ -208,6 +210,7 @@ def test_add():
 
 
 def test_relu():
+    """Test a subgraph with a single ReLU operator."""
     if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
@@ -244,6 +247,7 @@ def test_relu():
 
 
 def test_dense():
+    """Test a subgraph with a single dense operator."""
     if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
@@ -285,6 +289,7 @@ def test_dense():
 
 
 def test_bn():
+    """Test a subgraph with a single batch_norm operator."""
     if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
@@ -350,6 +355,7 @@ def test_bn():
 
 
 def test_multiple_ops():
+    """Test a subgraph with multiple operators."""
     if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
@@ -405,6 +411,7 @@ def test_multiple_ops():
 
 
 def test_composite():
+    """Test DNNL patterns and there composite functions."""
     if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
@@ -510,6 +517,7 @@ def test_composite():
 
 
 def test_constant():
+    """Test the subgraph with (var, const, ...) arguments."""
     if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
         return
@@ -548,13 +556,61 @@ def test_constant():
         transform.PartitionGraph()
     ])
 
-    with tvm.transform.PassContext(opt_level=3,
-                                    disabled_pass=["AlterOpLayout"]):
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
         ref_mod = remove_bn_pass(ref_mod)
         mod = composite_partition(ref_mod)
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     check_result(mod, ref_mod, {'data': i_data}, (1, 32, 14, 14), tol=1e-5)
+
+def test_partial_constant():
+    """Test the subgraph with (const, var, const, var) arguments."""
+    if not tvm.get_global_func("relay.ext.dnnl", True):
+        print("skip because DNNL codegen is not available")
+        return
+
+    dtype = 'float32'
+    ishape = (10, 10)
+
+    in_1 = relay.var("in_1", shape=ishape, dtype=dtype)
+    in_2 = relay.var("in_2", shape=ishape, dtype=dtype)
+    in_3 = relay.var("in_3", shape=ishape, dtype=dtype)
+    in_4 = relay.var("in_4", shape=ishape, dtype=dtype)
+
+    add1 = relay.add(in_1, in_2)
+    add2 = relay.add(add1, in_3)
+    add3 = relay.add(add2, in_3)
+    add4 = relay.add(add3, in_3)
+
+    func = relay.Function([in_1, in_2, in_3, in_4], add4)
+    ref_mod = tvm.IRModule.from_expr(func)
+    ref_mod = relay.transform.InferType()(ref_mod)
+
+    data1 = np.random.uniform(0, 1, ishape).astype(dtype)
+    data3 = np.random.uniform(0, 1, ishape).astype(dtype)
+
+    params = {
+        'in_1': tvm.nd.array(data1, ctx=tvm.cpu(0)),
+        'in_3': tvm.nd.array(data3, ctx=tvm.cpu(0))
+    }
+    ref_mod["main"] = bind_params_by_name(ref_mod["main"], params)
+
+    opt_pass = tvm.transform.Sequential([
+        transform.InferType(),
+        transform.SimplifyInference(),
+        transform.FoldConstant(),
+        transform.FoldScaleAxis(),
+        transform.AnnotateTarget("dnnl"),
+        transform.MergeCompilerRegions(),
+        transform.PartitionGraph()
+    ])
+
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        mod = opt_pass(ref_mod)
+
+    data2 = np.random.uniform(0, 1, ishape).astype(dtype)
+    data4 = np.random.uniform(0, 1, ishape).astype(dtype)
+    check_result(mod, ref_mod, {'in_2': data2, 'in_4': data4}, (10, 10), tol=1e-5)
 
 
 if __name__ == "__main__":
@@ -566,3 +622,4 @@ if __name__ == "__main__":
     test_multiple_ops()
     test_composite()
     test_constant()
+    test_partial_constant()
