@@ -583,22 +583,11 @@ std::pair<MeasureInput, MeasureResult> BestMeasurePairInFile(
   return best_pair;
 }
 
-TVM_REGISTER_GLOBAL("ansor.WriteMeasureRecordsToFile")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  std::string filename = args[0];
-  Array<MeasureInput> in = args[1];
-  Array<MeasureResult> res = args[2];
-  std::ofstream ofs(filename, std::ofstream::app);
-  WriteMeasureRecords(&ofs, in, res);
-});
-
-TVM_REGISTER_GLOBAL("ansor.LogToFile")
-.set_body_typed([](const std::string& filename) {
+TVM_REGISTER_GLOBAL("ansor.LogToFile").set_body_typed([](const std::string& filename) {
   return LogToFile(filename);
 });
 
-TVM_REGISTER_GLOBAL("ansor.LogReader")
-.set_body_typed([](const std::string& filename) {
+TVM_REGISTER_GLOBAL("ansor.LogReader").set_body_typed([](const std::string& filename) {
   return LogReader(filename);
 });
 
@@ -617,6 +606,15 @@ TVM_REGISTER_GLOBAL("ansor.LogReaderReadNext")
   } else {
     return Array<ObjectRef>();
   }
+});
+
+TVM_REGISTER_GLOBAL("ansor.WriteMeasureRecordsToFile")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  std::string filename = args[0];
+  Array<MeasureInput> in = args[1];
+  Array<MeasureResult> res = args[2];
+  std::ofstream ofs(filename, std::ofstream::app);
+  WriteMeasureRecords(&ofs, in, res);
 });
 
 TVM_REGISTER_GLOBAL("ansor.GetStatesFromMeasureInputs")
@@ -671,7 +669,6 @@ TVM_REGISTER_GLOBAL("ansor.GetStatesFromMeasureInputs")
 
   *ret = states;
 });
-
 
 }  // namespace ansor
 }  // namespace tvm

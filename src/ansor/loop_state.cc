@@ -18,8 +18,9 @@
  */
 
 /*!
- * \file ansor/loop_state.h
- * \brief  An IR (intermediate representation) for loop structures.
+ * \file ansor/loop_state.cc
+ * \brief  An lightweight IR (intermediate representation) for loop structures.
+ * see ansor/loop_state.h for more explanation.
  */
 
 #include "loop_state.h"

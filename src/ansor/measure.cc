@@ -341,8 +341,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
             << ", " << node->time_cost << ")";
 });
 
-TVM_REGISTER_GLOBAL("ansor.MeasureInput")
-.set_body_typed([](SearchTask task, State state) {
+TVM_REGISTER_GLOBAL("ansor.MeasureInput").set_body_typed([](SearchTask task, State state) {
   return MeasureInput(task, state);
 });
 
@@ -359,8 +358,7 @@ TVM_REGISTER_GLOBAL("ansor.MeasureResult")
 });
 
 TVM_REGISTER_GLOBAL("ansor.BuilderBuild")
-.set_body_typed([](const Builder& builder,
-                   const Array<MeasureInput>& inputs, int verbose) {
+.set_body_typed([](const Builder& builder, const Array<MeasureInput>& inputs, int verbose) {
   return builder->Build(inputs, verbose);
 });
 
@@ -396,7 +394,6 @@ TVM_REGISTER_GLOBAL("ansor.ProgramMeasurer")
   return ProgramMeasurer(builder, runner, callbacks, verbose,
                          max_continous_error);
 });
-
 
 }  // namespace ansor
 }  // namespace tvm

@@ -67,6 +67,7 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
   this->verbose = verbose;
   num_measure_per_iter_ = num_measure_per_iter;
 
+  PrintTitle("Call search callbacks", verbose);
   RunCallbacks(pre_search_callbacks);
 
   if (n_trials <= 1) {  // no measurement is allowed
@@ -94,7 +95,7 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
       PrintTitle("Search", verbose);
       SearchOneRound(&best_states, num_random, &random_states);
 
-      // Fill correct bound.This is necessary for computing the correct ToStr() for reduncency check
+      // Infer bound. This is necessary for computing the correct ToStr() for redundancy check
       cur_task->compute_dag.InferBound(&best_states);
       cur_task->compute_dag.InferBound(&random_states);
 
@@ -218,10 +219,10 @@ void SketchSearchPolicyNode::PickStatesWithEpsGreedy(
     std::string state_str = pstate->ToStr();
 
     if (measured_states_set_.count(state_str)) { continue; }
-    measured_states_set_.insert(state_str);
+    measured_states_set_.insert(std::move(state_str));
 
     inputs->push_back(MeasureInput(cur_task, *pstate));
-    measured_states_vector_.push_back(std::move(*pstate));
+    measured_states_vector_.push_back(*pstate);
   }
 }
 
@@ -274,7 +275,7 @@ void SketchSearchPolicyNode::SearchOneRound(std::vector<State>* best_states,
   RandomSampleStates(init_population, &rand_gen_, num_random_states * 10, random_states);
 }
 
-// The baseclass of derivation rules used in sketch generation
+// The base class for derivation rules used in sketch generation
 class SketchGenerationRule {
  public:
   enum ConditionEnum {

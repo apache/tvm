@@ -77,7 +77,6 @@ class ReorderStep : public Step {
   ReorderStep(int stage_id, const std::vector<int>& after_ids);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ReorderStep, Step, ReorderStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ReorderStepNode);
 };
 
 /*! \brief Split step that corresponds to te::Stage::split with additional
@@ -113,7 +112,6 @@ class SplitStep : public Step {
             bool inner_to_outer);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SplitStep, Step, SplitStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(SplitStepNode);
 };
 
 /*! \brief Similar to SplitStepNode, but use split factor from another step
@@ -149,7 +147,6 @@ class FollowSplitStep : public Step {
   FollowSplitStep(int stage_id, int iter_id, int src_step_id, int n_split);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FollowSplitStep, Step, FollowSplitStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(FollowSplitStepNode);
 };
 
 
@@ -189,7 +186,6 @@ class FollowFusedSplitStep : public Step {
                        int level, bool factor_or_nparts);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FollowFusedSplitStep, Step, FollowFusedSplitStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(FollowFusedSplitStepNode);
 };
 
 /*! \brief Fuse step that corresponds to te::Stage::fuse */
@@ -218,7 +214,6 @@ class FuseStep : public Step {
   FuseStep(int stage_id, const std::vector<int>& fused_ids);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FuseStep, Step, FuseStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(FuseStepNode);
 };
 
 /*! \brief Annotation step that corresponds to vectorize, parallel, unroll and thread binding.
@@ -250,10 +245,9 @@ class AnnotationStep : public Step {
   AnnotationStep(int stage_id, int iter_id, IteratorAnnotation ann);
 
   TVM_DEFINE_OBJECT_REF_METHODS(AnnotationStep, Step, AnnotationStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(AnnotationStepNode);
 };
 
-/*! \brief Fuse step that corresponds to te::Stage::compute_at */
+/*! \brief Compute at step that corresponds to te::Stage::compute_at */
 class ComputeAtStepNode: public StepNode {
  public:
   int target_stage_id;
@@ -280,10 +274,9 @@ class ComputeAtStep : public Step {
   ComputeAtStep(int stage_id, int target_stage_id, int target_iter_id);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeAtStep, Step, ComputeAtStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeAtStepNode);
 };
 
-/*! \brief Fuse step that corresponds to te::Stage::compute_root */
+/*! \brief Compute root step that corresponds to te::Stage::compute_root */
 class ComputeRootStepNode: public StepNode {
  public:
   void ApplyToSchedule(std::vector<te::Stage> *stages,
@@ -307,10 +300,9 @@ class ComputeRootStep : public Step {
   explicit ComputeRootStep(int stage_id);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeRootStep, Step, ComputeRootStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeRootStepNode);
 };
 
-/*! \brief Fuse step that corresponds to te::Stage::compute_inline */
+/*! \brief Compute inline step that corresponds to te::Stage::compute_inline */
 class ComputeInlineStepNode: public StepNode {
  public:
   void ApplyToSchedule(std::vector<te::Stage> *stages,
@@ -334,7 +326,6 @@ class ComputeInlineStep : public Step {
   explicit ComputeInlineStep(int stage_id);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeInlineStep, Step, ComputeInlineStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeInlineStepNode);
 };
 
 /*! \brief Cache read step that corresponds to te::Schedule::cache_read */
@@ -366,10 +357,9 @@ class CacheReadStep : public Step {
                 const std::vector<int>& reader_stage_id);
 
   TVM_DEFINE_OBJECT_REF_METHODS(CacheReadStep, Step, CacheReadStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(CacheReadStepNode);
 };
 
-/*! \brief Cache read step that corresponds to te::Schedule::cache_write
+/*! \brief Cache write step that corresponds to te::Schedule::cache_write
  *  \Note This step will cache_write all output tensors of target stage */
 class CacheWriteStepNode: public StepNode {
  public:
@@ -397,10 +387,9 @@ class CacheWriteStep : public Step {
   CacheWriteStep(int stage_id, std::string scope_name);
 
   TVM_DEFINE_OBJECT_REF_METHODS(CacheWriteStep, Step, CacheWriteStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(CacheWriteStepNode);
 };
 
-/*! \brief Cache read step that corresponds to te::Schedule::pragma */
+/*! \brief Pragma step that corresponds to te::Schedule::pragma */
 class PragmaStepNode: public StepNode {
  public:
   int iter_id;
@@ -427,7 +416,6 @@ class PragmaStep : public Step {
   PragmaStep(int stage_id, int iter_id, std::string pragma_type);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PragmaStep, Step, PragmaStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(PragmaStepNode);
 };
 
 /*! \brief Reduction factor step that corresponds to te::Schedule::rfactor */
@@ -458,7 +446,6 @@ class RfactorStep : public Step {
   RfactorStep(int stage_id, int iter_id, int factor_iter_id);
 
   TVM_DEFINE_OBJECT_REF_METHODS(RfactorStep, Step, RfactorStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(RfactorStepNode);
 };
 
 /*! \brief Storage align step that corresponds to te::Schedule::storage_align */
@@ -489,7 +476,6 @@ class StorageAlignStep : public Step {
   StorageAlignStep(int stage_id, int iter_id, int factor, int offset);
 
   TVM_DEFINE_OBJECT_REF_METHODS(StorageAlignStep, Step, StorageAlignStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(StorageAlignStepNode);
 };
 
 /*! \brief Tensorize step that corresponds to te::Schedule::tensorize
@@ -520,7 +506,6 @@ class TensorizeStep : public Step {
   TensorizeStep(int stage_id, int iter_id, std::string ti_func_name);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TensorizeStep, Step, TensorizeStepNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(TensorizeStepNode);
 };
 
 }  // namespace ansor

@@ -37,14 +37,11 @@ namespace ansor {
 class TuneOptionNode : public Object {
  public:
   int n_trials;              // Number of total measurement trials
-  int early_stopping;        // Stops early the tuning if no improvement after n
-                             // measurements
-  int num_measure_per_iter;  // The number of programs to be measured at each
-                             // iteration
+  int early_stopping;        // Stops early the tuning if no improvement after n measurements
+  int num_measure_per_iter;  // The number of programs to be measured at each iteration
   int verbose;               // Verbosity level. 0 means silent.
   Builder builder;           // Builder which builds the program
-  Runner runner;             // Runner which runs the program and measure time
-                             // costs
+  Runner runner;             // Runner which runs the program and measure time costs
   Array<MeasureCallback> measure_callbacks;    // MeasureCallback functions
   Array<SearchCallback> pre_search_callbacks;  // SearchCallback functions
                                                // run before search
@@ -76,13 +73,13 @@ class TuneOption : public ObjectRef {
              Array<SearchCallback> pre_search_callbacks);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TuneOption, ObjectRef, TuneOptionNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(TuneOptionNode);
 };
 
 /*! \brief Auto schedule for a compute declaration */
 std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
     SearchTask task, SearchPolicy search_policy, TuneOption tune_option);
 
+/*! \brief Auto schedule for a compute declaration */
 std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
     std::string workload_key, Target target, Target target_host,
     SearchPolicy search_policy, HardwareParams hardware_params,

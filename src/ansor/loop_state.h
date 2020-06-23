@@ -27,10 +27,10 @@
  * Basically this is a simplified TVM IR with schedule primitives.
  * We don't use the existing TVM IR because
  * 1. We want fast incremental change to the loop structures
- * 2. We want serializable history for replay and backtracking
- * 3. We may create some Macro schedule primitives
+ * 2. We want serializable transformation history for replay, backtracking, and mutation.
+ * 3. We may create some macro schedule primitives
  *
- * After search is done, we will lower this IR to TVM IR with TVM schedule primitives.
+ * After the search is done, we will lower this IR to TVM IR with TVM schedule primitives.
  * Because we share a lot common objects during search,  the transformation is
  * implemented in copy on write style.  All objects are immutable, which is
  * similar to TVM IR.
@@ -53,7 +53,8 @@ using namespace tvm::tir;
 
 /*! \brief The type of a stage */
 enum StageType {
-  kPlaceholder, kCompute
+  kPlaceholder,  // A placeholder stage
+  kCompute       // A compute stage
 };
 
 /*! \brief The type of compute location */
@@ -78,6 +79,7 @@ enum IteratorAnnotation {
   kTensorized
 };
 
+// forward declaration
 class Iterator;
 
 /*!
@@ -91,7 +93,7 @@ class IteratorNode : public Object {
   IteratorType iter_type;
   IteratorAnnotation annotation;
   std::vector<Iterator> ori_iters;  // The original iterators before fusion
-  std::string attr;
+  std::string attr;                 // Todo(jcf94): Document this
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
@@ -115,13 +117,12 @@ class Iterator : public ObjectRef {
            std::string attr = "");
 
   TVM_DEFINE_OBJECT_REF_METHODS(Iterator, ObjectRef, IteratorNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(IteratorNode);
 };
 
 /*! \brief Stage-level attributes */
 struct StageAttributes {
-  int auto_unroll_max_step;
-  int storage_offset;
+  int auto_unroll_max_step;  // The maximum steps for the pragma `auto_unroll_max_step`
+  int storage_offset;        // The storage offset for the schedule primitive `storage_align`
 };
 
 /*!
@@ -130,11 +131,11 @@ struct StageAttributes {
  */
 class StageNode : public Object {
  public:
-  te::Operation op;
-  StageType op_type;
-  std::vector<Iterator> iters;
-  ComputeAtType compute_at;
-  StageAttributes attrs;
+  te::Operation op;              // The operator of this stage
+  StageType op_type;             // The type of this stage
+  std::vector<Iterator> iters;   // The iterators in this stage
+  ComputeAtType compute_at;      // The compute location of this stage
+  StageAttributes attrs;         // Other stage-level attributes
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("op", &op);

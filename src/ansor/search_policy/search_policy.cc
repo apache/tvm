@@ -77,7 +77,6 @@ void SearchPolicyNode::PreloadMeasuredStates(const std::string& log_file) {
 
 void SearchPolicyNode::RunCallbacks(const Array<SearchCallback>& callbacks) {
   if (callbacks.defined() && callbacks.size()) {
-    PrintTitle("Call search callbacks", verbose);
     for (const auto& callback : callbacks) {
       callback->callback(this);
     }

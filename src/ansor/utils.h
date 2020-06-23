@@ -81,30 +81,12 @@ struct hash<std::vector<T> > {
 namespace tvm {
 namespace ansor {
 
-/*! \brief Macro to make it easy to define object ref type given node */
-#define TVM_DEFINE_OBJECT_REF(TypeName, ObjectName)                 \
-  class TypeName : public ObjectRef {                               \
-   public:                                                          \
-    TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ObjectRef, ObjectName); \
-  };                                                                \
-
 /*! \brief Macro to make it easy to define mutable object ref type given node */
 #define TVM_DEFINE_MUTABLE_OBJECT_REF(TypeName, ObjectName)                  \
   class TypeName : public ObjectRef {                                        \
    public:                                                                   \
     TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TypeName, ObjectRef, ObjectName);  \
   };                                                                         \
-
-/*!
- * \brief Macro to make it easy to define node ref type that
- *  has a CopyOnWrite member function.
- */
-#define TVM_DEFINE_COW_OBJECT_REF(TypeName, BaseType, ObjectName)    \
-  class TypeName : public BaseType {                                 \
-   public:                                                           \
-    TVM_DEFINE_OBJECT_REF_METHODS(TypeName, BaseType, ObjectName);   \
-    TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName);                    \
-  };
 
 /********** Utilities for std::vector, std::set, std::string **********/
 /*! \brief Get the first appearance index of elements in a vector */

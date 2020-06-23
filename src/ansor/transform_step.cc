@@ -428,8 +428,7 @@ std::string AnnotationStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
 }
 
 /********** Compute At **********/
-ComputeAtStep::ComputeAtStep(int stage_id, int target_stage_id,
-                             int target_iter_id) {
+ComputeAtStep::ComputeAtStep(int stage_id, int target_stage_id, int target_iter_id) {
   auto node = make_object<ComputeAtStepNode>();
   node->stage_id = stage_id;
   node->target_stage_id = target_stage_id;

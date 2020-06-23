@@ -121,7 +121,6 @@ class SearchTask : public ObjectRef {
              HardwareParams hardware_params);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SearchTask, ObjectRef, SearchTaskNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(SearchTaskNode);
 };
 
 }  // namespace ansor

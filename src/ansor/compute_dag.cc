@@ -653,63 +653,6 @@ class IndexRewriter : public StmtExprMutator {
       return GetRef<PrimExpr>(op);
   }
 
-  /*
-  PrimExpr Mutate_(const Call* op, const PrimExpr& e) {
-    PrimExpr op_ = IRMutator::Mutate_(op, e);
-
-    const Call* call = op_.as<Call>();
-
-    if (call->call_type == Call::CallType::Halide) {
-      te::Tensor t = Downcast<Operation>(call->func).output(call->value_index);
-      auto it = placeholder_new_names_.find(t->op);
-      if (it != placeholder_new_names_.end()) {
-        const std::vector<std::string>& new_names = it->second;
-        const Array<PrimExpr>& new_shape = placeholder_new_shapes_.at(t->op);
-        std::unordered_map<std::string, PrimExpr> name_to_arg;
-        for (const auto& arg : call->args) {
-          std::string axis_name;
-          if (const auto* pimm = arg.as<IntImm>()) {
-              CHECK_EQ(pimm->value, 0);
-           axis_name = "IntImm";
-          } else {
-            axis_name = BaseName(CleanName(Downcast<Var>(arg)->name_hint));
-            CHECK_EQ(name_to_arg.count(axis_name), 0);
-            name_to_arg[axis_name] = arg;
-          }
-        }
-
-        std::unordered_map<std::string, PrimExpr> div_factors;
-        std::vector<PrimExpr> r_new_args;
-        for (int i = new_names.size() - 1; i >= 0; --i) {
-          auto ori_iter_name = new_names[i];
-          auto name_it = name_to_arg.find(ori_iter_name);
-          CHECK(name_it != name_to_arg.end());
-          PrimExpr ori_arg = name_it->second;
-
-          PrimExpr mod_factor = new_shape[i];
-
-          PrimExpr div_factor = 1;
-          if (div_factors.count(ori_iter_name)) {
-            div_factor = div_factors[ori_iter_name];
-          }
-          div_factors[ori_iter_name] = div_factor * new_shape[i];
-
-          PrimExpr new_arg = indexmod(indexdiv(ori_arg, div_factor), mod_factor);
-
-          r_new_args.push_back(new_arg);
-        }
-
-        Array<PrimExpr> new_args(std::make_move_iterator(r_new_args.rbegin()),
-                             std::make_move_iterator(r_new_args.rend()));
-
-        return Call::make(call->type, call->name, new_args, call->call_type,
-                call->func, call->value_index);
-      }
-    }
-    return op_;
-  }
-  */
-
  private:
   const OperationMap<std::vector<std::string> >& placeholder_new_names_;
   const OperationMap<Array<PrimExpr> >& placeholder_new_shapes_;
@@ -1345,15 +1288,6 @@ TVM_REGISTER_GLOBAL("ansor.ComputeDAGApplyStepsFromState")
   std::tie(sch, return_tensors) = dag.ApplySteps(state->transform_steps, layout_rewrite_level);
   *ret = Array<ObjectRef>{sch, return_tensors};
 });
-/*
-TVM_REGISTER_GLOBAL("ansor.ComputeDAGApplyStepsFromState")
-.set_body_typed([](const ComputeDAG& dag, const State& state) {
-  te::Schedule sch;
-  Array<te::Tensor> return_tensors;
-  std::tie(sch, return_tensors) = dag.ApplySteps(state->transform_steps);
-  return Array<ObjectRef>{sch, return_tensors};
-});
-*/
 
 TVM_REGISTER_GLOBAL("ansor.ComputeDAGPrintPythonCodeFromState")
 .set_body_typed([](const ComputeDAG& dag, const State& state) {

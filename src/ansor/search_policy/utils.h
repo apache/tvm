@@ -79,8 +79,8 @@ inline std::set<std::string> GetIterNameSetParam(const Map<String, ObjectRef>& a
   CHECK_GT(attr_dict.count(key), 0) << "Cannot find key: \"" << key << "\" in " << attr_dict;
   auto names = attr_dict[key].as<ArrayNode>();
   CHECK(names != nullptr);
-  for (auto name = names->begin(); name != names->end(); name++) {
-    ret.insert(name->as<StringImmNode>()->value);
+  for (const auto & name : *names) {
+    ret.insert(name.as<StringImmNode>()->value);
   }
   return ret;
 }
@@ -284,9 +284,6 @@ inline bool HasCacheReadStage(const State& s, int stage_id) {
   return false;
 }
 
-// Get all split step on spatial iterators
-void GetSpaceSplitStepIds(const State& s, int stage_id, std::vector<int>* spatial_split_step_ids);
-
 // Return whether the state did split/follow_split/follow_fused_split in stage_id
 inline bool HasSplitStep(const State& s, int stage_id) {
   for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
@@ -441,6 +438,9 @@ inline void PrintAllStates(const std::vector<State>& states) {
   }
 }
 
+// Get all split steps on spatial iterators for one stage
+void GetSpaceSplitStepIds(const State& s, int stage_id, std::vector<int>* spatial_split_step_ids);
+
 // Apply multi-level tiling structure according to a string format,
 // where "S" stands a space level, "R" stands for a reudciton level.
 // For example, if the format is "SSRSRS", the we will
@@ -451,8 +451,7 @@ inline void PrintAllStates(const std::vector<State>& states) {
 State DoMultiLevelTiling(const State& state, int stage_id, const std::string& format,
                          std::vector<int>* spatial_split_step_ids);
 
-// Apply tiling structure: space, space
-// But use tile sizes from other SplitStep
+// Apply tiling structure: space, space, space, ..., with tile sizes from other SplitStep
 State FollowTiling(const State& state, int stage_id,
                    const std::vector<int>& split_step_ids, int n_split);
 
@@ -463,6 +462,14 @@ State RandomMutateTileSize(const State& old_state, SplitFactorizationMemo* split
 // Randomly mutate the value of one auto_unroll_max_step PragmaStep
 State RandomMutateMaxUnrollStep(const State& old_state, std::mt19937* random_gen,
                                 const std::vector<int>& auto_unroll_configs);
+
+// Randomly mutate the parallel degree of one stage.
+State RandomMutateParallel(const State& old_state, std::mt19937* random_gen,
+                           const SearchTask& task, int verbose = 0);
+
+// Randomly mutate the computation location of one stage.
+State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_gen,
+                                  const SearchTask& task);
 
 // GA: Crossover two states
 State CrossOverState(const State& p1, const State& p2);
