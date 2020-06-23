@@ -99,7 +99,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       auto eid = EntryID(input_nodes_[i], 0);
       // TODO: Support other data lengths.
       size_t offset_in_bytes = entry_out_mem_[eid].second * 4;
-      size_t buffer_size = GetDataSize(*(data_entry_[eid].operator->()));
+      size_t buffer_size = GetDataSize(*data_entry_[eid]);
       write_to_dnnl_memory(data_entry_[eid]->data, entry_out_mem_[eid].first, buffer_size,
                            offset_in_bytes);
     }
@@ -114,7 +114,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     for (size_t i = 0; i < outputs_.size(); ++i) {
       auto eid = EntryID(outputs_[i]);
       size_t offset_in_bytes = entry_out_mem_[eid].second * 4;
-      size_t buffer_size = GetDataSize(*(data_entry_[eid].operator->()));
+      size_t buffer_size = GetDataSize(*data_entry_[eid]);
       read_from_dnnl_memory(data_entry_[eid]->data, entry_out_mem_[eid].first, buffer_size,
                             offset_in_bytes);
     }

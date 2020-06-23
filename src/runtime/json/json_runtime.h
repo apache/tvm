@@ -127,20 +127,24 @@ class JSONRuntimeBase : public ModuleNode {
       auto eid = EntryID(input_var_idx_[i], 0);
       CHECK(args[i].type_code() == kTVMNDArrayHandle || args[i].type_code() == kTVMDLTensorHandle)
           << "Expect NDArray or DLTensor as inputs";
-      size_t to_size = GetDataSize(*(data_entry_[eid].operator->()));
-      if (args[i].type_code() == kTVMDLTensorHandle) {
-        DLTensor* arg = args[i];
-        data_entry_[eid].CopyFrom(arg);
+
+      const DLTensor* arg;
+      if (args[i].IsObjectRef<NDArray>()) {
+        NDArray arr = args[i];
+        arg = arr.operator->();
       } else {
+        arg = args[i].operator DLTensor*();
+      }
+
+      size_t from_size = GetDataSize(*arg);
+      size_t to_size = GetDataSize(*data_entry_[eid]);
+      CHECK_EQ(from_size, to_size);
+
+      if (data_entry_[eid]->ctx.device_type == arg->ctx.device_type) {
         // Zero copy for input because the tensor is managed by the host.
-        NDArray arg = args[i];
-        size_t from_size = GetDataSize(*(arg.operator->()));
-        CHECK_EQ(from_size, to_size);
-        if (data_entry_[eid]->ctx.device_type == arg->ctx.device_type) {
-          data_entry_[eid] = args[i];
-        } else {
-          data_entry_[eid].CopyFrom(arg);
-        }
+        data_entry_[eid]->data = arg->data;
+      } else {
+        NDArray::CopyFromTo(arg, data_entry_[eid]);
       }
     }
   }
@@ -156,17 +160,17 @@ class JSONRuntimeBase : public ModuleNode {
     CHECK_EQ(args.size(), arg_idx + outputs_.size())
         << "Found mismatch in the number of provided data entryies and required.";
 
-    for (size_t i = 0; i < outputs_.size(); i++) {
+    for (size_t i = 0; i < outputs_.size(); i++, arg_idx++) {
       auto eid = EntryID(outputs_[i]);
 
       if (args[arg_idx].type_code() == kTVMDLTensorHandle) {
         DLTensor* arg = args[arg_idx];
-        data_entry_[eid].CopyTo(arg);
+        NDArray::CopyFromTo(data_entry_[eid], arg);
       } else {
+        CHECK(args[arg_idx].IsObjectRef<NDArray>());
         NDArray arg = args[arg_idx];
-        data_entry_[eid].CopyTo(arg);
+        arg.CopyFrom(data_entry_[eid]);
       }
-      arg_idx++;
     }
   }
 
@@ -176,16 +180,26 @@ class JSONRuntimeBase : public ModuleNode {
    * \param ctx The context for the pre-allocated buffer.
    */
   void AllocateInputOutputBuffer(const DLContext& ctx) {
-    for (size_t i = 0; i < this->input_nodes_.size(); ++i) {
-      auto shape = this->nodes_[this->input_nodes_[i]].GetOpShape()[0];
-      auto nid = this->input_nodes_[i];
-      this->data_entry_[EntryID(nid, 0)] = NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx);
+    for (size_t i = 0; i < input_nodes_.size(); ++i) {
+      auto nid = input_nodes_[i];
+      auto shape = nodes_[nid].GetOpShape()[0];
+      auto dtype = nodes_[nid].GetOpDataType()[0];
+      DLTensor* tensor;
+      int ret = TVMArrayAlloc(shape.data(), shape.size(), dtype.code, dtype.bits, dtype.lanes,
+                              ctx.device_type, ctx.device_id, &tensor);
+      CHECK_EQ(ret, 0) << TVMGetLastError();
+      data_entry_[EntryID(nid, 0)] = tensor;
     }
 
-    for (size_t i = 0; i < this->outputs_.size(); ++i) {
-      auto entry = this->outputs_[i];
-      auto shape = this->nodes_[entry.id_].GetOpShape()[entry.index_];
-      this->data_entry_[EntryID(entry)] = NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx);
+    for (size_t i = 0; i < outputs_.size(); ++i) {
+      auto entry = outputs_[i];
+      auto shape = nodes_[entry.id_].GetOpShape()[entry.index_];
+      auto dtype = nodes_[entry.id_].GetOpDataType()[entry.index_];
+      DLTensor* tensor;
+      int ret = TVMArrayAlloc(shape.data(), shape.size(), dtype.code, dtype.bits, dtype.lanes,
+                              ctx.device_type, ctx.device_id, &tensor);
+      CHECK_EQ(ret, 0) << TVMGetLastError();
+      data_entry_[EntryID(entry)] = tensor;
     }
   }
 
@@ -232,7 +246,7 @@ class JSONRuntimeBase : public ModuleNode {
   void SetupConstants(const Array<NDArray>& consts) {
     // Initialize consts
     for (size_t i = 0; i < consts.size(); ++i) {
-      data_entry_[const_idx_[i]].CopyFrom(consts[i]);
+      consts[i].CopyTo(data_entry_[const_idx_[i]]);
     }
   }
 
@@ -280,7 +294,7 @@ class JSONRuntimeBase : public ModuleNode {
   /*! \brief Output entries. */
   std::vector<JSONGraphNodeEntry> outputs_;
   /*! \brief Data of that entry. */
-  std::vector<NDArray> data_entry_;
+  std::vector<DLTensor*> data_entry_;
   /*! \brief Map the input name to index. */
   std::vector<uint32_t> input_var_idx_;
   /*! \brief input const index. */
