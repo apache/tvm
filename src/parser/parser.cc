@@ -269,9 +269,20 @@ struct Rule {
   }
 };
 
+
 struct OperatorTable {
   std::vector<Rule> rules;
-  OperatorTable(std::vector<Rule> rules) : rules(rules) {}
+  std::unordered_map<std::string, Rule> this_is_a_hack;
+
+  OperatorTable(std::vector<Rule> rules) : rules(rules), this_is_a_hack() {
+    for (auto rule : rules) {
+      std::stringstream key;
+      for (auto token : rule.tokens) {
+        key << ToString(token);
+      }
+      this->this_is_a_hack.insert({ key.str(), rule });
+    }
+  }
 };
 
 struct Parser {
@@ -496,22 +507,27 @@ struct Parser {
     }
   }
 
+  std::string HackTokensAsString(int n) {
+    std::stringstream key;
+    n = std::min((int)(tokens.size() - pos), n);
+    for (int i = 0; i < n; i++) {
+      key << ToString(tokens.at(pos + i)->token_type);
+    }
+    return key.str();
+  }
+
   std::vector<Rule> ParseOp() {
     std::vector<Rule> matched;
-    for (const auto& rule : this->op_table.rules) {
-      // std::cout << "Trying to match: " << Token(0, 0, rule.tokens.at(0)) << std::endl;
-      // std::cout << "pos: " << pos << std::endl;
-      // std::cout << "tokens: " << tokens.size() << std::endl;
-      auto did_match = true;
-      for (auto token : rule.tokens) {
-        did_match = did_match && WhenMatch(token);
-      }
-
-      if (did_match) {
-        matched.push_back(rule);
-        return matched;
+    Peek();
+    for (int i = 4; i > 0; i--) {
+      auto key = HackTokensAsString(i);
+      auto it = this->op_table.this_is_a_hack.find(key);
+      if (it != this->op_table.this_is_a_hack.end()) {
+        pos = pos + i;
+        matched.push_back(it->second);
       }
     }
+
     return matched;
   }
 
@@ -676,8 +692,11 @@ OperatorTable DefaultOpTable() {
       Rule({TokenType::Star}, Op::Get("multiply"), 2, 2),
       Rule({TokenType::Division}, Op::Get("divide"), 2, 2, true),
       Rule({TokenType::LAngle}, Op::Get("less"), 6, 2),
+      Rule({TokenType::LAngle, TokenType::Equal}, Op::Get("less_equal"), 6, 2),
       Rule({TokenType::RAngle}, Op::Get("greater"), 6, 2),
-      Rule({TokenType::Equal, TokenType::Equal}, Op::Get("equal"), 7, 2)
+      Rule({TokenType::RAngle, TokenType::Equal}, Op::Get("greater_equal"), 6, 2),
+      Rule({TokenType::Equal, TokenType::Equal}, Op::Get("equal"), 7, 2),
+      Rule({TokenType::Bang, TokenType::Equal}, Op::Get("not_equal"), 7, 2)
     });
 }
 

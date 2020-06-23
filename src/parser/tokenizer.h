@@ -62,6 +62,7 @@ enum TokenType {
     Minus,
     RAngle,
     LAngle,
+    Bang,
     Let,
     Unknown,
     EndOfFile,
@@ -130,6 +131,8 @@ std::string ToString(const TokenType& token_type) {
             return "RAngle";
         case TokenType::LAngle:
             return "LAngle";
+        case TokenType::Bang:
+            return "Bang";
         case TokenType::Let:
             return "Let";
         case TokenType::Boolean:
@@ -404,6 +407,10 @@ struct Tokenizer {
             return token;
         } else if (next == '>') {
             auto token = NewToken(TokenType::RAngle);
+            Next();
+            return token;
+        } else if (next == '!') {
+            auto token = NewToken(TokenType::Bang);
             Next();
             return token;
         } else if (next == '%') {
