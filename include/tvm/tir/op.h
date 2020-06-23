@@ -583,6 +583,18 @@ TVM_DECLARE_INTRIN_UNARY(acosh);
 TVM_DECLARE_INTRIN_UNARY(asinh);
 TVM_DECLARE_INTRIN_UNARY(atanh);
 
+#define TVM_DECLARE_INTRIN_BINARY(OpName)                                  \
+  inline PrimExpr OpName(PrimExpr x, PrimExpr y) {                         \
+    static const Op& op = Op::Get("tir." #OpName);                         \
+    return tir::Call(x.dtype(), op, {x, y}, tir::CallNode::PureIntrinsic); \
+  }
+
+TVM_DECLARE_INTRIN_BINARY(atan2);
+TVM_DECLARE_INTRIN_BINARY(nextafter);
+TVM_DECLARE_INTRIN_BINARY(copysign);
+TVM_DECLARE_INTRIN_BINARY(hypot);
+TVM_DECLARE_INTRIN_BINARY(ldexp);
+
 namespace tir {
 /*!
  * \brief Make a const value with certain data type.
