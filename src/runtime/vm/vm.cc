@@ -821,6 +821,9 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
     CHECK(pf != nullptr) << "Cannot find function in module: " << packed_name;
     packed_funcs_[packed_index] = pf;
   }
+  for (size_t i = 0; i < packed_funcs_.size(); ++i) {
+    CHECK(packed_funcs_[i] != nullptr) << "Packed function " << i << " is not initialized";
+  }
 }
 
 void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) { ctxs_ = ctxs; }
@@ -924,8 +927,8 @@ void VirtualMachine::RunLoop() {
         goto main_loop;
       }
       case Opcode::InvokePacked: {
-        DLOG(INFO) << "InvokedPacked "
-                   << "arity=" << instr.arity;
+        DLOG(INFO) << "InvokedPacked " << instr.packed_index << " arity=" << instr.arity;
+        CHECK_LE(instr.packed_index, packed_funcs_.size());
         const auto& func = packed_funcs_[instr.packed_index];
         const auto& arity = instr.arity;
         std::vector<ObjectRef> args;
