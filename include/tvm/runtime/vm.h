@@ -733,7 +733,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param reg The register to read from.
    * \return The read scalar.
    */
-  int32_t LoadScalarInt(RegName reg) const;
+  inline int64_t LoadScalarInt(RegName reg) const;
 
   /*!
    * \brief Invoke a VM function.
