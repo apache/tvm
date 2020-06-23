@@ -786,22 +786,22 @@ class RelayToONNXConverter(ExprVisitor):
         if node_entry['name'] in self._params:
             self._add_params(node_entry, idx)
         else:
-            type = node_entry['types'][0]
-            dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy.dtype(type.dtype)]
+            node_type = node_entry['types'][0]
+            dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy.dtype(node_type.dtype)]
             input = onnx.helper.make_tensor_value_info(node_entry['name'],
                                                        dtype,
-                                                       shape=type.concrete_shape)
+                                                       shape=node_type.concrete_shape)
             self._mc.add_inputs([input])
 
     def _add_output(self, node_entries):
         """Add output node to container outputs."""
 
         for node_entry in node_entries:
-            for type, output_name in zip(node_entry['types'], node_entry['output_names']):
-                dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy.dtype(type.dtype)]
+            for node_type, output_name in zip(node_entry['types'], node_entry['output_names']):
+                dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy.dtype(node_type.dtype)]
                 output = onnx.helper.make_tensor_value_info(output_name,
                                                             dtype,
-                                                            shape=type.concrete_shape)
+                                                            shape=node_type.concrete_shape)
                 self._mc.add_outputs([output])
 
 
