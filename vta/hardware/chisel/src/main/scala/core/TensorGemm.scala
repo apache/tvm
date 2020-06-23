@@ -280,7 +280,7 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters)
       (state === sExe &&
         uop_idx === uop_end - 1.U)) {
     uop_idx := dec.uop_begin
-  }.elsewhen(state === sExe) {
+  }.elsewhen(state === sExe && dec.uop_begin =/= uop_end) {
     uop_idx := uop_idx + 1.U
   }
 
