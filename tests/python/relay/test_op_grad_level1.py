@@ -62,6 +62,7 @@ def test_unary_op():
                         (tvm.relay.sqrt, lambda x: 0.5 * np.power(x, -0.5)),
                         (tvm.relay.abs, lambda x: np.where(x < 0, -np.ones_like(x), np.ones_like(x))),
                         (relay.nn.relu, lambda x: np.where(x < 0, np.zeros_like(x), np.ones_like(x))),
+                        (tvm.relay.erf, lambda x: 2.0 / (np.pi**(0.5)) * np.exp(-x * x)),
                         (tvm.relay.cos, lambda x: -1.0 * np.sin(x)),
                         (tvm.relay.sin, lambda x: np.cos(x)),
                         (tvm.relay.tan, lambda x: 1.0 / (np.cos(x) ** 2)),
