@@ -65,10 +65,7 @@ void GraphRuntime::Run() {
  * executed on.
  */
 void GraphRuntime::Init(const std::string& graph_json, tvm::runtime::Module module,
-                        const std::vector<TVMContext>& ctxs,
-                        const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
-  graph_json_ = graph_json;
-  params_ = params;
+                        const std::vector<TVMContext>& ctxs) {
   std::istringstream is(graph_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);

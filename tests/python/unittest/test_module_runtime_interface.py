@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import copy
 import numpy as np
 from tvm import relay
 from tvm.relay import testing
@@ -105,7 +104,7 @@ def test_multi_models():
     with relay.build_config(opt_level=3):
         resnet50_gpu_lib = relay.build_module.build(
             resnet50_mod, "cuda", params=resnet50_params, mod_name='resnet50', export_graph_module=True)
-    complied_graph_lib.import_module(resnet50_gpu_lib, "resnet50")
+    complied_graph_lib.import_module(resnet50_gpu_lib)
     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
     # resnet18
     cpu_ctx = tvm.cpu()
@@ -366,7 +365,7 @@ def test_multi_models_package_params(format=".so"):
     with relay.build_config(opt_level=3):
         resnet50_gpu_lib = relay.build_module.build(
             resnet50_mod, "cuda", params=resnet50_params, mod_name='resnet50', export_graph_module=True)
-    complied_graph_lib.import_module(resnet50_gpu_lib, "resnet50")
+    complied_graph_lib.import_module(resnet50_gpu_lib)
 
     from tvm.contrib import util
     temp = util.tempdir()
@@ -410,21 +409,21 @@ def test_multi_models_package_params(format=".so"):
     tvm.testing.assert_allclose(out, verify(data, num_layers=50), atol=1e-5)
 
 if __name__ == "__main__":
-    # test_legacy_compatibility()
-    # test_cpu()
-    # test_gpu()
-    # test_multi_models()
-    # test_cpu_export(".so")
-    # test_cpu_export(".tar")
-    # test_gpu_export(".so")
-    # test_gpu_export(".tar")
-    # test_rpc_export(".so")
-    # test_rpc_export(".tar")
-    # test_previous_cpu_export(".so")
-    # test_previous_cpu_export(".tar")
-    # test_previous_gpu_export(".so")
-    # test_previous_gpu_export(".tar")
-    # test_previous_rpc_export(".so")
-    # test_previous_rpc_export(".tar")
-    # test_package_params(".so")
+    test_legacy_compatibility()
+    test_cpu()
+    test_gpu()
+    test_multi_models()
+    test_cpu_export(".so")
+    test_cpu_export(".tar")
+    test_gpu_export(".so")
+    test_gpu_export(".tar")
+    test_rpc_export(".so")
+    test_rpc_export(".tar")
+    test_previous_cpu_export(".so")
+    test_previous_cpu_export(".tar")
+    test_previous_gpu_export(".so")
+    test_previous_gpu_export(".tar")
+    test_previous_rpc_export(".so")
+    test_previous_rpc_export(".tar")
+    test_package_params(".so")
     test_multi_models_package_params(".so")

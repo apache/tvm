@@ -35,15 +35,20 @@ namespace runtime {
 
 void GraphRuntimeFactory::Init(const std::string& kind,
                                const std::string& graph_json,
-                               const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
+                               const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
+                               const std::string& module_name) {
   kind_ = kind;
   graph_json_ = graph_json;
   params_ = params;
+  module_name_ = module_name;
+  graph_runtime_factory_module_list_.push_back(module_name_);
 }
 
-void GraphRuntimeFactory::ImportModule(Module other, std::string module_name) {
+void GraphRuntimeFactory::ImportModule(Module other) {
   this->Import(other);
-  module_names_.push_back(module_name);
+  auto module = other.as<GraphRuntimeFactory>();
+  CHECK(module) << "should only import graph runtiem factory module";
+  graph_runtime_factory_module_list_.push_back(module->GetModuleName());
 }
 
 PackedFunc GraphRuntimeFactory::GetFunction(const std::string& name,
@@ -64,8 +69,8 @@ PackedFunc GraphRuntimeFactory::GetFunction(const std::string& name,
     });
   } else if (name == "import_module") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.size(), 2);
-      this->ImportModule(args[0], args[1]);
+      CHECK_EQ(args.size(), 1);
+      this->ImportModule(args[0]);
     });
   } else if (name == "select_module") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -74,17 +79,17 @@ PackedFunc GraphRuntimeFactory::GetFunction(const std::string& name,
     });
   } else if (name == "get_json") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->graph_json_;
+      *rv = this->GetJson();
     });
   } else if (name == "get_lib") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_GT(this->imports().size(), 0);
-      *rv = this->imports_[0];
+      *rv = this->GetLib();
     });
   } else if (name == "get_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       Map<String, tvm::runtime::NDArray> ret;
-      for (const auto& kv : this->params_) {
+      for (const auto& kv : this->GetParams()) {
         ret.Set(kv.first, kv.second);
       }
       *rv = ret;
@@ -99,7 +104,7 @@ PackedFunc GraphRuntimeFactory::GetFunction(const std::string& name,
 }
 
 void GraphRuntimeFactory::SaveToBinary(dmlc::Stream* stream) {
-  stream->Write(module_names_);
+  stream->Write(graph_runtime_factory_module_list_);
   stream->Write(kind_);
   stream->Write(graph_json_);
   stream->Write(package_params_);
@@ -134,27 +139,27 @@ Module GraphRuntimeFactory::RuntimeCreate(Module module, const std::vector<TVMCo
 }
 
 Module GraphRuntimeFactory::SelectModule(const std::string &name) {
-  CHECK(std::find(module_names_.begin(), module_names_.end(), name) != module_names_.end());
-  auto iter = std::find(module_names_.begin(), module_names_.end(), name);
-  CHECK(iter != module_names_.end());
-  if (iter == module_names_.begin()) {
+  auto iter = std::find(graph_runtime_factory_module_list_.begin(),
+                        graph_runtime_factory_module_list_.end(), name);
+  CHECK(iter != graph_runtime_factory_module_list_.end());
+  if (iter == graph_runtime_factory_module_list_.begin()) {
     auto exec = make_object<GraphRuntimeFactory>();
-    exec->Init(this->kind_, this->graph_json_, this->params_);
-    exec->ImportModule(this->imports_[0], *iter);
+    exec->Init(this->GetKind(), this->GetJson(), this->GetParams());
+    exec->Import(this->GetLib());
     return Module(exec);
   } else {
-    return this->imports_[std::distance(module_names_.begin(), iter)];
+    return this->imports()[std::distance(graph_runtime_factory_module_list_.begin(), iter)];
   }
 }
 
 Module GraphRuntimeFactoryModuleLoadBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
-  std::vector<std::string> module_names;
+  std::vector<std::string> graph_runtime_factory_module_list;
   std::string kind;
   std::string graph_json;
   bool package_params;
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
-  CHECK(stream->Read(&module_names));
+  CHECK(stream->Read(&graph_runtime_factory_module_list));
   CHECK(stream->Read(&kind));
   CHECK(stream->Read(&graph_json));
   CHECK(stream->Read(&package_params));
@@ -172,7 +177,7 @@ Module GraphRuntimeFactoryModuleLoadBinary(void* strm) {
   }
   auto exec = make_object<GraphRuntimeFactory>();
   exec->Init(kind, graph_json, params);
-  exec->SetModuleNames(module_names);
+  exec->SetGraphRuntimeFactoryModuleList(graph_runtime_factory_module_list);
   return Module(exec);
 }
 
@@ -205,8 +210,8 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_factory.create")
       std::string name = args[i].operator String();
       params[name] = args[i + 1].operator tvm::runtime::NDArray();
     }
-    exec->Init(args[0], args[1], params);
-    exec->ImportModule(args[2], args[3]);
+    exec->Init(args[0], args[1], params, args[3]);
+    exec->Import(args[2]);
     *rv = Module(exec);
   });
 

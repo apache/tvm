@@ -101,17 +101,15 @@ class GraphRuntimeFactoryModule(Module):
             fcreate = get_global_func("tvm.graph_runtime_factory.runtime_create")
         return fcreate(self.selected_module, *device_type_id)
 
-    def import_module(self, mod, mod_name):
+    def import_module(self, mod):
         """Create the runtime using ctx
 
         Parameters
         ----------
         mod : GraphRuntimeFactoryModule
             The graph runtime factory module we want to import
-        mod_name: str
-            The module name
         """
-        return self._import_module(mod, mod_name)
+        return self._import_module(mod)
 
     def __getitem__(self, key='default'):
         """Get specific module

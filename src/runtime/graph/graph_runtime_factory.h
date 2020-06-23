@@ -50,9 +50,11 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
 
   void Init(const std::string& kind,
             const std::string& graph_json,
-            const std::unordered_map<std::string, tvm::runtime::NDArray>& params);
+            const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
+            const std::string& module_name = "default");
 
-  void ImportModule(Module other, std::string module_name);
+  void ImportModule(Module other);
+
 
   /*!
    * \brief Get member function to front-end
@@ -93,7 +95,7 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
    */
   Module SelectModule(const std::string& name);
 
-  inline std::string GetJson() const {
+  const std::string& GetJson() const {
     return graph_json_;
   }
 
@@ -106,16 +108,21 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
     return this->imports_[0];
   }
 
-  inline std::string GetKind() const {
+  const std::string& GetKind() const {
     return kind_;
   }
 
-  inline std::vector<std::string> GetModuleNames() const {
-    return module_names_;
+  const std::string& GetModuleName() const {
+    return module_name_;
   }
 
-  inline void SetModuleNames(const std::vector<std::string>& module_names) {
-    module_names_ = module_names;
+  const std::vector<std::string>& GetGraphRuntimeFactoryModuleList() const {
+    return graph_runtime_factory_module_list_;
+  }
+
+  void SetGraphRuntimeFactoryModuleList(
+      const std::vector<std::string>& graph_runtime_factory_module_list) {
+    graph_runtime_factory_module_list_ = graph_runtime_factory_module_list;
   }
 
  protected:
@@ -125,11 +132,12 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
   std::unordered_map<std::string, tvm::runtime::NDArray> params_;
   /*! \brief runtime kind */
   std::string kind_;
-  /*! \brief module names list */
-  std::vector<std::string> module_names_;
+  /*! \brief module name */
+  std::string module_name_;
   /*! \brief whether to package params */
   bool package_params_ = true;
-
+  /*! \brief graph runtime factory module lists */
+  std::vector<std::string> graph_runtime_factory_module_list_;
 };
 
 } // namespace runtime

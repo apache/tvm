@@ -100,8 +100,7 @@ class TVM_DLL GraphRuntime : public GraphRuntimeFactory {
    */
 
   void Init(const std::string& graph_json, tvm::runtime::Module module,
-            const std::vector<TVMContext>& ctxs,
-            const std::unordered_map<std::string, tvm::runtime::NDArray>& params = {});
+            const std::vector<TVMContext>& ctxs);
 
   /*!
    * \brief Get the input index given the name of input.
@@ -176,33 +175,20 @@ class TVM_DLL GraphRuntime : public GraphRuntimeFactory {
   std::string GetNodeName(uint32_t nid) const { return nodes_[nid].name; }
 
   /*!
-   * \brief Set graph json value.
-   * \param graph_json The graph json value we want to set.
-   */
-  void SetGraphJson(const std::string& graph_json) { graph_json_ = graph_json; }
-
-  /*!
-   * \brief Get the graph json.
-   * \return The graph json.
-   */
-  std::string GetGraphJson() const { return graph_json_; }
-
-  /*!
    * \brief Set the graph params.
    * \param params The graph params value we want to set.
    */
   void SetParams(const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
-    params_ = params;
-
+    std::unordered_map<std::string, tvm::runtime::NDArray> value = params;
     // upload big arrays first to avoid memory issue in rpc mode
     std::vector<std::string> keys;
-    for (const auto& p : params_) {
+    for (const auto& p : value) {
       keys.emplace_back(p.first);
     }
     std::sort(std::begin(keys), std::end(keys),
-              [this](const std::string& lhs, const std::string& rhs) -> bool {
-                auto lhs_shape = params_[lhs].Shape();
-                auto rhs_shape = params_[rhs].Shape();
+              [&](const std::string& lhs, const std::string& rhs) -> bool {
+                auto lhs_shape = value[lhs].Shape();
+                auto rhs_shape = value[rhs].Shape();
                 auto lhs_prod = std::accumulate(std::begin(lhs_shape), std::end(lhs_shape), 1,
                                                 std::multiplies<int64_t>());
                 auto rhs_prod = std::accumulate(std::begin(rhs_shape), std::end(rhs_shape), 1,
@@ -213,16 +199,10 @@ class TVM_DLL GraphRuntime : public GraphRuntimeFactory {
     for (const auto& key : keys) {
       int in_idx = this->GetInputIndex(key);
       if (in_idx >= 0) {
-        this->SetInput(in_idx, const_cast<DLTensor*>(params_[key].operator->()));
+        this->SetInput(in_idx, const_cast<DLTensor*>(value[key].operator->()));
       }
     }
   }
-
-  /*!
-   * \brief Get the graph params.
-   * \return The graph params.
-   */
-  std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() const { return params_; }
 
  protected:
   // Memory pool entry.
@@ -442,10 +422,6 @@ class TVM_DLL GraphRuntime : public GraphRuntimeFactory {
   std::vector<NodeEntry> outputs_;
   /*! \brief Additional graph attributes. */
   GraphAttr attrs_;
-  /*! \brief The execution graph. */
-  std::string graph_json_;
-  /*! \brief The params. */
-  std::unordered_map<std::string, tvm::runtime::NDArray> params_;
   /*! \brief The code module that contains both host and device code. */
   tvm::runtime::Module module_;
   /*! \brief Execution context of all devices including the host. */
