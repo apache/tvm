@@ -30,7 +30,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
 import tvm._ffi
 
 from tvm.runtime import Object, ObjectGeneric, DataType, DataTypeCode, const
-from tvm.ir import PrimExpr
+from tvm.ir import PrimExpr, Op
 import tvm.ir._ffi_api
 from . import generic as _generic
 from . import _ffi_api
@@ -144,7 +144,7 @@ class ExprOp(object):
     def __invert__(self):
         if _dtype_is_float(self):
             raise RuntimeError("Cannot use ~ operator on float type Expr.")
-        return _ffi_api.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic)
+        return _ffi_api.bitwise_not(self)
 
     def __lt__(self, other):
         return _ffi_api._OpLT(self, other)
@@ -968,8 +968,9 @@ class Call(PrimExprWithOp):
     dtype : str
         The return data type
 
-    name : str
-        The name of the function
+    op : Union[RelayExpr, str]
+        The function to be called, or the name
+        to the global tvm.Op
 
     args : list of Expr
         The input arguments to the call
@@ -982,9 +983,16 @@ class Call(PrimExprWithOp):
     PureExtern = 2
     Intrinsic = 4
     PureIntrinsic = 5
-    def __init__(self, dtype, name, args, call_type):
+    def __init__(self, dtype, op, args, call_type):
+        if isinstance(op, str):
+            if not op.startswith("tir."):
+                raise ValueError(
+                    ("Cannot handle str op argument %s. This function only handles str " +
+                     "argument with the tir namespace. If you are " +
+                     "certain about the intrinsic name, pass in Op.get(name) instead") % op)
+            op = Op.get(op)
         self.__init_handle_by_constructor__(
-            _ffi_api.Call, dtype, name, args, call_type)
+            _ffi_api.Call, dtype, op, args, call_type)
 
 
 @tvm._ffi.register_object("tir.Let")

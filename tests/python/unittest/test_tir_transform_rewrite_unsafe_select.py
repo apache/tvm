@@ -39,8 +39,10 @@ def test_rewrite_Select():
     mod = tvm.IRModule.from_expr(
         tvm.tir.PrimFunc([i], tvm.tir.Evaluate(a)))
     aa = tvm.tir.transform.RewriteUnsafeSelect()(mod)["main"].body.value
-    assert yy.name == "tvm_if_then_else"
-    assert zz.name == "tvm_if_then_else"
+    builtin_if_then_else = tvm.ir.Op.get("tir.if_then_else")
+
+    assert yy.op.same_as(builtin_if_then_else)
+    assert yy.op.same_as(builtin_if_then_else)
     assert isinstance(aa, tvm.tir.Select)
 
 

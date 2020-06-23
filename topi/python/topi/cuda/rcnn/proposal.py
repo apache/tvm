@@ -185,7 +185,7 @@ def argsort_ir(data_buf, out_index_buf):
                 temp_index[0] = index_out[offset]
                 index_out[offset] = index_out[offset + 1]
                 index_out[offset + 1] = temp_index[0]
-            ib.emit(tvm.tir.Call(None, 'tvm_storage_sync',
+            ib.emit(tvm.tir.Call(None, 'tir.tvm_storage_sync',
                                  tvm.runtime.convert(['shared']),
                                  tvm.tir.Call.Intrinsic))
     return ib.get()
@@ -246,7 +246,7 @@ def nms_ir(sorted_bbox_buf, out_buf, nms_threshold):
                 iou = calculate_overlap(p_data, (base_idx + l) * 5, (base_idx + i) * 5)
                 with ib.if_scope(iou > nms_threshold):
                     p_out[base_idx + i] = True
-        ib.emit(tvm.tir.Call(None, 'tvm_storage_sync',
+        ib.emit(tvm.tir.Call(None, 'tir.tvm_storage_sync',
                              tvm.runtime.convert(['shared']),
                              tvm.tir.Call.Intrinsic))
     return ib.get()

@@ -98,7 +98,8 @@ def compile_cuda(code,
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:
-        msg = "Compilation error:\n"
+        msg = code
+        msg += "\nCompilation error:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
 

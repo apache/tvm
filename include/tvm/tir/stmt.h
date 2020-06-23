@@ -1004,9 +1004,7 @@ inline bool IsPragmaKey(const std::string& attr_key) {
  * \param dtype The data type
  * \return Expr a expression with dtype.
  */
-inline PrimExpr TypeAnnotation(DataType dtype) {
-  return tir::Call(dtype, "type_annotation", {}, tir::CallNode::PureIntrinsic);
-}
+TVM_DLL PrimExpr TypeAnnotation(DataType dtype);
 
 // overload printing of for type.
 TVM_DLL std::ostream& operator<<(std::ostream& os, ForType for_type);

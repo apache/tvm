@@ -86,11 +86,11 @@ def dot_int8_int8_int32(int32_lanes, dtype='uint'):
             dtype_c = '%s32x%d' % (dtype, int32_lanes)
 
             a_int8 = ins[0].vload([0], dtype_a)
-            re_int32 = tvm.tir.call_pure_intrin('%s32' % dtype, 'reinterpret', a_int8)
+            re_int32 = tvm.tir.call_pure_intrin('%s32' % dtype, 'tir.reinterpret', a_int8)
             # broadcast a
             vec_ai32 = re_int32.astype(dtype_c)
 
-            vec_a = tvm.tir.call_pure_intrin(dtype_b, 'reinterpret', vec_ai32)
+            vec_a = tvm.tir.call_pure_intrin(dtype_b, 'tir.reinterpret', vec_ai32)
             vec_b = ins[1].vload([0, 0], dtype_b)
             vec_c = outs[0].vload([0], dtype_c)
 

@@ -29,12 +29,12 @@ def test_llvm_intrin():
     n = tvm.runtime.convert(4)
     A = ib.pointer("float32", name="A")
     args = [
-        tvm.tir.call_pure_intrin("handle", "tvm_address_of", A[0]),
+        tvm.tir.call_pure_intrin("handle", "tir.address_of", A[0]),
         0, 3, 1
     ]
     ib.emit(tvm.tir.Evaluate(
         tvm.tir.Call(
-            "int32", "prefetch", args, tvm.tir.Call.Intrinsic)))
+            "int32", "tir.prefetch", args, tvm.tir.Call.Intrinsic)))
     body = ib.get()
 
     mod = tvm.IRModule.from_expr(
@@ -738,20 +738,20 @@ def test_llvm_shuffle():
         tvm.testing.assert_allclose(c_.asnumpy(), (a_.asnumpy() * 2).astype('int32'))
 
 def np_float2np_bf16(arr):
-    ''' Convert a numpy array of float to a numpy array 
+    ''' Convert a numpy array of float to a numpy array
     of bf16 in uint16'''
     orig = arr.view('<u4')
     bias = np.bitwise_and(np.right_shift(orig, 16), 1) + 0x7FFF
     return np.right_shift(orig + bias, 16).astype('uint16')
 
 def np_float2tvm_bf16(arr):
-    ''' Convert a numpy array of float to a TVM array 
+    ''' Convert a numpy array of float to a TVM array
     of bf16'''
     nparr = np_float2np_bf16(arr)
     return tvm.nd.empty(nparr.shape, 'uint16').copyfrom(nparr)
 
 def np_bf162np_float(arr):
-    ''' Convert a numpy array of bf16 (uint16) to a numpy array 
+    ''' Convert a numpy array of bf16 (uint16) to a numpy array
     of float'''
     u32 = np.left_shift(arr.astype('uint32'), 16)
     return u32.view('<f4')
@@ -783,7 +783,7 @@ def test_llvm_bf16():
         tvm.testing.assert_allclose(np_bf162np_float(c_.asnumpy()), res)
     dotest(True)
     dotest(False)
-    
+
 if __name__ == "__main__":
     test_multiple_func()
     test_llvm_large_uintimm()
