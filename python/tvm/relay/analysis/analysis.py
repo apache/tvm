@@ -23,6 +23,9 @@ configuring the passes and scripting them in Python.
 from tvm.ir import IRModule
 from tvm.relay import transform, build_module
 from tvm.runtime.ndarray import cpu
+# TODO(weberlo) remove when we port dtype collectors to C++
+from tvm.relay.expr_functor import ExprVisitor
+from tvm.relay.type_functor import TypeVisitor
 
 from . import _ffi_api
 from .feature import Feature
@@ -234,6 +237,50 @@ def all_type_vars(expr, mod=None):
     """
     use_mod = mod if mod is not None else IRModule()
     return _ffi_api.all_type_vars(expr, use_mod)
+
+
+class TyDtypeCollector(TypeVisitor):
+    """Pass that collects data types used in the visited type."""
+
+    def __init__(self):
+        TypeVisitor.__init__(self)
+        self.dtypes = set()
+
+    def visit_tensor_type(self, tt):
+        self.dtypes.add(tt.dtype)
+
+
+class ExprDtypeCollector(ExprVisitor):
+    """Pass that collects data types used in all types in the visited expression."""
+
+    def __init__(self):
+        ExprVisitor.__init__(self)
+        self.ty_visitor = TyDtypeCollector()
+
+    def visit(self, expr):
+        if hasattr(expr, 'checked_type'):
+            self.ty_visitor.visit(expr.checked_type)
+        elif hasattr(expr, 'type_annotation'):
+            self.ty_visitor.visit(expr.type_annotation)
+        ExprVisitor.visit(self, expr)
+
+
+def all_dtypes(expr):
+    """Collect set of all data types used in `expr`.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression
+
+    Returns
+    -------
+    ret : Set[String]
+        Set of data types used in the expression
+    """
+    dtype_collector = ExprDtypeCollector()
+    dtype_collector.visit(expr)
+    return dtype_collector.ty_visitor.dtypes
 
 
 def collect_device_info(expr):
