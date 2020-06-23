@@ -56,8 +56,10 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
   PrimExpr real_condition = condition;
+  static auto op_likely = Op::Get("tir.likely");
+
   if (auto call = condition.as<CallNode>()) {
-    if (call->is_intrinsic(CallNode::likely)) {
+    if (call->op.same_as(op_likely)) {
       real_condition = call->args[0];
     }
   }
@@ -122,7 +124,8 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {
 
 PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
-  if (op->is_intrinsic(tir::intrinsic::tvm_if_then_else)) {
+  static auto op_if_then_else = Op::Get("tir.if_then_else");
+  if (op->op.same_as(op_if_then_else)) {
     PrimExpr cond = this->VisitExpr(op->args[0]);
     PrimExpr true_value, false_value;
     {
@@ -143,7 +146,7 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
         false_value.same_as(op->args[2])) {
       return GetRef<PrimExpr>(op);
     } else {
-      return Call(op->dtype, op->name, {cond, true_value, false_value}, op->call_type);
+      return Call(op->dtype, op->op, {cond, true_value, false_value}, op->call_type);
     }
   }
   return StmtExprMutator::VisitExpr_(op);

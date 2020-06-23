@@ -26,6 +26,7 @@
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -82,10 +83,10 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   // load i-th argument as type t
   auto f_arg_value = [&](DataType t, int i) {
     Array<PrimExpr> call_args{v_packed_args, IntImm(DataType::Int(32), i),
-                              IntImm(DataType::Int(32), intrinsic::kTVMValueContent)};
+                              IntImm(DataType::Int(32), builtin::kTVMValueContent)};
     // load 64 bit version
     DataType api_type = APIType(t);
-    PrimExpr res = Call(api_type, intrinsic::tvm_struct_get, call_args, CallNode::PureIntrinsic);
+    PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args, CallNode::PureIntrinsic);
     // cast to the target version.
     if (api_type != t) {
       res = Cast(t, res);
@@ -189,7 +190,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
 
     if (runtime::DeviceAPI::NeedSetDeviceContext(target_device_type)) {
       Stmt set_device =
-          Evaluate(Call(DataType::Int(32), intrinsic::tvm_call_packed,
+          Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(),
                         {StringImm(runtime::symbol::tvm_set_device), device_type, device_id},
                         CallNode::Intrinsic));
       body = SeqStmt({set_device, body});

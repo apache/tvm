@@ -26,6 +26,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -238,7 +239,7 @@ class HostDeviceSplitter : public StmtMutator {
       call_args.push_back(ext);
     }
     return Evaluate(
-        Call(DataType::Int(32), intrinsic::tvm_call_packed, call_args, CallNode::Intrinsic));
+        Call(DataType::Int(32), builtin::tvm_call_packed(), call_args, CallNode::Intrinsic));
   }
 
   // target ir module

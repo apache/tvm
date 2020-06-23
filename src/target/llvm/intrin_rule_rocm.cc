@@ -23,6 +23,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
@@ -36,9 +37,21 @@ inline void DispatchExternOCML(const TVMArgs& args, TVMRetValue* rv) {
   using namespace tir;
   const CallNode* call = e.as<CallNode>();
   CHECK(call != nullptr);
+
+  const OpNode* op = call->op.as<OpNode>();
+  CHECK(op != nullptr);
+  std::string name = op->name;
+  CHECK_EQ(name.substr(0, 4), "tir.");
+
   std::ostringstream intrinsic_name;
-  intrinsic_name << "__ocml_" << call->name << "_f" << call->dtype.bits();
-  *rv = Call(call->dtype, intrinsic_name.str(), call->args, CallNode::PureExtern);
+  intrinsic_name << "__ocml_" << name.substr(4) << "_f" << call->dtype.bits();
+
+  Array<PrimExpr> new_args = {StringImm(intrinsic_name.str())};
+  for (auto arg : call->args) {
+    new_args.push_back(arg);
+  }
+
+  *rv = Call(call->dtype, builtin::call_extern(), new_args, CallNode::PureExtern);
 }
 
 inline void DispatchShuffle(const TVMArgs& targs, TVMRetValue* rv) {
@@ -53,29 +66,30 @@ inline void DispatchShuffle(const TVMArgs& targs, TVMRetValue* rv) {
   // get own lane in self (__lane_id)
   PrimExpr minus_one = tir::make_const(DataType::Int(32), -1);
   PrimExpr zero = tir::make_zero(DataType::Int(32));
-  PrimExpr lo =
-      Call(DataType::Int(32), "llvm.amdgcn.mbcnt.lo", {minus_one, zero}, CallNode::PureExtern);
-  PrimExpr self =
-      Call(DataType::Int(32), "llvm.amdgcn.mbcnt.hi", {minus_one, lo}, CallNode::PureExtern);
+  PrimExpr lo = Call(DataType::Int(32), builtin::call_extern(),
+                     {StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero}, CallNode::PureExtern);
+  PrimExpr self = Call(DataType::Int(32), builtin::call_extern(),
+                       {StringImm("llvm.amdgcn.mbcnt.hi"), minus_one, lo}, CallNode::PureExtern);
 
   // compute lane to get from
   PrimExpr width = call->args[3];
   PrimExpr index;
-  if (call->name == "tvm_warp_shuffle") {
+  if (call->op.same_as(builtin::tvm_warp_shuffle())) {
     PrimExpr src_lane = call->args[2];
     index = src_lane + (self & ~(width - 1));
-  } else if (call->name == "tvm_warp_shuffle_up") {
+  } else if (call->op.same_as(builtin::tvm_warp_shuffle_up())) {
     PrimExpr delta = call->args[2];
     index = self - delta;
     index = Select(index < (self & ~(width - 1)), self, index);
   } else {
-    CHECK_EQ(call->name, "tvm_warp_shuffle_down");
+    CHECK(call->op.same_as(builtin::tvm_warp_shuffle_down()));
     PrimExpr delta = call->args[2];
     index = self + delta;
     index = Select((self & (width - 1)) + delta >= width, self, index);
   }
   PrimExpr res =
-      Call(var.dtype(), "llvm.amdgcn.ds.bpermute", {index << 2, var}, CallNode::PureExtern);
+      Call(var.dtype(), builtin::call_extern(),
+           {StringImm("llvm.amdgcn.ds.bpermute"), index << 2, var}, CallNode::PureExtern);
   *rv = res;
 }
 

@@ -42,7 +42,7 @@ using OpRegistry = AttrRegistry<OpRegEntry, Op>;
 // find operator by name
 const Op& Op::Get(const String& name) {
   const OpRegEntry* reg = OpRegistry::Global()->Get(name);
-  CHECK(reg != nullptr) << "Operator " << name << " is not registered";
+  CHECK(reg != nullptr) << "AttributeError: Operator " << name << " is not registered";
   return reg->op();
 }
 

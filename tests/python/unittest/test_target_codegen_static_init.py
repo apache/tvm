@@ -49,7 +49,7 @@ def test_static_init():
     Ab = tvm.tir.decl_buffer((n, ), dtype)
     i = te.size_var('i')
     ib = tvm.tir.ir_builder.create()
-    handle = tvm.tir.call_intrin("handle", "tvm_static_handle")
+    handle = tvm.tir.call_intrin("handle", "tir.tvm_static_handle")
     ib.emit(
         tvm.tir.call_packed("test_static_callback", handle, Ab))
 

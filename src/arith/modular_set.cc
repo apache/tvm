@@ -23,6 +23,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/op.h>
 
@@ -203,7 +204,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   Entry VisitExpr_(const CallNode* op) final {
     // only special handle >> which can be
     // used for index calculation.
-    if (op->is_intrinsic(CallNode::shift_right)) {
+    if (op->op.same_as(tir::builtin::shift_right())) {
       return VisitRightShift(op);
     } else {
       return Everything();
