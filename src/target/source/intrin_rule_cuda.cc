@@ -21,6 +21,9 @@
  * \file intrin_rule_cuda.cc
  * \brief CUDA intrinsic rules.
  */
+#include <tvm/tir/builtin.h>
+#include <tvm/tir/op_attr_types.h>
+
 #include "../intrin_rule.h"
 
 namespace tvm {
@@ -93,22 +96,22 @@ struct CUDAPopcount {
 };
 
 struct CUDAWarpIntrinsic {
-  const char* operator()(DataType t, const std::string& name) const {
-    if (name == intrinsic::tvm_warp_shuffle) {
-      return "__shfl_sync";
+  const Op operator()(DataType t, const Op& orig_op) const {
+    if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
+      return Op::Get("tir.cuda.__shfl_sync");
+    } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
+      return Op::Get("tir.cuda.__shfl_up_sync");
+    } else {
+      CHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
+      return Op::Get("tir.cuda.__shfl_down_sync");
     }
-    if (name == intrinsic::tvm_warp_shuffle_up) {
-      return "__shfl_up_sync";
-    }
-    if (name == intrinsic::tvm_warp_shuffle_down) {
-      return "__shfl_down_sync";
-    }
-    if (name == intrinsic::tvm_warp_activemask) {
-      return "__activemask";
-    }
-    return "";
   }
 };
+
+static void DispatchCUDAWarpActiveMask(const TVMArgs& args, TVMRetValue* rv) {
+  Call call = args[0];
+  *rv = Call(call->dtype, Op::Get("tir.cuda.__activemask"), call->args, CallNode::PureExtern);
+}
 
 template <typename T>
 static void DispatchCUDAShuffle(const TVMArgs& args, TVMRetValue* rv) {
@@ -117,8 +120,9 @@ static void DispatchCUDAShuffle(const TVMArgs& args, TVMRetValue* rv) {
   CHECK(call != nullptr);
   CHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
   Array<PrimExpr> cuda_args{{call->args[0], call->args[1], call->args[2], call->args[3]}};
-  const char* name = T()(call->dtype, call->name);
-  *rv = Call(call->dtype, name, cuda_args, CallNode::PureExtern);
+
+  *rv =
+      Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), cuda_args, CallNode::PureExtern);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.floor").set_body(DispatchExtern<CUDAMath>);
@@ -175,9 +179,31 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle_down")
     .set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_activemask")
-    .set_body(DispatchExtern<CUDAWarpIntrinsic>);
+    .set_body(DispatchCUDAWarpActiveMask);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fmod").set_body(DispatchExtern<CUDAMath>);
+
+// Register low-level builtin ops.
+// TODO(tvm-team): consider make CUDA its own subfolder and create a file for low-level builtins.
+TVM_REGISTER_OP("tir.cuda.__shfl_sync")
+    .set_num_inputs(4)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_sync")
+    .set_attr<bool>("cuda.need_warp_shuffle", true);
+
+TVM_REGISTER_OP("tir.cuda.__shfl_up_sync")
+    .set_num_inputs(4)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_up_sync")
+    .set_attr<bool>("cuda.need_warp_shuffle", true);
+
+TVM_REGISTER_OP("tir.cuda.__shfl_down_sync")
+    .set_num_inputs(4)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_down_sync")
+    .set_attr<bool>("cuda.need_warp_shuffle", true);
+
+TVM_REGISTER_OP("tir.cuda.__activemask")
+    .set_num_inputs(0)
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "__activemask")
+    .set_attr<bool>("cuda.need_warp_shuffle", true);
 
 }  // namespace intrin
 }  // namespace codegen

@@ -175,7 +175,7 @@ void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, int num_ar
 }
 
 void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
-  if (op->is_intrinsic(intrinsic::tvm_stack_alloca)) {
+  if (op->op.same_as(builtin::tvm_stack_alloca())) {
     std::string stack_name = GetUniqueName("stack");
     const std::string& type = op->args[0].as<StringImmNode>()->value;
     const IntImmNode* num = op->args[1].as<IntImmNode>();
@@ -197,7 +197,7 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     this->PrintIndent();
     this->stream << "TVMValue " << stack_name << "[" << size << "];\n";
     os << stack_name;
-  } else if (op->is_intrinsic(intrinsic::tvm_call_packed_lowered)) {
+  } else if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
     const StringImmNode* s = op->args[0].as<StringImmNode>();
     CHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
     int64_t begin = op->args[3].as<IntImmNode>()->value;
@@ -216,7 +216,7 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     }
     this->PrintGetFuncFromBackend(func_name, packed_func_name);
     this->PrintFuncCall(packed_func_name, num_args);
-  } else if (op->is_intrinsic(intrinsic::tvm_throw_last_error)) {
+  } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
     this->PrintIndent();
     this->stream << "return -1;\n";
   } else {

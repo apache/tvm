@@ -25,6 +25,7 @@
 #include "rewrite_simplify.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 
 #include <algorithm>
@@ -1508,21 +1509,22 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<CallNode>();
   if (op == nullptr) return ret;
-  if (op->is_intrinsic(CallNode::likely) && is_const(op->args[0])) {
+
+  if (op->op.same_as(tir::builtin::likely()) && is_const(op->args[0])) {
     return op->args[0];
-  } else if (op->is_intrinsic(CallNode::shift_right)) {
+  } else if (op->op.same_as(tir::builtin::shift_right())) {
     if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
       // the operator overload will eagerly constant fold.
       return op->args[0] >> op->args[1];
     }
-  } else if (op->is_intrinsic(CallNode::bitwise_and)) {
+  } else if (op->op.same_as(tir::builtin::shift_left())) {
     if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
       // the operator overload will eagerly constant fold.
       return op->args[0] & op->args[1];
     }
   }
   ExprDeepEqual expr_equal;
-  if (op->is_intrinsic(CallNode::likely)) {
+  if (op->op.same_as(tir::builtin::likely())) {
     for (const auto& constraint : literal_constraints_) {
       // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
       if (expr_equal(constraint, op->args[0])) {

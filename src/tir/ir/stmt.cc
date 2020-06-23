@@ -582,5 +582,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->PrintIndent();
       p->stream << "}\n";
     });
+
+PrimExpr TypeAnnotation(DataType dtype) {
+  static auto op = Op::Get("tir.type_annotation");
+  return tir::Call(dtype, op, {}, tir::CallNode::PureIntrinsic);
+}
+
+TVM_REGISTER_OP("tir.type_annotation");
+
 }  // namespace tir
 }  // namespace tvm

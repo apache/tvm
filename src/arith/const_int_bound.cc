@@ -22,6 +22,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr_functor.h>
 
 #include <algorithm>
@@ -284,9 +285,10 @@ class ConstIntBoundAnalyzer::Impl
   Entry VisitExpr_(const CallNode* op) final {
     // only special handle >> and & which can be
     // used for index calculation.
-    if (op->is_intrinsic(CallNode::shift_right)) {
+
+    if (op->op.same_as(tir::builtin::shift_right())) {
       return VisitRightShift(op);
-    } else if (op->is_intrinsic(CallNode::bitwise_and)) {
+    } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
     } else {
       return Everything(op->dtype);

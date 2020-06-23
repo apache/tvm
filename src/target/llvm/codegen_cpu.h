@@ -47,7 +47,8 @@ class CodeGenCPU : public CodeGenLLVM {
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
-  llvm::Value* CreateCallExtern(const CallNode* op) override;
+  llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                                bool skip_first_arg) override;
 
  protected:
   void AddStartupFunction() final;
@@ -122,7 +123,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::GlobalVariable* gv_tvm_api_set_last_error_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_launch_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_barrier_{nullptr};
-  std::unordered_map<std::string, llvm::GlobalVariable*> gv_func_map_;
+  std::unordered_map<String, llvm::GlobalVariable*> gv_func_map_;
   // context for direct dynamic lookup
   llvm::Function* f_tvm_func_call_{nullptr};
   llvm::Function* f_tvm_get_func_from_env_{nullptr};

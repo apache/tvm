@@ -202,7 +202,8 @@ def test_reduce_combiner_simplify():
             assert tvm.ir.structural_equal(lhs, rhs)
 
     # Test that components with side effects are not removed
-    side_effect = lambda *xs: tvm.tir.Call("int32", "dummy", xs, tvm.tir.Call.Intrinsic)
+    dummy = tvm.ir.GlobalVar("dummy")
+    side_effect = lambda *xs: tvm.tir.Call("int32", dummy, xs, tvm.tir.Call.Intrinsic)
     ck.verify(sum_and_prod((A[k], side_effect(A[10-k])), k)[0],
              sum_and_prod((A[k], side_effect(A[10-k])), k)[0])
     ck.verify(sum_and_prod((side_effect(A[k]), A[10-k]), k)[0],
