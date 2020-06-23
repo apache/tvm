@@ -354,16 +354,23 @@ struct Tokenizer {
             // If there isn't a number right after either,
             // this is really slow for lexing, should replace
             // with multi-token return or something.
-            if (negs && !IsDigit(next)) {
+            if (negs && !IsDigit(Peek())) {
                 pos = pos - (negs - 1);
                 return NewToken(TokenType::Minus);
             }
+
             bool is_neg = negs % 2 == 1;
             std::stringstream ss;
             while (More() && IsNumeric(Peek())) {
                 ss << Next();
             }
             std::cout << "Number: " << ss.str() << std::endl;
+
+            // Remove trailing floating point prefix.
+            if (More() && Peek() == 'f') {
+                Next();
+            }
+
             return ParseNumber(!is_neg, ss.str());
         } else if (next == '.') {
             auto token = NewToken(TokenType::Period);

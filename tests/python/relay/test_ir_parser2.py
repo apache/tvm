@@ -197,6 +197,7 @@ def test_parens():
 
 def test_op_assoc():
     assert graph_equal(parse_text("1 * 1 + 1 < 1 == 1"), parse_text("(((1 * 1) + 1) < 1) == 1"))
+    import pdb; pdb.set_trace()
     assert graph_equal(parse_text("1 == 1 < 1 + 1 * 1"), parse_text("1 == (1 < (1 + (1 * 1)))"))
 
 
@@ -873,15 +874,15 @@ def test_import_grad():
     mod.import_from_std("gradient.rly")
 
 if __name__ == "__main__":
-    # test_graph()
-    # test_comments()
-    # test_int_literal()
-    # test_float_literal()
-    # test_bool_literal()
-    # test_negative()
+    test_graph()
+    test_comments()
+    test_int_literal()
+    test_float_literal()
+    test_bool_literal()
+    test_negative()
     test_bin_op()
-    # test_parens()
-    # test_op_assoc()
+    test_parens()
+    test_op_assoc()
     # test_let()
     # test_seq()
     # test_tuple()
