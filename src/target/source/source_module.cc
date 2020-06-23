@@ -58,15 +58,18 @@ runtime::Module CreateMetadataModule(
   // Wrap all submodules in the initialization wrapper.
   std::unordered_map<std::string, std::vector<std::string>> sym_metadata;
   for (runtime::Module it : modules) {
-    CHECK_EQ(it->type_key(), "c") << "Only csource submodule is handled for now";
-    String symbol = it.GetFunction("get_symbol")();
-    Array<String> variables = it.GetFunction("get_const_vars")();
-    std::vector<std::string> arrays;
-    for (size_t i = 0; i < variables.size(); i++) {
-      arrays.push_back(variables[i].operator std::string());
+    auto pf_sym = it.GetFunction("get_symbol");
+    auto pf_var = it.GetFunction("get_const_vars");
+    if (pf_sym != nullptr && pf_var != nullptr) {
+      String symbol = pf_sym();
+      Array<String> variables = pf_var();
+      std::vector<std::string> arrays;
+      for (size_t i = 0; i < variables.size(); i++) {
+        arrays.push_back(variables[i].operator std::string());
+      }
+      CHECK_EQ(sym_metadata.count(symbol), 0U) << "Found duplicated symbol: " << symbol;
+      sym_metadata[symbol] = arrays;
     }
-    CHECK_EQ(sym_metadata.count(symbol), 0U) << "Found duplicated symbol: " << symbol;
-    sym_metadata[symbol] = arrays;
   }
 
   // Wrap the modules.
