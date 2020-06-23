@@ -35,30 +35,7 @@ namespace tvm {
 namespace parser {
 
 using namespace relay;
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * NOTE: The `USE_ANTLR` option in `config.cmake` must be enabled in order for
- * changes in this file to be reflected by the parser.
- * NOTE: All upper-case rules are *lexer* rules and all camel-case rules are *parser* rules.
- */
+using Expr = relay::Expr;
 
 // fragment ESCAPED_QUOTE : '\\"';
 // QUOTED_STRING :   '"' ( ESCAPED_QUOTE | ~('\n'|'\r') )*? '"';
@@ -276,9 +253,20 @@ struct Rule {
   int precedence;
   int arity;
   tvm::Op op;
+  bool left_assoc;
 
-  Rule(std::vector<TokenType> tokens, tvm::Op op, int precedence, int arity = 2)
-      : tokens(tokens), precedence(precedence), arity(arity), op(op) {}
+  Rule() : tokens(), precedence(0), arity(0), op(tvm::Op()), left_assoc(false) {}
+
+  Rule(std::vector<TokenType> tokens, tvm::Op op, int precedence, int arity = 2, bool left_assoc = false)
+      : tokens(tokens), precedence(precedence), arity(arity), op(op), left_assoc(false) {}
+
+  Rule(const Rule& rule) {
+    this->tokens = rule.tokens;
+    this->op = rule.op;
+    this->precedence = rule.precedence;
+    this->arity = rule.arity;
+    this->left_assoc = rule.left_assoc;
+  }
 };
 
 struct OperatorTable {
@@ -295,7 +283,9 @@ struct Parser {
   std::unordered_map<int, Expr> graph_ctx;
 
   Parser(std::vector<Token> tokens, OperatorTable op_table)
-      : pos(0), tokens(tokens), op_table(op_table) {}
+      : pos(0), tokens(tokens), op_table(op_table) {
+        DisplayNextN(100);
+  }
 
   void DisplayNextN(int n) {
     std::cout << "remaining tokens: " << std::endl;
@@ -308,14 +298,22 @@ struct Parser {
   Token Peek() {
     // For now we ignore all whitespace tokens and comments.
     // We can tweak this behavior later to enable white space sensitivity in the parser.
-    while (ignore_whitespace && (tokens.at(pos)->token_type == TokenType::Whitespace ||
+    DisplayNextN(100);
+    while (pos < tokens.size() &&
+           ignore_whitespace && (tokens.at(pos)->token_type == TokenType::Whitespace ||
                                  tokens.at(pos)->token_type == TokenType::Newline ||
                                  tokens.at(pos)->token_type == TokenType::LineComment ||
                                  tokens.at(pos)->token_type == TokenType::Comment)) {
+      std::cout << "pos: " << pos << std::endl;
+      std::cout << "tokens: " << tokens.size() << std::endl;
       pos++;
     }
 
-    return this->tokens.at(pos);
+    if (pos < tokens.size()) {
+      return Token(this->tokens.at(pos));
+    } else {
+      return Token::Null();
+    }
   }
 
   void Consume(const TokenType& token) {
@@ -335,6 +333,7 @@ struct Parser {
   }
 
   bool WhenMatch(const TokenType& token_type) {
+    std::cout << "token_type: " << token_type << std::endl;
     if (Peek()->token_type == token_type) {
       Consume(token_type);
       return true;
@@ -483,38 +482,117 @@ struct Parser {
         // a call depth of 3, the first call to ParseExpr, then
         // ParseBindingExpr, then finally ParseExpr once more.
         auto body = this->ParseExpr();
-        if (bindings.size()) {
+
+        // We can now build the let binding up backwards.
+        if (bindings.size() == 0) {
           return body;
         } else {
-          LOG(FATAL) << "let bindings case";
+          for (auto binding = bindings.rbegin(); binding != bindings.rend(); binding++) {
+            body = relay::Let(binding->first, binding->second, body);
+          }
+          return body;
         }
       }
     }
   }
 
-  Rule ParseOp() {}
+  std::vector<Rule> ParseOp() {
+    std::vector<Rule> matched;
+    for (const auto& rule : this->op_table.rules) {
+      // std::cout << "Trying to match: " << Token(0, 0, rule.tokens.at(0)) << std::endl;
+      // std::cout << "pos: " << pos << std::endl;
+      // std::cout << "tokens: " << tokens.size() << std::endl;
+      auto did_match = true;
+      for (auto token : rule.tokens) {
+        did_match = did_match && WhenMatch(token);
+      }
+
+      if (did_match) {
+        matched.push_back(rule);
+        return matched;
+      }
+    }
+    return matched;
+  }
 
   Expr ParseExpr() {
     return ConsumeWhitespace<Expr>([this] {
-      std::vector<Rule> ops;
+      // We must parse at least one expression, the default
+      // case is that there is no operator and we will fall
+      // through.
       std::vector<Expr> exprs;
+      exprs.push_back(ParseExprNoOp());
 
-      Expr left = ParseExprNoOp();
-      exprs.push_back(left);
+      // Now we parse an optional op.
+      std::vector<Rule> ops;
+      ops.push_back(Rule({}, tvm::Op(), 1000));
 
+      // We will now parse 0 or more operator occurrences.
       while (true) {
-        auto op = ParseOp();
-        if (ops.size() == 0) {
+        auto opt_op = ParseOp();
+
+        // If we didn't parse one we done.
+        if (opt_op.size() == 0) {
+          break;
+        }
+
+        CHECK(ops.size() >= 1);
+
+        // Continue parsing if the opt is present.
+        auto op = opt_op[0];
+
+        Expr right = ParseExprNoOp();
+
+        for (auto expr : exprs) {
+          std::cout << "Expr Stack: " << expr;
+          std::cout << ", ";
+        }
+        std::cout << std::endl;
+
+        for (auto op : ops) {
+          std::cout << "Op Stack: " << op.op;
+          std::cout << ", ";
+        }
+        std::cout << std::endl;
+
+        std::cout << "Parsed rhs=" << right << std::endl;
+        std::cout << "ops.back()=" << ops.back().op << std::endl;
+
+        std::cout << "will reduce? " << bool(op.precedence <= ops.back().precedence) << std::endl;
+
+        while (exprs.size() >= 1 && op.precedence <= ops.back().precedence) {
+          auto left = exprs.back();
+          exprs.pop_back();
+          right = relay::Call(op.op, { left, right });
+        }
+
+        if (op.precedence > ops.back().precedence) {
           ops.push_back(op);
         }
 
-        while (op.precedence < ops.back().precedence ||
-               op.precedence == ops.back().precedence) {
-            auto right = exprs.back();
-            exprs.pop_back();
-            left = relay::Call(op.op, { left, right });
-        }
+        // In both cases the expression goes back on expression stack.
+        exprs.push_back(right);
+      }
 
+      std::cout << "Expr Stack: ";
+      for (auto expr : exprs) {
+        std::cout << expr << ", ";
+      }
+
+      std::cout << std::endl;
+      std::cout << "Op Stack: ";
+      for (auto op : ops) {
+        std::cout << op.op << ", ";
+      }
+      std::cout << std::endl;
+
+      // We are done reducing and the final expression is the
+      // full parse, return it.
+      if (exprs.size() == 1) {
+        CHECK_EQ(ops.size(), 1);
+        return exprs[0];
+      } else {
+        LOG(FATAL) << "YOLO";
       }
     });
   }
@@ -592,7 +670,15 @@ struct Parser {
 };
 
 OperatorTable DefaultOpTable() {
-  return OperatorTable({Rule({TokenType::Plus}, Op::Get("add"), 2, 2)});
+  return OperatorTable({
+      Rule({TokenType::Plus}, Op::Get("add"), 4, 2),
+      Rule({TokenType::Minus}, Op::Get("subtract"), 4, 2, true),
+      Rule({TokenType::Star}, Op::Get("multiply"), 2, 2),
+      Rule({TokenType::Division}, Op::Get("divide"), 2, 2, true),
+      Rule({TokenType::LAngle}, Op::Get("less"), 6, 2),
+      Rule({TokenType::RAngle}, Op::Get("greater"), 6, 2),
+      Rule({TokenType::Equal, TokenType::Equal}, Op::Get("equal"), 7, 2)
+    });
 }
 
 IRModule ParseModule(std::string file_name, std::string file_content) {
@@ -610,7 +696,9 @@ Expr ParseExpr(std::string file_name, std::string file_content) {
     std::cout << token << std::endl;
   }
   Parser parser(tokens, DefaultOpTable());
-  return parser.ParseExpr();
+  auto expr = parser.ParseExpr();
+  parser.Match(TokenType::EndOfFile);
+  return expr;
 }
 
 TVM_REGISTER_GLOBAL("parser.ParseModule")

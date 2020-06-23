@@ -23,6 +23,7 @@
  */
 #include <fstream>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/container.h>
 
 namespace tvm {
 namespace parser {
@@ -58,9 +59,13 @@ enum TokenType {
     Boolean,
     Plus,
     Star,
+    Minus,
+    RAngle,
+    LAngle,
     Let,
     Unknown,
     EndOfFile,
+    Null,
 };
 
 std::string ToString(const TokenType& token_type) {
@@ -113,12 +118,18 @@ std::string ToString(const TokenType& token_type) {
             return "Integer";
         case TokenType::Float:
             return "Float";
-        case TokenType::Division:
-            return "Division";
         case TokenType::Plus:
             return "Plus";
-         case TokenType::Star:
+        case TokenType::Star:
             return "Star";
+        case TokenType::Minus:
+            return "Minus";
+        case TokenType::Division:
+            return "Division";
+        case TokenType::RAngle:
+            return "RAngle";
+        case TokenType::LAngle:
+            return "LAngle";
         case TokenType::Let:
             return "Let";
         case TokenType::Boolean:
@@ -127,6 +138,8 @@ std::string ToString(const TokenType& token_type) {
             return "Unknown";
         case TokenType::EndOfFile:
             return "EndOfFile";
+        case TokenType::Null:
+            return "Null";
     }
 }
 
@@ -152,13 +165,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   });
 
 
-
 TVM_REGISTER_NODE_TYPE(TokenNode);
 
 class Token : public ObjectRef {
  public:
   TVM_DLL explicit Token(int line, int column, TokenType token_type, ObjectRef data = ObjectRef());
 
+  static Token Null();
   int64_t ToNumber() const;
   TVM_DEFINE_OBJECT_REF_METHODS(Token, ObjectRef, TokenNode);
 };
@@ -170,6 +183,10 @@ Token::Token(int line, int column, TokenType token_type, ObjectRef data) {
   n->token_type = token_type;
   n->data = data;
   data_ = std::move(n);
+}
+
+Token Token::Null() {
+    return Token(0, 0, TokenType::Null);
 }
 
 int64_t Token::ToNumber() const {
@@ -275,7 +292,9 @@ struct Tokenizer {
     }
 
     Token ParseNumber(bool is_pos, std::string number) {
-        std::cout << "number: " << number;
+        CHECK(number.size() > 0)
+            << "an empty string is an invalid number";
+
         try {
             auto token = NewToken(TokenType::Integer);
             size_t index = 0;
@@ -329,6 +348,13 @@ struct Tokenizer {
                 Next();
                 negs++;
             }
+            // If there isn't a number right after either,
+            // this is really slow for lexing, should replace
+            // with multi-token return or something.
+            if (negs && !IsDigit(next)) {
+                pos = pos - (negs - 1);
+                return NewToken(TokenType::Minus);
+            }
             bool is_neg = negs % 2 == 1;
             std::stringstream ss;
             while (More() && IsNumeric(Peek())) {
@@ -360,7 +386,27 @@ struct Tokenizer {
             auto token = NewToken(TokenType::CloseParen);
             Next();
             return token;
-         } else if (next == '%') {
+        } else if (next == '+') {
+            auto token = NewToken(TokenType::Plus);
+            Next();
+            return token;
+        } else if (next == '-') {
+            auto token = NewToken(TokenType::Minus);
+            Next();
+            return token;
+        } else if (next == '*') {
+            auto token = NewToken(TokenType::Star);
+            Next();
+            return token;
+         } else if (next == '<') {
+            auto token = NewToken(TokenType::LAngle);
+            Next();
+            return token;
+        } else if (next == '>') {
+            auto token = NewToken(TokenType::RAngle);
+            Next();
+            return token;
+        } else if (next == '%') {
             auto token = NewToken(TokenType::Percent);
             Next();
             return token;
@@ -399,7 +445,9 @@ struct Tokenizer {
 
     void Tokenize() {
         while (this->More()) {
-            this->tokens.push_back(TokenizeOnce());
+            auto token = TokenizeOnce();
+            CHECK(token.defined());
+            this->tokens.push_back(token);
         }
         this->tokens.push_back(NewToken(TokenType::EndOfFile));
     }
@@ -419,15 +467,19 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
                 if (next->token_type == TokenType::Identifier) {
                     // Match this token.
                     i += 1;
-                    out.push_back(Token(current->line, current->column, TokenType::Local, next->data));
-                    continue;
+                    auto tok = Token(current->line, current->column, TokenType::Local, next->data);
+                    CHECK(tok.defined());
+                    out.push_back(tok);
                 } else if (next->token_type == TokenType::Integer) {
                     i += 1;
-                    out.push_back(Token(current->line, current->column, TokenType::Graph, next->data));
-                    continue;
+                    auto tok = Token(current->line, current->column, TokenType::Graph, next->data);
+                    CHECK(tok.defined());
+                    out.push_back(tok);
                 } else {
+                    CHECK(current.defined());
                     out.push_back(current);
                 }
+                continue;
             }
             case TokenType::Unknown: {
                 std::string str = Downcast<tvm::String>(current->data);
@@ -438,12 +490,15 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
                 } else if (str == "False") {
                     auto data = tvm::Integer(0);
                     tok = Token(current->line, current->column, TokenType::Boolean, data);
+                } else {
+                    tok = current;
                 }
                 out.push_back(tok);
                 continue;
             }
             default: {
                 out.push_back(current);
+                continue;
             }
         }
     }
@@ -454,7 +509,11 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
 std::vector<Token> Tokenize(std::string source) {
     auto tokenizer = Tokenizer(source);
     tokenizer.Tokenize();
-    return Condense(tokenizer.tokens);
+    auto tokens = Condense(tokenizer.tokens);
+    for (auto token : tokens) {
+        CHECK(token.defined());
+    }
+    return tokens;
 }
 
 }  // namespace parser
