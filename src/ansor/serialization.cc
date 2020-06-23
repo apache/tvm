@@ -434,7 +434,7 @@ struct Handler<::tvm::ansor::MeasureResultNode> {
     reader->Read(&tmp);
     data->costs.clear();
     for (const auto& i : tmp) {
-      data->costs.push_back(i);
+      data->costs.push_back(::tvm::FloatImm(::tvm::DataType::Float(64), i));
     }
     s = reader->NextArrayItem(); CHECK(s);
     reader->Read(&data->error_no);

@@ -17,19 +17,19 @@
  * under the License.
  */
 
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/transform.h>
-#include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/expr_functor.h>
+#include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
 #include <tvm/te/operation.h>
-#include <tuple>
-#include <vector>
+
 #include <functional>
 #include <string>
-#include <utility>
+#include <tuple>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "pattern_util.h"
 
@@ -38,14 +38,11 @@ namespace relay {
 
 class DefuseOpsMutator : public ExprMutator {
  public:
-
   class FuncBodyMutator : public ExprMutator {
    public:
     Array<Expr> args_;
 
-    FuncBodyMutator(const Array<Expr>& args) : ExprMutator() {
-      args_ = args;
-    }
+    explicit FuncBodyMutator(const Array<Expr>& args) : ExprMutator() { args_ = args; }
 
     Expr VisitExpr_(const VarNode* n) {
       const std::string& name = n->name_hint();
@@ -74,23 +71,19 @@ class DefuseOpsMutator : public ExprMutator {
   }
 };
 
-Expr DeFuseOps(const Expr& expr) {
-  return DefuseOpsMutator().Mutate(expr);
-}
+Expr DeFuseOps(const Expr& expr) { return DefuseOpsMutator().Mutate(expr); }
 
 namespace transform {
 
 Pass DeFuseOps() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-      return Downcast<Function>(relay::DeFuseOps(f));
-  };
-  return CreateFunctionPass(pass_func, 3, "DeFuseOps",
-                            {"InferType"});
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(relay::DeFuseOps(f));
+      };
+  return CreateFunctionPass(pass_func, 3, "DeFuseOps", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.DeFuseOps")
-.set_body_typed(DeFuseOps);
+TVM_REGISTER_GLOBAL("relay._transform.DeFuseOps").set_body_typed(DeFuseOps);
 
 }  // namespace transform
 

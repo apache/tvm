@@ -25,21 +25,22 @@ import os
 import json
 import threading
 
-from tvm import target, te, transform
+import tvm
+from tvm import te, transform
 from tvm.te.tensor import PlaceholderOp, ComputeOp
 from .dispatcher import DispatchContext
 from .workload_registry import register_workload_bufs, compute_dag_hash
 from .compute_dag import ComputeDAG, LayoutRewriteLevel
 from .env import GLOBAL_SCOPE
 
-def call_all_topi_funcs(mod, target, params):
+def call_all_topi_funcs(mod, target, params, target_host=None):
     """Call all TOPI compute + schedule to extract tasks in a relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
 
     with transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
         bld_mod = relay.build_module.BuildModule()
-        bld_mod.call_all_topi_funcs(mod, target=target, params=params)
+        bld_mod.call_all_topi_funcs(mod, target=target, params=params, target_host=target_host)
 
 def extract_from_program(mod, params, target, target_host=None):
     """ Extract tuning tasks from a relay program.
@@ -95,7 +96,7 @@ def extract_from_multiple_program(mods, params, target, target_host=None):
             # wrap build call in a new thread to avoid the conflict
             # between python's multiprocessing and tvm's thread pool
             build_thread = threading.Thread(target=call_all_topi_funcs,
-                                            args=(mod, target, param))
+                                            args=(mod, target, param, target_host))
         build_thread.start()
         build_thread.join()
         relay.backend.compile_engine.get().clear()
@@ -112,7 +113,8 @@ def extract_from_multiple_program(mods, params, target, target_host=None):
 
 def prepare_layout_rewrite(mod, params, target):
     """
-    Prepare for kernel layout rewrite. This function will write layout infos to a global static variable.
+    Prepare for kernel layout rewrite. This function will write layout infos to a global static
+    variable.
     Then these layout info will be used by a relay pass `kernel_layout_transform`.
     """
     # pylint: disable=import-outside-toplevel
@@ -207,26 +209,26 @@ def auto_schedule_topi(outs):
 
     env = TracingEnvironment.current
     if env is None:  # in the final build mode
-        state = DispatchContext.current.query(target.Target.current(), key)
+        state = DispatchContext.current.query(tvm.target.Target.current(), key)
         if state is None:
             return te.create_schedule([x.op for x in outs])
 
         dag = ComputeDAG(io_tensors)
         # Only update compute body, layout_rewrite_level = LayoutRewriteLevel.COMPUTE_REWRITE,
         # Since kernel layout has already been rewritten in relay pass
-        schedule, _ = dag.apply_steps_from_state(state,
-             layout_rewrite_level=LayoutRewriteLevel.COMPUTE_REWRITE)
+        schedule, _ = dag.apply_steps_from_state(
+            state, layout_rewrite_level=LayoutRewriteLevel.COMPUTE_REWRITE)
         return schedule
-    elif env.tracing_mode == TracingMode.EXTRACT_TASK:  # in the task extraction mode
+    if env.tracing_mode == TracingMode.EXTRACT_TASK:  # in the task extraction mode
         env.add_workload_key(key)
         return te.create_schedule([x.op for x in outs])
-    elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
+    if env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
         # in prepare_layout_rewrite mode
         if has_layout_free:
             # Rewrite the DAG and update the transform history for
             # the new dag in DispatchContext
             dispatch_ctx = DispatchContext.current
-            tgt = target.Target.current()
+            tgt = tvm.target.Target.current()
             state = dispatch_ctx.query(tgt, key)
             assert state is not None
             dag = ComputeDAG(outs)
@@ -236,5 +238,4 @@ def auto_schedule_topi(outs):
             if new_key != key:
                 env.layout_rewrite_success_ct += 1
         return te.create_schedule([x.op for x in outs])
-    else:
-        raise ValueError("Invalid tracing mode: " + env.tracing_mode)
+    raise ValueError("Invalid tracing mode: " + env.tracing_mode)

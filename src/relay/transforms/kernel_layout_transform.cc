@@ -17,13 +17,17 @@
  * under the License.
  */
 
-#include <tvm/relay/expr_functor.h>
-#include <tvm/relay/transform.h>
-#include <tvm/relay/op_attr_types.h>
-#include <tvm/relay/attrs/transform.h>
-#include <tvm/te/operation.h>
-#include <functional>
 #include "kernel_layout_transform.h"
+
+#include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/expr_functor.h>
+#include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/transform.h>
+#include <tvm/te/operation.h>
+
+#include <deque>
+#include <functional>
+#include <string>
 
 namespace tvm {
 namespace relay {
@@ -36,7 +40,8 @@ Expr KernelLayoutTransform(const Expr& expr) {
   KernelLayoutVisitor visitor;
 
   // Do a pre-order DFS to gather the optimal kernel layouts for all conv2d nodes.
-  // These layouts were written to global static variables in python function `prepare_layout_rewrite`
+  // These layouts were written to global static variables in python function
+  // `prepare_layout_rewrite`
   visitor.VisitExpr(expr);
 
   // Do a post-order DSF to mutate layout for all conv2d nodes
@@ -47,15 +52,13 @@ namespace transform {
 
 Pass KernelLayoutTransform() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-    [=](Function f, IRModule m, PassContext pc) {
-      return Downcast<Function>(relay::KernelLayoutTransform(f));
-  };
-  return CreateFunctionPass(pass_func, 3, "KernelLayoutTransform",
-                            {"InferType"});
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(relay::KernelLayoutTransform(f));
+      };
+  return CreateFunctionPass(pass_func, 3, "KernelLayoutTransform", {"InferType"});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.KernelLayoutTransform")
-.set_body_typed(KernelLayoutTransform);
+TVM_REGISTER_GLOBAL("relay._transform.KernelLayoutTransform").set_body_typed(KernelLayoutTransform);
 
 }  // namespace transform
 

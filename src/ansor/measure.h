@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2020 by Contributors
  * \file ansor/measure.h
  * \brief Distributed measurement infrastructure to measure the runtime costs of tensor programs
  */

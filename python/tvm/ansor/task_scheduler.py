@@ -41,6 +41,8 @@ class TaskScheduler:
 
 def get_search_policies(search_policy: Union[str, List[SearchPolicy]], tasks: List[SearchTask],
                         num_measure_per_iter, load_model_file=None, load_log_file=None):
+    """ ...
+    """
     if search_policy == 'default':
         search_policy = 'sketch.xgb'
 
@@ -98,7 +100,8 @@ class SimpleTaskScheduler(TaskScheduler):
     load_log_file: str
         Load history log file to pre-train cost model
     eps-random: float
-        Always allocate this percent of n_trials to select tasks randomly. This is for encouraging exploration.
+        Always allocate this percent of n_trials to select tasks randomly.
+        This is for encouraging exploration.
     verbose: int
         The level of verbosity. 0 means silent.
     alpha: float
@@ -144,7 +147,8 @@ class SimpleTaskScheduler(TaskScheduler):
         self.sequential_now_task_idx = 0
         self.sequential_now_task_begin_ct = 0
 
-    def tune(self, tune_option: TuneOption, search_policy: Union[str, List[SearchPolicy]] = 'default'):
+    def tune(self, tune_option: TuneOption,
+             search_policy: Union[str, List[SearchPolicy]] = 'default'):
         """ Tune tasks.
 
         Notice: This method does not have return value, make sure to set `LogToFile`
@@ -252,6 +256,8 @@ class SimpleTaskScheduler(TaskScheduler):
             self.tune_task(task_idx)
 
     def tune_task(self, task_idx):
+        """ ...
+        """
         if self.use_debug_measurement_simulator is not None:
             measure_inputs, measure_results = \
                 self.use_debug_measurement_simulator.get_next_batch(
@@ -282,7 +288,7 @@ class SimpleTaskScheduler(TaskScheduler):
 
         if self.verbose >= 1:
             print(("TaskScheduler\tct: %d\testimated cost (ms): %.3f\ttime elapsed: %.2f\t" +
-                  "best_costs (ms): %s\ttask_ct: %s") %
+                   "best_costs (ms): %s\ttask_ct: %s") %
                   (self.ct, self.cur_score * 1e3, time.time() - self.tic,
                    to_str_round(self.best_costs * 1e3, decimal=3),
                    self.task_cts))

@@ -22,7 +22,7 @@ import random
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import LocalBuilder, LocalRunner
-from .cost_model import RandomModel, XGBModel
+from .cost_model import RandomModel
 from . import _ffi_api
 
 
@@ -133,7 +133,6 @@ class SketchSearchPolicy(SearchPolicy):
 @tvm._ffi.register_object("ansor.SearchCallback")
 class SearchCallback(Object):
     """Callback function before or after search process"""
-    pass
 
 
 @tvm._ffi.register_object("ansor.PreloadMeasuredStates")
@@ -262,8 +261,7 @@ def auto_schedule(workload, target=None,
         sch, tensors = _ffi_api.AutoScheduleByWorkloadKey(
             workload, target, target_host, search_policy, hardware_params, tune_option)
         return sch, tensors
-    elif isinstance(workload, SearchTask):
+    if isinstance(workload, SearchTask):
         sch, tensors = _ffi_api.AutoScheduleBySearchTask(workload, search_policy, tune_option)
         return sch, tensors
-    else:
-        raise ValueError("Invalid workload: " + workload + ". Expect a string or SearchTask")
+    raise ValueError("Invalid workload: " + workload + ". Expect a string or SearchTask")

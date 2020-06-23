@@ -21,7 +21,6 @@ from . import compute_dag
 from . import measure
 from . import serialization
 from . import loop_state
-from . import auto_schedule
 from . import utils
 from . import feature
 from . import workload_registry

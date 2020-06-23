@@ -23,7 +23,8 @@ The format of the string is `[func_name, [args...]]`.
 The dag should be the return value of this `func_name(*args)`.
 
 Rationale: The workload is actually a compute dag defined by tvm dsl. But serializing compute dags
-and matching them efficiently is not easy. Therefore, we use the above string to encode a compute dag.
+and matching them efficiently is not easy. Therefore, we use the above string to encode a compute
+dag.
 These strings are efficient for serialization/matching and wont' be too long.
 When we need the dag, we decode the string and call the function, which will return the dag.
 """
@@ -65,6 +66,8 @@ def register_workload_func(func: Callable):
 
 
 def compute_dag_hash(dag: ComputeDAG):
+    """ Get hash value for a ComputeDAG
+    """
     # todo: implement this more carefully and move this to c++ as a member function of ComputeDAG
     str_key = ''
     for op in dag.ops:
@@ -139,8 +142,7 @@ def workload_key_to_tensors(workload_key: str) -> List[Tensor]:
     if callable(lookup):
         args = deserialize_args(workload[1:])
         return lookup(*args)
-    else:
-        return lookup
+    return lookup
 
 
 @ tvm._ffi.register_func("ansor.workload_key_to_dag")

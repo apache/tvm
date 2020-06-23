@@ -17,7 +17,6 @@
 """Definition of x86 operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 
-import os
 from tvm.te import SpecializedCondition
 from tvm import ansor
 from .generic import *

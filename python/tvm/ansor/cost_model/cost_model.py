@@ -27,7 +27,6 @@ from .. import _ffi_api
 @tvm._ffi.register_object("ansor.CostModel")
 class CostModel(Object):
     """The base class for cost model"""
-    pass
 
 
 @tvm._ffi.register_object("ansor.RandomModel")

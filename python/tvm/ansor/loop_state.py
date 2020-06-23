@@ -42,7 +42,6 @@ from . import _ffi_api
 @tvm._ffi.register_object("ansor.Iterator")
 class Iterator(Object):
     """A for loop iterator"""
-    pass
 
 
 @tvm._ffi.register_object("ansor.Stage")
@@ -90,8 +89,7 @@ class State:
             self.stages_cache = _ffi_api.StateGetStages(self.state_object)
         if isinstance(k, tvm.te.Tensor):
             return self.stages_cache[self.stage_id_map[k.op]]
-        else:
-            raise ValueError("Item must be Tensor")
+        raise ValueError("Item must be Tensor")
 
     def __update_tensor_stage_map(self):
         if not self.stages_cache:
@@ -164,13 +162,13 @@ class State:
         self.state_object = _ffi_api.StateReorder(self.state_object, stage_id, order)
         self.clear_cache()
 
-    def split(self, stage_id, it, lengths, inner_to_outer=True):
+    def split(self, stage_id, iterator, lengths, inner_to_outer=True):
         """
         Parameters
         ----------
         stage_id : Int
             The index of the stage to split
-        it : Iterator
+        iterator : Iterator
             The iterator to split
         lengths: List[Int]
             The split factors
@@ -188,18 +186,18 @@ class State:
         elif not isinstance(stage_id, int):
             raise ValueError("stage_id must be Tensor or Int")
 
-        self.state_object, res = _ffi_api.StateSplit(self.state_object, stage_id, it, lengths,
+        self.state_object, res = _ffi_api.StateSplit(self.state_object, stage_id, iterator, lengths,
                                                      inner_to_outer)
         self.clear_cache()
         return res
 
-    def follow_split(self, stage_id, it, src_step_id, n_split):
+    def follow_split(self, stage_id, iterator, src_step_id, n_split):
         """
         Parameters
         ----------
         stage_id : Int
             The index of the stage to split
-        it : Iterator
+        iterator : Iterator
             The iterator to split
         src_step_id : Int
             The index of the split step to follow in the history
@@ -216,19 +214,19 @@ class State:
         elif not isinstance(stage_id, int):
             raise ValueError("stage_id must be Tensor or Int")
 
-        self.state_object, res = _ffi_api.StateFollowSplit(self.state_object, stage_id, it,
+        self.state_object, res = _ffi_api.StateFollowSplit(self.state_object, stage_id, iterator,
                                                            src_step_id, n_split)
         self.clear_cache()
         return res
 
-    def follow_fused_split(self, stage_id, it, src_step_ids, level,
+    def follow_fused_split(self, stage_id, iterator, src_step_ids, level,
                            factor_or_nparts):
         """
         Parameters
         ----------
         stage_id : Int
             The index of the stage to split
-        it : Iterator
+        iterator : Iterator
             The iterator to split
         src_step_ids : List[Int]
             The indices of the split steps to follow in the history
@@ -248,8 +246,8 @@ class State:
         elif not isinstance(stage_id, int):
             raise ValueError("stage_id must be Tensor or Int")
 
-        self.state_object, res = _ffi_api.StateFollowFusedSplit(self.state_object, stage_id, it,
-                                                                src_step_ids, level,
+        self.state_object, res = _ffi_api.StateFollowFusedSplit(self.state_object, stage_id,
+                                                                iterator, src_step_ids, level,
                                                                 factor_or_nparts)
         self.clear_cache()
         return res
@@ -277,13 +275,13 @@ class State:
         self.clear_cache()
         return res
 
-    def vectorize(self, stage_id, it):
+    def vectorize(self, stage_id, iterator):
         """
         Parameters
         ----------
         stage_id : Int
             The index of the stage to vectorize
-        it : Iterator
+        iterator : Iterator
             The iterator to be vectorized
 
         Returns
@@ -296,17 +294,17 @@ class State:
         elif not isinstance(stage_id, int):
             raise ValueError("stage_id must be Tensor or Int")
 
-        self.state_object, res = _ffi_api.StateVectorize(self.state_object, stage_id, it)
+        self.state_object, res = _ffi_api.StateVectorize(self.state_object, stage_id, iterator)
         self.clear_cache()
         return res
 
-    def parallel(self, stage_id, it):
+    def parallel(self, stage_id, iterator):
         """
         Parameters
         ----------
         stage_id : Int
             The index of the stage to parallel
-        it : Iterator
+        iterator : Iterator
             The iterator to be parallelized
 
         Returns
@@ -319,17 +317,17 @@ class State:
         elif not isinstance(stage_id, int):
             raise ValueError("stage_id must be Tensor or Int")
 
-        self.state_object, res = _ffi_api.StateParallel(self.state_object, stage_id, it)
+        self.state_object, res = _ffi_api.StateParallel(self.state_object, stage_id, iterator)
         self.clear_cache()
         return res
 
-    def unroll(self, stage_id, it, max_unroll=-1):
+    def unroll(self, stage_id, iterator, max_unroll=-1):
         """
         Parameters
         ----------
         stage_id : Int
             The index of the stage to unroll
-        it : Iterator
+        iterator : Iterator
             The iterator to be unrolled
         max_unroll: Int
             The maximum length of the iterator that can be unrolled
@@ -344,17 +342,18 @@ class State:
         elif not isinstance(stage_id, int):
             raise ValueError("stage_id must be Tensor or Int")
 
-        self.state_object, res = _ffi_api.StateUnroll(self.state_object, stage_id, it, max_unroll)
+        self.state_object, res = _ffi_api.StateUnroll(self.state_object, stage_id, iterator,
+                                                      max_unroll)
         self.clear_cache()
         return res
 
-    def bind_thread(self, stage_id, it, thread_name):
+    def bind_thread(self, stage_id, iterator, thread_name):
         """
         Parameters
         ----------
         stage_id : Int
             The index of the stage to bind
-        it : Iterator
+        iterator : Iterator
             The iterator to be bound
         thread_name : str
             The name of the thread (e.g. "blockIdx.x", "threadIdx.y", "vthread")
@@ -378,7 +377,8 @@ class State:
         elif not isinstance(stage_id, int):
             raise ValueError("stage_id must be Tensor or Int")
 
-        self.state_object, res = _ffi_api.StateBindThread(self.state_object, stage_id, it, thread_id)
+        self.state_object, res = _ffi_api.StateBindThread(self.state_object, stage_id, iterator,
+                                                          thread_id)
         self.clear_cache()
         return res
 
@@ -403,7 +403,7 @@ class State:
             raise ValueError("target_stage_id must be Tensor or Int")
 
         self.state_object = _ffi_api.StateComputeAt(self.state_object, stage_id,
-                                                     target_stage_id, target_iter)
+                                                    target_stage_id, target_iter)
         self.clear_cache()
 
     def compute_root(self, stage_id):
@@ -494,13 +494,13 @@ class State:
                                                                    scope_name, self.compute_dag)
         return self.__insert_new_stage(new_stage_id)
 
-    def pragma(self, stage_id, it, pragma_type):
+    def pragma(self, stage_id, iterator, pragma_type):
         """
         Parameters
         ----------
         stage_id : Int
             The index of the stage to add pragma
-        it : Iterator
+        iterator : Iterator
             The iterator to add pragma
         pragma_type : Str
         """
@@ -509,16 +509,17 @@ class State:
         elif not isinstance(stage_id, int):
             raise ValueError("stage_id must be Tensor or Int")
 
-        self.state_object = _ffi_api.StatePragma(self.state_object, stage_id, it, pragma_type)
+        self.state_object = _ffi_api.StatePragma(self.state_object, stage_id, iterator,
+                                                 pragma_type)
         self.clear_cache()
 
-    def rfactor(self, stage_id, it, factor_iter_id):
+    def rfactor(self, stage_id, iterator, factor_iter_id):
         """
         Parameters
         ----------
         stage_id : Int
             The index of the stage to do reduction factor
-        it : Iterator
+        iterator : Iterator
         factor_iter_id : Int
 
         Returns
@@ -531,17 +532,18 @@ class State:
         elif not isinstance(stage_id, int):
             raise ValueError("stage_id must be Tensor or Int")
 
-        self.state_object, new_stage_id = _ffi_api.StateRfactor(self.state_object, stage_id, it,
-                                                                factor_iter_id, self.compute_dag)
+        self.state_object, new_stage_id = _ffi_api.StateRfactor(self.state_object, stage_id,
+                                                                iterator, factor_iter_id,
+                                                                self.compute_dag)
         return self.__insert_new_stage(new_stage_id)
 
-    def storage_align(self, stage_id, it, factor, offset):
+    def storage_align(self, stage_id, iterator, factor, offset):
         """
         Parameters
         ----------
         stage_id : Int
             The index of the stage to do storage align
-        it : Iterator
+        iterator : Iterator
         factor : Int
         offset : Int
         """
@@ -550,10 +552,11 @@ class State:
         elif not isinstance(stage_id, int):
             raise ValueError("stage_id must be Tensor or Int")
 
-        self.state_object = _ffi_api.StateStorageAlign(self.state_object, stage_id, it, factor, offset)
+        self.state_object = _ffi_api.StateStorageAlign(self.state_object, stage_id, iterator,
+                                                       factor, offset)
         self.clear_cache()
 
-    def tensorize(self, stage_id, it, ti_func_name):
+    def tensorize(self, stage_id, iterator, ti_func_name):
         """ The `ti_func_name` corresponds to a global registered funcion
         that returns a TensorIntrin
 
@@ -561,7 +564,7 @@ class State:
         ----------
         stage_id : Int
             The index of the stage to do storage align
-        it : Iterator
+        iterator : Iterator
             The target iterator
         ti_func_name : Str
             Tensorize intrinsic function name
@@ -577,7 +580,7 @@ class State:
             raise ValueError("stage_id must be Tensor or Int")
 
         self.state_object, res = _ffi_api.StateTensorize(self.state_object,
-                                                         stage_id, it,
+                                                         stage_id, iterator,
                                                          ti_func_name)
         self.clear_cache()
         return res

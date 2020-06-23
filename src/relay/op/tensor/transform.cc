@@ -2461,7 +2461,6 @@ TVM_REGISTER_NODE_TYPE(KernelLayoutTransformAttrs);
 Array<te::Tensor> KernelLayoutTransformCompute(const Attrs& attrs,
                                                const Array<te::Tensor>& inputs,
                                                const Type& out_type) {
-  //const Target& target) {
   const auto* param = attrs.as<KernelLayoutTransformAttrs>();
   CHECK(param != nullptr);
   return Array<te::Tensor>{
@@ -2473,7 +2472,6 @@ bool KernelLayoutTransformRel(const Array<Type>& types,
                               int num_inputs,
                               const Attrs& attrs,
                               const TypeReporter& reporter) {
-
   const auto* data = types[0].as<TensorTypeNode>();
   CHECK(data != nullptr);
   const KernelLayoutTransformAttrs* params = attrs.as<KernelLayoutTransformAttrs>();

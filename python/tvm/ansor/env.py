@@ -23,4 +23,3 @@ class AutoschedulerGlobalScope(object):
         self.topi_in_compute_rewrite_mode = False
 
 GLOBAL_SCOPE = AutoschedulerGlobalScope()
-

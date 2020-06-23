@@ -63,7 +63,8 @@ def get_net(batch_size, num_actions=18, image_shape=(4, 84, 84), dtype="float32"
     return relay.Function(args, dense2)
 
 
-def get_workload(batch_size, num_actions=18, image_shape=(4, 84, 84), dtype="float32", layout="NCHW"):
+def get_workload(batch_size, num_actions=18, image_shape=(4, 84, 84), dtype="float32",
+                 layout="NCHW"):
     """Get benchmark workload for a Deep Q Network
     Parameters
     ----------
@@ -82,5 +83,6 @@ def get_workload(batch_size, num_actions=18, image_shape=(4, 84, 84), dtype="flo
     params : dict of str to NDArray
         The parameters.
     """
-    net = get_net(batch_size, num_actions=num_actions, image_shape=image_shape, dtype=dtype, layout=layout)
+    net = get_net(batch_size, num_actions=num_actions, image_shape=image_shape, dtype=dtype,
+                  layout=layout)
     return create_workload(net)

@@ -40,10 +40,11 @@ from tvm.rpc.server import Server
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 from tvm.contrib import tar, ndk
 from . import _ffi_api
-from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout, request_remote, check_remote
+from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout, request_remote, \
+    check_remote
 from .compute_dag import LayoutRewriteLevel
 
-logger = logging.getLogger('ansor')
+LOGGER = logging.getLogger('ansor')
 
 # The maximum length of error message
 MAX_ERROR_MSG_LEN = 512
@@ -52,7 +53,7 @@ MAX_ERROR_MSG_LEN = 512
 @tvm._ffi.register_object("ansor.MeasureCallback")
 class MeasureCallback(Object):
     """Base class for measurement callback function"""
-    pass
+
 
 @tvm._ffi.register_object("ansor.MeasureInput")
 class MeasureInput(Object):
@@ -105,6 +106,8 @@ class MeasureResult(Object):
 
 @tvm._ffi.register_object("ansor.Builder")
 class Builder(Object):
+    """ Base class of Builder
+    """
     def build(self, measure_inputs, verbose=1):
         """
         Parameters
@@ -121,6 +124,8 @@ class Builder(Object):
 
 @tvm._ffi.register_object("ansor.Runner")
 class Runner(Object):
+    """ Base class of Runner
+    """
     def run(self, measure_inputs, build_results, verbose=1):
         """
         Parameters
@@ -221,7 +226,7 @@ class RPCRunner(Runner):
             number, repeat, min_repeat_ms, cooldown_interval)
 
         if check_remote(key, host, port, priority, timeout):
-            logger.info("Get devices for measurement successfully!")
+            LOGGER.info("Get devices for measurement successfully!")
         else:
             raise RuntimeError("Cannot get remote devices from the tracker. "
                                "Please check the status of tracker by "
@@ -260,7 +265,7 @@ class LocalRPCMeasureContext:
         self.tracker = Tracker(host, port=9000, port_end=10000, silent=True)
         device_key = '$local$device$%d' % self.tracker.port
         self.server = Server(host, port=self.tracker.port, port_end=10000,
-                             key=device_key,  use_popen=True, silent=True,
+                             key=device_key, use_popen=True, silent=True,
                              tracker_addr=(self.tracker.host, self.tracker.port))
         self.runner = RPCRunner(device_key, host, self.tracker.port, priority,
                                 n_parallel, timeout, number, repeat,
@@ -302,6 +307,8 @@ global global_run_arguments
 
 
 def local_build_worker(index):
+    """ Local builder function
+    """
     # We use fork to copy arguments from a global variable.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
     measure_inputs, build_func, timeout, verbose = global_build_arguments
@@ -362,7 +369,10 @@ def local_build_worker(index):
 
 
 @tvm._ffi.register_func("ansor.local_builder.build")
-def local_builder_build(inputs: List[MeasureInput], timeout: float, n_parallel: int, build_func: str, verbose: int):
+def local_builder_build(inputs: List[MeasureInput], timeout: float, n_parallel: int,
+                        build_func: str, verbose: int):
+    """ Local builder build function
+    """
     # We use fork to copy arguments from a global variable.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
     global global_build_arguments
@@ -409,6 +419,8 @@ def rpc_runner_run(inputs: List[MeasureInput], build_results: List[BuildResult],
 
 
 def rpc_run_worker(index):
+    """ ...
+    """
     inputs, build_results, key, host, port, priority, timeout, number, \
         repeat, min_repeat_ms, cooldown_interval, verbose = global_run_arguments
 
@@ -417,7 +429,8 @@ def rpc_run_worker(index):
     build_res = build_results[index]
 
     if build_res.error_no != MeasureErrorNo.NO_ERROR:
-        return (MAX_FLOAT,), build_res.error_no, build_res.error_msg, build_res.time_cost, time.time()
+        return (MAX_FLOAT,), build_res.error_no, build_res.error_msg, build_res.time_cost, \
+            time.time()
 
     def timed_func():
         tic = time.time()
@@ -478,6 +491,8 @@ def rpc_run_worker(index):
 def local_run(inputs: List[MeasureInput], build_results: List[BuildResult],
               timeout: float, number: int, repeat: int, min_repeat_ms: int,
               cooldown_interval: float, verbose: int):
+    """ ...
+    """
     MAX_FLOAT = 1e10  # We use 1e10 instead of sys.float_info.max for better readability in log
 
     def timed_func(inp, build_res):
@@ -522,16 +537,16 @@ def local_run(inputs: List[MeasureInput], build_results: List[BuildResult],
         "Measure input size should be equal to build results"
     for inp, build_res in zip(inputs, build_results):
         if build_res.error_no != 0:
-            res = (
-                MAX_FLOAT,), build_res.error_no, build_res.error_msg, build_res.time_cost, time.time()
+            res = (MAX_FLOAT,), build_res.error_no, build_res.error_msg, build_res.time_cost, \
+                time.time()
         else:
             res = call_func_with_timeout(
                 timeout, timed_func, args=(inp, build_res))
             if isinstance(res, TimeoutError):
                 if verbose >= 1:
                     print("*T", end="")  # Run timeout
-                res = (
-                    MAX_FLOAT,), MeasureErrorNo.RUN_TIMEOUT, None, build_res.time_cost + timeout, time.time()
+                res = (MAX_FLOAT,), MeasureErrorNo.RUN_TIMEOUT, None, \
+                    build_res.time_cost + timeout, time.time()
         measure_results.append(MeasureResult(*res))
 
     if verbose >= 1:

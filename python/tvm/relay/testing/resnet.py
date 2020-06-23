@@ -163,7 +163,8 @@ def resnet(units,
     num_unit = len(units)
     assert num_unit == num_stages
     data = relay.var("data", shape=data_shape, dtype=dtype)
-    data = layers.batch_norm_infer(data=data, epsilon=2e-5, axis=bn_axis, scale=False, name='bn_data')
+    data = layers.batch_norm_infer(data=data, epsilon=2e-5, axis=bn_axis, scale=False,
+                                   name='bn_data')
     (_, _, height, _) = data_shape
     if layout == "NHWC":
         (_, height, _, _) = data_shape

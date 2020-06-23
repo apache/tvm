@@ -34,7 +34,7 @@ class DispatchContext(object):
     """
     Base class of dispatch context.
     """
-    current = None 
+    current = None
 
     def __init__(self):
         self._old_ctx = DispatchContext.current

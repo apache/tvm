@@ -901,7 +901,7 @@ int InitPopulationCooperativeFetching(const SketchSearchPolicyNode* policy,
 
 int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
                                         State* state, std::mt19937* rand_gen) {
-  if(GetIntParam(policy->params, "disable_change_compute_location")) {
+  if (GetIntParam(policy->params, "disable_change_compute_location")) {
     return 0;
   }
 
@@ -1063,7 +1063,8 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
 
 int InitPopulationParallel(const SketchSearchPolicyNode* policy,
                            State* state) {
-  std::function<void(const SketchSearchPolicyNode*, State*, int stage_id, int iter_offset)> annotate_parallel;
+  std::function<void(const SketchSearchPolicyNode*, State*, int stage_id, int iter_offset)>
+      annotate_parallel;
 
   annotate_parallel = [&annotate_parallel](
           const SketchSearchPolicyNode* policy, State* state, int stage_id, int iter_offset) {
@@ -1095,7 +1096,8 @@ int InitPopulationParallel(const SketchSearchPolicyNode* policy,
     }
 
     if (parallel_degree == 1) {
-      auto res = (*state)->attach_map->iter_to_attached_stages.find(std::make_pair(stage_id, iter_id));
+      auto res =
+          (*state)->attach_map->iter_to_attached_stages.find(std::make_pair(stage_id, iter_id));
       if (res != (*state)->attach_map->iter_to_attached_stages.end()) {
         for (int attached_stage_id : res->second) {
           annotate_parallel(policy, state, attached_stage_id, 0);
@@ -1188,7 +1190,7 @@ int InitPopulationVectorization(const SketchSearchPolicyNode* policy,
     }
 
     if (num_fusible > 1) {
-      num_fusible = 1 + (*rand_gen)() % (num_fusible - 1); // Select a random range to fuse
+      num_fusible = 1 + (*rand_gen)() % (num_fusible - 1);  // Select a random range to fuse
     }
 
     if (num_fusible == 1) {

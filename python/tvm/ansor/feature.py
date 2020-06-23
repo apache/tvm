@@ -40,21 +40,20 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
     size_of_int = 4
     size_of_float = 4
 
-    """
-    The format for n records is:
-    {
-      int n;
-      int[n+2] sizes
-      
-      float[sizes[0]]    feature for record 1
-      float[sizes[1]]    feature for record 2
-      ...                feature for record i...
-      float[sizes[n-1]]  feature for record n
-      
-      float[sizes[n]]    normalized throughput for n records
-      int[sizes[n+1]]    task id for n records
-    }
-    """
+    # The format for n records is:
+    # {
+    #   int n;
+    #   int[n+2] sizes
+
+    #   float[sizes[0]]    feature for record 1
+    #   float[sizes[1]]    feature for record 2
+    #   ...                feature for record i...
+    #   float[sizes[n-1]]  feature for record n
+
+    #   float[sizes[n]]    normalized throughput for n records
+    #   int[sizes[n+1]]    task id for n records
+    # }
+
     vec_len = DEFAULT_FEATURE_VEC_LEN
 
     # unpack sizes
@@ -70,15 +69,14 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
     for size in sizes[:-2]:
         row = []
 
-        """
-        Now we need to unpack the feature for multiple statements.
-        The format is:
-        {
-            int n_stmts
-            float[n_stmt][vec_len] feature_vecs
-        }
-        where vec_len can be calculated by `(size - 1) / n_stmts`
-        """
+        # Now we need to unpack the feature for multiple statements.
+        # The format is:
+        # {
+        #     int n_stmts
+        #     float[n_stmt][vec_len] feature_vecs
+        # }
+        # where vec_len can be calculated by `(size - 1) / n_stmts`
+
         if size == 0:
             # failed during lowering
             features.append(np.zeros((1, vec_len)))

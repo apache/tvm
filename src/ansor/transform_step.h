@@ -277,7 +277,7 @@ class ComputeAtStepNode: public StepNode {
  */
 class ComputeAtStep : public Step {
  public:
- ComputeAtStep(int stage_id, int target_stage_id, int target_iter_id);
+  ComputeAtStep(int stage_id, int target_stage_id, int target_iter_id);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeAtStep, Step, ComputeAtStepNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeAtStepNode);
@@ -286,7 +286,6 @@ class ComputeAtStep : public Step {
 /*! \brief Fuse step that corresponds to te::Stage::compute_root */
 class ComputeRootStepNode: public StepNode {
  public:
-
   void ApplyToSchedule(std::vector<te::Stage> *stages,
                        StageToAxesMap *stage_to_axes) const;
 
@@ -550,8 +549,8 @@ struct hash<::tvm::ansor::Step> {
         } else {
           ret = ::dmlc::HashCombine(ret, 0x5D);  // a magic number
         }
-        return ret;
       }
+      return ret;
     } else if (auto ps = step.as<::tvm::ansor::FollowSplitStepNode>()) {
       return ::dmlc::HashCombine(3,
              ::dmlc::HashCombine(std::hash<int>()(ps->stage_id),

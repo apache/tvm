@@ -18,10 +18,10 @@
 """Backend code generation engine."""
 from __future__ import absolute_import
 
+import os
 import logging
 import numpy as np
 import tvm
-import os
 from tvm import te
 from tvm.runtime import Object
 from ... import target as _target

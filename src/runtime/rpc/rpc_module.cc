@@ -306,8 +306,7 @@ std::shared_ptr<RPCSession> RPCModuleGetSession(Module mod) {
 }
 
 inline void CacheFlush(const char* p, unsigned int allocation_size) {
-// TODO: (FrozenGene)
-// Support ARM.
+// TODO(FrozenGene): Support ARM.
 #if (defined(_M_X64) || defined(__x86_64__))
   size_t cache_line = 64;
 
@@ -346,7 +345,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repe
         CHECK_EQ(number, 1);
         // we want to keep input data
         for (int j = 1; j < args.size(); j++) {
-          CacheFlush((char*)(args[j].operator DLTensor*()->data),
+          CacheFlush(reinterpret_cast<char*>(args[j].operator DLTensor*()->data),
                      GetDataSize(*(args[j].operator DLTensor*())));
         }
       }
