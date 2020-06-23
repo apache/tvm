@@ -20,7 +20,7 @@
 /*!
  * \file graph_runtime.cc
  */
-//#include "graph_runtime.h"
+#include "graph_runtime.h"
 
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
@@ -36,7 +36,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include "./graph_runtime.h"
+
 namespace tvm {
 namespace runtime {
 namespace details {
