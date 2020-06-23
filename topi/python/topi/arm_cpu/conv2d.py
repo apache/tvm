@@ -615,6 +615,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
             copy_inputs[1] = weight
             new_attrs['tile_size'] = tile_size
             new_attrs[data_layout_key] = 'NCHW'
+            new_attrs['channels'] = CO
 
             # Store the same config for the altered operator (workload)
             new_data = tvm.placeholder((N, CI, H, W), dtype=data.dtype)
@@ -645,6 +646,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
             new_kernel = tvm.placeholder((CO, CI, 8, 8), "float32")
             bias = tvm.placeholder((CO, ), "float32")
             new_attrs[data_layout_key] = 'NCHW'
+            new_attrs['channels'] = CO
             new_workload = autotvm.task.args_to_workload(
                 [new_data, new_kernel, bias, strides,
                  padding, dilation, new_attrs[data_layout_key], out_dtype]
