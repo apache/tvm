@@ -26,6 +26,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/relay/analysis.h>
 
 #include <unordered_set>
 
@@ -105,6 +106,46 @@ Pass CalibratePartitionGraph() {
 TVM_REGISTER_GLOBAL("relay._transform.CalibratePartitionGraph").set_body_typed(transform::CalibratePartitionGraph);
 
 }  // namespace transform
+
+Map<GlobalVar, Integer> GetCalibrateOutputMap(const IRModule& module) {
+  class OutputMapper : public ExprRewriter {
+   public:
+    OutputMapper(Map<GlobalVar, Integer>& output_map, int& offset) : output_map(output_map), offset(offset) {}
+
+    Expr Rewrite_(const CallNode* call, const Expr& post) final {
+      if (call->op->IsInstance<GlobalVarNode>()) {
+        auto var = Downcast<GlobalVar>(call->op);
+        output_map.Set(var, Integer(offset));
+        offset = offset + call->args.size() + 1;
+      }
+      return post;
+    }
+
+   private:
+    Map<GlobalVar, Integer>& output_map;
+    int& offset;
+
+  };
+    
+  Map<GlobalVar, Integer> output_map;
+  int offset = 1;
+  auto glob_funcs = module->functions;
+  for (const auto& pair : glob_funcs) {
+    if (auto* fn = pair.second.as<FunctionNode>()) {
+      auto func = GetRef<Function>(fn);
+      // Collect the output
+      OutputMapper output_mapper(output_map, offset);
+      auto body = PostOrderRewrite(func->body, &output_mapper);
+    }
+  }
+
+  return output_map;
+}
+
+TVM_REGISTER_GLOBAL("relay.analysis.get_calibrate_output_map")
+    .set_body_typed([](const IRModule& mod) {
+      return GetCalibrateOutputMap(mod);
+});
 
 }  // namespace relay
 }  // namespace tvm

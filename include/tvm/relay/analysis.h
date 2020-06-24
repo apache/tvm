@@ -236,6 +236,8 @@ TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod);
  */
 TVM_DLL std::unordered_map<const Object*, size_t> GetExprRefCount(const Expr& body);
 
+TVM_DLL Map<GlobalVar, Integer> GetCalibrateOutputMap(const IRModule& mod);
+
 }  // namespace relay
 }  // namespace tvm
 

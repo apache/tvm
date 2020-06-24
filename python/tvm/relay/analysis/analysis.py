@@ -351,3 +351,6 @@ def search_fc_transpose(expr):
     """
     ret = _ffi_api.search_fc_transpose(expr)
     return ret
+
+def get_calibrate_output_map(mod):
+    return _ffi_api.get_calibrate_output_map(mod)
