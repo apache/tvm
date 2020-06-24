@@ -34,7 +34,9 @@ namespace tvm {
 namespace ansor {
 
 /*!
- * \brief This is an basic example of search policy
+ * \file ansor/search_policy/empty_policy.h
+ * \brief This is an basic example for search policy. The EmptyPolicy will
+ * always generates the init state of a ComputeDAG.
  */
 class EmptyPolicyNode : public SearchPolicyNode {
  public:

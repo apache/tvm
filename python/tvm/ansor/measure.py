@@ -35,13 +35,9 @@ import tvm._ffi
 from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
 from tvm.ir import transform
-from tvm.rpc.tracker import Tracker
-from tvm.rpc.server import Server
-from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
-from tvm.contrib import tar, ndk
+
 from . import _ffi_api
-from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout, request_remote, \
-    check_remote
+from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout
 
 LOGGER = logging.getLogger('ansor')
 

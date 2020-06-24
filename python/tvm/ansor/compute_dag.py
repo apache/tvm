@@ -75,18 +75,3 @@ class ComputeDAG(Object):
         """
         state_obj = state if isinstance(state, StateObject) else state.state_object
         return _ffi_api.ComputeDAGPrintPythonCodeFromState(self, state_obj)
-
-    def infer_bound_from_state(self, state):
-        """
-        Infer bound for a state
-
-        Parameters
-        ----------
-        state : StateObject
-
-        Returns
-        -------
-        state : State
-        """
-        state_obj = state if isinstance(state, StateObject) else state.state_object
-        return State(_ffi_api.ComputeDAGInferBoundFromState(self, state_obj), self)
