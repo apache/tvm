@@ -44,7 +44,7 @@ class ComputeDAG(Object):
         """
         return State(_ffi_api.ComputeDAGGetInitState(self), self)
 
-    def apply_steps_from_state(self, state, layout_rewrite_level=LayoutRewriteLevel.NO_REWRITE):
+    def apply_steps_from_state(self, state):
         """
         Apply transform steps according to the history of a state
 

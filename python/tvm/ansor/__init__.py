@@ -26,8 +26,8 @@ from . import workload_registry
 
 # Shortcut
 from .compute_dag import ComputeDAG
-from .auto_schedule import SearchTask, SketchSearchPolicy, TuneOption, HardwareParams, \
-    PreloadMeasuredStates, PreloadCustomSketchRule, auto_schedule
+from .auto_schedule import SearchTask, TuneOption, HardwareParams, \
+    auto_schedule
 from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, LocalRPCMeasureContext
 from .cost_model import RandomModel
 from .serialization import LogToFile, LogReader, best_measure_pair_in_file, \

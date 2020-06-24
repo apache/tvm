@@ -62,24 +62,6 @@ def test_measure_local_builder_runner():
     assert mress[0].error_no == 0
 
 
-def test_measure_local_builder_rpc_runner():
-    dag, s0 = get_tiled_matmul()
-
-    tgt = tvm.target.create("llvm")
-    task = ansor.SearchTask(dag, "test", tgt)
-    minp = ansor.MeasureInput(task, s0)
-
-    local_builder = ansor.LocalBuilder()
-    measure_ctx = ansor.LocalRPCMeasureContext()
-    rpc_runner = measure_ctx.runner
-
-    bress = local_builder.build([minp])
-    assert bress[0].error_no == 0
-    mress = rpc_runner.run([minp], bress)
-    assert mress[0].error_no == 0
-
-
 if __name__ == "__main__":
     test_serialization()
     test_measure_local_builder_runner()
-    test_measure_local_builder_rpc_runner()

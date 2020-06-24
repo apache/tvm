@@ -152,6 +152,26 @@ class State:
         self._clear_cache()
         return res
 
+    def fuse(self, stage_id, iters):
+        """
+        Parameters
+        ----------
+        stage_id : Union[int, Operation, Tensor]
+            The index of the stage to fuse
+        iters : List[Iterator]
+            The iterators to be fused
+
+        Returns
+        -------
+        res_it : Iterator
+            The fused Iterator
+        """
+        stage_id = self._resolve_stage_id(stage_id)
+
+        self.state_object, res = _ffi_api.StateFuse(self.state_object, stage_id, iters)
+        self._clear_cache()
+        return res
+
     def _resolve_stage_id(self, stage_id):
         if isinstance(stage_id, Operation):
             return self.stage_id_map[stage_id]
