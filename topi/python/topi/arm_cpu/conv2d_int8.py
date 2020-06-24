@@ -19,11 +19,12 @@
 from tvm import te
 from tvm import autotvm
 from .. import tag
-from ..util import get_const_tuple
+from ..util import traverse_inline, get_const_tuple
 from ..generic import conv2d as conv2d_generic
 from .. import nn
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
 from .tensor_intrin import dot_int8_int8_int32
+from .conv2d_gemm import compute_conv2d_gemm_without_weight_transform, schedule_conv2d_gemm
 
 
 def _get_default_config(cfg, data, kernel, strides, padding, out_dtype):
@@ -108,4 +109,39 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
         scheduled_ops.append(op)
 
     traverse(outs[0].op)
+    return s
+
+
+@autotvm.register_topi_compute("conv2d_NHWC_quantized.arm_cpu")
+def compute_conv2d_NHWC_quantized(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    N, IH, IW, IC = get_const_tuple(data.shape)
+    KH, KW, _, OC = get_const_tuple(kernel.shape)
+    tile_rows = 4
+    tile_cols = 16
+    kernel = nn.conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols)
+    return  compute_conv2d_gemm_without_weight_transform(cfg,
+                                                         data, kernel, strides, padding,
+                                                         dilation, out_dtype, (KH, KW), OC)
+
+
+@autotvm.register_topi_compute("conv2d_NHWC_quantized_without_transform.arm_cpu")
+def compute_conv2d_NHWC_quantized_without_transform(cfg, data, B, strides, padding,
+                                                    dilation, out_dtype, kernel_size=None,
+                                                    output_channels=None):
+    return  compute_conv2d_gemm_without_weight_transform(cfg, data, B, strides, padding,
+                                                         dilation, out_dtype, kernel_size,
+                                                         output_channels)
+
+
+@autotvm.register_topi_schedule("conv2d_NHWC_quantized.arm_cpu")
+def schedule_conv2d_NHWC_quantized(cfg, outs):
+    """Create schedule for tensors"""
+    s = te.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        """Traverse operators from computation graph"""
+        if op.name == "conv2d_gemm_output":
+            schedule_conv2d_gemm(cfg, s, op.output(0))
+
+    traverse_inline(s, outs[0].op, _callback)
     return s

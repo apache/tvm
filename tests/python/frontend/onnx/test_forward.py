@@ -78,11 +78,10 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
             # Its possible for some onnx inputs to not be needed in the tvm
             # module, confirm its present before setting.
             try:
-                m.get_input(input_names[i])
+                m.set_input(input_names[i], tvm.nd.array(
+                    input_data[i].astype(input_data[i].dtype)))
             except:
                 continue
-            m.set_input(input_names[i], tvm.nd.array(
-                input_data[i].astype(input_data[i].dtype)))
     else:
         m.set_input(input_names, tvm.nd.array(
             input_data.astype(input_data.dtype)))
@@ -2021,6 +2020,89 @@ def test_or():
     verify_or(indata=[x, y], dtype=bool)
 
 
+def test_batch_norm():
+    def verify_batch_norm(in_shape):
+        batchnorm = onnx.helper.make_node('BatchNormalization',
+                                          inputs=["x", "scale", "B", "mean", "var"],
+                                          outputs=['Y'])
+
+        graph = helper.make_graph([batchnorm],
+                                  "batchnorm_test",
+                                  inputs=[helper.make_tensor_value_info("x",
+                                                                        TensorProto.FLOAT, list(in_shape)),
+                                          helper.make_tensor_value_info("scale",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("B",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("mean",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("var",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                         ],
+                                  outputs=[helper.make_tensor_value_info("Y",
+                                                                         TensorProto.FLOAT, list(in_shape))])
+
+        model = helper.make_model(graph, producer_name='batchnorm_test')
+
+        for target, ctx in ctx_list():
+            x = np.random.uniform(size=in_shape).astype('float32')
+            scale = np.random.uniform(size=in_shape[1]).astype('float32')
+            b = np.random.uniform(size=in_shape[1]).astype('float32')
+            mean = np.random.uniform(size=in_shape[1]).astype('float32')
+            var = np.random.uniform(size=in_shape[1]).astype('float32')
+            onnx_out = get_onnxruntime_output(model, [x, scale, b, mean, var], 'float32')[0]
+            tvm_out = get_tvm_output(model, [x, scale, b, mean, var], target, ctx, in_shape, 'float32')
+            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+    verify_batch_norm([1, 3, 224, 224])
+    verify_batch_norm([1, 3, 24, 24])
+    verify_batch_norm([16, 3, 24, 24])
+    verify_batch_norm([16, 16, 24, 24])
+    verify_batch_norm([16, 16, 10, 10])
+
+
+def test_batch_norm_dynamic_subgraph():
+    def verify_batch_norm_dynamic_subgraph(in_shape, o_shape):
+        batchnorm = onnx.helper.make_node('BatchNormalization',
+                                          inputs=["x", "scale", "B", "mean", "var"],
+                                          outputs=['Y'])
+
+        shape_node = helper.make_node("Shape", ['Y'], ['shape'])
+        reshape_node = helper.make_node("Reshape", ["in", "shape"], ["out"])
+        graph = helper.make_graph([batchnorm, shape_node, reshape_node],
+                                  "batchnorm_test",
+                                  inputs=[helper.make_tensor_value_info("x",
+                                                                        TensorProto.FLOAT, list(in_shape)),
+                                          helper.make_tensor_value_info("in",
+                                                                        TensorProto.FLOAT, list(o_shape)),
+                                          helper.make_tensor_value_info("scale",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("B",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("mean",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                          helper.make_tensor_value_info("var",
+                                                                        TensorProto.FLOAT, [in_shape[1]]),
+                                         ],
+                                  outputs=[helper.make_tensor_value_info("out",
+                                                                         TensorProto.FLOAT, list(in_shape))])
+
+        model = helper.make_model(graph, producer_name='batchnorm_test')
+
+        for target, ctx in ctx_list():
+            x = np.random.uniform(size=in_shape).astype('float32')
+            inp = np.random.uniform(size=o_shape).astype('float32')
+            scale = np.random.uniform(size=in_shape[1]).astype('float32')
+            b = np.random.uniform(size=in_shape[1]).astype('float32')
+            mean = np.random.uniform(size=in_shape[1]).astype('float32')
+            var = np.random.uniform(size=in_shape[1]).astype('float32')
+            onnx_out = get_onnxruntime_output(model, [x, inp, scale, b, mean, var], 'float32')[0]
+            tvm_out = get_tvm_output(model, [x, inp, scale, b, mean, var], target, ctx, in_shape, 'float32')
+            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+    verify_batch_norm_dynamic_subgraph([16, 16, 10, 10], [160, 160])
+
+
 def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilations, auto_pad="NOTSET", unset_pad=False):
     if unset_pad:
         node = helper.make_node('Conv',
@@ -2893,6 +2975,8 @@ if __name__ == '__main__':
     test_or()
     test_depth_to_space()
     test_space_to_depth()
+    test_batch_norm()
+    test_batch_norm_dynamic_subgraph()
     test_conv()
     test_convtranspose()
     test_unsqueeze_constant()

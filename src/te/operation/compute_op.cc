@@ -27,6 +27,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -278,7 +279,7 @@ Stmt BaseComputeOpNode::BuildRealize(const Stage& stage,
                                    attr->dim_align_offset};
           realize = tir::AttrStmt(
               t, tir::attr::buffer_dim_align,
-              Call(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
+              Call(DataType::Handle(), tir::builtin::tvm_tuple(), tuple, CallNode::Intrinsic),
               realize);
         }
       }

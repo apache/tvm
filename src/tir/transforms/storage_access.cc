@@ -181,10 +181,10 @@ void StorageAccessVisitor::VisitStmt_(const IfThenElseNode* op) {
 }
 
 void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
-  if (op->is_intrinsic(intrinsic::tvm_address_of)) {
+  if (op->op.same_as(builtin::address_of())) {
     const LoadNode* l = op->args[0].as<LoadNode>();
     StmtExprVisitor::VisitExpr_(l);
-  } else if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+  } else if (op->op.same_as(builtin::tvm_access_ptr())) {
     CHECK_EQ(op->args.size(), 5U);
     DataType dtype = op->args[0].dtype();
     const VarNode* buffer = op->args[1].as<VarNode>();
@@ -211,7 +211,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       }
     }
     StmtExprVisitor::VisitExpr_(op);
-  } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
+  } else if (op->op.same_as(builtin::tvm_storage_sync())) {
     CHECK(allow_append_);
     const std::string& s = op->args[0].as<StringImmNode>()->value;
     if (s != "warp") {

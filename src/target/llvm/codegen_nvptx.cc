@@ -197,11 +197,11 @@ static bool GetWarpShuffleIntrinsic(const CallNode* op, llvm::Intrinsic::ID* id)
       llvm::Intrinsic::nvvm_shfl_down_i32, llvm::Intrinsic::nvvm_shfl_down_f32};
 
   int offset = 0;
-  if (op->is_intrinsic(intrinsic::tvm_warp_shuffle)) {
+  if (op->op.same_as(builtin::tvm_warp_shuffle())) {
     offset = 0;
-  } else if (op->is_intrinsic(intrinsic::tvm_warp_shuffle_up)) {
+  } else if (op->op.same_as(builtin::tvm_warp_shuffle_up())) {
     offset = 2;
-  } else if (op->is_intrinsic(intrinsic::tvm_warp_shuffle_down)) {
+  } else if (op->op.same_as(builtin::tvm_warp_shuffle_down())) {
     offset = 4;
   } else {
     return false;
@@ -226,7 +226,7 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
     llvm::Type* return_type = arg_type[0];
     llvm::Function* func = GetIntrinsicDecl(id, return_type, arg_type);
     return builder_->CreateCall(func, arg_value);
-  } else if (op->is_intrinsic(intrinsic::tvm_warp_activemask)) {
+  } else if (op->op.same_as(builtin::tvm_warp_activemask())) {
     // Only nvptx target may keep this intrinsic at this point.
     // PTX assembly: asm "activemask.b32 r1;"
     auto fty = llvm::FunctionType::get(t_int32_, false);

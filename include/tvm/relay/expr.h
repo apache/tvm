@@ -226,7 +226,7 @@ class CallNode : public ExprNode {
   /*!
    * \brief The operator(function) being invoked
    *
-   *  - It can be relay::Op which corresponds to the primitive operators.
+   *  - It can be tvm::Op which corresponds to the primitive operators.
    *  - It can also be user defined functions (Function, GlobalVar, Var).
    */
   Expr op;

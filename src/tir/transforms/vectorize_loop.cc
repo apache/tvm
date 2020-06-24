@@ -23,8 +23,10 @@
 // Loop vectorizer as in Halide pipeline.
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -212,15 +214,18 @@ class Vectorizer : public StmtExprMutator {
       int lanes = std::max(t.dtype().lanes(), f.dtype().lanes());
       t = BroadcastTo(t, lanes);
       f = BroadcastTo(f, lanes);
-      return Call(op->dtype.with_lanes(lanes), op->name, {cond, t, f}, op->call_type);
+      return Call(op->dtype.with_lanes(lanes), op->op, {cond, t, f}, op->call_type);
     }
   }
   // Call
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->name == intrinsic::tvm_if_then_else) {
+    if (op->op.same_as(builtin::if_then_else())) {
       return MutateIfThenElseExpr_(op);
     }
-    if (!op->is_vectorizable()) {
+    auto* op_ptr = op->op.as<OpNode>();
+    bool vectorizable = op_ptr && op_vectorizable_.get(GetRef<Op>(op_ptr), false);
+
+    if (!vectorizable) {
       // Cannot vectorize this op
       Array<PrimExpr> new_args;
       for (auto arg : op->args) {
@@ -234,7 +239,7 @@ class Vectorizer : public StmtExprMutator {
       if (op->args.same_as(new_args)) {
         return GetRef<PrimExpr>(op);
       } else {
-        return Call(op->dtype, op->name, new_args, op->call_type);
+        return Call(op->dtype, op->op, new_args, op->call_type);
       }
     } else {
       int lane = 0;
@@ -243,7 +248,7 @@ class Vectorizer : public StmtExprMutator {
       if (op->args.same_as(new_args)) {
         return GetRef<PrimExpr>(op);
       } else {
-        return Call(op->dtype.with_lanes(lane), op->name, new_args, op->call_type);
+        return Call(op->dtype.with_lanes(lane), op->op, new_args, op->call_type);
       }
     }
   }
@@ -380,6 +385,9 @@ class Vectorizer : public StmtExprMutator {
   bool need_scalarize_{false};
   // The lets
   std::unordered_map<const VarNode*, PrimExpr> lets_;
+  // vectorizable property
+  OpAttrMap<TVectorizable> op_vectorizable_ = Op::GetAttrMap<TVectorizable>("TVectorizable");
+
   // mutate array, with given lane requirement
   // when finished, p_lane updates the lane requirement.
   Array<PrimExpr> MutateArray(Array<PrimExpr> arr, int* p_lanes) {

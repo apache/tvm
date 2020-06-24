@@ -89,7 +89,7 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
           ::llvm::Intrinsic::x86_avx512_mask_vcvtph2ps_512, 16,
           DTypeToLLVMType(DataType::Float(32, from.lanes())),
           {
-              MakeValue(tir::Call(DataType::Int(16, from.lanes()), tir::CallNode::reinterpret,
+              MakeValue(tir::Call(DataType::Int(16, from.lanes()), tir::builtin::reinterpret(),
                                   {op->value}, tir::CallNode::PureIntrinsic)),
               MakeValue(tir::Broadcast(FloatImm(DataType::Float(32), 0), from.lanes())),
               /*mask=*/MakeValue(IntImm(DataType::Int(16), -1)),
@@ -105,7 +105,7 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
       return CallVectorIntrin(
           ::llvm::Intrinsic::x86_vcvtph2ps_256, 8,
           DTypeToLLVMType(DataType::Float(32, from.lanes())),
-          {MakeValue(tir::Call(DataType::Int(16, from.lanes()), tir::CallNode::reinterpret,
+          {MakeValue(tir::Call(DataType::Int(16, from.lanes()), tir::builtin::reinterpret(),
                                {op->value}, tir::CallNode::PureIntrinsic))});
     }
 #endif

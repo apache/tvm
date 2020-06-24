@@ -184,6 +184,16 @@ def test_add_index_simplify():
     ck.verify(y * x + 10 * x, x * (y + 10))
     ck.verify(x * y + 10 * x, x * (y + 10))
 
+    ck.verify((2 * z) + tvm.te.min(x, y - (2 * z)), tvm.te.min(x + (z * 2), y))
+    ck.verify(y * x + x, x * (y + 1))
+    ck.verify(x * y + x, x * (y + 1))
+    ck.verify((x + 10) + 13, x + 23)
+    ck.verify((x + 10) + (13 + z), x + z + 23)
+    ck.verify(x * y + 10 * x, x * (y + 10))
+    ck.verify(y * x + x * 3, x * (y + 3))
+    ck.verify(x + 3 + y, x + y + 3)
+    ck.verify((3 - y) + x, x - y + 3)
+
 
     # canonicalization
     ck.verify(x + 2 + 3 + 4 + x, x * 2 + 9);
