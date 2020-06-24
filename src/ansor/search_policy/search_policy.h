@@ -48,30 +48,6 @@ class SearchCallbackNode : public Object {
 };
 TVM_DEFINE_MUTABLE_OBJECT_REF(SearchCallback, SearchCallbackNode);
 
-/*! \brief Preload measured states from a log file.
- * This can resume the state of the search policy */
-class PreloadMeasuredStatesNode : public SearchCallbackNode {
- public:
-  std::string filename;
-
-  void callback(SearchPolicyNode* policy) final;
-
-  static constexpr const char *_type_key = "ansor.PreloadMeasuredStates";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PreloadMeasuredStatesNode, SearchCallbackNode);
-};
-
-/*!
- * \brief Managed reference to PreloadMeasuredStatesNode.
- * \sa PreloadMeasuredStatesNode
- */
-class PreloadMeasuredStates : public SearchCallback {
- public:
-  explicit PreloadMeasuredStates(std::string filename);
-
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PreloadMeasuredStates, SearchCallback,
-                                        PreloadMeasuredStatesNode);
-};
-
 /*! \brief The base class for search policy */
 class SearchPolicyNode : public Object {
  public:
@@ -94,22 +70,8 @@ class SearchPolicyNode : public Object {
   virtual std::pair<Array<MeasureInput>, Array<MeasureResult> > ContinueSearchOneRound(
       SearchTask task, int num_measure, int verbose, ProgramMeasurer measurer) = 0;
 
-  // Preload measured states from a log file to resume the state of the search policy
-  void PreloadMeasuredStates(const std::string& log_file);
-
   // Run a list of callback functions
   void RunCallbacks(const Array<SearchCallback>& callbacks);
-
-  // Dict keys to give hints to the policy
-  static constexpr const char* always_unroll_inner_key = "ansor_always_unroll_inner";
-  static constexpr const char* always_unroll_key = "ansor_always_unroll";
-  static constexpr const char* no_split_at_inner_key = "ansor_no_split_at_inner";
-  static constexpr const char* no_split_at_outer_key = "ansor_no_split_at_outer";
-  static constexpr const char* last_split_is_one_key = "ansor_last_split_is_one";
-  // Flag keys to give hints to the policy
-  static constexpr const char* always_compute_inline_key = "ansor_always_compute_inline";
-  static constexpr const char* no_cache_write_key = "ansor_no_cache_write";
-  static constexpr const char* no_cache_read_key = "ansor_no_cache_read";
 
   static constexpr const char *_type_key = "ansor.SearchPolicy";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchPolicyNode, Object);

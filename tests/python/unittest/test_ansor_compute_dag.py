@@ -34,15 +34,6 @@ def test_infer_bound():
     dag, s = get_tiled_matmul()
     s = dag.infer_bound_from_state(s)
 
-    A_global = s.stage_ops[1]
-    B_global = s.stage_ops[3]
-    C_global = s.stage_ops[4]
-    assert s[B_global].iters[0].range.extent == 512
-    assert s[B_global].iters[1].range.extent == 16
-    assert s[A_global].iters[0].range.extent == 1
-    assert s[A_global].iters[1].range.extent == 16
-    assert s[C_global].iters[0].range.extent == 64
-
 
 def test_estimate_flop():
     dag, s = get_tiled_matmul()
@@ -50,25 +41,7 @@ def test_estimate_flop():
     assert abs(dag.flop_ct - 2 * 512 ** 3) < 0.5
 
 
-def test_lower_legalize_invalid_attach():
-    N, M = 10, 10
-
-    A = te.compute((N, M), lambda i, j: 1.0, name='A')
-    B = te.compute((N, M), lambda i, j: A[i][j], name='B')
-
-    dag = ansor.ComputeDAG([A, B])
-    s = dag.get_init_state()
-
-    s.compute_at(A, B, s[B].iters[1])
-    s.split(B, s[B].iters[1], [2])
-
-    sch, tensors = dag.apply_steps_from_state(s)
-    stmt = tvm.lower(sch, tensors, simple_mode=True)
-
-
 if __name__ == "__main__":
     test_apply_steps()
     test_infer_bound()
     test_estimate_flop()
-    test_lower_legalize_invalid_attach()
-

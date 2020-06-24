@@ -220,13 +220,7 @@ class StepNode: public Object {
 TVM_DEFINE_MUTABLE_OBJECT_REF(Step, StepNode);
 
 // Step forward decelerations
-class ReorderStep; class SplitStep; class FollowSplitStep;
-class FollowFusedSplitStep;
-class FuseStep; class AnnotationStep;
-class ComputeAtStep; class ComputeRootStep; class ComputeInlineStep;
-class CacheReadStep; class CacheWriteStep;
-class PragmaStep; class RfactorStep; class StorageAlignStep;
-class TensorizeStep;
+class ReorderStep; class SplitStep; class FuseStep;
 
 /*! \brief A state in the search process.
  *  It consists of the current loop structure and the history steps to reach this state. */
@@ -264,55 +258,18 @@ class State : public ObjectRef {
 
   // Schedule primitives
   void reorder(int stage_id, const std::vector<Iterator>& order);
-  void compute_at(int stage_id, int target_stage_id,
-                  const Iterator& target_iter);
-  void compute_root(int stage_id);
-  void compute_inline(int stage_id);
-  void pragma(int stage_id, const Iterator& it, const std::string& pragma_type);
-  void storage_align(int stage_id, const Iterator& it, int factor, int offset);
   std::vector<Iterator> split(int stage_id, const Iterator& it,
                               const std::vector<PrimExpr>& lengths,
                               bool inner_to_outer = true);
-  std::vector<Iterator> follow_split(int stage_id, const Iterator& it,
-                                     int src_step_id, int n_split);
-  std::vector<Iterator> follow_fused_split(int stage_id, const Iterator& it,
-                                           const std::vector<int>& src_step_ids,
-                                           int level, bool factor_or_nparts);
   Iterator fuse(int stage_id, const std::vector<Iterator>& iters);
-  Iterator vectorize(int stage_id, const Iterator& it);
-  Iterator parallel(int stage_id, const Iterator& it);
-  Iterator unroll(int stage_id, const Iterator& it, int max_unroll = -1);
-  Iterator bind_thread(int stage_id, const Iterator& it,
-                       IteratorAnnotation thread_type);
-  Iterator tensorize(int stage_id, const Iterator& it,
-                     std::string ti_func_name);
-  int cache_read(int stage_id, const std::string& scope_name,
-                 const std::vector<int>& reader_stage_ids,
-                 const ComputeDAG& task_dag);
-  int cache_write(int stage_id, const std::string& scope_name,
-                  const ComputeDAG& task_dag);
-  int rfactor(int stage_id, const Iterator& it, int factor_iter_id,
-              const ComputeDAG& task_dag);
 
   /* Do transform steps
    * Note: The following functions only change loop state but do not change transform_history.
    * We separate these functions out,
    * so you can call them for replay easily given history steps */
   void DoReorderStep(const ReorderStep& step);
-  void DoComputeAtStep(const ComputeAtStep& step);
-  void DoComputeRootStep(const ComputeRootStep& step);
-  void DoComputeInlineStep(const ComputeInlineStep& step);
-  void DoPragmaStep(const PragmaStep& step);
-  void DoStorageAlignStep(const StorageAlignStep& step);
   std::vector<Iterator> DoSplitStep(const SplitStep& step);
-  std::vector<Iterator> DoFollowSplitStep(const FollowSplitStep& step);
-  std::vector<Iterator> DoFollowFusedSplitStep(const FollowFusedSplitStep& step);
   Iterator DoFuseStep(const FuseStep& step);
-  Iterator DoAnnotationStep(const AnnotationStep& step);
-  Iterator DoTensorizeStep(const TensorizeStep& step);
-  int DoCacheReadStep(const CacheReadStep& step, const ComputeDAG& dag);
-  int DoCacheWriteStep(const CacheWriteStep& step, const ComputeDAG& dag);
-  int DoRfactorStep(const RfactorStep& step, const ComputeDAG& dag);
 
   // General do step functions with a runtime dynamic dispatcher
   void DoStep(const Step& step, const ComputeDAG& dag);

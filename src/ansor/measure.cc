@@ -40,9 +40,7 @@ TVM_REGISTER_OBJECT_TYPE(MeasureCallbackNode);
 TVM_REGISTER_OBJECT_TYPE(RunnerNode);
 TVM_REGISTER_OBJECT_TYPE(BuilderNode);
 TVM_REGISTER_OBJECT_TYPE(LocalBuilderNode);
-TVM_REGISTER_OBJECT_TYPE(RPCRunnerNode);
 TVM_REGISTER_OBJECT_TYPE(LocalRunnerNode);
-TVM_REGISTER_OBJECT_TYPE(ProgramMeasurerNode);
 
 const char* ErrorNoToStr[] = {
     "NoError",
@@ -125,38 +123,6 @@ Array<BuildResult> LocalBuilderNode::Build(const Array<MeasureInput>& inputs,
     LOG(FATAL) << "ansor.local_builder.build is not registered";
   }
   return Array<BuildResult>();
-}
-
-// RPC Runner
-RPCRunner::RPCRunner(const std::string& key, const std::string& host, int port,
-                     int priority, int timeout, int n_parallel, int number,
-                     int repeat, int min_repeat_ms, double cooldown_interval) {
-  auto node = make_object<RPCRunnerNode>();
-  node->key = key;
-  node->host = host;
-  node->port = port;
-  node->priority = priority;
-  node->timeout = timeout;
-  node->n_parallel = n_parallel;
-  node->number = number;
-  node->repeat = repeat;
-  node->min_repeat_ms = min_repeat_ms;
-  node->cooldown_interval = cooldown_interval;
-  data_ = std::move(node);
-}
-
-Array<MeasureResult> RPCRunnerNode::Run(const Array<MeasureInput>& inputs,
-                                        const Array<BuildResult>& build_results,
-                                        int verbose) {
-  if (const auto* f = runtime::Registry::Get("ansor.rpc_runner.run")) {
-    Array<MeasureResult> results = (*f)(
-        inputs, build_results, key, host, port, priority, timeout, n_parallel,
-        number, repeat, min_repeat_ms, cooldown_interval, verbose);
-    return results;
-  } else {
-    LOG(FATAL) << "ansor.rpc_runner.run is not registered";
-  }
-  return Array<MeasureResult>();
 }
 
 // Local Runner
@@ -377,14 +343,6 @@ TVM_REGISTER_GLOBAL("ansor.LocalRunner")
 .set_body_typed([](int timeout, int number, int repeat,
                    int min_repeat_ms, double cooldown_interval) {
   return LocalRunner(timeout, number, repeat, min_repeat_ms, cooldown_interval);
-});
-
-TVM_REGISTER_GLOBAL("ansor.RPCRunner")
-.set_body_typed([](const std::string& key, const std::string& host, int port,
-                   int priority, int timeout, int n_parallel, int number,
-                   int repeat, int min_repeat_ms, double cooldown_interval){
-  return RPCRunner(key, host, port, priority, timeout, n_parallel, number,
-                   repeat, min_repeat_ms, cooldown_interval);
 });
 
 TVM_REGISTER_GLOBAL("ansor.ProgramMeasurer")

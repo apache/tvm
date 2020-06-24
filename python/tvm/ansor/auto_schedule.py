@@ -22,14 +22,13 @@ import random
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import LocalBuilder, LocalRunner
-from .cost_model import RandomModel
 from . import _ffi_api
 
 
 @tvm._ffi.register_object("ansor.HardwareParams")
 class HardwareParams(Object):
-    """
-    The parameters of target hardware
+    """ The parameters of target hardware, this is used to guide the search process of
+    SearchPolicy.
 
     Parameters
     ----------
@@ -48,8 +47,7 @@ class HardwareParams(Object):
 
 @tvm._ffi.register_object("ansor.SearchTask")
 class SearchTask(Object):
-    """
-    The meta-information of a search task
+    """ The meta-information of a search task
 
     Parameters
     ----------
@@ -69,22 +67,21 @@ class SearchTask(Object):
 @tvm._ffi.register_object("ansor.SearchPolicy")
 class SearchPolicy(Object):
     """ The base class for search policy  """
-    def continue_search(self, task, num_measure, verbose, measurer):
-        return _ffi_api.SearchPolicyContinueSearchOneRound(self, task,
-                                                           num_measure, verbose, measurer)
 
-    def set_task(self, task):
-        _ffi_api.SearchPolicySetTask(self, task)
 
-    def set_verbose(self, verbose):
-        _ffi_api.SearchPolicySetVerbose(self, verbose)
+@tvm._ffi.register_object("ansor.EmptyPolicy")
+class EmptyPolicy(SearchPolicy):
+    """ This is an example empty search policy which will always generate
+    the init state of target ComputeDAG.
+    """
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.EmptyPolicy)
 
-    def run_callbacks(self, callbacks):
-        _ffi_api.SearchPolicyRunCallbacks(self, callbacks)
 
 @tvm._ffi.register_object("ansor.SearchCallback")
 class SearchCallback(Object):
-    """Callback function before or after search process"""
+    """ Callback function before or after search process """
+
 
 @tvm._ffi.register_object("ansor.TuneOption")
 class TuneOption(Object):
@@ -164,7 +161,7 @@ def auto_schedule(workload, target=None,
     """
     if isinstance(search_policy, str):
         if search_policy == 'default':
-            search_policy = SketchSearchPolicy(RandomModel())
+            search_policy = EmptyPolicy()
         else:
             raise ValueError("Invalid search policy: " + search_policy)
 

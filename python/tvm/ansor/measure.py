@@ -35,13 +35,9 @@ import tvm._ffi
 from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
 from tvm.ir import transform
-from tvm.rpc.tracker import Tracker
-from tvm.rpc.server import Server
-from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
-from tvm.contrib import tar, ndk
+
 from . import _ffi_api
-from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout, request_remote, \
-    check_remote
+from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout
 
 LOGGER = logging.getLogger('ansor')
 
@@ -178,104 +174,6 @@ class LocalRunner(Runner):
         self.__init_handle_by_constructor__(
             _ffi_api.LocalRunner, timeout, number, repeat, min_repeat_ms, cooldown_interval)
 
-@tvm._ffi.register_object("ansor.ProgramMeasurer")
-class ProgramMeasurer(Object):
-    """
-    Parameters
-    ----------
-    builder : Builder
-    runner : Runner
-    callbacks : List[MeasureCallback]
-    verbose : Int
-    max_continuous_error : Float
-    """
-
-    def __init__(self, builder: Builder, runner: Runner,
-                 callbacks: List[MeasureCallback],
-                 verbose: int, max_continuous_error: int = -1):
-        self.__init_handle_by_constructor__(
-            _ffi_api.ProgramMeasurer, builder, runner, callbacks, verbose, max_continuous_error)
-
-@tvm._ffi.register_object("ansor.RPCRunner")
-class RPCRunner(Runner):
-    """
-    Parameters
-    ----------
-    key : Str
-    host : Str
-    port : Int
-    priority : Int
-    n_parallel : Int
-    timeout : Int
-    number : Int
-    repeat : Int
-    min_repeat_ms : Int
-    cooldown_interval : Float
-    """
-
-    def __init__(self, key, host, port, priority=1,
-                 n_parallel=1,
-                 timeout=10,
-                 number=3,
-                 repeat=1,
-                 min_repeat_ms=0,
-                 cooldown_interval=0.0):
-        self.__init_handle_by_constructor__(
-            _ffi_api.RPCRunner, key, host, port, priority, timeout, n_parallel,
-            number, repeat, min_repeat_ms, cooldown_interval)
-
-        if check_remote(key, host, port, priority, timeout):
-            LOGGER.info("Get devices for measurement successfully!")
-        else:
-            raise RuntimeError("Cannot get remote devices from the tracker. "
-                               "Please check the status of tracker by "
-                               "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' "
-                               "and make sure you have free devices on the queue status.")
-
-
-class LocalRPCMeasureContext:
-    """ A context wrapper for running RPCRunner locally.
-    This will launch a local RPC Tracker and local RPC Server.
-
-    Parameters
-    ----------
-    priority : Int
-    n_parallel : Int
-    timeout : Int
-    number : Int
-    repeat : Int
-    min_repeat_ms : Int
-    cooldown_interval : Float
-    """
-
-    def __init__(self,
-                 priority=1,
-                 n_parallel=1,
-                 timeout=10,
-                 number=10,
-                 repeat=1,
-                 min_repeat_ms=0,
-                 cooldown_interval=0.0):
-        ctx = tvm.context("cuda", 0)
-        if ctx.exist:
-            cuda_arch = "sm_" + "".join(ctx.compute_version.split('.'))
-            set_cuda_target_arch(cuda_arch)
-        host = '0.0.0.0'
-        self.tracker = Tracker(host, port=9000, port_end=10000, silent=True)
-        device_key = '$local$device$%d' % self.tracker.port
-        self.server = Server(host, port=self.tracker.port, port_end=10000,
-                             key=device_key, use_popen=True, silent=True,
-                             tracker_addr=(self.tracker.host, self.tracker.port))
-        self.runner = RPCRunner(device_key, host, self.tracker.port, priority,
-                                n_parallel, timeout, number, repeat,
-                                min_repeat_ms, cooldown_interval)
-        # wait for the processes to start
-        time.sleep(0.5)
-
-    def __del__(self):
-        self.server.terminate()
-        self.tracker.terminate()
-
 
 class MeasureErrorNo(object):
     """Error type for MeasureResult"""
@@ -389,103 +287,6 @@ def local_builder_build(inputs: List[MeasureInput], timeout: float, n_parallel: 
 
     return results
 
-
-@tvm._ffi.register_func("ansor.rpc_runner.run")
-def rpc_runner_run(inputs: List[MeasureInput], build_results: List[BuildResult],
-                   key: str, host: str, port: int, priority: int, timeout: float,
-                   n_parallel: int, number: int, repeat: int, min_repeat_ms: int,
-                   cooldown_interval: float, verbose: int):
-    global global_run_arguments
-    global_run_arguments = (inputs, build_results, key, host, port, priority, timeout, number,
-                            repeat, min_repeat_ms, cooldown_interval, verbose)
-
-    assert len(inputs) == len(build_results), \
-        "Measure input size should be equal to build results"
-    pool = NoDaemonPool(n_parallel)
-    tuple_res = pool.map(rpc_run_worker, range(len(build_results)))
-    pool.terminate()
-    pool.join()
-    del pool
-
-    results = []
-    for res in tuple_res:
-        results.append(MeasureResult(*res))
-
-    if verbose >= 1:
-        print("")
-
-    return results
-
-
-def rpc_run_worker(index):
-    """ ...
-    """
-    inputs, build_results, key, host, port, priority, timeout, number, \
-        repeat, min_repeat_ms, cooldown_interval, verbose = global_run_arguments
-
-    MAX_FLOAT = 1e10  # We use 1e10 instead of sys.float_info.max for better readability in log
-    inp = inputs[index]
-    build_res = build_results[index]
-
-    if build_res.error_no != MeasureErrorNo.NO_ERROR:
-        return (MAX_FLOAT,), build_res.error_no, build_res.error_msg, build_res.time_cost, \
-            time.time()
-
-    def timed_func():
-        tic = time.time()
-        error_no = 0
-        error_msg = None
-        try:
-            # upload built module
-            remote = request_remote(key, host, port, priority, timeout)
-            remote.upload(build_res.filename)
-            func = remote.load_module(os.path.split(build_res.filename)[1])
-            ctx = remote.context(str(inp.task.target), 0)
-            time_f = func.time_evaluator(
-                func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
-        except Exception:
-            costs = (MAX_FLOAT,)
-            error_no = MeasureErrorNo.COMPILE_DEVICE
-            error_msg = make_error_msg()
-
-        if error_no == 0:
-            try:
-                args = [ndarray.non_empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
-                        build_res.args]
-                ctx.sync()
-
-                costs = time_f(*args).results
-                # clean up remote files
-                remote.remove(build_res.filename)
-                remote.remove(os.path.splitext(build_res.filename)[0] + '.so')
-                remote.remove('')
-            except Exception:
-                costs = (MAX_FLOAT,)
-                error_no = MeasureErrorNo.RUNTIME_DEVICE
-                error_msg = make_error_msg()
-
-        shutil.rmtree(os.path.dirname(build_res.filename))
-        toc = time.time()
-
-        time.sleep(cooldown_interval)
-        if verbose >= 1:
-            if error_no == MeasureErrorNo.NO_ERROR:
-                print("*", end="")
-            else:
-                print("*E", end="")  # Run error
-
-        return costs, error_no, error_msg, toc - tic + build_res.time_cost, toc
-
-    res = call_func_with_timeout(timeout, timed_func)
-
-    if isinstance(res, TimeoutError):
-        if verbose >= 1:
-            print("*T", end="")  # Run timeout
-        res = (MAX_FLOAT,), MeasureErrorNo.RUN_TIMEOUT, None, build_res.time_cost + \
-            timeout, time.time()
-    return res
-
-
 @tvm._ffi.register_func("ansor.local_runner.run")
 def local_run(inputs: List[MeasureInput], build_results: List[BuildResult],
               timeout: float, number: int, repeat: int, min_repeat_ms: int,
@@ -510,7 +311,7 @@ def local_run(inputs: List[MeasureInput], build_results: List[BuildResult],
 
         if error_no == 0:
             try:
-                args = [ndarray.non_empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
+                args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
                         build_res.args]
                 ctx.sync()
 

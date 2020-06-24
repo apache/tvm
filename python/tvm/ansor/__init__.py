@@ -27,9 +27,8 @@ from . import workload_registry
 # Shortcut
 from .compute_dag import ComputeDAG
 from .auto_schedule import SearchTask, TuneOption, HardwareParams, \
-    auto_schedule
-from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, LocalRPCMeasureContext
-from .cost_model import RandomModel
+    auto_schedule, EmptyPolicy
+from .measure import MeasureInput, LocalBuilder, LocalRunner
 from .serialization import LogToFile, LogReader, best_measure_pair_in_file, \
     load_from_file, write_measure_records_to_file
 from .workload_registry import register_workload_func, \
