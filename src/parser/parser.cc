@@ -285,6 +285,11 @@ struct OperatorTable {
   }
 };
 
+struct Scope {
+  std::unordered_map<std::string, Var> name_map;
+  Scope() : name_map() {}
+};
+
 struct Parser {
   int pos;
   std::vector<Token> tokens;
@@ -292,6 +297,7 @@ struct Parser {
   bool ignore_whitespace;
 
   std::unordered_map<int, Expr> graph_ctx;
+  std::vector<Scope> scopes = { Scope() };
 
   Parser(std::vector<Token> tokens, OperatorTable op_table)
       : pos(0), tokens(tokens), op_table(op_table) {
@@ -366,6 +372,32 @@ struct Parser {
     return this->graph_ctx.at(graph_no);
   }
 
+  Var BindVar(std::string name, relay::Type type_annotation) {
+    auto var = Var(name, type_annotation);
+    this->scopes.back().name_map.insert({name, var});
+    return var;
+  }
+
+  Var LookupVarByString(const std::string& var) {
+    for (auto scope = this->scopes.rbegin(); scope != this->scopes.rend(); scope++) {
+      auto it = scope->name_map.find(var);
+      if (it != scope->name_map.end()) {
+        return it->second;
+      }
+    }
+    LOG(FATAL) << "foo";
+  }
+
+  void PushScope() {
+    this->scopes.push_back(Scope());
+  }
+
+  void PopScope(int n) {
+    for (int i = 0; i < n; i++) {
+      this->scopes.pop_back();
+    }
+  }
+
   NDArray NumberToNDArray(const Token& token) {
     if (token->token_type == TokenType::Integer) {
       DLContext ctx({.device_type = DLDeviceType::kDLCPU, .device_id = 0});
@@ -428,18 +460,20 @@ struct Parser {
 
   template <typename R>
   R Bracket(TokenType open, TokenType close, std::function<R()> parser) {
-    Consume(open);
-    R result;
-    if (WhenMatch(close)) {
-      return result;
-    } else {
-      result = parser();
-    }
+    Match(open);
+    R result = parser();
+    Match(close);
+    return result;
   }
 
   template <typename R>
   R Parens(std::function<R()> parser) {
     return Bracket(TokenType::OpenParen, TokenType::CloseParen, parser);
+  }
+
+  template <typename R>
+  R Block(std::function<R()> parser) {
+    return Bracket(TokenType::LCurly, TokenType::RCurly, parser);
   }
 
   Expr ParseBindingExpr() {
@@ -463,6 +497,8 @@ struct Parser {
     // the call depth will be the same before
     // and after parsing the n bindings.
     std::vector<std::pair<Var, Expr>> bindings;
+    int scopes = 0;
+
     while (true) {
       auto next = Peek();
       if (next->token_type == TokenType::Graph) {
@@ -480,10 +516,17 @@ struct Parser {
           return LookupGraphBinding(next);
         }
       } else if (next->token_type == TokenType::Let) {
-        LOG(FATAL) << "parse let binding";
+        Consume(TokenType::Let);
+        auto local_tok = Match(TokenType::Local);
+        auto string_name = local_tok->data.as<StringObj>();
+        CHECK(string_name != nullptr);
+        auto var = BindVar(GetRef<String>(string_name), Type());
+        Match(TokenType::Equal);
         auto val = this->ParseExpr();
-        // TODO add to binding context.
         Consume(TokenType::Semicolon);
+        bindings.push_back({ var, val });
+        scopes++;
+        PushScope();
       } else {
         // This is the only case we will increase the stack
         // depth.
@@ -494,10 +537,13 @@ struct Parser {
         // ParseBindingExpr, then finally ParseExpr once more.
         auto body = this->ParseExpr();
 
-        // We can now build the let binding up backwards.
+        // Remove the same number of scopes we added.
+        PopScope(scopes);
+
         if (bindings.size() == 0) {
           return body;
         } else {
+          // We can now build the let binding up backwards.
           for (auto binding = bindings.rbegin(); binding != bindings.rend(); binding++) {
             body = relay::Let(binding->first, binding->second, body);
           }
@@ -531,6 +577,21 @@ struct Parser {
     return matched;
   }
 
+  void DebugStack(const std::vector<Expr>& exprs, const std::vector<Rule>& rules) {
+      std::cout << "Expr Stack: ";
+      for (auto expr : exprs) {
+        std::cout << expr << ", ";
+      }
+
+      std::cout << std::endl;
+      std::cout << "Op Stack: ";
+      for (auto rule : rules) {
+        std::cout << rule.op << ", ";
+      }
+
+      std::cout << std::endl;
+  }
+
   Expr ParseExpr() {
     return ConsumeWhitespace<Expr>([this] {
       // We must parse at least one expression, the default
@@ -541,7 +602,6 @@ struct Parser {
 
       // Now we parse an optional op.
       std::vector<Rule> ops;
-      ops.push_back(Rule({}, tvm::Op(), 0));
 
       // We will now parse 0 or more operator occurrences.
       while (true) {
@@ -552,71 +612,128 @@ struct Parser {
           break;
         }
 
-        CHECK(ops.size() >= 1);
-
-        // Continue parsing if the opt is present.
+        // Read the operation we parsed;
         auto op = opt_op[0];
 
         Expr right = ParseExprNoOp();
 
-        for (auto expr : exprs) {
-          std::cout << "Expr Stack: " << expr;
-          std::cout << ", ";
+        // If the operator stack is empty
+        // we parse an operator and expression
+        // and push them to stacks, then
+        // continue.
+        if (ops.size() == 0) {
+          ops.push_back(op);
+          exprs.push_back(right);
+          continue;
         }
-        std::cout << std::endl;
 
-        for (auto op : ops) {
-          std::cout << "Op Stack: " << op.op;
-          std::cout << ", ";
-        }
-        std::cout << std::endl;
-
-        std::cout << "Parsed rhs=" << right << std::endl;
-        std::cout << "ops.back()=" << ops.back().op << std::endl;
+        DebugStack(exprs, ops);
 
         std::cout << "will reduce? " << bool(op.precedence >= ops.back().precedence) << std::endl;
 
-        while (exprs.size() >= 1 && op.precedence >= ops.back().precedence) {
-          auto left = exprs.back();
+        if (op.precedence > ops.back().precedence ||
+              (op.precedence == ops.back().precedence && op.left_assoc == false)) {
+          ops.push_back(op);
+          exprs.push_back(right);
+          continue;
+        }
+
+        while (ops.size() && (op.precedence < ops.back().precedence ||
+            (op.precedence == ops.back().precedence && op.left_assoc == true))) {
+          Rule new_op = ops.back();
+          ops.pop_back();
+          Expr right = exprs.back();
           exprs.pop_back();
-          right = relay::Call(op.op, { left, right });
-          if (ops.size() > 1) {
-              op = ops.back();
-              ops.pop_back();
+          Expr left = exprs.back();
+          exprs.pop_back();
+          exprs.push_back(relay::Call(new_op.op, { left, right }));
+        }
+
+        exprs.push_back(right);
+
+        ops.push_back(op);
+      }
+
+      while (ops.size()) {
+        Rule new_op = ops.back();
+        ops.pop_back();
+        Expr right = exprs.back();
+        exprs.pop_back();
+        Expr left = exprs.back();
+        exprs.pop_back();
+        exprs.push_back(relay::Call(new_op.op, {left, right}));
+      }
+
+      CHECK_EQ(ops.size(), 0);
+      CHECK_EQ(exprs.size(), 1);
+      return exprs[0];
+    });
+  }
+
+  template<typename T>
+  Array<T> ParseSequence(TokenType start, TokenType sep, TokenType stop, std::function<T()> parse) {
+    Match(start);
+    if (WhenMatch(stop)) {
+      return Array<T>();
+    } else {
+      auto data = parse();
+      // parse '(' expr ')'
+      if (WhenMatch(stop)) {
+        return { data };
+      // parse '( expr ',' * ')'
+      } else if (WhenMatch(sep)) {
+        Array<T> elements = { data };
+        while (true) {
+          if (WhenMatch(TokenType::CloseParen)) {
+            break;
+          } else {
+            auto data = parse();
+            WhenMatch(sep);
+            elements.push_back(data);
           }
         }
-
-        if (op.precedence < ops.back().precedence) {
-          ops.push_back(op);
-        }
-
-        // In both cases the expression goes back on expression stack.
-        exprs.push_back(right);
-      }
-
-      std::cout << "Expr Stack: ";
-      for (auto expr : exprs) {
-        std::cout << expr << ", ";
-      }
-
-      std::cout << std::endl;
-      std::cout << "Op Stack: ";
-      for (auto op : ops) {
-        std::cout << op.op << ", ";
-      }
-      std::cout << std::endl;
-
-      // We are done reducing and the final expression is the
-      // full parse, return it.
-      if (exprs.size() == 1) {
-        CHECK_EQ(ops.size(), 1);
-        return exprs[0];
+        return elements;
       } else {
-        CHECK_EQ(ops.size(), 2);
-        CHECK_EQ(exprs.size(), 2);
-        return Expr(relay::Call(ops[1].op, { exprs[0], exprs[1] }));
+        LOG(FATAL) << "issue";
       }
+    }
+  }
+
+  Type ParseType() {
+    if (WhenMatch(TokenType::Identifier)) {
+      return TensorType({}, DataType::Int(32, 1));
+    } else {
+      LOG(FATAL) << "failed to parse type";
+      return Type();
+    }
+  }
+
+  Expr ParseFunctionDef() {
+    PushScope();
+
+    auto params = ParseSequence<Var>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&]() {
+      auto token = Match(TokenType::Local);
+      auto string = token.ToString();
+      Type type;
+      if (WhenMatch(TokenType::Colon)) {
+        type = ParseType();
+      }
+      return BindVar(string, type);
     });
+
+    Type ret_type;
+    if (WhenMatch(TokenType::Minus)) {
+      Match(TokenType::RAngle);
+      ret_type = ParseType();
+    }
+
+    auto body = Block<Expr>([&]() {
+      return ParseExpr();
+    });
+
+    PopScope(1);
+
+    return relay::Function(params, body, ret_type, {});
   }
 
   Expr ParseExprNoOp() {
@@ -669,6 +786,15 @@ struct Parser {
             }
           }
         }
+        case TokenType::Fn: {
+          Consume(TokenType::Fn);
+          return ParseFunctionDef();
+        }
+        case TokenType::Local: {
+          auto string = next.ToString();
+          Consume(TokenType::Local);
+          return Expr(LookupVarByString(string));
+        }
         default:
           ParseError(next, "expected an expression found  " + ToString(next->token_type) +
                                std::to_string(next->line) + ":" + std::to_string(next->column));
@@ -693,16 +819,16 @@ struct Parser {
 
 OperatorTable DefaultOpTable() {
   return OperatorTable({
-      Rule({TokenType::Star}, Op::Get("multiply"), 12, 2),
+      Rule({TokenType::Star}, Op::Get("multiply"), 12, 2, true),
       Rule({TokenType::Division}, Op::Get("divide"), 12, 2, true),
-      Rule({TokenType::Plus}, Op::Get("add"), 10, 2),
+      Rule({TokenType::Plus}, Op::Get("add"), 10, 2, true),
       Rule({TokenType::Minus}, Op::Get("subtract"), 10, 2, true),
-      Rule({TokenType::Equal, TokenType::Equal}, Op::Get("equal"), 9, 2),
-      Rule({TokenType::Bang, TokenType::Equal}, Op::Get("not_equal"), 9, 2),
-      Rule({TokenType::LAngle}, Op::Get("less"), 8, 2),
-      Rule({TokenType::LAngle, TokenType::Equal}, Op::Get("less_equal"), 8, 2),
-      Rule({TokenType::RAngle}, Op::Get("greater"), 8, 2),
-      Rule({TokenType::RAngle, TokenType::Equal}, Op::Get("greater_equal"), 8, 2)
+      Rule({TokenType::LAngle}, Op::Get("less"), 8, 2, true),
+      Rule({TokenType::LAngle, TokenType::Equal}, Op::Get("less_equal"), 8, 2, true),
+      Rule({TokenType::RAngle}, Op::Get("greater"), 8, 2, true),
+      Rule({TokenType::RAngle, TokenType::Equal}, Op::Get("greater_equal"), 8, 2, true),
+      Rule({TokenType::Equal, TokenType::Equal}, Op::Get("equal"), 7, 2, true),
+      Rule({TokenType::Bang, TokenType::Equal}, Op::Get("not_equal"), 7, 2, true)
     });
 }
 

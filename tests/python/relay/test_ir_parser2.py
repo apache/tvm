@@ -197,7 +197,6 @@ def test_parens():
 
 def test_op_assoc():
     assert graph_equal(parse_text("1 * 1 + 1 < 1 == 1"), parse_text("(((1 * 1) + 1) < 1) == 1"))
-    import pdb; pdb.set_trace()
     assert graph_equal(parse_text("1 == 1 < 1 + 1 * 1"), parse_text("1 == (1 < (1 + (1 * 1)))"))
 
 
@@ -883,10 +882,10 @@ if __name__ == "__main__":
     test_bin_op()
     test_parens()
     test_op_assoc()
-    # test_let()
+    test_let()
     # test_seq()
-    # test_tuple()
-    # test_func()
+    test_tuple()
+    test_func()
     # test_defn()
     # test_recursive_call()
     # test_ifelse()

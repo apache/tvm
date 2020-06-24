@@ -62,8 +62,11 @@ enum TokenType {
     Minus,
     RAngle,
     LAngle,
+    RCurly,
+    LCurly,
     Bang,
     Let,
+    Fn,
     Unknown,
     EndOfFile,
     Null,
@@ -131,10 +134,16 @@ std::string ToString(const TokenType& token_type) {
             return "RAngle";
         case TokenType::LAngle:
             return "LAngle";
+         case TokenType::RCurly:
+            return "RCurly";
+        case TokenType::LCurly:
+            return "LCurly";
         case TokenType::Bang:
             return "Bang";
         case TokenType::Let:
             return "Let";
+        case TokenType::Fn:
+            return "Fn";
         case TokenType::Boolean:
             return "Boolean";
         case TokenType::Unknown:
@@ -176,6 +185,7 @@ class Token : public ObjectRef {
 
   static Token Null();
   int64_t ToNumber() const;
+  std::string ToString() const;
   TVM_DEFINE_OBJECT_REF_METHODS(Token, ObjectRef, TokenNode);
 };
 
@@ -196,6 +206,10 @@ int64_t Token::ToNumber() const {
     return Downcast<tvm::Integer>(this->operator->()->data);
 }
 
+std::string Token::ToString() const {
+    return Downcast<tvm::String>(this->operator->()->data);
+}
+
 bool IsDigit(char c) {
     return '0' <= c && c <= '9';
 }
@@ -207,6 +221,19 @@ bool IsWhitespace(char c) {
 bool IsNumeric(char c) {
     return (IsDigit(c) || c == '.' || c == 'e' || c == '-' || c == '+' || c == 'E') && !IsWhitespace(c);
 }
+
+bool IsLetter(char c) {
+    return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
+}
+
+bool IsIdent(char c) {
+    return IsLetter(c) || IsDigit(c);
+}
+
+static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
+    { "let", TokenType::Let },
+    { "fn", TokenType::Fn }
+};
 
 struct Tokenizer {
     int pos;
@@ -302,17 +329,13 @@ struct Tokenizer {
             auto token = NewToken(TokenType::Integer);
             size_t index = 0;
             int value = std::stoi(number, &index);
-            std::cout << "Index" << index << std::endl;
-            std::cout << "Size" << number.size() << std::endl;
             if (number.size() > index) {
-                std::cout << "inside" << std::endl;
                 throw std::invalid_argument("floating point");
             }
             value = is_pos ? value : -value;
             token->data = tvm::Integer(value);
             return token;
         } catch (const std::invalid_argument& ia) {
-            std::cout << "in float" << std::endl;
             auto token = NewToken(TokenType::Float);
 
             if (number.back() == 'f') {
@@ -364,7 +387,6 @@ struct Tokenizer {
             while (More() && IsNumeric(Peek())) {
                 ss << Next();
             }
-            std::cout << "Number: " << ss.str() << std::endl;
 
             // Remove trailing floating point prefix.
             if (More() && Peek() == 'f') {
@@ -388,6 +410,10 @@ struct Tokenizer {
             auto token = NewToken(TokenType::Semicolon);
             Next();
             return token;
+        } else if (next == ':') {
+            auto token = NewToken(TokenType::Colon);
+            Next();
+            return token;
         } else if (next == '(') {
             auto token = NewToken(TokenType::OpenParen);
             Next();
@@ -408,12 +434,20 @@ struct Tokenizer {
             auto token = NewToken(TokenType::Star);
             Next();
             return token;
-         } else if (next == '<') {
+        } else if (next == '<') {
             auto token = NewToken(TokenType::LAngle);
             Next();
             return token;
         } else if (next == '>') {
             auto token = NewToken(TokenType::RAngle);
+            Next();
+            return token;
+        } else if (next == '{') {
+            auto token = NewToken(TokenType::LCurly);
+            Next();
+            return token;
+        } else if (next == '}') {
+            auto token = NewToken(TokenType::RCurly);
             Next();
             return token;
         } else if (next == '!') {
@@ -446,12 +480,30 @@ struct Tokenizer {
             } else {
                 return NewToken(TokenType::Division);
             }
+        } else if (IsLetter(next)) {
+            std::stringstream ss;
+            while (More() && IsIdent(Peek())) {
+                ss << Next();
+            }
+
+            std::string keyword = ss.str();
+            auto it = KEYWORD_TABLE.find(keyword);
+
+            Token token;
+            if (it != KEYWORD_TABLE.end()) {
+                token = NewToken(it->second);
+            } else {
+                token = NewToken(TokenType::Identifier);
+            }
+            token->data = tvm::String(ss.str());
+
+            return token;
         } else {
-            auto token = NewToken(TokenType::Unknown);
             std::stringstream ss;
             while (More() && !IsWhitespace(Peek())) {
                 ss << Next();
             }
+            auto token = NewToken(TokenType::Unknown);
             token->data = tvm::String(ss.str());
             return token;
         }
@@ -495,7 +547,7 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
                 }
                 continue;
             }
-            case TokenType::Unknown: {
+            case TokenType::Identifier: {
                 std::string str = Downcast<tvm::String>(current->data);
                 Token tok;
                 if (str == "True") {
