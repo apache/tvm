@@ -28,7 +28,7 @@ from tvm import ansor
 from test_ansor_common import matmul_ansor_test
 
 def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local',
-                  cost_model=ansor.RandomModel(), n_trials=2, params=None,
+                  cost_model=None, n_trials=2, params=None,
                   pre_search_callbacks=None):
     print("Test %s schedule search with the default search policy" % (target))
 
@@ -42,7 +42,8 @@ def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
 
-        search_policy = ansor.SketchSearchPolicy(cost_model, params=params, seed=seed)
+        search_policy = ansor.EmptyPolicy()
+        # search_policy = ansor.SketchSearchPolicy(cost_model, params=params, seed=seed)
         tune_option = ansor.TuneOption(n_trials=n_trials, runner=runner,
                                        measure_callbacks=[ansor.LogToFile(log_file)],
                                        pre_search_callbacks=pre_search_callbacks)

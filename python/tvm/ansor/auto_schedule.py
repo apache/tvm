@@ -22,7 +22,6 @@ import random
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import LocalBuilder, LocalRunner
-from .cost_model import RandomModel
 from . import _ffi_api
 
 
@@ -82,9 +81,19 @@ class SearchPolicy(Object):
     def run_callbacks(self, callbacks):
         _ffi_api.SearchPolicyRunCallbacks(self, callbacks)
 
+
+@tvm._ffi.register_object("ansor.EmptyPolicy")
+class EmptyPolicy(SearchPolicy):
+    """  The example search policy
+    """
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.EmptyPolicy)
+
+
 @tvm._ffi.register_object("ansor.SearchCallback")
 class SearchCallback(Object):
     """Callback function before or after search process"""
+
 
 @tvm._ffi.register_object("ansor.TuneOption")
 class TuneOption(Object):
@@ -164,7 +173,7 @@ def auto_schedule(workload, target=None,
     """
     if isinstance(search_policy, str):
         if search_policy == 'default':
-            search_policy = SketchSearchPolicy(RandomModel())
+            search_policy = EmptyPolicy()
         else:
             raise ValueError("Invalid search policy: " + search_policy)
 

@@ -219,42 +219,6 @@ class LocalBuilder: public Builder {
   TVM_DEFINE_OBJECT_REF_METHODS(LocalBuilder, Builder, LocalBuilderNode);
 };
 
-/*! \brief RPCRunner that uses RPC call to measures the time cost of programs
- *  on remote devices */
-class RPCRunnerNode : public RunnerNode {
- public:
-  std::string key;
-  std::string host;
-  int port;
-  int priority;
-  int n_parallel;
-  int number;
-  int repeat;
-  int min_repeat_ms;
-  double cooldown_interval;
-
-  /*! \biref Run measurement and return results */
-  Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
-                           const Array<BuildResult>& build_results,
-                           int verbose) final;
-
-  static constexpr const char* _type_key = "ansor.RPCRunner";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RPCRunnerNode, RunnerNode);
-};
-
-/*!
- * \brief Managed reference to RPCRunnerNode.
- * \sa RPCRunnerNode
- */
-class RPCRunner : public Runner {
- public:
-  RPCRunner(const std::string& key, const std::string& host, int port,
-            int priority, int timeout, int n_parallel, int number,
-            int repeat, int min_repeat_ms, double cooldown_interval);
-
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RPCRunner, Runner, RPCRunnerNode);
-};
-
 /*! \brief LocalRunner that uses local CPU/GPU to measures the time cost of programs */
 class LocalRunnerNode: public RunnerNode {
  public:
