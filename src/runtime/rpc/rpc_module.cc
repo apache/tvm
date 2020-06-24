@@ -24,8 +24,12 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 
+#include <cstdlib>
 #include <cstring>
 #include <memory>
+#if defined(_M_X64) || defined(__x86_64__)
+#include <x86intrin.h>
+#endif
 
 #include "rpc_endpoint.h"
 #include "rpc_session.h"
@@ -300,6 +304,35 @@ std::shared_ptr<RPCSession> RPCModuleGetSession(Module mod) {
   return rmod->sess();
 }
 
+/*!
+ * \brief Flush the cache.
+ * \param addr The address of data we want to flush
+ * \param len The length of data
+ */
+/*
+ * When we are in the tuning of TVM, we will make TVM occupy
+ * the cache fully and doesn't flush it during iteration.
+ * This has problems then in e2e testing, since arrays that
+ * we assume exist in cache (ie. weights) are evicted during e2e runs,
+ * which leads to lower performance.
+ */
+inline void CacheFlush(const char* addr, unsigned int len) {
+// TODO(FrozenGene): Support ARM.
+#if (defined(_M_X64) || defined(__x86_64__))
+  const size_t cache_line = 64;
+
+  if (addr == nullptr || len <= 0) {
+    return;
+  }
+
+  for (uintptr_t uptr = (uintptr_t)addr & ~(cache_line - 1); uptr < (uintptr_t)addr + len;
+       uptr += cache_line) {
+    _mm_clflush(reinterpret_cast<const void*>(uptr));
+  }
+
+#endif
+}
+
 PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repeat,
                              int min_repeat_ms) {
   CHECK(pf != nullptr);
@@ -313,12 +346,21 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repe
   auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue* rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;
+    const char* cache_flush = std::getenv("TVM_AUTO_CACHE_FLUSH");
     // skip first time call, to activate lazy compilation components.
     pf.CallPacked(args, &temp);
 
     DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
 
     for (int i = 0; i < repeat; ++i) {
+      if (cache_flush && std::atoi(cache_flush) != 0) {
+        CHECK_EQ(number, 1);
+        // we want to keep input data
+        for (int j = 1; j < args.size(); j++) {
+          CacheFlush(static_cast<char*>((args[j].operator DLTensor*()->data)),
+                     GetDataSize(*(args[j].operator DLTensor*())));
+        }
+      }
       std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin,
           tend;
       double duration_ms = 0.0;

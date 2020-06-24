@@ -122,8 +122,8 @@ tuning_option = {
 
     'measure_option': autotvm.measure_option(
         builder=autotvm.LocalBuilder(),
-        runner=autotvm.LocalRunner(number=10, repeat=1,
-                                   min_repeat_ms=1000),
+        runner=autotvm.LocalRunner(number=1, repeat=10,
+                                   min_repeat_ms=0),
     ),
 }
 
@@ -183,12 +183,18 @@ def tune_and_evaluate(tuning_opt):
                                               ops=(relay.op.get("nn.conv2d"),))
 
     # run tuning tasks
+    # set TVM_AUTO_CACHE_FLUSH environment value be 1 to enable flush
+    # the cache during tuning kernel so that we could get more accurate
+    # performance when we run e2e testing.
+    os.environ["TVM_AUTO_CACHE_FLUSH"] = "1"
     tune_kernels(tasks, **tuning_opt)
     tune_graph(mod["main"], data_shape, log_file, graph_opt_sch_file)
 
     # compile kernels with graph-level best records
     with autotvm.apply_graph_best(graph_opt_sch_file):
         print("Compile...")
+        # when we run e2e testing, we could enable the cache back.
+        os.environ["TVM_AUTO_CACHE_FLUSH"] = "0"
         with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build_module.build(
                 mod, target=target, params=params)
