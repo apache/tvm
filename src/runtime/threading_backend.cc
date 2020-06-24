@@ -159,7 +159,7 @@ class ThreadGroup::Impl {
         CPU_SET(sorted_order_[sorted_order_.size() - i - 1], &cpuset);
       }
     } else {
-      int num_cpu_workers = MaxConcurrency();
+      int num_cpu_workers = std::min(MaxConcurrency(), big_count_);
       for (int i = 0; i < num_cpu_workers; ++i) {
         CPU_SET(sorted_order_[i], &cpuset);
       }
