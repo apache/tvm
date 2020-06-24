@@ -97,7 +97,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Fill in the input buffers.
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto eid = EntryID(input_nodes_[i], 0);
-      // TODO: Support other data lengths.
+      // TODO(@comanic): Support other data lengths.
       size_t offset_in_bytes = entry_out_mem_[eid].second * 4;
       size_t buffer_size = GetDataSize(*data_entry_[eid]);
       write_to_dnnl_memory(data_entry_[eid]->data, entry_out_mem_[eid].first, buffer_size,
@@ -169,9 +169,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto eid = EntryID(entry);
     // Since the DNNL memory has been created before calling this function, we assume the entry
     // has not yet been bind to the other DNNL memory; otherwise it may have memory leak.
-    CHECK(entry_out_mem_.count(eid) == 0);
+    CHECK_EQ(entry_out_mem_.count(eid), 0);
 
-    // TODO: Support other data types (i.e., int8).
+    // TODO(@comanic): Support other data types (i.e., int8).
     auto data_node = nodes_[entry.id_];
     auto dltype = data_node.GetOpDataType()[entry.index_];
     CHECK_EQ(dltype.bits, 32);
@@ -425,14 +425,15 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   inline void read_from_dnnl_memory(void* handle, const dnnl::memory& mem, size_t size,
                                     size_t offset = 0) {
     uint8_t* src = static_cast<uint8_t*>(mem.get_data_handle());
-    std::copy(src + offset, src + offset + size, (uint8_t*)handle);
+    std::copy(src + offset, src + offset + size, static_cast<uint8_t*>(handle));
   }
 
   // Read from the handle and write to DNNL memory (+offset).
-  inline void write_to_dnnl_memory(void* handle, dnnl::memory& mem, size_t size,
+  inline void write_to_dnnl_memory(void* handle, const dnnl::memory& mem, size_t size,
                                    size_t offset = 0) {
     uint8_t* dst = static_cast<uint8_t*>(mem.get_data_handle());
-    std::copy((uint8_t*)handle, (uint8_t*)handle + size, dst + offset);
+    std::copy(reinterpret_cast<uint8_t*>(handle), reinterpret_cast<uint8_t*>(handle) + size,
+              dst + offset);
   }
 
   // Generate DNNL memory description and infer the data layout by the given shape.
