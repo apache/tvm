@@ -358,7 +358,7 @@ def test_non_max_suppression():
                np_indices_result, check_type_only=True)
     dshape = (1, num_anchors, 6)
     verify_nms(np_data, np_valid_count, np_indices, np_max_output_size, dshape, np_result,
-               np_indices_result, top_k=3)
+               np_indices_result, top_k=2)
 
 
 def test_multibox_transform_loc():
