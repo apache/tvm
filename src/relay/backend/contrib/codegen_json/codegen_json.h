@@ -26,10 +26,10 @@
 
 #include <dmlc/any.h>
 #include <dmlc/json.h>
-#include <tvm/tir/op.h>
 #include <tvm/node/container.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/container.h>
+#include <tvm/tir/op.h>
 
 #include <cstdint>
 #include <string>
@@ -46,7 +46,7 @@ namespace contrib {
 
 using namespace tvm::runtime::json;
 
-using ShapeVector = std::vector<std::vector<int64_t> >;
+using ShapeVector = std::vector<std::vector<int64_t>>;
 using TypeVector = std::vector<std::string>;
 using JSONGraphObjectPtr = std::shared_ptr<JSONGraphNode>;
 
@@ -58,8 +58,7 @@ class OpAttrExtractor : public AttrVisitor {
  public:
   explicit OpAttrExtractor(JSONGraphObjectPtr node) : node_(node) {}
 
-  template <typename T = double,
-            typename = std::enable_if_t<std::is_floating_point<T>::value>>
+  template <typename T = double, typename = std::enable_if_t<std::is_floating_point<T>::value>>
   std::string Fp2String(const T value, int n = 16) {
     std::ostringstream out;
     out.precision(n);
@@ -73,29 +72,17 @@ class OpAttrExtractor : public AttrVisitor {
     node_->SetAttr(key, attr);
   }
 
-  void Visit(const char* key, double* value) final {
-    SetNodeAttr(key, {Fp2String(*value)});
-  }
+  void Visit(const char* key, double* value) final { SetNodeAttr(key, {Fp2String(*value)}); }
 
-  void Visit(const char* key, int64_t* value) final {
-    SetNodeAttr(key, {std::to_string(*value)});
-  }
+  void Visit(const char* key, int64_t* value) final { SetNodeAttr(key, {std::to_string(*value)}); }
 
-  void Visit(const char* key, uint64_t* value) final {
-    SetNodeAttr(key, {std::to_string(*value)});
-  }
+  void Visit(const char* key, uint64_t* value) final { SetNodeAttr(key, {std::to_string(*value)}); }
 
-  void Visit(const char* key, int* value) final {
-    SetNodeAttr(key, {std::to_string(*value)});
-  }
+  void Visit(const char* key, int* value) final { SetNodeAttr(key, {std::to_string(*value)}); }
 
-  void Visit(const char* key, bool* value) final {
-    SetNodeAttr(key, {std::to_string(*value)});
-  }
+  void Visit(const char* key, bool* value) final { SetNodeAttr(key, {std::to_string(*value)}); }
 
-  void Visit(const char* key, std::string* value) final {
-    SetNodeAttr(key, {*value});
-  }
+  void Visit(const char* key, std::string* value) final { SetNodeAttr(key, {*value}); }
 
   void Visit(const char* key, DataType* value) final {
     if (!value->is_void()) {
@@ -292,10 +279,9 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
       auto res = VisitExpr(arg);
       inputs.insert(inputs.end(), res.begin(), res.end());
     }
-    auto node = std::make_shared<JSONGraphNode>(name, /* name_ */
+    auto node = std::make_shared<JSONGraphNode>(name,     /* name_ */
                                                 "kernel", /* op_type_ */
-                                                inputs,
-                                                1 /* num_outputs_ */);
+                                                inputs, 1 /* num_outputs_ */);
     SetCallNodeAttribute(node, cn);
     return AddNode(node, GetRef<Expr>(cn));
   }

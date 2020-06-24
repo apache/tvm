@@ -22,8 +22,8 @@
  * \brief The graph nodes used by JSON runtime.
  */
 
-#ifndef TVM_RUNTIME_JSON_JSON_NODE_H_
-#define TVM_RUNTIME_JSON_JSON_NODE_H_
+#ifndef TVM_RUNTIME_CONTRIB_JSON_JSON_NODE_H_
+#define TVM_RUNTIME_CONTRIB_JSON_JSON_NODE_H_
 
 #include <dlpack/dlpack.h>
 #include <dmlc/json.h>
@@ -32,10 +32,10 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <string>
 
 namespace tvm {
 namespace runtime {
@@ -52,7 +52,7 @@ class JSONGraphNodeEntry {
   // Constructors.
   JSONGraphNodeEntry() = default;
   JSONGraphNodeEntry(int id, int index, int version = 0)
-    : id_(id), index_(index), version_(version) {}
+      : id_(id), index_(index), version_(version) {}
 
   /*!
    * \brief Serialize a node entry.
@@ -99,10 +99,8 @@ class JSONGraphNode {
  public:
   // Constructors.
   JSONGraphNode() = default;
-  JSONGraphNode(const std::string& name,
-                const std::string& op_type,
-                const std::vector<JSONGraphNodeEntry>& inputs = {},
-                size_t num_outputs = 1) {
+  JSONGraphNode(const std::string& name, const std::string& op_type,
+                const std::vector<JSONGraphNodeEntry>& inputs = {}, size_t num_outputs = 1) {
     name_ = name;
     op_type_ = op_type;
     num_inputs_ = inputs.size();
@@ -245,9 +243,7 @@ class JSONGraphNode {
    *
    * \param num_outputs The number of output.
    */
-  void SetNumOutput(uint32_t num_outputs) {
-    num_outputs_ = num_outputs;
-  }
+  void SetNumOutput(uint32_t num_outputs) { num_outputs_ = num_outputs; }
 
   /*!
    * \brief Get the value of an attribute in the node.
@@ -319,9 +315,8 @@ namespace dmlc {
 namespace json {
 template <>
 struct Handler<std::shared_ptr<tvm::runtime::json::JSONGraphNode>> {
-  inline static void Write(
-      dmlc::JSONWriter* writer,
-      const std::shared_ptr<tvm::runtime::json::JSONGraphNode>& data) {
+  inline static void Write(dmlc::JSONWriter* writer,
+                           const std::shared_ptr<tvm::runtime::json::JSONGraphNode>& data) {
     data->Save(writer);
   }
 
@@ -333,4 +328,4 @@ struct Handler<std::shared_ptr<tvm::runtime::json::JSONGraphNode>> {
 }  // namespace json
 }  // namespace dmlc
 
-#endif  // TVM_RUNTIME_JSON_JSON_NODE_H_
+#endif  // TVM_RUNTIME_CONTRIB_JSON_JSON_NODE_H_

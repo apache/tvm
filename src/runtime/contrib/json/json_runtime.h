@@ -22,8 +22,8 @@
  * \brief Utilities for json runtime.
  */
 
-#ifndef TVM_RUNTIME_JSON_JSON_RUNTIME_H_
-#define TVM_RUNTIME_JSON_JSON_RUNTIME_H_
+#ifndef TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_
+#define TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_
 
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/module.h>
@@ -304,4 +304,4 @@ class JSONRuntimeBase : public ModuleNode {
 }  // namespace json
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_JSON_JSON_RUNTIME_H_
+#endif  // TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_

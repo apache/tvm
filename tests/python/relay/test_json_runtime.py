@@ -96,7 +96,7 @@ def check_result(mod,
 
 def test_conv2d():
     """Test a subgraph with a single conv2d operator."""
-    if not tvm.get_global_func("relay.ext.dnnl", True):
+    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -170,7 +170,7 @@ def test_conv2d():
 
 def test_add():
     """Test a subgraph with a single add operator."""
-    if not tvm.get_global_func("relay.ext.dnnl", True):
+    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -211,7 +211,7 @@ def test_add():
 
 def test_relu():
     """Test a subgraph with a single ReLU operator."""
-    if not tvm.get_global_func("relay.ext.dnnl", True):
+    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -248,7 +248,7 @@ def test_relu():
 
 def test_dense():
     """Test a subgraph with a single dense operator."""
-    if not tvm.get_global_func("relay.ext.dnnl", True):
+    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -290,7 +290,7 @@ def test_dense():
 
 def test_bn():
     """Test a subgraph with a single batch_norm operator."""
-    if not tvm.get_global_func("relay.ext.dnnl", True):
+    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -356,7 +356,7 @@ def test_bn():
 
 def test_multiple_ops():
     """Test a subgraph with multiple operators."""
-    if not tvm.get_global_func("relay.ext.dnnl", True):
+    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -412,7 +412,7 @@ def test_multiple_ops():
 
 def test_composite():
     """Test DNNL patterns and there composite functions."""
-    if not tvm.get_global_func("relay.ext.dnnl", True):
+    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -518,7 +518,7 @@ def test_composite():
 
 def test_constant():
     """Test the subgraph with (var, const, ...) arguments."""
-    if not tvm.get_global_func("relay.ext.dnnl", True):
+    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
         print("skip because DNNL codegen is not available")
         return
 
@@ -565,7 +565,7 @@ def test_constant():
 
 def test_partial_constant():
     """Test the subgraph with (const, var, const, var) arguments."""
-    if not tvm.get_global_func("relay.ext.dnnl", True):
+    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
         print("skip because DNNL codegen is not available")
         return
 

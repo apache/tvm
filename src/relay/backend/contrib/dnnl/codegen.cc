@@ -33,18 +33,22 @@
 #include <numeric>
 #include <sstream>
 
-#include "../../../../runtime/contrib/json/json_node.h"
 #include "../../utils.h"
-#include "../codegen_c/codegen_c.h"
+
+#ifdef USE_JSON_RUNTIME
+#include "../../../../runtime/contrib/json/json_node.h"
 #include "../codegen_json/codegen_json.h"
+#else
+#include "../codegen_c/codegen_c.h"
+#endif
 
 namespace tvm {
 namespace relay {
 namespace contrib {
 
 using namespace backend;
-using namespace tvm::runtime::json;
 
+#ifndef USE_JSON_RUNTIME  // C source runtime
 inline size_t GetShape1DSize(const Type& type) {
   const auto shape = GetShape(type);
   return std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>());
@@ -410,7 +414,6 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
     CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
     return (*pf)(code, "c", sym, variables);
-    std::cout << code_stream_.str();
   }
 
  private:
@@ -421,7 +424,12 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
   std::ostringstream code_stream_;
 };
 
+#else  // DNNL JSON runtime
+
 class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
+  using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
+  using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
+
  public:
   DNNLJSONSerializer(const std::string& symbol, const Expr& expr) : JSONSerializer(symbol, expr) {}
 
@@ -473,14 +481,14 @@ std::string GetExtSymbol(const Function& func) {
   CHECK(name_node.defined()) << "Fail to retrieve external symbol.";
   return std::string(name_node.value());
 }
+#endif
 
 /*!
  * \brief The external compiler/codegen tool. It takes a Relay expression/module and
  * compile it into a runtime module.
  */
 runtime::Module DNNLCompiler(const ObjectRef& ref) {
-  // DNNLModuleCodegen dnnl;
-  // return dnnl.CreateCSourceModule(ref);
+#ifdef USE_JSON_RUNTIME
   CHECK(ref->IsInstance<FunctionNode>());
   auto func = Downcast<Function>(ref);
   auto func_name = GetExtSymbol(func);
@@ -493,6 +501,10 @@ runtime::Module DNNLCompiler(const ObjectRef& ref) {
   CHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
   auto mod = (*pf)(func_name, graph_json, params);
   return mod;
+#else
+  DNNLModuleCodegen dnnl;
+  return dnnl.CreateCSourceModule(ref);
+#endif
 }
 
 TVM_REGISTER_GLOBAL("relay.ext.dnnl").set_body_typed(DNNLCompiler);
