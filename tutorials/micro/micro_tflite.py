@@ -130,12 +130,14 @@ print ("Model Version: " + str(version))
 
 ######################################################################
 # Parse the python model object to convert it into a relay module
-# and weights
+# and weights.
 # It is important to note that the input tensor name must match what
 # is contained in the model.
+#
 # If you are unsure what that might be, this can be discovered by using
 # the visualize.py script within the Tensorflow project.
 # See : How do I inspect a .tflite file? https://www.tensorflow.org/lite/guide/faq
+ 
 input_tensor = "dense_4_input"
 input_shape = (1,)
 input_dtype = "float32"
