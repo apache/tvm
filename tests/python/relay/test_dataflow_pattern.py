@@ -253,6 +253,11 @@ def test_match_tuple():
     tuple_get_item_pattern = is_tuple_get_item(tuple_pattern, 1)
     assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 1))
 
+    tuple_get_item_pattern = is_tuple_get_item(tuple_pattern) # Match any index
+    assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 0))
+    assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 1))
+    assert tuple_get_item_pattern.match(relay.expr.TupleGetItem(relay.expr.Tuple((x, y, z)), 2))
+
 
 def test_no_match_tuple():
     x = relay.var('x')
