@@ -32,6 +32,7 @@
 #include <tvm/tir/op.h>
 
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -59,9 +60,9 @@ class OpAttrExtractor : public AttrVisitor {
   explicit OpAttrExtractor(JSONGraphObjectPtr node) : node_(node) {}
 
   template <typename T = double, typename = std::enable_if_t<std::is_floating_point<T>::value>>
-  std::string Fp2String(const T value, int n = 16) {
+  std::string Fp2String(const T value) {
     std::ostringstream out;
-    out.precision(n);
+    out.precision(std::numeric_limits<T>::max_digits10);
     out << value;
     return out.str();
   }
