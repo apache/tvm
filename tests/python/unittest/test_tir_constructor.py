@@ -171,10 +171,6 @@ def test_stmt_constructor():
     assert x.attr_key == "xyz"
     assert x.body == nop
 
-    x = tvm.tir.Free(buffer_var)
-    assert isinstance(x, tvm.tir.Free)
-    assert x.buffer_var == buffer_var
-
     x = tvm.tir.IfThenElse(tvm.tir.const(1, "uint1"),
                             tvm.tir.Evaluate(11),
                             nop)
