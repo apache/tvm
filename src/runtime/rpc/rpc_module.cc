@@ -28,7 +28,7 @@
 #include <cstring>
 #include <memory>
 #if defined(_M_X64) || defined(__x86_64__)
-#include <x86intrin.h>
+#include <immintrin.h>
 #endif
 
 #include "rpc_endpoint.h"
