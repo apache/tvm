@@ -2390,6 +2390,23 @@ def test_weight_names():
     assert set(params.keys()) == set(n for n, p in tm.named_parameters())
 
 
+def test_duplicate_weight_use():
+    # The test cases doesn't make any sense as a neural network,
+    # the issue popped up in shared input/output embeddings of bert,
+    # but this is quicker
+    class Test(Module):
+        def __init__(self):
+            super().__init__()
+            self.lin = torch.nn.Linear(5, 3)
+
+        def forward(self, x):
+            x = self.lin(x)
+            x = x @ self.lin.weight
+            return x
+
+    verify_model(Test(), input_data=[torch.randn(5, 5)])
+
+
 def test_forward_matmul():
     torch.set_grad_enabled(False)
 
@@ -2556,6 +2573,7 @@ if __name__ == "__main__":
     test_forward_traced_function()
     test_forward_dtypes()
     test_weight_names()
+    test_duplicate_weight_use()
 
     # Single operator tests
     test_forward_add()

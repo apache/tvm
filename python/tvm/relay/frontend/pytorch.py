@@ -2335,6 +2335,7 @@ def convert_params(graph, state_dict):
     params = {}
     param_tensors = {}
     packed_param_map = {}
+    vars_by_name = {}
     seen = set()
 
     for node in getattr_nodes:
@@ -2352,10 +2353,14 @@ def convert_params(graph, state_dict):
                 assert full_attr in state_dict, err_msg
                 packed_param_map[full_attr_node_name] = full_attr
             elif full_attr in state_dict:
-                torch_tensor = state_dict[full_attr]
-                tensor, var = _get_tensor_and_var(torch_tensor,
-                                                  full_attr)
-                param_tensors[full_attr] = tensor
+                if full_attr in vars_by_name:
+                    var = vars_by_name[full_attr]
+                else:
+                    torch_tensor = state_dict[full_attr]
+                    tensor, var = _get_tensor_and_var(torch_tensor,
+                                                      full_attr)
+                    param_tensors[full_attr] = tensor
+                    vars_by_name[full_attr] = var
                 params[full_attr_node_name] = var
 
     return params, param_tensors, packed_param_map
