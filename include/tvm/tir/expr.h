@@ -1147,26 +1147,6 @@ inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
 }  // namespace tir
 }  // namespace tvm
 
-namespace tvm {
-namespace runtime {
-// Additional implementattion overloads for PackedFunc.
-
-template <>
-struct PackedFuncValueConverter<tvm::Integer> {
-  // common rule for RetValue and ArgValue
-  static tvm::Integer From(const TVMPODValue_& val) {
-    if (val.type_code() == kTVMNullptr) {
-      return Integer(ObjectPtr<Object>(nullptr));
-    }
-    if (val.type_code() == kDLInt) {
-      return Integer(val.operator int());
-    }
-    return val.AsObjectRef<tvm::Integer>();
-  }
-};
-}  // namespace runtime
-}  // namespace tvm
-
 namespace std {
 template <>
 struct hash<::tvm::tir::IterVar> : public ::tvm::ObjectPtrHash {};
