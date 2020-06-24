@@ -24,13 +24,8 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 
-#include <cstdlib>
 #include <cstring>
 #include <memory>
-
-#if defined(_M_X64) || defined(__x86_64__)
-#include <x86intrin.h>
-#endif
 
 #include "rpc_endpoint.h"
 #include "rpc_session.h"
@@ -305,22 +300,6 @@ std::shared_ptr<RPCSession> RPCModuleGetSession(Module mod) {
   return rmod->sess();
 }
 
-inline void CacheFlush(const char* p, unsigned int allocation_size) {
-// TODO(FrozenGene): Support ARM.
-#if (defined(_M_X64) || defined(__x86_64__))
-  size_t cache_line = 64;
-
-  if (p == nullptr || allocation_size <= 0) {
-    return;
-  }
-
-  for (size_t i = 0; i < allocation_size; i += cache_line) {
-    _mm_clflush(static_cast<const void*>(&p[i]));
-  }
-
-#endif
-}
-
 PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repeat,
                              int min_repeat_ms) {
   CHECK(pf != nullptr);
@@ -334,21 +313,12 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repe
   auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue* rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;
-    const char* cache_flush = std::getenv("TVM_AUTO_CACHE_FLUSH");
     // skip first time call, to activate lazy compilation components.
     pf.CallPacked(args, &temp);
 
     DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
 
     for (int i = 0; i < repeat; ++i) {
-      if (cache_flush && std::atoi(cache_flush) != 0) {
-        CHECK_EQ(number, 1);
-        // we want to keep input data
-        for (int j = 1; j < args.size(); j++) {
-          CacheFlush(reinterpret_cast<char*>(args[j].operator DLTensor*()->data),
-                     GetDataSize(*(args[j].operator DLTensor*())));
-        }
-      }
       std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin,
           tend;
       double duration_ms = 0.0;

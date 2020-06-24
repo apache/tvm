@@ -138,17 +138,7 @@ class NDArray : public ObjectRef {
    * \param ctx The context of the Array.
    * \return The created Array
    */
-  TVM_DLL static NDArray Empty(std::vector<int64_t> shape,
-                               DLDataType dtype, DLContext ctx);
-  /*!
-   * \brief Create an NDArray with non-empty values.
-   * \param shape The shape of the new array.
-   * \param dtype The data type of the new array.
-   * \param ctx The context of the Array.
-   * \return The created Array
-   */
-  TVM_DLL static NDArray NonEmpty(std::vector<int64_t> shape,
-                                  DLDataType dtype, DLContext ctx);
+  TVM_DLL static NDArray Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx);
   /*!
    * \brief Create a NDArray backed by a dlpack tensor.
    *

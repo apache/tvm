@@ -685,8 +685,6 @@ Expr MakeExpandDims(Expr data, int axis, int num_newaxis);
 
 Expr MakeLayoutTransform(Expr data, String src_layout, String dst_layout);
 
-Expr MakeKernelLayoutTransform(Expr data, String src_layout, String dst_layout);
-
 Expr StopFusion(Expr data);
 
 Expr CastHint(Expr data, DataType dtype);

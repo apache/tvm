@@ -44,8 +44,7 @@ enum DeviceAttrKind : int {
   kMaxClockRate = 6,
   kMultiProcessorCount = 7,
   kMaxThreadDimensions = 8,
-  kGcnArch = 9,
-  kMaxRegistersPerBlock = 10
+  kGcnArch = 9
 };
 
 /*! \brief Number of bytes each allocation must align to */
