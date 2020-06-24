@@ -80,7 +80,7 @@ macro(find_cuda use_cuda)
         # NO_DEFAULT_PATH)
       # if(_CUDA_CUDA_LIBRARY)
         # set(CUDA_CUDA_LIBRARY ${_CUDA_CUDA_LIBRARY})
-      endif()
+      # endif()
       find_library(CUDA_NVRTC_LIBRARY nvrtc
         PATHS ${CUDA_TOOLKIT_ROOT_DIR}
         PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs lib64/stubs lib/x86_64-linux-gnu
