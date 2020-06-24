@@ -615,13 +615,13 @@ void InjectInline(ScheduleNode* sch) {
 }
 
 void LegalizeInvalidAttach(ScheduleNode* sch) {
-  // Legalize the compute_at location if the target iterator of compute_at was split or fused.
+  // Legalize the compute_at location if the target iterator of compute_at is split or fused.
   // Case 1: If the target of compute_at is split,
   //         we will move the compute_at location to the inner iterator.
   // Case 2: If the target of compute_at is fused,
   //         we will move the compute_at location to the newly fused iterator.
   // Note that case 2 can only happen if the target of compute_at
-  // is the innermost operands of fuse operation.
+  // is the innermost operand of fuse operation.
 
   std::unordered_map<IterVar, IterVar> replace_map;
 
@@ -645,7 +645,7 @@ void LegalizeInvalidAttach(ScheduleNode* sch) {
       }
 
       if (!start_attach) {
-        IterVar new_attach_ivar = attach_ivar;;
+        IterVar new_attach_ivar = attach_ivar;
         bool updated = true;
         // recursively update the relations
         while (updated) {
