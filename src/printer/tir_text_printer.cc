@@ -438,12 +438,6 @@ Doc TIRTextPrinter::VisitStmt_(const AllocateNode* op) {
   return doc;
 }
 
-Doc TIRTextPrinter::VisitStmt_(const FreeNode* op) {
-  Doc doc;
-  doc << "free(" << Print(op->buffer_var) << ")";
-  return doc;
-}
-
 Doc TIRTextPrinter::VisitStmt_(const IfThenElseNode* op) {
   Doc doc;
   doc << "if " << Print(op->condition) << PrintBody(op->then_case);

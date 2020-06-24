@@ -79,8 +79,6 @@ void StmtVisitor::VisitStmt_(const IfThenElseNode* op) {
   }
 }
 
-void StmtVisitor::VisitStmt_(const FreeNode* op) {}
-
 void StmtVisitor::VisitStmt_(const AssertStmtNode* op) {
   this->VisitExpr(op->condition);
   this->VisitExpr(op->message);
@@ -380,8 +378,6 @@ Stmt StmtMutator::VisitStmt_(const EvaluateNode* op) {
     return Stmt(n);
   }
 }
-
-Stmt StmtMutator::VisitStmt_(const FreeNode* op) { return GetRef<Stmt>(op); }
 
 // Implementations of IRTransform, PostOrderVisit and Substitute
 class IRApplyVisit : public StmtExprVisitor {
