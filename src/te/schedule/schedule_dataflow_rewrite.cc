@@ -684,7 +684,6 @@ void LegalizeInvalidAttach(ScheduleNode* sch) {
   }
 }
 
-
 Schedule Schedule::normalize() {
   Schedule sn = copy();
   InjectInline(sn.operator->());
