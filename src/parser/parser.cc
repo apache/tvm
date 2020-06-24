@@ -202,6 +202,12 @@ using Expr = relay::Expr;
 struct GlobalFunc {
   GlobalVar global;
   Function function;
+  GlobalFunc() : global(), function() {}
+  GlobalFunc(GlobalVar global, Function function) : global(global), function(function) {}
+  GlobalFunc(const GlobalFunc& gfunc) {
+    this->global = gfunc.global;
+    this->function = gfunc.function;
+  }
 };
 
 struct Definitions {
@@ -443,19 +449,33 @@ struct Parser {
     auto defs = ParseDefinitions();
     // Parse the metadata section at the end.
     auto metadata = ParseMetadata();
-    Consume(TokenType::EndOfFile);
+    Match(TokenType::EndOfFile);
     return IRModule();
   }
 
   SemVer ParseSemVer() {
-    Consume(TokenType::Unknown);
+    // Consume(TokenType::Unknown);
     return SemVer{.major = 0, .minor = 0, .patch = 0};
   }
 
   Definitions ParseDefinitions() {
     Definitions defs;
 
-    return defs;
+    while (true) {
+     auto next = Peek();
+     switch (next->token_type) {
+        case TokenType::Defn: {
+          Consume(TokenType::Defn);
+          auto tok = Match(TokenType::Global);
+          // Todo: add to global parsing context.
+          auto global = GlobalVar(tok.ToString());
+          auto func = ParseFunctionDef();
+          defs.funcs.push_back(GlobalFunc(global, func));
+        }
+        default:
+          return defs;
+      }
+    }
   }
 
   template <typename R>
@@ -516,14 +536,29 @@ struct Parser {
           return LookupGraphBinding(next);
         }
       } else if (next->token_type == TokenType::Let) {
+        // Parse the 'let'.
         Consume(TokenType::Let);
+
+        // Parse the local '%<id>'.
         auto local_tok = Match(TokenType::Local);
-        auto string_name = local_tok->data.as<StringObj>();
-        CHECK(string_name != nullptr);
-        auto var = BindVar(GetRef<String>(string_name), Type());
+        auto string = local_tok.ToString();
+
+        // Parse the optional type annotation (':' <type>).
+        Type type;
+        if (WhenMatch(TokenType::Colon)) {
+          type = ParseType();
+        }
+
+        auto var = BindVar(string, type);
+
+        // Parse the '=';
         Match(TokenType::Equal);
+
+        // Parse the body, and the ';'.
         auto val = this->ParseExpr();
         Consume(TokenType::Semicolon);
+
+        // Add the bindings to the local data structure.
         bindings.push_back({ var, val });
         scopes++;
         PushScope();
@@ -700,15 +735,20 @@ struct Parser {
   }
 
   Type ParseType() {
+    auto tok = Peek();
     if (WhenMatch(TokenType::Identifier)) {
-      return TensorType({}, DataType::Int(32, 1));
+      // Need to do better error handling here.
+      auto dtype = DataType(String2DLDataType(tok.ToString()));
+      return TensorType({}, dtype);
+    } if (WhenMatch(TokenType::Underscore)) {
+      return IncompleteType();
     } else {
       LOG(FATAL) << "failed to parse type";
       return Type();
     }
   }
 
-  Expr ParseFunctionDef() {
+  Function ParseFunctionDef() {
     PushScope();
 
     auto params = ParseSequence<Var>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&]() {
@@ -731,6 +771,8 @@ struct Parser {
       return ParseExpr();
     });
 
+    std::cout << "After Block" << std::endl;
+    DisplayNextN(10);
     PopScope(1);
 
     return relay::Function(params, body, ret_type, {});
@@ -788,7 +830,7 @@ struct Parser {
         }
         case TokenType::Fn: {
           Consume(TokenType::Fn);
-          return ParseFunctionDef();
+          return Expr(ParseFunctionDef());
         }
         case TokenType::Local: {
           auto string = next.ToString();

@@ -65,8 +65,11 @@ enum TokenType {
     RCurly,
     LCurly,
     Bang,
+    At,
+    Underscore,
     Let,
     Fn,
+    Defn,
     Unknown,
     EndOfFile,
     Null,
@@ -140,10 +143,16 @@ std::string ToString(const TokenType& token_type) {
             return "LCurly";
         case TokenType::Bang:
             return "Bang";
+        case TokenType::Underscore:
+            return "Underscore";
+        case TokenType::At:
+            return "At";
         case TokenType::Let:
             return "Let";
         case TokenType::Fn:
             return "Fn";
+        case TokenType::Defn:
+            return "Defn";
         case TokenType::Boolean:
             return "Boolean";
         case TokenType::Unknown:
@@ -222,17 +231,18 @@ bool IsNumeric(char c) {
     return (IsDigit(c) || c == '.' || c == 'e' || c == '-' || c == '+' || c == 'E') && !IsWhitespace(c);
 }
 
-bool IsLetter(char c) {
-    return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
+bool IsIdentLetter(char c) {
+    return '_' == c || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z');
 }
 
 bool IsIdent(char c) {
-    return IsLetter(c) || IsDigit(c);
+    return IsIdentLetter(c) || IsDigit(c);
 }
 
 static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
     { "let", TokenType::Let },
-    { "fn", TokenType::Fn }
+    { "fn", TokenType::Fn },
+    { "def", TokenType::Defn }
 };
 
 struct Tokenizer {
@@ -454,6 +464,10 @@ struct Tokenizer {
             auto token = NewToken(TokenType::Bang);
             Next();
             return token;
+        } else if (next == '@') {
+            auto token = NewToken(TokenType::At);
+            Next();
+            return token;
         } else if (next == '%') {
             auto token = NewToken(TokenType::Percent);
             Next();
@@ -480,7 +494,7 @@ struct Tokenizer {
             } else {
                 return NewToken(TokenType::Division);
             }
-        } else if (IsLetter(next)) {
+        } else if (IsIdentLetter(next)) {
             std::stringstream ss;
             while (More() && IsIdent(Peek())) {
                 ss << Next();
@@ -547,6 +561,20 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
                 }
                 continue;
             }
+            case TokenType::At: {
+                auto next = tokens.at(i + 1);
+                if (next->token_type == TokenType::Identifier) {
+                    // Match this token.
+                    i += 1;
+                    auto tok = Token(current->line, current->column, TokenType::Global, next->data);
+                    CHECK(tok.defined());
+                    out.push_back(tok);
+                } else {
+                    CHECK(current.defined());
+                    out.push_back(current);
+                }
+                continue;
+            }
             case TokenType::Identifier: {
                 std::string str = Downcast<tvm::String>(current->data);
                 Token tok;
@@ -556,6 +584,8 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
                 } else if (str == "False") {
                     auto data = tvm::Integer(0);
                     tok = Token(current->line, current->column, TokenType::Boolean, data);
+                } else if (str == "_") {
+                    tok = Token(current->line, current->column, TokenType::Underscore);
                 } else {
                     tok = current;
                 }
