@@ -110,31 +110,7 @@ def test_unroll_single_count_loops():
         ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
         assert ret == stmt
 
-def test_unroll_explicitly_max_extent():
-    n = 64
-    A = te.placeholder((n,), name='A')
-    B = te.compute((n,), lambda *i: A(*i), name='B')
-    s = te.create_schedule(B.op)
-    s = s.normalize()
-    dom_map = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-
-    with tvm.transform.PassContext(config={
-        "tir.UnrollLoop": {"explicit_unroll_max_extent": n-1}
-    }):
-        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
-        assert tvm.ir.structural_equal(ret, stmt)
-
-    with tvm.transform.PassContext(config={
-        "tir.UnrollLoop": {"explicit_unroll_max_extent": n}
-    }):
-        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
-        assert not tvm.ir.structural_equal(ret, stmt)
-
-
 if __name__ == "__main__":
     test_unroll_loop()
     test_unroll_fake_loop()
     test_unroll_single_count_loops()
-    test_unroll_explicitly_max_extent()

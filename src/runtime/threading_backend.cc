@@ -166,13 +166,8 @@ class ThreadGroup::Impl {
 #if defined(_M_X64) || defined(__x86_64__)
       big_count /= 2;  // ignore hyper-threading
 #endif
-      const char* bind_master_core_0 = getenv("TVM_BIND_MASTER_CORE_0");
-      if (bind_master_core_0 && atoi(bind_master_core_0) != 0) {
-        CPU_SET(sorted_order_[0], &cpuset);
-      } else {
-        for (int i = 0; i < big_count; ++i) {
-          CPU_SET(sorted_order_[i], &cpuset);
-        }
+      for (int i = 0; i < big_count; ++i) {
+        CPU_SET(sorted_order_[i], &cpuset);
       }
     }
 #if defined(__ANDROID__)

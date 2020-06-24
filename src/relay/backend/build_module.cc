@@ -153,11 +153,6 @@ class RelayBuildModule : public runtime::ModuleNode {
         CHECK_EQ(args.num_args, 2);
         *rv = this->Optimize(args[0], args[1], this->params_);
       });
-    } else if (name == "call_all_topi_funcs") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue *rv) {
-        CHECK_EQ(args.num_args, 3);
-        this->CallAllTopiFuncs(args[0], args[1], args[2]);
-      });
     } else {
       LOG(FATAL) << "Unknown packed function: " << name;
       return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
@@ -230,21 +225,6 @@ class RelayBuildModule : public runtime::ModuleNode {
     targets_ = targets;
     target_host_ = target_host;
     BuildRelay(mod, params_);
-  }
-
-  /*! \brief Call all used TOPI compute and schedule in a relay function */
-  void CallAllTopiFuncs(IRModule mod,
-                        const TargetsMap& targets,
-                        const tvm::Target& target_host) {
-    targets_ = targets;
-    target_host_ = target_host;
-
-    IRModule relay_module = Optimize(mod, targets_, params_);
-    auto func = Downcast<Function>(relay_module->Lookup("main"));
-
-    graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());
-    graph_codegen_->Init(nullptr, targets_);
-    graph_codegen_->Codegen(func);
   }
 
  protected:
@@ -335,18 +315,6 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // Fuse the operations if it is needed.
     relay_module = transform::FuseOps()(relay_module);
-
-    if (targets.size() == 1) {
-      pass_seqs.push_back(transform::KernelLayoutTransform());
-      pass_seqs.push_back(transform::DeFuseOps());
-      pass_seqs.push_back(transform::FoldConstant());
-      transform::Pass seq = transform::Sequential(pass_seqs);
-      const auto& it = targets.begin();
-      With<Target> tctx((*it).second);
-      relay_module = seq(relay_module);
-      relay_module = transform::FuseOps()(relay_module);
-    }
-
     relay_module = transform::InferType()(relay_module);
     // Inline the functions that have been lifted by the module scope.
     //

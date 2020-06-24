@@ -42,7 +42,6 @@ from tvm.contrib import tar, ndk
 from . import _ffi_api
 from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout, request_remote, \
     check_remote
-from .compute_dag import LayoutRewriteLevel
 
 LOGGER = logging.getLogger('ansor')
 
@@ -331,7 +330,7 @@ def local_build_worker(index):
 
         try:
             sch, args = task.compute_dag.apply_steps_from_state(
-                inp.state, LayoutRewriteLevel.BOTH_REWRITE)
+                inp.state)
         except Exception:
             error_no = MeasureErrorNo.INSTANTIATION_ERROR
             error_msg = make_error_msg()

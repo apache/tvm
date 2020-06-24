@@ -296,19 +296,6 @@ struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
   }
 };
 
-/*! \brief Attributes for KernelLayoutTransform operator */
-struct KernelLayoutTransformAttrs : public tvm::AttrsNode<KernelLayoutTransformAttrs> {
-  std::string src_layout;
-  std::string dst_layout;
-
-  TVM_DECLARE_ATTRS(KernelLayoutTransformAttrs, "relay.attrs.KernelLayoutTransformAttrs") {
-    TVM_ATTR_FIELD(src_layout)
-        .describe("The source layout of the tensor. (e.g. 1N32C112H112W)");
-    TVM_ATTR_FIELD(dst_layout)
-        .describe("The destination layout of the tensor. (e.g. 1N2C112H112W16c)");
-  }
-};
-
 /*! \brief Attributes for ShapeOf operator */
 struct ShapeOfAttrs : public tvm::AttrsNode<ShapeOfAttrs> {
   DataType dtype;

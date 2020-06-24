@@ -38,7 +38,6 @@
 #include <vector>
 #include "transform_step.h"
 #include "search_policy/utils.h"
-#include "../relay/transforms/kernel_layout_transform.h"
 
 namespace tvm {
 namespace ansor {
@@ -737,7 +736,7 @@ void ComputeDAG::RewriteLayout(
               CHECK_EQ(placeholder_axis_names.size(), placeholder->shape.size());
               std::string ori_layout = os.str();
               os.str("");
-              ::tvm::relay::KernelLayoutVisitor::global_ori_layouts_queue.push_back(ori_layout);
+              // ::tvm::relay::KernelLayoutVisitor::global_ori_layouts_queue.push_back(ori_layout);
             }
           }
 
@@ -800,7 +799,7 @@ void ComputeDAG::RewriteLayout(
           }
           std::string new_layout = os.str();
           os.str("");
-          ::tvm::relay::KernelLayoutVisitor::global_new_layouts_queue.push_back(new_layout);
+          // ::tvm::relay::KernelLayoutVisitor::global_new_layouts_queue.push_back(new_layout);
           placeholder_new_names[placeholder_op] = new_names;
           placeholder_new_shapes[placeholder_op] = new_shape;
 

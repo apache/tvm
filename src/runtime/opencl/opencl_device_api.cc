@@ -109,9 +109,6 @@ void OpenCLWorkspace::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
     }
     case kGcnArch:
       return;
-    default: {
-      LOG(WARNING) << "Attr not implemented.";
-    }
   }
 }
 

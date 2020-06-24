@@ -132,13 +132,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + broadcast(x, lanes), ramp(b1 + x, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) + ramp(b1, s1, lanes), ramp(x + b1, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) + broadcast(y, lanes), broadcast(x + y, lanes));
-    if ((x + broadcast(y, lanes)).Match(ret)) {
-      if (auto ps = y.Eval().as<FloatImmNode>()) {
-        if (ps->value == 0.0) {
-          return x.Eval();
-        }
-      }
-    }
   }
 
   if (IsIndexType(op->dtype)) {
@@ -429,13 +422,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
     TVM_TRY_REWRITE(broadcast(x, lanes) * broadcast(y, lanes), broadcast(x * y, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) * broadcast(x, lanes), ramp(b1 * x, s1 * x, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) * ramp(b1, s1, lanes), ramp(b1 * x, s1 * x, lanes));
-    if ((broadcast(x, lanes) * y).Match(ret)) {
-      if (auto ps = x.Eval().as<FloatImmNode>()) {
-        if (ps->value == 0.0) {
-          return make_const(op->dtype, 0.0);
-        }
-      }
-    }
   }
 
   if (IsIndexType(op->dtype)) {
@@ -714,9 +700,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   PrimExpr const_res = TryConstFold<FloorDiv>(op->a, op->b);
   if (const_res.defined()) return const_res;
   // Pattern var to match any expression
-  PVar<PrimExpr> w, x, y, z, b1;
+  PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2, c3, c4;
+  PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
 
@@ -781,11 +767,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     TVM_TRY_REWRITE_IF(floordiv(max(y, x * c1), c2), max(floordiv(y, c2), x * floordiv(c1, c2)),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
 
-    TVM_TRY_REWRITE_IF(floordiv(x * c1 + y, c2), floordiv(x * c1, c2),
-                       c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
-                       c2.Eval()->value % c1.Eval()->value == 0 &&
-                       CanProveGreaterEqual(-y.Eval(), -c1.Eval()->value + 1));
-
     // Rules involving 3-operands.
     TVM_TRY_REWRITE_IF(floordiv(x * c1 + y + z, c2), x * floordiv(c1, c2) + floordiv(y + z, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
@@ -801,13 +782,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
 
     TVM_TRY_REWRITE_IF(floordiv(x + c1, c2), floordiv(x, c2) + floordiv(c1, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
-
-    TVM_TRY_REWRITE_IF(floordiv(x * c1 + y * c2 + z, c3), floordiv(x * c1 + y * c2, c3),
-                       c1.Eval()->value > 0 && c2.Eval()->value > 0 && c3.Eval()->value > 0 &&
-                       c3.Eval()->value % c1.Eval()->value == 0 &&
-                       c3.Eval()->value % c2.Eval()->value == 0 &&
-                       CanProveGreaterEqual(-z.Eval(),
-                       std::max(-c1.Eval()->value, -c2.Eval()->value) + 1));
 
     TVM_TRY_REWRITE_IF(floordiv(x + y, x), floordiv(y, x) + 1, CanProveGreaterEqual(x.Eval(), 0));
 
@@ -833,18 +807,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
                        CanProveGreaterEqual(z.Eval(), 0));
     TVM_TRY_REWRITE_IF(floordiv(y + z * x, z), floordiv(y, z) + x,
                        CanProveGreaterEqual(z.Eval(), 0));
-
-    // Rules involving 4-operands
-    TVM_TRY_REWRITE_IF(floordiv(w * c1 + x * c2 + y * c3 + z, c4),
-                       floordiv(w * c1 + x * c2 + y * c3, c4),
-                       c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
-                       c3.Eval()->value > 0 && c4.Eval()->value > 0 &&
-                       c4.Eval()->value % c1.Eval()->value == 0 &&
-                       c4.Eval()->value % c2.Eval()->value == 0 &&
-                       c4.Eval()->value % c3.Eval()->value == 0 &&
-                       CanProveGreaterEqual(-z.Eval(),
-                       std::max(-c1.Eval()->value,
-                       std::max(-c2.Eval()->value, -c3.Eval()->value)) + 1));
   }
   return ret;
 }
@@ -856,9 +818,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
-  PVar<PrimExpr> w, x, y, z, b1;
+  PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2, c3, c4;
+  PVar<IntImm> c1, c2;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
 
@@ -901,31 +863,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
 
     TVM_TRY_REWRITE_IF(floormod(x + y * c1, c2), floormod(x, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
-
-    TVM_TRY_REWRITE_IF(floormod(x * c1 + y, c2), floormod(x, floordiv(c2, c1)) * c1 + y,
-                       c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
-                       c2.Eval()->value % c1.Eval()->value == 0 &&
-                       CanProveGreaterEqual(-y.Eval(), -c1.Eval()->value + 1));
-
-    // TODO(jcf94): For the next three rules, better use the max common factor
-    // of c1, c2, c3 to do the simplify
-    TVM_TRY_REWRITE_IF(floormod(x * c1 + y * c2 + z, c3),
-                       floormod(x * floordiv(c1, c2) + y, floordiv(c3, c2)) * c2 + z,
-                       c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
-                       c3.Eval()->value > 0 &&
-                       c3.Eval()->value % c2.Eval()->value == 0 &&
-                       c1.Eval()->value % c2.Eval()->value == 0 &&
-                       CanProveGreaterEqual(-z.Eval(), -c2.Eval()->value + 1));
-
-    TVM_TRY_REWRITE_IF(floormod(w * c1 + x * c2 + y * c3 + z, c4),
-                       floormod(w * floordiv(c1, c3) + x * floordiv(c2, c3) + y,
-                                floordiv(c4, c3)) * c3 + z,
-                       c1.Eval()->value > 0 && c2.Eval()->value > 0 &&
-                       c3.Eval()->value > 0 && c4.Eval()->value > 0 &&
-                       c4.Eval()->value % c3.Eval()->value == 0 &&
-                       c1.Eval()->value % c3.Eval()->value == 0 &&
-                       c2.Eval()->value % c3.Eval()->value == 0 &&
-                       CanProveGreaterEqual(-z.Eval(), -c3.Eval()->value + 1));
 
     // try modular analysis
     if (floormod(x, c1).Match(ret)) {

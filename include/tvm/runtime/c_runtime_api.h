@@ -385,29 +385,6 @@ TVM_DLL int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, in
                           int dtype_lanes, int device_type, int device_id, TVMArrayHandle* out);
 
 /*!
- * \brief Allocate a nd-array's memory of non-empty values,
- *  including space of shape, of given spec.
- *
- * \param shape The shape of the array, the data content will be copied to out
- * \param ndim The number of dimension of the array.
- * \param dtype_code The type code of the dtype
- * \param dtype_bits The number of bits of dtype
- * \param dtype_lanes The number of lanes in the dtype.
- * \param device_type The device type of context
- * \param device_id The device id of context.
- * \param out The output handle.
- * \return 0 when success, -1 when failure happens
- */
-TVM_DLL int TVMArrayAllocNonEmpty(const tvm_index_t* shape,
-                                  int ndim,
-                                  int dtype_code,
-                                  int dtype_bits,
-                                  int dtype_lanes,
-                                  int device_type,
-                                  int device_id,
-                                  TVMArrayHandle* out);
-
-/*!
  * \brief Free the TVM Array.
  * \param handle The array handle to be freed.
  * \return 0 when success, -1 when failure happens

@@ -279,39 +279,6 @@ def empty(shape, dtype="float32", ctx=context(1, 0)):
     return _make_array(handle, False, False)
 
 
-def non_empty(shape, dtype="float32", ctx=context(1, 0)):
-    """Create an non-empty array given shape and device
-
-    Parameters
-    ----------
-    shape : tuple of int
-        The shape of the array
-
-    dtype : type or str
-        The data type of the array.
-
-    ctx : TVMContext
-        The context of the array
-
-    Returns
-    -------
-    arr : tvm.nd.NDArray
-        The array tvm supported.
-    """
-    shape = c_array(tvm_shape_index_t, shape)
-    ndim = ctypes.c_int(len(shape))
-    handle = TVMArrayHandle()
-    dtype = DataType(dtype)
-    check_call(_LIB.TVMArrayAllocNonEmpty(
-        shape, ndim,
-        ctypes.c_int(dtype.type_code),
-        ctypes.c_int(dtype.bits),
-        ctypes.c_int(dtype.lanes),
-        ctx.device_type,
-        ctx.device_id,
-        ctypes.byref(handle)))
-    return _make_array(handle, False, False)
-
 def from_dlpack(dltensor):
     """Produce an array from a DLPack tensor without memory copy.
     Retreives the underlying DLPack tensor's pointer to create an array from the
