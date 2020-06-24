@@ -136,7 +136,7 @@ print ("Model Version: " + str(version))
 #
 # If you are unsure what that might be, this can be discovered by using
 # the visualize.py script within the Tensorflow project.
-# See : How do I inspect a .tflite file? https://www.tensorflow.org/lite/guide/faq
+# See : How do I inspect a .tflite file? `<https://www.tensorflow.org/lite/guide/faq>`_
  
 input_tensor = "dense_4_input"
 input_shape = (1,)
