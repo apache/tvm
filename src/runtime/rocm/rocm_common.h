@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_ROCM_ROCM_COMMON_H_
 
 #include <hip/hip_runtime_api.h>
+#include <hip/hip_version.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <string>
