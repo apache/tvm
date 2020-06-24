@@ -119,7 +119,7 @@ class OpAttrExtractor : public AttrVisitor {
       String s = GetRef<String>(str);
       SetNodeAttr(key, std::vector<std::string>{s.operator std::string()});
     } else {
-      LOG(FATAL) << "Not yet supprted type: " << (*value)->GetTypeKey() << ": " << *value;
+      LOG(FATAL) << "Not yet supported type: " << (*value)->GetTypeKey() << ": " << *value;
     }
   }
 

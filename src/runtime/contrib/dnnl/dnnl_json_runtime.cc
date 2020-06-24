@@ -51,30 +51,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
   const char* type_key() const { return "dnnl_json"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
-    if (this->symbol_name_ == name) {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        CHECK(this->initialized_) << "The module has not been initialized";
-
-        // Set inputs.
-        SetInputs(args);
-        // Execute the subgraph.
-        this->Run();
-        // Copy result to output buffer.
-        GetOutput(args);
-      });
-    } else if ("__init_" + this->symbol_name_ == name) {
-      // The function to initialize constant tensors.
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        CHECK_EQ(args.size(), 1U);
-        this->Init(args[0]);
-        *rv = 0;
-      });
-    } else {
-      return JSONRuntimeBase::GetFunction(name, sptr_to_self);
-    }
-  }
-
   void Init(const Array<NDArray>& consts) override {
     BuildEngine();
 
@@ -89,8 +65,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     // Setup constants entries for weights.
     SetupConstants(consts);
-
-    initialized_ = true;
   }
 
   void Run() override {
@@ -469,8 +443,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   std::vector<std::unordered_map<int, dnnl::memory>> net_args_;
   /* The entry ID to its corresponding output memory. */
   std::unordered_map<uint32_t, std::pair<dnnl::memory, size_t>> entry_out_mem_;
-  /* Indicate if the DNNL engine has been initialized. */
-  bool initialized_{false};
 };
 
 runtime::Module DNNLJSONRuntimeCreate(String symbol_name, String graph_json,

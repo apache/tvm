@@ -76,6 +76,25 @@ class JSONRuntimeBase : public ModuleNode {
     } else if (name == "get_const_vars") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->const_names_; });
+    } else if (this->symbol_name_ == name) {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        CHECK(this->initialized_) << "The module has not been initialized";
+
+        // Set inputs.
+        this->SetInputs(args);
+        // Execute the subgraph.
+        this->Run();
+        // Copy result to output buffer.
+        this->GetOutput(args);
+      });
+    } else if ("__init_" + this->symbol_name_ == name) {
+      // The function to initialize constant tensors.
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        CHECK_EQ(args.size(), 1U);
+        this->Init(args[0]);
+        this->initialized_ = true;
+        *rv = 0;
+      });
     } else {
       return PackedFunc(nullptr);
     }
@@ -299,6 +318,8 @@ class JSONRuntimeBase : public ModuleNode {
   std::vector<uint32_t> input_var_idx_;
   /*! \brief input const index. */
   std::vector<uint32_t> const_idx_;
+  /* Indicate if the engine has been initialized. */
+  bool initialized_{false};
 };
 
 }  // namespace json
