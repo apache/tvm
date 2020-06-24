@@ -81,25 +81,25 @@ def add_mn(M, N):
 @register_workload_func
 def matmul_nkkm(N, M, K, in_type='float32', out_type='float32',
                 tensor_core_support=False):
-    A = te.placeholder((N, K), name='A', dtype=in_type)
-    B = te.placeholder((K, M), name='B', dtype=in_type)
-    k = te.reduce_axis((0, K), name='k')
-    if in_type == out_type:
-        if not (in_type == 'float16' and out_type == 'float16'):
-            tensor_core_support = False
-        C = te.compute((N, M),
-                        lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]),
-                        name='C',
-                        attrs={"ansor_tensor_core_support": "True" if tensor_core_support else "False"})
-    else:
+    if tensor_core_support:
+        A = te.placeholder((N // 16, K // 16, 16, 16), name='A', dtype=in_type)
+        B = te.placeholder((K // 16, M // 16, 16, 16), name='B', dtype=in_type)
+        k = te.reduce_axis((0, K // 16), name='k')
+        kk = te.reduce_axis((0, 16), name='kk')
         if not ((in_type == 'float16' and out_type == 'float32') or \
-                (in_type == 'int8' and out_type == 'int32')):
-            tensor_core_support = False
+            (in_type == 'int8' and out_type == 'int32')):
+            raise ValueError
+        C = te.compute((N // 16, M // 16, 16, 16),
+            lambda i, j, ii, jj: te.sum(A[i][k][ii][kk].astype(out_type) * B[k][j][kk][jj].astype(out_type),
+                                    axis=[k, kk]),
+            name='C')
+    else:
+        A = te.placeholder((N, K), name='A', dtype=in_type)
+        B = te.placeholder((K, M), name='B', dtype=in_type)
+        k = te.reduce_axis((0, K), name='k')
         C = te.compute((N, M),
-                        lambda i, j: te.sum(A[i][k].astype(out_type) * B[k][j].astype(out_type),
-                                             axis=[k]),
-                        name='C',
-                        attrs={"ansor_tensor_core_support": "True" if tensor_core_support else "False"})
+                       lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]),
+                       name='C')
 
     return [A, B, C]
 

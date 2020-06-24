@@ -569,13 +569,11 @@ State ComputeDAG::GetInitState() const {
 ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   auto node = make_object<ComputeDAGNode>();
   FlopEstimator estimator;
-
   node->tensors = std::move(tensors);
   node->access_analyzer = AccessAnalyzer(node->tensors);
   node->ops = Array<te::Operation>(node->access_analyzer->ops_topo_order);
   node->flop_ct = estimator.EstimateFlop(node->ops);
   node->init_state = State(node->ops);
-
   data_ = std::move(node);
 }
 
@@ -587,7 +585,15 @@ ComputeDAG::ComputeDAG(const std::string& workload_key) {
   } else {
     LOG(FATAL) << "ansor.workload_key_to_tensors is not registered";
   }
-  ComputeDAG(std::move(tens));
+
+  auto node = make_object<ComputeDAGNode>();
+  FlopEstimator estimator;
+  node->tensors = std::move(tens);
+  node->access_analyzer = AccessAnalyzer(node->tensors);
+  node->ops = Array<te::Operation>(node->access_analyzer->ops_topo_order);
+  node->flop_ct = estimator.EstimateFlop(node->ops);
+  node->init_state = State(node->ops);
+  data_ = std::move(node);
 }
 
 std::string BaseName(const std::string& str) {
