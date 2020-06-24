@@ -148,10 +148,6 @@ class ComputeDAG: public ObjectRef {
       const std::vector<Step>& transform_steps,
       LayoutRewriteLevel layout_rewrite_level = kNoRewrite) const;
 
-  // Rewrite the the layout of "layout free" placeholders according to transform steps
-  void RewriteLayout(const std::vector<Step>& transform_steps,
-                     LayoutRewriteLevel layout_rewrite_level = kNoRewrite) const;
-
   // Print transform steps as equivalent python schedule API
   std::string PrintStepsAsPython(const std::vector<Step>& steps) const;
 

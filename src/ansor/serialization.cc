@@ -96,26 +96,6 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
         }
         writer->WriteArrayItem(IntArrayToVector(&tmp, ps->lengths));
         writer->WriteArrayItem(static_cast<int>(ps->inner_to_outer));
-      } else if (auto ps = data[i].as<::tvm::ansor::FollowSplitStepNode>()) {
-        writer->WriteArrayItem(std::string("FSP"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(ps->iter_id);
-        writer->WriteArrayItem(ps->src_step_id);
-        writer->WriteArrayItem(ps->n_split);
-      } else if (auto ps = data[i].as<::tvm::ansor::FollowFusedSplitStepNode>()) {
-        writer->WriteArrayItem(std::string("FFSP"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(ps->iter_id);
-
-        writer->WriteArraySeperator();
-        writer->BeginArray(false);
-        for (int x : ps->src_step_ids) {
-          writer->WriteArrayItem(x);
-        }
-        writer->EndArray();
-
-        writer->WriteArrayItem(ps->level);
-        writer->WriteArrayItem(static_cast<int>(ps->factor_or_nparts));
       } else if (auto ps = data[i].as<::tvm::ansor::FuseStepNode>()) {
         writer->WriteArrayItem(std::string("FU"));
         writer->WriteArrayItem(ps->stage_id);
@@ -126,52 +106,6 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
           writer->WriteArrayItem(x);
         }
         writer->EndArray();
-      } else if (auto ps = data[i].as<::tvm::ansor::AnnotationStepNode>()) {
-        writer->WriteArrayItem(std::string("AN"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(ps->iter_id);
-        writer->WriteArrayItem(static_cast<int>(ps->annotation));
-      } else if (auto ps = data[i].as<::tvm::ansor::ComputeAtStepNode>()) {
-        writer->WriteArrayItem(std::string("CA"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(ps->target_stage_id);
-        writer->WriteArrayItem(ps->target_iter_id);
-      } else if (auto ps = data[i].as<::tvm::ansor::ComputeRootStepNode>()) {
-        writer->WriteArrayItem(std::string("CR"));
-        writer->WriteArrayItem(ps->stage_id);
-      } else if (auto ps = data[i].as<::tvm::ansor::ComputeInlineStepNode>()) {
-        writer->WriteArrayItem(std::string("CI"));
-        writer->WriteArrayItem(ps->stage_id);
-      } else if (auto ps = data[i].as<::tvm::ansor::CacheReadStepNode>()) {
-        writer->WriteArrayItem(std::string("CHR"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(ps->scope_name);
-        writer->WriteArrayItem(ps->reader_stage_ids);
-      } else if (auto ps = data[i].as<::tvm::ansor::CacheWriteStepNode>()) {
-        writer->WriteArrayItem(std::string("CHW"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(ps->scope_name);
-      } else if (auto ps = data[i].as<::tvm::ansor::PragmaStepNode>()) {
-        writer->WriteArrayItem(std::string("PR"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(ps->iter_id);
-        writer->WriteArrayItem(ps->pragma_type);
-      } else if (auto ps = data[i].as<::tvm::ansor::RfactorStepNode>()) {
-        writer->WriteArrayItem(std::string("RF"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(ps->iter_id);
-        writer->WriteArrayItem(ps->factor_iter_id);
-      } else if (auto ps = data[i].as<::tvm::ansor::StorageAlignStepNode>()) {
-        writer->WriteArrayItem(std::string("SA"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(ps->iter_id);
-        writer->WriteArrayItem(ps->factor);
-        writer->WriteArrayItem(ps->offset);
-      } else if (auto ps = data[i].as<::tvm::ansor::TensorizeStepNode>()) {
-        writer->WriteArrayItem(std::string("TS"));
-        writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(ps->iter_id);
-        writer->WriteArrayItem(ps->ti_func_name);
       } else {
         LOG(FATAL) << "Invalid step: " << data[i];
       }
@@ -183,10 +117,9 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
   inline static void Read(dmlc::JSONReader* reader,
                           std::vector<::tvm::ansor::Step> * data) {
     std::vector<int> int_list;
-    bool s, inner_to_outer, factor_or_nparts;
+    bool s, inner_to_outer;
     std::string name, scope_name, pragma_type, ti_func_name;
-    int stage_id, target_stage_id, iter_id, src_step_id, n_split, ann, extent;
-    int level, factor_iter_id, factor, offset;
+    int stage_id, iter_id, extent;
 
     reader->BeginArray();
     data->clear();
@@ -215,116 +148,12 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
             stage_id, iter_id, extent,
             std::vector<::tvm::PrimExpr>(int_list.begin(), int_list.end()),
             inner_to_outer));
-      } else if (name == "FSP") {
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&iter_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&src_step_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&n_split);
-        data->push_back(::tvm::ansor::FollowSplitStep(
-            stage_id, iter_id, src_step_id, n_split));
-      } else if (name == "FFSP") {
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&iter_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&int_list);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&level);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&factor_or_nparts);
-        data->push_back(::tvm::ansor::FollowFusedSplitStep(
-            stage_id, iter_id, int_list, level, factor_or_nparts));
       } else if (name == "FU") {
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&stage_id);
         s = reader->NextArrayItem(); CHECK(s);
         reader->Read(&int_list);
         data->push_back(::tvm::ansor::FuseStep(stage_id, int_list));
-      } else if (name == "AN") {
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&iter_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&ann);
-        data->push_back(::tvm::ansor::AnnotationStep(stage_id,
-            iter_id, ::tvm::ansor::IteratorAnnotation(ann)));
-      } else if (name == "CA") {
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&target_stage_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&iter_id);
-        data->push_back(::tvm::ansor::ComputeAtStep(
-            stage_id, target_stage_id, iter_id));
-      } else if (name == "CR") {
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&stage_id);
-        data->push_back(::tvm::ansor::ComputeRootStep(stage_id));
-      } else if (name == "CI") {
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&stage_id);
-        data->push_back(::tvm::ansor::ComputeInlineStep(stage_id));
-      } else if (name == "CHR") {
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&scope_name);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&int_list);
-        data->push_back(::tvm::ansor::CacheReadStep(
-            stage_id, scope_name, int_list));
-      } else if (name == "CHW") {
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&scope_name);
-        data->push_back(::tvm::ansor::CacheWriteStep(
-            stage_id, scope_name));
-      } else if (name == "PR") {
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&iter_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&pragma_type);
-        data->push_back(::tvm::ansor::PragmaStep(
-            stage_id, iter_id, pragma_type));
-      } else if (name == "RF") {
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&iter_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&factor_iter_id);
-        data->push_back(::tvm::ansor::RfactorStep(
-            stage_id, iter_id, factor_iter_id));
-      } else if (name == "SA") {
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&iter_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&factor);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&offset);
-        data->push_back(::tvm::ansor::StorageAlignStep(
-            stage_id, iter_id, factor, offset));
-      } else if (name == "TS") {
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&stage_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&iter_id);
-        s = reader->NextArrayItem(); CHECK(s);
-        reader->Read(&ti_func_name);
-        data->push_back(::tvm::ansor::TensorizeStep(
-            stage_id, iter_id, ti_func_name));
       } else {
         LOG(FATAL) << "Invalid step format";
       }

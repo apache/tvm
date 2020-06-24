@@ -92,65 +92,6 @@ class RandomModel : public CostModel {
   using ContainerType = RandomModelNode;
 };
 
-/*! \brief The cost model returns actual cost by measurement */
-class MeasureModelNode : public CostModelNode {
- public:
-  ProgramMeasurer measurer;
-
-  void Update(const Array<MeasureInput>& inputs,
-              const Array<MeasureResult>& results) final;
-  void Predict(const SearchTask& task, const std::vector<State>& states,
-               std::vector<float>* scores) final;
-
-  static constexpr const char* _type_key = "ansor.MeasureModel";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MeasureModelNode, CostModelNode);
-};
-
-/*!
- * \brief Managed reference to MeasureModelNode.
- * \sa MeasureModelNode
- */
-class MeasureModel : public CostModel {
- public:
-  MeasureModel(Builder builder, Runner runner);
-
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MeasureModel, CostModel,
-                                        MeasureModelNode);
-};
-
-/*! \brief  A wrapper for cost model defined by python code
- *  This class will call python's function */
-class PythonBasedModelNode: public CostModelNode {
- public:
-  PackedFunc update_func;
-  PackedFunc predict_func;
-  PackedFunc predict_stage_func;
-
-  void Update(const Array<MeasureInput>& inputs,
-              const Array<MeasureResult>& results) final;
-  void Predict(const SearchTask& task, const std::vector<State>& states,
-      std::vector<float>* scores) final;
-  void PredictStages(const SearchTask& task, const std::vector<State>& states,
-                     std::vector<float>* state_scores,
-                     std::vector<std::vector<float>>* stage_scores) final;
-
-  static constexpr const char *_type_key = "ansor.PythonBasedModel";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PythonBasedModelNode, CostModelNode);
-};
-
-/*!
- * \brief Managed reference to PythonBasedModelNode.
- * \sa PythonBasedModelNode
- */
-class PythonBasedModel : public CostModel {
- public:
-  PythonBasedModel(PackedFunc update_func, PackedFunc predict_func,
-                   PackedFunc predict_stage_func);
-
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PythonBasedModel, CostModel,
-                                        PythonBasedModelNode);
-};
-
 }  // namespace ansor
 }  // namespace tvm
 

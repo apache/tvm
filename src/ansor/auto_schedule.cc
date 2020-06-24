@@ -26,7 +26,6 @@
 #include <tvm/runtime/registry.h>
 #include <string>
 #include <utility>
-#include "search_policy/sketch_search_policy.h"
 
 namespace tvm {
 namespace ansor {
