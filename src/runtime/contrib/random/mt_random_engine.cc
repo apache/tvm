@@ -22,10 +22,14 @@
  * \brief mt19937 random engine
  */
 #include <dmlc/logging.h>
+#include <tvm/runtime/device_api.h>
+#include <tvm/runtime/ndarray.h>
 
 #include <algorithm>
 #include <ctime>
 #include <random>
+
+#include "../3rdparty/compiler-rt/builtin_fp16.h"
 
 namespace tvm {
 namespace contrib {
@@ -108,6 +112,56 @@ class RandomEngine {
                       [&]() { return normal_dist(rnd_engine_); });
     } else {
       LOG(FATAL) << "Do not support random.normal on this device yet";
+    }
+  }
+
+  void RandomFill(DLTensor* data) {
+    int64_t size = 1;
+    for (int i = 0; i < data->ndim; ++i) {
+      size *= data->shape[i];
+    }
+
+    if (data->ctx.device_type == kDLCPU) {
+      FillData(data, size);
+    } else {
+      DLTensor local;
+      local.shape = data->shape;
+      local.ndim = data->ndim;
+      local.dtype = data->dtype;
+      local.strides = data->strides;
+      local.byte_offset = data->byte_offset;
+      local.ctx = {kDLCPU, 0};
+      local.data = runtime::DeviceAPI::Get(local.ctx)->AllocDataSpace(
+          {kDLCPU, 0}, runtime::GetDataSize(local), runtime::GetDataAlignment(local), local.dtype);
+      FillData(&local, size);
+      runtime::NDArray::CopyFromTo(&local, data);
+    }
+  }
+
+ private:
+  void FillData(DLTensor* tensor, int64_t size) {
+    // Make the value be 1.0 - 10.0, not (0.0 - 1.0) so that we could satisfy
+    // quantized dtype (uint8 / int8) data non-empty requirement
+    std::uniform_real_distribution<> dist(1.0, 10.0);
+    // Use float representation could make us work well on float / int type too.
+    if (tensor->dtype.bits == 1) {
+      std::generate_n(static_cast<bool*>(tensor->data), size, [&]() { return dist(rnd_engine_); });
+    } else if (tensor->dtype.bits == 8) {
+      std::generate_n(static_cast<uint8_t*>(tensor->data), size,
+                      [&]() { return dist(rnd_engine_); });
+    } else if (tensor->dtype.bits == 16) {
+      std::generate_n(static_cast<uint16_t*>(tensor->data), size, [&]() {
+        return __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(
+            static_cast<float>(dist(rnd_engine_)));
+      });
+    } else if (tensor->dtype.bits == 32) {
+      std::generate_n(static_cast<float*>(tensor->data), size, [&]() { return dist(rnd_engine_); });
+    } else if (tensor->dtype.bits == 64) {
+      std::generate_n(static_cast<double*>(tensor->data), size,
+                      [&]() { return dist(rnd_engine_); });
+    } else {
+      LOG(FATAL) << "Doesn't support dtype code " << tensor->dtype.code << " dtype bits "
+                 << tensor->dtype.bits;
     }
   }
 
