@@ -148,7 +148,7 @@ Since there are not call nodes, we need to use specific pattern nodes to match t
         tuple_pattern = is_tuple((wildcard(), wildcard(), wildcard()))
         assert tuple_pattern.match(relay.expr.Tuple((x,y,z)))
 
-The next example is matching a pattern of batch_norm -> get(0) -> relu:
+The next example is matching a pattern of batch_norm -> get(0) -> relu. Note that you can also use `is_tuple_get_item(bn_node)` to match a `TupleGetItem` node with any index.
 
 .. code-block:: python
 
@@ -280,7 +280,7 @@ The high level design is to introduce a language of patterns for now we propose 
             | is_expr(expr)
             | is_op(op_name)
             | is_tuple()
-            | is_tuple_get_item()
+            | is_tuple_get_item(pattern, index = None)
             | pattern1 `|` pattern2
             | dominates(parent_pattern, path_pattern, child_pattern)
 

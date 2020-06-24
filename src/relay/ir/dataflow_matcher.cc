@@ -359,7 +359,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ExprPatternNode* op, const Expr& ex
 bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) {
   bool matches = false;
   if (const auto* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
-    matches = (op->index == tuple_get_item_node->index) &&
+    matches = (op->index == -1 || op->index == tuple_get_item_node->index) &&
               VisitDFPattern(op->tuple, tuple_get_item_node->tuple);
   }
   return matches;
