@@ -68,11 +68,6 @@ CCacheKey::CCacheKey(Function source_func, Target target) {
   auto n = make_object<CCacheKeyNode>();
   n->source_func = std::move(source_func);
   n->target = std::move(target);
-  n->disabled = false;
-  char* envar = getenv("TVM_RELAY_DISABLE_BUILD_CACHE");
-  if (envar != nullptr && strcmp(envar, "true") == 0) {
-    n->disabled = true;
-  }
   data_ = std::move(n);
 }
 

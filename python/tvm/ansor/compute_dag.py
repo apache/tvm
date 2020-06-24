@@ -23,13 +23,6 @@ from .loop_state import State, StateObject
 from . import _ffi_api
 
 
-class LayoutRewriteLevel(object):
-    NO_REWRITE = 0           # No layout rewrite
-    PLACEHOLDER_REWRITE = 1  # Only rewrite layout of placeholder in the compute dag
-    COMPUTE_REWRITE = 2      # Only rewrite compute body for new layout in the compute dag
-    BOTH_REWRITE = 3         # Rewrite both placeholder and compute body in the compute dag
-
-
 @tvm._ffi.register_object("ansor.ComputeDAG")
 class ComputeDAG(Object):
     """
@@ -97,17 +90,3 @@ class ComputeDAG(Object):
         """
         state_obj = state if isinstance(state, StateObject) else state.state_object
         return State(_ffi_api.ComputeDAGInferBoundFromState(self, state_obj), self)
-
-    def rewrite_layout_from_state(self, state: State):
-        """
-        Rewrite the layout according to the transform steps in the history of a state
-
-        Parameters
-        ----------
-        state : StateObject
-
-        Returns
-        -------
-        state : StateObject
-        """
-        return _ffi_api.ComputeDAGRewriteLayoutFromState(self, state)

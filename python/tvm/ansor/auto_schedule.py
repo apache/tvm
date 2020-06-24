@@ -82,95 +82,9 @@ class SearchPolicy(Object):
     def run_callbacks(self, callbacks):
         _ffi_api.SearchPolicyRunCallbacks(self, callbacks)
 
-
-@tvm._ffi.register_object("ansor.SketchSearchPolicy")
-class SketchSearchPolicy(SearchPolicy):
-    """  The search policy that searches in a hierarchical search space defined by sketches.
-    The policy randomly samples programs from the space defined by sketches
-    and use evolutionary search to fine-tune them.
-
-    Parameters
-    ----------
-    program_cost_model: CostModel
-        Cost model for programs
-    params: int
-        Parameters of the search policy. See `src/ansor/search_policy/sketch_search_policy.h`
-        to find the definitions. See code below to find the default values
-    seed: int
-        Random seed
-    """
-    def __init__(self,
-                 program_cost_model,
-                 params=None,
-                 seed=None):
-        # set default parameters
-        default_params = {
-            "eps_greedy": 0.05,
-
-            'evolutionary_search_population': 2048,
-            'evolutionary_search_num_iters': 15,
-            "evolutionary_search_mutation_prob": 0.85,
-            "evolutionary_search_use_measured_ratio": 0.2,
-
-            'cpu_multi_level_tiling_structure': 'SSRSRS',
-            'gpu_multi_level_tiling_structure': 'SSSRRSRS',
-
-            'disable_change_compute_location': 0,
-        }
-
-        if params is None:
-            params = default_params
-        else:
-            for key, value in default_params.items():
-                if key not in params:
-                    params[key] = value
-
-        self.__init_handle_by_constructor__(
-            _ffi_api.SketchSearchPolicy, program_cost_model, params,
-            seed or random.randint(1, 1 << 30))
-
-
 @tvm._ffi.register_object("ansor.SearchCallback")
 class SearchCallback(Object):
     """Callback function before or after search process"""
-
-
-@tvm._ffi.register_object("ansor.PreloadMeasuredStates")
-class PreloadMeasuredStates(SearchCallback):
-    """ A SearchCallback to load measured states from the log file for a search policy.
-    This can resume the state of the search policy.
-
-    Parameters
-    ----------
-    filename: str
-    """
-    def __init__(self, filename: str):
-        self.__init_handle_by_constructor__(
-            _ffi_api.PreloadMeasuredStates, filename)
-
-
-@tvm._ffi.register_object("ansor.PreloadCustomSketchRule")
-class PreloadCustomSketchRule(SearchCallback):
-    """
-    A SearchCallback for SketchSearchPolicy that allowing users to add
-    custom sketch rule.
-
-    Notes
-    -----
-    This is an advanced feature. Make sure you're clear how it
-    works and this should only be used in SketchSearchPolicy.
-
-    Parameters
-    ----------
-    meet_condition_func: Function
-        A function with `(policy, state, stage_id) -> int`
-    apply_func: Function
-        A function with `(policy, state, stage_id) -> [[State, int], ...]`
-    """
-    def __init__(self, meet_condition_func, apply_func):
-        self.__init_handle_by_constructor__(
-            _ffi_api.PreloadCustomSketchRule, meet_condition_func, apply_func)
-
 
 @tvm._ffi.register_object("ansor.TuneOption")
 class TuneOption(Object):

@@ -44,34 +44,3 @@ def random_number(n, return_ptr):
     return_ptr = ctypes.cast(return_ptr, ctypes.POINTER(ctypes.c_float))
     array_wrapper = np.ctypeslib.as_array(return_ptr, shape=(n,))
     array_wrapper[:] = np.random.uniform(0, 1, (n,))
-
-
-@tvm._ffi.register_object("ansor.PythonBasedModel")
-class PythonBasedModel(CostModel):
-    """Base class for cost models implemented in python"""
-    def __init__(self):
-        def update_func(inputs, results):
-            self.update(inputs, results)
-
-        def predict_func(task, states, return_ptr):
-            return_ptr = ctypes.cast(return_ptr, ctypes.POINTER(ctypes.c_float))
-            array_wrapper = np.ctypeslib.as_array(return_ptr, shape=(len(states),))
-            array_wrapper[:] = self.predict(task, states)
-
-        def predict_stage_func(task, states, return_ptr):
-            ret = self.predict_stages(task, states)
-            return_ptr = ctypes.cast(return_ptr, ctypes.POINTER(ctypes.c_float))
-            array_wrapper = np.ctypeslib.as_array(return_ptr, shape=ret.shape)
-            array_wrapper[:] = ret
-
-        self.__init_handle_by_constructor__(_ffi_api.PythonBasedModel, update_func,
-                                            predict_func, predict_stage_func)
-
-    def update(self, inputs, results):
-        raise NotImplementedError
-
-    def predict(self, task, states):
-        raise NotImplementedError
-
-    def predict_stages(self, task, states):
-        raise NotImplementedError

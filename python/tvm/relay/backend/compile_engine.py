@@ -18,7 +18,6 @@
 """Backend code generation engine."""
 from __future__ import absolute_import
 
-import os
 import logging
 import numpy as np
 import tvm
@@ -142,6 +141,7 @@ def get_valid_implementations(op, attrs, inputs, out_type, target):
                 ret.append(impl)
     return ret
 
+
 def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True):
     """Select the best implementation from the op strategy.
 
@@ -179,9 +179,6 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     ret : tuple(relay.op.OpImplementation, List[tvm.te.Tensor])
         The best op implementation and the corresponding output tensors.
     """
-    if os.environ.get('TVM_USE_AUTOTVM', 'false') == 'false':
-        use_autotvm = False
-
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
 
     best_plevel_impl = None

@@ -115,8 +115,6 @@ class CCacheKeyNode : public Object {
   /*! \brief The hardware target.*/
   Target target;
 
-  bool disabled;
-
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("source_func", &source_func);
     v->Visit("target", &target);
@@ -261,7 +259,6 @@ inline size_t CCacheKeyNode::Hash() const {
 }
 
 inline bool CCacheKeyNode::Equal(const CCacheKeyNode* other) const {
-  if (disabled) return false;
   if (Hash() != other->Hash()) return false;
   return this->target->str() == other->target->str() &&
          tvm::StructuralEqual()(this->source_func, other->source_func);
