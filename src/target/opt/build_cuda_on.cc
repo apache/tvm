@@ -121,39 +121,39 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   return ptx;
 }
 
-runtime::Module BuildCUDA(IRModule mod, std::string target) {
-  using tvm::runtime::Registry;
-  bool output_ssa = false;
-  CodeGenCUDA cg;
-  cg.Init(output_ssa);
+// runtime::Module BuildCUDA(IRModule mod, std::string target) {
+//   using tvm::runtime::Registry;
+//   bool output_ssa = false;
+//   CodeGenCUDA cg;
+//   cg.Init(output_ssa);
 
-  for (auto kv : mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
-    auto f = Downcast<PrimFunc>(kv.second);
-    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
-        << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
-    cg.AddFunction(f);
-  }
+//   for (auto kv : mod->functions) {
+//     CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
+//     auto f = Downcast<PrimFunc>(kv.second);
+//     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+//     CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
+//         << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
+//     cg.AddFunction(f);
+//   }
 
-  std::string code = cg.Finish();
+//   std::string code = cg.Finish();
 
-  if (const auto* f = Registry::Get("tvm_callback_cuda_postproc")) {
-    code = (*f)(code).operator std::string();
-  }
-  std::string fmt = "ptx";
-  std::string ptx;
-  if (const auto* f = Registry::Get("tvm_callback_cuda_compile")) {
-    ptx = (*f)(code).operator std::string();
-    // Dirty matching to check PTX vs cubin.
-    // TODO(tqchen) more reliable checks
-    if (ptx[0] != '/') fmt = "cubin";
-  } else {
-    ptx = NVRTCCompile(code, cg.need_include_path());
-  }
-  return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
-}
+//   if (const auto* f = Registry::Get("tvm_callback_cuda_postproc")) {
+//     code = (*f)(code).operator std::string();
+//   }
+//   std::string fmt = "ptx";
+//   std::string ptx;
+//   if (const auto* f = Registry::Get("tvm_callback_cuda_compile")) {
+//     ptx = (*f)(code).operator std::string();
+//     // Dirty matching to check PTX vs cubin.
+//     // TODO(tqchen) more reliable checks
+//     if (ptx[0] != '/') fmt = "cubin";
+//   } else {
+//     ptx = NVRTCCompile(code, cg.need_include_path());
+//   }
+//   return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
+// }
 
-TVM_REGISTER_GLOBAL("target.build.cuda").set_body_typed(BuildCUDA);
+// TVM_REGISTER_GLOBAL("target.build.cuda").set_body_typed(BuildCUDA);
 }  // namespace codegen
 }  // namespace tvm

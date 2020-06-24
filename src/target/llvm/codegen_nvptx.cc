@@ -254,68 +254,68 @@ inline int DetectCUDAComputeVersion() {
   }
 }
 
-runtime::Module BuildNVPTX(IRModule mod, std::string target) {
-  InitializeLLVM();
-  CHECK(target.length() >= 5 && target.substr(0, 5) == "nvptx");
-  int compute_ver = DetectCUDAComputeVersion();
-  std::ostringstream config;
-  config << "-mtriple=nvptx64-nvidia-cuda -mcpu=sm_" << compute_ver
-         << target.substr(5, target.length() - 5);
-  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
-  std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
-  // careful: cg will hold a naked pointer reference to ctx, so it should
-  // have a shorter lifetime than the ctx.
-  std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
+// runtime::Module BuildNVPTX(IRModule mod, std::string target) {
+//   InitializeLLVM();
+//   CHECK(target.length() >= 5 && target.substr(0, 5) == "nvptx");
+//   int compute_ver = DetectCUDAComputeVersion();
+//   std::ostringstream config;
+//   config << "-mtriple=nvptx64-nvidia-cuda -mcpu=sm_" << compute_ver
+//          << target.substr(5, target.length() - 5);
+//   std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
+//   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
+//   // careful: cg will hold a naked pointer reference to ctx, so it should
+//   // have a shorter lifetime than the ctx.
+//   std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
 
-  cg->Init("TVMPTXModule", tm.get(), ctx.get(), false, false);
+//   cg->Init("TVMPTXModule", tm.get(), ctx.get(), false, false);
 
-  for (auto kv : mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
-    auto f = Downcast<PrimFunc>(kv.second);
-    cg->AddFunction(f);
-  }
+//   for (auto kv : mod->functions) {
+//     CHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
+//     auto f = Downcast<PrimFunc>(kv.second);
+//     cg->AddFunction(f);
+//   }
 
-  const auto* flibdevice_path = tvm::runtime::Registry::Get("tvm_callback_libdevice_path");
-  if (flibdevice_path != nullptr) {
-    std::string path = (*flibdevice_path)(compute_ver);
-    if (path.length() != 0) {
-      llvm::SMDiagnostic err;
-      std::unique_ptr<llvm::Module> mlib = llvm::parseIRFile(path, err, *ctx);
-      if (mlib.get() == nullptr) {
-        std::string msg(err.getMessage());
-        LOG(FATAL) << "Fail to load bitcode file " << path << "\n"
-                   << "line " << err.getLineNo() << ":" << msg;
-      }
-      mlib->setTargetTriple(tm->getTargetTriple().str());
-      mlib->setDataLayout(tm->createDataLayout());
-      cg->AddLinkModule(std::move(mlib));
-    }
-  }
-  std::unique_ptr<llvm::Module> module = cg->Finish();
-  llvm::SmallString<8> data_ptx, data_ll;
-  llvm::raw_svector_ostream dest_ptx(data_ptx), dest_ll(data_ll);
-  dest_ptx.SetUnbuffered();
-  dest_ll.SetUnbuffered();
-  // print ll
-  module->print(dest_ll, nullptr);
-  std::string ll(data_ll.begin(), data_ll.end());
-  // emit ptx
-  llvm::legacy::PassManager pass;
-#if TVM_LLVM_VERSION <= 60
-  CHECK(tm->addPassesToEmitFile(pass, dest_ptx, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
-      << "Cannot emit target CGFT_ObjectFile";
-#elif TVM_LLVM_VERSION <= 90
-  CHECK(tm->addPassesToEmitFile(pass, dest_ptx, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) ==
-        0)
-      << "Cannot emit target CGFT_ObjectFile";
-#else
-  CHECK(tm->addPassesToEmitFile(pass, dest_ptx, nullptr, llvm::CGFT_AssemblyFile) == 0)
-      << "Cannot emit target CGFT_ObjectFile";
-#endif
-  pass.run(*module);
-  std::string ptx(data_ptx.begin(), data_ptx.end());
-  return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(mod), ll);
-}
+//   const auto* flibdevice_path = tvm::runtime::Registry::Get("tvm_callback_libdevice_path");
+//   if (flibdevice_path != nullptr) {
+//     std::string path = (*flibdevice_path)(compute_ver);
+//     if (path.length() != 0) {
+//       llvm::SMDiagnostic err;
+//       std::unique_ptr<llvm::Module> mlib = llvm::parseIRFile(path, err, *ctx);
+//       if (mlib.get() == nullptr) {
+//         std::string msg(err.getMessage());
+//         LOG(FATAL) << "Fail to load bitcode file " << path << "\n"
+//                    << "line " << err.getLineNo() << ":" << msg;
+//       }
+//       mlib->setTargetTriple(tm->getTargetTriple().str());
+//       mlib->setDataLayout(tm->createDataLayout());
+//       cg->AddLinkModule(std::move(mlib));
+//     }
+//   }
+//   std::unique_ptr<llvm::Module> module = cg->Finish();
+//   llvm::SmallString<8> data_ptx, data_ll;
+//   llvm::raw_svector_ostream dest_ptx(data_ptx), dest_ll(data_ll);
+//   dest_ptx.SetUnbuffered();
+//   dest_ll.SetUnbuffered();
+//   // print ll
+//   module->print(dest_ll, nullptr);
+//   std::string ll(data_ll.begin(), data_ll.end());
+//   // emit ptx
+//   llvm::legacy::PassManager pass;
+// #if TVM_LLVM_VERSION <= 60
+//   CHECK(tm->addPassesToEmitFile(pass, dest_ptx, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+//       << "Cannot emit target CGFT_ObjectFile";
+// #elif TVM_LLVM_VERSION <= 90
+//   CHECK(tm->addPassesToEmitFile(pass, dest_ptx, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) ==
+//         0)
+//       << "Cannot emit target CGFT_ObjectFile";
+// #else
+//   CHECK(tm->addPassesToEmitFile(pass, dest_ptx, nullptr, llvm::CGFT_AssemblyFile) == 0)
+//       << "Cannot emit target CGFT_ObjectFile";
+// #endif
+//   pass.run(*module);
+//   std::string ptx(data_ptx.begin(), data_ptx.end());
+//   return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(mod), ll);
+// }
 
 TVM_REGISTER_GLOBAL("target.build.nvptx").set_body_typed(BuildNVPTX);
 
