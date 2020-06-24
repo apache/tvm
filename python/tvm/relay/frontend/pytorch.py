@@ -995,11 +995,11 @@ def _dense():
         beta = inputs[3]
         alpha = inputs[4]
 
-        if not isinstance(alpha, _expr.Expr):
+        if not isinstance(alpha, _expr.Expr) and alpha != 1:
             alpha = _create_typed_const(alpha, data_type)
             data *= alpha
 
-        if not isinstance(beta, _expr.Expr):
+        if not isinstance(beta, _expr.Expr) and beta != 1:
             beta = _create_typed_const(beta, data_type)
             weight *= beta
 
