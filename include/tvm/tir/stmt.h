@@ -545,35 +545,6 @@ class Allocate : public Stmt {
   TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
 };
 
-/*! \brief Free the resources in the buffer before the scope ends. */
-class FreeNode : public StmtNode {
- public:
-  /*! \brief The buffer variable. */
-  Var buffer_var;
-
-  void VisitAttrs(AttrVisitor* v) { v->Visit("buffer_var", &buffer_var); }
-
-  bool SEqualReduce(const FreeNode* other, SEqualReducer equal) const {
-    return equal(buffer_var, other->buffer_var);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(buffer_var); }
-
-  static constexpr const char* _type_key = "tir.Free";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FreeNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to FreeNode.
- * \sa FreeNode
- */
-class Free : public Stmt {
- public:
-  TVM_DLL Free(Var buffer_var);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Free, Stmt, FreeNode);
-};
-
 /*!
  * \brief The container of seq statement.
  *        Represent a sequence of statements.
