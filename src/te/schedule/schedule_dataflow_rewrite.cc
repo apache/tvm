@@ -622,11 +622,14 @@ void LegalizeInvalidAttach(ScheduleNode* sch) {
   //         we will move the compute_at location to the newly fused iterator.
   // Note that case 2 can only happen if the target of compute_at
   // is the innermost operand of fuse operation.
-
+ 
+  // Map an old invalid attach point to its new valid attach point
   std::unordered_map<IterVar, IterVar> replace_map;
 
   for (Stage stage : sch->stages) {
     for (Stage s = stage; s.defined();) {
+      // The following logic is simiar to the `CreateAttachPath` in `src/te/schedule/graph.h`,
+      // because we follow the validation check in that function to legalize the attach.
       Stage spec = s.GetAttachSpec();
       if (spec->attach_type != kScope) {
         break;
@@ -641,6 +644,7 @@ void LegalizeInvalidAttach(ScheduleNode* sch) {
         IterVar iv = s->leaf_iter_vars[i - 1];
         if (!start_attach && iv.same_as(attach_ivar)) {
           start_attach = true;
+          break;
         }
       }
 
