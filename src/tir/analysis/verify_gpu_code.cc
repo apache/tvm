@@ -65,7 +65,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       shared_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     }
     if (op->dtype.lanes() > 1) {
-      valid_ &= op->dtype.lanes() * op->dtype.bytes() <= static_cast<int>(max_vector_bytes_);
+      valid_ &= static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) <= max_vector_bytes_;
     }
   }
 
@@ -139,7 +139,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
     // to be simplified to a RampNode
     if (op->index->IsInstance<RampNode>()) {
       if (op->dtype.lanes() > 1) {
-        valid_ &= op->dtype.lanes() * op->dtype.bytes() <= static_cast<int>(max_vector_bytes_);
+        valid_ &= static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) <= max_vector_bytes_;
       }
     }
     ExprVisitor::VisitExpr_(op);
