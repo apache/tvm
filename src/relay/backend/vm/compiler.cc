@@ -204,6 +204,9 @@ TreeObjectPtr BuildDecisionTreeFromClauses(MatchValuePtr data, tvm::Array<Clause
 
 std::vector<int64_t> ToAllocTensorShape(NDArray shape) {
   std::vector<int64_t> raw_shape;
+  if (shape->ndim == 0) {
+    return raw_shape;
+  }
   CHECK_EQ(shape->ndim, 1u);
   CHECK_EQ(shape->dtype.code, 0U) << "The dtype of constant shape must be int32 or int64, but got "
                                   << DLDataType2String(shape->dtype);
@@ -425,10 +428,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     // Prepare input and output registers
     std::vector<Index> argument_registers;
     for (auto input : inputs) {
-      auto reg = var_register_map_.find(Downcast<Var>(input));
-      CHECK(reg != var_register_map_.end())
-          << "internal error: all variables should be in the register mapping";
-      argument_registers.push_back(reg->second);
+      VisitExpr(input);
+      argument_registers.push_back(last_register_);
     }
 
     for (auto output : outputs) {
@@ -457,10 +458,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                         << "please file a bug in the memory manifestation pass";
 
     for (auto input : input_tuple->fields) {
-      auto reg = var_register_map_.find(Downcast<Var>(input));
-      CHECK(reg != var_register_map_.end())
-          << "internal error: all variables should be in the register mapping";
-      argument_registers.push_back(reg->second);
+      VisitExpr(input);
+      argument_registers.push_back(last_register_);
     }
 
     for (auto output : output_tuple->fields) {
@@ -566,16 +565,20 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                    this->VisitExpr(args[0]);
                    auto size_register = last_register_;
 
-                   this->VisitExpr(args[1]);
-                   auto alignment_register = last_register_;
+                   CHECK(args[1].as<ConstantNode>());
+                   NDArray alignment_arr = args[1].as<ConstantNode>()->data;
+                   CHECK_EQ(alignment_arr->dtype.code, 0U)
+                       << "The dtype of constant shape must be int32 or int64, but got "
+                       << DLDataType2String(alignment_arr->dtype);
+                   CHECK_EQ(alignment_arr->dtype.bits, 64U);
+                   Index alignment = reinterpret_cast<int64_t*>(alignment_arr->data)[0];
 
                    // Get the dtype hint from the attributes.
                    auto alloc_attrs = attrs.as<AllocStorageAttrs>();
                    CHECK(alloc_attrs != nullptr) << "must be the alloc tensor attrs";
                    auto dtype = alloc_attrs->dtype;
 
-                   Emit(Instruction::AllocStorage(size_register, alignment_register, dtype,
-                                                  NewRegister()));
+                   Emit(Instruction::AllocStorage(size_register, alignment, dtype, NewRegister()));
                  })
           .Match("memory.shape_func",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
@@ -890,7 +893,9 @@ transform::Sequential MemoryOpt(tvm::Target host_target) {
   pass_seqs.push_back(transform::FoldConstant());
 
   // Lift constants to the top-level of the block to simplify VM code generation.
-  pass_seqs.push_back(transform::LiftConstants());
+  // TODO(@icemelon9, @jroesch): Remove this pass for now because some
+  //  instructions need to access to constant
+  // pass_seqs.push_back(transform::LiftConstants());
 
   return transform::Sequential(pass_seqs);
 }

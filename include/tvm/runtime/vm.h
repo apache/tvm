@@ -241,7 +241,7 @@ struct Instruction {
       /*! \brief The size of the allocation. */
       RegName allocation_size;
       /*! \brief The alignment of the allocation. */
-      RegName alignment;
+      Index alignment;
       /*! \brief The hint of the dtype. */
       DLDataType dtype_hint;
     } alloc_storage;
@@ -386,7 +386,7 @@ struct Instruction {
    * \param dst The destination to place the storage.
    * \return The alloc storage instruction.
    */
-  static Instruction AllocStorage(RegName size, RegName alignment, DLDataType dtype_hint,
+  static Instruction AllocStorage(RegName size, Index alignment, DLDataType dtype_hint,
                                   RegName dst);
 
   Instruction();
@@ -733,7 +733,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param reg The register to read from.
    * \return The read scalar.
    */
-  int32_t LoadScalarInt(RegName reg) const;
+  inline int64_t LoadScalarInt(RegName reg) const;
 
   /*!
    * \brief Invoke a VM function.
