@@ -622,7 +622,7 @@ void LegalizeInvalidAttach(ScheduleNode* sch) {
   //         we will move the compute_at location to the newly fused iterator.
   // Note that case 2 can only happen if the target of compute_at
   // is the innermost operand of fuse operation.
- 
+
   // Map an old invalid attach point to its new valid attach point
   std::unordered_map<IterVar, IterVar> replace_map;
 
