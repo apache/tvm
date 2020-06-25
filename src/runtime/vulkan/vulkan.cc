@@ -417,6 +417,8 @@ void VulkanDeviceAPI::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
       return;
     case kGcnArch:
       return;
+    case kApiVersion:
+      return;
   }
 }
 
