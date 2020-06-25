@@ -108,6 +108,7 @@ class AluVector(implicit p: Parameters) extends Module {
   * acc-scratchpad.
   */
 class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
+  val aluBits = p(CoreKey).accBits
   val io = IO(new Bundle {
     val start = Input(Bool())
     val done = Output(Bool())
@@ -230,7 +231,8 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
   tensorImm.data.valid := state === sReadTensorB
   tensorImm.data.bits.foreach { b =>
     b.foreach { c =>
-      c := dec.alu_imm
+      c := Mux(dec.alu_imm(C_ALU_IMM_BITS - 1),
+               Cat(-1.S((aluBits - C_ALU_IMM_BITS).W), dec.alu_imm), dec.alu_imm)
     }
   }
 
