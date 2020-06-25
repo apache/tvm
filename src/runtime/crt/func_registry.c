@@ -17,6 +17,8 @@
  * under the License.
  */
 
+// LINT_C_FILE
+
 /*!
  * \file tvm/runtime/crt/func_registry.c
  * \brief Defines implementations of generic string-based function lookup structs
@@ -129,7 +131,8 @@ tvm_crt_error_t TVMMutableFuncRegistry_Set(TVMMutableFuncRegistry* reg, const ch
   }
 
   size_t name_len = strlen(name);
-  if (idx > reg->max_functions || (reg_name_ptr + name_len) > ((const char*)reg->registry.funcs)) {
+  if (idx > reg->max_functions ||
+      (reg_name_ptr + name_len + 1) > ((const char*)reg->registry.funcs)) {
     return kTvmErrorFunctionRegistryFull;
   }
 

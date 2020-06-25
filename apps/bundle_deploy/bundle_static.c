@@ -19,9 +19,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <tvm/runtime/crt/graph_runtime.h>
 
 #include "bundle.h"
-#include <tvm/runtime/crt/graph_runtime.h>
 
 TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
                                  const uint64_t params_size) {
@@ -38,7 +38,8 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
 
   // declare pointers
   void* (*SystemLibraryCreate)();
-  TVMGraphRuntimeAPI* (*TVMGraphRuntimeCreate)(const char*, const TVMModuleHandle, const TVMContext*);
+  TVMGraphRuntimeAPI* (*TVMGraphRuntimeCreate)(const char*, const TVMModuleHandle,
+                                               const TVMContext*);
   int (*TVMGraphRuntime_LoadParams)(TVMModuleHandle, const char*, const uint32_t);
 
   // get pointers

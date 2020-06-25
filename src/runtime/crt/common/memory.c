@@ -17,6 +17,8 @@
  * under the License.
  */
 
+// LINT_C_FILE
+
 /*!
  * \file memory.c
  * \brief Virtual memory manager
@@ -25,16 +27,14 @@
  */
 
 #include <inttypes.h>
-
 #include <stdbool.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/internal/common/logging.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/platform.h>
-#include <tvm/runtime/crt/internal/common/logging.h>
 
 #include "crt_config.h"
 #include "memory_internal.h"
@@ -50,9 +50,7 @@ typedef struct Page {
 } Page;
 
 // construct a new page
-Page PageCreate(uint8_t* memory_pool,
-                size_t page_size_bytes,
-                tvm_index_t ptable_begin,
+Page PageCreate(uint8_t* memory_pool, size_t page_size_bytes, tvm_index_t ptable_begin,
                 tvm_index_t num_pages) {
   Page page;
   page.ptable_begin = ptable_begin;
@@ -74,8 +72,8 @@ typedef struct PageTable {
 } PageTable;
 
 void PageTable_Resize(struct PageTable* ptable, size_t new_size, Page* page) {
-  CHECK_LE(ptable->num_pages, new_size, "size value (%zu) is smaller than expected (%zu).", new_size,
-           ptable->num_pages);
+  CHECK_LE(ptable->num_pages, new_size, "size value (%zu) is smaller than expected (%zu).",
+           new_size, ptable->num_pages);
   for (uint32_t idx = ptable->num_pages; idx < new_size; idx++) {
     ptable->page[idx] = *page;
   }
@@ -341,14 +339,14 @@ void MemoryManager_Free(MemoryManager* mgr, void* ptr) {
 static bool g_memory_manager_initialized = 0;
 static MemoryManager g_memory_manager;
 
-MemoryManager* MemoryManagerCreate(uint8_t* memory_pool,
-                                   size_t memory_pool_size_bytes,
+MemoryManager* MemoryManagerCreate(uint8_t* memory_pool, size_t memory_pool_size_bytes,
                                    size_t page_size_bytes_log2) {
   if (g_memory_manager_initialized) {
     TVMPlatformAbort(-1);
   }
 
-  size_t num_pages = memory_pool_size_bytes / ((1 << page_size_bytes_log2) + sizeof(Page) + sizeof(PageEntry));
+  size_t num_pages =
+      memory_pool_size_bytes / ((1 << page_size_bytes_log2) + sizeof(Page) + sizeof(PageEntry));
 
   memset(&g_memory_manager, 0, sizeof(MemoryManager));
   memset(memory_pool, 0, sizeof(memory_pool_size_bytes));
@@ -359,18 +357,19 @@ MemoryManager* MemoryManagerCreate(uint8_t* memory_pool,
   g_memory_manager.Free = MemoryManager_Free;
 
   /* handle PageTable member functions */
-  g_memory_manager.ptable.page = (Page*) memory_pool;
+  g_memory_manager.ptable.page = (Page*)memory_pool;
 
   // Allocate enough space for MAX_PAGES.
   size_t metadata_num_pages =
-    ((sizeof(Page) + sizeof(PageEntry)) * num_pages + ((1 << page_size_bytes_log2) - 1)) >> page_size_bytes_log2;
+      ((sizeof(Page) + sizeof(PageEntry)) * num_pages + ((1 << page_size_bytes_log2) - 1)) >>
+      page_size_bytes_log2;
   g_memory_manager.ptable.memory_pool = memory_pool + (metadata_num_pages << page_size_bytes_log2);
 
   g_memory_manager.ptable.page_size_bytes = (1 << page_size_bytes_log2);
   g_memory_manager.ptable.max_pages = num_pages;
   g_memory_manager.ptable.resize = PageTable_Resize;
   /* handle TLB member functions */
-  g_memory_manager.pmap.entries = (PageEntry*) (memory_pool + (sizeof(Page) * num_pages));
+  g_memory_manager.pmap.entries = (PageEntry*)(memory_pool + (sizeof(Page) * num_pages));
 
   g_memory_manager.pmap.set = TLB_Set;
   g_memory_manager.pmap.find = TLB_Find;

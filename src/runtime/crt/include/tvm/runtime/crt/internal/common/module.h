@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/runtime/crt/internal/common/module.h
+ * \file src/runtime/crt/include/tvm/runtime/crt/internal/common/module.h
  * \brief Runtime container of the functions
  */
-#ifndef TVM_RUNTIME_CRT_INTERNAL_COMMON_MODULE_H_
-#define TVM_RUNTIME_CRT_INTERNAL_COMMON_MODULE_H_
+#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_MODULE_H_
+#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_MODULE_H_
 
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/crt/func_registry.h>
@@ -37,4 +37,4 @@ typedef struct TVMModule {
 /*! \brief Entry point for the system lib module. */
 const TVMModule* TVMSystemLibEntryPoint(void);
 
-#endif  // TVM_RUNTIME_CRT_INTERNAL_COMMON_MODULE_H_
+#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_MODULE_H_

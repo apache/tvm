@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file graph_runtime.h
+ * \file src/runtime/crt/include/tvm/runtime/crt/internal/graph_runtime/graph_runtime.h
  * \brief Tiny graph runtime that can run graph containing only tvm PackedFunc.
  */
-#ifndef TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_GRAPH_RUNTIME_H_
-#define TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_GRAPH_RUNTIME_H_
+#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_GRAPH_RUNTIME_H_
+#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_GRAPH_RUNTIME_H_
 
 #include <tvm/runtime/crt/graph_runtime.h>
 #include <tvm/runtime/crt/internal/common/module.h>
@@ -63,7 +63,6 @@ typedef struct TVMGraphRuntimeNode {
   // JSON Loader
   int (*Load)(struct TVMGraphRuntimeNode* node, JSONReader* reader);
 } TVMGraphRuntimeNode;
-
 
 typedef struct TVMGraphRuntime {
   TVMGraphRuntimeAPI api;
@@ -111,4 +110,4 @@ int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime* runtime, const TVMOpParam* 
                                     DLTensorPtr* args, const uint32_t args_count,
                                     uint32_t num_inputs, TVMPackedFunc* pf);
 
-#endif  // TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUTNIME_GRAPH_RUNTIME_H_
+#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_GRAPH_RUNTIME_H_

@@ -18,12 +18,11 @@
  */
 
 /*!
- * \file tvm/runtime/host/crt_config.h
+ * \file tvm/runtime/crt/host/crt_config.h
  * \brief CRT configuration for the host-linked CRT.
  */
-#ifndef TVM_RUNTIME_CRT_CONFIG_H_
-#define TVM_RUNTIME_CRT_CONFIG_H_
-
+#ifndef TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_
+#define TVM_RUNTIME_CRT_HOST_CRT_CONFIG_H_
 
 /*! Support low-level debugging in MISRA-C runtime */
 #define TVM_CRT_DEBUG 0

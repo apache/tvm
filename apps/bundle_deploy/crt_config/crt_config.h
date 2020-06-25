@@ -24,7 +24,6 @@
 #ifndef TVM_RUNTIME_CRT_CONFIG_H_
 #define TVM_RUNTIME_CRT_CONFIG_H_
 
-
 /*! Support low-level debugging in MISRA-C runtime */
 #define TVM_CRT_DEBUG 0
 
@@ -59,6 +58,5 @@
 
 /*! \brief Page size for virtual memory allocation */
 #define TVM_CRT_PAGE_BYTES 4096
-
 
 #endif  // TVM_RUNTIME_CRT_CONFIG_H_

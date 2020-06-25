@@ -17,7 +17,8 @@
  * under the License.
  */
 
-#include <tvm/runtime/c_runtime_api.h>
+// LINT_C_FILE
+
 #include <assert.h>
 #include <inttypes.h>
 #include <stdarg.h>
@@ -26,19 +27,17 @@
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/func_registry.h>
-#include <tvm/runtime/crt/platform.h>
 #include <tvm/runtime/crt/internal/common/ndarray.h>
 #include <tvm/runtime/crt/internal/common/packed_func.h>
 #include <tvm/runtime/crt/internal/graph_runtime/graph_runtime.h>
 #include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/platform.h>
 
 // Handle internal errors
 
 static char g_last_error[1024];
 
-void TVMAPISetLastError(const char* msg) {
-  strncpy(g_last_error, msg, sizeof(g_last_error));
-}
+void TVMAPISetLastError(const char* msg) { strncpy(g_last_error, msg, sizeof(g_last_error)); }
 
 __attribute__((format(printf, 1, 2))) int TVMAPIErrorf(const char* msg, ...) {
   va_list args;
@@ -85,22 +84,19 @@ int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignment, DLDa
   return 0;
 }
 
-int TVMDeviceFreeDataSpace(TVMContext ctx, void *ptr) {
+int TVMDeviceFreeDataSpace(TVMContext ctx, void* ptr) {
   vfree(ptr);
   return 0;
 }
 
-int TVMDeviceCopyDataFromTo(const void* from, size_t from_offset, void* to,
-                            size_t to_offset, size_t num_bytes, TVMContext ctx_from,
-                            TVMContext ctx_to, DLDataType type_hint,
-                            TVMStreamHandle stream) {
-  memcpy(((uint8_t*) to) + to_offset, ((uint8_t*) from) + from_offset, num_bytes);
+int TVMDeviceCopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
+                            size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
+                            DLDataType type_hint, TVMStreamHandle stream) {
+  memcpy(((uint8_t*)to) + to_offset, ((uint8_t*)from) + from_offset, num_bytes);
   return 0;
 }
 
-int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) {
-  return 0;
-}
+int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) { return 0; }
 
 static TVMMutableFuncRegistry global_func_registry;
 
@@ -116,9 +112,8 @@ static const tvm_module_index_t kGlobalFuncModuleIndex = TVM_CRT_MAX_REGISTERED_
 static int DecodeModuleHandle(TVMModuleHandle handle, tvm_module_index_t* out_module_index) {
   tvm_module_index_t module_index;
 
-  module_index = ((tvm_module_index_t) ((uintptr_t) handle)) & ~0x8000;
-  if (module_index > TVM_CRT_MAX_REGISTERED_MODULES ||
-      registered_modules[module_index] == NULL) {
+  module_index = ((tvm_module_index_t)((uintptr_t)handle)) & ~0x8000;
+  if (module_index > TVM_CRT_MAX_REGISTERED_MODULES || registered_modules[module_index] == NULL) {
     TVMAPIErrorf("invalid module handle: %08x", module_index);
     return -1;
   }
@@ -128,7 +123,7 @@ static int DecodeModuleHandle(TVMModuleHandle handle, tvm_module_index_t* out_mo
 }
 
 static TVMModuleHandle EncodeModuleHandle(tvm_module_index_t module_index) {
-  return (TVMModuleHandle) ((uintptr_t) (module_index | 0x8000));
+  return (TVMModuleHandle)((uintptr_t)(module_index | 0x8000));
 }
 
 static int _TVMModCreateFromCModule(const TVMModule* mod, TVMModuleHandle* out_handle) {
@@ -155,11 +150,12 @@ int TVMModFree(TVMModuleHandle mod) {
   return 0;
 }
 
-static const TVMModuleHandle kTVMModuleHandleUninitialized = (TVMModuleHandle) (~0UL);
+static const TVMModuleHandle kTVMModuleHandleUninitialized = (TVMModuleHandle)(~0UL);
 
 static TVMModuleHandle system_lib_handle;
 
-int SystemLibraryCreate(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_val, int* ret_type_codes) {
+int SystemLibraryCreate(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_val,
+                        int* ret_type_codes) {
   const TVMModule* system_lib;
 
   if (system_lib_handle == kTVMModuleHandleUninitialized) {
@@ -175,13 +171,17 @@ int SystemLibraryCreate(TVMValue* args, int* type_codes, int num_args, TVMValue*
   return 0;
 }
 
-static TVMFunctionHandle EncodeFunctionHandle(tvm_module_index_t module_index, tvm_function_index_t function_index) {
-  return (TVMFunctionHandle) ((uintptr_t) (((module_index | 0x8000) << (sizeof(tvm_function_index_t) * 8)) | (function_index | 0x8000)));
+static TVMFunctionHandle EncodeFunctionHandle(tvm_module_index_t module_index,
+                                              tvm_function_index_t function_index) {
+  return (TVMFunctionHandle)((uintptr_t)(
+      ((module_index | 0x8000) << (sizeof(tvm_function_index_t) * 8)) | (function_index | 0x8000)));
 }
 
-static int DecodeFunctionHandle(TVMFunctionHandle handle, tvm_module_index_t* module_index, tvm_function_index_t* function_index) {
+static int DecodeFunctionHandle(TVMFunctionHandle handle, tvm_module_index_t* module_index,
+                                tvm_function_index_t* function_index) {
   tvm_module_index_t unvalidated_module_index;
-  unvalidated_module_index = (tvm_module_index_t) (((uintptr_t) handle) >> (sizeof(tvm_function_index_t) * 8));
+  unvalidated_module_index =
+      (tvm_module_index_t)(((uintptr_t)handle) >> (sizeof(tvm_function_index_t) * 8));
   unvalidated_module_index &= ~0x8000;
 
   if (unvalidated_module_index > kGlobalFuncModuleIndex) {
@@ -193,7 +193,7 @@ static int DecodeFunctionHandle(TVMFunctionHandle handle, tvm_module_index_t* mo
     return -1;
   }
 
-  *function_index = ((uint32_t) handle) & ~0x8000;
+  *function_index = ((uint32_t)handle) & ~0x8000;
   *module_index = unvalidated_module_index;
   return 0;
 }
@@ -214,7 +214,7 @@ int TVMFuncCall(TVMFunctionHandle func_handle, TVMValue* arg_values, int* type_c
     resource_handle = NULL;
     registry = &global_func_registry.registry;
   } else {
-    resource_handle = (void*) registered_modules[module_index]->registry;
+    resource_handle = (void*)registered_modules[module_index]->registry;
     registry = registered_modules[module_index]->registry;
   }
 
@@ -228,7 +228,8 @@ int TVMFuncCall(TVMFunctionHandle func_handle, TVMValue* arg_values, int* type_c
   return func(arg_values, type_codes, num_args, ret_val, ret_type_code, resource_handle);
 }
 
-static int FindFunctionOrSetAPIError(tvm_module_index_t module_index, const TVMFuncRegistry* registry, const char* name,
+static int FindFunctionOrSetAPIError(tvm_module_index_t module_index,
+                                     const TVMFuncRegistry* registry, const char* name,
                                      TVMFunctionHandle* out) {
   tvm_function_index_t function_index;
   if (TVMFuncRegistry_Lookup(registry, name, &function_index) != 0) {
@@ -241,7 +242,8 @@ static int FindFunctionOrSetAPIError(tvm_module_index_t module_index, const TVMF
 }
 
 int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
-  return FindFunctionOrSetAPIError(kGlobalFuncModuleIndex, &global_func_registry.registry, name, out);
+  return FindFunctionOrSetAPIError(kGlobalFuncModuleIndex, &global_func_registry.registry, name,
+                                   out);
 }
 
 int TVMModGetFunction(TVMModuleHandle mod, const char* func_name, int query_imports,
@@ -251,10 +253,12 @@ int TVMModGetFunction(TVMModuleHandle mod, const char* func_name, int query_impo
     return -1;
   }
 
-  return FindFunctionOrSetAPIError(module_index, registered_modules[module_index]->registry, func_name, out);
+  return FindFunctionOrSetAPIError(module_index, registered_modules[module_index]->registry,
+                                   func_name, out);
 }
 
-int ModuleGetFunction(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_value, int* ret_type_codes) {
+int ModuleGetFunction(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_value,
+                      int* ret_type_codes) {
   int function_index;
   TVMModuleHandle mod;
   int module_index;
@@ -264,14 +268,12 @@ int ModuleGetFunction(TVMValue* args, int* type_codes, int num_args, TVMValue* r
 
   ret_value[0].v_handle = NULL;
   ret_type_codes[0] = kTVMNullptr;
-  if (num_args != 3 ||
-      type_codes[0] != kTVMModuleHandle ||
-      type_codes[1] != kTVMStr ||
+  if (num_args != 3 || type_codes[0] != kTVMModuleHandle || type_codes[1] != kTVMStr ||
       type_codes[2] != kDLInt) {
     return 0;
   }
 
-  mod = (TVMModuleHandle) args[0].v_handle;
+  mod = (TVMModuleHandle)args[0].v_handle;
   name = args[1].v_str;
   query_imports = args[2].v_int64 != 0;
   to_return = TVMModGetFunction(mod, name, query_imports, &ret_value->v_handle);
@@ -292,7 +294,7 @@ int TVMCFuncSetReturn(TVMRetValueHandle ret, TVMValue* value, int* type_code, in
   TVMCReturnValue* ret_val;
   int idx;
 
-  ret_val = (TVMCReturnValue*) ret;
+  ret_val = (TVMCReturnValue*)ret;
   for (idx = 0; idx < num_ret; idx++) {
     ret_val->ret_val[idx] = value[idx];
     ret_val->ret_type_code[idx] = type_code[idx];

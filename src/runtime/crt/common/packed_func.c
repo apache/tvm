@@ -17,15 +17,15 @@
  * under the License.
  */
 
+// LINT_C_FILE
+
 /*!
  * \file src/runtime/crt/common/packed_func.c
  * \brief PackedFunc implementation.
  */
-#include <tvm/runtime/crt/internal/common/packed_func.h>
-
 #include <string.h>
 #include <tvm/runtime/crt/internal/common/logging.h>
-
+#include <tvm/runtime/crt/internal/common/packed_func.h>
 
 DLDataType String2DLDataType(const char* s) {
   DLDataType t;
