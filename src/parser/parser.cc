@@ -307,7 +307,7 @@ struct Parser {
 
   Parser(std::vector<Token> tokens, OperatorTable op_table)
       : pos(0), tokens(tokens), op_table(op_table) {
-        DisplayNextN(100);
+        // DisplayNextN(100);
   }
 
   void DisplayNextN(int n) {
@@ -321,14 +321,13 @@ struct Parser {
   Token Peek() {
     // For now we ignore all whitespace tokens and comments.
     // We can tweak this behavior later to enable white space sensitivity in the parser.
-    DisplayNextN(100);
     while (pos < tokens.size() &&
            ignore_whitespace && (tokens.at(pos)->token_type == TokenType::Whitespace ||
                                  tokens.at(pos)->token_type == TokenType::Newline ||
                                  tokens.at(pos)->token_type == TokenType::LineComment ||
                                  tokens.at(pos)->token_type == TokenType::Comment)) {
-      std::cout << "pos: " << pos << std::endl;
-      std::cout << "tokens: " << tokens.size() << std::endl;
+      // std::cout << "pos: " << pos << std::endl;
+      // std::cout << "tokens: " << tokens.size() << std::endl;
       pos++;
     }
 
@@ -356,12 +355,10 @@ struct Parser {
   }
 
   bool WhenMatch(const TokenType& token_type) {
-    std::cout << "token_type: " << token_type << std::endl;
     if (Peek()->token_type == token_type) {
       Consume(token_type);
       return true;
     } else {
-      std::cout << "doesn't match" << ToString(Peek()->token_type) << ToString(token_type);
       return false;
     }
   }
@@ -373,8 +370,6 @@ struct Parser {
 
   Expr LookupGraphBinding(const Token& token) {
     auto graph_no = token.ToNumber();
-    std::cout << "graph_no" << graph_no;
-    std::cout << this->graph_ctx.size() << std::endl;
     return this->graph_ctx.at(graph_no);
   }
 
@@ -392,6 +387,7 @@ struct Parser {
       }
     }
     LOG(FATAL) << "foo";
+    return Var();
   }
 
   void PushScope() {
@@ -627,99 +623,27 @@ struct Parser {
       std::cout << std::endl;
   }
 
-  Expr ParseExpr() {
-    return ConsumeWhitespace<Expr>([this] {
-      // We must parse at least one expression, the default
-      // case is that there is no operator and we will fall
-      // through.
-      std::vector<Expr> exprs;
-      exprs.push_back(ParseExprNoOp());
 
-      // Now we parse an optional op.
-      std::vector<Rule> ops;
-
-      // We will now parse 0 or more operator occurrences.
-      while (true) {
-        auto opt_op = ParseOp();
-
-        // If we didn't parse one we done.
-        if (opt_op.size() == 0) {
-          break;
-        }
-
-        // Read the operation we parsed;
-        auto op = opt_op[0];
-
-        Expr right = ParseExprNoOp();
-
-        // If the operator stack is empty
-        // we parse an operator and expression
-        // and push them to stacks, then
-        // continue.
-        if (ops.size() == 0) {
-          ops.push_back(op);
-          exprs.push_back(right);
-          continue;
-        }
-
-        DebugStack(exprs, ops);
-
-        std::cout << "will reduce? " << bool(op.precedence >= ops.back().precedence) << std::endl;
-
-        if (op.precedence > ops.back().precedence ||
-              (op.precedence == ops.back().precedence && op.left_assoc == false)) {
-          ops.push_back(op);
-          exprs.push_back(right);
-          continue;
-        }
-
-        while (ops.size() && (op.precedence < ops.back().precedence ||
-            (op.precedence == ops.back().precedence && op.left_assoc == true))) {
-          Rule new_op = ops.back();
-          ops.pop_back();
-          Expr right = exprs.back();
-          exprs.pop_back();
-          Expr left = exprs.back();
-          exprs.pop_back();
-          exprs.push_back(relay::Call(new_op.op, { left, right }));
-        }
-
-        exprs.push_back(right);
-
-        ops.push_back(op);
-      }
-
-      while (ops.size()) {
-        Rule new_op = ops.back();
-        ops.pop_back();
-        Expr right = exprs.back();
-        exprs.pop_back();
-        Expr left = exprs.back();
-        exprs.pop_back();
-        exprs.push_back(relay::Call(new_op.op, {left, right}));
-      }
-
-      CHECK_EQ(ops.size(), 0);
-      CHECK_EQ(exprs.size(), 1);
-      return exprs[0];
-    });
-  }
-
+  // Provides parsing a sequence of the form: <star> (T <sep>)* <tokens_for_before_stop> <stop>.
+  // the intended use case of the before stop parser to is allow a customized parsing rule for things
+  // such as attributes.
   template<typename T>
-  Array<T> ParseSequence(TokenType start, TokenType sep, TokenType stop, std::function<T()> parse) {
+  Array<T> ParseSequence(TokenType start, TokenType sep, TokenType stop, std::function<T()> parse, std::function<void()> before_stop = nullptr) {
     Match(start);
     if (WhenMatch(stop)) {
       return Array<T>();
     } else {
+      if (before_stop) { before_stop(); }
       auto data = parse();
       // parse '(' expr ')'
+      Array<T> elements = { data };
       if (WhenMatch(stop)) {
-        return { data };
+        return elements;
       // parse '( expr ',' * ')'
       } else if (WhenMatch(sep)) {
-        Array<T> elements = { data };
+        if (before_stop) { before_stop(); }
         while (true) {
-          if (WhenMatch(TokenType::CloseParen)) {
+          if (WhenMatch(stop)) {
             break;
           } else {
             auto data = parse();
@@ -730,6 +654,7 @@ struct Parser {
         return elements;
       } else {
         LOG(FATAL) << "issue";
+        return Array<T>(nullptr);
       }
     }
   }
@@ -737,15 +662,26 @@ struct Parser {
   Type ParseType() {
     auto tok = Peek();
     if (WhenMatch(TokenType::Identifier)) {
-      // Need to do better error handling here.
-      auto dtype = DataType(String2DLDataType(tok.ToString()));
-      return TensorType({}, dtype);
+      auto id = tok.ToString();
+      if (id == "Tensor") {
+        LOG(FATAL) << "TENSOR";
+        return Type();
+      } else {
+        // Need to do better error handling here.
+        auto dtype = DataType(String2DLDataType(tok.ToString()));
+        return TensorType({}, dtype);
+      }
     } if (WhenMatch(TokenType::Underscore)) {
       return IncompleteType();
     } else {
       LOG(FATAL) << "failed to parse type";
       return Type();
     }
+  }
+
+  Attrs ParseAttrs(uint32_t type_key) {
+    LOG(FATAL) << Attrs();
+    return Attrs();
   }
 
   Function ParseFunctionDef() {
@@ -771,14 +707,133 @@ struct Parser {
       return ParseExpr();
     });
 
-    std::cout << "After Block" << std::endl;
-    DisplayNextN(10);
     PopScope(1);
 
     return relay::Function(params, body, ret_type, {});
   }
 
-  Expr ParseExprNoOp() {
+  Expr ParseExpr() {
+    return ConsumeWhitespace<Expr>([this] {
+      auto next = Peek();
+      switch (next->token_type) {
+        // For graph or let, match first rhs, then invoke ParseBindingExpr
+        // ParseBindingExpression then parse_lhs() parse_rhs() ';' continue
+        case TokenType::Graph:
+        case TokenType::Let:
+          return ParseBindingExpr();
+        case TokenType::Fn: {
+          Consume(TokenType::Fn);
+          return Expr(ParseFunctionDef());
+        }
+        default: {
+          return ParseExprBinOp();
+        }
+      }
+    });
+  }
+
+  Expr ParseExprBinOp() {
+    return ConsumeWhitespace<Expr>([this] {
+      // We must parse at least one expression, the default
+      // case is that there is no operator and we will fall
+      // through.
+      std::vector<Expr> exprs;
+      exprs.push_back(ParseCallExpr());
+
+      // Now we parse an optional op.
+      std::vector<Rule> ops;
+
+      // We will now parse 0 or more operator occurrences.
+      while (true) {
+        auto opt_op = ParseOp();
+
+        // If we didn't parse one we done.
+        if (opt_op.size() == 0) {
+          break;
+        }
+
+        // Read the operation we parsed;
+        auto op = opt_op[0];
+
+        Expr right = ParseCallExpr();
+
+        // If the operator stack is empty
+        // we parse an operator and expression
+        // and push them to stacks, then
+        // continue.
+        if (ops.size() == 0) {
+          ops.push_back(op);
+          exprs.push_back(right);
+          continue;
+        }
+
+        if (op.precedence > ops.back().precedence ||
+              (op.precedence == ops.back().precedence && op.left_assoc == false)) {
+          ops.push_back(op);
+          exprs.push_back(right);
+          continue;
+        }
+
+        while (ops.size() && (op.precedence < ops.back().precedence ||
+            (op.precedence == ops.back().precedence && op.left_assoc == true))) {
+          Rule new_op = ops.back();
+          ops.pop_back();
+          Expr right = exprs.back();
+          exprs.pop_back();
+          Expr left = exprs.back();
+          exprs.pop_back();
+          exprs.push_back(relay::Call(new_op.op, { left, right }));
+        }
+
+        exprs.push_back(right);
+        ops.push_back(op);
+      }
+
+      while (ops.size()) {
+        Rule new_op = ops.back();
+        ops.pop_back();
+        Expr right = exprs.back();
+        exprs.pop_back();
+        Expr left = exprs.back();
+        exprs.pop_back();
+        exprs.push_back(relay::Call(new_op.op, {left, right}));
+      }
+
+      CHECK_EQ(ops.size(), 0);
+      CHECK_EQ(exprs.size(), 1);
+      return exprs[0];
+    });
+  }
+
+  Expr ParseCallExpr() {
+    return ConsumeWhitespace<Expr>([this] {
+      auto expr = ParseAtomicExpr();
+          std::cout << "HERE" << std::endl;
+          Attrs call_attrs;
+          DisplayNextN(10);
+          if (Peek()->token_type == TokenType::OpenParen) {
+            Array<Expr> args = ParseSequence<Expr>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&] {
+              return ParseExpr();
+            }, [&] {
+              if (auto op_node = expr.as<OpNode>()) {
+                call_attrs = ParseAttrs(op_node->attrs_type_index);
+              } else {
+                LOG(FATAL) << "no attrs expected";
+              }
+           });
+           std::cout << "Parsed: " << expr << std::endl;
+            DisplayNextN(10);
+            LOG(FATAL) << "NYI";
+            return Expr();
+            // ParseError(next, "expected an expression found  " + ToString(next->token_type) +
+                               // std::to_string(next->line) + ":" + std::to_string(next->column));
+          } else {
+            return expr;
+          }
+    });
+  }
+
+   Expr ParseAtomicExpr() {
     return ConsumeWhitespace<Expr>([this] {
       auto next = Peek();
       switch (next->token_type) {
@@ -796,11 +851,17 @@ struct Parser {
           Expr e = Constant(boolean);
           return e;
         }
-        // For graph or let, match first rhs, then invoke ParseBindingExpr
-        // ParseBindingExpression then parse_lhs() parse_rhs() ';' continue
-        case TokenType::Graph:
-        case TokenType::Let:
-          return ParseBindingExpr();
+        case TokenType::Local: {
+          auto string = next.ToString();
+          Consume(TokenType::Local);
+          return Expr(LookupVarByString(string));
+        }
+        case TokenType::Global: {
+          auto string = next.ToString();
+          Consume(TokenType::Global);
+          // Add global cache.
+          return Expr(GlobalVar(string));
+        }
         case TokenType::OpenParen: {
           Consume(TokenType::OpenParen);
           // parse '(' ')'
@@ -828,18 +889,10 @@ struct Parser {
             }
           }
         }
-        case TokenType::Fn: {
-          Consume(TokenType::Fn);
-          return Expr(ParseFunctionDef());
-        }
-        case TokenType::Local: {
-          auto string = next.ToString();
-          Consume(TokenType::Local);
-          return Expr(LookupVarByString(string));
-        }
-        default:
+        default: {
           ParseError(next, "expected an expression found  " + ToString(next->token_type) +
-                               std::to_string(next->line) + ":" + std::to_string(next->column));
+                            std::to_string(next->line) + ":" + std::to_string(next->column));
+        }
       }
     });
   }
@@ -885,9 +938,9 @@ IRModule ParseModule(std::string file_name, std::string file_content) {
 
 Expr ParseExpr(std::string file_name, std::string file_content) {
   auto tokens = Tokenize(file_content);
-  for (auto token : tokens) {
-    std::cout << token << std::endl;
-  }
+  // for (auto token : tokens) {
+  //  std::cout << token << std::endl;
+  // }
   Parser parser(tokens, DefaultOpTable());
   auto expr = parser.ParseExpr();
   parser.Match(TokenType::EndOfFile);
