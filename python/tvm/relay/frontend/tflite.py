@@ -265,7 +265,7 @@ class OperatorConverter(object):
                         scale = tflite_scale
                         # Ensure that all zero points are zeros
                         zero_point = tflite_zero_point
-                        if not all(x == 0 for x in zero_point):
+                        if not np.all(zero_point == 0):
                             raise tvm.error.OpAttributeInvalid(\
                                     "TFLite per-axis quantization restricts all zero points to be"
                                     + " 0, but a non-zero value is observed")
@@ -277,8 +277,9 @@ class OperatorConverter(object):
                         zero_point = int(tflite_zero_point[0])
 
                     else:
-                        raise NotImplementedError("Quantized type {} not supported"
-                                                  .format(type(tflite_scale)))
+                        raise NotImplementedError(\
+                                "Quantized type {} (scale) and  {} (zero point) not supported"
+                                .format(type(tflite_scale), type(tflite_zero_point)))
                 elif tflite_scale == 0 and tflite_zero_point == 0:
                     # Handle corner case for ops like quantized reshape whose second operand (shape)
                     # has zero scale and zero zero point. This is not used.
@@ -310,8 +311,8 @@ class OperatorConverter(object):
         shape = tensor_wrapper.tensor.ShapeAsNumpy()
 
         # When TFLite buffer is of size 1 (scalar), then TFLite tensor shape is set to 0.
-        # Therefore, we set the shape to 1 for numpy reshape to work.
-        Set shape to 1 if the data is a scalar type
+        # Therefore, we set the shape to 1 for numpy reshape to work.  Set shape to 1 if the data is
+        # a scalar type
         if data.size == 1 and isinstance(shape, int) and shape == 0:
             shape = (1,)
 
@@ -700,12 +701,43 @@ class OperatorConverter(object):
 
     def convert_relu(self, op):
         """Convert TFLite ReLU"""
+        try:
+            from tflite.ActivationFunctionType import ActivationFunctionType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
-
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
-        out = _op.nn.relu(in_expr)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            # Quantize a float value to an quantized integer value
+            scale_val = get_scalar_from_constant(input_tensor.qnn_params['scale'])
+            zero_point_val = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
+
+            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
+            out = self.convert_qnn_fused_activation_function(\
+                    expr=in_expr,
+                    fused_activation_fn=ActivationFunctionType.RELU,
+                    scale=scale_val,
+                    zero_point=zero_point_val,
+                    dtype=output_tensor_type_str)
+        else:
+            out = _op.clip(in_expr, a_min=0, a_max=6)
+
+        if output_tensor.qnn_params:
+            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
+            out = _qnn.op.requantize(out,
+                                     input_scale=input_tensor.qnn_params['scale'],
+                                     input_zero_point=input_tensor.qnn_params['zero_point'],
+                                     output_scale=output_tensor.qnn_params['scale'],
+                                     output_zero_point=output_tensor.qnn_params['zero_point'],
+                                     out_dtype=output_tensor_type_str)
 
         return out
 
@@ -741,6 +773,11 @@ class OperatorConverter(object):
 
     def convert_relu6(self, op):
         """Convert TFLite ReLU6"""
+        try:
+            from tflite.ActivationFunctionType import ActivationFunctionType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
@@ -754,17 +791,14 @@ class OperatorConverter(object):
             # Quantize a float value to an quantized integer value
             scale_val = get_scalar_from_constant(input_tensor.qnn_params['scale'])
             zero_point_val = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
-            quantize = lambda x: float(int(round(x / scale_val)) + zero_point_val)
 
-            # Get min/max of the input dtype. This will be used to ensure that
-            # clip a_min/a_max are not beyond the dtype range.
-            input_tensor_type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
-            qmin = float(tvm.tir.op.min_value(input_tensor_type_str).value)
-            qmax = float(tvm.tir.op.max_value(input_tensor_type_str).value)
-
-            out = _op.clip(in_expr,
-                           a_min=max(qmin, quantize(0)),
-                           a_max=min(qmax, quantize(6.0)))
+            output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
+            out = self.convert_qnn_fused_activation_function(\
+                    expr=in_expr,
+                    fused_activation_fn=ActivationFunctionType.RELU6,
+                    scale=scale_val,
+                    zero_point=zero_point_val,
+                    dtype=output_tensor_type_str)
         else:
             out = _op.clip(in_expr, a_min=0, a_max=6)
 
