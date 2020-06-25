@@ -92,6 +92,10 @@ class CUDADeviceAPI final : public DeviceAPI {
         *rv = ss.str();
         return;
       }
+      case kMaxRegistersPerBlock: {
+        CUDA_CALL(cudaDeviceGetAttribute(&value, cudaDevAttrMaxRegistersPerBlock, ctx.device_id));
+        break;
+      }
       case kGcnArch:
         return;
     }
