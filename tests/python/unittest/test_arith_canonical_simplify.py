@@ -82,6 +82,7 @@ def test_split_index_simplify():
     # floordiv
     fld = tvm.floordiv
     flm = tvm.floormod
+    ck.verify(fld(x*5, 2), fld(x*5, 2))
     ck.verify(fld(x, 3) * 3 + flm(x, 3), x)
     ck.verify(fld(x, 6) * 6 + flm(fld(x, 3), 2) * 3 + flm(x, 3), x)
     ck.verify(fld(fld(flm(x, 16), 2) * 2, 4), fld(flm(x, 16), 4))
