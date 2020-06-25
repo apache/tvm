@@ -98,6 +98,10 @@ class CUDADeviceAPI final : public DeviceAPI {
       }
       case kGcnArch:
         return;
+      case kApiVersion: {
+        *rv = CUDA_VERSION;
+        return;
+      }
     }
     *rv = value;
   }
