@@ -69,6 +69,8 @@ void MetalWorkspace::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* r
       return;
     case kGcnArch:
       return;
+    case kApiVersion:
+      return;
   }
 }
 

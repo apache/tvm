@@ -108,11 +108,13 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       llvm::GlobalVariable* global = new llvm::GlobalVariable(
           *module_, type, false, llvm::GlobalValue::PrivateLinkage, 0, ".shared", nullptr,
           llvm::GlobalValue::NotThreadLocal, shared_address_space);
+      if (global->getAlignment() < static_cast<uint32_t>(info.alignment)) {
 #if TVM_LLVM_VERSION >= 100
-      global->setAlignment(llvm::Align(info.alignment));
+        global->setAlignment(llvm::Align(info.alignment));
 #else
-      global->setAlignment(info.alignment);
+        global->setAlignment(info.alignment);
 #endif
+      }
       buf = global;
     }
 
@@ -212,6 +214,20 @@ inline int DetectROCMComputeVersion(const std::string& target) {
   return 900;
 }
 
+inline int DetectROCMApiVersion() {
+  TVMContext tvm_ctx;
+  tvm_ctx.device_type = kDLROCM;
+  tvm_ctx.device_id = 0;
+  tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_ctx, true);
+  if (api != nullptr) {
+    TVMRetValue val;
+    api->GetAttr(tvm_ctx, tvm::runtime::kApiVersion, &val);
+    return val.operator int();
+  }
+  LOG(WARNING) << "Cannot detect ROCm version, assume >= 3.5";
+  return 305;
+}
+
 runtime::Module BuildAMDGPU(IRModule mod, std::string target) {
 #if TVM_LLVM_VERSION < 90
   LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
@@ -221,8 +237,13 @@ runtime::Module BuildAMDGPU(IRModule mod, std::string target) {
   InitializeLLVM();
   CHECK(target.length() >= 4 && target.substr(0, 4) == "rocm");
   std::ostringstream config;
-  config << "-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx" << DetectROCMComputeVersion(target)
-         << " -mattr=-code-object-v3 " << target.substr(4, target.length() - 4);
+  config << "-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx" << DetectROCMComputeVersion(target);
+  if (DetectROCMApiVersion() < 305) {
+    // before ROCm 3.5 we needed code object v2, starting
+    // with 3.5 we need v3 (this argument disables v3)
+    config << " -mattr=-code-object-v3 ";
+  }
+  config << target.substr(4, target.length() - 4);
   std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   // careful: cg will hold a naked pointer reference to ctx, so it should
