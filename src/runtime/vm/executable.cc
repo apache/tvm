@@ -552,7 +552,7 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
     case Opcode::AllocTensor: {
       // Number of fields = 7 + instr.alloc_tensor.ndim
       DCHECK_GE(instr.fields.size(), 7U);
-      DCHECK_EQ(instr.fields.size(), 7U + static_cast<size_t>(instr.fields[4]));
+      DCHECK_EQ(instr.fields.size(), 7U + static_cast<size_t>(instr.fields[5]));
 
       RegName storage_reg = instr.fields[0];
       RegName offset = instr.fields[1];
