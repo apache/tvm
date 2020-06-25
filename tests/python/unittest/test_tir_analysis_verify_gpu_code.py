@@ -208,6 +208,30 @@ def test_wrong_bind():
             tvm.build(s, [A, B], target)
         assert not valid[0]
 
+def test_vectorize():
+    N = 1024
+
+    A = te.placeholder((N, N), name='A')
+    B = te.compute((N, N), lambda i, j: A[i, j])
+
+    s = te.create_schedule([B.op])
+
+    i, j = s[B].op.axis
+
+    s[B].bind(i, te.thread_axis("blockIdx.x"))
+    jo, ji = s[B].split(j, factor=64)
+    s[B].bind(jo, te.thread_axis("threadIdx.x"))
+    s[B].vectorize(ji)
+
+    for target in ['opencl', 'cuda']:
+        if not tvm.context(target).exist:
+            continue
+
+        valid = [None]
+        with tvm.transform.PassContext(config={"tir.add_lower_pass": [
+                (2, get_verify_pass(valid, max_vector_bytes=16))]}):
+            tvm.lower(s, [A, B])
+        assert not valid[0]
 
 if __name__ == "__main__":
     test_local_memory()
@@ -215,3 +239,4 @@ if __name__ == "__main__":
     test_num_thread()
     test_multiple_kernels()
     test_wrong_bind()
+    test_vectorize()
