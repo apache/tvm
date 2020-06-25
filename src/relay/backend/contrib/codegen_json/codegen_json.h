@@ -206,7 +206,7 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
       node->SetNumOutput(tuple_type->fields.size());
     } else {
       const auto* tensor_type = checked_type.as<TensorTypeNode>();
-      CHECK(tensor_type) << "Expect TensorType, but received: ." << checked_type->GetTypeKey();
+      CHECK(tensor_type) << "Expect TensorType, but received: " << checked_type->GetTypeKey();
       shape.emplace_back(GetIntShape(tensor_type->shape));
       dtype.emplace_back(DType2String(tensor_type->dtype));
       ret.push_back(JSONGraphNodeEntry(node_id, 0));

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/runtime/json/json_runtime.h
+ * \file src/runtime/contrib/json/json_runtime.h
  * \brief Utilities for json runtime.
  */
 
@@ -222,7 +222,7 @@ class JSONRuntimeBase : public ModuleNode {
       } else if (key == "heads") {
         reader->Read(&outputs_);
       } else {
-        LOG(FATAL) << "Unknow key: " << key;
+        LOG(FATAL) << "Unknown key: " << key;
       }
     }
   }
@@ -237,11 +237,11 @@ class JSONRuntimeBase : public ModuleNode {
   uint32_t NumEntries() const { return node_row_ptr_.back(); }
 
  protected:
-  /* The only subgraph name for this module. */
+  /*! \brief The only subgraph name for this module. */
   std::string symbol_name_;
-  /* The graph. */
+  /*! \brief The graph. */
   std::string graph_json_;
-  /* The required constant names. */
+  /*! \brief The required constant names. */
   Array<String> const_names_;
   /*! \brief The json graph nodes. */
   std::vector<JSONGraphNode> nodes_;
@@ -257,7 +257,7 @@ class JSONRuntimeBase : public ModuleNode {
   std::vector<uint32_t> input_var_idx_;
   /*! \brief input const index. */
   std::vector<uint32_t> const_idx_;
-  /* Indicate if the engine has been initialized. */
+  /*! \brief Indicate if the engine has been initialized. */
   bool initialized_{false};
 };
 

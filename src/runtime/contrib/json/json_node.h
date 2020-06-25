@@ -314,6 +314,32 @@ class JSONGraphNode {
 
 namespace dmlc {
 namespace json {
+template <typename T>
+inline bool SameType(const dmlc::any& data) {
+  return std::type_index(data.type()) == std::type_index(typeid(T));
+}
+
+template <>
+struct Handler<std::unordered_map<std::string, dmlc::any>> {
+  inline static void Write(dmlc::JSONWriter* writer,
+                           const std::unordered_map<std::string, dmlc::any>& data) {
+    for (const auto& kv : data) {
+      auto k = kv.first;
+      const dmlc::any& v = kv.second;
+      if (SameType<std::vector<dmlc::any>>(v)) {
+        writer->WriteObjectKeyValue(k, dmlc::get<std::vector<dmlc::any>>(v));
+      } else {
+        LOG(FATAL) << "Not supported";
+      }
+    }
+    writer->EndObject();
+  }
+  inline static void Read(dmlc::JSONReader* reader,
+                          std::unordered_map<std::string, dmlc::any>* data) {
+    LOG(FATAL) << "Not implemented";
+  }
+};
+
 template <>
 struct Handler<std::shared_ptr<tvm::runtime::json::JSONGraphNode>> {
   inline static void Write(dmlc::JSONWriter* writer,
