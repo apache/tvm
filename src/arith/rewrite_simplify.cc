@@ -133,7 +133,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + broadcast(x, lanes), ramp(b1 + x, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) + ramp(b1, s1, lanes), ramp(x + b1, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) + broadcast(y, lanes), broadcast(x + y, lanes));
-    TVM_TRY_REWRITE_IF(broadcast(x, lanes) + y, y,
+    TVM_TRY_REWRITE_IF(
+        broadcast(x, lanes) + y, y,
         x.Eval()->IsInstance<FloatImmNode>() && x.Eval().as<FloatImmNode>()->value == 0.0);
   }
 
@@ -425,7 +426,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
     TVM_TRY_REWRITE(broadcast(x, lanes) * broadcast(y, lanes), broadcast(x * y, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) * broadcast(x, lanes), ramp(b1 * x, s1 * x, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) * ramp(b1, s1, lanes), ramp(b1 * x, s1 * x, lanes));
-    TVM_TRY_REWRITE_IF(broadcast(x, lanes) * y, PConst<PrimExpr>(make_const(op->dtype, 0.0)),
+    TVM_TRY_REWRITE_IF(
+        broadcast(x, lanes) * y, PConst<PrimExpr>(make_const(op->dtype, 0.0)),
         x.Eval()->IsInstance<FloatImmNode>() && x.Eval().as<FloatImmNode>()->value == 0.0);
   }
 
