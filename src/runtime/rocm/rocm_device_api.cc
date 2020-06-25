@@ -102,6 +102,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
         *rv = ss.str();
         return;
       }
+      case kMaxRegistersPerBlock:
+        return;
       case kGcnArch: {
         hipDeviceProp_t prop;
         ROCM_CALL(hipGetDeviceProperties(&prop, ctx.device_id));
