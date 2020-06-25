@@ -17,4 +17,4 @@
 # pylint: disable=wildcard-import
 """Dialect operators for Relay VM."""
 from __future__ import absolute_import as _abs
-from .vm import *
+from . import vm

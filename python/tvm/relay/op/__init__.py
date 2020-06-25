@@ -27,10 +27,10 @@ from .reduce import *
 from .tensor import *
 from .transform import *
 from .algorithm import *
+from .dialect import *
 from . import nn
 from . import annotation
 from . import memory
-from . import dialect
 from . import image
 from . import vision
 from . import op_attrs

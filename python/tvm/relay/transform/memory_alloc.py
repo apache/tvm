@@ -44,7 +44,7 @@ class ManifestAllocPass(ExprMutator):
     def __init__(self, target_host):
         self.invoke_tvm = op.memory.invoke_tvm_op
         self.shape_func = op.memory.shape_func
-        self.shape_of = op.dialect.shape_of
+        self.shape_of = op.vm.shape_of
         self.scopes = [ScopeBuilder()]
         self.target_host = target_host
         self.default_context = cpu(0)
