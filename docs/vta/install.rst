@@ -20,7 +20,7 @@ VTA Installation Guide
 
 We present three installation guides, each extending on the previous one:
 
-1. `Simulator Installation`_
+1. `VTA Simulator Installation`_
 2. `Xilinx Pynq FPGA Setup`_
 3. `Intel DE10 FPGA Setup`_
 4. `Bitstream Generation with Xilinx Toolchains`_
