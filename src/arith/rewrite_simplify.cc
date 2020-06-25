@@ -133,6 +133,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + broadcast(x, lanes), ramp(b1 + x, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) + ramp(b1, s1, lanes), ramp(x + b1, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) + broadcast(y, lanes), broadcast(x + y, lanes));
+    TVM_TRY_REWRITE_IF(broadcast(x, lanes) + y, y,
+        x.Eval()->IsInstance<FloatImmNode>() && x.Eval().as<FloatImmNode>()->value == 0.0);
   }
 
   if (IsIndexType(op->dtype)) {
@@ -423,6 +425,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
     TVM_TRY_REWRITE(broadcast(x, lanes) * broadcast(y, lanes), broadcast(x * y, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) * broadcast(x, lanes), ramp(b1 * x, s1 * x, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) * ramp(b1, s1, lanes), ramp(b1 * x, s1 * x, lanes));
+    TVM_TRY_REWRITE_IF(broadcast(x, lanes) * y, PConst<PrimExpr>(make_const(op->dtype, 0.0)),
+        x.Eval()->IsInstance<FloatImmNode>() && x.Eval().as<FloatImmNode>()->value == 0.0);
   }
 
   if (IsIndexType(op->dtype)) {
@@ -722,8 +726,15 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
       ModularSet bmod = analyzer_->modular_set(b1.Eval());
       int64_t ramp_min = floordiv(bmod->base, c2val);
       int64_t ramp_max = floordiv(bmod->base + (lanes.Eval() - 1) * c1val, c2val);
-      if (bmod->coeff % c2val == 0 && ramp_min == ramp_max) {
-        return broadcast(floordiv(b1, c2), lanes).Eval();
+      if (ramp_min == ramp_max) {
+        // If b1 can device c2
+        if (bmod->coeff % c2val == 0) {
+          return broadcast(floordiv(b1, c2), lanes).Eval();
+        }
+        // If all indices can be guaranteed to settle inside a coeff range
+        if (c2val % bmod->coeff == 0 && bmod->base + (lanes.Eval() - 1) * c1val < bmod->coeff) {
+          return broadcast(floordiv(b1, c2), lanes).Eval();
+        }
       }
     }
   }
@@ -847,6 +858,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
         } else {
           return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
         }
+      } else if (c2val % bmod->coeff == 0 && ramp_min == ramp_max) {
+        return ramp(floormod(b1, c2), c1, lanes).Eval();
       }
     }
   }
