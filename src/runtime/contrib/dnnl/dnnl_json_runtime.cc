@@ -57,12 +57,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     CHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
 
-    // Pre-allocate buffers on CPU for input and output entries.
-    DLContext ctx;
-    ctx.device_type = static_cast<DLDeviceType>(kDLCPU);
-    ctx.device_id = 0;
-    AllocateInputOutputBuffer(ctx);
-
     // Setup constants entries for weights.
     SetupConstants(consts);
   }
@@ -71,7 +65,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Fill in the input buffers.
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto eid = EntryID(input_nodes_[i], 0);
-      // TODO(@comanic): Support other data lengths.
+      // TODO(@comaniac): Support other data lengths.
       size_t offset_in_bytes = entry_out_mem_[eid].second * 4;
       size_t buffer_size = GetDataSize(*data_entry_[eid]);
       write_to_dnnl_memory(data_entry_[eid]->data, entry_out_mem_[eid].first, buffer_size,
