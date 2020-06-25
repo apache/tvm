@@ -61,9 +61,19 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
   CHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
   // Kernel scale can be a vector of length output_channels or a scalar.
-  size_t axis = param->kernel_layout.find('O');
-  CHECK(axis != std::string::npos) << "Kernel layout attribute is not defined";
-  AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // kernel scale
+  if (param->groups == 1) {
+    size_t axis = param->kernel_layout.find('O');
+    CHECK(axis != std::string::npos) << "Kernel layout attribute is not defined";
+    AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // kernel scale
+  } else {
+    // Here, total number of output channels depend on depth multiplier.
+    size_t o_axis = param->kernel_layout.find('O');
+    size_t i_axis = param->kernel_layout.find('I');
+    CHECK(o_axis != std::string::npos || i_axis != std::string::npos)
+        << "Kernel layout attribute is not defined";
+    AssignType(types[5], DataType::Float(32), weight->shape[i_axis] * weight->shape[o_axis],
+               reporter);  // kernel scale
+  }
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Conv2D infer type function.

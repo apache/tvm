@@ -87,11 +87,8 @@ def pre_processed_image(height, width):
             image = tf.image.convert_image_dtype(image, dtype=tf.float32)
         image = tf.image.central_crop(image, central_fraction=0.875)
     # Resize the image to the specified height and width.
-    image = tf.expand_dims(image, 0)
     image = tf.image.resize(image, [height, width],
                             align_corners=False)
-    image = tf.image.resize(image, [height, width])
-    image = tf.squeeze(image, [0])
     image = tf.expand_dims(image, axis=0)
     return image
 
@@ -2493,8 +2490,8 @@ def test_forward_qnn_mobilenet_v3_net():
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 
-
 def _quantize_tf_hub_keras_model(url, height, width):
+    """Utility function to quantize a Keras model using TFLite converter."""
     keras_model = tf.keras.Sequential([hub.KerasLayer(url, output_shape=[1001])])
     data = pre_processed_image(height, width)
 

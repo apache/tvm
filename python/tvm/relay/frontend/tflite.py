@@ -244,11 +244,13 @@ class OperatorConverter(object):
             qnn_params = None
             tflite_qnn_params = tensor.Quantization()
             if tflite_qnn_params is not None:
-                # Params might be per-tensor or per-axis quantized. For per-tensor, scale and zero
-                # points are scalar. For per-axis, scale and zero points are tensors. But as per
-                # TFLite quantization spec, the restrictions on ops suggest that for per-axis, even
-                # if zero point is a tensor - all the zero points are identical.  More infomration
-                # here - https://www.tensorflow.org/lite/performance/quantization_spec
+                # TFLite supports both per-tensor and per-axis (aka channel) quantization.  For
+                # per-tensor quantization, scale and zero points are scalar values.  For per-axis
+                # quantization, scale and zero points for the weights are tensors (activations are
+                # per-tensor quantized). However, the TFLite quantization spec puts restrictions on
+                # zero points for per-axis quantization.  Specifically, the zero point is a tensor
+                # but all values are 0. More information can be found here -
+                # https://www.tensorflow.org/lite/performance/quantization_spec
 
                 tflite_scale = tflite_qnn_params.ScaleAsNumpy()
                 tflite_zero_point = tflite_qnn_params.ZeroPointAsNumpy()
@@ -259,15 +261,18 @@ class OperatorConverter(object):
                     assert isinstance(tflite_zero_point, np.ndarray)
 
                     # Tensor - Per-axis quantization
-                    if tflite_scale.shape != (1,) and tflite_zero_point.shape != (1,):
+                    if tflite_scale.size != 1 and tflite_zero_point.size != 1:
                         scale = tflite_scale
-                        # Ensure that all zero points are identical
+                        # Ensure that all zero points are zeros
                         zero_point = tflite_zero_point
-                        assert all(x == zero_point[0] for x in zero_point)
+                        if not all(x == 0 for x in zero_point):
+                            raise tvm.error.OpAttributeInvalid(\
+                                    "TFLite per-axis quantization restricts all zero points to be"
+                                    + " 0, but a non-zero value is observed")
                         zero_point = int(zero_point[0])
 
                     # Scalar - Per-tensor quantization
-                    elif tflite_scale.shape == (1,) and tflite_zero_point.shape == (1,):
+                    elif tflite_scale.size == 1 and tflite_zero_point.size == 1:
                         scale = float(tflite_scale[0])
                         zero_point = int(tflite_zero_point[0])
 
@@ -299,11 +304,15 @@ class OperatorConverter(object):
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
+        # Read the data from the buffer. Also extract the shape.
+        # The shape is used later to reshape the data.
         data = tensor_wrapper.buffer.DataAsNumpy()
         shape = tensor_wrapper.tensor.ShapeAsNumpy()
 
-        # Set shape to 1 if the data is a scalar type
-        if data.shape == (1,) and isinstance(shape, int) and shape == 0:
+        # When TFLite buffer is of size 1 (scalar), then TFLite tensor shape is set to 0.
+        # Therefore, we set the shape to 1 for numpy reshape to work.
+        Set shape to 1 if the data is a scalar type
+        if data.size == 1 and isinstance(shape, int) and shape == 0:
             shape = (1,)
 
         if tensor_wrapper.tensor.Type() == TensorType.INT8:
@@ -1644,7 +1653,7 @@ class OperatorConverter(object):
         fully_connected_options.Init(op_options.Bytes, op_options.Pos)
         fused_activation_fn = fully_connected_options.FusedActivationFunction()
 
-        # weight tensor type should be UINT8 (quantization) or FLOAT32
+        # weight tensor type should be INT8/UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
         assert weight_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
@@ -1835,7 +1844,7 @@ class OperatorConverter(object):
             params['channels'] = int(output_channels)
             params['kernel_layout'] = 'HWIO'
 
-        # weight tensor type should be UINT8 (quantization) or FLOAT32
+        # weight tensor type should be INT8/UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
         assert weight_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
@@ -1903,7 +1912,7 @@ class OperatorConverter(object):
             if isinstance(weight_scale, float):
                 weight_scale_val = get_scalar_from_constant(weight_scale)
             else:
-                weight_scale_val = get_vector_from_constant(weight_scale)
+                weight_scale_val = get_tensor_from_constant(weight_scale)
 
             new_input_scale_val = data_scale_val * weight_scale_val
             new_input_scale = relay.const(new_input_scale_val, 'float32')
@@ -1929,7 +1938,6 @@ class OperatorConverter(object):
                     dtype=output_tensor_type_str)
         else:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
-
         return out
 
     def convert_split(self, op):
@@ -2803,15 +2811,13 @@ def get_scalar_from_constant(expr):
         "value must be float32/int32"
     return np.asscalar(value)
 
-def get_vector_from_constant(expr):
-    """ Returns scalar value from Relay constant scalar. """
+def get_tensor_from_constant(expr):
+    """ Returns tensor of values from Relay constant node. """
     assert isinstance(expr, _expr.Constant)
     value = expr.data.asnumpy()
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), \
         "value must be float32/int32"
     return value
-
-
 
 def build_str_map(obj):
     """Build string map of TFLite enum int value
