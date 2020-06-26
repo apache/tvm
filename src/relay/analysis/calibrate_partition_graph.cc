@@ -33,12 +33,10 @@
 namespace tvm {
 namespace relay {
 
-namespace calibrate_partition {
-
 /*
 */
 
-IRModule CalibratePartition(IRModule module) {
+IRModule GetCalibrateModule(IRModule module) {
   class OutputCollector : public ExprRewriter {
    public:
     OutputCollector() = default;
@@ -89,23 +87,10 @@ IRModule CalibratePartition(IRModule module) {
   return module;
 }
 
-}  // namespace calibrate_partition
-
-namespace transform {
-
-Pass CalibratePartitionGraph() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> calib_func = [=](IRModule m,
-                                                                             PassContext pc) {
-    return calibrate_partition::CalibratePartition(m);
-  };
-
-  auto partition_pass = CreateModulePass(calib_func, 0, "CalibratePartitionGraph", {});
-  return Sequential({partition_pass, InferType()});
-}
-
-TVM_REGISTER_GLOBAL("relay._transform.CalibratePartitionGraph").set_body_typed(transform::CalibratePartitionGraph);
-
-}  // namespace transform
+TVM_REGISTER_GLOBAL("relay.analysis.get_calibrate_module")
+    .set_body_typed([](IRModule mod) {
+      return GetCalibrateModule(mod);
+});
 
 Map<GlobalVar, Integer> GetCalibrateOutputMap(const IRModule& module) {
   class OutputMapper : public ExprRewriter {

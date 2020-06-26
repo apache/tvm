@@ -21,6 +21,8 @@ This file contains the set of passes for Relay, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 from tvm.ir import IRModule
+from tvm.relay import transform, build_module
+from tvm.runtime.ndarray import cpu
 
 from . import _ffi_api
 from .feature import Feature
@@ -352,5 +354,21 @@ def search_fc_transpose(expr):
     ret = _ffi_api.search_fc_transpose(expr)
     return ret
 
+def get_calibrate_module(mod):
+    return _ffi_api.get_calibrate_module(mod)
+
 def get_calibrate_output_map(mod):
     return _ffi_api.get_calibrate_output_map(mod)
+
+def get_calibrate_results(mod, i_data, params):
+    output_map = _ffi_api.get_calibrate_output_map(mod)
+
+    mod = get_calibrate_module(mod)
+    print(mod)
+
+    mod = transform.Inline()(mod)
+
+    ref_ex = build_module.create_executor("graph", mod=mod, ctx=cpu(0))
+    ref_res = ref_ex.evaluate()(i_data, **params)
+    print(ref_res)
+
