@@ -1182,6 +1182,12 @@ def _reshape():
                     return _op.reshape_like(inputs[0], pop_node.args[0])
                 shape_arg = pop_node
 
+        if isinstance(shape_arg, _expr.Expr):
+            return AttrCvt(
+                op_name="dyn.reshape",
+                extras={'newshape': shape_arg},
+                ignores=['Tshape'])(inputs, attr)
+
         return AttrCvt(
             op_name="reshape",
             extras={'newshape': shape_arg},

@@ -448,13 +448,8 @@ bool IsDataDependant(const CallNode* call) {
     return false;
   }
 
-  if (op->name == "reshape") {
-    if (const auto* attrs = call->attrs.as<ReshapeAttrs>()) {
-      if (attrs->newshape) {
-        // If newshape attribute exists, it isn't data dependant.
-        return false;
-      }
-    }
+  if (op->name == "dyn.reshape") {
+    return true;
   } else if (op->name == "topk") {
     if (const auto* attrs = call->attrs.as<TopKAttrs>()) {
       if (attrs->k) {

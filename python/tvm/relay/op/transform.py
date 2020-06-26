@@ -202,7 +202,7 @@ def reshape(data, newshape):
     data : relay.Expr
         The input data to the operator.
 
-    newshape : Union[int, Tuple[int], List[int]] or relay.Expr
+    newshape : Union[int, Tuple[int], List[int]]
         The new shape. Should be compatible with the original shape.
 
     Returns
@@ -211,19 +211,8 @@ def reshape(data, newshape):
         The reshaped result.
     """
     if isinstance(newshape, int):
-        newshape = const([newshape])
-    if isinstance(newshape, (tuple, list)):
-        tempshape = []
-        for shape in newshape:
-            if isinstance(shape, _expr.IntImm):
-                tempshape.append(shape.value)
-            else:
-                try:
-                    tempshape.append(int(shape))
-                except ValueError as err:
-                    raise RuntimeError('Unrecognized shape type: %s' % err)
-        newshape = const(tempshape)
-    return _make.reshape(data, newshape)
+        newshape = [newshape]
+    return _make.reshape(data, list(newshape))
 
 def argwhere(condition):
     """Find the indices of elements of a tensor that are
