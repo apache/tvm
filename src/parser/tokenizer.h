@@ -361,7 +361,6 @@ struct Tokenizer {
 
     inline Token TokenizeOnce() {
         auto next = Peek();
-        std::cout << next << std::endl;
         if (next == '\n') {
             auto token = NewToken(TokenType::Newline);
             Next();

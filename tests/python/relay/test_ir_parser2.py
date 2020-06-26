@@ -252,7 +252,7 @@ def test_let():
 
 def test_seq():
     assert_parses_as(
-        "();; ()",
+        "(); ()",
         relay.Let(
             _,
             UNIT,
@@ -368,7 +368,7 @@ def test_defn():
 
 
 def test_recursive_call():
-    id_defn = parse_text(
+    id_defn = parse_module(
         """
         def @id(%x: int32) -> int32 {
             @id(%x)
@@ -488,40 +488,39 @@ def test_call():
         )
     )
 
-    # TODO(@jmp): re-enable after sequence parsing improvements
     # curried function
-    # curried_mult = relay.Var("curried_mult")
-    # assert_parses_as(
-    #     """
-    #     let %curried_mult =
-    #         fn (%x) {
-    #         fn (%y) {
-    #             %x * %y
-    #         }
-    #         };
-    #     %curried_mult(0);
-    #     %curried_mult(0)(0)
-    #     """,
-    #     relay.Let(
-    #         curried_mult,
-    #         relay.Function(
-    #             [X],
-    #             relay.Function(
-    #                 [Y],
-    #                 relay.multiply(X, Y),
-    #                 None,
-    #                 []
-    #             ),
-    #             None,
-    #             []
-    #         ),
-    #         relay.Let(
-    #             _,
-    #             relay.Call(curried_mult, [relay.const(0)], None, None),
-    #             relay.Call(relay.Call(curried_mult, [relay.const(0)], None, None), [relay.const(0)], None, None)
-    #         )
-    #     )
-    # )
+    curried_mult = relay.Var("curried_mult")
+    assert_parses_as(
+        """
+        let %curried_mult =
+            fn (%x) {
+            fn (%y) {
+                %x * %y
+            }
+            };
+            %curried_mult(0);
+            %curried_mult(0)(0)
+        """,
+        relay.Let(
+            curried_mult,
+            relay.Function(
+                [X],
+                relay.Function(
+                    [Y],
+                    relay.multiply(X, Y),
+                    None,
+                    []
+                ),
+                None,
+                []
+            ),
+            relay.Let(
+                _,
+                relay.Call(curried_mult, [relay.const(0)], None, None),
+                relay.Call(relay.Call(curried_mult, [relay.const(0)], None, None), [relay.const(0)], None, None)
+            )
+        )
+    )
 
     # op
     assert_parses_as(
@@ -880,24 +879,24 @@ def test_import_grad():
     mod.import_from_std("gradient.rly")
 
 if __name__ == "__main__":
-    # test_graph()
-    # test_comments()
-    # test_int_literal()
-    # test_float_literal()
-    # test_bool_literal()
-    # test_negative()
-    # test_bin_op()
-    # test_parens()
-    # test_op_assoc()
-    # test_let()
-    # test_seq()
-    # test_tuple()
+    test_graph()
+    test_comments()
+    test_int_literal()
+    test_float_literal()
+    test_bool_literal()
+    test_negative()
+    test_bin_op()
+    test_parens()
+    test_op_assoc()
+    test_let()
+    test_seq()
+    test_tuple()
     test_func()
-    # test_defn()
-    # test_recursive_call()
+    test_defn()
+    test_recursive_call()
     # test_ifelse()
-    # test_call()
-    # test_incomplete_type()
+    test_call()
+    test_incomplete_type()
     # test_builtin_types()
     # test_tensor_type()
     # test_function_type()

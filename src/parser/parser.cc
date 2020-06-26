@@ -26,6 +26,7 @@
 #include <tvm/relay/function.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/node/reflection.h>
 
 #include <fstream>
 
@@ -36,55 +37,6 @@ namespace parser {
 
 using namespace relay;
 using Expr = relay::Expr;
-
-// fragment ESCAPED_QUOTE : '\\"';
-// QUOTED_STRING :   '"' ( ESCAPED_QUOTE | ~('\n'|'\r') )*? '"';
-
-// // operators
-// MUL: '*' ;
-// DIV: '/' ;
-// ADD: '+' ;
-// SUB: '-' ;
-// LT: '<' ;
-// GT: '>' ;
-// LE: '<=' ;
-// GE: '>=' ;
-// EQ: '==' ;
-// NE: '!=' ;
-
-// BOOL_LIT
-//   : 'True'
-//   | 'False'
-//   ;
-
-// CNAME: ('_'|LETTER) ('_'|LETTER|DIGIT)* ('.' CNAME)* ;
-
-// // non-negative floats
-// fragment PREFLOAT : NAT ('.' NAT)? EXP?; // 1.35, 1.35E-9, 0.3, 4.5, 1, 1e10 3e4
-
-// FLOAT : PREFLOAT 'f';
-
-// // non-negative ints
-// NAT: DIGIT+ ;
-// fragment EXP: [eE] [+\-]? NAT ; // \- since - means "range" inside [...]
-
-// fragment LETTER: [a-zA-Z];
-// fragment DIGIT: [0-9];
-
-// METADATA: 'METADATA:' .*;
-// // Parsing
-
-// // Covers both operator and type idents
-// generalIdent: CNAME ('.' CNAME)*;
-// globalVar: '@' CNAME ;
-// localVar: '%' ('_' | CNAME) ;
-// graphVar: '%' NAT ;
-
-// exprList: (expr (',' expr)*)?;
-// callList
-//   : exprList             # callNoAttr
-//   | (expr ',')* attrSeq  # callWithAttr
-//   ;
 
 // expr
 //   // operators
@@ -184,20 +136,6 @@ using Expr = relay::Expr;
 //   | NAT            # intShape
 //   ;
 
-// body: '{' expr '}' ;
-
-// scalar
-//   : FLOAT     # scalarFloat
-//   | NAT       # scalarInt
-//   | BOOL_LIT  # scalarBool
-//   ;
-
-// ident
-//   : generalIdent
-//   | globalVar
-//   | localVar
-//   | graphVar
-//   ;
 
 struct GlobalFunc {
   GlobalVar global;
@@ -338,8 +276,23 @@ struct Parser {
     }
   }
 
+  // Allow lookahead into the token stream.
+  Token Lookahead(int n) {
+    CHECK_LE(1, n)
+      << "lookahead by > 1 is invalid";
+
+    auto old_pos = pos;
+    for (int i = 0; i < n - 1; i++) {
+      Peek();
+      pos++;
+    }
+
+    auto tok = Peek();
+    pos = old_pos;
+    return tok;
+  }
+
   void Consume(const TokenType& token) {
-    std::cout << token << std::endl;
     if (tokens[pos]->token_type != token) {
       throw std::runtime_error(
           "expected a " + ToString(token) + " found " + ToString(Peek()->token_type) + " at " +
@@ -417,7 +370,6 @@ struct Parser {
       auto array = reinterpret_cast<float*>(data->data);
       // revisit this, literal node issue.
       float value = Downcast<tvm::FloatImm>(token->data)->value;
-      std::cout << "value: " << value << std::endl;
       array[0] = value;
       return data;
     } else {
@@ -517,20 +469,12 @@ struct Parser {
 
     while (true) {
       auto next = Peek();
-      if (next->token_type == TokenType::Graph) {
-        Consume(TokenType::Graph);
-        if (WhenMatch(TokenType::Equal)) {
-          auto val = this->ParseExpr();
-          AddGraphBinding(next, val);
-          Consume(TokenType::Semicolon);
-        } else {
-          // This case is a little weird to put here,
-          // if we don't find an equal right after
-          // a graph expression it is simply a reference
-          // to the graph expression and not a binding
-          // but for now we handle the case here.
-          return LookupGraphBinding(next);
-        }
+      if (next->token_type == TokenType::Graph && Lookahead(2)->token_type == TokenType::Equal) {
+        Match(TokenType::Graph);
+        Match(TokenType::Equal);
+        auto val = this->ParseExprBinOp();
+        Match(TokenType::Semicolon);
+        AddGraphBinding(next, val);
       } else if (next->token_type == TokenType::Let) {
         // Parse the 'let'.
         Consume(TokenType::Let);
@@ -551,7 +495,7 @@ struct Parser {
         Match(TokenType::Equal);
 
         // Parse the body, and the ';'.
-        auto val = this->ParseExpr();
+        auto val = this->ParseExprBinOp();
         Consume(TokenType::Semicolon);
 
         // Add the bindings to the local data structure.
@@ -566,8 +510,10 @@ struct Parser {
         // followed by a single body expression we will end up with
         // a call depth of 3, the first call to ParseExpr, then
         // ParseBindingExpr, then finally ParseExpr once more.
+
         auto body = this->ParseExpr();
 
+        std::cout << "Bindings count" << bindings.size() << std::endl;
         // Remove the same number of scopes we added.
         PopScope(scopes);
 
@@ -633,15 +579,18 @@ struct Parser {
     if (WhenMatch(stop)) {
       return Array<T>();
     } else {
-      if (before_stop) { before_stop(); }
       auto data = parse();
-      // parse '(' expr ')'
       Array<T> elements = { data };
+
+      // parse '(' expr ')'
+      // if we are at the end invoke leftover parser
+      if (Peek()->token_type == stop && before_stop) { before_stop(); }
       if (WhenMatch(stop)) {
         return elements;
       // parse '( expr ',' * ')'
       } else if (WhenMatch(sep)) {
-        if (before_stop) { before_stop(); }
+      // if we are at the end invoke leftover parser
+        if (Peek()->token_type == stop && before_stop) { before_stop(); }
         while (true) {
           if (WhenMatch(stop)) {
             break;
@@ -679,7 +628,9 @@ struct Parser {
     }
   }
 
-  Attrs ParseAttrs(uint32_t type_key) {
+  Attrs ParseAttrs(const std::string& type_key) {
+    Map<String, ObjectRef> kwargs;
+    auto attrs = tvm::ReflectionVTable::Global()->CreateObject(type_key, kwargs);
     LOG(FATAL) << Attrs();
     return Attrs();
   }
@@ -714,20 +665,48 @@ struct Parser {
 
   Expr ParseExpr() {
     return ConsumeWhitespace<Expr>([this] {
-      auto next = Peek();
-      switch (next->token_type) {
-        // For graph or let, match first rhs, then invoke ParseBindingExpr
-        // ParseBindingExpression then parse_lhs() parse_rhs() ';' continue
-        case TokenType::Graph:
-        case TokenType::Let:
-          return ParseBindingExpr();
-        case TokenType::Fn: {
-          Consume(TokenType::Fn);
-          return Expr(ParseFunctionDef());
+      std::vector<Expr> exprs;
+
+      while (true) {
+        auto next = Peek();
+        switch (next->token_type) {
+          // For graph or let, match first rhs, then invoke ParseBindingExpr
+          // ParseBindingExpression then parse_lhs() parse_rhs() ';' continue
+          case TokenType::Let:
+            exprs.push_back(ParseBindingExpr());
+            break;
+
+          case TokenType::Graph:
+            if (Lookahead(2)->token_type == TokenType::Equal) {
+              exprs.push_back(ParseBindingExpr());
+              break;
+            }
+            // intentional fall through here.
+          default: {
+            DisplayNextN(100);
+            exprs.push_back(ParseExprBinOp());
+            break;
+          }
         }
-        default: {
-          return ParseExprBinOp();
+
+        if (!WhenMatch(TokenType::Semicolon)) {
+          break;
         }
+      }
+
+      CHECK(exprs.size() >= 1);
+
+      if (exprs.size() == 1) {
+        return exprs[0];
+      } else {
+        auto body = exprs.back();
+        exprs.pop_back();
+        while (exprs.size()) {
+          auto value = exprs.back();
+          exprs.pop_back();
+          body = relay::Let(Var("", IncompleteType()), value, body);
+        }
+        return body;
       }
     });
   }
@@ -805,31 +784,46 @@ struct Parser {
     });
   }
 
+  Expr ParseCallArgs(Expr op) {
+    Attrs call_attrs;
+    if (Peek()->token_type == TokenType::OpenParen) {
+      Array<Expr> args = ParseSequence<Expr>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&] {
+        return ParseExpr();
+      }, [&] {
+        auto is_ident = Lookahead(1)->token_type == TokenType::Identifier;
+        auto next_is_equal = Lookahead(2)->token_type == TokenType::Equal;
+
+        if (is_ident && next_is_equal) {
+          if (auto op_node = op.as<OpNode>()) {
+            std::cout << "OP: " << op << std::endl;
+            std::cout << "type_key: " << op_node->attrs_type_key << std::endl;
+            call_attrs = ParseAttrs(op_node->attrs_type_key);
+          }
+        }
+      });
+      return Expr(Call(op, args, call_attrs, {}));
+    }  else {
+      return Expr();
+    }
+  }
+
   Expr ParseCallExpr() {
     return ConsumeWhitespace<Expr>([this] {
-      auto expr = ParseAtomicExpr();
-          std::cout << "HERE" << std::endl;
-          Attrs call_attrs;
-          DisplayNextN(10);
-          if (Peek()->token_type == TokenType::OpenParen) {
-            Array<Expr> args = ParseSequence<Expr>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&] {
-              return ParseExpr();
-            }, [&] {
-              if (auto op_node = expr.as<OpNode>()) {
-                call_attrs = ParseAttrs(op_node->attrs_type_index);
-              } else {
-                LOG(FATAL) << "no attrs expected";
-              }
-           });
-           std::cout << "Parsed: " << expr << std::endl;
-            DisplayNextN(10);
-            LOG(FATAL) << "NYI";
-            return Expr();
-            // ParseError(next, "expected an expression found  " + ToString(next->token_type) +
-                               // std::to_string(next->line) + ":" + std::to_string(next->column));
-          } else {
-            return expr;
-          }
+      Expr expr = ParseAtomicExpr();
+      // Parse as many call args as possible, building up expression
+      //
+      // NB(@jroesch): this seems like a hack but in order to parse curried functions
+      // and avoid complex grammar we will parse multiple call lists in a row.
+      while (true) {
+        auto new_expr = ParseCallArgs(expr);
+        if (new_expr.defined()) {
+          expr = new_expr;
+        } else {
+          break;
+        }
+      }
+
+      return expr;
     });
   }
 
@@ -862,12 +856,24 @@ struct Parser {
           // Add global cache.
           return Expr(GlobalVar(string));
         }
+        case TokenType::Identifier: {
+          auto string = next.ToString();
+          Consume(TokenType::Identifier);
+          return Expr(Op::Get(string));
+        }
+        case TokenType::Graph: {
+          Consume(TokenType::Graph);
+          return LookupGraphBinding(next);
+        }
+        case TokenType::Fn: {
+          Consume(TokenType::Fn);
+          return Expr(ParseFunctionDef());
+        }
         case TokenType::OpenParen: {
           Consume(TokenType::OpenParen);
           // parse '(' ')'
           if (WhenMatch(TokenType::CloseParen)) {
-            Expr e = Tuple(Array<Expr>());
-            return e;
+            return Expr(Tuple(Array<Expr>()));
           } else {
             auto expr = ParseExpr();
             // parse '(' expr ')'
@@ -890,6 +896,7 @@ struct Parser {
           }
         }
         default: {
+          DisplayNextN(10);
           ParseError(next, "expected an expression found  " + ToString(next->token_type) +
                             std::to_string(next->line) + ":" + std::to_string(next->column));
         }
@@ -929,9 +936,9 @@ OperatorTable DefaultOpTable() {
 
 IRModule ParseModule(std::string file_name, std::string file_content) {
   auto tokens = Tokenize(file_content);
-  for (auto token : tokens) {
-    std::cout << token << std::endl;
-  }
+  // for (auto token : tokens) {
+    // std::cout << token << std::endl;
+  //}
   Parser parser(tokens, DefaultOpTable());
   return parser.ParseModule();
 }
