@@ -48,15 +48,22 @@ class MetadataModuleNode : public ModuleNode {
  public:
   MetadataModuleNode(const std::unordered_map<std::string, NDArray>& metadata,
                      const std::unordered_map<std::string, std::vector<std::string>>& sym_vars)
-      : metadata_(metadata), sym_vars_(sym_vars) {}
+      : metadata_(metadata), sym_vars_(sym_vars) {
+    // Only the related submodules are cached to reduce the number of runtime
+    // symbol lookup for initialization. Otherwise, symbols/primitives in the
+    // DSO module will also be cached but they never need to be initialized.
+    for (const auto& it : sym_vars_) {
+      initialized_[it.first] = false;
+    }
+  }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     // Initialize and memoize the module.
     // Usually, we have some warmup runs. The module initialization should be
     // done at this stage. Therefore, runtime overhead is not a concern.
-    if (initialized_.count(name) == 0) {
+    if (initialized_.count(name) && !initialized_.at(name)) {
       this->InitSubModule(name);
-      initialized_.emplace(name);
+      initialized_[name] = true;
     }
 
     // Run the module.
@@ -202,7 +209,7 @@ class MetadataModuleNode : public ModuleNode {
    * \brief Record if a module is initialized. It is needed by imported
    * modules using execution engine.
    */
-  std::unordered_set<std::string> initialized_;
+  std::unordered_map<std::string, bool> initialized_;
   /*! \brief Variable name to NDArray mapping. */
   std::unordered_map<std::string, NDArray> metadata_;
   /*! \brief Symbol name to required constant variables mapping. */
