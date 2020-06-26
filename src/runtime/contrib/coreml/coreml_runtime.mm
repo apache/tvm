@@ -49,6 +49,9 @@ void CoreMLModel::SetInput(const std::string& key, DLTensor* data_in) {
   } else if (dtype == DataType::Float(32)) {
     dataType = MLMultiArrayDataTypeFloat32;
     size *= sizeof(float);
+  } else if (dtype == DataType::Int(32)) {
+    dataType = MLMultiArrayDataTypeInt32;
+    size *= sizeof(int);
   } else {
     LOG(FATAL) << "unsupported data type " << dtype;
     return;
@@ -88,6 +91,9 @@ NDArray CoreMLModel::GetOutput(int index) const {
   } else if (data_desc.dataType == MLMultiArrayDataTypeFloat32) {
     dtype = DataType::Float(32);
     size *= sizeof(float);
+  } else if (data_desc.dataType == MLMultiArrayDataTypeInt32) {
+    dtype = DataType::Int(32);
+    size *= sizeof(int);
   } else {
     LOG(FATAL) << "unexpected data type " << data_desc.dataType;
   }
@@ -135,7 +141,7 @@ CoreMLModel& CoreMLRuntime::GetModel(const std::string& model_name) {
 PackedFunc CoreMLRuntime::GetFunction(const std::string& name,
                                       const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
-  if (name == "invoke") {
+  if (name == "invoke" || name == "run") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { GetModel("main").Invoke(); });
   } else if (name == "set_input") {
@@ -151,7 +157,7 @@ PackedFunc CoreMLRuntime::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = GetModel("main").GetNumOutputs();
     });
-  } else {
+  } else if (model_map_.count(name) != 0) {
     // Return the packedfunc which executes the subgraph.
     return PackedFunc([sptr_to_self, name, this](TVMArgs args, TVMRetValue* rv) {
       CoreMLModel& model = GetModel(name);
@@ -188,6 +194,8 @@ PackedFunc CoreMLRuntime::GetFunction(const std::string& name,
       }
       *rv = out;
     });
+  } else {
+    return PackedFunc();
   }
 }
 
