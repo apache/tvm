@@ -33,6 +33,18 @@ from tvm.relay.testing.config import ctx_list
 
 sys.setrecursionlimit(10000)
 
+def list_ops(expr):
+    class OpLister(tvm.relay.ExprVisitor):
+        def visit_op(self, expr):
+            if expr not in self.node_set:
+                self.node_list.append(expr)
+            return super().visit_op(expr)
+        def list_nodes(self, expr):
+            self.node_set = {}
+            self.node_list = []
+            self.visit(expr)
+            return self.node_list
+    return OpLister().list_nodes(expr)
 
 def assert_shapes_match(tru, est):
     if tru.shape != est.shape:
@@ -1046,6 +1058,13 @@ def test_forward_dense():
     input_data = torch.rand(input_shape).float()
     verify_model(Dense1().float().eval(), input_data=input_data)
     verify_model(Dense2().float().eval(), input_data=input_data)
+
+    trace = torch.jit.trace(Dense1(), [input_data])
+    mod, params = relay.frontend.from_pytorch(
+        trace,
+        [('input', input_shape)],
+    )
+    assert not any([op.name == "multiply" for op in list_ops(mod['main'])])
 
 def test_forward_dropout():
     torch.set_grad_enabled(False)
@@ -2384,6 +2403,29 @@ def test_forward_dtypes():
         verify_model(fn, input_data=[tensor1, tensor2])
 
 
+def test_weight_names():
+    tm = torch.jit.trace(torch.nn.Linear(3, 4), [torch.randn(2, 3)])
+    mod, params = relay.frontend.from_pytorch(tm, [('input', (2, 3))])
+    assert set(params.keys()) == set(n for n, p in tm.named_parameters())
+
+
+def test_duplicate_weight_use():
+    # The test cases doesn't make any sense as a neural network,
+    # the issue popped up in shared input/output embeddings of bert,
+    # but this is quicker
+    class Test(Module):
+        def __init__(self):
+            super().__init__()
+            self.lin = torch.nn.Linear(5, 3)
+
+        def forward(self, x):
+            x = self.lin(x)
+            x = x @ self.lin.weight
+            return x
+
+    verify_model(Test(), input_data=[torch.randn(5, 5)])
+
+
 def test_forward_matmul():
     torch.set_grad_enabled(False)
 
@@ -2546,8 +2588,12 @@ def test_forward_pretrained_bert_base_uncased():
 
 
 if __name__ == "__main__":
+    # some structural tests
     test_forward_traced_function()
     test_forward_dtypes()
+    test_weight_names()
+    test_duplicate_weight_use()
+
     # Single operator tests
     test_forward_add()
     test_forward_subtract()

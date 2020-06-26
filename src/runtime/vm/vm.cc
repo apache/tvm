@@ -529,8 +529,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     }
     case Opcode::AllocTensorReg: {
       os << "alloc_tensor_reg $" << instr.dst << " $" << instr.alloc_tensor_reg.storage << " $"
-         << instr.alloc_tensor_reg.storage << " $" << instr.alloc_tensor_reg.offset << " $"
-         << instr.alloc_tensor_reg.shape_register << " ";
+         << instr.alloc_tensor_reg.offset << " $" << instr.alloc_tensor_reg.shape_register << " ";
       DLDatatypePrint(os, instr.alloc_tensor_reg.dtype);
       break;
     }
@@ -581,7 +580,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::AllocStorage: {
-      os << "alloc_storage $" << instr.dst << " $" << instr.alloc_storage.allocation_size << " $"
+      os << "alloc_storage $" << instr.dst << " $" << instr.alloc_storage.allocation_size << " "
          << instr.alloc_storage.alignment << " "
          << DLDataType2String(instr.alloc_storage.dtype_hint);
       break;
@@ -822,6 +821,9 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
     CHECK(pf != nullptr) << "Cannot find function in module: " << packed_name;
     packed_funcs_[packed_index] = pf;
   }
+  for (size_t i = 0; i < packed_funcs_.size(); ++i) {
+    CHECK(packed_funcs_[i] != nullptr) << "Packed function " << i << " is not initialized";
+  }
 }
 
 void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) { ctxs_ = ctxs; }
@@ -834,18 +836,34 @@ inline ObjectRef VirtualMachine::ReadRegister(Index r) const {
   return frames_.back().register_file[r];
 }
 
-inline int32_t VirtualMachine::LoadScalarInt(Index r) const {
-  int32_t result;
+inline int64_t VirtualMachine::LoadScalarInt(Index r) const {
+  int64_t result = 0;
   const auto& obj = ReadRegister(r);
-  auto nd_array = Downcast<NDArray>(obj);
-  NDArray array = nd_array.CopyTo({kDLCPU, 0});
+  NDArray array = Downcast<NDArray>(CopyTo(obj, {kDLCPU, 0}));
 
-  if (array->dtype.bits <= 8) {
-    result = reinterpret_cast<int8_t*>(array->data)[0];
-  } else if (array->dtype.bits <= 16) {
-    result = reinterpret_cast<int16_t*>(array->data)[0];
-  } else {
-    result = reinterpret_cast<int32_t*>(array->data)[0];
+  switch (array->dtype.bits) {
+    case 1: {
+      result = reinterpret_cast<bool*>(array->data)[0];
+      break;
+    }
+    case 8: {
+      result = reinterpret_cast<int8_t*>(array->data)[0];
+      break;
+    }
+    case 16: {
+      result = reinterpret_cast<int16_t*>(array->data)[0];
+      break;
+    }
+    case 32: {
+      result = reinterpret_cast<int32_t*>(array->data)[0];
+      break;
+    }
+    case 64: {
+      result = reinterpret_cast<int64_t*>(array->data)[0];
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unknown scalar int type: " << DLDataType2String(array->dtype);
   }
   return result;
 }
@@ -908,8 +926,8 @@ void VirtualMachine::RunLoop() {
         goto main_loop;
       }
       case Opcode::InvokePacked: {
-        DLOG(INFO) << "InvokedPacked "
-                   << "arity=" << instr.arity;
+        DLOG(INFO) << "InvokedPacked " << instr.packed_index << " arity=" << instr.arity;
+        CHECK_LE(instr.packed_index, packed_funcs_.size());
         const auto& func = packed_funcs_[instr.packed_index];
         const auto& arity = instr.arity;
         std::vector<ObjectRef> args;
@@ -996,9 +1014,8 @@ void VirtualMachine::RunLoop() {
         DLContext cpu_ctx;
         cpu_ctx.device_type = kDLCPU;
         cpu_ctx.device_id = 0;
-        auto shape_tensor_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
-        const auto shape_arr = Downcast<NDArray>(shape_tensor_obj);
-        NDArray shape_tensor = shape_arr.CopyTo(cpu_ctx);
+        auto shape_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
+        NDArray shape_tensor = Downcast<NDArray>(CopyTo(shape_obj, cpu_ctx));
         auto shape = ToShape(shape_tensor);
         auto storage_obj = ReadRegister(instr.alloc_tensor_reg.storage);
         auto storage = Downcast<Storage>(storage_obj);
@@ -1030,7 +1047,7 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::AllocStorage: {
         auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
-        auto alignment = LoadScalarInt(instr.alloc_storage.alignment);
+        auto alignment = instr.alloc_storage.alignment;
 
         DLOG(INFO) << "AllocStorage: allocation_size=" << size << "alignment=" << alignment
                    << "dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint);

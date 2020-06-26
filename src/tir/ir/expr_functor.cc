@@ -166,7 +166,7 @@ PrimExpr ExprMutator::VisitExpr_(const CallNode* op) {
   if (args.same_as(op->args)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return Call(op->dtype, op->name, args, op->call_type);
+    return Call(op->dtype, op->op, args, op->call_type);
   }
 }
 

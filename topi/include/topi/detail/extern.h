@@ -25,6 +25,7 @@
 #define TOPI_DETAIL_EXTERN_H_
 
 #include <tvm/te/operation.h>
+#include <tvm/tir/builtin.h>
 
 #include <string>
 #include <vector>
@@ -111,11 +112,11 @@ inline Array<Tensor> make_extern(const Array<Array<PrimExpr> >& out_shapes,
  */
 inline PrimExpr pack_buffer(Buffer buf) {
   CHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
-  auto shape = tvm::tir::Call(DataType::Handle(), tvm::tir::intrinsic::tvm_stack_make_shape,
+  auto shape = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_stack_make_shape(),
                               buf->shape, tvm::tir::CallNode::CallType::Intrinsic);
   PrimExpr strides;
   if (buf->strides.size() > 0) {
-    strides = tvm::tir::Call(DataType::Handle(), tvm::tir::intrinsic::tvm_stack_make_shape,
+    strides = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_stack_make_shape(),
                              buf->shape, tvm::tir::CallNode::CallType::Intrinsic);
   } else {
     strides = 0;
@@ -126,7 +127,7 @@ inline PrimExpr pack_buffer(Buffer buf) {
                             make_const(DataType::Int(32), static_cast<int64_t>(buf->shape.size())),
                             make_const(buf->dtype, 0),
                             buf->elem_offset};
-  return tvm::tir::Call(DataType::Handle(), tvm::tir::intrinsic::tvm_stack_make_array, pack_args,
+  return tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_stack_make_array(), pack_args,
                         tvm::tir::CallNode::CallType::Intrinsic);
 }
 
@@ -140,7 +141,7 @@ inline PrimExpr pack_buffer(Buffer buf) {
  * \return An expression representing the invocation
  */
 inline PrimExpr call_packed(Array<PrimExpr> args) {
-  return tvm::tir::Call(DataType::Int(32), tvm::tir::intrinsic::tvm_call_packed, args,
+  return tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::tvm_call_packed(), args,
                         tvm::tir::CallNode::CallType::Intrinsic);
 }
 

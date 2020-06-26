@@ -23,6 +23,7 @@
  */
 
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
 
@@ -318,6 +319,8 @@ class DataTypeRewriter : public StmtExprMutator {
   std::unordered_map<const IterVarNode*, IterVar> ivmap_;
   // indicator of LoadNode::index and StoreNode::index
   bool is_index_{false};
+  // cached ops
+  const Op& builtin_pow_ = Op::Get("tir.pow");
 };
 
 #define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC) \
@@ -352,23 +355,23 @@ PrimExpr DataTypeRewriter::VisitExpr_(const CallNode* op) {
   op = e.as<CallNode>();
   CHECK(op != nullptr) << "Expected type to be CallNode"
                        << ", but get " << e->GetTypeKey();
-  if (op->call_type == CallNode::PureIntrinsic) {
-    if (op->name == intrinsic::tvm_if_then_else) {
-      return if_then_else(op->args[0], op->args[1], op->args[2]);
-    } else if (op->name == CallNode::shift_right) {
-      return op->args[0] >> op->args[1];
-    } else if (op->name == CallNode::shift_left) {
-      return op->args[0] << op->args[1];
-    } else if (op->name == CallNode::bitwise_and) {
-      return op->args[0] & op->args[1];
-    } else if (op->name == CallNode::bitwise_or) {
-      return op->args[0] | op->args[1];
-    } else if (op->name == CallNode::bitwise_xor) {
-      return op->args[0] ^ op->args[1];
-    } else if (op->name == "pow") {
-      return pow(op->args[0], op->args[1]);
-    }
+
+  if (op->op.same_as(builtin::if_then_else())) {
+    return if_then_else(op->args[0], op->args[1], op->args[2]);
+  } else if (op->op.same_as(builtin::shift_right())) {
+    return op->args[0] >> op->args[1];
+  } else if (op->op.same_as(builtin::shift_left())) {
+    return op->args[0] << op->args[1];
+  } else if (op->op.same_as(builtin::bitwise_and())) {
+    return op->args[0] & op->args[1];
+  } else if (op->op.same_as(builtin::bitwise_or())) {
+    return op->args[0] | op->args[1];
+  } else if (op->op.same_as(builtin::bitwise_xor())) {
+    return op->args[0] ^ op->args[1];
+  } else if (op->op.same_as(builtin_pow_)) {
+    return pow(op->args[0], op->args[1]);
   }
+
   return e;
 }
 

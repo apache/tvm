@@ -231,8 +231,10 @@ def _intrin_popcount(m, k_i, w_b, x_b, unipolar):
                                 cnts = tvm.tir.popcount(w_ & x_) - tvm.tir.popcount(~w_ & x_)
                             else:
                                 cnts = tvm.tir.popcount(w_ & x_)
-                            upper_half = tvm.tir.call_pure_intrin(half_dtype, 'vectorhigh', cnts)
-                            lower_half = tvm.tir.call_pure_intrin(half_dtype, 'vectorlow', cnts)
+                            upper_half = tvm.tir.call_pure_intrin(
+                                half_dtype, 'tir.vectorhigh', cnts)
+                            lower_half = tvm.tir.call_pure_intrin(
+                                half_dtype, 'tir.vectorlow', cnts)
                             cnts8[i] = upper_half + lower_half
                         for i in range(m//2):
                             cnts4[i] = tvm.tir.call_llvm_intrin(half_dtype, vpadd,
@@ -241,7 +243,7 @@ def _intrin_popcount(m, k_i, w_b, x_b, unipolar):
                             cnts2[i] = tvm.tir.call_llvm_intrin(half_dtype, vpadd,
                                                                 args_2, cnts4[i*2], cnts4[i*2+1])
                         cnts = tvm.tir.call_pure_intrin(
-                            full_dtype, 'vectorcombine', cnts2[0], cnts2[1])
+                            full_dtype, 'tir.vectorcombine', cnts2[0], cnts2[1])
                         shifted_cnts = cnts << tvm.tir.const(bw+bx, pack_dtype)
                         out = tvm.tir.call_llvm_intrin(
                             return_dtype, vpadalu,
@@ -261,7 +263,7 @@ def _intrin_popcount(m, k_i, w_b, x_b, unipolar):
                             cnts2[i] = tvm.tir.call_llvm_intrin(half_dtype, vpadd,
                                                                 args_2, cnts4[i*2], cnts4[i*2+1])
                         cnts = tvm.tir.call_pure_intrin(
-                            full_dtype, 'vectorcombine', cnts2[0], cnts2[1])
+                            full_dtype, 'tir.vectorcombine', cnts2[0], cnts2[1])
                         shifted_cnts = cnts << tvm.tir.const(bw+bx, pack_dtype)
                         out = tvm.tir.call_llvm_intrin(
                             return_dtype, vpadalu,

@@ -698,50 +698,21 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // Call
-Call::Call(DataType dtype, String name, Array<PrimExpr> args, CallType call_type) {
+Call::Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, CallType call_type) {
   for (size_t i = 0; i < args.size(); ++i) {
     CHECK(args[i].defined());
   }
 
   ObjectPtr<CallNode> node = make_object<CallNode>();
   node->dtype = dtype;
-  node->name = std::move(name);
+  node->op = std::move(op);
   node->args = std::move(args);
   node->call_type = call_type;
   data_ = std::move(node);
 }
 
-const char* CallNode::vectorizable_intrinsics[] = {"floor",
-                                                   "ceil",
-                                                   "sign",
-                                                   "trunc",
-                                                   "fabs",
-                                                   "round",
-                                                   "exp",
-                                                   "tanh",
-                                                   "sqrt",
-                                                   "log",
-                                                   "sin",
-                                                   "cos",
-                                                   "pow",
-                                                   "tan",
-                                                   tir::CallNode::shift_left,
-                                                   tir::CallNode::shift_right,
-                                                   tir::CallNode::likely,
-                                                   tir::CallNode::popcount};
-
-bool CallNode::is_vectorizable() const {
-  size_t cnt = sizeof(CallNode::vectorizable_intrinsics) / sizeof(char*);
-  for (size_t i = 0; i < cnt; ++i) {
-    if (name == CallNode::vectorizable_intrinsics[i]) {
-      return true;
-    }
-  }
-  return false;
-}
-
 TVM_REGISTER_GLOBAL("tir.Call")
-    .set_body_typed([](DataType type, String name, Array<ObjectRef> args, int call_type) {
+    .set_body_typed([](DataType type, RelayExpr op, Array<ObjectRef> args, int call_type) {
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
         CHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>());
@@ -751,7 +722,7 @@ TVM_REGISTER_GLOBAL("tir.Call")
           prim_expr_args.push_back(Downcast<PrimExpr>(it));
         }
       }
-      return Call(type, name, prim_expr_args, static_cast<CallNode::CallType>(call_type));
+      return Call(type, op, prim_expr_args, static_cast<CallNode::CallType>(call_type));
     });
 
 TVM_REGISTER_NODE_TYPE(CallNode);
@@ -759,7 +730,13 @@ TVM_REGISTER_NODE_TYPE(CallNode);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<CallNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const CallNode*>(node.get());
-      p->stream << op->name << "(";
+      if (auto* ptr_op = op->op.as<OpNode>()) {
+        p->stream << ptr_op->name << "(";
+      } else {
+        auto* ptr_gvar = op->op.as<GlobalVarNode>();
+        CHECK(ptr_gvar != nullptr);
+        p->stream << "@" << ptr_gvar->name_hint << "(";
+      }
       for (size_t i = 0; i < op->args.size(); ++i) {
         p->Print(op->args[i]);
         if (i < op->args.size() - 1) {

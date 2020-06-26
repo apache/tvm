@@ -121,7 +121,7 @@ inline bool IsAtomic(const Expr& e) {
  * \return compiler_begin op
  */
 inline const Op& CompilerBeginOp() {
-  static Op op = Op::Get("annotation.compiler_begin");
+  static auto op = Op::Get("annotation.compiler_begin");
   return op;
 }
 
@@ -131,7 +131,7 @@ inline const Op& CompilerBeginOp() {
  * \return compiler_end op
  */
 inline const Op& CompilerEndOp() {
-  static Op op = Op::Get("annotation.compiler_end");
+  static auto op = Op::Get("annotation.compiler_end");
   return op;
 }
 

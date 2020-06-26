@@ -23,7 +23,9 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
 #include <sstream>
 
@@ -36,10 +38,21 @@ inline void DispatchExternLibDevice(const TVMArgs& args, TVMRetValue* rv) {
   const CallNode* call = e.as<CallNode>();
   CHECK(call != nullptr);
   CHECK(call->dtype.bits() == 32 || call->dtype.bits() == 64) << "Only support float32 or float64.";
+
+  const OpNode* op = call->op.as<OpNode>();
+  CHECK(op != nullptr);
+  std::string name = op->name;
+  CHECK_EQ(name.substr(0, 4), "tir.");
+
   std::ostringstream intrinsic_name;
-  intrinsic_name << "__nv_" << call->name;
+  intrinsic_name << "__nv_" << name.substr(4);
   if (call->dtype.bits() == 32) intrinsic_name << "f";
-  *rv = Call(call->dtype, intrinsic_name.str(), call->args, CallNode::PureExtern);
+
+  Array<PrimExpr> new_args = {StringImm(intrinsic_name.str())};
+  for (auto arg : call->args) {
+    new_args.push_back(arg);
+  }
+  *rv = Call(call->dtype, builtin::call_extern(), new_args, CallNode::PureExtern);
 }
 
 namespace llvm {

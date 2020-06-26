@@ -44,5 +44,11 @@ def test_checkpoint():
     check_grad(relay.Function(inputs, out_single))
 
 
+def test_batch_matmul_grad():
+    x = relay.var("x", shape=(2, 3, 5), dtype="float64")
+    y = relay.var("y", shape=(2, 4, 5), dtype="float64")
+    check_grad(relay.Function([x, y], relay.op.nn.batch_matmul(x, y)))
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

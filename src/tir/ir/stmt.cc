@@ -374,25 +374,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "}\n";
     });
 
-// Free
-Free::Free(Var buffer_var) {
-  ObjectPtr<FreeNode> node = make_object<FreeNode>();
-  node->buffer_var = buffer_var;
-  data_ = std::move(node);
-}
-
-TVM_REGISTER_GLOBAL("tir.Free").set_body_typed([](Var buffer_var) { return Free(buffer_var); });
-
-TVM_REGISTER_NODE_TYPE(FreeNode);
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<FreeNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const FreeNode*>(node.get());
-      p->PrintIndent();
-      p->stream << "free " << op->buffer_var;
-      p->stream << '\n';
-    });
-
 // Prefetch
 Prefetch::Prefetch(Buffer buffer, Array<Range> bounds) {
   data_ = make_object<PrefetchNode>(buffer, bounds);
@@ -582,5 +563,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->PrintIndent();
       p->stream << "}\n";
     });
+
+PrimExpr TypeAnnotation(DataType dtype) {
+  static auto op = Op::Get("tir.type_annotation");
+  return tir::Call(dtype, op, {}, tir::CallNode::PureIntrinsic);
+}
+
+TVM_REGISTER_OP("tir.type_annotation");
+
 }  // namespace tir
 }  // namespace tvm
