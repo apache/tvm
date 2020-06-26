@@ -27,7 +27,7 @@ from .reduce import *
 from .tensor import *
 from .transform import *
 from .algorithm import *
-from .dialect import *
+from .vm import *
 from . import nn
 from . import annotation
 from . import memory

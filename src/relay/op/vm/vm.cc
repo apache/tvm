@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/relay/op/dialect/vm.cc
+ * \file src/relay/op/vm/vm.cc
  * \brief Dialect operators for Relay VM.
  */
 
@@ -51,7 +51,7 @@ RELAY_REGISTER_OP("vm.shape_of")
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
-TVM_REGISTER_GLOBAL("relay.op.dialect._make.shape_of").set_body_typed([](Expr expr) {
+TVM_REGISTER_GLOBAL("relay.op.vm.shape_of").set_body_typed([](Expr expr) {
   auto attrs = make_object<ShapeOfAttrs>();
   attrs->dtype = DataType::Int(64);
   static const Op& op = Op::Get("vm.shape_of");

@@ -14,7 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Constructor APIs"""
-import tvm._ffi
+# pylint: disable=no-else-return,invalid-name,len-as-condition,too-many-nested-blocks
+"""Dialect operators for Relay VM."""
+from . import _ffi_api
 
-tvm._ffi._init_api("relay.op.dialect._make", __name__)
+
+def shape_of(expr):
+    """Invoke a function to get the shape of a tensor.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The expr used to evaluate its tensor shape.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The expression with the evaluated tensor shape.
+    """
+    return _ffi_api.shape_of(expr)
