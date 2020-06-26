@@ -20,7 +20,6 @@
 
 from . import _make
 from ..expr import TupleWrapper, const
-from ...tir import expr as _expr
 
 
 def cast(data, dtype):

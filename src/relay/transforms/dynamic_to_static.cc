@@ -44,7 +44,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
         attrs->newshape = ToVector(shape->data);
         attrs->reverse = false;
         static const Op& reshape = Op::Get("reshape");
-        return Call(reshape, call_node->args, Attrs(attrs), {});
+        return Call(reshape, {call_node->args[0]}, Attrs(attrs), {});
       }
     }
     return post;
