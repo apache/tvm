@@ -38,6 +38,8 @@ def test_vector_simplify():
               tvm.tir.Ramp(y + x, 1, 2))
     ck.verify(y.astype("int32x2") + x.astype("int32x2"),
               (y + x).astype("int32x2"))
+    ck.verify(tvm.tir.Broadcast(0, 4) + y,
+              tvm.tir.Broadcast(y, 4))
     # Sub rules
     ck.verify(tvm.tir.Ramp(x, 4, 4) - tvm.tir.Ramp(y, 2, 4),
               tvm.tir.Ramp(x - y, 2, 4))
@@ -55,6 +57,8 @@ def test_vector_simplify():
               tvm.tir.Ramp(x * 2, 8, 4))
     ck.verify(2 * tvm.tir.Ramp(x, 4, 4),
               tvm.tir.Ramp(x * 2, 8, 4))
+    ck.verify(tvm.tir.Broadcast(0, 4) * x,
+              tvm.tir.Broadcast(0, 4))
 
     ## DivMod rules
     tdiv = tvm.tir.truncdiv
@@ -69,6 +73,7 @@ def test_vector_simplify():
               (x).astype("int32x4"))
     ck.verify(tdiv(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8),
               tdiv(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8))
+    # truc mod
     ck.verify(tmod(y.astype("int32x2"), x.astype("int32x2")),
               tmod(y, x).astype("int32x2"))
     ck.verify(tmod(tvm.tir.Ramp(x, 4, 4), 2),
@@ -90,6 +95,27 @@ def test_vector_simplify():
               (x).astype("int32x4"))
     ck.verify(fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8),
               fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8))
+    ck.verify(fld(tvm.tir.Ramp(x, 8, 5), tvm.tir.Broadcast(4, 5)),
+              tvm.tir.Ramp(fld(x, 4), 2, 5))
+    ck.verify(fld(tvm.tir.Ramp(x, 7, 4), tvm.tir.Broadcast(4, 4)),
+              fld(tvm.tir.Ramp(x, 7, 4), tvm.tir.Broadcast(4, 4)))
+    ck.verify(fld(tvm.tir.Ramp(x * 8, 1, 4), tvm.tir.Broadcast(4, 4)),
+              tvm.tir.Broadcast(x * 2, 4))
+    ck.verify(fld(tvm.tir.Ramp(x * 8, 3, 4), tvm.tir.Broadcast(4, 4)),
+              fld(tvm.tir.Ramp(x * 8, 3, 4), tvm.tir.Broadcast(4, 4)))
+    ck.verify(fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), tvm.tir.Broadcast(4, 4)),
+              fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), tvm.tir.Broadcast(4, 4)))
+    ck.verify(fld(tvm.tir.Ramp(x * 4, 1, 4), tvm.tir.Broadcast(64, 4)),
+              tvm.tir.Broadcast(fld(x, 16), 4))
+    ck.verify(fld(tvm.tir.Ramp(x * 8, 2, 4), tvm.tir.Broadcast(64, 4)),
+              tvm.tir.Broadcast(fld(x, 8), 4))
+    ck.verify(fld(tvm.tir.Ramp(x * 4, 1, 5), tvm.tir.Broadcast(64, 5)),
+              fld(tvm.tir.Ramp(x * 4, 1, 5), tvm.tir.Broadcast(64, 5)))
+    ck.verify(fld(tvm.tir.Ramp(x * 4 + 3, 1, 4), tvm.tir.Broadcast(64, 4)),
+              fld(tvm.tir.Ramp(x * 4 + 3, 1, 4), tvm.tir.Broadcast(64, 4)))
+    ck.verify(fld(tvm.tir.Ramp(x * 7, 1, 4), tvm.tir.Broadcast(64, 4)),
+              fld(tvm.tir.Ramp(x * 7, 1, 4), tvm.tir.Broadcast(64, 4)))
+    # floor mod
     ck.verify(flm(y.astype("int32x2"), x.astype("int32x2")),
               flm(y, x).astype("int32x2"))
     ck.verify(flm(tvm.tir.Ramp(x, 4, 4), 2),
@@ -98,6 +124,26 @@ def test_vector_simplify():
               tvm.tir.Ramp(1, 1, 4))
     ck.verify(flm(tvm.tir.Ramp(x * 8 + 1, 15, 4), 8),
               flm(tvm.tir.Ramp(1, 15, 4), 8))
+    ck.verify(flm(tvm.tir.Ramp(x, 8, 4), tvm.tir.Broadcast(4, 4)),
+              tvm.tir.Broadcast(flm(x, 4), 4))
+    ck.verify(flm(tvm.tir.Ramp(x, 7, 4), tvm.tir.Broadcast(4, 4)),
+              flm(tvm.tir.Ramp(x, 7, 4), tvm.tir.Broadcast(4, 4)))
+    ck.verify(flm(tvm.tir.Ramp(x * 8, 1, 4), tvm.tir.Broadcast(4, 4)),
+              tvm.tir.Ramp(0, 1, 4))
+    ck.verify(flm(tvm.tir.Ramp(x * 8, 1, 5), tvm.tir.Broadcast(4, 5)),
+              flm(tvm.tir.Ramp(0, 1, 5), tvm.tir.Broadcast(4, 5)))
+    ck.verify(flm(tvm.tir.Ramp(x * 8 + 7, 1, 4), tvm.tir.Broadcast(4, 4)),
+              flm(tvm.tir.Ramp(3, 1, 4), tvm.tir.Broadcast(4, 4)))
+    ck.verify(flm(tvm.tir.Ramp(x * 4, 1, 4), tvm.tir.Broadcast(64, 4)),
+              tvm.tir.Ramp(flm(x * 4, 64), 1, 4))
+    ck.verify(flm(tvm.tir.Ramp(x * 8, 2, 4), tvm.tir.Broadcast(64, 4)),
+              tvm.tir.Ramp(flm(x * 8, 64), 2, 4))
+    ck.verify(flm(tvm.tir.Ramp(x * 4, 1, 5), tvm.tir.Broadcast(64, 5)),
+              tvm.tir.Ramp(flm(x * 4, 64), 1, 5))
+    ck.verify(flm(tvm.tir.Ramp(x * 4 + 3, 1, 4), tvm.tir.Broadcast(64, 4)),
+              tvm.tir.Ramp(flm(x * 4 + 3, 64), 1, 4))
+    ck.verify(flm(tvm.tir.Ramp(x * 7, 1, 4), tvm.tir.Broadcast(64, 4)),
+              flm(tvm.tir.Ramp(x * 7, 1, 4), tvm.tir.Broadcast(64, 4)))
 
     # Min/Max rules
     vx = te.var("vx", dtype="int32x2")
