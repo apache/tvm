@@ -115,7 +115,7 @@ bool Analyzer::CanProve(const PrimExpr& expr) {
   return false;
 }
 
-PrimExpr Analyzer::Simplify(const PrimExpr& expr, size_t steps) {
+PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
   if (tir::is_const(expr)) return expr;
   PrimExpr res = expr;
   for (size_t i = 0; i < steps; ++i) {
@@ -143,7 +143,15 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
         self->const_int_bound.Update(args[0], args[1], args[2]);
       });
     } else if (name == "Simplify") {
-      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) { *ret = self->Simplify(args[0]); });
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        if (args.size() == 1) {
+          *ret = self->Simplify(args[0]);
+        } else if (args.size() == 2) {
+          *ret = self->Simplify(args[0], args[1]);
+        } else {
+          LOG(FATAL) << "Invalid size of argument (" << args.size() << ")";
+        }
+      });
     } else if (name == "rewrite_simplify") {
       return PackedFunc(
           [self](TVMArgs args, TVMRetValue* ret) { *ret = self->rewrite_simplify(args[0]); });

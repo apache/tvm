@@ -97,10 +97,7 @@ def test_dual_variable():
     assert ir.structural_equal(solution[3], y <= 5)
 
     # solve and get the ranges
-    solution = arith.solve_linear_inequalities([
-        tvm.tir.LE(x + y, 20),
-        tvm.tir.GE(x - y, 10),
-    ], [x, y], ranges)
+    solution = arith.solve_linear_inequalities(problem, variables, ranges)
     # 0 <= y <=5
     assert solution.ranges[y].min == 0
     assert solution.ranges[y].extent == 6
@@ -157,6 +154,10 @@ def test_multi_equal():
     solution = arith.solve_linear_inequalities(problem, [x, y, z])
     assert solution.ranges[x].min == 6
     assert solution.ranges[x].extent == 1
+    assert len(solution.relations) == 3
+    assert ir.structural_equal(solution.relations[0], x == z * y)
+    assert ir.structural_equal(solution.relations[1], z*y - 6 <= 0)
+    assert ir.structural_equal(solution.relations[2], 6 - z*y <= 0)
 
     solution = arith.solve_linear_inequalities(problem, [x, y, z], deskew_range=True)
     assert solution.src_to_dst[y] == y

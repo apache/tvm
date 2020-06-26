@@ -193,13 +193,20 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
     """ Check that bool_expr holds given the condition cond
     for every value of free variables from vranges.
 
+    for example, 2x > 4y solves to x > 2y given x in (0, 10) and y in (0, 10)
+    here bool_expr is x > 2y, vranges is {x: (0, 10), y: (0, 10)}, cond is 2x > 4y
+    We creates iterations to check,
+    for x in range(10):
+      for y in range(10):
+        assert !(2x > 4y) || (x > 2y)
+
     Parameters
     ----------
-    bool_expr : tvm.ir.expr.PrimExpr
+    bool_expr : tvm.ir.PrimExpr
         Boolean expression to check
     vranges: Dict[tvm.tir.expr.Var, tvm.ir.Range]
         Free variables and their ranges
-    cond: tvm.ir.expr.PrimExpr
+    cond: tvm.ir.PrimExpr
         extra conditions needs to be satisfied.
     """
     if cond is not None:
@@ -239,7 +246,7 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
     ----------
     constraints_trans : arith.IntConstraintsTransform
         Integer constraints transformation
-    vranges: Dict[tvm.tir.expr.Var, tvm.ir.Range]
+    vranges: Dict[tvm.tir.Var, tvm.ir.Range]
         Free variables and their ranges
     """
     if vranges is None:
@@ -253,9 +260,10 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
         # Check that the transformation is injective
         cond_on_vars = tvm.tir.const(1, 'bool')
         for v in constraints1.variables:
-            # variable mapping is consistent
-            v_back = ana.simplify(tvm.tir.stmt_functor.substitute(varmap[v], backvarmap))
-            cond_on_vars = tvm.te.all(cond_on_vars, v == v_back)
+            if v in varmap:
+                # variable mapping is consistent
+                v_back = ana.simplify(tvm.tir.stmt_functor.substitute(varmap[v], backvarmap))
+                cond_on_vars = tvm.te.all(cond_on_vars, v == v_back)
         # Also we have to check that the new relations are true when old relations are true
         cond_subst = tvm.tir.stmt_functor.substitute(
             tvm.te.all(tvm.tir.const(1, 'bool'), *constraints2.relations), backvarmap)
@@ -271,10 +279,6 @@ def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
             tvm.te.all(cond_subst, cond_on_vars), all_vranges,
             cond=tvm.te.all(tvm.tir.const(1, 'bool'), *constraints1.relations))
 
-    rels = constraints_trans.dst.relations
-    if len(rels) == 1 and tvm.ir.structural_equal(rels[0], False):
-        # not solvable, skip
-        return
     _check_forward(constraints_trans.src, constraints_trans.dst,
                    constraints_trans.src_to_dst, constraints_trans.dst_to_src)
     _check_forward(constraints_trans.dst, constraints_trans.src,

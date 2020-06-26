@@ -473,7 +473,7 @@ class TVM_DLL Analyzer {
    *
    * \note Analyzer will call into sub-analyzers to get the result.
    */
-  PrimExpr Simplify(const PrimExpr& expr, size_t steps = 2);
+  PrimExpr Simplify(const PrimExpr& expr, int steps = 2);
 };
 
 }  // namespace arith
