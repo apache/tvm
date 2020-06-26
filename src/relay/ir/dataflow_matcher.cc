@@ -618,7 +618,7 @@ class PatternGrouper {
     CHECK(DFPatternMatcher(body).Match(pattern_, body));
     group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
     group.name = extractor.GetName();
-    // Check to make sure we aren't overlapping with another group
+    // Check to make sure we aren't overlapping with another group or creating an invalid fusion
     // The MatchExtractor will create a new graph by replacing nodes that match the inputs of the
     // pattern with the input FunctionVar* Variables. The resulting memoization map will only
     // contain nodes in the expression that matched the pattern. If a non-input node of the pattern
@@ -626,18 +626,25 @@ class PatternGrouper {
     // situation where we try to rewrite the same node twice in the second rewriting or parition
     // pass. This isn't valid, so we check for it here. We ignore Ops, functions, and constants
     // because they exist more globally outside of the fusion.
+    // Similiarly, if interior nodes in a group are used outside of the group fusing to a single
+    // output would create an invalid graph tranformation, so we block the creation of such groups.
     auto memo = extractor.GetMemo();
     for (auto kv : memo) {
+      // Check to ensure that this node isn't an input or a global
       if (inputs.count(kv.first) == 0 && kv.first.as<OpNode>() == nullptr &&
           kv.first.as<FunctionNode>() == nullptr && kv.first.as<ConstantNode>() == nullptr) {
         if (gid_assignments_.count(kv.first) != 0) {
+          // check to see if the node is use in other groups
           // Exit due to overlapping partitions
           return;
         } else if (kv.second != body) {
+          // if the node isn't the ouput of the group
           auto node = matcher_->expr_graph_.node_map_.at(kv.first);
           for (auto* output : node->outputs_) {
+            // and the node is used by nodes outside of the group
             if (memo.count(output->ref_) == 0) {
               // Exit because nodes in this pattern's body are used outside the pattern
+              // fusing it would be invalid
               return;
             }
           }
