@@ -92,8 +92,12 @@ tvm_crt_error_t TVMFuncRegistry_GetByIndex(const TVMFuncRegistry* reg,
   return kTvmErrorNoError;
 }
 
-void TVMMutableFuncRegistry_Create(TVMMutableFuncRegistry* reg, uint8_t* buffer,
-                                   size_t buffer_size_bytes) {
+tvm_crt_error_t TVMMutableFuncRegistry_Create(TVMMutableFuncRegistry* reg, uint8_t* buffer,
+                                              size_t buffer_size_bytes) {
+  if (buffer_size_bytes < kTvmAverageFuncEntrySizeBytes) {
+    return kTvmErrorBufferTooSmall;
+  }
+
   memset(reg, 0, sizeof(*reg));
   reg->registry.names = (const char*)buffer;
   buffer[0] = 0;  // number of functions present in buffer.
@@ -103,10 +107,11 @@ void TVMMutableFuncRegistry_Create(TVMMutableFuncRegistry* reg, uint8_t* buffer,
   //  - assume average function name is around ~10 bytes
   //  - 1 byte for \0
   //  - size of 1 function pointer
-  size_t one_entry_size_bytes = 10 + 1 + sizeof(void*);
-  reg->max_functions = buffer_size_bytes / one_entry_size_bytes;
+  reg->max_functions = buffer_size_bytes / kTvmAverageFuncEntrySizeBytes;
   reg->registry.funcs =
       (TVMBackendPackedCFunc*)(buffer + buffer_size_bytes - reg->max_functions * sizeof(void*));
+
+  return kTvmErrorNoError;
 }
 
 tvm_crt_error_t TVMMutableFuncRegistry_Set(TVMMutableFuncRegistry* reg, const char* name,
@@ -131,12 +136,12 @@ tvm_crt_error_t TVMMutableFuncRegistry_Set(TVMMutableFuncRegistry* reg, const ch
   }
 
   size_t name_len = strlen(name);
-  if (idx > reg->max_functions ||
-      (reg_name_ptr + name_len + 1) > ((const char*)reg->registry.funcs)) {
+  ssize_t names_bytes_remaining = ((const char*) reg->registry.funcs) - reg_name_ptr;
+  if (idx > reg->max_functions || name_len + 1 > names_bytes_remaining) {
     return kTvmErrorFunctionRegistryFull;
   }
 
-  strcpy(reg_name_ptr, name);
+  memcpy(reg_name_ptr, name, name_len + 1);
   reg_name_ptr += name_len + 1;
   *reg_name_ptr = 0;
   ((TVMBackendPackedCFunc*)reg->registry.funcs)[idx] = func;
