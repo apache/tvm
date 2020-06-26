@@ -152,9 +152,9 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
       tuple.push_back(region[i]->min);
       tuple.push_back(region[i]->extent);
     }
-    input_bind_nest.emplace_back(AttrStmt(
-        bind_spec, tir::attr::buffer_bind_scope,
-        Call(DataType::Handle(), tir::builtin::tvm_tuple(), tuple, CallNode::Intrinsic), nop));
+    input_bind_nest.emplace_back(
+        AttrStmt(bind_spec, tir::attr::buffer_bind_scope,
+                 Call(DataType::Handle(), tir::builtin::tvm_tuple(), tuple), nop));
   }
 
   // output binding
@@ -176,9 +176,9 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
       }
     }
 
-    output_bind_nest.emplace_back(AttrStmt(
-        bind_spec, tir::attr::buffer_bind_scope,
-        Call(DataType::Handle(), tir::builtin::tvm_tuple(), tuple, CallNode::Intrinsic), nop));
+    output_bind_nest.emplace_back(
+        AttrStmt(bind_spec, tir::attr::buffer_bind_scope,
+                 Call(DataType::Handle(), tir::builtin::tvm_tuple(), tuple), nop));
   }
 
   // Check variable remap

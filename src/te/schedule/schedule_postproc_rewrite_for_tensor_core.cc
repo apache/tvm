@@ -850,14 +850,12 @@ class TensorCoreIRMutator : public StmtExprMutator {
           return Evaluate(
               Call(DataType::Handle(), builtin::tvm_bmma_sync(),
                    {buffer->data, buffer->elem_offset, buffer_a->data, buffer_a->elem_offset,
-                    buffer_b->data, buffer_b->elem_offset, buffer->data, buffer->elem_offset},
-                   CallNode::Intrinsic));
+                    buffer_b->data, buffer_b->elem_offset, buffer->data, buffer->elem_offset}));
         } else {
           return Evaluate(
               Call(DataType::Handle(), builtin::tvm_mma_sync(),
                    {buffer->data, buffer->elem_offset, buffer_a->data, buffer_a->elem_offset,
-                    buffer_b->data, buffer_b->elem_offset, buffer->data, buffer->elem_offset},
-                   CallNode::Intrinsic));
+                    buffer_b->data, buffer_b->elem_offset, buffer->data, buffer->elem_offset}));
         }
       };
 
@@ -881,8 +879,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
         auto fill_fragment_call = [this, &op](const Buffer& buffer) {
           return Evaluate(Call(DataType::Handle(), builtin::tvm_fill_fragment(),
                                {buffer->data, warp_tile_.m, warp_tile_.n, warp_tile_.k,
-                                buffer->elem_offset, op->value},
-                               CallNode::Intrinsic));
+                                buffer->elem_offset, op->value}));
         };
 
         ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
@@ -903,8 +900,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
       ThreadIdxMutator thread_idx_mutator(warp_y);
       PrimExpr mutated_value = thread_idx_mutator(op->value);
       // TODO(tvm-team) The extern function name seems to be a hack.
-      PrimExpr src = Call(value->dtype, builtin::call_extern(), {StringImm("&"), mutated_value},
-                          CallNode::Extern);
+      PrimExpr src = Call(value->dtype, builtin::call_extern(), {StringImm("&"), mutated_value});
 
       auto pload = dst.as<ProducerLoadNode>();
       PrimExpr matrix_major;
@@ -922,8 +918,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
       auto load_matrix_call = [this, &src, &stride, &matrix_major](const Buffer& buffer) {
         return Evaluate(Call(DataType::Handle(), builtin::tvm_load_matrix_sync(),
                              {buffer->data, warp_tile_.m, warp_tile_.n, warp_tile_.k,
-                              buffer->elem_offset, src, stride, matrix_major},
-                             CallNode::Intrinsic));
+                              buffer->elem_offset, src, stride, matrix_major}));
       };
 
       ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
@@ -943,16 +938,14 @@ class TensorCoreIRMutator : public StmtExprMutator {
       PrimExpr warp_y = IntImm(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       dst = thread_idx_mutator(dst);
-      dst =
-          Call(DataType::Handle(), builtin::call_extern(), {StringImm("&"), dst}, CallNode::Extern);
+      dst = Call(DataType::Handle(), builtin::call_extern(), {StringImm("&"), dst});
 
       auto pload = op->value.as<ProducerLoadNode>();
 
       auto store_matrix_call = [this, &dst, &stride](const Buffer& buffer) {
         return Evaluate(Call(DataType::Handle(), builtin::tvm_store_matrix_sync(),
                              {buffer->data, warp_tile_.m, warp_tile_.n, warp_tile_.k,
-                              buffer->elem_offset, dst, stride, StringImm("col_major")},
-                             CallNode::Intrinsic));
+                              buffer->elem_offset, dst, stride, StringImm("col_major")}));
       };
 
       ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
@@ -1067,7 +1060,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
       args.push_back(pload->indices[i]);
       args.push_back(shape[i]);
     }
-    auto tuple = Call(DataType::Handle(), builtin::tvm_tuple(), args, CallNode::Intrinsic);
+    auto tuple = Call(DataType::Handle(), builtin::tvm_tuple(), args);
     Array<ObjectRef> node = {buffer, tensor};
     return AttrStmt(node, "buffer_bind_scope", tuple, call_back(buffer));
   }

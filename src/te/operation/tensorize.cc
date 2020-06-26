@@ -368,9 +368,9 @@ Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
       tuple.push_back(r->min);
       tuple.push_back(r->extent);
     }
-    input_bind_nest.emplace_back(AttrStmt(
-        bind_spec, tir::attr::buffer_bind_scope,
-        Call(DataType::Handle(), tir::builtin::tvm_tuple(), tuple, CallNode::Intrinsic), nop));
+    input_bind_nest.emplace_back(
+        AttrStmt(bind_spec, tir::attr::buffer_bind_scope,
+                 Call(DataType::Handle(), tir::builtin::tvm_tuple(), tuple), nop));
   }
   // output binding
   const ComputeOpNode* intrin_compute = intrin->op.as<ComputeOpNode>();
@@ -388,9 +388,9 @@ Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
     Tensor tensor = stage->op.output(i - intrin->inputs.size());
     Buffer buffer = intrin->buffers[i];
     Array<ObjectRef> bind_spec{buffer, tensor};
-    output_bind_nest.emplace_back(AttrStmt(
-        bind_spec, tir::attr::buffer_bind_scope,
-        Call(DataType::Handle(), tir::builtin::tvm_tuple(), tuple, CallNode::Intrinsic), nop));
+    output_bind_nest.emplace_back(
+        AttrStmt(bind_spec, tir::attr::buffer_bind_scope,
+                 Call(DataType::Handle(), tir::builtin::tvm_tuple(), tuple), nop));
   }
   // Check variable remap
   std::unordered_map<const VarNode*, PrimExpr> vmap;

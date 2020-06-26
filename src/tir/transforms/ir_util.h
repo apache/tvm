@@ -87,7 +87,7 @@ inline PrimExpr TVMStructGet(DataType dtype, Var handle, int index,
                              builtin::TVMStructFieldKind kind) {
   Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
                           make_const(DataType::Int(32), static_cast<int>(kind))};
-  return Call(dtype, builtin::tvm_struct_get(), args, CallNode::PureIntrinsic);
+  return Call(dtype, builtin::tvm_struct_get(), args);
 }
 
 /*!
@@ -99,8 +99,7 @@ inline PrimExpr TVMStructGet(DataType dtype, Var handle, int index,
 inline PrimExpr AddressOffset(Var handle, DataType dtype, int offset) {
   return Call(DataType::Handle(), builtin::address_of(),
               {Load(dtype, handle, make_const(DataType::Int(32), offset * dtype.lanes()),
-                    const_true(dtype.lanes()))},
-              CallNode::PureIntrinsic);
+                    const_true(dtype.lanes()))});
 }
 
 /*!
@@ -115,7 +114,7 @@ inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
     offset = Ramp(offset, make_const(offset.dtype(), 1), dtype.lanes());
   }
   return Call(DataType::Handle(), builtin::address_of(),
-              {Load(dtype, handle, offset, const_true(dtype.lanes()))}, CallNode::PureIntrinsic);
+              {Load(dtype, handle, offset, const_true(dtype.lanes()))});
 }
 
 /*!
@@ -129,7 +128,7 @@ inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
 inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind, PrimExpr value) {
   Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
                           make_const(DataType::Int(32), static_cast<int>(kind)), value};
-  return Evaluate(Call(DataType::Int(32), builtin::tvm_struct_set(), args, CallNode::Intrinsic));
+  return Evaluate(Call(DataType::Int(32), builtin::tvm_struct_set(), args));
 }
 
 /*!

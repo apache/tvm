@@ -38,117 +38,191 @@ namespace builtin {
   }                                                \
   TVM_REGISTER_OP("tir." #OpName)
 
-TIR_DEFINE_BUILTIN_FUNC(reinterpret).set_num_inputs(1);
+TIR_DEFINE_BUILTIN_FUNC(reinterpret)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_num_inputs(1);
 
-TIR_DEFINE_BUILTIN_FUNC(likely).set_num_inputs(1).set_attr<TVectorizable>("TVectorizable", true);
+TIR_DEFINE_BUILTIN_FUNC(likely)
+    .set_num_inputs(1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kExprAnnotation))
+    .set_attr<TVectorizable>("TVectorizable", true);
 
 TIR_DEFINE_BUILTIN_FUNC(bitwise_and)
     .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
     .set_attr<TVectorizable>("TVectorizable", true);
 
 TIR_DEFINE_BUILTIN_FUNC(bitwise_or)
     .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
     .set_attr<TVectorizable>("TVectorizable", true);
 
 TIR_DEFINE_BUILTIN_FUNC(bitwise_xor)
     .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
     .set_attr<TVectorizable>("TVectorizable", true);
 
 TIR_DEFINE_BUILTIN_FUNC(bitwise_not)
     .set_num_inputs(1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
     .set_attr<TVectorizable>("TVectorizable", true);
 
 TIR_DEFINE_BUILTIN_FUNC(shift_left)
     .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
     .set_attr<TVectorizable>("TVectorizable", true);
 
 TIR_DEFINE_BUILTIN_FUNC(shift_right)
     .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
     .set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_DEFINE_BUILTIN_FUNC(large_uint_imm).set_num_inputs(2);
+TIR_DEFINE_BUILTIN_FUNC(large_uint_imm)
+    .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
-TIR_DEFINE_BUILTIN_FUNC(address_of).set_num_inputs(1);
+TIR_DEFINE_BUILTIN_FUNC(address_of)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_num_inputs(1);
 
-TIR_DEFINE_BUILTIN_FUNC(if_then_else).set_num_inputs(3);
+TIR_DEFINE_BUILTIN_FUNC(if_then_else)
+    .set_num_inputs(3)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
-TIR_DEFINE_BUILTIN_FUNC(isnullptr).set_num_inputs(1);
+TIR_DEFINE_BUILTIN_FUNC(isnullptr).set_num_inputs(1).set_attr<TCallEffectKind>(
+    "TCallEffectKind", Integer(CallEffectKind::kPure));
 
-TIR_DEFINE_BUILTIN_FUNC(isnan).set_num_inputs(1);
+TIR_DEFINE_BUILTIN_FUNC(isnan).set_num_inputs(1).set_attr<TCallEffectKind>(
+    "TCallEffectKind", Integer(CallEffectKind::kPure));
 
-TIR_DEFINE_BUILTIN_FUNC(popcount).set_num_inputs(1);
+TIR_DEFINE_BUILTIN_FUNC(popcount)
+    .set_num_inputs(1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_DEFINE_BUILTIN_FUNC(fma).set_num_inputs(3).set_attr<TVectorizable>("TVectorizable", true);
+TIR_DEFINE_BUILTIN_FUNC(fma)
+    .set_num_inputs(3)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_attr<TVectorizable>("TVectorizable", true);
 
-TIR_DEFINE_BUILTIN_FUNC(call_extern);
+TIR_DEFINE_BUILTIN_FUNC(call_extern)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(call_llvm_intrin);
+TIR_DEFINE_BUILTIN_FUNC(call_pure_extern)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
-TIR_DEFINE_BUILTIN_FUNC(call_spirv_glsl450);
+TIR_DEFINE_BUILTIN_FUNC(call_llvm_intrin)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(prefetch);
+TIR_DEFINE_BUILTIN_FUNC(call_llvm_pure_intrin)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_access_ptr).set_num_inputs(5);
+TIR_DEFINE_BUILTIN_FUNC(call_spirv_pure_glsl450)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_static_handle).set_num_inputs(0);
+TIR_DEFINE_BUILTIN_FUNC(prefetch).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                            Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_context_id).set_num_inputs(0);
+TIR_DEFINE_BUILTIN_FUNC(tvm_access_ptr)
+    .set_num_inputs(5)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kSpecialCallArg));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_tuple);
+TIR_DEFINE_BUILTIN_FUNC(tvm_static_handle)
+    .set_num_inputs(0)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kSpecialCallArg));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_struct_get).set_num_inputs(3);
+TIR_DEFINE_BUILTIN_FUNC(tvm_context_id)
+    .set_num_inputs(0)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kReadState));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_struct_set).set_num_inputs(4);
+TIR_DEFINE_BUILTIN_FUNC(tvm_tuple).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                             Integer(CallEffectKind::kEmbedInfo));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_throw_last_error).set_num_inputs(0);
+TIR_DEFINE_BUILTIN_FUNC(tvm_struct_get)
+    .set_num_inputs(3)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kReadState));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_stack_alloca).set_num_inputs(2);
+TIR_DEFINE_BUILTIN_FUNC(tvm_struct_set)
+    .set_num_inputs(4)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kUpdateState));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_stack_make_shape);
+TIR_DEFINE_BUILTIN_FUNC(tvm_throw_last_error)
+    .set_num_inputs(0)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_stack_make_array).set_num_inputs(6);
+TIR_DEFINE_BUILTIN_FUNC(tvm_stack_alloca)
+    .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(tvm_stack_make_shape)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(tvm_stack_make_array)
+    .set_num_inputs(6)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 // When num_inputs are not set, the function is assumed to be variable length.
-TIR_DEFINE_BUILTIN_FUNC(tvm_call_packed);
+TIR_DEFINE_BUILTIN_FUNC(tvm_call_packed)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed);
+TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_thread_context).set_num_inputs(1);
+TIR_DEFINE_BUILTIN_FUNC(tvm_thread_context)
+    .set_num_inputs(1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_call_packed_lowered);
+TIR_DEFINE_BUILTIN_FUNC(tvm_call_packed_lowered)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed_lowered);
+TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed_lowered)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 // TODO(tvm-team) revisit storage sync once we have a good memory hierachy structure.
-TIR_DEFINE_BUILTIN_FUNC(tvm_storage_sync);
+TIR_DEFINE_BUILTIN_FUNC(tvm_storage_sync)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_warp_shuffle);
+TIR_DEFINE_BUILTIN_FUNC(tvm_warp_shuffle)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_warp_shuffle_up);
+TIR_DEFINE_BUILTIN_FUNC(tvm_warp_shuffle_up)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_warp_shuffle_down);
+TIR_DEFINE_BUILTIN_FUNC(tvm_warp_shuffle_down)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_warp_activemask);
+TIR_DEFINE_BUILTIN_FUNC(tvm_warp_activemask)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_global_barrier_kinit);
+TIR_DEFINE_BUILTIN_FUNC(tvm_global_barrier_kinit)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_thread_allreduce);
+TIR_DEFINE_BUILTIN_FUNC(tvm_thread_allreduce)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_load_matrix_sync);
+TIR_DEFINE_BUILTIN_FUNC(tvm_load_matrix_sync)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kReadState));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_mma_sync);
+TIR_DEFINE_BUILTIN_FUNC(tvm_mma_sync)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_bmma_sync);
+TIR_DEFINE_BUILTIN_FUNC(tvm_bmma_sync)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_fill_fragment);
+TIR_DEFINE_BUILTIN_FUNC(tvm_fill_fragment)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_store_matrix_sync);
+TIR_DEFINE_BUILTIN_FUNC(tvm_store_matrix_sync)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(vectorhigh);
+TIR_DEFINE_BUILTIN_FUNC(vectorhigh)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
-TIR_DEFINE_BUILTIN_FUNC(vectorlow);
+TIR_DEFINE_BUILTIN_FUNC(vectorlow).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                             Integer(CallEffectKind::kPure));
 
-TIR_DEFINE_BUILTIN_FUNC(vectorcombine);
+TIR_DEFINE_BUILTIN_FUNC(vectorcombine)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
 }  // namespace builtin
 }  // namespace tir

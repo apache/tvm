@@ -238,7 +238,8 @@ void CodeGenHybrid::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
     PrintExpr(op->args[0], os);
     os << " else ";
     PrintExpr(op->args[2], os);
-  } else if (op->op.same_as(builtin::call_extern())) {
+  } else if (op->op.same_as(builtin::call_pure_extern()) ||
+             op->op.same_as(builtin::call_extern())) {
     StringImm fname = Downcast<StringImm>(op->args[0]);
     os << fname << "(";
     for (size_t i = 1; i < op->args.size(); i++) {

@@ -425,21 +425,22 @@ def dot_int8_int8_int32(int32_lanes, dtype='uint'):
             dtype_c = '%s32x%d' % (dtype, int32_lanes)
 
             a_int8 = ins[0].vload([0], dtype_a)
-            re_int32 = tvm.tir.call_pure_intrin('%s32' % dtype, 'tir.reinterpret', a_int8)
+            re_int32 = tvm.tir.call_intrin('%s32' % dtype, 'tir.reinterpret', a_int8)
             # broadcast a
             vec_ai32 = re_int32.astype(dtype_c)
 
-            vec_a = tvm.tir.call_pure_intrin(dtype_b, 'tir.reinterpret', vec_ai32)
+            vec_a = tvm.tir.call_intrin(dtype_b, 'tir.reinterpret', vec_ai32)
             vec_b = ins[1].vload([0, 0], dtype_b)
             vec_c = outs[0].vload([0], dtype_c)
 
             inst = 'udot' if dtype == 'uint' else 'sdot'
             inst = 'llvm.aarch64.neon.%s.v%di32.v%di8' % (
                 inst, int32_lanes, int32_lanes * num_int8_elements)
-            vdot = tvm.tir.call_llvm_intrin(dtype_c,
-                                            inst,
-                                            tvm.tir.const(2, 'uint32'),
-                                            vec_c, vec_a, vec_b)
+            vdot = tvm.tir.call_llvm_pure_intrin(
+                dtype_c,
+                inst,
+                tvm.tir.const(2, 'uint32'),
+                vec_c, vec_a, vec_b)
             ib.emit(outs[0].vstore(0, vdot))
             return ib.get()
 
