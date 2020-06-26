@@ -82,24 +82,24 @@ class CommonSubexprEliminator : public ExprMutator {
 
   Expr VisitExpr_(const TupleGetItemNode* op) final {
     Expr new_expr = ExprMutator::VisitExpr_(op);
-    const TupleGetItemNode* new_tuple = new_expr.as<TupleGetItemNode>();
-    CHECK(new_tuple);
+    const TupleGetItemNode* new_tuple_item = new_expr.as<TupleGetItemNode>();
+    CHECK(new_tuple_item);
 
     if (fskip_ != nullptr && fskip_(new_expr)) {
       return new_expr;
     }
 
-    auto it = expr_map_.find(new_tuple->tuple);
+    auto it = expr_map_.find(new_tuple_item->tuple);
     if (it != expr_map_.end()) {
       for (const Expr& candidate_expr : it->second) {
         if (const TupleGetItemNode* candidate = candidate_expr.as<TupleGetItemNode>()) {
-          if (new_tuple->index == candidate->index) {
+          if (new_tuple_item->index == candidate->index) {
             return GetRef<Expr>(candidate);
           }
         }
       }
     }
-    expr_map_[new_tuple->tuple].push_back(new_expr);
+    expr_map_[new_tuple_item->tuple].push_back(new_expr);
     return new_expr;
   }
 
