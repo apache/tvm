@@ -692,6 +692,7 @@ SplitExpr CanonicalSimplifier::Impl::SplitDivConst(SplitExpr lhs, int64_t cval, 
   CHECK(lhs->DivModeCompatibleTo(div_mode));
   CHECK_EQ(lhs->scale, 1);
   lhs.CopyOnWrite()->lower_factor *= cval;
+  lhs.CopyOnWrite()->div_mode = div_mode;
   return lhs;
 }
 
