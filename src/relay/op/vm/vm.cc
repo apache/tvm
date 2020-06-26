@@ -35,10 +35,6 @@
 namespace tvm {
 namespace relay {
 
-// Forward declare the shape_of type relation function.
-bool ShapeOfRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                const TypeReporter& reporter);
-
 RELAY_REGISTER_OP("vm.shape_of")
     .describe(R"code(Get the shape of an input tensor.
 )code" TVM_ADD_FILELINE)
