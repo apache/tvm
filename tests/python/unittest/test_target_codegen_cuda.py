@@ -724,8 +724,36 @@ def vcf_check_common(s, args):
     N = 512
 
     # To check if every vectorize loop transforms to ramp expr successfully
-    # TODO(jcf94): Find a better way to process the check in AST
-    print(tvm.lower(s, args))
+    stmt = tvm.lower(s, args)
+    # Use this as a stack flag to show whether this stmt is inside a BroadcastNode
+    inside_broadcast = [False]
+
+    # Possible patterns:
+    # Reduce init:          Store[Ramp] = Broadcast(0)
+    # Shared memory copy:   Store[Ramp] = Load[Ramp]
+    # Compute:              Store[Ramp] = Load[Ramp] ... Broadcast[Load]
+
+    def pre_visit(stmt):
+        if isinstance(stmt, tvm.tir.Broadcast):
+            inside_broadcast[0] = True
+            # Check Broadcast[Imm numbers] or Broadcast[Load] patterns
+            assert isinstance(stmt.value, (tvm.tir.IntImm, tvm.tir.FloatImm, tvm.tir.Load))
+        if isinstance(stmt, tvm.tir.Store):
+            # Check Store[Ramp] pattern
+            assert isinstance(stmt.index, tvm.tir.Ramp)
+        if isinstance(stmt, tvm.tir.Load):
+            # Check Broadcast[Load] or Load[Ramp] patterns
+            assert inside_broadcast[0] or isinstance(stmt.index, tvm.tir.Ramp)
+            # Skip the rest
+            return stmt
+        return None
+
+    def post_visit(stmt):
+        if isinstance(stmt, tvm.tir.Broadcast):
+            inside_broadcast[0] = False
+        return None
+
+    tvm.tir.stmt_functor.ir_transform(stmt['main'].body, pre_visit, post_visit)
 
     if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
         print("CUDA device not found, skip the verification.")
@@ -734,7 +762,7 @@ def vcf_check_common(s, args):
         tgt = tvm.target.cuda()
         mod = tvm.build(s, args, tgt)
         # To check if every vectorize loop transforms to correct instruction
-        print(mod.imported_modules[0].get_source())
+        # print(mod.imported_modules[0].get_source())
 
         ctx = tvm.context("cuda", 0)
         a = tvm.nd.array(np.random.uniform(size=(512, 512)).astype("float32"), ctx)
