@@ -145,15 +145,8 @@ Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
       // If it is provable that the new one is strictly better than the current best one,
       // then replace it. Note that we are biased towards earlier pairs which should be simpler.
       if (!best_diff_over.defined() || analyzer.CanProve(diff_over - best_diff_over < 0)) {
-        if (analyzer.CanProve(floormod(low, coef) == 0)) {
-          // we need to be very careful with rounding
-          // as it could be wrong when we have equations.
-          // equations can come from
-          // 1. when it is a single point, i.e., extent == 1.
-          // 2. when var is substituted by another var in deskew range.
-          best_lower = low_divided;
-          best_diff_over = diff_over;
-        }
+        best_lower = low_divided;
+        best_diff_over = diff_over;
       }
     }
   }
