@@ -608,13 +608,51 @@ struct Parser {
     }
   }
 
+  Array<tvm::PrimExpr> ParseShape() {
+    auto dims = ParseSequence<tvm::PrimExpr>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&]() {
+      auto tok = Match(TokenType::Integer);
+      return Downcast<tvm::PrimExpr>(tok->data);
+    });
+    return dims;
+  }
+
+  Type ParseFunctionType() {
+    auto ty_params = ParseSequence<Type>(
+        TokenType::OpenParen,
+        TokenType::Comma,
+        TokenType::CloseParen, [&]() {
+      return ParseType();
+    });
+
+    Match(TokenType::Minus);
+    Match(TokenType::RAngle);
+    auto ret_type = ParseType();
+
+    return relay::FuncType(ty_params, ret_type, {}, {});
+  }
+
   Type ParseType() {
     auto tok = Peek();
-    if (WhenMatch(TokenType::Identifier)) {
+    if (tok->token_type == TokenType::OpenParen) {
+      auto tys = ParseSequence<relay::Type>(
+        TokenType::OpenParen,
+        TokenType::Comma,
+        TokenType::CloseParen, [&]() {
+        return ParseType();
+      });
+      return relay::TupleType(tys);
+    } else if (WhenMatch(TokenType::Fn)) {
+      return ParseFunctionType();
+    } else if (WhenMatch(TokenType::Identifier)) {
       auto id = tok.ToString();
       if (id == "Tensor") {
-        LOG(FATAL) << "TENSOR";
-        return Type();
+        Match(TokenType::LSquare);
+        auto shape = ParseShape();
+        Match(TokenType::Comma);
+        auto dtype_tok = Match(TokenType::Identifier);
+        auto dtype = DataType(String2DLDataType(dtype_tok.ToString()));
+        Match(TokenType::RSquare);
+        return TensorType(shape, dtype);
       } else {
         // Need to do better error handling here.
         auto dtype = DataType(String2DLDataType(tok.ToString()));
@@ -663,6 +701,25 @@ struct Parser {
     return relay::Function(params, body, ret_type, {});
   }
 
+  Expr ParseIf() {
+    Consume(TokenType::If);
+    auto guard = Parens<Expr>([&] {
+      return ParseExpr();
+    });
+
+    auto true_branch = Block<Expr>([&] {
+      return ParseExpr();
+    });
+
+    Match(TokenType::Else);
+
+    auto false_branch = Block<Expr>([&] {
+      return ParseExpr();
+    });
+
+    return relay::If(guard, true_branch, false_branch);
+  }
+
   Expr ParseExpr() {
     return ConsumeWhitespace<Expr>([this] {
       std::vector<Expr> exprs;
@@ -675,7 +732,10 @@ struct Parser {
           case TokenType::Let:
             exprs.push_back(ParseBindingExpr());
             break;
-
+          case TokenType::If: {
+            exprs.push_back(ParseIf());
+            break;
+          }
           case TokenType::Graph:
             if (Lookahead(2)->token_type == TokenType::Equal) {
               exprs.push_back(ParseBindingExpr());

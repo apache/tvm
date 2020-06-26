@@ -64,8 +64,12 @@ enum TokenType {
     LAngle,
     RCurly,
     LCurly,
+    RSquare,
+    LSquare,
     Bang,
     At,
+    If,
+    Else,
     Underscore,
     Let,
     Fn,
@@ -137,9 +141,13 @@ std::string ToString(const TokenType& token_type) {
             return "RAngle";
         case TokenType::LAngle:
             return "LAngle";
-         case TokenType::RCurly:
+        case TokenType::RCurly:
             return "RCurly";
         case TokenType::LCurly:
+            return "LCurly";
+        case TokenType::RSquare:
+            return "RCurly";
+        case TokenType::LSquare:
             return "LCurly";
         case TokenType::Bang:
             return "Bang";
@@ -149,6 +157,10 @@ std::string ToString(const TokenType& token_type) {
             return "At";
         case TokenType::Let:
             return "Let";
+        case TokenType::If:
+            return "If";
+        case TokenType::Else:
+            return "Else";
         case TokenType::Fn:
             return "Fn";
         case TokenType::Defn:
@@ -242,7 +254,9 @@ bool IsIdent(char c) {
 static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
     { "let", TokenType::Let },
     { "fn", TokenType::Fn },
-    { "def", TokenType::Defn }
+    { "def", TokenType::Defn },
+    { "if", TokenType::If },
+    { "else", TokenType::Else }
 };
 
 struct Tokenizer {
@@ -457,6 +471,14 @@ struct Tokenizer {
             return token;
         } else if (next == '}') {
             auto token = NewToken(TokenType::RCurly);
+            Next();
+            return token;
+        } else if (next == '[') {
+            auto token = NewToken(TokenType::LSquare);
+            Next();
+            return token;
+        } else if (next == ']') {
+            auto token = NewToken(TokenType::RSquare);
             Next();
             return token;
         } else if (next == '!') {
