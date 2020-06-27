@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Network definition of 3D ResNet for Action Recognition (CVPR 2018) 
+Network definition of 3D ResNet for Action Recognition (CVPR 2018)
 
 Reference : https://github.com/kenshohara/3D-ResNets-PyTorch
 """
@@ -159,7 +159,7 @@ def resnet(units,
     assert num_unit == num_stages
     data = relay.var("data", shape=data_shape, dtype=dtype)
     data = layers.batch_norm_infer(data=data, epsilon=2e-5, scale=False, name='bn_data')
-    if layout=="NCDHW":
+    if layout == "NCDHW":
         (_, _, _, height, _) = data_shape
     else:
         (_, _, height, _, _) = data_shape
@@ -209,7 +209,7 @@ def get_net(batch_size,
     Adapted from https://github.com/tornadomeet/ResNet/blob/master/train_resnet.py
     Original author Wei Wu
     """
-    if layout=="NCDHW":
+    if layout == "NCDHW":
         (_, _, height, _) = image_shape
     else:
         (_, height, _, _) = image_shape
