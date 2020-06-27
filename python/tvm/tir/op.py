@@ -29,10 +29,8 @@ def _pack_buffer(buf):
     """Build intrinsics that packs the buffer.
     """
     assert buf.shape
-    shape = Call("handle", "tir.tvm_stack_make_shape", buf.shape,
-                 Call.Intrinsic)
-    strides = Call("handle", "tir.tvm_stack_make_shape", buf.strides,
-                   Call.Intrinsic) if buf.strides else 0
+    shape = Call("handle", "tir.tvm_stack_make_shape", buf.shape)
+    strides = Call("handle", "tir.tvm_stack_make_shape", buf.strides) if buf.strides else 0
     pack_args = [buf.data,
                  shape,
                  strides,
@@ -40,7 +38,7 @@ def _pack_buffer(buf):
                  const(0, dtype=buf.dtype),
                  buf.elem_offset]
     return Call("handle", Op.get("tir.tvm_stack_make_array"),
-                pack_args, Call.Intrinsic)
+                pack_args)
 
 def call_packed(*args):
     """Build expression by call an external packed function.
@@ -68,34 +66,7 @@ def call_packed(*args):
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
     return Call(
-        "int32", Op.get("tir.tvm_call_packed"), call_args, Call.Intrinsic)
-
-
-def call_pure_intrin(dtype, func_name, *args):
-    """Build expression by calling a pure intrinsic function.
-
-    Intrinsics can be overloaded with multiple data types via
-    the intrinsic translation rule.
-
-    Parameters
-    ----------
-    dtype : str
-        The data type of the result.
-
-    func_name: str
-        The intrinsic function name.
-
-    args : list
-        Positional arguments.
-
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    args = convert(args)
-    return Call(
-        dtype, func_name, convert(args), Call.PureIntrinsic)
+        "int32", Op.get("tir.tvm_call_packed"), call_args)
 
 
 def call_intrin(dtype, func_name, *args):
@@ -120,9 +91,8 @@ def call_intrin(dtype, func_name, *args):
     call : PrimExpr
         The call expression.
     """
-    args = convert(args)
     return Call(
-        dtype, func_name, convert(args), Call.Intrinsic)
+        dtype, func_name, convert(args))
 
 
 def call_pure_extern(dtype, func_name, *args):
@@ -145,7 +115,7 @@ def call_pure_extern(dtype, func_name, *args):
         The call expression.
     """
     return Call(
-        dtype, Op.get("tir.call_extern"), convert((StringImm(func_name),) + args), Call.PureExtern)
+        dtype, Op.get("tir.call_pure_extern"), convert((StringImm(func_name),) + args))
 
 
 def call_extern(dtype, func_name, *args):
@@ -168,11 +138,11 @@ def call_extern(dtype, func_name, *args):
         The call expression.
     """
     return Call(
-        dtype, Op.get("tir.call_extern"), convert((StringImm(func_name),) + args), Call.Extern)
+        dtype, Op.get("tir.call_extern"), convert((StringImm(func_name),) + args))
 
 
 def call_llvm_intrin(dtype, name, *args):
-    """Build expression by calling an llvm intrinsic function
+    """Build expression by calling a llvm intrinsic function
 
     Parameters
     ----------
@@ -194,8 +164,37 @@ def call_llvm_intrin(dtype, name, *args):
     from tvm.target import codegen
     llvm_id = codegen.llvm_lookup_intrinsic_id(name)
     assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
-    return call_pure_intrin(dtype, Op.get("tir.call_llvm_intrin"),
-                            tvm.tir.const(llvm_id, 'uint32'), *args)
+    return call_intrin(
+        dtype, Op.get("tir.call_llvm_intrin"),
+        tvm.tir.const(llvm_id, 'uint32'), *args)
+
+
+def call_llvm_pure_intrin(dtype, name, *args):
+    """Build expression by calling a pure llvm intrinsic function
+
+    Parameters
+    ----------
+    dtype : str
+       The data type of the result.
+
+    name : str
+       The name of the llvm intrinsic function.
+
+    args : list
+       Poistional arguments.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    # pylint: disable=import-outside-toplevel
+    from tvm.target import codegen
+    llvm_id = codegen.llvm_lookup_intrinsic_id(name)
+    assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
+    return call_intrin(
+        dtype, Op.get("tir.call_llvm_pure_intrin"),
+        tvm.tir.const(llvm_id, 'uint32'), *args)
 
 
 def any(*args):
@@ -279,7 +278,7 @@ def trace(args, trace_action="tvm.default_trace_action"):
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
     call_args.insert(0, trace_action)
     return tvm.tir.Call(
-        args[-1].dtype, Op.get("tir.tvm_call_trace_packed"), call_args, tvm.tir.Call.Intrinsic)
+        args[-1].dtype, Op.get("tir.tvm_call_trace_packed"), call_args)
 
 
 
@@ -328,7 +327,7 @@ def exp(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.exp", x)
+    return call_intrin(x.dtype, "tir.exp", x)
 
 
 def exp2(x):
@@ -344,7 +343,7 @@ def exp2(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.exp2", x)
+    return call_intrin(x.dtype, "tir.exp2", x)
 
 
 def exp10(x):
@@ -360,7 +359,7 @@ def exp10(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.exp10", x)
+    return call_intrin(x.dtype, "tir.exp10", x)
 
 
 def erf(x):
@@ -376,7 +375,7 @@ def erf(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.erf", x)
+    return call_intrin(x.dtype, "tir.erf", x)
 
 
 def tanh(x):
@@ -392,7 +391,7 @@ def tanh(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.tanh", x)
+    return call_intrin(x.dtype, "tir.tanh", x)
 
 
 def sigmoid(x):
@@ -408,7 +407,7 @@ def sigmoid(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.sigmoid", x)
+    return call_intrin(x.dtype, "tir.sigmoid", x)
 
 
 def log(x):
@@ -424,7 +423,7 @@ def log(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.log", x)
+    return call_intrin(x.dtype, "tir.log", x)
 
 
 def log2(x):
@@ -440,7 +439,7 @@ def log2(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.log2", x)
+    return call_intrin(x.dtype, "tir.log2", x)
 
 
 def log10(x):
@@ -456,7 +455,7 @@ def log10(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.log10", x)
+    return call_intrin(x.dtype, "tir.log10", x)
 
 
 def log1p(x):
@@ -472,7 +471,7 @@ def log1p(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.log1p", x)
+    return call_intrin(x.dtype, "tir.log1p", x)
 
 
 def tan(x):
@@ -488,7 +487,7 @@ def tan(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.tan", x)
+    return call_intrin(x.dtype, "tir.tan", x)
 
 
 def cos(x):
@@ -504,7 +503,7 @@ def cos(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.cos", x)
+    return call_intrin(x.dtype, "tir.cos", x)
 
 
 def cosh(x):
@@ -520,7 +519,7 @@ def cosh(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.cosh", x)
+    return call_intrin(x.dtype, "tir.cosh", x)
 
 
 def acos(x):
@@ -536,7 +535,7 @@ def acos(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.acos", x)
+    return call_intrin(x.dtype, "tir.acos", x)
 
 
 def acosh(x):
@@ -552,7 +551,7 @@ def acosh(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.acosh", x)
+    return call_intrin(x.dtype, "tir.acosh", x)
 
 
 def sin(x):
@@ -568,7 +567,7 @@ def sin(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.sin", x)
+    return call_intrin(x.dtype, "tir.sin", x)
 
 
 def sinh(x):
@@ -584,7 +583,7 @@ def sinh(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.sinh", x)
+    return call_intrin(x.dtype, "tir.sinh", x)
 
 
 def asin(x):
@@ -600,7 +599,7 @@ def asin(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.asin", x)
+    return call_intrin(x.dtype, "tir.asin", x)
 
 
 def asinh(x):
@@ -616,7 +615,7 @@ def asinh(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.asinh", x)
+    return call_intrin(x.dtype, "tir.asinh", x)
 
 
 def atan(x):
@@ -632,7 +631,7 @@ def atan(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.atan", x)
+    return call_intrin(x.dtype, "tir.atan", x)
 
 
 def atanh(x):
@@ -648,7 +647,7 @@ def atanh(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.atanh", x)
+    return call_intrin(x.dtype, "tir.atanh", x)
 
 
 def atan2(x1, x2):
@@ -667,7 +666,7 @@ def atan2(x1, x2):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x1.dtype, "tir.atan2", x1, x2)
+    return call_intrin(x1.dtype, "tir.atan2", x1, x2)
 
 
 def sqrt(x):
@@ -683,7 +682,7 @@ def sqrt(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.sqrt", x)
+    return call_intrin(x.dtype, "tir.sqrt", x)
 
 
 def rsqrt(x):
@@ -699,7 +698,7 @@ def rsqrt(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.rsqrt", x)
+    return call_intrin(x.dtype, "tir.rsqrt", x)
 
 
 def floor(x):
@@ -824,7 +823,7 @@ def nextafter(x1, x2):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x1.dtype, "tir.nextafter", x1, x2)
+    return call_intrin(x1.dtype, "tir.nextafter", x1, x2)
 
 
 def hypot(x1, x2):
@@ -843,7 +842,7 @@ def hypot(x1, x2):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x1.dtype, "tir.hypot", x1, x2)
+    return call_intrin(x1.dtype, "tir.hypot", x1, x2)
 
 
 def copysign(x1, x2):
@@ -862,7 +861,7 @@ def copysign(x1, x2):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x1.dtype, "tir.copysign", x1, x2)
+    return call_intrin(x1.dtype, "tir.copysign", x1, x2)
 
 
 def ldexp(x1, x2):
@@ -881,7 +880,7 @@ def ldexp(x1, x2):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x1.dtype, "tir.ldexp", x1, x2)
+    return call_intrin(x1.dtype, "tir.ldexp", x1, x2)
 
 
 def isnan(x):
@@ -964,7 +963,7 @@ def popcount(x):
     y : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.popcount", x)
+    return call_intrin(x.dtype, "tir.popcount", x)
 
 def fmod(x, y):
     """Return the remainder of x divided by y with the same sign as x.
@@ -981,7 +980,7 @@ def fmod(x, y):
     z : PrimExpr
         The result.
     """
-    return call_pure_intrin(x.dtype, "tir.fmod", x, y)
+    return call_intrin(x.dtype, "tir.fmod", x, y)
 
 
 def if_then_else(cond, t, f):

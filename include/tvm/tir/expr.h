@@ -875,19 +875,6 @@ class Let : public PrimExpr {
  */
 class CallNode : public PrimExprNode {
  public:
-  /*! \brief Possible types of calls. */
-  enum CallType : int {
-    /*! \brief Extern "C" function. */
-    Extern = 0,
-    /*! \brief Extern CXX function. */
-    ExternCPlusPlus = 1,
-    /*! \brief Extern "C" without side-effect. */
-    PureExtern = 2,
-    /*! \brief Intrinsic functions. */
-    Intrinsic = 4,
-    /*! \brief Intrinsic functions that are pure. */
-    PureIntrinsic = 5
-  };
   /*!
    * \brief The operator(function) being invoked
    *
@@ -898,30 +885,21 @@ class CallNode : public PrimExprNode {
 
   /*! \brief The arguments. */
   Array<PrimExpr> args;
-  /*! \brief Type of calls. */
-  CallType call_type;
-
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("op", &op);
     v->Visit("args", &args);
-    v->Visit("call_type", &call_type);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(op, other->op) && equal(args, other->args) &&
-           equal(call_type, other->call_type);
+    return equal(dtype, other->dtype) && equal(op, other->op) && equal(args, other->args);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(dtype);
     hash_reduce(op);
     hash_reduce(args);
-    hash_reduce(call_type);
   }
-
-  /*! \return Whether call node is pure. */
-  bool is_pure() const { return (call_type == PureExtern || call_type == PureIntrinsic); }
 
   static constexpr const char* _type_key = "tir.Call";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, PrimExprNode);
@@ -933,9 +911,7 @@ class CallNode : public PrimExprNode {
  */
 class Call : public PrimExpr {
  public:
-  using CallType = CallNode::CallType;
-
-  TVM_DLL Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, CallType call_type);
+  TVM_DLL Call(DataType dtype, RelayExpr op, Array<PrimExpr> args);
   TVM_DEFINE_OBJECT_REF_METHODS(Call, PrimExpr, CallNode);
 };
 

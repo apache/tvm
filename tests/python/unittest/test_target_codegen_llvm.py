@@ -29,12 +29,12 @@ def test_llvm_intrin():
     n = tvm.runtime.convert(4)
     A = ib.pointer("float32", name="A")
     args = [
-        tvm.tir.call_pure_intrin("handle", "tir.address_of", A[0]),
+        tvm.tir.call_intrin("handle", "tir.address_of", A[0]),
         0, 3, 1
     ]
     ib.emit(tvm.tir.Evaluate(
         tvm.tir.Call(
-            "int32", "tir.prefetch", args, tvm.tir.Call.Intrinsic)))
+            "int32", "tir.prefetch", args)))
     body = ib.get()
 
     mod = tvm.IRModule.from_expr(
@@ -65,7 +65,7 @@ def test_llvm_overloaded_intrin():
     def use_llvm_intrinsic(A, C):
         ib = tvm.tir.ir_builder.create()
         L = A.vload((0,0))
-        I = tvm.tir.call_llvm_intrin('int32', 'llvm.ctlz',
+        I = tvm.tir.call_llvm_pure_intrin('int32', 'llvm.ctlz',
             tvm.tir.const(2, 'uint32'), L, tvm.tir.const(0, 'int1'))
         S = C.vstore((0,0), I)
         ib.emit(S)
@@ -124,7 +124,7 @@ def test_llvm_lookup_intrin():
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("uint8x8", name="A")
     z = tvm.tir.const(0, 'int32')
-    x = tvm.tir.call_llvm_intrin("uint8x8", "llvm.ctpop.v8i8", tvm.tir.const(1, 'uint32'), A[z])
+    x = tvm.tir.call_llvm_pure_intrin("uint8x8", "llvm.ctpop.v8i8", tvm.tir.const(1, 'uint32'), A[z])
     ib.emit(x)
     body = ib.get()
     mod = tvm.IRModule.from_expr(

@@ -22,6 +22,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
 
 namespace tvm {
@@ -566,10 +567,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 PrimExpr TypeAnnotation(DataType dtype) {
   static auto op = Op::Get("tir.type_annotation");
-  return tir::Call(dtype, op, {}, tir::CallNode::PureIntrinsic);
+  return tir::Call(dtype, op, {});
 }
 
-TVM_REGISTER_OP("tir.type_annotation");
+TVM_REGISTER_OP("tir.type_annotation")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
 }  // namespace tir
 }  // namespace tvm

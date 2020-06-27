@@ -553,10 +553,10 @@ TVM_DLL PrimExpr trunc(PrimExpr x);
 TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
-  inline PrimExpr OpName(PrimExpr x) {                                  \
-    static const Op& op = Op::Get("tir." #OpName);                      \
-    return tir::Call(x.dtype(), op, {x}, tir::CallNode::PureIntrinsic); \
+#define TVM_DECLARE_INTRIN_UNARY(OpName)           \
+  inline PrimExpr OpName(PrimExpr x) {             \
+    static const Op& op = Op::Get("tir." #OpName); \
+    return tir::Call(x.dtype(), op, {x});          \
   }
 
 TVM_DECLARE_INTRIN_UNARY(exp);
@@ -583,10 +583,10 @@ TVM_DECLARE_INTRIN_UNARY(acosh);
 TVM_DECLARE_INTRIN_UNARY(asinh);
 TVM_DECLARE_INTRIN_UNARY(atanh);
 
-#define TVM_DECLARE_INTRIN_BINARY(OpName)                                  \
-  inline PrimExpr OpName(PrimExpr x, PrimExpr y) {                         \
-    static const Op& op = Op::Get("tir." #OpName);                         \
-    return tir::Call(x.dtype(), op, {x, y}, tir::CallNode::PureIntrinsic); \
+#define TVM_DECLARE_INTRIN_BINARY(OpName)          \
+  inline PrimExpr OpName(PrimExpr x, PrimExpr y) { \
+    static const Op& op = Op::Get("tir." #OpName); \
+    return tir::Call(x.dtype(), op, {x, y});       \
   }
 
 TVM_DECLARE_INTRIN_BINARY(atan2);
