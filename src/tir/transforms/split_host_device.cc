@@ -238,8 +238,7 @@ class HostDeviceSplitter : public StmtMutator {
     for (PrimExpr ext : m.thread_extent_) {
       call_args.push_back(ext);
     }
-    return Evaluate(
-        Call(DataType::Int(32), builtin::tvm_call_packed(), call_args, CallNode::Intrinsic));
+    return Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), call_args));
   }
 
   // target ir module

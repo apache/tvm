@@ -204,7 +204,7 @@ def test_reduce_combiner_simplify():
 
     # Test that components with side effects are not removed
     dummy = tvm.ir.GlobalVar("dummy")
-    side_effect = lambda *xs: tvm.tir.Call("int32", dummy, xs, tvm.tir.Call.Intrinsic)
+    side_effect = lambda *xs: tvm.tir.Call("int32", dummy, xs)
     ck.verify(sum_and_prod((A[k], side_effect(A[10-k])), k)[0],
              sum_and_prod((A[k], side_effect(A[10-k])), k)[0])
     ck.verify(sum_and_prod((side_effect(A[k]), A[10-k]), k)[0],

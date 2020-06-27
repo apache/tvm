@@ -266,6 +266,23 @@ class NotEqualOp(ObjectGeneric, ExprOp):
         return _ffi_api._OpNE(self.a, self.b)
 
 
+class IntImmEnum(ObjectGeneric):
+    """Lazily evaluate an IntImm in case
+    the constructor is not available in runtime.
+
+    Parameters
+    ----------
+    value : int
+        The enum value
+    """
+    def __init__(self, value):
+        self.value = value
+
+    def asobject(self):
+        """Convert object."""
+        return IntImm("int32", self.value)
+
+
 class PrimExprWithOp(ExprOp, PrimExpr):
     """Helper base class to inherit from PrimExpr."""
     # In Python3, We have to explicitly tell interpreter to retain __hash__ if we overide __eq__
@@ -959,6 +976,16 @@ class Shuffle(PrimExprWithOp):
             _ffi_api.Shuffle, vectors, indices)
 
 
+class CallEffectKind:
+    """Possible kinds of Call effects."""
+    # only expose up to opaque
+    ExprAnnotation = IntImmEnum(0)
+    Pure = IntImmEnum(1)
+    ReadState = IntImmEnum(2)
+    UpdateState = IntImmEnum(3)
+    Opaque = UpdateState
+
+
 @tvm._ffi.register_object("tir.Call")
 class Call(PrimExprWithOp):
     """Call node.
@@ -974,16 +1001,8 @@ class Call(PrimExprWithOp):
 
     args : list of Expr
         The input arguments to the call
-
-    call_type : int
-        The type of the call
     """
-    Extern = 0
-    ExternCPlusPlus = 1
-    PureExtern = 2
-    Intrinsic = 4
-    PureIntrinsic = 5
-    def __init__(self, dtype, op, args, call_type):
+    def __init__(self, dtype, op, args):
         if isinstance(op, str):
             if not op.startswith("tir."):
                 raise ValueError(
@@ -992,7 +1011,7 @@ class Call(PrimExprWithOp):
                      "certain about the intrinsic name, pass in Op.get(name) instead") % op)
             op = Op.get(op)
         self.__init_handle_by_constructor__(
-            _ffi_api.Call, dtype, op, args, call_type)
+            _ffi_api.Call, dtype, op, args)
 
 
 @tvm._ffi.register_object("tir.Let")
