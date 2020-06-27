@@ -672,7 +672,7 @@ def test_empty_adt_defn():
     glob_typ_var = relay.GlobalTypeVar("Ayy")
     prog = relay.TypeData(glob_typ_var, [], [])
     mod[glob_typ_var] = prog
-    assert_parses_as(
+    assert_parse_module_as(
         """
         type Ayy { }
         """,
@@ -693,7 +693,7 @@ def test_multiple_cons_defn():
                 relay.Constructor("Nil", [], list_var),
             ])
     mod[list_var] = prog
-    assert_parses_as(LIST_DEFN, mod)
+    assert_parse_module_as(LIST_DEFN, mod)
 
 
 def test_multiple_type_param_defn():
@@ -905,8 +905,8 @@ if __name__ == "__main__":
     test_function_type()
     test_tuple_type()
     test_adt_defn()
-    # test_empty_adt_defn()
-    # test_multiple_cons_defn()
+    test_empty_adt_defn()
+    test_multiple_cons_defn()
     # test_multiple_type_param_defn()
     # test_match()
     # test_adt_cons_expr()

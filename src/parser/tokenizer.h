@@ -147,9 +147,9 @@ std::string ToString(const TokenType& token_type) {
         case TokenType::LCurly:
             return "LCurly";
         case TokenType::RSquare:
-            return "RCurly";
+            return "RSquare";
         case TokenType::LSquare:
-            return "LCurly";
+            return "LSquare";
         case TokenType::Bang:
             return "Bang";
         case TokenType::Underscore:
