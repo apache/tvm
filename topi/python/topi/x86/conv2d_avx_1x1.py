@@ -89,6 +89,8 @@ def _schedule_conv_NCHWc(s, cfg, data_vec, kernel_vec, conv_out, last):
             s[kernel_vec].vectorize(oc_block)
         parallel_axis = s[kernel_vec].fuse(oc_chunk, oh)
         s[kernel_vec].parallel(parallel_axis)
+    else:
+        oc_bn = cfg['tile_oc'].size[-1]
 
     C, O = conv_out, last
     CC = s.cache_write(C, 'global')
