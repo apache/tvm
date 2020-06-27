@@ -398,7 +398,18 @@ struct Parser {
     // Parse the metadata section at the end.
     auto metadata = ParseMetadata();
     Match(TokenType::EndOfFile);
-    return IRModule();
+    Map<tvm::GlobalVar, BaseFunc> funcs;
+    Map<tvm::GlobalTypeVar, TypeData> types;
+
+    for (auto func : defs.funcs) {
+      funcs.Set(func.global, func.function);
+    }
+
+    for (auto type_def : defs.types) {
+      types.Set(type_def->header, type_def);
+    }
+
+    return IRModule(funcs, types);
   }
 
   SemVer ParseSemVer() {
@@ -419,11 +430,34 @@ struct Parser {
           auto global = GlobalVar(tok.ToString());
           auto func = ParseFunctionDef();
           defs.funcs.push_back(GlobalFunc(global, func));
+          continue;
+        }
+        case TokenType::TypeDef: {
+          defs.types.push_back(ParseTypeDef());
+          continue;
         }
         default:
           return defs;
       }
     }
+  }
+
+  TypeData ParseTypeDef() {
+    Match(TokenType::TypeDef);
+    auto type_id = Match(TokenType::Identifier);
+    auto type_global = tvm::GlobalTypeVar(type_id.ToString(), TypeKind::kTypeData);
+    auto ctors = ParseSequence<tvm::Constructor>(TokenType::LCurly, TokenType::Comma, TokenType::RCurly, [&]() {
+      auto ctor = Match(TokenType::Identifier).ToString();
+      if (Peek()->token_type != TokenType::OpenParen) {
+        return tvm::Constructor(ctor, {}, type_global);
+      } else {
+        auto arg_types = ParseSequence<Type>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&]() {
+          return ParseType();
+        });
+        return tvm::Constructor(ctor, arg_types, type_global);
+      }
+    });
+    return TypeData(type_global, {}, ctors);
   }
 
   template <typename R>

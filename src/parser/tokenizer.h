@@ -74,6 +74,7 @@ enum TokenType {
     Let,
     Fn,
     Defn,
+    TypeDef,
     Unknown,
     EndOfFile,
     Null,
@@ -165,6 +166,8 @@ std::string ToString(const TokenType& token_type) {
             return "Fn";
         case TokenType::Defn:
             return "Defn";
+        case TokenType::TypeDef:
+            return "TypeDef";
         case TokenType::Boolean:
             return "Boolean";
         case TokenType::Unknown:
@@ -256,7 +259,8 @@ static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
     { "fn", TokenType::Fn },
     { "def", TokenType::Defn },
     { "if", TokenType::If },
-    { "else", TokenType::Else }
+    { "else", TokenType::Else },
+    { "type", TokenType::TypeDef },
 };
 
 struct Tokenizer {

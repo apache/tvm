@@ -101,6 +101,9 @@ def assert_parses_as(code, expr):
     parsed = parse_text(code)
     assert_graph_equal(parsed, expr)
 
+def assert_parse_module_as(code, mod):
+    parsed = parse_module(code)
+    assert_graph_equal(parsed, mod)
 
 def get_scalar(x):
     # type: (relay.Constant) -> (Union[float, int, bool])
@@ -655,7 +658,7 @@ def test_adt_defn():
             [],
             [relay.Constructor("Nil", [], glob_typ_var)])
     mod[glob_typ_var] = prog
-    assert_parses_as(
+    assert_parse_module_as(
         """
         type Ayy { Nil }
         """,
@@ -901,7 +904,7 @@ if __name__ == "__main__":
     test_tensor_type()
     test_function_type()
     test_tuple_type()
-    # test_adt_defn()
+    test_adt_defn()
     # test_empty_adt_defn()
     # test_multiple_cons_defn()
     # test_multiple_type_param_defn()
