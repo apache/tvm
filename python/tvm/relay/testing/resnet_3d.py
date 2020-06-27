@@ -14,6 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
+Network definition of 3D ResNet for Action Recognition (CVPR 2018) 
+
+Reference : https://github.com/kenshohara/3D-ResNets-PyTorch
+"""
 
 # pylint: disable=unused-argument
 from tvm import relay
