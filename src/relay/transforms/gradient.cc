@@ -106,6 +106,58 @@ struct ADValueNode {
   }
 };
 
+Expr MultiZerosType(const Type& t) {
+  if (auto* tt = t.as<TensorTypeNode>()) {
+    return Zeros(tt->shape, tt->dtype);
+  } else if (auto* tt = t.as<TupleTypeNode>()) {
+    std::vector<Expr> res;
+    for (size_t i = 0; i < tt->fields.size(); i++) {
+      res.push_back(MultiZerosType(tt->fields[i]));
+    }
+    return Tuple(res);
+  } else {
+    LOG(FATAL) << "unsupported type to zero: " << tt;
+    throw;
+  }
+}
+
+Expr MultiZerosLike(const Expr& e, const Type& t) {
+  if (t.as<TensorTypeNode>()) {
+    return ZerosLike(e);
+  } else if (auto* tt = t.as<TupleTypeNode>()) {
+    return MultiZerosType(t);
+  } else {
+    LOG(FATAL) << "unsupported type to create zeros: " << tt;
+    throw;
+  }
+}
+
+Expr MultiOnesType(const Type& t) {
+  if (auto* tt = t.as<TensorTypeNode>()) {
+    return Ones(tt->shape, tt->dtype);
+  } else if (auto* tt = t.as<TupleTypeNode>()) {
+    std::vector<Expr> res;
+    for (size_t i = 0; i < tt->fields.size(); i++) {
+      res.push_back(MultiOnesType(tt->fields[i]));
+    }
+    return Tuple(res);
+  } else {
+    LOG(FATAL) << "unsupported type to zero: " << tt;
+    throw;
+  }
+}
+
+Expr MultiOnesLike(const Expr& e, const Type& t) {
+  if (t.as<TensorTypeNode>()) {
+    return OnesLike(e);
+  } else if (auto* tt = t.as<TupleTypeNode>()) {
+    return MultiOnesType(t);
+  } else {
+    LOG(FATAL) << "unsupported type to create ones: " << tt;
+    throw;
+  }
+}
+
 using ADValue = std::shared_ptr<ADValueNode>;
 
 /*! \brief AD over a program which generates a tensor output. */
@@ -113,7 +165,8 @@ struct ADTensor : ADValueNode {
   Expr forward;
   mutable Expr reverse;  // must be a variable to avoid duplication
   ADTensor(LetList* ll, const Expr& forward)
-      : forward(ll->Push(forward)), reverse(ll->Push(ZerosLike(this->forward))) {
+      : forward(ll->Push(forward)),
+        reverse(ll->Push(MultiZerosLike(this->forward, forward->checked_type()))) {
     this->forward->checked_type_ = forward->checked_type();
   }
 };
@@ -163,6 +216,51 @@ struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr&)> {
           });
           return ret;
         });
+  }
+
+  ADValue VisitExpr_(const TupleGetItemNode* op) final {
+    Expr e = GetRef<Expr>(op);
+    ADValue tup = VisitExpr(op->tuple);
+    auto tt = op->tuple->checked_type().as<TupleTypeNode>();
+    size_t size = tt->fields.size();
+    size_t idx = op->index;
+    auto ret = std::make_shared<ADTensor>(ll, e);
+    backprop_actions.push_back([tup, idx, size, ret](LetList* ll) {
+      auto rev = tup->get<ADTensor>().reverse;
+      // special-case Tuple, to avoid long chains of GetItem/Tuple,
+      // but we might have functions using tuples, so we don't know
+      // that the reverse node is always a tuple
+      std::vector<Expr> grfields;
+      if (auto tup_node = rev.as<TupleNode>()) {
+        for (size_t i = 0; i < size; ++i) {
+          grfields.push_back(i != idx ? tup_node->fields[i]
+                                      : Add(tup_node->fields[i], ret->reverse));
+        }
+      } else {
+        for (size_t i = 0; i < size; ++i) {
+          grfields.push_back(i != idx ? TupleGetItem(rev, i)
+                                      : Add(TupleGetItem(rev, i), ret->reverse));
+        }
+      }
+      tup->get<ADTensor>().reverse = ll->Push(Tuple(grfields));
+    });
+    return ret;
+  }
+
+  ADValue VisitExpr_(const TupleNode* op) final {
+    Expr e = GetRef<Expr>(op);
+    std::vector<ADValue> fields;
+    for (const auto& f : op->fields) {
+      fields.push_back(VisitExpr(f));
+    }
+    auto ret = std::make_shared<ADTensor>(ll, e);
+    backprop_actions.push_back([fields, ret](LetList* ll) {
+      for (size_t i = 0; i < fields.size(); ++i) {
+        fields[i]->get<ADTensor>().reverse =
+            ll->Push(Add(fields[i]->get<ADTensor>().reverse, TupleGetItem(ret->reverse, i)));
+      }
+    });
+    return ret;
   }
 
   ADValue VisitExpr_(const ConstantNode* op) final {
@@ -235,7 +333,7 @@ Expr FirstOrderGradient(const Expr& re, const Optional<IRModule>& mod) {
     auto c = rev->get<ADFunction>().func(f->checked_type(), args, Attrs(), {});
     const auto& res = c->get<ADTensor>();
     Expr grad = LetList::With([&](LetList* ll) {
-      res.reverse = OnesLike(res.forward);
+      res.reverse = MultiOnesLike(res.forward, res.forward->checked_type());
       for (auto it = reverse_ad.backprop_actions.rbegin(); it != reverse_ad.backprop_actions.rend();
            ++it) {
         (*it)(ll);
