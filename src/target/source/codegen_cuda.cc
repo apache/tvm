@@ -609,7 +609,7 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
 }
 
 void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
-  if (is_const(op->value)) return;
+  if (is_const_int(op->value)) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call && call->op.same_as(builtin::tvm_global_barrier_kinit())) {
     PrintIndent();

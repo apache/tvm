@@ -71,12 +71,14 @@ Doc TIRTextPrinter::Print(const ObjectRef& node) {
   }
 }
 
-Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
-  const auto* op = primFunc.operator->();
+Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& prim_func) {
+  const auto* op = prim_func.operator->();
   const auto& signature = op->func_type_annotation();
   // collect Meta in DictAttr
-  for (const auto& it : primFunc->attrs->dict) {
-    meta_collector_.Collect(it.second);
+  if (prim_func->attrs.defined()) {
+    for (const auto& it : prim_func->attrs->dict) {
+      meta_collector_.Collect(it.second);
+    }
   }
   // collect buffers in buffer_map
   memo_var_.clear();
@@ -100,46 +102,54 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   // print attr
   Doc attr_doc;
   std::vector<Doc> attr_docs;
-  for (const auto& it : op->attrs->dict) {
-    attr_docs.push_back(Doc::StrLiteral(it.first) << ": " << Print(it.second));
+  if (prim_func->attrs.defined()) {
+    for (const auto& it : op->attrs->dict) {
+      attr_docs.push_back(Doc::StrLiteral(it.first) << ": " << Print(it.second));
+    }
+    attr_doc << Doc::NewLine() << "attr = {" << PrintSep(attr_docs, Doc::Text(", ")) << "}";
+    doc << Doc::Indent(2, attr_doc);
   }
-  attr_doc << Doc::NewLine() << "attr = {" << PrintSep(attr_docs, Doc::Text(", ")) << "}";
-  doc << Doc::Indent(2, attr_doc);
+
   // print all the buffers in the tree
-  Doc buffer_doc;
-  std::vector<Doc> buffer_docs;
-  for (const auto& it : memo_buf_) {
-    const auto& buf = it.first;
-    buffer_docs.push_back(Print(buf) << Doc::Text(": Buffer(") << Print(buf->data) << ", "
-                                     << PrintDType(buf->dtype) << ", " << Print(buf->shape) << ", "
-                                     << Print(buf->strides));
-    if (!is_zero(buf->elem_offset)) {
-      buffer_docs.back() << ", elem_offset=" << Print(buf->elem_offset);
+  if (memo_buf_.size() != 0) {
+    Doc buffer_doc;
+    std::vector<Doc> buffer_docs;
+    for (const auto& it : memo_buf_) {
+      const auto& buf = it.first;
+      buffer_docs.push_back(Print(buf) << Doc::Text(": Buffer(") << Print(buf->data) << ", "
+                                       << PrintDType(buf->dtype) << ", " << Print(buf->shape)
+                                       << ", " << Print(buf->strides));
+      if (!is_zero(buf->elem_offset)) {
+        buffer_docs.back() << ", elem_offset=" << Print(buf->elem_offset);
+      }
+      if (buf->scope != "global") {
+        buffer_docs.back() << ", scope=" << Doc::StrLiteral(buf->scope);
+      }
+      if (buf->data_alignment != 128) {
+        buffer_docs.back() << ", align=" << buf->data_alignment;
+      }
+      if (buf->offset_factor != 1) {
+        buffer_docs.back() << ", offset_factor=" << buf->offset_factor;
+      }
+      if (buf->buffer_type != 1) {
+        buffer_docs.back() << ", type=" << Doc::StrLiteral("auto");
+      }
+      buffer_docs.back() << ")";
     }
-    if (buf->scope != "global") {
-      buffer_docs.back() << ", scope=" << Doc::StrLiteral(buf->scope);
-    }
-    if (buf->data_alignment != 128) {
-      buffer_docs.back() << ", align=" << buf->data_alignment;
-    }
-    if (buf->offset_factor != 1) {
-      buffer_docs.back() << ", offset_factor=" << buf->offset_factor;
-    }
-    if (buf->buffer_type != 1) {
-      buffer_docs.back() << ", type=" << Doc::StrLiteral("auto");
-    }
-    buffer_docs.back() << ")";
+    buffer_doc << Doc::NewLine() << "buffers = {";
+    buffer_doc << PrintSep(buffer_docs, Doc::Indent(11, Doc::Text(",") << Doc::NewLine()));
+    doc << Doc::Indent(2, buffer_doc) << "}";
   }
-  buffer_doc << Doc::NewLine() << "buffers = {";
-  buffer_doc << PrintSep(buffer_docs, Doc::Indent(11, Doc::Text(",") << Doc::NewLine()));
-  doc << Doc::Indent(2, buffer_doc) << "}";
-  // print buffer_map
-  std::vector<Doc> buffer_map_doc;
-  for (const auto& it : op->buffer_map) {
-    buffer_map_doc.push_back(Print(it.first) << ": " << Print(it.second));
+
+  if (op->buffer_map.size() != 0) {
+    // print buffer_map
+    std::vector<Doc> buffer_map_doc;
+    for (const auto& it : op->buffer_map) {
+      buffer_map_doc.push_back(Print(it.first) << ": " << Print(it.second));
+    }
+    doc << Doc::Indent(
+        2, Doc::NewLine() << "buffer_map = {" << PrintSep(buffer_map_doc, Doc::Text(", ")) << "}");
   }
-  doc << Doc::Indent(
-      2, Doc::NewLine() << "buffer_map = {" << PrintSep(buffer_map_doc, Doc::Text(", ")) << "}");
   doc << PrintBody(op->body);
   return doc;
 }
