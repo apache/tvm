@@ -29,11 +29,13 @@ namespace tir {
 
 TVM_REGISTER_OP("tir.TVMBackendAllocWorkspace")
     .set_num_inputs(5)
-    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAllocWorkspace");
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAllocWorkspace")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 TVM_REGISTER_OP("tir.TVMBackendFreeWorkspace")
     .set_num_inputs(3)
-    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendFreeWorkspace");
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendFreeWorkspace")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 }  // namespace tir
 }  // namespace tvm

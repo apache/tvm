@@ -698,7 +698,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // Call
-Call::Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, CallType call_type) {
+Call::Call(DataType dtype, RelayExpr op, Array<PrimExpr> args) {
   for (size_t i = 0; i < args.size(); ++i) {
     CHECK(args[i].defined());
   }
@@ -707,12 +707,11 @@ Call::Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, CallType call_typ
   node->dtype = dtype;
   node->op = std::move(op);
   node->args = std::move(args);
-  node->call_type = call_type;
   data_ = std::move(node);
 }
 
 TVM_REGISTER_GLOBAL("tir.Call")
-    .set_body_typed([](DataType type, RelayExpr op, Array<ObjectRef> args, int call_type) {
+    .set_body_typed([](DataType type, RelayExpr op, Array<ObjectRef> args) {
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
         CHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>());
@@ -722,7 +721,7 @@ TVM_REGISTER_GLOBAL("tir.Call")
           prim_expr_args.push_back(Downcast<PrimExpr>(it));
         }
       }
-      return Call(type, op, prim_expr_args, static_cast<CallNode::CallType>(call_type));
+      return Call(type, op, prim_expr_args);
     });
 
 TVM_REGISTER_NODE_TYPE(CallNode);

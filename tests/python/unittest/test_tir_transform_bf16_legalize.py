@@ -115,19 +115,19 @@ def test_eliminate():
 def test_legalize():
     def to32(v):
         uint32_v = topi.cast(v, "uint32")
-        uint32_v = tvm.tir.call_pure_intrin(
+        uint32_v = tvm.tir.call_intrin(
             "uint32", "tir.shift_left", uint32_v, tvm.tir.const(16, "uint32"))
-        return tvm.tir.call_pure_intrin("float32", "tir.reinterpret", uint32_v)
+        return tvm.tir.call_intrin("float32", "tir.reinterpret", uint32_v)
 
     def to16(v):
-        uint32_v = tvm.tir.call_pure_intrin("uint32", "tir.reinterpret", v)
-        rounding_bias = tvm.tir.call_pure_intrin(
+        uint32_v = tvm.tir.call_intrin("uint32", "tir.reinterpret", v)
+        rounding_bias = tvm.tir.call_intrin(
             "uint32", "tir.shift_right", uint32_v, tvm.tir.const(16, "uint32"))
-        rounding_bias = tvm.tir.call_pure_intrin(
+        rounding_bias = tvm.tir.call_intrin(
             "uint32", "tir.bitwise_and", rounding_bias, tvm.tir.const(1, "uint32"))
         rounding_bias = rounding_bias + tvm.tir.const(0x7FFF, "uint16")
         uint32_v = uint32_v + rounding_bias
-        uint32_v = tvm.tir.call_pure_intrin(
+        uint32_v = tvm.tir.call_intrin(
             "uint32", "tir.shift_right", uint32_v, tvm.tir.const(16, "uint32"))
         return topi.cast(uint32_v, 'uint16')
 

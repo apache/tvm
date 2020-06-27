@@ -43,6 +43,43 @@ using TGlobalSymbol = String;
  */
 using TVectorizable = bool;
 
+/*!
+ * \brief The effect type of the call.
+ */
+enum class CallEffectKind : int {
+  /*! \brief Function corresponds to an annotation(e.g. likely) and can translate to identity. */
+  kExprAnnotation = 0,
+  /*!
+   * \brief Pure function that do not interacts
+   *        with any external state.
+   */
+  kPure = 1,
+  /*!
+   * \brief Function's that may read from states(e.g. RAM)
+   */
+  kReadState = 2,
+  /*!
+   * \brief Function that may read/write from states(e.g. RAM).
+   */
+  kUpdateState = 3,
+  /*!
+   * \brief Opaque function, cannot make any assumption
+   */
+  kOpaque = kUpdateState,
+  /*!
+   * \brief Special intrinsic to annotate call arguments info
+   *        only valid as a direct argument to a call.
+   */
+  kSpecialCallArg = 4,
+  /*!
+   * \brief Embed opaque information in the Expr, cannot be codegen.
+   */
+  kEmbedInfo = 5
+};
+
+/*! \brief Use integer to record the kind. */
+using TCallEffectKind = Integer;
+
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_OP_ATTR_TYPES_H_

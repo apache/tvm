@@ -277,10 +277,9 @@ Stmt BaseComputeOpNode::BuildRealize(const Stage& stage,
         if (attr->dim_align_factor != 0) {
           Array<PrimExpr> tuple = {static_cast<int>(i), attr->dim_align_factor,
                                    attr->dim_align_offset};
-          realize = tir::AttrStmt(
-              t, tir::attr::buffer_dim_align,
-              Call(DataType::Handle(), tir::builtin::tvm_tuple(), tuple, CallNode::Intrinsic),
-              realize);
+          realize =
+              tir::AttrStmt(t, tir::attr::buffer_dim_align,
+                            Call(DataType::Handle(), tir::builtin::tvm_tuple(), tuple), realize);
         }
       }
     }

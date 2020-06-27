@@ -21,9 +21,11 @@
  * \file side_effect.cc
  * \brief side effect analysis
  */
+#include <tvm/ir/op.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
+#include <tvm/tir/op_attr_types.h>
 
 namespace tvm {
 namespace tir {
@@ -36,11 +38,19 @@ class ExprSideEffect : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (!op->is_pure()) {
+    static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
+
+    if (auto* ptr_op = op->op.as<OpNode>()) {
+      auto effect_kind = op_call_effect[GetRef<Op>(ptr_op)];
+      if (effect_kind != CallEffectKind::kPure && effect_kind != CallEffectKind::kExprAnnotation) {
+        has_side_effect_ = true;
+        return;
+      } else {
+        ExprVisitor::VisitExpr_(op);
+      }
+    } else {
       has_side_effect_ = true;
       return;
-    } else {
-      ExprVisitor::VisitExpr_(op);
     }
   }
 

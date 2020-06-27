@@ -196,8 +196,8 @@ Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
   // Apply the existing input predicate if any.
   output_preds.push_back(input_pred);
 
-  Stmt reduce_body = Evaluate(Call(DataType::Handle(), tir::builtin::tvm_thread_allreduce(),
-                                   freduce_args, CallNode::Intrinsic));
+  Stmt reduce_body =
+      Evaluate(Call(DataType::Handle(), tir::builtin::tvm_thread_allreduce(), freduce_args));
   reduce_body = AttrStmt(reduces[0]->combiner, tir::attr::reduce_scope,
                          make_zero(DataType::Handle()), reduce_body);
 
