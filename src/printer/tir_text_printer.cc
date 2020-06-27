@@ -326,23 +326,6 @@ Doc TIRTextPrinter::VisitExpr_(const LetNode* op) {
   return doc;
 }
 
-inline const char* CallType2String(CallNode::CallType t) {
-  switch (t) {
-    case CallNode::Extern:
-      return "extern";
-    case CallNode::ExternCPlusPlus:
-      return "extern_cpp";
-    case CallNode::PureExtern:
-      return "pure_extern";
-    case CallNode::Intrinsic:
-      return "intrin";
-    case CallNode::PureIntrinsic:
-      return "pure_intrin";
-  }
-  LOG(FATAL) << "Unknown CallType";
-  return "Unknown";
-}
-
 Doc TIRTextPrinter::VisitExpr_(const CallNode* op) {
   Doc doc;
   if (auto* ptr_op = op->op.as<OpNode>()) {
@@ -357,8 +340,7 @@ Doc TIRTextPrinter::VisitExpr_(const CallNode* op) {
   for (const auto& arg : op->args) {
     args.push_back(Print(arg));
   }
-  doc << PrintSep(args, Doc::Text(", ")) << ", dtype=" << PrintDType(op->dtype)
-      << ", type=" << Doc::StrLiteral(CallType2String(op->call_type)) << ")";
+  doc << PrintSep(args, Doc::Text(", ")) << ", dtype=" << PrintDType(op->dtype) << ")";
   return doc;
 }
 

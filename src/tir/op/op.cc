@@ -38,10 +38,14 @@ namespace tvm {
 using namespace tir;
 
 // macro to register an unary op
-#define TIR_REGISTER_PURE_UNARY_OP(OpName) TVM_REGISTER_OP(OpName).set_num_inputs(1)
+#define TIR_REGISTER_PURE_UNARY_OP(OpName)                             \
+  TVM_REGISTER_OP(OpName).set_num_inputs(1).set_attr<TCallEffectKind>( \
+      "TCallEffectKind", Integer(CallEffectKind::kPure))
 
 // macro to register an binary op
-#define TIR_REGISTER_PURE_BINARY_OP(OpName) TVM_REGISTER_OP(OpName).set_num_inputs(2)
+#define TIR_REGISTER_PURE_BINARY_OP(OpName)                            \
+  TVM_REGISTER_OP(OpName).set_num_inputs(2).set_attr<TCallEffectKind>( \
+      "TCallEffectKind", Integer(CallEffectKind::kPure))
 
 runtime::DataType GetRuntimeDataType(const Type& type) {
   if (auto* n = type.as<PrimTypeNode>()) {
@@ -83,8 +87,7 @@ inline PrimExpr SimpleCast(const DataType& t, PrimExpr value) {
 // LargeUIntImm
 PrimExpr LargeUIntImm(DataType t, int64_t low, int64_t high) {
   return tir::Call(t, tir::builtin::large_uint_imm(),
-                   {make_const(DataType::UInt(32), low), make_const(DataType::UInt(32), high)},
-                   tir::CallNode::PureIntrinsic);
+                   {make_const(DataType::UInt(32), low), make_const(DataType::UInt(32), high)});
 }
 
 // The public function with a quick checking path.
@@ -262,7 +265,7 @@ PrimExpr cast(const DataType& t, PrimExpr value) {
 // reinterpret
 PrimExpr reinterpret(const DataType& t, PrimExpr value) {
   if (value.dtype() == t) return value;
-  return tir::Call(t, tir::builtin::reinterpret(), {value}, tir::CallNode::PureIntrinsic);
+  return tir::Call(t, tir::builtin::reinterpret(), {value});
 }
 
 // operator+
@@ -387,16 +390,14 @@ PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value) 
   }
 
   return tir::Call(true_value.dtype(), tir::builtin::if_then_else(),
-                   {cond, true_value, false_value}, tir::CallNode::PureIntrinsic);
+                   {cond, true_value, false_value});
 }
 
 // likely
 PrimExpr likely(PrimExpr cond) {
   if (is_const(cond)) return cond;
-  return tir::Call(cond.dtype(), tir::builtin::likely(), {cond}, tir::CallNode::PureIntrinsic);
+  return tir::Call(cond.dtype(), tir::builtin::likely(), {cond});
 }
-
-TVM_REGISTER_OP("tir.likely").set_num_inputs(1);
 
 // operator>
 PrimExpr operator>(PrimExpr a, PrimExpr b) {
@@ -481,7 +482,7 @@ PrimExpr operator>>(PrimExpr a, PrimExpr b) {
     }
   });
 
-  return tir::Call(a.dtype(), tir::builtin::shift_right(), {a, b}, tir::CallNode::PureIntrinsic);
+  return tir::Call(a.dtype(), tir::builtin::shift_right(), {a, b});
 }
 
 // shift left
@@ -500,7 +501,7 @@ PrimExpr operator<<(PrimExpr a, PrimExpr b) {
       if (pb->value == 0) return a;
     }
   });
-  return tir::Call(a.dtype(), tir::builtin::shift_left(), {a, b}, tir::CallNode::PureIntrinsic);
+  return tir::Call(a.dtype(), tir::builtin::shift_left(), {a, b});
 }
 
 // bitwise and
@@ -512,7 +513,7 @@ PrimExpr operator&(PrimExpr a, PrimExpr b) {
     const DataType& rtype = a.dtype();
     if (pa && pb) return IntImm(rtype, (pa->value & pb->value));
   });
-  return tir::Call(a.dtype(), tir::builtin::bitwise_and(), {a, b}, tir::CallNode::PureIntrinsic);
+  return tir::Call(a.dtype(), tir::builtin::bitwise_and(), {a, b});
 }
 
 // bitwise_or
@@ -524,7 +525,7 @@ PrimExpr operator|(PrimExpr a, PrimExpr b) {
     const DataType& rtype = a.dtype();
     if (pa && pb) return IntImm(rtype, (pa->value | pb->value));
   });
-  return tir::Call(a.dtype(), tir::builtin::bitwise_or(), {a, b}, tir::CallNode::PureIntrinsic);
+  return tir::Call(a.dtype(), tir::builtin::bitwise_or(), {a, b});
 }
 
 // bitwise_xor
@@ -536,16 +537,14 @@ PrimExpr operator^(PrimExpr a, PrimExpr b) {
     const DataType& rtype = a.dtype();
     if (pa && pb) return IntImm(rtype, (pa->value ^ pb->value));
   });
-  return tir::Call(a.dtype(), tir::builtin::bitwise_xor(), {a, b}, tir::CallNode::PureIntrinsic);
+  return tir::Call(a.dtype(), tir::builtin::bitwise_xor(), {a, b});
 }
 
 // bitwie_not
 PrimExpr operator~(PrimExpr a) {
   CHECK(a.dtype().is_int() || a.dtype().is_uint());
-  return tir::Call(a.dtype(), tir::builtin::bitwise_not(), {a}, tir::CallNode::PureIntrinsic);
+  return tir::Call(a.dtype(), tir::builtin::bitwise_not(), {a});
 }
-
-TVM_REGISTER_OP("tir.bitwise_not");
 
 TVM_REGISTER_GLOBAL("tir.bitwise_not").set_body_typed([](PrimExpr a) { return ~a; });
 
@@ -554,10 +553,10 @@ PrimExpr pow(PrimExpr x, PrimExpr y) {
   BinaryOpMatchTypes(x, y);
   CHECK(x.dtype().is_float()) << "power only applies to float";
   static auto op = Op::Get("tir.pow");
-  return tir::Call(x.dtype(), op, {x, y}, tir::CallNode::PureIntrinsic);
+  return tir::Call(x.dtype(), op, {x, y});
 }
 
-TVM_REGISTER_OP("tir.pow").set_num_inputs(2).set_attr<TVectorizable>("TVectorizable", true);
+TIR_REGISTER_PURE_BINARY_OP("tir.pow").set_attr<TVectorizable>("TVectorizable", true);
 
 // abs
 PrimExpr abs(PrimExpr x) {
@@ -575,7 +574,7 @@ PrimExpr abs(PrimExpr x) {
       return FloatImm(x.dtype(), std::fabs(fx->value));
     }
     static auto op = Op::Get("tir.fabs");
-    return tir::Call(x.dtype(), op, {x}, tir::CallNode::PureIntrinsic);
+    return tir::Call(x.dtype(), op, {x});
   } else if (x.dtype().is_uint()) {
     return x;
   } else {
@@ -600,18 +599,15 @@ PrimExpr isnan(PrimExpr x) {
     }
     static auto op = Op::Get("tir.isnan");
     if (x.dtype().bits() == 16) {
-      return tir::Call(t, op, {cast(DataType::Float(32, t.lanes()), std::move(x))},
-                       tir::CallNode::PureIntrinsic);
+      return tir::Call(t, op, {cast(DataType::Float(32, t.lanes()), std::move(x))});
     } else {
-      return tir::Call(t, op, {x}, tir::CallNode::PureIntrinsic);
+      return tir::Call(t, op, {x});
     }
   } else {
     LOG(FATAL) << "Data type " << x.dtype() << " not supported for isnan op. Skipping isnan op...";
     return x;
   }
 }
-
-TIR_REGISTER_PURE_UNARY_OP("tir.isnan");
 
 // isinf
 PrimExpr isinf(PrimExpr x) {
@@ -685,7 +681,7 @@ PrimExpr fmod(PrimExpr x, PrimExpr y) {
   BinaryOpMatchTypes(x, y);
   CHECK(x.dtype().is_float()) << "fmod only applies to float";
   static auto op = Op::Get("tir.fmod");
-  return tir::Call(x.dtype(), op, {x, y}, tir::CallNode::PureIntrinsic);
+  return tir::Call(x.dtype(), op, {x, y});
 }
 
 TIR_REGISTER_PURE_UNARY_OP("tir.fmod");
@@ -699,7 +695,7 @@ PrimExpr floor(PrimExpr x) {
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::floor(fx->value));
   static auto op = Op::Get("tir.floor");
-  return tir::Call(x.dtype(), op, {x}, tir::CallNode::PureIntrinsic);
+  return tir::Call(x.dtype(), op, {x});
 }
 
 TIR_REGISTER_PURE_UNARY_OP("tir.floor").set_attr<TVectorizable>("TVectorizable", true);
@@ -713,7 +709,7 @@ PrimExpr ceil(PrimExpr x) {
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::ceil(fx->value));
   static auto op = Op::Get("tir.ceil");
-  return tir::Call(x.dtype(), op, {x}, tir::CallNode::PureIntrinsic);
+  return tir::Call(x.dtype(), op, {x});
 }
 
 TIR_REGISTER_PURE_UNARY_OP("tir.ceil").set_attr<TVectorizable>("TVectorizable", true);
@@ -727,7 +723,7 @@ PrimExpr round(PrimExpr x) {
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value));
   static auto op = Op::Get("tir.round");
-  return tir::Call(x.dtype(), op, {x}, tir::CallNode::PureIntrinsic);
+  return tir::Call(x.dtype(), op, {x});
 }
 
 TIR_REGISTER_PURE_UNARY_OP("tir.round").set_attr<TVectorizable>("TVectorizable", true);
@@ -741,7 +737,7 @@ PrimExpr nearbyint(PrimExpr x) {
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value));
   static auto op = Op::Get("tir.nearbyint");
-  return tir::Call(x.dtype(), op, {x}, tir::CallNode::PureIntrinsic);
+  return tir::Call(x.dtype(), op, {x});
 }
 
 TIR_REGISTER_PURE_UNARY_OP("tir.nearbyint");
@@ -757,7 +753,7 @@ PrimExpr trunc(PrimExpr x) {
     return FloatImm(x.dtype(), (fx->value < 0 ? std::ceil(fx->value) : std::floor(fx->value)));
   }
   static auto op = Op::Get("tir.trunc");
-  return tir::Call(x.dtype(), op, {x}, tir::CallNode::PureIntrinsic);
+  return tir::Call(x.dtype(), op, {x});
 }
 
 TIR_REGISTER_PURE_UNARY_OP("tir.trunc").set_attr<TVectorizable>("TVectorizable", true);
@@ -786,8 +782,6 @@ TIR_REGISTER_PURE_UNARY_OP("tir.log2").set_attr<TVectorizable>("TVectorizable", 
 TIR_REGISTER_PURE_UNARY_OP("tir.log1p");
 
 TIR_REGISTER_PURE_UNARY_OP("tir.log10").set_attr<TVectorizable>("TVectorizable", true);
-
-TIR_REGISTER_PURE_UNARY_OP("tir.popcount").set_attr<TVectorizable>("TVectorizable", true);
 
 TIR_REGISTER_PURE_UNARY_OP("tir.tan").set_attr<TVectorizable>("TVectorizable", true);
 

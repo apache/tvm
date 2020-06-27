@@ -250,10 +250,9 @@ class WarpAccessRewriter : protected StmtExprMutator {
           << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->index
           << " local_index=" << local_index;
       PrimExpr load_value = Load(op->dtype, op->buffer_var, local_index, op->predicate);
-      PrimExpr mask =
-          Call(DataType::UInt(32), builtin::tvm_warp_activemask(), {}, CallNode::Intrinsic);
+      PrimExpr mask = Call(DataType::UInt(32), builtin::tvm_warp_activemask(), {});
       return Call(load_value.dtype(), builtin::tvm_warp_shuffle(),
-                  {mask, load_value, group, width_, warp_size_}, CallNode::Intrinsic);
+                  {mask, load_value, group, width_, warp_size_});
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }

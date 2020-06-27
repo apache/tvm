@@ -189,13 +189,13 @@ class BF16LowerRewriter : StmtExprMutator {
       auto uint32_dtype = DataType(kDLUInt, 32, op_val->dtype.lanes());
       auto uint32_v = Cast(uint32_dtype, op_val);
       // to be endian invariant.
-      return Call(op->dtype, builtin::reinterpret(), {uint32_v << 16}, CallNode::PureIntrinsic);
+      return Call(op->dtype, builtin::reinterpret(), {uint32_v << 16});
 
     } else if (op->dtype.is_bfloat16()) {
       // if is cast_to_bf16, check if op->value is fp32
       CHECK(op->value->dtype.is_float() && op->value->dtype.bits() == 32);
       auto uint32_dtype = DataType(kDLUInt, 32, op_val->dtype.lanes());
-      auto uint32_v = Call(uint32_dtype, builtin::reinterpret(), {op_val}, CallNode::PureIntrinsic);
+      auto uint32_v = Call(uint32_dtype, builtin::reinterpret(), {op_val});
       auto uint16_dtype = DataType(kDLUInt, 16, op_val->dtype.lanes());
       /* the following TIR is equivalent to the C++ code below:
       uint32_t rounding_bias = ((U32 >> 16) & 1) + UINT32_C(0x7FFF);

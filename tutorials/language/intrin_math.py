@@ -135,7 +135,7 @@ print(fcuda.imported_modules[0].get_source())
 
 def mylog(x):
     """customized log intrinsic function"""
-    return tvm.tir.call_pure_intrin(x.dtype, "tir.mylog", x)
+    return tvm.tir.call_intrin(x.dtype, "tir.mylog", x)
 
 
 def my_cuda_mylog_rule(op):
@@ -148,7 +148,7 @@ def my_cuda_mylog_rule(op):
         return op
 
 # new op registration is triggered by registering an attribute of the op
-tvm.ir.register_op_attr("tir.mylog", "TVectorizable", True)
+tvm.ir.register_op_attr("tir.mylog", "TCallEffectKind", tvm.tir.CallEffectKind.Pure)
 tvm.target.register_intrin_rule("cuda", "mylog", my_cuda_mylog_rule, override=True)
 
 n = te.var("n")

@@ -211,7 +211,7 @@ class ThreadSyncInserter : public StmtExprMutator {
         barrier = MakeGlobalBarrier();
       } else {
         barrier = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
-                                {StringImm(sync_scope_.to_string())}, CallNode::Intrinsic));
+                                {StringImm(sync_scope_.to_string())}));
       }
       // Mutate after query, to avoid stmt change.
       auto ret = StmtExprMutator::VisitStmt(stmt);
@@ -299,8 +299,7 @@ class ThreadSyncInserter : public StmtExprMutator {
   Stmt InitGlobalBarrier(const AttrStmtNode* op) {
     CHECK(op != nullptr);
     Array<PrimExpr> pargs = {StringImm(runtime::symbol::tvm_prepare_global_barrier)};
-    Stmt prep =
-        Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), pargs, CallNode::Intrinsic));
+    Stmt prep = Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), pargs));
     Stmt body = op->body;
     for (const auto& kv : rw_stats_) {
       const auto& e = kv.second;
@@ -309,8 +308,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       }
     }
     rw_stats_.clear();
-    Stmt kinit = Evaluate(
-        Call(DataType::Int(32), builtin::tvm_global_barrier_kinit(), {}, CallNode::Intrinsic));
+    Stmt kinit = Evaluate(Call(DataType::Int(32), builtin::tvm_global_barrier_kinit(), {}));
     body = SeqStmt({kinit, body});
     body = AttrStmt(op->node, op->attr_key, op->value, body);
     return SeqStmt({prep, body});
@@ -334,8 +332,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       CHECK_EQ(num_work_dim_, thread_extents_.size());
     }
     return Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
-                         {StringImm(sync_scope_.to_string()), is_lead_, num_blocks_},
-                         CallNode::Intrinsic));
+                         {StringImm(sync_scope_.to_string()), is_lead_, num_blocks_}));
   }
   // data structure.
   StorageScope sync_scope_;

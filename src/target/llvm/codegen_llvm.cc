@@ -738,7 +738,7 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
 }
 
 llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
-  if (op->op.same_as(builtin_call_llvm_intrin_)) {
+  if (op->op.same_as(builtin_call_llvm_intrin_) || op->op.same_as(builtin_call_llvm_pure_intrin_)) {
     CHECK_GE(op->args.size(), 2U);
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(Downcast<IntImm>(op->args[0])->value);
     int64_t num_signature = Downcast<IntImm>(op->args[1])->value;
@@ -1077,7 +1077,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
   if (auto* ptr_op = op->op.as<OpNode>()) {
     auto call_op = GetRef<Op>(ptr_op);
-    if (op->op.same_as(builtin_call_extern_)) {
+    if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       // call extern intrinsic
       CHECK_GE(op->args.size(), 1U);
       auto global_symbol = Downcast<StringImm>(op->args[0]);

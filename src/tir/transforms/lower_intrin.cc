@@ -51,17 +51,13 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
-    // NOTE: call_type will eventually be deprecated and the information
-    // will be folded into Op's attr
-    if (op->call_type == CallNode::Intrinsic || op->call_type == CallNode::PureIntrinsic) {
-      if (auto* ptr_op = op->op.as<OpNode>()) {
-        // Still use legacy string based rewriting
-        // TODO(tvm-team): migrate the pattern application from global function look up
-        // to an OpAttrMap<PackedFunc>
-        std::string name = ptr_op->name;
-        PrimExpr r = ApplyPattern(name, GetRef<PrimExpr>(op));
-        if (r.defined()) return r;
-      }
+    if (auto* ptr_op = op->op.as<OpNode>()) {
+      // Still use legacy string based rewriting
+      // TODO(tvm-team): migrate the pattern application from global function look up
+      // to an OpAttrMap<PackedFunc>
+      std::string name = ptr_op->name;
+      PrimExpr r = ApplyPattern(name, GetRef<PrimExpr>(op));
+      if (r.defined()) return r;
     }
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
@@ -238,7 +234,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     PrimExpr rhs = SwapBroadcastCast(b);
 
     if (fma_ != nullptr && op->dtype.is_float()) {
-      PrimExpr r = (*fma_)(Call(op->dtype, builtin::fma(), {lhs, rhs, c}, CallNode::PureIntrinsic));
+      PrimExpr r = (*fma_)(Call(op->dtype, builtin::fma(), {lhs, rhs, c}));
       if (r.defined()) return this->VisitExpr(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {
