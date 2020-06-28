@@ -396,20 +396,6 @@ RELAY_REGISTER_UNARY_OP("bitwise_not")
 // shape_of
 TVM_REGISTER_NODE_TYPE(ShapeOfAttrs);
 
-bool ShapeOfRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                const TypeReporter& reporter) {
-  CHECK_EQ(num_inputs, 1);
-  auto tt = types[0].as<TensorTypeNode>();
-  if (tt == nullptr) {
-    return false;
-  }
-  const auto* param = attrs.as<ShapeOfAttrs>();
-  CHECK(param != nullptr);
-  auto rank_shape = RankShape(tt->shape);
-  reporter->Assign(types[1], TensorType(rank_shape, param->dtype));
-  return true;
-}
-
 Array<te::Tensor> ShapeOfCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                  const Type& out_type) {
   CHECK_EQ(inputs.size(), 1);

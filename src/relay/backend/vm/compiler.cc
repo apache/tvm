@@ -283,6 +283,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       case Opcode::Invoke:
       case Opcode::AllocClosure:
       case Opcode::AllocStorage:
+      case Opcode::ShapeOf:
       case Opcode::Move:
       case Opcode::InvokeClosure:
         last_register_ = instr.dst;
@@ -587,6 +588,18 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                    auto inputs = Downcast<Tuple>(args[1]);
                    auto outputs = Downcast<Tuple>(args[2]);
                    EmitShapeFunc(shape_func, inputs->fields, outputs->fields);
+                 })
+          .Match("vm.shape_of",
+                 [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+                   CHECK_EQ(args.size(), 1U);
+                   // Get the attributes.
+                   const auto* shape_of_attrs = attrs.as<ShapeOfAttrs>();
+                   CHECK(shape_of_attrs) << "Must be the shape_of attrs";
+                   CHECK_EQ(shape_of_attrs->dtype.bits(), 64)
+                       << "The dtype of shape of must be int64, but got"
+                       << DLDataType2String(shape_of_attrs->dtype);
+                   this->VisitExpr(args[0]);
+                   Emit(Instruction::ShapeOf(last_register_, NewRegister()));
                  })
           .Match("memory.kill",
                  [](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
