@@ -190,8 +190,8 @@ class PartitionFinder : public StmtExprVisitor {
     if (ExprUseVars(op->min, out_vars_) || ExprUseVars(op->extent, out_vars_)) return;
 
     const VarNode* var = op->loop_var.get();
-    hint_map_.insert({var, IntSet::interval(op->min, op->min + op->extent - 1)});
-    relax_map_.insert({var, IntSet::interval(op->min, op->min + op->extent - 1)});
+    hint_map_.insert({var, IntSet::Interval(op->min, op->min + op->extent - 1)});
+    relax_map_.insert({var, IntSet::Interval(op->min, op->min + op->extent - 1)});
     StmtExprVisitor::VisitStmt_(op);
     relax_map_.erase(var);
     hint_map_.erase(var);
@@ -203,7 +203,7 @@ class PartitionFinder : public StmtExprVisitor {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);
       const VarNode* var = thread_axis->var.get();
-      IntSet dom = IntSet::range(Range(make_zero(op->value.dtype()), op->value));
+      IntSet dom = IntSet::FromRange(Range(make_zero(op->value.dtype()), op->value));
       hint_map_.insert({var, dom});
       relax_map_.insert({var, dom});
       StmtExprVisitor::VisitStmt_(op);
@@ -222,14 +222,14 @@ class PartitionFinder : public StmtExprVisitor {
         // true. Also find the interval, if exists, in which we can prove that cond is
         // false.
         IntSet interval = DeduceBound(current_var_, cond, hint_map_, relax_map_);
-        if (!interval.is_nothing()) {
+        if (!interval.IsNothing()) {
           // cond is true within interval
           partitions[{cond.get(), true}] = interval;
         }
         PrimExpr inverse_cond = InverseCond(cond);
         if (inverse_cond.defined()) {
           IntSet interval = DeduceBound(current_var_, inverse_cond, hint_map_, relax_map_);
-          if (!interval.is_nothing()) {
+          if (!interval.IsNothing()) {
             // cond is false within interval
             partitions[{cond.get(), false}] = interval;
           }
@@ -342,7 +342,7 @@ class LoopPartitioner : public StmtMutator {
 
     // normal path when loop partition fails
     // normal loop variable can be put into hint map.
-    hint_map_.insert({op->loop_var.get(), IntSet::interval(op->min, op->min + op->extent - 1)});
+    hint_map_.insert({op->loop_var.get(), IntSet::Interval(op->min, op->min + op->extent - 1)});
     Stmt res = StmtMutator::VisitStmt_(op);
     hint_map_.erase(op->loop_var.get());
     return res;
@@ -366,11 +366,11 @@ class LoopPartitioner : public StmtMutator {
     Stmt res;
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.
-      relax_map_.insert({var.get(), IntSet::interval(make_zero(var.dtype()), op->value - 1)});
+      relax_map_.insert({var.get(), IntSet::Interval(make_zero(var.dtype()), op->value - 1)});
       res = StmtMutator::VisitStmt_(op);
       relax_map_.erase(var.get());
     } else {
-      hint_map_.insert({var.get(), IntSet::interval(make_zero(var.dtype()), op->value - 1)});
+      hint_map_.insert({var.get(), IntSet::Interval(make_zero(var.dtype()), op->value - 1)});
       res = StmtMutator::VisitStmt_(op);
       hint_map_.erase(var.get());
     }
@@ -410,7 +410,7 @@ std::pair<IntSet, std::unordered_set<const Object*>> LoopPartitioner::GetInterva
       }
     }
   }
-  IntSet interval = sets.empty() ? IntSet::nothing() : Intersect(sets);
+  IntSet interval = sets.empty() ? IntSet::Nothing() : Intersect(sets);
   return std::make_pair(interval, cond_set);
 }
 
@@ -464,7 +464,7 @@ Stmt LoopPartitioner::TryPartition(const Object* node, const Stmt& stmt, Var var
                                    PrimExpr max, Stmt body, bool partition_thread_scope) {
   using namespace arith;
   // include hint of var.
-  hint_map_.insert({var.get(), IntSet::interval(min, max)});
+  hint_map_.insert({var.get(), IntSet::Interval(min, max)});
 
   PartitionFinder finder(var, hint_map_, relax_map_);
   finder(body);
@@ -479,12 +479,12 @@ Stmt LoopPartitioner::TryPartition(const Object* node, const Stmt& stmt, Var var
   // find an interval in which all conditions on var are true
   std::tie(middle_interval, cond_set) =
       GetIntervalAndCondset(finder.partitions, for_interval, true);
-  if (middle_interval.is_nothing()) {
+  if (middle_interval.IsNothing()) {
     // if such interval doesn't exist, find an interval in which all
     // conditions on var are false
     std::tie(middle_interval, cond_set) =
         GetIntervalAndCondset(finder.partitions, for_interval, false);
-    if (middle_interval.is_nothing())
+    if (middle_interval.IsNothing())
       // we couldn't find an interval in which the conditions are provably true or false
       // Therefore, we can't partition the loop based on those conds
       return Stmt();

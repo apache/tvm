@@ -799,9 +799,9 @@ class TensorCoreIRMutator : public StmtExprMutator {
       }
       CHECK_GE(op->bounds.size(), 2) << "Less than 2 dimensions for matrix " << key->GetNameHint();
       new_bounds.push_back(
-          Range::make_by_min_extent(op->bounds[op->bounds.size() - 2]->min, new_extents[0]));
+          Range::FromMinExtent(op->bounds[op->bounds.size() - 2]->min, new_extents[0]));
       new_bounds.push_back(
-          Range::make_by_min_extent(op->bounds[op->bounds.size() - 1]->min, new_extents[1]));
+          Range::FromMinExtent(op->bounds[op->bounds.size() - 1]->min, new_extents[1]));
 
       return ProducerRealize(op->producer, new_bounds, op->condition, op->body);
     }

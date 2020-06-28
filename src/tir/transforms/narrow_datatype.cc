@@ -97,7 +97,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
   }
 
   void VisitStmt_(const ForNode* op) {
-    analyzer_.Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
+    analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     vextent_[op->loop_var.as<VarNode>()] = op->extent.dtype();
     return StmtExprVisitor::VisitStmt_(op);
   }
@@ -106,7 +106,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
     if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
-      analyzer_.Bind(iv->var, Range::make_by_min_extent(0, op->value));
+      analyzer_.Bind(iv->var, Range::FromMinExtent(0, op->value));
       vextent_[iv->var.as<VarNode>()] = op->value.dtype();
       StmtExprVisitor::VisitStmt_(op);
     } else {

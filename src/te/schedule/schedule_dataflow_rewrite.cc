@@ -370,7 +370,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch, const Array<Tensor>& te
     for (Range r : old_region) {
       PrimExpr min = VarReplacer(vsub2newvar)(r->min);
       PrimExpr extent = VarReplacer(vsub2newvar)(r->extent);
-      region.push_back(Range::make_by_min_extent(min, extent));
+      region.push_back(Range::FromMinExtent(min, extent));
     }
     new_regions.push_back(region);
   }

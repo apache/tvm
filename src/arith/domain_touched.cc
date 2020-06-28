@@ -45,14 +45,14 @@ class BufferTouchedDomain final : public StmtExprVisitor {
     Region ret;
     Range none;
     for (size_t i = 0; i < bounds_.size(); ++i) {
-      ret.push_back(arith::Union(bounds_[i]).cover_range(none));
+      ret.push_back(arith::Union(bounds_[i]).CoverRange(none));
     }
     return ret;
   }
 
   void VisitStmt_(const ForNode* op) final {
     const VarNode* var = op->loop_var.get();
-    dom_map_[var] = IntSet::range(Range::make_by_min_extent(op->min, op->extent));
+    dom_map_[var] = IntSet::FromRange(Range::FromMinExtent(op->min, op->extent));
     StmtExprVisitor::VisitStmt_(op);
     dom_map_.erase(var);
   }
@@ -69,7 +69,7 @@ class BufferTouchedDomain final : public StmtExprVisitor {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);
       const VarNode* var = thread_axis->var.get();
-      dom_map_[var] = IntSet::range(Range(make_zero(op->value.dtype()), op->value));
+      dom_map_[var] = IntSet::FromRange(Range(make_zero(op->value.dtype()), op->value));
       StmtExprVisitor::VisitStmt_(op);
       dom_map_.erase(var);
     } else {

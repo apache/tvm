@@ -55,12 +55,12 @@ size_t InferTensorizeRegion(const ComputeOpNode* self, const Stage& stage,
     CHECK(vit != dom_map.end());
     const Range& vrange = vit->second;
     if (is_one(vrange->extent)) {
-      up_state[iv] = IntSet::single_point(vrange->min);
+      up_state[iv] = IntSet::SinglePoint(vrange->min);
     } else if (found_point) {
       CHECK(is_zero(vrange->min));
-      up_state[iv] = IntSet::single_point(iv->var);
+      up_state[iv] = IntSet::SinglePoint(iv->var);
     } else {
-      up_state[iv] = IntSet::range(vrange);
+      up_state[iv] = IntSet::FromRange(vrange);
     }
     auto iit = stage->iter_var_attrs.find(iv);
     if (iit != stage->iter_var_attrs.end()) {
@@ -88,7 +88,7 @@ size_t InferTensorizeRegion(const ComputeOpNode* self, const Stage& stage,
   }
   for (IterVar iv : self->root_iter_vars()) {
     IntSet iset = up_state.at(iv);
-    Range iv_range = iset.cover_range(dom_map.at(iv));
+    Range iv_range = iset.CoverRange(dom_map.at(iv));
     (*out_dom)[iv] = iv_range;
     analyzer.Bind(iv->var, iv_range);
     temp_dmap[iv->var.get()] = iset;
@@ -100,7 +100,7 @@ size_t InferTensorizeRegion(const ComputeOpNode* self, const Stage& stage,
     Array<Range> vec;
     const Tensor& t = kv.first;
     for (size_t i = 0; i < t.ndim(); ++i) {
-      Range r = arith::Union(kv.second.data.at(i)).cover_range(none);
+      Range r = arith::Union(kv.second.data.at(i)).CoverRange(none);
       CHECK(r.defined()) << "cannot deduce region of tensorized scope for input " << t;
       vec.push_back(std::move(r));
     }
