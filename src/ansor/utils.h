@@ -19,7 +19,7 @@
 
 /*!
  * \file ansor/utils.h
- * \brief Common utilities
+ * \brief Common utilities.
  */
 
 #ifndef TVM_ANSOR_UTILS_H_
@@ -80,13 +80,6 @@ struct hash<std::vector<T> > {
 
 namespace tvm {
 namespace ansor {
-
-/*! \brief Macro to make it easy to define mutable object ref type given node */
-#define TVM_DEFINE_MUTABLE_OBJECT_REF(TypeName, ObjectName)                  \
-  class TypeName : public ObjectRef {                                        \
-   public:                                                                   \
-    TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TypeName, ObjectRef, ObjectName);  \
-  };                                                                         \
 
 /********** Utilities for std::vector, std::set, std::string **********/
 /*! \brief Get the first appearance index of elements in a vector */
@@ -168,6 +161,20 @@ inline int64_t AxisLengthProd(const Array<tir::IterVar>& axes) {
       return -1.0;
     }
   }
+  return ret;
+}
+
+/*!
+ * \brief Clean the name of an iterator to make it valid in python code.
+ * \param str The original name.
+ * \return The cleaned name.
+ */
+inline std::string CleanName(const std::string& str) {
+  std::string ret = str;
+  StrReplace(&ret, ".", "_");
+  StrReplace(&ret, "@", "_");
+  StrReplace(&ret, "outer", "o");
+  StrReplace(&ret, "inner", "i");
   return ret;
 }
 

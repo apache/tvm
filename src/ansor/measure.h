@@ -19,7 +19,7 @@
 
 /*!
  * \file ansor/measure.h
- * \brief Distributed measurement infrastructure to measure the runtime costs of tensor programs
+ * \brief Distributed measurement infrastructure to measure the runtime costs of tensor programs.
  */
 
 #ifndef TVM_ANSOR_MEASURE_H_
@@ -35,38 +35,47 @@
 namespace tvm {
 namespace ansor {
 
-class SearchPolicy;
-class MeasureInput; class BuildResult; class MeasureResult;
-class Builder; class Runner; class MeasureCallback; class ProgramMeasurer;
+class SearchPolicy; class MeasureInput; class MeasureResult;
 
-/* \brief The error code of one measurement */
+/*! \brief The error code of one measurement */
 enum MeasureErrorNO {
-  kNoError = 0,              // No error
-  kInstantiationError = 1,   // Errors happen when apply transform steps from init state
-  kCompileHostError = 2,     // Errors happen when compiling code on host (when build module)
-  kCompileDeviceError = 3,   // Errors happen when compiling code on device (when load module)
-  kRuntimeDeviceError = 4,   // Errors happen when run program on device
-  kWrongAnswerError = 5,     // Answer is wrong when compared to a reference output
-  kBuildTimeoutError = 6,    // Timeout during compilation
-  kRunTimeoutError = 7,      // Timeout during run
-  kUnknonwError = 8,         // Unknown error
+  /*! \brief No error. */
+  kNoError = 0,
+  /*! \brief Errors happen when apply transform steps from init state. */
+  kInstantiationError = 1,
+  /*! \brief Errors happen when compiling code on host. (when build module) */
+  kCompileHostError = 2,
+  /*! \brief Errors happen when compiling code on device. (when load module) */
+  kCompileDeviceError = 3,
+  /*! \brief Errors happen when run program on device. */
+  kRuntimeDeviceError = 4,
+  /*! \brief Answer is wrong when compared to a reference output. */
+  kWrongAnswerError = 5,
+  /*! \brief Timeout during compilation. */
+  kBuildTimeoutError = 6,
+  /*! \brief Timeout during run. */
+  kRunTimeoutError = 7,
+  /*! \brief Unknown error. */
+  kUnknonwError = 8,
 };
-extern const char *ErrorNoToStr[];
 
 // Inputs and results of one measurement
 
 /*! \brief Store the input of a measurement */
 class MeasureInputNode: public Object {
  public:
-  SearchTask task;   // The search task
-  State state;       // The program state to be measured
+  /*! \brief The search task. */
+  SearchTask task;
+  /*! \brief The program state to be measured. */
+  State state;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("task", &task);
     v->Visit("state", &state);
   }
 
-  MeasureInput copy() const;  // Do deep copy
+  /*! \brief Do deep copy. */
+  MeasureInput copy() const;
 
   static constexpr const char* _type_key = "ansor.MeasureInput";
   TVM_DECLARE_FINAL_OBJECT_INFO(MeasureInputNode, Object);
@@ -78,20 +87,29 @@ class MeasureInputNode: public Object {
  */
 class MeasureInput : public ObjectRef {
  public:
+  /*!
+   * \brief The constructor.
+   * \param task The target SearchTeask.
+   * \param state The target State.
+   */
   MeasureInput(SearchTask task, State state);
 
   TVM_DEFINE_OBJECT_REF_METHODS(MeasureInput, ObjectRef, MeasureInputNode);
 };
 
-/*! \brief Store the input of a build */
+/*! \brief Store the input of a build. */
 class BuildResultNode: public Object {
  public:
-  std::string filename;    // The filename of built binary file
-  Array<te::Tensor> args;  // The arguments
-  int error_no;            // The error code (see MeasureErrorNO).
-                           // 0 means no error.
-  std::string error_msg;   // The error message if there is any error
-  double time_cost;        // The time cost of build
+  /*! \brief The filename of built binary file. */
+  std::string filename;
+  /*! \brief The arguments. */
+  Array<te::Tensor> args;
+  /*! \brief The error code. (0 means no error, see MeasureErrorNO) */
+  int error_no;
+  /*! \brief The error message if there is any error. */
+  std::string error_msg;
+  /*! \brief The time cost of build. */
+  double time_cost;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("filename", &filename);
@@ -111,20 +129,32 @@ class BuildResultNode: public Object {
  */
 class BuildResult : public ObjectRef {
  public:
+  /*!
+   * \brief The constructor.
+   * \param filename The filename of built binary file.
+   * \param args The arguments.
+   * \param error_no The error code.
+   * \param error_msg The error message if there is any error.
+   * \param time_cost The time cost of build.
+   */
   BuildResult(std::string filename, Array<te::Tensor> args,
               int error_no, std::string error_msg, double time_cost);
   TVM_DEFINE_OBJECT_REF_METHODS(BuildResult, ObjectRef, BuildResultNode);
 };
 
-/*! \brief Store the results of a measurement */
+/*! \brief Store the results of a measurement. */
 class MeasureResultNode: public Object {
  public:
-  Array<PrimExpr> costs;   // The time costs of execution
-  int error_no;            // The error code (see MeasureErrorNO).
-                           // 0 means no error.
-  std::string error_msg;   // The error message if there is any error
-  double all_cost;         // The time cost of build and run
-  double timestamp;        // The time stamps of this measurement
+  /*! \brief The time costs of execution. */
+  Array<PrimExpr> costs;
+  /*! \brief The error code. (0 means no error, see MeasureErrorNO) */
+  int error_no;
+  /*! \brief The error message if there is any error. */
+  std::string error_msg;
+  /*! \brief The time cost of build and run. */
+  double all_cost;
+  /*! \brief The time stamps of this measurement. */
+  double timestamp;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("costs", &costs);
@@ -134,7 +164,8 @@ class MeasureResultNode: public Object {
     v->Visit("timestamp", &timestamp);
   }
 
-  MeasureResult copy() const;  // Do deep copy
+  /*! \brief Do deep copy. */
+  MeasureResult copy() const;
 
   static constexpr const char* _type_key = "ansor.MeasureResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(MeasureResultNode, Object);
@@ -146,6 +177,14 @@ class MeasureResultNode: public Object {
  */
 class MeasureResult : public ObjectRef {
  public:
+  /*!
+   * \brief The constructor.
+   * \param costs The time costs of execution.
+   * \param error_no The error code.
+   * \param error_msg The error message if there is any error.
+   * \param all_cost The time cost of build and run.
+   * \param timestamp The time stamps of this measurement.
+   */
   MeasureResult(Array<PrimExpr> costs, int error_no, std::string error_msg,
                 double all_cost, double timestamp);
 
@@ -155,37 +194,73 @@ class MeasureResult : public ObjectRef {
 /*! \brief Bass class of measurement callbacks */
 class MeasureCallbackNode: public Object {
  public:
-  /*! \biref Callback function that will be called on measurement input/result pairs
-   * after measurement */
-  virtual void callback(const SearchPolicy& policy,
+  /*!
+   * \brief Callback function that will be called on measurement input/result pairs
+   * after measurement.
+   * \param policy The current search policy.
+   * \param inputs An Array of MeasureInput.
+   * \param results An Array of MeasureResult.
+   */
+  virtual void Callback(const SearchPolicy& policy,
                         const Array<MeasureInput>& inputs,
                         const Array<MeasureResult>& results) = 0;
   static constexpr const char *_type_key = "ansor.MeasureCallback";
   TVM_DECLARE_BASE_OBJECT_INFO(MeasureCallbackNode, Object);
 };
-TVM_DEFINE_MUTABLE_OBJECT_REF(MeasureCallback, MeasureCallbackNode);
+
+/*!
+ * \brief Managed reference to MeasureCallbackNode.
+ * \sa MeasureCallbackNode
+ */
+class MeasureCallback : public ObjectRef {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MeasureCallback, ObjectRef, MeasureCallbackNode);
+};
 
 // Base class for builder and runner
+
 /*! \brief Builder that builds the programs */
 class BuilderNode: public Object {
  public:
-  int n_parallel;  // The number of tasks to run in parallel
-  int timeout;     // Timeout of a build
+  /*! \brief The number of tasks to run in parallel */
+  int n_parallel;
+  /*! \brief Timeout of a build */
+  int timeout;
 
-  /*! \biref Build programs and return results */
+  /*!
+   * \brief Build programs and return results.
+   * \param inputs An Array of MeasureInput.
+   * \param verbose Verbosity level. (0 means silent)
+   * \return An Array of MeasureResult.
+   */
   virtual Array<BuildResult> Build(const Array<MeasureInput>& inputs, int verbose) = 0;
 
   static constexpr const char* _type_key = "ansor.Builder";
   TVM_DECLARE_BASE_OBJECT_INFO(BuilderNode, Object);
 };
-TVM_DEFINE_MUTABLE_OBJECT_REF(Builder, BuilderNode);
 
-/*! \brief Runner that runs the built programs and measure the time cost */
+/*!
+ * \brief Managed reference to BuilderNode.
+ * \sa BuilderNode
+ */
+class Builder : public ObjectRef {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Builder, ObjectRef, BuilderNode);
+};
+
+/*! \brief Runner that runs the built programs and measure the time cost. */
 class RunnerNode: public Object {
  public:
-  int timeout;   // Timeout of a run
+  /*! \brief Timeout of a run. */
+  int timeout;
 
-  /*! \biref Run measurement and return results */
+  /*!
+   * \brief Run measurement and return results.
+   * \param inputs An Array of MeasureInput.
+   * \param build_results An Array of BuildResult.
+   * \param verbose Verbosity level. (0 means silent)
+   * \return An Array of MeasureResult.
+   */
   virtual Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
                                    const Array<BuildResult>& build_results,
                                    int verbose) = 0;
@@ -193,14 +268,23 @@ class RunnerNode: public Object {
   static constexpr const char* _type_key = "ansor.Runner";
   TVM_DECLARE_BASE_OBJECT_INFO(RunnerNode, Object);
 };
-TVM_DEFINE_MUTABLE_OBJECT_REF(Runner, RunnerNode);
 
+/*!
+ * \brief Managed reference to RunnerNode.
+ * \sa RunnerNode
+ */
+class Runner : public ObjectRef {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Runner, ObjectRef, RunnerNode);
+};
 
 // Implementation of various builders and runners
+
 /*! \brief LocalBuilder use local CPU cores to build programs in parallel */
 class LocalBuilderNode: public BuilderNode {
  public:
-  std::string build_func;  // Build function
+  /*! \brief Build function. */
+  std::string build_func;
 
   Array<BuildResult> Build(const Array<MeasureInput>& inputs, int verbose) final;
 
@@ -214,6 +298,12 @@ class LocalBuilderNode: public BuilderNode {
  */
 class LocalBuilder: public Builder {
  public:
+  /*!
+   * \brief The constructor.
+   * \param timeout The timeout limit for each build.
+   * \param n_parallel Number of threads used to build in parallel.
+   * \param build_func The name of registered build function.
+   */
   LocalBuilder(int timeout, int n_parallel, const std::string& build_func);
 
   TVM_DEFINE_OBJECT_REF_METHODS(LocalBuilder, Builder, LocalBuilderNode);
@@ -222,12 +312,15 @@ class LocalBuilder: public Builder {
 /*! \brief LocalRunner that uses local CPU/GPU to measures the time cost of programs */
 class LocalRunnerNode: public RunnerNode {
  public:
+  /*! \brief Number of measure times. */
   int number;
+  /*! \brief Number of repeat times in each measure. */
   int repeat;
+  /*! \brief The minimum duration of one repeat in milliseconds. */
   int min_repeat_ms;
+  /*! \brief The cool down interval between two measurements. */
   double cooldown_interval;
 
-  /*! \biref Run measurement and return results */
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
                            const Array<BuildResult>& build_results,
                            int verbose) final;
@@ -242,6 +335,14 @@ class LocalRunnerNode: public RunnerNode {
  */
 class LocalRunner: public Runner {
  public:
+  /*!
+   * \brief The constructor.
+   * \param timeout The timeout limit for each run.
+   * \param number Number of measure times.
+   * \param repeat Number of repeat times in each measure.
+   * \param min_repeat_ms The minimum duration of one repeat in milliseconds.
+   * \param cooldown_interval The cool down interval between two measurements.
+   */
   LocalRunner(int timeout, int number, int repeat,
               int min_repeat_ms, double cooldown_interval);
 
@@ -254,34 +355,56 @@ class LocalRunner: public Runner {
  * This class combines Builder and Runner, and provides a simpler API */
 class ProgramMeasurerNode: public Object {
  public:
-  static const int DEFAULT_MAX_CONTINOUS_ERROR = 150;
-
+  /*! \brief Measured programs counter. */
   int ct;
-  int error_ct;   // continuous error counter
+  /*! \brief Continuous error counter. */
+  int error_ct;
+  /*! \brief Workload key to best flops map. */
   std::unordered_map<std::string, double> best_flops;
+  /*! \brief Workload key to best state map. */
   std::unordered_map<std::string, State> best_state;
+  /*! \brief Workload key to best state's count index map. */
   std::unordered_map<std::string, int> best_ct;
-
+  /*! \brief The Builder to build each program. */
   Builder builder;
+  /*! \brief The Runner to measure each program. */
   Runner runner;
+  /*! \brief MeasureCallback to be called after each measure batch. */
   Array<MeasureCallback> callbacks;
+  /*! \brief Verbose level. */
   int verbose;
+  /*! \brief The number of max continuous error. */
   int max_continous_error;
 
   /*! \brief Reset book keeping variables */
   void Reset();
 
-  /*! \biref Do measurement */
+  /*!
+   * \brief Do measurement.
+   * \param task The current SearchTask.
+   * \param policy The current SearchPolicy.
+   * \param inputs The target MeasureInputs.
+   * \param results A pointer to MeasureResult vector, this is used as output.
+   * \param batch_size Number of programs to be measured in one batch.
+   */
   void Measure(const SearchTask& task,
                const SearchPolicy& policy,
                const std::vector<MeasureInput>& inputs,
                std::vector<MeasureResult>* results,
                int batch_size = -1);
-
-  /*! \biref Do measurement silently */
+  /*!
+   * \brief Do measurement silently.
+   * This API will not print the measure results to screen.
+   * \param task The current SearchTask.
+   * \param inputs The target MeasureInputs.
+   * \param results A pointer to MeasureResult vector, this is used as output.
+   */
   void SilentMeasure(const SearchTask& task,
                      const std::vector<MeasureInput>& inputs,
                      std::vector<MeasureResult>* results);
+
+  /*! \brief The default max continuous error setting. */
+  static const int DEFAULT_MAX_CONTINOUS_ERROR = 150;
 
   static constexpr const char* _type_key = "ansor.ProgramMeasurer";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProgramMeasurerNode, Object);
@@ -293,6 +416,14 @@ class ProgramMeasurerNode: public Object {
  */
 class ProgramMeasurer : public ObjectRef {
  public:
+  /*!
+   * \brief The constructor.
+   * \param builder The Builder to build each program.
+   * \param runner The Runner to measure each program.
+   * \param callbacks MeasureCallback to be called after each measure batch.
+   * \param verbose Verbose level.
+   * \param max_continous_error The number of max continuous error.
+   */
   ProgramMeasurer(Builder builder, Runner runner,
                   Array<MeasureCallback> callbacks,
                   int verbose, int max_continous_error = -1);

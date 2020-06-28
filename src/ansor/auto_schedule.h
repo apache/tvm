@@ -19,7 +19,7 @@
 
 /*!
  * \file ansor/auto_schedule.h
- * \brief The user interface of the auto-scheduler
+ * \brief The user interface of the Ansor auto-scheduler.
  */
 
 #ifndef TVM_ANSOR_AUTO_SCHEDULE_H_
@@ -33,23 +33,30 @@
 namespace tvm {
 namespace ansor {
 
-/*! \brief Tuning and measurement options */
+/*! \brief Tuning and measurement options. */
 class TuneOptionNode : public Object {
  public:
-  int n_trials;              // Number of total measurement trials
-  int early_stopping;        // Stops early the tuning if no improvement after n measurements
-  int num_measure_per_iter;  // The number of programs to be measured at each iteration
-  int verbose;               // Verbosity level. 0 means silent.
-  Builder builder;           // Builder which builds the program
-  Runner runner;             // Runner which runs the program and measure time costs
-  Array<MeasureCallback> measure_callbacks;    // MeasureCallback functions
-  Array<SearchCallback> pre_search_callbacks;  // SearchCallback functions
-                                               // run before search
+  /*! \brief Number of total measurement trials. */
+  int n_trials;
+  /*! \brief Stops early the tuning if no improvement after n measurements. */
+  int early_stopping;
+  /*! \brief The number of programs to be measured at each search round. */
+  int num_measure_per_round;
+  /*! \brief Verbosity level. (0 means silent) */
+  int verbose;
+  /*! \brief Builder which builds the program */
+  Builder builder;
+  /*! \brief Runner which runs the program and measure time costs */
+  Runner runner;
+  /*! \brief MeasureCallback functions to be called after each measure batch */
+  Array<MeasureCallback> measure_callbacks;
+  /*! \brief SearchCallback functions to be called before schedule search */
+  Array<SearchCallback> pre_search_callbacks;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("n_trials", &n_trials);
     v->Visit("early_stopping", &early_stopping);
-    v->Visit("num_measure_per_iter", &num_measure_per_iter);
+    v->Visit("num_measure_per_round", &num_measure_per_round);
     v->Visit("verbose", &verbose);
     v->Visit("builder", &builder);
     v->Visit("runner", &runner);
@@ -67,7 +74,18 @@ class TuneOptionNode : public Object {
  */
 class TuneOption : public ObjectRef {
  public:
-  TuneOption(int n_trials, int early_stopping, int num_measure_per_iter,
+  /*!
+   * \brief The constructor
+   * \param n_trials Number of total measurement trials.
+   * \param early_stopping Stops early the tuning if no improvement after n measurements.
+   * \param num_measure_per_round The number of programs to be measured at each search round.
+   * \param verbose Verbosity level. (0 means silent)
+   * \param builder Builder which builds the program.
+   * \param runner Runner which runs the program and measure time costs.
+   * \param measure_callbacks MeasureCallback functions to be called after each measure batch.
+   * \param pre_search_callbacks SearchCallback functions to be called before schedule search.
+   */
+  TuneOption(int n_trials, int early_stopping, int num_measure_per_round,
              int verbose, Builder builder, Runner runner,
              Array<MeasureCallback> measure_callbacks,
              Array<SearchCallback> pre_search_callbacks);
@@ -75,11 +93,26 @@ class TuneOption : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(TuneOption, ObjectRef, TuneOptionNode);
 };
 
-/*! \brief Auto schedule for a compute declaration */
+/*!
+ * \brief Auto schedule search for a given compute declaration, by SearchTask.
+ * \param task The target search task.
+ * \param search_policy The search policy to be used for schedule search.
+ * \param tune_option Tuning and measurement options.
+ * \return A `te::Schedule` and the target `te::Tensor` to be used in `tvm.lower` or `tvm.build`.
+ */
 std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
     SearchTask task, SearchPolicy search_policy, TuneOption tune_option);
 
-/*! \brief Auto schedule for a compute declaration */
+/*!
+ * \brief Auto schedule search for a given compute declaration, by workload key.
+ * \param workload_key The target workload key.
+ * \param target A `tvm::target`.
+ * \param target_host A `tvm::target` for host device.
+ * \param search_policy The search policy to be used for schedule search.
+ * \param hardware_params Hardware parameters.
+ * \param tune_option Tuning and measurement options.
+ * \return A `te::Schedule` and the target `te::Tensor` to be used in `tvm.lower` or `tvm.build`
+ */
 std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
     std::string workload_key, Target target, Target target_host,
     SearchPolicy search_policy, HardwareParams hardware_params,

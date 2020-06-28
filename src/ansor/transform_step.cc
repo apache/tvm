@@ -20,14 +20,16 @@
 /*!
  * \file ansor/transform_step.cc
  * \brief  Transformation steps. For each schedule primitive, there is a corresponding transform step.
- *
- * See the note in transform_step.h on how to add a new step
  */
 
 #include "transform_step.h"
+
 #include <tvm/te/operation.h>
 #include <tvm/runtime/registry.h>
+
 #include <utility>
+
+#include "loop_state.h"
 #include "utils.h"
 
 namespace tvm {

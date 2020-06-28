@@ -19,7 +19,7 @@
 
 /*!
  * \file ansor/serialization.h
- * \brief Json serialization format for dumping and loading tuning records
+ * \brief Json serialization format for dumping and loading tuning records.
  */
 
 #ifndef TVM_ANSOR_SERIALIZATION_H_
@@ -36,10 +36,10 @@ namespace ansor {
 /*! \brief Callback for logging the input and results of measurements to file */
 class LogToFileNode : public MeasureCallbackNode {
  public:
+  /*! \brief File name for this callback to write log to. */
   std::string filename;
 
-  /*! \brief Log measure pairs to file. This is called by the search policy */
-  void callback(const SearchPolicy& policy,
+  void Callback(const SearchPolicy& policy,
                 const Array<MeasureInput>& inputs,
                 const Array<MeasureResult>& results) final;
 
@@ -53,6 +53,10 @@ class LogToFileNode : public MeasureCallbackNode {
  */
 class LogToFile : public MeasureCallback {
  public:
+  /*!
+   * \brief The constructor.
+   * \param filename File name for this callback to write log.
+   */
   explicit LogToFile(std::string filename);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LogToFile, MeasureCallback, LogToFileNode);
@@ -61,18 +65,26 @@ class LogToFile : public MeasureCallback {
 /*! \brief Log reader to load step logs from a target file.*/
 class LogReaderNode : public Object {
  public:
+  /*! \brief File name for this reader to load log from. */
   std::string filename;
+  /*! \brief The reading file stream. */
   std::ifstream infile;
 
   ~LogReaderNode();
 
-  /*! \brief Read next line in the log file
-   *  \return Whether the read is successful */
+  /*!
+   * \brief Read next line in the log file.
+   * \param inp A pointer to MeasureInputNode, this is used as output.
+   * \param res A pointer to MeasureResultNode, this is used as output.
+   * \return Whether the read is successful. */
   bool ReadNext(MeasureInputNode* inp, MeasureResultNode* res);
 
-  /*! \brief Read multiple lines from the log file
-   *  \param max_size The maximum number of lines. -1 means read all lines
-   *  \param skip_size Skip the first n lines */
+  /*!
+   * \brief Read multiple lines from the log file.
+   * \param max_size The maximum number of lines. -1 means read all lines.
+   * \param skip_size Skip the first n lines
+   * \return The MeasureInputs and MeasureResults loaded from the log file.
+   */
   std::pair<Array<MeasureInput>, Array<MeasureResult> > ReadLines(
           int max_size = -1, int skip_size = 0);
 
@@ -80,6 +92,7 @@ class LogReaderNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(LogReaderNode, Object);
 
  private:
+  /*! \brief A string object to store the next line. */
   std::string cur_line;
 };
 
@@ -89,17 +102,32 @@ class LogReaderNode : public Object {
  */
 class LogReader : public ObjectRef {
  public:
+  /*!
+   * \brief The constructor.
+   * \param filename File name for this callback to write log.
+   */
   explicit LogReader(std::string filename);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LogReader, ObjectRef, LogReaderNode);
 };
 
-/*! \brief Write measure records to an output stream */
+/*!
+ * \brief Write measure records to an output stream.
+ * \param os A pointer to output stream.
+ * \param inputs The target MeasureInputs to be written.
+ * \param results The target MeasureResults to be written.
+ */
 void WriteMeasureRecords(std::ostream* os,
                          const Array<MeasureInput>& inputs,
                          const Array<MeasureResult>& results);
 
-/*! \brief Read one measure record from a string */
+/*!
+ * \brief Read one measure record from a string.
+ * \param str The target record string to be extract.
+ * \param inp A pointer to MeasureInputNode, this is used as output.
+ * \param res A pointer to MeasureResultNode, this is used as output.
+ * \param log_version A pointer to log version string.
+ */
 void ReadMeasureRecord(const std::string& str,
                        MeasureInputNode* inp,
                        MeasureResultNode* res,

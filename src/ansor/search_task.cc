@@ -19,7 +19,7 @@
 
 /*!
  * \file ansor/search_task.cc
- * \brief Meta information and hardware parameters for a search task
+ * \brief Meta information and hardware parameters for a search task.
  */
 
 #include "search_task.h"
@@ -51,7 +51,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
     const Target& target, const Target& target_host) {
   if (target->target_name == "llvm") {
     return HardwareParams(tvm::runtime::threading::MaxConcurrency(),
-                          32, 64, 16, 64);
+                          64, 64, 64, 64);
   } else {
     LOG(FATAL) << "No default hardware parameters for target: " << target;
   }

@@ -19,7 +19,7 @@
 
 /*!
  * \file ansor/serialization.cc
- * \brief Json serialization format for dumping and loading tuning records
+ * \brief Json serialization format for dumping and loading tuning records.
  */
 
 #include <dmlc/json.h>
@@ -52,14 +52,14 @@ inline std::vector<int>& IntArrayToVector(std::vector<int>* out,
 }
 
 template <>
-struct Handler<std::vector<::tvm::ansor::Stage> > {
+struct Handler<::tvm::Array<::tvm::ansor::Stage> > {
   inline static void Write(dmlc::JSONWriter* writer,
-                           const std::vector<::tvm::ansor::Stage> & data) {
+                           const ::tvm::Array<::tvm::ansor::Stage> & data) {
     writer->BeginArray(false);
     writer->EndArray();
   }
   inline static void Read(dmlc::JSONReader* reader,
-                          std::vector<::tvm::ansor::Stage> * data) {
+                          ::tvm::Array<::tvm::ansor::Stage> * data) {
     bool s;
     reader->BeginArray();
     s = reader->NextArrayItem(); CHECK(!s);
@@ -328,7 +328,7 @@ void ReadMeasureRecord(const std::string& str,
   }
 }
 
-void LogToFileNode::callback(const SearchPolicy& policy,
+void LogToFileNode::Callback(const SearchPolicy& policy,
                              const Array<MeasureInput>& inputs,
                              const Array<MeasureResult>& results) {
   std::ofstream ofs(filename, std::ofstream::app);

@@ -29,8 +29,7 @@ These strings are efficient for serialization/matching and wont' be too long.
 When we need the dag, we decode the string and call the function, which will return the dag.
 """
 
-from typing import List, Tuple, Callable, Union
-from collections import Hashable
+from typing import Hashable
 import pickle
 import json
 import hashlib
@@ -43,7 +42,7 @@ from .compute_dag import ComputeDAG
 WORKLOAD_FUNC_REGISTRY = {}
 
 
-def register_workload_func(func: Callable):
+def register_workload_func(func):
     """Register a workload generation function
     The input function should take hashable and jsonable arguments
     (int, float, tuple of int, tvm.tensor.Tensor, ...) and return a list of tvm.tensor.Tensor.
@@ -65,7 +64,7 @@ def register_workload_func(func: Callable):
     return func
 
 
-def compute_dag_hash(dag: ComputeDAG):
+def compute_dag_hash(dag):
     """ Get hash value for a ComputeDAG
     """
     # todo: implement this more carefully and move this to c++ as a member function of ComputeDAG
@@ -87,7 +86,7 @@ def compute_dag_hash(dag: ComputeDAG):
     return hashlib.md5(str_key).hexdigest()
 
 
-def register_workload_bufs(bufs: List[Tensor]) -> str:
+def register_workload_bufs(bufs):
     """Directly register buffers of a workload and return the workload_key
     The buffers can be looked up with workload_key_to_tensors by the workload_key
     """
@@ -97,13 +96,13 @@ def register_workload_bufs(bufs: List[Tensor]) -> str:
     return json.dumps((key,))
 
 
-def list_to_tuple(x: List) -> Tuple:
+def list_to_tuple(x):
     """Convert a list to a tuple recursively"""
     assert isinstance(x, list)
     return tuple(list_to_tuple(y) if isinstance(y, list) else y for y in x)
 
 
-def serialize_args(args: Tuple) -> Tuple:
+def serialize_args(args):
     """
     Serialize arguments of a function to a hashable and jsonable tuple.
     Currently this is mainly used for tvm.tensor.Tensor
@@ -121,7 +120,7 @@ def serialize_args(args: Tuple) -> Tuple:
     return tuple(ret)
 
 
-def deserialize_args(args: Tuple) -> List:
+def deserialize_args(args):
     """The inverse function of :code:`serialize_args`"""
     ret = []
     for t in args:
@@ -133,7 +132,7 @@ def deserialize_args(args: Tuple) -> List:
 
 
 @tvm._ffi.register_func("ansor.workload_key_to_tensors")
-def workload_key_to_tensors(workload_key: str) -> List[Tensor]:
+def workload_key_to_tensors(workload_key):
     """Decode a workload key to the input/output tensors"""
     workload = json.loads(workload_key)
     name = workload[0]
@@ -146,13 +145,13 @@ def workload_key_to_tensors(workload_key: str) -> List[Tensor]:
 
 
 @ tvm._ffi.register_func("ansor.workload_key_to_dag")
-def workload_key_to_dag(workload_key: str) -> ComputeDAG:
+def workload_key_to_dag(workload_key):
     """Decode a workload key to a compute dag"""
     tensors = workload_key_to_tensors(workload_key)
     return ComputeDAG(tensors)
 
 
-def make_workload_key_func(func: Union[str, Callable], args: Tuple) -> str:
+def make_workload_key_func(func, args):
     """make a workload key from function and arguments"""
     args = serialize_args(args)
 
@@ -169,21 +168,21 @@ def make_workload_key_func(func: Union[str, Callable], args: Tuple) -> str:
     return json.dumps((func_name,) + args)
 
 
-def make_workload_key_bufs(bufs: List[Tensor]) -> str:
+def make_workload_key_bufs(bufs):
     """make a workload key from bufs"""
     dag = ComputeDAG(bufs)
     key = compute_dag_hash(dag)
     return json.dumps((key,))
 
 
-def dump_workload_func_registry(filename: str):
+def dump_workload_func_registry(filename):
     """Dump workload function registry to a pickle binary file"""
     global WORKLOAD_FUNC_REGISTRY
 
     pickle.dump(WORKLOAD_FUNC_REGISTRY, open(filename, 'wb'))
 
 
-def load_workload_func_registry(filename: str):
+def load_workload_func_registry(filename):
     """Load workload function registry from a pickle binary file"""
     global WORKLOAD_FUNC_REGISTRY
 

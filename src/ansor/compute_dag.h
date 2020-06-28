@@ -19,7 +19,7 @@
 
 /*!
  * \file ansor/compute_dag.h
- * \brief Compute declaration graph and its related analysis tools
+ * \brief Compute declaration graph and its related analysis tools.
  */
 
 #ifndef TVM_ANSOR_COMPUTE_DAG_H_
@@ -27,12 +27,12 @@
 
 #include <tvm/node/node.h>
 #include <tvm/te/schedule.h>
+
 #include <utility>
 #include <string>
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
-#include "utils.h"
 
 namespace tvm {
 namespace ansor {
@@ -42,17 +42,24 @@ class StateNode; class State; class Step;
 typedef std::unordered_map<tvm::te::Stage, std::vector<tir::IterVar>, ObjectHash, ObjectEqual>
     StageToAxesMap;
 
-// Update StageToAxes Map during replay
+/*!
+ * \brief Update stage and axes mapping during replay.
+ * \param stage A `te::Stage`.
+ * \param stage_to_axes A pointer to StageToAxesMap.
+ */
 void UpdateStageAxis(const tvm::te::Stage& stage, StageToAxesMap *stage_to_axes);
-
 
 /*! \brief Computation declaration graph */
 class ComputeDAGNode : public Object {
  public:
-  Array<te::Tensor> tensors;       // Input and output tensors
-  Array<te::Operation> ops;        // All related operations in topo order
-  double flop_ct;                  // Number of float operations
-  ObjectRef init_state;            // The initial state
+  /*! \brief Input and output tensors. */
+  Array<te::Tensor> tensors;
+  /*! \brief All related operations in topo order. */
+  Array<te::Operation> ops;
+  /*! \brief Number of float operations. */
+  double flop_ct;
+  /*! \brief The initial state. */
+  ObjectRef init_state;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tensors", &tensors);
@@ -70,40 +77,76 @@ class ComputeDAGNode : public Object {
  */
 class ComputeDAG: public ObjectRef {
  public:
+  /*! \brief The constructor.
+   * \param tensors `te::Tensor`s for a compute declaration.
+   */
   explicit ComputeDAG(Array<te::Tensor> tensors);
+  /*! \brief The constructor.
+   * \param workload_key Workload key for a compute declaration.
+   */
   explicit ComputeDAG(const std::string& workload_key);
 
-  // Apply transform steps to the init state of this DAG, and get the equivalent tvm::schedule.
-  // The return values can be used as arguments to tvm.build or tvm.lower
+  /*! 
+   * \brief Apply transform steps to the init state of this DAG, and get the
+   * equivalent `tvm::schedule`.
+   * \param transform_steps Transform steps of the target state.
+   * \return The return values can be used as arguments to `tvm.build` or `tvm.lower`.
+   */
   std::pair<te::Schedule, Array<te::Tensor> > ApplySteps(
       const std::vector<Step>& transform_steps) const;
+  /*!
+   * \brief Print transform steps as equivalent python schedule API.
+   * \param transform_steps Transform steps of the target state.
+   * \return Python schedule code.
+   */
+  std::string PrintStepsAsPython(const std::vector<Step>& transform_steps) const;
 
-  // Print transform steps as equivalent python schedule API
-  std::string PrintStepsAsPython(const std::vector<Step>& steps) const;
-
-  // Replay the transform steps and call ir_pass::InferBound to fill correct bound information
+  /*!
+   * \brief Replay the transform steps and call ir_pass::InferBound to fill
+   * correct bound information.
+   * \param transform_steps Transform steps of the target state.
+   * \return The State after inferbound.
+   */
   State ReplayAndInferBound(const std::vector<Step>& transform_steps) const;
-
-  // Fill the correct bound information for a given state by calling ir_pass::InferBound
+  /*!
+   * \brief Fill the correct bound information for a given state by calling ir_pass::InferBound.
+   * \param state The target state.
+   * \return The State after inferbound.
+   */
   State InferBound(const State& state) const;
-
-  // Fill the correct bound information for a list of given states.
-  // Return the new states inplace
+  /*!
+   * \brief Fill the correct bound information for a list of given states.
+   * Return the new states inplace.
+   * \param states A pointer to a State vector.
+   */
   void InferBound(std::vector<State>* states) const;
 
-  // Get the init state
+  /*!
+   * \brief Get the init state.
+   * \return The init state.
+   */
   State GetInitState() const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeDAG, ObjectRef, ComputeDAGNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeDAGNode);
 
  private:
-  // Internal common parts for replaying steps
+  /*!
+   * \brief Internal common parts for replaying steps.
+   * \param transform_steps Transform steps of the target state.
+   * \param stages A pointer to `te::Stage` vector.
+   * \param stage_to_axes A pointer to StageToAxesMap.
+   * \return The return values can be used as arguments to `tvm.build` or `tvm.lower`.
+   */
   std::pair<te::Schedule, Array<te::Tensor> > ReplaySteps(
       const std::vector<Step>& transform_steps, std::vector<te::Stage>* stages,
       StageToAxesMap* stage_to_axes) const;
 
-  // Internal common parts for inferring bound
+  /*!
+   * \brief Internal common parts for inferring bound.
+   * \param pstate A pointer to StateNode, the target state will be updated with filled
+   * bound information.
+   */
   void InferBoundCommon(StateNode* pstate) const;
 };
 

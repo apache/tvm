@@ -19,7 +19,7 @@
 
 /*!
  * \file ansor/loop_state.cc
- * \brief  An lightweight IR (intermediate representation) for loop structures.
+ * \brief An lightweight IR (intermediate representation) for loop structures.
  * see ansor/loop_state.h for more explanation.
  */
 
@@ -37,7 +37,7 @@ TVM_REGISTER_NODE_TYPE(StageNode);
 TVM_REGISTER_NODE_TYPE(StateNode);
 TVM_REGISTER_NODE_TYPE(IteratorNode);
 
-// Maker for other classes
+/********** Iterator **********/
 Iterator::Iterator(std::string name, Range range, IteratorType iter_type,
                    IteratorAnnotation annotation,
                    const std::vector<Iterator>* ori_iters,
@@ -54,6 +54,7 @@ Iterator::Iterator(std::string name, Range range, IteratorType iter_type,
   data_ = std::move(node);
 }
 
+/********** Stage **********/
 Stage::Stage(te::Operation op) {
   auto node = make_object<StageNode>();
   if (op->IsInstance<te::ComputeOpNode>()) {
@@ -104,28 +105,26 @@ Stage::Stage(te::Operation op, StageType op_type, std::vector<Iterator>&& iters,
   data_ = std::move(node);
 }
 
+/********** State **********/
 State::State(const Array<te::Operation>& ops) {
   auto node = make_object<StateNode>();
   for (const auto& op : ops) {
     node->stages.push_back(Stage(op));
   }
   node->complete = true;
-  node->aux_info = ObjectRef();
   data_ = std::move(node);
 }
 
 State::State(const std::vector<Stage>& stages,
-             const std::vector<Step>& transform_steps, bool complete,
-             ObjectRef aux_info) {
+             const std::vector<Step>& transform_steps, bool complete) {
   auto node = make_object<StateNode>();
   node->stages = stages;
   node->transform_steps = transform_steps;
   node->complete = complete;
-  node->aux_info = std::move(aux_info);
   data_ = std::move(node);
 }
 
-// Schedule primitives api
+/********** Schedule primitives apis for state **********/
 void State::reorder(int stage_id, const std::vector<Iterator>& order) {
   const Stage& stage = operator->()->stages[stage_id];
 
@@ -160,7 +159,7 @@ Iterator State::fuse(int stage_id, const std::vector<Iterator>& iters) {
   return DoFuseStep(step);
 }
 
-// Steps' implementations
+/********** Step implementations for state **********/
 void State::DoReorderStep(const ReorderStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
 
@@ -170,9 +169,9 @@ void State::DoReorderStep(const ReorderStep& step) {
   }
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages[step->stage_id] = Stage(
+  pstate->stages.Set(step->stage_id, Stage(
       stage->op, stage->op_type, std::move(iters), stage->compute_at,
-      stage->attrs);
+      stage->attrs));
 }
 
 // common part for DoSplitStep, DoFollowSplitStep, and DoFollowFusedSplitStep
@@ -236,9 +235,9 @@ std::vector<Iterator> State::DoSplitStepCommon(
                    stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages[stage_id] = Stage(
+  pstate->stages.Set(stage_id, Stage(
       stage->op, stage->op_type, std::move(new_iters), stage->compute_at,
-      stage->attrs);
+      stage->attrs));
 
   return outs;
 }
@@ -296,23 +295,11 @@ Iterator State::DoFuseStep(const FuseStep& step) {
                    stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages[stage_id] = Stage(
+  pstate->stages.Set(stage_id, Stage(
       stage->op, stage->op_type, std::move(new_iters), stage->compute_at,
-      stage->attrs);
+      stage->attrs));
 
   return new_it;
-}
-
-void State::DoStep(const Step& step, const ComputeDAG& dag) {
-  if (auto ps = step.as<ReorderStepNode>()) {
-    DoReorderStep(GetRef<ReorderStep>(ps));
-  } else if (auto ps = step.as<SplitStepNode>()) {
-    DoSplitStep(GetRef<SplitStep>(ps));
-  } else if (auto ps = step.as<FuseStepNode>()) {
-    DoFuseStep(GetRef<FuseStep>(ps));
-  } else {
-    LOG(FATAL) << "Invalid step: " << step;
-  }
 }
 
 void State::DoSteps(const std::vector<Step>& steps, const ComputeDAG& dag) {
@@ -328,10 +315,19 @@ void State::DoSteps(const std::vector<Step>& steps, const ComputeDAG& dag) {
     if (complete_rate >= 0 && ct++ > steps.size() * complete_rate) {
       break;
     }
-    DoStep(step, dag);
+    if (auto ps = step.as<ReorderStepNode>()) {
+      DoReorderStep(GetRef<ReorderStep>(ps));
+    } else if (auto ps = step.as<SplitStepNode>()) {
+      DoSplitStep(GetRef<SplitStep>(ps));
+    } else if (auto ps = step.as<FuseStepNode>()) {
+      DoFuseStep(GetRef<FuseStep>(ps));
+    } else {
+      LOG(FATAL) << "Invalid step: " << step;
+    }
   }
 }
 
+// Print stage to ostream
 void PrintStage(std::ostream* os, int stage_id, const StateNode* state,
                 size_t base_indent, bool delete_trivial_loop) {
   const Stage& stage = state->stages[stage_id];
@@ -415,6 +411,7 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state,
   *os << stage->op->name << " = ...\n";
 }
 
+// Print state to ostream
 void PrintState(std::ostream* os, const StateNode* node,
                 bool delete_trivial_loop) {
   // Gather placeholders
@@ -461,6 +458,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   PrintState(&p->stream, node, true);
 });
 
+/********** State interface API for ffi **********/
 TVM_REGISTER_GLOBAL("ansor.StageGetIterators").set_body_typed([](const Stage& stage) {
   return Array<Iterator>(stage->iters);
 });

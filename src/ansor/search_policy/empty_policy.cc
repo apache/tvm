@@ -17,6 +17,11 @@
  * under the License.
  */
 
+/*!
+ * \file ansor/search_policy/empty_policy.cc
+ * \brief This is an brief example of search policy.
+ */
+
 #include "empty_policy.h"
 
 #include <tvm/runtime/registry.h>
@@ -27,7 +32,7 @@ namespace ansor {
 TVM_REGISTER_NODE_TYPE(EmptyPolicyNode);
 
 State EmptyPolicyNode::Search(SearchTask task, int n_trials, int early_stopping,
-    int num_measure_per_iter, int verbose, ProgramMeasurer measurer,
+    int num_measure_per_round, int verbose, ProgramMeasurer measurer,
     Array<SearchCallback> pre_search_callbacks) {
   cur_task = task;
 
@@ -35,6 +40,9 @@ State EmptyPolicyNode::Search(SearchTask task, int n_trials, int early_stopping,
   // This Interface is usually used to set some init status
   RunCallbacks(pre_search_callbacks);
 
+  // Basic design principe: `SearchOneRound()` several times to get candidate states,
+  // measure them and return the best one
+  // Measure is disabled if n_trials <= 1
   if (n_trials <= 1) {
     const auto& res = SearchOneRound();
     CHECK_GT(res.size(), 0);
@@ -62,32 +70,10 @@ State EmptyPolicyNode::Search(SearchTask task, int n_trials, int early_stopping,
   }
 }
 
-std::pair<Array<MeasureInput>, Array<MeasureResult> > EmptyPolicyNode::ContinueSearchOneRound(
-    SearchTask task, int num_measure, int verbose, ProgramMeasurer measurer) {
-  // The whole process is almost the same as Search, while this function is designed to be
-  // called and managed by another global task scheduler
-
-  std::vector<MeasureInput> inputs;
-  std::vector<MeasureResult> results;
-
-  const auto& res = SearchOneRound();
-  for (const auto& state : res) {
-    inputs.emplace_back(cur_task, state);
-  }
-  measurer->Measure(cur_task, GetRef<SearchPolicy>(this), inputs, &results);
-
-  // Return a pair of MeasureInput Array and MeasureResult Array
-  Array<MeasureInput> inputs_arr(std::make_move_iterator(inputs.begin()),
-                                 std::make_move_iterator(inputs.end()));
-  Array<MeasureResult> results_arr(std::make_move_iterator(results.begin()),
-                                   std::make_move_iterator(results.end()));
-  return std::make_pair(std::move(inputs_arr), std::move(results_arr));
-}
-
+// As an example policy, EmptyPolicy always returns a init state
 std::vector<State> EmptyPolicyNode::SearchOneRound() {
   std::vector<State> res;
   res.push_back(cur_task->compute_dag.GetInitState());
-  // As an example policy, EmptyPolicy always return a init state
   return res;
 }
 

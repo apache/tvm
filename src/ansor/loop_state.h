@@ -19,10 +19,11 @@
 
 /*!
  * \file ansor/loop_state.h
- * \brief The definition of the "state" in search. A state consists a current loop structure
+ * \brief The definition of the "state" in search. A state consists the current loop structure
  * and the transform history to reach its current loop structure.
  * To enable flexible manipulation of the loop structure, we implemented a lightweight
- * loop structure IR (Intermediate Representation) specifically for search.
+ * loop structure IR (Intermediate Representation) specifically for search. This can be seen as
+ * a preview of how this schedule looks like after tvm.lower or tvm.build.
  *
  * Basically this is a simplified TVM IR with schedule primitives.
  * We don't use the existing TVM IR because
@@ -31,9 +32,9 @@
  * 3. We may create some macro schedule primitives
  *
  * After the search is done, we will lower this IR to TVM IR with TVM schedule primitives.
- * Because we share a lot common objects during search,  the transformation is
- * implemented in copy on write style.  All objects are immutable, which is
- * similar to TVM IR.
+ * Because we share a lot common objects during search, the transformation is
+ * implemented in copy on write style.
+ * All objects are immutable, which is similar to TVM IR.
  */
 
 #ifndef TVM_ANSOR_LOOP_STATE_H_
@@ -44,39 +45,67 @@
 #include <utility>
 #include <vector>
 #include <unordered_map>
+
 #include "compute_dag.h"
+#include "transform_step.h"
 
 namespace tvm {
 namespace ansor {
 
 using namespace tvm::tir;
 
-/*! \brief The type of a stage */
+/*! \brief The type of a stage. */
 enum StageType {
-  kPlaceholder,  // A placeholder stage
-  kCompute       // A compute stage
+  /*! \brief A placeholder stage. */
+  kPlaceholder = 0,
+  /*! \brief A compute stage. */
+  kCompute = 1
 };
 
-/*! \brief The type of compute location */
+/*! \brief The type of compute location. */
 enum ComputeAtType {
-  kRoot,     // compute at root
-  kInlined,  // inlined
-  kIter,     // compute at some iterator
+  /*! \brief Compute at root. */
+  kRoot = 0,
+  /*! \brief Compute inlined. */
+  kInlined = 1,
+  /*! \brief Compute at some iterator. */
+  kIter = 2,
 };
 
-/*! \brief The type of an iterator */
+/*! \brief The type of an iterator. */
 enum IteratorType {
-  kSpace,     // spatial iterator
-  kReduce,    // reduction iterator
-  kMixed,     // fused spatial and reduction iterator
-  kSpecial    // special iterator (e.g. virtual root iterator)
+  /*! \brief Spatial iterator. */
+  kSpace = 0,
+  /*! \brief Reduction iterator. */
+  kReduce = 1,
+  /*! \brief Fused spatial and reduction iterator. */
+  kMixed = 2,
+  /*! \brief Special iterator. (e.g. virtual root iterator) */
+  kSpecial = 3
 };
 
-/*! \brief The type of an iterator's annotation */
+/*! \brief The type of an iterator's annotation. */
 enum IteratorAnnotation {
-  kNone, kUnroll, kVectorize, kParallel,
-  kVThread, kBlockX, kThreadX, kBlockY, kThreadY,
-  kTensorized
+  /*! \brief This iterator has no annotation. */
+  kNone = 0,
+  /*! \brief This iterator has been unrolled. */
+  kUnroll = 1,
+  /*! \brief This iterator has been vectorized. */
+  kVectorize = 2,
+  /*! \brief This iterator has been paralleld. */
+  kParallel = 3,
+  /*! \brief This iterator has been bind to vthread. */
+  kVThread = 4,
+  /*! \brief This iterator has been bind to blockIdx.x. */
+  kBlockX = 5,
+  /*! \brief This iterator has been bind to threadIdx.x. */
+  kThreadX = 6,
+  /*! \brief This iterator has been bind to blockIdx.y. */
+  kBlockY = 7,
+  /*! \brief This iterator has been bind to threadIdx.y. */
+  kThreadY = 8,
+  /*! \brief This iterator has been mapped with a tensorize intrinsic. */
+  kTensorized = 9
 };
 
 // forward declaration
@@ -88,12 +117,18 @@ class Iterator;
  */
 class IteratorNode : public Object {
  public:
+  /*! \brief The name of this iterator. */
   std::string name;
+  /*! \brief The target range of this iterator. */
   Range range;
+  /*! \brief The iterator type of this iterator. */
   IteratorType iter_type;
+  /*! \brief The annotation type of this iterator. */
   IteratorAnnotation annotation;
-  std::vector<Iterator> ori_iters;  // The original iterators before fusion
-  std::string attr;                 // Todo(jcf94): Document this
+  /*! \brief The original iterators before fusion. */
+  std::vector<Iterator> ori_iters;
+  /*! \brief The extra attribute of this iterator. */
+  std::string attr;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
@@ -111,6 +146,15 @@ class IteratorNode : public Object {
  */
 class Iterator : public ObjectRef {
  public:
+  /*!
+   * \brief The constructor.
+   * \param name The name of this iterator.
+   * \param range The target range of this iterator.
+   * \param iter_type The iterator type of this iterator.
+   * \param annotation The annotation type of this iterator.
+   * \param ori_iters The original iterators before fusion.
+   * \param attr The extra attribute of this iterator.
+   */
   Iterator(std::string name, Range range, IteratorType iter_type,
            IteratorAnnotation annotation,
            const std::vector<Iterator>* ori_iters = nullptr,
@@ -119,23 +163,30 @@ class Iterator : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(Iterator, ObjectRef, IteratorNode);
 };
 
-/*! \brief Stage-level attributes */
+/*! \brief Stage-level attributes. */
 struct StageAttributes {
-  int auto_unroll_max_step;  // The maximum steps for the pragma `auto_unroll_max_step`
-  int storage_offset;        // The storage offset for the schedule primitive `storage_align`
+  /*! \brief The maximum steps for the pragma `auto_unroll_max_step`. */
+  int auto_unroll_max_step;
+  /*! \brief The storage offset for the schedule primitive `storage_align`. */
+  int storage_offset;
 };
 
 /*!
- * \brief A stage in the compute declaration
- * Similar to te::Stage in `include/schedule.h`
+ * \brief A stage in the compute declaration.
+ * Similar to te::Stage in `include/schedule.h`.
  */
 class StageNode : public Object {
  public:
-  te::Operation op;              // The operator of this stage
-  StageType op_type;             // The type of this stage
-  std::vector<Iterator> iters;   // The iterators in this stage
-  ComputeAtType compute_at;      // The compute location of this stage
-  StageAttributes attrs;         // Other stage-level attributes
+  /*! \brief The operator of this stage */
+  te::Operation op;
+  /*! \brief The type of this stage. */
+  StageType op_type;
+  /*! \brief The iterators in this stage. */
+  std::vector<Iterator> iters;
+  /*! \brief The compute location of this stage. */
+  ComputeAtType compute_at;
+  /*! \brief Other stage-level attributes. */
+  StageAttributes attrs;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("op", &op);
@@ -151,10 +202,30 @@ class StageNode : public Object {
  */
 class Stage : public ObjectRef {
  public:
+  /*!
+   * \brief The constructor.
+   * \param op A `te::Operation`.
+   */
   explicit Stage(te::Operation op);
+  /*!
+   * \brief The constructor.
+   * \param op A `te::Operation`.
+   * \param op_type The stage type of this op.
+   * \param iters The iterators of this op. (copy)
+   * \param compute_at The compute at type of this op.
+   * \param attrs Other stage-level attributes.
+   */
   Stage(te::Operation op, StageType op_type,
         const std::vector<Iterator>& iters,
         ComputeAtType compute_at, StageAttributes attrs);
+  /*!
+   * \brief The constructor.
+   * \param op A `te::Operation`.
+   * \param op_type The stage type of this op.
+   * \param iters The iterators of this op. (move)
+   * \param compute_at The compute at type of this op.
+   * \param attrs Other stage-level attributes.
+   */
   Stage(te::Operation op, StageType op_type,
         std::vector<Iterator>&& iters,
         ComputeAtType compute_at, StageAttributes attrs);
@@ -163,40 +234,28 @@ class Stage : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StageNode);
 };
 
-/*! \brief The base class for a transformation step */
-class StepNode: public Object {
- public:
-  int stage_id;
-
-  // Print step as equivalent python schedule API
-  virtual std::string PrintAsPythonAPI(std::vector<te::Stage> *stages,
-                                       StageToAxesMap *stage_to_axes,
-                                       te::Schedule *schedule,
-                                       const std::vector<Step>& transform_steps) const = 0;
-
-  static constexpr const char* _type_key = "ansor.Step";
-  TVM_DECLARE_BASE_OBJECT_INFO(StepNode, Object);
-};
-TVM_DEFINE_MUTABLE_OBJECT_REF(Step, StepNode);
-
-// Step forward decelerations
-class ReorderStep; class SplitStep; class FuseStep;
-
-/*! \brief A state in the search process.
- *  It consists of the current loop structure and the history steps to reach this state. */
+/*!
+ * \brief A state in the search process.
+ * It consists of the current loop structure and the history steps to reach this state.
+ */
 class StateNode: public Object {
  public:
-  std::vector<Stage> stages;           // Current stages and loop structures
-  std::vector<Step> transform_steps;   // History transformation steps
-  bool complete;          // Indicate whether this state has unfilled tile sizes
-  ObjectRef aux_info;     // Used to store any auxiliary info about this state
-  ComputeDAG task_dag;    // The up-to-date ComputeDAG of this state.
-                          // The default value is an empty NodeRef
-                          // (means no modification to the DAG)
+  /*! \brief Current stages and loop structures. */
+  Array<Stage> stages;
+  /*! \brief History transformation steps. */
+  std::vector<Step> transform_steps;
+  /*! \brief Indicate whether this state has unfilled tile sizes. */
+  bool complete;
+  /*!
+   * \brief The up-to-date ComputeDAG of this state, used for some steps that may change the
+   * stage structure of the ComputeDAG, for exp. CacheReadStep/CacheWriteStep(Will be added later).
+   * The default value is an empty NodeRef. (means no modification to the original DAG)
+   */
+  ComputeDAG task_dag;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("stages", &stages);
     v->Visit("complete", &complete);
-    v->Visit("aux_info", &aux_info);
     v->Visit("task_dag", &task_dag);
   }
 
@@ -210,52 +269,98 @@ class StateNode: public Object {
  */
 class State : public ObjectRef {
  public:
+  /*!
+   * \brief The constructor.
+   * \param ops `te::Operation`s for a compute declaration.
+   */
   explicit State(const Array<te::Operation>& ops);
+  /*!
+   * \brief The constructor.
+   * \param stages Stages of the target state.
+   * \param transform_steps Transform steps of the target state.
+   * \param complete Indicate whether this state has unfilled tile sizes.
+   */
   State(const std::vector<Stage>& stages,
-        const std::vector<Step>& transform_steps, bool complete,
-        ObjectRef aux_info);
+        const std::vector<Step>& transform_steps, bool complete);
 
-  // Schedule primitives
+  /*!
+   * \brief Schedule primitive corresponds to te.reorder.
+   * \param stage_id The index of the target stage.
+   * \param order The target iterator order.
+   */
   void reorder(int stage_id, const std::vector<Iterator>& order);
+  /*!
+   * \brief Schedule primitive corresponds to te.split.
+   * \param stage_id The index of the target stage.
+   * \param it The target iterator.
+   * \param lengths The target split factors. Can be None to be filled by search policy.
+   * \param inner_to_outer True for split from inner to outer & False for outer to inner.
+   * \return The iterator results after split.
+   */
   std::vector<Iterator> split(int stage_id, const Iterator& it,
                               const std::vector<PrimExpr>& lengths,
                               bool inner_to_outer = true);
+  /*!
+   * \brief Schedule primitive corresponds to te.fuse.
+   * \param stage_id The index of the target stage.
+   * \param iters The target iterators to be fused.
+   * \return The iterator result after fuse.
+   */
   Iterator fuse(int stage_id, const std::vector<Iterator>& iters);
 
-  // General do step functions with a runtime dynamic dispatcher
-  void DoSteps(const std::vector<Step>& step, const ComputeDAG& dag);
+  /*!
+   * \brief General do step functions with a runtime dynamic dispatcher.
+   * \param steps The target transform steps.
+   * \param dag The target ComputeDAG.
+   */
+  void DoSteps(const std::vector<Step>& steps, const ComputeDAG& dag);
 
-  // Print the state to a string
+  /*!
+   * \brief Print the state to a string.
+   * \param delete_trivial_loop True for skipping the trivial loops.
+   * (undefined or extent == 1, default set to True)
+   * \return The human readable state structure.
+   */
   std::string ToStr(bool delete_trivial_loop = true) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StateNode);
 
  private:
-  void DoStep(const Step& step, const ComputeDAG& dag);
-
   /* Do transform steps
    * Note: The following functions only change loop state but do not change transform_history.
-   * We separate these functions out,
-   * so you can call them for replay easily given history steps */
+   * We separate these functions out, so you can call them for replay easily given history steps */
+
+  /*!
+   * \brief Apply reorder step to current state.
+   * \param step A ReorderStep.
+   */
   void DoReorderStep(const ReorderStep& step);
+  /*!
+   * \brief Apply split step to current state.
+   * \param step A SplitStep.
+   * \return The iterator results after split.
+   */
   std::vector<Iterator> DoSplitStep(const SplitStep& step);
+  /*!
+   * \brief Apply fuse step to current state.
+   * \param step A FuseStep.
+   * \return The iterator result after fuse.
+   */
   Iterator DoFuseStep(const FuseStep& step);
-  // Common function for DoSplitStep and DoFollowSplitStep
+
+  /*!
+   * \brief Common function for DoSplitStep and DoFollowSplitStep(Will be added later).
+   * \param stage_id The index of the target stage.
+   * \param iter_id The index of the target iterator.
+   * \param lengths The target split factors.
+   * \param inner_to_outer The split direction.
+   * \return The iterator results after split.
+   */
   std::vector<Iterator> DoSplitStepCommon(int stage_id, int iter_id,
                                           const std::vector<PrimExpr>& lengths,
                                           bool inner_to_outer);
 };
-
-/*! \brief Clean the name of an iterator to make it valid in python code */
-inline std::string CleanName(const std::string& str) {
-  std::string ret = str;
-  StrReplace(&ret, ".", "_");
-  StrReplace(&ret, "@", "_");
-  StrReplace(&ret, "outer", "o");
-  StrReplace(&ret, "inner", "i");
-  return ret;
-}
 
 }  // namespace ansor
 }  // namespace tvm
@@ -264,6 +369,7 @@ inline std::string CleanName(const std::string& str) {
 // Hash and equal function for State
 namespace std {
 
+/*! \brief The hash function for ansor::State. */
 template <>
 struct hash<::tvm::ansor::State> {
   std::size_t operator()(const ::tvm::ansor::State& state) const {
@@ -271,6 +377,7 @@ struct hash<::tvm::ansor::State> {
   }
 };
 
+/*! \brief The equal_to function for ansor::State. */
 template <>
 struct equal_to<::tvm::ansor::State> {
   bool operator() (const ::tvm::ansor::State& lhs,

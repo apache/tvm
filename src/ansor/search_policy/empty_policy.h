@@ -19,7 +19,7 @@
 
 /*!
  * \file ansor/search_policy/empty_policy.h
- * \brief This is an basic example of search policy
+ * \brief This is an brief example of search policy.
  */
 
 #ifndef TVM_ANSOR_SEARCH_POLICY_EMPTY_POLICY_H_
@@ -34,33 +34,25 @@ namespace tvm {
 namespace ansor {
 
 /*!
- * \file ansor/search_policy/empty_policy.h
- * \brief This is an basic example for search policy. The EmptyPolicy will
- * always generates the init state of a ComputeDAG.
+ * \brief The EmptyPolicy will always generates the init state of a ComputeDAG.
+ * This is an brief example of search policy, while can show the design of search policy,
+ * the formal search policy will continue to follow it.
+ * The key implementation for this structure is `Search()`, check `empty_policy.cc` for more
+ * details.
  */
 class EmptyPolicyNode : public SearchPolicyNode {
  public:
-  /*! \brief Search and make n_trails measurements.
-   *  \returns the best state
-   */
   State Search(SearchTask task, int n_trials,
-               int early_stopping, int num_measure_per_iter,
+               int early_stopping, int num_measure_per_round,
                int verbose, ProgramMeasurer measurer,
                Array<SearchCallback> pre_search_callbacks) final;
-
-  /*! \brief Continue search for one round. This is used by JointTuner
-   * \returns the measurement pairs
-   */
-  std::pair<Array<MeasureInput>, Array<MeasureResult> > ContinueSearchOneRound(
-      SearchTask task, int num_measure, int verbose, ProgramMeasurer measurer) final;
 
   static constexpr const char *_type_key = "ansor.EmptyPolicy";
   TVM_DECLARE_FINAL_OBJECT_INFO(EmptyPolicyNode, SearchPolicyNode);
 
  private:
   /*!
-   * \brief Usually we need a sub function to generate several candidate states in each
-   * search round.
+   * \brief Use a sub function to generate several candidate states in each search round.
    * \returns Several generated states
    */
   std::vector<State> SearchOneRound();

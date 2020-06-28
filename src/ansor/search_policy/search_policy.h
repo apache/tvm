@@ -19,7 +19,7 @@
 
 /*!
  * \file ansor/search_policy/search_policy.h
- * \brief The base class for search policy
+ * \brief The base class for search policy.
  */
 
 #ifndef TVM_ANSOR_SEARCH_POLICY_SEARCH_POLICY_H_
@@ -38,54 +38,95 @@ namespace ansor {
 
 class SearchPolicyNode;
 
-/*! \brief Callback function to be called before or after the search process */
+/*!
+ * \brief Callback function to be called by the search process.
+ * This interface allows to do extra initializations before schedule search or extra
+ * check during/after the schedule search.
+ */
 class SearchCallbackNode : public Object {
  public:
-  virtual void callback(SearchPolicyNode* policy) = 0;
+  /*!
+   * \brief Run the registered callback function.
+   * \param policy A pointer to SearchPolicyNode.
+   */
+  virtual void Callback(SearchPolicyNode* policy) = 0;
 
   static constexpr const char *_type_key = "ansor.SearchCallback";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchCallbackNode, Object);
 };
-TVM_DEFINE_MUTABLE_OBJECT_REF(SearchCallback, SearchCallbackNode);
 
-/*! \brief The base class for search policy */
+/*!
+ * \brief Managed reference to SearchCallbackNode.
+ * \sa SearchCallbackNode
+ */
+class SearchCallback : public ObjectRef {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SearchCallback, ObjectRef, SearchCallbackNode);
+};
+
+/*!
+ * \brief The base class for search policy.
+ */
 class SearchPolicyNode : public Object {
  public:
-  SearchTask cur_task;   // The current task
-  int verbose;           // Verbose level (0 means silent)
+  /*! \brief The current search task. */
+  SearchTask cur_task;
+  /*!
+   * \brief Verbose level to control the screen output during schedule search.
+   * (0 means silent)
+   */
+  int verbose;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("cur_task", &cur_task);
     v->Visit("verbose", &verbose);
   }
 
-  // Search for a task
+  /*!
+   * \brief Do schedule search for a task.
+   * \param task The target search task.
+   * \param n_trials Total schedules to be tried during this search.
+   * \param early_stopping Early stop if no better schedule is found.
+   * \param num_measure_per_round Max measure batch in one search round.
+   * \param verbose Verbose level. (0 means silent)
+   * \param measurer A ProgramMeasurer which packs Builder & Runner inside.
+   * \param pre_search_callbacks SearchCallback to be called before schedule search.
+   * \return The best state get.
+   */
   virtual State Search(SearchTask task, int n_trials,
-                       int early_stopping, int num_measure_per_iter,
+                       int early_stopping, int num_measure_per_round,
                        int verbose, ProgramMeasurer measurer,
                        Array<SearchCallback> pre_search_callbacks) = 0;
 
-  // Continue search one round for a task.
-  // This is used in the task scheduler for searching for multiple tasks together.
-  virtual std::pair<Array<MeasureInput>, Array<MeasureResult> > ContinueSearchOneRound(
-      SearchTask task, int num_measure, int verbose, ProgramMeasurer measurer) = 0;
-
-  // Run a list of callback functions
+  /*!
+   * \brief Call SearchCallback with the current SearchPolicyNode.u
+   * \param callbacks SearchCallback to be called.
+   */
   void RunCallbacks(const Array<SearchCallback>& callbacks);
 
   static constexpr const char *_type_key = "ansor.SearchPolicy";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchPolicyNode, Object);
 
  protected:
-  // The set of the already measured states.
-  // We store the string format for redundancy check
+  /*!
+   * \brief The set of already measured states.
+   * We store the string format for redundancy check.
+   */
   std::unordered_set<std::string> measured_states_set_;
-  // The array of already measured states.
+  /*! \brief The array of already measured states. */
   std::vector<State> measured_states_vector_;
-  // The throughputs of already measured states
+  /*! \brief The throughputs of already measured states */
   std::vector<float> measured_states_throughputs_;
 };
-TVM_DEFINE_MUTABLE_OBJECT_REF(SearchPolicy, SearchPolicyNode);
+
+/*!
+ * \brief Managed reference to SearchPolicyNode.
+ * \sa SearchPolicyNode
+ */
+class SearchPolicy : public ObjectRef {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SearchPolicy, ObjectRef, SearchPolicyNode);
+};
 
 }  // namespace ansor
 }  // namespace tvm

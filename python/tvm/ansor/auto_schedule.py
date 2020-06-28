@@ -93,7 +93,7 @@ class TuneOption(Object):
       Number of total measurement trials
     early_stopping: int
       Stops early the tuning if no improvement after n measurements
-    num_measure_per_iter: int
+    num_measure_per_round: int
       The number of programs to be measured at each iteration
     verbose: int
       Verbosity level. 0 means silent.
@@ -111,7 +111,7 @@ class TuneOption(Object):
         - ansor.PreloadMeasuredStates
         - ansor.PreloadCustomSketchRule
     """
-    def __init__(self, n_trials=0, early_stopping=-1, num_measure_per_iter=64,
+    def __init__(self, n_trials=0, early_stopping=-1, num_measure_per_round=64,
                  verbose=1, builder='local', runner='local', measure_callbacks=None,
                  pre_search_callbacks=None):
         if isinstance(builder, str):
@@ -133,7 +133,7 @@ class TuneOption(Object):
             pre_search_callbacks = []
 
         self.__init_handle_by_constructor__(
-            _ffi_api.TuneOption, n_trials, early_stopping, num_measure_per_iter,
+            _ffi_api.TuneOption, n_trials, early_stopping, num_measure_per_round,
             verbose, builder, runner, measure_callbacks, pre_search_callbacks)
 
 

@@ -19,16 +19,20 @@
 
 /*!
  * \file ansor/measure.cc
- * \brief Distributed measurement infrastructure to measure the runtime costs of tensor programs
+ * \brief Distributed measurement infrastructure to measure the runtime costs of tensor programs.
  */
 
 #include "measure.h"
+
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+
 #include <algorithm>
 #include <iomanip>
 #include <utility>
 #include <vector>
+
+#include "utils.h"
 
 namespace tvm {
 namespace ansor {
@@ -42,7 +46,7 @@ TVM_REGISTER_OBJECT_TYPE(BuilderNode);
 TVM_REGISTER_OBJECT_TYPE(LocalBuilderNode);
 TVM_REGISTER_OBJECT_TYPE(LocalRunnerNode);
 
-const char* ErrorNoToStr[] = {
+static const char* ErrorNoToStr[] = {
     "NoError",
     "InstantiationError",
     "CompileHostError",
@@ -54,7 +58,7 @@ const char* ErrorNoToStr[] = {
     "UnknownError",
 };
 
-// Measure input and result
+/********** Measure input and result **********/
 MeasureInput::MeasureInput(SearchTask task, State state) {
   auto node = make_object<MeasureInputNode>();
   node->task = std::move(task);
@@ -103,7 +107,7 @@ MeasureResult MeasureResultNode::copy() const {
   return MeasureResult(node);
 }
 
-// LocalBuilder
+/********** LocalBuilder **********/
 LocalBuilder::LocalBuilder(int timeout, int n_parallel,
                            const std::string& build_func) {
   auto node = make_object<LocalBuilderNode>();
@@ -125,7 +129,7 @@ Array<BuildResult> LocalBuilderNode::Build(const Array<MeasureInput>& inputs,
   return Array<BuildResult>();
 }
 
-// Local Runner
+/********** LocalRunner **********/
 LocalRunner::LocalRunner(int timeout, int number, int repeat,
                          int min_repeat_ms, double cooldown_interval) {
   ObjectPtr<LocalRunnerNode> node = make_object<LocalRunnerNode>();
@@ -151,7 +155,7 @@ Array<MeasureResult> LocalRunnerNode::Run(
   return Array<MeasureResult>();
 }
 
-// Program Measurer
+/********** ProgramMeasurer **********/
 ProgramMeasurer::ProgramMeasurer(Builder builder, Runner runner,
                                  Array<MeasureCallback> callbacks, int verbose,
                                  int max_continous_error) {
@@ -229,7 +233,7 @@ void ProgramMeasurerNode::Measure(const SearchTask& task,
 
     // Call callback functions
     for (const auto& callback : callbacks) {
-      callback->callback(policy, input_batch, result_batch);
+      callback->Callback(policy, input_batch, result_batch);
     }
 
     // Store result batch
@@ -264,7 +268,7 @@ void ProgramMeasurerNode::SilentMeasure(const SearchTask& task,
   }
 }
 
-// Printing functions
+/********** Printing functions **********/
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<MeasureInputNode>([](const ObjectRef& ref, ReprPrinter* p) {
   p->stream << "MeasureInput()";
@@ -305,6 +309,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
             << ", " << node->time_cost << ")";
 });
 
+/********** Measure interface API for ffi **********/
 TVM_REGISTER_GLOBAL("ansor.MeasureInput").set_body_typed([](SearchTask task, State state) {
   return MeasureInput(task, state);
 });

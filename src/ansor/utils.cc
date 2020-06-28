@@ -19,7 +19,7 @@
 
 /*!
  * \file ansor/utils.cc
- * \brief Common utilities
+ * \brief Common utilities.
  */
 
 #include "utils.h"

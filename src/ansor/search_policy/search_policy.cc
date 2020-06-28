@@ -19,7 +19,7 @@
 
 /*!
  * \file ansor/search_policy/search_policy.cc
- * \brief The base class for search policy
+ * \brief The base class for search policy.
  */
 
 #include "search_policy.h"
@@ -35,20 +35,10 @@ TVM_REGISTER_OBJECT_TYPE(SearchPolicyNode);
 void SearchPolicyNode::RunCallbacks(const Array<SearchCallback>& callbacks) {
   if (callbacks.defined() && callbacks.size()) {
     for (const auto& callback : callbacks) {
-      callback->callback(this);
+      callback->Callback(this);
     }
   }
 }
-
-// Search Policy
-TVM_REGISTER_GLOBAL("ansor.SearchPolicyContinueSearchOneRound")
-.set_body_typed([](SearchPolicy policy, SearchTask task, int num_measure,
-                   int verbose, ProgramMeasurer measurer) {
-  Array<MeasureInput> inputs;
-  Array<MeasureResult> results;
-  std::tie(inputs, results) = policy->ContinueSearchOneRound(task, num_measure, verbose, measurer);
-  return Array<ObjectRef>{inputs, results};
-});
 
 TVM_REGISTER_GLOBAL("ansor.SearchPolicyRunCallbacks")
 .set_body_typed([](SearchPolicy policy, Array<SearchCallback> callbacks) {

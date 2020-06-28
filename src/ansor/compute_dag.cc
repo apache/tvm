@@ -19,15 +19,17 @@
 
 /*!
  * \file ansor/compute_dag.cc
- * \brief Compute declaration graph and its related analysis tools
+ * \brief Compute declaration graph and its related analysis tools.
  */
 
 #include "compute_dag.h"
+
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/runtime/registry.h>
+
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>
@@ -36,7 +38,9 @@
 #include <string>
 #include <set>
 #include <vector>
-#include "transform_step.h"
+
+#include "loop_state.h"
+#include "utils.h"
 
 namespace tvm {
 namespace ansor {
@@ -44,6 +48,23 @@ namespace ansor {
 using namespace tvm::tir;
 
 TVM_REGISTER_NODE_TYPE(ComputeDAGNode);
+
+void UpdateStageAxis(const te::Stage& stage, StageToAxesMap *stage_to_axes) {
+  if (auto pop = stage->op.as<te::ComputeOpNode>()) {
+    std::vector<IterVar>& axes = (*stage_to_axes)[stage];
+    axes.clear();
+    for (const auto& axis : pop->axis) {
+      axes.push_back(axis);
+    }
+    for (const auto& axis : pop->reduce_axis) {
+      axes.push_back(axis);
+    }
+  } else if (stage->op->IsInstance<te::PlaceholderOpNode>()) {
+    {}  // do nothing
+  } else {
+    LOG(FATAL) << "Invalid op " << stage->op;
+  }
+}
 
 // Topo-sort ops from tensors according to their read-write relations.
 // Results are stored in ops
@@ -228,7 +249,6 @@ ComputeDAG::ComputeDAG(const std::string& workload_key) {
   } else {
     LOG(FATAL) << "ansor.workload_key_to_tensors is not registered";
   }
-
   auto node = make_object<ComputeDAGNode>();
   FlopEstimator estimator;
   node->tensors = std::move(tens);
@@ -238,27 +258,6 @@ ComputeDAG::ComputeDAG(const std::string& workload_key) {
   node->flop_ct = estimator.EstimateFlop(node->ops);
   node->init_state = State(node->ops);
   data_ = std::move(node);
-}
-
-std::string BaseName(const std::string& str) {
-  return str.substr(0, str.rfind("_"));
-}
-
-void UpdateStageAxis(const te::Stage& stage, StageToAxesMap *stage_to_axes) {
-  if (auto pop = stage->op.as<te::ComputeOpNode>()) {
-    std::vector<IterVar>& axes = (*stage_to_axes)[stage];
-    axes.clear();
-    for (const auto& axis : pop->axis) {
-      axes.push_back(axis);
-    }
-    for (const auto& axis : pop->reduce_axis) {
-      axes.push_back(axis);
-    }
-  } else if (stage->op->IsInstance<te::PlaceholderOpNode>()) {
-    {}  // do nothing
-  } else {
-    LOG(FATAL) << "Invalid op " << stage->op;
-  }
 }
 
 std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ApplySteps(
@@ -300,7 +299,7 @@ std::string ComputeDAG::PrintStepsAsPython(const std::vector<Step>& transform_st
          << " + " << "tuple(" << stage->op->name << ".op.reduce_axis)\n";
     }
   }
-
+  // Call each step's PrintAsPythonAPI method
   for (const auto& step : transform_steps) {
     ss << step->PrintAsPythonAPI(&stages, &stage_to_axes, &schedule,
                                  transform_steps);
@@ -360,11 +359,13 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
   Array<te::Tensor> tensors;
   Map<IterVar, Range> bounds;
 
+  // Replay steps to tvm::Schedule
   std::tie(sch, tensors) = ReplaySteps(pstate->transform_steps, &stages,
                                        &stage_to_axes);
   sch = sch.normalize();
   bounds = te::InferBound(sch);
 
+  // Update the state bound information
   for (size_t i = 0; i < pstate->stages.size(); ++i) {
     const Stage& stage = pstate->stages[i];
 
@@ -388,8 +389,8 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
       }
     }
 
-    pstate->stages[i] = Stage(stage->op, stage->op_type, std::move(new_iters),
-                              stage->compute_at, stage->attrs);
+    pstate->stages.Set(i, Stage(stage->op, stage->op_type, std::move(new_iters),
+                                stage->compute_at, stage->attrs));
   }
 }
 
@@ -427,7 +428,10 @@ std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
     if (complete_rate >= 0 && ct++ > transform_steps.size() * complete_rate) {
       break;
     }
-
+    // Call each step's ApplyToSchedule method
+    // Note: some steps have extra parameters that must be passed and they may need different
+    // return value, so the ApplyToSchedule is not able to be merged to single interface like
+    // PrintAsPythonAPI does
     if (auto ps = step.as<ReorderStepNode>()) {
       ps->ApplyToSchedule(stages, stage_to_axes);
     } else if (auto ps = step.as<SplitStepNode>()) {

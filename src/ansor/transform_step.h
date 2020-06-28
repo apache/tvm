@@ -32,30 +32,74 @@
  *      CopyOnWrite style
  * 4. Add you step to `ComputeDAG::ReplaySteps` and make sure it works.
  * 5. Add serialization support in `struct Handler<std::vector<::tvm::ansor::Step> >`
- *    in `serialization.cc`
- * 6. Add hash support in `struct hash<::tvm::ansor::Step>` (search for this function in this file)
- * 7. Add its corresponding Python API to `loop_state.py` and necessary unit test
+ *    in `serialization.cc`.
+ * 6. Add hash support in `struct hash<::tvm::ansor::Step>`. (search for this function in this file)
+ * 7. Add its corresponding Python API to `loop_state.py` and necessary unit test.
  */
 
 #ifndef TVM_ANSOR_TRANSFORM_STEP_H_
 #define TVM_ANSOR_TRANSFORM_STEP_H_
 
 #include <dmlc/common.h>
+#include <tvm/node/node.h>
+#include <tvm/te/schedule.h>
+
 #include <string>
 #include <vector>
-#include "loop_state.h"
+#include <unordered_map>
+
+#include "utils.h"
 
 namespace tvm {
 namespace ansor {
 
-using namespace tvm::tir;
+typedef std::unordered_map<tvm::te::Stage, std::vector<tir::IterVar>, ObjectHash, ObjectEqual>
+    StageToAxesMap;
+
+class Step;
+
+/*! \brief The base class for a transformation step */
+class StepNode: public Object {
+ public:
+  /*! \brief The index of the target stage. */
+  int stage_id;
+
+  /*!
+   * \brief Print step as equivalent python schedule API.
+   * \param stages A pointer to `te::Stage` vector.
+   * \param stage_to_axes A pointer to StageToAxesMap.
+   * \param schedule A pointer to `te::Schedule`.
+   * \param transform_steps Transform steps of the target state.
+   * \return Python schedule code.
+   */
+  virtual std::string PrintAsPythonAPI(std::vector<te::Stage>* stages,
+                                       StageToAxesMap* stage_to_axes,
+                                       te::Schedule* schedule,
+                                       const std::vector<Step>& transform_steps) const = 0;
+
+  static constexpr const char* _type_key = "ansor.Step";
+  TVM_DECLARE_BASE_OBJECT_INFO(StepNode, Object);
+};
+
+class Step : public ObjectRef {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Step, ObjectRef, StepNode);
+};
 
 /*! \brief Reorder step that corresponds to te::Stage::reorder */
 class ReorderStepNode: public StepNode {
  public:
-  std::vector<int> after_ids;  // The iterator ids after reorder.
-  // This array should specify the order of all iterators.
+  /*!
+   * \brief The iterator ids after reorder.
+   * This array should specify the order of all iterators.
+   */
+  std::vector<int> after_ids;
 
+  /*!
+   * \brief Apply the current state to tvm.schedule
+   * \param stages A pointer to `te::Stage` vector.
+   * \param stage_to_axes A pointer to StageToAxesMap.
+   */
   void ApplyToSchedule(std::vector<te::Stage> *stages,
                        StageToAxesMap *stage_to_axes) const;
 
@@ -74,23 +118,42 @@ class ReorderStepNode: public StepNode {
  */
 class ReorderStep : public Step {
  public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the target stage.
+   * \param after_ids The index of the iterators after reorder.
+   */
   ReorderStep(int stage_id, const std::vector<int>& after_ids);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ReorderStep, Step, ReorderStepNode);
 };
 
-/*! \brief Split step that corresponds to te::Stage::split with additional
- *  support of multiple-level of factors */
+/*!
+ * \brief Split step that corresponds to te::Stage::split with additional
+ *  support of multiple-level of factors
+ */
 class SplitStepNode: public StepNode {
  public:
-  int iter_id;                    // The id of the iter to split
-  PrimExpr extent;                // the extent length of the axis to split
-  std::vector<PrimExpr> lengths;  // The split factors
-  bool inner_to_outer;            // If true, the `lengths` denote the lengths of
-                                  // iterators from inner level to outer level
+  /*! \brief The id of the iter to split. */
+  int iter_id;
+  /*! \brief The extent length of the axis to split. */
+  PrimExpr extent;
+  /*! \brief The split factors. */
+  std::vector<PrimExpr> lengths;
+  /*!
+   * \brief If true, the `lengths` denote the lengths of iterators
+   * from inner level to outer level
+   */
+  bool inner_to_outer;
 
-  std::vector<IterVar> ApplyToSchedule(std::vector<te::Stage> *stages,
-                                       StageToAxesMap *stage_to_axes) const;
+  /*!
+   * \brief Apply the current state to tvm.schedule
+   * \param stages A pointer to `te::Stage` vector.
+   * \param stage_to_axes A pointer to StageToAxesMap.
+   * \return The iterator results after split.
+   */
+  std::vector<tir::IterVar> ApplyToSchedule(std::vector<te::Stage> *stages,
+                                            StageToAxesMap *stage_to_axes) const;
 
   std::string PrintAsPythonAPI(std::vector<te::Stage> *stages,
                                StageToAxesMap *stage_to_axes,
@@ -107,6 +170,13 @@ class SplitStepNode: public StepNode {
  */
 class SplitStep : public Step {
  public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the target stage.
+   * \param extent The index of the target iterator.
+   * \param lengths The extent length of the axis to split.
+   * \param inner_to_outer The split direction.
+   */
   SplitStep(int stage_id, int iter_id, PrimExpr extent,
             const std::vector<PrimExpr>& lengths,
             bool inner_to_outer);
@@ -117,10 +187,17 @@ class SplitStep : public Step {
 /*! \brief Fuse step that corresponds to te::Stage::fuse */
 class FuseStepNode: public StepNode {
  public:
-  std::vector<int> fused_ids;  // The ids of iterators to fuse
+  /*! \brief The ids of iterators to fuse. */
+  std::vector<int> fused_ids;
 
-  IterVar ApplyToSchedule(std::vector<te::Stage> *stages,
-                          StageToAxesMap *stage_to_axes) const;
+  /*!
+   * \brief Apply the current state to tvm.schedule
+   * \param stages A pointer to `te::Stage` vector.
+   * \param stage_to_axes A pointer to StageToAxesMap.
+   * \return The iterator result after fuse.
+   */
+  tir::IterVar ApplyToSchedule(std::vector<te::Stage> *stages,
+                               StageToAxesMap *stage_to_axes) const;
 
   std::string PrintAsPythonAPI(std::vector<te::Stage> *stages,
                                StageToAxesMap *stage_to_axes,
@@ -137,6 +214,11 @@ class FuseStepNode: public StepNode {
  */
 class FuseStep : public Step {
  public:
+  /*!
+   * \brief The constructor.
+   * \param stage_id The index of the target stage.
+   * \param fused_ids The index of the target iterators to be fused.
+   */
   FuseStep(int stage_id, const std::vector<int>& fused_ids);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FuseStep, Step, FuseStepNode);
@@ -148,6 +230,7 @@ class FuseStep : public Step {
 // Hash and equal function for Step
 namespace std {
 
+/*! \brief The hash function of each transform step. */
 template <>
 struct hash<::tvm::ansor::Step> {
   std::size_t operator()(const ::tvm::ansor::Step& step) const {
