@@ -315,7 +315,7 @@ class BindVarBoundInfo : public StmtVisitor {
 
   void VisitStmt_(const ForNode* op) final {
     const Var& loop_var = op->loop_var;
-    analyzer_->Bind(loop_var, Range::make_by_min_extent(op->min, op->extent));
+    analyzer_->Bind(loop_var, Range::FromMinExtent(op->min, op->extent));
     StmtVisitor::VisitStmt_(op);
   }
 
@@ -324,7 +324,7 @@ class BindVarBoundInfo : public StmtVisitor {
       IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
       if (!var_dom_.count(iv->var.get())) {
-        Range dom = Range::make_by_min_extent(0, op->value);
+        Range dom = Range::FromMinExtent(0, op->value);
         var_dom_[iv->var.get()] = dom;
         analyzer_->Bind(iv->var, dom);
       }

@@ -87,7 +87,7 @@ ScanOp::ScanOp(std::string name, std::string tag, Map<String, ObjectRef> attrs, 
         // setup spatial axis
         std::ostringstream spatial_name;
         spatial_name << name << ".out" << i << ".i" << k;
-        n->spatial_axis_.push_back(IterVar(Range::make_by_min_extent(0, update[i]->shape[k]),
+        n->spatial_axis_.push_back(IterVar(Range::FromMinExtent(0, update[i]->shape[k]),
                                            Var(spatial_name.str()), kOpaque));
       }
     }
@@ -118,7 +118,7 @@ Array<Tensor> scan(Array<Tensor> init, Array<Tensor> update, Array<Tensor> state
                    Array<Tensor> inputs, std::string name, std::string tag,
                    Map<String, ObjectRef> attrs) {
   IterVar scan_axis =
-      IterVar(Range::make_by_min_extent(init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
+      IterVar(Range::FromMinExtent(init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
               Var(name + ".idx"), kOrdered);
   Operation op = ScanOp(name, tag, attrs, scan_axis, init, update, state_placeholder, inputs);
   Array<Tensor> res;
@@ -174,7 +174,7 @@ void ScanOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* analy
     // first dimension, always needed.
     if (init_dom) {
       init_dom->data[0].push_back(
-          IntSet::range(Range::make_by_min_extent(0, this->init[i]->shape[0])));
+          IntSet::FromRange(Range::FromMinExtent(0, this->init[i]->shape[0])));
     }
     if (update_dom) {
       update_dom->data[0].push_back(dom_map.at(this->scan_axis->var.get()));
@@ -210,9 +210,9 @@ void ScanOpNode::GatherBound(const Operation& self,
   CHECK(!out_dom_map->count(this->scan_axis));
   arith::Analyzer analyzer;
   Range sdom = this->scan_axis->dom;
-  Range r = arith::Union(time_dom).cover_range(sdom);
+  Range r = arith::Union(time_dom).CoverRange(sdom);
   (*out_dom_map)[this->scan_axis] =
-      Range::make_by_min_extent(sdom->min, analyzer.Simplify(r->extent + r->min - sdom->min));
+      Range::FromMinExtent(sdom->min, analyzer.Simplify(r->extent + r->min - sdom->min));
   Map<IterVar, PrimExpr> fix_pt = ScanFixPointAnalysis(self);
   // Update for spatial axis.
   size_t sp_idx = 0;
@@ -224,7 +224,7 @@ void ScanOpNode::GatherBound(const Operation& self,
       CHECK(fix_pt.count(sp_ax));
       if (fix_pt[sp_ax].as<tir::IntImmNode>()->value) {
         // fix point, we can slice it.
-        (*out_dom_map)[sp_ax] = arith::Union(d.data[k]).cover_range(sp_ax->dom);
+        (*out_dom_map)[sp_ax] = arith::Union(d.data[k]).CoverRange(sp_ax->dom);
       } else {
         // not a fix point, need to include everything.
         (*out_dom_map)[sp_ax] = sp_ax->dom;
@@ -238,7 +238,7 @@ Stmt ScanOpNode::BuildRealize(const Stage& stage, const std::unordered_map<IterV
   arith::Analyzer analyzer;
   CHECK_EQ(stage->op.get(), this);
   Range sdom = dom_map.at(this->scan_axis);
-  Range tdom = Range::make_by_min_extent(0, analyzer.Simplify(sdom->extent + sdom->min));
+  Range tdom = Range::FromMinExtent(0, analyzer.Simplify(sdom->extent + sdom->min));
   Stmt ret = body;
   size_t sp_idx = 0;
   for (size_t i = 0; i < update.size(); ++i) {

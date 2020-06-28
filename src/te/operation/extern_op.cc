@@ -112,8 +112,8 @@ void ExternOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* ana
     if (it == out_dom_map->end()) continue;
     TensorDom& dom = it->second;
     for (size_t i = 0; i < t->shape.size(); ++i) {
-      dom.data[i].emplace_back(IntSet::range(
-          Range::make_by_min_extent(make_const(t->shape[i].dtype(), 0), t->shape[i])));
+      dom.data[i].emplace_back(
+          IntSet::FromRange(Range::FromMinExtent(make_const(t->shape[i].dtype(), 0), t->shape[i])));
     }
   }
 }
@@ -131,7 +131,7 @@ Stmt ExternOpNode::BuildRealize(const Stage& stage,
     Tensor t = stage->op.output(k);
     Region bounds;
     for (size_t i = 0; i < t->shape.size(); ++i) {
-      bounds.push_back(Range::make_by_min_extent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
+      bounds.push_back(Range::FromMinExtent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
     realize_body = tir::ProducerRealize(t, bounds, const_true(), realize_body);
   }

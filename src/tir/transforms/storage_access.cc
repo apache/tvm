@@ -42,7 +42,7 @@ void StorageAccessVisitor::VisitExpr_(const LoadNode* op) {
     e.threads = env_threads();
     e.buffer = op->buffer_var;
     e.dtype = op->dtype.element_of();
-    e.touched = arith::IntSet::vector(op->index);
+    e.touched = arith::IntSet::Vector(op->index);
     e.type = kRead;
     e.scope = scope;
     curr_stmt_.access.emplace_back(std::move(e));
@@ -62,7 +62,7 @@ void StorageAccessVisitor::VisitStmt_(const StoreNode* op) {
     e.threads = env_threads();
     e.buffer = op->buffer_var;
     e.dtype = op->value.dtype().element_of();
-    e.touched = arith::IntSet::vector(op->index);
+    e.touched = arith::IntSet::Vector(op->index);
     e.type = kWrite;
     e.scope = scope;
     curr_stmt_.access.emplace_back(std::move(e));
@@ -148,7 +148,7 @@ void StorageAccessVisitor::VisitStmt_(const ForNode* op) {
     // relax the touched set to contain all ranges in the loop.
     std::unordered_map<const VarNode*, arith::IntSet> relax_map;
     relax_map[op->loop_var.get()] =
-        arith::IntSet::range(Range::make_by_min_extent(op->min, op->extent));
+        arith::IntSet::FromRange(Range::FromMinExtent(op->min, op->extent));
     for (AccessEntry& e : s.access) {
       if (e.buffer.defined()) {
         CHECK(e.touched.defined());
@@ -199,7 +199,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       e.threads = env_threads();
       e.dtype = dtype;
       e.buffer = Downcast<Var>(op->args[1]);
-      e.touched = arith::IntSet::range(Range::make_by_min_extent(offset, extent));
+      e.touched = arith::IntSet::FromRange(Range::FromMinExtent(offset, extent));
       e.scope = scope;
       if (flag->value & 1) {
         e.type = kRead;

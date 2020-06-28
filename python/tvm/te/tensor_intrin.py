@@ -37,7 +37,7 @@ def _get_region(tslice):
                 begin = idx.var
             else:
                 begin = idx
-            region.append(Range.make_by_min_extent(begin, 1))
+            region.append(Range.from_min_extent(begin, 1))
     return region
 
 
