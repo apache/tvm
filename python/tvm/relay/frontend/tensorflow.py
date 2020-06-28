@@ -1742,7 +1742,7 @@ def _split(has_size_vector):
                 indices_or_sections = attr['num_split']
             input_node = inputs[input_node_index]
             axis_input_value = _get_num_param(params, inputs[input_axis_index])
-        except (IndexError, KeyError):
+        except (IndexError, KeyError, AttributeError):
             raise TypeError(
                 "Unsupported argument for split: `axis` and `num_or_size_splits` "
                 "should be constants")
