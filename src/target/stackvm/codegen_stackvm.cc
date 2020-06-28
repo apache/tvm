@@ -429,7 +429,7 @@ void CodeGenStackVM::VisitStmt_(const SeqStmtNode* op) {
 }
 
 void CodeGenStackVM::VisitStmt_(const EvaluateNode* ev) {
-  if (is_const(ev->value)) return;
+  if (is_const_int(ev->value)) return;
   const CallNode* op = ev->value.as<CallNode>();
   if (op && op->op.same_as(builtin::tvm_struct_set())) {
     CHECK_EQ(op->args.size(), 4U);
