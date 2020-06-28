@@ -26,7 +26,9 @@
 #define TVM_ANSOR_SEARCH_TASK_H_
 
 #include <tvm/target/target.h>
+
 #include <string>
+
 #include "compute_dag.h"
 
 namespace tvm {

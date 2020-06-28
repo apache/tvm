@@ -24,8 +24,10 @@
  */
 
 #include "loop_state.h"
+
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
+
 #include "transform_step.h"
 #include "utils.h"
 
@@ -169,9 +171,9 @@ void State::DoReorderStep(const ReorderStep& step) {
   }
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages.Set(step->stage_id, Stage(
+  pstate->stages[step->stage_id] = Stage(
       stage->op, stage->op_type, std::move(iters), stage->compute_at,
-      stage->attrs));
+      stage->attrs);
 }
 
 // common part for DoSplitStep, DoFollowSplitStep, and DoFollowFusedSplitStep
@@ -235,9 +237,9 @@ std::vector<Iterator> State::DoSplitStepCommon(
                    stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages.Set(stage_id, Stage(
+  pstate->stages[stage_id] = Stage(
       stage->op, stage->op_type, std::move(new_iters), stage->compute_at,
-      stage->attrs));
+      stage->attrs);
 
   return outs;
 }
@@ -295,9 +297,9 @@ Iterator State::DoFuseStep(const FuseStep& step) {
                    stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages.Set(stage_id, Stage(
+  pstate->stages[stage_id] = Stage(
       stage->op, stage->op_type, std::move(new_iters), stage->compute_at,
-      stage->attrs));
+      stage->attrs);
 
   return new_it;
 }

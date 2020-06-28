@@ -37,16 +37,17 @@ from tvm.ir.transform import Sequential
 
 
 def get_func_name(func):
-    """Get name of a function
+    """Get name of a function.
 
     Parameters
     ----------
     func: Function
-        The function
+        The target function.
+
     Returns
     -------
     name: str
-        The name
+        The function name.
     """
     return func.func_name if hasattr(func, 'func_name') else func.__name__
 

@@ -33,10 +33,15 @@ class HardwareParams(Object):
     Parameters
     ----------
     num_cores : int
+        The number of device cores.
     vector_unit_bytes : int
+        The width of vector units in bytes.
     cache_line_bytes : int
+        The size of cache line in bytes.
     max_unroll_vec : int
+        The max length of an axis to be unrolled or vectorized.
     max_innermost_split_factor : int
+        The max split factor for the innermost tile.
     """
     def __init__(self, num_cores, vector_unit_bytes, cache_line_bytes,
                  max_unroll_vec, max_innermost_split_factor):
@@ -52,10 +57,15 @@ class SearchTask(Object):
     Parameters
     ----------
     dag : ComputeDAG
+        The ComputeDAG for target compute declaration.
     workload_key : str
+        The workload key for target compute declaration.
     target : tvm.target.Target
+        The target device of this search task.
     target_host : tvm.target.Target
+        The target host device of this search task.
     hardware_params : HardwareParams
+        Hardware parameters used in this search task.
     """
     def __init__(self, dag, workload_key, target, target_host=None,
                  hardware_params=None):
@@ -76,11 +86,6 @@ class EmptyPolicy(SearchPolicy):
     """
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.EmptyPolicy)
-
-
-@tvm._ffi.register_object("ansor.SearchCallback")
-class SearchCallback(Object):
-    """ Callback function before or after search process """
 
 
 @tvm._ffi.register_object("ansor.TuneOption")
@@ -108,8 +113,8 @@ class TuneOption(Object):
     pre_search_callbacks: List[SearchCallback]
       Callback functions called before the search process
       Candidates:
-        - ansor.PreloadMeasuredStates
-        - ansor.PreloadCustomSketchRule
+        - ansor.PreloadMeasuredStates(will be added later)
+        - ansor.PreloadCustomSketchRule(will be added later)
     """
     def __init__(self, n_trials=0, early_stopping=-1, num_measure_per_round=64,
                  verbose=1, builder='local', runner='local', measure_callbacks=None,
@@ -148,16 +153,21 @@ def auto_schedule(workload, target=None,
     Parameters
     ----------
     workload : Union[SearchTask, str]
+        The target search task or workload key.
     target : Target
+        The target device of this schedule search.
     target_host : Target = None
+        The target host device of this schedule search.
     search_policy : Union[SearchPolicy, str]
+        The search policy to be used for schedule search.
     hardware_params : HardwareParams
+        The hardware parameters of this schedule search.
     tune_option : TuneOption
+        Tuning and measurement options.
 
     Returns
     -------
-    sch : tvm.Schedule
-    tensors : List[Tensor]
+        A `te.schedule` and the target `te.Tensor`s to be used in `tvm.lower` or `tvm.build`
     """
     if isinstance(search_policy, str):
         if search_policy == 'default':

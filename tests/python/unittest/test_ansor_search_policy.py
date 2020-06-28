@@ -44,7 +44,7 @@ def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'
 
         search_policy = ansor.EmptyPolicy()
         # search_policy = ansor.SketchSearchPolicy(cost_model, params=params, seed=seed)
-        tune_option = ansor.TuneOption(n_trials=n_trials, runner=runner,
+        tune_option = ansor.TuneOption(n_trials=n_trials, runner=runner, verbose=0,
                                        measure_callbacks=[ansor.LogToFile(log_file)],
                                        pre_search_callbacks=pre_search_callbacks)
         sch, args = ansor.auto_schedule(task, search_policy=search_policy,

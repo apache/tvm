@@ -26,17 +26,18 @@ from . import _ffi_api
 @tvm._ffi.register_object("ansor.ComputeDAG")
 class ComputeDAG(Object):
     """
-    Computation declaration graph
+    Computation declaration graph.
 
     Parameters
     ----------
     tensors : List[Tensor]
+        `Tensor`s for a compute declaration.
     """
     def __init__(self, tensors):
         self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, tensors)
 
     def get_init_state(self):
-        """ Get init state of this ComputeDAG
+        """ Get init state of this ComputeDAG.
 
         Returns
         -------
@@ -50,13 +51,12 @@ class ComputeDAG(Object):
 
         Parameters
         ----------
-        state : StateObject
-        layout_rewrite_level : LayoutRewriteLevel
+        state : StateObject or State
+            The target state to be applied to TVM schedule.
 
         Returns
         -------
-        sch : Schedule
-        args : List[Tensor]
+            A `te.schedule` and the target `te.Tensor`s to be used in `tvm.lower` or `tvm.build`
         """
         state_obj = state if isinstance(state, StateObject) else state.state_object
         return _ffi_api.ComputeDAGApplyStepsFromState(self, state_obj)
@@ -67,7 +67,8 @@ class ComputeDAG(Object):
 
         Parameters
         ----------
-        state : StateObject
+        state : StateObject or State
+            The target state to be applied to TVM schedule.
 
         Returns
         -------
@@ -83,6 +84,7 @@ class ComputeDAG(Object):
         Parameters
         ----------
         state : StateObject
+            The target state to be applied to TVM schedule.
 
         Returns
         -------

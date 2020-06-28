@@ -20,6 +20,7 @@
 /*!
  * \file ansor/measure.h
  * \brief Distributed measurement infrastructure to measure the runtime costs of tensor programs.
+ * MeasureInput -> BuildeResult -> MeasureResult
  */
 
 #ifndef TVM_ANSOR_MEASURE_H_
@@ -29,6 +30,7 @@
 #include <unordered_map>
 #include <vector>
 #include <utility>
+
 #include "search_task.h"
 #include "loop_state.h"
 

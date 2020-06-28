@@ -19,24 +19,42 @@
 
 /*!
  * \file ansor/search_policy/search_policy.h
- * \brief The base class for search policy.
+ * \brief The base class for search policy, including the abstract defination of search policy and
+ * some other supporting structures.
+ * 
+ * \note Adding a new search policy.
+ * In design, there's no need for users to implement their own search policy, our formal search
+ * policy(will be brought later) should be enough to cover auto schedule generation for different
+ * ops/subgraphs, and in the meantime, a custom rule mechanism will be provided to enable
+ * user-defined template search. (which should play a same role as the current AutoTVM template)
+ * This guide is to help understand it better and incase some advanced users have special
+ * requirements.
+ * 1. The only funcion that must be implemented is Search(), the design principe for it is to be
+ * the entry of starting a schedule search and returns the best schedule get.
+ * 2. Imformations about the target ops/subgraphs can be acquired from SearchTask, this structure
+ * also contains HardwareParams which can be used to limit the search space. (For exp. limit the
+ * max vectorize size depending on the vector unit weight of a specific device)
+ * 3. SearchCallback provides more flexibility to do extra affairs during the search process.
+ * 4. ProgramMeasurer provides a simple but useful api to help check the performance of states get
+ * during the search process.
  */
 
 #ifndef TVM_ANSOR_SEARCH_POLICY_SEARCH_POLICY_H_
 #define TVM_ANSOR_SEARCH_POLICY_SEARCH_POLICY_H_
 
-#include "../search_task.h"
 #include <tvm/node/node.h>
+
 #include <unordered_set>
 #include <vector>
 #include <utility>
 #include <string>
-#include "../measure.h"
+
+#include "../search_task.h"
 
 namespace tvm {
 namespace ansor {
 
-class SearchPolicyNode;
+class ProgramMeasurer; class SearchPolicyNode;
 
 /*!
  * \brief Callback function to be called by the search process.

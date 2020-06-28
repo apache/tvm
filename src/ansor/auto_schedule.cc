@@ -23,7 +23,9 @@
  */
 
 #include "auto_schedule.h"
+
 #include <tvm/runtime/registry.h>
+
 #include <string>
 #include <utility>
 

@@ -73,6 +73,13 @@ class State:
     A state in the search process. It consists of the current loop structure
     and the history steps to reach this state.
 
+    Parameters
+    ----------
+    state_object : StateObject
+        The target StateObject, corresponding to C++ internal State object.
+    dag : ComputeDAG
+        The original target ComputeDAG of this State.
+
     Notes
     -----
     This is a wrapper class of StateObject to deal with copy-on-write property
@@ -192,6 +199,8 @@ class State:
         self.stages_cache = None
 
     def copy(self):
+        """ Do deep copy of this State.
+        """
         state = State(self.state_object, self.compute_dag)
         state.stage_id_map = self.stage_id_map.copy()
         return state

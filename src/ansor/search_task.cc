@@ -23,9 +23,11 @@
  */
 
 #include "search_task.h"
+
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
+
 #include <string>
 #include <utility>
 

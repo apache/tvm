@@ -20,9 +20,12 @@
 /*!
  * \file ansor/transform_step.h
  * \brief  Transformation steps. For each schedule primitive, there is a corresponding transform step.
+ * The implementation of each step consists of 2 parts:
+ * - transform_step.cc: How each step interact with TVM system
+ * - loop_state.cc:     How each step reflect on LoopState
  *
- * \note How to add a new transform step.
- * Take fuse for example:
+ * \note Adding a new transform step.
+ * Take fuse step for example:
  * 1. Define class `FuseStepNode`, `FuseStep` in `transform_steps.h`, and implement its construction
  *    function `FuseStep::FuseStep(...)` in `transform_steps.cc`
  * 2. Implement `FuseStepNode::ApplyToSchedule` and `FuseStepNode::PrintAsPythonAPI`.

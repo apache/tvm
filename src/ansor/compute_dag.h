@@ -20,6 +20,8 @@
 /*!
  * \file ansor/compute_dag.h
  * \brief Compute declaration graph and its related analysis tools.
+ * ComputeDAG is responsible for the interaction with the original TVM schedule system, to apply
+ * state to a runable TVM schedule or provide the schedule Python code.
  */
 
 #ifndef TVM_ANSOR_COMPUTE_DAG_H_
@@ -31,7 +33,6 @@
 #include <utility>
 #include <string>
 #include <vector>
-#include <unordered_set>
 #include <unordered_map>
 
 namespace tvm {
@@ -49,7 +50,7 @@ typedef std::unordered_map<tvm::te::Stage, std::vector<tir::IterVar>, ObjectHash
  */
 void UpdateStageAxis(const tvm::te::Stage& stage, StageToAxesMap *stage_to_axes);
 
-/*! \brief Computation declaration graph */
+/*! \brief Computation declaration graph. */
 class ComputeDAGNode : public Object {
  public:
   /*! \brief Input and output tensors. */

@@ -241,7 +241,7 @@ class Stage : public ObjectRef {
 class StateNode: public Object {
  public:
   /*! \brief Current stages and loop structures. */
-  Array<Stage> stages;
+  std::vector<Stage> stages;
   /*! \brief History transformation steps. */
   std::vector<Step> transform_steps;
   /*! \brief Indicate whether this state has unfilled tile sizes. */
@@ -254,7 +254,6 @@ class StateNode: public Object {
   ComputeDAG task_dag;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("stages", &stages);
     v->Visit("complete", &complete);
     v->Visit("task_dag", &task_dag);
   }

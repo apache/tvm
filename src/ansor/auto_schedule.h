@@ -19,7 +19,9 @@
 
 /*!
  * \file ansor/auto_schedule.h
- * \brief The user interface of the Ansor auto-scheduler.
+ * \brief The user interface of the Ansor auto-scheduler. This is the entry structure to get
+ * schedule search requirements from upper level (Python API), and returns a high performance
+ * schedule after search process.
  */
 
 #ifndef TVM_ANSOR_AUTO_SCHEDULE_H_
@@ -27,6 +29,7 @@
 
 #include <utility>
 #include <string>
+
 #include "measure.h"
 #include "search_policy/search_policy.h"
 
@@ -106,12 +109,12 @@ std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
 /*!
  * \brief Auto schedule search for a given compute declaration, by workload key.
  * \param workload_key The target workload key.
- * \param target A `tvm::target`.
- * \param target_host A `tvm::target` for host device.
+ * \param target The target device of this schedule search.
+ * \param target_host The target host device of this schedule search.
  * \param search_policy The search policy to be used for schedule search.
- * \param hardware_params Hardware parameters.
+ * \param hardware_params The hardware parameters of this schedule search.
  * \param tune_option Tuning and measurement options.
- * \return A `te::Schedule` and the target `te::Tensor` to be used in `tvm.lower` or `tvm.build`
+ * \return A `te::Schedule` and the target `te::Tensor` to be used in `tvm.lower` or `tvm.build`.
  */
 std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
     std::string workload_key, Target target, Target target_host,

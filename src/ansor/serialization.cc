@@ -22,15 +22,18 @@
  * \brief Json serialization format for dumping and loading tuning records.
  */
 
+#include "serialization.h"
+
 #include <dmlc/json.h>
 #include <tvm/runtime/registry.h>
+
 #include <fstream>
 #include <sstream>
 #include <vector>
 #include <string>
 #include <unordered_map>
 #include <utility>
-#include "serialization.h"
+
 #include "loop_state.h"
 #include "transform_step.h"
 #include "utils.h"
@@ -52,14 +55,14 @@ inline std::vector<int>& IntArrayToVector(std::vector<int>* out,
 }
 
 template <>
-struct Handler<::tvm::Array<::tvm::ansor::Stage> > {
+struct Handler<std::vector<::tvm::ansor::Stage> > {
   inline static void Write(dmlc::JSONWriter* writer,
-                           const ::tvm::Array<::tvm::ansor::Stage> & data) {
+                           const std::vector<::tvm::ansor::Stage> & data) {
     writer->BeginArray(false);
     writer->EndArray();
   }
   inline static void Read(dmlc::JSONReader* reader,
-                          ::tvm::Array<::tvm::ansor::Stage> * data) {
+                          std::vector<::tvm::ansor::Stage> * data) {
     bool s;
     reader->BeginArray();
     s = reader->NextArrayItem(); CHECK(!s);

@@ -34,6 +34,7 @@ class LogToFile(MeasureCallback):
     Parameters
     ----------
     filename : Str
+        File name for this callback to write log to.
     """
 
     def __init__(self, filename="ansor_tuning.json"):
@@ -48,6 +49,7 @@ class LogReader(Object):
     Parameters
     ----------
     filename : Str
+        File name for this reader to load log from.
     """
     def __init__(self, filename="ansor_tuning.json"):
         self.__init_handle_by_constructor__(_ffi_api.LogReader, filename)
@@ -66,20 +68,31 @@ class LogReader(Object):
 
 
 def load_from_file(filename: str):
-    """Load measurement records from a file"""
+    """
+    Load measurement records from a file.
+
+    Parameters
+    ----------
+    filename : Str
+        File name to load log from.
+    """
     return zip(*LogReader(filename).read_lines())
 
 
 def write_measure_records_to_file(filename, inputs, results):
-    """Write(append) measure records to file"""
+    """
+    Write(append) measure records to file
+
+    Parameters
+    ----------
+    filename : Str
+        File name to write log to.
+    inputs: List[MeasureInputs]
+        The target MeasureInputs to be written.
+    results: List[MeasureResults]
+        The target MeasureResults to be written.
+    """
     _ffi_api.WriteMeasureRecordsToFile(filename, inputs, results)
-
-
-def get_states_from_measure_inputs(inputs, task):
-    """Get states from measure inputs"""
-    state_objects = _ffi_api.GetStatesFromMeasureInputs(inputs, task)
-    return [State(s, task.compute_dag) for s in state_objects]
-
 
 def best_measure_pair_in_file(filename, workload_key=None, target=None):
     """ Return the best measurement pair form a log file
@@ -87,13 +100,15 @@ def best_measure_pair_in_file(filename, workload_key=None, target=None):
     Parameters
     ----------
     filename : Str
+        File name to load log from.
     workload_key : Str
+        The workload key of the target compute declaration.
     target : Str
+        The target device.
 
     Returns
     -------
-    inp : MeasureInput
-    res : MeasureResult
+        The best state from this log fine in form (MeasureInput, MeasureResult).
     """
     log_reader = LogReader(filename)
     best_cost = 1e30
