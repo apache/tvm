@@ -587,7 +587,7 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
       });
     } else if (name == "get_param_by_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        std::string key = args[0];
+        String key = args[0];
         CHECK_GT(this->output_.params.count(key), 0);
         *rv = this->output_.params[key];
       });
