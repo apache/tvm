@@ -1017,7 +1017,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LetNode* op) {
   if (it != let_binding_.end()) {
     CHECK(deep_equal_(it->second->value, op->value))
         << "Let cannot bind the same var to two different values";
-    return var_map_[op->var.get()];
   } else {
     let_binding_[op->var] = op;
   }
