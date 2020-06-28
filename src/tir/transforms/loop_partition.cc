@@ -96,7 +96,7 @@ class CandidateSelector final : public StmtExprVisitor {
 
   void VisitStmt_(const ForNode* op) final {
     // partition const loop when sets partition_const_loop_
-    if (!is_const(op->min) || !is_const(op->extent) || partition_const_loop_) {
+    if (!is_const_int(op->min) || !is_const_int(op->extent) || partition_const_loop_) {
       const VarNode* var = op->loop_var.get();
       record_.insert({var, false});
       StmtExprVisitor::VisitStmt_(op);
@@ -115,7 +115,7 @@ class CandidateSelector final : public StmtExprVisitor {
       CHECK(iv);
       Var var = iv->var;
       runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
-      if ((scope.rank == 0) && (!is_const(op->value) || partition_const_loop_)) {
+      if ((scope.rank == 0) && (!is_const_int(op->value) || partition_const_loop_)) {
         record_.insert({var.get(), false});
         StmtExprVisitor::VisitStmt_(op);
         if (record_.at(var.get()) && !no_split_) {

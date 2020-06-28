@@ -381,7 +381,7 @@ void CodeGenHybrid::VisitStmt_(const ForNode* op) {
 
 bool is_noop(const Stmt& stmt) {
   if (!stmt.defined()) return true;
-  if (auto eval = stmt.as<EvaluateNode>()) return is_const(eval->value);
+  if (auto eval = stmt.as<EvaluateNode>()) return is_const_int(eval->value);
   return false;
 }
 
@@ -409,7 +409,7 @@ void CodeGenHybrid::VisitStmt_(const SeqStmtNode* op) {
 }
 
 void CodeGenHybrid::VisitStmt_(const EvaluateNode* op) {
-  if (is_const(op->value)) return;
+  if (is_const_int(op->value)) return;
   std::string str = PrintExpr(op->value);
   if (!str.empty()) stream << str << "\n";
 }

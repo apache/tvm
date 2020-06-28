@@ -914,7 +914,7 @@ void CodeGenC::VisitStmt_(const SeqStmtNode* op) {
 }
 
 void CodeGenC::VisitStmt_(const EvaluateNode* op) {
-  if (is_const(op->value)) return;
+  if (is_const_int(op->value)) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call) {
     if (call->op.same_as(builtin::tvm_storage_sync())) {

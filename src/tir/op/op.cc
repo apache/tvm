@@ -395,7 +395,7 @@ PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value) 
 
 // likely
 PrimExpr likely(PrimExpr cond) {
-  if (is_const(cond)) return cond;
+  if (is_const_int(cond)) return cond;
   return tir::Call(cond.dtype(), tir::builtin::likely(), {cond});
 }
 

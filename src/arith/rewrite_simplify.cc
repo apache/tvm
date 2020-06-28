@@ -1519,7 +1519,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
   op = ret.as<CallNode>();
   if (op == nullptr) return ret;
 
-  if (op->op.same_as(tir::builtin::likely()) && is_const(op->args[0])) {
+  if (op->op.same_as(tir::builtin::likely()) && is_const_int(op->args[0])) {
     return op->args[0];
   } else if (op->op.same_as(tir::builtin::shift_right())) {
     if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
@@ -1559,9 +1559,17 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CastNode* op) {
   return cast(op->dtype, op->value);
 }
 
+bool RewriteSimplifier::Impl::CanInlineLet(const LetNode* op) {
+  // Only inline trivial bindings to avoid deep expression explosion
+  // when we need let to construct complicated expressions.
+  if (is_const_number(op->value)) return true;
+  if (op->value.as<VarNode>()) return true;
+  return false;
+}
+
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LetNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
-  if (!tir::HasSideEffect(value)) {
+  if (CanInlineLet(op)) {
     // it is fine to discard the let binding
     // because the value will always be inlined in the simplifier.
     analyzer_->Bind(op->var, value);
@@ -1587,8 +1595,8 @@ PrimExpr RewriteSimplifier::operator()(const PrimExpr& expr) {
   return res;
 }
 
-void RewriteSimplifier::Update(const Var& var, const PrimExpr& info, bool override) {
-  impl_->Update(var, info, override);
+void RewriteSimplifier::Update(const Var& var, const PrimExpr& info, bool allow_override) {
+  impl_->Update(var, info, allow_override);
 }
 
 std::function<void()> RewriteSimplifier::EnterConstraint(const PrimExpr& constraint) {

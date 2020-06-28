@@ -274,7 +274,8 @@ def test_prim_func():
 
     func = tvm.tir.PrimFunc(
         [x, y, b], stmt)
-
+    # make sure we can print
+    func.astext()
     assert func.buffer_map[func.params[2]].same_as(b)
 
     assert len(func.buffer_map) == 1
