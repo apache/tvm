@@ -44,7 +44,7 @@ def test_flatten_prefetch():
     _A= tvm.tir.decl_buffer(A.shape, A.dtype, name = 'A');
     i = te.size_var('i')
     j = te.size_var('j')
-    region = [tvm.ir.Range.make_by_min_extent(i[0], i[1]) for i in [(i, 2), (j, 8), (0, 4)]]
+    region = [tvm.ir.Range.from_min_extent(i[0], i[1]) for i in [(i, 2), (j, 8), (0, 4)]]
     stmt = tvm.tir.Prefetch(_A, region)
 
     func = tvm.te.schedule.SchedulePostProcToPrimFunc(

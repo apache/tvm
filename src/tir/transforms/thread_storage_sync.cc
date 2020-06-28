@@ -183,8 +183,8 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
         // Assumes no race between threads
         // Same index value means no conflicts
         // TODO(tqchen) more standard set based testing.
-        if (e.touched.is_single_point() && x.touched.is_single_point()) {
-          if (ExprDeepEqual()(e.touched.point_value(), x.touched.point_value())) continue;
+        if (e.touched.IsSinglePoint() && x.touched.IsSinglePoint()) {
+          if (ExprDeepEqual()(e.touched.PointValue(), x.touched.PointValue())) continue;
         }
         if (x.double_buffer_write && e.type == kRead && !loop_carry) continue;
         return true;

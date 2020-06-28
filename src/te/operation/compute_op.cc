@@ -230,7 +230,7 @@ void ComputeOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* an
               min_value = shape_i_min_value;
               max_value = shape_i_max_value;
             }
-            dom.data[i].push_back(IntSet::interval(min_value, max_value));
+            dom.data[i].push_back(IntSet::Interval(min_value, max_value));
           } else {
             dom.data[i].push_back(arg_intset);
           }
@@ -247,7 +247,7 @@ void BaseComputeOpNode::GatherBound(const Operation& self,
   CHECK_EQ(self.operator->(), this);
   const TensorDom& tdom = tensor_dom.at(self.output(0));
   for (size_t i = 0; i < this->axis.size(); ++i) {
-    Range r = arith::Union(tdom.data.at(i)).cover_range(this->axis[i]->dom);
+    Range r = arith::Union(tdom.data.at(i)).CoverRange(this->axis[i]->dom);
     CHECK(!out_dom_map->count(this->axis[i]));
     (*out_dom_map)[this->axis[i]] = r;
   }
