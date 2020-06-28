@@ -114,6 +114,7 @@ enum class Opcode {
   LoadConsti = 14U,
   Fatal = 15U,
   AllocStorage = 16U,
+  ShapeOf = 17U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -245,6 +246,9 @@ struct Instruction {
       /*! \brief The hint of the dtype. */
       DLDataType dtype_hint;
     } alloc_storage;
+    struct /* ShapeOf Operands */ {
+      RegName tensor;
+    } shape_of;
   };
 
   /*!
@@ -388,6 +392,14 @@ struct Instruction {
    */
   static Instruction AllocStorage(RegName size, Index alignment, DLDataType dtype_hint,
                                   RegName dst);
+
+  /*!
+   * \brief Get the shape of an input tensor.
+   * \param tensor The input tensor.
+   * \param dst The destination to store the shape of the given tensor.
+   * \return The shape of instruction.
+   */
+  static Instruction ShapeOf(RegName tensor, RegName dst);
 
   Instruction();
   Instruction(const Instruction& instr);
