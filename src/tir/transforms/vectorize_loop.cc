@@ -23,6 +23,7 @@
 // Loop vectorizer as in Halide pipeline.
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -91,15 +92,21 @@ class VecAllocAccess : public StmtExprMutator {
   int var_lanes_;
 };
 
-class Vectorizer : public StmtExprMutator {
+// We use ExprFunctor directly instead of StmtExprMutator
+// This is because the transformation can change the dtype of the Expr
+// The existing ExprMutator transformation rules may not be well defined.
+class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExpr&)> {
  public:
+  using ExprFunctor::VisitExpr;
+  using StmtMutator::operator();
+
   Vectorizer(Var var, int var_lanes) : var_(var), var_lanes_(var_lanes) {
     ramp_ = Ramp(0, 1, var_lanes);
   }
 
   Stmt VisitStmt(const Stmt& stmt) final {
     CHECK(!need_scalarize_);
-    Stmt ret = StmtExprMutator::VisitStmt(stmt);
+    Stmt ret = StmtMutator::VisitStmt(stmt);
     if (need_scalarize_) {
       need_scalarize_ = false;
       return Scalarize(stmt);
@@ -107,6 +114,8 @@ class Vectorizer : public StmtExprMutator {
       return ret;
     }
   }
+
+  PrimExpr VisitExpr(const PrimExpr& e) final { return ExprFunctor::VisitExpr(e); }
 
   PrimExpr VisitExpr_(const AddNode* op) final {
     return AddSubVec(op, [](PrimExpr a, PrimExpr b) { return a + b; });
@@ -151,6 +160,16 @@ class Vectorizer : public StmtExprMutator {
   PrimExpr VisitExpr_(const GENode* op) final { return BinaryVec<GE>(op); }
   PrimExpr VisitExpr_(const AndNode* op) final { return BinaryVec<And>(op); }
   PrimExpr VisitExpr_(const OrNode* op) final { return BinaryVec<Or>(op); }
+
+  PrimExpr VisitExpr_(const NotNode* op) final {
+    PrimExpr a = this->VisitExpr(op->a);
+    if (a.same_as(op->a)) {
+      return GetRef<PrimExpr>(op);
+    } else {
+      return !(a);
+    }
+  }
+
   PrimExpr VisitExpr_(const RampNode* op) final {
     PrimExpr base = this->VisitExpr(op->base);
     PrimExpr stride = this->VisitExpr(op->stride);
@@ -170,6 +189,20 @@ class Vectorizer : public StmtExprMutator {
     }
     return Shuffle::Concat(elems);
   }
+
+  PrimExpr VisitExpr_(const BroadcastNode* op) final {
+    PrimExpr value = this->VisitExpr(op->value);
+    if (value.dtype().lanes() != 1) {
+      need_scalarize_ = true;
+      return GetRef<PrimExpr>(op);
+    }
+    if (value.same_as(op->value)) {
+      return GetRef<PrimExpr>(op);
+    } else {
+      return Broadcast(op->value, op->lanes);
+    }
+  }
+
   PrimExpr VisitExpr_(const SelectNode* op) final {
     PrimExpr cond = this->VisitExpr(op->condition);
     PrimExpr t = this->VisitExpr(op->true_value);
@@ -189,14 +222,25 @@ class Vectorizer : public StmtExprMutator {
       return Cast(op->dtype.with_lanes(value.dtype().lanes()), value);
     }
   }
+
+  PrimExpr VisitExpr_(const FloatImmNode* op) final { return GetRef<PrimExpr>(op); }
+
+  PrimExpr VisitExpr_(const IntImmNode* op) final { return GetRef<PrimExpr>(op); }
+
+  PrimExpr VisitExpr_(const StringImmNode* op) final { return GetRef<PrimExpr>(op); }
+
   // Variable
-  PrimExpr VisitExpr_(const VarNode* v) final {
-    if (v == var_.get()) {
+  PrimExpr VisitExpr_(const VarNode* op) final {
+    Var var = GetRef<Var>(op);
+
+    if (var.same_as(var_)) {
       return ramp_;
-    } else if (lets_.count(v)) {
-      return lets_[v];
+    }
+    auto it = let_binding_.find(var);
+    if (it != let_binding_.end()) {
+      return it->second;
     } else {
-      return GetRef<PrimExpr>(v);
+      return std::move(var);
     }
   }
   // IfThenElse expr
@@ -267,12 +311,23 @@ class Vectorizer : public StmtExprMutator {
   // Let
   PrimExpr VisitExpr_(const LetNode* op) final {
     PrimExpr value = this->VisitExpr(op->value);
-    CHECK(!lets_.count(op->var.get())) << "not SSA";
+    // Weaker SSA condition
+    // A single var can be binded in multiple lets
+    // but they have to bind to the same value.
+    // This is used to allow cases when we reuse a single let
+    // expression to cosntruct a nested expr.
+    // (let x = 1 in x + 1) * (let x = 1 in x + 1)
+    auto it = let_binding_.find(op->var);
+    if (it != let_binding_.end()) {
+      CHECK(deep_equal_(it->second, value))
+          << "Let cannot bind the same var to two different values";
+    }
     if (value.dtype().lanes() != op->value.dtype().lanes()) {
-      Var v(op->var->name_hint, value.dtype());
-      lets_[op->var.get()] = v;
-      return Let(v, value, this->VisitExpr(op->body));
+      Var new_var(op->var->name_hint, value.dtype());
+      let_binding_[op->var] = new_var;
+      return Let(new_var, value, this->VisitExpr(op->body));
     } else {
+      let_binding_[op->var] = op->var;
       PrimExpr body = this->VisitExpr(op->body);
       if (value.same_as(op->value) && body.same_as(op->body)) {
         return GetRef<PrimExpr>(op);
@@ -280,10 +335,6 @@ class Vectorizer : public StmtExprMutator {
         return Let(op->var, value, body);
       }
     }
-  }
-  Stmt VisitStmt_(const ProducerStoreNode* op) final {
-    LOG(FATAL) << "ProducerProvide is cannot appear in a TIR PrimFunc";
-    return Stmt();
   }
   // Store
   Stmt VisitStmt_(const StoreNode* op) final {
@@ -338,8 +389,23 @@ class Vectorizer : public StmtExprMutator {
   }
   // LetStmt
   Stmt VisitStmt_(const LetStmtNode* op) final {
-    LOG(WARNING) << "Cannot vectorize with LetStmt, remove it with Simplify Before Vectorize";
-    return Scalarize(GetRef<Stmt>(op));
+    PrimExpr value = this->VisitExpr(op->value);
+    CHECK(!let_binding_.count(op->var)) << "SSA violation, a single var is binded twice";
+    let_binding_[op->var] = value;
+
+    if (value.dtype().lanes() != op->value.dtype().lanes()) {
+      Var new_var(op->var->name_hint, value.dtype());
+      let_binding_[op->var] = new_var;
+      return LetStmt(new_var, value, this->VisitStmt(op->body));
+    } else {
+      let_binding_[op->var] = op->var;
+      Stmt body = this->VisitStmt(op->body);
+      if (value.same_as(op->value) && body.same_as(op->body)) {
+        return GetRef<Stmt>(op);
+      } else {
+        return LetStmt(op->var, value, body);
+      }
+    }
   }
   // Allocate
   Stmt VisitStmt_(const AllocateNode* op) final {
@@ -364,6 +430,7 @@ class Vectorizer : public StmtExprMutator {
     body = this->VisitStmt(body);
     return Allocate(op->buffer_var, op->dtype, extents, condition, body);
   }
+
   // scalarize the statment
   Stmt Scalarize(Stmt stmt) {
     Var idx(var_->name_hint + ".s", var_->dtype);
@@ -371,10 +438,17 @@ class Vectorizer : public StmtExprMutator {
     stmt = Substitute(stmt, values);
     return For(idx, 0, var_lanes_, ForType::Serial, DeviceAPI::None, stmt);
   }
+  // ProducerStore
+  Stmt VisitStmt_(const ProducerStoreNode* op) final {
+    LOG(FATAL) << "ProducerProvide is cannot appear in a TIR PrimFunc";
+    return Stmt();
+  }
 
  private:
   // analyzer
   arith::Analyzer analyzer_;
+  // deep equal
+  ExprDeepEqual deep_equal_;
   // variable to be replaced
   Var var_;
   // the lanes.
@@ -383,8 +457,8 @@ class Vectorizer : public StmtExprMutator {
   PrimExpr ramp_;
   // flag to mark requirment of scalarization.
   bool need_scalarize_{false};
-  // The lets
-  std::unordered_map<const VarNode*, PrimExpr> lets_;
+  // Let binding
+  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> let_binding_;
   // vectorizable property
   OpAttrMap<TVectorizable> op_vectorizable_ = Op::GetAttrMap<TVectorizable>("TVectorizable");
 

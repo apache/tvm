@@ -89,8 +89,8 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
  public:
   explicit Impl(Analyzer* parent) : parent_(parent) {}
 
-  void Update(const Var& var, const ModularSet& info, bool override) {
-    if (!override) {
+  void Update(const Var& var, const ModularSet& info, bool allow_override) {
+    if (!allow_override) {
       auto it = var_map_.find(var);
       if (it != var_map_.end()) {
         CHECK(it->second == info) << "Trying to update var \'" << var << "\'"
@@ -117,6 +117,19 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
 
   // Override visitor behaviors
   Entry VisitExprDefault_(const Object* op) final { return Everything(); }
+
+  Entry VisitExpr_(const LetNode* op) final {
+    auto it = var_map_.find(op->var);
+    // if the var has not been binded, update the info.
+    if (it == var_map_.end()) {
+      var_map_[op->var] = this->VisitExpr(op->value);
+      Entry ret = VisitExpr(op->body);
+      var_map_.erase(op->var);
+      return ret;
+    } else {
+      return VisitExpr(op->body);
+    }
+  }
 
   Entry VisitExpr_(const CastNode* op) final { return VisitExpr(op->value); }
 
@@ -315,8 +328,8 @@ ModularSet ModularSetAnalyzer::operator()(const PrimExpr& expr) {
   return ModularSet(ret.coeff, ret.base);
 }
 
-void ModularSetAnalyzer::Update(const Var& var, const ModularSet& info, bool override) {
-  impl_->Update(var, info, override);
+void ModularSetAnalyzer::Update(const Var& var, const ModularSet& info, bool allow_override) {
+  impl_->Update(var, info, allow_override);
 }
 
 std::function<void()> ModularSetAnalyzer::EnterConstraint(const PrimExpr& constraint) {
