@@ -106,11 +106,10 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         }
       }
     } else {
-      if (dtype.is_float()){
+      if (dtype.is_float()) {
         // floor(a / b)
         return VisitExpr_(tvm::floor(op->a / op->b).as<CallNode>());
-      }
-      else if (dtype.is_int() && dtype.bits() <= 32) {
+      } else if (dtype.is_int() && dtype.bits() <= 32) {
         /* NOTE:
         This must be restricted to int32 or less since floats can losslessly represent integers
         only if the number of bits in the mantissa exceeds the number of bits in the integer.
@@ -121,18 +120,18 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         // floor(a / b)
         auto fdtype = DataType::Float(dtype.bits() * 2, dtype.lanes());
         auto div = tir::Div(tir::Cast(fdtype, op->a), tir::Cast(fdtype, op->b));
-        auto f = tvm::floor(div);
-        return tir::Cast(dtype, VisitExpr_(f.as<CallNode>()));
+        return tir::Cast(dtype, VisitExpr_(tvm::floor(div).as<CallNode>()));
       } else {
         // uncommon case
         DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divisor";
-        auto rmod = tir::Var("rmod",dtype);
-        auto rdiv = tir::Var("rdiv",dtype);
+        auto rmod = tir::Var("rmod", dtype);
+        auto rdiv = tir::Var("rdiv", dtype);
         // b >= 0 => (rmod >=0 ? rdiv : rdiv - 1)
         // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
-        PrimExpr floordiv = Let(rdiv, truncdiv(op->a, op->b),
-          tir::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv, rdiv - make_const(dtype, 1));
-        return Let(rmod, truncmod(op->a, op->b), floordiv);
+        PrimExpr let_rdiv = tir::Let(rdiv, truncdiv(op->a, op->b),
+          tir::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
+            rdiv, rdiv - make_const(dtype, 1)));
+        return Let(rmod, truncmod(op->a, op->b), let_rdiv);
       }
     }
   }
@@ -192,7 +191,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       } else {
         // uncommon case
         DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divsor and divident";
-        auto rmod = tir::Var("rmod",dtype);
+        auto rmod = tir::Var("rmod", dtype);
         // b > 0 && rmod >= 0 -> rmod
         // b > 0 && rmod < 0  -> rmod + b
         // b < 0 && rmod < 0 -> rmod
