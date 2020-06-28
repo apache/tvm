@@ -129,6 +129,19 @@ def vmobj_to_list(o):
     else:
         raise RuntimeError("Unknown object type: %s" % type(o))
 
+
+def _quantize_keras_model(keras_model, representative_data_gen):
+    """Utility function to quantize a Keras model using TFLite converter."""
+    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
+    converter.optimizations = [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
+    converter.representative_dataset = representative_data_gen
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    converter.inference_input_type = tf.uint8
+    converter.inference_output_type = tf.uint8
+    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
+    return converter.convert()
+
+
 def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target='llvm',
                   out_names=None, mode='graph_runtime'):
     """ Generic function to compile on relay and execute on tvm """
@@ -756,21 +769,12 @@ def _test_tflite2_quantized_convolution(input_shape, kernel_shape,
     keras_model = tf.keras.models.Model(data_in, conv)
     keras_model.layers[1].set_weights([kernel])
 
-    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
-
     # To create quantized values with dynamic range of activations, needs representative dataset
     def representative_data_gen():
         for i in range(1):
             yield [data]
 
-    converter.optimizations = [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
-    converter.representative_dataset = representative_data_gen
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-    converter.inference_input_type = tf.uint8
-    converter.inference_output_type = tf.uint8
-
-    # Convert the model to TensorFlow Lite format
-    tflite_model_quant = converter.convert()
+    tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen)
 
     tflite_output = run_tflite_graph(tflite_model_quant, data)
     tvm_output = run_tvm_graph(tflite_model_quant, data, data_in.name.replace(":0",""))
@@ -796,21 +800,14 @@ def _test_tflite2_quantized_depthwise_convolution(input_shape, kernel_shape,
     keras_model = tf.keras.models.Model(data_in, conv)
     keras_model.layers[1].set_weights([kernel])
 
-    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
 
     # To create quantized values with dynamic range of activations, needs representative dataset
     def representative_data_gen():
         for i in range(1):
             yield [data]
 
-    converter.optimizations = [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
-    converter.representative_dataset = representative_data_gen
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-    converter.inference_input_type = tf.uint8
-    converter.inference_output_type = tf.uint8
+    tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen)
 
-    # Convert the model to TensorFlow Lite format
-    tflite_model_quant = converter.convert()
     tflite_output = run_tflite_graph(tflite_model_quant, data)
     tvm_output = run_tvm_graph(tflite_model_quant, data, data_in.name.replace(":0",""))
     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
@@ -1825,22 +1822,12 @@ def _test_quantize_dequantize(data):
     concat = tf.keras.layers.Concatenate(axis=0)([relu, add])
     keras_model = tf.keras.models.Model(inputs=data_in, outputs=concat)
 
-    # Load the model
-    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
-
     # To create quantized values with dynamic range of activations, needs representative dataset
     def representative_data_gen():
-        for i in range(100):
+        for i in range(1):
             yield [data]
 
-    converter.optimizations = [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
-    converter.representative_dataset = representative_data_gen
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-    converter.inference_input_type = tf.uint8
-    converter.inference_output_type = tf.uint8
-
-    # Convert the model to TensorFlow Lite format
-    tflite_model_quant = converter.convert()
+    tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen)
 
     tflite_output = run_tflite_graph(tflite_model_quant, data)
     tvm_output = run_tvm_graph(tflite_model_quant, data, 'input_1')
@@ -2089,22 +2076,13 @@ def _test_relu(data, quantized=False):
         relu =  tf.keras.layers.ReLU()(data_in)
         keras_model = tf.keras.models.Model(inputs=data_in, outputs=relu)
 
-        # Load the model
-        converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
-
         # To create quantized values with dynamic range of activations, needs representative dataset
         def representative_data_gen():
-            for i in range(100):
+            for i in range(1):
                 yield [data]
 
-        converter.optimizations = [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
-        converter.representative_dataset = representative_data_gen
-        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-        converter.inference_input_type = tf.uint8
-        converter.inference_output_type = tf.uint8
+        tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen)
 
-        # Convert the model to TensorFlow Lite format
-        tflite_model_quant = converter.convert()
         tflite_output = run_tflite_graph(tflite_model_quant, data)
         tvm_output = run_tvm_graph(tflite_model_quant, data, 'input_1')
         tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
@@ -2635,33 +2613,15 @@ def test_forward_qnn_mobilenet_v3_net():
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 
-def _quantize_tf_hub_keras_model(url, height, width):
-    """Utility function to quantize a Keras model using TFLite converter."""
-    keras_model = tf.keras.Sequential([hub.KerasLayer(url, output_shape=[1001])])
-    data = pre_processed_image(height, width)
-
-    # Set the input shapes of the keras model
-    keras_model._set_inputs(data)
-
-    # Get the converter
-    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
-
-    # To create quantized values with dynamic range of activations, needs representative dataset
-    def representative_data_gen():
-        for i in range(1):
-            yield [data]
-
-    converter.optimizations = [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
-    converter.representative_dataset = representative_data_gen
-    return converter.convert()
-
-
 def test_forward_tflite2_qnn_resnet50():
     """Test the Quantized TFLite version 2.1.0 Resnet50 model."""
     if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
-        # Quantize the model
-        url = "https://tfhub.dev/tensorflow/resnet_50/classification/1"
-        tflite_model_buf = _quantize_tf_hub_keras_model(url, 224, 224)
+        tflite_model_file = download_testdata(
+            "https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/models/Quantized/resnet_50_quantized.tflite",
+            "resnet_50_quantized.tflite")
+        with open(tflite_model_file, "rb") as f:
+            tflite_model_buf = f.read()
+
         data = pre_processed_image(224, 224)
 
         tflite_output = run_tflite_graph(tflite_model_buf, data)
@@ -2676,43 +2636,12 @@ def test_forward_tflite2_qnn_resnet50():
 def test_forward_tflite2_qnn_inception_v1():
     """Test the Quantized TFLite version 2.1.0 Inception V1 model."""
     if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
-        # Quantize the model
-        url = "https://tfhub.dev/google/imagenet/inception_v1/classification/4"
-        tflite_model_buf = _quantize_tf_hub_keras_model(url, 224, 224)
-        data = pre_processed_image(224, 224)
+        tflite_model_file = download_testdata(
+            "https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/models/Quantized/inception_v1_quantized.tflite",
+            "inception_v1_quantized.tflite")
+        with open(tflite_model_file, "rb") as f:
+            tflite_model_buf = f.read()
 
-        tflite_output = run_tflite_graph(tflite_model_buf, data)
-        tflite_predictions = np.squeeze(tflite_output)
-        tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
-        tvm_output = run_tvm_graph(tflite_model_buf, np.array(data), 'input_1')
-        tvm_predictions = np.squeeze(tvm_output)
-        tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
-        tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
-
-
-def test_forward_tflite2_qnn_inception_v3():
-    """Test the Quantized TFLite version 2.1.0 Inception V3 model."""
-    if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
-        # Quantize the model
-        url = "https://tfhub.dev/google/imagenet/inception_v3/classification/4"
-        tflite_model_buf = _quantize_tf_hub_keras_model(url, 299, 299)
-        data = pre_processed_image(299, 299)
-
-        tflite_output = run_tflite_graph(tflite_model_buf, data)
-        tflite_predictions = np.squeeze(tflite_output)
-        tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
-        tvm_output = run_tvm_graph(tflite_model_buf, np.array(data), 'input_1')
-        tvm_predictions = np.squeeze(tvm_output)
-        tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
-        tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
-
-
-def test_forward_tflite2_qnn_mobilenet_v1():
-    """Test the Quantized TFLite version 2.1.0 Mobilenet V1 model."""
-    if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
-        # Quantize the model
-        url = "https://tfhub.dev/google/imagenet/mobilenet_v1_100_224/classification/4"
-        tflite_model_buf = _quantize_tf_hub_keras_model(url, 224, 224)
         data = pre_processed_image(224, 224)
 
         tflite_output = run_tflite_graph(tflite_model_buf, data)
@@ -2727,9 +2656,12 @@ def test_forward_tflite2_qnn_mobilenet_v1():
 def test_forward_tflite2_qnn_mobilenet_v2():
     """Test the Quantized TFLite version 2.1.0 Mobilenet V2 model."""
     if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
-        # Quantize the model
-        url = "https://tfhub.dev/google/imagenet/mobilenet_v2_100_224/classification/4"
-        tflite_model_buf = _quantize_tf_hub_keras_model(url, 224, 224)
+        tflite_model_file = download_testdata(
+            "https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/models/Quantized/mobilenet_v2_quantized.tflite",
+            "mobilenet_v2_quantized.tflite")
+        with open(tflite_model_file, "rb") as f:
+            tflite_model_buf = f.read()
+
         data = pre_processed_image(224, 224)
 
         tflite_output = run_tflite_graph(tflite_model_buf, data)
@@ -2963,6 +2895,4 @@ if __name__ == '__main__':
     # TFLite 2.1.0 quantized tests
     test_forward_tflite2_qnn_resnet50()
     test_forward_tflite2_qnn_inception_v1()
-    test_forward_tflite2_qnn_inception_v3()
-    test_forward_tflite2_qnn_mobilenet_v1()
     test_forward_tflite2_qnn_mobilenet_v2()
