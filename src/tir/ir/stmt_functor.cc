@@ -131,7 +131,7 @@ class StmtMutator::Internal {
       if (min.same_as(r->min) && extent.same_as(r->extent)) {
         return r;
       } else {
-        return Range::make_by_min_extent(min, extent);
+        return Range::FromMinExtent(min, extent);
       }
     };
     return MutateArray(arr, fmutate, self->allow_copy_on_write_);
