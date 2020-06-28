@@ -98,6 +98,13 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
    */
   CompareResult TryCompare(const PrimExpr& x, int64_t val);
 
+  /*!
+   * \brief Internal function to check whether or not to inline let.
+   * \param op The let expr.
+   * \return The inline decision.
+   */
+  bool CanInlineLet(const LetNode* op);
+
  private:
   // Whether x >= val
   bool CanProveGreaterEqual(const PrimExpr& x, int64_t val) {
