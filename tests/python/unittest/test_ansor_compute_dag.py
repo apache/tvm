@@ -37,7 +37,6 @@ def test_infer_bound():
 
 def test_estimate_flop():
     dag, s = get_tiled_matmul()
-
     assert abs(dag.flop_ct - 2 * 512 ** 3) < 0.5
 
 

@@ -35,6 +35,7 @@ import tvm._ffi
 from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
 from tvm.ir import transform
+from tvm.contrib import tar
 
 from . import _ffi_api
 from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout

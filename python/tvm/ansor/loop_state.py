@@ -188,25 +188,6 @@ class State:
         for index, stage in enumerate(self.stages_cache):
             self.stage_id_map[stage.op] = index
 
-    def _insert_new_stage(self, new_stage_id):
-        new_stage_id = int(new_stage_id)
-        self.stages_cache = _ffi_api.StateGetStages(self.state_object)
-        added_op = self.stages_cache[new_stage_id].op
-
-        # Add a new stage will change all ops. But we still want to use the old ops to index stages,
-        # So we keep updating them and do not remove the old ops.
-
-        # Update stage_id_map for old ops, so we can still use the old ops to index stages.
-        for key, value in self.stage_id_map.items():
-            if value >= new_stage_id:
-                self.stage_id_map[key] = value + 1
-        self.stage_id_map[added_op] = new_stage_id
-
-        # Update stage_id_map for new ops
-        self._update_stage_id_map()
-
-        return added_op
-
     def _clear_cache(self):
         self.stages_cache = None
 

@@ -218,15 +218,13 @@ void ProgramMeasurerNode::Measure(const SearchTask& task,
       }
 
       ct++;
-      if (verbose >= 1) {
-        std::cout << std::fixed << std::setprecision(2);
-        std::cout << "===============================================\n";
-        std::cout << "No: " << ct << "\tGFLOPS: " << flops / 1e9 << " / "
-                  << best_flops[workload_key] / 1e9
-                  << "\tresults: " << result_batch[j] << "\n";
-        std::cout << "===============================================\n";
-        std::cout << input_batch[j]->state << "\n";
-      }
+      StdCout(verbose) << std::fixed << std::setprecision(2)
+                       << "===============================================\n"
+                       << "No: " << ct << "\tGFLOPS: " << flops / 1e9 << " / "
+                       << best_flops[workload_key] / 1e9
+                       << "\tresults: " << result_batch[j] << "\n"
+                       << "===============================================\n"
+                       << input_batch[j]->state << "\n";
     }
 
     // Call callback functions
@@ -343,14 +341,6 @@ TVM_REGISTER_GLOBAL("ansor.LocalRunner")
 .set_body_typed([](int timeout, int number, int repeat,
                    int min_repeat_ms, double cooldown_interval) {
   return LocalRunner(timeout, number, repeat, min_repeat_ms, cooldown_interval);
-});
-
-TVM_REGISTER_GLOBAL("ansor.ProgramMeasurer")
-.set_body_typed([](Builder builder, Runner runner,
-                   Array<MeasureCallback> callbacks, int verbose,
-                   int max_continous_error = -1) {
-  return ProgramMeasurer(builder, runner, callbacks, verbose,
-                         max_continous_error);
 });
 
 }  // namespace ansor

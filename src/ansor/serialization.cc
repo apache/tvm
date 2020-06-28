@@ -385,33 +385,6 @@ std::pair<Array<MeasureInput>, Array<MeasureResult> > LogReaderNode::ReadLines(
   return std::make_pair(inputs, results);
 }
 
-std::pair<MeasureInput, MeasureResult> BestMeasurePairInFile(
-    const std::string& filename, const std::string& workload_key,
-    const Target& target) {
-  std::pair<MeasureInput, MeasureResult> best_pair;
-  double best_cost = 1e30;
-
-  auto inp = make_object<MeasureInputNode>();
-  auto res = make_object<MeasureResultNode>();
-  LogReader reader = LogReader(filename);
-
-  while (reader->ReadNext(inp.get(), res.get())) {
-    if (res->error_no != kNoError || inp->task->workload_key != workload_key
-       || inp->task->target->target_name != target->target_name) {
-      continue;
-    }
-
-    double cost = FloatArrayMean(res->costs);
-
-    if (cost < best_cost) {
-      best_cost = cost;
-      best_pair = std::make_pair(inp->copy(), res->copy());
-    }
-  }
-
-  return best_pair;
-}
-
 TVM_REGISTER_GLOBAL("ansor.LogToFile").set_body_typed([](const std::string& filename) {
   return LogToFile(filename);
 });

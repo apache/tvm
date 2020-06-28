@@ -105,11 +105,6 @@ void ReadMeasureRecord(const std::string& str,
                        MeasureResultNode* res,
                        std::string* log_version);
 
-/*! \brief Return the best measure pair with lowest cost in a file */
-std::pair<MeasureInput, MeasureResult> BestMeasurePairInFile(const std::string& filename,
-                                                             const std::string& workload_key,
-                                                             const Target& target);
-
 }  // namespace ansor
 }  // namespace tvm
 

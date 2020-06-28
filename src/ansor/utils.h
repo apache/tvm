@@ -125,98 +125,6 @@ inline void DeleteItem(std::vector<T>* array, const T& to_delete) {
   }
 }
 
-/*! \brief Compute the product of all elements in a vector */
-inline int64_t ElementProduct(const std::vector<int>& array) {
-  int64_t ret = 1;
-  for (auto x : array) {
-    ret *= x;
-  }
-  return ret;
-}
-
-/*! \brief Get the maximum element in a vector */
-template <typename T>
-T MaximumElement(const std::vector<T>& array) {
-  CHECK(!array.empty());
-  const T* pmax = &array[0];
-  for (size_t i = 1; i < array.size(); ++i) {
-    if (array[i] > *pmax) {
-      pmax = &array[i];
-    }
-  }
-  return *pmax;
-}
-
-/*! \brief Move elements from multiple vectors to one vector */
-template<typename T>
-std::vector<T>& ConcatenateMove(std::vector<T>* out, std::vector<T>* in) {
-  out->insert(out->end(), std::make_move_iterator(in->begin()),
-              std::make_move_iterator(in->end()));
-  return *out;
-}
-
-/*! \brief Move elements from multiple vectors to one vector */
-template<typename T, typename... Args>
-std::vector<T>& ConcatenateMove(std::vector<T>* out, std::vector<T>* first, Args... args) {
-  ConcatenateMove(out, first);
-  ConcatenateMove(out, args...);
-  return *out;
-}
-
-/*! \brief Get a random permutation of integers [0, n-1] */
-template <typename G>
-void RandomPermutation(int n, std::vector<int>* out, G* gen) {
-  out->assign(n, 0);
-  std::iota(out->begin(), out->end(), 0);
-  std::shuffle(out->begin(), out->end(), *gen);
-}
-
-/*! \brief Random sample without replacement */
-template <typename T, typename G>
-void RandomSample(std::vector<T>* in_data, size_t out_size, G* gen) {
-  // Note: This function is inefficient in the cases when out_size << in_data.size()
-  out_size = std::min(in_data->size(), out_size);
-
-  if (in_data->size() <= out_size) {  // return all
-    return;
-  }
-  std::vector<int> indices;
-  RandomPermutation(in_data->size(), &indices, gen);
-
-  std::vector<T> tmp_data;
-  tmp_data.reserve(out_size);
-  for (size_t i = 0; i < out_size; ++i) {
-    tmp_data.push_back(std::move((*in_data)[indices[i]]));
-  }
-
-  *in_data = std::move(tmp_data);
-}
-
-/*! \brief Argsort. Order: largest to smallest */
-template <typename T>
-inline void Argsort(const std::vector<T>& scores, std::vector<int>* index) {
-  index->clear(); index->reserve(scores.size());
-  for (size_t i = 0; i < scores.size(); ++i) {
-    index->push_back(i);
-  }
-  auto cmp = [&scores](int l, int r) {
-    return scores[l] > scores[r];
-  };
-  std::sort(index->begin(), index->end(), cmp);
-}
-
-/*! \brief Return whether a string ends with another substring */
-inline bool StrEndsWith(const std::string& a, const std::string& b) {
-  if (b.size() > a.size()) return false;
-  return std::equal(a.begin() + a.size() - b.size(), a.end(), b.begin());
-}
-
-/*! \brief Return whether a string starts with another substring */
-inline bool StrStartsWith(const std::string& a, const std::string& b) {
-  if (b.size() > a.size()) return false;
-  return std::equal(a.begin(), a.begin() + b.size(), b.begin());
-}
-
 /*! \brief Replace a sub-string to another sub-string in a string */
 inline void StrReplace(std::string* base, const std::string& from, const std::string& to) {
   auto pos = base->find(from);
@@ -397,29 +305,6 @@ class ThreadPool {
   std::mutex finish_mutex_;
   std::atomic<int> finish_ct_;
   std::condition_variable finish_signal_;
-};
-
-/*!
- * \brief Enumerate all possible factorization schemes for splitting an axes.
- * \note This class will memorize the results for reuse.
- */
-class SplitFactorizationMemo {
- public:
-  using QueryKey = std::tuple<int, int, int>;
-
-  const std::vector<std::vector<PrimExpr> >& GetFactorizationSchemes(
-      int extent, int n_lengths, int max_innermost_factor);
-  const std::vector<int>& GetFactors(int n);
-
- private:
-  void DfsEnumerate(int now, int remaining_lenght, int max_innermost_factor);
-
-  std::unordered_map<QueryKey, std::vector<std::vector<PrimExpr> > > memory_;
-
-  int n_lengths_;
-  std::vector<PrimExpr> tmp_stack_;
-  std::vector<std::vector<PrimExpr> >* results_;
-  std::unordered_map<int, std::vector<int>> factor_memory_;
 };
 
 }  // namespace ansor
