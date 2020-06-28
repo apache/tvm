@@ -163,46 +163,6 @@ class Stage : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StageNode);
 };
 
-/*! \brief stores the compute_at relation between stages
- * This stores a bi-directional mapping from stages and iter:
- * 1. Stage to its attached iterator 2. Iterator to the stage attached to it 
- *
- * You can use AttachMapNode::stage_to_attach_iter and AttachMapNode::iter_to_attached_stages
- * to query the relations */
-class AttachMapNode: public Object {
- public:
-  using StageKey = int;
-  using IterKey = std::pair<int, int>;  // stage_id and iter_id
-
-  std::unordered_map<StageKey, IterKey> stage_to_attach_iter;
-  std::unordered_map<IterKey, std::vector<StageKey>> iter_to_attached_stages;
-
-  static constexpr const char* _type_key = "ansor.AttachMap";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttachMapNode, Object);
-};
-
-/*!
- * \brief Managed reference to AttachMapNode.
- * \sa AttachMapNode
- */
-class AttachMap : public ObjectRef {
- public:
-  using StageKey = int;
-  using IterKey = std::pair<int, int>;  // stage_id and iter_id
-
-  void SetComputeAtIter(int stage_id, int target_stage_id, int target_iter_id);
-  void DeleteStage(int stage_id);
-  void ReplaceIters(const std::vector<IterKey>& old_iters,
-                    const std::vector<IterKey>& new_iters);
-  AttachMap ApplyStageIdOfffset(int start_id, int offset) const;
-
-  TVM_DEFINE_OBJECT_REF_METHODS(AttachMap, ObjectRef, AttachMapNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(AttachMapNode);
-
- private:
-  static void DeleteStageEntry(AttachMapNode* pnode, int stage_id);
-};
-
 /*! \brief The base class for a transformation step */
 class StepNode: public Object {
  public:
@@ -229,7 +189,6 @@ class StateNode: public Object {
   std::vector<Stage> stages;           // Current stages and loop structures
   std::vector<Step> transform_steps;   // History transformation steps
   bool complete;          // Indicate whether this state has unfilled tile sizes
-  AttachMap attach_map;   // stores the compute_at relation between stages
   ObjectRef aux_info;     // Used to store any auxiliary info about this state
   ComputeDAG task_dag;    // The up-to-date ComputeDAG of this state.
                           // The default value is an empty NodeRef
@@ -263,16 +222,7 @@ class State : public ObjectRef {
                               bool inner_to_outer = true);
   Iterator fuse(int stage_id, const std::vector<Iterator>& iters);
 
-  /* Do transform steps
-   * Note: The following functions only change loop state but do not change transform_history.
-   * We separate these functions out,
-   * so you can call them for replay easily given history steps */
-  void DoReorderStep(const ReorderStep& step);
-  std::vector<Iterator> DoSplitStep(const SplitStep& step);
-  Iterator DoFuseStep(const FuseStep& step);
-
   // General do step functions with a runtime dynamic dispatcher
-  void DoStep(const Step& step, const ComputeDAG& dag);
   void DoSteps(const std::vector<Step>& step, const ComputeDAG& dag);
 
   // Print the state to a string
@@ -282,6 +232,15 @@ class State : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StateNode);
 
  private:
+  void DoStep(const Step& step, const ComputeDAG& dag);
+
+  /* Do transform steps
+   * Note: The following functions only change loop state but do not change transform_history.
+   * We separate these functions out,
+   * so you can call them for replay easily given history steps */
+  void DoReorderStep(const ReorderStep& step);
+  std::vector<Iterator> DoSplitStep(const SplitStep& step);
+  Iterator DoFuseStep(const FuseStep& step);
   // Common function for DoSplitStep and DoFollowSplitStep
   std::vector<Iterator> DoSplitStepCommon(int stage_id, int iter_id,
                                           const std::vector<PrimExpr>& lengths,

@@ -64,13 +64,6 @@ class ComputeDAGNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeDAGNode, Object);
 };
 
-enum LayoutRewriteLevel {
-  kNoRewrite = 0,           // No layout rewrite
-  kPlaceholderRewrite = 1,  // Only rewrite layout of placeholder in the compute dag
-  kComputeRewrite = 2,      // Only rewrite compute body for new layout in the compute dag
-  kBothRewrite = 3,         // Rewrite both placeholder and compute body in the compute dag
-};
-
 /*!
  * \brief Managed reference to ComputeDAGNode.
  * \sa ComputeDAGNode
@@ -83,8 +76,7 @@ class ComputeDAG: public ObjectRef {
   // Apply transform steps to the init state of this DAG, and get the equivalent tvm::schedule.
   // The return values can be used as arguments to tvm.build or tvm.lower
   std::pair<te::Schedule, Array<te::Tensor> > ApplySteps(
-      const std::vector<Step>& transform_steps,
-      LayoutRewriteLevel layout_rewrite_level = kNoRewrite) const;
+      const std::vector<Step>& transform_steps) const;
 
   // Print transform steps as equivalent python schedule API
   std::string PrintStepsAsPython(const std::vector<Step>& steps) const;

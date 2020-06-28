@@ -109,7 +109,6 @@ State::State(const Array<te::Operation>& ops) {
   for (const auto& op : ops) {
     node->stages.push_back(Stage(op));
   }
-  node->attach_map = AttachMap(make_object<AttachMapNode>());
   node->complete = true;
   node->aux_info = ObjectRef();
   data_ = std::move(node);
@@ -121,7 +120,6 @@ State::State(const std::vector<Stage>& stages,
   auto node = make_object<StateNode>();
   node->stages = stages;
   node->transform_steps = transform_steps;
-  node->attach_map = AttachMap(make_object<AttachMapNode>());
   node->complete = complete;
   node->aux_info = std::move(aux_info);
   data_ = std::move(node);
@@ -183,7 +181,6 @@ std::vector<Iterator> State::DoSplitStepCommon(
     bool inner_to_outer) {
   const Stage& stage = operator->()->stages[stage_id];
   const Iterator& it = stage->iters[iter_id];
-  size_t old_iter_size = stage->iters.size();
 
   PrimExpr tosplit_min, tosplit_extent;
   if (it->range.defined()) {
@@ -243,15 +240,6 @@ std::vector<Iterator> State::DoSplitStepCommon(
       stage->op, stage->op_type, std::move(new_iters), stage->compute_at,
       stage->attrs);
 
-  // we have to replace the iterators in attach map,
-  // these two vectors keep the replacement mapping
-  std::vector<AttachMap::IterKey> from_iters;
-  std::vector<AttachMap::IterKey> to_iters;
-  for (size_t i = iter_id; i < old_iter_size; ++i) {
-    from_iters.emplace_back(stage_id, i);
-    to_iters.emplace_back(stage_id, i + lengths.size());
-  }
-  pstate->attach_map.ReplaceIters(from_iters, to_iters);
   return outs;
 }
 
@@ -263,7 +251,6 @@ std::vector<Iterator> State::DoSplitStep(const SplitStep& step) {
 Iterator State::DoFuseStep(const FuseStep& step) {
   int stage_id = step->stage_id;
   const Stage& stage = operator->()->stages[stage_id];
-  int old_iter_size = static_cast<int>(stage->iters.size());
 
   std::string new_name;
   PrimExpr new_extent = 1;
@@ -273,16 +260,6 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   for (size_t i = 0; i < step->fused_ids.size(); ++i) {
     if (i > 0) {
       CHECK_EQ(step->fused_ids[i], step->fused_ids[i - 1] + 1);
-    }
-
-    if (i != step->fused_ids.size() - 1) {
-      const auto& iter_to_attached_stage =
-      operator->()->attach_map->iter_to_attached_stages;
-      if (iter_to_attached_stage.find(std::make_pair(
-              stage_id, step->fused_ids[i])) != iter_to_attached_stage.end()) {
-        LOG(FATAL) << "Invalid Fuse. Because you want to fuse iterators "
-                      "that have been attached by some stages";
-      }
     }
 
     const Iterator& it = stage->iters[step->fused_ids[i]];
@@ -323,23 +300,6 @@ Iterator State::DoFuseStep(const FuseStep& step) {
       stage->op, stage->op_type, std::move(new_iters), stage->compute_at,
       stage->attrs);
 
-  // we have to replace the iterators in attach map,
-  // these two vectors keep the replacement mapping
-  std::vector<AttachMap::IterKey> from_iters;
-  std::vector<AttachMap::IterKey> to_iters;
-  const int begin_id = step->fused_ids.front(), end_id = step->fused_ids.back();
-  for (int i = 0; i < old_iter_size; ++i) {
-    if (i <= begin_id) {
-      continue;
-    } else if (i > end_id) {  // move forward
-      from_iters.emplace_back(stage_id, i);
-      to_iters.emplace_back(stage_id, i - end_id + begin_id);
-    } else {  // move to the fused id
-      from_iters.emplace_back(stage_id, i);
-      to_iters.emplace_back(stage_id, begin_id);
-    }
-  }
-  pstate->attach_map.ReplaceIters(from_iters, to_iters);
   return new_it;
 }
 
@@ -447,17 +407,6 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state,
 
       indent += 2;
     }
-
-    if (state != nullptr) {
-      AttachMap::IterKey iter_key(stage_id, i);
-      auto pair = state->attach_map->iter_to_attached_stages.find(iter_key);
-      if (pair != state->attach_map->iter_to_attached_stages.end()) {
-        for (const auto& attach_stage_id : pair->second) {
-          PrintStage(os, attach_stage_id, state, base_indent + indent,
-                     delete_trivial_loop);
-        }
-      }
-    }
   }
 
   for (size_t j = 0; j < base_indent + indent; ++j) {
@@ -504,94 +453,6 @@ std::string State::ToStr(bool delete_trivial_loop) const {
   std::ostringstream os;
   PrintState(&os, operator->(), delete_trivial_loop);
   return os.str();
-}
-
-void AttachMap::SetComputeAtIter(int stage_id, int target_stage_id,
-                                 int target_iter_id) {
-  AttachMapNode* pnode = CopyOnWrite();
-
-  // delete the current entry of stage
-  DeleteStageEntry(pnode, stage_id);
-
-  // store the new relation
-  IterKey iter_key(target_stage_id, target_iter_id);
-  pnode->stage_to_attach_iter[stage_id] =
-      std::make_pair(target_stage_id, target_iter_id);
-  pnode->iter_to_attached_stages[iter_key].push_back(stage_id);
-}
-
-void AttachMap::DeleteStage(int stage_id) {
-  AttachMapNode* pnode = CopyOnWrite();
-
-  // delete the entry of old stage
-  DeleteStageEntry(pnode, stage_id);
-}
-
-void AttachMap::ReplaceIters(const std::vector<IterKey>& old_iters,
-                             const std::vector<IterKey>& new_iters) {
-  AttachMapNode* pnode = CopyOnWrite();
-
-  CHECK_EQ(old_iters.size(), new_iters.size());
-  for (size_t i = 0; i < old_iters.size(); ++i) {
-    auto entry = pnode->iter_to_attached_stages.find(old_iters[i]);
-    if (entry == pnode->iter_to_attached_stages.end()) {
-      continue;
-    }
-
-    // replace iter in the value of `stage_to_attach_iter`
-    for (const auto& s : entry->second) {
-      pnode->stage_to_attach_iter[s] = new_iters[i];
-    }
-
-    // replace iter in the key of `iter_to_attached_stages`
-    std::vector<int> attached_stages = std::move(entry->second);
-    pnode->iter_to_attached_stages.erase(entry);
-    pnode->iter_to_attached_stages[new_iters[i]] = std::move(attached_stages);
-  }
-}
-
-void AttachMap::DeleteStageEntry(AttachMapNode* pnode, int stage_id) {
-  auto old_entry = pnode->stage_to_attach_iter.find(stage_id);
-  if (old_entry != pnode->stage_to_attach_iter.end()) {
-    // delete value in `iter_to_attached_stages`
-    auto entry2 = pnode->iter_to_attached_stages.find(old_entry->second);
-    DeleteItem(&entry2->second, stage_id);
-    if (entry2->second.size() == 0) {
-      pnode->iter_to_attached_stages.erase(entry2);
-    }
-    // delete key in `stage_to_attach_iter`
-    pnode->stage_to_attach_iter.erase(old_entry);
-  }
-}
-
-AttachMap AttachMap::ApplyStageIdOfffset(int start_id, int offset) const {
-  AttachMap map = AttachMap(make_object<AttachMapNode>());
-  auto pmap = map.CopyOnWrite();
-  for (const auto& x : operator->()->stage_to_attach_iter) {
-    auto key = x.first;
-    if (key >= start_id) {
-      key += offset;
-    }
-    auto value = x.second;
-    if (value.first >= start_id) {
-      value.first += offset;
-    }
-    pmap->stage_to_attach_iter.insert(std::make_pair(key, value));
-  }
-  for (const auto& x : operator->()->iter_to_attached_stages) {
-    auto key = x.first;
-    if (key.first >= start_id) {
-      key.first += offset;
-    }
-    auto value = x.second;
-    for (auto& i : value) {
-      if (i >= start_id) {
-        i += offset;
-      }
-    }
-    pmap->iter_to_attached_stages.insert(std::make_pair(key, value));
-  }
-  return map;
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

@@ -262,8 +262,7 @@ void UpdateStageAxis(const te::Stage& stage, StageToAxesMap *stage_to_axes) {
 }
 
 std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ApplySteps(
-    const std::vector<Step>& transform_steps,
-    LayoutRewriteLevel layout_rewrite_level) const {
+    const std::vector<Step>& transform_steps) const {
   std::vector<te::Stage> stages;
   StageToAxesMap stage_to_axes;
   return ReplaySteps(transform_steps, &stages, &stage_to_axes);
@@ -505,14 +504,10 @@ TVM_REGISTER_GLOBAL("ansor.ComputeDAGApplyStepsFromState")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   ComputeDAG dag = args[0];
   State state = args[1];
-  LayoutRewriteLevel layout_rewrite_level = kNoRewrite;
-  if (args.size() >= 3) {
-    layout_rewrite_level = LayoutRewriteLevel(static_cast<int>((args[2])));
-  }
 
   te::Schedule sch;
   Array<te::Tensor> return_tensors;
-  std::tie(sch, return_tensors) = dag.ApplySteps(state->transform_steps, layout_rewrite_level);
+  std::tie(sch, return_tensors) = dag.ApplySteps(state->transform_steps);
   *ret = Array<ObjectRef>{sch, return_tensors};
 });
 
