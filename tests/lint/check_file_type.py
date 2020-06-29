@@ -107,6 +107,7 @@ ALLOW_SPECIFIC_FILE = {
     "Jenkinsfile",
     # cargo config
     "rust/runtime/tests/test_wasm32/.cargo/config",
+    "rust/tvm-graph-rt/tests/test_wasm32/.cargo/config",
     "apps/sgx/.cargo/config",
     # html for demo purposes
     "web/apps/browser/rpc_server.html",

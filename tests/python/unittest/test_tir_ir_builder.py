@@ -65,8 +65,8 @@ def test_prefetch():
     with ib.for_range(0, n, name="i") as i:
         ib.emit(
             tvm.tir.Prefetch(A,
-                [tvm.ir.Range.make_by_min_extent(i+1, 2),
-                 tvm.ir.Range.make_by_min_extent(0, 20)]))
+                [tvm.ir.Range.from_min_extent(i+1, 2),
+                 tvm.ir.Range.from_min_extent(0, 20)]))
     body = ib.get()
     assert body.body.bounds[0].extent.value == 2
 

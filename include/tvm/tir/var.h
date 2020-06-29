@@ -226,8 +226,6 @@ enum IterVarType : int {
   kTensorized = 8
 };
 
-using Domain = Array<Range>;
-
 /*!
  * \brief An iteration variable representing an iteration
  *  over a one dimensional interval.
@@ -247,7 +245,7 @@ class IterVarNode : public Object {
    * \brief additional tag on the iteration variable,
    *  set this if this is binded already to a known thread tag.
    */
-  std::string thread_tag;
+  String thread_tag;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dom", &dom);
@@ -268,7 +266,7 @@ class IterVarNode : public Object {
     hash_reduce(thread_tag);
   }
 
-  static constexpr const char* _type_key = "IterVar";
+  static constexpr const char* _type_key = "tir.IterVar";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IterVarNode, Object);
@@ -280,7 +278,7 @@ class IterVarNode : public Object {
  */
 class IterVar : public ObjectRef {
  public:
-  TVM_DLL IterVar(Range dom, Var var, IterVarType iter_type, std::string thread_tag = "");
+  TVM_DLL IterVar(Range dom, Var var, IterVarType iter_type, String thread_tag = "");
   /*!
    * \return the corresponding var in the IterVar.
    */

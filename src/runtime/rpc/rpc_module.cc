@@ -48,8 +48,13 @@ class RPCWrappedFunc : public Object {
     // scan and check whether we need rewrite these arguments
     // to their remote variant.
     for (int i = 0; i < args.size(); ++i) {
+      if (args[i].IsObjectRef<String>()) {
+        String str = args[i];
+        type_codes[i] = kTVMStr;
+        values[i].v_str = str.c_str();
+        continue;
+      }
       int tcode = type_codes[i];
-
       switch (tcode) {
         case kTVMDLTensorHandle:
         case kTVMNDArrayHandle: {

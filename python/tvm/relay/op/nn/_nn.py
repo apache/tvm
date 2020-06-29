@@ -69,7 +69,7 @@ def compute_sparse_dense(attrs, inputs, out_type):
     """Compute definition of sparse_dense"""
     return [topi.nn.sparse_dense(inputs[0], inputs[1], inputs[2], inputs[3])]
 
-reg.register_schedule("nn.sparse_dense", strategy.schedule_sparse_dense)
+reg.register_strategy("nn.sparse_dense", strategy.sparse_dense_strategy)
 reg.register_pattern("nn.sparse_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
@@ -446,6 +446,23 @@ reg.register_strategy("nn.contrib_conv2d_winograd_without_weight_transform",
 reg.register_pattern("nn.contrib_conv2d_winograd_without_weight_transform",
                      OpPattern.OUT_ELEMWISE_FUSABLE)
 
+# conv2d_gemm related operators
+reg.register_strategy("nn.contrib_conv2d_gemm_without_weight_transform",
+                      strategy.conv2d_gemm_without_weight_transform_strategy)
+reg.register_pattern("nn.contrib_conv2d_gemm_without_weight_transform",
+                     OpPattern.OUT_ELEMWISE_FUSABLE)
+
+@reg.register_compute("nn.contrib_conv2d_gemm_weight_transform")
+def compute_contrib_conv2d_gemm_weight_transform(attrs, inputs, out_dtype):
+    """Compute definition of contrib_conv2d_gemm_weight_transform"""
+    out = topi.nn.conv2d_gemm_weight_transform(
+        inputs[0], attrs.tile_rows, attrs.tile_cols)
+    return [out]
+
+reg.register_schedule("nn.contrib_conv2d_gemm_weight_transform",
+                      strategy.schedule_conv2d_gemm_weight_transform)
+reg.register_pattern("nn.contrib_conv2d_gemm_weight_transform",
+                     OpPattern.OUT_ELEMWISE_FUSABLE)
 
 @reg.register_compute("nn.contrib_conv2d_winograd_weight_transform")
 def compute_contrib_conv2d_winograd_weight_transform(attrs, inputs, out_dtype):

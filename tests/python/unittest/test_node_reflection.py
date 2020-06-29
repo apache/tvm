@@ -28,6 +28,16 @@ def test_const_saveload_json():
     zz = tvm.ir.load_json(json_str)
     tvm.ir.assert_structural_equal(zz, z, map_free_vars=True)
 
+def _test_infinity_value(value, dtype):
+    x = tvm.tir.const(value, dtype)
+    json_str = tvm.ir.save_json(x)
+    tvm.ir.assert_structural_equal(x, tvm.ir.load_json(json_str))
+
+def test_infinity_value():
+    _test_infinity_value(float("inf"), 'float64')
+    _test_infinity_value(float("-inf"), 'float64')
+    _test_infinity_value(float("inf"), 'float32')
+    _test_infinity_value(float("-inf"), 'float32')
 
 def test_make_smap():
     # save load json
@@ -130,6 +140,12 @@ def test_pass_config():
             "tir.UnrollLoop": 1
         })
 
+def test_dict():
+    x = tvm.tir.const(1) # a class that has Python-defined methods
+    # instances should see the full class dict
+    assert set(dir(x.__class__)) <= set(dir(x))
+
+
 if __name__ == "__main__":
     test_string()
     test_env_func()
@@ -138,3 +154,5 @@ if __name__ == "__main__":
     test_const_saveload_json()
     test_make_sum()
     test_pass_config()
+    test_dict()
+    test_infinity_value()

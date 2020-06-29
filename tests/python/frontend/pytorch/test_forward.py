@@ -27,11 +27,24 @@ import torchvision
 
 from tvm import relay
 from tvm.contrib import graph_runtime
+from tvm.contrib.nvcc import have_fp16
 from tvm.relay.testing.config import ctx_list
 
 
 sys.setrecursionlimit(10000)
 
+def list_ops(expr):
+    class OpLister(tvm.relay.ExprVisitor):
+        def visit_op(self, expr):
+            if expr not in self.node_set:
+                self.node_list.append(expr)
+            return super().visit_op(expr)
+        def list_nodes(self, expr):
+            self.node_set = {}
+            self.node_list = []
+            self.visit(expr)
+            return self.node_list
+    return OpLister().list_nodes(expr)
 
 def assert_shapes_match(tru, est):
     if tru.shape != est.shape:
@@ -151,7 +164,8 @@ def verify_model(model_name, input_data=[],
         assert False, "Unexpected input format"
 
     if torch.cuda.is_available():
-        baseline_model = baseline_model.cuda()
+        if isinstance(baseline_model, torch.nn.Module):
+            baseline_model = baseline_model.cuda()
         baseline_input = [inp.cuda() for inp in baseline_input]
 
     with torch.no_grad():
@@ -162,12 +176,14 @@ def verify_model(model_name, input_data=[],
     else:
         baseline_outputs = (baseline_outputs.cpu().numpy(),)
 
-    trace = torch.jit.trace(baseline_model, baseline_input).float().eval()
+    trace = torch.jit.trace(baseline_model, baseline_input)
+    if isinstance(baseline_model, torch.nn.Module):
+        trace = trace.float().eval()
 
-    if torch.cuda.is_available():
-        trace = trace.cuda()
-    else:
-        trace = trace.cpu()
+        if torch.cuda.is_available():
+            trace = trace.cuda()
+        else:
+            trace = trace.cpu()
 
     input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
     input_shapes = list(zip(input_names,
@@ -837,6 +853,44 @@ def test_forward_size():
     input_data = torch.rand(input_shape).float()
     verify_model(Size1().float().eval(), input_data=input_data)
 
+
+def test_type_as():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3]
+
+    def _create_module(dtype):
+        class TypeAs(Module):
+            def forward(self, *args):
+                expected_type_tensor = torch.zeros(1, 3, dtype=dtype)
+                return args[0].type_as(expected_type_tensor)
+
+        return TypeAs()
+
+    input_data = torch.randn(input_shape).float()
+    verify_model(_create_module(torch.float64), input_data=input_data)
+    verify_model(_create_module(torch.float32), input_data=input_data)
+    verify_model(_create_module(torch.int64), input_data=input_data)
+    verify_model(_create_module(torch.int32), input_data=input_data)
+    verify_model(_create_module(torch.int16), input_data=input_data)
+    verify_model(_create_module(torch.int8), input_data=input_data)
+
+    if torch.cuda.is_available():
+        check_fp16 = False
+        try:
+            # Only check half precision on supported hardwares.
+            if have_fp16(tvm.gpu(0).compute_version):
+                check_fp16 = True
+        except Exception as e:
+            # If GPU is not enabled in TVM, skip the fp16 test.
+            pass
+
+        # Temporary disable fp16 test
+        check_fp16 = False
+
+        if check_fp16:
+            verify_model(_create_module(torch.float16), input_data=input_data)
+
+
 def test_forward_view():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -1004,6 +1058,13 @@ def test_forward_dense():
     input_data = torch.rand(input_shape).float()
     verify_model(Dense1().float().eval(), input_data=input_data)
     verify_model(Dense2().float().eval(), input_data=input_data)
+
+    trace = torch.jit.trace(Dense1(), [input_data])
+    mod, params = relay.frontend.from_pytorch(
+        trace,
+        [('input', input_shape)],
+    )
+    assert not any([op.name == "multiply" for op in list_ops(mod['main'])])
 
 def test_forward_dropout():
     torch.set_grad_enabled(False)
@@ -2324,6 +2385,46 @@ def test_forward_addcmul():
     t2 = torch.rand([1, 3]).float()
     verify_model(Addcmul2().float().eval(), input_data=[input_data, t1, t2])
 
+def test_forward_traced_function():
+    def fn(t1, t2):
+        return t1 + t2
+
+    tensor1 = torch.randn(3, 4)
+    tensor2 = torch.randn(3, 4)
+    verify_model(fn, input_data=[tensor1, tensor2])
+
+def test_forward_dtypes():
+    def fn(t1, t2):
+        return 2.5 * t1 + t2
+
+    for dt in [torch.int32, torch.int64, torch.double]:
+        tensor1 = torch.randn(3, 4).to(dtype=dt)
+        tensor2 = torch.randn(3, 4).to(dtype=dt)
+        verify_model(fn, input_data=[tensor1, tensor2])
+
+
+def test_weight_names():
+    tm = torch.jit.trace(torch.nn.Linear(3, 4), [torch.randn(2, 3)])
+    mod, params = relay.frontend.from_pytorch(tm, [('input', (2, 3))])
+    assert set(params.keys()) == set(n for n, p in tm.named_parameters())
+
+
+def test_duplicate_weight_use():
+    # The test cases doesn't make any sense as a neural network,
+    # the issue popped up in shared input/output embeddings of bert,
+    # but this is quicker
+    class Test(Module):
+        def __init__(self):
+            super().__init__()
+            self.lin = torch.nn.Linear(5, 3)
+
+        def forward(self, x):
+            x = self.lin(x)
+            x = x @ self.lin.weight
+            return x
+
+    verify_model(Test(), input_data=[torch.randn(5, 5)])
+
 
 def test_forward_matmul():
     torch.set_grad_enabled(False)
@@ -2487,6 +2588,12 @@ def test_forward_pretrained_bert_base_uncased():
 
 
 if __name__ == "__main__":
+    # some structural tests
+    test_forward_traced_function()
+    test_forward_dtypes()
+    test_weight_names()
+    test_duplicate_weight_use()
+
     # Single operator tests
     test_forward_add()
     test_forward_subtract()
@@ -2575,6 +2682,7 @@ if __name__ == "__main__":
     test_upsample()
     test_forward_upsample3d()
     test_to()
+    test_type_as()
     test_forward_functional_pad()
     test_forward_zero_pad2d()
     test_forward_constant_pad1d()

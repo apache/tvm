@@ -28,6 +28,7 @@
 #include <tvm/runtime/object.h>
 
 #include <string>
+#include <utility>
 
 namespace tvm {
 namespace runtime {
@@ -82,6 +83,15 @@ class ObjectInternal {
     // then to ModuleNode in order to get the correct
     // address translation
     return static_cast<ModuleNode*>(static_cast<Object*>(handle));
+  }
+  /*!
+   * \brief Move the ObjectPtr inside ObjectRef out
+   * \param obj The ObjectRef
+   * \return The result ObjectPtr
+   */
+  static ObjectPtr<Object> MoveObjectPtr(ObjectRef* obj) {
+    ObjectPtr<Object> data = std::move(obj->data_);
+    return data;
   }
 };
 

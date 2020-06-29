@@ -1900,6 +1900,32 @@ def test_forward_softmax():
     """ Softmax """
     _test_softmax(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
 
+######################################################################
+# Log_softmax
+# -----------
+
+def _test_log_softmax(data, quantized=False):
+    """ One iteration of log_softmax """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype='float32', name='in_0')
+
+        if quantized:
+            inq_data = tf.quantization.fake_quant_with_min_max_args(in_data, min=-10, max=10, name="inq_0")
+            input_range = {'inq_0': (-10, 10)}
+            # tflite log_softmax supports only the case when axis is not specified
+            out = nn_ops.log_softmax(inq_data)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=-20, max=0, name="out")
+            compare_tflite_with_tvm(data, 'inq_0:0', [inq_data], [out], quantized=True, input_range=input_range)
+        else:
+            out = nn_ops.log_softmax(in_data)
+            compare_tflite_with_tvm(data, 'in_0:0', [in_data], [out])
+
+
+def test_forward_log_softmax():
+    """ Log_softmax """
+    _test_log_softmax(np.random.uniform(-10, 10, size=(3, 6)).astype(np.float32))
+    _test_log_softmax(np.random.uniform(0, 255, (3, 6)).astype(np.uint8), quantized=True)
+
 #######################################################################
 # Tanh
 # ----
@@ -1929,6 +1955,85 @@ def _test_relu(data):
 def test_forward_relu():
     """ ReLU """
     _test_relu(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
+
+#######################################################################
+# ReLU6
+# -----
+
+def _test_relu6(data, quantized=False):
+    """ One iteration of ReLU6 """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype='float32', name='in_0')
+
+        if quantized:
+            inq_data = tf.quantization.fake_quant_with_min_max_args(in_data, min=-10, max=10, name="inq_0")
+            input_range = {'inq_0': (-10, 10)}
+            out = nn_ops.relu6(inq_data)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=0, max=6, name="out")
+            compare_tflite_with_tvm(data, 'inq_0:0', [inq_data], [out], quantized=True, input_range=input_range)
+        else:
+            out = nn_ops.relu6(in_data)
+            compare_tflite_with_tvm(data, 'in_0:0', [in_data], [out])
+
+def test_forward_relu6():
+    """ ReLU6 """
+    _test_relu6(np.random.uniform(-10, 10, size=(3, 6)).astype(np.float32))
+    _test_relu6(np.random.uniform(0, 255, (3, 6)).astype(np.uint8), quantized=True)
+
+#######################################################################
+# Leaky_ReLU
+# ----------
+
+def _test_leaky_relu(data, alpha, quantized=False):
+    """ One iteration of Leaky_ReLU """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype='float32', name='in_0')
+
+        if quantized:
+            inq_data = tf.quantization.fake_quant_with_min_max_args(in_data, min=-3, max=2, name="inq_0")
+            input_range = {'inq_0': (-3, 2)}
+            out = nn_ops.leaky_relu(inq_data, alpha)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=-3, max=2, name="out")
+            compare_tflite_with_tvm(data, 'inq_0:0', [inq_data], [out], quantized=True, input_range=input_range)
+        else:
+            out = nn_ops.leaky_relu(in_data, alpha)
+            compare_tflite_with_tvm(data, 'in_0:0', [in_data], [out])
+
+def test_forward_leaky_relu():
+    """ Leaky_ReLU """
+    _test_leaky_relu(np.random.uniform(-5, 5, (1, 6)).astype(np.float32), alpha=0.2)
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_leaky_relu(np.random.uniform(0, 255, (2, 3)).astype(np.uint8), alpha=0.3, quantized=True)
+
+#######################################################################
+# ReLU_n1_to_1
+# ------------
+
+def _test_relu_n1_to_1(data, quantized=False):
+    """ One iteration of ReLU_n1_to_1 """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype='float32', name='in_0')
+
+        if quantized:
+            inq_data = tf.quantization.fake_quant_with_min_max_args(in_data, min=-3, max=3, name="inq_0")
+            input_range = {'inq_0': (-3, 3)}
+            # There is no such tf operation. The specific pattern will be replaced into RELU_N1_TO_1 by tflite
+            out = math_ops.maximum(-1.0, math_ops.minimum(inq_data, 1.0))
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=-1, max=1, name="out")
+            compare_tflite_with_tvm(data, 'inq_0:0', [inq_data], [out], quantized=True, input_range=input_range)
+        else:
+            out = math_ops.maximum(-1.0, math_ops.minimum(in_data, 1.0))
+            compare_tflite_with_tvm(data, 'in_0:0', [in_data], [out])
+
+def test_forward_relu_n1_to_1():
+    """ ReLU_n1_to_1 """
+    _test_relu_n1_to_1(np.random.uniform(-3, 3, (1, 6)).astype(np.float32))
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_relu_n1_to_1(np.random.uniform(0, 255, (3, 6)).astype(np.uint8), quantized=True)
+
+#######################################################################
+# PReLU
+# -----
 
 def _test_prelu(data, alpha):
     """ One iteration of PReLU """
@@ -1976,6 +2081,32 @@ def _test_spacetodepth(data, block_size):
 def test_forward_spacetodepth():
     _test_spacetodepth(np.random.normal(size=[1, 32, 32, 4]).astype("float32"), 2)
     _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
+
+
+#######################################################################
+# ReverseSequence
+# ---------------
+
+def _test_reverse_sequence(shape, dtype, seq_lengths, batch_axis, seq_axis):
+    """ One iteration of reverse_sequence operation with given data and attributes """
+
+    data = np.random.uniform(0, 100, size=shape).astype(dtype)
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(dtype=dtype, name="input", shape=shape)
+        out = tf.reverse_sequence(in_data, seq_lengths=seq_lengths, batch_axis=batch_axis,
+                                   seq_axis=seq_axis)
+
+        compare_tflite_with_tvm(data, 'input', [in_data], [out])
+
+
+def test_forward_reverse_sequence():
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_reverse_sequence([4, 3], "float32", [3, 2, 1], 1, 0)
+        _test_reverse_sequence([4, 3], "float32", [3, 2, 1, 3], 0, 1)
+        _test_reverse_sequence([2, 3, 3, 3], "float32", [2, 3, 2], 2, 1)
+        _test_reverse_sequence([2, 4, 6, 4, 5], "float32", [5, 3], 0, 2)
+        _test_reverse_sequence([2, 4, 6, 4, 5], "float32", [5, 3, 1, 4], 3, 2)
+
 
 #######################################################################
 # Sparse To Dense
@@ -2437,12 +2568,11 @@ def test_forward_coco_ssd_mobilenet_v1():
 #######################################################################
 # MediaPipe
 # -------------
-
 def test_forward_mediapipe_hand_landmark():
     """Test MediaPipe 2D hand landmark TF Lite model."""
     # MediaPipe 2D hand landmark TF
     tflite_model_file = download_testdata(
-        "https://github.com/google/mediapipe/raw/master/mediapipe/models/hand_landmark.tflite",
+        "https://github.com/google/mediapipe/raw/v0.7.4/mediapipe/models/hand_landmark.tflite",
         "hand_landmark.tflite")
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
@@ -2498,6 +2628,7 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_depthtospace()
     test_forward_spacetodepth()
+    test_forward_reverse_sequence()
     test_forward_sparse_to_dense()
     test_forward_select()
     test_forward_quantize_dequantize()
@@ -2511,6 +2642,10 @@ if __name__ == '__main__':
     test_forward_softmax()
     test_forward_tanh()
     test_forward_relu()
+    test_forward_relu6()
+    test_forward_leaky_relu()
+    test_forward_relu_n1_to_1()
+    test_forward_log_softmax()
     test_forward_prelu()
     test_forward_fully_connected()
     test_forward_l2_normalization()

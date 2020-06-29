@@ -34,7 +34,7 @@ def test_ewise():
     def test_apply(func, name):
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
-        assert B.op.body[0].name == name
+        assert B.op.body[0].op.name == "tir." + name
 
     test_apply(topi.exp, "exp")
     test_apply(topi.erf, "erf")

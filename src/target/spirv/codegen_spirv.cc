@@ -24,6 +24,7 @@
 #include "codegen_spirv.h"
 
 #include <tvm/runtime/container.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
@@ -236,7 +237,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LetNode* op) {
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
-  if (op->is_intrinsic("spirv_glsl450")) {
+  if (op->op.same_as(builtin::call_spirv_pure_glsl450())) {
     CHECK_GE(op->args.size(), 2U);
     uint32_t inst_id = static_cast<uint32_t>(op->args[0].as<IntImmNode>()->value);
     std::vector<spirv::Value> values;
@@ -244,31 +245,31 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
       values.push_back(MakeValue(op->args[i]));
     }
     return builder_->CallGLSL450(builder_->GetSType(op->dtype), inst_id, values);
-  } else if (op->is_intrinsic(CallNode::bitwise_and)) {
+  } else if (op->op.same_as(builtin::bitwise_and())) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpBitwiseAnd, a.stype, a, b);
-  } else if (op->is_intrinsic(CallNode::bitwise_xor)) {
+  } else if (op->op.same_as(builtin::bitwise_xor())) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpBitwiseXor, a.stype, a, b);
-  } else if (op->is_intrinsic(CallNode::bitwise_or)) {
+  } else if (op->op.same_as(builtin::bitwise_or())) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpBitwiseOr, a.stype, a, b);
-  } else if (op->is_intrinsic(CallNode::bitwise_not)) {
+  } else if (op->op.same_as(builtin::bitwise_not())) {
     CHECK_EQ(op->args.size(), 1U);
     spirv::Value a = MakeValue(op->args[0]);
     return builder_->MakeValue(spv::OpNot, a.stype, a);
-  } else if (op->is_intrinsic(CallNode::shift_left)) {
+  } else if (op->op.same_as(builtin::shift_left())) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpShiftLeftLogical, a.stype, a, b);
-  } else if (op->is_intrinsic(CallNode::shift_right)) {
+  } else if (op->op.same_as(builtin::shift_right())) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
@@ -277,18 +278,18 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     } else {
       return builder_->MakeValue(spv::OpShiftRightLogical, a.stype, a, b);
     }
-  } else if (op->is_intrinsic(CallNode::reinterpret)) {
+  } else if (op->op.same_as(builtin::reinterpret())) {
     return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->dtype),
                                MakeValue(op->args[0]));
-  } else if (op->is_intrinsic(intrinsic::tvm_large_uint_imm)) {
+  } else if (op->op.same_as(builtin::large_uint_imm())) {
     CHECK_EQ(op->args.size(), 2U);
     uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
     uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
     uint64_t val = (high << 32U) | low;
     return builder_->UIntImm(builder_->GetSType(op->dtype), val);
-  } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
+  } else if (op->op.same_as(builtin::tvm_storage_sync())) {
     return this->CreateStorageSync(op);
-  } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
+  } else if (op->op.same_as(builtin::if_then_else())) {
     CHECK_EQ(op->args.size(), 3U);
     spirv::Value cond = MakeValue(op->args[0]);
     spirv::Label then_label = builder_->NewLabel();
@@ -312,17 +313,11 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     phi.SetIncoming(0, then_value, then_value_label);
     phi.SetIncoming(1, else_value, else_value_label);
     return phi;
-  } else if (op->is_intrinsic("popcount")) {
+  } else if (op->op.same_as(builtin::popcount())) {
     return builder_->MakeValue(spv::OpBitCount, builder_->GetSType(op->dtype),
                                MakeValue(op->args[0]));
   } else {
-    if (op->call_type == CallNode::Intrinsic || op->call_type == CallNode::PureIntrinsic) {
-      LOG(FATAL) << "Unresolved intrinsic " << op->name << " with return type " << op->dtype;
-    } else if (op->call_type == CallNode::Extern || op->call_type == CallNode::PureExtern) {
-      LOG(FATAL) << "Unresolved extern " << op->name << " with return type " << op->dtype;
-    } else {
-      LOG(FATAL) << "Unresolved call type " << op->call_type;
-    }
+    LOG(FATAL) << "Unresolved call  " << op->op;
     return spirv::Value();
   }
 }
@@ -474,7 +469,7 @@ void CodeGenSPIRV::VisitStmt_(const StoreNode* op) {
 
 void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   CHECK(is_zero(op->min));
-  analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
+  analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   spirv::Value init_value = MakeValue(op->min);
   spirv::Value extent_value = MakeValue(op->extent);
   // Must get init label after making value(to make sure they are correct)
@@ -574,7 +569,7 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
     if (iv->thread_tag.length() != 0) {
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv, op->value);
-        analyzer_->Bind(iv->var, Range::make_by_min_extent(0, op->value));
+        analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
       }
     }
   } else if (op->attr_key == tir::attr::storage_scope) {

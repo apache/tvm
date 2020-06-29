@@ -25,6 +25,7 @@
 #define TOPI_ELEMWISE_H_
 
 #include <topi/tags.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 
 #include <algorithm>
@@ -309,7 +310,7 @@ inline Tensor reinterpret(const Tensor& x, DataType type, std::string name = "te
   return compute(
       x->shape,
       [&](const Array<Var>& i) {
-        return tvm::tir::Call(type, "reinterpret", {x(i)}, tvm::tir::CallNode::PureIntrinsic);
+        return tvm::tir::Call(type, tvm::tir::builtin::reinterpret(), {x(i)});
       },
       name, tag);
 }

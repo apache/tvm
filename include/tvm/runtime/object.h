@@ -66,6 +66,8 @@ struct TypeIndex {
     kRuntimeString = 3,
     /*! \brief runtime::Array. */
     kRuntimeArray = 4,
+    /*! \brief runtime::Map. */
+    kRuntimeMap = 5,
     // static assignments that may subject to change.
     kRuntimeClosure,
     kRuntimeADT,
@@ -590,6 +592,7 @@ class ObjectRef {
   friend struct ObjectPtrHash;
   friend class TVMRetValue;
   friend class TVMArgsSetter;
+  friend class ObjectInternal;
   template <typename SubRef, typename BaseRef>
   friend SubRef Downcast(BaseRef ref);
 };

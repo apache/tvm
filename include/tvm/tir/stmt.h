@@ -37,7 +37,7 @@ namespace tir {
 /*! \brief Base node of all statements. */
 class StmtNode : public Object {
  public:
-  static constexpr const char* _type_key = "Stmt";
+  static constexpr const char* _type_key = "tir.Stmt";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 15;
@@ -79,7 +79,7 @@ class LetStmtNode : public StmtNode {
     hash_reduce(body);
   }
 
-  static constexpr const char* _type_key = "LetStmt";
+  static constexpr const char* _type_key = "tir.LetStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(LetStmtNode, StmtNode);
 };
 
@@ -109,7 +109,7 @@ class AttrStmtNode : public StmtNode {
   /*! \brief this is attribute about certain node */
   ObjectRef node;
   /*! \brief the type key of the attribute */
-  std::string attr_key;
+  String attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
   PrimExpr value;
   /*! \brief The body statement to be executed */
@@ -134,7 +134,7 @@ class AttrStmtNode : public StmtNode {
     hash_reduce(body);
   }
 
-  static constexpr const char* _type_key = "AttrStmt";
+  static constexpr const char* _type_key = "tir.AttrStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrStmtNode, StmtNode);
 };
 
@@ -144,7 +144,7 @@ class AttrStmtNode : public StmtNode {
  */
 class AttrStmt : public Stmt {
  public:
-  TVM_DLL AttrStmt(ObjectRef node, std::string type_key, PrimExpr value, Stmt body);
+  TVM_DLL AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body);
 
   TVM_DEFINE_OBJECT_REF_METHODS(AttrStmt, Stmt, AttrStmtNode);
 };
@@ -181,7 +181,7 @@ class AssertStmtNode : public StmtNode {
     hash_reduce(body);
   }
 
-  static constexpr const char* _type_key = "AssertStmt";
+  static constexpr const char* _type_key = "tir.AssertStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(AssertStmtNode, StmtNode);
 };
 
@@ -244,7 +244,7 @@ class StoreNode : public StmtNode {
     hash_reduce(predicate);
   }
 
-  static constexpr const char* _type_key = "Store";
+  static constexpr const char* _type_key = "tir.Store";
   TVM_DECLARE_FINAL_OBJECT_INFO(StoreNode, StmtNode);
 };
 
@@ -295,7 +295,7 @@ class BufferStoreNode : public StmtNode {
     hash_reduce(indices);
   }
 
-  static constexpr const char* _type_key = "BufferStore";
+  static constexpr const char* _type_key = "tir.BufferStore";
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferStoreNode, StmtNode);
 };
 
@@ -355,7 +355,7 @@ class BufferRealizeNode : public StmtNode {
   BufferRealizeNode(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body)
       : buffer(buffer), bounds(bounds), condition(condition), body(body) {}
 
-  static constexpr const char* _type_key = "BufferRealize";
+  static constexpr const char* _type_key = "tir.BufferRealize";
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferRealizeNode, StmtNode);
 };
 
@@ -406,7 +406,7 @@ class ProducerStoreNode : public StmtNode {
     hash_reduce(indices);
   }
 
-  static constexpr const char* _type_key = "ProducerStore";
+  static constexpr const char* _type_key = "tir.ProducerStore";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProducerStoreNode, StmtNode);
 };
 
@@ -462,7 +462,7 @@ class ProducerRealizeNode : public StmtNode {
     hash_reduce(body);
   }
 
-  static constexpr const char* _type_key = "ProducerRealize";
+  static constexpr const char* _type_key = "tir.ProducerRealize";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProducerRealizeNode, StmtNode);
 };
 
@@ -529,7 +529,7 @@ class AllocateNode : public StmtNode {
    */
   TVM_DLL static int32_t constant_allocation_size(const Array<PrimExpr>& extents);
 
-  static constexpr const char* _type_key = "Allocate";
+  static constexpr const char* _type_key = "tir.Allocate";
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateNode, StmtNode);
 };
 
@@ -543,35 +543,6 @@ class Allocate : public Stmt {
                    Stmt body);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
-};
-
-/*! \brief Free the resources in the buffer before the scope ends. */
-class FreeNode : public StmtNode {
- public:
-  /*! \brief The buffer variable. */
-  Var buffer_var;
-
-  void VisitAttrs(AttrVisitor* v) { v->Visit("buffer_var", &buffer_var); }
-
-  bool SEqualReduce(const FreeNode* other, SEqualReducer equal) const {
-    return equal(buffer_var, other->buffer_var);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(buffer_var); }
-
-  static constexpr const char* _type_key = "Free";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FreeNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to FreeNode.
- * \sa FreeNode
- */
-class Free : public Stmt {
- public:
-  TVM_DLL Free(Var buffer_var);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Free, Stmt, FreeNode);
 };
 
 /*!
@@ -598,7 +569,7 @@ class SeqStmtNode : public StmtNode {
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(seq); }
 
-  static constexpr const char* _type_key = "SeqStmt";
+  static constexpr const char* _type_key = "tir.SeqStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(SeqStmtNode, StmtNode);
 };
 
@@ -697,7 +668,7 @@ class IfThenElseNode : public StmtNode {
     hash_reduce(else_case);
   }
 
-  static constexpr const char* _type_key = "IfThenElse";
+  static constexpr const char* _type_key = "tir.IfThenElse";
   TVM_DECLARE_FINAL_OBJECT_INFO(IfThenElseNode, StmtNode);
 };
 
@@ -731,7 +702,7 @@ class EvaluateNode : public StmtNode {
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
 
-  static constexpr const char* _type_key = "Evaluate";
+  static constexpr const char* _type_key = "tir.Evaluate";
   TVM_DECLARE_FINAL_OBJECT_INFO(EvaluateNode, StmtNode);
 };
 
@@ -817,7 +788,7 @@ class ForNode : public StmtNode {
     hash_reduce(body);
   }
 
-  static constexpr const char* _type_key = "For";
+  static constexpr const char* _type_key = "tir.For";
   TVM_DECLARE_FINAL_OBJECT_INFO(ForNode, StmtNode);
 };
 
@@ -860,7 +831,7 @@ class PrefetchNode : public StmtNode {
   PrefetchNode() = default;
   PrefetchNode(Buffer buffer, Array<Range> bounds) : buffer(buffer), bounds(bounds) {}
 
-  static constexpr const char* _type_key = "Prefetch";
+  static constexpr const char* _type_key = "tir.Prefetch";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrefetchNode, StmtNode);
 };
 
@@ -1004,9 +975,7 @@ inline bool IsPragmaKey(const std::string& attr_key) {
  * \param dtype The data type
  * \return Expr a expression with dtype.
  */
-inline PrimExpr TypeAnnotation(DataType dtype) {
-  return tir::Call(dtype, "type_annotation", {}, tir::CallNode::PureIntrinsic);
-}
+TVM_DLL PrimExpr TypeAnnotation(DataType dtype);
 
 // overload printing of for type.
 TVM_DLL std::ostream& operator<<(std::ostream& os, ForType for_type);

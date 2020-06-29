@@ -159,14 +159,8 @@ class ThreadGroup::Impl {
         CPU_SET(sorted_order_[sorted_order_.size() - i - 1], &cpuset);
       }
     } else {
-      int big_count = big_count_;
-      // Imagine our x86 has cores 0 - 7
-      // physical cores are 0 - 3, logical cores are 4 - 7, big_count_ is 8
-      // we wish we run on physical cores, not logical cores to avoid contention issue.
-#if defined(_M_X64) || defined(__x86_64__)
-      big_count /= 2;  // ignore hyper-threading
-#endif
-      for (int i = 0; i < big_count; ++i) {
+      int num_cpu_workers = std::min(MaxConcurrency(), big_count_);
+      for (int i = 0; i < num_cpu_workers; ++i) {
         CPU_SET(sorted_order_[i], &cpuset);
       }
     }

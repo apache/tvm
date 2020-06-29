@@ -65,9 +65,9 @@ class BufferNode : public Object {
   PrimExpr elem_offset;
   // Meta data
   /*! \brief optional name of the buffer */
-  std::string name;
+  String name;
   /*! \brief storage scope of the buffer, if other than global */
-  std::string scope;
+  String scope;
   /*! \brief Alignment requirement of data pointer in bytes. */
   int data_alignment;
   /*!
@@ -118,7 +118,7 @@ class BufferNode : public Object {
     return shape.size() != 0 ? shape[0].dtype() : DataType::Int(32);
   }
 
-  static constexpr const char* _type_key = "Buffer";
+  static constexpr const char* _type_key = "tir.Buffer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferNode, Object);
@@ -134,7 +134,7 @@ class Buffer : public ObjectRef {
   // User can specify data_alignment and offset_factor to be 0
   // A default value will be picked.
   TVM_DLL Buffer(Var ptr, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
-                 PrimExpr elem_offset, std::string name, std::string scope, int data_alignment,
+                 PrimExpr elem_offset, String name, String scope, int data_alignment,
                  int offset_factor, BufferType buffer_type);
 
   /*!
@@ -187,7 +187,7 @@ class Buffer : public ObjectRef {
  * \sa Buffer for complete constructor.
  */
 TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                           std::string name = "buffer");
+                           String name = "buffer");
 
 /*!
  * \brief Base node for data producers.
@@ -228,7 +228,7 @@ class DataProducerNode : public Object {
 
   void SHashReduce(SHashReducer hash_reduce) const {}
 
-  static constexpr const char* _type_key = "DataProducer";
+  static constexpr const char* _type_key = "tir.DataProducer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(DataProducerNode, Object);

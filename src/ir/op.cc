@@ -42,7 +42,7 @@ using OpRegistry = AttrRegistry<OpRegEntry, Op>;
 // find operator by name
 const Op& Op::Get(const String& name) {
   const OpRegEntry* reg = OpRegistry::Global()->Get(name);
-  CHECK(reg != nullptr) << "Operator " << name << " is not registered";
+  CHECK(reg != nullptr) << "AttributeError: Operator " << name << " is not registered";
   return reg->op();
 }
 
@@ -134,9 +134,8 @@ ObjectPtr<Object> CreateOp(const std::string& name) {
   return Op2ObjectPtr::Get(op);
 }
 
-TVM_REGISTER_NODE_TYPE(OpNode).set_creator(CreateOp).set_repr_bytes([](const Object* n) {
-  return static_cast<const OpNode*>(n)->name;
-});
+TVM_REGISTER_NODE_TYPE(OpNode).set_creator(CreateOp).set_repr_bytes(
+    [](const Object* n) -> std::string { return static_cast<const OpNode*>(n)->name; });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<OpNode>([](const ObjectRef& ref, ReprPrinter* p) {

@@ -85,6 +85,7 @@ def test_split_index_simplify():
     # floordiv
     fld = tvm.te.floordiv
     flm = tvm.te.floormod
+    ck.verify(fld(x*5, 2), fld(x*5, 2))
     ck.verify(fld(x, 3) * 3 + flm(x, 3), x)
     ck.verify(fld(x, 6) * 6 + flm(fld(x, 3), 2) * 3 + flm(x, 3), x)
     ck.verify(fld(fld(flm(x, 16), 2) * 2, 4), fld(flm(x, 16), 4))
@@ -124,8 +125,8 @@ def test_floormod_simplify():
     ck = CanonicalChecker()
     flm = tvm.te.floormod
     x, y = te.var("x"), te.var("y")
-    ck.verify(flm(flm((x*4) + y  - 466036, 24528) - 24512,  16),
-              flm((x*4) + y  + 12, 16))
+    ck.verify(flm(flm((x*4) + y - 466036, 24528) - 24512,  16),
+              flm((x*4) + y + 12, 16))
     ck.verify(flm(flm((x*4), 16), 8), flm(x, 2) * 4)
 
 
@@ -202,7 +203,8 @@ def test_reduce_combiner_simplify():
             assert tvm.ir.structural_equal(lhs, rhs)
 
     # Test that components with side effects are not removed
-    side_effect = lambda *xs: tvm.tir.Call("int32", "dummy", xs, tvm.tir.Call.Intrinsic)
+    dummy = tvm.ir.GlobalVar("dummy")
+    side_effect = lambda *xs: tvm.tir.Call("int32", dummy, xs)
     ck.verify(sum_and_prod((A[k], side_effect(A[10-k])), k)[0],
              sum_and_prod((A[k], side_effect(A[10-k])), k)[0])
     ck.verify(sum_and_prod((side_effect(A[k]), A[10-k]), k)[0],

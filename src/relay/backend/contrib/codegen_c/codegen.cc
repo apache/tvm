@@ -25,6 +25,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <string>
 
 #include "../../utils.h"
 #include "codegen_c.h"
@@ -76,43 +77,29 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
   }
 
   std::vector<Output> VisitExpr_(const ConstantNode* cn) final {
-    // Note this is for demonstration purpose. ConstantNode doesn't necessarily
-    // belong to calls. We need to revisit this when tuples come into play.
-
     std::ostringstream decl_stream;
     std::ostringstream buf_stream;
 
     Output output;
-    output.name = "const_" + std::to_string(const_idx_++);
-
-    runtime::NDArray array = cn->data;
-    const auto& shape = array.Shape();
-
-    // Get the number of elements.
-    int64_t num_elems = 1;
-    for (auto i : shape) num_elems *= i;
-
+    // Get const: static_cast<float*>(gcc_0_consts[0]->data)
+    output.name = CreateDataReference(ext_func_id_, const_idx_);
     const auto* type_node = cn->checked_type().as<TensorTypeNode>();
     CHECK(type_node);
     const auto& dtype = GetDtypeString(type_node);
-    // Define a const buffer: float const_0[64] = {1.0, 2.0, ...};
-    //
-    // Technically, you may need: static float* const_0 = (float*)malloc(4 * 64)
-    // to avoid possible stack overflow.
-    buf_stream << dtype << " " << output.name << "[" << num_elems << "] = {";
-    if (dtype == "float") {
-      float* p_flt = static_cast<float*>(array->data);
-      for (int64_t i = 0; i < num_elems - 1; i++) buf_stream << p_flt[i] << ", ";
-      if (num_elems) buf_stream << p_flt[num_elems - 1];
-    } else if (dtype == "int") {
-      int* p_flt = static_cast<int*>(array->data);
-      for (int64_t i = 0; i < num_elems - 1; i++) buf_stream << p_flt[i] << ", ";
-      if (num_elems) buf_stream << p_flt[num_elems - 1];
-    } else {
-      LOG(FATAL) << "Only float and int are supported for now.";
+
+    // Generate the global variable for needed ndarrays
+    if (const_array_name_.empty()) {
+      const_array_name_ = CreateNDArrayPool(ext_func_id_);
+      std::string checker = CreateInitChecker(ext_func_id_);
+      ext_func_body_.insert(ext_func_body_.begin(), checker);
     }
-    buf_stream << "};";
-    ext_func_body.insert(ext_func_body.begin(), buf_stream.str());
+
+    CHECK(dtype == "float" || dtype == "int") << "Only float and int are supported for now.";
+    output.dtype = dtype;
+
+    std::string const_var_name = CreateConstVar(ext_func_id_, const_idx_);
+    const_vars_.push_back(const_var_name);
+    const_idx_++;
 
     return {output};
   }
@@ -175,7 +162,7 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     buf_decl_.push_back(buf_stream.str());
 
     decl_stream << ", " << out << ");";
-    ext_func_body.push_back(decl_stream.str());
+    ext_func_body_.push_back(decl_stream.str());
 
     // Update output buffer
     // Note C codegen only handles TensorType. Therefore, we don't flatten
@@ -198,7 +185,7 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     for (auto decl : func_decl_) {
       code_stream_ << decl << "\n";
     }
-    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out);
+    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body_, const_array_name_, out);
   }
 
  private:
@@ -213,16 +200,22 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
   /*! \brief The arguments of a C compiler compatible function. */
   Array<Var> ext_func_args_;
   /*! \brief The statements of a C compiler compatible function. */
-  std::vector<std::string> ext_func_body;
+  std::vector<std::string> ext_func_body_;
+  /*! \brief The array declared to store the constant values. */
+  std::string const_array_name_;
   /*! \brief The declaration statements of a C compiler compatible function. */
   std::vector<std::string> func_decl_;
   /*! \brief The declaration statements of buffers. */
   std::vector<std::string> buf_decl_;
+  /*! \brief The variable name to constant mapping. */
+  Array<String> const_vars_;
+
+  friend class CSourceCodegen;
 };
 
 class CSourceCodegen : public CSourceModuleCodegenBase {
  public:
-  void GenCFunc(const Function& func) {
+  std::pair<std::string, Array<String>> GenCFunc(const Function& func) {
     CHECK(func.defined()) << "Input error: expect a Relay function.";
 
     // Record the external symbol for runtime lookup.
@@ -231,14 +224,19 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
     CodegenC builder(sid);
     auto out = builder.VisitExpr(func->body);
     code_stream_ << builder.JIT(out);
+
+    return {sid, builder.const_vars_};
   }
 
   runtime::Module CreateCSourceModule(const ObjectRef& ref) override {
     // Create headers
     code_stream_ << "#include <cstring>\n";
+    code_stream_ << "#include <vector>\n";
     code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
+    code_stream_ << "#include <tvm/runtime/container.h>\n";
     code_stream_ << "#include <tvm/runtime/packed_func.h>\n";
     code_stream_ << "#include <dlpack/dlpack.h>\n";
+    code_stream_ << "using namespace tvm::runtime;\n";
 
     // Append some common macro for operator definition.
     const char* operator_macro = R"op_macro(
@@ -262,22 +260,17 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
 
     code_stream_ << operator_macro << "\n\n";
 
-    if (ref->IsInstance<FunctionNode>()) {
-      GenCFunc(Downcast<Function>(ref));
-    } else if (ref->IsInstance<IRModuleNode>()) {
-      IRModule mod = Downcast<IRModule>(ref);
-      for (const auto& it : mod->functions) {
-        GenCFunc(Downcast<Function>(it.second));
-      }
-    } else {
-      LOG(FATAL) << "The input ref is expected to be a Relay function or module"
-                 << "\n";
-    }
+    CHECK(ref->IsInstance<FunctionNode>());
+    auto res = GenCFunc(Downcast<Function>(ref));
+    std::string code = code_stream_.str();
 
-    // Create a CSourceModule
+    String sym = std::get<0>(res);
+    Array<String> variables = std::get<1>(res);
+
+    // Create a CSource module
     const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
     CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
-    return (*pf)(code_stream_.str(), "cc");
+    return (*pf)(code, "c", sym, variables);
   }
 
  private:

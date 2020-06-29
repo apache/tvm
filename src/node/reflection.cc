@@ -36,10 +36,10 @@ using runtime::TVMRetValue;
 // Attr getter.
 class AttrGetter : public AttrVisitor {
  public:
-  const std::string& skey;
+  const String& skey;
   TVMRetValue* ret;
 
-  AttrGetter(const std::string& skey, TVMRetValue* ret) : skey(skey), ret(ret) {}
+  AttrGetter(const String& skey, TVMRetValue* ret) : skey(skey), ret(ret) {}
 
   bool found_ref_object{false};
 
@@ -84,7 +84,7 @@ class AttrGetter : public AttrVisitor {
   }
 };
 
-runtime::TVMRetValue ReflectionVTable::GetAttr(Object* self, const std::string& field_name) const {
+runtime::TVMRetValue ReflectionVTable::GetAttr(Object* self, const String& field_name) const {
   runtime::TVMRetValue ret;
   AttrGetter getter(field_name, &ret);
 
@@ -234,7 +234,7 @@ ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
   runtime::TVMArgsSetter setter(values.data(), tcodes.data());
   int index = 0;
 
-  for (auto& kv : static_cast<const MapNode*>(kwargs.get())->data) {
+  for (const auto& kv : *static_cast<const MapNode*>(kwargs.get())) {
     setter(index, Downcast<String>(kv.first).c_str());
     setter(index + 1, kv.second);
     index += 2;

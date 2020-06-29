@@ -22,6 +22,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
 
 namespace tvm {
@@ -57,7 +58,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // AttrStmt
-AttrStmt::AttrStmt(ObjectRef node, std::string attr_key, PrimExpr value, Stmt body) {
+AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body) {
   auto n = make_object<AttrStmtNode>();
   n->node = node;
   n->attr_key = std::move(attr_key);
@@ -67,7 +68,7 @@ AttrStmt::AttrStmt(ObjectRef node, std::string attr_key, PrimExpr value, Stmt bo
 }
 
 TVM_REGISTER_GLOBAL("tir.AttrStmt")
-    .set_body_typed([](ObjectRef node, std::string attr_key, PrimExpr value, Stmt body) {
+    .set_body_typed([](ObjectRef node, String attr_key, PrimExpr value, Stmt body) {
       return AttrStmt(node, attr_key, value, body);
     });
 
@@ -374,25 +375,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "}\n";
     });
 
-// Free
-Free::Free(Var buffer_var) {
-  ObjectPtr<FreeNode> node = make_object<FreeNode>();
-  node->buffer_var = buffer_var;
-  data_ = std::move(node);
-}
-
-TVM_REGISTER_GLOBAL("tir.Free").set_body_typed([](Var buffer_var) { return Free(buffer_var); });
-
-TVM_REGISTER_NODE_TYPE(FreeNode);
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<FreeNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const FreeNode*>(node.get());
-      p->PrintIndent();
-      p->stream << "free " << op->buffer_var;
-      p->stream << '\n';
-    });
-
 // Prefetch
 Prefetch::Prefetch(Buffer buffer, Array<Range> bounds) {
   data_ = make_object<PrefetchNode>(buffer, bounds);
@@ -582,5 +564,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->PrintIndent();
       p->stream << "}\n";
     });
+
+PrimExpr TypeAnnotation(DataType dtype) {
+  static auto op = Op::Get("tir.type_annotation");
+  return tir::Call(dtype, op, {});
+}
+
+TVM_REGISTER_OP("tir.type_annotation")
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
+
 }  // namespace tir
 }  // namespace tvm

@@ -454,7 +454,7 @@ class Range : public ObjectRef {
    * \param min The minimum range.
    * \param extent The extent of the range.
    */
-  static Range make_by_min_extent(PrimExpr min, PrimExpr extent);
+  static Range FromMinExtent(PrimExpr min, PrimExpr extent);
   // declare range.
   TVM_DEFINE_OBJECT_REF_METHODS(Range, ObjectRef, RangeNode);
 };
@@ -483,9 +483,9 @@ inline const TTypeNode* RelayExprNode::type_as() const {
 
 namespace tvm {
 namespace runtime {
+// common rule for RetValue and ArgValue
 template <>
 struct PackedFuncValueConverter<PrimExpr> {
-  // common rule for both RetValue and ArgValue.
   static PrimExpr From(const TVMPODValue_& val) {
     if (val.type_code() == kTVMNullptr) {
       return PrimExpr(ObjectPtr<Object>(nullptr));
@@ -500,6 +500,35 @@ struct PackedFuncValueConverter<PrimExpr> {
     return PrimExpr::FromObject_(val.AsObjectRef<ObjectRef>());
   }
 };
+
+template <>
+struct PackedFuncValueConverter<tvm::Integer> {
+  static tvm::Integer From(const TVMPODValue_& val) {
+    if (val.type_code() == kTVMNullptr) {
+      return Integer(ObjectPtr<Object>(nullptr));
+    }
+    if (val.type_code() == kTVMArgInt) {
+      return Integer(val.operator int());
+    }
+    return val.AsObjectRef<tvm::Integer>();
+  }
+};
+
+template <>
+struct PackedFuncValueConverter<tvm::Bool> {
+  static tvm::Bool From(const TVMPODValue_& val) {
+    if (val.type_code() == kTVMNullptr) {
+      return Bool(ObjectPtr<Object>(nullptr));
+    }
+    if (val.type_code() == kTVMArgInt) {
+      int v = val.operator int();
+      CHECK(v == 0 || v == 1) << "ValueError: boolean value can only be 0 or 1, but get " << v;
+      return Bool(static_cast<bool>(v));
+    }
+    return val.AsObjectRef<tvm::Bool>();
+  }
+};
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_IR_EXPR_H_

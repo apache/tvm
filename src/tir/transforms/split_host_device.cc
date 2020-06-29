@@ -26,6 +26,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -69,7 +70,8 @@ class VarUseDefAnalysis : public StmtExprMutator {
     this->HandleDef(op->var.get());
     Stmt body = this->VisitStmt(op->body);
     // eliminate unreferenced let
-    if (use_count_.at(op->var.get()) == 0 && !HasSideEffect(op->value)) {
+    if (use_count_.at(op->var.get()) == 0 && SideEffect(op->value) <= CallEffectKind::kReadState &&
+        simplify_let_) {
       return body;
     } else {
       PrimExpr value = this->VisitExpr(op->value);
@@ -100,7 +102,8 @@ class VarUseDefAnalysis : public StmtExprMutator {
     this->HandleDef(op->var.get());
     PrimExpr body = this->VisitExpr(op->body);
     // eliminate unreferenced let
-    if (use_count_.at(op->var.get()) == 0 && !HasSideEffect(op->value)) {
+    if (use_count_.at(op->var.get()) == 0 && SideEffect(op->value) <= CallEffectKind::kReadState &&
+        simplify_let_) {
       return body;
     } else {
       PrimExpr value = this->VisitExpr(op->value);
@@ -148,6 +151,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
   // The fields are publically readible to
   // be accessible to the users.
   bool visit_thread_extent_{true};
+  bool simplify_let_{true};
   Array<Var> undefined_;
   Array<IterVar> thread_axis_;
   Array<PrimExpr> thread_extent_;
@@ -157,6 +161,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
 
 Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
   VarUseDefAnalysis m;
+  m.simplify_let_ = false;
   for (Var arg : args) {
     m.use_count_[arg.get()] = 0;
   }
@@ -237,8 +242,7 @@ class HostDeviceSplitter : public StmtMutator {
     for (PrimExpr ext : m.thread_extent_) {
       call_args.push_back(ext);
     }
-    return Evaluate(
-        Call(DataType::Int(32), intrinsic::tvm_call_packed, call_args, CallNode::Intrinsic));
+    return Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), call_args));
   }
 
   // target ir module
@@ -277,7 +281,7 @@ Pass SplitHostDevice() {
     auto* func_dict = mod_ptr->functions.CopyOnWrite();
     IRModule device_mod = IRModule();
 
-    for (auto& kv : func_dict->data) {
+    for (auto& kv : *func_dict) {
       if (kv.second->IsInstance<PrimFuncNode>()) {
         PrimFunc func = Downcast<PrimFunc>(std::move(kv.second));
         kv.second = SplitHostDevice(std::move(func), &device_mod);

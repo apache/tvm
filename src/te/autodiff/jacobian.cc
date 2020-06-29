@@ -95,35 +95,32 @@ class JacobianMutator : public ExprMutator {
 
   PrimExpr VisitExpr_(const CallNode* op) {
     PrimExpr expr = GetRef<PrimExpr>(op);
-    if (op->call_type == CallNode::CallType::PureIntrinsic) {
-      static std::unordered_set<std::string> piecewise_const = {"floor", "ceil", "trunc", "round"};
-      if (op->name == "exp") {
-        return Mul(Mutate(op->args[0]), expr);
-      } else if (op->name == "log") {
-        return Div(Mutate(op->args[0]), op->args[0]);
-      } else if (op->name == "sigmoid") {
-        return Mul(Mutate(op->args[0]), Mul(expr, Sub(FloatImm(expr.dtype(), 1.0), expr)));
-      } else if (op->name == "sqrt") {
-        return Div(Mutate(op->args[0]), Mul(expr, FloatImm(expr.dtype(), 2.0)));
-      } else if (op->name == "tanh") {
-        return Mul(Mutate(op->args[0]), Sub(FloatImm(expr.dtype(), 1.0), Mul(expr, expr)));
-      } else if (op->name == "pow") {
-        auto x = op->args[0], y = op->args[1];
-        return expr * (Mutate(y) * log(x) + Mutate(x) * y / x);
-      } else if (op->name == "fabs") {
-        auto type = op->args[0].dtype();
-        return Mul(Mutate(op->args[0]), Select(GE(op->args[0], make_zero(type)),
-                                               FloatImm(type, 1.0), FloatImm(type, -1.0)));
-      } else if (op->name == intrinsic::tvm_if_then_else) {
-        Array<PrimExpr> new_args = {op->args[0], Mutate(op->args[1]), Mutate(op->args[2])};
-        return Call(op->dtype, op->name, new_args, op->call_type);
-      } else if (piecewise_const.count(op->name)) {
-        return FloatImm(expr.dtype(), 0.0);
-      } else {
-        throw dmlc::Error("Derivative of this intrinsic is not implemented: " + op->name);
-      }
+    if (op->op.same_as(op_exp_)) {
+      return Mul(Mutate(op->args[0]), expr);
+    } else if (op->op.same_as(op_log_)) {
+      return Div(Mutate(op->args[0]), op->args[0]);
+    } else if (op->op.same_as(op_sigmoid_)) {
+      return Mul(Mutate(op->args[0]), Mul(expr, Sub(FloatImm(expr.dtype(), 1.0), expr)));
+    } else if (op->op.same_as(op_sqrt_)) {
+      return Div(Mutate(op->args[0]), Mul(expr, FloatImm(expr.dtype(), 2.0)));
+    } else if (op->op.same_as(op_tanh_)) {
+      return Mul(Mutate(op->args[0]), Sub(FloatImm(expr.dtype(), 1.0), Mul(expr, expr)));
+    } else if (op->op.same_as(op_pow_)) {
+      auto x = op->args[0], y = op->args[1];
+      return expr * (Mutate(y) * log(x) + Mutate(x) * y / x);
+    } else if (op->op.same_as(op_fabs_)) {
+      auto type = op->args[0].dtype();
+      return Mul(Mutate(op->args[0]), Select(GE(op->args[0], make_zero(type)), FloatImm(type, 1.0),
+                                             FloatImm(type, -1.0)));
+    } else if (op->op.same_as(op_if_then_else_)) {
+      Array<PrimExpr> new_args = {op->args[0], Mutate(op->args[1]), Mutate(op->args[2])};
+      return Call(op->dtype, op->op, new_args);
+    } else if (piecewise_const.count(op->op)) {
+      return FloatImm(expr.dtype(), 0.0);
+    } else {
+      LOG(FATAL) << "Derivative of this intrinsic is not implemented: " << op->op;
+      return PrimExpr();
     }
-    NOT_IMPLEMENTED;
   }
 
   PrimExpr VisitExpr_(const AddNode* op) { return Add(Mutate(op->a), Mutate(op->b)); }
@@ -281,6 +278,17 @@ class JacobianMutator : public ExprMutator {
   Array<PrimExpr> indices_;
   Var input_var_;
   arith::Analyzer analyzer_;
+
+  const Op& op_exp_ = Op::Get("tir.exp");
+  const Op& op_log_ = Op::Get("tir.log");
+  const Op& op_sigmoid_ = Op::Get("tir.sigmoid");
+  const Op& op_sqrt_ = Op::Get("tir.sqrt");
+  const Op& op_tanh_ = Op::Get("tir.tanh");
+  const Op& op_pow_ = Op::Get("tir.pow");
+  const Op& op_fabs_ = Op::Get("tir.fabs");
+  const Op& op_if_then_else_ = Op::Get("tir.if_then_else");
+  std::unordered_set<RelayExpr, ObjectPtrHash, ObjectPtrEqual> piecewise_const = {
+      Op::Get("tir.floor"), Op::Get("tir.ceil"), Op::Get("tir.trunc"), Op::Get("tir.round")};
 };
 
 PrimExpr Derivative(const PrimExpr& expr, const Var& var) {

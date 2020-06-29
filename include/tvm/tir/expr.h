@@ -51,7 +51,7 @@ using FloatImmNode = tvm::FloatImmNode;
 class StringImmNode : public PrimExprNode {
  public:
   /*! \brief The constant value content. */
-  std::string value;
+  String value;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
@@ -64,7 +64,7 @@ class StringImmNode : public PrimExprNode {
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
 
-  static constexpr const char* _type_key = "StringImm";
+  static constexpr const char* _type_key = "tir.StringImm";
   TVM_DECLARE_FINAL_OBJECT_INFO(StringImmNode, PrimExprNode);
 };
 
@@ -74,7 +74,7 @@ class StringImmNode : public PrimExprNode {
  */
 class StringImm : public PrimExpr {
  public:
-  TVM_DLL StringImm(std::string value);
+  TVM_DLL StringImm(String value);
   TVM_DEFINE_OBJECT_REF_METHODS(StringImm, PrimExpr, StringImmNode);
 };
 
@@ -101,7 +101,7 @@ class CastNode : public PrimExprNode {
     hash_reduce(value);
   }
 
-  static constexpr const char* _type_key = "Cast";
+  static constexpr const char* _type_key = "tir.Cast";
   TVM_DECLARE_FINAL_OBJECT_INFO(CastNode, PrimExprNode);
 };
 
@@ -149,7 +149,7 @@ class BinaryOpNode : public PrimExprNode {
 /*! \brief a + b */
 class AddNode : public BinaryOpNode<AddNode> {
  public:
-  static constexpr const char* _type_key = "Add";
+  static constexpr const char* _type_key = "tir.Add";
 };
 
 /*!
@@ -165,7 +165,7 @@ class Add : public PrimExpr {
 /*! \brief a - b */
 class SubNode : public BinaryOpNode<SubNode> {
  public:
-  static constexpr const char* _type_key = "Sub";
+  static constexpr const char* _type_key = "tir.Sub";
 };
 
 /*!
@@ -181,7 +181,7 @@ class Sub : public PrimExpr {
 /*! \brief a * b */
 class MulNode : public BinaryOpNode<MulNode> {
  public:
-  static constexpr const char* _type_key = "Mul";
+  static constexpr const char* _type_key = "tir.Mul";
 };
 
 /*!
@@ -200,7 +200,7 @@ class Mul : public PrimExpr {
  */
 class DivNode : public BinaryOpNode<DivNode> {
  public:
-  static constexpr const char* _type_key = "Div";
+  static constexpr const char* _type_key = "tir.Div";
 };
 
 /*!
@@ -219,7 +219,7 @@ class Div : public PrimExpr {
  */
 class ModNode : public BinaryOpNode<ModNode> {
  public:
-  static constexpr const char* _type_key = "Mod";
+  static constexpr const char* _type_key = "tir.Mod";
 };
 
 /*!
@@ -235,7 +235,7 @@ class Mod : public PrimExpr {
 /*! \brief Floor division, floor(a/b) */
 class FloorDivNode : public BinaryOpNode<FloorDivNode> {
  public:
-  static constexpr const char* _type_key = "FloorDiv";
+  static constexpr const char* _type_key = "tir.FloorDiv";
 };
 
 /*!
@@ -251,7 +251,7 @@ class FloorDiv : public PrimExpr {
 /*! \brief The remainder of the floordiv */
 class FloorModNode : public BinaryOpNode<FloorModNode> {
  public:
-  static constexpr const char* _type_key = "FloorMod";
+  static constexpr const char* _type_key = "tir.FloorMod";
 };
 
 /*!
@@ -267,7 +267,7 @@ class FloorMod : public PrimExpr {
 /*! \brief min(a, b) */
 class MinNode : public BinaryOpNode<MinNode> {
  public:
-  static constexpr const char* _type_key = "Min";
+  static constexpr const char* _type_key = "tir.Min";
 };
 
 /*!
@@ -283,7 +283,7 @@ class Min : public PrimExpr {
 /*! \brief max(a, b) */
 class MaxNode : public BinaryOpNode<MaxNode> {
  public:
-  static constexpr const char* _type_key = "Max";
+  static constexpr const char* _type_key = "tir.Max";
 };
 
 /*!
@@ -330,7 +330,7 @@ class CmpOpNode : public PrimExprNode {
 /*! \brief a == b */
 class EQNode : public CmpOpNode<EQNode> {
  public:
-  static constexpr const char* _type_key = "EQ";
+  static constexpr const char* _type_key = "tir.EQ";
 };
 
 /*!
@@ -346,7 +346,7 @@ class EQ : public PrimExpr {
 /*! \brief a != b */
 class NENode : public CmpOpNode<NENode> {
  public:
-  static constexpr const char* _type_key = "NE";
+  static constexpr const char* _type_key = "tir.NE";
 };
 
 /*!
@@ -362,7 +362,7 @@ class NE : public PrimExpr {
 /*! \brief a < b */
 class LTNode : public CmpOpNode<LTNode> {
  public:
-  static constexpr const char* _type_key = "LT";
+  static constexpr const char* _type_key = "tir.LT";
 };
 
 /*!
@@ -378,7 +378,7 @@ class LT : public PrimExpr {
 /*! \brief a <= b */
 struct LENode : public CmpOpNode<LENode> {
  public:
-  static constexpr const char* _type_key = "LE";
+  static constexpr const char* _type_key = "tir.LE";
 };
 
 /*!
@@ -394,7 +394,7 @@ class LE : public PrimExpr {
 /*! \brief a > b */
 class GTNode : public CmpOpNode<GTNode> {
  public:
-  static constexpr const char* _type_key = "GT";
+  static constexpr const char* _type_key = "tir.GT";
 };
 
 /*!
@@ -410,7 +410,7 @@ class GT : public PrimExpr {
 /*! \brief a >= b */
 class GENode : public CmpOpNode<GENode> {
  public:
-  static constexpr const char* _type_key = "GE";
+  static constexpr const char* _type_key = "tir.GE";
 };
 
 /*!
@@ -447,7 +447,7 @@ class AndNode : public PrimExprNode {
     hash_reduce(b);
   }
 
-  static constexpr const char* _type_key = "And";
+  static constexpr const char* _type_key = "tir.And";
   TVM_DECLARE_FINAL_OBJECT_INFO(AndNode, PrimExprNode);
 };
 
@@ -485,7 +485,7 @@ class OrNode : public PrimExprNode {
     hash_reduce(b);
   }
 
-  static constexpr const char* _type_key = "Or";
+  static constexpr const char* _type_key = "tir.Or";
   TVM_DECLARE_FINAL_OBJECT_INFO(OrNode, PrimExprNode);
 };
 
@@ -519,7 +519,7 @@ class NotNode : public PrimExprNode {
     hash_reduce(a);
   }
 
-  static constexpr const char* _type_key = "Not";
+  static constexpr const char* _type_key = "tir.Not";
   TVM_DECLARE_FINAL_OBJECT_INFO(NotNode, PrimExprNode);
 };
 
@@ -568,7 +568,7 @@ class SelectNode : public PrimExprNode {
     hash_reduce(false_value);
   }
 
-  static constexpr const char* _type_key = "Select";
+  static constexpr const char* _type_key = "tir.Select";
   TVM_DECLARE_FINAL_OBJECT_INFO(SelectNode, PrimExprNode);
 };
 
@@ -617,7 +617,7 @@ class BufferLoadNode : public PrimExprNode {
     hash_reduce(indices);
   }
 
-  static constexpr const char* _type_key = "BufferLoad";
+  static constexpr const char* _type_key = "tir.BufferLoad";
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferLoadNode, PrimExprNode);
 };
 
@@ -664,7 +664,7 @@ class ProducerLoadNode : public PrimExprNode {
     hash_reduce(indices);
   }
 
-  static constexpr const char* _type_key = "ProducerLoad";
+  static constexpr const char* _type_key = "tir.ProducerLoad";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProducerLoadNode, PrimExprNode);
 };
 
@@ -722,7 +722,7 @@ class LoadNode : public PrimExprNode {
     hash_reduce(predicate);
   }
 
-  static constexpr const char* _type_key = "Load";
+  static constexpr const char* _type_key = "tir.Load";
   TVM_DECLARE_FINAL_OBJECT_INFO(LoadNode, PrimExprNode);
 };
 
@@ -773,7 +773,7 @@ class RampNode : public PrimExprNode {
     hash_reduce(lanes);
   }
 
-  static constexpr const char* _type_key = "Ramp";
+  static constexpr const char* _type_key = "tir.Ramp";
   TVM_DECLARE_FINAL_OBJECT_INFO(RampNode, PrimExprNode);
 };
 
@@ -811,7 +811,7 @@ class BroadcastNode : public PrimExprNode {
     hash_reduce(lanes);
   }
 
-  static constexpr const char* _type_key = "Broadcast";
+  static constexpr const char* _type_key = "tir.Broadcast";
   TVM_DECLARE_FINAL_OBJECT_INFO(BroadcastNode, PrimExprNode);
 };
 
@@ -856,7 +856,7 @@ class LetNode : public PrimExprNode {
     hash_reduce(body);
   }
 
-  static constexpr const char* _type_key = "Let";
+  static constexpr const char* _type_key = "tir.Let";
   TVM_DECLARE_FINAL_OBJECT_INFO(LetNode, PrimExprNode);
 };
 
@@ -870,118 +870,39 @@ class Let : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_METHODS(Let, PrimExpr, LetNode);
 };
 
-// Call node, represent a function call or a multi-dimensional array load.
-//
-// TODO(tvm-team):
-// Refactor call with more explicit property registrations.
-// rather than calling a string symbol.
-// We should move most information into function itself and remove name.
-
-/*! \brief Base node of internal functions. */
-class FunctionBaseNode : public Object {
- public:
-  /*! \brief virtual destructor */
-  virtual ~FunctionBaseNode() {}
-  /*! \return the name of the function */
-  virtual const std::string& func_name() const = 0;
-  /*! \return the number of outputs of this function */
-  virtual int num_outputs() const = 0;
-
-  // fall back to pointer equality now before refactor.
-  bool SEqualReduce(const FunctionBaseNode* other, SEqualReducer equal) const {
-    return this == other;
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {}
-
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
-};
-
-/*! \brief reference to a function */
-class FunctionRef : public ObjectRef {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(FunctionRef, ObjectRef, FunctionBaseNode);
-};
-
 /*!
  * \brief Call node.
  */
 class CallNode : public PrimExprNode {
  public:
-  /*! \brief Possible types of calls. */
-  enum CallType : int {
-    /*! \brief Extern "C" function. */
-    Extern = 0,
-    /*! \brief Extern CXX function. */
-    ExternCPlusPlus = 1,
-    /*! \brief Extern "C" without side-effect. */
-    PureExtern = 2,
-    /*! \brief Intrinsic functions. */
-    Intrinsic = 4,
-    /*! \brief Intrinsic functions that are pure. */
-    PureIntrinsic = 5
-  };
-  /*! \brief The name of the function/intrinsic. */
-  std::string name;
+  /*!
+   * \brief The operator(function) being invoked
+   *
+   *  - It can be tvm::Op which corresponds to the primitive operators(intrinsics).
+   *  - It can also be another function in the IRModule (GlobalVar).
+   */
+  RelayExpr op;
+
   /*! \brief The arguments. */
   Array<PrimExpr> args;
-  /*! \brief Type of calls. */
-  CallType call_type;
-
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
-    v->Visit("name", &name);
+    v->Visit("op", &op);
     v->Visit("args", &args);
-    v->Visit("call_type", &call_type);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(name, other->name) && equal(args, other->args) &&
-           equal(call_type, other->call_type);
+    return equal(dtype, other->dtype) && equal(op, other->op) && equal(args, other->args);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(dtype);
-    hash_reduce(name);
+    hash_reduce(op);
     hash_reduce(args);
-    hash_reduce(call_type);
   }
 
-  /*! \return Whether call node is pure. */
-  bool is_pure() const { return (call_type == PureExtern || call_type == PureIntrinsic); }
-
-  /*!
-   * \return Whether call node corresponds to a defined intrinsic.
-   * \param intrin_name The name of the intrinsic.
-   */
-  bool is_intrinsic(const char* intrin_name) const {
-    return ((call_type == Intrinsic || call_type == PureIntrinsic) && name == intrin_name);
-  }
-
-  /*! \return Whether call node can be vectorized. */
-  bool is_vectorizable() const;
-
-  static constexpr const char* _type_key = "Call";
+  static constexpr const char* _type_key = "tir.Call";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, PrimExprNode);
-
-  // Build-in intrinsics
-  static constexpr const char* reinterpret = "reinterpret";
-  static constexpr const char* bitwise_and = "bitwise_and";
-  static constexpr const char* bitwise_not = "bitwise_not";
-  static constexpr const char* bitwise_xor = "bitwise_xor";
-  static constexpr const char* bitwise_or = "bitwise_or";
-  static constexpr const char* shift_left = "shift_left";
-  static constexpr const char* shift_right = "shift_right";
-  static constexpr const char* popcount = "popcount";
-  static constexpr const char* likely = "likely";
-  static constexpr const char* prefetch = "prefetch";
-  static constexpr const char* isnan = "isnan";
-  static constexpr const char* isfinite = "isfinite";
-  static constexpr const char* isinf = "isinf";
-
-  /*! \brief Vectorizable intrinsic list. */
-  static const char* vectorizable_intrinsics[];
 };
 
 /*!
@@ -990,9 +911,7 @@ class CallNode : public PrimExprNode {
  */
 class Call : public PrimExpr {
  public:
-  using CallType = CallNode::CallType;
-
-  TVM_DLL Call(DataType dtype, std::string name, Array<PrimExpr> args, CallType call_type);
+  TVM_DLL Call(DataType dtype, RelayExpr op, Array<PrimExpr> args);
   TVM_DEFINE_OBJECT_REF_METHODS(Call, PrimExpr, CallNode);
 };
 
@@ -1024,7 +943,7 @@ class ShuffleNode : public PrimExprNode {
     hash_reduce(indices);
   }
 
-  static constexpr const char* _type_key = "Shuffle";
+  static constexpr const char* _type_key = "tir.Shuffle";
   TVM_DECLARE_FINAL_OBJECT_INFO(ShuffleNode, PrimExprNode);
 };
 
@@ -1082,7 +1001,7 @@ class CommReducerNode : public Object {
     hash_reduce(identity_element);
   }
 
-  static constexpr const char* _type_key = "CommReducer";
+  static constexpr const char* _type_key = "tir.CommReducer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(CommReducerNode, Object);
@@ -1142,7 +1061,7 @@ class ReduceNode : public PrimExprNode {
     hash_reduce(value_index);
   }
 
-  static constexpr const char* _type_key = "Reduce";
+  static constexpr const char* _type_key = "tir.Reduce";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReduceNode, PrimExprNode);
 };
 
@@ -1170,7 +1089,7 @@ class AnyNode : public PrimExprNode {
   /*! \brief Convert to var. */
   Var ToVar() const { return Var("any_dim", DataType::Int(32)); }
 
-  static constexpr const char* _type_key = "Any";
+  static constexpr const char* _type_key = "tir.Any";
   TVM_DECLARE_FINAL_OBJECT_INFO(AnyNode, PrimExprNode);
 };
 
@@ -1201,379 +1120,7 @@ inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
   }
   return ret;
 }
-
-/*! \brief namespace of TVM Intrinsic functions */
-namespace intrinsic {
-/*!
- * \brief See pesudo code
- *
- *  Construct a big uint that may not be representable by int64
- *
- *  Expr tvm_large_uint_imm(uint32_t v0, uin32_t v1) {
- *    return (v1 << 32) | v0;
- *  }
- */
-constexpr const char* tvm_large_uint_imm = "tvm_large_uint_imm";
-/*!
- * \brief See pesudo code
- *
- *  Handle tvm_address_of(Load *op) {
- *     return &op->buffer_var[index];
- *  }
- */
-constexpr const char* tvm_address_of = "tvm_address_of";
-/*!
- * \brief Same as select, used for unsafe memory access.
- *
- *  Type tvm_if_then_else(cond, a, b) {
- *    return cond ? a : b;
- *  }
- */
-constexpr const char* tvm_if_then_else = "tvm_if_then_else";
-/*!
- * \brief Get head access address with memory access pattern info.
- *
- *  This operator also marks range of the memory access
- *  The offset and extent are in unit of the DType(including vectorization factor).
- *  rw_mask is a bit_mask setting whether the access is a read(1) or write(2).
- *  The access is assume to happen in the current expression.
- *
- *  PtrType tvm_access_ptr(Expr dtype, DType* data,
- *                         int offset, int extent,
- *                         int rw_mask) {
- *    // DType == dtype.type();
- *    return &data[offset];
- *  }
- */
-constexpr const char* tvm_access_ptr = "tvm_access_ptr";
-/*!
- * \brief Create a function local static handle that iniitalizes to nullptr.
- *  can be used to cache function local static resources.
- */
-constexpr const char* tvm_static_handle = "tvm_static_handle";
-/*!
- * \brief Return a unique context id, used for hint of workspace separation.
- *  Different context id ganrantees not having overlapping workspace.
- */
-constexpr const char* tvm_context_id = "tvm_context_id";
-/*!
- * \brief tvm_tuple is not an actual function and cannot codegen.
- *  It is used to represent tuple structure in value field of AttrStmt,
- *  for the sake of giving hint to optimization.
- *
- *  Handle tvm_tuple(value0, value1, ..., value_n);
- */
-constexpr const char* tvm_tuple = "tvm_tuple";
-/*!
- * \brief See pesudo code
- *
- *  Type tvm_struct_get(StructType* arr, int index, int field_id) {
- *     return arr[index]->field;
- *  }
- * \sa TVMStructFieldKind
- */
-constexpr const char* tvm_struct_get = "tvm_struct_get";
-/*!
- * \brief See pesudo code
- *
- *  Handle tvm_struct_set(StructType* arr, int index, int field_id, value) {
- *     arr[index]->field = value;
- *  }
- * \sa TVMStructFieldKind
- */
-constexpr const char* tvm_struct_set = "tvm_struct_set";
-/*!
- * \brief See pesudo code
- *
- *  bool tvm_handle_is_null(void* handle) {
- *     return handle == nullptr
- *  }
- */
-constexpr const char* tvm_handle_is_null = "tvm_handle_is_null";
-/*!
- * \brief See pesudo code
- *
- *  void tvm_throw_last_error() {
- *    throw TVMGetLastError();
- *  }
- */
-constexpr const char* tvm_throw_last_error = "tvm_throw_last_error";
-/*!
- * \brief See pesudo code
- *
- *  dtype in {shape, array, arg_value, arg_tcode}
- *
- *  Handle tvm_stack_alloca(string dtype, int num) {
- *     return new on stack dtype[num];
- *  }
- */
-constexpr const char* tvm_stack_alloca = "tvm_stack_alloca";
-/*!
- * \brief Allocate a shape tuple on stack, return the handle.
- *
- *  Handle tvm_stack_make_shape(list args) {
- *     ret = alloca stack int64_t[len(args)];
- *     for i in range(len(args)):
- *        ret[i] = args[i]
- *     return &ret[0];
- *  }
- */
-constexpr const char* tvm_stack_make_shape = "tvm_stack_make_shape";
-/*!
- * \brief Allocate a NDArray(DLTensor) on stack, return the handle.
- *
- *  Type tvm_stack_make_array(Expr data,
- *                            Expr shape,
- *                            Expr strides,
- *                            Expr ndim,
- *                            Expr dtype,
- *                            Expr elem_offset) {
- *     ret = alloca stack DLTensor();
- *     ret->data = data;
- *     ret->shape = shape;
- *     ret->strides = strides != 0 ? strides : nullptr;
- *     ret->ndim = ndim;
- *     ret->dtype = dtype.type();
- *     ret->byte_offset = elem_offset * sizeof(dtype);
- *     return ret;
- *  }
- */
-constexpr const char* tvm_stack_make_array = "tvm_stack_make_array";
-/*!
- * \brief See pesudo code
- *
- *  int tvm_call_packed(name, TVMValue* args) {
- *     ModuleNode* env = GetCurrentEnv();
- *     const PackedFunc* f = env->GetFuncFromEnv(name);
- *     (*f)(args, type_code_of(args), len(args));
- *     return 0;
- *  }
- */
-constexpr const char* tvm_call_packed = "tvm_call_packed";
-/*!
- * \brief See pesudo code
- *
- *  int tvm_call_trace_packed(name, TVMValue* args) {
- *     ModuleNode* env = GetCurrentEnv();
- *     const PackedFunc* f = env->GetFuncFromEnv(name);
- *     (*f)(args, type_code_of(args), len(args));
- *     return 0;
- *  }
- */
-constexpr const char* tvm_call_trace_packed = "tvm_call_trace_packed";
-/*!
- * \brief See pesudo code
- *  Mark the content as thread local context, can get optimized
- *  by only call the call once at thread start.
- *
- *  Do not allow nesting(getting a thread context from another).
- *
- *  Handle tvm_thread_context(Expr call) {
- *     return call;
- *  }
- */
-constexpr const char* tvm_thread_context = "tvm_thread_context";
-/*!
- * \brief Lowered version of call packed, the space of value and
- *  type codes are explicitly allocated.
- *
- *  int tvm_call_packed_lowered(name,
- *                              TVMValue* value_stack,
- *                              int* tcode_stack,
- *                              int begin,
- *                              int end) {
- *     ModuleNode* env = GetCurrentEnv();
- *     const PackedFunc* f = env->GetFuncFromEnv(name);
- *     f->CallPacked(TVMArgs(value_stack[begin:end],
- *                           tcode_stack[begin:end]),
- *                   TVMRetValue(value_stack + end, tcode_stack + end));
- *  }
- */
-constexpr const char* tvm_call_packed_lowered = "tvm_call_packed_lowered";
-/*!
- * \brief Lowered version of trace intrinsic, the space of value and
- *  type codes are explicitly allocated. The return value is the
- *  (end - 1) value on the stack.
- *
- *  int tvm_call_trace_packed_lowered(name,
- *                                    TVMValue* value_stack,
- *                                    int* tcode_stack,
- *                                    int begin,
- *                                    int end) {
- *     ModuleNode* env = GetCurrentEnv();
- *     const PackedFunc* f = env->GetFuncFromEnv(name);
- *     f->CallPacked(TVMArgs(value_stack[begin:end],
- *                           tcode_stack[begin:end]),
- *                   TVMRetValue(value_stack + end, tcode_stack + end));
- *  }
- */
-constexpr const char* tvm_call_trace_packed_lowered = "tvm_call_trace_packed_lowered";
-/*!
- * \brief See pseudo code
- *
- *  int tvm_storage_sync(std::string storage_scope) {
- *     __sync(storage_scope);
- *     return 0;
- *  }
- */
-constexpr const char* tvm_storage_sync = "tvm_storage_sync";
-
-/*!
- * \brief See pseudo code
- *
- *  Type tvm_warp_shuffle(mask, Type value, warp_id, width, warp_size) {
- *    return (value passed in by warp indicated by this_warp_id);
- *  }
- *
- *  Type tvm_warp_shuffle_up(mask, Type value, offset, width, warp_size) {
- *    return (value passed in by warp indicated by this_warp_id - offset);
- *  }
- *
- *  Type tvm_warp_shuffle_down(mask, Type value, offset, width, warp_size) {
- *    return (value passed in by warp indicated by this_warp_id + offset);
- *  }
- *
- *  unsigned tvm_warp_activemask() {
- *    return (32-bit mask of currently active threads in the calling warp);
- *  }
- *
- *  Parameter warp_id indicates the source thread ID in a warp.
- *
- *  Parameter offset indicates the relative distance to this_warp_id.
- *
- *  Parameter width indicates the number of threads involved in one
- *  shuffle. See CUDA document for __shfl_sync, __shfl_up_sync,
- *  __shfl_down_sync and __activemask.
- *
- *  Parameter warp_size is the size of a warp, which helps a backend
- *  to determine wheter the width paramter is legal.
- *
- */
-constexpr const char* tvm_warp_shuffle = "tvm_warp_shuffle";
-constexpr const char* tvm_warp_shuffle_up = "tvm_warp_shuffle_up";
-constexpr const char* tvm_warp_shuffle_down = "tvm_warp_shuffle_down";
-constexpr const char* tvm_warp_activemask = "tvm_warp_activemask";
-
-/*!
- * \brief Initialize the global barrier.
- *  Call this at beginning of kernel that need global barrier.
- */
-constexpr const char* tvm_global_barrier_kinit = "tvm_global_barrier_kinit";
-/*!
- * \brief See pesudo code
- *
- *  void tvm_thread_allreduce(UIntImm size, Expr source0, ..., Expr cond,
- *                            Var reduce_temp0, .., Var thread_idx1, ...) {
- *     // constraint by the other thread_idx remain the same.
- *     // reduce_temp is used to save intermediate result.
- *     reduce_temp0, ... = reduce(combiner, source0, ..., cond
- *       over [thread_idx1, thread_idx2] passed by any caller)
- *  }
- */
-constexpr const char* tvm_thread_allreduce = "tvm_thread_allreduce";
-/*!
- * \brief tvm intrinsic for tensor core load operators.
- *
- *  void tvm_load_matrix_sync(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
- *                            Expr index, Expr buffer_ptr, Expr stride,
- *                            StringImm layout) {
- *    // m, n, k are the shape of wmma fragment.
- *    // Determine fragment layout(column-major or row major) by layout.
- *    // fragments must be in 'wmma.matrix_a' or 'wmma.matrix_b' scope.
- *    nvcuda::wmma::load_matrix_sync(fragment[index], buffer_ptr, stride);
- *  }
- */
-constexpr const char* tvm_load_matrix_sync = "tvm_load_matrix_sync";
-/*!
- * \brief tvm intrinsic for tensor core mma_sync operators.
- *
- *  void tvm_mma_sync(Var fragment_d, Expr index_d,
- *                    Var fragment_a, Expr index_a,
- *                    Var fragment_b, Expr index_b,
- *                    Var fragment_c, Expr index_c) {
- *    nvcuda::wmma::mma_sync(fragment_d[index_d], fragment_a[index_a],
- *                           fragment_b[index_b], fragment_c[index_c]);
- *  }
- */
-constexpr const char* tvm_mma_sync = "tvm_mma_sync";
-/*!
- * \brief tvm intrinsic for tensor core bmma_sync operators.
- *
- *  void tvm_bmma_sync(Var fragment_d, Expr index_d,
- *                     Var fragment_a, Expr index_a,
- *                     Var fragment_b, Expr index_b,
- *                     Var fragment_c, Expr index_c) {
- *    nvcuda::wmma::bmma_sync(fragment_d[index_d], fragment_a[index_a],
- *                           fragment_b[index_b], fragment_c[index_c]);
- *  }
- */
-constexpr const char* tvm_bmma_sync = "tvm_bmma_sync";
-/*!
- * \brief tvm intrinsic for tensor core fill_fragment operators.
- *
- *  void tvm_fill_fragment(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
- *                         Expr index, Expr value) {
- *    // m, n, k are the shape of wmma fragment
- *    // fragments must be in 'wmma.accumulator' scope.
- *    nvcuda::wmma::fill_fragment(fragment[index], value);
- *  }
- */
-constexpr const char* tvm_fill_fragment = "tvm_fill_fragment";
-/*!
- * \brief tvm intrinsic for tensor core store operators.
- *
- *  void tvm_store_matrix_sync(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
- *                             Expr index, Expr buffer_ptr, Expr stride,
- *                             StringImm layout) {
- *    // m, n, k are the shape of wmma fragment
- *    // fragments must be in 'wmma.accumulator' scope.
- *    nvcuda::wmma::store_matrix_sync(fragment[index], buffer_ptr, stride, layout);
- *  }
- */
-constexpr const char* tvm_store_matrix_sync = "tvm_store_matrix_sync";
-
-/*! \brief The kind of structure field info used in intrinsic */
-enum TVMStructFieldKind : int {
-  // array head address
-  kArrAddr,
-  kArrData,
-  kArrShape,
-  kArrStrides,
-  kArrNDim,
-  kArrTypeCode,
-  kArrTypeBits,
-  kArrTypeLanes,
-  kArrByteOffset,
-  kArrDeviceId,
-  kArrDeviceType,
-  kArrKindBound_,
-  // TVMValue field
-  kTVMValueContent,
-  kTVMValueKindBound_
-};
-}  // namespace intrinsic
-
 }  // namespace tir
-}  // namespace tvm
-
-namespace tvm {
-namespace runtime {
-// Additional implementattion overloads for PackedFunc.
-
-template <>
-struct PackedFuncValueConverter<tvm::Integer> {
-  // common rule for RetValue and ArgValue
-  static tvm::Integer From(const TVMPODValue_& val) {
-    if (val.type_code() == kTVMNullptr) {
-      return Integer(ObjectPtr<Object>(nullptr));
-    }
-    if (val.type_code() == kDLInt) {
-      return Integer(val.operator int());
-    }
-    return val.AsObjectRef<tvm::Integer>();
-  }
-};
-}  // namespace runtime
 }  // namespace tvm
 
 namespace std {

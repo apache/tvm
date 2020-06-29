@@ -214,9 +214,13 @@ class VarVisitor : protected ExprVisitor, protected PatternVisitor {
   }
 
   void VisitExpr_(const LetNode* op) final {
-    MarkBounded(op->var);
-    VisitExpr(op->value);
-    VisitExpr(op->body);
+    Expr let = GetRef<Let>(op);
+    while (auto let_node = let.as<LetNode>()) {
+      MarkBounded(let_node->var);
+      VisitExpr(let_node->value);
+      let = let_node->body;
+    }
+    VisitExpr(let);
   }
 
   void VisitPattern(const Pattern& p) final { PatternVisitor::VisitPattern(p); }

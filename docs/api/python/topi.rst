@@ -46,6 +46,7 @@ List of operators
    topi.reinterpret
    topi.transpose
    topi.flip
+   topi.reverse_sequence
    topi.strided_slice
    topi.expand_dims
    topi.reshape
@@ -152,6 +153,7 @@ topi
 .. autofunction:: topi.reinterpret
 .. autofunction:: topi.transpose
 .. autofunction:: topi.flip
+.. autofunction:: topi.reverse_sequence
 .. autofunction:: topi.strided_slice
 .. autofunction:: topi.expand_dims
 .. autofunction:: topi.reshape
