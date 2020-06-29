@@ -1249,7 +1249,7 @@ RELAY_REGISTER_OP("repeat")
 
 // meshgrid operator
 bool MeshgridRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-               const TypeReporter& reporter) {
+                 const TypeReporter& reporter) {
   // types: [data, result]
   CHECK_EQ(types.size(), 2);
   const auto* tensor_tuple = types[0].as<TupleTypeNode>();
@@ -1299,7 +1299,7 @@ bool MeshgridRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 Array<te::Tensor> MeshgridCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                const Type& out_type) {
+                                  const Type& out_type) {
   return {topi::meshgrid(inputs)};
 }
 

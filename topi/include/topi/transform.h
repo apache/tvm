@@ -1267,7 +1267,7 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
  * \return A Tensor whose op member is the meshgrid operation
  */
 inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, std::string name = "T_meshgrid",
-                          std::string tag = kInjective) {
+                              std::string tag = kInjective) {
   Array<PrimExpr> out_shape;
   for (size_t i = 0; i < inputs.size(); ++i) {
     out_shape.push_back(inputs[i]->shape.size() == 0 ? 1 : inputs[i]->shape[0]);
