@@ -106,54 +106,30 @@ struct ADValueNode {
   }
 };
 
-Expr MultiZerosType(const Type& t) {
+template <typename F>
+Expr MultiFactory(const Type& t, F factory) {
   if (auto* tt = t.as<TensorTypeNode>()) {
-    return Zeros(tt->shape, tt->dtype);
+    return factory(tt->shape, tt->dtype);
   } else if (auto* tt = t.as<TupleTypeNode>()) {
     std::vector<Expr> res;
     for (size_t i = 0; i < tt->fields.size(); i++) {
-      res.push_back(MultiZerosType(tt->fields[i]));
+      res.push_back(MultiFactory(tt->fields[i], factory));
     }
     return Tuple(res);
   } else {
-    LOG(FATAL) << "unsupported type to zero: " << tt;
+    LOG(FATAL) << "unsupported type to create tensors of: " << tt;
     throw;
   }
 }
 
-Expr MultiZerosLike(const Expr& e, const Type& t) {
+template <typename F, typename F2>
+Expr MultiFactoryLike(const Expr& e, const Type& t, F factory, F2 factory_like) {
   if (t.as<TensorTypeNode>()) {
-    return ZerosLike(e);
+    return factory_like(e);
   } else if (auto* tt = t.as<TupleTypeNode>()) {
-    return MultiZerosType(t);
+    return MultiFactory(t, factory);
   } else {
-    LOG(FATAL) << "unsupported type to create zeros: " << tt;
-    throw;
-  }
-}
-
-Expr MultiOnesType(const Type& t) {
-  if (auto* tt = t.as<TensorTypeNode>()) {
-    return Ones(tt->shape, tt->dtype);
-  } else if (auto* tt = t.as<TupleTypeNode>()) {
-    std::vector<Expr> res;
-    for (size_t i = 0; i < tt->fields.size(); i++) {
-      res.push_back(MultiOnesType(tt->fields[i]));
-    }
-    return Tuple(res);
-  } else {
-    LOG(FATAL) << "unsupported type to zero: " << tt;
-    throw;
-  }
-}
-
-Expr MultiOnesLike(const Expr& e, const Type& t) {
-  if (t.as<TensorTypeNode>()) {
-    return OnesLike(e);
-  } else if (auto* tt = t.as<TupleTypeNode>()) {
-    return MultiOnesType(t);
-  } else {
-    LOG(FATAL) << "unsupported type to create ones: " << tt;
+    LOG(FATAL) << "unsupported type to tensors of: " << tt;
     throw;
   }
 }
@@ -166,7 +142,8 @@ struct ADTensor : ADValueNode {
   mutable Expr reverse;  // must be a variable to avoid duplication
   ADTensor(LetList* ll, const Expr& forward)
       : forward(ll->Push(forward)),
-        reverse(ll->Push(MultiZerosLike(this->forward, forward->checked_type()))) {
+        reverse(
+            ll->Push(MultiFactoryLike(this->forward, forward->checked_type(), Zeros, ZerosLike))) {
     this->forward->checked_type_ = forward->checked_type();
   }
 };
@@ -333,7 +310,7 @@ Expr FirstOrderGradient(const Expr& re, const Optional<IRModule>& mod) {
     auto c = rev->get<ADFunction>().func(f->checked_type(), args, Attrs(), {});
     const auto& res = c->get<ADTensor>();
     Expr grad = LetList::With([&](LetList* ll) {
-      res.reverse = MultiOnesLike(res.forward, res.forward->checked_type());
+      res.reverse = MultiFactoryLike(res.forward, res.forward->checked_type(), Ones, OnesLike);
       for (auto it = reverse_ad.backprop_actions.rbegin(); it != reverse_ad.backprop_actions.rend();
            ++it) {
         (*it)(ll);
