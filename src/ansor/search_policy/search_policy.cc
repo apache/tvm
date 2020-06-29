@@ -43,19 +43,15 @@ void SearchPolicyNode::RunCallbacks(const Array<SearchCallback>& callbacks) {
 }
 
 TVM_REGISTER_GLOBAL("ansor.SearchPolicyRunCallbacks")
-.set_body_typed([](SearchPolicy policy, Array<SearchCallback> callbacks) {
-  policy->RunCallbacks(callbacks);
-});
+    .set_body_typed([](SearchPolicy policy, Array<SearchCallback> callbacks) {
+      policy->RunCallbacks(callbacks);
+    });
 
 TVM_REGISTER_GLOBAL("ansor.SearchPolicySetTask")
-.set_body_typed([](SearchPolicy policy, SearchTask task) {
-  policy->cur_task = task;
-});
+    .set_body_typed([](SearchPolicy policy, SearchTask task) { policy->cur_task = task; });
 
 TVM_REGISTER_GLOBAL("ansor.SearchPolicySetVerbose")
-.set_body_typed([](SearchPolicy policy, int verbose) {
-  policy->verbose = verbose;
-});
+    .set_body_typed([](SearchPolicy policy, int verbose) { policy->verbose = verbose; });
 
 }  // namespace ansor
 }  // namespace tvm

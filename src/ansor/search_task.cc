@@ -52,8 +52,7 @@ HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes,
 HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
     const Target& target, const Target& target_host) {
   if (target->target_name == "llvm") {
-    return HardwareParams(tvm::runtime::threading::MaxConcurrency(),
-                          64, 64, 64, 64);
+    return HardwareParams(tvm::runtime::threading::MaxConcurrency(), 64, 64, 64, 64);
   } else {
     LOG(FATAL) << "No default hardware parameters for target: " << target;
   }

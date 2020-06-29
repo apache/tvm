@@ -25,8 +25,8 @@
 #ifndef TVM_ANSOR_SERIALIZATION_H_
 #define TVM_ANSOR_SERIALIZATION_H_
 
-#include <string>
 #include <fstream>
+#include <string>
 #include <utility>
 
 #include "measure.h"
@@ -40,8 +40,7 @@ class LogToFileNode : public MeasureCallbackNode {
   /*! \brief File name for this callback to write log to. */
   std::string filename;
 
-  void Callback(const SearchPolicy& policy,
-                const Array<MeasureInput>& inputs,
+  void Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
                 const Array<MeasureResult>& results) final;
 
   static constexpr const char *_type_key = "ansor.LogToFile";

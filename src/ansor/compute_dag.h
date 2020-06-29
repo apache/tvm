@@ -30,10 +30,10 @@
 #include <tvm/node/node.h>
 #include <tvm/te/schedule.h>
 
-#include <utility>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace tvm {
 namespace ansor {
@@ -87,7 +87,7 @@ class ComputeDAG: public ObjectRef {
    */
   explicit ComputeDAG(const std::string& workload_key);
 
-  /*! 
+  /*!
    * \brief Apply transform steps to the init state of this DAG, and get the
    * equivalent `tvm::schedule`.
    * \param transform_steps Transform steps of the target state.

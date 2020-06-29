@@ -27,8 +27,8 @@
 #ifndef TVM_ANSOR_AUTO_SCHEDULE_H_
 #define TVM_ANSOR_AUTO_SCHEDULE_H_
 
-#include <utility>
 #include <string>
+#include <utility>
 
 #include "measure.h"
 #include "search_policy/search_policy.h"
@@ -88,9 +88,8 @@ class TuneOption : public ObjectRef {
    * \param measure_callbacks MeasureCallback functions to be called after each measure batch.
    * \param pre_search_callbacks SearchCallback functions to be called before schedule search.
    */
-  TuneOption(int n_trials, int early_stopping, int num_measure_per_round,
-             int verbose, Builder builder, Runner runner,
-             Array<MeasureCallback> measure_callbacks,
+  TuneOption(int n_trials, int early_stopping, int num_measure_per_round, int verbose,
+             Builder builder, Runner runner, Array<MeasureCallback> measure_callbacks,
              Array<SearchCallback> pre_search_callbacks);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TuneOption, ObjectRef, TuneOptionNode);

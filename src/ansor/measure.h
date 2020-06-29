@@ -28,16 +28,18 @@
 
 #include <string>
 #include <unordered_map>
-#include <vector>
 #include <utility>
+#include <vector>
 
-#include "search_task.h"
 #include "loop_state.h"
+#include "search_task.h"
 
 namespace tvm {
 namespace ansor {
 
-class SearchPolicy; class MeasureInput; class MeasureResult;
+class SearchPolicy;
+class MeasureInput;
+class MeasureResult;
 
 /*! \brief The error code of one measurement */
 enum MeasureErrorNO {
@@ -64,7 +66,7 @@ enum MeasureErrorNO {
 // Inputs and results of one measurement
 
 /*! \brief Store the input of a measurement */
-class MeasureInputNode: public Object {
+class MeasureInputNode : public Object {
  public:
   /*! \brief The search task. */
   SearchTask task;
@@ -100,7 +102,7 @@ class MeasureInput : public ObjectRef {
 };
 
 /*! \brief Store the input of a build. */
-class BuildResultNode: public Object {
+class BuildResultNode : public Object {
  public:
   /*! \brief The filename of built binary file. */
   std::string filename;
@@ -145,7 +147,7 @@ class BuildResult : public ObjectRef {
 };
 
 /*! \brief Store the results of a measurement. */
-class MeasureResultNode: public Object {
+class MeasureResultNode : public Object {
  public:
   /*! \brief The time costs of execution. */
   Array<PrimExpr> costs;
@@ -194,7 +196,7 @@ class MeasureResult : public ObjectRef {
 };
 
 /*! \brief Bass class of measurement callbacks */
-class MeasureCallbackNode: public Object {
+class MeasureCallbackNode : public Object {
  public:
   /*!
    * \brief Callback function that will be called on measurement input/result pairs
@@ -203,8 +205,7 @@ class MeasureCallbackNode: public Object {
    * \param inputs An Array of MeasureInput.
    * \param results An Array of MeasureResult.
    */
-  virtual void Callback(const SearchPolicy& policy,
-                        const Array<MeasureInput>& inputs,
+  virtual void Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
                         const Array<MeasureResult>& results) = 0;
   static constexpr const char *_type_key = "ansor.MeasureCallback";
   TVM_DECLARE_BASE_OBJECT_INFO(MeasureCallbackNode, Object);
@@ -222,7 +223,7 @@ class MeasureCallback : public ObjectRef {
 // Base class for builder and runner
 
 /*! \brief Builder that builds the programs */
-class BuilderNode: public Object {
+class BuilderNode : public Object {
  public:
   /*! \brief The number of tasks to run in parallel */
   int n_parallel;
@@ -251,7 +252,7 @@ class Builder : public ObjectRef {
 };
 
 /*! \brief Runner that runs the built programs and measure the time cost. */
-class RunnerNode: public Object {
+class RunnerNode : public Object {
  public:
   /*! \brief Timeout of a run. */
   int timeout;
@@ -283,7 +284,7 @@ class Runner : public ObjectRef {
 // Implementation of various builders and runners
 
 /*! \brief LocalBuilder use local CPU cores to build programs in parallel */
-class LocalBuilderNode: public BuilderNode {
+class LocalBuilderNode : public BuilderNode {
  public:
   /*! \brief Build function. */
   std::string build_func;
@@ -298,7 +299,7 @@ class LocalBuilderNode: public BuilderNode {
  * \brief Managed reference to LocalBuilderNode.
  * \sa LocalBuilderNode
  */
-class LocalBuilder: public Builder {
+class LocalBuilder : public Builder {
  public:
   /*!
    * \brief The constructor.
@@ -312,7 +313,7 @@ class LocalBuilder: public Builder {
 };
 
 /*! \brief LocalRunner that uses local CPU/GPU to measures the time cost of programs */
-class LocalRunnerNode: public RunnerNode {
+class LocalRunnerNode : public RunnerNode {
  public:
   /*! \brief Number of measure times. */
   int number;
@@ -335,7 +336,7 @@ class LocalRunnerNode: public RunnerNode {
  * \brief Managed reference to LocalRunnerNode.
  * \sa LocalRunnerNode
  */
-class LocalRunner: public Runner {
+class LocalRunner : public Runner {
  public:
   /*!
    * \brief The constructor.
@@ -355,7 +356,7 @@ class LocalRunner: public Runner {
 /*!
  * \brief Measurer that measures the time costs of tvm programs
  * This class combines Builder and Runner, and provides a simpler API */
-class ProgramMeasurerNode: public Object {
+class ProgramMeasurerNode : public Object {
  public:
   /*! \brief Measured programs counter. */
   int ct;

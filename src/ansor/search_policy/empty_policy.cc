@@ -34,8 +34,8 @@ namespace ansor {
 TVM_REGISTER_NODE_TYPE(EmptyPolicyNode);
 
 State EmptyPolicyNode::Search(SearchTask task, int n_trials, int early_stopping,
-    int num_measure_per_round, int verbose, ProgramMeasurer measurer,
-    Array<SearchCallback> pre_search_callbacks) {
+                              int num_measure_per_round, int verbose, ProgramMeasurer measurer,
+                              Array<SearchCallback> pre_search_callbacks) {
   cur_task = task;
 
   // Run pre_search_callbacks before the search process
@@ -79,8 +79,9 @@ std::vector<State> EmptyPolicyNode::SearchOneRound() {
   return res;
 }
 
-TVM_REGISTER_GLOBAL("ansor.EmptyPolicy")
-.set_body_typed([]() { return EmptyPolicy(make_object<EmptyPolicyNode>()); });
+TVM_REGISTER_GLOBAL("ansor.EmptyPolicy").set_body_typed([]() {
+  return EmptyPolicy(make_object<EmptyPolicyNode>());
+});
 
 }  // namespace ansor
 }  // namespace tvm

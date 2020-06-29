@@ -24,19 +24,19 @@
 
 #include "compute_dag.h"
 
+#include <tvm/runtime/registry.h>
+#include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
-#include <tvm/te/operation.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/runtime/registry.h>
 
+#include <algorithm>
+#include <queue>
+#include <set>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <queue>
-#include <algorithm>
 #include <utility>
-#include <string>
-#include <set>
 #include <vector>
 
 #include "loop_state.h"
@@ -49,7 +49,8 @@ using namespace tvm::tir;
 
 TVM_REGISTER_NODE_TYPE(ComputeDAGNode);
 
-void UpdateStageAxis(const te::Stage& stage, StageToAxesMap *stage_to_axes) {
+// Update stage to axis mapping
+void UpdateStageAxis(const te::Stage& stage, StageToAxesMap* stage_to_axes) {
   if (auto pop = stage->op.as<te::ComputeOpNode>()) {
     std::vector<IterVar>& axes = (*stage_to_axes)[stage];
     axes.clear();
@@ -389,8 +390,8 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
       }
     }
 
-    pstate->stages[i] = Stage(stage->op, stage->op_type, std::move(new_iters),
-                              stage->compute_at, stage->attrs);
+    pstate->stages[i] =
+        Stage(stage->op, stage->op_type, std::move(new_iters), stage->compute_at, stage->attrs);
   }
 }
 
@@ -505,25 +506,22 @@ TVM_REGISTER_GLOBAL("ansor.ComputeDAGGetInitState")
 .set_body_method(&ComputeDAG::GetInitState);
 
 TVM_REGISTER_GLOBAL("ansor.ComputeDAGApplyStepsFromState")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  ComputeDAG dag = args[0];
-  State state = args[1];
-
-  te::Schedule sch;
-  Array<te::Tensor> return_tensors;
-  std::tie(sch, return_tensors) = dag.ApplySteps(state->transform_steps);
-  *ret = Array<ObjectRef>{sch, return_tensors};
-});
+    .set_body_typed([](const ComputeDAG& dag, const State& state) {
+      te::Schedule sch;
+      Array<te::Tensor> return_tensors;
+      std::tie(sch, return_tensors) = dag.ApplySteps(state->transform_steps);
+      return Array<ObjectRef>{sch, return_tensors};
+    });
 
 TVM_REGISTER_GLOBAL("ansor.ComputeDAGPrintPythonCodeFromState")
-.set_body_typed([](const ComputeDAG& dag, const State& state) {
-  return dag.PrintStepsAsPython(state->transform_steps);
-});
+    .set_body_typed([](const ComputeDAG& dag, const State& state) {
+      return dag.PrintStepsAsPython(state->transform_steps);
+    });
 
 TVM_REGISTER_GLOBAL("ansor.ComputeDAGInferBoundFromState")
-.set_body_typed([](const ComputeDAG& dag, const State& state) {
-  return dag.ReplayAndInferBound(state->transform_steps);
-});
+    .set_body_typed([](const ComputeDAG& dag, const State& state) {
+      return dag.ReplayAndInferBound(state->transform_steps);
+    });
 
 }  // namespace ansor
 }  // namespace tvm

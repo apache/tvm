@@ -24,8 +24,8 @@
 
 #include "transform_step.h"
 
-#include <tvm/te/operation.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/te/operation.h>
 
 #include <utility>
 

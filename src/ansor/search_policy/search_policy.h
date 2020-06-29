@@ -21,7 +21,7 @@
  * \file ansor/search_policy/search_policy.h
  * \brief The base class for search policy, including the abstract defination of search policy and
  * some other supporting structures.
- * 
+ *
  * \note Adding a new search policy.
  * In design, there's no need for users to implement their own search policy, our formal search
  * policy(will be brought later) should be enough to cover auto schedule generation for different
@@ -44,17 +44,18 @@
 
 #include <tvm/node/node.h>
 
-#include <unordered_set>
-#include <vector>
-#include <utility>
 #include <string>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 #include "../search_task.h"
 
 namespace tvm {
 namespace ansor {
 
-class ProgramMeasurer; class SearchPolicyNode;
+class ProgramMeasurer;
+class SearchPolicyNode;
 
 /*!
  * \brief Callback function to be called by the search process.
@@ -111,8 +112,7 @@ class SearchPolicyNode : public Object {
    * \param pre_search_callbacks SearchCallback to be called before schedule search.
    * \return The best state get.
    */
-  virtual State Search(SearchTask task, int n_trials,
-                       int early_stopping, int num_measure_per_round,
+  virtual State Search(SearchTask task, int n_trials, int early_stopping, int num_measure_per_round,
                        int verbose, ProgramMeasurer measurer,
                        Array<SearchCallback> pre_search_callbacks) = 0;
 

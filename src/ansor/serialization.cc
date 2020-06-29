@@ -29,10 +29,10 @@
 
 #include <fstream>
 #include <sstream>
-#include <vector>
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "loop_state.h"
 #include "transform_step.h"
@@ -55,14 +55,12 @@ inline std::vector<int>& IntArrayToVector(std::vector<int>* out,
 }
 
 template <>
-struct Handler<std::vector<::tvm::ansor::Stage> > {
-  inline static void Write(dmlc::JSONWriter* writer,
-                           const std::vector<::tvm::ansor::Stage> & data) {
+struct Handler<std::vector<::tvm::ansor::Stage>> {
+  inline static void Write(dmlc::JSONWriter* writer, const std::vector<::tvm::ansor::Stage>& data) {
     writer->BeginArray(false);
     writer->EndArray();
   }
-  inline static void Read(dmlc::JSONReader* reader,
-                          std::vector<::tvm::ansor::Stage> * data) {
+  inline static void Read(dmlc::JSONReader* reader, std::vector<::tvm::ansor::Stage>* data) {
     bool s;
     reader->BeginArray();
     s = reader->NextArrayItem(); CHECK(!s);
@@ -71,8 +69,7 @@ struct Handler<std::vector<::tvm::ansor::Stage> > {
 
 template <>
 struct Handler<std::vector<::tvm::ansor::Step> > {
-  inline static void Write(dmlc::JSONWriter* writer,
-                           const std::vector<::tvm::ansor::Step> & data) {
+  inline static void Write(dmlc::JSONWriter* writer, const std::vector<::tvm::ansor::Step>& data) {
     std::vector<int> tmp;
     writer->BeginArray(false);
     for (size_t i = 0; i < data.size(); ++i) {
@@ -117,8 +114,7 @@ struct Handler<std::vector<::tvm::ansor::Step> > {
     writer->EndArray();
   }
 
-  inline static void Read(dmlc::JSONReader* reader,
-                          std::vector<::tvm::ansor::Step> * data) {
+  inline static void Read(dmlc::JSONReader* reader, std::vector<::tvm::ansor::Step>* data) {
     std::vector<int> int_list;
     bool s, inner_to_outer;
     std::string name, scope_name, pragma_type, ti_func_name;
@@ -331,8 +327,7 @@ void ReadMeasureRecord(const std::string& str,
   }
 }
 
-void LogToFileNode::Callback(const SearchPolicy& policy,
-                             const Array<MeasureInput>& inputs,
+void LogToFileNode::Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
                              const Array<MeasureResult>& results) {
   std::ofstream ofs(filename, std::ofstream::app);
   WriteMeasureRecords(&ofs, inputs, results);

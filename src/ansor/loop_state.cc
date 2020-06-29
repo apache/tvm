@@ -117,8 +117,8 @@ State::State(const Array<te::Operation>& ops) {
   data_ = std::move(node);
 }
 
-State::State(const std::vector<Stage>& stages,
-             const std::vector<Step>& transform_steps, bool complete) {
+State::State(const std::vector<Stage>& stages, const std::vector<Step>& transform_steps,
+             bool complete) {
   auto node = make_object<StateNode>();
   node->stages = stages;
   node->transform_steps = transform_steps;
@@ -171,9 +171,8 @@ void State::DoReorderStep(const ReorderStep& step) {
   }
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages[step->stage_id] = Stage(
-      stage->op, stage->op_type, std::move(iters), stage->compute_at,
-      stage->attrs);
+  pstate->stages[step->stage_id] =
+      Stage(stage->op, stage->op_type, std::move(iters), stage->compute_at, stage->attrs);
 }
 
 // common part for DoSplitStep, DoFollowSplitStep, and DoFollowFusedSplitStep
@@ -237,9 +236,8 @@ std::vector<Iterator> State::DoSplitStepCommon(
                    stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages[stage_id] = Stage(
-      stage->op, stage->op_type, std::move(new_iters), stage->compute_at,
-      stage->attrs);
+  pstate->stages[stage_id] =
+      Stage(stage->op, stage->op_type, std::move(new_iters), stage->compute_at, stage->attrs);
 
   return outs;
 }
@@ -297,9 +295,8 @@ Iterator State::DoFuseStep(const FuseStep& step) {
                    stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages[stage_id] = Stage(
-      stage->op, stage->op_type, std::move(new_iters), stage->compute_at,
-      stage->attrs);
+  pstate->stages[stage_id] =
+      Stage(stage->op, stage->op_type, std::move(new_iters), stage->compute_at, stage->attrs);
 
   return new_it;
 }

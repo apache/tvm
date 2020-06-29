@@ -42,9 +42,9 @@
 
 #include <functional>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
-#include <unordered_map>
 
 #include "compute_dag.h"
 #include "transform_step.h"
@@ -279,8 +279,7 @@ class State : public ObjectRef {
    * \param transform_steps Transform steps of the target state.
    * \param complete Indicate whether this state has unfilled tile sizes.
    */
-  State(const std::vector<Stage>& stages,
-        const std::vector<Step>& transform_steps, bool complete);
+  State(const std::vector<Stage>& stages, const std::vector<Step>& transform_steps, bool complete);
 
   /*!
    * \brief Schedule primitive corresponds to te.reorder.

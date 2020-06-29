@@ -42,12 +42,11 @@ namespace ansor {
  */
 class EmptyPolicyNode : public SearchPolicyNode {
  public:
-  State Search(SearchTask task, int n_trials,
-               int early_stopping, int num_measure_per_round,
+  State Search(SearchTask task, int n_trials, int early_stopping, int num_measure_per_round,
                int verbose, ProgramMeasurer measurer,
                Array<SearchCallback> pre_search_callbacks) final;
 
-  static constexpr const char *_type_key = "ansor.EmptyPolicy";
+  static constexpr const char* _type_key = "ansor.EmptyPolicy";
   TVM_DECLARE_FINAL_OBJECT_INFO(EmptyPolicyNode, SearchPolicyNode);
 
  private:
