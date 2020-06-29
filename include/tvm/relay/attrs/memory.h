@@ -74,19 +74,6 @@ struct AllocTensorAttrs : public tvm::AttrsNode<AllocTensorAttrs> {
   }
 };
 
-/*!
- * \brief Options for the shape function operator.
- */
-struct ShapeFuncAttrs : public tvm::AttrsNode<ShapeFuncAttrs> {
-  Array<Integer> is_input;
-
-  TVM_DECLARE_ATTRS(ShapeFuncAttrs, "relay.attrs.ShapeFuncAttrs") {
-    TVM_ATTR_FIELD(is_input).describe(
-        "A bool indicating whether the shape function should"
-        "expect shape or input in each position.");
-  }
-};
-
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_MEMORY_H_
