@@ -39,7 +39,6 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import nn_impl
 from tensorflow.python.ops import variables
-import tensorflow_hub as hub
 try:
     from tensorflow import lite as interpreter_wrapper
 except ImportError:
