@@ -33,34 +33,47 @@ namespace tir {
 class ExprSideEffect : public ExprVisitor {
  public:
   void VisitExpr(const PrimExpr& e) final {
-    if (has_side_effect_) return;
+    if (kind_ == CallEffectKind::kUpdateState) return;
     ExprVisitor::VisitExpr(e);
+  }
+
+  void VisitExpr_(const LoadNode* op) final {
+    this->UpdateEffect(CallEffectKind::kReadState);
+    ExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitExpr_(const BufferLoadNode* op) final {
+    this->UpdateEffect(CallEffectKind::kReadState);
+    ExprVisitor::VisitExpr_(op);
   }
 
   void VisitExpr_(const CallNode* op) final {
     static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
 
     if (auto* ptr_op = op->op.as<OpNode>()) {
-      auto effect_kind = op_call_effect[GetRef<Op>(ptr_op)];
-      if (effect_kind != CallEffectKind::kPure && effect_kind != CallEffectKind::kExprAnnotation) {
-        has_side_effect_ = true;
-        return;
-      } else {
-        ExprVisitor::VisitExpr_(op);
-      }
+      this->UpdateEffect(static_cast<CallEffectKind>(op_call_effect[GetRef<Op>(ptr_op)]->value));
     } else {
-      has_side_effect_ = true;
-      return;
+      this->UpdateEffect(CallEffectKind::kOpaque);
+    }
+    ExprVisitor::VisitExpr_(op);
+  }
+
+  void UpdateEffect(CallEffectKind effect_kind) {
+    if (effect_kind > CallEffectKind::kUpdateState) {
+      effect_kind = CallEffectKind::kUpdateState;
+    }
+    if (effect_kind > kind_) {
+      kind_ = effect_kind;
     }
   }
 
-  bool has_side_effect_{false};
+  CallEffectKind kind_{CallEffectKind::kPure};
 };
 
-bool HasSideEffect(const PrimExpr& e) {
-  ExprSideEffect v;
-  v(e);
-  return v.has_side_effect_;
+CallEffectKind SideEffect(const PrimExpr& e) {
+  ExprSideEffect visitor;
+  visitor(e);
+  return visitor.kind_;
 }
 
 }  // namespace tir

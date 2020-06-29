@@ -60,7 +60,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     // Won't face the deep expression explosion problem as in Let expression.
     // attempt to inline as much as possible if the value integer type(can be index).
     if (!op->value.dtype().is_int()) return false;
-    return !tir::HasSideEffect(op->value);
+    return SideEffect(op->value) <= CallEffectKind::kPure;
   }
 
   Stmt VisitStmt_(const LetStmtNode* op) {
