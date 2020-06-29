@@ -169,7 +169,7 @@ struct Parser {
   ScopeStack<Var> expr_scopes;
 
   Parser(std::vector<Token> tokens, OperatorTable op_table, Source source)
-      : source(source), pos(0), tokens(tokens), op_table(op_table), ignore_whitespace(true) {}
+      : diag_ctx(source), pos(0), tokens(tokens), op_table(op_table), ignore_whitespace(true) {}
 
   void DisplayNextN(int n) {
     std::cout << "remaining tokens: " << std::endl;
@@ -218,7 +218,7 @@ struct Parser {
   void Consume(const TokenType& token) {
     if (tokens[pos]->token_type != token) {
       std::string message =  "expected a " + Pretty(token) + " found " + Pretty(Peek()->token_type);
-      this->source.ReportAt(tokens[pos]->line, tokens[pos]->column, message);
+      this->diag_ctx.Emit({tokens[pos]->line, tokens[pos]->column, message});
       exit(1);
     }
     pos++;

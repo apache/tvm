@@ -90,9 +90,10 @@ struct Diagnostic {
   DiagnosticLevel level;
   Span span;
   std::string message;
+  Diagnostic(int line, int column, const std::string& message) : level(DiagnosticLevel::Error), span(SourceName(), line, column), message(message) {}
 };
 
-class DiagnosticContext {
+struct DiagnosticContext {
   const Source& source;
   std::vector<Diagnostic> diagnostics;
 

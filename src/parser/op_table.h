@@ -30,24 +30,12 @@
 #include <fstream>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/container.h>
+#include <tvm/ir/op.h>
+#include "./tokenizer.h"
 
 namespace tvm {
 namespace parser {
 
-struct OperatorTable {
-  std::vector<Rule> rules;
-  std::unordered_map<std::string, Rule> this_is_a_hack;
-
-  OperatorTable(std::vector<Rule> rules) : rules(rules), this_is_a_hack() {
-    for (auto rule : rules) {
-      std::stringstream key;
-      for (auto token : rule.tokens) {
-        key << ToString(token);
-      }
-      this->this_is_a_hack.insert({ key.str(), rule });
-    }
-  }
-};
 
 struct Rule {
   std::vector<TokenType> tokens;
@@ -67,6 +55,21 @@ struct Rule {
     this->precedence = rule.precedence;
     this->arity = rule.arity;
     this->left_assoc = rule.left_assoc;
+  }
+};
+
+struct OperatorTable {
+  std::vector<Rule> rules;
+  std::unordered_map<std::string, Rule> this_is_a_hack;
+
+  OperatorTable(std::vector<Rule> rules) : rules(rules), this_is_a_hack() {
+    for (auto rule : rules) {
+      std::stringstream key;
+      for (auto token : rule.tokens) {
+        key << ToString(token);
+      }
+      this->this_is_a_hack.insert({ key.str(), rule });
+    }
   }
 };
 
