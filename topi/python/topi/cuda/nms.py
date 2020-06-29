@@ -458,7 +458,7 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
             in_buffers=[data_buf, sort_tensor_buf, valid_count_buf],
             name="nms",
             tag="nms")
-
+    # TODO(yongwww): Update cuda nms to be consistent with cpu version
     if return_indices:
         return box_indices
 
