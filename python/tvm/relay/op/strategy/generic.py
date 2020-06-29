@@ -747,8 +747,10 @@ def get_valid_counts_strategy(attrs, inputs, out_type, target):
 def wrap_compute_nms(topi_compute):
     """wrap nms topi compute"""
     def _compute_nms(attrs, inputs, out_type):
+        max_output_size = inputs[3]
+        if attrs.max_output_size is not None:
+            max_output_size = attrs.max_output_size
         return_indices = bool(get_const_int(attrs.return_indices))
-        max_output_size = get_const_int(attrs.max_output_size)
         iou_threshold = get_const_float(attrs.iou_threshold)
         force_suppress = bool(get_const_int(attrs.force_suppress))
         top_k = get_const_int(attrs.top_k)
