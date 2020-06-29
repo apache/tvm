@@ -230,15 +230,14 @@ namespace std {
 template <>
 struct hash<::tvm::ansor::Step> {
   std::size_t operator()(const ::tvm::ansor::Step& step) const {
+    // clang-format off
     if (auto ps = step.as<::tvm::ansor::ReorderStepNode>()) {
       return ::dmlc::HashCombine(1,
-             ::dmlc::HashCombine(std::hash<int>()(ps->stage_id),
-                                 ps->after_ids));
+             ::dmlc::HashCombine(std::hash<int>()(ps->stage_id), ps->after_ids));
     } else if (auto ps = step.as<::tvm::ansor::SplitStepNode>()) {
-      size_t ret = ::dmlc::HashCombine(
-          2, ::dmlc::HashCombine(
-                 std::hash<int>()(ps->stage_id),
-                 ::dmlc::HashCombine(std::hash<int>()(ps->iter_id), ps->inner_to_outer)));
+      size_t ret = ::dmlc::HashCombine(2,
+                   ::dmlc::HashCombine(std::hash<int>()(ps->stage_id),
+                   ::dmlc::HashCombine(std::hash<int>()(ps->iter_id), ps->inner_to_outer)));
       for (const auto& len : ps->lengths) {
         if (len.defined()) {
           auto pint = len.as<::tvm::tir::IntImmNode>();
@@ -250,12 +249,13 @@ struct hash<::tvm::ansor::Step> {
       }
       return ret;
     } else if (auto ps = step.as<::tvm::ansor::FuseStepNode>()) {
-      return ::dmlc::HashCombine(
-          3, ::dmlc::HashCombine(std::hash<int>()(ps->stage_id), ps->fused_ids));
+      return ::dmlc::HashCombine(3,
+             ::dmlc::HashCombine(std::hash<int>()(ps->stage_id), ps->fused_ids));
     } else {
       LOG(FATAL) << "Invalid step";
     }
     return 0;
+    // clang-format on
   }
 };
 }  // namespace std
