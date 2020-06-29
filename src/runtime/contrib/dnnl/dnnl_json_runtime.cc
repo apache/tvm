@@ -441,8 +441,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
 runtime::Module DNNLJSONRuntimeCreate(String symbol_name, String graph_json,
                                       const Array<String>& const_names) {
-  auto n = make_object<DNNLJSONRuntime>(symbol_name.operator std::string(),
-                                        graph_json.operator std::string(), const_names);
+  auto n = make_object<DNNLJSONRuntime>(symbol_name, graph_json, const_names);
   return runtime::Module(n);
 }
 

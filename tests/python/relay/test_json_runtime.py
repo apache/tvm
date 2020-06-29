@@ -53,7 +53,7 @@ def check_result(mod,
 
     # Run the reference result
     compile_engine.get().clear()
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         json, lib, param = relay.build(ref_mod, target=target, params=params)
     rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
 

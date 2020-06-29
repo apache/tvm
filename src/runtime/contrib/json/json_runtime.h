@@ -204,7 +204,7 @@ class JSONRuntimeBase : public ModuleNode {
    */
   void SetupConstants(const Array<NDArray>& consts) {
     for (size_t i = 0; i < consts.size(); ++i) {
-      data_entry_[const_idx_[i]] = consts[i].operator->();
+      data_entry_[EntryID(const_idx_[i], 0)] = consts[i].operator->();
     }
   }
 
@@ -253,9 +253,9 @@ class JSONRuntimeBase : public ModuleNode {
   std::vector<JSONGraphNodeEntry> outputs_;
   /*! \brief Data of that entry. */
   std::vector<const DLTensor*> data_entry_;
-  /*! \brief Map the input name to index. */
+  /*! \brief Map the input name to node index. */
   std::vector<uint32_t> input_var_idx_;
-  /*! \brief input const index. */
+  /*! \brief input const node index. */
   std::vector<uint32_t> const_idx_;
   /*! \brief Indicate if the engine has been initialized. */
   bool initialized_{false};
