@@ -121,6 +121,9 @@ struct ScopeStack {
   std::vector<Scope<T>> scope_stack;
 
   void Add(const std::string& name, const T& value) {
+    if (!this->scope_stack.size()) {
+      LOG(FATAL) << "internal issue";
+    }
     this->scope_stack.back().name_map.insert({ name, value });
   }
 
@@ -143,6 +146,28 @@ struct ScopeStack {
   }
 };
 
+template<typename T>
+struct InternTable {
+  std::unordered_map<std::string, T> table;
+  void Add(const std::string& name, const T& t) {
+    auto it = table.find(name);
+    if (it != table.end()) {
+      LOG(FATAL) << "duplicate name";
+    } else {
+      table.insert({ name, t});
+    }
+  }
+
+  T Get(const std::string& name) {
+    auto it = table.find(name);
+    if (it != table.end()) {
+      return it->second;
+    } else {
+      return T();
+    }
+  }
+};
+
 struct Parser {
   /*! \brief The diagnostic context used for error reporting. */
   DiagnosticContext diag_ctx;
@@ -158,6 +183,12 @@ struct Parser {
 
   /*! \brief Configure the whitespace mode, right now we ignore all whitespace. */
   bool ignore_whitespace;
+
+  /*! \brief A global mapping for GlobalVar. */
+  InternTable<GlobalVar> global_names;
+
+  /*! \brief A global mapping for type definitions. */
+  InternTable<GlobalTypeVar> type_names;
 
   /*! \brief A mapping from graph variable to expression, i.e., `%0 = expr`. */
   std::unordered_map<int, Expr> graph_ctx;
@@ -264,15 +295,15 @@ struct Parser {
   Var LookupLocal(const Token& local) {
     auto var = this->expr_scopes.Lookup(local.ToString());
     if (!var.defined()) {
-      // REPORT HERE
+      diag_ctx.Emit({ local->line, local->column, "this local variable has not been previously declared"});
     }
     return var;
   }
 
-  TypeVar LookupTypeVar(const Token& identifier) {
-    auto var = this->type_scopes.Lookup(identifier.ToString());
+  TypeVar LookupTypeVar(const Token& ident) {
+    auto var = this->type_scopes.Lookup(ident.ToString());
     if (!var.defined()) {
-      // REPORT HERE
+      diag_ctx.Emit({ ident->line, ident->column, "this type variable has not been previously declared anywhere, perhaps a typo?"});
     }
     return var;
   }
@@ -369,9 +400,9 @@ struct Parser {
      switch (next->token_type) {
         case TokenType::Defn: {
           Consume(TokenType::Defn);
-          auto tok = Match(TokenType::Global);
-          // Todo: add to global parsing context.
-          auto global = GlobalVar(tok.ToString());
+          auto global_name = Match(TokenType::Global).ToString();
+          auto global = GlobalVar(global_name);
+          global_names.Add(global_name, global);
           auto func = ParseFunctionDef();
           defs.funcs.push_back(GlobalFunc(global, func));
           continue;
@@ -390,8 +421,9 @@ struct Parser {
     // Match the `type` keyword.
     Match(TokenType::TypeDef);
     // Parse the type's identifier.
-    auto type_id = Match(TokenType::Identifier);
-    auto type_global = tvm::GlobalTypeVar(type_id.ToString(), TypeKind::kTypeData);
+    auto type_id = Match(TokenType::Identifier).ToString();
+    auto type_global = tvm::GlobalTypeVar(type_id, TypeKind::kTypeData);
+    type_names.Add(type_id, type_global);
 
     Array<TypeVar> generics;
 
@@ -625,6 +657,31 @@ struct Parser {
     return relay::FuncType(ty_params, ret_type, {}, {});
   }
 
+  // Parses a user defined ADT or type variable.
+  Type ParseNonPrimitiveType(const Token& tok) {
+    auto name = tok.ToString();
+    Type head_type;
+    auto global_type = type_names.Get(name);
+    if (!global_type.defined()) {
+      head_type = LookupTypeVar(tok);
+    } else {
+      head_type = global_type;
+    }
+
+    Array<Type> arg_types;
+    if (Peek()->token_type == TokenType::LSquare) {
+      arg_types = ParseSequence<Type>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
+        return ParseType();
+      });
+    }
+
+    if (arg_types.size()) {
+      return TypeCall(head_type, arg_types);
+    } else {
+      return head_type;
+    }
+  }
+
   Type ParseType() {
     auto tok = Peek();
     if (tok->token_type == TokenType::OpenParen) {
@@ -648,14 +705,20 @@ struct Parser {
         Match(TokenType::RSquare);
         return TensorType(shape, dtype);
       } else {
-        // Need to do better error handling here.
-        auto dtype = DataType(String2DLDataType(tok.ToString()));
-        return TensorType({}, dtype);
+        auto ty = tok.ToString();
+        if (ty.rfind("int", 0) == 0 || ty.find("float", 0) == 0 || ty.find("uint", 0) == 0 || ty.find("bool", 0) == 0) {
+          // Need to do better error handling here.
+          auto dtype = DataType(String2DLDataType(tok.ToString()));
+          return TensorType({}, dtype);
+        } else {
+          ParseNonPrimitiveType(tok );
+        }
       }
     } if (WhenMatch(TokenType::Underscore)) {
       return IncompleteType();
     } else {
-      LOG(FATAL) << "failed to parse type";
+      diag_ctx.Emit({ tok->line, tok->column, "failed to parse type"});
+      diag_ctx.Render();
       return Type();
     }
   }
@@ -981,6 +1044,7 @@ IRModule ParseModule(std::string file_name, std::string file_content) {
 Expr ParseExpr(std::string file_name, std::string file_content) {
   auto tokens = Tokenize(file_content);
   Parser parser(tokens, DefaultOpTable(), Source(file_content));
+  parser.PushScope();
   auto expr = parser.ParseExpr();
   parser.Match(TokenType::EndOfFile);
   return expr;

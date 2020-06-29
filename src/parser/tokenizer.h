@@ -322,6 +322,12 @@ struct Tokenizer {
             }
         } else if (IsIdentLetter(next)) {
             std::stringstream ss;
+            // Due the below code we need to patch
+            // the line/col info to the start of
+            // token.
+            int line = this->line;
+            int col = this->col;
+
             while (More() && IsIdent(Peek())) {
                 ss << Next();
             }
@@ -329,15 +335,14 @@ struct Tokenizer {
             std::string keyword = ss.str();
             auto it = KEYWORD_TABLE.find(keyword);
 
-            Token token;
+            TokenType token_type;
             if (it != KEYWORD_TABLE.end()) {
-                token = NewToken(it->second);
+                token_type = it->second;
             } else {
-                token = NewToken(TokenType::Identifier);
+                token_type = TokenType::Identifier;
             }
-            token->data = tvm::String(ss.str());
 
-            return token;
+            return Token(line, col, token_type, tvm::String(ss.str()));
         } else {
             std::stringstream ss;
             while (More() && !IsWhitespace(Peek())) {

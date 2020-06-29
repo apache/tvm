@@ -40,26 +40,47 @@ namespace parser {
 
 struct Source {
   std::string source;
-  std::vector<int> line_map;
+  std::vector<std::pair<int, int>> line_map;
   Source() : source(), line_map() {}
   Source(const std::string& source) : source(source) {
-    line_map.push_back(0);
-    int i = 0;
+    std::cout << "SourceCode: " << std::endl;
+    std::cout << source;
+    int index = 0;
+    int length = 0;
+    line_map.push_back({ index, length});
     for (auto c : source) {
-      i++;
       if (c == '\n') {
-        line_map.push_back(i);
+        std::cout << "newline" << std::endl;
+        // Record the length of the line.
+        line_map.back().second = length;
+        // Bump past the newline.
+        index += 1;
+        // Record the start of the next line, and put placeholder for length.
+        line_map.push_back({ index, 0 });
+        // Reset length to zero.
+        length = 0;
+      } else {
+        length += 1;
+        index += 1;
       }
     }
-    line_map.push_back(i);
+    line_map.back().second = length;
   }
 
+  Source(const Source& source) : source(source.source), line_map(source.line_map) {}
+
   void ReportAt(int line, int column, const std::string& msg) const {
-    int line_start = line_map.at(line - 1);
-    int line_end = line_map.at(line) - 2;
-    int line_length = line_end - line_start;
+    CHECK(line - 1 <= line_map.size())
+        << "requested line: " << (line - 1)
+        << "line_map size: " << line_map.size()
+        << "source: " << source;
+
+    // Adjust for zero indexing, now have (line_start, line_length);
+    auto range = line_map.at(line - 1);
+    int line_start = range.first;
+    int line_length = range.second;
     std::cout << "file:" << line << ":" << column << ": parse error: " << msg << std::endl;
-    std::cout << "    " << source.substr(line_start, line_end) << std::endl;
+    std::cout << "    " << source.substr(line_start, line_length) << std::endl;
     std::cout << "    ";
     std::stringstream marker;
     for (int i = 1; i <= line_length; i++) {
@@ -94,7 +115,7 @@ struct Diagnostic {
 };
 
 struct DiagnosticContext {
-  const Source& source;
+  Source source;
   std::vector<Diagnostic> diagnostics;
 
   DiagnosticContext(const Source& source) : source(source) {}
