@@ -70,7 +70,8 @@ class VarUseDefAnalysis : public StmtExprMutator {
     this->HandleDef(op->var.get());
     Stmt body = this->VisitStmt(op->body);
     // eliminate unreferenced let
-    if (use_count_.at(op->var.get()) == 0 && !HasSideEffect(op->value) && simplify_let_) {
+    if (use_count_.at(op->var.get()) == 0 && SideEffect(op->value) <= CallEffectKind::kReadState &&
+        simplify_let_) {
       return body;
     } else {
       PrimExpr value = this->VisitExpr(op->value);
@@ -101,7 +102,8 @@ class VarUseDefAnalysis : public StmtExprMutator {
     this->HandleDef(op->var.get());
     PrimExpr body = this->VisitExpr(op->body);
     // eliminate unreferenced let
-    if (use_count_.at(op->var.get()) == 0 && !HasSideEffect(op->value) && simplify_let_) {
+    if (use_count_.at(op->var.get()) == 0 && SideEffect(op->value) <= CallEffectKind::kReadState &&
+        simplify_let_) {
       return body;
     } else {
       PrimExpr value = this->VisitExpr(op->value);

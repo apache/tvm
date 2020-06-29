@@ -28,6 +28,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
 
 #include <string>
@@ -64,11 +65,12 @@ struct ExprDeepEqual {
 TVM_DLL Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& defs);
 
 /*!
- * \brief Whether the expression have side effect.
+ * \brief Analyze the side effect
  * \param expr The expression to be checked.
- * \return whether expression have side effect
+ *
+ * \return CallEffectKind, can be kPure, kReadState or kUpdateState
  */
-TVM_DLL bool HasSideEffect(const PrimExpr& expr);
+TVM_DLL CallEffectKind SideEffect(const PrimExpr& expr);
 
 /*!
  * \brief Whether e expression used any var in variable set..

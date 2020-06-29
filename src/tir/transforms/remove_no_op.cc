@@ -90,7 +90,7 @@ class NoOpRemover : public StmtMutator {
     return is_no_op(op->body) ? op->body : stmt;
   }
   Stmt VisitStmt_(const EvaluateNode* op) final {
-    if (HasSideEffect(op->value)) return GetRef<Stmt>(op);
+    if (SideEffect(op->value) > CallEffectKind::kReadState) return GetRef<Stmt>(op);
     return Evaluate(0);
   }
 
@@ -127,7 +127,7 @@ class NoOpRemover : public StmtMutator {
 
  private:
   Stmt MakeEvaluate(PrimExpr value) {
-    if (HasSideEffect(value)) {
+    if (SideEffect(value) > CallEffectKind::kReadState) {
       return Evaluate(value);
     } else {
       return Evaluate(0);
@@ -136,7 +136,7 @@ class NoOpRemover : public StmtMutator {
   Stmt MakeEvaluate(const Array<PrimExpr>& values) {
     Stmt stmt;
     for (PrimExpr e : values) {
-      if (HasSideEffect(e)) {
+      if (SideEffect(e) > CallEffectKind::kReadState) {
         if (stmt.defined()) {
           stmt = SeqStmt({stmt, Evaluate(e)});
         } else {
