@@ -442,10 +442,10 @@ def meshgrid(data):
         y = [4, 5]
 
         gx, gy = relay.meshgrid(x, y)
-        
+
         gx = [[1., 2., 3.],
               [1., 2., 3.]]
-        
+
         gy = [[4., 4., 4.],
               [5., 5., 5.]]
     """
