@@ -1,4 +1,4 @@
-# License .to the Apache Software Foundation (ASF) under one
+# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -473,6 +473,7 @@ class VMExecutor(Executor):
     target : :py:class:`Target`
         The target option to build the function.
     """
+
     def __init__(self, mod, ctx, target):
         if mod is None:
             raise RuntimeError("Must provide module to get VM executor.")
