@@ -21,16 +21,12 @@ import multiprocessing
 import multiprocessing.pool
 import queue
 import signal
-import threading
-import os
 
-import numpy as np
 try:
     import psutil
 except ImportError:
     psutil = None
 
-from tvm import rpc
 from tvm.tir import expr
 from tvm.tir.transform import Simplify
 from tvm.ir.transform import Sequential
@@ -112,6 +108,9 @@ class NoDaemonPool(multiprocessing.pool.Pool):
     def __init__(self, *args, **kwargs):
         kwargs['context'] = NoDaemonContext()
         super().__init__(*args, **kwargs)
+
+    def __reduce__(self):
+        pass
 
 
 def kill_child_processes(parent_pid, sig=signal.SIGTERM):

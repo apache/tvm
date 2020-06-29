@@ -17,8 +17,6 @@
 
 """User interface for auto-scheduler"""
 
-import random
-
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import LocalBuilder, LocalRunner

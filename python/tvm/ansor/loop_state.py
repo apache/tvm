@@ -182,12 +182,11 @@ class State:
     def _resolve_stage_id(self, stage_id):
         if isinstance(stage_id, Operation):
             return self.stage_id_map[stage_id]
-        elif isinstance(stage_id, tvm.te.Tensor):
+        if isinstance(stage_id, tvm.te.Tensor):
             return self.stage_id_map[stage_id.op]
-        elif isinstance(stage_id, int):
+        if isinstance(stage_id, int):
             return stage_id
-        else:
-            raise ValueError("Invalid stage_id")
+        raise ValueError("Invalid stage_id")
 
     def _update_stage_id_map(self):
         if not self.stages_cache:

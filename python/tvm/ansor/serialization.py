@@ -22,7 +22,6 @@ import numpy as np
 import tvm._ffi
 from tvm.runtime import Object
 from .measure import MeasureCallback, MeasureErrorNo
-from .loop_state import State
 from . import _ffi_api
 
 
@@ -62,7 +61,7 @@ class LogReader(Object):
     def __iter__(self):
         while True:
             ret = _ffi_api.LogReaderReadNext(self)
-            if ret is None or not len(ret):
+            if not ret:
                 break
             yield ret[0], ret[1]  # (input, result)
 

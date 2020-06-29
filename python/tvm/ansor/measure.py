@@ -22,11 +22,10 @@ remote devices, recording the running time costs, and checking the correctness o
 
 We implement these in python to utilize python's multiprocessing and error handling
 """
-from typing import List
+
 import os
 import time
 import shutil
-import logging
 import traceback
 import tempfile
 import multiprocessing
@@ -35,16 +34,13 @@ import tvm._ffi
 from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
 from tvm.ir import transform
-from tvm.contrib import tar
+from tvm.contrib import tar, ndk
 
 from . import _ffi_api
 from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout
 
-LOGGER = logging.getLogger('ansor')
-
 # The maximum length of error message
 MAX_ERROR_MSG_LEN = 512
-
 
 @tvm._ffi.register_object("ansor.MeasureCallback")
 class MeasureCallback(Object):
@@ -225,15 +221,15 @@ def make_error_msg():
     return error_msg
 
 
-global global_build_arguments
-global global_run_arguments
+GLOBAL_BUILD_ARGUMENTS = None
+GLOBAL_RUN_ARGUMENTS = None
 
 
 def local_build_worker(index):
     """ Local builder function """
     # We use fork to copy arguments from a global variable.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
-    measure_inputs, build_func, timeout, verbose = global_build_arguments
+    measure_inputs, build_func, timeout, verbose = GLOBAL_BUILD_ARGUMENTS
     assert isinstance(build_func, str)
     if build_func == 'default':
         build_func = tar.tar
@@ -254,6 +250,7 @@ def local_build_worker(index):
         try:
             sch, args = task.compute_dag.apply_steps_from_state(
                 inp.state)
+        # pylint: disable=W0703
         except Exception:
             error_no = MeasureErrorNo.INSTANTIATION_ERROR
             error_msg = make_error_msg()
@@ -268,6 +265,7 @@ def local_build_worker(index):
                     func = build_module.build(
                         sch, args, target=task.target, target_host=task.target_host)
                 func.export_library(filename, build_func)
+            # pylint: disable=W0703
             except Exception:
                 error_no = MeasureErrorNo.COMPILE_HOST
                 error_msg = make_error_msg()
@@ -295,8 +293,8 @@ def local_builder_build(inputs, timeout, n_parallel, build_func, verbose):
     """ Local builder build function """
     # We use fork to copy arguments from a global variable.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
-    global global_build_arguments
-    global_build_arguments = (inputs, build_func, timeout, verbose)
+    global GLOBAL_BUILD_ARGUMENTS
+    GLOBAL_BUILD_ARGUMENTS = (inputs, build_func, timeout, verbose)
 
     pool = NoDaemonPool(n_parallel)
     tuple_res = pool.map(local_build_worker, range(len(inputs)))
@@ -314,7 +312,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func, verbose):
 def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, cooldown_interval,
               verbose):
     """ Local runner run function """
-    MAX_FLOAT = 1e10  # We use 1e10 instead of sys.float_info.max for better readability in log
+    max_float = 1e10  # We use 1e10 instead of sys.float_info.max for better readability in log
 
     def timed_func(inp, build_res):
         tic = time.time()
@@ -325,8 +323,9 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
             ctx = ndarray.context(str(inp.task.target), 0)
             time_f = func.time_evaluator(
                 func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
+        # pylint: disable=W0703
         except Exception:
-            costs = (MAX_FLOAT,)
+            costs = (max_float,)
             error_no = MeasureErrorNo.COMPILE_DEVICE
             error_msg = make_error_msg()
 
@@ -337,8 +336,9 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
                 ctx.sync()
 
                 costs = time_f(*args).results
+            # pylint: disable=W0703
             except Exception:
-                costs = (MAX_FLOAT,)
+                costs = (max_float,)
                 error_no = MeasureErrorNo.RUNTIME_DEVICE
                 error_msg = make_error_msg()
 
@@ -358,7 +358,7 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
         "Measure input size should be equal to build results"
     for inp, build_res in zip(inputs, build_results):
         if build_res.error_no != 0:
-            res = (MAX_FLOAT,), build_res.error_no, build_res.error_msg, build_res.time_cost, \
+            res = (max_float,), build_res.error_no, build_res.error_msg, build_res.time_cost, \
                 time.time()
         else:
             res = call_func_with_timeout(
@@ -366,7 +366,7 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
             if isinstance(res, TimeoutError):
                 if verbose >= 1:
                     print("*T", end="")  # Run timeout
-                res = (MAX_FLOAT,), MeasureErrorNo.RUN_TIMEOUT, None, \
+                res = (max_float,), MeasureErrorNo.RUN_TIMEOUT, None, \
                     build_res.time_cost + timeout, time.time()
         measure_results.append(MeasureResult(*res))
 
