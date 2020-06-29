@@ -21,218 +21,19 @@
  * \file parser.h
  * \brief A parser for TVM IR.
  */
+#ifndef TVM_PARSER_TOKENIZER_H_
+#define TVM_PARSER_TOKENIZER_H_
+
 #include <fstream>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/container.h>
+
+#include "./token.h"
 
 namespace tvm {
 namespace parser {
 
 using namespace runtime;
-
-enum TokenType {
-    CommentStart,
-    CommentEnd,
-    LineComment,
-    Comment,
-    Whitespace,
-    Newline,
-    StringLiteral,
-    Identifier,
-    Local,
-    Global,
-    Op,
-    Graph,
-    OpenParen,
-    CloseParen,
-    AtSymbol,
-    Percent,
-    Keyword,
-    Comma,
-    Period,
-    Equal,
-    Semicolon,
-    Colon,
-    Integer,
-    Float,
-    Division,
-    Boolean,
-    Plus,
-    Star,
-    Minus,
-    RAngle,
-    LAngle,
-    RCurly,
-    LCurly,
-    RSquare,
-    LSquare,
-    Bang,
-    At,
-    If,
-    Else,
-    Underscore,
-    Let,
-    Fn,
-    Defn,
-    TypeDef,
-    Unknown,
-    EndOfFile,
-    Null,
-};
-
-std::string ToString(const TokenType& token_type) {
-    switch (token_type) {
-        case TokenType::CommentStart:
-            return "CommentStart";
-        case TokenType::CommentEnd:
-            return "CommentEnd";
-        case TokenType::LineComment:
-            return "LineComment";
-        case TokenType::Comment:
-            return "Comment";
-        case TokenType::Whitespace:
-            return "WhiteSpace";
-        case TokenType::Newline:
-            return "Newline";
-        case TokenType::StringLiteral:
-            return "StringLiteral";
-        case TokenType::Identifier:
-            return "Identifier";
-        case TokenType::Local:
-            return "Local";
-        case TokenType::Global:
-            return "Global";
-        case TokenType::Graph:
-            return "Graph";
-        case TokenType::Op:
-            return "Op";
-        case TokenType::OpenParen:
-            return "OpenParen";
-        case TokenType::CloseParen:
-            return "CloseParen";
-        case TokenType::AtSymbol:
-            return "AtSymbol";
-        case TokenType::Percent:
-            return "Percent";
-        case TokenType::Keyword:
-            return "Keyword";
-        case TokenType::Comma:
-            return "Comma";
-        case TokenType::Colon:
-            return "Colon";
-        case TokenType::Semicolon:
-            return "Semicolon";
-        case TokenType::Period:
-            return "Period";
-        case TokenType::Equal:
-            return "Equal";
-        case TokenType::Integer:
-            return "Integer";
-        case TokenType::Float:
-            return "Float";
-        case TokenType::Plus:
-            return "Plus";
-        case TokenType::Star:
-            return "Star";
-        case TokenType::Minus:
-            return "Minus";
-        case TokenType::Division:
-            return "Division";
-        case TokenType::RAngle:
-            return "RAngle";
-        case TokenType::LAngle:
-            return "LAngle";
-        case TokenType::RCurly:
-            return "RCurly";
-        case TokenType::LCurly:
-            return "LCurly";
-        case TokenType::RSquare:
-            return "RSquare";
-        case TokenType::LSquare:
-            return "LSquare";
-        case TokenType::Bang:
-            return "Bang";
-        case TokenType::Underscore:
-            return "Underscore";
-        case TokenType::At:
-            return "At";
-        case TokenType::Let:
-            return "Let";
-        case TokenType::If:
-            return "If";
-        case TokenType::Else:
-            return "Else";
-        case TokenType::Fn:
-            return "Fn";
-        case TokenType::Defn:
-            return "Defn";
-        case TokenType::TypeDef:
-            return "TypeDef";
-        case TokenType::Boolean:
-            return "Boolean";
-        case TokenType::Unknown:
-            return "Unknown";
-        case TokenType::EndOfFile:
-            return "EndOfFile";
-        case TokenType::Null:
-            return "Null";
-    }
-}
-
-class Token;
-
-class TokenNode : public Object {
-public:
-    int line;
-    int column;
-    TokenType token_type;
-    mutable runtime::ObjectRef data;
-
-    void VisitAttrs(AttrVisitor* v) {}
-
-    static constexpr const char* _type_key = "parser.Token";
-    TVM_DECLARE_FINAL_OBJECT_INFO(TokenNode, Object);
-};
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<TokenNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const TokenNode*>(ref.get());
-    p->stream << "Token(line=" << node->line << ", column=" << node->column << ", token_type=" << ToString(node->token_type) << ", data=" << node->data << ")";
-  });
-
-
-TVM_REGISTER_NODE_TYPE(TokenNode);
-
-class Token : public ObjectRef {
- public:
-  TVM_DLL explicit Token(int line, int column, TokenType token_type, ObjectRef data = ObjectRef());
-
-  static Token Null();
-  int64_t ToNumber() const;
-  std::string ToString() const;
-  TVM_DEFINE_OBJECT_REF_METHODS(Token, ObjectRef, TokenNode);
-};
-
-Token::Token(int line, int column, TokenType token_type, ObjectRef data) {
-  ObjectPtr<TokenNode> n = make_object<TokenNode>();
-  n->line = line;
-  n->column = column;
-  n->token_type = token_type;
-  n->data = data;
-  data_ = std::move(n);
-}
-
-Token Token::Null() {
-    return Token(0, 0, TokenType::Null);
-}
-
-int64_t Token::ToNumber() const {
-    return Downcast<tvm::Integer>(this->operator->()->data);
-}
-
-std::string Token::ToString() const {
-    return Downcast<tvm::String>(this->operator->()->data);
-}
 
 bool IsDigit(char c) {
     return '0' <= c && c <= '9';
@@ -275,7 +76,7 @@ struct Tokenizer {
         char c = this->source.at(this->pos);
         if (c == '\n') {
             this->line += 1;
-            this->col += 1;
+            this->col = 1;
         } else {
             this->col += 1;
         }
@@ -639,3 +440,5 @@ std::vector<Token> Tokenize(std::string source) {
 
 }  // namespace parser
 }  // namespace tvm
+
+#endif  // TVM_PARSER_TOKENIZER_H_

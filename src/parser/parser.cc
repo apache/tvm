@@ -30,6 +30,8 @@
 
 #include <fstream>
 
+#include "./diagnostic.h"
+#include "./op_table.h"
 #include "./tokenizer.h"
 
 namespace tvm {
@@ -37,46 +39,6 @@ namespace parser {
 
 using namespace relay;
 using Expr = relay::Expr;
-
-// expr
-//   // operators
-//   : '(' expr ')'                             # paren
-//   // function application
-//   | expr '(' callList ')'                    # call
-//   | '-' expr                                 # neg
-//   | expr op=('*'|'/') expr                   # binOp
-//   | expr op=('+'|'-') expr                   # binOp
-//   | expr op=('<'|'>'|'<='|'>=') expr         # binOp
-//   | expr op=('=='|'!=') expr                 # binOp
-//   // function definition
-//   | func                                     # funcExpr
-//   // tuples and tensors
-//   | '(' ')'                                  # tuple
-//   | '(' expr ',' ')'                         # tuple
-//   | '(' expr (',' expr)+ ')'                 # tuple
-//   | '[' (expr (',' expr)*)? ']'              # tensor
-//   | 'if' '(' expr ')' body 'else' body       # ifElse
-//   | matchType expr '{' matchClauseList? '}'  # match
-//   | expr '.' NAT                             # projection
-//   // sequencing
-//   | 'let' var '=' expr ';' expr              # let
-//   // sugar for let %_ = expr; expr
-//   | expr ';;' expr                           # let
-//   | graphVar '=' expr ';' expr               # graph
-//   | ident                                    # identExpr
-//   | scalar                                   # scalarExpr
-//   | meta                                     # metaExpr
-//   | QUOTED_STRING                            # stringExpr
-//   ;
-
-// func: 'fn' typeParamList? '(' argList ')' ('->' typeExpr)? body ;
-// defn
-//   : 'def' globalVar typeParamList? '(' argList ')' ('->' typeExpr)? body  # funcDefn
-//   | 'extern' 'type' generalIdent typeParamList?                           # externAdtDefn
-//   | 'type' generalIdent typeParamList? '{' adtConsDefnList? '}'           # adtDefn
-//   ;
-
-// constructorName: CNAME ;
 
 // adtConsDefnList: adtConsDefn (',' adtConsDefn)* ','? ;
 // adtConsDefn: constructorName ('(' typeExpr (',' typeExpr)* ')')? ;
@@ -92,50 +54,6 @@ using Expr = relay::Expr;
 //   | constructorName patternList?    # constructorPattern
 //   | patternList                     # tuplePattern
 //   ;
-
-// adtCons: constructorName adtConsParamList? ;
-// adtConsParamList: '(' adtConsParam (',' adtConsParam)* ')' ;
-// adtConsParam: localVar | constructorName ;
-
-// argList
-//   : varList             # argNoAttr
-//   | (var ',')* attrSeq  # argWithAttr
-//   ;
-
-// varList: (var (',' var)*)? ;
-// var: localVar (':' typeExpr)? ;
-
-// attrSeq: attr (',' attr)* ;
-// attr: CNAME '=' expr ;
-
-// typeExpr
-//   : '(' ')'                                                                # tupleType
-//   | '(' typeExpr ')'                                                       # typeParen
-//   | '(' typeExpr ',' ')'                                                   # tupleType
-//   | '(' typeExpr (',' typeExpr)+ ')'                                       # tupleType
-//   | generalIdent typeParamList                                             # typeCallType
-//   | generalIdent                                                           # typeIdentType
-//   | 'Tensor' '[' shapeList ',' typeExpr ']'                                # tensorType
-//   | 'fn' typeParamList? '(' (typeExpr (',' typeExpr)*)? ')' '->' typeExpr  # funcType
-//   | '_'                                                                    # incompleteType
-//   ;
-
-// typeParamList: '[' typeExpr (',' typeExpr)* ']' ;
-
-// shapeList
-//   : '(' ')'
-//   | '(' shape (',' shape)+ ')'
-//   | shape
-//   ;
-
-// meta : 'meta' '[' CNAME ']' '[' NAT ']';
-
-// shape
-//   : meta           # metaShape
-//   | '(' shape ')'  # parensShape
-//   | NAT            # intShape
-//   ;
-
 
 struct GlobalFunc {
   GlobalVar global;
@@ -192,61 +110,66 @@ MetaRefExpr::MetaRefExpr(std::string type_key, uint64_t node_index) {
   data_ = std::move(rnode);
 }
 
-struct Rule {
-  std::vector<TokenType> tokens;
-  int precedence;
-  int arity;
-  tvm::Op op;
-  bool left_assoc;
-
-  Rule() : tokens(), precedence(0), arity(0), op(tvm::Op()), left_assoc(false) {}
-
-  Rule(std::vector<TokenType> tokens, tvm::Op op, int precedence, int arity = 2, bool left_assoc = false)
-      : tokens(tokens), precedence(precedence), arity(arity), op(op), left_assoc(false) {}
-
-  Rule(const Rule& rule) {
-    this->tokens = rule.tokens;
-    this->op = rule.op;
-    this->precedence = rule.precedence;
-    this->arity = rule.arity;
-    this->left_assoc = rule.left_assoc;
-  }
-};
-
-
-struct OperatorTable {
-  std::vector<Rule> rules;
-  std::unordered_map<std::string, Rule> this_is_a_hack;
-
-  OperatorTable(std::vector<Rule> rules) : rules(rules), this_is_a_hack() {
-    for (auto rule : rules) {
-      std::stringstream key;
-      for (auto token : rule.tokens) {
-        key << ToString(token);
-      }
-      this->this_is_a_hack.insert({ key.str(), rule });
-    }
-  }
-};
-
+template<typename T>
 struct Scope {
-  std::unordered_map<std::string, Var> name_map;
+  std::unordered_map<std::string, T> name_map;
   Scope() : name_map() {}
 };
 
+template<typename T>
+struct ScopeStack {
+  std::vector<Scope<T>> scope_stack;
+
+  void Add(const std::string& name, const T& value) {
+    this->scope_stack.back().name_map.insert({ name, value });
+  }
+
+  T Lookup(const std::string& name) {
+    for (auto scope = this->scope_stack.rbegin(); scope != this->scope_stack.rend(); scope++) {
+      auto it = scope->name_map.find(name);
+      if (it != scope->name_map.end()) {
+        return it->second;
+      }
+    }
+    return T();
+  }
+
+  void PushStack() {
+    this->scope_stack.push_back(Scope<T>());
+  }
+
+  void PopStack() {
+    this->scope_stack.pop_back();
+  }
+};
+
 struct Parser {
+  /*! \brief The diagnostic context used for error reporting. */
+  DiagnosticContext diag_ctx;
+
+  /*! \brief The current position in the token stream. */
   int pos;
+
+  /*! \brief The token stream for the parser. */
   std::vector<Token> tokens;
+
+  /*! \brief The configured operator table. */
   OperatorTable op_table;
+
+  /*! \brief Configure the whitespace mode, right now we ignore all whitespace. */
   bool ignore_whitespace;
 
+  /*! \brief A mapping from graph variable to expression, i.e., `%0 = expr`. */
   std::unordered_map<int, Expr> graph_ctx;
-  std::vector<Scope> scopes = { Scope() };
 
-  Parser(std::vector<Token> tokens, OperatorTable op_table)
-      : pos(0), tokens(tokens), op_table(op_table) {
-        // DisplayNextN(100);
-  }
+  /*! \brief The set of type scopes used for generics. */
+  ScopeStack<TypeVar> type_scopes;
+
+  /*! \brief The set of expression scopes used for lexical scope. */
+  ScopeStack<Var> expr_scopes;
+
+  Parser(std::vector<Token> tokens, OperatorTable op_table, Source source)
+      : source(source), pos(0), tokens(tokens), op_table(op_table), ignore_whitespace(true) {}
 
   void DisplayNextN(int n) {
     std::cout << "remaining tokens: " << std::endl;
@@ -294,9 +217,9 @@ struct Parser {
 
   void Consume(const TokenType& token) {
     if (tokens[pos]->token_type != token) {
-      throw std::runtime_error(
-          "expected a " + ToString(token) + " found " + ToString(Peek()->token_type) + " at " +
-          std::to_string(tokens[pos]->line) + ":" + std::to_string(tokens[pos]->column));
+      std::string message =  "expected a " + Pretty(token) + " found " + Pretty(Peek()->token_type);
+      this->source.ReportAt(tokens[pos]->line, tokens[pos]->column, message);
+      exit(1);
     }
     pos++;
   }
@@ -326,30 +249,51 @@ struct Parser {
     return this->graph_ctx.at(graph_no);
   }
 
-  Var BindVar(std::string name, relay::Type type_annotation) {
+  Var BindVar(const std::string& name, const relay::Type& type_annotation) {
     auto var = Var(name, type_annotation);
-    this->scopes.back().name_map.insert({name, var});
+    this->expr_scopes.Add(name, var);
     return var;
   }
 
-  Var LookupVarByString(const std::string& var) {
-    for (auto scope = this->scopes.rbegin(); scope != this->scopes.rend(); scope++) {
-      auto it = scope->name_map.find(var);
-      if (it != scope->name_map.end()) {
-        return it->second;
-      }
+  TypeVar BindTypeVar(const std::string& name, const TypeKind type_kind) {
+    auto type_var = TypeVar(name, type_kind);
+    this->type_scopes.Add(name, type_var);
+    return type_var;
+  }
+
+  Var LookupLocal(const Token& local) {
+    auto var = this->expr_scopes.Lookup(local.ToString());
+    if (!var.defined()) {
+      // REPORT HERE
     }
-    LOG(FATAL) << "foo";
-    return Var();
+    return var;
+  }
+
+  TypeVar LookupTypeVar(const Token& identifier) {
+    auto var = this->type_scopes.Lookup(identifier.ToString());
+    if (!var.defined()) {
+      // REPORT HERE
+    }
+    return var;
   }
 
   void PushScope() {
-    this->scopes.push_back(Scope());
+    this->expr_scopes.PushStack();
   }
 
-  void PopScope(int n) {
+  void PopScopes(int n) {
     for (int i = 0; i < n; i++) {
-      this->scopes.pop_back();
+      this->expr_scopes.PopStack();
+    }
+  }
+
+  void PushTypeScope() {
+    this->type_scopes.PushStack();
+  }
+
+  void PopTypeScopes(int n) {
+    for (int i = 0; i < n; i++) {
+      this->type_scopes.PopStack();
     }
   }
 
@@ -443,11 +387,27 @@ struct Parser {
   }
 
   TypeData ParseTypeDef() {
+    // Match the `type` keyword.
     Match(TokenType::TypeDef);
+    // Parse the type's identifier.
     auto type_id = Match(TokenType::Identifier);
     auto type_global = tvm::GlobalTypeVar(type_id.ToString(), TypeKind::kTypeData);
+
+    Array<TypeVar> generics;
+
+    if (Peek()->token_type == TokenType::LSquare) {
+      generics = ParseSequence<TypeVar>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
+        // TODO(@jroesch): need to add type var context.
+        auto type_var = Match(TokenType::Identifier).ToString();
+        return TypeVar(type_var, TypeKind::kType);
+      });
+    }
+
+    // Parse the list of constructors.
     auto ctors = ParseSequence<tvm::Constructor>(TokenType::LCurly, TokenType::Comma, TokenType::RCurly, [&]() {
+      // First match the name of the constructor.
       auto ctor = Match(TokenType::Identifier).ToString();
+      // Match the optional field list.
       if (Peek()->token_type != TokenType::OpenParen) {
         return tvm::Constructor(ctor, {}, type_global);
       } else {
@@ -457,7 +417,8 @@ struct Parser {
         return tvm::Constructor(ctor, arg_types, type_global);
       }
     });
-    return TypeData(type_global, {}, ctors);
+
+    return TypeData(type_global, generics, ctors);
   }
 
   template <typename R>
@@ -547,9 +508,8 @@ struct Parser {
 
         auto body = this->ParseExpr();
 
-        std::cout << "Bindings count" << bindings.size() << std::endl;
         // Remove the same number of scopes we added.
-        PopScope(scopes);
+        PopScopes(scopes);
 
         if (bindings.size() == 0) {
           return body;
@@ -730,7 +690,7 @@ struct Parser {
       return ParseExpr();
     });
 
-    PopScope(1);
+    PopScopes(1);
 
     return relay::Function(params, body, ret_type, {});
   }
@@ -940,9 +900,8 @@ struct Parser {
           return e;
         }
         case TokenType::Local: {
-          auto string = next.ToString();
           Consume(TokenType::Local);
-          return Expr(LookupVarByString(string));
+          return Expr(LookupLocal(next));
         }
         case TokenType::Global: {
           auto string = next.ToString();
@@ -1013,36 +972,15 @@ struct Parser {
   ObjectRef ParseMetadata() { return ObjectRef(); }
 };
 
-OperatorTable DefaultOpTable() {
-  return OperatorTable({
-      Rule({TokenType::Star}, Op::Get("multiply"), 12, 2, true),
-      Rule({TokenType::Division}, Op::Get("divide"), 12, 2, true),
-      Rule({TokenType::Plus}, Op::Get("add"), 10, 2, true),
-      Rule({TokenType::Minus}, Op::Get("subtract"), 10, 2, true),
-      Rule({TokenType::LAngle}, Op::Get("less"), 8, 2, true),
-      Rule({TokenType::LAngle, TokenType::Equal}, Op::Get("less_equal"), 8, 2, true),
-      Rule({TokenType::RAngle}, Op::Get("greater"), 8, 2, true),
-      Rule({TokenType::RAngle, TokenType::Equal}, Op::Get("greater_equal"), 8, 2, true),
-      Rule({TokenType::Equal, TokenType::Equal}, Op::Get("equal"), 7, 2, true),
-      Rule({TokenType::Bang, TokenType::Equal}, Op::Get("not_equal"), 7, 2, true)
-    });
-}
-
 IRModule ParseModule(std::string file_name, std::string file_content) {
   auto tokens = Tokenize(file_content);
-  // for (auto token : tokens) {
-    // std::cout << token << std::endl;
-  //}
-  Parser parser(tokens, DefaultOpTable());
+  Parser parser(tokens, DefaultOpTable(), Source(file_content));
   return parser.ParseModule();
 }
 
 Expr ParseExpr(std::string file_name, std::string file_content) {
   auto tokens = Tokenize(file_content);
-  // for (auto token : tokens) {
-  //  std::cout << token << std::endl;
-  // }
-  Parser parser(tokens, DefaultOpTable());
+  Parser parser(tokens, DefaultOpTable(), Source(file_content));
   auto expr = parser.ParseExpr();
   parser.Match(TokenType::EndOfFile);
   return expr;
