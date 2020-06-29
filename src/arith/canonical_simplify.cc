@@ -1018,8 +1018,9 @@ PrimExpr CanonicalSimplifier::Impl::SimplifyReduceCombiner(const ReduceNode* op)
 
   // components which have side effects should also be preserved
   for (size_t i = 0; i < used.size(); ++i) {
-    if (HasSideEffect(op->source[i]) || HasSideEffect(op->combiner->identity_element[i]) ||
-        HasSideEffect(op->combiner->result[i])) {
+    if (SideEffect(op->source[i]) > CallEffectKind::kReadState ||
+        SideEffect(op->combiner->identity_element[i]) > CallEffectKind::kReadState ||
+        SideEffect(op->combiner->result[i]) > CallEffectKind::kReadState) {
       mark_used(i);
     }
   }
