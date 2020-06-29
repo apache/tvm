@@ -17,5 +17,4 @@
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """The Relay namespace containing dynamic ops."""
 
-from .transform import *
 from . import _transform

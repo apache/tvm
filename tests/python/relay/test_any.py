@@ -167,11 +167,12 @@ def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newsha
         newshape_var = relay.var('newshape', shape=(len(newshape),), dtype='int64')
         params.append(newshape_var)
         args.append(np.array(newshape, dtype='int64'))
-        y = relay.dyn.reshape(relu_x, newshape_var)
-    else:
-        y = relay.reshape(relu_x, newshape=newshape)
+        newshape = newshape_var
+
+    y = relay.reshape(relu_x, newshape=newshape)
     mod = tvm.IRModule()
     mod["main"] = relay.Function(params, y)
+
     for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(*args).asnumpy()

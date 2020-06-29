@@ -19,7 +19,8 @@
 """Transform operators."""
 
 from . import _make
-from ..expr import TupleWrapper, const
+from .dyn import _make as _dyn_make
+from ..expr import TupleWrapper, const, Expr
 
 
 def cast(data, dtype):
@@ -201,7 +202,7 @@ def reshape(data, newshape):
     data : relay.Expr
         The input data to the operator.
 
-    newshape : Union[int, Tuple[int], List[int]]
+    newshape : Union[int, Tuple[int], List[int]] or relay.Expr
         The new shape. Should be compatible with the original shape.
 
     Returns
@@ -209,8 +210,21 @@ def reshape(data, newshape):
     result : relay.Expr
         The reshaped result.
     """
+    if isinstance(newshape, Expr):
+        return _dyn_make.reshape(data, newshape)
     if isinstance(newshape, int):
         newshape = [newshape]
+    if isinstance(newshape, (tuple, list)):
+        tempshape = []
+        for shape in newshape:
+            if isinstance(shape, _expr.IntImm):
+                tempshape.append(shape.value)
+            else:
+                try:
+                    tempshape.append(int(shape))
+                except ValueError as err:
+                    raise RuntimeError('Unrecognized shape type: %s' % err)
+        newshape = tempshape
     return _make.reshape(data, list(newshape))
 
 def argwhere(condition):

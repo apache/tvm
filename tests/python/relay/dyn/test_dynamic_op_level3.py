@@ -40,7 +40,7 @@ def test_dyn_reshape():
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         y = relay.var("y", relay.TensorType((len(newshape), ), "int64"))
-        z = relay.dyn.reshape(x, y)
+        z = relay.reshape(x, y)
 
         func = relay.Function([x, y], z)
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
@@ -60,7 +60,7 @@ def test_dyn_shape_reshape():
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         y = relay.var("y", relay.TensorType(newshape, "float32"))
-        z = relay.dyn.reshape(x, relay.shape_of(y))
+        z = relay.reshape(x, relay.shape_of(y))
 
         func = relay.Function([x, y], z)
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
