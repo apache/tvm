@@ -250,7 +250,7 @@ struct Parser {
     if (tokens[pos]->token_type != token) {
       std::string message =  "expected a " + Pretty(token) + " found " + Pretty(Peek()->token_type);
       this->diag_ctx.Emit({tokens[pos]->line, tokens[pos]->column, message});
-      exit(1);
+      this->diag_ctx.Render();
     }
     pos++;
   }
@@ -427,11 +427,14 @@ struct Parser {
 
     Array<TypeVar> generics;
 
+    bool should_pop = false;
     if (Peek()->token_type == TokenType::LSquare) {
+      // If we have generics we need to add a type scope.
+      PushTypeScope();
+      should_pop = true;
       generics = ParseSequence<TypeVar>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
-        // TODO(@jroesch): need to add type var context.
-        auto type_var = Match(TokenType::Identifier).ToString();
-        return TypeVar(type_var, TypeKind::kType);
+        auto type_var_name = Match(TokenType::Identifier).ToString();
+        return BindTypeVar(type_var_name, TypeKind::kType);
       });
     }
 
@@ -449,6 +452,11 @@ struct Parser {
         return tvm::Constructor(ctor, arg_types, type_global);
       }
     });
+
+    // Now pop the type scope.
+    if (should_pop) {
+      PopTypeScopes(1);
+    }
 
     return TypeData(type_global, generics, ctors);
   }
@@ -659,14 +667,19 @@ struct Parser {
 
   // Parses a user defined ADT or type variable.
   Type ParseNonPrimitiveType(const Token& tok) {
+    std::cout << "inside of prim type " << tok << std::endl;
     auto name = tok.ToString();
     Type head_type;
     auto global_type = type_names.Get(name);
+
     if (!global_type.defined()) {
       head_type = LookupTypeVar(tok);
     } else {
       head_type = global_type;
     }
+
+    CHECK(head_type.defined())
+      << "head type must be defined";
 
     Array<Type> arg_types;
     if (Peek()->token_type == TokenType::LSquare) {
@@ -684,6 +697,7 @@ struct Parser {
 
   Type ParseType() {
     auto tok = Peek();
+
     if (tok->token_type == TokenType::OpenParen) {
       auto tys = ParseSequence<relay::Type>(
         TokenType::OpenParen,
@@ -711,13 +725,16 @@ struct Parser {
           auto dtype = DataType(String2DLDataType(tok.ToString()));
           return TensorType({}, dtype);
         } else {
-          ParseNonPrimitiveType(tok );
+          return ParseNonPrimitiveType(tok);
         }
       }
     } if (WhenMatch(TokenType::Underscore)) {
       return IncompleteType();
     } else {
-      diag_ctx.Emit({ tok->line, tok->column, "failed to parse type"});
+      std::stringstream msg;
+      msg << "failed to parse type found ";
+      msg << tok;
+      diag_ctx.Emit({ tok->line, tok->column, msg.str() });
       diag_ctx.Render();
       return Type();
     }
@@ -732,6 +749,17 @@ struct Parser {
 
   Function ParseFunctionDef() {
     PushScope();
+    PushTypeScope();
+
+    Array<TypeVar> generics;
+    if (Peek()->token_type == TokenType::LSquare) {
+      // If we have generics we need to add a type scope.
+      PushTypeScope();
+      generics = ParseSequence<TypeVar>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
+        auto type_var_name = Match(TokenType::Identifier).ToString();
+        return BindTypeVar(type_var_name, TypeKind::kType);
+      });
+    }
 
     auto params = ParseSequence<Var>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&]() {
       auto token = Match(TokenType::Local);
@@ -753,9 +781,10 @@ struct Parser {
       return ParseExpr();
     });
 
+    PopTypeScopes(1);
     PopScopes(1);
 
-    return relay::Function(params, body, ret_type, {});
+    return relay::Function(params, body, ret_type, generics);
   }
 
   Expr ParseIf() {
@@ -777,6 +806,10 @@ struct Parser {
     return relay::If(guard, true_branch, false_branch);
   }
 
+  Expr ParseMatch(bool is_partial) {
+    LOG(FATAL) << "parse match";
+  }
+
   Expr ParseExpr() {
     return ConsumeWhitespace<Expr>([this] {
       std::vector<Expr> exprs;
@@ -788,6 +821,12 @@ struct Parser {
           // ParseBindingExpression then parse_lhs() parse_rhs() ';' continue
           case TokenType::Let:
             exprs.push_back(ParseBindingExpr());
+            break;
+          case TokenType::Match:
+          case TokenType::PartialMatch:
+            bool is_partial = next->token_type == PartialMatch;
+            Consume(nest->token_type);
+            exprs.push_back(ParseMatch(is_partial));
             break;
           case TokenType::If: {
             exprs.push_back(ParseIf());

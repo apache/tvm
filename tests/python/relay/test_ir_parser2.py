@@ -102,7 +102,9 @@ def assert_parses_as(code, expr):
     assert_graph_equal(parsed, expr)
 
 def assert_parse_module_as(code, mod):
+    import pdb; pdb.set_trace()
     parsed = parse_module(code)
+    import pdb; pdb.set_trace()
     assert_graph_equal(parsed, mod)
 
 def get_scalar(x):
@@ -709,7 +711,7 @@ def test_multiple_type_param_defn():
             ])
     mod = tvm.IRModule()
     mod[glob_typ_var] = prog
-    assert_parses_as(
+    assert_parse_module_as(
         """
         type Either[A, B] {
           Left(A),
@@ -765,7 +767,7 @@ def test_match():
         )
         mod[length_var] = length_func
 
-        assert_parses_as(
+        assert_parse_module_as(
             """
             %s
 
@@ -882,33 +884,33 @@ def test_import_grad():
     mod.import_from_std("gradient.rly")
 
 if __name__ == "__main__":
-    test_graph()
-    test_comments()
-    test_int_literal()
-    test_float_literal()
-    test_bool_literal()
-    test_negative()
-    test_bin_op()
-    test_parens()
-    test_op_assoc()
-    test_let()
-    test_seq()
-    test_tuple()
-    test_func()
-    test_defn()
-    test_recursive_call()
-    test_ifelse()
-    test_call()
-    test_incomplete_type()
-    test_builtin_types()
-    test_tensor_type()
-    test_function_type()
-    test_tuple_type()
-    test_adt_defn()
-    test_empty_adt_defn()
-    test_multiple_cons_defn()
+    # test_graph()
+    # test_comments()
+    # test_int_literal()
+    # test_float_literal()
+    # test_bool_literal()
+    # test_negative()
+    # test_bin_op()
+    # test_parens()
+    # test_op_assoc()
+    # test_let()
+    # test_seq()
+    # test_tuple()
+    # test_func()
+    # test_defn()
+    # test_recursive_call()
+    # test_ifelse()
+    # test_call()
+    # test_incomplete_type()
+    # test_builtin_types()
+    # test_tensor_type()
+    # test_function_type()
+    # test_tuple_type()
+    # test_adt_defn()
+    # test_empty_adt_defn()
+    # test_multiple_cons_defn()
     # test_multiple_type_param_defn()
-    # test_match()
+    test_match()
     # test_adt_cons_expr()
     # test_duplicate_adt_defn()
     # test_duplicate_adt_cons()

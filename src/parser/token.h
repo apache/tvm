@@ -71,6 +71,7 @@ enum TokenType {
     LSquare,
     Bang,
     At,
+    Question,
     If,
     Else,
     Underscore,
@@ -78,6 +79,8 @@ enum TokenType {
     Fn,
     Defn,
     TypeDef,
+    Match,
+    PartialMatch,
     Unknown,
     EndOfFile,
     Null,
@@ -169,6 +172,12 @@ std::string ToString(const TokenType& token_type) {
             return "Defn";
         case TokenType::TypeDef:
             return "TypeDef";
+        case TokenType::Match:
+            return "Match";
+        case TokenType::PartialMatch:
+            return "PartialMatch";
+        case TokenType::Question:
+            return "Question";
         case TokenType::Boolean:
             return "Boolean";
         case TokenType::Unknown:
@@ -268,6 +277,12 @@ std::string Pretty(const TokenType& token_type) {
             return "`type`";
         case TokenType::Boolean:
             return "boolean";
+        case TokenType::Match:
+            return "`match`";
+        case TokenType::PartialMatch:
+            return "`match?`";
+        case TokenType::Question:
+            return "`?`";
         case TokenType::Unknown:
             return "unknown";
         case TokenType::EndOfFile:

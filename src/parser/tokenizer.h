@@ -62,6 +62,7 @@ static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
     { "if", TokenType::If },
     { "else", TokenType::Else },
     { "type", TokenType::TypeDef },
+    { "match", TokenType::Match }
 };
 
 struct Tokenizer {
@@ -294,6 +295,10 @@ struct Tokenizer {
             auto token = NewToken(TokenType::At);
             Next();
             return token;
+        } else if (next == '?') {
+            auto token = NewToken(TokenType::Question);
+            Next();
+            return token;
         } else if (next == '%') {
             auto token = NewToken(TokenType::Percent);
             Next();
@@ -338,6 +343,12 @@ struct Tokenizer {
             TokenType token_type;
             if (it != KEYWORD_TABLE.end()) {
                 token_type = it->second;
+
+                if (token_type == TokenType::Match) {
+                    if (More() && Peek() == TokenType::Question) {
+                        token_type = TokenType::PartialMatch;
+                    }
+                }
             } else {
                 token_type = TokenType::Identifier;
             }
@@ -395,14 +406,14 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
             case TokenType::At: {
                 auto next = tokens.at(i + 1);
                 if (next->token_type == TokenType::Identifier) {
-                    // Match this token.
-                    i += 1;
-                    auto tok = Token(current->line, current->column, TokenType::Global, next->data);
-                    CHECK(tok.defined());
-                    out.push_back(tok);
+                  // Match this token.
+                  i += 1;
+                  auto tok = Token(current->line, current->column, TokenType::Global, next->data);
+                  CHECK(tok.defined());
+                  out.push_back(tok);
                 } else {
-                    CHECK(current.defined());
-                    out.push_back(current);
+                  CHECK(current.defined());
+                  out.push_back(current);
                 }
                 continue;
             }
