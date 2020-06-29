@@ -50,7 +50,7 @@ class HardwareParams(Object):
 
 @tvm._ffi.register_object("ansor.SearchTask")
 class SearchTask(Object):
-    """ The meta-information of a search task
+    """ The meta-information of a search task.
 
     Parameters
     ----------

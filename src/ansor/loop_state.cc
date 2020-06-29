@@ -62,7 +62,6 @@ Stage::Stage(te::Operation op) {
   if (op->IsInstance<te::ComputeOpNode>()) {
     node->op_type = kCompute;
     auto* pop = op.as<te::ComputeOpNode>();
-
     for (const auto& axis : pop->axis) {
       node->iters.push_back(Iterator(CleanName(axis->var->name_hint),
                                      axis->dom, kSpace, kNone));
@@ -129,9 +128,8 @@ State::State(const std::vector<Stage>& stages, const std::vector<Step>& transfor
 /********** Schedule primitives apis for state **********/
 void State::reorder(int stage_id, const std::vector<Iterator>& order) {
   const Stage& stage = operator->()->stages[stage_id];
-
   CHECK_EQ(order.size(), stage->iters.size()) << "The order of all iterators "
-                                                 "should be specified";
+                                              << "should be specified";
   std::vector<int> after_ids;
   GetIndices(stage->iters, order, &after_ids);
   ReorderStep step = ReorderStep(stage_id, after_ids);
@@ -143,7 +141,6 @@ std::vector<Iterator> State::split(int stage_id, const Iterator& it,
                                    const std::vector<PrimExpr>& lengths,
                                    bool inner_to_outer) {
   const Stage& stage = operator->()->stages[stage_id];
-
   SplitStep step =
       SplitStep(stage_id, GetIndex(stage->iters, it),
                 it->range.defined() ? it->range->extent : PrimExpr(),
@@ -164,12 +161,10 @@ Iterator State::fuse(int stage_id, const std::vector<Iterator>& iters) {
 /********** Step implementations for state **********/
 void State::DoReorderStep(const ReorderStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
-
   std::vector<Iterator> iters;
   for (auto x : step->after_ids) {
     iters.push_back(stage->iters[x]);
   }
-
   StateNode* pstate = CopyOnWrite();
   pstate->stages[step->stage_id] =
       Stage(stage->op, stage->op_type, std::move(iters), stage->compute_at, stage->attrs);
@@ -284,14 +279,12 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   if (new_extent.defined()) {
     range = Range::make_by_min_extent(0, new_extent);
   }
-  Iterator new_it =
-      Iterator(new_name, range, new_iter_type, kNone, &ori_iters);
+  Iterator new_it = Iterator(new_name, range, new_iter_type, kNone, &ori_iters);
   std::vector<Iterator> new_iters;
   new_iters.insert(new_iters.end(), stage->iters.begin(),
                    stage->iters.begin() + step->fused_ids.front());
   new_iters.push_back(new_it);
-  new_iters.insert(new_iters.end(),
-                   stage->iters.begin() + step->fused_ids.back() + 1,
+  new_iters.insert(new_iters.end(), stage->iters.begin() + step->fused_ids.back() + 1,
                    stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();

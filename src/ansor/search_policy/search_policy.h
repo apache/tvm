@@ -102,7 +102,8 @@ class SearchPolicyNode : public Object {
   }
 
   /*!
-   * \brief Do schedule search for a task.
+   * \brief Do schedule search for a task. Takes the SearchTask as input and returns the best state
+   * get during the search process.
    * \param task The target search task.
    * \param n_trials Total schedules to be tried during this search.
    * \param early_stopping Early stop if no better schedule is found.
@@ -117,7 +118,7 @@ class SearchPolicyNode : public Object {
                        Array<SearchCallback> pre_search_callbacks) = 0;
 
   /*!
-   * \brief Call SearchCallback with the current SearchPolicyNode.u
+   * \brief Call SearchCallback with the current SearchPolicyNode
    * \param callbacks SearchCallback to be called.
    */
   void RunCallbacks(const Array<SearchCallback>& callbacks);

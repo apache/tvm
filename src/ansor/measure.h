@@ -101,7 +101,7 @@ class MeasureInput : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(MeasureInput, ObjectRef, MeasureInputNode);
 };
 
-/*! \brief Store the input of a build. */
+/*! \brief Store the result of a build. */
 class BuildResultNode : public Object {
  public:
   /*! \brief The filename of built binary file. */

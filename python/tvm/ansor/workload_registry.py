@@ -65,7 +65,17 @@ def register_workload_func(func):
 
 
 def compute_dag_hash(dag):
-    """ Get hash value for a ComputeDAG
+    """ Get hash value for a ComputeDAG.
+
+    Parameters
+    ----------
+    dag : ComputeDAG
+        The target ComputeDAG.
+
+    Returns
+    -------
+    hash_value : Str
+        The hash value of this ComputeDAG in hex digest.
     """
     # todo: implement this more carefully and move this to c++ as a member function of ComputeDAG
     str_key = ''
@@ -87,8 +97,19 @@ def compute_dag_hash(dag):
 
 
 def register_workload_bufs(bufs):
-    """Directly register buffers of a workload and return the workload_key
-    The buffers can be looked up with workload_key_to_tensors by the workload_key
+    """ Directly register buffers of a workload and return the workload_key.
+
+    The buffers can be looked up with workload_key_to_tensors by the workload_key.
+
+    Parameters
+    ----------
+    bufs : List[Tensor]
+        A list of Tensors for the target compute declaration.
+
+    Returns
+    -------
+    workload_key : Str
+        A workload key mapping to the registered compute declaration.
     """
     dag = ComputeDAG(bufs)
     key = compute_dag_hash(dag)
@@ -133,7 +154,18 @@ def deserialize_args(args):
 
 @tvm._ffi.register_func("ansor.workload_key_to_tensors")
 def workload_key_to_tensors(workload_key):
-    """Decode a workload key to the input/output tensors"""
+    """ Decode a workload key to the input/output tensors.
+
+    Parameters
+    ----------
+    workload_key : Str
+        The target workload key.
+
+    Returns
+    -------
+    tensors : List[Tensor]
+        The registered compute declaration Tensors.
+    """
     workload = json.loads(workload_key)
     name = workload[0]
     lookup = WORKLOAD_FUNC_REGISTRY[name]
@@ -146,13 +178,37 @@ def workload_key_to_tensors(workload_key):
 
 @ tvm._ffi.register_func("ansor.workload_key_to_dag")
 def workload_key_to_dag(workload_key):
-    """Decode a workload key to a compute dag"""
+    """ Decode a workload key to a compute dag.
+
+    Parameters
+    ----------
+    workload_key : Str
+        The target workload key.
+
+    Returns
+    -------
+    dag : ComputeDAG
+        ComputeDAG to the registered compute declaration.
+    """
     tensors = workload_key_to_tensors(workload_key)
     return ComputeDAG(tensors)
 
 
 def make_workload_key_func(func, args):
-    """make a workload key from function and arguments"""
+    """ make a workload key from function and arguments.
+
+    Parameters
+    ----------
+    func : Function
+        The target function that returns the compute declaration Tensors.
+    args : Args
+        The args of the target function.
+
+    Returns
+    -------
+    workload_key : Str
+        The workload key of the target function.
+    """
     args = serialize_args(args)
 
     if callable(func):
@@ -169,21 +225,44 @@ def make_workload_key_func(func, args):
 
 
 def make_workload_key_bufs(bufs):
-    """make a workload key from bufs"""
+    """ make a workload key from bufs.
+
+    Parameters
+    ----------
+    bufs : List[Tensor]
+        A list of Tensors for the target compute declaration.
+
+    Returns
+    -------
+    workload_key : Str
+        A workload key mapping to the registered compute declaration.
+    """
     dag = ComputeDAG(bufs)
     key = compute_dag_hash(dag)
     return json.dumps((key,))
 
 
 def dump_workload_func_registry(filename):
-    """Dump workload function registry to a pickle binary file"""
+    """ Dump workload function registry to a pickle binary file.
+
+    Parameters
+    ----------
+    filename : Str
+        The filename to dump workload function registry to.
+    """
     global WORKLOAD_FUNC_REGISTRY
 
     pickle.dump(WORKLOAD_FUNC_REGISTRY, open(filename, 'wb'))
 
 
 def load_workload_func_registry(filename):
-    """Load workload function registry from a pickle binary file"""
+    """ Load workload function registry from a pickle binary file.
+
+    Parameters
+    ----------
+    filename : Str
+        The filename to load workload function registry from.
+    """
     global WORKLOAD_FUNC_REGISTRY
 
     WORKLOAD_FUNC_REGISTRY = pickle.load(open(filename, 'rb'))

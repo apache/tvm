@@ -28,14 +28,13 @@ from . import _ffi_api
 @tvm._ffi.register_object("ansor.LogToFile")
 class LogToFile(MeasureCallback):
     """
-    A measurement callback that writes measurement records into a file
+    A measurement callback that writes measurement records into a file.
 
     Parameters
     ----------
     filename : Str
         File name for this callback to write log to.
     """
-
     def __init__(self, filename="ansor_tuning.json"):
         self.__init_handle_by_constructor__(_ffi_api.LogToFile, filename)
 
@@ -43,7 +42,7 @@ class LogToFile(MeasureCallback):
 @tvm._ffi.register_object("ansor.LogReader")
 class LogReader(Object):
     """
-    Reader of the json log file
+    Reader of the json log file.
 
     Parameters
     ----------
@@ -54,6 +53,22 @@ class LogReader(Object):
         self.__init_handle_by_constructor__(_ffi_api.LogReader, filename)
 
     def read_lines(self, max_size=-1, skip_size=0):
+        """ Read multiple lines from the log file.
+
+        Parameters
+        ----------
+        max_size : Int
+            The maximum number of lines. -1 means read all lines.
+        skip_size : Int
+            Skip the first n lines.
+
+        Returns
+        -------
+        inputs : List[MeasureInput]
+            The MeasureInputs loaded from the log file.
+        results : List[MeasureResult]
+            The MeasureResults loaded from the log file.
+        """
         inputs, results = _ffi_api.LogReaderReadLines(
             self, max_size, skip_size)
         return inputs, results
@@ -74,13 +89,17 @@ def load_from_file(filename: str):
     ----------
     filename : Str
         File name to load log from.
+
+    Returns
+    -------
+    logs : List[MeasureInput, MeasureResult]
     """
     return zip(*LogReader(filename).read_lines())
 
 
 def write_measure_records_to_file(filename, inputs, results):
     """
-    Write(append) measure records to file
+    Write(append) measure records to file.
 
     Parameters
     ----------
@@ -107,7 +126,10 @@ def best_measure_pair_in_file(filename, workload_key=None, target=None):
 
     Returns
     -------
-        The best state from this log fine in form (MeasureInput, MeasureResult).
+    input : MeasureInput
+        The best State's MeasureInput from this log fine.
+    result : MeasureResult
+        The best State's MeasureResult from this log fine.
     """
     log_reader = LogReader(filename)
     best_cost = 1e30

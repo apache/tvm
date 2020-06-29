@@ -47,7 +47,7 @@ class ComputeDAG(Object):
 
     def apply_steps_from_state(self, state):
         """
-        Apply transform steps according to the history of a state
+        Apply transform steps according to the history of a State.
 
         Parameters
         ----------
@@ -63,7 +63,7 @@ class ComputeDAG(Object):
 
     def print_python_code_from_state(self, state):
         """
-        Print transform steps in the history of a state as TVM's python schedule primitive
+        Print transform steps in the history of a State as TVM's python schedule primitive.
 
         Parameters
         ----------
@@ -79,7 +79,16 @@ class ComputeDAG(Object):
 
     def infer_bound_from_state(self, state):
         """
-        Infer bound for a state
+        Infer bound for a state using TVM schedule.
+
+        State api supports to define a split step with its split factor to be a blank placeholder,
+        so sometimes we may get a State will incomplete iterator extent information.
+        And another situation is after some steps (for exp. compute_at), it may be hard to track
+        the extent change of all iterators.
+
+        We perform infer bound using TVM schedule and fill the State with those informations. After
+        applying this methods, the State is guaranteed to have complete interator extent
+        information.
 
         Parameters
         ----------

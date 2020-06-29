@@ -82,7 +82,7 @@ class LogReaderNode : public Object {
   /*!
    * \brief Read multiple lines from the log file.
    * \param max_size The maximum number of lines. -1 means read all lines.
-   * \param skip_size Skip the first n lines
+   * \param skip_size Skip the first n lines.
    * \return The MeasureInputs and MeasureResults loaded from the log file.
    */
   std::pair<Array<MeasureInput>, Array<MeasureResult> > ReadLines(

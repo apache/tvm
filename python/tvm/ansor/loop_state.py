@@ -42,7 +42,7 @@ from . import _ffi_api
 
 @tvm._ffi.register_object("ansor.Iterator")
 class Iterator(Object):
-    """A for loop iterator"""
+    """ A loop iterator structure. """
 
 
 @tvm._ffi.register_object("ansor.Stage")
@@ -63,7 +63,7 @@ class Stage(Object):
 
 @tvm._ffi.register_object("ansor.State")
 class StateObject(Object):
-    """The internal State object """
+    """ The internal State object """
     def __eq__(self, other):
         return _ffi_api.StateEqual(self, other)
 
@@ -72,6 +72,8 @@ class State:
     """
     A state in the search process. It consists of the current loop structure
     and the history steps to reach this state.
+
+    Each State corresponds to a specific schedule for the target ComputeDAG.
 
     Parameters
     ----------
@@ -115,12 +117,13 @@ class State:
         return [stage.op for stage in self.stages_cache]
 
     def transform_steps_size(self):
-        """ Return the size of transform_steps
+        """ Return the size of current transform_steps
         """
         return _ffi_api.StateGetTransformStepsSize(self.state_object)
 
     def reorder(self, stage_id, order):
-        """
+        """ Schedule primitive corresponds to te.reorder.
+
         Parameters
         ----------
         stage_id : Union[int, Operation, Tensor]
@@ -134,7 +137,8 @@ class State:
         self._clear_cache()
 
     def split(self, stage_id, iterator, lengths, inner_to_outer=True):
-        """
+        """ Schedule primitive corresponds to te.split.
+
         Parameters
         ----------
         stage_id : Union[int, Operation, Tensor]
@@ -160,7 +164,8 @@ class State:
         return res
 
     def fuse(self, stage_id, iters):
-        """
+        """ Schedule primitive corresponds to te.fuse.
+
         Parameters
         ----------
         stage_id : Union[int, Operation, Tensor]
@@ -179,6 +184,12 @@ class State:
         self._clear_cache()
         return res
 
+    def copy(self):
+        """ Do deep copy of this State. """
+        state = State(self.state_object, self.compute_dag)
+        state.stage_id_map = self.stage_id_map.copy()
+        return state
+
     def _resolve_stage_id(self, stage_id):
         if isinstance(stage_id, Operation):
             return self.stage_id_map[stage_id]
@@ -196,13 +207,6 @@ class State:
 
     def _clear_cache(self):
         self.stages_cache = None
-
-    def copy(self):
-        """ Do deep copy of this State.
-        """
-        state = State(self.state_object, self.compute_dag)
-        state.stage_id_map = self.stage_id_map.copy()
-        return state
 
     def __getitem__(self, key):
         if not self.stages_cache:

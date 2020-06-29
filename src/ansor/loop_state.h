@@ -127,7 +127,7 @@ class IteratorNode : public Object {
   IteratorAnnotation annotation;
   /*! \brief The original iterators before fusion. */
   std::vector<Iterator> ori_iters;
-  /*! \brief The extra attribute of this iterator. */
+  /*! \brief The extra attributes of this iterator. */
   std::string attr;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -172,7 +172,7 @@ struct StageAttributes {
 };
 
 /*!
- * \brief A stage in the compute declaration.
+ * \brief A op stage in the compute declaration.
  * Similar to te::Stage in `include/schedule.h`.
  */
 class StageNode : public Object {
@@ -235,8 +235,9 @@ class Stage : public ObjectRef {
 };
 
 /*!
- * \brief A state in the search process.
- * It consists of the current loop structure and the history steps to reach this state.
+ * \brief A State in the search process.
+ * It consists of the current loop structure and the history steps to reach this State.
+ * Each State corresponds to a specific schedule for the target ComputeDAG.
  */
 class StateNode: public Object {
  public:

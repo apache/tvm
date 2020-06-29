@@ -38,7 +38,9 @@
 namespace tvm {
 namespace ansor {
 
-class StateNode; class State; class Step;
+class StateNode;
+class State;
+class Step;
 
 typedef std::unordered_map<tvm::te::Stage, std::vector<tir::IterVar>, ObjectHash, ObjectEqual>
     StageToAxesMap;
@@ -57,9 +59,9 @@ class ComputeDAGNode : public Object {
   Array<te::Tensor> tensors;
   /*! \brief All related operations in topo order. */
   Array<te::Operation> ops;
-  /*! \brief Number of float operations. */
+  /*! \brief Number of total float operations for this ComputeDAG. */
   double flop_ct;
-  /*! \brief The initial state. */
+  /*! \brief The initial state without any transform steps. */
   ObjectRef init_state;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -103,8 +105,14 @@ class ComputeDAG: public ObjectRef {
   std::string PrintStepsAsPython(const std::vector<Step>& transform_steps) const;
 
   /*!
-   * \brief Replay the transform steps and call ir_pass::InferBound to fill
-   * correct bound information.
+   * \brief Replay the transform steps and call ir_pass::InferBound to fill correct bound
+   * information.
+   * State api supports to define a split step with its split factor to be a blank placeholder,
+   * so sometimes we may get a State will incomplete iterator extent information.
+   * And another situation is after some steps (for exp. compute_at), it may be hard to track the
+   * extent change of all iterators.
+   * We perform infer bound using TVM schedule and fill the State with those informations. After
+   * applying this methods, the State is guaranteed to have complete interator extent information.
    * \param transform_steps Transform steps of the target state.
    * \return The State after inferbound.
    */
@@ -118,7 +126,7 @@ class ComputeDAG: public ObjectRef {
   /*!
    * \brief Fill the correct bound information for a list of given states.
    * Return the new states inplace.
-   * \param states A pointer to a State vector.
+   * \param states A pointer to a State vector, States are updated inplace.
    */
   void InferBound(std::vector<State>* states) const;
 
@@ -133,7 +141,8 @@ class ComputeDAG: public ObjectRef {
 
  private:
   /*!
-   * \brief Internal common parts for replaying steps.
+   * \brief Internal common parts for replaying steps. This is the key method to apply steps to
+   * TVM schedule.
    * \param transform_steps Transform steps of the target state.
    * \param stages A pointer to `te::Stage` vector.
    * \param stage_to_axes A pointer to StageToAxesMap.

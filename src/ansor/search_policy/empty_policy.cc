@@ -48,6 +48,7 @@ State EmptyPolicyNode::Search(SearchTask task, int n_trials, int early_stopping,
   if (n_trials <= 1) {
     const auto& res = SearchOneRound();
     CHECK_GT(res.size(), 0);
+
     return res[0];
   } else {
     std::vector<MeasureInput> inputs;
@@ -60,10 +61,14 @@ State EmptyPolicyNode::Search(SearchTask task, int n_trials, int early_stopping,
     while (ct < n_trials) {
       const auto& res = SearchOneRound();
       ct += res.size();
+      // Build MeasureInputs for measuring
       inputs.clear();
       for (const auto& state : res) {
+        // The class members measured_states_set_ provided by SearchPolicy can be used to filter
+        // out the already measured states
         inputs.emplace_back(cur_task, state);
       }
+      // ProgramMeasurer will record the state with best performance during measure process
       measurer->Measure(cur_task, GetRef<SearchPolicy>(this), inputs, &results);
     }
 

@@ -226,10 +226,6 @@ class FlopEstimator: public ExprFunctor<double(const PrimExpr& n)> {
   bool fail{false};
 };
 
-State ComputeDAG::GetInitState() const {
-  return Downcast<State>(operator->()->init_state);
-}
-
 ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   auto node = make_object<ComputeDAGNode>();
   FlopEstimator estimator;
@@ -260,6 +256,8 @@ ComputeDAG::ComputeDAG(const std::string& workload_key) {
   node->init_state = State(node->ops);
   data_ = std::move(node);
 }
+
+State ComputeDAG::GetInitState() const { return Downcast<State>(operator->()->init_state); }
 
 std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ApplySteps(
     const std::vector<Step>& transform_steps) const {
@@ -309,8 +307,7 @@ std::string ComputeDAG::PrintStepsAsPython(const std::vector<Step>& transform_st
   return ss.str();
 }
 
-State ComputeDAG::ReplayAndInferBound(
-    const std::vector<Step>& transform_steps) const {
+State ComputeDAG::ReplayAndInferBound(const std::vector<Step>& transform_steps) const {
   State ret_state = GetInitState();
   StateNode* pstate = ret_state.CopyOnWrite();
   pstate->transform_steps = transform_steps;
@@ -364,6 +361,7 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
   std::tie(sch, tensors) = ReplaySteps(pstate->transform_steps, &stages,
                                        &stage_to_axes);
   sch = sch.normalize();
+  // Get bound information from TVM schedule
   bounds = te::InferBound(sch);
 
   // Update the state bound information
@@ -396,9 +394,8 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
 }
 
 std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
-    const std::vector<Step> &transform_steps,
-    std::vector<te::Stage> *stages,
-    StageToAxesMap *stage_to_axes) const {
+    const std::vector<Step>& transform_steps, std::vector<te::Stage>* stages,
+    StageToAxesMap* stage_to_axes) const {
   std::vector<te::Operation> ops;
   for (const auto& op : operator->()->ops) {
     if (!op->IsInstance<te::PlaceholderOpNode>()) {

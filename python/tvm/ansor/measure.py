@@ -44,12 +44,13 @@ MAX_ERROR_MSG_LEN = 512
 
 @tvm._ffi.register_object("ansor.MeasureCallback")
 class MeasureCallback(Object):
-    """Base class for measurement callback function"""
+    """ Base class for measurement callback function. """
 
 
 @tvm._ffi.register_object("ansor.MeasureInput")
 class MeasureInput(Object):
-    """
+    """ Store the input of a measurement.
+
     Parameters
     ----------
     task : SearchTask
@@ -57,14 +58,13 @@ class MeasureInput(Object):
     state : State
         The current State to be measured.
     """
-
     def __init__(self, task, state):
         self.__init_handle_by_constructor__(_ffi_api.MeasureInput, task, state.state_object)
 
 
 @tvm._ffi.register_object("ansor.BuildResult")
 class BuildResult(Object):
-    """ Store the input of a build.
+    """ Store the result of a build.
 
     Parameters
     ----------
@@ -79,7 +79,6 @@ class BuildResult(Object):
     time_cost : Float
         The time cost of build.
     """
-
     def __init__(self, filename, args, error_no, error_msg, time_cost):
         self.__init_handle_by_constructor__(
             _ffi_api.BuildResult, filename if filename else "", args, error_no,
@@ -88,7 +87,8 @@ class BuildResult(Object):
 
 @tvm._ffi.register_object("ansor.MeasureResult")
 class MeasureResult(Object):
-    """
+    """ Store the results of a measurement.
+
     Parameters
     ----------
     costs : List[Float]
@@ -102,7 +102,6 @@ class MeasureResult(Object):
     timestamp : Float
         The time stamps of this measurement.
     """
-
     def __init__(self, costs, error_no, error_msg, all_cost, timestamp):
         self.__init_handle_by_constructor__(
             _ffi_api.MeasureResult, costs, error_no,
@@ -111,9 +110,11 @@ class MeasureResult(Object):
 
 @tvm._ffi.register_object("ansor.Builder")
 class Builder(Object):
-    """ Base class of Builder """
+    """ Base class of Builder. """
+
     def build(self, measure_inputs, verbose=1):
-        """
+        """ Build programs and return results.
+
         Parameters
         ----------
         measure_inputs : List[MeasureInput]
@@ -131,8 +132,10 @@ class Builder(Object):
 @tvm._ffi.register_object("ansor.Runner")
 class Runner(Object):
     """ Base class of Runner """
+
     def run(self, measure_inputs, build_results, verbose=1):
-        """
+        """ Run measurement and return results.
+
         Parameters
         ----------
         measure_inputs : List[MeasureInput]
@@ -198,7 +201,7 @@ class LocalRunner(Runner):
 
 
 class MeasureErrorNo(object):
-    """Error type for MeasureResult"""
+    """ Error type for MeasureResult. """
     NO_ERROR = 0              # No error
     INSTANTIATION_ERROR = 1   # Errors happen when apply transform steps from init state
                               # Errors happen when compiling code on host (e.g. tvm.build)
@@ -213,7 +216,7 @@ class MeasureErrorNo(object):
 
 
 def make_error_msg():
-    """ Get the error message from traceback """
+    """ Get the error message from traceback. """
     error_msg = str(traceback.format_exc())
     if len(error_msg) > MAX_ERROR_MSG_LEN:
         error_msg = error_msg[:MAX_ERROR_MSG_LEN//2] + \
@@ -226,7 +229,7 @@ GLOBAL_RUN_ARGUMENTS = None
 
 
 def local_build_worker(index):
-    """ Local builder function """
+    """ Local builder function. """
     # We use fork to copy arguments from a global variable.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
     measure_inputs, build_func, timeout, verbose = GLOBAL_BUILD_ARGUMENTS
@@ -290,7 +293,7 @@ def local_build_worker(index):
 
 @tvm._ffi.register_func("ansor.local_builder.build")
 def local_builder_build(inputs, timeout, n_parallel, build_func, verbose):
-    """ Local builder build function """
+    """ Local builder build function. """
     # We use fork to copy arguments from a global variable.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
     global GLOBAL_BUILD_ARGUMENTS
@@ -311,7 +314,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func, verbose):
 @tvm._ffi.register_func("ansor.local_runner.run")
 def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, cooldown_interval,
               verbose):
-    """ Local runner run function """
+    """ Local runner run function. """
     max_float = 1e10  # We use 1e10 instead of sys.float_info.max for better readability in log
 
     def timed_func(inp, build_res):
