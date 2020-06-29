@@ -21,6 +21,7 @@
 from . import _make
 from .dyn import _make as _dyn_make
 from ..expr import TupleWrapper, const, Expr
+from ...tir import expr as _expr
 
 
 def cast(data, dtype):
