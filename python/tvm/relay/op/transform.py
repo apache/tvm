@@ -20,7 +20,7 @@
 
 from . import _make
 from .dyn import _make as _dyn_make
-from ..expr import TupleWrapper, const, Expr
+from ..expr import TupleWrapper, const, Expr, Tuple
 from ...tir import expr as _expr
 
 
@@ -418,6 +418,40 @@ def arange(start, stop=None, step=None, dtype="float32"):
 
     return _make.arange(start, stop, step, dtype)
 
+def meshgrid(data):
+    """Create coordinate matrices from coordinate vectors.
+
+    .. note::
+        Similar to ``numpy.meshgrid`` with indexing mode 'ij'.
+
+    Parameters
+    ----------
+    data : Union(List[relay.Expr], Tuple[relay.Expr])
+        A list of tensors, which must be either scalars or 1-D vectors.
+
+    Returns
+    -------
+    ret : relay.Tuple([relay.Expr, relay.Expr])
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [1, 2, 3]
+        y = [4, 5]
+
+        gx, gy = relay.meshgrid(x, y)
+        
+        gx = [[1., 2., 3.],
+              [1., 2., 3.]]
+        
+        gy = [[4., 4., 4.],
+              [5., 5., 5.]]
+    """
+    data = list(data)
+    ret_size = len(data)
+    return TupleWrapper(_make.meshgrid(Tuple(data)), ret_size)
 
 def repeat(data, repeats, axis):
     """Repeats elements of an array.

@@ -1258,6 +1258,34 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
 }
 
 /*!
+ * \brief Produce grids by expanding input over dimensions defined by other inputs
+ *
+ * \param inputs The input tensors
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the meshgrid operation
+ */
+inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, std::string name = "T_meshgrid",
+                          std::string tag = kInjective) {
+  Array<PrimExpr> out_shape;
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    out_shape.push_back(inputs[i]->shape.size() == 0 ? 1 : inputs[i]->shape[0]);
+  }
+  Array<Tensor> result;
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    result.push_back(compute(
+        out_shape,
+        [&](const Array<Var>& indices) {
+          Array<PrimExpr> real_indices = {indices[i]};
+          return inputs[i](real_indices);
+        },
+        name, tag));
+  }
+  return result;
+}
+
+/*!
  * \brief Transform the layout according to \p src_layout and \p dst_layout
  * \param src the source input.
  * \param src_layout the source layout.
