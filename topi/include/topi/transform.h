@@ -1261,7 +1261,7 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
  * \brief Produce grids by expanding input over dimensions defined by other inputs
  *
  * \param inputs The input tensors
-* \param inputs The indexing mode, either "xy" or "ij"
+ * \param indexing The indexing mode, either "xy" or "ij"
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
