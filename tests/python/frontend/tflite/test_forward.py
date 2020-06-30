@@ -137,7 +137,6 @@ def _quantize_keras_model(keras_model, representative_data_gen):
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
     converter.inference_input_type = tf.uint8
     converter.inference_output_type = tf.uint8
-    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
     return converter.convert()
 
 
@@ -903,7 +902,7 @@ def test_forward_convolution():
         _test_convolution([4, 17, 17, 124], [1, 1, 124, 1], [1, 1], [1, 1], 'SAME', 'NHWC', True, quantized=quantized)
         _test_convolution([4, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2], 'VALID', 'NHWC', True, quantized=quantized)
         _test_convolution([4, 17, 17, 12], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NHWC', True, quantized=quantized)
-        # dephtwise convolution with single input channel
+        # depthwise convolution with single input channel
         _test_convolution([1, 76, 64, 1], [9, 5, 1, 96], [1, 1], [1, 1], 'SAME', 'NHWC', True, quantized=quantized)
 
     # TFLite2 quantized convolution testing
@@ -1814,7 +1813,7 @@ def _test_quantize_dequantize(data):
 
     # Keras model to force TFLite converter to insert 2 TFLite quantize ops.
     # First TFLite quantize op converts float32 tensor to int8 tensor - Qnn quantize.
-    # Second TLite quantize op converts int8 tensor to int8 tensor - Qnn requantize.
+    # Second TFLite quantize op converts int8 tensor to int8 tensor - Qnn requantize.
     data_in = tf.keras.layers.Input(shape=data.shape[1:])
     relu = tf.keras.layers.ReLU()(data_in)
     add = tf.keras.layers.Add()([data_in, relu])

@@ -296,40 +296,40 @@ class OperatorConverter(object):
             return_list.append(TensorWrapper(tensor_idx, tensor, buffer, qnn_params))
         return return_list
 
-    def get_tensor_value(self, tensor_wrapper):
-        """Get tensor buffer value from given tensor wrapper"""
+
+    def get_tensor_type_as_numpy(self, tensor_wrapper):
+        """Returns np.dtype out of TensorType"""
         assert isinstance(tensor_wrapper, TensorWrapper)
 
         try:
             from tflite.TensorType import TensorType
+            return {TensorType.UINT8: np.uint8,
+                    TensorType.INT8: np.int8,
+                    TensorType.FLOAT32: np.float32,
+                    TensorType.INT32: np.int32,
+                    TensorType.INT64: np.int64,
+                    TensorType.BOOL: np.bool_}[tensor_wrapper.tensor.Type()]
         except ImportError:
             raise ImportError("The tflite package must be installed")
+        except KeyError:
+            raise NotImplementedError("Tensor type '{}' currently not supported"
+                                      .format(tensor_wrapper.tensor.Type()))
 
-        # Read the data from the buffer. Also extract the shape.
-        # The shape is used later to reshape the data.
+
+    def get_tensor_value(self, tensor_wrapper):
+        """Get tensor buffer value from given tensor wrapper"""
+        assert isinstance(tensor_wrapper, TensorWrapper)
+
+        dtype = self.get_tensor_type_as_numpy(tensor_wrapper)
         data = tensor_wrapper.buffer.DataAsNumpy()
-        shape = tensor_wrapper.tensor.ShapeAsNumpy()
 
-        # When TFLite buffer is of size 1 (scalar), then TFLite tensor shape is set to 0.
-        # Therefore, we set the shape to 1 for numpy reshape to work.  Set shape to 1 if the data is
-        # a scalar type
-        if data.size == 1 and isinstance(shape, int) and shape == 0:
-            shape = (1,)
+        if tensor_wrapper.tensor.ShapeLength() != 0:
+            shape = tensor_wrapper.tensor.ShapeAsNumpy()
+        else:
+            shape = []
 
-        if tensor_wrapper.tensor.Type() == TensorType.INT8:
-            return np.frombuffer(data, dtype=np.int8).reshape(shape)
-        if tensor_wrapper.tensor.Type() == TensorType.UINT8:
-            return np.frombuffer(data, dtype=np.uint8).reshape(shape)
-        if tensor_wrapper.tensor.Type() == TensorType.INT32:
-            return np.frombuffer(data, dtype=np.int32).reshape(shape)
-        if tensor_wrapper.tensor.Type() == TensorType.INT64:
-            return np.frombuffer(data, dtype=np.int64).reshape(shape)
-        if tensor_wrapper.tensor.Type() == TensorType.FLOAT32:
-            return np.frombuffer(data, dtype=np.float32).reshape(shape)
-        if tensor_wrapper.tensor.Type() == TensorType.BOOL:
-            return np.frombuffer(data, dtype=np.bool).reshape(shape)
-        raise NotImplementedError("Tensor type {} is currently not supported"
-                                  .format(str(tensor_wrapper.tensor.Type())))
+        return np.frombuffer(data, dtype=dtype).reshape(shape)
+
 
     def get_tensor_type_str(self, tensor_type):
         """Get tensor type string representation when given TFLite tensor type"""
@@ -728,7 +728,7 @@ class OperatorConverter(object):
                     zero_point=zero_point_val,
                     dtype=output_tensor_type_str)
         else:
-            out = _op.clip(in_expr, a_min=0, a_max=6)
+            out = _op.nn.relu(in_expr)
 
         if output_tensor.qnn_params:
             output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
