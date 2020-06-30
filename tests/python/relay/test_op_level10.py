@@ -168,6 +168,26 @@ def test_collapse_sum_like():
             op_res = intrp.evaluate(func)(x, y)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
+
+def test_collapse_sum_to():
+    shape = (3, 4, 5, 6)
+    shape_to = (4, 5, 6)
+    dtype = "float32"
+    x = relay.Var("x", relay.ty.TensorType(shape , dtype))
+    z = relay.collapse_sum_to(x, shape_to)
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.ty.TensorType(shape_to, dtype)
+
+    func = relay.Function([x], z)
+    x = np.random.uniform(size=shape).astype(dtype)
+    ref_res = np.sum(x, 0)
+    for target, ctx in ctx_list():
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(x)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+
 def test_broadcast_to():
     shape = (4, 1, 6)
     shape_like = (3, 4, 5, 6)
