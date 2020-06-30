@@ -451,3 +451,46 @@ def dot_int8_int8_int32(int32_lanes, dtype='uint'):
     return te.decl_tensor_intrin(
         C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer},
         default_buffer_params=buffer_params)
+
+def _fixed_point_multiply_arm(op):
+    """
+    Implementation of fixed point multiplication through arm
+    intrinsics sqrdmulh and srshl
+    """
+    x = op.args[0]
+    multiplier = op.args[1]
+    shift = op.args[2]
+
+    # Don't use this intrinsic if we don't have a int32x4 vector
+    if x.dtype != "int32x4":
+        return op
+
+    # Case 1, shift is negative
+    sqrdmulh = tvm.tir.call_llvm_intrin(op.dtype,
+                                        'llvm.aarch64.neon.sqrdmulh',
+                                        tvm.tir.const(2, 'uint32'),
+                                        x,
+                                        multiplier)
+
+    fixup = (sqrdmulh & (-shift)) >> 31
+    fixed_up_x = (sqrdmulh + fixup)
+    out_1 = tvm.tir.call_llvm_intrin(op.dtype,
+                                     'llvm.aarch64.neon.srshl',
+                                     tvm.tir.const(2, 'uint32'),
+                                     sqrdmulh,
+                                     shift)
+
+    # Case 2, shift is positive
+    x = x * (1 << (shift))
+    out_2 = tvm.tir.call_llvm_intrin(op.dtype,
+                                     'llvm.aarch64.neon.sqrdmulh',
+                                     tvm.tir.const(2, 'uint32'),
+                                     x,
+                                     multiplier)
+
+    # Select depending on the shift
+    return tvm.tir.Select(shift < 0, out_1, out_2)
+
+tvm.target.intrin.register_intrin_rule("llvm.aarch64",
+                                       "fixed_point_multiply",
+                                       _fixed_point_multiply_arm, override=True)

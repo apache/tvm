@@ -277,6 +277,20 @@ Expr MakeClip(Expr a, double a_min, double a_max) {
 
 TVM_REGISTER_GLOBAL("relay.op._make.clip").set_body_typed(MakeClip);
 
+// relay.fixed_point_multiply
+TVM_REGISTER_NODE_TYPE(FixedPointMultiplyAttrs);
+
+RELAY_REGISTER_OP("fixed_point_multiply")
+    .describe(R"code( fixed point multiplication )code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_attr<TOpPattern>("TOpPattern", kElemWise)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attrs_type<FixedPointMultiplyAttrs>()
+    .set_support_level(3);
+
 RELAY_REGISTER_OP("clip")
     .describe(R"code(Clip tensor values.
 This function takes a tensor, a minimum value `a_min`, and a maximum value `a_max`, and returns a clipped tensor where all values below `a_min` are set to `a_min` and all values above `a_max` are set to `a_max`. `a_min` and `a_max` are cast to the tensor's dtype.

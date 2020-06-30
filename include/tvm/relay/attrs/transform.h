@@ -298,6 +298,17 @@ struct ClipAttrs : public tvm::AttrsNode<ClipAttrs> {
   }
 };
 
+/*! \brief Attributes for FixedPointMultiply operator */
+struct FixedPointMultiplyAttrs : public tvm::AttrsNode<FixedPointMultiplyAttrs> {
+  int32_t multiplier;
+  int32_t shift;
+
+  TVM_DECLARE_ATTRS(FixedPointMultiplyAttrs, "relay.attrs.FixedPointMultiplyAttrs") {
+    TVM_ATTR_FIELD(multiplier).describe("Integer multiplier.");
+    TVM_ATTR_FIELD(shift).describe("Shift.");
+  }
+};
+
 /*! \brief Attributes for LayoutTransform operator */
 struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
   std::string src_layout;

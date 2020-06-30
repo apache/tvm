@@ -90,6 +90,11 @@ PrimExpr LargeUIntImm(DataType t, int64_t low, int64_t high) {
                    {make_const(DataType::UInt(32), low), make_const(DataType::UInt(32), high)});
 }
 
+// fixed_point_multiply
+PrimExpr fixed_point_multiply(PrimExpr x, PrimExpr m, PrimExpr s) {
+  return tir::Call(x.dtype(), tir::builtin::fixed_point_multiply(), {x, m, s});
+}
+
 // The public function with a quick checking path.
 void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs) {  // NOLINT(*)
   if (lhs.dtype() == rhs.dtype()) return;

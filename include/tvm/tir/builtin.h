@@ -93,6 +93,17 @@ TVM_DLL const Op& shift_right();
 TVM_DLL const Op& large_uint_imm();
 
 /*!
+ * \brief Execute a fixed point multiplication y = round(x * m * 2^s).
+ * The default rounding rule is to the nearest value, rounding half up
+ * (i.e., round(x.1) = x and round (x.5) = x+1)
+ * \param x input value
+ * \param m integer multiplier
+ * \param s integer shift
+ * \return The constructed expression.
+ */
+TVM_DLL const Op& fixed_point_multiply();
+
+/*!
  * \brief See pesudo code
  *
  *  Handle address_of(Load *op) {

@@ -612,6 +612,30 @@ def clip(x, a_min, a_max):
         return tvm.te.max(tvm.te.min(value, const_max), const_min)
     return te.compute(x.shape, _compute)
 
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def fixed_point_multiply(x, multiplier, shift):
+    """
+
+    Parameters
+    ----------
+    x :          tvm.te.Tensor or Expr
+                 Input argument.
+    multiplier:  Integer multiplier
+    shift:       Integer shift
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    def _compute(*indices):
+        value = x(*indices)
+        m = tvm.tir.const(multiplier, x.dtype)
+        s = tvm.tir.const(shift, x.dtype)
+        return tvm.tir.fixed_point_multiply(value, m, s)
+
+    assert x.dtype == "int32", "input tensor type needs to be int32"
+    return te.compute(x.shape, _compute)
 
 def cast(x, dtype):
     """Cast input to specified data type.

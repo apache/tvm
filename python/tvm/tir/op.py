@@ -965,6 +965,27 @@ def popcount(x):
     """
     return call_intrin(x.dtype, "tir.popcount", x)
 
+def fixed_point_multiply(x, m, s):
+    """Execute a fixed point multiplication y = round(x * m * 2^s).
+    The default rounding rule is to the nearest value, rounding half up
+    (i.e., round(x.1) = x and round (x.5) = x+1)
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument.
+    m : PrimExpr
+        Integer multiplier
+    s : PrimExpr
+        Integer shift
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
+    return call_intrin(x.dtype, "tir.fixed_point_multiply", x, m, s)
+
 def fmod(x, y):
     """Return the remainder of x divided by y with the same sign as x.
 

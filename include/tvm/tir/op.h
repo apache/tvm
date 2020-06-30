@@ -552,6 +552,17 @@ TVM_DLL PrimExpr trunc(PrimExpr x);
  */
 TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
 
+/*!
+ * \brief Execute a fixed point multiplication y = round(x * m * 2^s).
+ * The default rounding rule is to the nearest value, rounding half up
+ * (i.e., round(x.1) = x and round (x.5) = x+1)
+ * \param x input value
+ * \param m integer multiplier
+ * \param s integer shift
+ * \return The constructed expression.
+ */
+TVM_DLL PrimExpr fixed_point_multiply(PrimExpr x, PrimExpr m, PrimExpr s);
+
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)           \
   inline PrimExpr OpName(PrimExpr x) {             \
