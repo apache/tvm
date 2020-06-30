@@ -32,4 +32,9 @@ members = [
 	"tvm-macros",
 	"tvm-rt",
 	"tvm",
+	"tvm-graph-rt",
+	"tvm-graph-rt/tests/test_tvm_basic",
+	"tvm-graph-rt/tests/test_tvm_dso",
+	"tvm-graph-rt/tests/test_wasm32",
+	"tvm-graph-rt/tests/test_nn",
 ]

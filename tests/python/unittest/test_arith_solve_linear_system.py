@@ -199,8 +199,8 @@ def test_low_rank():
 def test_infer_range():
     x, y = te.var("x"), te.var("y")
     ranges = {
-        x: tvm.ir.Range.make_by_min_extent(-5, 10),
-        y: tvm.ir.Range.make_by_min_extent(0, 10),
+        x: tvm.ir.Range.from_min_extent(-5, 10),
+        y: tvm.ir.Range.from_min_extent(0, 10),
     }
 
     solution = arith.solve_linear_equations([

@@ -660,6 +660,27 @@ def collapse_sum_like(data, collapse_type):
     return _make.collapse_sum_like(data, collapse_type)
 
 
+def collapse_sum_to(data, shape):
+    """Return a summation of data to the specified shape.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+
+    shape : relay.Expr
+        Shape to collapse to.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    if isinstance(shape, (list, tuple)):
+        shape = const(list(shape), "int32")
+    return _make.collapse_sum_to(data, shape)
+
+
 def split(data, indices_or_sections, axis=0):
     """Split input tensor along axis by sections or indices.
 

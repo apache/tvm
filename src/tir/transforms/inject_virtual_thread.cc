@@ -21,6 +21,7 @@
  * \file inject_virtual_thread.cc
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -54,7 +55,7 @@ class ExprTouched final : public StmtExprVisitor {
   }
   void VisitExpr_(const VarNode* op) final { HandleUseVar(op); }
   void VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
       const auto* rw_mask = op->args[4].as<IntImmNode>();
       const VarNode* buffer_var = op->args[1].as<VarNode>();
       CHECK(buffer_var);
@@ -219,7 +220,7 @@ class VTInjector : public StmtExprMutator {
   }
   // Expression.
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
       CHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
       const VarNode* buffer = op->args[1].as<VarNode>();
@@ -230,9 +231,8 @@ class VTInjector : public StmtExprMutator {
       PrimExpr extent = this->VisitExpr(op->args[3]);
       PrimExpr stride = it->second / make_const(offset.dtype(), dtype.lanes());
       offset = stride * var_ + offset;
-      return Call(op->dtype, op->name, {op->args[0], op->args[1], offset, extent, op->args[4]},
-                  op->call_type);
-    } else if (op->is_intrinsic(intrinsic::tvm_context_id)) {
+      return Call(op->dtype, op->op, {op->args[0], op->args[1], offset, extent, op->args[4]});
+    } else if (op->op.same_as(builtin::tvm_context_id())) {
       return allow_share_ ? GetRef<PrimExpr>(op) : var_;
     } else {
       return StmtExprMutator::VisitExpr_(op);

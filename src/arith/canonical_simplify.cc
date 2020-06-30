@@ -692,6 +692,7 @@ SplitExpr CanonicalSimplifier::Impl::SplitDivConst(SplitExpr lhs, int64_t cval, 
   CHECK(lhs->DivModeCompatibleTo(div_mode));
   CHECK_EQ(lhs->scale, 1);
   lhs.CopyOnWrite()->lower_factor *= cval;
+  lhs.CopyOnWrite()->div_mode = div_mode;
   return lhs;
 }
 
@@ -1017,8 +1018,9 @@ PrimExpr CanonicalSimplifier::Impl::SimplifyReduceCombiner(const ReduceNode* op)
 
   // components which have side effects should also be preserved
   for (size_t i = 0; i < used.size(); ++i) {
-    if (HasSideEffect(op->source[i]) || HasSideEffect(op->combiner->identity_element[i]) ||
-        HasSideEffect(op->combiner->result[i])) {
+    if (SideEffect(op->source[i]) > CallEffectKind::kReadState ||
+        SideEffect(op->combiner->identity_element[i]) > CallEffectKind::kReadState ||
+        SideEffect(op->combiner->result[i]) > CallEffectKind::kReadState) {
       mark_used(i);
     }
   }

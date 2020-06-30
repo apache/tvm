@@ -119,11 +119,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 Range::Range(PrimExpr begin, PrimExpr end)
     : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin))) {}
 
-Range Range::make_by_min_extent(PrimExpr min, PrimExpr extent) {
+Range Range::FromMinExtent(PrimExpr min, PrimExpr extent) {
   return Range(make_object<RangeNode>(min, extent));
 }
 
-TVM_REGISTER_GLOBAL("ir.range_by_min_extent").set_body_typed(Range::make_by_min_extent);
+TVM_REGISTER_GLOBAL("ir.Range_from_min_extent").set_body_typed(Range::FromMinExtent);
 
 TVM_REGISTER_GLOBAL("ir.Range").set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = Range(args[0], args[1]);

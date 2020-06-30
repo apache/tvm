@@ -284,7 +284,16 @@ def test_size_var_bound():
     assert bd.max_value == bd.POS_INF
 
 
+def test_let_bound():
+    analyzer = tvm.arith.Analyzer()
+    x = te.var("x")
+    bd = analyzer.const_int_bound(tvm.tir.Let(x, 1, x + 1))
+    assert bd.min_value == 2
+    assert bd.max_value == 2
+
+
 if __name__ == "__main__":
+    test_let_bound()
     test_dtype_bound()
     test_cast_bound()
     test_add_sub_bound()

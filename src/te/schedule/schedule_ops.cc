@@ -147,7 +147,7 @@ class InjectScanStep : public StmtMutator {
 class SchedulePostProc : public StmtExprMutator {
  public:
   Stmt VisitStmt_(const LetStmtNode* op) final {
-    if (!HasSideEffect(op->value)) {
+    if (SideEffect(op->value) <= CallEffectKind::kPure) {
       var_value_[op->var.get()] = this->VisitExpr(op->value);
       return this->VisitStmt(op->body);
     } else {

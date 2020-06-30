@@ -80,6 +80,7 @@ Here is another example to match an op with a specific attribute:
         y = relay.var('y')
         assert not is_conv2d.match(relay.op.nn.conv2d(x, y))
 
+
 Matching an Optional Op
 ***********************
 
@@ -102,6 +103,36 @@ we can match the graph of conv2d+bias_add+relu or the graph of conv2d+bias_add.
         relu = relay.op.nn.relu(bias)
         assert pat.match(relu)
 
+
+Matching Types
+**************
+
+In addition to matching ops with attributes, we can also make a pattern to match their types, in interms of the shape and data type. Here are some examples:
+
+.. code-block:: python
+
+    def test_match_type():
+        # Match any op with float32
+        pat1 = has_dtype('float32')
+        x = relay.var('x', shape=(10, 10), dtype='float32')
+        assert pat1.match(x)
+
+        # Match any op with shape (10, 10)
+        pat2 = has_shape((10, 10))
+        x = relay.var('x', shape=(10, 10), dtype='float32')
+        assert pat2.match(x)
+
+        # Match conv2d+relu with a certain shape
+        conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
+        pat3 = is_op('nn.relu')(conv2d).has_shape((1, 32, 28, 28))
+
+        x = relay.var('x', shape=(1, 3, 28, 28), dtype='float32')
+        w = relay.var('w', shape=(32, 3, 3, 3), dtype='float32')
+        conv2d = relay.nn.conv2d(x, w, strides=(1, 1), padding=(1, 1))
+        relu = relay.nn.relu(conv2d)
+        assert pat3.match(relu)
+
+
 Matching Non-Call Nodes
 ***********************
 
@@ -117,7 +148,7 @@ Since there are not call nodes, we need to use specific pattern nodes to match t
         tuple_pattern = is_tuple((wildcard(), wildcard(), wildcard()))
         assert tuple_pattern.match(relay.expr.Tuple((x,y,z)))
 
-The next example is matching a pattern of batch_norm -> get(0) -> relu:
+The next example is matching a pattern of batch_norm -> get(0) -> relu. Note that you can also use `is_tuple_get_item(bn_node)` to match a `TupleGetItem` node with any index.
 
 .. code-block:: python
 
@@ -186,6 +217,7 @@ The next example is matching function nodes with a specific attribute:
         f = relay.Function([x, y], x + y).with_attr("Composite", "add")
         assert pattern.match(f)
 
+
 Matching Diamonds and Post-Dominator Graphs
 *******************************************
 
@@ -228,6 +260,7 @@ The final example is matching diamonds with a post-dominator relationship. We em
         # Check
         assert diamond.match(out)
 
+
 Pattern Language Design
 =======================
 
@@ -238,14 +271,16 @@ The high level design is to introduce a language of patterns for now we propose 
     Pattern ::= expr
             | *
             | pattern(pattern1, ... patternN)
-            | has_type(pattern, type)
-            | has_attr(pattern, attrs)
+            | has_type(type)
+            | has_dtype(type)
+            | has_shape(shape)
+            | has_attr(attrs)
             | is_var(name)
             | is_constant()
             | is_expr(expr)
             | is_op(op_name)
             | is_tuple()
-            | is_tuple_get_item()
+            | is_tuple_get_item(pattern, index = None)
             | pattern1 `|` pattern2
             | dominates(parent_pattern, path_pattern, child_pattern)
 
@@ -265,6 +300,16 @@ Type Pattern
 ************
 
 Check that the expression matched by the nested pattern has a particular type.
+
+DType Pattern
+*************
+
+Check that the expression matched by the nested pattern has a particular data type.
+
+Shape Pattern
+*************
+
+Check that the expression matched by the nested pattern has a particular output shape.
 
 Attribute Pattern
 *****************

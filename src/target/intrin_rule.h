@@ -25,6 +25,7 @@
 #define TVM_TARGET_INTRIN_RULE_H_
 
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 
 #include <string>
@@ -54,13 +55,24 @@ struct Direct {
 
 // Call pure extern function.
 template <typename T>
-inline void DispatchExtern(const TVMArgs& args, TVMRetValue* rv) {
+inline void DispatchPureExtern(const TVMArgs& args, TVMRetValue* rv) {
   PrimExpr e = args[0];
   const CallNode* call = e.as<CallNode>();
   CHECK(call != nullptr);
-  std::string name = T()(call->dtype, call->name);
+  // Use string based dispatch to extern for backward compact
+  // TODO(tvm-team) replace once the new dispatching system is inplace.
+  const OpNode* op = call->op.as<OpNode>();
+  CHECK(op != nullptr);
+  std::string name = op->name;
+  CHECK_EQ(name.substr(0, 4), "tir.");
+  name = T()(call->dtype, name.substr(4));
+
   if (name.length() != 0) {
-    *rv = Call(call->dtype, name, call->args, CallNode::PureExtern);
+    Array<PrimExpr> new_args = {StringImm(name)};
+    for (auto arg : call->args) {
+      new_args.push_back(arg);
+    }
+    *rv = Call(call->dtype, tir::builtin::call_pure_extern(), new_args);
   } else {
     *rv = e;
   }
