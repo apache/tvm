@@ -524,6 +524,12 @@ inline Expr OnesLike(Expr e) {
   return Call(op, {e});
 }
 
+Expr MakeOnes(Expr shape, DataType dtype);
+
+inline Expr Ones(Array<IndexExpr> shape, DataType dtype) {
+  return MakeOnes(CheckConstantShape(shape), dtype);
+}
+
 inline Expr CollapseSumLike(Expr e) {
   static const Op& op = Op::Get("collapse_sum_like");
   return Call(op, {e});
