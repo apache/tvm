@@ -158,20 +158,27 @@ def test_broadcast_subtract():
                                 -np.ones_like(expected_forward).sum(axis=(0, 1), keepdims=True).squeeze(axis=0))
 
 
-def test_tuple():
+def _test_tuple(mode):
     shape = (10, 10)
     dtype = 'float32'
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     y = relay.var("y", t)
     z = relay.var("z", t)
-    tup = relay.Var("tup")
-    func = relay.Function([x, y, z], relay.Let(tup, relay.Tuple([x, y, z]),
-                                               relay.TupleGetItem(tup, 0) +
-                                               relay.TupleGetItem(tup, 1) -
-                                               relay.TupleGetItem(tup, 2)))
+    if mode == "higher_order":
+        tup = relay.Var("tup")
+        func = relay.Function([x, y, z], relay.Let(tup, relay.Tuple([x, y, z]),
+                                                   relay.TupleGetItem(tup, 0) +
+                                                   relay.TupleGetItem(tup, 1) -
+                                                   relay.TupleGetItem(tup, 2)))
+    else:
+        # first order does not do let.
+        tup = relay.Tuple([x, y, z])
+        func = relay.Function([x, y, z], relay.TupleGetItem(tup, 0) +
+                                         relay.TupleGetItem(tup, 1) -
+                                         relay.TupleGetItem(tup, 2))
     func = run_infer_type(func)
-    back_func = run_infer_type(gradient(func))
+    back_func = run_infer_type(gradient(func, mode=mode))
     assert back_func.checked_type == relay.FuncType([t, t, t], relay.TupleType([t, relay.TupleType([t, t, t])]))
     x_nd = rand(dtype, *shape)
     y_nd = rand(dtype, *shape)
@@ -187,6 +194,12 @@ def test_tuple():
     tvm.testing.assert_allclose(grad_y.asnumpy(), np.ones_like(grad_y.asnumpy()))
     tvm.testing.assert_allclose(grad_z.asnumpy(), -1 * np.ones_like(grad_z.asnumpy()))
 
+
+def test_tuple():
+    _test_tuple("higher_order")
+
+def test_tuple_first_order():
+    _test_tuple("first_order")
 
 def test_pow():
     mod = tvm.IRModule()
@@ -304,6 +317,7 @@ if __name__ == "__main__":
     test_broadcast_add()
     test_broadcast_subtract()
     test_tuple()
+    test_tuple_first_order()
     test_pow()
     test_ref()
     test_square_second_order()
