@@ -609,7 +609,6 @@ class ParseTreeToRelayIR(RelayVisitor):
         if typ is not None:
             typ = self.visit(typ)
         var = self.mk_var(text[1:], typ=typ)
-        import pdb; pdb.set_trace()
         return adt.PatternVar(var)
 
     def visitConstructorPattern(self, ctx: RelayParser.ConstructorPatternContext):

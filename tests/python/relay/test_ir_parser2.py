@@ -74,23 +74,26 @@ def graph_equal(lhs, rhs):
     return tvm.ir.structural_equal(lhs, rhs, map_free_vars=True)
 
 
+def roundtrip_expr(expr):
+    if expr is None:
+        import pdb; pdb.set_trace()
+
+    x = tvm.parser.parse_expr(str(str(expr)))
+    assert_graph_equal(x, expr)
+
 def roundtrip(expr):
     x = tvm.parser.fromtext(expr.astext())
     assert_graph_equal(x, expr)
 
-
 def parse_text(code):
     expr = tvm.parser.parse_expr(code)
-    roundtrip(expr)
+    roundtrip_expr(expr)
     return expr
 
 
 def parses_as(code, expr):
     # type: (str, relay.Expr) -> bool
     parsed = parse_text(code)
-    x = relay.var('x', shape=(10, 10))
-    parsed["main"] = relay.Function([x], x)
-    import pdb; pdb.set_trace()
     result = graph_equal(parsed, expr)
     return result
 
@@ -106,7 +109,6 @@ def assert_parses_as(code, expr):
 
 def assert_parse_module_as(code, mod):
     parsed = parse_module(code)
-    import pdb; pdb.set_trace()
     assert_graph_equal(parsed, mod)
 
 def get_scalar(x):
@@ -219,6 +221,7 @@ def test_vars():
     assert var.body.name_hint == "foo"
 
     # global var
+    import pdb; pdb.set_trace()
     global_var = parse_text("@foo")
     assert isinstance(global_var, relay.GlobalVar)
     assert global_var.name_hint == "foo"
@@ -747,8 +750,8 @@ def test_match():
         input_var = relay.Var("xs", input_type)
         rest_var = relay.Var("rest")
         cons_case = relay.Let(
-            _,
-            None, #UNIT,
+            relay.var("", type_annotation=None),
+            UNIT,
             relay.add(relay.const(1), relay.Call(length_var, [rest_var])))
         body = relay.Match(input_var,
             [relay.Clause(
@@ -810,7 +813,7 @@ def test_adt_cons_expr():
     )
     mod[make_singleton_var] = make_singleton_func
 
-    assert_parses_as(
+    assert_parse_module_as(
         """
         %s
 
@@ -824,7 +827,7 @@ def test_adt_cons_expr():
 
 @raises_parse_error
 def test_duplicate_adt_defn():
-    parse_text(
+    parse_module(
         """
         %s
 
@@ -875,48 +878,18 @@ def test_extern_adt_defn():
     extern_def = relay.TypeData(extern_var, [typ_var], [])
     mod[extern_var] = extern_def
 
-    assert_parses_as(
+    assert_parse_module_as(
         """
         extern type T[A]
         """,
         mod
     )
+
+@pytest.mark.skip("not yet tested on parser 2.0")
 def test_import_grad():
     mod = tvm.IRModule()
     mod.import_from_std("gradient.rly")
 
 if __name__ == "__main__":
-    # test_graph()
-    # test_comments()
-    # test_int_literal()
-    # test_float_literal()
-    # test_bool_literal()
-    # test_negative()
-    # test_bin_op()
-    # test_parens()
-    # test_op_assoc()
-    # test_let()
-    # test_seq()
-    # test_tuple()
-    # test_func()
-    # test_defn()
-    # test_recursive_call()
-    # test_ifelse()
-    # test_call()
-    # test_incomplete_type()
-    # test_builtin_types()
-    # test_tensor_type()
-    # test_function_type()
-    # test_tuple_type()
-    # test_adt_defn()
-    # test_empty_adt_defn()
-    # test_multiple_cons_defn()
-    # test_multiple_type_param_defn()
-    test_match()
-    # test_adt_cons_expr()
-    # test_duplicate_adt_defn()
-    # test_duplicate_adt_cons()
-    # test_duplicate_adt_cons_defn()
-    # test_duplicate_global_var()
-    # test_extern_adt_defn()
-    # test_import_grad()
+    import sys
+    pytest.main(sys.argv)

@@ -151,6 +151,9 @@ struct InternTable {
 };
 
 struct Parser {
+  /*! \brief The version that the parser is parsing. */
+  SemVer version;
+
   /*! \brief The diagnostic context used for error reporting. */
   DiagnosticContext diag_ctx;
 
@@ -186,15 +189,6 @@ struct Parser {
 
   Parser(std::vector<Token> tokens, OperatorTable op_table, Source source)
       : diag_ctx(source), pos(0), tokens(tokens), op_table(op_table), ignore_whitespace(true) {}
-
-  /*! \brief A helper for debugging the parser, displays the next N tokens in the token stream. */
-  void DisplayNextN(int n) {
-    std::cout << "remaining tokens: " << std::endl;
-    auto bound = std::min(pos + n, (int)tokens.size());
-    for (int i = 0; i < bound - pos; i++) {
-      std::cout << tokens[pos + i] << std::endl;
-    }
-  }
 
   /*! \brief Examine the next token in the stream, the current parser is configured to be
    * whitespace insensitive so we will skip all whitespace or comment tokens. */
@@ -239,11 +233,11 @@ struct Parser {
    *
    * /param token_type The token type to match.
    */
-  void Consume(const TokenType& token) {
+  void Consume(const TokenType& token_type) {
     if (tokens[pos]->token_type != token_type) {
       std::string message = "expected a " + Pretty(token_type) + " found " + Pretty(Peek()->token_type);
       this->diag_ctx.Emit({tokens[pos]->line, tokens[pos]->column, message});
-      this->diag_ctx.Render();
+      this->diag_ctx.Render(std::cout);
     }
     pos++;
   }
@@ -293,18 +287,32 @@ struct Parser {
     return this->graph_ctx.at(graph_no);
   }
 
+  /*! \brief Bind a local variable in the expression scope.
+   *
+   * "x" -> Var("x"), these are needed to map from the raw string names
+   * to unique variable nodes.
+   */
   Var BindVar(const std::string& name, const relay::Type& type_annotation) {
     auto var = Var(name, type_annotation);
     this->expr_scopes.Add(name, var);
     return var;
   }
 
+  /*! \brief Bind a type variable in the type scope.
+  *
+  * "A" -> TypeVar("A", ...), these are needed to map from raw string names
+  * to unique type variable nodes.
+  */
   TypeVar BindTypeVar(const std::string& name, const TypeKind type_kind) {
     auto type_var = TypeVar(name, type_kind);
     this->type_scopes.Add(name, type_var);
     return type_var;
   }
 
+  /*! \brief Lookup a variable in the expression scope.
+   *
+   * Note: all lookup methods take tokens intentionally for error reporting information.
+   */
   Var LookupLocal(const Token& local) {
     auto var = this->expr_scopes.Lookup(local.ToString());
     if (!var.defined()) {
@@ -314,6 +322,10 @@ struct Parser {
     return var;
   }
 
+  /*! \brief Lookup a variable in the type scope.
+   *
+   * Note: all lookup methods take tokens intentionally for error reporting information.
+   */
   TypeVar LookupTypeVar(const Token& ident) {
     auto var = this->type_scopes.Lookup(ident.ToString());
     if (!var.defined()) {
@@ -324,22 +336,27 @@ struct Parser {
     return var;
   }
 
+  /*! \brief Add an expression scope to the scope stack. */
   void PushScope() { this->expr_scopes.PushStack(); }
 
+  /*! \brief Remove N expression scopes from the scope stack. */
   void PopScopes(int n) {
     for (int i = 0; i < n; i++) {
       this->expr_scopes.PopStack();
     }
   }
 
+  /*! \brief Add an type scope to the scope stack. */
   void PushTypeScope() { this->type_scopes.PushStack(); }
 
+  /*! \brief Remove N type scopes from the scope stack. */
   void PopTypeScopes(int n) {
     for (int i = 0; i < n; i++) {
       this->type_scopes.PopStack();
     }
   }
 
+  /*! \brief Convert a numeric token to an NDArray for embedding into the Relay program. */
   NDArray NumberToNDArray(const Token& token) {
     if (token->token_type == TokenType::Integer) {
       DLContext ctx({.device_type = DLDeviceType::kDLCPU, .device_id = 0});
@@ -360,10 +377,12 @@ struct Parser {
       array[0] = value;
       return data;
     } else {
-      throw "foo";
+      LOG(FATAL) << "internal error: should only call this function on numeric tokens";
+      return NDArray();
     }
   }
 
+  /*! \brief Convert a boolean value to an NDArray for embedding into the Relay program. */
   NDArray BooleanToNDarray(bool value) {
     DLContext ctx({.device_type = DLDeviceType::kDLCPU, .device_id = 0});
     auto dtype = String2DLDataType("bool");
@@ -398,9 +417,61 @@ struct Parser {
     return Bracket(TokenType::LCurly, TokenType::RCurly, parser);
   }
 
+  /*! \brief Parses a sequence beginning with a start token, seperated by a seperator token, and
+   * ending with a stop token.
+   *
+   * The simple form being <start> (<parse()> <seperator>)* <stop>.
+   *
+   * This also provides a fourth argument which is allowed to run when the sequence which matches
+   * the inner sequence can not proceed.
+   *
+   * This is useful for parsing things like attributes which don't match the standard expression
+   * parsers but are contained within the stop token.
+   */
+  template <typename T>
+  Array<T> ParseSequence(TokenType start, TokenType sep, TokenType stop, std::function<T()> parse,
+                         std::function<void()> before_stop = nullptr) {
+    Match(start);
+    if (WhenMatch(stop)) {
+      return Array<T>();
+    } else {
+      auto data = parse();
+      Array<T> elements = {data};
+
+      // parse '(' expr ')'
+      // if we are at the end invoke leftover parser
+      if (Peek()->token_type == stop && before_stop) {
+        before_stop();
+      }
+      if (WhenMatch(stop)) {
+        return elements;
+        // parse '( expr ',' * ')'
+      } else if (WhenMatch(sep)) {
+        // if we are at the end invoke leftover parser
+        if (Peek()->token_type == stop && before_stop) {
+          before_stop();
+        }
+        while (true) {
+          if (WhenMatch(stop)) {
+            break;
+          } else {
+            auto data = parse();
+            WhenMatch(sep);
+            elements.push_back(data);
+          }
+        }
+        return elements;
+      } else {
+        LOG(FATAL) << "issue";
+        return Array<T>(nullptr);
+      }
+    }
+  }
+
+  /*! \brief Parse an IRModule. */
   IRModule ParseModule() {
     // Parse the semver header at the top of the module.
-    auto _version = ParseSemVer();
+    this->version = ParseSemVer();
     // Parse the definitions.
     auto defs = ParseDefinitions();
     // Parse the metadata section at the end.
@@ -409,22 +480,25 @@ struct Parser {
     Map<tvm::GlobalVar, BaseFunc> funcs;
     Map<tvm::GlobalTypeVar, TypeData> types;
 
-    for (auto func : defs.funcs) {
-      funcs.Set(func.global, func.function);
-    }
-
     for (auto type_def : defs.types) {
       types.Set(type_def->header, type_def);
     }
 
-    return IRModule(funcs, types);
+    auto mod = IRModule({}, types);
+
+    for (auto func : defs.funcs) {
+      mod->Add(func.global, func.function);
+    }
+
+    return mod;
   }
 
+  /*! \brief Parse the semantic versioning header. */
   SemVer ParseSemVer() {
     // TODO(@jroesch): convert semver to module level attribute.
-    if (Peek()->token_type == TokenType::Identifier) {
+    auto id = Peek();
+    if (id->token_type == TokenType::Identifier && id.ToString() == "v0") {
       auto id = Match(TokenType::Identifier);
-      CHECK_EQ(id.ToString(), "v0");
       Consume(TokenType::Period);
       // CHECK_EQ(minor_and_patch)
       Consume(TokenType::Float);
@@ -433,6 +507,7 @@ struct Parser {
     return SemVer{.major = 0, .minor = 0, .patch = 4};
   }
 
+  /*! \brief Parse zero or more Relay definitions. */
   Definitions ParseDefinitions() {
     Definitions defs;
 
@@ -458,6 +533,7 @@ struct Parser {
     }
   }
 
+  /*! \brief Parse zero or more Relay type definitions. */
   TypeData ParseTypeDef() {
     // Match the `type` keyword.
     Match(TokenType::TypeDef);
@@ -510,6 +586,99 @@ struct Parser {
     }
 
     return TypeData(type_global, generics, ctors);
+  }
+
+  std::string HackTokensAsString(int n) {
+    std::stringstream key;
+    n = std::min((int)(tokens.size() - pos), n);
+    for (int i = 0; i < n; i++) {
+      key << ToString(tokens.at(pos + i)->token_type);
+    }
+    return key.str();
+  }
+
+  std::vector<Rule> ParseOp() {
+    std::vector<Rule> matched;
+    Peek();
+    for (int i = 4; i > 0; i--) {
+      auto key = HackTokensAsString(i);
+      auto it = this->op_table.this_is_a_hack.find(key);
+      if (it != this->op_table.this_is_a_hack.end()) {
+        pos = pos + i;
+        matched.push_back(it->second);
+      }
+    }
+
+    return matched;
+  }
+
+  /*! \brief Parse a single Relay expression. */
+  Expr ParseExpr() {
+    return ConsumeWhitespace<Expr>([this] {
+      std::vector<Expr> exprs;
+
+      while (true) {
+        auto next = Peek();
+        switch (next->token_type) {
+          // For graph or let, match first rhs, then invoke ParseBindingExpr
+          // ParseBindingExpression then parse_lhs() parse_rhs() ';' continue
+          case TokenType::LCurly: {
+            // Might need to optimize to remove deep recursion.
+            // Stack should only grow proportionally to the number of
+            // nested scopes.
+            return Bracket<Expr>(TokenType::LCurly, TokenType::RCurly, [&]() {
+              PushScope();
+              auto expr = ParseExpr();
+              PopScopes(1);
+              return expr;
+            });
+          }
+          case TokenType::Let:
+            exprs.push_back(ParseBindingExpr());
+            break;
+          case TokenType::Match:
+          case TokenType::PartialMatch: {
+            bool is_total = next->token_type == TokenType::Match;
+            Consume(next->token_type);
+            exprs.push_back(ParseMatch(is_total));
+            break;
+          }
+          case TokenType::If: {
+            exprs.push_back(ParseIf());
+            break;
+          }
+          case TokenType::Graph:
+            if (Lookahead(2)->token_type == TokenType::Equal) {
+              exprs.push_back(ParseBindingExpr());
+              break;
+            }
+            // intentional fall through here.
+          default: {
+            exprs.push_back(ParseExprBinOp());
+            break;
+          }
+        }
+
+        if (!WhenMatch(TokenType::Semicolon)) {
+          break;
+        }
+      }
+
+      CHECK(exprs.size() >= 1);
+
+      if (exprs.size() == 1) {
+        return exprs[0];
+      } else {
+        auto body = exprs.back();
+        exprs.pop_back();
+        while (exprs.size()) {
+          auto value = exprs.back();
+          exprs.pop_back();
+          body = relay::Let(Var("", IncompleteType()), value, body);
+        }
+        return body;
+      }
+    });
   }
 
   /*! \brief Parse a "binding expression", that is an expression where
@@ -601,202 +770,6 @@ struct Parser {
         }
       }
     }
-  }
-
-  std::string HackTokensAsString(int n) {
-    std::stringstream key;
-    n = std::min((int)(tokens.size() - pos), n);
-    for (int i = 0; i < n; i++) {
-      key << ToString(tokens.at(pos + i)->token_type);
-    }
-    return key.str();
-  }
-
-  std::vector<Rule> ParseOp() {
-    std::vector<Rule> matched;
-    Peek();
-    for (int i = 4; i > 0; i--) {
-      auto key = HackTokensAsString(i);
-      auto it = this->op_table.this_is_a_hack.find(key);
-      if (it != this->op_table.this_is_a_hack.end()) {
-        pos = pos + i;
-        matched.push_back(it->second);
-      }
-    }
-
-    return matched;
-  }
-
-  // A function for debugging the operator parser.
-  void DebugStack(const std::vector<Expr>& exprs, const std::vector<Rule>& rules) {
-    std::cout << "Expr Stack: ";
-    for (auto expr : exprs) {
-      std::cout << expr << ", ";
-    }
-
-    std::cout << std::endl;
-    std::cout << "Op Stack: ";
-    for (auto rule : rules) {
-      std::cout << rule.op << ", ";
-    }
-
-    std::cout << std::endl;
-  }
-
-  /*! \brief Parses a sequence beginning with a start token, seperated by a seperator token, and
-   * ending with a stop token.
-   *
-   * The simple form being <start> (<parse()> <seperator>)* <stop>.
-   *
-   * This also provides a fourth argument which is allowed to run when the sequence which matches
-   * the inner sequence can not proceed.
-   *
-   * This is useful for parsing things like attributes which don't match the standard expression
-   * parsers but are contained within the stop token.
-   */
-  template <typename T>
-  Array<T> ParseSequence(TokenType start, TokenType sep, TokenType stop, std::function<T()> parse,
-                         std::function<void()> before_stop = nullptr) {
-    Match(start);
-    if (WhenMatch(stop)) {
-      return Array<T>();
-    } else {
-      auto data = parse();
-      Array<T> elements = {data};
-
-      // parse '(' expr ')'
-      // if we are at the end invoke leftover parser
-      if (Peek()->token_type == stop && before_stop) {
-        before_stop();
-      }
-      if (WhenMatch(stop)) {
-        return elements;
-        // parse '( expr ',' * ')'
-      } else if (WhenMatch(sep)) {
-        // if we are at the end invoke leftover parser
-        if (Peek()->token_type == stop && before_stop) {
-          before_stop();
-        }
-        while (true) {
-          if (WhenMatch(stop)) {
-            break;
-          } else {
-            auto data = parse();
-            WhenMatch(sep);
-            elements.push_back(data);
-          }
-        }
-        return elements;
-      } else {
-        LOG(FATAL) << "issue";
-        return Array<T>(nullptr);
-      }
-    }
-  }
-
-  /*! \brief Parse a shape. */
-  Array<tvm::PrimExpr> ParseShape() {
-    auto dims = ParseSequence<tvm::PrimExpr>(TokenType::OpenParen, TokenType::Comma,
-                                             TokenType::CloseParen, [&]() {
-                                               auto tok = Match(TokenType::Integer);
-                                               return Downcast<tvm::PrimExpr>(tok->data);
-                                             });
-    return dims;
-  }
-
-  /*! \brief Parse a function type. */
-  Type ParseFunctionType() {
-    auto ty_params = ParseSequence<Type>(TokenType::OpenParen, TokenType::Comma,
-                                         TokenType::CloseParen, [&]() { return ParseType(); });
-
-    Match(TokenType::Minus);
-    Match(TokenType::RAngle);
-    auto ret_type = ParseType();
-
-    return relay::FuncType(ty_params, ret_type, {}, {});
-  }
-
-  // Parses a user defined ADT or type variable.
-  Type ParseNonPrimitiveType(const Token& tok) {
-    std::cout << "inside of prim type " << tok << std::endl;
-    auto name = tok.ToString();
-    Type head_type;
-    auto global_type = type_names.Get(name);
-
-    if (!global_type.defined()) {
-      head_type = LookupTypeVar(tok);
-    } else {
-      head_type = global_type;
-    }
-
-    CHECK(head_type.defined()) << "head type must be defined";
-
-    Array<Type> arg_types;
-    if (Peek()->token_type == TokenType::LSquare) {
-      arg_types = ParseSequence<Type>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare,
-                                      [&]() { return ParseType(); });
-    }
-
-    if (arg_types.size()) {
-      return TypeCall(head_type, arg_types);
-    } else {
-      return head_type;
-    }
-  }
-
-  /*! \brief Parses a TVM type.
-   *
-   * This matches either a `Tensor[shape, dtype]`, a user defined ADT, a tuple type,
-   * a scalar type or an incomplete type `_`.
-  */
-  Type ParseType() {
-    auto tok = Peek();
-
-    if (tok->token_type == TokenType::OpenParen) {
-      auto tys = ParseSequence<relay::Type>(TokenType::OpenParen, TokenType::Comma,
-                                            TokenType::CloseParen, [&]() { return ParseType(); });
-      return relay::TupleType(tys);
-    } else if (WhenMatch(TokenType::Fn)) {
-      return ParseFunctionType();
-    } else if (WhenMatch(TokenType::Identifier)) {
-      auto id = tok.ToString();
-      if (id == "Tensor") {
-        Match(TokenType::LSquare);
-        auto shape = ParseShape();
-        Match(TokenType::Comma);
-        auto dtype_tok = Match(TokenType::Identifier);
-        auto dtype = DataType(String2DLDataType(dtype_tok.ToString()));
-        Match(TokenType::RSquare);
-        return TensorType(shape, dtype);
-      } else {
-        auto ty = tok.ToString();
-        if (ty.rfind("int", 0) == 0 || ty.find("float", 0) == 0 || ty.find("uint", 0) == 0 ||
-            ty.find("bool", 0) == 0) {
-          // Need to do better error handling here.
-          auto dtype = DataType(String2DLDataType(tok.ToString()));
-          return TensorType({}, dtype);
-        } else {
-          return ParseNonPrimitiveType(tok);
-        }
-      }
-    }
-    if (WhenMatch(TokenType::Underscore)) {
-      return IncompleteType();
-    } else {
-      std::stringstream msg;
-      msg << "failed to parse type found ";
-      msg << tok;
-      diag_ctx.Emit({tok->line, tok->column, msg.str()});
-      diag_ctx.Render();
-      return Type();
-    }
-  }
-
-  Attrs ParseAttrs(const std::string& type_key) {
-    Map<String, ObjectRef> kwargs;
-    auto attrs = tvm::ReflectionVTable::Global()->CreateObject(type_key, kwargs);
-    LOG(FATAL) << Attrs();
-    return Attrs();
   }
 
   /*! Parse a function definition without a leading keyword or identifier.
@@ -921,75 +894,6 @@ struct Parser {
     return relay::Match(scrutinee, clauses, is_total);
   }
 
-  Expr ParseExpr() {
-    return ConsumeWhitespace<Expr>([this] {
-      std::vector<Expr> exprs;
-
-      while (true) {
-        auto next = Peek();
-        switch (next->token_type) {
-          // For graph or let, match first rhs, then invoke ParseBindingExpr
-          // ParseBindingExpression then parse_lhs() parse_rhs() ';' continue
-          case TokenType::LCurly: {
-            // Might need to optimize to remove deep recursion.
-            // Stack should only grow proportionally to the number of
-            // nested scopes.
-            return Bracket<Expr>(TokenType::LCurly, TokenType::RCurly, [&]() {
-              PushScope();
-              auto expr = ParseExpr();
-              PopScopes(1);
-              return expr;
-            });
-          }
-          case TokenType::Let:
-            exprs.push_back(ParseBindingExpr());
-            break;
-          case TokenType::Match:
-          case TokenType::PartialMatch: {
-            bool is_total = next->token_type == TokenType::Match;
-            Consume(next->token_type);
-            exprs.push_back(ParseMatch(is_total));
-            break;
-          }
-          case TokenType::If: {
-            exprs.push_back(ParseIf());
-            break;
-          }
-          case TokenType::Graph:
-            if (Lookahead(2)->token_type == TokenType::Equal) {
-              exprs.push_back(ParseBindingExpr());
-              break;
-            }
-            // intentional fall through here.
-          default: {
-            DisplayNextN(100);
-            exprs.push_back(ParseExprBinOp());
-            break;
-          }
-        }
-
-        if (!WhenMatch(TokenType::Semicolon)) {
-          break;
-        }
-      }
-
-      CHECK(exprs.size() >= 1);
-
-      if (exprs.size() == 1) {
-        return exprs[0];
-      } else {
-        auto body = exprs.back();
-        exprs.pop_back();
-        while (exprs.size()) {
-          auto value = exprs.back();
-          exprs.pop_back();
-          body = relay::Let(Var("", IncompleteType()), value, body);
-        }
-        return body;
-      }
-    });
-  }
-
   Expr ParseExprBinOp() {
     return ConsumeWhitespace<Expr>([this] {
       // We must parse at least one expression, the default
@@ -1063,6 +967,13 @@ struct Parser {
     });
   }
 
+  Attrs ParseAttrs(const std::string& type_key) {
+    Map<String, ObjectRef> kwargs;
+    auto attrs = tvm::ReflectionVTable::Global()->CreateObject(type_key, kwargs);
+    LOG(FATAL) << Attrs();
+    return Attrs();
+  }
+
   Expr ParseCallArgs(Expr op) {
     Attrs call_attrs;
     if (Peek()->token_type == TokenType::OpenParen) {
@@ -1075,8 +986,6 @@ struct Parser {
 
             if (is_ident && next_is_equal) {
               if (auto op_node = op.as<OpNode>()) {
-                std::cout << "OP: " << op << std::endl;
-                std::cout << "type_key: " << op_node->attrs_type_key << std::endl;
                 call_attrs = ParseAttrs(op_node->attrs_type_key);
               }
             }
@@ -1103,7 +1012,12 @@ struct Parser {
         }
       }
 
-      return expr;
+      // We need a zero-arity case for constructors.
+      if (expr.as<ConstructorNode>()) {
+        return Expr(Call(expr, {}));
+      } else {
+        return expr;
+      }
     });
   }
 
@@ -1132,12 +1046,19 @@ struct Parser {
         case TokenType::Global: {
           auto string = next.ToString();
           Consume(TokenType::Global);
-          return Expr(global_names.Get(string));
+          auto global = global_names.Get(string);
+          CHECK(global.defined());
+          return Expr(global);
         }
         case TokenType::Identifier: {
           auto string = next.ToString();
           Consume(TokenType::Identifier);
-          return Expr(Op::Get(string));
+          auto ctor = ctors.Get(string);
+          if (ctor.defined()) {
+            return Expr(ctor);
+          } else {
+            return Expr(Op::Get(string));
+          }
         }
         case TokenType::Graph: {
           Consume(TokenType::Graph);
@@ -1177,11 +1098,108 @@ struct Parser {
           std::stringstream msg;
           msg << "expected an expression found  " << Pretty(next->token_type);
           diag_ctx.Emit({next->line, next->column, msg.str()});
-          diag_ctx.Render();
+          diag_ctx.Render(std::cout);
           return Expr();
         }
       }
     });
+  }
+
+    /*! \brief Parse a shape. */
+  Array<tvm::PrimExpr> ParseShape() {
+    auto dims = ParseSequence<tvm::PrimExpr>(TokenType::OpenParen, TokenType::Comma,
+                                             TokenType::CloseParen, [&]() {
+                                               auto tok = Match(TokenType::Integer);
+                                               return Downcast<tvm::PrimExpr>(tok->data);
+                                             });
+    return dims;
+  }
+
+  /*! \brief Parse a function type. */
+  Type ParseFunctionType() {
+    auto ty_params = ParseSequence<Type>(TokenType::OpenParen, TokenType::Comma,
+                                         TokenType::CloseParen, [&]() { return ParseType(); });
+
+    Match(TokenType::Minus);
+    Match(TokenType::RAngle);
+    auto ret_type = ParseType();
+
+    return relay::FuncType(ty_params, ret_type, {}, {});
+  }
+
+  // Parses a user defined ADT or type variable.
+  Type ParseNonPrimitiveType(const Token& tok) {
+    auto name = tok.ToString();
+    Type head_type;
+    auto global_type = type_names.Get(name);
+
+    if (!global_type.defined()) {
+      head_type = LookupTypeVar(tok);
+    } else {
+      head_type = global_type;
+    }
+
+    CHECK(head_type.defined()) << "internal error: head type must be defined";
+
+    Array<Type> arg_types;
+    if (Peek()->token_type == TokenType::LSquare) {
+      arg_types = ParseSequence<Type>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare,
+                                      [&]() { return ParseType(); });
+    }
+
+    if (arg_types.size()) {
+      return TypeCall(head_type, arg_types);
+    } else {
+      return head_type;
+    }
+  }
+
+  /*! \brief Parses a TVM type.
+   *
+   * This matches either a `Tensor[shape, dtype]`, a user defined ADT, a tuple type,
+   * a scalar type or an incomplete type `_`.
+  */
+  Type ParseType() {
+    auto tok = Peek();
+
+    if (tok->token_type == TokenType::OpenParen) {
+      auto tys = ParseSequence<relay::Type>(TokenType::OpenParen, TokenType::Comma,
+                                            TokenType::CloseParen, [&]() { return ParseType(); });
+      return relay::TupleType(tys);
+    } else if (WhenMatch(TokenType::Fn)) {
+      return ParseFunctionType();
+    } else if (WhenMatch(TokenType::Identifier)) {
+      auto id = tok.ToString();
+      if (id == "Tensor") {
+        Match(TokenType::LSquare);
+        auto shape = ParseShape();
+        Match(TokenType::Comma);
+        auto dtype_tok = Match(TokenType::Identifier);
+        auto dtype = DataType(String2DLDataType(dtype_tok.ToString()));
+        Match(TokenType::RSquare);
+        return TensorType(shape, dtype);
+      } else {
+        auto ty = tok.ToString();
+        if (ty.rfind("int", 0) == 0 || ty.find("float", 0) == 0 || ty.find("uint", 0) == 0 ||
+            ty.find("bool", 0) == 0) {
+          // Need to do better error handling here.
+          auto dtype = DataType(String2DLDataType(tok.ToString()));
+          return TensorType({}, dtype);
+        } else {
+          return ParseNonPrimitiveType(tok);
+        }
+      }
+    }
+    if (WhenMatch(TokenType::Underscore)) {
+      return IncompleteType();
+    } else {
+      std::stringstream msg;
+      msg << "failed to parse type found ";
+      msg << tok;
+      diag_ctx.Emit({tok->line, tok->column, msg.str()});
+      diag_ctx.Render(std::cout);
+      return Type();
+    }
   }
 
   template <typename R>
@@ -1196,7 +1214,35 @@ struct Parser {
     return res;
   }
 
+  // TODO(@jroesch): this is the final remaining feature.
   ObjectRef ParseMetadata() { return ObjectRef(); }
+
+
+  /*! \brief A helper for debugging the parser, displays the next N tokens in the token stream. */
+  void DisplayNextN(int n) {
+    std::cout << "remaining tokens: " << std::endl;
+    auto bound = std::min(pos + n, (int)tokens.size());
+    for (int i = 0; i < bound - pos; i++) {
+      std::cout << tokens[pos + i] << std::endl;
+    }
+  }
+
+   // A function for debugging the operator parser.
+  void DebugStack(const std::vector<Expr>& exprs, const std::vector<Rule>& rules) {
+    std::cout << "Expr Stack: ";
+    for (auto expr : exprs) {
+      std::cout << expr << ", ";
+    }
+
+    std::cout << std::endl;
+    std::cout << "Op Stack: ";
+    for (auto rule : rules) {
+      std::cout << rule.op << ", ";
+    }
+
+    std::cout << std::endl;
+  }
+
 };
 
 IRModule ParseModule(std::string file_name, std::string file_content) {

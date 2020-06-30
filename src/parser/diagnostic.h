@@ -43,14 +43,11 @@ struct Source {
   std::vector<std::pair<int, int>> line_map;
   Source() : source(), line_map() {}
   Source(const std::string& source) : source(source) {
-    std::cout << "SourceCode: " << std::endl;
-    std::cout << source;
     int index = 0;
     int length = 0;
     line_map.push_back({ index, length});
     for (auto c : source) {
       if (c == '\n') {
-        std::cout << "newline" << std::endl;
         // Record the length of the line.
         line_map.back().second = length;
         // Bump past the newline.
@@ -69,7 +66,7 @@ struct Source {
 
   Source(const Source& source) : source(source.source), line_map(source.line_map) {}
 
-  void ReportAt(int line, int column, const std::string& msg) const {
+  void ReportAt(std::ostream& out, int line, int column, const std::string& msg) const {
     CHECK(line - 1 <= line_map.size())
         << "requested line: " << (line - 1)
         << "line_map size: " << line_map.size()
@@ -79,9 +76,9 @@ struct Source {
     auto range = line_map.at(line - 1);
     int line_start = range.first;
     int line_length = range.second;
-    std::cout << "file:" << line << ":" << column << ": parse error: " << msg << std::endl;
-    std::cout << "    " << source.substr(line_start, line_length) << std::endl;
-    std::cout << "    ";
+    out << "file:" << line << ":" << column << ": parse error: " << msg << std::endl;
+    out << "    " << source.substr(line_start, line_length) << std::endl;
+    out << "    ";
     std::stringstream marker;
     for (int i = 1; i <= line_length; i++) {
       if (i == column) {
@@ -94,8 +91,8 @@ struct Source {
         marker << " ";
       }
     }
-    std::cout << marker.str();
-    std::cout << std::endl;
+    out << marker.str();
+    out << std::endl;
   }
 };
 
@@ -124,13 +121,14 @@ struct DiagnosticContext {
       diagnostics.push_back(diagnostic);
   }
 
-  void Render() {
+  // TODO(@jroesch): eventually modularize the rendering interface to provide control of how to format errors.
+  void Render(std::ostream& ostream) {
       for (auto diagnostic : diagnostics) {
-          source.ReportAt(diagnostic.span->line, diagnostic.span->column, diagnostic.message);
+          source.ReportAt(ostream, diagnostic.span->line, diagnostic.span->column, diagnostic.message);
       }
 
       if (diagnostics.size()) {
-          exit(1);
+          LOG(FATAL) << "parse error occured";
       }
   }
 };

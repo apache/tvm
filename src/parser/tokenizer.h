@@ -151,11 +151,12 @@ struct Tokenizer {
         }
     }
 
-    Token ParseNumber(bool is_pos, std::string number) {
+    Token ParseNumber(bool is_pos, bool is_float, std::string number) {
         CHECK(number.size() > 0)
             << "an empty string is an invalid number";
 
         try {
+            if (is_float) { throw std::invalid_argument("is_float"); }
             auto token = NewToken(TokenType::Integer);
             size_t index = 0;
             int value = std::stoi(number, &index);
@@ -217,12 +218,14 @@ struct Tokenizer {
                 ss << Next();
             }
 
+            bool is_float = false;
             // Remove trailing floating point prefix.
             if (More() && Peek() == 'f') {
                 Next();
+                is_float = true;
             }
 
-            return ParseNumber(!is_neg, ss.str());
+            return ParseNumber(!is_neg, is_float, ss.str());
         } else if (next == '.') {
             auto token = NewToken(TokenType::Period);
             Next();
@@ -345,7 +348,8 @@ struct Tokenizer {
                 token_type = it->second;
 
                 if (token_type == TokenType::Match) {
-                    if (More() && Peek() == TokenType::Question) {
+                    if (More() && Peek() == '?') {
+                        Next();
                         token_type = TokenType::PartialMatch;
                     }
                 }
@@ -411,6 +415,7 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
                   auto tok = Token(current->line, current->column, TokenType::Global, next->data);
                   CHECK(tok.defined());
                   out.push_back(tok);
+                  std::cout << "Global Token: " << tok << std::endl;
                 } else {
                   CHECK(current.defined());
                   out.push_back(current);
