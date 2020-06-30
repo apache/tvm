@@ -23,6 +23,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/bound.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -95,7 +96,7 @@ class CandidateSelector final : public StmtExprVisitor {
 
   void VisitStmt_(const ForNode* op) final {
     // partition const loop when sets partition_const_loop_
-    if (!is_const(op->min) || !is_const(op->extent) || partition_const_loop_) {
+    if (!is_const_int(op->min) || !is_const_int(op->extent) || partition_const_loop_) {
       const VarNode* var = op->loop_var.get();
       record_.insert({var, false});
       StmtExprVisitor::VisitStmt_(op);
@@ -114,7 +115,7 @@ class CandidateSelector final : public StmtExprVisitor {
       CHECK(iv);
       Var var = iv->var;
       runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
-      if ((scope.rank == 0) && (!is_const(op->value) || partition_const_loop_)) {
+      if ((scope.rank == 0) && (!is_const_int(op->value) || partition_const_loop_)) {
         record_.insert({var.get(), false});
         StmtExprVisitor::VisitStmt_(op);
         if (record_.at(var.get()) && !no_split_) {
@@ -140,11 +141,11 @@ class CandidateSelector final : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(CallNode::likely)) {
+    if (op->op.same_as(builtin::likely())) {
       in_likely_ = true;
       StmtExprVisitor::VisitExpr_(op);
       in_likely_ = false;
-    } else if (op->is_intrinsic(intrinsic::tvm_thread_allreduce)) {
+    } else if (op->op.same_as(builtin::tvm_thread_allreduce())) {
       // no split if the body contains allreduce.
       no_split_ = true;
       return;
@@ -189,8 +190,8 @@ class PartitionFinder : public StmtExprVisitor {
     if (ExprUseVars(op->min, out_vars_) || ExprUseVars(op->extent, out_vars_)) return;
 
     const VarNode* var = op->loop_var.get();
-    hint_map_.insert({var, IntSet::interval(op->min, op->min + op->extent - 1)});
-    relax_map_.insert({var, IntSet::interval(op->min, op->min + op->extent - 1)});
+    hint_map_.insert({var, IntSet::Interval(op->min, op->min + op->extent - 1)});
+    relax_map_.insert({var, IntSet::Interval(op->min, op->min + op->extent - 1)});
     StmtExprVisitor::VisitStmt_(op);
     relax_map_.erase(var);
     hint_map_.erase(var);
@@ -202,7 +203,7 @@ class PartitionFinder : public StmtExprVisitor {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);
       const VarNode* var = thread_axis->var.get();
-      IntSet dom = IntSet::range(Range(make_zero(op->value.dtype()), op->value));
+      IntSet dom = IntSet::FromRange(Range(make_zero(op->value.dtype()), op->value));
       hint_map_.insert({var, dom});
       relax_map_.insert({var, dom});
       StmtExprVisitor::VisitStmt_(op);
@@ -214,21 +215,21 @@ class PartitionFinder : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(CallNode::likely)) {
+    if (op->op.same_as(builtin::likely())) {
       PrimExpr cond = op->args[0];
       if (ExprUseVars(cond, std::unordered_set<const VarNode*>({current_var_.get()}))) {
         // For cond, find out the interval, if exists, in which we can prove that cond is
         // true. Also find the interval, if exists, in which we can prove that cond is
         // false.
         IntSet interval = DeduceBound(current_var_, cond, hint_map_, relax_map_);
-        if (!interval.is_nothing()) {
+        if (!interval.IsNothing()) {
           // cond is true within interval
           partitions[{cond.get(), true}] = interval;
         }
         PrimExpr inverse_cond = InverseCond(cond);
         if (inverse_cond.defined()) {
           IntSet interval = DeduceBound(current_var_, inverse_cond, hint_map_, relax_map_);
-          if (!interval.is_nothing()) {
+          if (!interval.IsNothing()) {
             // cond is false within interval
             partitions[{cond.get(), false}] = interval;
           }
@@ -341,7 +342,7 @@ class LoopPartitioner : public StmtMutator {
 
     // normal path when loop partition fails
     // normal loop variable can be put into hint map.
-    hint_map_.insert({op->loop_var.get(), IntSet::interval(op->min, op->min + op->extent - 1)});
+    hint_map_.insert({op->loop_var.get(), IntSet::Interval(op->min, op->min + op->extent - 1)});
     Stmt res = StmtMutator::VisitStmt_(op);
     hint_map_.erase(op->loop_var.get());
     return res;
@@ -365,11 +366,11 @@ class LoopPartitioner : public StmtMutator {
     Stmt res;
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.
-      relax_map_.insert({var.get(), IntSet::interval(make_zero(var.dtype()), op->value - 1)});
+      relax_map_.insert({var.get(), IntSet::Interval(make_zero(var.dtype()), op->value - 1)});
       res = StmtMutator::VisitStmt_(op);
       relax_map_.erase(var.get());
     } else {
-      hint_map_.insert({var.get(), IntSet::interval(make_zero(var.dtype()), op->value - 1)});
+      hint_map_.insert({var.get(), IntSet::Interval(make_zero(var.dtype()), op->value - 1)});
       res = StmtMutator::VisitStmt_(op);
       hint_map_.erase(var.get());
     }
@@ -409,7 +410,7 @@ std::pair<IntSet, std::unordered_set<const Object*>> LoopPartitioner::GetInterva
       }
     }
   }
-  IntSet interval = sets.empty() ? IntSet::nothing() : Intersect(sets);
+  IntSet interval = sets.empty() ? IntSet::Nothing() : Intersect(sets);
   return std::make_pair(interval, cond_set);
 }
 
@@ -463,7 +464,7 @@ Stmt LoopPartitioner::TryPartition(const Object* node, const Stmt& stmt, Var var
                                    PrimExpr max, Stmt body, bool partition_thread_scope) {
   using namespace arith;
   // include hint of var.
-  hint_map_.insert({var.get(), IntSet::interval(min, max)});
+  hint_map_.insert({var.get(), IntSet::Interval(min, max)});
 
   PartitionFinder finder(var, hint_map_, relax_map_);
   finder(body);
@@ -478,12 +479,12 @@ Stmt LoopPartitioner::TryPartition(const Object* node, const Stmt& stmt, Var var
   // find an interval in which all conditions on var are true
   std::tie(middle_interval, cond_set) =
       GetIntervalAndCondset(finder.partitions, for_interval, true);
-  if (middle_interval.is_nothing()) {
+  if (middle_interval.IsNothing()) {
     // if such interval doesn't exist, find an interval in which all
     // conditions on var are false
     std::tie(middle_interval, cond_set) =
         GetIntervalAndCondset(finder.partitions, for_interval, false);
-    if (middle_interval.is_nothing())
+    if (middle_interval.IsNothing())
       // we couldn't find an interval in which the conditions are provably true or false
       // Therefore, we can't partition the loop based on those conds
       return Stmt();
@@ -596,7 +597,7 @@ inline Stmt LoopPartitioner::MakeFor(const Object* node, PrimExpr extent, Stmt b
 class RemoveLikelyTags : public StmtExprMutator {
  public:
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(CallNode::likely)) {
+    if (op->op.same_as(builtin::likely())) {
       CHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::VisitExpr(op->args[0]);
     } else {

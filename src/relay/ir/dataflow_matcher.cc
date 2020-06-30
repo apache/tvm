@@ -359,7 +359,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ExprPatternNode* op, const Expr& ex
 bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) {
   bool matches = false;
   if (const auto* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
-    matches = (op->index == tuple_get_item_node->index) &&
+    matches = (op->index == -1 || op->index == tuple_get_item_node->index) &&
               VisitDFPattern(op->tuple, tuple_get_item_node->tuple);
   }
   return matches;
@@ -461,8 +461,8 @@ class PatternGrouper {
     return gid_assignments_;
   }
   /* \brief Group expressions that match the pattern */
-  const std::vector<Group>& GroupMatches(const DFPattern& pattern, const Expr& pre) {
-    groups_ = {Group()};
+  const std::unordered_map<int, Group>& GroupMatches(const DFPattern& pattern, const Expr& pre) {
+    groups_.clear();
     gid_assignments_.clear();
 
     pattern_ = pattern;
@@ -487,15 +487,17 @@ class PatternGrouper {
     for (size_t i = matcher_->expr_graph_.topological_order_.size(); i != 0; --i) {
       size_t index = i - 1;
       Expr current = matcher_->expr_graph_.topological_order_.at(index)->ref_;
-      if (auto op = current.as<FunctionNode>()) {
-        if (op->attrs.defined() && op->attrs->dict.count(attr::kPartitionedFromPattern) != 0) {
-          pre_partitioned.insert(current);
-          PostOrderVisit(op->body,
-                         [&pre_partitioned](const Expr& expr) { pre_partitioned.insert(expr); });
+      if (gid_assignments_.count(current) == 0) {  // Don't visit nodes we've already grouped
+        if (auto op = current.as<FunctionNode>()) {
+          if (op->attrs.defined() && op->attrs->dict.count(attr::kPartitionedFromPattern) != 0) {
+            pre_partitioned.insert(current);
+            PostOrderVisit(op->body,
+                           [&pre_partitioned](const Expr& expr) { pre_partitioned.insert(expr); });
+          }
         }
-      }
-      if (pre_partitioned.count(current) == 0 && matcher_->Match(pattern_, current)) {
-        CreateGroup(current);
+        if (pre_partitioned.count(current) == 0 && matcher_->Match(pattern_, current)) {
+          CreateGroup(current);
+        }
       }
     }
   }
@@ -616,7 +618,7 @@ class PatternGrouper {
     CHECK(DFPatternMatcher(body).Match(pattern_, body));
     group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
     group.name = extractor.GetName();
-    // Check to make sure we aren't overlapping with another group
+    // Check to make sure we aren't overlapping with another group or creating an invalid fusion
     // The MatchExtractor will create a new graph by replacing nodes that match the inputs of the
     // pattern with the input FunctionVar* Variables. The resulting memoization map will only
     // contain nodes in the expression that matched the pattern. If a non-input node of the pattern
@@ -624,12 +626,29 @@ class PatternGrouper {
     // situation where we try to rewrite the same node twice in the second rewriting or parition
     // pass. This isn't valid, so we check for it here. We ignore Ops, functions, and constants
     // because they exist more globally outside of the fusion.
-    for (auto kv : extractor.GetMemo()) {
-      if (gid_assignments_.count(kv.first) != 0 && inputs.count(kv.first) == 0 &&
-          kv.first.as<OpNode>() == nullptr && kv.first.as<FunctionNode>() == nullptr &&
-          kv.first.as<ConstantNode>() == nullptr) {
-        // Exit due to overlapping partitions
-        return;
+    // Similiarly, if interior nodes in a group are used outside of the group fusing to a single
+    // output would create an invalid graph tranformation, so we block the creation of such groups.
+    auto memo = extractor.GetMemo();
+    for (auto kv : memo) {
+      // Check to ensure that this node isn't an input or a global
+      if (inputs.count(kv.first) == 0 && kv.first.as<OpNode>() == nullptr &&
+          kv.first.as<FunctionNode>() == nullptr && kv.first.as<ConstantNode>() == nullptr) {
+        if (gid_assignments_.count(kv.first) != 0) {
+          // check to see if the node is use in other groups
+          // Exit due to overlapping partitions
+          return;
+        } else if (kv.second != body) {
+          // if the node isn't the ouput of the group
+          auto node = matcher_->expr_graph_.node_map_.at(kv.first);
+          for (auto* output : node->outputs_) {
+            // and the node is used by nodes outside of the group
+            if (memo.count(output->ref_) == 0) {
+              // Exit because nodes in this pattern's body are used outside the pattern
+              // fusing it would be invalid
+              return;
+            }
+          }
+        }
       }
     }
     // Assign Group Ids
@@ -639,8 +658,7 @@ class PatternGrouper {
     }
 
     // Save Group
-    groups_.emplace_back(std::move(group));
-    CHECK_EQ(groups_[gid_].gid, gid_);
+    groups_[group.gid] = std::move(group);
   }
 
   /* \brief EmbedConst implements rules for embedding constants into partitioned functions or
@@ -675,7 +693,7 @@ class PatternGrouper {
   }
   // Internal State
   DFPattern pattern_;
-  std::vector<Group> groups_;
+  std::unordered_map<int, Group> groups_;
   std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
   DFPatternMatcher* matcher_ = nullptr;
   IndexedGraph<DFPattern> pattern_graph_;
@@ -753,7 +771,7 @@ class PatternRewriter : protected MixedModeMutator {
   }
 
   DFPatternCallback callback_;
-  std::vector<PatternGrouper::Group> groups_;
+  std::unordered_map<int, PatternGrouper::Group> groups_;
   std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
 };
 
@@ -805,7 +823,7 @@ class PatternPartitioner : protected MixedModeMutator {
   }
 
   Map<String, ObjectRef> attrs_;
-  std::vector<PatternGrouper::Group> groups_;
+  std::unordered_map<int, PatternGrouper::Group> groups_;
   std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> gid_assignments_;
   PackedFunc check_;
 };

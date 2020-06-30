@@ -100,12 +100,15 @@ print(fopencl.imported_modules[0].get_source())
 def my_cuda_math_rule(op):
     """Customized CUDA intrinsic lowering rule"""
     assert isinstance(op, tvm.tir.Call)
+    name = op.op.name
+    assert name.startswith("tir.")
+    dispatch_name = name[4:]
     if op.dtype == "float32":
         # call float function
-        return tvm.tir.call_pure_extern("float32", "%sf" % op.name, op.args[0])
+        return tvm.tir.call_pure_extern("float32", "%sf" % dispatch_name, op.args[0])
     elif op.dtype == "float64":
         # call double function
-        return tvm.tir.call_pure_extern("float32", op.name, op.args[0])
+        return tvm.tir.call_pure_extern("float32", dispatch_name, op.args[0])
     else:
         # cannot do translation, return self.
         return op
@@ -132,7 +135,7 @@ print(fcuda.imported_modules[0].get_source())
 
 def mylog(x):
     """customized log intrinsic function"""
-    return tvm.tir.call_pure_intrin(x.dtype, "mylog", x)
+    return tvm.tir.call_intrin(x.dtype, "tir.mylog", x)
 
 
 def my_cuda_mylog_rule(op):
@@ -144,7 +147,8 @@ def my_cuda_mylog_rule(op):
     else:
         return op
 
-
+# new op registration is triggered by registering an attribute of the op
+tvm.ir.register_op_attr("tir.mylog", "TCallEffectKind", tvm.tir.CallEffectKind.Pure)
 tvm.target.register_intrin_rule("cuda", "mylog", my_cuda_mylog_rule, override=True)
 
 n = te.var("n")

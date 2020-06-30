@@ -352,9 +352,15 @@ class JSONAttrSetter : public AttrVisitor {
   template <typename T>
   void ParseValue(const char* key, T* value) const {
     std::istringstream is(GetValue(key));
-    is >> *value;
-    if (is.fail()) {
-      LOG(FATAL) << "Wrong value format for field " << key;
+    if (is.str() == "inf") {
+      *value = std::numeric_limits<T>::infinity();
+    } else if (is.str() == "-inf") {
+      *value = -std::numeric_limits<T>::infinity();
+    } else {
+      is >> *value;
+      if (is.fail()) {
+        LOG(FATAL) << "Wrong value format for field " << key;
+      }
     }
   }
   void Visit(const char* key, double* value) final { ParseValue(key, value); }

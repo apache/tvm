@@ -1713,6 +1713,54 @@ RELAY_REGISTER_OP("collapse_sum_like")
     .set_attr<FTVMCompute>("FTVMCompute", CollapseSumLikeCompute)
     .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
+// CollapseSumTo: <A, B> -> B where Broadcast(A, B) = A
+bool CollapseSumToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const InitOpAttrs* param = attrs.as<InitOpAttrs>();
+  const auto* target_shape = types[1].as<TensorTypeNode>();
+  DataType out_dtype = types[0].as<TensorTypeNode>()->dtype;
+
+  const IntImmNode* shape_shape = target_shape->shape[0].as<IntImmNode>();
+  CHECK(shape_shape) << "Parameter shape must have static shape";
+
+  std::vector<IndexExpr> oshape;
+  if (param->shape) {
+    const Array<Integer>& cshape_array = param->shape.value();
+    for (size_t i = 0; i < cshape_array.size(); ++i) {
+      oshape.push_back(cshape_array[i]);
+    }
+  } else {
+    for (int i = 0; i < shape_shape->value; ++i) {
+      oshape.push_back(Any());
+    }
+  }
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return BroadcastRel({types[0], types[2], types[0]}, 2, Attrs(), reporter);
+}
+
+Expr MakeCollapseSumTo(Expr data, Expr shape) {
+  static const Op& op = Op::Get("collapse_sum_to");
+  auto attrs = make_object<InitOpAttrs>();
+  if (const auto* cshape = shape.as<ConstantNode>()) {
+    attrs->shape = ToVector(cshape->data);
+  }
+  return Call(op, {data, shape}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.collapse_sum_to").set_body_typed(MakeCollapseSumTo);
+
+RELAY_REGISTER_OP("collapse_sum_to")
+    .describe(R"code(Broadcast the first input to match the shape argument.
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("shape", "Tensor", "Target shape.")
+    .set_support_level(4)
+    .add_type_rel("CollapseSumTo", CollapseSumToRel)
+    .set_attr<FTVMCompute>("FTVMCompute", CollapseSumLikeCompute)
+    .set_attr<TOpPattern>("TOpPattern", kCommReduce);
+
 // BroadCastTo: <A, B> -> B where BroadCast(A, B) = B
 bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {

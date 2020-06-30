@@ -625,7 +625,6 @@ def _conv3d(opname):
 def _nms():
     def _impl(inputs, attr, params, mod):
         # Get parameter values
-        # TODO(yongwww) change nms in relay to support symbolic max_output_size
         try:
             max_output_size = int(np.atleast_1d(inputs[2].data.asnumpy()
                                                 .astype("int64"))[0])
@@ -634,7 +633,7 @@ def _nms():
                 max_output_size = _infer_value(inputs[2], params,
                                                mod).asnumpy().astype("int64").tolist()[0]
             except Exception:
-                max_output_size = -1
+                max_output_size = inputs[2]
         iou_threshold = np.atleast_1d(inputs[3].data.asnumpy())[0]
         # score_threshold was introduced from V3
         score_threshold = np.atleast_1d(inputs[4].data.asnumpy())[0] if len(inputs) > 4 else 0.0
@@ -1742,7 +1741,7 @@ def _split(has_size_vector):
                 indices_or_sections = attr['num_split']
             input_node = inputs[input_node_index]
             axis_input_value = _get_num_param(params, inputs[input_axis_index])
-        except (IndexError, KeyError):
+        except (IndexError, KeyError, AttributeError):
             raise TypeError(
                 "Unsupported argument for split: `axis` and `num_or_size_splits` "
                 "should be constants")

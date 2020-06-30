@@ -266,6 +266,12 @@ def conv2d_winograd_without_weight_transfrom_strategy(attrs, inputs, out_type, t
     """conv2d_winograd_without_weight_transfrom generic strategy"""
     raise ValueError("No generic implemenation for conv2d_winograd_without_weight_transform")
 
+# conv2d_gemm_without_weight_transform
+@override_native_generic_func("conv2d_gemm_without_weight_transform_strategy")
+def conv2d_gemm_without_weight_transform_strategy(attrs, inputs, out_type, target):
+    """conv2d_gemm_without_weight_transfrom generic strategy"""
+    raise ValueError("No generic implemenation for conv2d_gemm_without_weight_transform")
+
 # conv2d_winograd_weight_transform
 @generic_func
 def schedule_conv2d_winograd_weight_transform(attrs, outs, target):
@@ -279,6 +285,13 @@ def schedule_conv2d_winograd_nnpack_weight_transform(attrs, outs, target):
     """Schedule conv2d_winograd_nnpack_weight_transform"""
     with target:
         return topi.generic.schedule_conv2d_winograd_nnpack_weight_transform(outs)
+
+# conv2d_gemm_weight_transform
+@generic_func
+def schedule_conv2d_gemm_weight_transform(attrs, outs, target):
+    """Schedule conv2d_gemm_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv2d_gemm_weight_transform(outs)
 
 # deformable_conv2d
 def wrap_compute_deformable_conv2d(topi_compute):
@@ -734,8 +747,10 @@ def get_valid_counts_strategy(attrs, inputs, out_type, target):
 def wrap_compute_nms(topi_compute):
     """wrap nms topi compute"""
     def _compute_nms(attrs, inputs, out_type):
+        max_output_size = inputs[3]
+        if attrs.max_output_size is not None:
+            max_output_size = attrs.max_output_size
         return_indices = bool(get_const_int(attrs.return_indices))
-        max_output_size = get_const_int(attrs.max_output_size)
         iou_threshold = get_const_float(attrs.iou_threshold)
         force_suppress = bool(get_const_int(attrs.force_suppress))
         top_k = get_const_int(attrs.top_k)

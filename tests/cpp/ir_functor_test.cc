@@ -20,6 +20,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/node/functor.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/op.h>
@@ -192,9 +193,10 @@ TEST(IRF, StmtMutator) {
   }
 
   {
-    auto body = Evaluate(Call(DataType::Int(32), "xyz", {x + 1}, CallNode::Extern));
+    auto body =
+        Evaluate(Call(DataType::Int(32), builtin::call_extern(), {StringImm("xyz"), x + 1}));
     auto res = v(std::move(body));
-    CHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[0].same_as(x));
+    CHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
   }
   {
     Stmt body = fmakealloc();

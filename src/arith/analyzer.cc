@@ -35,31 +35,31 @@ Analyzer::Analyzer()
       canonical_simplify(this),
       int_set(this) {}
 
-void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool override) {
+void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   PrimExpr new_expr = expr;
   new_expr = this->canonical_simplify(new_expr);
   new_expr = this->rewrite_simplify(new_expr);
 
-  this->const_int_bound.Update(var, this->const_int_bound(new_expr), override);
-  this->modular_set.Update(var, this->modular_set(new_expr), override);
-  this->rewrite_simplify.Update(var, new_expr, override);
-  this->canonical_simplify.Update(var, new_expr, override);
+  this->const_int_bound.Update(var, this->const_int_bound(new_expr), allow_override);
+  this->modular_set.Update(var, this->modular_set(new_expr), allow_override);
+  this->rewrite_simplify.Update(var, new_expr, allow_override);
+  this->canonical_simplify.Update(var, new_expr, allow_override);
 }
 
-void Analyzer::Bind(const Var& var, const Range& range, bool override) {
+void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
   CHECK(range.defined());
   if (tir::is_one(range->extent)) {
-    this->Bind(var, range->min, override);
+    this->Bind(var, range->min, allow_override);
   } else {
-    this->const_int_bound.Bind(var, range, override);
+    this->const_int_bound.Bind(var, range, allow_override);
   }
   // skip modular_set
   // skip rewrite simplify
 }
 
-void Analyzer::Bind(const Map<Var, Range>& variables, bool override) {
+void Analyzer::Bind(const Map<Var, Range>& variables, bool allow_override) {
   for (const auto& iter : variables) {
-    this->Bind(iter.first, iter.second, override);
+    this->Bind(iter.first, iter.second, allow_override);
   }
 }
 
@@ -116,9 +116,9 @@ bool Analyzer::CanProve(const PrimExpr& expr) {
 }
 
 PrimExpr Analyzer::Simplify(const PrimExpr& expr) {
-  if (tir::is_const(expr)) return expr;
+  if (tir::is_const_int(expr)) return expr;
   auto res = this->rewrite_simplify(expr);
-  if (tir::is_const(res)) return res;
+  if (tir::is_const_int(res)) return res;
   res = this->canonical_simplify(res);
   return res;
 }

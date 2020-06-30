@@ -49,7 +49,7 @@ def test_thread_storage_sync():
     cuda_target = tvm.target.create("cuda")
     f = tvm.tir.transform.ThreadSync("shared")(mod)["test_kernel0"]
     body_list = tvm.tir.stmt_list(f.body.body.body.body)
-    assert(body_list[1].value.name == "tvm_storage_sync")
+    assert(body_list[1].value.op.same_as(tvm.ir.Op.get("tir.tvm_storage_sync")))
 
 
 

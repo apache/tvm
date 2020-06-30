@@ -1,4 +1,4 @@
-# License .to the Apache Software Foundation (ASF) under one
+# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -27,6 +27,7 @@ from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
 from .object import Object
 from . import _ffi_api, container
+
 
 def _convert(arg, cargs):
     if isinstance(arg, Object):
@@ -59,6 +60,7 @@ def convert(args):
 
 class Executable(object):
     """Relay VM executable"""
+
     def __init__(self, mod):
         self.mod = mod
         self._function_params = {}
@@ -272,6 +274,7 @@ class Executable(object):
 
 class VirtualMachine(object):
     """Relay VM runtime."""
+
     def __init__(self, mod):
         if not isinstance(mod, (Executable, tvm.runtime.Module)):
             raise TypeError("mod is expected to be the type of Executable or " +

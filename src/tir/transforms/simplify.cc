@@ -48,15 +48,24 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   Stmt Simplify(Stmt stmt) { return operator()(std::move(stmt)); }
 
   Stmt VisitStmt_(const ForNode* op) final {
-    analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
+    analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
     With<ConstraintContext> ctx2(analyzer_, op->loop_var < op->min + op->extent);
     return Parent::VisitStmt_(op);
   }
 
+  bool CanInlineLetStmt(const LetStmtNode* op) {
+    if (is_const_number(op->value)) return true;
+    if (op->value.as<VarNode>()) return true;
+    // Won't face the deep expression explosion problem as in Let expression.
+    // attempt to inline as much as possible if the value integer type(can be index).
+    if (!op->value.dtype().is_int()) return false;
+    return SideEffect(op->value) <= CallEffectKind::kPure;
+  }
+
   Stmt VisitStmt_(const LetStmtNode* op) {
     PrimExpr value = this->VisitExpr(op->value);
-    if (!tir::HasSideEffect(value)) {
+    if (CanInlineLetStmt(op)) {
       // it is fine to discard the let binding
       // because the call to simplify will always inline the var.
       analyzer_->Bind(op->var, value);

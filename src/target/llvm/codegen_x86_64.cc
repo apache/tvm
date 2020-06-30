@@ -89,8 +89,8 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
           ::llvm::Intrinsic::x86_avx512_mask_vcvtph2ps_512, 16,
           DTypeToLLVMType(DataType::Float(32, from.lanes())),
           {
-              MakeValue(tir::Call(DataType::Int(16, from.lanes()), tir::CallNode::reinterpret,
-                                  {op->value}, tir::CallNode::PureIntrinsic)),
+              MakeValue(tir::Call(DataType::Int(16, from.lanes()), tir::builtin::reinterpret(),
+                                  {op->value})),
               MakeValue(tir::Broadcast(FloatImm(DataType::Float(32), 0), from.lanes())),
               /*mask=*/MakeValue(IntImm(DataType::Int(16), -1)),
               /*rounding-mode=*/MakeValue(IntImm(DataType::Int(32), 4)),
@@ -102,11 +102,10 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
     const auto has_f16c = TargetHasFeature(*target_machine_, "f16c");
 
     if (from.lanes() >= 8 && has_f16c) {
-      return CallVectorIntrin(
-          ::llvm::Intrinsic::x86_vcvtph2ps_256, 8,
-          DTypeToLLVMType(DataType::Float(32, from.lanes())),
-          {MakeValue(tir::Call(DataType::Int(16, from.lanes()), tir::CallNode::reinterpret,
-                               {op->value}, tir::CallNode::PureIntrinsic))});
+      return CallVectorIntrin(::llvm::Intrinsic::x86_vcvtph2ps_256, 8,
+                              DTypeToLLVMType(DataType::Float(32, from.lanes())),
+                              {MakeValue(tir::Call(DataType::Int(16, from.lanes()),
+                                                   tir::builtin::reinterpret(), {op->value}))});
     }
 #endif
   }
