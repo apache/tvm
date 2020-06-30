@@ -524,6 +524,22 @@ def arange(start, stop=None, step=1, dtype="float32"):
     return cpp.arange(start, stop, step, dtype)
 
 
+def meshgrid(a_tuple):
+    """Create coordinate matrices from coordinate vectors.
+
+    Parameters
+    ----------
+    a_tuple : tuple of tvm.te.Tensor
+        The coordinate vectors or scalars.
+
+    Returns
+    -------
+    result : tuple of tvm.te.Tensor
+        The resulting grids for each axis.
+    """
+    return cpp.meshgrid(a_tuple)
+
+
 def repeat(a, repeats, axis):
     """Repeats elements of an array.
 
