@@ -199,8 +199,7 @@ std::vector<Iterator> State::DoSplitStepCommon(
     }
     Iterator res;
     if (l.defined() && tosplit_min.defined() && tosplit_extent.defined()) {
-      res = Iterator(name, Range::make_by_min_extent(tosplit_min, l),
-                     it->iter_type, kNone);
+      res = Iterator(name, Range::FromMinExtent(tosplit_min, l), it->iter_type, kNone);
       tosplit_min = 0;
       tosplit_extent = indexdiv(tosplit_extent + l - 1, l);
     } else {
@@ -212,7 +211,7 @@ std::vector<Iterator> State::DoSplitStepCommon(
 
   Range range;
   if (tosplit_min.defined() && tosplit_extent.defined()) {
-    range = Range::make_by_min_extent(tosplit_min, tosplit_extent);
+    range = Range::FromMinExtent(tosplit_min, tosplit_extent);
   }
   if (inner_to_outer) {
     outs.push_back(
@@ -278,7 +277,7 @@ Iterator State::DoFuseStep(const FuseStep& step) {
 
   Range range;
   if (new_extent.defined()) {
-    range = Range::make_by_min_extent(0, new_extent);
+    range = Range::FromMinExtent(0, new_extent);
   }
   Iterator new_it = Iterator(new_name, range, new_iter_type, kNone, &ori_iters);
   std::vector<Iterator> new_iters;
