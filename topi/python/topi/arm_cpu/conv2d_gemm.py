@@ -24,6 +24,11 @@ from ..util import get_const_tuple
 from ..nn.util import get_pad_tuple
 from .tensor_intrin import gemv_quantized, gemv_quantized_impl
 
+def is_aarch64_arm():
+    """ Checks whether we are compiling for an AArch64 target. """
+    target = tvm.target.Target.current(allow_none=False)
+    return 'aarch64' in ' '.join(target.options)
+
 
 # Compute function
 def compute_conv2d_gemm_without_weight_transform(cfg,
@@ -70,8 +75,8 @@ def compute_conv2d_gemm_without_weight_transform(cfg,
     else:
         A = te.compute(A_shape, lambda n, x, y:
                        data_pad[n,
-                                HSTR * (x // OW) + dilation_h * (y // IC) // KW,
-                                WSTR * (x % OW) + dilation_w * (y // IC) % KW, y % IC],
+                                HSTR * (x // OW) + dilation_h * ((y // IC) // KW),
+                                WSTR * (x % OW) + dilation_w * ((y // IC) % KW), y % IC],
                        name='data_im2col')
     N_transformed = B_interleaved_t.shape[0]
 
@@ -157,7 +162,7 @@ def schedule_conv2d_gemm(cfg, s, out):
 
     in_type = A_interleaved.dtype
     out_type = C.dtype
-    if out_type == 'int32':
+    if is_aarch64_arm() and out_type == 'int32':
         K = A_interleaved_input.shape[2]
         _, M, N = C.shape
         assert in_type in ['int8', 'uint8'], "Only int8 and uint8 gemm are supported"
