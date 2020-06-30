@@ -162,13 +162,23 @@ struct ADFunction : ADValueNode {
 };
 
 struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr&)> {
+  using TBase = ExprFunctor<ADValue(const Expr&)>;
   const OpAttrMap<FPrimalGradient> rev_map = Op::GetAttrMap<FPrimalGradient>("FPrimalGradient");
   std::vector<std::function<void(LetList* ll)>> backprop_actions;
   // we assume no closure so no need for lexical scoping
-  std::unordered_map<Var, ADValue, ObjectPtrHash, ObjectPtrEqual> env;
+  std::unordered_map<Expr, ADValue, ObjectPtrHash, ObjectPtrEqual> env;
   LetList* ll;
 
   FirstOrderReverseAD(LetList* ll) : ll(ll) {}
+
+  ADValue VisitExpr(const Expr& n) final {
+    if (env.count(n)) {
+      return env.at(n);
+    }
+    auto ret = TBase::VisitExpr(n);
+    env[n] = ret;
+    return ret;
+  }
 
   ADValue VisitExpr_(const OpNode* op) final {
     Op op_ref = GetRef<Op>(op);
@@ -268,10 +278,8 @@ struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr&)> {
         });
   }
 
-  ADValue VisitExpr_(const VarNode* op) final {
-    Var v = GetRef<Var>(op);
-    return env.at(v);
-  }
+  // Var will always be in env, handled in VisitExpr (without _), so we don't need
+  // to implement its VisitExpr_.
 };
 
 Type GradRetType(const Function& f) {
