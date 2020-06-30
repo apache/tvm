@@ -496,7 +496,7 @@ def tile(data, reps):
     data : relay.Expr
         The input data to the operator.
 
-    reps : tuple of int
+    reps : tuple of int or relay.Expr
         The number of times repeating the tensor data.
 
     Returns
@@ -524,7 +524,8 @@ def tile(data, reps):
     data is promoted to be d-dimensional by prepending new axes.
     If data.ndim >=  d, reps is promoted to a.ndim by pre-pending 1's to it.
     """
-
+    if isinstance(reps, Expr):
+        return _dyn_make.tile(data, reps)
     return _make.tile(data, reps)
 
 

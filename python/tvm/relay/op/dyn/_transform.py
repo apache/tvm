@@ -17,10 +17,13 @@
 """Backend compiler related feature registration"""
 # pylint: disable=invalid-name,unused-argument, len-as-condition, too-many-nested-blocks, too-many-local-variables, too-many-arguments
 from __future__ import absolute_import
+
+from tvm.runtime import convert
 from tvm.te.hybrid import script
 from .. import op as _reg
 
 _reg.register_injective_schedule("dyn.reshape")
+_reg.register_broadcast_schedule("dyn.tile")
 
 @script
 def _reshape_shape_func_input_data(data, newshape, ndim):
@@ -81,3 +84,23 @@ def _reshape_shape_func_input_data(data, newshape, ndim):
 @_reg.register_shape_func("dyn.reshape", True)
 def dynamic_reshape_shape_func(attrs, inputs, out_ndims):
     return [_reshape_shape_func_input_data(*inputs, out_ndims[0])]
+
+
+@script
+def _tile_shape_func(data, reps, ndim):
+    out = output_tensor((ndim,), "int64")
+
+    for i in const_range(ndim):
+        out[i] = data.shape[i] * int64(reps[i])
+    return out
+
+
+@_reg.register_shape_func("dyn.tile", True)
+def tile_shape_func(attrs, inputs, _):
+    """
+    Shape function for tile op.
+    """
+    ndim = len(inputs[0].shape)
+    rdim = inputs[1].shape[0].value
+    assert ndim == rdim, "tile data and res ranks don't match"
+    return [_tile_shape_func(inputs[0], inputs[1], convert(ndim))]

@@ -128,6 +128,70 @@ RELAY_REGISTER_OP("dyn.reshape")
     .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+// tile operator
+//TVM_REGISTER_NODE_TYPE(TileAttrs);
+
+bool TileRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+             const TypeReporter& reporter) {
+  // `types` contains: [data, reps, result]
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* reps = types[1].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "tile: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+  if (reps == nullptr) {
+    CHECK(types[1].as<IncompleteTypeNode>())
+        << "tile: expect input type to be TensorType but get " << types[1];
+    return false;
+  }
+  const size_t ndim = data->shape.size();
+  const IntImmNode* reps_shape = reps->shape[0].as<IntImmNode>();
+  CHECK(reps_shape) << "Parameter reps must have static shape";
+  // check dimension match
+  CHECK_EQ(ndim, reps_shape->value) << "tile: the shape of reps must match the rank of data";
+  std::vector<IndexExpr> oshape;
+  oshape.reserve(ndim);
+  for (size_t i = 0; i < ndim; ++i) {
+    oshape.emplace_back(Any());
+  }
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Array<te::Tensor> TileCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_type) {
+  CHECK_EQ(inputs.size(), 2);
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  return {topi::dyn_tile(inputs[0], out_ttype->shape)};
+}
+
+Expr MakeTile(Expr data, Expr reps) {
+  auto attrs = make_object<TileAttrs>();
+  static const Op& op = Op::Get("dyn.tile");
+  return Call(op, {data, reps}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.tile").set_body_typed(MakeTile);
+
+RELAY_REGISTER_OP("dyn.tile")
+    .describe(R"code(Repeat the whole array multiple times.
+
+- **data**: The input data to the operator.
+- **reps**: The number of times to repeat the operator.
+
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .set_attrs_type<TileAttrs>()
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("reps", "Tensor", "The number of times to repeat the input on each axis.")
+    .set_support_level(3)
+    .add_type_rel("DynamicTile", TileRel)
+    .set_attr<FTVMCompute>("FTVMCompute", TileCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
 }  // namespace dyn
 }  // namespace relay
 }  // namespace tvm
