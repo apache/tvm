@@ -42,8 +42,7 @@ TVM_REGISTER_NODE_TYPE(IteratorNode);
 
 /********** Iterator **********/
 Iterator::Iterator(std::string name, Range range, IteratorType iter_type,
-                   IteratorAnnotation annotation,
-                   const std::vector<Iterator>* ori_iters,
+                   IteratorAnnotation annotation, const std::vector<Iterator>* ori_iters,
                    std::string attr) {
   auto node = make_object<IteratorNode>();
   node->name = std::move(name);
@@ -64,12 +63,10 @@ Stage::Stage(te::Operation op) {
     node->op_type = kCompute;
     auto* pop = op.as<te::ComputeOpNode>();
     for (const auto& axis : pop->axis) {
-      node->iters.push_back(Iterator(CleanName(axis->var->name_hint),
-                                     axis->dom, kSpace, kNone));
+      node->iters.push_back(Iterator(CleanName(axis->var->name_hint), axis->dom, kSpace, kNone));
     }
     for (const auto& axis : pop->reduce_axis) {
-      node->iters.push_back(Iterator(CleanName(axis->var->name_hint),
-                                     axis->dom, kReduce, kNone));
+      node->iters.push_back(Iterator(CleanName(axis->var->name_hint), axis->dom, kReduce, kNone));
     }
   } else if (op->IsInstance<te::PlaceholderOpNode>()) {
     node->op_type = kPlaceholder;
@@ -84,9 +81,8 @@ Stage::Stage(te::Operation op) {
   data_ = std::move(node);
 }
 
-Stage::Stage(te::Operation op, StageType op_type,
-             const std::vector<Iterator>& iters, ComputeAtType compute_at,
-             StageAttributes attrs) {
+Stage::Stage(te::Operation op, StageType op_type, const std::vector<Iterator>& iters,
+             ComputeAtType compute_at, StageAttributes attrs) {
   auto node = make_object<StageNode>();
   node->op = std::move(op);
   node->op_type = op_type;
@@ -139,13 +135,11 @@ void State::reorder(int stage_id, const std::vector<Iterator>& order) {
 }
 
 std::vector<Iterator> State::split(int stage_id, const Iterator& it,
-                                   const std::vector<PrimExpr>& lengths,
-                                   bool inner_to_outer) {
+                                   const std::vector<PrimExpr>& lengths, bool inner_to_outer) {
   const Stage& stage = operator->()->stages[stage_id];
   SplitStep step =
       SplitStep(stage_id, GetIndex(stage->iters, it),
-                it->range.defined() ? it->range->extent : PrimExpr(),
-                lengths, inner_to_outer);
+                it->range.defined() ? it->range->extent : PrimExpr(), lengths, inner_to_outer);
   CopyOnWrite()->transform_steps.push_back(step);
   return DoSplitStep(step);
 }
@@ -172,9 +166,9 @@ void State::DoReorderStep(const ReorderStep& step) {
 }
 
 // common part for DoSplitStep, DoFollowSplitStep, and DoFollowFusedSplitStep
-std::vector<Iterator> State::DoSplitStepCommon(
-    int stage_id, int iter_id, const std::vector<PrimExpr>& lengths,
-    bool inner_to_outer) {
+std::vector<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id,
+                                               const std::vector<PrimExpr>& lengths,
+                                               bool inner_to_outer) {
   const Stage& stage = operator->()->stages[stage_id];
   const Iterator& it = stage->iters[iter_id];
 
@@ -214,21 +208,17 @@ std::vector<Iterator> State::DoSplitStepCommon(
     range = Range::FromMinExtent(tosplit_min, tosplit_extent);
   }
   if (inner_to_outer) {
-    outs.push_back(
-        Iterator(it->name + ".0", range, it->iter_type, kNone));
+    outs.push_back(Iterator(it->name + ".0", range, it->iter_type, kNone));
     std::reverse(outs.begin(), outs.end());
   } else {
     outs.push_back(
-        Iterator(it->name + "." + std::to_string(lengths.size()),
-                 range, it->iter_type, kNone));
+        Iterator(it->name + "." + std::to_string(lengths.size()), range, it->iter_type, kNone));
   }
 
   std::vector<Iterator> new_iters;
-  new_iters.insert(new_iters.end(), stage->iters.begin(),
-                   stage->iters.begin() + iter_id);
+  new_iters.insert(new_iters.end(), stage->iters.begin(), stage->iters.begin() + iter_id);
   new_iters.insert(new_iters.end(), outs.begin(), outs.end());
-  new_iters.insert(new_iters.end(), stage->iters.begin() + iter_id + 1,
-                   stage->iters.end());
+  new_iters.insert(new_iters.end(), stage->iters.begin() + iter_id + 1, stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
   pstate->stages[stage_id] =
@@ -238,8 +228,7 @@ std::vector<Iterator> State::DoSplitStepCommon(
 }
 
 std::vector<Iterator> State::DoSplitStep(const SplitStep& step) {
-  return DoSplitStepCommon(step->stage_id, step->iter_id, step->lengths,
-                           step->inner_to_outer);
+  return DoSplitStepCommon(step->stage_id, step->iter_id, step->lengths, step->inner_to_outer);
 }
 
 Iterator State::DoFuseStep(const FuseStep& step) {
@@ -320,31 +309,28 @@ void State::DoSteps(const std::vector<Step>& steps, const ComputeDAG& dag) {
 }
 
 // Print stage to ostream
-void PrintStage(std::ostream* os, int stage_id, const StateNode* state,
-                size_t base_indent, bool delete_trivial_loop) {
+void PrintStage(std::ostream* os, int stage_id, const StateNode* state, size_t base_indent,
+                bool delete_trivial_loop) {
   const Stage& stage = state->stages[stage_id];
 
   if (stage->attrs.auto_unroll_max_step != 0) {
     for (size_t j = 0; j < base_indent; ++j) {
       *os << " ";
     }
-    *os << stage->op->name
-        << " auto_unroll: " << stage->attrs.auto_unroll_max_step << "\n";
+    *os << stage->op->name << " auto_unroll: " << stage->attrs.auto_unroll_max_step << "\n";
   }
   if (stage->attrs.storage_offset != 0) {
     for (size_t j = 0; j < base_indent; ++j) {
       *os << " ";
     }
-    *os << stage->op->name
-        << " storage_offset: " << stage->attrs.storage_offset << "\n";
+    *os << stage->op->name << " storage_offset: " << stage->attrs.storage_offset << "\n";
   }
 
   size_t indent = 0;
   for (size_t i = 0; i < stage->iters.size(); ++i) {
     const Iterator& iter = stage->iters[i];
 
-    if (!(delete_trivial_loop && iter->range.defined() &&
-          is_one(iter->range->extent))) {
+    if (!(delete_trivial_loop && iter->range.defined() && is_one(iter->range->extent))) {
       for (size_t j = 0; j < base_indent + indent; ++j) {
         *os << " ";
       }
@@ -380,11 +366,11 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state,
           *os << "tensorize ";
           break;
         default:
-          LOG(FATAL) << "Invalid Annotation " << iter->annotation; break;
+          LOG(FATAL) << "Invalid Annotation " << iter->annotation;
+          break;
       }
       if (iter->range.defined()) {
-        *os << iter->name << " (" << iter->range->min << ","
-            << iter->range->extent << ")";
+        *os << iter->name << " (" << iter->range->min << "," << iter->range->extent << ")";
       } else {
         *os << iter->name << " (None)";
       }
@@ -404,8 +390,7 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state,
 }
 
 // Print state to ostream
-void PrintState(std::ostream* os, const StateNode* node,
-                bool delete_trivial_loop) {
+void PrintState(std::ostream* os, const StateNode* node, bool delete_trivial_loop) {
   // Gather placeholders
   std::vector<std::string> placeholders;
   for (const auto& stage : node->stages) {
@@ -445,10 +430,10 @@ std::string State::ToStr(bool delete_trivial_loop) const {
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<StateNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const StateNode*>(ref.get());
-  PrintState(&p->stream, node, true);
-});
+    .set_dispatch<StateNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const StateNode*>(ref.get());
+      PrintState(&p->stream, node, true);
+    });
 
 /********** State interface API for ffi **********/
 TVM_REGISTER_GLOBAL("ansor.StageGetIterators").set_body_typed([](const Stage& stage) {
@@ -464,39 +449,37 @@ TVM_REGISTER_GLOBAL("ansor.StateGetTransformStepsSize").set_body_typed([](const 
 });
 
 TVM_REGISTER_GLOBAL("ansor.StateReorder")
-.set_body_typed([](State state, int stage_id, const Array<Iterator>& order) {
-  std::vector<Iterator> ord;
-  for (const auto& i : order) {
-    ord.push_back(i);
-  }
-  state.reorder(stage_id, ord);
-  return state;
-});
+    .set_body_typed([](State state, int stage_id, const Array<Iterator>& order) {
+      std::vector<Iterator> ord;
+      for (const auto& i : order) {
+        ord.push_back(i);
+      }
+      state.reorder(stage_id, ord);
+      return state;
+    });
 
 TVM_REGISTER_GLOBAL("ansor.StateSplit")
-.set_body_typed([](State state, int stage_id, const Iterator& it,
-                   const Array<PrimExpr>& lengths, bool inner_to_outer) {
-  std::vector<PrimExpr> len;
-  for (const auto& i : lengths) {
-    len.push_back(i);
-  }
-  const auto& res = state.split(stage_id, it, len, inner_to_outer);
-  return Array<ObjectRef>{state, Array<Iterator>(res)};
-});
+    .set_body_typed([](State state, int stage_id, const Iterator& it,
+                       const Array<PrimExpr>& lengths, bool inner_to_outer) {
+      std::vector<PrimExpr> len;
+      for (const auto& i : lengths) {
+        len.push_back(i);
+      }
+      const auto& res = state.split(stage_id, it, len, inner_to_outer);
+      return Array<ObjectRef>{state, Array<Iterator>(res)};
+    });
 
 TVM_REGISTER_GLOBAL("ansor.StateFuse")
-.set_body_typed([](State state, int stage_id,
-                   const Array<Iterator>& iters) {
-  std::vector<Iterator> its;
-  for (const auto& i : iters) {
-    its.push_back(i);
-  }
-  const auto& res = state.fuse(stage_id, its);
-  return Array<ObjectRef>{state, res};
-});
+    .set_body_typed([](State state, int stage_id, const Array<Iterator>& iters) {
+      std::vector<Iterator> its;
+      for (const auto& i : iters) {
+        its.push_back(i);
+      }
+      const auto& res = state.fuse(stage_id, its);
+      return Array<ObjectRef>{state, res};
+    });
 
-TVM_REGISTER_GLOBAL("ansor.StateEqual")
-.set_body_typed([](State state1, State state2) {
+TVM_REGISTER_GLOBAL("ansor.StateEqual").set_body_typed([](State state1, State state2) {
   return std::equal_to<State>()(state1, state2);
 });
 

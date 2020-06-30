@@ -50,7 +50,7 @@ typedef std::unordered_map<tvm::te::Stage, std::vector<tir::IterVar>, ObjectHash
  * \param stage A `te::Stage`.
  * \param stage_to_axes A pointer to StageToAxesMap.
  */
-void UpdateStageAxis(const tvm::te::Stage& stage, StageToAxesMap *stage_to_axes);
+void UpdateStageAxis(const tvm::te::Stage& stage, StageToAxesMap* stage_to_axes);
 
 /*! \brief Computation declaration graph. */
 class ComputeDAGNode : public Object {
@@ -78,7 +78,7 @@ class ComputeDAGNode : public Object {
  * \brief Managed reference to ComputeDAGNode.
  * \sa ComputeDAGNode
  */
-class ComputeDAG: public ObjectRef {
+class ComputeDAG : public ObjectRef {
  public:
   /*! \brief The constructor.
    * \param tensors `te::Tensor`s for a compute declaration.
@@ -148,9 +148,9 @@ class ComputeDAG: public ObjectRef {
    * \param stage_to_axes A pointer to StageToAxesMap.
    * \return The return values can be used as arguments to `tvm.build` or `tvm.lower`.
    */
-  std::pair<te::Schedule, Array<te::Tensor> > ReplaySteps(
-      const std::vector<Step>& transform_steps, std::vector<te::Stage>* stages,
-      StageToAxesMap* stage_to_axes) const;
+  std::pair<te::Schedule, Array<te::Tensor> > ReplaySteps(const std::vector<Step>& transform_steps,
+                                                          std::vector<te::Stage>* stages,
+                                                          StageToAxesMap* stage_to_axes) const;
 
   /*!
    * \brief Internal common parts for inferring bound.

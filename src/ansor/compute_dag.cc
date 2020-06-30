@@ -69,8 +69,7 @@ void UpdateStageAxis(const te::Stage& stage, StageToAxesMap* stage_to_axes) {
 
 // Topo-sort ops from tensors according to their read-write relations.
 // Results are stored in ops
-void TopoSortOps(const Array<te::Tensor>& tensors,
-                 std::vector<te::Operation>* ops) {
+void TopoSortOps(const Array<te::Tensor>& tensors, std::vector<te::Operation>* ops) {
   std::unordered_map<const te::OperationNode*, int> degree;
   std::unordered_map<const te::OperationNode*, std::vector<const te::OperationNode*> > edge_set;
   std::unordered_map<const te::OperationNode*, int> priority;
@@ -113,9 +112,7 @@ void TopoSortOps(const Array<te::Tensor>& tensors,
   ops->clear();
 
   using Item = std::pair<const te::OperationNode*, int>;
-  auto cmp = [](const Item& left, const Item& right) {
-    return left.second < right.second;
-  };
+  auto cmp = [](const Item& left, const Item& right) { return left.second < right.second; };
   std::priority_queue<Item, std::vector<Item>, decltype(cmp)> queue(cmp);
   for (const auto& iter : degree) {
     if (iter.second == 0) {
@@ -138,7 +135,7 @@ void TopoSortOps(const Array<te::Tensor>& tensors,
 }
 
 // Estimate number of float operations in an expression
-class FlopEstimator: public ExprFunctor<double(const PrimExpr& n)> {
+class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
  public:
   double EstimateFlop(const Array<te::Operation>& ops) {
     double ret = 0;
@@ -190,29 +187,37 @@ class FlopEstimator: public ExprFunctor<double(const PrimExpr& n)> {
   double VisitExpr_(const VarNode* op) final { return 0.0; }
 
   double VisitExpr_(const SelectNode* op) final {
-    return VisitExpr(op->condition) + std::max(VisitExpr(op->true_value),
-        VisitExpr(op->false_value));
+    return VisitExpr(op->condition) +
+           std::max(VisitExpr(op->true_value), VisitExpr(op->false_value));
   }
 
-#define VisitBinary(Node)                            \
-  double VisitExpr_(const Node* op) final {             \
-    return 1.0 + VisitExpr(op->a) + VisitExpr(op->b);  \
-  }
-#define VisitUnary(Node)                             \
-  double VisitExpr_(const Node* op) final {             \
-    return 1.0 + VisitExpr(op->a);                     \
-  }
+#define VisitBinary(Node) \
+  double VisitExpr_(const Node* op) final { return 1.0 + VisitExpr(op->a) + VisitExpr(op->b); }
+#define VisitUnary(Node) \
+  double VisitExpr_(const Node* op) final { return 1.0 + VisitExpr(op->a); }
 
-  VisitBinary(AddNode); VisitBinary(SubNode); VisitBinary(MulNode)
-  VisitBinary(DivNode); VisitBinary(ModNode); VisitBinary(FloorDivNode)
-  VisitBinary(FloorModNode); VisitBinary(MaxNode); VisitBinary(MinNode);
-  VisitBinary(EQNode); VisitBinary(NENode); VisitBinary(LTNode);
-  VisitBinary(LENode); VisitBinary(GTNode); VisitBinary(GENode);
-  VisitBinary(AndNode); VisitBinary(OrNode); VisitUnary(NotNode);
+  VisitBinary(AddNode);
+  VisitBinary(SubNode);
+  VisitBinary(MulNode);
+  VisitBinary(DivNode);
+  VisitBinary(ModNode);
+  VisitBinary(FloorDivNode);
+  VisitBinary(FloorModNode);
+  VisitBinary(MaxNode);
+  VisitBinary(MinNode);
+  VisitBinary(EQNode);
+  VisitBinary(NENode);
+  VisitBinary(LTNode);
+  VisitBinary(LENode);
+  VisitBinary(GTNode);
+  VisitBinary(GENode);
+  VisitBinary(AndNode);
+  VisitBinary(OrNode);
+  VisitUnary(NotNode);
 
   double VisitExpr_(const CallNode* op) final {
     double ret = 0.0;
-    for (const auto&x : op->args) {
+    for (const auto& x : op->args) {
       ret += VisitExpr(x);
     }
     return ret;
@@ -294,14 +299,15 @@ std::string ComputeDAG::PrintStepsAsPython(const std::vector<Step>& transform_st
           ss << ", ";
         }
       }
-      ss << " = " << "tuple(" << stage->op->name << ".op.axis)"
-         << " + " << "tuple(" << stage->op->name << ".op.reduce_axis)\n";
+      ss << " = "
+         << "tuple(" << stage->op->name << ".op.axis)"
+         << " + "
+         << "tuple(" << stage->op->name << ".op.reduce_axis)\n";
     }
   }
   // Call each step's PrintAsPythonAPI method
   for (const auto& step : transform_steps) {
-    ss << step->PrintAsPythonAPI(&stages, &stage_to_axes, &schedule,
-                                 transform_steps);
+    ss << step->PrintAsPythonAPI(&stages, &stage_to_axes, &schedule, transform_steps);
   }
 
   return ss.str();
@@ -333,9 +339,10 @@ void ComputeDAG::InferBound(std::vector<State>* states) const {
   auto worker_func = [&states, &out_states, this](int idx) {
     try {
       out_states[idx] = this->InferBound((*states)[idx]);
-    } catch (dmlc::Error &e) {
-      LOG(WARNING) << "InferBound fails on the state:\n" << (*states)[idx]
-                   << "\n" << e.what() << std::endl;
+    } catch (dmlc::Error& e) {
+      LOG(WARNING) << "InferBound fails on the state:\n"
+                   << (*states)[idx] << "\n"
+                   << e.what() << std::endl;
     }
   };
 
@@ -358,8 +365,7 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
   Map<IterVar, Range> bounds;
 
   // Replay steps to tvm::Schedule
-  std::tie(sch, tensors) = ReplaySteps(pstate->transform_steps, &stages,
-                                       &stage_to_axes);
+  std::tie(sch, tensors) = ReplaySteps(pstate->transform_steps, &stages, &stage_to_axes);
   sch = sch.normalize();
   // Get bound information from TVM schedule
   bounds = te::InferBound(sch);
@@ -380,9 +386,8 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
 
       auto find_res = bounds.find(axis);
       if (find_res != bounds.end()) {
-        new_iters.push_back(Iterator(iter->name, (*find_res).second,
-                                     iter->iter_type, iter->annotation,
-                                     &iter->ori_iters, iter->attr));
+        new_iters.push_back(Iterator(iter->name, (*find_res).second, iter->iter_type,
+                                     iter->annotation, &iter->ori_iters, iter->attr));
       } else {
         LOG(FATAL) << "Infer bound fails";
       }
@@ -445,62 +450,60 @@ std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<ComputeDAGNode>([](const ObjectRef& ref, ReprPrinter *p) {
-  auto* node = static_cast<const ComputeDAGNode*>(ref.get());
-  std::stringstream ss;
+    .set_dispatch<ComputeDAGNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const ComputeDAGNode*>(ref.get());
+      std::stringstream ss;
 
-  for (const auto& op : node->ops) {
-    if (op->IsInstance<te::PlaceholderOpNode>()) {
-      ss << op->name << " = PLACEHOLDER " << op.output(0)->shape << "\n";
-    } else if (auto pop = op.as<te::ComputeOpNode>()) {
-      for (size_t k = 0; k < pop->body.size(); ++k) {
-        ss << op->name << "(";
-        for (size_t i = 0; i < pop->axis.size(); i++) {
-          ss << pop->axis[i]->var->name_hint;
-          if (i != pop->axis.size() - 1) {
-            ss << ", ";
-          }
-        }
-        ss << ")";
-        if (pop->body.size() > 1) {
-          ss << ".v" << k;
-        }
-        if (auto preduce = pop->body[k].as<ReduceNode>()) {
-          CHECK_LT(k, preduce->combiner->result.size());
-          PrimExpr combiner = preduce->combiner->result[k];
-          if (combiner->IsInstance<AddNode>()) {
-            ss << " += " << preduce->source[0] << "\n";
-          } else if (combiner->IsInstance<MaxNode>()) {
-            ss << " max= " << preduce->source[0] << "\n";
-          } else if (combiner->IsInstance<MinNode>()) {
-            ss << " min= " << preduce->source[0] << "\n";
-          } else if (combiner->IsInstance<SelectNode>()) {
-            const auto& select = combiner.as<SelectNode>();
-            ss << " select(" << select->condition << ", " << select->true_value
-               << ", " << select->false_value << ")= " << '('
-               << preduce->source[0] << ',' << preduce->source[1] << ")\n";
-          } else {
-            LOG(FATAL) << "Unsupported reduction operator" << combiner;
+      for (const auto& op : node->ops) {
+        if (op->IsInstance<te::PlaceholderOpNode>()) {
+          ss << op->name << " = PLACEHOLDER " << op.output(0)->shape << "\n";
+        } else if (auto pop = op.as<te::ComputeOpNode>()) {
+          for (size_t k = 0; k < pop->body.size(); ++k) {
+            ss << op->name << "(";
+            for (size_t i = 0; i < pop->axis.size(); i++) {
+              ss << pop->axis[i]->var->name_hint;
+              if (i != pop->axis.size() - 1) {
+                ss << ", ";
+              }
+            }
+            ss << ")";
+            if (pop->body.size() > 1) {
+              ss << ".v" << k;
+            }
+            if (auto preduce = pop->body[k].as<ReduceNode>()) {
+              CHECK_LT(k, preduce->combiner->result.size());
+              PrimExpr combiner = preduce->combiner->result[k];
+              if (combiner->IsInstance<AddNode>()) {
+                ss << " += " << preduce->source[0] << "\n";
+              } else if (combiner->IsInstance<MaxNode>()) {
+                ss << " max= " << preduce->source[0] << "\n";
+              } else if (combiner->IsInstance<MinNode>()) {
+                ss << " min= " << preduce->source[0] << "\n";
+              } else if (combiner->IsInstance<SelectNode>()) {
+                const auto& select = combiner.as<SelectNode>();
+                ss << " select(" << select->condition << ", " << select->true_value << ", "
+                   << select->false_value << ")= " << '(' << preduce->source[0] << ','
+                   << preduce->source[1] << ")\n";
+              } else {
+                LOG(FATAL) << "Unsupported reduction operator" << combiner;
+              }
+            } else {
+              ss << " = " << pop->body[k] << "\n";
+            }
           }
         } else {
-          ss << " = " << pop->body[k] << "\n";
+          LOG(FATAL) << "Invalid op";
         }
       }
-    } else {
-      LOG(FATAL) << "Invalid op";
-    }
-  }
 
-  p->stream << ss.str();
-});
+      p->stream << ss.str();
+    });
 
-TVM_REGISTER_GLOBAL("ansor.ComputeDAG")
-.set_body_typed([](Array<te::Tensor> tensors) {
+TVM_REGISTER_GLOBAL("ansor.ComputeDAG").set_body_typed([](Array<te::Tensor> tensors) {
   return ComputeDAG(tensors);
 });
 
-TVM_REGISTER_GLOBAL("ansor.ComputeDAGGetInitState")
-.set_body_method(&ComputeDAG::GetInitState);
+TVM_REGISTER_GLOBAL("ansor.ComputeDAGGetInitState").set_body_method(&ComputeDAG::GetInitState);
 
 TVM_REGISTER_GLOBAL("ansor.ComputeDAGApplyStepsFromState")
     .set_body_typed([](const ComputeDAG& dag, const State& state) {

@@ -43,7 +43,7 @@ class LogToFileNode : public MeasureCallbackNode {
   void Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
                 const Array<MeasureResult>& results) final;
 
-  static constexpr const char *_type_key = "ansor.LogToFile";
+  static constexpr const char* _type_key = "ansor.LogToFile";
   TVM_DECLARE_FINAL_OBJECT_INFO(LogToFileNode, MeasureCallbackNode);
 };
 
@@ -85,8 +85,8 @@ class LogReaderNode : public Object {
    * \param skip_size Skip the first n lines.
    * \return The MeasureInputs and MeasureResults loaded from the log file.
    */
-  std::pair<Array<MeasureInput>, Array<MeasureResult> > ReadLines(
-          int max_size = -1, int skip_size = 0);
+  std::pair<Array<MeasureInput>, Array<MeasureResult> > ReadLines(int max_size = -1,
+                                                                  int skip_size = 0);
 
   static constexpr const char* _type_key = "ansor.LogReader";
   TVM_DECLARE_FINAL_OBJECT_INFO(LogReaderNode, Object);
@@ -117,8 +117,7 @@ class LogReader : public ObjectRef {
  * \param inputs The target MeasureInputs to be written.
  * \param results The target MeasureResults to be written.
  */
-void WriteMeasureRecords(std::ostream* os,
-                         const Array<MeasureInput>& inputs,
+void WriteMeasureRecords(std::ostream* os, const Array<MeasureInput>& inputs,
                          const Array<MeasureResult>& results);
 
 /*!
@@ -128,9 +127,7 @@ void WriteMeasureRecords(std::ostream* os,
  * \param res A pointer to MeasureResultNode, this is used as output.
  * \param log_version A pointer to log version string.
  */
-void ReadMeasureRecord(const std::string& str,
-                       MeasureInputNode* inp,
-                       MeasureResultNode* res,
+void ReadMeasureRecord(const std::string& str, MeasureInputNode* inp, MeasureResultNode* res,
                        std::string* log_version);
 
 }  // namespace ansor

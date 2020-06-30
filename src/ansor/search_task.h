@@ -82,8 +82,7 @@ class HardwareParamsNode : public Object {
    * \param target_host A `tvm.target` for host device.
    * \return A HardwareParams object.
    */
-  static HardwareParams GetDefaultHardwareParams(const Target& target,
-                                                 const Target& target_host);
+  static HardwareParams GetDefaultHardwareParams(const Target& target, const Target& target_host);
 
   static constexpr const char* _type_key = "ansor.HardwareParams";
   TVM_DECLARE_FINAL_OBJECT_INFO(HardwareParamsNode, Object);
@@ -103,8 +102,8 @@ class HardwareParams : public ObjectRef {
    * \param max_unroll_vec The max length of an axis to be unrolled or vectorized.
    * \param max_innermost_split_factor The max split factor for the innermost tile.
    */
-  HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes,
-                 int max_unroll_vec, int max_innermost_split_factor);
+  HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes, int max_unroll_vec,
+                 int max_innermost_split_factor);
 
   TVM_DEFINE_OBJECT_REF_METHODS(HardwareParams, ObjectRef, HardwareParamsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(HardwareParamsNode);
@@ -150,8 +149,7 @@ class SearchTask : public ObjectRef {
    * \param target_host The target host device of this search task.
    * \param hardware_params Hardware parameters used in this search task.
    */
-  SearchTask(ComputeDAG compute_dag, std::string workload_key,
-             Target target, Target target_host,
+  SearchTask(ComputeDAG compute_dag, std::string workload_key, Target target, Target target_host,
              HardwareParams hardware_params);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SearchTask, ObjectRef, SearchTaskNode);

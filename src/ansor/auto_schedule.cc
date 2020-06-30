@@ -50,12 +50,11 @@ TuneOption::TuneOption(int n_trials, int early_stopping, int num_measure_per_rou
 }
 
 std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(SearchTask task,
-    SearchPolicy search_policy, TuneOption tune_option) {
+                                                         SearchPolicy search_policy,
+                                                         TuneOption tune_option) {
   // Create a ProgramMeasurer to handle the schedule build and performance measure
-  ProgramMeasurer measurer =
-      ProgramMeasurer(tune_option->builder, tune_option->runner,
-                      tune_option->measure_callbacks,
-                      tune_option->verbose);
+  ProgramMeasurer measurer = ProgramMeasurer(tune_option->builder, tune_option->runner,
+                                             tune_option->measure_callbacks, tune_option->verbose);
   // Search for the best schedule
   State state = search_policy->Search(task, tune_option->n_trials, tune_option->early_stopping,
                                       tune_option->num_measure_per_round, tune_option->verbose,
@@ -63,18 +62,17 @@ std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(SearchTask task,
   return task->compute_dag.ApplySteps(state->transform_steps);
 }
 
-std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
-    std::string workload_key, Target target, Target target_host,
-    SearchPolicy search_policy, HardwareParams hardware_params,
-    TuneOption tune_option) {
+std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(std::string workload_key, Target target,
+                                                         Target target_host,
+                                                         SearchPolicy search_policy,
+                                                         HardwareParams hardware_params,
+                                                         TuneOption tune_option) {
   // Create SearchTask from the given workload key
   ComputeDAG dag = ComputeDAG(workload_key);
-  SearchTask task = SearchTask(
-      std::move(dag), std::move(workload_key), std::move(target),
-      std::move(target_host), std::move(hardware_params));
+  SearchTask task = SearchTask(std::move(dag), std::move(workload_key), std::move(target),
+                               std::move(target_host), std::move(hardware_params));
   // Search for the best schedule
-  return AutoSchedule(std::move(task), std::move(search_policy),
-                      std::move(tune_option));
+  return AutoSchedule(std::move(task), std::move(search_policy), std::move(tune_option));
 }
 
 TVM_REGISTER_GLOBAL("ansor.TuneOption")

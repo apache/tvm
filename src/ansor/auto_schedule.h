@@ -102,8 +102,9 @@ class TuneOption : public ObjectRef {
  * \param tune_option Tuning and measurement options.
  * \return A `te::Schedule` and the target `te::Tensor` to be used in `tvm.lower` or `tvm.build`.
  */
-std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
-    SearchTask task, SearchPolicy search_policy, TuneOption tune_option);
+std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(SearchTask task,
+                                                         SearchPolicy search_policy,
+                                                         TuneOption tune_option);
 
 /*!
  * \brief Auto schedule search for a given compute declaration, by workload key.
@@ -115,10 +116,11 @@ std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
  * \param tune_option Tuning and measurement options.
  * \return A `te::Schedule` and the target `te::Tensor` to be used in `tvm.lower` or `tvm.build`.
  */
-std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
-    std::string workload_key, Target target, Target target_host,
-    SearchPolicy search_policy, HardwareParams hardware_params,
-    TuneOption tune_option);
+std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(std::string workload_key, Target target,
+                                                         Target target_host,
+                                                         SearchPolicy search_policy,
+                                                         HardwareParams hardware_params,
+                                                         TuneOption tune_option);
 
 }  // namespace ansor
 }  // namespace tvm

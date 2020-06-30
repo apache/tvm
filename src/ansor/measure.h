@@ -141,8 +141,8 @@ class BuildResult : public ObjectRef {
    * \param error_msg The error message if there is any error.
    * \param time_cost The time cost of build.
    */
-  BuildResult(std::string filename, Array<te::Tensor> args,
-              int error_no, std::string error_msg, double time_cost);
+  BuildResult(std::string filename, Array<te::Tensor> args, int error_no, std::string error_msg,
+              double time_cost);
   TVM_DEFINE_OBJECT_REF_METHODS(BuildResult, ObjectRef, BuildResultNode);
 };
 
@@ -189,8 +189,8 @@ class MeasureResult : public ObjectRef {
    * \param all_cost The time cost of build and run.
    * \param timestamp The time stamps of this measurement.
    */
-  MeasureResult(Array<PrimExpr> costs, int error_no, std::string error_msg,
-                double all_cost, double timestamp);
+  MeasureResult(Array<PrimExpr> costs, int error_no, std::string error_msg, double all_cost,
+                double timestamp);
 
   TVM_DEFINE_OBJECT_REF_METHODS(MeasureResult, ObjectRef, MeasureResultNode);
 };
@@ -207,7 +207,7 @@ class MeasureCallbackNode : public Object {
    */
   virtual void Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
                         const Array<MeasureResult>& results) = 0;
-  static constexpr const char *_type_key = "ansor.MeasureCallback";
+  static constexpr const char* _type_key = "ansor.MeasureCallback";
   TVM_DECLARE_BASE_OBJECT_INFO(MeasureCallbackNode, Object);
 };
 
@@ -265,8 +265,7 @@ class RunnerNode : public Object {
    * \return An Array of MeasureResult.
    */
   virtual Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
-                                   const Array<BuildResult>& build_results,
-                                   int verbose) = 0;
+                                   const Array<BuildResult>& build_results, int verbose) = 0;
 
   static constexpr const char* _type_key = "ansor.Runner";
   TVM_DECLARE_BASE_OBJECT_INFO(RunnerNode, Object);
@@ -325,8 +324,7 @@ class LocalRunnerNode : public RunnerNode {
   double cooldown_interval;
 
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
-                           const Array<BuildResult>& build_results,
-                           int verbose) final;
+                           const Array<BuildResult>& build_results, int verbose) final;
 
   static constexpr const char* _type_key = "ansor.LocalRunner";
   TVM_DECLARE_FINAL_OBJECT_INFO(LocalRunnerNode, RunnerNode);
@@ -346,11 +344,9 @@ class LocalRunner : public Runner {
    * \param min_repeat_ms The minimum duration of one repeat in milliseconds.
    * \param cooldown_interval The cool down interval between two measurements.
    */
-  LocalRunner(int timeout, int number, int repeat,
-              int min_repeat_ms, double cooldown_interval);
+  LocalRunner(int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LocalRunner, Runner,
-                                        LocalRunnerNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LocalRunner, Runner, LocalRunnerNode);
 };
 
 /*!
@@ -390,10 +386,8 @@ class ProgramMeasurerNode : public Object {
    * \param results A pointer to MeasureResult vector, this is used as output.
    * \param batch_size Number of programs to be measured in one batch.
    */
-  void Measure(const SearchTask& task,
-               const SearchPolicy& policy,
-               const std::vector<MeasureInput>& inputs,
-               std::vector<MeasureResult>* results,
+  void Measure(const SearchTask& task, const SearchPolicy& policy,
+               const std::vector<MeasureInput>& inputs, std::vector<MeasureResult>* results,
                int batch_size = -1);
   /*!
    * \brief Do measurement silently.
@@ -402,8 +396,7 @@ class ProgramMeasurerNode : public Object {
    * \param inputs The target MeasureInputs.
    * \param results A pointer to MeasureResult vector, this is used as output.
    */
-  void SilentMeasure(const SearchTask& task,
-                     const std::vector<MeasureInput>& inputs,
+  void SilentMeasure(const SearchTask& task, const std::vector<MeasureInput>& inputs,
                      std::vector<MeasureResult>* results);
 
   /*! \brief The default max continuous error setting. */
@@ -427,9 +420,8 @@ class ProgramMeasurer : public ObjectRef {
    * \param verbose Verbose level.
    * \param max_continous_error The number of max continuous error.
    */
-  ProgramMeasurer(Builder builder, Runner runner,
-                  Array<MeasureCallback> callbacks,
-                  int verbose, int max_continous_error = -1);
+  ProgramMeasurer(Builder builder, Runner runner, Array<MeasureCallback> callbacks, int verbose,
+                  int max_continous_error = -1);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ProgramMeasurer, ObjectRef, ProgramMeasurerNode);
 };

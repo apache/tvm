@@ -70,7 +70,7 @@ class SearchCallbackNode : public Object {
    */
   virtual void Callback(SearchPolicyNode* policy) = 0;
 
-  static constexpr const char *_type_key = "ansor.SearchCallback";
+  static constexpr const char* _type_key = "ansor.SearchCallback";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchCallbackNode, Object);
 };
 
@@ -123,7 +123,7 @@ class SearchPolicyNode : public Object {
    */
   void RunCallbacks(const Array<SearchCallback>& callbacks);
 
-  static constexpr const char *_type_key = "ansor.SearchPolicy";
+  static constexpr const char* _type_key = "ansor.SearchPolicy";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchPolicyNode, Object);
 
  protected:

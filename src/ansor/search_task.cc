@@ -37,9 +37,8 @@ namespace ansor {
 TVM_REGISTER_NODE_TYPE(HardwareParamsNode);
 TVM_REGISTER_NODE_TYPE(SearchTaskNode);
 
-HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes,
-                               int cache_line_bytes, int max_unroll_vec,
-                               int max_innermost_split_factor) {
+HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes,
+                               int max_unroll_vec, int max_innermost_split_factor) {
   auto node = make_object<HardwareParamsNode>();
   node->num_cores = num_cores;
   node->vector_unit_bytes = vector_unit_bytes;
@@ -49,8 +48,8 @@ HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes,
   data_ = std::move(node);
 }
 
-HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
-    const Target& target, const Target& target_host) {
+HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target,
+                                                            const Target& target_host) {
   if (target->target_name == "llvm") {
     return HardwareParams(tvm::runtime::threading::MaxConcurrency(), 64, 64, 64, 64);
   } else {
@@ -59,9 +58,8 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
   return HardwareParams();
 }
 
-SearchTask::SearchTask(ComputeDAG compute_dag, std::string workload_key,
-                       Target target, Target target_host,
-                       HardwareParams hardware_params) {
+SearchTask::SearchTask(ComputeDAG compute_dag, std::string workload_key, Target target,
+                       Target target_host, HardwareParams hardware_params) {
   auto node = make_object<SearchTaskNode>();
   node->compute_dag = std::move(compute_dag);
   node->workload_key = std::move(workload_key);
@@ -70,27 +68,24 @@ SearchTask::SearchTask(ComputeDAG compute_dag, std::string workload_key,
   if (hardware_params.defined()) {
     node->hardware_params = std::move(hardware_params);
   } else {
-    node->hardware_params = HardwareParamsNode::GetDefaultHardwareParams(
-        node->target, node->target_host);
+    node->hardware_params =
+        HardwareParamsNode::GetDefaultHardwareParams(node->target, node->target_host);
   }
   data_ = std::move(node);
 }
 
 TVM_REGISTER_GLOBAL("ansor.HardwareParams")
-.set_body_typed([](int num_cores, int vector_unit_bytes,
-                   int cache_line_bytes, int max_unroll_vec,
-                   int max_innermost_split_factor) {
-  return HardwareParams(num_cores, vector_unit_bytes, cache_line_bytes,
-                        max_unroll_vec, max_innermost_split_factor);
-});
+    .set_body_typed([](int num_cores, int vector_unit_bytes, int cache_line_bytes,
+                       int max_unroll_vec, int max_innermost_split_factor) {
+      return HardwareParams(num_cores, vector_unit_bytes, cache_line_bytes, max_unroll_vec,
+                            max_innermost_split_factor);
+    });
 
 TVM_REGISTER_GLOBAL("ansor.SearchTask")
-.set_body_typed([](ComputeDAG compute_dag, std::string workload_key,
-                   Target target, Target target_host,
-                   HardwareParams hardware_params) {
-  return SearchTask(compute_dag, workload_key, target, target_host,
-                    hardware_params);
-});
+    .set_body_typed([](ComputeDAG compute_dag, std::string workload_key, Target target,
+                       Target target_host, HardwareParams hardware_params) {
+      return SearchTask(compute_dag, workload_key, target, target_host, hardware_params);
+    });
 
 }  // namespace ansor
 }  // namespace tvm

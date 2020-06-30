@@ -27,25 +27,26 @@
 
 #include <dmlc/common.h>
 #include <tvm/tir/expr.h>
-#include <unordered_map>
-#include <thread>
-#include <deque>
-#include <numeric>
-#include <exception>
+
 #include <algorithm>
+#include <deque>
+#include <exception>
+#include <future>
+#include <numeric>
 #include <random>
+#include <set>
+#include <string>
+#include <thread>
+#include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
-#include <string>
-#include <future>
-#include <tuple>
-#include <set>
 
 namespace std {
 
 /*! \brief Hash function for std::pair */
 template <typename T1, typename T2>
-struct hash<std::pair<T1, T2> > {
+struct hash<std::pair<T1, T2>> {
   std::size_t operator()(const std::pair<T1, T2>& k) const {
     return ::dmlc::HashCombine(std::hash<T1>()(k.first), std::hash<T2>()(k.second));
   }
@@ -53,7 +54,7 @@ struct hash<std::pair<T1, T2> > {
 
 /*! \brief Hash function for std::tuple */
 template <typename T1, typename T2, typename T3>
-struct hash<std::tuple<T1, T2, T3> > {
+struct hash<std::tuple<T1, T2, T3>> {
   std::size_t operator()(const std::tuple<T1, T2, T3>& k) const {
     return ::dmlc::HashCombine(
         ::dmlc::HashCombine(std::hash<T1>()(std::get<0>(k)), std::hash<T2>()(std::get<1>(k))),
@@ -63,7 +64,7 @@ struct hash<std::tuple<T1, T2, T3> > {
 
 /*! \brief Hash function for std::vector */
 template <typename T>
-struct hash<std::vector<T> > {
+struct hash<std::vector<T>> {
   std::size_t operator()(const std::vector<T>& vec) const {
     if (vec.empty()) {
       return 0;
@@ -84,8 +85,7 @@ namespace ansor {
 /********** Utilities for std::vector, std::set, std::string **********/
 /*! \brief Get the first appearance index of elements in a vector */
 template <typename T>
-inline void GetIndices(const std::vector<T>& array,
-                       const std::vector<T>& to_locate,
+inline void GetIndices(const std::vector<T>& array, const std::vector<T>& to_locate,
                        std::vector<int>* indices) {
   for (const auto& v : to_locate) {
     auto it = std::find(array.begin(), array.end(), v);
@@ -132,10 +132,10 @@ inline void StrReplace(std::string* base, const std::string& from, const std::st
 inline double FloatArrayMean(const Array<PrimExpr>& float_array) {
   double sum = 0;
   if (float_array.empty()) {
-      return 0.0;
+    return 0.0;
   }
 
-  for (const auto&x : float_array) {
+  for (const auto& x : float_array) {
     auto floatimm = x.as<tir::FloatImmNode>();
     CHECK(floatimm != nullptr);
     sum += floatimm->value;
@@ -182,7 +182,7 @@ inline std::string CleanName(const std::string& str) {
 class NullStream : public std::ostream {
  public:
   NullStream() : std::ostream(nullptr) {}
-  NullStream(const NullStream &) : std::ostream(nullptr) {}
+  NullStream(const NullStream&) : std::ostream(nullptr) {}
   static NullStream& Global();
 };
 
@@ -203,7 +203,7 @@ inline std::ostream& StdCout(int verbose) {
 /*! \brief Print a title */
 inline void PrintTitle(const std::string& title, int verbose) {
   if (verbose >= 1) {
-    std::cout << "------------------------------------------------------------" << "\n";
+    std::cout << "------------------------------------------------------------\n";
     std::cout << "-----------------------  [ " << title << " ]\n";
     std::cout << "------------------------------------------------------------" << std::endl;
   }
@@ -214,7 +214,7 @@ class ThreadPool {
  public:
   void Launch(size_t n = 1) {
     for (std::size_t i = 0; i < n; ++i) {
-      threads_.emplace_back([this] {WorkerFunc();});
+      threads_.emplace_back([this] { WorkerFunc(); });
     }
   }
 
@@ -223,7 +223,7 @@ class ThreadPool {
     is_finished_ = n <= 0;
   }
 
-  template<typename F, typename... Args, typename R = typename std::result_of<F(Args...)>::type>
+  template <typename F, typename... Args, typename R = typename std::result_of<F(Args...)>::type>
   std::future<R> Enqueue(F&& f, Args&&... args) {
     std::packaged_task<R()> p(std::bind(f, args...));
 
@@ -267,16 +267,12 @@ class ThreadPool {
     threads_.clear();
   }
 
-  size_t NumWorkers() {
-    return threads_.size();
-  }
+  size_t NumWorkers() { return threads_.size(); }
 
   static const int REFRESH_EVERY = 128;
   static ThreadPool& Global();
 
-  ~ThreadPool() {
-    Join();
-  }
+  ~ThreadPool() { Join(); }
 
  private:
   void WorkerFunc() {
@@ -285,12 +281,14 @@ class ThreadPool {
       {
         std::unique_lock<std::mutex> l(m_);
         if (work_.empty()) {
-          work_signal_.wait(l, [&]{ return !work_.empty(); });
+          work_signal_.wait(l, [&] { return !work_.empty(); });
         }
         f = std::move(work_.front());
         work_.pop_front();
       }
-      if (!f.valid()) { return; }
+      if (!f.valid()) {
+        return;
+      }
       f();
 
       finish_ct_--;

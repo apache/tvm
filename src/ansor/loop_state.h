@@ -135,7 +135,7 @@ class IteratorNode : public Object {
     v->Visit("attr", &attr);
   }
 
-  static constexpr const char *_type_key = "ansor.Iterator";
+  static constexpr const char* _type_key = "ansor.Iterator";
   TVM_DECLARE_FINAL_OBJECT_INFO(IteratorNode, Object);
 };
 
@@ -154,10 +154,8 @@ class Iterator : public ObjectRef {
    * \param ori_iters The original iterators before fusion.
    * \param attr The extra attribute of this iterator.
    */
-  Iterator(std::string name, Range range, IteratorType iter_type,
-           IteratorAnnotation annotation,
-           const std::vector<Iterator>* ori_iters = nullptr,
-           std::string attr = "");
+  Iterator(std::string name, Range range, IteratorType iter_type, IteratorAnnotation annotation,
+           const std::vector<Iterator>* ori_iters = nullptr, std::string attr = "");
 
   TVM_DEFINE_OBJECT_REF_METHODS(Iterator, ObjectRef, IteratorNode);
 };
@@ -187,11 +185,9 @@ class StageNode : public Object {
   /*! \brief Other stage-level attributes. */
   StageAttributes attrs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("op", &op);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("op", &op); }
 
-  static constexpr const char *_type_key = "ansor.Stage";
+  static constexpr const char* _type_key = "ansor.Stage";
   TVM_DECLARE_FINAL_OBJECT_INFO(StageNode, Object);
 };
 
@@ -214,8 +210,7 @@ class Stage : public ObjectRef {
    * \param compute_at The compute at type of this op.
    * \param attrs Other stage-level attributes.
    */
-  Stage(te::Operation op, StageType op_type,
-        const std::vector<Iterator>& iters,
+  Stage(te::Operation op, StageType op_type, const std::vector<Iterator>& iters,
         ComputeAtType compute_at, StageAttributes attrs);
   /*!
    * \brief The constructor.
@@ -225,8 +220,7 @@ class Stage : public ObjectRef {
    * \param compute_at The compute at type of this op.
    * \param attrs Other stage-level attributes.
    */
-  Stage(te::Operation op, StageType op_type,
-        std::vector<Iterator>&& iters,
+  Stage(te::Operation op, StageType op_type, std::vector<Iterator>&& iters,
         ComputeAtType compute_at, StageAttributes attrs);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Stage, ObjectRef, StageNode);
@@ -238,7 +232,7 @@ class Stage : public ObjectRef {
  * It consists of the current loop structure and the history steps to reach this State.
  * Each State corresponds to a specific schedule for the target ComputeDAG.
  */
-class StateNode: public Object {
+class StateNode : public Object {
  public:
   /*! \brief Current stages and loop structures. */
   std::vector<Stage> stages;
@@ -296,8 +290,7 @@ class State : public ObjectRef {
    * \return The iterator results after split.
    */
   std::vector<Iterator> split(int stage_id, const Iterator& it,
-                              const std::vector<PrimExpr>& lengths,
-                              bool inner_to_outer = true);
+                              const std::vector<PrimExpr>& lengths, bool inner_to_outer = true);
   /*!
    * \brief Schedule primitive corresponds to te.fuse.
    * \param stage_id The index of the target stage.
@@ -363,7 +356,6 @@ class State : public ObjectRef {
 }  // namespace ansor
 }  // namespace tvm
 
-
 // Hash and equal function for State
 namespace std {
 
@@ -378,8 +370,7 @@ struct hash<::tvm::ansor::State> {
 /*! \brief The equal_to function for ansor::State. */
 template <>
 struct equal_to<::tvm::ansor::State> {
-  bool operator() (const ::tvm::ansor::State& lhs,
-                   const ::tvm::ansor::State& rhs) const {
+  bool operator()(const ::tvm::ansor::State& lhs, const ::tvm::ansor::State& rhs) const {
     return lhs.ToStr() == rhs.ToStr();
   }
 };
