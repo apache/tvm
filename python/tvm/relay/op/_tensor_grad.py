@@ -69,7 +69,7 @@ def log2_grad(orig, grad):
     """Returns [grad * 1 / (log(2) * x)]"""
     x = orig.args[0]
     ones = ones_like(x)
-    two = const(2.0)
+    two = const(2.0, dtype=x.checked_type.dtype)
     return [grad * ones / (log(two) * x)]
 
 
@@ -78,7 +78,7 @@ def log10_grad(orig, grad):
     """Returns [grad * 1 / (log(10) * x)]"""
     x = orig.args[0]
     ones = ones_like(x)
-    ten = const(10.0)
+    ten = const(10.0, dtype=x.checked_type.dtype)
     return [grad * ones / (log(ten) * x)]
 
 
@@ -175,8 +175,9 @@ def exp_grad(orig, grad):
 @register_gradient("sqrt")
 def sqrt_grad(orig, grad):
     """Returns [grad * 0.5 * (x ^ -0.5)]"""
-    a = const(0.5)  # (TODO) type?
-    return [grad * a * power(orig.args[0], negative(a))]
+    x = orig.args[0]
+    a = const(0.5, dtype=x.checked_type.dtype)
+    return [grad * a * power(x, negative(a))]
 
 
 @register_gradient("sigmoid")
@@ -261,6 +262,13 @@ def collapse_sum_like_grad(orig, grad):
     return [broadcast_to_like(grad, x), zeros_like(y)]
 
 
+@register_gradient("collapse_sum_to")
+def collapse_sum_to_grad(orig, grad):
+    """Returns [broadcast_to_like(grad, x), 0]"""
+    x, y = orig.args
+    return [broadcast_to_like(grad, x), zeros_like(y)]
+
+
 @register_gradient("abs")
 def abs_grad(orig, grad):
     """Returns grad * (select(x < 0, -1, 1))."""
@@ -284,8 +292,8 @@ def clip_grad(orig, grad):
     x = orig.args[0]
     a_min = orig.attrs.get_int("a_min")
     a_max = orig.attrs.get_int("a_max")
-    a_mins = broadcast_to_like(const(a_min), x)
-    a_maxs = broadcast_to_like(const(a_max), x)
+    a_mins = broadcast_to_like(const(a_min, dtype=x.checked_type.dtype), x)
+    a_maxs = broadcast_to_like(const(a_max, dtype=x.checked_type.dtype), x)
     zeros = zeros_like(x)
     ones = ones_like(x)
     return [where(less(x, a_mins), zeros, where(less(a_maxs, x), zeros, ones * grad))]
@@ -591,7 +599,7 @@ def cross_entropy_grad(orig, grad):
     x, y = orig.args
     shape = shape_of(x)
     batch_size = take(shape, const(0, dtype='int32'), axis=0)
-    grad = grad / batch_size.astype('float32')
+    grad = grad / batch_size.astype(x.checked_type.dtype)
     return [-grad * y / x, -grad * log(x)]
 
 
@@ -600,5 +608,5 @@ def cross_entropy_with_logits_grad(orig, grad):
     x, y = orig.args
     shape = shape_of(x)
     batch_size = take(shape, const(0, dtype='int32'), axis=0)
-    grad = grad / batch_size.astype('float32')
+    grad = grad / batch_size.astype(x.checked_type.dtype)
     return [-grad * y, -grad * x]

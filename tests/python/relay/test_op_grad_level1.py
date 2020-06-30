@@ -36,9 +36,8 @@ def relu(x):
 
 
 def test_unary_op():
-    def check_single_op(opfunc, ref):
+    def check_single_op(opfunc, ref, dtype):
         shape = (10, 4)
-        dtype = 'float32'
         tp = relay.TensorType(shape, dtype)
         x = relay.var("x", tp)
         y = opfunc(x)
@@ -76,16 +75,17 @@ def test_unary_op():
                         (tvm.relay.acosh, lambda x: 1./ (x**2 - 1.)**(1./2.)),
                         (tvm.relay.asinh, lambda x: 1./ (x**2 + 1.)**(1./2.)),
                         (tvm.relay.atanh, lambda x: -1./ (x**2 - 1.))]:
-        check_single_op(opfunc, ref)
+        for dtype in ('float32', 'float64'):
+            check_single_op(opfunc, ref, dtype)
 
 
 def test_binary_op():
     def inst(vars, sh):
         return [vars.get(s, s) for s in sh]
 
-    def check_binary_op(opfunc, ref):
+    def check_binary_op(opfunc, ref, dtype):
         s = (5, 10, 5)
-        t = relay.TensorType((5, 10, 5))
+        t = relay.TensorType((5, 10, 5), dtype=dtype)
         x = relay.var("x", t)
         y = relay.var("y", t)
         z = opfunc(x, y)
@@ -107,7 +107,8 @@ def test_binary_op():
                         (relay.subtract, lambda x, y: [np.ones_like(x), -np.ones_like(y)]),
                         (relay.multiply, lambda x, y: [y, x]),
                         (relay.divide, lambda x, y: [1 / y, - x / (y**2)])]:
-        check_binary_op(opfunc, ref)
+        for dtype in ('float32', 'float64'):
+            check_binary_op(opfunc, ref, dtype)
 
 
 def test_softmax_grad():
