@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/runtime/crt/error_codes.h
+ * \file include/tvm/runtime/crt/error_codes.h
  * \brief Defines integral error codes returned by the CRT.
  */
 #ifndef TVM_RUNTIME_CRT_ERROR_CODES_H_

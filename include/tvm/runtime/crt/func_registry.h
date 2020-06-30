@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/runtime/crt/func_registry.h
+ * \file include/tvm/runtime/crt/func_registry.h
  * \brief Defines generic string-based function lookup structs
  */
 #ifndef TVM_RUNTIME_CRT_FUNC_REGISTRY_H_
