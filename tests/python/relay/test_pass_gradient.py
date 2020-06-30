@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import collections
 import numpy as np
+import pytest
 
 import tvm
 from tvm import te
@@ -23,7 +25,7 @@ from tvm.relay.analysis import free_vars, free_type_vars
 from tvm.relay import create_executor, transform
 from tvm.relay.transform import gradient
 from tvm.relay.prelude import Prelude
-from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type, check_grad, rand
+from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type, check_grad, rand, count_ops
 import tvm.relay.op as op
 
 
@@ -309,17 +311,19 @@ def test_concat():
     # no value validation as concatenate has dummy gradient right now.
 
 
+def test_no_duplication():
+    x = tvm.relay.Var('x', type_annotation=tvm.relay.TensorType([12, 12]))
+    y = tvm.relay.Var('y', type_annotation=tvm.relay.TensorType([12, 12]))
+    xy = tvm.relay.nn.dense(x, y)
+
+    m = tvm.relay.sum(xy, keepdims=True)
+    s = tvm.relay.sum(xy - m)
+    fn = tvm.relay.Function([x,y], s)
+    fn = run_infer_type(fn)
+    gr = tvm.relay.transform.gradient(fn, mode='first_order')
+
+    counts = count_ops(gr)
+    assert counts['nn.dense'] == 3, "We expect 3 dense (1 forward, two backward)"
+
 if __name__ == "__main__":
-    test_id()
-    test_add()
-    test_temp_add()
-    test_sub()
-    test_broadcast_add()
-    test_broadcast_subtract()
-    test_tuple()
-    test_tuple_first_order()
-    test_pow()
-    test_ref()
-    test_square_second_order()
-    test_if()
-    test_grad_tuple()
+    pytest.main([__file__])
