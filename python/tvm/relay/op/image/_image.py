@@ -23,7 +23,8 @@ from topi.util import get_const_tuple
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern
-
+from tvm.te.hybrid import script
+from tvm.runtime import convert
 
 # resize
 @reg.register_compute("image.resize")
@@ -63,6 +64,22 @@ def compute_crop_and_resize(attrs, inputs, out_type):
                                        extrapolation_value, out_dtype)]
 
 reg.register_injective_schedule("image.crop_and_resize")
+
+@script
+def _crop_and_resize_func(image_shape, boxes_shape, crop_size):
+    out = output_tensor((4,), "int64")
+    out[0] = boxes_shape[0]
+    out[1] = int64(crop_size[0])
+    out[2] = int64(crop_size[1])
+    out[3] = image_shape[3]
+
+    return out
+
+@reg.register_shape_func("image.crop_and_resize", False)
+def crop_and_resize_func(attrs, inputs, _):
+    crop_size = get_const_tuple(attrs.crop_size)
+
+    return [_crop_and_resize_func(inputs[0], inputs[1], convert(crop_size))]
 
 
 # dilation2d
