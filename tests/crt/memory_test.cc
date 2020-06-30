@@ -23,7 +23,7 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/crt/memory.h>
 
-#include "../../src/runtime/crt/memory.c"
+#include <tvm/include/runtime/crt/memory.h>
 
 TEST(CRTMemory, Alloc) {
   for (int idx = 0; idx < 65536; idx++) {
