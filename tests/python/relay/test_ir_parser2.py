@@ -75,7 +75,7 @@ def graph_equal(lhs, rhs):
 
 
 def roundtrip(expr):
-    x = relay.fromtext(expr.astext())
+    x = tvm.parser.fromtext(expr.astext())
     assert_graph_equal(x, expr)
 
 
@@ -88,6 +88,9 @@ def parse_text(code):
 def parses_as(code, expr):
     # type: (str, relay.Expr) -> bool
     parsed = parse_text(code)
+    x = relay.var('x', shape=(10, 10))
+    parsed["main"] = relay.Function([x], x)
+    import pdb; pdb.set_trace()
     result = graph_equal(parsed, expr)
     return result
 
@@ -102,7 +105,6 @@ def assert_parses_as(code, expr):
     assert_graph_equal(parsed, expr)
 
 def assert_parse_module_as(code, mod):
-    import pdb; pdb.set_trace()
     parsed = parse_module(code)
     import pdb; pdb.set_trace()
     assert_graph_equal(parsed, mod)
@@ -746,7 +748,7 @@ def test_match():
         rest_var = relay.Var("rest")
         cons_case = relay.Let(
             _,
-            UNIT,
+            None, #UNIT,
             relay.add(relay.const(1), relay.Call(length_var, [rest_var])))
         body = relay.Match(input_var,
             [relay.Clause(
@@ -773,8 +775,8 @@ def test_match():
 
             def @length[A](%%xs: List[A]) -> int32 {
               %s (%%xs) {
-                Cons(_, %%rest) => {
-                  ();;
+                Cons(_, %%rest : List[A]) => {
+                  ();
                   1 + @length(%%rest)
                 },
                 Nil => 0,

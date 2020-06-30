@@ -17,8 +17,11 @@
 
 from . import _ffi_api
 
-def parse(file_content, file_name="from_string"):
-    return _ffi_api.ParseModule(file_name, file_content)
+def parse(source, source_name="from_string"):
+    return _ffi_api.ParseModule(source_name, source)
 
 def parse_expr(source):
     return _ffi_api.ParseExpr("string", source)
+
+def fromtext(source, source_name="from_string"):
+    return parse(str(source), str(source_name))

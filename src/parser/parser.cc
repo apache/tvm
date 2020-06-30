@@ -22,11 +22,12 @@
  * \brief A parser for TVM IR.
  */
 #include <tvm/ir/module.h>
+#include <tvm/node/reflection.h>
+#include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/node/reflection.h>
 
 #include <fstream>
 
@@ -39,21 +40,6 @@ namespace parser {
 
 using namespace relay;
 using Expr = relay::Expr;
-
-// adtConsDefnList: adtConsDefn (',' adtConsDefn)* ','? ;
-// adtConsDefn: constructorName ('(' typeExpr (',' typeExpr)* ')')? ;
-// matchClauseList: matchClause (',' matchClause)* ','? ;
-// matchClause: pattern '=>' ('{' expr '}' | expr) ;
-// // complete or incomplete match, respectively
-// matchType : 'match' | 'match?' ;
-
-// patternList: '(' pattern (',' pattern)* ')';
-// pattern
-//   : '_'                             # wildcardPattern
-//   | localVar (':' typeExpr)?        # varPattern
-//   | constructorName patternList?    # constructorPattern
-//   | patternList                     # tuplePattern
-//   ;
 
 struct GlobalFunc {
   GlobalVar global;
@@ -110,13 +96,13 @@ MetaRefExpr::MetaRefExpr(std::string type_key, uint64_t node_index) {
   data_ = std::move(rnode);
 }
 
-template<typename T>
+template <typename T>
 struct Scope {
   std::unordered_map<std::string, T> name_map;
   Scope() : name_map() {}
 };
 
-template<typename T>
+template <typename T>
 struct ScopeStack {
   std::vector<Scope<T>> scope_stack;
 
@@ -124,7 +110,7 @@ struct ScopeStack {
     if (!this->scope_stack.size()) {
       LOG(FATAL) << "internal issue";
     }
-    this->scope_stack.back().name_map.insert({ name, value });
+    this->scope_stack.back().name_map.insert({name, value});
   }
 
   T Lookup(const std::string& name) {
@@ -137,16 +123,12 @@ struct ScopeStack {
     return T();
   }
 
-  void PushStack() {
-    this->scope_stack.push_back(Scope<T>());
-  }
+  void PushStack() { this->scope_stack.push_back(Scope<T>()); }
 
-  void PopStack() {
-    this->scope_stack.pop_back();
-  }
+  void PopStack() { this->scope_stack.pop_back(); }
 };
 
-template<typename T>
+template <typename T>
 struct InternTable {
   std::unordered_map<std::string, T> table;
   void Add(const std::string& name, const T& t) {
@@ -154,7 +136,7 @@ struct InternTable {
     if (it != table.end()) {
       LOG(FATAL) << "duplicate name";
     } else {
-      table.insert({ name, t});
+      table.insert({name, t});
     }
   }
 
@@ -190,6 +172,9 @@ struct Parser {
   /*! \brief A global mapping for type definitions. */
   InternTable<GlobalTypeVar> type_names;
 
+  /*! \brief A global mapping for constructor names. */
+  InternTable<Constructor> ctors;
+
   /*! \brief A mapping from graph variable to expression, i.e., `%0 = expr`. */
   std::unordered_map<int, Expr> graph_ctx;
 
@@ -202,6 +187,7 @@ struct Parser {
   Parser(std::vector<Token> tokens, OperatorTable op_table, Source source)
       : diag_ctx(source), pos(0), tokens(tokens), op_table(op_table), ignore_whitespace(true) {}
 
+  /*! \brief A helper for debugging the parser, displays the next N tokens in the token stream. */
   void DisplayNextN(int n) {
     std::cout << "remaining tokens: " << std::endl;
     auto bound = std::min(pos + n, (int)tokens.size());
@@ -210,16 +196,16 @@ struct Parser {
     }
   }
 
+  /*! \brief Examine the next token in the stream, the current parser is configured to be
+   * whitespace insensitive so we will skip all whitespace or comment tokens. */
   Token Peek() {
     // For now we ignore all whitespace tokens and comments.
     // We can tweak this behavior later to enable white space sensitivity in the parser.
-    while (pos < tokens.size() &&
-           ignore_whitespace && (tokens.at(pos)->token_type == TokenType::Whitespace ||
-                                 tokens.at(pos)->token_type == TokenType::Newline ||
-                                 tokens.at(pos)->token_type == TokenType::LineComment ||
-                                 tokens.at(pos)->token_type == TokenType::Comment)) {
-      // std::cout << "pos: " << pos << std::endl;
-      // std::cout << "tokens: " << tokens.size() << std::endl;
+    while (pos < tokens.size() && ignore_whitespace &&
+           (tokens.at(pos)->token_type == TokenType::Whitespace ||
+            tokens.at(pos)->token_type == TokenType::Newline ||
+            tokens.at(pos)->token_type == TokenType::LineComment ||
+            tokens.at(pos)->token_type == TokenType::Comment)) {
       pos++;
     }
 
@@ -230,10 +216,12 @@ struct Parser {
     }
   }
 
-  // Allow lookahead into the token stream.
+  /*! \brief Lookahead by N tokens.
+   * \param n The number of tokens to lookahead.
+   * \return The Nth token.
+   */
   Token Lookahead(int n) {
-    CHECK_LE(1, n)
-      << "lookahead by > 1 is invalid";
+    CHECK_LE(1, n) << "lookahead by > 1 is invalid";
 
     auto old_pos = pos;
     for (int i = 0; i < n - 1; i++) {
@@ -246,21 +234,37 @@ struct Parser {
     return tok;
   }
 
+  /*! \brief Consume a token, this method is the lowest level way to consume a token
+   * and will not ignore white space or look ahead in anyway.
+   *
+   * /param token_type The token type to match.
+   */
   void Consume(const TokenType& token) {
-    if (tokens[pos]->token_type != token) {
-      std::string message =  "expected a " + Pretty(token) + " found " + Pretty(Peek()->token_type);
+    if (tokens[pos]->token_type != token_type) {
+      std::string message = "expected a " + Pretty(token_type) + " found " + Pretty(Peek()->token_type);
       this->diag_ctx.Emit({tokens[pos]->line, tokens[pos]->column, message});
       this->diag_ctx.Render();
     }
     pos++;
   }
 
+  /*! Match a token in the stream, this will first invoke Peek, ignoring tokens such
+   * as whitespace or comments returning the first meaningful token.
+   *
+   * We then try and consume the requested token, this will trigger an error if the
+   * current token does not match the token_type.
+   */
   Token Match(const TokenType& token_type) {
     auto tok = Peek();
     Consume(token_type);
     return tok;
   }
 
+  /*! Conditionally consume a token when it matches, this will never trigger an error
+   * as we guard against consuming the token before we do.
+   *
+   * Useful for matching optional tokens, effectively looksahead by one.
+   */
   bool WhenMatch(const TokenType& token_type) {
     if (Peek()->token_type == token_type) {
       Consume(token_type);
@@ -270,11 +274,20 @@ struct Parser {
     }
   }
 
+  /* \brief Add a graph binding to the parsing context
+   *
+   * For example map 0 -> add(...), etc.
+   */
   void AddGraphBinding(const Token& token, const Expr& expr) {
     auto graph_no = token.ToNumber();
     this->graph_ctx.insert({graph_no, expr});
   }
 
+  /* \brief Lookup a previously bound graph variable.
+   *
+   * Note: we take tokens in all lookup methods so that we
+   * that we can do error reporting based on token location.
+   */
   Expr LookupGraphBinding(const Token& token) {
     auto graph_no = token.ToNumber();
     return this->graph_ctx.at(graph_no);
@@ -295,7 +308,8 @@ struct Parser {
   Var LookupLocal(const Token& local) {
     auto var = this->expr_scopes.Lookup(local.ToString());
     if (!var.defined()) {
-      diag_ctx.Emit({ local->line, local->column, "this local variable has not been previously declared"});
+      diag_ctx.Emit(
+          {local->line, local->column, "this local variable has not been previously declared"});
     }
     return var;
   }
@@ -303,14 +317,14 @@ struct Parser {
   TypeVar LookupTypeVar(const Token& ident) {
     auto var = this->type_scopes.Lookup(ident.ToString());
     if (!var.defined()) {
-      diag_ctx.Emit({ ident->line, ident->column, "this type variable has not been previously declared anywhere, perhaps a typo?"});
+      diag_ctx.Emit(
+          {ident->line, ident->column,
+           "this type variable has not been previously declared anywhere, perhaps a typo?"});
     }
     return var;
   }
 
-  void PushScope() {
-    this->expr_scopes.PushStack();
-  }
+  void PushScope() { this->expr_scopes.PushStack(); }
 
   void PopScopes(int n) {
     for (int i = 0; i < n; i++) {
@@ -318,9 +332,7 @@ struct Parser {
     }
   }
 
-  void PushTypeScope() {
-    this->type_scopes.PushStack();
-  }
+  void PushTypeScope() { this->type_scopes.PushStack(); }
 
   void PopTypeScopes(int n) {
     for (int i = 0; i < n; i++) {
@@ -365,6 +377,27 @@ struct Parser {
     throw std::runtime_error(msg);
   }
 
+  /*! \brief A parsing helper for a bracketed expression <start> <parser> <stop>. */
+  template <typename R>
+  R Bracket(TokenType open, TokenType close, std::function<R()> parser) {
+    Match(open);
+    R result = parser();
+    Match(close);
+    return result;
+  }
+
+  /*! \brief Parse `(` parser() `)`. */
+  template <typename R>
+  R Parens(std::function<R()> parser) {
+    return Bracket(TokenType::OpenParen, TokenType::CloseParen, parser);
+  }
+
+  /*! \brief Parse `{` parser() `}`. */
+  template <typename R>
+  R Block(std::function<R()> parser) {
+    return Bracket(TokenType::LCurly, TokenType::RCurly, parser);
+  }
+
   IRModule ParseModule() {
     // Parse the semver header at the top of the module.
     auto _version = ParseSemVer();
@@ -388,16 +421,24 @@ struct Parser {
   }
 
   SemVer ParseSemVer() {
-    // Consume(TokenType::Unknown);
-    return SemVer{.major = 0, .minor = 0, .patch = 0};
+    // TODO(@jroesch): convert semver to module level attribute.
+    if (Peek()->token_type == TokenType::Identifier) {
+      auto id = Match(TokenType::Identifier);
+      CHECK_EQ(id.ToString(), "v0");
+      Consume(TokenType::Period);
+      // CHECK_EQ(minor_and_patch)
+      Consume(TokenType::Float);
+    }
+    // For now we only support current version.
+    return SemVer{.major = 0, .minor = 0, .patch = 4};
   }
 
   Definitions ParseDefinitions() {
     Definitions defs;
 
     while (true) {
-     auto next = Peek();
-     switch (next->token_type) {
+      auto next = Peek();
+      switch (next->token_type) {
         case TokenType::Defn: {
           Consume(TokenType::Defn);
           auto global_name = Match(TokenType::Global).ToString();
@@ -422,7 +463,7 @@ struct Parser {
     Match(TokenType::TypeDef);
     // Parse the type's identifier.
     auto type_id = Match(TokenType::Identifier).ToString();
-    auto type_global = tvm::GlobalTypeVar(type_id, TypeKind::kTypeData);
+    auto type_global = tvm::GlobalTypeVar(type_id, TypeKind::kAdtHandle);
     type_names.Add(type_id, type_global);
 
     Array<TypeVar> generics;
@@ -432,26 +473,36 @@ struct Parser {
       // If we have generics we need to add a type scope.
       PushTypeScope();
       should_pop = true;
-      generics = ParseSequence<TypeVar>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
-        auto type_var_name = Match(TokenType::Identifier).ToString();
-        return BindTypeVar(type_var_name, TypeKind::kType);
-      });
+      generics =
+          ParseSequence<TypeVar>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
+            auto type_var_name = Match(TokenType::Identifier).ToString();
+            return BindTypeVar(type_var_name, TypeKind::kType);
+          });
     }
 
     // Parse the list of constructors.
-    auto ctors = ParseSequence<tvm::Constructor>(TokenType::LCurly, TokenType::Comma, TokenType::RCurly, [&]() {
-      // First match the name of the constructor.
-      auto ctor = Match(TokenType::Identifier).ToString();
-      // Match the optional field list.
-      if (Peek()->token_type != TokenType::OpenParen) {
-        return tvm::Constructor(ctor, {}, type_global);
-      } else {
-        auto arg_types = ParseSequence<Type>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&]() {
-          return ParseType();
+    auto ctors = ParseSequence<tvm::Constructor>(
+        TokenType::LCurly, TokenType::Comma, TokenType::RCurly, [&]() {
+          // First match the name of the constructor.
+          auto ctor_name = Match(TokenType::Identifier).ToString();
+
+          Constructor ctor;
+          // Match the optional field list.
+          if (Peek()->token_type != TokenType::OpenParen) {
+            ctor = tvm::Constructor(ctor_name, {}, type_global);
+          } else {
+            auto arg_types =
+                ParseSequence<Type>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen,
+                                    [&]() { return ParseType(); });
+            ctor = tvm::Constructor(ctor_name, arg_types, type_global);
+          }
+
+          CHECK(ctor.defined());
+
+          this->ctors.Add(ctor_name, ctor);
+
+          return ctor;
         });
-        return tvm::Constructor(ctor, arg_types, type_global);
-      }
-    });
 
     // Now pop the type scope.
     if (should_pop) {
@@ -461,24 +512,12 @@ struct Parser {
     return TypeData(type_global, generics, ctors);
   }
 
-  template <typename R>
-  R Bracket(TokenType open, TokenType close, std::function<R()> parser) {
-    Match(open);
-    R result = parser();
-    Match(close);
-    return result;
-  }
-
-  template <typename R>
-  R Parens(std::function<R()> parser) {
-    return Bracket(TokenType::OpenParen, TokenType::CloseParen, parser);
-  }
-
-  template <typename R>
-  R Block(std::function<R()> parser) {
-    return Bracket(TokenType::LCurly, TokenType::RCurly, parser);
-  }
-
+  /*! \brief Parse a "binding expression", that is an expression where
+   * a graph or let variable is bound.
+   *
+   * In order to avoid stack overflow this is implemented in a special
+   * iterative way to keep stack depth constant in a long chain of bindings.
+   */
   Expr ParseBindingExpr() {
     // We use a loop here so that the stack depth
     // does not grow linearly with a sequence of
@@ -534,7 +573,7 @@ struct Parser {
         Consume(TokenType::Semicolon);
 
         // Add the bindings to the local data structure.
-        bindings.push_back({ var, val });
+        bindings.push_back({var, val});
         scopes++;
         PushScope();
       } else {
@@ -588,43 +627,56 @@ struct Parser {
     return matched;
   }
 
+  // A function for debugging the operator parser.
   void DebugStack(const std::vector<Expr>& exprs, const std::vector<Rule>& rules) {
-      std::cout << "Expr Stack: ";
-      for (auto expr : exprs) {
-        std::cout << expr << ", ";
-      }
+    std::cout << "Expr Stack: ";
+    for (auto expr : exprs) {
+      std::cout << expr << ", ";
+    }
 
-      std::cout << std::endl;
-      std::cout << "Op Stack: ";
-      for (auto rule : rules) {
-        std::cout << rule.op << ", ";
-      }
+    std::cout << std::endl;
+    std::cout << "Op Stack: ";
+    for (auto rule : rules) {
+      std::cout << rule.op << ", ";
+    }
 
-      std::cout << std::endl;
+    std::cout << std::endl;
   }
 
-
-  // Provides parsing a sequence of the form: <star> (T <sep>)* <tokens_for_before_stop> <stop>.
-  // the intended use case of the before stop parser to is allow a customized parsing rule for things
-  // such as attributes.
-  template<typename T>
-  Array<T> ParseSequence(TokenType start, TokenType sep, TokenType stop, std::function<T()> parse, std::function<void()> before_stop = nullptr) {
+  /*! \brief Parses a sequence beginning with a start token, seperated by a seperator token, and
+   * ending with a stop token.
+   *
+   * The simple form being <start> (<parse()> <seperator>)* <stop>.
+   *
+   * This also provides a fourth argument which is allowed to run when the sequence which matches
+   * the inner sequence can not proceed.
+   *
+   * This is useful for parsing things like attributes which don't match the standard expression
+   * parsers but are contained within the stop token.
+   */
+  template <typename T>
+  Array<T> ParseSequence(TokenType start, TokenType sep, TokenType stop, std::function<T()> parse,
+                         std::function<void()> before_stop = nullptr) {
     Match(start);
     if (WhenMatch(stop)) {
       return Array<T>();
     } else {
       auto data = parse();
-      Array<T> elements = { data };
+      Array<T> elements = {data};
 
       // parse '(' expr ')'
       // if we are at the end invoke leftover parser
-      if (Peek()->token_type == stop && before_stop) { before_stop(); }
+      if (Peek()->token_type == stop && before_stop) {
+        before_stop();
+      }
       if (WhenMatch(stop)) {
         return elements;
-      // parse '( expr ',' * ')'
+        // parse '( expr ',' * ')'
       } else if (WhenMatch(sep)) {
-      // if we are at the end invoke leftover parser
-        if (Peek()->token_type == stop && before_stop) { before_stop(); }
+        // if we are at the end invoke leftover parser
+        if (Peek()->token_type == stop && before_stop) {
+          before_stop();
+        }
         while (true) {
           if (WhenMatch(stop)) {
             break;
@@ -642,21 +694,20 @@ struct Parser {
     }
   }
 
+  /*! \brief Parse a shape. */
   Array<tvm::PrimExpr> ParseShape() {
-    auto dims = ParseSequence<tvm::PrimExpr>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&]() {
-      auto tok = Match(TokenType::Integer);
-      return Downcast<tvm::PrimExpr>(tok->data);
-    });
+    auto dims = ParseSequence<tvm::PrimExpr>(TokenType::OpenParen, TokenType::Comma,
+                                             TokenType::CloseParen, [&]() {
+                                               auto tok = Match(TokenType::Integer);
+                                               return Downcast<tvm::PrimExpr>(tok->data);
+                                             });
     return dims;
   }
 
+  /*! \brief Parse a function type. */
   Type ParseFunctionType() {
-    auto ty_params = ParseSequence<Type>(
-        TokenType::OpenParen,
-        TokenType::Comma,
-        TokenType::CloseParen, [&]() {
-      return ParseType();
-    });
+    auto ty_params = ParseSequence<Type>(TokenType::OpenParen, TokenType::Comma,
+                                         TokenType::CloseParen, [&]() { return ParseType(); });
 
     Match(TokenType::Minus);
     Match(TokenType::RAngle);
@@ -678,14 +729,12 @@ struct Parser {
       head_type = global_type;
     }
 
-    CHECK(head_type.defined())
-      << "head type must be defined";
+    CHECK(head_type.defined()) << "head type must be defined";
 
     Array<Type> arg_types;
     if (Peek()->token_type == TokenType::LSquare) {
-      arg_types = ParseSequence<Type>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
-        return ParseType();
-      });
+      arg_types = ParseSequence<Type>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare,
+                                      [&]() { return ParseType(); });
     }
 
     if (arg_types.size()) {
@@ -695,16 +744,17 @@ struct Parser {
     }
   }
 
+  /*! \brief Parses a TVM type.
+   *
+   * This matches either a `Tensor[shape, dtype]`, a user defined ADT, a tuple type,
+   * a scalar type or an incomplete type `_`.
+  */
   Type ParseType() {
     auto tok = Peek();
 
     if (tok->token_type == TokenType::OpenParen) {
-      auto tys = ParseSequence<relay::Type>(
-        TokenType::OpenParen,
-        TokenType::Comma,
-        TokenType::CloseParen, [&]() {
-        return ParseType();
-      });
+      auto tys = ParseSequence<relay::Type>(TokenType::OpenParen, TokenType::Comma,
+                                            TokenType::CloseParen, [&]() { return ParseType(); });
       return relay::TupleType(tys);
     } else if (WhenMatch(TokenType::Fn)) {
       return ParseFunctionType();
@@ -720,7 +770,8 @@ struct Parser {
         return TensorType(shape, dtype);
       } else {
         auto ty = tok.ToString();
-        if (ty.rfind("int", 0) == 0 || ty.find("float", 0) == 0 || ty.find("uint", 0) == 0 || ty.find("bool", 0) == 0) {
+        if (ty.rfind("int", 0) == 0 || ty.find("float", 0) == 0 || ty.find("uint", 0) == 0 ||
+            ty.find("bool", 0) == 0) {
           // Need to do better error handling here.
           auto dtype = DataType(String2DLDataType(tok.ToString()));
           return TensorType({}, dtype);
@@ -728,13 +779,14 @@ struct Parser {
           return ParseNonPrimitiveType(tok);
         }
       }
-    } if (WhenMatch(TokenType::Underscore)) {
+    }
+    if (WhenMatch(TokenType::Underscore)) {
       return IncompleteType();
     } else {
       std::stringstream msg;
       msg << "failed to parse type found ";
       msg << tok;
-      diag_ctx.Emit({ tok->line, tok->column, msg.str() });
+      diag_ctx.Emit({tok->line, tok->column, msg.str()});
       diag_ctx.Render();
       return Type();
     }
@@ -747,6 +799,11 @@ struct Parser {
     return Attrs();
   }
 
+  /*! Parse a function definition without a leading keyword or identifier.
+   *
+   * Handles things of the form [T1, ..., TN](arg1: U1, ..., argN, UN) -> Ret { body }.
+   *
+   */
   Function ParseFunctionDef() {
     PushScope();
     PushTypeScope();
@@ -755,21 +812,23 @@ struct Parser {
     if (Peek()->token_type == TokenType::LSquare) {
       // If we have generics we need to add a type scope.
       PushTypeScope();
-      generics = ParseSequence<TypeVar>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
-        auto type_var_name = Match(TokenType::Identifier).ToString();
-        return BindTypeVar(type_var_name, TypeKind::kType);
-      });
+      generics =
+          ParseSequence<TypeVar>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
+            auto type_var_name = Match(TokenType::Identifier).ToString();
+            return BindTypeVar(type_var_name, TypeKind::kType);
+          });
     }
 
-    auto params = ParseSequence<Var>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&]() {
-      auto token = Match(TokenType::Local);
-      auto string = token.ToString();
-      Type type;
-      if (WhenMatch(TokenType::Colon)) {
-        type = ParseType();
-      }
-      return BindVar(string, type);
-    });
+    auto params =
+        ParseSequence<Var>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&]() {
+          auto token = Match(TokenType::Local);
+          auto string = token.ToString();
+          Type type;
+          if (WhenMatch(TokenType::Colon)) {
+            type = ParseType();
+          }
+          return BindVar(string, type);
+        });
 
     Type ret_type;
     if (WhenMatch(TokenType::Minus)) {
@@ -777,9 +836,7 @@ struct Parser {
       ret_type = ParseType();
     }
 
-    auto body = Block<Expr>([&]() {
-      return ParseExpr();
-    });
+    auto body = Block<Expr>([&]() { return ParseExpr(); });
 
     PopTypeScopes(1);
     PopScopes(1);
@@ -787,27 +844,81 @@ struct Parser {
     return relay::Function(params, body, ret_type, generics);
   }
 
+  /*! \brief Parse an if-expression. */
   Expr ParseIf() {
     Consume(TokenType::If);
-    auto guard = Parens<Expr>([&] {
-      return ParseExpr();
-    });
+    auto guard = Parens<Expr>([&] { return ParseExpr(); });
 
-    auto true_branch = Block<Expr>([&] {
-      return ParseExpr();
-    });
+    auto true_branch = Block<Expr>([&] { return ParseExpr(); });
 
     Match(TokenType::Else);
 
-    auto false_branch = Block<Expr>([&] {
-      return ParseExpr();
-    });
+    auto false_branch = Block<Expr>([&] { return ParseExpr(); });
 
     return relay::If(guard, true_branch, false_branch);
   }
 
-  Expr ParseMatch(bool is_partial) {
-    LOG(FATAL) << "parse match";
+  /* This factors parsing a list of patterns for both tuples, and constructors. */
+  Array<Pattern> ParsePatternList() {
+    return ParseSequence<Pattern>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen,
+                                  [&] { return ParsePattern(); });
+  }
+
+  /*! \brief Parses a pattern for a match expression.
+   *
+   * A pattern is either a wildcard `_`, a local `%name`,
+   * a constructor `C(p1, ..., pn)` or tuple `(p1, ..., pn).
+   *
+   * This function recursively parses a pattern.
+   */
+  Pattern ParsePattern() {
+    auto next = Peek();
+    switch (next->token_type) {
+      case TokenType::Underscore: {
+        Match(TokenType::Underscore);
+        return PatternWildcard();
+      }
+      case TokenType::Local: {
+        auto id = Match(TokenType::Local);
+        Type type_annotation;
+        if (WhenMatch(TokenType::Colon)) {
+          type_annotation = ParseType();
+        }
+        auto var = BindVar(id.ToString(), type_annotation);
+        return PatternVar(var);
+      }
+      case TokenType::Identifier: {
+        auto id = Match(TokenType::Identifier);
+        auto ctor = ctors.Get(id.ToString());
+        if (Peek()->token_type == TokenType::OpenParen) {
+          auto fields = ParsePatternList();
+          return PatternConstructor(ctor, fields);
+        } else {
+          return PatternConstructor(ctor, {});
+        }
+      }
+      default:
+        return PatternTuple(ParsePatternList());
+    }
+  }
+
+  Clause ParseMatchArm() {
+    PushScope();
+    auto pattern = ParsePattern();
+    Match(TokenType::Equal);
+    Consume(TokenType::RAngle);
+    auto expr = ParseExpr();
+    PopScopes(1);
+    return Clause(pattern, expr);
+  }
+
+  Expr ParseMatch(bool is_total) {
+    Expr scrutinee = ParseExpr();
+
+    Array<Clause> clauses = ParseSequence<Clause>(
+        TokenType::LCurly, TokenType::Comma, TokenType::RCurly, [&] { return ParseMatchArm(); });
+
+    return relay::Match(scrutinee, clauses, is_total);
   }
 
   Expr ParseExpr() {
@@ -819,15 +930,27 @@ struct Parser {
         switch (next->token_type) {
           // For graph or let, match first rhs, then invoke ParseBindingExpr
           // ParseBindingExpression then parse_lhs() parse_rhs() ';' continue
+          case TokenType::LCurly: {
+            // Might need to optimize to remove deep recursion.
+            // Stack should only grow proportionally to the number of
+            // nested scopes.
+            return Bracket<Expr>(TokenType::LCurly, TokenType::RCurly, [&]() {
+              PushScope();
+              auto expr = ParseExpr();
+              PopScopes(1);
+              return expr;
+            });
+          }
           case TokenType::Let:
             exprs.push_back(ParseBindingExpr());
             break;
           case TokenType::Match:
-          case TokenType::PartialMatch:
-            bool is_partial = next->token_type == PartialMatch;
-            Consume(nest->token_type);
-            exprs.push_back(ParseMatch(is_partial));
+          case TokenType::PartialMatch: {
+            bool is_total = next->token_type == TokenType::Match;
+            Consume(next->token_type);
+            exprs.push_back(ParseMatch(is_total));
             break;
+          }
           case TokenType::If: {
             exprs.push_back(ParseIf());
             break;
@@ -903,21 +1026,21 @@ struct Parser {
         }
 
         if (op.precedence > ops.back().precedence ||
-              (op.precedence == ops.back().precedence && op.left_assoc == false)) {
+            (op.precedence == ops.back().precedence && op.left_assoc == false)) {
           ops.push_back(op);
           exprs.push_back(right);
           continue;
         }
 
         while (ops.size() && (op.precedence < ops.back().precedence ||
-            (op.precedence == ops.back().precedence && op.left_assoc == true))) {
+                              (op.precedence == ops.back().precedence && op.left_assoc == true))) {
           Rule new_op = ops.back();
           ops.pop_back();
           Expr right = exprs.back();
           exprs.pop_back();
           Expr left = exprs.back();
           exprs.pop_back();
-          exprs.push_back(relay::Call(new_op.op, { left, right }));
+          exprs.push_back(relay::Call(new_op.op, {left, right}));
         }
 
         exprs.push_back(right);
@@ -943,22 +1066,23 @@ struct Parser {
   Expr ParseCallArgs(Expr op) {
     Attrs call_attrs;
     if (Peek()->token_type == TokenType::OpenParen) {
-      Array<Expr> args = ParseSequence<Expr>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen, [&] {
-        return ParseExpr();
-      }, [&] {
-        auto is_ident = Lookahead(1)->token_type == TokenType::Identifier;
-        auto next_is_equal = Lookahead(2)->token_type == TokenType::Equal;
+      Array<Expr> args = ParseSequence<Expr>(
+          TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen,
+          [&] { return ParseExpr(); },
+          [&] {
+            auto is_ident = Lookahead(1)->token_type == TokenType::Identifier;
+            auto next_is_equal = Lookahead(2)->token_type == TokenType::Equal;
 
-        if (is_ident && next_is_equal) {
-          if (auto op_node = op.as<OpNode>()) {
-            std::cout << "OP: " << op << std::endl;
-            std::cout << "type_key: " << op_node->attrs_type_key << std::endl;
-            call_attrs = ParseAttrs(op_node->attrs_type_key);
-          }
-        }
-      });
+            if (is_ident && next_is_equal) {
+              if (auto op_node = op.as<OpNode>()) {
+                std::cout << "OP: " << op << std::endl;
+                std::cout << "type_key: " << op_node->attrs_type_key << std::endl;
+                call_attrs = ParseAttrs(op_node->attrs_type_key);
+              }
+            }
+          });
       return Expr(Call(op, args, call_attrs, {}));
-    }  else {
+    } else {
       return Expr();
     }
   }
@@ -983,7 +1107,7 @@ struct Parser {
     });
   }
 
-   Expr ParseAtomicExpr() {
+  Expr ParseAtomicExpr() {
     return ConsumeWhitespace<Expr>([this] {
       auto next = Peek();
       switch (next->token_type) {
@@ -1008,8 +1132,7 @@ struct Parser {
         case TokenType::Global: {
           auto string = next.ToString();
           Consume(TokenType::Global);
-          // Add global cache.
-          return Expr(GlobalVar(string));
+          return Expr(global_names.Get(string));
         }
         case TokenType::Identifier: {
           auto string = next.ToString();
@@ -1051,9 +1174,11 @@ struct Parser {
           }
         }
         default: {
-          DisplayNextN(10);
-          ParseError(next, "expected an expression found  " + ToString(next->token_type) +
-                            std::to_string(next->line) + ":" + std::to_string(next->column));
+          std::stringstream msg;
+          msg << "expected an expression found  " << Pretty(next->token_type);
+          diag_ctx.Emit({next->line, next->column, msg.str()});
+          diag_ctx.Render();
+          return Expr();
         }
       }
     });
