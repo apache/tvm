@@ -61,7 +61,10 @@ typedef std::unordered_map<tvm::te::Stage, std::vector<tir::IterVar>, ObjectHash
 
 class Step;
 
-/*! \brief The base class for a transformation step */
+/*!
+ * \brief The base class for a transformation step. Each step has its corresponding tvm.te
+ * schedule primitives.
+ */
 class StepNode : public Object {
  public:
   /*! \brief The index of the target stage. */

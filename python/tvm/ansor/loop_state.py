@@ -19,19 +19,19 @@
 """
 The definition of the "state" in search. A state consists a current loop structure
 and the transform history to reach its current loop structure.
-To enable flexible manipulation of the loop structure, we implemented a lightweight
-loop structure IR (Intermediate Representation) specifically for search.
+To enable flexible manipulation of the loop structures, we implemented a lightweight loop
+structure IR (Intermediate Representation) based on the original TVM IR but specifically
+for schedule search.
 
-Basically this is a simplified TVM IR with schedule primitives.
-We don't use the existing TVM IR because
-1. We want fast incremental change to the loop structures
-2. We want serializable transformation history for replay, backtracking, and mutation
-3. We may create some new macro schedule primitives
+We don't use the existing TVM IR but to extend a new Sketch IR on it is because:
+1. We want fast incremental change to the loop structures;
+2. We want serializable transform history for replay, backtracking, and mutation;
+3. We may create some macro schedule primitives that represent the combination of several
+TVM schedule primitives.
 
 After the search is done, we will lower this IR to TVM IR with TVM's schedule primitives.
-Because we share a lot common objects during search,  the transformation is
-implemented in copy on write style.  All objects are immutable, which is
-similar to TVM IR.
+Because we share a lot common objects during search, the transformation is implemented in
+copy on write style. All objects are immutable, which is similar to TVM IR.
 """
 
 import tvm._ffi

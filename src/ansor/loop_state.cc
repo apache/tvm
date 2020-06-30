@@ -25,6 +25,7 @@
 
 #include "loop_state.h"
 
+#include <tvm/ir/expr.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 

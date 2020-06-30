@@ -20,8 +20,8 @@
 /*!
  * \file ansor/compute_dag.h
  * \brief Compute declaration graph and its related analysis tools.
- * ComputeDAG is responsible for the interaction with the original TVM schedule system, to apply
- * state to a runable TVM schedule or provide the schedule Python code.
+ * ComputeDAG is also responsible for the interaction with the original TVM schedule system, to
+ * apply state to a runable TVM schedule or provide the schedule Python code.
  */
 
 #ifndef TVM_ANSOR_COMPUTE_DAG_H_
