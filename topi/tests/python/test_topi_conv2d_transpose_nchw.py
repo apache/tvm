@@ -25,6 +25,7 @@ from topi.util import get_const_tuple
 
 from common import get_all_backend
 
+
 _conv2d_transpose_nchw_implement = {
     "generic": (topi.nn.conv2d_transpose_nchw, topi.generic.schedule_conv2d_transpose_nchw),
     "cpu": (topi.x86.conv2d_transpose_nchw, topi.x86.schedule_conv2d_transpose_nchw),
@@ -33,7 +34,7 @@ _conv2d_transpose_nchw_implement = {
     "hls": (topi.nn.conv2d_transpose_nchw, topi.hls.schedule_conv2d_transpose_nchw),
 }
 
-def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding):
+def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, output_padding):
     in_height, in_width = in_size
     kernel_height, kernel_width = kernel
     stride_height, stride_width = stride
@@ -50,7 +51,7 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
     def get_ref_data():
         a_np = np.random.uniform(size=a_shape).astype(dtype)
         w_np = np.random.uniform(size=w_shape).astype(dtype)
-        b_np = topi.testing.conv2d_transpose_nchw_python(a_np, w_np, stride, padding)
+        b_np = topi.testing.conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding)
         c_np = np.maximum(b_np, 0)
         return a_np, w_np, b_np, c_np
 
@@ -67,7 +68,7 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
             B = fcompute(A, W,
                          [stride_height, stride_width],
                          [pad_top, pad_left, pad_bottom, pad_right],
-                         A.dtype)
+                         A.dtype, output_padding)
             C = topi.nn.relu(B)
             s1 = fschedule([B])
             s2 = fschedule([C])
@@ -87,16 +88,20 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
 
 
 def test_conv2d_transpose_nchw():
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  1, (1, 1), (1, 1), (0, 0, 0, 0))
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (1, 1), (0, 0, 0, 0))
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (3, 3), (0, 0, 0, 0))
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (1, 1), (0, 0, 0, 0))
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (2, 2), (1, 1, 1, 1))
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (2, 2), (2, 2), (0, 0, 0, 0))
-    verify_conv2d_transpose_nchw(1, 32, (32, 32), 128, (5, 5), (1, 1), (0, 0, 0, 0))
-    verify_conv2d_transpose_nchw(1, 32, (32, 32), 128, (5, 5), (2, 2), (1, 1, 1, 1))
-    verify_conv2d_transpose_nchw(16, 32, (8192, 1), 8, (31, 1), (2, 1), (14, 0, 15, 0))
-    verify_conv2d_transpose_nchw(16, 512, (8, 1), 128, (31, 1), (2, 1), (14, 0, 15, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224),  1, (1, 1), (1, 1), (0, 0, 0, 0), (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (1, 1), (0, 0, 0, 0), (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (3, 3), (0, 0, 0, 0), (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (1, 1), (0, 0, 0, 0), (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (2, 2), (1, 1, 1, 1), (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (2, 2), (1, 1, 1, 1), (1, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (2, 2), (2, 2), (0, 0, 0, 0), (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (2, 2), (2, 2), (0, 0, 0, 0), (1, 1))
+    verify_conv2d_transpose_nchw(1, 32, (32, 32), 128, (5, 5), (1, 1), (0, 0, 0, 0), (0, 0))
+    verify_conv2d_transpose_nchw(1, 32, (32, 32), 128, (5, 5), (2, 2), (1, 1, 1, 1), (0, 0))
+    verify_conv2d_transpose_nchw(16, 32, (8192, 1), 8, (31, 1), (2, 1), (14, 0, 15, 0), (0, 0))
+    verify_conv2d_transpose_nchw(16, 512, (8, 1), 128, (31, 1), (2, 1), (14, 0, 15, 0), (0, 0))
+    verify_conv2d_transpose_nchw(16, 512, (8, 1), 128, (31, 1), (2, 1), (14, 0, 15, 0), (1, 0))
+
 
 if __name__ == "__main__":
     test_conv2d_transpose_nchw()
