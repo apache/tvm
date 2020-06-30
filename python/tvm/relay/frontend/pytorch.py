@@ -1730,7 +1730,7 @@ def _one_hot():
 def _meshgrid():
     def _impl(inputs, input_types):
         data = inputs[0]
-        return _op.meshgrid(data)
+        return _op.meshgrid(data, indexing="ij")
     return _impl
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):

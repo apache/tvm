@@ -418,16 +418,19 @@ def arange(start, stop=None, step=None, dtype="float32"):
 
     return _make.arange(start, stop, step, dtype)
 
-def meshgrid(data):
+def meshgrid(data, indexing="ij"):
     """Create coordinate matrices from coordinate vectors.
 
     .. note::
-        Similar to ``numpy.meshgrid`` with indexing mode 'ij'.
+        Similar to ``numpy.meshgrid``.
 
     Parameters
     ----------
     data : Union(List[relay.Expr], Tuple[relay.Expr])
         A list of tensors, which must be either scalars or 1-D vectors.
+
+    indexing : str
+        Indexing mode, either "ij" for matrix indexing or "xy" for Cartesian indexing.
 
     Returns
     -------
@@ -441,17 +444,19 @@ def meshgrid(data):
         x = [1, 2, 3]
         y = [4, 5]
 
-        gx, gy = relay.meshgrid(x, y)
+        gx, gy = relay.meshgrid([x, y])
 
-        gx = [[1., 2., 3.],
-              [1., 2., 3.]]
+        gx = [[1., 1.],
+              [2., 2.],
+              [3., 3.]]
 
-        gy = [[4., 4., 4.],
-              [5., 5., 5.]]
+        gy = [[4., 5.],
+              [4., 5.],
+              [4., 5.]]
     """
     data = list(data)
     ret_size = len(data)
-    return TupleWrapper(_make.meshgrid(Tuple(data)), ret_size)
+    return TupleWrapper(_make.meshgrid(Tuple(data), indexing), ret_size)
 
 def repeat(data, repeats, axis):
     """Repeats elements of an array.

@@ -589,7 +589,7 @@ def test_arange():
     # verify_arange(20, 1, -1.5)
 
 def test_meshgrid():
-    def verify_meshgrid(lengths):
+    def verify_meshgrid(lengths, indexing="ij"):
         input_vars = []
         input_data = []
         for i, length in enumerate(lengths):
@@ -602,10 +602,10 @@ def test_meshgrid():
                 input_vars.append(relay.var(input_name, relay.TensorType((length,), "float32")))
                 input_data.append(np.arange(length).astype("float32"))
 
-        z = relay.meshgrid(input_vars).astuple()
+        z = relay.meshgrid(input_vars, indexing=indexing).astuple()
         func = relay.Function(input_vars, z)
         # Get ref
-        ref_res = np.meshgrid(*input_data, indexing='ij')
+        ref_res = np.meshgrid(*input_data, indexing=indexing)
 
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
@@ -615,7 +615,9 @@ def test_meshgrid():
                 for i in range(len(op_res)):
                     tvm.testing.assert_allclose(op_res[i].asnumpy(), ref_res[i], rtol=1e-5)
     verify_meshgrid([3, 5])
+    verify_meshgrid([4, 2], indexing="xy")
     verify_meshgrid([3, 5, 2])
+    verify_meshgrid([3, 1, 5], indexing="xy")
     # Length 0 signifies scalar.
     verify_meshgrid([3, 5, 0])
 

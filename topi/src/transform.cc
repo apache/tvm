@@ -110,7 +110,7 @@ TVM_REGISTER_GLOBAL("topi.arange").set_body([](TVMArgs args, TVMRetValue* rv) {
 });
 
 TVM_REGISTER_GLOBAL("topi.meshgrid").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = meshgrid(args[0]);
+  *rv = meshgrid(args[0], args[1]);
 });
 
 TVM_REGISTER_GLOBAL("topi.repeat").set_body([](TVMArgs args, TVMRetValue* rv) {

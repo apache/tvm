@@ -1248,10 +1248,13 @@ RELAY_REGISTER_OP("repeat")
     .set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
 // meshgrid operator
-bool MeshgridRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+TVM_REGISTER_NODE_TYPE(MeshgridAttrs);
+
+bool MeshgridRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attrs,
                  const TypeReporter& reporter) {
   // types: [data, result]
   CHECK_EQ(types.size(), 2);
+  const MeshgridAttrs* attrs = raw_attrs.as<MeshgridAttrs>();
   const auto* tensor_tuple = types[0].as<TupleTypeNode>();
   if (tensor_tuple == nullptr) {
     throw Error(
@@ -1288,6 +1291,11 @@ bool MeshgridRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
   }
 
+  // "xy" mode swaps first two dimensions
+  if (attrs->indexing == "xy" && grid_shape.size() >= 2) {
+    std::swap(grid_shape[0], grid_shape[1]);
+  }
+
   // There is one output grid for each input, all with same shape.
   std::vector<Type> grids;
   grids.reserve(data_length);
@@ -1300,20 +1308,25 @@ bool MeshgridRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 Array<te::Tensor> MeshgridCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                   const Type& out_type) {
-  return {topi::meshgrid(inputs)};
+  const MeshgridAttrs* param = attrs.as<MeshgridAttrs>();
+  CHECK(param != nullptr);
+  return {topi::meshgrid(inputs, param->indexing)};
 }
 
-Expr MakeMeshgrid(Expr data) {
+Expr MakeMeshgrid(Expr data, String indexing) {
+  auto attrs = make_object<MeshgridAttrs>();
+  attrs->indexing = std::move(indexing);
   static const Op& op = Op::Get("meshgrid");
-  return Call(op, {data});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.meshgrid").set_body_typed(MakeMeshgrid);
 
 RELAY_REGISTER_OP("meshgrid")
-    .describe(R"code(Returns evenly spaced values within a given interval.
+    .describe(R"code(Create coordinate matrices from coordinate vectors.
 
 )code" TVM_ADD_FILELINE)
+    .set_attrs_type<MeshgridAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input list of tensors.")
     .set_support_level(3)
