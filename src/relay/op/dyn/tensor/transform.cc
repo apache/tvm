@@ -33,9 +33,7 @@ namespace tvm {
 namespace relay {
 namespace dyn {
 
-/* relay.reshape */
-// TVM_REGISTER_NODE_TYPE(ReshapeAttrs);
-
+/* relay.dyn.reshape */
 bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                 const TypeReporter& reporter) {
   // types: [data, newshape, result]

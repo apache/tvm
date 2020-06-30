@@ -448,9 +448,7 @@ bool IsDataDependant(const CallNode* call) {
     return false;
   }
 
-  if (op->name == "dyn.reshape") {
-    return true;
-  } else if (op->name == "topk") {
+  if (op->name == "topk") {
     if (const auto* attrs = call->attrs.as<TopKAttrs>()) {
       if (attrs->k) {
         // If k attribute exists, it isn't data dependant.
