@@ -403,9 +403,9 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
     // Write it to the result.
     IntGroupBounds bnds(make_const(v.dtype(), coef_lcm),
-                      Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end()),
-                      Array<PrimExpr>(equal_list.begin(), equal_list.end()),
-                      Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end()));
+                        Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end()),
+                        Array<PrimExpr>(equal_list.begin(), equal_list.end()),
+                        Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end()));
     res_bounds.Set(v, bnds);
 
     std::swap(current_ineq_set_to_solve, next_ineq_set_to_solve);

@@ -39,7 +39,7 @@ namespace tvm {
 namespace arith {
 
 IntGroupBounds::IntGroupBounds(PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
-                           Array<PrimExpr> upper) {
+                               Array<PrimExpr> upper) {
   CHECK(coef.dtype().is_int() || coef.dtype().is_uint())
       << "Coefficient in IntGroupBounds must be integers";
   ObjectPtr<IntGroupBoundsNode> node = make_object<IntGroupBoundsNode>();
@@ -86,9 +86,9 @@ IntGroupBounds IntGroupBounds::operator+(const Range& r) {
 IntGroupBounds IntGroupBounds::Substitute(const Map<Var, PrimExpr>& subst) const {
   auto apply_fun = [&subst](const PrimExpr& e) { return tir::Substitute(e, subst); };
   return IntGroupBounds(tir::Substitute(operator->()->coef, subst),
-                      tir::UpdateArray(operator->()->lower, apply_fun),
-                      tir::UpdateArray(operator->()->equal, apply_fun),
-                      tir::UpdateArray(operator->()->upper, apply_fun));
+                        tir::UpdateArray(operator->()->lower, apply_fun),
+                        tir::UpdateArray(operator->()->equal, apply_fun),
+                        tir::UpdateArray(operator->()->upper, apply_fun));
 }
 
 Range IntGroupBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
