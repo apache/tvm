@@ -109,18 +109,6 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       if (dtype.is_float()) {
         // floor(a / b)
         return VisitExpr_(tvm::floor(op->a / op->b).as<CallNode>());
-      } else if (dtype.is_int() && dtype.bits() <= 32) {
-        /* NOTE:
-        This must be restricted to int32 or less since floats can losslessly represent integers
-        only if the number of bits in the mantissa exceeds the number of bits in the integer.
-        Therefore a double (53 bit mantissa) for int32, float (24 bit mantissa) for int16, etc.
-        Since TVM is unaware of a float128 type, int64 is not supported.
-        */
-
-        // floor(a / b)
-        auto fdtype = DataType::Float(dtype.bits() * 2, dtype.lanes());
-        auto div = tir::Div(tir::Cast(fdtype, op->a), tir::Cast(fdtype, op->b));
-        return tir::Cast(dtype, VisitExpr_(tvm::floor(div).as<CallNode>()));
       } else {
         // uncommon case
         DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divisor";
@@ -174,20 +162,6 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       if (dtype.is_float()) {
         // a - floor(a / b) * b
         return op->a - (VisitExpr_(tvm::floor(op->a / op->b).as<CallNode>()) * op->b);
-      } else if (dtype.is_int() && dtype.bits() <= 32) {
-        /* NOTE:
-        This must be restricted to int32 or less since floats can losslessly represent integers
-        only if the number of bits in the mantissa exceeds the number of bits in the integer.
-        Therefore a double (53 bit mantissa) for int32, float (24 bit mantissa) for int16, etc.
-        Since there is no float128 type, int64 is not supported.
-        */
-
-        // a - floor(a / b) * b
-        auto fdtype = DataType::Float(dtype.bits() * 2, dtype.lanes());
-        auto div = tir::Div(tir::Cast(fdtype, op->a), tir::Cast(fdtype, op->b));
-        auto floor_lowered = tir::Cast(dtype, VisitExpr_(tvm::floor(div).as<CallNode>()));
-
-        return op->a - (floor_lowered * op->b);
       } else {
         // uncommon case
         DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divsor and divident";
