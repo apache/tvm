@@ -45,6 +45,7 @@ typedef enum {
   kTvmErrorFunctionIndexInvalid = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryFunctionRegistry, 1),
   kTvmErrorFunctionRegistryFull = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryFunctionRegistry, 2),
   kTvmErrorFunctionAlreadyDefined = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryFunctionRegistry, 3),
+  kTvmErrorBufferTooSmall = DEFINE_TVM_CRT_ERROR(kTvmErrorCategoryFunctionRegistry, 4),
 } tvm_crt_error_t;
 
 #ifdef __cplusplus

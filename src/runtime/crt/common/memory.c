@@ -37,7 +37,20 @@
 #include <tvm/runtime/crt/platform.h>
 
 #include "crt_config.h"
-#include "memory_internal.h"
+
+/*! Number of bits in a page */
+#define TVM_CRT_PAGE_BITS ((1 << TVM_CRT_PAGE_BYTES_LOG) << 3)
+
+/*! \brief Translate log memory size into bytes */
+#define TVM_CRT_VIRT_MEM_SIZE (1 << TVM_CRT_LOG_VIRT_MEM_SIZE)
+
+/*! \brief Number of possible page entries in total */
+#define TVM_CRT_MAX_PAGES (TVM_CRT_VIRT_MEM_SIZE / TVM_CRT_PAGE_BYTES)
+
+/**
+ * \brief Memory pool for virtual dynamic memory allocation
+ */
+static uint8_t g_memory_pool[TVM_CRT_VIRT_MEM_SIZE];
 
 /*! \brief A page in the DRAM */
 typedef struct Page {
@@ -232,8 +245,8 @@ void* MemoryManager_Alloc(MemoryManager* mgr, tvm_index_t size) {
   }
   vleak_size++;
 #if TVM_CRT_DEBUG > 1
-  printf("allocate: addr=%p, start=%d/%d, npage=%d, vleak=%d\n", data, start, ptable->max_pages,
-         npage, vleak_size);
+  printf("allocate: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d\n",
+         data, start, ptable->max_pages, npage, vleak_size);
 #endif  // TVM_CRT_DEBUG
   return data;
 }
@@ -310,7 +323,7 @@ void* MemoryManager_Realloc(MemoryManager* mgr, void* ptr, tvm_index_t size) {
     vleak_size++;
   }
 #if TVM_CRT_DEBUG > 1
-  printf("reallocate: addr=%p, start=%d/%d, npage=%d, vleak=%d, size=%d\n", data, start,
+  printf("reallocate: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d, size=%" PRId64 "\n", data, start,
          mgr->ptable.max_pages, npage, vleak_size, size);
 #endif  // TVM_CRT_DEBUG
   return data;
@@ -331,22 +344,18 @@ void MemoryManager_Free(MemoryManager* mgr, void* ptr) {
   free_map->insert(free_map, p->num_pages, p);
   vleak_size--;
 #if TVM_CRT_DEBUG > 1
-  printf("release: addr=%p, start=%d/%d, npage=%d, vleak=%d\n", ptr, entry->page.ptable_begin,
+  printf("release: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d\n", ptr, entry->page.ptable_begin,
          mgr->ptable.max_pages, entry->page.num_pages, vleak_size);
 #endif  // TVM_CRT_DEBUG
 }
 
-static bool g_memory_manager_initialized = 0;
 static MemoryManager g_memory_manager;
 
 MemoryManager* MemoryManagerCreate(uint8_t* memory_pool, size_t memory_pool_size_bytes,
                                    size_t page_size_bytes_log2) {
-  if (g_memory_manager_initialized) {
-    TVMPlatformAbort(-1);
-  }
-
-  size_t num_pages =
-      memory_pool_size_bytes / ((1 << page_size_bytes_log2) + sizeof(Page) + sizeof(PageEntry));
+  size_t page_bytes_needed =
+    ((1 << page_size_bytes_log2) + sizeof(Page) + sizeof(PageEntry) + sizeof(IndexedEntry));
+  size_t num_pages = memory_pool_size_bytes / page_bytes_needed;
 
   memset(&g_memory_manager, 0, sizeof(MemoryManager));
   memset(memory_pool, 0, sizeof(memory_pool_size_bytes));
@@ -361,7 +370,7 @@ MemoryManager* MemoryManagerCreate(uint8_t* memory_pool, size_t memory_pool_size
 
   // Allocate enough space for MAX_PAGES.
   size_t metadata_num_pages =
-      ((sizeof(Page) + sizeof(PageEntry)) * num_pages + ((1 << page_size_bytes_log2) - 1)) >>
+    ((sizeof(Page) + sizeof(PageEntry) + sizeof(IndexedEntry)) * num_pages + ((1 << page_size_bytes_log2) - 1)) >>
       page_size_bytes_log2;
   g_memory_manager.ptable.memory_pool = memory_pool + (metadata_num_pages << page_size_bytes_log2);
 
@@ -374,22 +383,27 @@ MemoryManager* MemoryManagerCreate(uint8_t* memory_pool, size_t memory_pool_size
   g_memory_manager.pmap.set = TLB_Set;
   g_memory_manager.pmap.find = TLB_Find;
   /* handle free_map member functions */
+  g_memory_manager.free_map.entries =
+    (IndexedEntry*)(memory_pool + ((sizeof(Page) + sizeof(IndexedEntry)) * num_pages));
   g_memory_manager.free_map.max_entries = num_pages;
   g_memory_manager.free_map.lower_bound = MultiMap_LowerBound;
   g_memory_manager.free_map.end = MultiMap_End;
   g_memory_manager.free_map.erase = MultiMap_Erase;
   g_memory_manager.free_map.insert = MultiMap_Insert;
 
-  g_memory_manager_initialized = true;
   return &g_memory_manager;
 }
 
 MemoryManager* TVMGetGlobalMemoryManager() {
   /* initialize once */
-  if (!g_memory_manager_initialized) {
-    TVMPlatformAbort(-1);
+  static uint32_t initialized = 0;
+  static MemoryManager* mgr;
+  if (!initialized) {
+    memset(g_memory_pool, 0, sizeof(g_memory_pool));
+    mgr = MemoryManagerCreate(g_memory_pool, TVM_CRT_VIRT_MEM_SIZE, TVM_CRT_PAGE_BYTES_LOG);
+    initialized = 1;
   }
-  return &g_memory_manager;
+  return mgr;
 }
 
 /** \brief Allocate memory from manager */

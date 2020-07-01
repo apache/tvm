@@ -107,9 +107,11 @@ static const size_t kTvmAverageFuncEntrySizeBytes =
  * \param reg TVMMutableFuncRegistry to create.
  * \param buffer Backing memory available for this function registry.
  * \param buffer_size_bytes Number of bytes available in buffer.
+ * \return kTvmErrorNoError when successful. kTvmErrorBufferTooSmall when buffer_size_bytes is so
+ *      small that a single function cannot be registered.
  */
-void TVMMutableFuncRegistry_Create(TVMMutableFuncRegistry* reg, uint8_t* buffer,
-                                   size_t buffer_size_bytes);
+tvm_crt_error_t TVMMutableFuncRegistry_Create(TVMMutableFuncRegistry* reg, uint8_t* buffer,
+                                              size_t buffer_size_bytes);
 
 /*!
  * \brief Add or set a function in the registry.

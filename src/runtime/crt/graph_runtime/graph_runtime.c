@@ -825,7 +825,7 @@ int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime* runtime, const TVMOpParam* 
     status = -1;
   }
 
-  runtime->module.GetFunction(&(runtime->module), param->func_name, pf);
+  TVMModule_GetFunction(&(runtime->module), param->func_name, pf);
   TVMArgs targs = TVMArgs_Create(arg_ptr.arg_values, arg_ptr.arg_tcodes, arg_ptr.arg_values_count);
   pf->SetArgs(pf, &targs);
 
@@ -859,7 +859,6 @@ TVMGraphRuntimeAPI* TVMGraphRuntimeCreate(const char* sym_json, const TVMModule*
   runtime->api.LoadParams = TVMGraphRuntime_LoadParams;
   runtime->api.Run = TVMGraphRuntime_Run;
   runtime->api.GetOutput = TVMGraphRuntime_GetOutput;
-  runtime->module.GetFunction = TVMModule_GetFunction;
   // init
   TVMGraphRuntime_Init(runtime, sym_json, m, ctxs);
   return &runtime->api;
@@ -896,9 +895,9 @@ void TVMGraphRuntimeRelease(TVMGraphRuntimeAPI** pptr) {
 }
 
 void TVMGraphRuntimeRegisterGlobals(void) {
-  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.create", &TVMGraphRuntimeCreate, 0), 0);
-  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.set_input", &TVMGraphRuntime_SetInput, 0), 0);
-  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.run", &TVMGraphRuntime_Run, 0), 0);
-  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.get_output", &TVMGraphRuntime_GetOutput, 0), 0);
-  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.release", &TVMGraphRuntime_Release, 0), 0);
+  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.create", &TVMGraphRuntimeCreate, 0), 0, "tvm.graph_runtime.create");
+  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.set_input", &TVMGraphRuntime_SetInput, 0), 0, "tvm.graph_runtime.set_input");
+  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.run", &TVMGraphRuntime_Run, 0), 0, "tvm.graph_runtime.run");
+  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.get_output", &TVMGraphRuntime_GetOutput, 0), 0, "tvm.graph_runtime.get_output");
+  CHECK_EQ(TVMFuncRegisterGlobal("tvm.graph_runtime.release", &TVMGraphRuntimeRelease, 0), 0, "tvm.graph_runtime.release");
 }

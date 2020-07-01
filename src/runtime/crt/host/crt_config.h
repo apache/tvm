@@ -56,8 +56,8 @@
  */
 #define TVM_CRT_LOG_VIRT_MEM_SIZE 24
 
-/*! \brief Page size for virtual memory allocation */
-#define TVM_CRT_PAGE_BYTES 4096
+/*! \brief Log2 of page size for virtual memory allocation */
+#define TVM_CRT_PAGE_BYTES_LOG 12
 
 /*! Maximum number of registered modules. */
 #define TVM_CRT_MAX_REGISTERED_MODULES 2

@@ -25,6 +25,7 @@
  */
 
 #include <string.h>
+#include <stdio.h>
 #include <tvm/runtime/crt/func_registry.h>
 
 /*!
@@ -37,7 +38,7 @@
  * \param name Pointer to reference string.
  * \return 0 if the string pointed to by cursor == name; non-zero otherwise.
  */
-static int strcmp_cursor(const char** cursor, const char* name) {
+int strcmp_cursor(const char** cursor, const char* name) {
   int return_value = 0;
   while (return_value == 0) {
     char c = **cursor;
@@ -137,7 +138,7 @@ tvm_crt_error_t TVMMutableFuncRegistry_Set(TVMMutableFuncRegistry* reg, const ch
 
   size_t name_len = strlen(name);
   ssize_t names_bytes_remaining = ((const char*)reg->registry.funcs) - reg_name_ptr;
-  if (idx > reg->max_functions || name_len + 1 > names_bytes_remaining) {
+  if (idx >= reg->max_functions || name_len + 1 > names_bytes_remaining) {
     return kTvmErrorFunctionRegistryFull;
   }
 

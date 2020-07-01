@@ -16,6 +16,8 @@
 # under the License.
 
 if(USE_STANDALONE_CRT)
+  include(ExternalProject)
+
   message(STATUS "Build with standalone CRT")
   file(GLOB crt_srcs src/runtime/crt/**)
 
@@ -55,6 +57,7 @@ if(USE_STANDALONE_CRT)
 
   get_filename_component(crt_config_abspath src/runtime/crt/host/crt_config.h ABSOLUTE)
   list(APPEND host_isolated_build_deps src/runtime/crt/host/crt_config.h)
+  add_custom_target(standalone_crt DEPENDS ${host_isolated_build_deps})
 
   get_filename_component(host_build_dir_abspath "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt" ABSOLUTE)
 
@@ -63,41 +66,54 @@ if(USE_STANDALONE_CRT)
   else(${VERBOSE})
   set(make_quiet )
   endif(${VERBOSE})
-  add_custom_command(
-      OUTPUT host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a
-      COMMAND make
+
+  ExternalProject_Add(host_standalone_crt
+      DOWNLOAD_COMMAND ""
+      SOURCE_DIR standalone_crt
+      CONFIGURE_COMMAND ""
+      BUILD_COMMAND make
           DLPACK_INCLUDE_DIR=${CMAKE_SOURCE_DIR}/3rdparty/dlpack/include
           TVM_INCLUDE_DIR=${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include
           CRT_CONFIG=${crt_config_abspath}
           BUILD_DIR=${host_build_dir_abspath} all ${make_quiet}
-      WORKING_DIRECTORY standalone_crt
-      DEPENDS ${host_isolated_build_deps})
-  add_custom_target(host_standalone_crt SOURCES  host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a)
+     BUILD_IN_SOURCE ON
+     WORKING_DIRECTORY standalone_crt
+     COMMENT "Building host CRT runtime"
+     BUILD_BYPRODUCTS host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a
+     DEPENDS standalone_crt
+     INSTALL_COMMAND ""
+     )
+  ExternalProject_Add_StepDependencies(host_standalone_crt build ${host_isolated_build_deps})
+#   add_custom_command(
+#       OUTPUT host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a
+#       COMMAND make
+#           DLPACK_INCLUDE_DIR=${CMAKE_SOURCE_DIR}/3rdparty/dlpack/include
+#           TVM_INCLUDE_DIR=${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include
+#           CRT_CONFIG=${crt_config_abspath}
+#           BUILD_DIR=${host_build_dir_abspath} all ${make_quiet}
+#       WORKING_DIRECTORY standalone_crt
+#       DEPENDS ${host_isolated_build_deps})
+#   add_custom_target(host_standalone_crt DEPENDS host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a)
 
-#  add_custom_target(host_standalone_crt ALL
-#      DEPENDS host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a)
-  add_library(host_standalone_crt_common INTERFACE)
+# #  add_custom_target(host_standalone_crt ALL
+# #      DEPENDS host_standalone_crt/common/libcommon.a host_standalone_crt/graph_runtime/libgraph_runtime.a)
+  add_library(host_standalone_crt_common STATIC IMPORTED GLOBAL)
   add_dependencies(host_standalone_crt_common host_standalone_crt)
-  target_link_libraries(host_standalone_crt_common
-      INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/crt/common/libcommon.a)
-  # set_target_properties(host_standalone_crt_common PROPERTIES
-  #     IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/crt/common
-  #     IMPORTED_OBJECTS ${CMAKE_CURRENT_BINARY_DIR}/crt/common/libcommon.a
-  #     PUBLIC_HEADER ${crt_headers})
-  add_dependencies(host_standalone_crt_common host_standalone_crt)
-#      ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common/libcommon.a)
+  set_target_properties(host_standalone_crt_common PROPERTIES
+      IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common/libcommon.a
+      IMPORTED_OBJECTS ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common/libcommon.a
+      PUBLIC_HEADER ${crt_headers})
+#   add_dependencies(host_standalone_crt_common host_standalone_crt)
+# #      ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common/libcommon.a)
 
-  add_library(host_standalone_crt_graph_runtime INTERFACE IMPORTED)
+  add_library(host_standalone_crt_graph_runtime STATIC IMPORTED GLOBAL)
   add_dependencies(host_standalone_crt_graph_runtime host_standalone_crt)
-  target_link_libraries(host_standalone_crt_graph_runtime
-      INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/crt/graph_runtime/libgraph_runtime.a)
-
-  # set_target_properties(host_standalone_crt_graph_runtime PROPERTIES
-  #     IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/crt/graph_runtime
-  #     IMPORTED_OBJECTS ${CMAKE_CURRENT_BINARY_DIR}/crt/graph_runtime/libgraph_runtime.a
-  #     PUBLIC_HEADER ${crt_headers})
-  add_dependencies(host_standalone_crt_graph_runtime host_standalone_crt)
-#      ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime/libgraph_runtime.a)
+  set_target_properties(host_standalone_crt_graph_runtime PROPERTIES
+      IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime/libgraph_runtime.a
+      IMPORTED_OBJECTS ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime/libgraph_runtime.a
+      PUBLIC_HEADER ${crt_headers})
+#   add_dependencies(host_standalone_crt_graph_runtime host_standalone_crt)
+# #      ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime/libgraph_runtime.a)
 
   # Standalone CRT tests
   file(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*.cc)
@@ -112,11 +128,11 @@ if(USE_STANDALONE_CRT)
       string(REPLACE ".cc" "" __execname ${__srcname})
       add_executable(${__execname} ${__srcpath})
       list(APPEND TEST_EXECS ${__execname})
-      target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR})
-      target_link_directories(${__execname} PRIVATE
-          ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common
-          ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime)
-      target_link_libraries(${__execname} common graph_runtime ${GTEST_LIB})
+      target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include)
+#      target_link_directories(${__execname} PRIVATE
+#          ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common
+#          ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime)
+      target_link_libraries(${__execname} host_standalone_crt_graph_runtime host_standalone_crt_common ${GTEST_LIB})
       set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
       set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
     endforeach()

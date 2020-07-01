@@ -24,6 +24,10 @@
 #ifndef TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_
 #define TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/c_runtime_api.h>
 
@@ -106,5 +110,9 @@ TVMGraphRuntimeAPI* TVMGraphRuntimeCreate(const char* sym_json, const TVMModule*
 void TVMGraphRuntimeRelease(TVMGraphRuntimeAPI** runtime);
 
 void TVMGraphRuntimeRegisterGlobals(void);
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
 
 #endif  // TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_

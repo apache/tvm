@@ -23,7 +23,7 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/crt/memory.h>
 
-#include <tvm/include/runtime/crt/memory.h>
+#include <tvm/runtime/crt/memory.h>
 
 TEST(CRTMemory, Alloc) {
   for (int idx = 0; idx < 65536; idx++) {
@@ -44,6 +44,12 @@ TEST(CRTMemory, Realloc) {
     vfree(a);
     EXPECT_EQ(vleak_size, 0);
   }
+}
+
+extern "C" {
+void TVMPlatformAbort(int error_code) {
+  FAIL() << "TVMPlatformAbort(" << error_code << ")";
+}
 }
 
 int main(int argc, char** argv) {
