@@ -28,9 +28,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/module.h>
 
 #include "crt_config.h"
-#include "module.h"
 
 DLDataType String2DLDataType(const char* s);
 

@@ -19,9 +19,22 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/graph_runtime.h>
 
 #include "bundle.h"
+
+
+/*! \brief macro to do C API call */
+#define TVM_CCALL(func)                                                              \
+  do {                                                                               \
+    tvm_crt_error_t ret = (func);                                       \
+    if (ret != kTvmErrorNoError) {                                      \
+      fprintf(stderr, "%s: %d: error: %s\n", __FILE__, __LINE__, TVMGetLastError()); \
+      exit(ret);                                                                     \
+    }                                                                                \
+  } while (0)
+
 
 TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
                                  const uint64_t params_size) {
@@ -43,13 +56,14 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
   int (*TVMGraphRuntime_LoadParams)(TVMModuleHandle, const char*, const uint32_t);
 
   // get pointers
-  TVMFuncGetGlobal("runtime.SystemLib", (TVMFunctionHandle*)&SystemLibraryCreate);
-  TVMFuncGetGlobal("tvm.graph_runtime.create", (TVMFunctionHandle*)&TVMGraphRuntimeCreate);
+  TVM_CCALL(TVMInitializeRuntime());
+  TVM_CCALL(TVMFuncGetGlobal("runtime.SystemLib", (TVMFunctionHandle*)&SystemLibraryCreate));
+  TVM_CCALL(TVMFuncGetGlobal("tvm.graph_runtime.create", (TVMFunctionHandle*)&TVMGraphRuntimeCreate));
 
   // run modules
   TVMModuleHandle mod_syslib = SystemLibraryCreate();
   TVMModuleHandle mod = TVMGraphRuntimeCreate(json_data, mod_syslib, &ctx);
-  TVMModGetFunction(mod, "load_params", 0, (TVMFunctionHandle*)&TVMGraphRuntime_LoadParams);
+  TVM_CCALL(TVMModGetFunction(mod, "load_params", 0, (TVMFunctionHandle*)&TVMGraphRuntime_LoadParams));
   TVMGraphRuntime_LoadParams(mod, params.data, params.size);
 
   return mod;

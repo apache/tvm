@@ -25,7 +25,7 @@
 #define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_GRAPH_RUNTIME_H_
 
 #include <tvm/runtime/crt/graph_runtime.h>
-#include <tvm/runtime/crt/internal/common/module.h>
+#include <tvm/runtime/crt/module.h>
 #include <tvm/runtime/crt/internal/common/ndarray.h>
 #include <tvm/runtime/crt/internal/graph_runtime/load_json.h>
 

@@ -25,10 +25,10 @@
  */
 
 #include <tvm/runtime/crt/internal/common/logging.h>
-#include <tvm/runtime/crt/internal/common/module.h>
 #include <tvm/runtime/crt/internal/common/packed_func.h>
 #include <tvm/runtime/crt/internal/graph_runtime/graph_runtime.h>
 #include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/module.h>
 
 #include "crt_config.h"
 

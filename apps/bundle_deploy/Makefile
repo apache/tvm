@@ -22,12 +22,12 @@ TVM_ROOT=$(shell cd ../..; pwd)
 CRT_ROOT ?= ../../src/runtime/crt
 
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
-PKG_CXXFLAGS = -Wall -std=c++14 -O2 -fPIC \
+PKG_CXXFLAGS = -g -Wall -std=c++14 -O2 -fPIC \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
 	-Icrt_config
-PKG_CFLAGS = -Wall -std=c99 -O2 -fPIC \
+PKG_CFLAGS = -g -Wall -std=c99 -O2 -fPIC \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
@@ -66,11 +66,11 @@ $(build_dir)/test_dynamic: test.cc ${build_dir}/test_graph.json ${build_dir}/tes
 	@mkdir -p $(@D)
 	g++ $(PKG_CXXFLAGS) -o $@  test.cc -ldl
 
-$(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o ${build_dir}/model.o ${build_dir}/graph.json.c ${build_dir}/params.bin.c ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
+$(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o ${build_dir}/func_registry.c ${build_dir}/model.o ${build_dir}/graph.json.c ${build_dir}/params.bin.c ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
 	@mkdir -p $(@D)
-	gcc $(PKG_CFLAGS) -o $@ demo_static.c ${build_dir}/bundle_static.o ${build_dir}/model.o -lm ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
+	gcc $(PKG_CFLAGS) -o $@ demo_static.c ${build_dir}/bundle_static.o ${build_dir}/func_registry.c ${build_dir}/model.o -lm ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
 
-$(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o ${build_dir}/test_model.o ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
+$(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o ${build_dir}/test_func_registry.c ${build_dir}/test_model.o ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
 	@mkdir -p $(@D)
 	gcc $(PKG_CFLAGS) -o $@ $^
 
@@ -82,27 +82,27 @@ $(build_dir)/graph.json.c: $(build_dir)/graph.json
 $(build_dir)/params.bin.c: $(build_dir)/params.bin
 	xxd -i $^  > $@
 
-$(build_dir)/model.o $(build_dir)/graph.json $(build_dir)/params.bin $(build_dir)/cat.bin: build_model.py
+$(build_dir)/func_registry.c $(build_dir)/model.o $(build_dir)/graph.json $(build_dir)/params.bin $(build_dir)/cat.bin: build_model.py
 	python3 $< -o $(build_dir)
 
-$(build_dir)/test_model.o $(build_dir)/test_graph.json $(build_dir)/test_params.bin $(build_dir)/test_data.bin $(build_dir)/test_output.bin: build_model.py
+$(build_dir)/test_func_registry.c $(build_dir)/test_model.o $(build_dir)/test_graph.json $(build_dir)/test_params.bin $(build_dir)/test_data.bin $(build_dir)/test_output.bin: build_model.py
 	python3 $< -o $(build_dir) --test
 
 # Build our bundle against the serialized bundle.c API, the runtime.cc API, and
 # the serialized graph.json and params.bin
-$(build_dir)/bundle.so: bundle.cc $(build_dir)/model.o ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
+$(build_dir)/bundle.so: bundle.cc $(build_dir)/model.o $(build_dir)/func_registry.c ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
 	@mkdir -p $(@D)
 	g++ -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
-$(build_dir)/bundle_c.so: bundle.c runtime.c $(build_dir)/model.o
+$(build_dir)/bundle_c.so: bundle.c runtime.c $(build_dir)/model.o $(build_dir)/func_registry.c
 	@mkdir -p $(@D)
 	gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
-$(build_dir)/test_bundle.so: bundle.cc runtime.cc $(build_dir)/test_model.o
+$(build_dir)/test_bundle.so: bundle.cc runtime.cc $(build_dir)/test_model.o $(build_dir)/test_func_registry.c
 	@mkdir -p $(@D)
 	g++ -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
-$(build_dir)/test_bundle_c.so: bundle.c runtime.c $(build_dir)/test_model.o
+$(build_dir)/test_bundle_c.so: bundle.c runtime.c $(build_dir)/test_model.o $(build_dir)/test_func_registry.c
 	@mkdir -p $(@D)
 	gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 

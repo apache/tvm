@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/crt.h>
 #include <tvm/runtime/crt/func_registry.h>
 #include <tvm/runtime/crt/internal/common/ndarray.h>
 #include <tvm/runtime/crt/internal/common/packed_func.h>
@@ -308,7 +309,7 @@ int TVMFuncFree(TVMFunctionHandle func) {
   return 0;
 }
 
-int TVMInitializeRuntime() {
+tvm_crt_error_t TVMInitializeRuntime() {
   int idx;
   int error;
 

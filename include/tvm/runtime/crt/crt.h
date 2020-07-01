@@ -18,27 +18,28 @@
  */
 
 /*!
- * \file tvm/runtime/crt/platform.h
- * \brief The virtual memory manager for micro-controllers
+ * \file tvm/runtime/crt/crt.h
+ * \brief Defines core life cycle functions used by CRT.
  */
 
-#ifndef TVM_RUNTIME_CRT_PLATFORM_H_
-#define TVM_RUNTIME_CRT_PLATFORM_H_
+#ifndef TVM_RUNTIME_CRT_CRT_H_
+#define TVM_RUNTIME_CRT_CRT_H_
+
+#include <tvm/runtime/crt/error_codes.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/*! \brief Called when an internal error occurs and execution cannot continue.
- *
- * The platform should ideally restart or hang at this point.
- *
- * \param code An error code.
+/*!
+ * \brief Initialize various data structures used by the rutnime.
+ * \return An error code describing the outcome of intialization. Generally, initialization
+ *     is only expected to fail due to a misconfiguration.
  */
-void __attribute__((noreturn)) TVMPlatformAbort(int code);
+tvm_crt_error_t TVMInitializeRuntime(void);
 
 #ifdef __cplusplus
 }  // extern "C"
 #endif
 
-#endif  // TVM_RUNTIME_CRT_PLATFORM_H_
+#endif  // TVM_RUNTIME_CRT_CRT_H_
