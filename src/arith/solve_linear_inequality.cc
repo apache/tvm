@@ -97,7 +97,7 @@ struct ExprLess {
 /*!
  * \brief Combine the information into an array of (in)equalities.
  */
-Array<PrimExpr> as_conditions(const Array<Var>& variables, const Map<Var, IntGrpBounds>& bounds,
+Array<PrimExpr> as_conditions(const Array<Var>& variables, const Map<Var, IntGroupBounds>& bounds,
                               const Array<PrimExpr>& relations) {
   Array<PrimExpr> res;
   // use variables to keep the order of iteration
@@ -296,7 +296,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
                   &analyzer);
   }
 
-  Map<Var, IntGrpBounds> res_bounds;
+  Map<Var, IntGroupBounds> res_bounds;
   for (const Var& v : system_to_solve->variables) {
     CHECK(!res_bounds.count(v))
         << "Variable " << v
@@ -404,7 +404,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     std::sort(equal_list.begin(), equal_list.end(), ExprLess());
 
     // Write it to the result.
-    IntGrpBounds bnds(make_const(v.dtype(), coef_lcm),
+    IntGroupBounds bnds(make_const(v.dtype(), coef_lcm),
                       Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end()),
                       Array<PrimExpr>(equal_list.begin(), equal_list.end()),
                       Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end()));
@@ -443,7 +443,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
   // we get a set of equality, lower, upper bound of each variable.
   auto solved_system = SolveLinearInequalities(inequalities);
 
-  Map<Var, IntGrpBounds> solved_bounds = solved_system.first;
+  Map<Var, IntGroupBounds> solved_bounds = solved_system.first;
   Array<PrimExpr> solved_other_relations = solved_system.second;
 
   Array<PrimExpr> res_relations;
@@ -511,7 +511,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   Map<Var, Range> res_ranges;
   // we get a set of equality, lower, upper bound of each variable.
   auto solved_system = SolveLinearInequalities(inequalities);
-  Map<Var, IntGrpBounds> solved_bounds = solved_system.first;
+  Map<Var, IntGroupBounds> solved_bounds = solved_system.first;
   Array<PrimExpr> solved_other_relations = solved_system.second;
 
   arith::Analyzer analyzer;

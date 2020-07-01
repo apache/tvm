@@ -48,9 +48,9 @@ using tir::VarNode;
  *        coef * var >= lower
  *        coef * var == equal
  *        coef * var <= upper
- * \sa IntGrpBounds
+ * \sa IntGroupBounds
  */
-class IntGrpBoundsNode : public Object {
+class IntGroupBoundsNode : public Object {
  public:
   PrimExpr coef;
   Array<PrimExpr> lower;
@@ -64,7 +64,7 @@ class IntGrpBoundsNode : public Object {
     v->Visit("upper", &upper);
   }
 
-  bool SEqualReduce(const IntGrpBoundsNode* other, SEqualReducer eq) const {
+  bool SEqualReduce(const IntGroupBoundsNode* other, SEqualReducer eq) const {
     return eq(coef, other->coef) && eq(lower, other->lower) && eq(equal, other->equal) &&
            eq(upper, other->upper);
   }
@@ -77,15 +77,15 @@ class IntGrpBoundsNode : public Object {
   }
 
   static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const char* _type_key = "arith.IntGrpBounds";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntGrpBoundsNode, Object);
+  static constexpr const char* _type_key = "arith.IntGroupBounds";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IntGroupBoundsNode, Object);
 };
 
 /*!
- * \brief Managed reference to IntGrpBoundsNode.
- * \sa IntGrpBoundsNode
+ * \brief Managed reference to IntGroupBoundsNode.
+ * \sa IntGroupBoundsNode
  */
-class IntGrpBounds : public ObjectRef {
+class IntGroupBounds : public ObjectRef {
  public:
   /*!
    * \brief Constructor by fields
@@ -97,20 +97,20 @@ class IntGrpBounds : public ObjectRef {
    * \param equal equalities
    * \param upper the upper bounds (include)
    */
-  TVM_DLL IntGrpBounds(PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
-                       Array<PrimExpr> upper);
+  TVM_DLL IntGroupBounds(PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
+                         Array<PrimExpr> upper);
 
   /*!
    * \brief Construct bounds from a range.
    * \param r The range
    * \return constructed bounds.
    */
-  static IntGrpBounds range(const Range& r);
+  static IntGroupBounds FromRange(const Range& r);
 
   /*!
    * \brief Perform substitution on all components of the struct.
    */
-  IntGrpBounds Substitute(const Map<Var, PrimExpr>& subst) const;
+  IntGroupBounds Substitute(const Map<Var, PrimExpr>& subst) const;
 
   /*!
    * \brief Find the best range from the grouped bounds.
@@ -125,9 +125,9 @@ class IntGrpBounds : public ObjectRef {
    * \param r range to be combined.
    * \return combined bounds.
    */
-  IntGrpBounds operator+(const Range& r);
+  IntGroupBounds operator+(const Range& r);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IntGrpBounds, ObjectRef, IntGrpBoundsNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(IntGroupBounds, ObjectRef, IntGroupBoundsNode);
 };
 
 /*!
@@ -254,7 +254,7 @@ class IntConstraintsTransform : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(IntConstraintsTransform, ObjectRef, IntConstraintsTransformNode);
 };
 
-typedef std::pair<Map<Var, IntGrpBounds>, Array<PrimExpr>> PartialSolvedInequalities;
+typedef std::pair<Map<Var, IntGroupBounds>, Array<PrimExpr>> PartialSolvedInequalities;
 
 /*!
  * \brief Obtain Smith Normal Form of linear equation A x = y.
