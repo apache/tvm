@@ -184,8 +184,8 @@ void AddInequality(std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>
     // or has already been added
     return;
   }
-  for (auto iter = inequality_set->begin(); iter != inequality_set->end();) {
-    if (const LENode* new_le = new_ineq.as<LENode>()) {
+  if (const LENode* new_le = new_ineq.as<LENode>()) {
+    for (auto iter = inequality_set->begin(); iter != inequality_set->end();) {
       const LENode* le = iter->as<LENode>();
       if (le && analyzer->CanProve(new_le->a - le->a <= 0)) {
         return;
@@ -194,8 +194,6 @@ void AddInequality(std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>
       } else {
         ++iter;
       }
-    } else {
-      ++iter;
     }
   }
 
