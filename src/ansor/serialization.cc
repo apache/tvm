@@ -453,13 +453,19 @@ TVM_REGISTER_GLOBAL("ansor.GetStatesFromMeasureInputs")
         } else {
           auto find_res = task_cache.find(key);
           if (find_res == task_cache.end()) {
-            if (inp->task->compute_dag.defined()) {  // the measure input is complete
+            if (inp->task->compute_dag.defined()) {
               ptask = inp->task.operator->();
-            } else {  // the measure input is incomplete
-              // rebuild task for incomplete measure pairs read from file
-              SearchTask new_task =
-                  SearchTask(ComputeDAG(workload_key), workload_key, inp->task->target,
-                             inp->task->target_host, inp->task->hardware_params);
+            } else {
+              // If the measure input is incomplete, rebuild task for it
+              Array<te::Tensor> tens;
+              // Call python function to decode the workload_key and get the I/O tensors
+              if (const auto* f = runtime::Registry::Get("ansor.workload_key_to_tensors")) {
+                tens = (*f)(workload_key);
+              } else {
+                LOG(FATAL) << "ansor.workload_key_to_tensors is not registered";
+              }
+              SearchTask new_task = SearchTask(ComputeDAG(tens), workload_key, inp->task->target,
+                                               inp->task->target_host, inp->task->hardware_params);
               task_cache.insert(std::make_pair(key, new_task));
               ptask = new_task.operator->();
             }

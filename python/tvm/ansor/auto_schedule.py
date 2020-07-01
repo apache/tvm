@@ -19,6 +19,7 @@
 
 import tvm._ffi
 from tvm.runtime import Object
+from .compute_dag import ComputeDAG
 from .measure import LocalBuilder, LocalRunner
 from . import _ffi_api
 
@@ -179,13 +180,13 @@ def auto_schedule(task, target, target_host=None, search_policy='default',
         else:
             raise ValueError("Invalid search policy: " + search_policy)
 
-    tune_option = TuneOption() if tune_option is None else tune_option
+    tune_option = tune_option if tune_option else TuneOption()
 
     if isinstance(task, str):
-        sch, tensors = _ffi_api.AutoScheduleByWorkloadKey(
-            task, target, target_host, search_policy, hardware_params, tune_option)
-        return sch, tensors
-    if isinstance(task, SearchTask):
-        sch, tensors = _ffi_api.AutoScheduleBySearchTask(task, search_policy, tune_option)
-        return sch, tensors
-    raise ValueError("Invalid task: " + task + ". Expect a string or SearchTask")
+        dag = ComputeDAG(task)
+        task = SearchTask(dag, task, target, target_host, hardware_params)
+    elif not isinstance(task, SearchTask):
+        raise ValueError("Invalid task: " + task + ". Expect a string or SearchTask")
+
+    sch, tensors = _ffi_api.AutoSchedule(task, search_policy, tune_option)
+    return sch, tensors

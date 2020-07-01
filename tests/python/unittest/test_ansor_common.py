@@ -21,7 +21,7 @@ from tvm import te, ansor
 import topi
 
 
-@ansor.register_workload
+@ansor.register_workload_by_func
 def matmul_ansor_test(N, M, K):
     A = te.placeholder((N, K), name='A')
     B = te.placeholder((K, M), name='B')

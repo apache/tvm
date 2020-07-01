@@ -26,6 +26,9 @@ from test_ansor_common import get_tiled_matmul
 
 def test_serialization():
     dag, s = get_tiled_matmul()
+
+    if not tvm.runtime.enabled("llvm"):
+        return
     target = tvm.target.create("llvm")
     task = ansor.SearchTask(dag, "test", target)
 
@@ -49,6 +52,8 @@ def test_serialization():
 def test_measure_local_builder_runner():
     dag, s0 = get_tiled_matmul()
 
+    if not tvm.runtime.enabled("llvm"):
+        return
     tgt = tvm.target.create("llvm")
     task = ansor.SearchTask(dag, "test", tgt)
 

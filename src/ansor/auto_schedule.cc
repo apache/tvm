@@ -62,19 +62,6 @@ std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(SearchTask task,
   return task->compute_dag.ApplySteps(state->transform_steps);
 }
 
-std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(std::string workload_key, Target target,
-                                                         Target target_host,
-                                                         SearchPolicy search_policy,
-                                                         HardwareParams hardware_params,
-                                                         TuneOption tune_option) {
-  // Create SearchTask from the given workload key
-  ComputeDAG dag = ComputeDAG(workload_key);
-  SearchTask task = SearchTask(std::move(dag), std::move(workload_key), std::move(target),
-                               std::move(target_host), std::move(hardware_params));
-  // Search for the best schedule
-  return AutoSchedule(std::move(task), std::move(search_policy), std::move(tune_option));
-}
-
 TVM_REGISTER_GLOBAL("ansor.TuneOption")
     .set_body_typed([](int n_trials, int early_stopping, int num_measure_per_round, int verbose,
                        Builder builder, Runner runner, Array<MeasureCallback> measure_callbacks,
@@ -83,24 +70,12 @@ TVM_REGISTER_GLOBAL("ansor.TuneOption")
                         measure_callbacks, pre_search_callbacks);
     });
 
-TVM_REGISTER_GLOBAL("ansor.AutoScheduleBySearchTask")
+TVM_REGISTER_GLOBAL("ansor.AutoSchedule")
     .set_body_typed([](SearchTask task, SearchPolicy search_policy, TuneOption tune_option) {
       te::Schedule sch;
       Array<te::Tensor> return_tensors;
       std::tie(sch, return_tensors) = AutoSchedule(task, search_policy, tune_option);
       return Array<ObjectRef>{sch, return_tensors};
     });
-
-TVM_REGISTER_GLOBAL("ansor.AutoScheduleByWorkloadKey")
-    .set_body_typed([](std::string workload_key, Target target, Target target_host,
-                       SearchPolicy search_policy, HardwareParams hardware_params,
-                       TuneOption tune_option) {
-      te::Schedule sch;
-      Array<te::Tensor> return_tensors;
-      std::tie(sch, return_tensors) = AutoSchedule(workload_key, target, target_host, search_policy,
-                                                   hardware_params, tune_option);
-      return Array<ObjectRef>{sch, return_tensors};
-    });
-
 }  // namespace ansor
 }  // namespace tvm

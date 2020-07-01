@@ -105,23 +105,6 @@ class TuneOption : public ObjectRef {
 std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(SearchTask task,
                                                          SearchPolicy search_policy,
                                                          TuneOption tune_option);
-
-/*!
- * \brief Auto schedule search for a given compute declaration, by workload key.
- * \param workload_key The target workload key.
- * \param target The target device of this schedule search.
- * \param target_host The target host device of this schedule search.
- * \param search_policy The search policy to be used for schedule search.
- * \param hardware_params The hardware parameters of this schedule search.
- * \param tune_option Tuning and measurement options.
- * \return A `te::Schedule` and the target `te::Tensor` to be used in `tvm.lower` or `tvm.build`.
- */
-std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(std::string workload_key, Target target,
-                                                         Target target_host,
-                                                         SearchPolicy search_policy,
-                                                         HardwareParams hardware_params,
-                                                         TuneOption tune_option);
-
 }  // namespace ansor
 }  // namespace tvm
 

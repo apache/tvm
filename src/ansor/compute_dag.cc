@@ -243,25 +243,6 @@ ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   data_ = std::move(node);
 }
 
-ComputeDAG::ComputeDAG(const std::string& workload_key) {
-  Array<te::Tensor> tens;
-  // Call python function to decode the workload_key and get the I/O tensors
-  if (const auto* f = runtime::Registry::Get("ansor.workload_key_to_tensors")) {
-    tens = (*f)(workload_key);
-  } else {
-    LOG(FATAL) << "ansor.workload_key_to_tensors is not registered";
-  }
-  auto node = make_object<ComputeDAGNode>();
-  FlopEstimator estimator;
-  node->tensors = std::move(tens);
-  std::vector<te::Operation> ops;
-  TopoSortOps(node->tensors, &ops);
-  node->ops = Array<te::Operation>(ops);
-  node->flop_ct = estimator.EstimateFlop(node->ops);
-  node->init_state = State(node->ops);
-  data_ = std::move(node);
-}
-
 State ComputeDAG::GetInitState() const { return Downcast<State>(operator->()->init_state); }
 
 std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ApplySteps(

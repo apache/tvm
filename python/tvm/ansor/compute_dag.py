@@ -25,6 +25,7 @@ from tvm.te import PlaceholderOp, ComputeOp
 
 from .loop_state import State, StateObject
 from .utils import get_const_tuple
+from .workload_registry import workload_key_to_tensors
 
 from . import _ffi_api
 
@@ -36,11 +37,19 @@ class ComputeDAG(Object):
 
     Parameters
     ----------
-    tensors : List[Tensor]
-        `Tensor`s for a compute declaration.
+    compute : Union[List[Tensor], str]
+        `Tensor`s or workload key for a compute declaration.
     """
-    def __init__(self, tensors):
-        self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, tensors)
+    def __init__(self, compute):
+        if isinstance(compute, str):
+            compute = workload_key_to_tensors(compute)
+        elif isinstance(compute, list):
+            for item in compute:
+                if not isinstance(item, tvm.te.Tensor):
+                    raise ValueError("The input of ComputeDAG should be a list of Tensor")
+        else:
+            raise ValueError("Invalid compute: " + compute + ". Expect a string or list of Tensor")
+        self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, compute)
 
     def get_init_state(self):
         """ Get init state of this ComputeDAG.

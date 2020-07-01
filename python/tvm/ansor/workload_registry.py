@@ -34,12 +34,11 @@ import json
 
 import tvm._ffi
 from .utils import serialize_args, deserialize_args
-from .compute_dag import ComputeDAG
 
 WORKLOAD_FUNC_REGISTRY = {}
 
 
-def register_workload(func):
+def register_workload_by_func(func):
     """ Register a workload by generation function.
 
     The input function should take hashable and jsonable arguments
@@ -47,7 +46,7 @@ def register_workload(func):
 
     Examples
     --------
-    @register_workload
+    @register_workload_by_func
     def matmul(N, M, K):
         A = te.placeholder((N, K), name='A')
         B = te.placeholder((K, M), name='B')
@@ -60,47 +59,6 @@ def register_workload(func):
         raise RuntimeError('%s has been registered already' % func_name)
     WORKLOAD_FUNC_REGISTRY[func_name] = func
     return func
-
-
-@tvm._ffi.register_func("ansor.workload_key_to_tensors")
-def workload_key_to_tensors(workload_key):
-    """ Decode a workload key to the input/output tensors.
-
-    Parameters
-    ----------
-    workload_key : Str
-        The target workload key.
-
-    Returns
-    -------
-    tensors : List[Tensor]
-        The registered compute declaration Tensors.
-    """
-    workload = json.loads(workload_key)
-    name = workload[0]
-    lookup = WORKLOAD_FUNC_REGISTRY[name]
-
-    assert callable(lookup)
-    args = deserialize_args(workload[1:])
-    return lookup(*args)
-
-
-@ tvm._ffi.register_func("ansor.workload_key_to_dag")
-def workload_key_to_dag(workload_key):
-    """ Decode a workload key to a compute dag.
-
-    Parameters
-    ----------
-    workload_key : Str
-        The target workload key.
-
-    Returns
-    -------
-    dag : ComputeDAG
-        ComputeDAG to the registered compute declaration.
-    """
-    tensors = workload_key_to_tensors(workload_key)
-    return ComputeDAG(tensors)
 
 
 def make_workload_key_by_func(func, args):
@@ -128,9 +86,32 @@ def make_workload_key_by_func(func, args):
         raise ValueError("Invalid function: " + str(func))
 
     assert func_name in WORKLOAD_FUNC_REGISTRY, \
-        "%s is not registered. Please register it with @ansor.register_workload" % func
+        "%s is not registered. Please register it with @ansor.register_workload_by_func" % func
 
     return json.dumps((func_name,) + args)
+
+
+@tvm._ffi.register_func("ansor.workload_key_to_tensors")
+def workload_key_to_tensors(workload_key):
+    """ Decode a workload key to the input/output tensors.
+
+    Parameters
+    ----------
+    workload_key : Str
+        The target workload key.
+
+    Returns
+    -------
+    tensors : List[Tensor]
+        The registered compute declaration Tensors.
+    """
+    workload = json.loads(workload_key)
+    name = workload[0]
+    lookup = WORKLOAD_FUNC_REGISTRY[name]
+
+    assert callable(lookup)
+    args = deserialize_args(workload[1:])
+    return lookup(*args)
 
 
 def dump_workload_func_registry(filename):

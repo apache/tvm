@@ -84,10 +84,6 @@ class ComputeDAG : public ObjectRef {
    * \param tensors `te::Tensor`s for a compute declaration.
    */
   explicit ComputeDAG(Array<te::Tensor> tensors);
-  /*! \brief The constructor.
-   * \param workload_key Workload key for a compute declaration.
-   */
-  explicit ComputeDAG(const std::string& workload_key);
 
   /*!
    * \brief Apply transform steps to the init state of this DAG, and get the
