@@ -1132,19 +1132,30 @@ def test_forward_cond():
     verify(np.asarray([4.0], 'float32'), np.asarray([3.0],'float32'))
 
 def test_forward_amp_multicast():
-    def verify(dtypes, expected_dtype):
+    def verify(dtypes, cast_narrow, expected_dtype):
         x_nds = [mx.nd.ones((2,2), dtype=dtype) for dtype in dtypes]
         x_nps = [x.asnumpy() for x in x_nds]
         x_vars = [mx.sym.var(str(i), dtype=dtype) for i, dtype in enumerate(dtypes)]
-        mx_sym = mx.sym.amp_multicast(*x_vars, num_outputs=len(dtypes))
+        mx_sym = mx.sym.amp_multicast(*x_vars, cast_narrow=cast_narrow,
+                                      num_outputs=len(dtypes))
         shape_dict = {}
+        dtype_dict = {}
         for i, dtype in enumerate(dtypes):
             shape_dict[str(i)] = (2,2)
-        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+            dtype_dict[str(i)] = dtype
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict, dtype_dict)
         intrp = relay.create_executor('graph', mod=mod, ctx=tvm.gpu(), target='cuda')
         op_res = intrp.evaluate()(*x_nps)
-        print(op_res)
-    verify(['float32', 'float16'], 'float32')
+        for res in op_res:
+            assert res.dtype == expected_dtype, res.dtype
+            tvm.testing.assert_allclose(res.asnumpy(), 1)
+
+    verify(['float32', 'float16'], False, 'float32')
+    verify(['float32', 'float16'], True,  'float16')
+    verify(['float32', 'float32'], False, 'float32')
+    verify(['float32', 'float32'], True,  'float32')
+    verify(['float16', 'float16'], False, 'float16')
+    verify(['float16', 'float16'], True, 'float16')
 
 
 def test_forward_unravel_index():
@@ -1322,6 +1333,7 @@ def test_forward_interleaved_matmul_selfatt_valatt():
 
 
 if __name__ == '__main__':
+    test_forward_amp_multicast()
     test_forward_mlp()
     test_forward_vgg()
     test_forward_resnet()

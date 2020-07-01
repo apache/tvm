@@ -917,7 +917,6 @@ def _mx_amp_multicast(inputs, attrs):
         elif not cast_narrow and t == 'float32':
             dtype = 'float32'
             break
-    print('dtype=', dtype)
     return [relay.cast(x, dtype) for x in inputs]
 
 def _mx_grid_generator(inputs, attrs):
