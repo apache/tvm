@@ -283,11 +283,19 @@ def test_sub_index_simplify():
     # mul co-efficient foldng
     ck.verify(x - x, 0)
     ck.verify(x * y - x, x * (y + (-1)))
+    ck.verify(y * x - x, x * (y + (-1)))
+    ck.verify(x - y * x, x * (1 - y))
+    ck.verify(x - x * y, x * (1 - y))
     ck.verify(x * y - 10 * x, x * (y + (-10)))
+    ck.verify(x * y - x * z, x * (y - z))
+    ck.verify(x * y - z * x, x * (y - z))
     ck.verify(y * x - x * z, x * (y - z))
     ck.verify(y * x - z * x, x * (y - z))
 
     ck.verify(x + 10 - 20, x + (-10))
+    ck.verify((x - 10) - (y - 20), (x - y) + 10)
+    ck.verify((10 - x) - (20 - y), (y - x) + (-10))
+    ck.verify((10 - x) - (y - 20), 30 - (x + y))
 
     # 4-operands pattern
     ck.verify((x + y) - (x + z), y - z)

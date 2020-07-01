@@ -275,6 +275,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
     // constant cancelation
     TVM_TRY_REWRITE((x + c1) - c2, x + (c1 - c2));
     TVM_TRY_REWRITE((c1 - x) - (c2 - y), (y - x) + (c1 - c2));
+    TVM_TRY_REWRITE((c1 - x) - (y + c2), (c1 - c2) - (x + y));
+    TVM_TRY_RECURSIVE_REWRITE((x + c1) - (y + c2), (x - y) + (c1 - c2));
 
     // cancelization rule involving 4 operands
     TVM_TRY_REWRITE((x + y) - (x + z), y - z);
