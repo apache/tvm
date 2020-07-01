@@ -190,7 +190,7 @@ def main():
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
-    assert proc.returncode == 0
+    assert proc.returncode == 0, f'{" ".join(cmd)} errored: {out}'
     res = out.decode("utf-8")
     flist = res.split()
     error_list = []
