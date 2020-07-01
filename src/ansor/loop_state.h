@@ -179,13 +179,16 @@ class StageNode : public Object {
   /*! \brief The type of this stage. */
   StageType op_type;
   /*! \brief The iterators in this stage. */
-  std::vector<Iterator> iters;
+  Array<Iterator> iters;
   /*! \brief The compute location of this stage. */
   ComputeAtType compute_at;
   /*! \brief Other stage-level attributes. */
   StageAttributes attrs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("op", &op); }
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("op", &op);
+    v->Visit("iters", &iters);
+  }
 
   static constexpr const char* _type_key = "ansor.Stage";
   TVM_DECLARE_FINAL_OBJECT_INFO(StageNode, Object);
@@ -210,8 +213,8 @@ class Stage : public ObjectRef {
    * \param compute_at The compute at type of this op.
    * \param attrs Other stage-level attributes.
    */
-  Stage(te::Operation op, StageType op_type, const std::vector<Iterator>& iters,
-        ComputeAtType compute_at, StageAttributes attrs);
+  Stage(te::Operation op, StageType op_type, const Array<Iterator>& iters, ComputeAtType compute_at,
+        StageAttributes attrs);
   /*!
    * \brief The constructor.
    * \param op A `te::Operation`.
@@ -220,8 +223,8 @@ class Stage : public ObjectRef {
    * \param compute_at The compute at type of this op.
    * \param attrs Other stage-level attributes.
    */
-  Stage(te::Operation op, StageType op_type, std::vector<Iterator>&& iters,
-        ComputeAtType compute_at, StageAttributes attrs);
+  Stage(te::Operation op, StageType op_type, Array<Iterator>&& iters, ComputeAtType compute_at,
+        StageAttributes attrs);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Stage, ObjectRef, StageNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StageNode);
@@ -235,9 +238,9 @@ class Stage : public ObjectRef {
 class StateNode : public Object {
  public:
   /*! \brief Current stages and loop structures. */
-  std::vector<Stage> stages;
+  Array<Stage> stages;
   /*! \brief History transformation steps. */
-  std::vector<Step> transform_steps;
+  Array<Step> transform_steps;
   /*! \brief Indicate whether this state has unfilled tile sizes. */
   bool complete;
   /*!
@@ -248,6 +251,8 @@ class StateNode : public Object {
   ComputeDAG task_dag;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("stages", &stages);
+    v->Visit("transform_steps", &transform_steps);
     v->Visit("complete", &complete);
     v->Visit("task_dag", &task_dag);
   }
@@ -267,20 +272,13 @@ class State : public ObjectRef {
    * \param ops `te::Operation`s for a compute declaration.
    */
   explicit State(const Array<te::Operation>& ops);
-  /*!
-   * \brief The constructor.
-   * \param stages Stages of the target state.
-   * \param transform_steps Transform steps of the target state.
-   * \param complete Indicate whether this state has unfilled tile sizes.
-   */
-  State(const std::vector<Stage>& stages, const std::vector<Step>& transform_steps, bool complete);
 
   /*!
    * \brief Schedule primitive corresponds to te.reorder.
    * \param stage_id The index of the target stage.
    * \param order The target iterator order.
    */
-  void reorder(int stage_id, const std::vector<Iterator>& order);
+  void reorder(int stage_id, const Array<Iterator>& order);
   /*!
    * \brief Schedule primitive corresponds to te.split.
    * \param stage_id The index of the target stage.
@@ -289,22 +287,22 @@ class State : public ObjectRef {
    * \param inner_to_outer True for split from inner to outer & False for outer to inner.
    * \return The iterator results after split.
    */
-  std::vector<Iterator> split(int stage_id, const Iterator& it,
-                              const std::vector<PrimExpr>& lengths, bool inner_to_outer = true);
+  Array<Iterator> split(int stage_id, const Iterator& it, const Array<PrimExpr>& lengths,
+                        bool inner_to_outer = true);
   /*!
    * \brief Schedule primitive corresponds to te.fuse.
    * \param stage_id The index of the target stage.
    * \param iters The target iterators to be fused.
    * \return The iterator result after fuse.
    */
-  Iterator fuse(int stage_id, const std::vector<Iterator>& iters);
+  Iterator fuse(int stage_id, const Array<Iterator>& iters);
 
   /*!
    * \brief General do step functions with a runtime dynamic dispatcher.
    * \param steps The target transform steps.
    * \param dag The target ComputeDAG.
    */
-  void DoSteps(const std::vector<Step>& steps, const ComputeDAG& dag);
+  void DoSteps(const Array<Step>& steps, const ComputeDAG& dag);
 
   /*!
    * \brief Print the state to a string.
@@ -332,7 +330,7 @@ class State : public ObjectRef {
    * \param step A SplitStep.
    * \return The iterator results after split.
    */
-  std::vector<Iterator> DoSplitStep(const SplitStep& step);
+  Array<Iterator> DoSplitStep(const SplitStep& step);
   /*!
    * \brief Apply fuse step to current state.
    * \param step A FuseStep.
@@ -348,9 +346,8 @@ class State : public ObjectRef {
    * \param inner_to_outer The split direction.
    * \return The iterator results after split.
    */
-  std::vector<Iterator> DoSplitStepCommon(int stage_id, int iter_id,
-                                          const std::vector<PrimExpr>& lengths,
-                                          bool inner_to_outer);
+  Array<Iterator> DoSplitStepCommon(int stage_id, int iter_id, const Array<PrimExpr>& lengths,
+                                    bool inner_to_outer);
 };
 
 }  // namespace ansor

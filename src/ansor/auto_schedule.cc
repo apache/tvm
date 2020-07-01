@@ -34,13 +34,14 @@ namespace ansor {
 
 TVM_REGISTER_NODE_TYPE(TuneOptionNode);
 
-TuneOption::TuneOption(int n_trials, int early_stopping, int num_measure_per_round, int verbose,
-                       Builder builder, Runner runner, Array<MeasureCallback> measure_callbacks,
+TuneOption::TuneOption(int num_measure_trials, int early_stopping, int num_measures_per_round,
+                       int verbose, Builder builder, Runner runner,
+                       Array<MeasureCallback> measure_callbacks,
                        Array<SearchCallback> pre_search_callbacks) {
   auto node = make_object<TuneOptionNode>();
-  node->n_trials = n_trials;
+  node->num_measure_trials = num_measure_trials;
   node->early_stopping = early_stopping;
-  node->num_measure_per_round = num_measure_per_round;
+  node->num_measures_per_round = num_measures_per_round;
   node->verbose = verbose;
   node->builder = std::move(builder);
   node->runner = std::move(runner);
@@ -56,18 +57,20 @@ std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(SearchTask task,
   ProgramMeasurer measurer = ProgramMeasurer(tune_option->builder, tune_option->runner,
                                              tune_option->measure_callbacks, tune_option->verbose);
   // Search for the best schedule
-  State state = search_policy->Search(task, tune_option->n_trials, tune_option->early_stopping,
-                                      tune_option->num_measure_per_round, tune_option->verbose,
-                                      measurer, tune_option->pre_search_callbacks);
+  State state =
+      search_policy->Search(task, tune_option->num_measure_trials, tune_option->early_stopping,
+                            tune_option->num_measures_per_round, tune_option->verbose, measurer,
+                            tune_option->pre_search_callbacks);
   return task->compute_dag.ApplySteps(state->transform_steps);
 }
 
 TVM_REGISTER_GLOBAL("ansor.TuneOption")
-    .set_body_typed([](int n_trials, int early_stopping, int num_measure_per_round, int verbose,
-                       Builder builder, Runner runner, Array<MeasureCallback> measure_callbacks,
+    .set_body_typed([](int num_measure_trials, int early_stopping, int num_measures_per_round,
+                       int verbose, Builder builder, Runner runner,
+                       Array<MeasureCallback> measure_callbacks,
                        Array<SearchCallback> pre_search_callbacks) {
-      return TuneOption(n_trials, early_stopping, num_measure_per_round, verbose, builder, runner,
-                        measure_callbacks, pre_search_callbacks);
+      return TuneOption(num_measure_trials, early_stopping, num_measures_per_round, verbose,
+                        builder, runner, measure_callbacks, pre_search_callbacks);
     });
 
 TVM_REGISTER_GLOBAL("ansor.AutoSchedule")

@@ -35,15 +35,13 @@
 #include <utility>
 #include <vector>
 
+#include "transform_step.h"
+
 namespace tvm {
 namespace ansor {
 
 class StateNode;
 class State;
-class Step;
-
-typedef std::unordered_map<tvm::te::Stage, std::vector<tir::IterVar>, ObjectHash, ObjectEqual>
-    StageToAxesMap;
 
 /*!
  * \brief Update stage and axes mapping during replay.
@@ -91,14 +89,13 @@ class ComputeDAG : public ObjectRef {
    * \param transform_steps Transform steps of the target state.
    * \return The return values can be used as arguments to `tvm.build` or `tvm.lower`.
    */
-  std::pair<te::Schedule, Array<te::Tensor> > ApplySteps(
-      const std::vector<Step>& transform_steps) const;
+  std::pair<te::Schedule, Array<te::Tensor> > ApplySteps(const Array<Step>& transform_steps) const;
   /*!
    * \brief Print transform steps as equivalent python schedule API.
    * \param transform_steps Transform steps of the target state.
    * \return Python schedule code.
    */
-  std::string PrintStepsAsPython(const std::vector<Step>& transform_steps) const;
+  std::string PrintStepsAsPython(const Array<Step>& transform_steps) const;
 
   /*!
    * \brief Replay the transform steps and call ir_pass::InferBound to fill correct bound
@@ -112,7 +109,7 @@ class ComputeDAG : public ObjectRef {
    * \param transform_steps Transform steps of the target state.
    * \return The State after inferbound.
    */
-  State ReplayAndInferBound(const std::vector<Step>& transform_steps) const;
+  State ReplayAndInferBound(const Array<Step>& transform_steps) const;
   /*!
    * \brief Fill the correct bound information for a given state by calling ir_pass::InferBound.
    * \param state The target state.
@@ -144,7 +141,7 @@ class ComputeDAG : public ObjectRef {
    * \param stage_to_axes A pointer to StageToAxesMap.
    * \return The return values can be used as arguments to `tvm.build` or `tvm.lower`.
    */
-  std::pair<te::Schedule, Array<te::Tensor> > ReplaySteps(const std::vector<Step>& transform_steps,
+  std::pair<te::Schedule, Array<te::Tensor> > ReplaySteps(const Array<Step>& transform_steps,
                                                           std::vector<te::Stage>* stages,
                                                           StageToAxesMap* stage_to_axes) const;
 

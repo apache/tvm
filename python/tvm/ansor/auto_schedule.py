@@ -15,7 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""User interface for auto-scheduler"""
+"""
+User interface for Ansor auto-scheduler.
+
+The basic schedule search process for Ansor is design to be:
+`Program sampling` -> `Performance Tuning`.
+
+In `Program sampling`, we use some predefined or heuristic rules to generate several initial
+schedules. Based on these initial start points, we have `Performance Tuning` to apply cost model
+and evolutionary search to seek for schedules with the best performance. Candidate schedules will
+be measured in the target hardware.
+"""
 
 import tvm._ffi
 from tvm.runtime import Object
@@ -28,6 +38,9 @@ from . import _ffi_api
 class HardwareParams(Object):
     """ The parameters of target hardware, this is used to guide the search process of
     SearchPolicy.
+
+    TODO(...): This is considering to merge with the new Target:
+    https://discuss.tvm.ai/t/rfc-tvm-target-specification/6844
 
     Parameters
     ----------
@@ -89,25 +102,26 @@ class EmptyPolicy(SearchPolicy):
 
 @tvm._ffi.register_object("ansor.TuneOption")
 class TuneOption(Object):
-    """ The options for tuning.
+    """ This controls the options of performance tuning.
 
     Parameters
     ----------
-    n_trials: int = 1
+    num_measure_trials: int = 0
       The number of total schedule measure trials.
-      Ansor takes `n_trials` state for measuring in total, and finally gets the best schedule
-      among them.
-      With `n_trials` == 1, Ansor will do the schedule search but don't involve measurement,
-      this can be used if we want to quickly get a runnable schedule without performance tuning.
+      Ansor takes `num_measure_trials` state for measuring in total, and finally gets the best
+      schedule among them.
+      With `num_measure_trials` == 0, Ansor will do the schedule search but don't involve
+      measurement, this can be used if we want to quickly get a runnable schedule without
+      performance tuning.
     early_stopping: int = -1
       Stops early the tuning if no improvement get after n measurements.
-    num_measure_per_round: int = 64
+    num_measures_per_round: int = 64
       The number of programs to be measured at each search round.
       The whole schedule search process is designed to have several rounds to try a total
-      `n_trials` schedules.
-      We have: `num_search_rounds` = `n_trials` // `num_measure_per_round`
+      `num_measure_trials` schedules.
+      We have: `num_search_rounds` = `num_measure_trials` // `num_measures_per_round`
     verbose: int = 1
-      Verbosity level. 0 means silent.
+      Verbosity level. 0 for silent, 1 to output information during schedule search.
     builder: Union[Builder, str] = 'local'
       Builder which builds the program.
     runner: Union[Runner, str] = 'local'
@@ -123,7 +137,7 @@ class TuneOption(Object):
         - ansor.PreloadCustomSketchRule
         TODO(jcf94): Add these implementation in later PRs.
     """
-    def __init__(self, n_trials=1, early_stopping=-1, num_measure_per_round=64,
+    def __init__(self, num_measure_trials=0, early_stopping=-1, num_measures_per_round=64,
                  verbose=1, builder='local', runner='local', measure_callbacks=None,
                  pre_search_callbacks=None):
         if isinstance(builder, str):
@@ -142,7 +156,7 @@ class TuneOption(Object):
         pre_search_callbacks = [] if pre_search_callbacks is None else pre_search_callbacks
 
         self.__init_handle_by_constructor__(
-            _ffi_api.TuneOption, n_trials, early_stopping, num_measure_per_round,
+            _ffi_api.TuneOption, num_measure_trials, early_stopping, num_measures_per_round,
             verbose, builder, runner, measure_callbacks, pre_search_callbacks)
 
 

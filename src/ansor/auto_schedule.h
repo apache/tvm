@@ -40,12 +40,12 @@ namespace ansor {
 class TuneOptionNode : public Object {
  public:
   /*! \brief Number of total measurement trials. */
-  int n_trials;
+  int num_measure_trials;
   /*! \brief Stops early the tuning if no improvement after n measurements. */
   int early_stopping;
   /*! \brief The number of programs to be measured at each search round. */
-  int num_measure_per_round;
-  /*! \brief Verbosity level. (0 means silent) */
+  int num_measures_per_round;
+  /*! \brief Verbosity level. 0 for silent, 1 to output information during schedule searching. */
   int verbose;
   /*! \brief Builder which builds the program */
   Builder builder;
@@ -57,9 +57,9 @@ class TuneOptionNode : public Object {
   Array<SearchCallback> pre_search_callbacks;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("n_trials", &n_trials);
+    v->Visit("num_measure_trials", &num_measure_trials);
     v->Visit("early_stopping", &early_stopping);
-    v->Visit("num_measure_per_round", &num_measure_per_round);
+    v->Visit("num_measures_per_round", &num_measures_per_round);
     v->Visit("verbose", &verbose);
     v->Visit("builder", &builder);
     v->Visit("runner", &runner);
@@ -79,16 +79,17 @@ class TuneOption : public ObjectRef {
  public:
   /*!
    * \brief The constructor
-   * \param n_trials Number of total measurement trials.
+   * \param num_measure_trials Number of total measurement trials.
    * \param early_stopping Stops early the tuning if no improvement after n measurements.
-   * \param num_measure_per_round The number of programs to be measured at each search round.
-   * \param verbose Verbosity level. (0 means silent)
+   * \param num_measures_per_round The number of programs to be measured at each search round.
+   * \param verbose Verbosity level. 0 for silent, 1 to output information during schedule
+   * search.
    * \param builder Builder which builds the program.
    * \param runner Runner which runs the program and measure time costs.
    * \param measure_callbacks MeasureCallback functions to be called after each measure batch.
    * \param pre_search_callbacks SearchCallback functions to be called before schedule search.
    */
-  TuneOption(int n_trials, int early_stopping, int num_measure_per_round, int verbose,
+  TuneOption(int num_measure_trials, int early_stopping, int num_measures_per_round, int verbose,
              Builder builder, Runner runner, Array<MeasureCallback> measure_callbacks,
              Array<SearchCallback> pre_search_callbacks);
 

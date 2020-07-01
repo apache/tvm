@@ -22,6 +22,14 @@
  * \brief The base class for search policy, including the abstract defination of search policy and
  * some other supporting structures.
  *
+ * The basic schedule search process for Ansor is design to be:
+ * `Program sampling` -> `Performance Tuning`.
+ *
+ * In `Program sampling`, we use some predefined or heuristic rules to generate several initial
+ * schedules. Based on these initial start points, we have `Performance Tuning` to apply cost model
+ * and evolutionary search to seek for schedules with the best performance. Candidate schedules
+ * will be measured in the target hardware.
+ *
  * \note Adding a new search policy.
  * In design, there's no need for users to implement their own search policy, our formal search
  * policy(will be brought later) should be enough to cover auto schedule generation for different
@@ -92,7 +100,7 @@ class SearchPolicyNode : public Object {
   SearchTask cur_task;
   /*!
    * \brief Verbose level to control the screen output during schedule search.
-   * (0 means silent)
+   * 0 for silent, 1 to output information.
    */
   int verbose;
 
@@ -105,16 +113,16 @@ class SearchPolicyNode : public Object {
    * \brief Do schedule search for a task. Takes the SearchTask as input and returns the best state
    * get during the search process.
    * \param task The target search task.
-   * \param n_trials Total schedules to be tried during this search.
+   * \param num_measure_trials Total schedules to be tried during this search.
    * \param early_stopping Early stop if no better schedule is found.
-   * \param num_measure_per_round Max measure batch in one search round.
-   * \param verbose Verbose level. (0 means silent)
+   * \param num_measures_per_round Max measure batch in one search round.
+   * \param verbose Verbose level. 0 for silent, 1 to output information during schedule search.
    * \param measurer A ProgramMeasurer which packs Builder & Runner inside.
    * \param pre_search_callbacks SearchCallback to be called before schedule search.
    * \return The best state get.
    */
-  virtual State Search(SearchTask task, int n_trials, int early_stopping, int num_measure_per_round,
-                       int verbose, ProgramMeasurer measurer,
+  virtual State Search(SearchTask task, int num_measure_trials, int early_stopping,
+                       int num_measures_per_round, int verbose, ProgramMeasurer measurer,
                        Array<SearchCallback> pre_search_callbacks) = 0;
 
   /*!

@@ -69,7 +69,7 @@ void UpdateStageAxis(const te::Stage& stage, StageToAxesMap* stage_to_axes) {
 
 // Topo-sort ops from tensors according to their read-write relations.
 // Results are stored in ops
-void TopoSortOps(const Array<te::Tensor>& tensors, std::vector<te::Operation>* ops) {
+void TopoSortOps(const Array<te::Tensor>& tensors, Array<te::Operation>* ops) {
   std::unordered_map<const te::OperationNode*, int> degree;
   std::unordered_map<const te::OperationNode*, std::vector<const te::OperationNode*> > edge_set;
   std::unordered_map<const te::OperationNode*, int> priority;
@@ -234,10 +234,10 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
 ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   auto node = make_object<ComputeDAGNode>();
   FlopEstimator estimator;
+  Array<te::Operation> ops;
   node->tensors = std::move(tensors);
-  std::vector<te::Operation> ops;
   TopoSortOps(node->tensors, &ops);
-  node->ops = Array<te::Operation>(ops);
+  node->ops = std::move(ops);
   node->flop_ct = estimator.EstimateFlop(node->ops);
   node->init_state = State(node->ops);
   data_ = std::move(node);
@@ -246,13 +246,13 @@ ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
 State ComputeDAG::GetInitState() const { return Downcast<State>(operator->()->init_state); }
 
 std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ApplySteps(
-    const std::vector<Step>& transform_steps) const {
+    const Array<Step>& transform_steps) const {
   std::vector<te::Stage> stages;
   StageToAxesMap stage_to_axes;
   return ReplaySteps(transform_steps, &stages, &stage_to_axes);
 }
 
-std::string ComputeDAG::PrintStepsAsPython(const std::vector<Step>& transform_steps) const {
+std::string ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const {
   std::vector<te::Stage> stages;
   StageToAxesMap stage_to_axes;
   Array<te::Operation> ops;
@@ -286,15 +286,16 @@ std::string ComputeDAG::PrintStepsAsPython(const std::vector<Step>& transform_st
          << "tuple(" << stage->op->name << ".op.reduce_axis)\n";
     }
   }
+  std::vector<Step> step_vector(transform_steps.begin(), transform_steps.end());
   // Call each step's PrintAsPythonAPI method
   for (const auto& step : transform_steps) {
-    ss << step->PrintAsPythonAPI(&stages, &stage_to_axes, &schedule, transform_steps);
+    ss << step->PrintAsPythonAPI(&stages, &stage_to_axes, &schedule, step_vector);
   }
 
   return ss.str();
 }
 
-State ComputeDAG::ReplayAndInferBound(const std::vector<Step>& transform_steps) const {
+State ComputeDAG::ReplayAndInferBound(const Array<Step>& transform_steps) const {
   State ret_state = GetInitState();
   StateNode* pstate = ret_state.CopyOnWrite();
   pstate->transform_steps = transform_steps;
@@ -359,7 +360,7 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
       continue;
     }
 
-    std::vector<Iterator> new_iters;
+    Array<Iterator> new_iters;
     new_iters.reserve(stage->iters.size());
     for (size_t j = 0; j < stage->iters.size(); ++j) {
       const Iterator& iter = stage->iters[j];
@@ -374,13 +375,13 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
       }
     }
 
-    pstate->stages[i] =
-        Stage(stage->op, stage->op_type, std::move(new_iters), stage->compute_at, stage->attrs);
+    pstate->stages.Set(
+        i, Stage(stage->op, stage->op_type, std::move(new_iters), stage->compute_at, stage->attrs));
   }
 }
 
 std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
-    const std::vector<Step>& transform_steps, std::vector<te::Stage>* stages,
+    const Array<Step>& transform_steps, std::vector<te::Stage>* stages,
     StageToAxesMap* stage_to_axes) const {
   std::vector<te::Operation> ops;
   for (const auto& op : operator->()->ops) {

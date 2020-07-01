@@ -81,7 +81,7 @@ Stage::Stage(te::Operation op) {
   data_ = std::move(node);
 }
 
-Stage::Stage(te::Operation op, StageType op_type, const std::vector<Iterator>& iters,
+Stage::Stage(te::Operation op, StageType op_type, const Array<Iterator>& iters,
              ComputeAtType compute_at, StageAttributes attrs) {
   auto node = make_object<StageNode>();
   node->op = std::move(op);
@@ -92,8 +92,8 @@ Stage::Stage(te::Operation op, StageType op_type, const std::vector<Iterator>& i
   data_ = std::move(node);
 }
 
-Stage::Stage(te::Operation op, StageType op_type, std::vector<Iterator>&& iters,
-             ComputeAtType compute_at, StageAttributes attrs) {
+Stage::Stage(te::Operation op, StageType op_type, Array<Iterator>&& iters, ComputeAtType compute_at,
+             StageAttributes attrs) {
   auto node = make_object<StageNode>();
   node->op = std::move(op);
   node->op_type = op_type;
@@ -113,29 +113,20 @@ State::State(const Array<te::Operation>& ops) {
   data_ = std::move(node);
 }
 
-State::State(const std::vector<Stage>& stages, const std::vector<Step>& transform_steps,
-             bool complete) {
-  auto node = make_object<StateNode>();
-  node->stages = stages;
-  node->transform_steps = transform_steps;
-  node->complete = complete;
-  data_ = std::move(node);
-}
-
 /********** Schedule primitives apis for state **********/
-void State::reorder(int stage_id, const std::vector<Iterator>& order) {
+void State::reorder(int stage_id, const Array<Iterator>& order) {
   const Stage& stage = operator->()->stages[stage_id];
   CHECK_EQ(order.size(), stage->iters.size()) << "The order of all iterators "
                                               << "should be specified";
-  std::vector<int> after_ids;
+  Array<IntImm> after_ids;
   GetIndices(stage->iters, order, &after_ids);
   ReorderStep step = ReorderStep(stage_id, after_ids);
   CopyOnWrite()->transform_steps.push_back(step);
   DoReorderStep(step);
 }
 
-std::vector<Iterator> State::split(int stage_id, const Iterator& it,
-                                   const std::vector<PrimExpr>& lengths, bool inner_to_outer) {
+Array<Iterator> State::split(int stage_id, const Iterator& it, const Array<PrimExpr>& lengths,
+                             bool inner_to_outer) {
   const Stage& stage = operator->()->stages[stage_id];
   SplitStep step =
       SplitStep(stage_id, GetIndex(stage->iters, it),
@@ -144,9 +135,9 @@ std::vector<Iterator> State::split(int stage_id, const Iterator& it,
   return DoSplitStep(step);
 }
 
-Iterator State::fuse(int stage_id, const std::vector<Iterator>& iters) {
+Iterator State::fuse(int stage_id, const Array<Iterator>& iters) {
   const Stage& stage = operator->()->stages[stage_id];
-  std::vector<int> indices;
+  Array<IntImm> indices;
   GetIndices(stage->iters, iters, &indices);
   FuseStep step = FuseStep(stage_id, indices);
   CopyOnWrite()->transform_steps.push_back(step);
@@ -156,19 +147,18 @@ Iterator State::fuse(int stage_id, const std::vector<Iterator>& iters) {
 /********** Step implementations for state **********/
 void State::DoReorderStep(const ReorderStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
-  std::vector<Iterator> iters;
+  Array<Iterator> iters;
   for (auto x : step->after_ids) {
-    iters.push_back(stage->iters[x]);
+    iters.push_back(stage->iters[x->value]);
   }
   StateNode* pstate = CopyOnWrite();
-  pstate->stages[step->stage_id] =
-      Stage(stage->op, stage->op_type, std::move(iters), stage->compute_at, stage->attrs);
+  pstate->stages.Set(step->stage_id, Stage(stage->op, stage->op_type, std::move(iters),
+                                           stage->compute_at, stage->attrs));
 }
 
 // common part for DoSplitStep, DoFollowSplitStep, and DoFollowFusedSplitStep
-std::vector<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id,
-                                               const std::vector<PrimExpr>& lengths,
-                                               bool inner_to_outer) {
+Array<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id, const Array<PrimExpr>& lengths,
+                                         bool inner_to_outer) {
   const Stage& stage = operator->()->stages[stage_id];
   const Iterator& it = stage->iters[iter_id];
 
@@ -180,7 +170,7 @@ std::vector<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id,
     tosplit_min = tosplit_extent = PrimExpr();
   }
 
-  std::vector<Iterator> outs;
+  Array<Iterator> outs;
   for (size_t i = 0; i < lengths.size(); ++i) {
     PrimExpr l;
     std::string name;
@@ -209,25 +199,27 @@ std::vector<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id,
   }
   if (inner_to_outer) {
     outs.push_back(Iterator(it->name + ".0", range, it->iter_type, kNone));
-    std::reverse(outs.begin(), outs.end());
+    // Reverse the Iterator array
+    Array<Iterator> temp(std::move(outs.rbegin()), std::move(outs.rend()));
+    outs = std::move(temp);
   } else {
     outs.push_back(
         Iterator(it->name + "." + std::to_string(lengths.size()), range, it->iter_type, kNone));
   }
 
-  std::vector<Iterator> new_iters;
+  Array<Iterator> new_iters;
   new_iters.insert(new_iters.end(), stage->iters.begin(), stage->iters.begin() + iter_id);
   new_iters.insert(new_iters.end(), outs.begin(), outs.end());
   new_iters.insert(new_iters.end(), stage->iters.begin() + iter_id + 1, stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages[stage_id] =
-      Stage(stage->op, stage->op_type, std::move(new_iters), stage->compute_at, stage->attrs);
+  pstate->stages.Set(stage_id, Stage(stage->op, stage->op_type, std::move(new_iters),
+                                     stage->compute_at, stage->attrs));
 
   return outs;
 }
 
-std::vector<Iterator> State::DoSplitStep(const SplitStep& step) {
+Array<Iterator> State::DoSplitStep(const SplitStep& step) {
   return DoSplitStepCommon(step->stage_id, step->iter_id, step->lengths, step->inner_to_outer);
 }
 
@@ -242,10 +234,10 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   std::vector<Iterator> ori_iters;
   for (size_t i = 0; i < step->fused_ids.size(); ++i) {
     if (i > 0) {
-      CHECK_EQ(step->fused_ids[i], step->fused_ids[i - 1] + 1);
+      CHECK_EQ(step->fused_ids[i]->value, step->fused_ids[i - 1]->value + 1);
     }
 
-    const Iterator& it = stage->iters[step->fused_ids[i]];
+    const Iterator& it = stage->iters[step->fused_ids[i]->value];
     ori_iters.push_back(it);
     new_name += it->name + "@";
 
@@ -269,21 +261,21 @@ Iterator State::DoFuseStep(const FuseStep& step) {
     range = Range::FromMinExtent(0, new_extent);
   }
   Iterator new_it = Iterator(new_name, range, new_iter_type, kNone, &ori_iters);
-  std::vector<Iterator> new_iters;
+  Array<Iterator> new_iters;
   new_iters.insert(new_iters.end(), stage->iters.begin(),
-                   stage->iters.begin() + step->fused_ids.front());
+                   stage->iters.begin() + step->fused_ids.front()->value);
   new_iters.push_back(new_it);
-  new_iters.insert(new_iters.end(), stage->iters.begin() + step->fused_ids.back() + 1,
+  new_iters.insert(new_iters.end(), stage->iters.begin() + step->fused_ids.back()->value + 1,
                    stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages[stage_id] =
-      Stage(stage->op, stage->op_type, std::move(new_iters), stage->compute_at, stage->attrs);
+  pstate->stages.Set(stage_id, Stage(stage->op, stage->op_type, std::move(new_iters),
+                                     stage->compute_at, stage->attrs));
 
   return new_it;
 }
 
-void State::DoSteps(const std::vector<Step>& steps, const ComputeDAG& dag) {
+void State::DoSteps(const Array<Step>& steps, const ComputeDAG& dag) {
   // Use complete rate for the study in the paper
   const char* complete_rate_str = getenv("ANSOR_PROGRAM_COMPLETE_RATE");
   double complete_rate = -1.0;
@@ -436,46 +428,22 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 /********** State interface API for ffi **********/
-TVM_REGISTER_GLOBAL("ansor.StageGetIterators").set_body_typed([](const Stage& stage) {
-  return Array<Iterator>(stage->iters);
-});
-
-TVM_REGISTER_GLOBAL("ansor.StateGetStages").set_body_typed([](const State& state) {
-  return Array<Stage>(state->stages);
-});
-
-TVM_REGISTER_GLOBAL("ansor.StateGetTransformStepsSize").set_body_typed([](const State& state) {
-  return static_cast<int64_t>(state->transform_steps.size());
-});
-
 TVM_REGISTER_GLOBAL("ansor.StateReorder")
     .set_body_typed([](State state, int stage_id, const Array<Iterator>& order) {
-      std::vector<Iterator> ord;
-      for (const auto& i : order) {
-        ord.push_back(i);
-      }
-      state.reorder(stage_id, ord);
+      state.reorder(stage_id, order);
       return state;
     });
 
 TVM_REGISTER_GLOBAL("ansor.StateSplit")
     .set_body_typed([](State state, int stage_id, const Iterator& it,
                        const Array<PrimExpr>& lengths, bool inner_to_outer) {
-      std::vector<PrimExpr> len;
-      for (const auto& i : lengths) {
-        len.push_back(i);
-      }
-      const auto& res = state.split(stage_id, it, len, inner_to_outer);
-      return Array<ObjectRef>{state, Array<Iterator>(res)};
+      const auto& res = state.split(stage_id, it, lengths, inner_to_outer);
+      return Array<ObjectRef>{state, res};
     });
 
 TVM_REGISTER_GLOBAL("ansor.StateFuse")
     .set_body_typed([](State state, int stage_id, const Array<Iterator>& iters) {
-      std::vector<Iterator> its;
-      for (const auto& i : iters) {
-        its.push_back(i);
-      }
-      const auto& res = state.fuse(stage_id, its);
+      const auto& res = state.fuse(stage_id, iters);
       return Array<ObjectRef>{state, res};
     });
 

@@ -233,7 +233,7 @@ class BuilderNode : public Object {
   /*!
    * \brief Build programs and return results.
    * \param inputs An Array of MeasureInput.
-   * \param verbose Verbosity level. (0 means silent)
+   * \param verbose Verbosity level. 0 for silent, 1 to output information during program building.
    * \return An Array of MeasureResult.
    */
   virtual Array<BuildResult> Build(const Array<MeasureInput>& inputs, int verbose) = 0;
@@ -261,7 +261,7 @@ class RunnerNode : public Object {
    * \brief Run measurement and return results.
    * \param inputs An Array of MeasureInput.
    * \param build_results An Array of BuildResult.
-   * \param verbose Verbosity level. (0 means silent)
+   * \param verbose Verbosity level. 0 for silent, 1 to output information during program running.
    * \return An Array of MeasureResult.
    */
   virtual Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
@@ -370,7 +370,7 @@ class ProgramMeasurerNode : public Object {
   Runner runner;
   /*! \brief MeasureCallback to be called after each measure batch. */
   Array<MeasureCallback> callbacks;
-  /*! \brief Verbose level. */
+  /*! \brief Verbosity level. 0 for silent, 1 to output information during program measuring. */
   int verbose;
   /*! \brief The number of max continuous error. */
   int max_continous_error;
@@ -417,7 +417,7 @@ class ProgramMeasurer : public ObjectRef {
    * \param builder The Builder to build each program.
    * \param runner The Runner to measure each program.
    * \param callbacks MeasureCallback to be called after each measure batch.
-   * \param verbose Verbose level.
+   * \param verbose Verbosity level. 0 for silent, 1 to output information during program measuring.
    * \param max_continous_error The number of max continuous error.
    */
   ProgramMeasurer(Builder builder, Runner runner, Array<MeasureCallback> callbacks, int verbose,

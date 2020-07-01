@@ -46,7 +46,7 @@ def register_workload_by_func(func):
 
     Examples
     --------
-    @register_workload_by_func
+    @ansor.register_workload_by_func
     def matmul(N, M, K):
         A = te.placeholder((N, K), name='A')
         B = te.placeholder((K, M), name='B')
@@ -85,19 +85,44 @@ def make_workload_key_by_func(func, args):
     else:
         raise ValueError("Invalid function: " + str(func))
 
-    assert func_name in WORKLOAD_FUNC_REGISTRY, \
-        "%s is not registered. Please register it with @ansor.register_workload_by_func" % func
+    if not func_name in WORKLOAD_FUNC_REGISTRY:
+        raise ValueError("%s is not registered. "  % func,
+                         "Please register it with @ansor.register_workload_by_func")
 
     return json.dumps((func_name,) + args)
 
 
-@tvm._ffi.register_func("ansor.workload_key_to_tensors")
-def workload_key_to_tensors(workload_key):
-    """ Decode a workload key to the input/output tensors.
+def decode_workload_key_to_func_args(workload_key):
+    """ Decode a workload key to the registerd function name and its corresponding args.
 
     Parameters
     ----------
-    workload_key : Str
+    workload_key : str
+        The target workload key.
+
+    Returns
+    -------
+    name : str
+        The function name of this workload key.
+    args : List[Tensor]
+        The args of the generation function.
+    """
+    workload = json.loads(workload_key)
+    if not workload[0] in WORKLOAD_FUNC_REGISTRY:
+        raise ValueError("%s is not registered. " % workload[0] +
+                         "Please register it with @ansor.register_workload_by_func")
+    return workload[0], deserialize_args(workload[1:])
+
+
+@tvm._ffi.register_func("ansor.workload_key_to_tensors")
+def workload_key_to_tensors(workload_key):
+    """ Get the input/output tensors from the workload key.
+
+    This method is usually used to create a ComputeDAG by workload key.
+
+    Parameters
+    ----------
+    workload_key : str
         The target workload key.
 
     Returns
@@ -105,12 +130,9 @@ def workload_key_to_tensors(workload_key):
     tensors : List[Tensor]
         The registered compute declaration Tensors.
     """
-    workload = json.loads(workload_key)
-    name = workload[0]
+    name, args = decode_workload_key_to_func_args(workload_key)
     lookup = WORKLOAD_FUNC_REGISTRY[name]
-
     assert callable(lookup)
-    args = deserialize_args(workload[1:])
     return lookup(*args)
 
 
@@ -119,7 +141,7 @@ def dump_workload_func_registry(filename):
 
     Parameters
     ----------
-    filename : Str
+    filename : str
         The filename to dump workload function registry to.
     """
     global WORKLOAD_FUNC_REGISTRY
@@ -132,7 +154,7 @@ def load_workload_func_registry(filename):
 
     Parameters
     ----------
-    filename : Str
+    filename : str
         The filename to load workload function registry from.
     """
     global WORKLOAD_FUNC_REGISTRY

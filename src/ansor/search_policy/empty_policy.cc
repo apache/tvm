@@ -33,8 +33,8 @@ namespace ansor {
 
 TVM_REGISTER_NODE_TYPE(EmptyPolicyNode);
 
-State EmptyPolicyNode::Search(SearchTask task, int n_trials, int early_stopping,
-                              int num_measure_per_round, int verbose, ProgramMeasurer measurer,
+State EmptyPolicyNode::Search(SearchTask task, int num_measure_trials, int early_stopping,
+                              int num_measures_per_round, int verbose, ProgramMeasurer measurer,
                               Array<SearchCallback> pre_search_callbacks) {
   cur_task = task;
 
@@ -44,8 +44,8 @@ State EmptyPolicyNode::Search(SearchTask task, int n_trials, int early_stopping,
 
   // Basic design principe: `SearchOneRound()` several times to get candidate states,
   // measure them and return the best one
-  // Measure is disabled if n_trials <= 1
-  if (n_trials <= 1) {
+  // Measure is disabled if num_measure_trials <= 1
+  if (num_measure_trials <= 1) {
     const auto& res = SearchOneRound();
     CHECK_GT(res.size(), 0);
 
@@ -58,7 +58,7 @@ State EmptyPolicyNode::Search(SearchTask task, int n_trials, int early_stopping,
     int ct = 0;
     // In each round, we call SearchOneRound to get several candidate states,
     // then use ProgramMeasurer to test their performance
-    while (ct < n_trials) {
+    while (ct < num_measure_trials) {
       const auto& res = SearchOneRound();
       ct += res.size();
       // Build MeasureInputs for measuring
@@ -80,7 +80,15 @@ State EmptyPolicyNode::Search(SearchTask task, int n_trials, int early_stopping,
 // As an example policy, EmptyPolicy always returns a init state
 std::vector<State> EmptyPolicyNode::SearchOneRound() {
   std::vector<State> res;
+
+  // 1. We will process `Program sampling` first to generate several initial schedules
   res.push_back(cur_task->compute_dag.GetInitState());
+
+  // 2. Then `Performance Tuning`: use cost model and evolutionary search to seek for the schedule
+  // with best performance
+  // Note: This example policy does not include this part
+
+  // 3. The returned candidate schedules will be measured in hardware
   return res;
 }
 

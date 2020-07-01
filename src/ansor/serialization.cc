@@ -54,13 +54,24 @@ inline std::vector<int>& IntArrayToVector(std::vector<int>* out,
   return *out;
 }
 
+inline std::vector<int>& IntArrayToVector(std::vector<int>* out,
+                                          const ::tvm::Array<::tvm::IntImm>& data) {
+  out->clear();
+  for (const auto& x : data) {
+    CHECK(x.defined());
+    out->push_back(x->value);
+  }
+  return *out;
+}
+
 template <>
-struct Handler<std::vector<::tvm::ansor::Stage>> {
-  inline static void Write(dmlc::JSONWriter* writer, const std::vector<::tvm::ansor::Stage>& data) {
+struct Handler<::tvm::Array<::tvm::ansor::Stage>> {
+  inline static void Write(dmlc::JSONWriter* writer,
+                           const ::tvm::Array<::tvm::ansor::Stage>& data) {
     writer->BeginArray(false);
     writer->EndArray();
   }
-  inline static void Read(dmlc::JSONReader* reader, std::vector<::tvm::ansor::Stage>* data) {
+  inline static void Read(dmlc::JSONReader* reader, ::tvm::Array<::tvm::ansor::Stage>* data) {
     bool s;
     reader->BeginArray();
     s = reader->NextArrayItem();
@@ -69,8 +80,8 @@ struct Handler<std::vector<::tvm::ansor::Stage>> {
 };
 
 template <>
-struct Handler<std::vector<::tvm::ansor::Step>> {
-  inline static void Write(dmlc::JSONWriter* writer, const std::vector<::tvm::ansor::Step>& data) {
+struct Handler<::tvm::Array<::tvm::ansor::Step>> {
+  inline static void Write(dmlc::JSONWriter* writer, const ::tvm::Array<::tvm::ansor::Step>& data) {
     std::vector<int> tmp;
     writer->BeginArray(false);
     for (size_t i = 0; i < data.size(); ++i) {
@@ -79,34 +90,18 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
       if (auto ps = data[i].as<::tvm::ansor::ReorderStepNode>()) {
         writer->WriteArrayItem(std::string("RE"));
         writer->WriteArrayItem(ps->stage_id);
-
-        writer->WriteArraySeperator();
-        writer->BeginArray(false);
-        for (int x : ps->after_ids) {
-          writer->WriteArrayItem(x);
-        }
-        writer->EndArray();
+        writer->WriteArrayItem(IntArrayToVector(&tmp, ps->after_ids));
       } else if (auto ps = data[i].as<::tvm::ansor::SplitStepNode>()) {
         writer->WriteArrayItem(std::string("SP"));
         writer->WriteArrayItem(ps->stage_id);
         writer->WriteArrayItem(ps->iter_id);
-        if (ps->extent.defined()) {
-          writer->WriteArrayItem(::tvm::ansor::GetIntImm(ps->extent));
-        } else {
-          writer->WriteArrayItem(0);
-        }
+        writer->WriteArrayItem(ps->extent.defined() ? ::tvm::ansor::GetIntImm(ps->extent) : 0);
         writer->WriteArrayItem(IntArrayToVector(&tmp, ps->lengths));
         writer->WriteArrayItem(static_cast<int>(ps->inner_to_outer));
       } else if (auto ps = data[i].as<::tvm::ansor::FuseStepNode>()) {
         writer->WriteArrayItem(std::string("FU"));
         writer->WriteArrayItem(ps->stage_id);
-
-        writer->WriteArraySeperator();
-        writer->BeginArray(false);
-        for (int x : ps->fused_ids) {
-          writer->WriteArrayItem(x);
-        }
-        writer->EndArray();
+        writer->WriteArrayItem(IntArrayToVector(&tmp, ps->fused_ids));
       } else {
         LOG(FATAL) << "Invalid step: " << data[i];
       }
@@ -115,7 +110,7 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
     writer->EndArray();
   }
 
-  inline static void Read(dmlc::JSONReader* reader, std::vector<::tvm::ansor::Step>* data) {
+  inline static void Read(dmlc::JSONReader* reader, ::tvm::Array<::tvm::ansor::Step>* data) {
     std::vector<int> int_list;
     bool s, inner_to_outer;
     std::string name, scope_name, pragma_type, ti_func_name;
@@ -135,7 +130,11 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
         s = reader->NextArrayItem();
         CHECK(s);
         reader->Read(&int_list);
-        data->push_back(::tvm::ansor::ReorderStep(stage_id, int_list));
+        ::tvm::Array<::tvm::IntImm> after_ids;
+        for (const auto& i : int_list) {
+          after_ids.push_back(::tvm::IntImm(::tvm::DataType::Int(32), i));
+        }
+        data->push_back(::tvm::ansor::ReorderStep(stage_id, after_ids));
       } else if (name == "SP") {
         s = reader->NextArrayItem();
         CHECK(s);
@@ -152,9 +151,12 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
         s = reader->NextArrayItem();
         CHECK(s);
         reader->Read(&inner_to_outer);
-        data->push_back(::tvm::ansor::SplitStep(
-            stage_id, iter_id, extent,
-            std::vector<::tvm::PrimExpr>(int_list.begin(), int_list.end()), inner_to_outer));
+        ::tvm::Array<::tvm::PrimExpr> lengths;
+        for (const auto& i : int_list) {
+          lengths.push_back(::tvm::PrimExpr(i));
+        }
+        data->push_back(
+            ::tvm::ansor::SplitStep(stage_id, iter_id, extent, lengths, inner_to_outer));
       } else if (name == "FU") {
         s = reader->NextArrayItem();
         CHECK(s);
@@ -162,7 +164,11 @@ struct Handler<std::vector<::tvm::ansor::Step>> {
         s = reader->NextArrayItem();
         CHECK(s);
         reader->Read(&int_list);
-        data->push_back(::tvm::ansor::FuseStep(stage_id, int_list));
+        ::tvm::Array<::tvm::IntImm> fused_ids;
+        for (const auto& i : int_list) {
+          fused_ids.push_back(::tvm::IntImm(::tvm::DataType::Int(32), i));
+        }
+        data->push_back(::tvm::ansor::FuseStep(stage_id, fused_ids));
       } else {
         LOG(FATAL) << "Invalid step format";
       }

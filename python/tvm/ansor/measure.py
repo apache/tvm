@@ -127,7 +127,7 @@ class Builder(Object):
         measure_inputs : List[MeasureInput]
             A List of MeasureInput.
         verbost : int = 1
-            Verbosity level. (0 means silent)
+            Verbosity level. 0 for silent, 1 to output information during program building.
 
         Returns
         -------
@@ -150,7 +150,7 @@ class Runner(Object):
         build_results : List[BuildResult]
             A List of BuildResult to be ran.
         verbost : int = 1
-            Verbosity level. (0 means silent)
+            Verbosity level. 0 for silent, 1 to output information during program running.
 
         Returns
         -------
@@ -283,7 +283,7 @@ def local_build_worker(index):
         else:
             filename = ""
 
-        if verbose >= 1:
+        if verbose == 1:
             if error_no == MeasureErrorNo.NO_ERROR:
                 print(".", end="")
             else:
@@ -292,7 +292,7 @@ def local_build_worker(index):
 
     res = call_func_with_timeout(timeout, timed_func)
     if isinstance(res, TimeoutError):
-        if verbose >= 1:
+        if verbose == 1:
             print(".T", end="")  # Build timeout
         res = None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout
 
@@ -356,7 +356,7 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
         toc = time.time()
         time.sleep(cooldown_interval)
 
-        if verbose >= 1:
+        if verbose == 1:
             if error_no == MeasureErrorNo.NO_ERROR:
                 print("*", end="")
             else:
@@ -374,13 +374,13 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
             res = call_func_with_timeout(
                 timeout, timed_func, args=(inp, build_res))
             if isinstance(res, TimeoutError):
-                if verbose >= 1:
+                if verbose == 1:
                     print("*T", end="")  # Run timeout
                 res = (max_float,), MeasureErrorNo.RUN_TIMEOUT, None, \
                     build_res.time_cost + timeout, time.time()
         measure_results.append(MeasureResult(*res))
 
-    if verbose >= 1:
+    if verbose == 1:
         print("")
 
     return measure_results

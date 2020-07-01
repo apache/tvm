@@ -49,17 +49,6 @@ class Iterator(Object):
 class Stage(Object):
     """A stage in the compute declaration. Similar to tvm.te.schedule.Stage"""
 
-    @property
-    def iters(self):
-        """
-        Returns
-        -------
-        iters : List[Iterator]
-        """
-        if not hasattr(self, "iterators_cache"):
-            setattr(self, "iterators_cache", _ffi_api.StageGetIterators(self))
-        return getattr(self, "iterators_cache")
-
 
 @tvm._ffi.register_object("ansor.State")
 class StateObject(Object):
@@ -102,7 +91,7 @@ class State:
         stages : List[Stage]
         """
         if not self.stages_cache:
-            self.stages_cache = _ffi_api.StateGetStages(self.state_object)
+            self.stages_cache = self.state_object.stages
         return self.stages_cache
 
     @property
@@ -113,13 +102,8 @@ class State:
         ops: List[Operation]
         """
         if not self.stages_cache:
-            self.stages_cache = _ffi_api.StateGetStages(self.state_object)
+            self.stages_cache = self.state_object.stages
         return [stage.op for stage in self.stages_cache]
-
-    def transform_steps_size(self):
-        """ Return the size of current transform_steps
-        """
-        return _ffi_api.StateGetTransformStepsSize(self.state_object)
 
     def reorder(self, stage, order):
         """ Schedule primitive corresponds to te.reorder.
@@ -171,7 +155,7 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The target Stage to be reordered, can be a Stage order index, Stage operation or stage
+            The target Stage to be fused, can be a Stage order index, Stage operation or stage
             output tensor.
         iters : List[Iterator]
             The iterators to be fused
@@ -200,11 +184,11 @@ class State:
             return self.stage_id_map[stage_id.op]
         if isinstance(stage_id, int):
             return stage_id
-        raise ValueError("Invalid stage_id")
+        raise ValueError("Invalid stage_id: " + stage_id + ". Expect a int, Operation or Tensor")
 
     def _update_stage_id_map(self):
         if not self.stages_cache:
-            self.stages_cache = _ffi_api.StateGetStages(self.state_object)
+            self.stages_cache = self.state_object.stages
         for index, stage in enumerate(self.stages_cache):
             self.stage_id_map[stage.op] = index
 
@@ -213,12 +197,12 @@ class State:
 
     def __getitem__(self, key):
         if not self.stages_cache:
-            self.stages_cache = _ffi_api.StateGetStages(self.state_object)
+            self.stages_cache = self.state_object.stages
         if isinstance(key, Tensor):
             key = key.op
         if isinstance(key, Operation):
             return self.stages_cache[self.stage_id_map[key]]
-        raise ValueError("Item must be Tensor or Operation")
+        raise ValueError("Invalid item: " + key + ". Expect a Operation or Tensor")
 
     def __str__(self):
         return str(self.state_object)

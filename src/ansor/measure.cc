@@ -210,11 +210,10 @@ void ProgramMeasurerNode::Measure(const SearchTask& task, const SearchPolicy& po
       }
 
       ct++;
-      StdCout(verbose) << std::fixed << std::setprecision(2)
-                       << "===============================================\n"
+      StdCout(verbose) << std::fixed << std::setprecision(2) << Chars('=', 50) << "\n"
                        << "No: " << ct << "\tGFLOPS: " << flops / 1e9 << " / "
                        << best_flops[workload_key] / 1e9 << "\tresults: " << result_batch[j] << "\n"
-                       << "===============================================\n"
+                       << Chars('=', 50) << "\n"
                        << input_batch[j]->state << "\n";
     }
 

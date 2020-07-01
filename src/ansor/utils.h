@@ -83,10 +83,9 @@ namespace tvm {
 namespace ansor {
 
 /********** Utilities for std::vector, std::set, std::string **********/
-/*! \brief Get the first appearance index of elements in a vector */
-template <typename T>
-inline void GetIndices(const std::vector<T>& array, const std::vector<T>& to_locate,
-                       std::vector<int>* indices) {
+/*! \brief Get the first appearance index of elements in a array type object */
+template <typename ArrayT0, typename ArrayT1>
+inline void GetIndices(const ArrayT0& array, const ArrayT1& to_locate, std::vector<int>* indices) {
   for (const auto& v : to_locate) {
     auto it = std::find(array.begin(), array.end(), v);
     if (it != array.end()) {
@@ -97,9 +96,34 @@ inline void GetIndices(const std::vector<T>& array, const std::vector<T>& to_loc
   }
 }
 
+/*! \brief Get the first appearance index of elements in a array type object */
+template <typename ArrayT0, typename ArrayT1>
+inline void GetIndices(const ArrayT0& array, const ArrayT1& to_locate, Array<IntImm>* indices) {
+  for (const auto& v : to_locate) {
+    auto it = std::find(array.begin(), array.end(), v);
+    if (it != array.end()) {
+      indices->push_back(IntImm(tvm::DataType::Int(32), it - array.begin()));
+    } else {
+      LOG(FATAL) << "Cannot find the item";
+    }
+  }
+}
+
 /*! \brief Get the first appearance index of an element in a vector */
 template <typename T>
 inline int GetIndex(const std::vector<T>& array, const T& to_locate) {
+  for (size_t i = 0; i < array.size(); ++i) {
+    if (array[i] == to_locate) {
+      return i;
+    }
+  }
+  LOG(FATAL) << "Cannot find the item";
+  return -1;
+}
+
+/*! \brief Get the first appearance index of an element in a vector */
+template <typename T, typename ArrayT>
+inline int GetIndex(const ArrayT& array, const T& to_locate) {
   for (size_t i = 0; i < array.size(); ++i) {
     if (array[i] == to_locate) {
       return i;
@@ -193,20 +217,23 @@ NullStream& operator<<(NullStream& os, const T& value) {
 
 /*! \brief Get std cout with verbose control */
 inline std::ostream& StdCout(int verbose) {
-  if (verbose >= 1) {
-    return std::cout;
-  } else {
-    return NullStream::Global();
+  return verbose == 1 ? std::cout : NullStream::Global();
+}
+
+/*! \brief Print multiple chars */
+inline std::string Chars(const char& str, int times) {
+  std::stringstream ret;
+  for (int i = 0; i < times; ++i) {
+    ret << str;
   }
+  return ret.str();
 }
 
 /*! \brief Print a title */
 inline void PrintTitle(const std::string& title, int verbose) {
-  if (verbose >= 1) {
-    std::cout << "------------------------------------------------------------\n";
-    std::cout << "-----------------------  [ " << title << " ]\n";
-    std::cout << "------------------------------------------------------------" << std::endl;
-  }
+  StdCout(verbose) << Chars('-', 60) << "\n"
+                   << Chars('-', 25) << "  [ " << title << " ]\n"
+                   << Chars('-', 60) << std::endl;
 }
 
 /*! \brief A simple thread pool */
