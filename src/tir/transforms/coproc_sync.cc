@@ -196,8 +196,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
   }
 
   std::vector<Stmt> GetSync(std::string sync_name) {
-    return {
-        Evaluate(Call(DataType::Int(32), Op::Get("tir." + sync_name), {}, CallNode::Intrinsic))};
+    return {Evaluate(Call(DataType::Int(32), Op::Get("tir." + sync_name), {}))};
   }
 
   const std::unordered_set<const VarNode*>& touched_;
@@ -329,13 +328,12 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
       wset.push_back(acc.touched);
     }
     Range none;
-    Range r = arith::Union(wset).cover_range(none);
+    Range r = arith::Union(wset).CoverRange(none);
     CHECK(r.defined()) << "Cannot deduce write range of " << wvec[0].buffer;
     PrimExpr min = r->min;
     PrimExpr extent = r->extent;
     return Evaluate(Call(DataType::Int(32), Op::Get(func),
-                         {wvec[0].buffer, wvec[0].dtype.bits(), r->min, r->extent},
-                         CallNode::Intrinsic));
+                         {wvec[0].buffer, wvec[0].dtype.bits(), r->min, r->extent}));
   }
   // Write barrier name
   bool read_barrier_{false};
@@ -558,13 +556,11 @@ class CoProcInstDepDetector : public StmtVisitor {
 
   Stmt MakePush(int from, int to) {
     return Evaluate(Call(DataType::Int(32), sync_push_op_,
-                         {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
-                         CallNode::Intrinsic));
+                         {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)}));
   }
   Stmt MakePop(int from, int to) {
     return Evaluate(Call(DataType::Int(32), sync_pop_op_,
-                         {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
-                         CallNode::Intrinsic));
+                         {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)}));
   }
   // sync states.
   SyncState first_state_, last_state_, curr_state_;

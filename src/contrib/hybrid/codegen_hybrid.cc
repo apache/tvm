@@ -238,7 +238,8 @@ void CodeGenHybrid::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
     PrintExpr(op->args[0], os);
     os << " else ";
     PrintExpr(op->args[2], os);
-  } else if (op->op.same_as(builtin::call_extern())) {
+  } else if (op->op.same_as(builtin::call_pure_extern()) ||
+             op->op.same_as(builtin::call_extern())) {
     StringImm fname = Downcast<StringImm>(op->args[0]);
     os << fname << "(";
     for (size_t i = 1; i < op->args.size(); i++) {
@@ -380,7 +381,7 @@ void CodeGenHybrid::VisitStmt_(const ForNode* op) {
 
 bool is_noop(const Stmt& stmt) {
   if (!stmt.defined()) return true;
-  if (auto eval = stmt.as<EvaluateNode>()) return is_const(eval->value);
+  if (auto eval = stmt.as<EvaluateNode>()) return is_const_int(eval->value);
   return false;
 }
 
@@ -408,7 +409,7 @@ void CodeGenHybrid::VisitStmt_(const SeqStmtNode* op) {
 }
 
 void CodeGenHybrid::VisitStmt_(const EvaluateNode* op) {
-  if (is_const(op->value)) return;
+  if (is_const_int(op->value)) return;
   std::string str = PrintExpr(op->value);
   if (!str.empty()) stream << str << "\n";
 }

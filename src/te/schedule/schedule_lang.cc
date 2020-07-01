@@ -262,7 +262,7 @@ Stage& Stage::fuse(const Array<IterVar>& axes, IterVar* p_target) {  // NOLINT(*
     // special handle fuse empty array.
     // insert at the outer most loop
     IterVar singleton =
-        IterVar(Range::make_by_min_extent(0, 1), Var("singleton", DataType::Int(32)), kDataPar);
+        IterVar(Range::FromMinExtent(0, 1), Var("singleton", DataType::Int(32)), kDataPar);
     self->relations.push_back(Singleton(singleton));
     Array<IterVar>& all_vars = self->all_iter_vars;
     Array<IterVar>& leaf_vars = self->leaf_iter_vars;

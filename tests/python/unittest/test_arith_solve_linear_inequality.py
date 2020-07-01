@@ -167,7 +167,7 @@ def test_multi_equal():
 
 def test_no_solution():
     x = te.var("x0")
-    vranges = {x: tvm.ir.Range.make_by_min_extent(-20, 41)}
+    vranges = {x: tvm.ir.Range.from_min_extent(-20, 41)}
     problem = [-x - 4 <= -5*x + 2, x*4 + 5 <= x*5]
 
     solution = arith.solve_linear_inequalities(problem, [x], vranges, deskew_range=True)

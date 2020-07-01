@@ -257,9 +257,12 @@ def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors
         Batch size. We need to pass it in since hybrid script doesn't support
         binding variable to symbolic dim.
 
-    max_output_size : tvm.tir.const
+    num_anchors: tvm.tir.IntImm or tvm.tir.Var
+        The number of anchors.
+
+    max_output_size : tvm.te.Tensor
         Max number of output valid boxes for each instance.
-        By default all valid boxes are returned.
+        Return all valid boxes if max_output_size < 0.
 
     iou_threshold : tvm.tir.const
         Overlapping(IoU) threshold to suppress object with smaller score.
@@ -300,7 +303,7 @@ def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors
 
     box_data_length = data.shape[2]
 
-    # box_indices is the expected value, similar to TF & ONNX
+    # box_indices is the expected indices of boxes
     box_indices = output_tensor((batch_size, num_anchors), sorted_index.dtype)
     output = output_tensor((batch_size,
                             num_anchors,
@@ -326,13 +329,33 @@ def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors
             # Apply nms
             box_start_idx = coord_start
             batch_idx = i
+            num_valid_boxes = 0
 
             for j in range(valid_count[i]):
-                if output[i, j, score_index] > 0 and (id_index < 0 or output[i, j, id_index] >= 0):
+                if num_valid_boxes == max_output_size:
+                    for k in range(box_data_length):
+                        output[i, j, k] = -one
+                    box_indices[i, j] = -1
+
+                elif output[i, j, score_index] > 0:
                     box_a_idx = j
-                    for k in parallel(valid_count[i]):
+                    is_valid_box = 1
+
+                    # a_l: left, a_t: top, a_r: right, a_b: bottom
+                    a_l = min(output[batch_idx, box_a_idx, box_start_idx],
+                              output[batch_idx, box_a_idx, box_start_idx + 2])
+                    a_t = min(output[batch_idx, box_a_idx, box_start_idx + 1],
+                              output[batch_idx, box_a_idx, box_start_idx + 3])
+                    a_r = max(output[batch_idx, box_a_idx, box_start_idx],
+                              output[batch_idx, box_a_idx, box_start_idx + 2])
+                    a_b = max(output[batch_idx, box_a_idx, box_start_idx + 1],
+                              output[batch_idx, box_a_idx, box_start_idx + 3])
+
+                    # check if current box j is valid by calculating iou with
+                    # all existing valid boxes
+                    for k in range(j):
                         check_iou = 0
-                        if k > j and output[i, k, score_index] > 0 \
+                        if is_valid_box == 1 and k < j and output[i, k, score_index] > 0 \
                                 and (id_index < 0 or output[i, k, id_index] >= 0):
                             if force_suppress:
                                 check_iou = 1
@@ -340,16 +363,6 @@ def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors
                                 check_iou = 1
 
                         if check_iou > 0:
-                            # a_l: left, a_t: top, a_r: right, a_b: bottom
-                            a_l = min(output[batch_idx, box_a_idx, box_start_idx],
-                                      output[batch_idx, box_a_idx, box_start_idx + 2])
-                            a_t = min(output[batch_idx, box_a_idx, box_start_idx + 1],
-                                      output[batch_idx, box_a_idx, box_start_idx + 3])
-                            a_r = max(output[batch_idx, box_a_idx, box_start_idx],
-                                      output[batch_idx, box_a_idx, box_start_idx + 2])
-                            a_b = max(output[batch_idx, box_a_idx, box_start_idx + 1],
-                                      output[batch_idx, box_a_idx, box_start_idx + 3])
-
                             box_b_idx = k
 
                             # b_l: left, b_t: top, b_r: right, b_b: bottom
@@ -377,10 +390,14 @@ def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors
                             iou = zero if u <= zero else area / u
 
                             if iou >= iou_threshold:
-                                output[i, k, score_index] = -one
-                                if id_index >= 0:
-                                    output[i, k, id_index] = -one
-                                box_indices[i, k] = -1
+                                is_valid_box = 0
+
+                    if is_valid_box == 0:
+                        for k in range(box_data_length):
+                            output[i, j, k] = -one
+                        box_indices[i, j] = -1
+                    else:
+                        num_valid_boxes += 1
 
         else:
             for j in parallel(valid_count[i]):
@@ -393,18 +410,6 @@ def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors
             for k in range(box_data_length):
                 output[i, j + valid_count[i], k] = -one
             box_indices[i, j + valid_count[i]] = -1
-
-        # Only return max_output_size valid boxes
-        num_valid_boxes = 0
-        if max_output_size > 0:
-            for j in range(valid_count[i]):
-                if output[i, j, 0] >= zero:
-                    if num_valid_boxes == max_output_size:
-                        for k in range(box_data_length):
-                            output[i, j, k] = -one
-                        box_indices[i, j] = -1
-                    else:
-                        num_valid_boxes += 1
 
         if return_indices:
             for j in range(valid_count[i]):
@@ -432,9 +437,9 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
     indices : tvm.te.Tensor
         2-D tensor with shape [batch_size, num_anchors].
 
-    max_output_size : optional, int
+    max_output_size : optional, int or tvm.te.Tensor
         Max number of output valid boxes for each instance.
-        By default all valid boxes are returned.
+        Return all valid boxes if the value of max_output_size is less than 0.
 
     iou_threshold : optional, float
         Non-maximum suppression threshold.
@@ -494,17 +499,20 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
     """
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
+    if isinstance(max_output_size, int):
+        max_output_size = tvm.tir.const(max_output_size, dtype="int32")
     score_axis = score_index
     score_shape = (batch_size, num_anchors)
     score_tensor = te.compute(score_shape, lambda i, j: data[i, j, score_axis])
     sort_tensor = argsort(score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
+
     out, box_indices = hybrid_nms(data,
                                   sort_tensor,
                                   valid_count,
                                   indices,
                                   batch_size,
                                   num_anchors,
-                                  tvm.tir.const(max_output_size, dtype="int32"),
+                                  max_output_size,
                                   tvm.tir.const(iou_threshold, dtype=data.dtype),
                                   tvm.tir.const(force_suppress, dtype="bool"),
                                   tvm.tir.const(top_k, dtype="int32"),

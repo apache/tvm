@@ -144,17 +144,17 @@ void InferRootBound(const Stage& stage, const GraphContext& ctx,
       CHECK(it != rmap->end());
       const Range& vrange = it->second;
       if (is_one(vrange->extent)) {
-        up_state[iv] = IntSet::single_point(vrange->min);
+        up_state[iv] = IntSet::SinglePoint(vrange->min);
       } else if (!NeedRelax(iv, found_attach, ctx.bind_map, scope)) {
         CHECK(is_zero(vrange->min)) << "InferBound requires every leaf iter var's min equals 0, "
                                     << " call schedule.normalize to achieve this. ";
         if (ctx.bind_map.count(iv)) {
-          up_state[iv] = IntSet::single_point(ctx.bind_map.at(iv)->var);
+          up_state[iv] = IntSet::SinglePoint(ctx.bind_map.at(iv)->var);
         } else {
-          up_state[iv] = IntSet::single_point(iv->var);
+          up_state[iv] = IntSet::SinglePoint(iv->var);
         }
       } else {
-        up_state[iv] = IntSet::range(vrange);
+        up_state[iv] = IntSet::FromRange(vrange);
       }
     }
     // Consumer's attach nest
@@ -166,9 +166,9 @@ void InferRootBound(const Stage& stage, const GraphContext& ctx,
       CHECK(is_zero(vrange->min)) << "InferBound requires every leaf iter var's min equals 0, "
                                   << "call schedule.normalize to achieve this.";
       if (NeedRelax(iv, found_attach, ctx.bind_map, scope)) {
-        relax_set.Set(iv->var, IntSet::range(vrange));
+        relax_set.Set(iv->var, IntSet::FromRange(vrange));
         if (ctx.bind_map.count(iv)) {
-          relax_set.Set(ctx.bind_map.at(iv)->var, IntSet::range(vrange));
+          relax_set.Set(ctx.bind_map.at(iv)->var, IntSet::FromRange(vrange));
         }
       }
     }
@@ -186,16 +186,16 @@ void InferRootBound(const Stage& stage, const GraphContext& ctx,
     for (auto iv : op->root_iter_vars()) {
       Range r;
       if (up_state.count(iv)) {
-        r = up_state.at(iv).cover_range(iv->dom);
+        r = up_state.at(iv).CoverRange(iv->dom);
       } else {
         r = iv->dom;
       }
       if (relax_set.size() != 0) {
         dom_map[iv->var.get()] =
-            IntSet::interval(analyzer.int_set(r->min, relax_set).min(),
+            IntSet::Interval(analyzer.int_set(r->min, relax_set).min(),
                              analyzer.int_set(r->min + r->extent - 1, relax_set).max());
       } else {
-        dom_map[iv->var.get()] = IntSet::range(r);
+        dom_map[iv->var.get()] = IntSet::FromRange(r);
       }
       analyzer.Bind(iv->var, r, true);
     }
@@ -247,8 +247,8 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
     }
   }
   for (auto& p : ret) {
-    ret[p.first] = Range::make_by_min_extent(analyzer.Simplify(p.second->min),
-                                             analyzer.Simplify(p.second->extent));
+    ret[p.first] =
+        Range::FromMinExtent(analyzer.Simplify(p.second->min), analyzer.Simplify(p.second->extent));
   }
   return Map<IterVar, Range>(ret.begin(), ret.end());
 }

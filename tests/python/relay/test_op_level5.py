@@ -270,8 +270,8 @@ def test_get_valid_counts():
             intrp = relay.create_executor("debug", ctx=ctx, target=target)
             out = intrp.evaluate(func)(np_data)
             tvm.testing.assert_allclose(out[0].asnumpy(), np_out1, rtol=1e-3, atol=1e-04)
-            # get_valid_count for cuda doesn't do data rearrangement
-            if target == 'cuda':
+            # get_valid_count for cuda, opencl doesn't do data rearrangement
+            if target in ['cuda', 'opencl']:
                 return
             tvm.testing.assert_allclose(out[1].asnumpy(), np_out2, rtol=1e-3, atol=1e-04)
             tvm.testing.assert_allclose(out[2].asnumpy(), np_out3, rtol=1e-3, atol=1e-04)
@@ -283,16 +283,17 @@ def test_get_valid_counts():
 
 
 def test_non_max_suppression():
-    def verify_nms(x0_data, x1_data, x2_data, dshape, ref_res, ref_indices_res,
-                   iou_threshold=0.5, force_suppress=False, top_k=-1,
-                   check_type_only=False):
+    def verify_nms(x0_data, x1_data, x2_data, x3_data, dshape, ref_res,
+                   ref_indices_res, iou_threshold=0.5, force_suppress=False,
+                   top_k=-1, check_type_only=False):
         x0 = relay.var("x0", relay.ty.TensorType(dshape, "float32"))
         x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int32"))
         x2 = relay.var("x2", relay.ty.TensorType((dshape[0], dshape[1]), "int32"))
-        z = relay.vision.non_max_suppression(x0, x1, x2, max_output_size=-1, \
+        x3 = relay.var("x3", relay.ty.TensorType((), "int32"))
+        z = relay.vision.non_max_suppression(x0, x1, x2, x3, \
             iou_threshold=iou_threshold, force_suppress=force_suppress, \
             top_k=top_k, return_indices=False)
-        z_indices = relay.vision.non_max_suppression(x0, x1, x2, max_output_size=-1, \
+        z_indices = relay.vision.non_max_suppression(x0, x1, x2, x3, \
                     iou_threshold=iou_threshold, force_suppress=force_suppress, \
                     top_k=top_k, return_indices=True)
         if isinstance(z_indices, relay.expr.TupleWrapper):
@@ -309,30 +310,30 @@ def test_non_max_suppression():
         if check_type_only:
             return
 
-        func = relay.Function([x0, x1, x2], z)
+        func = relay.Function([x0, x1, x2, x3], z)
         func = run_infer_type(func)
-        func_indices = relay.Function([x0, x1, x2], z_indices)
+        func_indices = relay.Function([x0, x1, x2, x3], z_indices)
         func_indices = run_infer_type(func_indices)
         for target, ctx in ctx_list():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-            op_res1 = intrp1.evaluate(func)(x0_data, x1_data, x2_data)
+            op_res1 = intrp1.evaluate(func)(x0_data, x1_data, x2_data, x3_data)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
             intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
-            op_res2 = intrp2.evaluate(func)(x0_data, x1_data, x2_data)
+            op_res2 = intrp2.evaluate(func)(x0_data, x1_data, x2_data, x3_data)
             tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
             if target == 'cuda':
                 return
-            op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data)
+            op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
             tvm.testing.assert_allclose(op_indices_res1[0].asnumpy(), ref_indices_res, rtol=1e-5)
-            op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data, x2_data)
+            op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
             tvm.testing.assert_allclose(op_indices_res2[0].asnumpy(), ref_indices_res, rtol=1e-5)
 
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
                          [1, 0.5, 100, 60, 70, 110]]]).astype("float32")
     np_valid_count = np.array([4]).astype("int32")
-
     np_indices = np.array([[0, 1, 3, 4, -1]]).astype("int32")
+    np_max_output_size = -1
 
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
                            [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
@@ -341,22 +342,23 @@ def test_non_max_suppression():
     num_anchors = 5
 
     dshape = (te.size_var("n"), num_anchors, 6)
-    verify_nms(np_data, np_valid_count, np_indices, dshape, np_result, np_indices_result,
+    verify_nms(np_data, np_valid_count, np_indices, np_max_output_size, dshape, np_result, np_indices_result,
                force_suppress=True, top_k=2, check_type_only=True)
     dshape = (1, num_anchors, 6)
-    verify_nms(np_data, np_valid_count, np_indices, dshape, np_result, np_indices_result,
+    verify_nms(np_data, np_valid_count, np_indices, np_max_output_size, dshape, np_result, np_indices_result,
                force_suppress=True, top_k=2, check_type_only=False)
 
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
-                           [1, 0.7, 30, 60, 50, 80], [-1, -1, -1, -1, -1, -1],
+                           [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
-    np_indices_result = np.array([[4, 0, 1, -1, -1]])
+    np_indices_result = np.array([[4, 0, -1, -1, -1]])
+    np_max_output_size = 2
     dshape = (te.size_var("n"), num_anchors, 6)
-    verify_nms(np_data, np_valid_count, np_indices, dshape, np_result,
+    verify_nms(np_data, np_valid_count, np_indices, np_max_output_size, dshape, np_result,
                np_indices_result, check_type_only=True)
     dshape = (1, num_anchors, 6)
-    verify_nms(np_data, np_valid_count, np_indices, dshape, np_result,
-               np_indices_result, top_k=3)
+    verify_nms(np_data, np_valid_count, np_indices, np_max_output_size, dshape, np_result,
+               np_indices_result, top_k=2)
 
 
 def test_multibox_transform_loc():

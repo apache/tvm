@@ -145,6 +145,9 @@ Instruction::Instruction(const Instruction& instr) {
     case Opcode::AllocStorage:
       this->alloc_storage = instr.alloc_storage;
       return;
+    case Opcode::ShapeOf:
+      this->shape_of.tensor = instr.shape_of.tensor;
+      return;
     default:
       std::ostringstream out;
       out << "Invalid instruction " << static_cast<int>(instr.op);
@@ -239,6 +242,9 @@ Instruction& Instruction::operator=(const Instruction& instr) {
     case Opcode::AllocStorage:
       this->alloc_storage = instr.alloc_storage;
       return *this;
+    case Opcode::ShapeOf:
+      this->shape_of.tensor = instr.shape_of.tensor;
+      return *this;
     default:
       std::ostringstream out;
       out << "Invalid instruction " << static_cast<int>(instr.op);
@@ -258,6 +264,7 @@ Instruction::~Instruction() {
     case Opcode::Goto:
     case Opcode::LoadConsti:
     case Opcode::AllocStorage:
+    case Opcode::ShapeOf:
     case Opcode::Fatal:
       return;
     case Opcode::AllocTensor:
@@ -348,6 +355,14 @@ Instruction Instruction::AllocStorage(RegName size, Index alignment, DLDataType 
   instr.alloc_storage.allocation_size = size;
   instr.alloc_storage.alignment = alignment;
   instr.alloc_storage.dtype_hint = dtype_hint;
+  return instr;
+}
+
+Instruction Instruction::ShapeOf(RegName tensor, Index dst) {
+  Instruction instr;
+  instr.op = Opcode::ShapeOf;
+  instr.dst = dst;
+  instr.shape_of.tensor = tensor;
   return instr;
 }
 
@@ -583,6 +598,10 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       os << "alloc_storage $" << instr.dst << " $" << instr.alloc_storage.allocation_size << " "
          << instr.alloc_storage.alignment << " "
          << DLDataType2String(instr.alloc_storage.dtype_hint);
+      break;
+    }
+    case Opcode::ShapeOf: {
+      os << "shape_of $" << instr.dst << " $" << instr.shape_of.tensor;
       break;
     }
     default:
@@ -1054,6 +1073,18 @@ void VirtualMachine::RunLoop() {
 
         auto storage = make_storage(size, alignment, instr.alloc_storage.dtype_hint, ctxs_[0]);
         WriteRegister(instr.dst, storage);
+        pc_++;
+        goto main_loop;
+      }
+      case Opcode::ShapeOf: {
+        auto input = ReadRegister(instr.shape_of.tensor);
+        NDArray input_array = Downcast<NDArray>(input);
+        int ndim = input_array->ndim;
+        auto out_tensor = NDArray::Empty({ndim}, {kDLInt, 64, 1}, {kDLCPU, 0});
+        for (int i = 0; i < ndim; ++i) {
+          reinterpret_cast<int64_t*>(out_tensor->data)[i] = input_array->shape[i];
+        }
+        WriteRegister(instr.dst, out_tensor);
         pc_++;
         goto main_loop;
       }

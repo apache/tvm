@@ -237,7 +237,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LetNode* op) {
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
-  if (op->op.same_as(builtin::call_spirv_glsl450())) {
+  if (op->op.same_as(builtin::call_spirv_pure_glsl450())) {
     CHECK_GE(op->args.size(), 2U);
     uint32_t inst_id = static_cast<uint32_t>(op->args[0].as<IntImmNode>()->value);
     std::vector<spirv::Value> values;
@@ -317,13 +317,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     return builder_->MakeValue(spv::OpBitCount, builder_->GetSType(op->dtype),
                                MakeValue(op->args[0]));
   } else {
-    if (op->call_type == CallNode::Intrinsic || op->call_type == CallNode::PureIntrinsic) {
-      LOG(FATAL) << "Unresolved intrinsic " << op->op << " with return type " << op->dtype;
-    } else if (op->call_type == CallNode::Extern || op->call_type == CallNode::PureExtern) {
-      LOG(FATAL) << "Unresolved extern " << op->op << " with return type " << op->dtype;
-    } else {
-      LOG(FATAL) << "Unresolved call type " << op->call_type;
-    }
+    LOG(FATAL) << "Unresolved call  " << op->op;
     return spirv::Value();
   }
 }
@@ -475,7 +469,7 @@ void CodeGenSPIRV::VisitStmt_(const StoreNode* op) {
 
 void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   CHECK(is_zero(op->min));
-  analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
+  analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   spirv::Value init_value = MakeValue(op->min);
   spirv::Value extent_value = MakeValue(op->extent);
   // Must get init label after making value(to make sure they are correct)
@@ -575,7 +569,7 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
     if (iv->thread_tag.length() != 0) {
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv, op->value);
-        analyzer_->Bind(iv->var, Range::make_by_min_extent(0, op->value));
+        analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
       }
     }
   } else if (op->attr_key == tir::attr::storage_scope) {

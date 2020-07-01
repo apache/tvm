@@ -213,7 +213,7 @@ void ClassifyByPolarity(
   for (const PrimExpr& ineq : current_ineq_set) {
     if (const LENode* le = ineq.as<LENode>()) {
       Array<PrimExpr> coef = arith::DetectLinearEquation(le->a, {var});
-      if (!coef.empty() && is_const(coef[0])) {
+      if (!coef.empty() && is_const_int(coef[0])) {
         int64_t coef0 = *as_const_int(coef[0]);
         if (coef0 == 0) {
           // zero polarity, straight to next_ineq_set
@@ -227,7 +227,7 @@ void ClassifyByPolarity(
       }
     } else if (const EQNode* eq = ineq.as<EQNode>()) {
       Array<PrimExpr> coef = arith::DetectLinearEquation(eq->a, {var});
-      if (!coef.empty() && is_const(coef[0])) {
+      if (!coef.empty() && is_const_int(coef[0])) {
         int64_t coef0 = *as_const_int(coef[0]);
         if (coef0 == 0) {
           // zero polarity, straight to next_ineq_set

@@ -553,10 +553,10 @@ TVM_DLL PrimExpr trunc(PrimExpr x);
 TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
-  inline PrimExpr OpName(PrimExpr x) {                                  \
-    static const Op& op = Op::Get("tir." #OpName);                      \
-    return tir::Call(x.dtype(), op, {x}, tir::CallNode::PureIntrinsic); \
+#define TVM_DECLARE_INTRIN_UNARY(OpName)           \
+  inline PrimExpr OpName(PrimExpr x) {             \
+    static const Op& op = Op::Get("tir." #OpName); \
+    return tir::Call(x.dtype(), op, {x});          \
   }
 
 TVM_DECLARE_INTRIN_UNARY(exp);
@@ -583,10 +583,10 @@ TVM_DECLARE_INTRIN_UNARY(acosh);
 TVM_DECLARE_INTRIN_UNARY(asinh);
 TVM_DECLARE_INTRIN_UNARY(atanh);
 
-#define TVM_DECLARE_INTRIN_BINARY(OpName)                                  \
-  inline PrimExpr OpName(PrimExpr x, PrimExpr y) {                         \
-    static const Op& op = Op::Get("tir." #OpName);                         \
-    return tir::Call(x.dtype(), op, {x, y}, tir::CallNode::PureIntrinsic); \
+#define TVM_DECLARE_INTRIN_BINARY(OpName)          \
+  inline PrimExpr OpName(PrimExpr x, PrimExpr y) { \
+    static const Op& op = Op::Get("tir." #OpName); \
+    return tir::Call(x.dtype(), op, {x, y});       \
   }
 
 TVM_DECLARE_INTRIN_BINARY(atan2);
@@ -671,11 +671,18 @@ inline bool is_one(const PrimExpr& x) { return is_const_int(x, 1); }
 inline bool is_zero(const PrimExpr& x) { return is_const_int(x, 0); }
 
 /*!
- * \brief Check whether x is a constant.
+ * \brief Check whether x is an integer constant.
  * \note This only return true for integer types.
  * \return whether x is constant
  */
-inline bool is_const(const PrimExpr& x);
+inline bool is_const_int(const PrimExpr& x);
+
+/*!
+ * \brief Check whether x is an integer/float constant.
+ * \note This only return true for integer types.
+ * \return whether x is constant
+ */
+inline bool is_const_number(const PrimExpr& x);
 
 /*!
  * \brief Left fold.
@@ -699,7 +706,7 @@ inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr
 TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
 
 // Implementation details after this
-inline bool is_const(const PrimExpr& x) {
+inline bool is_const_int(const PrimExpr& x) {
   if (x.as<tir::IntImmNode>()) {
     return true;
   } else if (const auto* op = x.as<tir::BroadcastNode>()) {
@@ -707,6 +714,17 @@ inline bool is_const(const PrimExpr& x) {
     if (val.as<tir::IntImmNode>()) {
       return true;
     }
+  }
+  return false;
+}
+
+inline bool is_const_number(const PrimExpr& x) {
+  if (x.as<tir::IntImmNode>()) {
+    return true;
+  } else if (x.as<tir::FloatImmNode>()) {
+    return true;
+  } else if (const auto* op = x.as<tir::BroadcastNode>()) {
+    return (op->value->IsInstance<tir::IntImmNode>() || op->value->IsInstance<tir::FloatImmNode>());
   }
   return false;
 }
@@ -742,7 +760,7 @@ inline bool is_const_int(const PrimExpr& x, int64_t value) {
 inline bool is_no_op(const tir::Stmt& stmt) {
   if (!stmt.defined()) return true;
   if (const auto* op = stmt.as<tir::EvaluateNode>()) {
-    return is_const(op->value);
+    return is_const_int(op->value);
   }
   if (const auto* op = stmt.as<tir::SeqStmtNode>()) {
     return op->seq.size() == 0;

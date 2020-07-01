@@ -153,10 +153,24 @@ TVM_DLL const Op& fma();
 TVM_DLL const Op& call_extern();
 
 /*!
+ * \brief Call an pure extern C function with given name
+ *        and signature from the types of args in the runtime environment.
+ *
+ *  Type call_pure_extern(name, args...) {
+ *     return dlsym(name)(args...);
+ *  }
+ *
+ * \note This intrinsic does not provide any type checking,
+ *       and is main used for backward compatibility reasons.
+ *       Always consider use pre-registered and typed tvm::Op first.
+ */
+TVM_DLL const Op& call_pure_extern();
+
+/*!
  * \brief Call an LLVM intrinsic with a given intrinsic id
  *        and signature from the types of args in the runtime environment.
  *
- *  Type call_llvm_intrin(intrin_id, args...) {
+ *  Type call_llvm_pure_intrin(intrin_id, args...) {
  *     return dlsym(name)(args...);
  *  }
  *
@@ -165,15 +179,27 @@ TVM_DLL const Op& call_extern();
 TVM_DLL const Op& call_llvm_intrin();
 
 /*!
- * \brief Call an SPIRV GLSL450 intrinsic.
+ * \brief Call an LLVM pure intrinsic with a given intrinsic id
+ *        and signature from the types of args in the runtime environment.
  *
- *  Type call_spirv_glsl450(intrin_id, args...) {
+ *  Type call_llvm_pure_intrin(intrin_id, args...) {
  *     return dlsym(name)(args...);
  *  }
  *
  * \note This op does not provide any type checking.
  */
-TVM_DLL const Op& call_spirv_glsl450();
+TVM_DLL const Op& call_llvm_pure_intrin();
+
+/*!
+ * \brief Call an SPIRV pure GLSL450 intrinsic.
+ *
+ *  Type call_spirv_pure_glsl450(intrin_id, args...) {
+ *     return dlsym(name)(args...);
+ *  }
+ *
+ * \note This op does not provide any type checking.
+ */
+TVM_DLL const Op& call_spirv_pure_glsl450();
 
 // TODO(tvm-team) revisit the builtins below
 // some of them can simply become ops with special codegen attr.

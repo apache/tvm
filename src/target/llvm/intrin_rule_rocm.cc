@@ -32,7 +32,7 @@
 namespace tvm {
 namespace codegen {
 
-inline void DispatchExternOCML(const TVMArgs& args, TVMRetValue* rv) {
+inline void DispatchPureExternOCML(const TVMArgs& args, TVMRetValue* rv) {
   PrimExpr e = args[0];
   using namespace tir;
   const CallNode* call = e.as<CallNode>();
@@ -51,7 +51,7 @@ inline void DispatchExternOCML(const TVMArgs& args, TVMRetValue* rv) {
     new_args.push_back(arg);
   }
 
-  *rv = Call(call->dtype, builtin::call_extern(), new_args, CallNode::PureExtern);
+  *rv = Call(call->dtype, builtin::call_pure_extern(), new_args);
 }
 
 inline void DispatchShuffle(const TVMArgs& targs, TVMRetValue* rv) {
@@ -66,10 +66,10 @@ inline void DispatchShuffle(const TVMArgs& targs, TVMRetValue* rv) {
   // get own lane in self (__lane_id)
   PrimExpr minus_one = tir::make_const(DataType::Int(32), -1);
   PrimExpr zero = tir::make_zero(DataType::Int(32));
-  PrimExpr lo = Call(DataType::Int(32), builtin::call_extern(),
-                     {StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero}, CallNode::PureExtern);
-  PrimExpr self = Call(DataType::Int(32), builtin::call_extern(),
-                       {StringImm("llvm.amdgcn.mbcnt.hi"), minus_one, lo}, CallNode::PureExtern);
+  PrimExpr lo = Call(DataType::Int(32), builtin::call_pure_extern(),
+                     {StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero});
+  PrimExpr self = Call(DataType::Int(32), builtin::call_pure_extern(),
+                       {StringImm("llvm.amdgcn.mbcnt.hi"), minus_one, lo});
 
   // compute lane to get from
   PrimExpr width = call->args[3];
@@ -87,9 +87,8 @@ inline void DispatchShuffle(const TVMArgs& targs, TVMRetValue* rv) {
     index = self + delta;
     index = Select((self & (width - 1)) + delta >= width, self, index);
   }
-  PrimExpr res =
-      Call(var.dtype(), builtin::call_extern(),
-           {StringImm("llvm.amdgcn.ds.bpermute"), index << 2, var}, CallNode::PureExtern);
+  PrimExpr res = Call(var.dtype(), builtin::call_pure_extern(),
+                      {StringImm("llvm.amdgcn.ds.bpermute"), index << 2, var});
   *rv = res;
 }
 
@@ -108,49 +107,49 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tvm_warp_shuffle_up").set_body(Dispatc
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tvm_warp_shuffle_down").set_body(DispatchShuffle);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.floor").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.floor").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.ceil").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.ceil").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.round").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.round").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.trunc").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.trunc").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fabs").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fabs").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp2").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp2").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp10").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp10").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.erf").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.erf").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fma").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fma").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log2").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log2").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log10").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log10").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sqrt").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sqrt").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.pow").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.pow").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tanh").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tanh").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tan").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tan").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cos").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cos").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cosh").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cosh").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sin").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sin").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sinh").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sinh").set_body(DispatchPureExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.atan").set_body(DispatchExternOCML);
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.atan").set_body(DispatchPureExternOCML);
 
 }  // namespace llvm
 }  // namespace codegen

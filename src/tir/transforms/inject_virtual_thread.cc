@@ -231,8 +231,7 @@ class VTInjector : public StmtExprMutator {
       PrimExpr extent = this->VisitExpr(op->args[3]);
       PrimExpr stride = it->second / make_const(offset.dtype(), dtype.lanes());
       offset = stride * var_ + offset;
-      return Call(op->dtype, op->op, {op->args[0], op->args[1], offset, extent, op->args[4]},
-                  op->call_type);
+      return Call(op->dtype, op->op, {op->args[0], op->args[1], offset, extent, op->args[4]});
     } else if (op->op.same_as(builtin::tvm_context_id())) {
       return allow_share_ ? GetRef<PrimExpr>(op) : var_;
     } else {

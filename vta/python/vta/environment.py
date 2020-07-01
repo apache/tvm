@@ -79,8 +79,7 @@ class DevContext(object):
         self.vta_push_uop = tvm.tir.StringImm("VTAPushGEMMOp")
         ctx = tvm.tir.call_intrin("handle", "tir.vta.command_handle")
         self.command_handle = tvm.tir.Call(
-            "handle", "tir.tvm_thread_context", [ctx],
-            tvm.tir.Call.Intrinsic)
+            "handle", "tir.tvm_thread_context", [ctx])
         self.DEBUG_NO_SYNC = False
         env._dev_ctx = self
         self.gemm = intrin.gemm(env, env.mock_mode)
@@ -316,12 +315,15 @@ def coproc_dep_pop(op):
 
 # register a dummy into to trigger registration of the ops
 # change the info to lowering rule later.
-tvm.ir.register_op_attr("tir.vta.coproc_sync", "TVectorizable", False)
-tvm.ir.register_op_attr("tir.vta.coproc_dep_push", "TVectorizable", False)
-tvm.ir.register_op_attr("tir.vta.coproc_dep_pop", "TVectorizable", False)
+tvm.ir.register_op_attr("tir.vta.coproc_sync", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
+tvm.ir.register_op_attr("tir.vta.coproc_dep_push", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
+tvm.ir.register_op_attr("tir.vta.coproc_dep_pop", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
 
+tvm.ir.register_op_attr("tir.vta.uop_push", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
 tvm.ir.register_op_attr("tir.vta.uop_push", "TGlobalSymbol", "VTAUopPush")
+
 tvm.ir.register_op_attr("tir.vta.command_handle", "TGlobalSymbol", "VTATLSCommandHandle")
+tvm.ir.register_op_attr("tir.vta.command_handle", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
 
 
 def _init_env():

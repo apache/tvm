@@ -622,7 +622,7 @@ def conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols):
         pad_N = tile_rows - (N % tile_rows)
 
     if K % tile_cols != 0:
-        pad_k = tile_cols - (K % tile_cols)
+        pad_K = tile_cols - (K % tile_cols)
 
     N_padded = N + pad_N
     K_padded = K + pad_K

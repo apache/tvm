@@ -159,8 +159,17 @@ def test_intersect():
                 assert m.coeff == 105
                 assert m.base == 23
 
+def test_let():
+    analyzer = tvm.arith.Analyzer()
+    x = te.var("x")
+    y = te.var("y")
+    m = analyzer.modular_set(tvm.tir.Let(x, y * 10, x + 1))
+    m.coeff = 10
+    m.base = 1
+
 
 if __name__ == "__main__":
+    test_let()
     test_cast()
     test_add_sub()
     test_mul()

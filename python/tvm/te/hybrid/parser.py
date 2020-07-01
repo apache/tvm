@@ -209,7 +209,7 @@ class HybridParser(ast.NodeVisitor):
             if _scope == 'global':
                 body = self.wrap_up_binds(body)
 
-            _domain = [Range.make_by_min_extent(0, i) for i in _buf.shape]
+            _domain = [Range.from_min_extent(0, i) for i in _buf.shape]
             _dtype = _buf.dtype
             _true = tvm.runtime.convert(True)
             body = tvm.tir.ProducerRealize(_buf, _domain, _true, body)

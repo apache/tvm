@@ -1,4 +1,4 @@
-# License .to the Apache Software Foundation (ASF) under one
+# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -73,6 +73,7 @@ def compile(mod, target=None, target_host=None, params=None):
 
 class VMCompiler(object):
     """Compiler that compiles Relay module to VM executable."""
+
     def __init__(self):
         self.mod = _vm._VMCompiler()
         self._lower = self.mod["lower"]
@@ -239,6 +240,7 @@ class VMExecutor(Executor):
     target : :py:class:`Target`
         The target option to build the function.
     """
+
     def __init__(self, mod, ctx, target):
         if mod is None:
             raise RuntimeError("Must provide module to get VM executor.")

@@ -24,6 +24,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -43,11 +44,16 @@ class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
     } else if (op->op.same_as(builtin::address_of())) {
       const LoadNode* l = op->args[0].as<LoadNode>();
       return this->VisitExpr(l->index);
-    } else if (op->is_pure()) {
-      for (PrimExpr e : op->args) {
-        if (VisitExpr(e)) return true;
+    } else if (auto* ptr_op = op->op.as<OpNode>()) {
+      auto effect_kind = op_call_effect_[GetRef<Op>(ptr_op)];
+      if (effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation) {
+        for (PrimExpr e : op->args) {
+          if (VisitExpr(e)) return true;
+        }
+        return false;
+      } else {
+        return true;
       }
-      return false;
     } else {
       return true;
     }
@@ -94,6 +100,8 @@ class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
   bool BinaryOp(const T* op) {
     return VisitExpr(op->a) || VisitExpr(op->b);
   }
+
+  OpAttrMap<TCallEffectKind> op_call_effect_ = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
 };
 
 class UnsafeSelectRewriter : public StmtExprMutator {
@@ -106,7 +114,7 @@ class UnsafeSelectRewriter : public StmtExprMutator {
     if ((unsafe.VisitExpr(op->true_value) || unsafe.VisitExpr(op->false_value)) &&
         cond_is_scalar_bool) {
       return Call(op->dtype, builtin::if_then_else(),
-                  {op->condition, op->true_value, op->false_value}, CallNode::Intrinsic);
+                  {op->condition, op->true_value, op->false_value});
     } else {
       return expr;
     }

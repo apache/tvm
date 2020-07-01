@@ -97,7 +97,7 @@ Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
 
   std::unordered_map<const VarNode*, IntSet> var_intsets;
   for (auto kv : vranges_addl) {
-    var_intsets[kv.first.get()] = IntSet::range(kv.second);
+    var_intsets[kv.first.get()] = IntSet::FromRange(kv.second);
   }
 
   const Array<PrimExpr>& equal = operator->()->equal;
@@ -155,7 +155,7 @@ Range IntGrpBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
     CHECK(!best_diff_over.defined());
     return Range();
   }
-  return Range::make_by_min_extent(best_lower, analyzer.Simplify(best_diff_over + 1));
+  return Range::FromMinExtent(best_lower, analyzer.Simplify(best_diff_over + 1));
 }
 
 TVM_REGISTER_NODE_TYPE(IntGrpBoundsNode);

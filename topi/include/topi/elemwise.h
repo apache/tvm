@@ -310,8 +310,7 @@ inline Tensor reinterpret(const Tensor& x, DataType type, std::string name = "te
   return compute(
       x->shape,
       [&](const Array<Var>& i) {
-        return tvm::tir::Call(type, tvm::tir::builtin::reinterpret(), {x(i)},
-                              tvm::tir::CallNode::PureIntrinsic);
+        return tvm::tir::Call(type, tvm::tir::builtin::reinterpret(), {x(i)});
       },
       name, tag);
 }
