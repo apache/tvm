@@ -41,6 +41,12 @@ namespace parser {
 using namespace relay;
 using Expr = relay::Expr;
 
+/*! \brief A wrapper structure for capturing the result of parsing
+ * a global definition *before* we add it to the IRModule.
+ *
+ * This enables the parser to parse everything in one pass before
+ * constructing the IRModule.
+ */
 struct GlobalFunc {
   GlobalVar global;
   Function function;
@@ -52,25 +58,55 @@ struct GlobalFunc {
   }
 };
 
+/*! \brief A wrapper structure for capturing all top-level definitions
+ * when parsing a module.
+ */
 struct Definitions {
+  /*! \brief The set of global functions. */
   std::vector<GlobalFunc> funcs;
+  /*! \brief The set of type definitions. */
   std::vector<TypeData> types;
+  // TODO(@jroesch): contain meta-table below
 };
 
+/*! \brief A structure representing the semantic versioning information
+ * for a Relay program.
+ */
 struct SemVer {
   int major;
   int minor;
   int patch;
 };
 
-class MetaRefExpr;
+/*! \brief A reference to a "meta-expression".
+ *
+ * In the text format we allow referencing metadata which
+ * uses a compact serialization that proceeds the main
+ * program body.
+ *
+ * We can reference this table using an expression of
+ * the form `meta[Type][index]`.
+ *
+ * We must later resolve these references to actual in-memory
+ * AST nodes but this requires first parsing the full program
+ * then expanding these temporary AST nodes into their corresponding
+ * nodes.
+ *
+ * For example the nth large constant will be pretty-printed as meta[relay.Constant][n]
+ * with its compact binary serialization residing in the metadata section at the end
+ * of the program.
+ */
 class MetaRefExprNode : public TempExprNode {
  public:
+  /*! \brief The type key of the meta expression. */
   std::string type_key;
+  /*! \brief The index into the type key's table. */
   uint64_t node_index;
 
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
+  // TODO(@jroesch): we probably will need to manually
+  // expand these with a pass.
   Expr Realize() const final { return Expr(); }
 
   static constexpr const char* _type_key = "relay.MetaRefExpr";
@@ -80,9 +116,9 @@ class MetaRefExprNode : public TempExprNode {
 class MetaRefExpr : public TempExpr {
  public:
   /*!
-   * \brief The constructor
-   * \param expr The original relay expression.
-   * \param kind The annotation kind.
+   * \brief The constructor for MetaRefExpr
+   * \param type_key The type key of the object in the meta section.
+   * \param kind The index into that subfield.
    */
   TVM_DLL MetaRefExpr(std::string type_key, uint64_t node_index);
 
@@ -96,16 +132,30 @@ MetaRefExpr::MetaRefExpr(std::string type_key, uint64_t node_index) {
   data_ = std::move(rnode);
 }
 
+/*! \brief A simple wrapper around a mapping from raw string names
+ * to a TVM variable, type variable or other binder type.
+ */
 template <typename T>
 struct Scope {
+  /*! \brief The internal map. */
   std::unordered_map<std::string, T> name_map;
-  Scope() : name_map() {}
 };
 
+/*! \brief A stack of scopes.
+ *
+ * In order to properly handle scoping we must maintain a scope of stacks.
+ *
+ * A stack allows users to write programs which contain repeated variable
+ * names and to properly handle both nested scopes and removal of variables
+ * when they go out of scope.
+ *
+ * This is the classic approach to lexical scoping.
+ */
 template <typename T>
 struct ScopeStack {
   std::vector<Scope<T>> scope_stack;
 
+  /*! \brief Adds a variable binding to the current scope. */
   void Add(const std::string& name, const T& value) {
     if (!this->scope_stack.size()) {
       LOG(FATAL) << "internal issue";
@@ -113,6 +163,8 @@ struct ScopeStack {
     this->scope_stack.back().name_map.insert({name, value});
   }
 
+  /*! \brief Looks up a variable name in the scope stack returning the matching variable
+   * in most recent scope. */
   T Lookup(const std::string& name) {
     for (auto scope = this->scope_stack.rbegin(); scope != this->scope_stack.rend(); scope++) {
       auto it = scope->name_map.find(name);
@@ -123,14 +175,19 @@ struct ScopeStack {
     return T();
   }
 
+  /*! \brief Adds a fresh scope. */
   void PushStack() { this->scope_stack.push_back(Scope<T>()); }
 
+  /*! \brief Removes the most recent scope. */
   void PopStack() { this->scope_stack.pop_back(); }
 };
 
+/*! \brief A table of interning strings as global function and type names. */
 template <typename T>
 struct InternTable {
+  /*! \brief The internal table mapping strings to a unique allocation. */
   std::unordered_map<std::string, T> table;
+
   void Add(const std::string& name, const T& t) {
     auto it = table.find(name);
     if (it != table.end()) {
@@ -150,6 +207,44 @@ struct InternTable {
   }
 };
 
+/*! \brief The parser class is the main interface to the parser.
+ * the parser is not currently exposed beyond this .cc file.
+ *
+ * The parser is initialized with a diagnostic context, an
+ * operator table, and a token stream.
+ *
+ * The rest of the internal state is used to map the human readable
+ * form to in-memory IR representation.
+ *
+ * The main entry point to the parser are a set of parsing methods
+ * such as `ParseModule` and `ParseExpr`.
+ *
+ * As with traditional recursive descent parsers the parsing methods
+ * are factored recursively just as one would do with a formal language
+ * grammar.
+ *
+ * You can view a recursive descent parser as a human friendly way to specify
+ * a state machine, and thus this factoring is necessary as the 'state' of this
+ * machine is the combination of the current parsing method and the next token.
+ *
+ * Parsing proceeds by matching a token and then dispatching to the appropriate
+ * method to parse the next tokens in the stream.
+ *
+ * For example if we are parsing a type and encounter a "Tensor" token we switch
+ * into a mode for parsing `[`, a shape, a comma, a data type and then a ']'.
+ *
+ * Certain matches like this are unambiguous and proceed in a straight line fashion
+ * once the initial token is found. Other parsing is more complex and requires some
+ * tricks to correctly parse.
+ *
+ * For example when we find a '(' in an expression context, it may be part of
+ * a tuple, the arguments to a call, or a parenthesized expression. The below code
+ * disambiguate these cases by factoring expression parsing into a series of methods
+ * which encode the parsing context the and thus how to interpret the parenthesis.
+ *
+ * For more information one should be able to read the code in order starting with
+ * `ParseModule` or `ParseExpr`.
+ */
 struct Parser {
   /*! \brief The version that the parser is parsing. */
   SemVer version;
@@ -215,8 +310,10 @@ struct Parser {
    * \return The Nth token.
    */
   Token Lookahead(int n) {
-    CHECK_LE(1, n) << "lookahead by > 1 is invalid";
+    CHECK_LE(1, n) <<
+      "lookahead where n >= 1 is invalid";
 
+    // We intend to skip n - 1 tokens, then return the nth.
     auto old_pos = pos;
     for (int i = 0; i < n - 1; i++) {
       Peek();
@@ -270,7 +367,7 @@ struct Parser {
 
   /* \brief Add a graph binding to the parsing context
    *
-   * For example map 0 -> add(...), etc.
+   * For example if we parse %0 = add(...), map 0 -> add(...), etc.
    */
   void AddGraphBinding(const Token& token, const Expr& expr) {
     auto graph_no = token.ToNumber();
@@ -468,7 +565,7 @@ struct Parser {
     }
   }
 
-  /*! \brief Parse an IRModule. */
+  /*! \brief Parse a full IRModule. */
   IRModule ParseModule() {
     // Parse the semver header at the top of the module.
     this->version = ParseSemVer();
@@ -623,7 +720,7 @@ struct Parser {
           // For graph or let, match first rhs, then invoke ParseBindingExpr
           // ParseBindingExpression then parse_lhs() parse_rhs() ';' continue
           case TokenType::LCurly: {
-            // Might need to optimize to remove deep recursion.
+            // NB: Might need to optimize to remove deep recursion.
             // Stack should only grow proportionally to the number of
             // nested scopes.
             return Bracket<Expr>(TokenType::LCurly, TokenType::RCurly, [&]() {
@@ -681,7 +778,7 @@ struct Parser {
     });
   }
 
-  /*! \brief Parse a "binding expression", that is an expression where
+  /*! \brief Parse a "binding expression"; an expression where
    * a graph or let variable is bound.
    *
    * In order to avoid stack overflow this is implemented in a special
@@ -775,7 +872,6 @@ struct Parser {
   /*! Parse a function definition without a leading keyword or identifier.
    *
    * Handles things of the form [T1, ..., TN](arg1: U1, ..., argN, UN) -> Ret { body }.
-   *
    */
   Function ParseFunctionDef() {
     PushScope();
@@ -1242,7 +1338,6 @@ struct Parser {
 
     std::cout << std::endl;
   }
-
 };
 
 IRModule ParseModule(std::string file_name, std::string file_content) {
