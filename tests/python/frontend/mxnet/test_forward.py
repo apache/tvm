@@ -1134,14 +1134,15 @@ def test_forward_cond():
 def test_forward_amp_multicast():
     def verify(dtypes, expected_dtype):
         x_nds = [mx.nd.ones((2,2), dtype=dtype) for dtype in dtypes]
+        x_nps = [x.asnumpy() for x in x_nds]
         x_vars = [mx.sym.var(str(i), dtype=dtype) for i, dtype in enumerate(dtypes)]
         mx_sym = mx.sym.amp_multicast(*x_vars, num_outputs=len(dtypes))
         shape_dict = {}
         for i, dtype in enumerate(dtypes):
-            shape_dict[str(i)] = dtype
+            shape_dict[str(i)] = (2,2)
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         intrp = relay.create_executor('graph', mod=mod, ctx=tvm.gpu(), target='cuda')
-        op_res = intrp.evaluate()(*x_nds)
+        op_res = intrp.evaluate()(*x_nps)
         print(op_res)
     verify(['float32', 'float16'], 'float32')
 
