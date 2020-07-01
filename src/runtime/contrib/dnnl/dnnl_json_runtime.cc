@@ -136,7 +136,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
                               size_t offset = 0) {
     auto eid = EntryID(entry);
     // Since the DNNL memory has been created before calling this function, we assume the entry
-    // has not yet been bind to the other DNNL memory; otherwise it may have memory leak.
+    // has not yet been bound to the other DNNL memory; otherwise it may have memory leak.
     CHECK_EQ(entry_out_mem_.count(eid), 0);
 
     // TODO(@comanic): Support other data types (i.e., int8).

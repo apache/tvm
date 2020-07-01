@@ -104,7 +104,7 @@ class OpAttrExtractor : public AttrVisitor {
           attr.push_back(Fp2String(fm->value));
         } else if (const auto* str = (*an)[i].as<StringObj>()) {
           String s = GetRef<String>(str);
-          attr.push_back(s.operator std::string());
+          attr.push_back(s);
         } else {
           LOG(FATAL) << "Not supported type: " << (*an)[i]->GetTypeKey();
         }
@@ -118,7 +118,7 @@ class OpAttrExtractor : public AttrVisitor {
       SetNodeAttr(key, std::vector<std::string>{Fp2String(fm->value)});
     } else if (const auto* str = (*value).as<StringObj>()) {
       String s = GetRef<String>(str);
-      SetNodeAttr(key, std::vector<std::string>{s.operator std::string()});
+      SetNodeAttr(key, std::vector<std::string>{s});
     } else {
       LOG(FATAL) << "Not yet supported type: " << (*value)->GetTypeKey() << ": " << *value;
     }
@@ -230,7 +230,7 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
       auto pattern = fn->GetAttr<String>(attr::kPartitionedFromPattern);
       CHECK(pattern.defined());
       std::vector<std::string> values;
-      values.push_back(pattern.value().operator std::string());
+      values.push_back(pattern.value());
       std::vector<dmlc::any> attr;
       attr.emplace_back(values);
       node->SetAttr("PartitionedFromPattern", attr);
@@ -271,7 +271,7 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
       auto comp = fn->GetAttr<String>(attr::kComposite);
       CHECK(comp.defined()) << "JSON runtime only supports composite functions.";
-      name = comp.value().operator std::string();
+      name = comp.value();
     } else {
       LOG(FATAL) << "JSON runtime does not support calls to " << cn->op->GetTypeKey();
     }

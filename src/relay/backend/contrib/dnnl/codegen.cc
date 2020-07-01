@@ -442,7 +442,7 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
       auto comp = fn->GetAttr<String>(attr::kComposite);
       CHECK(comp.defined()) << "DNNL JSON runtime only supports composite functions.";
-      name = comp.value().operator std::string();
+      name = comp.value();
 
       if (name == "dnnl.conv2d_bias_relu") {
         call = GetRootCall(fn->body.as<CallNode>(), 2, {"nn.conv2d", "add", "nn.relu"});
