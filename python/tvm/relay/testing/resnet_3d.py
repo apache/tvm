@@ -15,13 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Adapted from https://github.com/tornadomeet/ResNet/blob/master/symbol_resnet.py
-Original author Wei Wu
+Network definition of 3D ResNet for Action Recognition (CVPR 2018)
 
-Implemented the following paper:
-
-Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun. "Identity Mappings in Deep Residual Networks"
+Reference : https://github.com/kenshohara/3D-ResNets-PyTorch
 """
+
 # pylint: disable=unused-argument
 from tvm import relay
 from .init import create_workload
@@ -33,8 +31,8 @@ def residual_unit(data,
                   dim_match,
                   name,
                   bottle_neck=True,
-                  data_layout="NCHW",
-                  kernel_layout="IOHW"
+                  data_layout="NCDHW",
+                  kernel_layout="OIDHW"
                   ):
     """Return ResNet Unit symbol for building ResNet
 
@@ -59,61 +57,59 @@ def residual_unit(data,
     name : str
         Base name of the operators
     """
-    bn_axis = data_layout.index('C')
     if bottle_neck:
         bn1 = layers.batch_norm_infer(data=data,
                                       epsilon=2e-5,
-                                      axis=bn_axis,
                                       name=name + '_bn1')
         act1 = relay.nn.relu(data=bn1)
-        conv1 = layers.conv2d(
+        conv1 = layers.conv3d(
             data=act1,
             channels=int(num_filter*0.25),
-            kernel_size=(1, 1),
+            kernel_size=(1, 1, 1),
             strides=stride,
-            padding=(0, 0),
+            padding=(0, 0, 0),
             name=name + '_conv1',
             data_layout=data_layout,
             kernel_layout=kernel_layout)
-        bn2 = layers.batch_norm_infer(data=conv1, epsilon=2e-5, axis=bn_axis, name=name + '_bn2')
+        bn2 = layers.batch_norm_infer(data=conv1, epsilon=2e-5, name=name + '_bn2')
         act2 = relay.nn.relu(data=bn2)
-        conv2 = layers.conv2d(
-            data=act2, channels=int(num_filter*0.25), kernel_size=(3, 3),
-            strides=(1, 1), padding=(1, 1), name=name + '_conv2',
+        conv2 = layers.conv3d(
+            data=act2, channels=int(num_filter*0.25), kernel_size=(3, 3, 3),
+            strides=(1, 1, 1), padding=(1, 1, 1), name=name + '_conv2',
             data_layout=data_layout, kernel_layout=kernel_layout)
-        bn3 = layers.batch_norm_infer(data=conv2, epsilon=2e-5, axis=bn_axis, name=name + '_bn3')
+        bn3 = layers.batch_norm_infer(data=conv2, epsilon=2e-5, name=name + '_bn3')
         act3 = relay.nn.relu(data=bn3)
-        conv3 = layers.conv2d(
-            data=act3, channels=num_filter, kernel_size=(1, 1),
-            strides=(1, 1), padding=(0, 0), name=name + '_conv3',
+        conv3 = layers.conv3d(
+            data=act3, channels=num_filter, kernel_size=(1, 1, 1),
+            strides=(1, 1, 1), padding=(0, 0, 0), name=name + '_conv3',
             data_layout=data_layout, kernel_layout=kernel_layout)
         if dim_match:
             shortcut = data
         else:
-            shortcut = layers.conv2d(
-                data=act1, channels=num_filter, kernel_size=(1, 1),
+            shortcut = layers.conv3d(
+                data=act1, channels=num_filter, kernel_size=(1, 1, 1),
                 strides=stride, name=name+'_sc',
                 data_layout=data_layout, kernel_layout=kernel_layout)
         return relay.add(conv3, shortcut)
 
-    bn1 = layers.batch_norm_infer(data=data, epsilon=2e-5, axis=bn_axis, name=name + '_bn1')
+    bn1 = layers.batch_norm_infer(data=data, epsilon=2e-5, name=name + '_bn1')
     act1 = relay.nn.relu(data=bn1)
-    conv1 = layers.conv2d(
-        data=act1, channels=num_filter, kernel_size=(3, 3),
-        strides=stride, padding=(1, 1), name=name + '_conv1',
+    conv1 = layers.conv3d(
+        data=act1, channels=num_filter, kernel_size=(3, 3, 3),
+        strides=stride, padding=(1, 1, 1), name=name + '_conv1',
         data_layout=data_layout, kernel_layout=kernel_layout)
-    bn2 = layers.batch_norm_infer(data=conv1, epsilon=2e-5, axis=bn_axis, name=name + '_bn2')
+    bn2 = layers.batch_norm_infer(data=conv1, epsilon=2e-5, name=name + '_bn2')
     act2 = relay.nn.relu(data=bn2)
-    conv2 = layers.conv2d(
-        data=act2, channels=num_filter, kernel_size=(3, 3),
-        strides=(1, 1), padding=(1, 1), name=name + '_conv2',
+    conv2 = layers.conv3d(
+        data=act2, channels=num_filter, kernel_size=(3, 3, 3),
+        strides=(1, 1, 1), padding=(1, 1, 1), name=name + '_conv2',
         data_layout=data_layout, kernel_layout=kernel_layout)
 
     if dim_match:
         shortcut = data
     else:
-        shortcut = layers.conv2d(
-            data=act1, channels=num_filter, kernel_size=(1, 1),
+        shortcut = layers.conv3d(
+            data=act1, channels=num_filter, kernel_size=(1, 1, 1),
             strides=stride, name=name+'_sc',
             data_layout=data_layout, kernel_layout=kernel_layout)
     return relay.add(conv2, shortcut)
@@ -125,7 +121,7 @@ def resnet(units,
            num_classes,
            data_shape,
            bottle_neck=True,
-           layout="NCHW",
+           layout="NCDHW",
            dtype="float32"):
     """Return ResNet Program.
 
@@ -150,53 +146,52 @@ def resnet(units,
         Whether apply bottleneck transformation.
 
     layout: str
-        The data layout for conv2d
+        The data layout for conv3d
 
     dtype : str
         The global data type.
     """
 
     data_layout = layout
-    kernel_layout = "OIHW" if layout == "NCHW" else "HWIO"
-    bn_axis = data_layout.index('C')
+    kernel_layout = "OIDHW" if layout == "NCDHW" else "DHWIO"
 
     num_unit = len(units)
     assert num_unit == num_stages
     data = relay.var("data", shape=data_shape, dtype=dtype)
-    data = layers.batch_norm_infer(data=data, epsilon=2e-5, axis=bn_axis, scale=False,
-                                   name='bn_data')
-    (_, _, height, _) = data_shape
-    if layout == "NHWC":
-        (_, height, _, _) = data_shape
+    data = layers.batch_norm_infer(data=data, epsilon=2e-5, scale=False, name='bn_data')
+    if layout == "NCDHW":
+        (_, _, _, height, _) = data_shape
+    else:
+        (_, _, height, _, _) = data_shape
     if height <= 32:            # such as cifar10
-        body = layers.conv2d(
-            data=data, channels=filter_list[0], kernel_size=(3, 3),
-            strides=(1, 1), padding=(1, 1), name="conv0",
+        body = layers.conv3d(
+            data=data, channels=filter_list[0], kernel_size=(3, 3, 3),
+            strides=(1, 1, 1), padding=(1, 1, 1), name="conv0",
             data_layout=data_layout, kernel_layout=kernel_layout)
     else:                       # often expected to be 224 such as imagenet
-        body = layers.conv2d(
-            data=data, channels=filter_list[0], kernel_size=(7, 7),
-            strides=(2, 2), padding=(3, 3), name="conv0",
+        body = layers.conv3d(
+            data=data, channels=filter_list[0], kernel_size=(3, 7, 7),
+            strides=(1, 2, 2), padding=(1, 3, 3), name="conv0",
             data_layout=data_layout, kernel_layout=kernel_layout)
-        body = layers.batch_norm_infer(data=body, epsilon=2e-5, axis=bn_axis, name='bn0')
+        body = layers.batch_norm_infer(data=body, epsilon=2e-5, name='bn0')
         body = relay.nn.relu(data=body)
-        body = relay.nn.max_pool2d(data=body, pool_size=(3, 3), strides=(2, 2), padding=(1, 1),
-                                   layout=data_layout)
+        #body = relay.nn.max_pool3d(data=body, pool_size=(3, 3), strides=(2, 2), padding=(1, 1),
+        #                           layout=data_layout)
 
     for i in range(num_stages):
         body = residual_unit(
-            body, filter_list[i+1], (1 if i == 0 else 2, 1 if i == 0 else 2),
+            body, filter_list[i+1], (1 if i == 0 else 2, 1 if i == 0 else 2, 1 if i == 0 else 2),
             False, name='stage%d_unit%d' % (i + 1, 1), bottle_neck=bottle_neck,
             data_layout=data_layout, kernel_layout=kernel_layout)
         for j in range(units[i]-1):
             body = residual_unit(
-                body, filter_list[i+1], (1, 1), True,
+                body, filter_list[i+1], (1, 1, 1), True,
                 name='stage%d_unit%d' % (i + 1, j + 2), bottle_neck=bottle_neck,
                 data_layout=data_layout, kernel_layout=kernel_layout)
-    bn1 = layers.batch_norm_infer(data=body, epsilon=2e-5, axis=bn_axis, name='bn1')
+    bn1 = layers.batch_norm_infer(data=body, epsilon=2e-5, name='bn1')
     relu1 = relay.nn.relu(data=bn1)
     # Although kernel is not used here when global_pool=True, we should put one
-    pool1 = relay.nn.global_avg_pool2d(data=relu1, layout=data_layout)
+    pool1 = relay.nn.global_avg_pool3d(data=relu1, layout=data_layout)
     flat = relay.nn.batch_flatten(data=pool1)
     fc1 = layers.dense_add_bias(data=flat, units=num_classes, name='fc1')
     net = relay.nn.softmax(data=fc1)
@@ -206,17 +201,18 @@ def resnet(units,
 def get_net(batch_size,
             num_classes,
             num_layers=50,
-            image_shape=(3, 224, 224),
-            layout="NCHW",
+            image_shape=(3, 16, 112, 112),
+            layout="NCDHW",
             dtype="float32",
             **kwargs):
     """
     Adapted from https://github.com/tornadomeet/ResNet/blob/master/train_resnet.py
     Original author Wei Wu
     """
-    (_, height, _) = image_shape
-    if layout == "NHWC":
-        (height, _, _) = image_shape
+    if layout == "NCDHW":
+        (_, _, height, _) = image_shape
+    else:
+        (_, height, _, _) = image_shape
     data_shape = (batch_size,) + image_shape
     if height <= 28:
         num_stages = 3
@@ -269,8 +265,8 @@ def get_net(batch_size,
 def get_workload(batch_size=1,
                  num_classes=1000,
                  num_layers=18,
-                 image_shape=(3, 224, 224),
-                 layout="NCHW",
+                 image_shape=(3, 16, 112, 112),
+                 layout="NCDHW",
                  dtype="float32",
                  **kwargs):
     """Get benchmark workload for resnet
@@ -290,7 +286,7 @@ def get_workload(batch_size=1,
         The input image shape
 
     layout: str
-        The data layout for conv2d
+        The data layout for conv3d
 
     dtype : str, optional
         The data type
