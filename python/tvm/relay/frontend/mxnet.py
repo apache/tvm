@@ -903,6 +903,23 @@ def _mx_resize(inputs, attrs):
     return _op.image.resize(inputs[0], size,
                             coordinate_transformation_mode="align_corners")
 
+def _mx_amp_multicast(inputs, attrs):
+    cast_narrow = attrs.get_bool("cast_narrow", False)
+    dtypes = [_infer_type(x).checked_type.dtype for x in inputs]
+    supported_dtypes = ['float16', 'float32']
+    assert all([x in supported_dtypes for x in dtypes]), \
+            "amp_multicast support is limited to float16 and float32 inputs only."
+    dtype = 'float32' if cast_narrow else dtypes[0]
+    for t in dtypes:
+        if cast_narrow and t == 'float16':
+            dtype = 'float16'
+            break
+        elif not cast_narrow and t == 'float32':
+            dtype = 'float32'
+            break
+    print('dtype=', dtype)
+    return [relay.cast(x, dtype) for x in inputs]
+
 def _mx_grid_generator(inputs, attrs):
     transform_type = attrs.get_str("transform_type")
     if transform_type == 'affine':
@@ -1445,7 +1462,7 @@ def _qnn_contrib_concat(inputs, attrs):
         # Get all dtypes. Find input and output scales, call concatenate.
         dtypes = [_infer_type(x).checked_type.dtype for x in input_exprs]
         assert all([x == 'uint8' for x in dtypes]), \
-                "Current suppor is limited to uint8 inputs only."
+                "Current support is limited to uint8 inputs only."
         new_min = min(mins)
         new_max = max(maxs)
         assert new_min == 0
@@ -2148,6 +2165,8 @@ _convert_map = {
     "Reshape"       : _reshape,
     "reshape"       : _reshape,
     "Cast"          : _cast,
+    "amp_cast"      : _cast,
+    "amp_multicast" : _mx_amp_multicast,
     "clip"          : _clip,
     "transpose"     : _transpose,
     "UpSampling"    : _upsampling,
