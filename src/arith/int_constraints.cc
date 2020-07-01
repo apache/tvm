@@ -162,7 +162,9 @@ TVM_REGISTER_NODE_TYPE(IntGroupBoundsNode);
 
 TVM_REGISTER_GLOBAL("arith.IntGroupBounds")
     .set_body_typed([](PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
-                       Array<PrimExpr> upper) { return IntGroupBounds(coef, lower, equal, upper); });
+                       Array<PrimExpr> upper) {
+      return IntGroupBounds(coef, lower, equal, upper);
+    });
 
 TVM_REGISTER_GLOBAL("arith.IntGroupBounds_from_range").set_body_typed(IntGroupBounds::FromRange);
 
