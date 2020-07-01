@@ -44,7 +44,7 @@ struct Rule {
   tvm::Op op;
   bool left_assoc;
 
-  Rule() : tokens(), precedence(0), arity(0 ), op(tvm::Op()), left_assoc(false) {}
+  Rule() : tokens(), precedence(0), arity(0 ), op(tvm::Op()), left_assoc(left_assoc) {}
 
   Rule(std::vector<TokenType> tokens, tvm::Op op, int precedence, int arity = 2, bool left_assoc = false)
       : tokens(tokens), precedence(precedence), arity(arity), op(op), left_assoc(false) {}
