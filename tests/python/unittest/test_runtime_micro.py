@@ -28,7 +28,7 @@ from tvm.relay.testing import resnet
 # # Use the host emulated micro device.
 DEV_CONFIG_A = micro.device.host.generate_config()
 DEV_CONFIG_B = micro.device.host.generate_config()
-TARGET = 'c -device=micro_dev'
+TARGET = 'micro_dev'
 
 def relay_micro_build(func, dev_config, params=None):
     """Create a graph runtime module with a micro device context from a Relay function.

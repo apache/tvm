@@ -392,7 +392,8 @@ Pass LowerWarpMemory() {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     CHECK(target.defined()) << "LowerWarpMemory: Require the target attribute";
-    n->body = WarpMemoryRewriter(target.value()->thread_warp_size).Rewrite(std::move(n->body));
+    int warp_size = target.value()->GetAttr<Integer>("thread_warp_size", 1).value();
+    n->body = WarpMemoryRewriter(warp_size).Rewrite(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerWarpMemory", {});
