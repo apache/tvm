@@ -78,7 +78,6 @@ import time
 import itertools
 import numpy as np
 import tensorflow as tf
-import transformers
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay import data_dep_optimization as ddo
@@ -162,6 +161,7 @@ def convert_to_graphdef(model, batch_size, seq_len):
 
 
 def download_model(name, batch_size, seq_len):
+    import transformers
     module = getattr(transformers, "TFBertForSequenceClassification")
     model = load_keras_model(module, name=name, batch_size=batch_size, seq_len=seq_len)
     return convert_to_graphdef(model, batch_size, seq_len)
