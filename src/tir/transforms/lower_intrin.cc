@@ -116,9 +116,10 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         auto rdiv = tir::Var("rdiv", dtype);
         // b >= 0 => (rmod >=0 ? rdiv : rdiv - 1)
         // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
-        PrimExpr let_rdiv = tir::Let(rdiv, truncdiv(op->a, op->b),
-          tir::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
-            rdiv, rdiv - make_const(dtype, 1)));
+        PrimExpr let_rdiv =
+            tir::Let(rdiv, truncdiv(op->a, op->b),
+                     tir::Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rdiv,
+                                 rdiv - make_const(dtype, 1)));
         return Let(rmod, truncmod(op->a, op->b), let_rdiv);
       }
     }
@@ -170,8 +171,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         // b > 0 && rmod < 0  -> rmod + b
         // b < 0 && rmod < 0 -> rmod
         // b < 0 && rmod > 0 -> rmod + b
-        return Let(rmod, truncmod(op->a, op->b),
-          Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod, rmod + op->b));
+        return Let(
+            rmod, truncmod(op->a, op->b),
+            Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod, rmod + op->b));
       }
     }
   }
