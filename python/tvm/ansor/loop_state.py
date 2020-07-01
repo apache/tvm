@@ -121,33 +121,35 @@ class State:
         """
         return _ffi_api.StateGetTransformStepsSize(self.state_object)
 
-    def reorder(self, stage_id, order):
+    def reorder(self, stage, order):
         """ Schedule primitive corresponds to te.reorder.
 
         Parameters
         ----------
-        stage_id : Union[int, Operation, Tensor]
-            The index of the stage to reorder
+        stage : Union[int, Operation, Tensor]
+            The target Stage to be reordered, can be a Stage order index, Stage operation or stage
+            output tensor.
         order : List[Iterator]
             Iterators in the expected order
         """
-        stage_id = self._resolve_stage_id(stage_id)
+        stage_id = self._resolve_stage_id(stage)
 
         self.state_object = _ffi_api.StateReorder(self.state_object, stage_id, order)
         self._clear_cache()
 
-    def split(self, stage_id, iterator, lengths, inner_to_outer=True):
+    def split(self, stage, iterator, lengths, inner_to_outer=True):
         """ Schedule primitive corresponds to te.split.
 
         Parameters
         ----------
-        stage_id : Union[int, Operation, Tensor]
-            The index of the stage to split
+        stage : Union[int, Operation, Tensor]
+            The target Stage to be split, can be a Stage order index, Stage operation or stage
+            output tensor.
         iterator : Iterator
             The iterator to split
         lengths: List[int]
             The split factors
-        inner_to_outer: bool
+        inner_to_outer: bool = True
             True to use `factor` to split from inner to outer,
             False to use `nparts` to split from outer to inner
 
@@ -156,20 +158,21 @@ class State:
         res_its : List[Iterator]
             The splitted new Iterators
         """
-        stage_id = self._resolve_stage_id(stage_id)
+        stage_id = self._resolve_stage_id(stage)
 
         self.state_object, res = _ffi_api.StateSplit(self.state_object, stage_id, iterator, lengths,
                                                      inner_to_outer)
         self._clear_cache()
         return res
 
-    def fuse(self, stage_id, iters):
+    def fuse(self, stage, iters):
         """ Schedule primitive corresponds to te.fuse.
 
         Parameters
         ----------
-        stage_id : Union[int, Operation, Tensor]
-            The index of the stage to fuse
+        stage : Union[int, Operation, Tensor]
+            The target Stage to be reordered, can be a Stage order index, Stage operation or stage
+            output tensor.
         iters : List[Iterator]
             The iterators to be fused
 
@@ -178,7 +181,7 @@ class State:
         res_it : Iterator
             The fused Iterator
         """
-        stage_id = self._resolve_stage_id(stage_id)
+        stage_id = self._resolve_stage_id(stage)
 
         self.state_object, res = _ffi_api.StateFuse(self.state_object, stage_id, iters)
         self._clear_cache()
@@ -193,7 +196,7 @@ class State:
     def _resolve_stage_id(self, stage_id):
         if isinstance(stage_id, Operation):
             return self.stage_id_map[stage_id]
-        if isinstance(stage_id, tvm.te.Tensor):
+        if isinstance(stage_id, Tensor):
             return self.stage_id_map[stage_id.op]
         if isinstance(stage_id, int):
             return stage_id
@@ -215,7 +218,7 @@ class State:
             key = key.op
         if isinstance(key, Operation):
             return self.stages_cache[self.stage_id_map[key]]
-        raise ValueError("Item must be Tensor")
+        raise ValueError("Item must be Tensor or Operation")
 
     def __str__(self):
         return str(self.state_object)

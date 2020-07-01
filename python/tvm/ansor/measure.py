@@ -42,6 +42,9 @@ from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout
 # The maximum length of error message
 MAX_ERROR_MSG_LEN = 512
 
+# Global variables used in build function
+GLOBAL_BUILD_ARGUMENTS = None
+
 @tvm._ffi.register_object("ansor.MeasureCallback")
 class MeasureCallback(Object):
     """ Base class for measurement callback function. """
@@ -68,21 +71,23 @@ class BuildResult(Object):
 
     Parameters
     ----------
-    filename : Str
+    filename : Optional[str]
         The filename of built binary file.
     args : List[Tensor]
         The arguments.
-    error_no : Int
+    error_no : int
         The error code.
-    error_msg : Str
+    error_msg : Optional[str]
         The error message if there is any error.
-    time_cost : Float
+    time_cost : float
         The time cost of build.
     """
     def __init__(self, filename, args, error_no, error_msg, time_cost):
+        filename = filename if filename else ""
+        error_msg = error_msg if error_msg else ""
+
         self.__init_handle_by_constructor__(
-            _ffi_api.BuildResult, filename if filename else "", args, error_no,
-            error_msg if error_msg else "", time_cost)
+            _ffi_api.BuildResult, filename, args, error_no, error_msg, time_cost)
 
 
 @tvm._ffi.register_object("ansor.MeasureResult")
@@ -91,21 +96,23 @@ class MeasureResult(Object):
 
     Parameters
     ----------
-    costs : List[Float]
+    costs : List[float]
         The time costs of execution.
-    error_no : Int
+    error_no : int
         The error code.
-    error_msg : Str
+    error_msg : Optional[str]
         The error message if there is any error.
-    all_cost : Float
+    all_cost : float
         The time cost of build and run.
-    timestamp : Float
+    timestamp : float
         The time stamps of this measurement.
     """
     def __init__(self, costs, error_no, error_msg, all_cost, timestamp):
+        error_msg = error_msg if error_msg else ""
+
         self.__init_handle_by_constructor__(
             _ffi_api.MeasureResult, costs, error_no,
-            error_msg if error_msg else "", all_cost, timestamp)
+            error_msg, all_cost, timestamp)
 
 
 @tvm._ffi.register_object("ansor.Builder")
@@ -119,7 +126,7 @@ class Builder(Object):
         ----------
         measure_inputs : List[MeasureInput]
             A List of MeasureInput.
-        verbost : Int
+        verbost : int = 1
             Verbosity level. (0 means silent)
 
         Returns
@@ -142,6 +149,8 @@ class Runner(Object):
             A List of MeasureInput.
         build_results : List[BuildResult]
             A List of BuildResult to be ran.
+        verbost : int = 1
+            Verbosity level. (0 means silent)
 
         Returns
         -------
@@ -156,11 +165,11 @@ class LocalBuilder(Builder):
 
     Parameters
     ----------
-    timeout : Int
+    timeout : int = 15
         The timeout limit for each build.
-    n_parallel : Int
+    n_parallel : int = multiprocessing.cpu_count()
         Number of threads used to build in parallel.
-    build_func : Str
+    build_func : str = 'default'
         The name of registered build function.
     """
 
@@ -178,15 +187,15 @@ class LocalRunner(Runner):
 
     Parameters
     ----------
-    timeout : Int
+    timeout : int = 10
         The timeout limit for each run.
-    number : Int
+    number : int = 3
         Number of measure times.
-    repeat : Int
+    repeat : int = 1
         Number of repeat times in each measure.
-    min_repeat_ms : Int
+    min_repeat_ms : int = 0
         The minimum duration of one repeat in milliseconds.
-    cooldown_interval : Float
+    cooldown_interval : float = 0.0
         The cool down interval between two measurements.
     """
 
@@ -224,16 +233,15 @@ def make_error_msg():
     return error_msg
 
 
-GLOBAL_BUILD_ARGUMENTS = None
-GLOBAL_RUN_ARGUMENTS = None
-
-
 def local_build_worker(index):
     """ Local builder function. """
     # We use fork to copy arguments from a global variable.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
+    if not GLOBAL_BUILD_ARGUMENTS:
+        raise ValueError("GLOBAL_BUILD_ARGUMENTS not found")
     measure_inputs, build_func, timeout, verbose = GLOBAL_BUILD_ARGUMENTS
     assert isinstance(build_func, str)
+
     if build_func == 'default':
         build_func = tar.tar
     elif build_func == 'ndk':
@@ -253,7 +261,7 @@ def local_build_worker(index):
         try:
             sch, args = task.compute_dag.apply_steps_from_state(
                 inp.state)
-        # pylint: disable=W0703
+        # pylint: disable=broad-except
         except Exception:
             error_no = MeasureErrorNo.INSTANTIATION_ERROR
             error_msg = make_error_msg()
@@ -268,7 +276,7 @@ def local_build_worker(index):
                     func = build_module.build(
                         sch, args, target=task.target, target_host=task.target_host)
                 func.export_library(filename, build_func)
-            # pylint: disable=W0703
+            # pylint: disable=broad-except
             except Exception:
                 error_no = MeasureErrorNo.COMPILE_HOST
                 error_msg = make_error_msg()
@@ -326,7 +334,7 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
             ctx = ndarray.context(str(inp.task.target), 0)
             time_f = func.time_evaluator(
                 func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
-        # pylint: disable=W0703
+        # pylint: disable=broad-except
         except Exception:
             costs = (max_float,)
             error_no = MeasureErrorNo.COMPILE_DEVICE
@@ -337,9 +345,8 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
                 args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
                         build_res.args]
                 ctx.sync()
-
                 costs = time_f(*args).results
-            # pylint: disable=W0703
+            # pylint: disable=broad-except
             except Exception:
                 costs = (max_float,)
                 error_no = MeasureErrorNo.RUNTIME_DEVICE

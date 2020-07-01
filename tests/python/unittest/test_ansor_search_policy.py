@@ -34,7 +34,7 @@ def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'
 
     random.seed(seed)
     N = 128
-    workload_key = ansor.make_workload_key_func(matmul_ansor_test, (N, N, N))
+    workload_key = ansor.make_workload_key_by_func(matmul_ansor_test, (N, N, N))
     dag = ansor.workload_key_to_dag(workload_key)
     target = tvm.target.create(target)
     task = ansor.SearchTask(dag, workload_key, target)
@@ -47,7 +47,7 @@ def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'
         tune_option = ansor.TuneOption(n_trials=n_trials, runner=runner, verbose=0,
                                        measure_callbacks=[ansor.LogToFile(log_file)],
                                        pre_search_callbacks=pre_search_callbacks)
-        sch, args = ansor.auto_schedule(task, search_policy=search_policy,
+        sch, args = ansor.auto_schedule(task, target, search_policy=search_policy,
                                         tune_option=tune_option)
         inp, res = ansor.best_measure_pair_in_file(log_file, workload_key, target)
 

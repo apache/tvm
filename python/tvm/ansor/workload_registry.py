@@ -29,27 +29,25 @@ These strings are efficient for serialization/matching and wont' be too long.
 When we need the dag, we decode the string and call the function, which will return the dag.
 """
 
-from typing import Hashable
 import pickle
 import json
-import hashlib
 
 import tvm._ffi
-from ..te import Tensor, PlaceholderOp, ComputeOp, placeholder
-from .utils import get_const_tuple
+from .utils import serialize_args, deserialize_args
 from .compute_dag import ComputeDAG
 
 WORKLOAD_FUNC_REGISTRY = {}
 
 
-def register_workload_func(func):
-    """Register a workload generation function
+def register_workload(func):
+    """ Register a workload by generation function.
+
     The input function should take hashable and jsonable arguments
     (int, float, tuple of int, tvm.tensor.Tensor, ...) and return a list of tvm.tensor.Tensor.
 
     Examples
     --------
-    @register_workload_func
+    @register_workload
     def matmul(N, M, K):
         A = te.placeholder((N, K), name='A')
         B = te.placeholder((K, M), name='B')
@@ -62,94 +60,6 @@ def register_workload_func(func):
         raise RuntimeError('%s has been registered already' % func_name)
     WORKLOAD_FUNC_REGISTRY[func_name] = func
     return func
-
-
-def compute_dag_hash(dag):
-    """ Get hash value for a ComputeDAG.
-
-    Parameters
-    ----------
-    dag : ComputeDAG
-        The target ComputeDAG.
-
-    Returns
-    -------
-    hash_value : Str
-        The hash value of this ComputeDAG in hex digest.
-    """
-    # todo: implement this more carefully and move this to c++ as a member function of ComputeDAG
-    str_key = ''
-    for op in dag.ops:
-        t = op.output(0)
-        if isinstance(op, PlaceholderOp):
-            str_key += 'placeholder,'
-            str_key += str(get_const_tuple(t.shape)) + ','
-            str_key += t.dtype + ';'
-        elif isinstance(op, ComputeOp):
-            str_key += str(t.op.body) + ','
-            str_key += str(get_const_tuple(t.shape)) + ','
-            str_key += t.dtype + ';'
-        else:
-            raise ValueError("Invalid op: " + op)
-
-    str_key = str_key.encode(encoding='utf-8')
-    return hashlib.md5(str_key).hexdigest()
-
-
-def register_workload_bufs(bufs):
-    """ Directly register buffers of a workload and return the workload_key.
-
-    The buffers can be looked up with workload_key_to_tensors by the workload_key.
-
-    Parameters
-    ----------
-    bufs : List[Tensor]
-        A list of Tensors for the target compute declaration.
-
-    Returns
-    -------
-    workload_key : Str
-        A workload key mapping to the registered compute declaration.
-    """
-    dag = ComputeDAG(bufs)
-    key = compute_dag_hash(dag)
-    WORKLOAD_FUNC_REGISTRY[key] = bufs
-    return json.dumps((key,))
-
-
-def list_to_tuple(x):
-    """Convert a list to a tuple recursively"""
-    assert isinstance(x, list)
-    return tuple(list_to_tuple(y) if isinstance(y, list) else y for y in x)
-
-
-def serialize_args(args):
-    """
-    Serialize arguments of a function to a hashable and jsonable tuple.
-    Currently this is mainly used for tvm.tensor.Tensor
-    """
-    ret = []
-    for t in args:
-        if isinstance(t, Tensor):
-            t = ('TENSOR', get_const_tuple(t.shape), t.dtype)
-        elif isinstance(t, list):
-            t = list_to_tuple(t)
-
-        assert isinstance(t, Hashable), str(t) + " is not hashable"
-        ret.append(t)
-
-    return tuple(ret)
-
-
-def deserialize_args(args):
-    """The inverse function of :code:`serialize_args`"""
-    ret = []
-    for t in args:
-        if isinstance(t, (tuple, list)) and t[0] == 'TENSOR':
-            ret.append(placeholder(shape=t[1], dtype=t[2]))
-        else:
-            ret.append(t)
-    return ret
 
 
 @tvm._ffi.register_func("ansor.workload_key_to_tensors")
@@ -170,10 +80,9 @@ def workload_key_to_tensors(workload_key):
     name = workload[0]
     lookup = WORKLOAD_FUNC_REGISTRY[name]
 
-    if callable(lookup):
-        args = deserialize_args(workload[1:])
-        return lookup(*args)
-    return lookup
+    assert callable(lookup)
+    args = deserialize_args(workload[1:])
+    return lookup(*args)
 
 
 @ tvm._ffi.register_func("ansor.workload_key_to_dag")
@@ -194,7 +103,7 @@ def workload_key_to_dag(workload_key):
     return ComputeDAG(tensors)
 
 
-def make_workload_key_func(func, args):
+def make_workload_key_by_func(func, args):
     """ make a workload key from function and arguments.
 
     Parameters
@@ -219,27 +128,9 @@ def make_workload_key_func(func, args):
         raise ValueError("Invalid function: " + str(func))
 
     assert func_name in WORKLOAD_FUNC_REGISTRY, \
-        "%s is not registered. Please register it with register_auto_scheduler_workload_func" % func
+        "%s is not registered. Please register it with @ansor.register_workload" % func
 
     return json.dumps((func_name,) + args)
-
-
-def make_workload_key_bufs(bufs):
-    """ make a workload key from bufs.
-
-    Parameters
-    ----------
-    bufs : List[Tensor]
-        A list of Tensors for the target compute declaration.
-
-    Returns
-    -------
-    workload_key : Str
-        A workload key mapping to the registered compute declaration.
-    """
-    dag = ComputeDAG(bufs)
-    key = compute_dag_hash(dag)
-    return json.dumps((key,))
 
 
 def dump_workload_func_registry(filename):

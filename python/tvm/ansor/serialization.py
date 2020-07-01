@@ -32,7 +32,7 @@ class LogToFile(MeasureCallback):
 
     Parameters
     ----------
-    filename : Str
+    filename : str
         File name for this callback to write log to.
     """
     def __init__(self, filename="ansor_tuning.json"):
@@ -46,20 +46,20 @@ class LogReader(Object):
 
     Parameters
     ----------
-    filename : Str
+    filename : str = "ansor_tuning.json"
         File name for this reader to load log from.
     """
     def __init__(self, filename="ansor_tuning.json"):
         self.__init_handle_by_constructor__(_ffi_api.LogReader, filename)
 
-    def read_lines(self, max_size=-1, skip_size=0):
+    def read_lines(self, max_lines=-1, skip_lines=0):
         """ Read multiple lines from the log file.
 
         Parameters
         ----------
-        max_size : Int
-            The maximum number of lines. -1 means read all lines.
-        skip_size : Int
+        max_lines : int = -1
+            The maximum number of lines. -1 means to read all lines.
+        skip_lines : int = 0
             Skip the first n lines.
 
         Returns
@@ -69,8 +69,7 @@ class LogReader(Object):
         results : List[MeasureResult]
             The MeasureResults loaded from the log file.
         """
-        inputs, results = _ffi_api.LogReaderReadLines(
-            self, max_size, skip_size)
+        inputs, results = _ffi_api.LogReaderReadLines(self, max_lines, skip_lines)
         return inputs, results
 
     def __iter__(self):
@@ -81,13 +80,13 @@ class LogReader(Object):
             yield ret[0], ret[1]  # (input, result)
 
 
-def load_from_file(filename: str):
+def load_from_file(filename):
     """
     Load measurement records from a file.
 
     Parameters
     ----------
-    filename : Str
+    filename : str
         File name to load log from.
 
     Returns
@@ -97,32 +96,35 @@ def load_from_file(filename: str):
     return zip(*LogReader(filename).read_lines())
 
 
-def write_measure_records_to_file(filename, inputs, results):
+def append_measure_records_to_file(filename, inputs, results):
     """
-    Write(append) measure records to file.
+    Aappend measure records to file.
 
     Parameters
     ----------
-    filename : Str
+    filename : str
         File name to write log to.
     inputs: List[MeasureInputs]
         The target MeasureInputs to be written.
     results: List[MeasureResults]
         The target MeasureResults to be written.
     """
-    _ffi_api.WriteMeasureRecordsToFile(filename, inputs, results)
+    _ffi_api.AppendMeasureRecordsToFile(filename, inputs, results)
 
 def best_measure_pair_in_file(filename, workload_key=None, target=None):
-    """ Return the best measurement pair form a log file
+    """ Return the best measurement pair form a log file. This may return none results if
+    there is no legal measure pair with the specified workload_key/target found from the log file.
 
     Parameters
     ----------
-    filename : Str
+    filename : str
         File name to load log from.
-    workload_key : Str
+    workload_key : Optional[str] = None
         The workload key of the target compute declaration.
-    target : Str
+        With `None`, this retuns the best measure pair of all workloads.
+    target : Optional[tvm.target.Target] = None
         The target device.
+        With `None`, this retuns the best measure pair of all target devices.
 
     Returns
     -------
@@ -144,9 +146,7 @@ def best_measure_pair_in_file(filename, workload_key=None, target=None):
         if target and inp.task.target.target_name != target.target_name:
             continue
 
-        costs = []
-        for value in res.costs:
-            costs.append(value.value)
+        costs = [v.value for v in res.costs]
         cost = np.mean(costs)
         if cost < best_cost:
             best_cost = cost

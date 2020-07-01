@@ -17,9 +17,15 @@
 
 """ Computational graph and its analysis tools """
 
+import hashlib
+
 import tvm._ffi
 from tvm.runtime import Object
+from tvm.te import PlaceholderOp, ComputeOp
+
 from .loop_state import State, StateObject
+from .utils import get_const_tuple
+
 from . import _ffi_api
 
 
@@ -42,6 +48,7 @@ class ComputeDAG(Object):
         Returns
         -------
         state : State
+            The initial State without any transform steps.
         """
         return State(_ffi_api.ComputeDAGGetInitState(self), self)
 
@@ -51,7 +58,7 @@ class ComputeDAG(Object):
 
         Parameters
         ----------
-        state : StateObject or State
+        state : Union[State, StateObject]
             The target state to be applied to TVM schedule.
 
         Returns
@@ -67,12 +74,13 @@ class ComputeDAG(Object):
 
         Parameters
         ----------
-        state : StateObject or State
+        state : Union[State, StateObject]
             The target state to be applied to TVM schedule.
 
         Returns
         -------
         str : Str
+            The Python schedule code.
         """
         state_obj = state if isinstance(state, StateObject) else state.state_object
         return _ffi_api.ComputeDAGPrintPythonCodeFromState(self, state_obj)
@@ -92,12 +100,33 @@ class ComputeDAG(Object):
 
         Parameters
         ----------
-        state : StateObject
+        state : Union[State, StateObject]
             The target state to be applied to TVM schedule.
 
         Returns
         -------
         state : State
+            The State with complete bound information.
         """
         state_obj = state if isinstance(state, StateObject) else state.state_object
         return State(_ffi_api.ComputeDAGInferBoundFromState(self, state_obj), self)
+
+    def __hash__(self):
+        # TODO(...): Implement this more carefully and move this to c++ as a member function
+        # of ComputeDAG
+        str_key = ''
+        for op in self.ops:
+            t = op.output(0)
+            if isinstance(op, PlaceholderOp):
+                str_key += 'placeholder,'
+                str_key += str(get_const_tuple(t.shape)) + ','
+                str_key += t.dtype + ';'
+            elif isinstance(op, ComputeOp):
+                str_key += str(t.op.body) + ','
+                str_key += str(get_const_tuple(t.shape)) + ','
+                str_key += t.dtype + ';'
+            else:
+                raise ValueError("Invalid op: " + op)
+
+        str_key = str_key.encode(encoding='utf-8')
+        return hashlib.md5(str_key).hexdigest()

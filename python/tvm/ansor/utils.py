@@ -17,6 +17,7 @@
 
 """Common utilities for ansor"""
 
+from typing import Hashable
 import multiprocessing
 import multiprocessing.pool
 import queue
@@ -25,11 +26,12 @@ import signal
 try:
     import psutil
 except ImportError:
-    psutil = None
+    raise ImportError("psutil not found, try `pip install psutil` to fix this")
 
 from tvm.tir import expr
 from tvm.tir.transform import Simplify
 from tvm.ir.transform import Sequential
+from ..te import Tensor, placeholder
 
 
 def get_func_name(func):
@@ -85,6 +87,42 @@ def get_const_tuple(in_tuple):
         The output.
     """
     return tuple(get_const_int(x) for x in in_tuple)
+
+
+
+def list_to_tuple(x):
+    """ Convert a list to a tuple recursively. """
+    assert isinstance(x, list)
+    return tuple(list_to_tuple(y) if isinstance(y, list) else y for y in x)
+
+
+def serialize_args(args):
+    """
+    Serialize arguments of a function to a hashable and jsonable tuple.
+    Currently this is mainly used for tvm.tensor.Tensor
+    """
+    ret = []
+    for t in args:
+        if isinstance(t, Tensor):
+            t = ('TENSOR', get_const_tuple(t.shape), t.dtype)
+        elif isinstance(t, list):
+            t = list_to_tuple(t)
+
+        assert isinstance(t, Hashable), str(t) + " is not hashable"
+        ret.append(t)
+
+    return tuple(ret)
+
+
+def deserialize_args(args):
+    """The inverse function of :code:`serialize_args`"""
+    ret = []
+    for t in args:
+        if isinstance(t, (tuple, list)) and t[0] == 'TENSOR':
+            ret.append(placeholder(shape=t[1], dtype=t[2]))
+        else:
+            ret.append(t)
+    return ret
 
 
 class NoDaemonProcess(multiprocessing.Process):

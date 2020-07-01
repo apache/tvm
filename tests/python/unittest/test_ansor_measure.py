@@ -33,7 +33,7 @@ def test_serialization():
     res = ansor.measure.MeasureResult([0.1], 0, "", 0.2, 1)
 
     with tempfile.NamedTemporaryFile() as fp:
-        ansor.serialization.write_measure_records_to_file(fp.name, [inp], [res])
+        ansor.serialization.append_measure_records_to_file(fp.name, [inp], [res])
 
         log_reader = ansor.serialization.LogReader(fp.name)
         inputs, results = log_reader.read_lines()

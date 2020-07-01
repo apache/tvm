@@ -30,6 +30,6 @@ from .auto_schedule import SearchTask, TuneOption, HardwareParams, \
     auto_schedule, EmptyPolicy
 from .measure import MeasureInput, LocalBuilder, LocalRunner
 from .serialization import LogToFile, LogReader, best_measure_pair_in_file, \
-    load_from_file, write_measure_records_to_file
-from .workload_registry import register_workload_func, \
-    workload_key_to_dag, make_workload_key_func
+    load_from_file, append_measure_records_to_file
+from .workload_registry import register_workload, \
+    workload_key_to_dag, make_workload_key_by_func

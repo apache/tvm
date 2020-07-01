@@ -419,13 +419,14 @@ TVM_REGISTER_GLOBAL("ansor.LogReaderReadNext").set_body_typed([](LogReader reade
   }
 });
 
-TVM_REGISTER_GLOBAL("ansor.WriteMeasureRecordsToFile").set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string filename = args[0];
-  Array<MeasureInput> in = args[1];
-  Array<MeasureResult> res = args[2];
-  std::ofstream ofs(filename, std::ofstream::app);
-  WriteMeasureRecords(&ofs, in, res);
-});
+TVM_REGISTER_GLOBAL("ansor.AppendMeasureRecordsToFile")
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      std::string filename = args[0];
+      Array<MeasureInput> in = args[1];
+      Array<MeasureResult> res = args[2];
+      std::ofstream ofs(filename, std::ofstream::app);
+      WriteMeasureRecords(&ofs, in, res);
+    });
 
 TVM_REGISTER_GLOBAL("ansor.GetStatesFromMeasureInputs")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
