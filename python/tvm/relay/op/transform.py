@@ -19,7 +19,8 @@
 """Transform operators."""
 
 from . import _make
-from ..expr import TupleWrapper, const
+from .dyn import _make as _dyn_make
+from ..expr import TupleWrapper, const, Expr
 from ...tir import expr as _expr
 
 
@@ -210,8 +211,10 @@ def reshape(data, newshape):
     result : relay.Expr
         The reshaped result.
     """
+    if isinstance(newshape, Expr):
+        return _dyn_make.reshape(data, newshape)
     if isinstance(newshape, int):
-        newshape = const([newshape])
+        newshape = [newshape]
     if isinstance(newshape, (tuple, list)):
         tempshape = []
         for shape in newshape:
@@ -222,8 +225,8 @@ def reshape(data, newshape):
                     tempshape.append(int(shape))
                 except ValueError as err:
                     raise RuntimeError('Unrecognized shape type: %s' % err)
-        newshape = const(tempshape)
-    return _make.reshape(data, newshape)
+        newshape = tempshape
+    return _make.reshape(data, list(newshape))
 
 def argwhere(condition):
     """Find the indices of elements of a tensor that are
