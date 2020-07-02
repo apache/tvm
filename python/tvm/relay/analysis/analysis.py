@@ -354,21 +354,26 @@ def search_fc_transpose(expr):
     ret = _ffi_api.search_fc_transpose(expr)
     return ret
 
-def get_calibrate_module(mod):
-    return _ffi_api.get_calibrate_module(mod)
 
-def get_calibrate_output_map(mod):
-    return _ffi_api.get_calibrate_output_map(mod)
-
-def get_calibrate_results(mod, i_data, params):
+def get_calibration_data(mod, data):
     output_map = _ffi_api.get_calibrate_output_map(mod)
+    print(output_map)
 
-    mod = get_calibrate_module(mod)
+    mod = _ffi_api.get_calibrate_module(mod)
     print(mod)
 
     mod = transform.Inline()(mod)
 
     ref_ex = build_module.create_executor("graph", mod=mod, ctx=cpu(0))
-    ref_res = ref_ex.evaluate()(i_data, **params)
-    print(ref_res)
+    ref_res = ref_ex.evaluate()(**data)
 
+    calib_data = {}
+    for gvar, indices in output_map.items():
+        offset = int(indices[0])
+        length = int(indices[1])
+        value = {}
+        value["intputs"] = ref_res[offset:offset+length]
+        value["outputs"] = [ref_res[offset+length]]
+        calib_data[gvar] = value
+
+    return calib_data

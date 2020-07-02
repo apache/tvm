@@ -18,17 +18,14 @@
  */
 
 /*
- * \file src/relay/transforms/calibrate_partition_graph.cc
+ * \file src/relay/analysis/get_calibration_data.cc
  *
- * \brief Partition an input function into multiple functions according based
+ * \brief 
  */
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/transform.h>
 #include <tvm/relay/analysis.h>
-
-#include <unordered_set>
 
 namespace tvm {
 namespace relay {
@@ -39,14 +36,18 @@ namespace relay {
 IRModule GetCalibrateModule(IRModule module) {
   class OutputCollector : public ExprRewriter {
    public:
-    OutputCollector() = default;
+    OutputCollector(const Map<GlobalVar, BaseFunc>& glob_funcs)
+      : glob_funcs(glob_funcs) {}
 
     Expr Rewrite_(const CallNode* call, const Expr& post) final {
       if (call->op->IsInstance<GlobalVarNode>()) {
         auto var = Downcast<GlobalVar>(call->op);
-        for (size_t i = 0; i < call->args.size(); i++)
-          new_outputs.push_back(call->args[i]);
-        new_outputs.push_back(post);
+        // check if it is a subgraph of the original graph
+        if (glob_funcs.count(var) > 0) {
+          for (size_t i = 0; i < call->args.size(); i++)
+            new_outputs.push_back(call->args[i]);
+          new_outputs.push_back(post);
+        }
       }
       return post;
     }
@@ -56,6 +57,7 @@ IRModule GetCalibrateModule(IRModule module) {
     }
 
    private:
+    const Map<GlobalVar, BaseFunc>& glob_funcs;
     Array<Expr> new_outputs;
 
   };
@@ -66,18 +68,23 @@ IRModule GetCalibrateModule(IRModule module) {
   for (const auto& pair : glob_funcs) {
     if (auto* fn = pair.second.as<FunctionNode>()) {
       auto func = GetRef<Function>(fn);
-      // Collect the output
-      OutputCollector output_collector;
-      auto body = PostOrderRewrite(func->body, &output_collector);
-      auto new_outputs = output_collector.GetNewOutputs();
-      if (!new_outputs.empty()) {
-        Array<Expr> fields;
-        fields.push_back(body);
-        for (const auto& output : new_outputs) {
-          fields.push_back(output);
+      auto* gl_var = pair.first.as<GlobalVarNode>();
+      if (gl_var->name_hint == "main") {
+        // Collect the output
+        OutputCollector output_collector(glob_funcs);
+        auto body = PostOrderRewrite(func->body, &output_collector);
+        auto new_outputs = output_collector.GetNewOutputs();
+        if (!new_outputs.empty()) {
+          Array<Expr> fields;
+          for (const auto& output : new_outputs) {
+            fields.push_back(output);
+          }
+          auto tuple = Tuple(fields);
+          func = Function(func->params, tuple, tuple->checked_type_, func->type_params, func->attrs);
         }
-        auto tuple = Tuple(fields);
-        func = Function(func->params, tuple, tuple->checked_type_, func->type_params, func->attrs);
+      } else {
+        // Inline the function if it is not main function
+        func = WithAttr(std::move(func), attr::kInline, tvm::Integer(1));
       }
       // Reset the compiler attribute to null
       func = WithAttr(std::move(func), attr::kCompiler, NullValue<ObjectRef>());
@@ -92,28 +99,30 @@ TVM_REGISTER_GLOBAL("relay.analysis.get_calibrate_module")
       return GetCalibrateModule(mod);
 });
 
-Map<GlobalVar, Integer> GetCalibrateOutputMap(const IRModule& module) {
+Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
   class OutputMapper : public ExprRewriter {
    public:
-    OutputMapper(Map<GlobalVar, Integer>& output_map, int& offset) : output_map(output_map), offset(offset) {}
+    OutputMapper(Map<GlobalVar, Array<Integer>>& output_map, int& offset) : output_map(output_map), offset(offset) {}
 
     Expr Rewrite_(const CallNode* call, const Expr& post) final {
       if (call->op->IsInstance<GlobalVarNode>()) {
         auto var = Downcast<GlobalVar>(call->op);
-        output_map.Set(var, Integer(offset));
+        Array<Integer> info;
+        info.push_back(Integer(offset));
+        info.push_back(Integer(call->args.size()));
+        output_map.Set(var, info);
         offset = offset + call->args.size() + 1;
       }
       return post;
     }
 
    private:
-    Map<GlobalVar, Integer>& output_map;
+    Map<GlobalVar, Array<Integer>>& output_map;
     int& offset;
-
   };
     
-  Map<GlobalVar, Integer> output_map;
-  int offset = 1;
+  Map<GlobalVar, Array<Integer>> output_map;
+  int offset = 0;
   auto glob_funcs = module->functions;
   for (const auto& pair : glob_funcs) {
     if (auto* fn = pair.second.as<FunctionNode>()) {
