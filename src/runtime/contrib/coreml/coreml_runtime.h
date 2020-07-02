@@ -119,18 +119,16 @@ class CoreMLRuntime : public ModuleNode {
 
   /*!
    * \brief Initialize the coreml runtime with coreml model and context.
-   * \param model_dir The directory where compiled models are located.
+   * \param symbol The symbol of this model.
+   * \param model_path The compiled model path.
    */
-  void Init(const std::string& model_dir);
+  void Init(const std::string& symbol, const std::string& model_path);
 
-  /*!
-   * \brief Get coreml model.
-   * \param model_name The name of the model.
-   */
-  CoreMLModel& GetModel(const std::string& model_name);
+  /*! \brief The symbol that represents the Core ML model. */
+  std::string symbol_;
 
-  // Map of the avaiable CoreML models
-  std::unordered_map<std::string, std::unique_ptr<CoreMLModel>> model_map_;
+  /*! \brief The Core ML model */
+  std::unique_ptr<CoreMLModel> model_;
 };
 
 }  // namespace runtime

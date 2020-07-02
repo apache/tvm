@@ -18,12 +18,14 @@
 import tvm._ffi
 from ..rpc import base as rpc_base
 
-def create(model_dir, ctx):
+def create(symbol, compiled_model_path, ctx):
     """Create a runtime executor module given a coreml model and context.
     Parameters
     ----------
-    model_dir : str
-        The directory where the compiled models are located.
+    symbol : str
+        The symbol that represents the Core ML model.
+    compiled_model_path : str
+        The path of the compiled model to be deployed.
     ctx : TVMContext
         The context to deploy the module. It can be local or remote when there
         is only one TVMContext.
@@ -40,7 +42,7 @@ def create(model_dir, ctx):
     else:
         fcreate = tvm._ffi.get_global_func(runtime_func)
 
-    return CoreMLModule(fcreate(model_dir))
+    return CoreMLModule(fcreate(symbol, compiled_model_path))
 
 
 class CoreMLModule(object):
