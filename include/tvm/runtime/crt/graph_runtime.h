@@ -57,59 +57,59 @@ typedef struct TVMGraphRuntimeGraphAttr {
   uint32_t shape_count;
 } TVMGraphRuntimeGraphAttr;
 
-typedef DLTensor* DLTensorPtr;
-
-/*!
- * \brief Tiny graph runtime.
- *
- *  This runtime can be acccesibly in various language via
- *  TVM runtime PackedFunc API.
- */
-/* class GraphRuntime : public ModuleNode { */
-typedef struct TVMGraphRuntimeAPI {
-  void (*Run)(struct TVMGraphRuntimeAPI* runtime);
-
-  /*!
-   * \brief Get the input index given the name of input.
-   * \param runtime The graph runtime.
-   * \param name The name of the input.
-   * \return The index of input.
-   */
-  int (*GetInputIndex)(struct TVMGraphRuntimeAPI* runtime, const char* name);
-
-  /*!
-   * \brief set input to the graph based on name.
-   * \param runtime The graph runtime.
-   * \param name The name of the input.
-   * \param data_in The input data.
-   */
-  void (*SetInput)(struct TVMGraphRuntimeAPI* runtime, const char* name, DLTensor* data_in);
-
-  /*!
-   * \brief Return NDArray for given output index.
-   * \param runtime The graph runtime.
-   * \param index The output index.
-   * \param out The DLTensor corresponding to given output node index.
-   * \return The result of this function execution.
-   */
-  int (*GetOutput)(struct TVMGraphRuntimeAPI* runtime, const int32_t index, DLTensor* out);
-  /*!
-   * \brief Load parameters from parameter blob.
-   * \param runtime The graph runtime.
-   * \param param_blob A binary blob of parameter.
-   * \param param_size The parameter size.
-   * \return The result of this function execution.
-   */
-  int (*LoadParams)(struct TVMGraphRuntimeAPI* runtime, const char* param_blob,
-                    const uint32_t param_size);
-} TVMGraphRuntimeAPI;
+typedef struct TVMGraphRuntime TVMGraphRuntime;
 
 // public functions
-TVMGraphRuntimeAPI* TVMGraphRuntimeCreate(const char* sym_json, const TVMModule* m,
-                                          const TVMContext* ctxs);
-void TVMGraphRuntimeRelease(TVMGraphRuntimeAPI** runtime);
+/*!
+ * \brief Allocate a new GraphRuntime with vmalloc and initialize it.
+ *
+ * \param sym_json JSON-encoded graph.
+ * \param m TVM Module that exposes the functions to call.
+ * \param ctxs runtime execution context.
+ */
+TVMGraphRuntime* TVMGraphRuntimeCreate(const char* sym_json, const TVMModule* m,
+                                       const TVMContext* ctxs);
 
-void TVMGraphRuntimeRegisterGlobals(void);
+int TVMGraphRuntimeGetInputIndex(TVMGraphRuntime* runtime, const char* name);
+
+/*!
+ * \brief set input to the graph based on name.
+ * \param runtime The graph runtime.
+ * \param name The name of the input.
+ * \param data_in The input data.
+ */
+void TVMGraphRuntimeSetInput(TVMGraphRuntime* runtime, const char* name, DLTensor* data_in);
+
+/*!
+ * \brief Return NDArray for given output index.
+ * \param runtime The graph runtime.
+ * \param index The output index.
+ * \param out The DLTensor corresponding to given output node index.
+ * \return The result of this function execution.
+ */
+int TVMGraphRuntimeGetOutput(TVMGraphRuntime* runtime, const int32_t index, DLTensor* out);
+
+/*!
+ * \brief Load parameters from parameter blob.
+ * \param runtime The graph runtime.
+ * \param param_blob A binary blob of parameter.
+ * \param param_size The parameter size.
+ * \return The result of this function execution.
+ */
+int TVMGraphRuntimeLoadParams(TVMGraphRuntime* runtime, const char* param_blob,
+                              const uint32_t param_size);
+
+/*!
+ * \brief Execute the graph.
+ * \param runtime The graph runtime.
+ */
+void TVMGraphRuntimeRun(TVMGraphRuntime* runtime);
+
+/*!
+ * \brief Release memory associated with the graph runtime.
+ * \param runtime Pointer to graph runtime.
+ */
+void TVMGraphRuntimeRelease(TVMGraphRuntime** runtime);
 
 #ifdef __cplusplus
 }  // extern "C"

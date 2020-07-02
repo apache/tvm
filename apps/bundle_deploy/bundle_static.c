@@ -51,44 +51,35 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
 
   // declare pointers
   void* (*SystemLibraryCreate)();
-  TVMGraphRuntimeAPI* (*TVMGraphRuntimeCreate)(const char*, const TVMModuleHandle,
-                                               const TVMContext*);
-  int (*TVMGraphRuntime_LoadParams)(TVMModuleHandle, const char*, const uint32_t);
 
   // get pointers
   TVM_CCALL(TVMInitializeRuntime());
   TVM_CCALL(TVMFuncGetGlobal("runtime.SystemLib", (TVMFunctionHandle*)&SystemLibraryCreate));
-  TVM_CCALL(TVMFuncGetGlobal("tvm.graph_runtime.create", (TVMFunctionHandle*)&TVMGraphRuntimeCreate));
 
   // run modules
   TVMModuleHandle mod_syslib = SystemLibraryCreate();
-  TVMModuleHandle mod = TVMGraphRuntimeCreate(json_data, mod_syslib, &ctx);
-  TVM_CCALL(TVMModGetFunction(mod, "load_params", 0, (TVMFunctionHandle*)&TVMGraphRuntime_LoadParams));
-  TVMGraphRuntime_LoadParams(mod, params.data, params.size);
+  TVMGraphRuntime* graph_runtime = TVMGraphRuntimeCreate(json_data, mod_syslib, &ctx);
+  TVMGraphRuntimeLoadParams(graph_runtime, params.data, params.size);
 
-  return mod;
+  return runtime;
 }
 
 TVM_DLL void tvm_runtime_destroy(void* runtime) {
-  void (*TVMGraphRuntimeRelease)(TVMModuleHandle*);
-  TVMFuncGetGlobal("tvm.graph_runtime.release", (TVMFunctionHandle*)&TVMGraphRuntimeRelease);
-  TVMGraphRuntimeRelease(&runtime);
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*) runtime;
+  TVMGraphRuntimeRelease(graph_runtime);
 }
 
 TVM_DLL void tvm_runtime_set_input(void* runtime, const char* name, DLTensor* tensor) {
-  void (*TVMGraphRuntime_SetInput)(TVMModuleHandle, const char*, DLTensor*);
-  TVMFuncGetGlobal("tvm.graph_runtime.set_input", (TVMFunctionHandle*)&TVMGraphRuntime_SetInput);
-  TVMGraphRuntime_SetInput(runtime, name, tensor);
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*) runtime;
+  TVMGraphRuntimeSetInput(graph_runtime, name, tensor);
 }
 
 TVM_DLL void tvm_runtime_run(void* runtime) {
-  void (*TVMGraphRuntime_Run)(TVMModuleHandle runtime);
-  TVMFuncGetGlobal("tvm.graph_runtime.run", (TVMFunctionHandle*)&TVMGraphRuntime_Run);
-  TVMGraphRuntime_Run(runtime);
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*) runtime;
+  TVMGraphRuntimeRun(graph_runtime);
 }
 
 TVM_DLL void tvm_runtime_get_output(void* runtime, int32_t index, DLTensor* tensor) {
-  int (*TVMGraphRuntime_GetOutput)(TVMModuleHandle, const int32_t, DLTensor*);
-  TVMFuncGetGlobal("tvm.graph_runtime.get_output", (TVMFunctionHandle*)&TVMGraphRuntime_GetOutput);
-  TVMGraphRuntime_GetOutput(runtime, index, tensor);
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*) runtime;
+  TVMGraphRuntimeGetOutput(graph_runtime, index, tensor);
 }
