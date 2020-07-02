@@ -36,13 +36,6 @@
 namespace tvm {
 namespace ansor {
 
-/*!
- * \brief Update stage and axes mapping during replay.
- * \param stage A `te::Stage`.
- * \param stage_to_axes A pointer to StageToAxesMap.
- */
-void UpdateStageAxis(const tvm::te::Stage& stage, StageToAxesMap* stage_to_axes);
-
 /*! \brief Computation declaration graph. */
 class ComputeDAGNode : public Object {
  public:

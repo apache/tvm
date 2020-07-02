@@ -32,10 +32,8 @@
 
 #include <algorithm>
 #include <queue>
-#include <set>
 #include <unordered_map>
 #include <unordered_set>
-#include <utility>
 #include <vector>
 
 #include "loop_state.h"
@@ -51,14 +49,14 @@ TVM_REGISTER_NODE_TYPE(ComputeDAGNode);
 // Update stage to axis mapping
 void UpdateStageAxis(const te::Stage& stage, StageToAxesMap* stage_to_axes) {
   if (auto pop = stage->op.as<te::ComputeOpNode>()) {
-    Array<IterVar>& axes = (*stage_to_axes)[stage];
-    axes.clear();
+    Array<IterVar> axes;
     for (const auto& axis : pop->axis) {
       axes.push_back(axis);
     }
     for (const auto& axis : pop->reduce_axis) {
       axes.push_back(axis);
     }
+    stage_to_axes->Set(stage, std::move(axes));
   } else if (stage->op->IsInstance<te::PlaceholderOpNode>()) {
     {}  // do nothing
   } else {

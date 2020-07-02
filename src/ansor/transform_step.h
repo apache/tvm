@@ -47,14 +47,12 @@
 #include <tvm/node/node.h>
 #include <tvm/te/schedule.h>
 
-#include <unordered_map>
-
 #include "utils.h"
 
 namespace tvm {
 namespace ansor {
 
-typedef std::unordered_map<tvm::te::Stage, Array<tir::IterVar>, ObjectHash, ObjectEqual>
+typedef Map<tvm::te::Stage, Array<tir::IterVar>, ObjectHash, ObjectEqual>
     StageToAxesMap;
 
 /*!
@@ -249,9 +247,9 @@ struct hash<::tvm::ansor::Step> {
                    ::dmlc::HashCombine(std::hash<int>()(ps->iter_id),
                                        std::hash<bool>()(ps->inner_to_outer))));
       if (ps->extent.defined()) {
-          const auto& pint = ps->extent.as<::tvm::tir::IntImmNode>();
-          CHECK(pint != nullptr);
-          ret = ::dmlc::HashCombine(ret, pint->value);
+        const auto& pint = ps->extent.as<::tvm::tir::IntImmNode>();
+        CHECK(pint != nullptr);
+        ret = ::dmlc::HashCombine(ret, pint->value);
       } else {
         ret = ::dmlc::HashCombine(ret, 0x5D);  // a magic number
       }

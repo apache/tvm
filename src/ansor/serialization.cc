@@ -30,7 +30,6 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -146,7 +145,8 @@ struct Handler<::tvm::Array<::tvm::ansor::Step>> {
           lengths.push_back(::tvm::PrimExpr(i));
         }
         data->push_back(
-            ::tvm::ansor::SplitStep(stage_id, iter_id, extent, lengths, inner_to_outer));
+            ::tvm::ansor::SplitStep(stage_id, iter_id, extent == 0 ? ::tvm::PrimExpr() : extent,
+                                    lengths, inner_to_outer));
       } else if (name == "FU") {
         s = reader->NextArrayItem();
         CHECK(s);

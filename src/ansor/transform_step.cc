@@ -50,7 +50,7 @@ ReorderStep::ReorderStep(int stage_id, const Array<PrimExpr>& after_ids) {
 void ReorderStepNode::ApplyToSchedule(Array<te::Stage>* stages,
                                       StageToAxesMap* stage_to_axes) const {
   auto stage = (*stages)[stage_id];
-  const Array<IterVar>& axes = (*stage_to_axes)[stage];
+  const Array<IterVar>& axes = stage_to_axes->at(stage);
   CHECK_EQ(after_ids.size(), axes.size());
 
   Array<IterVar> new_axes;
@@ -60,7 +60,7 @@ void ReorderStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   }
   stage.reorder(new_axes);
 
-  (*stage_to_axes)[stage] = std::move(new_axes);
+  stage_to_axes->Set(stage, std::move(new_axes));
   stages->Set(stage_id, std::move(stage));
 }
 
@@ -87,7 +87,7 @@ Array<IterVar> ApplySplitToSchedule(Array<te::Stage>* stages, StageToAxesMap* st
                                     int stage_id, int iter_id, const Array<PrimExpr>& lengths,
                                     bool inner_to_outer) {
   auto stage = (*stages)[stage_id];
-  const Array<IterVar>& axes = (*stage_to_axes)[stage];
+  const Array<IterVar>& axes = stage_to_axes->at(stage);
 
   Array<IterVar> outs;
   if (inner_to_outer) {
@@ -121,7 +121,7 @@ Array<IterVar> ApplySplitToSchedule(Array<te::Stage>* stages, StageToAxesMap* st
   }
   new_axes.insert(new_axes.end(), axes.begin() + iter_id + 1, axes.end());
 
-  (*stage_to_axes)[stage] = std::move(new_axes);
+  stage_to_axes->Set(stage, std::move(new_axes));
   stages->Set(stage_id, std::move(stage));
   return outs;
 }
@@ -129,7 +129,7 @@ Array<IterVar> ApplySplitToSchedule(Array<te::Stage>* stages, StageToAxesMap* st
 String PrintSplitAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes, int stage_id,
                              int iter_id, const Array<PrimExpr>& lengths, bool inner_to_outer) {
   const auto& stage = (*stages)[stage_id];
-  auto to_split = (*stage_to_axes)[stage][iter_id];
+  auto to_split = stage_to_axes->at(stage)[iter_id];
   const auto& func_name = CleanName(stage->op->name);
   const auto& outs =
       ApplySplitToSchedule(stages, stage_to_axes, stage_id, iter_id, lengths, inner_to_outer);
@@ -194,7 +194,7 @@ FuseStep::FuseStep(int stage_id, const Array<PrimExpr>& fused_ids) {
 IterVar FuseStepNode::ApplyToSchedule(Array<te::Stage>* stages,
                                       StageToAxesMap* stage_to_axes) const {
   auto stage = (*stages)[stage_id];
-  const Array<IterVar>& axes = (*stage_to_axes)[stage];
+  const Array<IterVar>& axes = stage_to_axes->at(stage);
 
   Array<IterVar> to_fuse;
   for (const auto& i : fused_ids) {
@@ -210,7 +210,7 @@ IterVar FuseStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   new_axes.insert(new_axes.end(), axes.begin() + fused_ids.back().as<IntImmNode>()->value + 1,
                   axes.end());
 
-  (*stage_to_axes)[stage] = std::move(new_axes);
+  stage_to_axes->Set(stage, std::move(new_axes));
   stages->Set(stage_id, std::move(stage));
   return fused_axis;
 }
@@ -222,7 +222,7 @@ String FuseStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
 
   for (size_t i = 0; i < fused_ids.size(); ++i) {
     to_fuse << CleanName(
-        (*stage_to_axes)[stage][fused_ids[i].as<IntImmNode>()->value]->var->name_hint);
+        stage_to_axes->at(stage)[fused_ids[i].as<IntImmNode>()->value]->var->name_hint);
     if (i != fused_ids.size() - 1) {
       to_fuse << ", ";
     }
