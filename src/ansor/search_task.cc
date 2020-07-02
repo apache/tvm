@@ -24,11 +24,9 @@
 
 #include "search_task.h"
 
-#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
-#include <string>
 #include <utility>
 
 namespace tvm {
@@ -58,7 +56,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
   return HardwareParams();
 }
 
-SearchTask::SearchTask(ComputeDAG compute_dag, std::string workload_key, Target target,
+SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target target,
                        Target target_host, HardwareParams hardware_params) {
   auto node = make_object<SearchTaskNode>();
   node->compute_dag = std::move(compute_dag);
@@ -82,7 +80,7 @@ TVM_REGISTER_GLOBAL("ansor.HardwareParams")
     });
 
 TVM_REGISTER_GLOBAL("ansor.SearchTask")
-    .set_body_typed([](ComputeDAG compute_dag, std::string workload_key, Target target,
+    .set_body_typed([](ComputeDAG compute_dag, String workload_key, Target target,
                        Target target_host, HardwareParams hardware_params) {
       return SearchTask(compute_dag, workload_key, target, target_host, hardware_params);
     });

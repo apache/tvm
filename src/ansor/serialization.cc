@@ -54,16 +54,6 @@ inline std::vector<int>& IntArrayToVector(std::vector<int>* out,
   return *out;
 }
 
-inline std::vector<int>& IntArrayToVector(std::vector<int>* out,
-                                          const ::tvm::Array<::tvm::IntImm>& data) {
-  out->clear();
-  for (const auto& x : data) {
-    CHECK(x.defined());
-    out->push_back(x->value);
-  }
-  return *out;
-}
-
 template <>
 struct Handler<::tvm::Array<::tvm::ansor::Stage>> {
   inline static void Write(dmlc::JSONWriter* writer,
@@ -130,9 +120,9 @@ struct Handler<::tvm::Array<::tvm::ansor::Step>> {
         s = reader->NextArrayItem();
         CHECK(s);
         reader->Read(&int_list);
-        ::tvm::Array<::tvm::IntImm> after_ids;
+        ::tvm::Array<::tvm::PrimExpr> after_ids;
         for (const auto& i : int_list) {
-          after_ids.push_back(::tvm::IntImm(::tvm::DataType::Int(32), i));
+          after_ids.push_back(i);
         }
         data->push_back(::tvm::ansor::ReorderStep(stage_id, after_ids));
       } else if (name == "SP") {
@@ -164,9 +154,9 @@ struct Handler<::tvm::Array<::tvm::ansor::Step>> {
         s = reader->NextArrayItem();
         CHECK(s);
         reader->Read(&int_list);
-        ::tvm::Array<::tvm::IntImm> fused_ids;
+        ::tvm::Array<::tvm::PrimExpr> fused_ids;
         for (const auto& i : int_list) {
-          fused_ids.push_back(::tvm::IntImm(::tvm::DataType::Int(32), i));
+          fused_ids.push_back(i);
         }
         data->push_back(::tvm::ansor::FuseStep(stage_id, fused_ids));
       } else {
@@ -204,7 +194,7 @@ template <>
 struct Handler<::tvm::ansor::SearchTaskNode> {
   inline static void Write(dmlc::JSONWriter* writer, const ::tvm::ansor::SearchTaskNode& data) {
     writer->BeginArray(false);
-    writer->WriteArrayItem(data.workload_key);
+    writer->WriteArrayItem(std::string(data.workload_key));
     writer->WriteArrayItem(data.target->str());
     writer->EndArray();
   }
@@ -215,7 +205,8 @@ struct Handler<::tvm::ansor::SearchTaskNode> {
     reader->BeginArray();
     s = reader->NextArrayItem();
     CHECK(s);
-    reader->Read(&data->workload_key);
+    reader->Read(&target_str);
+    data->workload_key = std::move(target_str);
     s = reader->NextArrayItem();
     CHECK(s);
     reader->Read(&target_str);
@@ -308,7 +299,7 @@ TVM_REGISTER_OBJECT_TYPE(LogReaderNode);
 
 const std::string ANSOR_LOG_VERSION = "v0.2";  // NOLINT(*)
 
-LogToFile::LogToFile(std::string filename) {
+LogToFile::LogToFile(String filename) {
   auto node = make_object<LogToFileNode>();
   node->filename = std::move(filename);
   data_ = std::move(node);
@@ -353,7 +344,7 @@ void LogToFileNode::Callback(const SearchPolicy& policy, const Array<MeasureInpu
   WriteMeasureRecords(&ofs, inputs, results);
 }
 
-LogReader::LogReader(std::string filename) {
+LogReader::LogReader(String filename) {
   auto node = make_object<LogReaderNode>();
   node->filename = filename;
   node->infile.open(filename, std::ifstream::in);
@@ -401,11 +392,11 @@ std::pair<Array<MeasureInput>, Array<MeasureResult>> LogReaderNode::ReadLines(in
   return std::make_pair(inputs, results);
 }
 
-TVM_REGISTER_GLOBAL("ansor.LogToFile").set_body_typed([](const std::string& filename) {
+TVM_REGISTER_GLOBAL("ansor.LogToFile").set_body_typed([](const String& filename) {
   return LogToFile(filename);
 });
 
-TVM_REGISTER_GLOBAL("ansor.LogReader").set_body_typed([](const std::string& filename) {
+TVM_REGISTER_GLOBAL("ansor.LogReader").set_body_typed([](const String& filename) {
   return LogReader(filename);
 });
 
@@ -426,69 +417,9 @@ TVM_REGISTER_GLOBAL("ansor.LogReaderReadNext").set_body_typed([](LogReader reade
 });
 
 TVM_REGISTER_GLOBAL("ansor.AppendMeasureRecordsToFile")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      std::string filename = args[0];
-      Array<MeasureInput> in = args[1];
-      Array<MeasureResult> res = args[2];
+    .set_body_typed([](String filename, Array<MeasureInput> in, Array<MeasureResult> res) {
       std::ofstream ofs(filename, std::ofstream::app);
       WriteMeasureRecords(&ofs, in, res);
     });
-
-TVM_REGISTER_GLOBAL("ansor.GetStatesFromMeasureInputs")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      Array<MeasureInput> inputs = args[0];
-      SearchTask external_task;
-
-      if (args.size() > 1) {
-        external_task = args[1];
-      }
-
-      Array<State> states;
-      states.reserve(inputs.size());
-
-      // (workload_key, target) -> (search_task)
-      std::unordered_map<std::pair<std::string, std::string>, SearchTask> task_cache;
-
-      for (const auto& inp : inputs) {
-        const std::string& workload_key = inp->task->workload_key;
-        std::pair<std::string, std::string> key(workload_key, inp->task->target->str());
-
-        const SearchTaskNode* ptask;
-        if (external_task.defined()) {
-          ptask = external_task.operator->();
-        } else {
-          auto find_res = task_cache.find(key);
-          if (find_res == task_cache.end()) {
-            if (inp->task->compute_dag.defined()) {
-              ptask = inp->task.operator->();
-            } else {
-              // If the measure input is incomplete, rebuild task for it
-              Array<te::Tensor> tens;
-              // Call python function to decode the workload_key and get the I/O tensors
-              if (const auto* f = runtime::Registry::Get("ansor.workload_key_to_tensors")) {
-                tens = (*f)(workload_key);
-              } else {
-                LOG(FATAL) << "ansor.workload_key_to_tensors is not registered";
-              }
-              SearchTask new_task = SearchTask(ComputeDAG(tens), workload_key, inp->task->target,
-                                               inp->task->target_host, inp->task->hardware_params);
-              task_cache.insert(std::make_pair(key, new_task));
-              ptask = new_task.operator->();
-            }
-          } else {
-            ptask = find_res->second.operator->();
-          }
-        }
-
-        State tmp_s = ptask->compute_dag.GetInitState();
-        StateNode* ps = tmp_s.CopyOnWrite();
-        ps->transform_steps = inp->state->transform_steps;
-        tmp_s.DoSteps(ps->transform_steps, ptask->compute_dag);
-        states.push_back(std::move(tmp_s));
-      }
-
-      *ret = states;
-    });
-
 }  // namespace ansor
 }  // namespace tvm

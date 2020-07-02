@@ -25,9 +25,7 @@
 #ifndef TVM_ANSOR_SEARCH_POLICY_EMPTY_POLICY_H_
 #define TVM_ANSOR_SEARCH_POLICY_EMPTY_POLICY_H_
 
-#include <utility>
-#include <vector>
-
+#include "../loop_state.h"
 #include "search_policy.h"
 
 namespace tvm {
@@ -54,7 +52,7 @@ class EmptyPolicyNode : public SearchPolicyNode {
    * \brief Use a sub function to generate several candidate states in each search round.
    * \returns Several generated states
    */
-  std::vector<State> SearchOneRound();
+  Array<State> SearchOneRound();
 };
 
 /*!

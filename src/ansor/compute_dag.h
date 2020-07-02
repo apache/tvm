@@ -27,11 +27,8 @@
 #ifndef TVM_ANSOR_COMPUTE_DAG_H_
 #define TVM_ANSOR_COMPUTE_DAG_H_
 
-#include <tvm/node/node.h>
 #include <tvm/te/schedule.h>
 
-#include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -95,7 +92,7 @@ class ComputeDAG : public ObjectRef {
    * \param transform_steps Transform steps of the target state.
    * \return Python schedule code.
    */
-  std::string PrintStepsAsPython(const Array<Step>& transform_steps) const;
+  String PrintStepsAsPython(const Array<Step>& transform_steps) const;
 
   /*!
    * \brief Replay the transform steps and call ir_pass::InferBound to fill correct bound
@@ -142,7 +139,7 @@ class ComputeDAG : public ObjectRef {
    * \return The return values can be used as arguments to `tvm.build` or `tvm.lower`.
    */
   std::pair<te::Schedule, Array<te::Tensor> > ReplaySteps(const Array<Step>& transform_steps,
-                                                          std::vector<te::Stage>* stages,
+                                                          Array<te::Stage>* stages,
                                                           StageToAxesMap* stage_to_axes) const;
 
   /*!

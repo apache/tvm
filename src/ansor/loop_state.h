@@ -39,10 +39,9 @@
 #ifndef TVM_ANSOR_LOOP_STATE_H_
 #define TVM_ANSOR_LOOP_STATE_H_
 
+#include <tvm/runtime/container.h>
+
 #include <functional>
-#include <string>
-#include <unordered_map>
-#include <utility>
 #include <vector>
 
 #include "compute_dag.h"
@@ -117,7 +116,7 @@ class Iterator;
 class IteratorNode : public Object {
  public:
   /*! \brief The name of this iterator. */
-  std::string name;
+  String name;
   /*! \brief The target range of this iterator. */
   Range range;
   /*! \brief The iterator type of this iterator. */
@@ -127,7 +126,7 @@ class IteratorNode : public Object {
   /*! \brief The original iterators before fusion. */
   std::vector<Iterator> ori_iters;
   /*! \brief The extra attributes of this iterator. */
-  std::string attr;
+  String attr;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
@@ -154,8 +153,8 @@ class Iterator : public ObjectRef {
    * \param ori_iters The original iterators before fusion.
    * \param attr The extra attribute of this iterator.
    */
-  Iterator(std::string name, Range range, IteratorType iter_type, IteratorAnnotation annotation,
-           const std::vector<Iterator>* ori_iters = nullptr, std::string attr = "");
+  Iterator(String name, Range range, IteratorType iter_type, IteratorAnnotation annotation,
+           const std::vector<Iterator>* ori_iters = nullptr, String attr = "");
 
   TVM_DEFINE_OBJECT_REF_METHODS(Iterator, ObjectRef, IteratorNode);
 };
@@ -310,7 +309,7 @@ class State : public ObjectRef {
    * (undefined or extent == 1, default set to True)
    * \return The human readable state structure.
    */
-  std::string ToStr(bool delete_trivial_loop = true) const;
+  String ToStr(bool delete_trivial_loop = true) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StateNode);
@@ -360,7 +359,7 @@ namespace std {
 template <>
 struct hash<::tvm::ansor::State> {
   std::size_t operator()(const ::tvm::ansor::State& state) const {
-    return std::hash<std::string>()(state.ToStr());
+    return tvm::runtime::ObjectHash()(state.ToStr());
   }
 };
 

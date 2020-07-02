@@ -27,7 +27,6 @@
 #ifndef TVM_ANSOR_AUTO_SCHEDULE_H_
 #define TVM_ANSOR_AUTO_SCHEDULE_H_
 
-#include <string>
 #include <utility>
 
 #include "measure.h"

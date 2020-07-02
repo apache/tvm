@@ -26,9 +26,6 @@
 
 #include <tvm/runtime/registry.h>
 
-#include <string>
-#include <utility>
-
 namespace tvm {
 namespace ansor {
 

@@ -51,8 +51,8 @@ State EmptyPolicyNode::Search(SearchTask task, int num_measure_trials, int early
 
     return res[0];
   } else {
-    std::vector<MeasureInput> inputs;
-    std::vector<MeasureResult> results;
+    Array<MeasureInput> inputs;
+    Array<MeasureResult> results;
 
     measurer->Reset();
     int ct = 0;
@@ -66,7 +66,7 @@ State EmptyPolicyNode::Search(SearchTask task, int num_measure_trials, int early
       for (const auto& state : res) {
         // The class members measured_states_set_ provided by SearchPolicy can be used to filter
         // out the already measured states
-        inputs.emplace_back(cur_task, state);
+        inputs.push_back(MeasureInput(cur_task, state));
       }
       // ProgramMeasurer will record the state with best performance during measure process
       measurer->Measure(cur_task, GetRef<SearchPolicy>(this), inputs, &results);
@@ -78,8 +78,8 @@ State EmptyPolicyNode::Search(SearchTask task, int num_measure_trials, int early
 }
 
 // As an example policy, EmptyPolicy always returns a init state
-std::vector<State> EmptyPolicyNode::SearchOneRound() {
-  std::vector<State> res;
+Array<State> EmptyPolicyNode::SearchOneRound() {
+  Array<State> res;
 
   // 1. We will process `Program sampling` first to generate several initial schedules
   res.push_back(cur_task->compute_dag.GetInitState());

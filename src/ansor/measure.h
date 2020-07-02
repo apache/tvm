@@ -26,10 +26,8 @@
 #ifndef TVM_ANSOR_MEASURE_H_
 #define TVM_ANSOR_MEASURE_H_
 
-#include <string>
 #include <unordered_map>
 #include <utility>
-#include <vector>
 
 #include "loop_state.h"
 #include "search_task.h"
@@ -105,13 +103,13 @@ class MeasureInput : public ObjectRef {
 class BuildResultNode : public Object {
  public:
   /*! \brief The filename of built binary file. */
-  std::string filename;
+  String filename;
   /*! \brief The arguments. */
   Array<te::Tensor> args;
   /*! \brief The error code. (0 means no error, see MeasureErrorNO) */
   int error_no;
   /*! \brief The error message if there is any error. */
-  std::string error_msg;
+  String error_msg;
   /*! \brief The time cost of build. */
   double time_cost;
 
@@ -141,7 +139,7 @@ class BuildResult : public ObjectRef {
    * \param error_msg The error message if there is any error.
    * \param time_cost The time cost of build.
    */
-  BuildResult(std::string filename, Array<te::Tensor> args, int error_no, std::string error_msg,
+  BuildResult(String filename, Array<te::Tensor> args, int error_no, String error_msg,
               double time_cost);
   TVM_DEFINE_OBJECT_REF_METHODS(BuildResult, ObjectRef, BuildResultNode);
 };
@@ -154,7 +152,7 @@ class MeasureResultNode : public Object {
   /*! \brief The error code. (0 means no error, see MeasureErrorNO) */
   int error_no;
   /*! \brief The error message if there is any error. */
-  std::string error_msg;
+  String error_msg;
   /*! \brief The time cost of build and run. */
   double all_cost;
   /*! \brief The time stamps of this measurement. */
@@ -189,7 +187,7 @@ class MeasureResult : public ObjectRef {
    * \param all_cost The time cost of build and run.
    * \param timestamp The time stamps of this measurement.
    */
-  MeasureResult(Array<PrimExpr> costs, int error_no, std::string error_msg, double all_cost,
+  MeasureResult(Array<PrimExpr> costs, int error_no, String error_msg, double all_cost,
                 double timestamp);
 
   TVM_DEFINE_OBJECT_REF_METHODS(MeasureResult, ObjectRef, MeasureResultNode);
@@ -286,7 +284,7 @@ class Runner : public ObjectRef {
 class LocalBuilderNode : public BuilderNode {
  public:
   /*! \brief Build function. */
-  std::string build_func;
+  String build_func;
 
   Array<BuildResult> Build(const Array<MeasureInput>& inputs, int verbose) final;
 
@@ -306,7 +304,7 @@ class LocalBuilder : public Builder {
    * \param n_parallel Number of threads used to build in parallel.
    * \param build_func The name of registered build function.
    */
-  LocalBuilder(int timeout, int n_parallel, const std::string& build_func);
+  LocalBuilder(int timeout, int n_parallel, const String& build_func);
 
   TVM_DEFINE_OBJECT_REF_METHODS(LocalBuilder, Builder, LocalBuilderNode);
 };
@@ -359,11 +357,11 @@ class ProgramMeasurerNode : public Object {
   /*! \brief Continuous error counter. */
   int error_ct;
   /*! \brief Workload key to best flops map. */
-  std::unordered_map<std::string, double> best_flops;
+  std::unordered_map<String, double> best_flops;
   /*! \brief Workload key to best state map. */
-  std::unordered_map<std::string, State> best_state;
+  std::unordered_map<String, State> best_state;
   /*! \brief Workload key to best state's count index map. */
-  std::unordered_map<std::string, int> best_ct;
+  std::unordered_map<String, int> best_ct;
   /*! \brief The Builder to build each program. */
   Builder builder;
   /*! \brief The Runner to measure each program. */
@@ -387,7 +385,7 @@ class ProgramMeasurerNode : public Object {
    * \param batch_size Number of programs to be measured in one batch.
    */
   void Measure(const SearchTask& task, const SearchPolicy& policy,
-               const std::vector<MeasureInput>& inputs, std::vector<MeasureResult>* results,
+               const Array<MeasureInput>& inputs, Array<MeasureResult>* results,
                int batch_size = -1);
   /*!
    * \brief Do measurement silently.
@@ -396,8 +394,8 @@ class ProgramMeasurerNode : public Object {
    * \param inputs The target MeasureInputs.
    * \param results A pointer to MeasureResult vector, this is used as output.
    */
-  void SilentMeasure(const SearchTask& task, const std::vector<MeasureInput>& inputs,
-                     std::vector<MeasureResult>* results);
+  void SilentMeasure(const SearchTask& task, const Array<MeasureInput>& inputs,
+                     Array<MeasureResult>* results);
 
   /*! \brief The default max continuous error setting. */
   static const int DEFAULT_MAX_CONTINOUS_ERROR = 150;

@@ -24,13 +24,9 @@
 
 #include "measure.h"
 
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
-#include <iomanip>
-#include <utility>
-#include <vector>
 
 #include "utils.h"
 
@@ -73,8 +69,8 @@ MeasureInput MeasureInputNode::copy() const {
   return MeasureInput(node);
 }
 
-BuildResult::BuildResult(std::string filename, Array<te::Tensor> args, int error_no,
-                         std::string error_msg, double time_cost) {
+BuildResult::BuildResult(String filename, Array<te::Tensor> args, int error_no, String error_msg,
+                         double time_cost) {
   auto node = make_object<BuildResultNode>();
   node->filename = std::move(filename);
   node->args = std::move(args);
@@ -84,8 +80,8 @@ BuildResult::BuildResult(std::string filename, Array<te::Tensor> args, int error
   data_ = std::move(node);
 }
 
-MeasureResult::MeasureResult(Array<PrimExpr> costs, int error_no, std::string error_msg,
-                             double all_cost, double timestamp) {
+MeasureResult::MeasureResult(Array<PrimExpr> costs, int error_no, String error_msg, double all_cost,
+                             double timestamp) {
   auto node = make_object<MeasureResultNode>();
   node->costs = std::move(costs);
   node->error_no = error_no;
@@ -106,7 +102,7 @@ MeasureResult MeasureResultNode::copy() const {
 }
 
 /********** LocalBuilder **********/
-LocalBuilder::LocalBuilder(int timeout, int n_parallel, const std::string& build_func) {
+LocalBuilder::LocalBuilder(int timeout, int n_parallel, const String& build_func) {
   auto node = make_object<LocalBuilderNode>();
   node->timeout = timeout;
   node->n_parallel = n_parallel;
@@ -170,8 +166,8 @@ void ProgramMeasurerNode::Reset() {
 }
 
 void ProgramMeasurerNode::Measure(const SearchTask& task, const SearchPolicy& policy,
-                                  const std::vector<MeasureInput>& inputs,
-                                  std::vector<MeasureResult>* results, int batch_size) {
+                                  const Array<MeasureInput>& inputs, Array<MeasureResult>* results,
+                                  int batch_size) {
   results->clear();
   results->reserve(inputs.size());
 
@@ -184,9 +180,9 @@ void ProgramMeasurerNode::Measure(const SearchTask& task, const SearchPolicy& po
                    << std::endl;
 
   for (size_t i = 0; i < inputs.size(); i += batch_size) {
-    std::vector<MeasureInput> input_batch(inputs.begin() + i,
-                                          inputs.begin() + std::min(i + batch_size, inputs.size()));
-    std::vector<MeasureResult> result_batch;
+    Array<MeasureInput> input_batch(inputs.begin() + i,
+                                    inputs.begin() + std::min(i + batch_size, inputs.size()));
+    Array<MeasureResult> result_batch;
 
     // build and run
     SilentMeasure(task, input_batch, &result_batch);
@@ -202,7 +198,7 @@ void ProgramMeasurerNode::Measure(const SearchTask& task, const SearchPolicy& po
         error_ct++;
       }
 
-      const std::string& workload_key = input_batch[j]->task->workload_key;
+      const String& workload_key = input_batch[j]->task->workload_key;
       if (flops > best_flops[workload_key]) {
         best_flops[workload_key] = flops;
         best_state[workload_key] = input_batch[j]->state;
@@ -233,9 +229,8 @@ void ProgramMeasurerNode::Measure(const SearchTask& task, const SearchPolicy& po
   }
 }
 
-void ProgramMeasurerNode::SilentMeasure(const SearchTask& task,
-                                        const std::vector<MeasureInput>& inputs,
-                                        std::vector<MeasureResult>* results) {
+void ProgramMeasurerNode::SilentMeasure(const SearchTask& task, const Array<MeasureInput>& inputs,
+                                        Array<MeasureResult>* results) {
   // Close the thread pool to avoid the conflits with python environment
   ThreadPool::Global().Abort();
 
@@ -300,13 +295,13 @@ TVM_REGISTER_GLOBAL("ansor.MeasureInput").set_body_typed([](SearchTask task, Sta
 });
 
 TVM_REGISTER_GLOBAL("ansor.BuildResult")
-    .set_body_typed([](std::string filename, Array<te::Tensor> args, int error_no,
-                       std::string error_msg, double time_cost) {
+    .set_body_typed([](String filename, Array<te::Tensor> args, int error_no, String error_msg,
+                       double time_cost) {
       return BuildResult(filename, args, error_no, error_msg, time_cost);
     });
 
 TVM_REGISTER_GLOBAL("ansor.MeasureResult")
-    .set_body_typed([](Array<PrimExpr> costs, int error_no, std::string error_msg, double all_cost,
+    .set_body_typed([](Array<PrimExpr> costs, int error_no, String error_msg, double all_cost,
                        double timestamp) {
       return MeasureResult(costs, error_no, error_msg, all_cost, timestamp);
     });
@@ -322,7 +317,7 @@ TVM_REGISTER_GLOBAL("ansor.RunnerRun")
                        int verbose) { return runner->Run(inputs, build_results, verbose); });
 
 TVM_REGISTER_GLOBAL("ansor.LocalBuilder")
-    .set_body_typed([](int timeout, int n_parallel, const std::string& build_func) {
+    .set_body_typed([](int timeout, int n_parallel, const String& build_func) {
       return LocalBuilder(timeout, n_parallel, build_func);
     });
 

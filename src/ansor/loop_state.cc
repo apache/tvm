@@ -25,9 +25,10 @@
 
 #include "loop_state.h"
 
-#include <tvm/ir/expr.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
+
+#include <utility>
 
 #include "transform_step.h"
 #include "utils.h"
@@ -41,9 +42,8 @@ TVM_REGISTER_NODE_TYPE(StateNode);
 TVM_REGISTER_NODE_TYPE(IteratorNode);
 
 /********** Iterator **********/
-Iterator::Iterator(std::string name, Range range, IteratorType iter_type,
-                   IteratorAnnotation annotation, const std::vector<Iterator>* ori_iters,
-                   std::string attr) {
+Iterator::Iterator(String name, Range range, IteratorType iter_type, IteratorAnnotation annotation,
+                   const std::vector<Iterator>* ori_iters, String attr) {
   auto node = make_object<IteratorNode>();
   node->name = std::move(name);
   node->range = std::move(range);
@@ -118,7 +118,7 @@ void State::reorder(int stage_id, const Array<Iterator>& order) {
   const Stage& stage = operator->()->stages[stage_id];
   CHECK_EQ(order.size(), stage->iters.size()) << "The order of all iterators "
                                               << "should be specified";
-  Array<IntImm> after_ids;
+  Array<PrimExpr> after_ids;
   GetIndices(stage->iters, order, &after_ids);
   ReorderStep step = ReorderStep(stage_id, after_ids);
   CopyOnWrite()->transform_steps.push_back(step);
@@ -137,7 +137,7 @@ Array<Iterator> State::split(int stage_id, const Iterator& it, const Array<PrimE
 
 Iterator State::fuse(int stage_id, const Array<Iterator>& iters) {
   const Stage& stage = operator->()->stages[stage_id];
-  Array<IntImm> indices;
+  Array<PrimExpr> indices;
   GetIndices(stage->iters, iters, &indices);
   FuseStep step = FuseStep(stage_id, indices);
   CopyOnWrite()->transform_steps.push_back(step);
@@ -149,7 +149,7 @@ void State::DoReorderStep(const ReorderStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
   Array<Iterator> iters;
   for (auto x : step->after_ids) {
-    iters.push_back(stage->iters[x->value]);
+    iters.push_back(stage->iters[x.as<IntImmNode>()->value]);
   }
   StateNode* pstate = CopyOnWrite();
   pstate->stages.Set(step->stage_id, Stage(stage->op, stage->op_type, std::move(iters),
@@ -173,7 +173,7 @@ Array<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id, const Array<
   Array<Iterator> outs;
   for (size_t i = 0; i < lengths.size(); ++i) {
     PrimExpr l;
-    std::string name;
+    String name;
     if (inner_to_outer) {
       l = lengths[lengths.size() - i - 1];
       name = it->name + "." + std::to_string(lengths.size() - i);
@@ -200,7 +200,7 @@ Array<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id, const Array<
   if (inner_to_outer) {
     outs.push_back(Iterator(it->name + ".0", range, it->iter_type, kNone));
     // Reverse the Iterator array
-    Array<Iterator> temp(std::move(outs.rbegin()), std::move(outs.rend()));
+    Array<Iterator> temp(outs.rbegin(), outs.rend());
     outs = std::move(temp);
   } else {
     outs.push_back(
@@ -227,19 +227,20 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   int stage_id = step->stage_id;
   const Stage& stage = operator->()->stages[stage_id];
 
-  std::string new_name;
+  String new_name;
   PrimExpr new_extent = 1;
   IteratorType new_iter_type = kSpecial;
 
   std::vector<Iterator> ori_iters;
   for (size_t i = 0; i < step->fused_ids.size(); ++i) {
     if (i > 0) {
-      CHECK_EQ(step->fused_ids[i]->value, step->fused_ids[i - 1]->value + 1);
+      CHECK_EQ(step->fused_ids[i].as<IntImmNode>()->value,
+               step->fused_ids[i - 1].as<IntImmNode>()->value + 1);
     }
 
-    const Iterator& it = stage->iters[step->fused_ids[i]->value];
+    const Iterator& it = stage->iters[step->fused_ids[i].as<IntImmNode>()->value];
     ori_iters.push_back(it);
-    new_name += it->name + "@";
+    new_name = new_name + it->name + "@";
 
     if (it->range.defined() && new_extent.defined()) {
       new_extent = new_extent * it->range->extent;
@@ -263,9 +264,10 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   Iterator new_it = Iterator(new_name, range, new_iter_type, kNone, &ori_iters);
   Array<Iterator> new_iters;
   new_iters.insert(new_iters.end(), stage->iters.begin(),
-                   stage->iters.begin() + step->fused_ids.front()->value);
+                   stage->iters.begin() + step->fused_ids.front().as<IntImmNode>()->value);
   new_iters.push_back(new_it);
-  new_iters.insert(new_iters.end(), stage->iters.begin() + step->fused_ids.back()->value + 1,
+  new_iters.insert(new_iters.end(),
+                   stage->iters.begin() + step->fused_ids.back().as<IntImmNode>()->value + 1,
                    stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
@@ -384,7 +386,7 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state, size_t b
 // Print state to ostream
 void PrintState(std::ostream* os, const StateNode* node, bool delete_trivial_loop) {
   // Gather placeholders
-  std::vector<std::string> placeholders;
+  std::vector<String> placeholders;
   for (const auto& stage : node->stages) {
     if (stage->op_type == kPlaceholder) {
       placeholders.push_back(stage->op->name);
@@ -415,7 +417,7 @@ void PrintState(std::ostream* os, const StateNode* node, bool delete_trivial_loo
   }
 }
 
-std::string State::ToStr(bool delete_trivial_loop) const {
+String State::ToStr(bool delete_trivial_loop) const {
   std::ostringstream os;
   PrintState(&os, operator->(), delete_trivial_loop);
   return os.str();

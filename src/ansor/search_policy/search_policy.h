@@ -52,9 +52,7 @@
 
 #include <tvm/node/node.h>
 
-#include <string>
 #include <unordered_set>
-#include <utility>
 #include <vector>
 
 #include "../search_task.h"
@@ -139,7 +137,7 @@ class SearchPolicyNode : public Object {
    * \brief The set of already measured states.
    * We store the string format for redundancy check.
    */
-  std::unordered_set<std::string> measured_states_set_;
+  std::unordered_set<String> measured_states_set_;
   /*! \brief The array of already measured states. */
   std::vector<State> measured_states_vector_;
   /*! \brief The throughputs of already measured states */

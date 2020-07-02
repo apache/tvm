@@ -56,7 +56,7 @@
 namespace tvm {
 namespace ansor {
 
-typedef std::unordered_map<tvm::te::Stage, std::vector<tir::IterVar>, ObjectHash, ObjectEqual>
+typedef std::unordered_map<tvm::te::Stage, Array<tir::IterVar>, ObjectHash, ObjectEqual>
     StageToAxesMap;
 
 class Step;
@@ -78,9 +78,9 @@ class StepNode : public Object {
    * \param transform_steps Transform steps of the target state.
    * \return Python schedule code.
    */
-  virtual std::string PrintAsPythonAPI(std::vector<te::Stage>* stages,
-                                       StageToAxesMap* stage_to_axes, te::Schedule* schedule,
-                                       const std::vector<Step>& transform_steps) const = 0;
+  virtual String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                                  te::Schedule* schedule,
+                                  const std::vector<Step>& transform_steps) const = 0;
 
   static constexpr const char* _type_key = "ansor.Step";
   TVM_DECLARE_BASE_OBJECT_INFO(StepNode, Object);
@@ -98,18 +98,18 @@ class ReorderStepNode : public StepNode {
    * \brief The iterator ids after reorder.
    * This array should specify the order of all iterators.
    */
-  Array<IntImm> after_ids;
+  Array<PrimExpr> after_ids;
 
   /*!
    * \brief Apply the current state to tvm.schedule
    * \param stages A pointer to `te::Stage` vector.
    * \param stage_to_axes A pointer to StageToAxesMap.
    */
-  void ApplyToSchedule(std::vector<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
-  std::string PrintAsPythonAPI(std::vector<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                               te::Schedule* schedule,
-                               const std::vector<Step>& transform_steps) const final;
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                          te::Schedule* schedule,
+                          const std::vector<Step>& transform_steps) const final;
 
   static constexpr const char* _type_key = "ansor.ReorderStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReorderStepNode, Object);
@@ -126,7 +126,7 @@ class ReorderStep : public Step {
    * \param stage_id The index of the target stage.
    * \param after_ids The index of the iterators after reorder.
    */
-  ReorderStep(int stage_id, const Array<IntImm>& after_ids);
+  ReorderStep(int stage_id, const Array<PrimExpr>& after_ids);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ReorderStep, Step, ReorderStepNode);
 };
@@ -155,12 +155,12 @@ class SplitStepNode : public StepNode {
    * \param stage_to_axes A pointer to StageToAxesMap.
    * \return The iterator results after split.
    */
-  Array<tir::IterVar> ApplyToSchedule(std::vector<te::Stage>* stages,
+  Array<tir::IterVar> ApplyToSchedule(Array<te::Stage>* stages,
                                       StageToAxesMap* stage_to_axes) const;
 
-  std::string PrintAsPythonAPI(std::vector<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                               te::Schedule* schedule,
-                               const std::vector<Step>& transform_steps) const final;
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                          te::Schedule* schedule,
+                          const std::vector<Step>& transform_steps) const final;
 
   static constexpr const char* _type_key = "ansor.SplitStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(SplitStepNode, Object);
@@ -189,7 +189,7 @@ class SplitStep : public Step {
 class FuseStepNode : public StepNode {
  public:
   /*! \brief The ids of iterators to fuse. */
-  Array<IntImm> fused_ids;
+  Array<PrimExpr> fused_ids;
 
   /*!
    * \brief Apply the current state to tvm.schedule
@@ -197,11 +197,11 @@ class FuseStepNode : public StepNode {
    * \param stage_to_axes A pointer to StageToAxesMap.
    * \return The iterator result after fuse.
    */
-  tir::IterVar ApplyToSchedule(std::vector<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
+  tir::IterVar ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
-  std::string PrintAsPythonAPI(std::vector<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                               te::Schedule* schedule,
-                               const std::vector<Step>& transform_steps) const final;
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
+                          te::Schedule* schedule,
+                          const std::vector<Step>& transform_steps) const final;
 
   static constexpr const char* _type_key = "ansor.FuseStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuseStepNode, Object);
@@ -218,7 +218,7 @@ class FuseStep : public Step {
    * \param stage_id The index of the target stage.
    * \param fused_ids The index of the target iterators to be fused.
    */
-  FuseStep(int stage_id, const Array<IntImm>& fused_ids);
+  FuseStep(int stage_id, const Array<PrimExpr>& fused_ids);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FuseStep, Step, FuseStepNode);
 };
@@ -238,16 +238,18 @@ struct hash<::tvm::ansor::Step> {
       size_t ret = ::dmlc::HashCombine(1, std::hash<int>()(ps->stage_id));
       for (const auto& x : ps->after_ids) {
         CHECK(x.defined());
-        ret = ::dmlc::HashCombine(ret, x->value);
+        const auto& pint = x.as<::tvm::tir::IntImmNode>();
+        CHECK(pint != nullptr);
+        ret = ::dmlc::HashCombine(ret, pint->value);
       }
       return ret;
     } else if (auto ps = step.as<::tvm::ansor::SplitStepNode>()) {
       size_t ret = ::dmlc::HashCombine(2,
                    ::dmlc::HashCombine(std::hash<int>()(ps->stage_id),
                    ::dmlc::HashCombine(std::hash<int>()(ps->iter_id), ps->inner_to_outer)));
-      for (const auto& len : ps->lengths) {
-        if (len.defined()) {
-          auto pint = len.as<::tvm::tir::IntImmNode>();
+      for (const auto& x : ps->lengths) {
+        if (x.defined()) {
+          const auto& pint = x.as<::tvm::tir::IntImmNode>();
           CHECK(pint != nullptr);
           ret = ::dmlc::HashCombine(ret, pint->value);
         } else {
@@ -259,7 +261,9 @@ struct hash<::tvm::ansor::Step> {
       size_t ret = ::dmlc::HashCombine(3, std::hash<int>()(ps->stage_id));
       for (const auto& x : ps->fused_ids) {
         CHECK(x.defined());
-        ret = ::dmlc::HashCombine(ret, x->value);
+        const auto& pint = x.as<::tvm::tir::IntImmNode>();
+        CHECK(pint != nullptr);
+        ret = ::dmlc::HashCombine(ret, pint->value);
       }
       return ret;
     } else {

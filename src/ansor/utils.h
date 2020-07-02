@@ -82,36 +82,23 @@ struct hash<std::vector<T>> {
 namespace tvm {
 namespace ansor {
 
-/********** Utilities for std::vector, std::set, std::string **********/
-/*! \brief Get the first appearance index of elements in a array type object */
-template <typename ArrayT0, typename ArrayT1>
-inline void GetIndices(const ArrayT0& array, const ArrayT1& to_locate, std::vector<int>* indices) {
-  for (const auto& v : to_locate) {
-    auto it = std::find(array.begin(), array.end(), v);
-    if (it != array.end()) {
-      indices->push_back(it - array.begin());
-    } else {
-      LOG(FATAL) << "Cannot find the item";
-    }
-  }
-}
-
-/*! \brief Get the first appearance index of elements in a array type object */
-template <typename ArrayT0, typename ArrayT1>
-inline void GetIndices(const ArrayT0& array, const ArrayT1& to_locate, Array<IntImm>* indices) {
-  for (const auto& v : to_locate) {
-    auto it = std::find(array.begin(), array.end(), v);
-    if (it != array.end()) {
-      indices->push_back(IntImm(tvm::DataType::Int(32), it - array.begin()));
-    } else {
-      LOG(FATAL) << "Cannot find the item";
-    }
-  }
-}
-
-/*! \brief Get the first appearance index of an element in a vector */
+/********** Utilities for Array, std::string **********/
+/*! \brief Get the first appearance index of elements in an Array */
 template <typename T>
-inline int GetIndex(const std::vector<T>& array, const T& to_locate) {
+inline void GetIndices(const Array<T>& array, const Array<T>& to_locate, Array<PrimExpr>* indices) {
+  for (const auto& v : to_locate) {
+    auto it = std::find(array.begin(), array.end(), v);
+    if (it != array.end()) {
+      indices->push_back(static_cast<int>(it - array.begin()));
+    } else {
+      LOG(FATAL) << "Cannot find the item";
+    }
+  }
+}
+
+/*! \brief Get the first appearance index of an element in an Array */
+template <typename T>
+inline int GetIndex(const Array<T>& array, const T& to_locate) {
   for (size_t i = 0; i < array.size(); ++i) {
     if (array[i] == to_locate) {
       return i;
@@ -119,27 +106,6 @@ inline int GetIndex(const std::vector<T>& array, const T& to_locate) {
   }
   LOG(FATAL) << "Cannot find the item";
   return -1;
-}
-
-/*! \brief Get the first appearance index of an element in a vector */
-template <typename T, typename ArrayT>
-inline int GetIndex(const ArrayT& array, const T& to_locate) {
-  for (size_t i = 0; i < array.size(); ++i) {
-    if (array[i] == to_locate) {
-      return i;
-    }
-  }
-  LOG(FATAL) << "Cannot find the item";
-  return -1;
-}
-
-/*! \brief Delete an element in a vector */
-template <typename T>
-inline void DeleteItem(std::vector<T>* array, const T& to_delete) {
-  auto iter = std::find(array->begin(), array->end(), to_delete);
-  if (iter != array->end()) {
-    array->erase(iter);
-  }
 }
 
 /*! \brief Replace a sub-string to another sub-string in a string */

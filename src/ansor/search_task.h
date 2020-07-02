@@ -27,8 +27,6 @@
 
 #include <tvm/target/target.h>
 
-#include <string>
-
 #include "compute_dag.h"
 
 namespace tvm {
@@ -115,7 +113,7 @@ class SearchTaskNode : public Object {
   /*! \brief The ComputeDAG for target compute declaration. */
   ComputeDAG compute_dag;
   /*! \brief The workload key for target compute declaration. */
-  std::string workload_key;
+  String workload_key;
   /*! \brief The target device of this search task. */
   Target target;
   /*! \brief The target host device of this search task. */
@@ -149,7 +147,7 @@ class SearchTask : public ObjectRef {
    * \param target_host The target host device of this search task.
    * \param hardware_params Hardware parameters used in this search task.
    */
-  SearchTask(ComputeDAG compute_dag, std::string workload_key, Target target, Target target_host,
+  SearchTask(ComputeDAG compute_dag, String workload_key, Target target, Target target_host,
              HardwareParams hardware_params);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SearchTask, ObjectRef, SearchTaskNode);

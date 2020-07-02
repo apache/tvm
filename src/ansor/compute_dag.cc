@@ -33,7 +33,6 @@
 #include <algorithm>
 #include <queue>
 #include <set>
-#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -52,7 +51,7 @@ TVM_REGISTER_NODE_TYPE(ComputeDAGNode);
 // Update stage to axis mapping
 void UpdateStageAxis(const te::Stage& stage, StageToAxesMap* stage_to_axes) {
   if (auto pop = stage->op.as<te::ComputeOpNode>()) {
-    std::vector<IterVar>& axes = (*stage_to_axes)[stage];
+    Array<IterVar>& axes = (*stage_to_axes)[stage];
     axes.clear();
     for (const auto& axis : pop->axis) {
       axes.push_back(axis);
@@ -247,13 +246,13 @@ State ComputeDAG::GetInitState() const { return Downcast<State>(operator->()->in
 
 std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ApplySteps(
     const Array<Step>& transform_steps) const {
-  std::vector<te::Stage> stages;
+  Array<te::Stage> stages;
   StageToAxesMap stage_to_axes;
   return ReplaySteps(transform_steps, &stages, &stage_to_axes);
 }
 
-std::string ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const {
-  std::vector<te::Stage> stages;
+String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const {
+  Array<te::Stage> stages;
   StageToAxesMap stage_to_axes;
   Array<te::Operation> ops;
   for (const auto& op : operator->()->ops) {
@@ -340,7 +339,7 @@ void ComputeDAG::InferBound(std::vector<State>* states) const {
 }
 
 void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
-  std::vector<te::Stage> stages;
+  Array<te::Stage> stages;
   StageToAxesMap stage_to_axes;
   te::Schedule sch;
   Array<te::Tensor> tensors;
@@ -381,9 +380,9 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
 }
 
 std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
-    const Array<Step>& transform_steps, std::vector<te::Stage>* stages,
+    const Array<Step>& transform_steps, Array<te::Stage>* stages,
     StageToAxesMap* stage_to_axes) const {
-  std::vector<te::Operation> ops;
+  Array<te::Operation> ops;
   for (const auto& op : operator->()->ops) {
     if (!op->IsInstance<te::PlaceholderOpNode>()) {
       ops.push_back(op);

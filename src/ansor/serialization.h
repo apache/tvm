@@ -38,7 +38,7 @@ namespace ansor {
 class LogToFileNode : public MeasureCallbackNode {
  public:
   /*! \brief File name for this callback to write log to. */
-  std::string filename;
+  String filename;
 
   void Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
                 const Array<MeasureResult>& results) final;
@@ -57,7 +57,7 @@ class LogToFile : public MeasureCallback {
    * \brief The constructor.
    * \param filename File name for this callback to write log.
    */
-  explicit LogToFile(std::string filename);
+  explicit LogToFile(String filename);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LogToFile, MeasureCallback, LogToFileNode);
 };
@@ -66,7 +66,7 @@ class LogToFile : public MeasureCallback {
 class LogReaderNode : public Object {
  public:
   /*! \brief File name for this reader to load log from. */
-  std::string filename;
+  String filename;
   /*! \brief The reading file stream. */
   std::ifstream infile;
 
@@ -106,7 +106,7 @@ class LogReader : public ObjectRef {
    * \brief The constructor.
    * \param filename File name for this callback to write log.
    */
-  explicit LogReader(std::string filename);
+  explicit LogReader(String filename);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LogReader, ObjectRef, LogReaderNode);
 };
