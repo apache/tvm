@@ -57,8 +57,8 @@ def test_target_dispatch():
 def test_target_string_parse():
     target = tvm.target.create("cuda -model=unknown -libs=cublas,cudnn")
 
-    assert target.target_name == "cuda"
-    assert target.options == ['-model=unknown', '-libs=cublas,cudnn']
+    assert target.id.name == "cuda"
+    assert target.model == "unknown"
     assert target.keys == ['cuda', 'gpu']
     assert target.libs == ['cublas', 'cudnn']
     assert str(target) == str(tvm.target.cuda(options="-libs=cublas,cudnn"))

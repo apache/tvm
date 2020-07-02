@@ -23,6 +23,12 @@ from . import _ffi_api
 
 
 @tvm._ffi.register_object
+class TargetId(Object):
+    """Id of a compilation target
+    """
+
+
+@tvm._ffi.register_object
 class Target(Object):
     """Target device information, use through TVM API.
 
@@ -41,44 +47,14 @@ class Target(Object):
         # Always override new to enable class
         obj = Object.__new__(cls)
         obj._keys = None
-        obj._options = None
         obj._libs = None
         return obj
 
     @property
     def keys(self):
         if not self._keys:
-            self._keys = [str(k) for k in self.keys_array]
+            self._keys = [str(k) for k in self.keys_]
         return self._keys
-
-    @property
-    def options(self):
-        if not self._options:
-            self._options = [str(o) for o in self.options_array]
-        return self._options
-
-    @property
-    def libs(self):
-        if not self._libs:
-            self._libs = [str(l) for l in self.libs_array]
-        return self._libs
-
-    @property
-    def model(self):
-        for opt in self.options_array:
-            if opt.startswith('-model='):
-                return opt[7:]
-        return 'unknown'
-
-    @property
-    def mcpu(self):
-        """Returns the mcpu from the target if it exists."""
-        mcpu = ''
-        if self.options is not None:
-            for opt in self.options:
-                if 'mcpu' in opt:
-                    mcpu = opt.split('=')[1]
-        return mcpu
 
     def __enter__(self):
         _ffi_api.EnterTargetScope(self)
@@ -101,6 +77,40 @@ class Target(Object):
         ValueError if current target is not set.
         """
         return _ffi_api.GetCurrentTarget(allow_none)
+
+    @property
+    def max_num_threads(self):
+        return int(self.attrs["max_num_threads"])
+
+    @property
+    def thread_warp_size(self):
+        return int(self.attrs["thread_warp_size"])
+
+    @property
+    def device_name(self):
+        return str(self.attrs.get("device", ""))
+
+    @property
+    def model(self):
+        """Returns model from the target if it exists."""
+        return str(self.attrs.get("model", "unknown"))
+
+    @property
+    def mcpu(self):
+        """Returns the mcpu from the target if it exists."""
+        return str(self.attrs.get("mcpu", ""))
+
+    @property
+    def mattr(self):
+        """Returns the mattr from the target if it exists."""
+        return self.attrs.get("mattr", "")
+
+    @property
+    def libs(self):
+        if not self._libs:
+            self._libs = list(self.attrs.get("libs", ""))
+        return self._libs
+
 
 
 def _merge_opts(opts, new_opts):
@@ -167,7 +177,7 @@ def intel_graphics(model='unknown', options=None):
     options : str or list of str
         Additional options
     """
-    opts = ["-device=intel_graphics", '-model=%s' % model]
+    opts = ["-device=intel_graphics", "-model=%s" % model, "-thread_warp_size=16"]
     opts = _merge_opts(opts, options)
     return _ffi_api.TargetCreate("opencl", *opts)
 
@@ -216,7 +226,7 @@ def rasp(options=None):
 
 
 def vta(model='unknown', options=None):
-    opts = ["-device=vta", '-keys=cpu', '-model=%s' % model]
+    opts = ["-device=vta", '-keys=vta,cpu', '-model=%s' % model]
     opts = _merge_opts(opts, options)
     ret = _ffi_api.TargetCreate("ext_dev", *opts)
     return ret
