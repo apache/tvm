@@ -28,6 +28,14 @@
 
 namespace tvm {
 
+TVM_REGISTER_NODE_TYPE(TargetIdNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<TargetIdNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const TargetIdNode*>(node.get());
+      p->stream << op->name;
+    });
+
 using TargetIdRegistry = AttrRegistry<TargetIdRegEntry, TargetId>;
 
 TargetIdRegEntry& TargetIdRegEntry::RegisterOrGet(const String& target_id_name) {
@@ -45,14 +53,14 @@ const AttrRegistryMapContainerMap<TargetId>& TargetId::GetAttrMapContainer(
 
 const TargetId& TargetId::Get(const String& target_id_name) {
   const TargetIdRegEntry* reg = TargetIdRegistry::Global()->Get(target_id_name);
-  CHECK(reg != nullptr) << "TargetId " << target_id_name << " is not registered";
+  CHECK(reg != nullptr) << "ValueError: TargetId \"" << target_id_name << "\" is not registered";
   return reg->id_;
 }
 
 void VerifyTypeInfo(const ObjectRef& obj, const TargetIdNode::ValueTypeInfo& info) {
   CHECK(obj.defined()) << "Object is None";
   if (!runtime::ObjectInternal::DerivedFrom(obj.get(), info.type_index)) {
-    LOG(FATAL) << "AttributeError: expect type " << info.type_key << " but get "
+    LOG(FATAL) << "AttributeError: expect type \"" << info.type_key << "\" but get "
                << obj->GetTypeKey();
     throw;
   }
@@ -74,16 +82,16 @@ void VerifyTypeInfo(const ObjectRef& obj, const TargetIdNode::ValueTypeInfo& inf
       try {
         VerifyTypeInfo(kv.first, *info.key);
       } catch (const tvm::Error& e) {
-        LOG(FATAL) << "The key of map failed type checking, where key = " << kv.first
-                   << ", value = " << kv.second << ", and the error is:\n"
+        LOG(FATAL) << "The key of map failed type checking, where key = \"" << kv.first
+                   << "\", value = \"" << kv.second << "\", and the error is:\n"
                    << e.what();
         throw;
       }
       try {
         VerifyTypeInfo(kv.second, *info.val);
       } catch (const tvm::Error& e) {
-        LOG(FATAL) << "The value of map failed type checking, where key = " << kv.first
-                   << ", value = " << kv.second << ", and the error is:\n"
+        LOG(FATAL) << "The value of map failed type checking, where key = \"" << kv.first
+                   << "\", value = \"" << kv.second << "\", and the error is:\n"
                    << e.what();
         throw;
       }
@@ -98,16 +106,18 @@ void TargetIdNode::ValidateSchema(const Map<String, ObjectRef>& config) const {
     const ObjectRef& obj = kv.second;
     if (name == kTargetId) {
       CHECK(obj->IsInstance<StringObj>())
-          << "AttributeError: \"id\" is not a string, but its type is " << obj->GetTypeKey();
+          << "AttributeError: \"id\" is not a string, but its type is \"" << obj->GetTypeKey()
+          << "\"";
       CHECK(Downcast<String>(obj) == this->name)
-          << "AttributeError: \"id\" = " << obj << " is inconsistent with TargetId " << this->name;
+          << "AttributeError: \"id\" = \"" << obj << "\" is inconsistent with TargetId \""
+          << this->name << "\"";
       continue;
     }
     auto it = key2vtype_.find(name);
     if (it == key2vtype_.end()) {
       std::ostringstream os;
-      os << "AttributeError: Invalid config option, cannot recognize \'" << name
-         << "\'. Candidates are:";
+      os << "AttributeError: Invalid config option, cannot recognize \"" << name
+         << "\". Candidates are:";
       for (const auto& kv : key2vtype_) {
         os << "\n  " << kv.first;
       }
@@ -118,8 +128,8 @@ void TargetIdNode::ValidateSchema(const Map<String, ObjectRef>& config) const {
     try {
       VerifyTypeInfo(obj, info);
     } catch (const tvm::Error& e) {
-      LOG(FATAL) << "AttributeError: Schema validation failed for TargetId " << this->name
-                 << ", details:\n"
+      LOG(FATAL) << "AttributeError: Schema validation failed for TargetId \"" << this->name
+                 << "\", details:\n"
                  << e.what() << "\n"
                  << "The config is:\n"
                  << config;
@@ -130,12 +140,12 @@ void TargetIdNode::ValidateSchema(const Map<String, ObjectRef>& config) const {
 
 inline String GetId(const Map<String, ObjectRef>& target, const char* name) {
   const String kTargetId = "id";
-  CHECK(target.count(kTargetId)) << "AttributeError: \"id\" does not exist in " << name << "\n"
+  CHECK(target.count(kTargetId)) << "AttributeError: \"id\" does not exist in \"" << name << "\"\n"
                                  << name << " = " << target;
   const ObjectRef& obj = target[kTargetId];
-  CHECK(obj->IsInstance<StringObj>()) << "AttributeError: \"id\" is not a string in " << name
-                                      << ", but its type is " << obj->GetTypeKey() << "\n"
-                                      << name << " = " << target;
+  CHECK(obj->IsInstance<StringObj>()) << "AttributeError: \"id\" is not a string in \"" << name
+                                      << "\", but its type is \"" << obj->GetTypeKey() << "\"\n"
+                                      << name << " = \"" << target << '"';
   return Downcast<String>(obj);
 }
 
@@ -156,9 +166,292 @@ void TargetValidateSchema(const Map<String, ObjectRef>& config) {
       TargetId::Get(target_host_id)->ValidateSchema(target_host);
     }
   } catch (const tvm::Error& e) {
-    LOG(INFO) << e.what();
-    throw e;
+    LOG(FATAL) << "AttributeError: schedule validation fails:\n"
+               << e.what() << "\nThe configuration is:\n"
+               << config;
   }
 }
+
+static inline size_t CountNumPrefixDashes(const std::string& s) {
+  size_t i = 0;
+  for (; i < s.length() && s[i] == '-'; ++i) {
+  }
+  return i;
+}
+
+static inline int FindUniqueSubstr(const std::string& str, const std::string& substr) {
+  size_t pos = str.find_first_of(substr);
+  if (pos == std::string::npos) {
+    return -1;
+  }
+  size_t next_pos = pos + substr.size();
+  CHECK(next_pos >= str.size() || str.find_first_of(substr, next_pos) == std::string::npos)
+      << "ValueError: At most one \"" << substr << "\" is allowed in "
+      << "the the given string \"" << str << "\"";
+  return pos;
+}
+
+static inline ObjectRef ParseScalar(uint32_t type_index, const std::string& str) {
+  std::istringstream is(str);
+  if (type_index == Integer::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+    int v;
+    is >> v;
+    return is.fail() ? ObjectRef(nullptr) : Integer(v);
+  } else if (type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+    std::string v;
+    is >> v;
+    return is.fail() ? ObjectRef(nullptr) : String(v);
+  }
+  return ObjectRef(nullptr);
+}
+
+Map<String, ObjectRef> TargetIdNode::ParseAttrsFromRawString(
+    const std::vector<std::string>& options) {
+  std::unordered_map<String, ObjectRef> attrs;
+  for (size_t iter = 0, end = options.size(); iter < end;) {
+    std::string s = options[iter++];
+    // remove the prefix dashes
+    size_t n_dashes = CountNumPrefixDashes(s);
+    CHECK(0 < n_dashes && n_dashes < s.size())
+        << "ValueError: Not an attribute key \"" << s << "\"";
+    s = s.substr(n_dashes);
+    // parse name-obj pair
+    std::string name;
+    std::string obj;
+    int pos;
+    if ((pos = FindUniqueSubstr(s, "=")) != -1) {
+      // case 1. --key=value
+      name = s.substr(0, pos);
+      obj = s.substr(pos + 1);
+      CHECK(!name.empty()) << "ValueError: Empty attribute key in \"" << options[iter - 1] << "\"";
+      CHECK(!obj.empty()) << "ValueError: Empty attribute in \"" << options[iter - 1] << "\"";
+    } else if (iter < end && options[iter][0] != '-') {
+      // case 2. --key value
+      name = s;
+      obj = options[iter++];
+    } else {
+      // case 3. --boolean-key
+      name = s;
+      obj = "1";
+    }
+    // check if `name` is invalid
+    auto it = key2vtype_.find(name);
+    if (it == key2vtype_.end()) {
+      std::ostringstream os;
+      os << "AttributeError: Invalid config option, cannot recognize \'" << name
+         << "\'. Candidates are:";
+      for (const auto& kv : key2vtype_) {
+        os << "\n  " << kv.first;
+      }
+      LOG(FATAL) << os.str();
+    }
+    // then `name` is valid, let's parse them
+    // only several types are supported when parsing raw string
+    const auto& info = it->second;
+    ObjectRef parsed_obj(nullptr);
+    if (info.type_index != ArrayNode::_type_index) {
+      parsed_obj = ParseScalar(info.type_index, obj);
+    } else {
+      Array<ObjectRef> array;
+      std::string item;
+      bool failed = false;
+      uint32_t type_index = info.key->type_index;
+      for (std::istringstream is(obj); std::getline(is, item, ',');) {
+        ObjectRef parsed_obj = ParseScalar(type_index, item);
+        if (parsed_obj.defined()) {
+          array.push_back(parsed_obj);
+        } else {
+          failed = true;
+          break;
+        }
+      }
+      if (!failed) {
+        parsed_obj = std::move(array);
+      }
+    }
+    if (!parsed_obj.defined()) {
+      LOG(FATAL) << "ValueError: Cannot parse type \"" << info.type_key << "\""
+                 << ", where attribute key is \"" << name << "\""
+                 << ", and attribute is \"" << obj << "\"";
+    }
+    attrs[name] = std::move(parsed_obj);
+  }
+  // set default attribute values if they do not exist
+  for (const auto& kv : key2default_) {
+    if (!attrs.count(kv.first)) {
+      attrs[kv.first] = kv.second;
+    }
+  }
+  return attrs;
+}
+
+// TODO(@junrushao1994): remove some redundant attributes
+
+TVM_REGISTER_TARGET_ID("llvm")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .add_attr_option<String>("mcpu")
+    .add_attr_option<String>("mattr")
+    .add_attr_option<String>("mtriple")
+    .add_attr_option<String>("target")  // FIXME: rename to mtriple
+    .set_default_keys({"cpu"})
+    .set_device_type(kDLCPU);
+
+TVM_REGISTER_TARGET_ID("c")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .set_default_keys({"cpu"})
+    .set_device_type(kDLCPU);
+
+TVM_REGISTER_TARGET_ID("micro_dev")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .set_default_keys({"micro_dev"})
+    .set_device_type(kDLMicroDev);
+
+TVM_REGISTER_TARGET_ID("cuda")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .add_attr_option<Integer>("max_num_threads", Integer(1024))
+    .add_attr_option<Integer>("thread_warp_size", Integer(32))
+    .add_attr_option<String>("mcpu")
+    .set_default_keys({"cuda", "gpu"})
+    .set_device_type(kDLGPU);
+
+TVM_REGISTER_TARGET_ID("nvptx")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .add_attr_option<Integer>("max_num_threads", Integer(1024))
+    .add_attr_option<Integer>("thread_warp_size", Integer(32))
+    .add_attr_option<String>("mcpu")
+    .set_default_keys({"cuda", "gpu"})
+    .set_device_type(kDLGPU);
+
+TVM_REGISTER_TARGET_ID("rocm")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("thread_warp_size", Integer(64))
+    .set_default_keys({"rocm", "gpu"})
+    .set_device_type(kDLROCM);
+
+TVM_REGISTER_TARGET_ID("opencl")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("thread_warp_size")
+    .set_default_keys({"opencl", "gpu"})
+    .set_device_type(kDLOpenCL);
+
+TVM_REGISTER_TARGET_ID("metal")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .set_default_keys({"metal", "gpu"})
+    .set_device_type(kDLMetal);
+
+TVM_REGISTER_TARGET_ID("vulkan")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .set_default_keys({"vulkan", "gpu"})
+    .set_device_type(kDLVulkan);
+
+TVM_REGISTER_TARGET_ID("webgpu")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .set_default_keys({"webgpu", "gpu"})
+    .set_device_type(kDLWebGPU);
+
+TVM_REGISTER_TARGET_ID("sdaccel")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .set_default_keys({"sdaccel", "hls"})
+    .set_device_type(kDLOpenCL);
+
+TVM_REGISTER_TARGET_ID("aocl")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .set_default_keys({"aocl", "hls"})
+    .set_device_type(kDLAOCL);
+
+TVM_REGISTER_TARGET_ID("aocl_sw_emu")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .set_default_keys({"aocl", "hls"})
+    .set_device_type(kDLAOCL);
+
+TVM_REGISTER_TARGET_ID("hexagon")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .set_default_keys({"hexagon"})
+    .set_device_type(kDLHexagon);
+
+TVM_REGISTER_TARGET_ID("stackvm")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .set_device_type(kDLCPU);
+
+TVM_REGISTER_TARGET_ID("ext_dev")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .set_device_type(kDLExtDev);
+
+TVM_REGISTER_TARGET_ID("hybrid")
+    .add_attr_option<Array<String>>("keys")
+    .add_attr_option<Array<String>>("libs")
+    .add_attr_option<String>("device")
+    .add_attr_option<String>("model")
+    .add_attr_option<Bool>("system-lib")
+    .set_device_type(kDLCPU);
 
 }  // namespace tvm

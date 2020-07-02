@@ -177,7 +177,7 @@ bool VerifyMemory(const PrimFunc& func) {
 
   if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
       CallingConv::kDefault) {
-    MemoryAccessVerifier v(func, target.value()->device_type);
+    MemoryAccessVerifier v(func, target.value()->id->device_type);
     v.Run();
     return !v.Failed();
   } else {
