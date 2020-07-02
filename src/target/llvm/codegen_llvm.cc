@@ -326,7 +326,11 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
     }
   }
   if (dtype.lanes() != 1) {
+#if TVM_LLVM_VERSION >= 110
+    return llvm::FixedVectorType::get(etype, dtype.lanes());
+#else
     return llvm::VectorType::get(etype, dtype.lanes());
+#endif
   } else {
     return etype;
   }
@@ -453,7 +457,12 @@ std::unique_ptr<CodeGenLLVM::DebugInfo> CodeGenLLVM::CreateDebugInfo(llvm::Modul
 }
 
 llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
-  llvm::Constant* undef = llvm::UndefValue::get(llvm::VectorType::get(value->getType(), lanes));
+#if TVM_LLVM_VERSION >= 110
+  llvm::Type* type = llvm::FixedVectorType::get(value->getType(), lanes);
+#else
+  llvm::Type* type = llvm::VectorType::get(value->getType(), lanes);
+#endif
+  llvm::Constant* undef = llvm::UndefValue::get(type);
   llvm::Constant* zero = ConstInt32(0);
   value = builder_->CreateInsertElement(undef, value, zero);
 #if TVM_LLVM_VERSION >= 110
