@@ -139,7 +139,7 @@ def schedule_conv2d_NHWC_quantized(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
     # Vectorize the output and then inline all the rest
     out = outs[0]
-    n,h,w,c = out.op.axis
+    n, h, w, c = out.op.axis
     outer, inner = s[out].split(c, 4)
     s[out].vectorize(inner)
 

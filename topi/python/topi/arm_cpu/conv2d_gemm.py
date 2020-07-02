@@ -175,7 +175,7 @@ def schedule_conv2d_gemm(cfg, s, out, final_out):
     if out != final_out:
         n, h, w, c = out.op.axis
         _, inner = s[out].split(c, 4)
-        s[C].compute_at(s[out],inner)
+        s[C].compute_at(s[out], inner)
         s[out].vectorize(inner)
 
 
