@@ -30,15 +30,11 @@
 #include <tvm/te/schedule.h>
 
 #include <utility>
-#include <vector>
 
-#include "transform_step.h"
+#include "loop_state.h"
 
 namespace tvm {
 namespace ansor {
-
-class StateNode;
-class State;
 
 /*!
  * \brief Update stage and axes mapping during replay.
@@ -57,12 +53,13 @@ class ComputeDAGNode : public Object {
   /*! \brief Number of total float operations for this ComputeDAG. */
   double flop_ct;
   /*! \brief The initial state without any transform steps. */
-  ObjectRef init_state;
+  State init_state;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tensors", &tensors);
     v->Visit("ops", &ops);
     v->Visit("flop_ct", &flop_ct);
+    v->Visit("init_state", &init_state);
   }
 
   static constexpr const char* _type_key = "ansor.ComputeDAG";
@@ -118,13 +115,7 @@ class ComputeDAG : public ObjectRef {
    * Return the new states inplace.
    * \param states A pointer to a State vector, States are updated inplace.
    */
-  void InferBound(std::vector<State>* states) const;
-
-  /*!
-   * \brief Get the init state.
-   * \return The init state.
-   */
-  State GetInitState() const;
+  void InferBound(Array<State>* states) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeDAG, ObjectRef, ComputeDAGNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeDAGNode);

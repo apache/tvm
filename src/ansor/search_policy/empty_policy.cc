@@ -82,7 +82,7 @@ Array<State> EmptyPolicyNode::SearchOneRound() {
   Array<State> res;
 
   // 1. We will process `Program sampling` first to generate several initial schedules
-  res.push_back(cur_task->compute_dag.GetInitState());
+  res.push_back(cur_task->compute_dag->init_state);
 
   // 2. Then `Performance Tuning`: use cost model and evolutionary search to seek for the schedule
   // with best performance

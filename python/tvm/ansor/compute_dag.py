@@ -59,7 +59,7 @@ class ComputeDAG(Object):
         state : State
             The initial State without any transform steps.
         """
-        return State(_ffi_api.ComputeDAGGetInitState(self), self)
+        return State(self.init_state, self)
 
     def apply_steps_from_state(self, state):
         """

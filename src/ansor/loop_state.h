@@ -44,13 +44,14 @@
 #include <functional>
 #include <vector>
 
-#include "compute_dag.h"
 #include "transform_step.h"
 
 namespace tvm {
 namespace ansor {
 
 using namespace tvm::tir;
+
+class ComputeDAG;
 
 /*! \brief The type of a stage. */
 enum StageType {
@@ -242,22 +243,23 @@ class StateNode : public Object {
   Array<Step> transform_steps;
   /*! \brief Indicate whether this state has unfilled tile sizes. */
   bool complete;
-  /*!
-   * \brief The up-to-date ComputeDAG of this state, used for some steps that may change the
-   * stage structure of the ComputeDAG, for exp. CacheReadStep/CacheWriteStep(Will be added later).
-   * The default value is an empty NodeRef. (means no modification to the original DAG)
-   */
-  ComputeDAG task_dag;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("stages", &stages);
     v->Visit("transform_steps", &transform_steps);
     v->Visit("complete", &complete);
-    v->Visit("task_dag", &task_dag);
   }
 
   static constexpr const char* _type_key = "ansor.State";
   TVM_DECLARE_FINAL_OBJECT_INFO(StateNode, Object);
+
+ private:
+  /*!
+   * \brief The up-to-date ComputeDAG of this state, used for some steps that may change the
+   * stage structure of the ComputeDAG, for exp. CacheReadStep/CacheWriteStep(Will be added later).
+   * The default value is an empty ObjectRef. (means no modification to the original DAG)
+   */
+  ObjectRef current_compute_dag;
 };
 
 /*!

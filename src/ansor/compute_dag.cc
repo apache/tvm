@@ -242,8 +242,6 @@ ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   data_ = std::move(node);
 }
 
-State ComputeDAG::GetInitState() const { return Downcast<State>(operator->()->init_state); }
-
 std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ApplySteps(
     const Array<Step>& transform_steps) const {
   Array<te::Stage> stages;
@@ -295,7 +293,7 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
 }
 
 State ComputeDAG::ReplayAndInferBound(const Array<Step>& transform_steps) const {
-  State ret_state = GetInitState();
+  State ret_state = operator->()->init_state;
   StateNode* pstate = ret_state.CopyOnWrite();
   pstate->transform_steps = transform_steps;
   ret_state.DoSteps(transform_steps, *this);
@@ -314,12 +312,12 @@ State ComputeDAG::InferBound(const State& state) const {
   return ret_state;
 }
 
-void ComputeDAG::InferBound(std::vector<State>* states) const {
-  std::vector<State> out_states(states->size(), State());
+void ComputeDAG::InferBound(Array<State>* states) const {
+  Array<State> out_states(states->size(), State());
 
   auto worker_func = [&states, &out_states, this](int idx) {
     try {
-      out_states[idx] = this->InferBound((*states)[idx]);
+      out_states.Set(idx, this->InferBound((*states)[idx]));
     } catch (dmlc::Error& e) {
       LOG(WARNING) << "InferBound fails on the state:\n"
                    << (*states)[idx] << "\n"
@@ -483,8 +481,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_GLOBAL("ansor.ComputeDAG").set_body_typed([](Array<te::Tensor> tensors) {
   return ComputeDAG(tensors);
 });
-
-TVM_REGISTER_GLOBAL("ansor.ComputeDAGGetInitState").set_body_method(&ComputeDAG::GetInitState);
 
 TVM_REGISTER_GLOBAL("ansor.ComputeDAGApplyStepsFromState")
     .set_body_typed([](const ComputeDAG& dag, const State& state) {
