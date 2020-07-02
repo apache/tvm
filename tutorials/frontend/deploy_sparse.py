@@ -92,37 +92,29 @@ import scipy.sparse as sp
 # ------------------
 # Let's start by defining some parameters that define the type of model
 # and sparsity to run.
-# Args:
-# name (str):
-#   The name of the transformer model to download and run.
-# batch_size (int):
-#   The number of batches in an input.
-# seq_len (int):
-#   The length of each input sequence.
-# target (str):
-#   TVM platform identifier. Although cuda is also supported, it requires
-#   tuning that is outside the scope of this tutorial. Note that best
-#   cpu performance can be achieved by setting -mcpu appropriately for
-#   your specific machine.
-# ctx (context):
-#   Which device to run on. Should be one of tvm.cpu() or tvm.gpu().
-# measure_sparse (bool):
-#   If true, then a sparse variant of the network will be run and
-#   benchmarked.
-# bs_r (int):
-#   The block size of structured sparsity to convert weight tensors
-#   into. Changing this parameter may yield speedups for some platforms.
-# sparsity (float):
-#   For models besides PruneBert (which is 95% sparse), this parameter
-#   determines how sparse the generated weights should be. The higher
-#   the sparsity, the faster the result.
+
+# The name of the transformer model to download and run.
 name = "huggingface/prunebert-base-uncased-6-finepruned-w-distil-squad"
+# The number of batches in an input.
 batch_size = 1
+# The length of each input sequence.
 seq_len = 128
+# TVM platform identifier. Although cuda is also supported, it requires
+# tuning that is outside the scope of this tutorial. Note that best
+# cpu performance can be achieved by setting -mcpu appropriately for
+# your specific machine.
 target = "llvm"
+# Which device to run on. Should be one of tvm.cpu() or tvm.gpu().
 ctx = tvm.cpu()
+# If true, then a sparse variant of the network will be run and
+# benchmarked.
 measure_sparse = True
+# The block size of structured sparsity to convert weight tensors
+# into. Changing this parameter may yield speedups for some platforms.
 bs_r = 1
+# For models besides PruneBert (which is 95% sparse), this parameter
+# determines how sparse the generated weights should be. The higher
+# the sparsity, the faster the result.
 sparsity = 0.85
 
 
@@ -247,7 +239,7 @@ def run_dense(mod, params, shape_dict, target, ctx):
 
 ###############################################################################
 # Run the Sparse Graph
-# -------------------
+# --------------------
 # Next we'll convert the graph into a sparse representation and generate
 # fake sparse weights if needed. Then we'll use the same benchmarking
 # script as dense to see how much faster we go! We apply a few relay passes
