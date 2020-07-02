@@ -29,6 +29,8 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/runtime/registry.h>
 
+#include <vector>
+
 namespace tvm {
 namespace relay {
 namespace dyn {
@@ -129,7 +131,7 @@ RELAY_REGISTER_OP("dyn.reshape")
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // tile operator
-//TVM_REGISTER_NODE_TYPE(TileAttrs);
+// TVM_REGISTER_NODE_TYPE(TileAttrs);
 
 bool TileRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
              const TypeReporter& reporter) {
