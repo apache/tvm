@@ -19,12 +19,14 @@ Deploy a Hugging Face Pruned Model on CPU
 =========================================
 **Author**: `Josh Fromm <https://github.com/jwfromm>`_
 
-This tutorial demonstrates how to take a state of the art pruned model,
-in this case PruneBert from Hugging Face, and use TVM to leverage the model's
-sparsity to produce real speedups. Although the primary purpose of this
-tutorial is to show speedups on already pruned models, it may be useful
-to estimate how fast a model would be *if* it were pruned. To this end,
-we also provide a function that takes an unpruned model and replaces its weights
+This tutorial demonstrates how to take any pruned model, in this case `PruneBert
+from Hugging Face
+<https://huggingface.co/huggingface/prunebert-base-uncased-6-finepruned-w-distil-squad>`_,
+and use TVM to leverage the model's sparsity support to produce real speedups. Although
+the primary purpose of this tutorial is to realize speedups on already pruned
+models, it may also be useful to estimate how fast a model would be *if* it were
+pruned. To this end, we also provide a function that takes an unpruned model and
+replaces its weights
 with random and pruned weights at a specified sparsity. This may be a useful
 feature when trying to decide if a model is worth pruning or not.
 
@@ -33,7 +35,7 @@ and dig into the two
 different types of sparsity: **structured** and **unstructured**.
 
 Pruning is a technique primarily used to reduce the parameter size of a model
-by replacing weights with 0s. Although many methods exist for choosing which
+by replacing weight values with 0s. Although many methods exist for choosing which
 weights should be set to 0, the most straight forward is by picking the 
 weights with the smallest value. Typically, weights are pruned to a desired
 sparsity percentage. For example, a 95% sparse model would have only 5% of
@@ -48,9 +50,10 @@ pruned weights together. In other words, they are pruned using both their
 value and location. The benefit of bunching up pruned weights is that it allows
 an algorithm such as matrix multiplication to skip entire blocks. It turns out
 that some degree of *block sparsity* is very important to realizing significant
-speedups. This is because when loading memory in most CPUs or GPUs, it's not
-possible to load a single value, instead an entire chunk or tile is read in and
-executed using something like vectorized instructions.
+speedups on most hardware available today. 
+This is because when loading memory in most CPUs or GPUs, 
+it doesn't save any work to skip reading a single value at a time, instead an entire
+chunk or tile is read in and executed using something like vectorized instructions.
 
 Unstructured sparse weights are those that are pruned only on the value of
 the original weights. They may appear to be scattered randomly throughout
@@ -62,7 +65,7 @@ will naturally appear, making it possible to accelerate.
 This tutorial interacts with both structured and unstructured sparsity.
 Hugging Face's PruneBert model is unstructured but 95% sparse, allowing us
 to apply TVM's block sparse optimizations to it, even if not optimally.
-When generating random sparse weights for an unpruned model, we do so structured
+When generating random sparse weights for an unpruned model, we do so with structured
 sparsity. A fun exercise is comparing the real speed of PruneBert with the block
 sparse speed using fake weights to see the benefit of structured sparsity.
 """
@@ -122,7 +125,7 @@ sparsity = 0.85
 # Download and Convert Transformers Model
 # ---------------------------------------
 # Now we'll grab a model from the transformers module, download it,
-# convert it into a graphdef, and finally convert that graphdef into
+# convert it into a TensorFlow graphdef in preperation for converting that graphdef into
 # a relay graph that we can optimize and deploy.
 def load_keras_model(module, name, seq_len, batch_size, report_runtime=True):
     model = module.from_pretrained(name)
@@ -154,6 +157,7 @@ def convert_to_graphdef(model, batch_size, seq_len):
 
 def download_model(name, batch_size, seq_len):
     import transformers
+
     module = getattr(transformers, "TFBertForSequenceClassification")
     model = load_keras_model(module, name=name, batch_size=batch_size, seq_len=seq_len)
     return convert_to_graphdef(model, batch_size, seq_len)
@@ -208,7 +212,8 @@ def import_graphdef(
 # -------------------
 # Let's run the default version of the imported model. Note that even if
 # the weights are sparse, we won't see any speedup because we are using
-# regular matrix multiplies instead of fast sparse kernels.
+# regular dense matrix multiplications on these dense (but mostly zero)
+# tensors instead of sparse aware kernels.
 def run_relay_graph(mod, params, shape_dict, target, ctx):
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(mod, target=target, params=params)
@@ -248,6 +253,17 @@ def run_dense(mod, params, shape_dict, target, ctx):
 # into the parameters. This makes it easier to convert to matrix multiplies
 # to sparse versions. Next we apply `bsr_dense.convert` to identify all
 # weight matrices that can be sparse, and automatically replace them.
+# 
+# The `bsr_dense.convert` call below is doing the heavy lifting of identifying
+# which weights in the model can be made sparse by checking if they are
+# at least `sparsity_threshold` percent sparse. If so, it converts those
+# weights into *Block Compressed Row Format (BSR)*. BSR is essentially
+# a representation that indexes into the nonzero chunks of the tensor,
+# making it easy for an algorithm to load those non-zero chunks and ignore
+# the rest of the tensor. Once the sparse weights are in BSR format,
+# `relay.transform.DenseToSparse` is applied to actually replace
+# `relay.dense` operations with `relay.sparse_dense` calls that can be
+# run faster.
 def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype="float32"):
     Y = np.zeros((M, N), dtype=dtype)
     assert M % BS_R == 0
