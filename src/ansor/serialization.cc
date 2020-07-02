@@ -144,9 +144,8 @@ struct Handler<::tvm::Array<::tvm::ansor::Step>> {
         for (const auto& i : int_list) {
           lengths.push_back(::tvm::PrimExpr(i));
         }
-        data->push_back(
-            ::tvm::ansor::SplitStep(stage_id, iter_id, extent == 0 ? ::tvm::PrimExpr() : extent,
-                                    lengths, inner_to_outer));
+        data->push_back(::tvm::ansor::SplitStep(
+            stage_id, iter_id, extent == 0 ? ::tvm::PrimExpr() : extent, lengths, inner_to_outer));
       } else if (name == "FU") {
         s = reader->NextArrayItem();
         CHECK(s);
