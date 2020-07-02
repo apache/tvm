@@ -332,3 +332,21 @@ def benchmark():
 
 
 # benchmark()
+
+###############################################################################
+# Sample Output
+# -------------
+# For reference, below is the output of the script when run on an AMD CPU
+# and shows about a 2.5X speedup from using sparsity.
+
+# Dense Model Benchmark:
+# Cannot find config for target=llvm, workload=('dense_nopack.x86', ('TENSOR', (1, 768), 'float32'), ('TENSOR', (2, 768), 'float32'), None, 'float32'). A fallback configuration is used, which may bring great performance regression.
+# Cannot find config for target=llvm, workload=('dense_nopack.x86', ('TENSOR', (1, 768), 'float32'), ('TENSOR', (768, 768), 'float32'), None, 'float32'). A fallback configuration is used, which may bring great performance regression.
+# Cannot find config for target=llvm, workload=('dense_nopack.x86', ('TENSOR', (128, 3072), 'float32'), ('TENSOR', (768, 3072), 'float32'), None, 'float32'). A fallback configuration is used, which may bring great performance regression.
+# Cannot find config for target=llvm, workload=('dense_nopack.x86', ('TENSOR', (128, 768), 'float32'), ('TENSOR', (3072, 768), 'float32'), None, 'float32'). A fallback configuration is used, which may bring great performance regression.
+# Cannot find config for target=llvm, workload=('dense_nopack.x86', ('TENSOR', (128, 768), 'float32'), ('TENSOR', (768, 768), 'float32'), None, 'float32'). A fallback configuration is used, which may bring great performance regression.
+# Cannot find config for target=llvm, workload=('batch_matmul.x86', ('TENSOR', (12, 128, 128), 'float32'), ('TENSOR', (12, 64, 128), 'float32')). A fallback configuration is used, which may bring great performance regression.
+# Cannot find config for target=llvm, workload=('batch_matmul.x86', ('TENSOR', (12, 128, 64), 'float32'), ('TENSOR', (12, 128, 64), 'float32')). A fallback configuration is used, which may bring great performance regression.
+# Runtime:             165.26 ms           (12.83 ms)
+# Block Sparse Model with 1x1 blocks:
+# Runtime:             67.75 ms            (8.83 ms)
