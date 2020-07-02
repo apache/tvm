@@ -153,6 +153,19 @@ struct ArangeAttrs : public tvm::AttrsNode<ArangeAttrs> {
   }
 };  // struct ArangeAttrs
 
+/*! \brief Attributes used in meshgrid operators */
+struct MeshgridAttrs : public tvm::AttrsNode<MeshgridAttrs> {
+  std::string indexing;
+
+  TVM_DECLARE_ATTRS(MeshgridAttrs, "relay.attrs.MeshgridAttrs") {
+    TVM_ATTR_FIELD(indexing)
+        .describe(
+            "Indexing mode, either \"ij\" for matrix or \"xy\" for cartesian in which first two"
+            "dimensions are swapped.")
+        .set_default("ij");
+  }
+};  // struct MeshgridAttrs
+
 /*! \brief Attributes used in stack operators */
 struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
   Integer axis;

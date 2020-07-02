@@ -466,6 +466,25 @@ def test_forward_arange():
     verify_model(Arange11().float().eval())
     verify_model(Arange12().float().eval())
 
+def test_forward_mesh_grid():
+    torch.set_grad_enabled(False)
+
+    class MeshGrid1(Module):
+        def forward(self, *args):
+            x = torch.tensor([1, 2, 3])
+            y = torch.tensor([4, 5, 6])
+            grid_x, grid_y = torch.meshgrid([x, y])
+            return grid_x, grid_y
+
+    class MeshGrid2(Module):
+        def forward(self, *args):
+            x = torch.tensor([1, 2, 3], dtype=torch.float32)
+            y = torch.add(torch.tensor(5, dtype=torch.float32), 1)
+            grid_x, grid_y = torch.meshgrid([x, y])
+            return grid_x, grid_y
+
+    verify_model(MeshGrid1().float().eval())
+    verify_model(MeshGrid2().float().eval())
 
 def test_forward_abs():
     torch.set_grad_enabled(False)
@@ -2677,6 +2696,7 @@ if __name__ == "__main__":
     test_forward_full_like()
     test_forward_linspace()
     test_forward_arange()
+    test_forward_mesh_grid()
     test_forward_chunk()
     test_forward_split()
     test_upsample()
