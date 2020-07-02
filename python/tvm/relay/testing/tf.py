@@ -50,7 +50,7 @@ def ProcessGraphDefParam(graph_def):
     Returns
     -------
     graph_def : Obj
-        tensorflow graph devinition
+        tensorflow graph definition
 
     """
 
