@@ -62,8 +62,9 @@ runtime::Module BuildAOCL(IRModule mod, std::string target_str, bool emulation) 
   // AOCL supports fp64.
   cmd += " -Dcl_khr_fp64";
   Target target = Target::Create(target_str);
-  if (target->device_name != "") {
-    cmd += " -board=" + target->device_name;
+  Optional<String> device = target->GetAttr<String>("device");
+  if (device.defined()) {
+    cmd += " -board=" + device.value();
   }
   if (emulation) {
     cmd += " -march=emulator";

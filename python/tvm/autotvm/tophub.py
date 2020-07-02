@@ -103,11 +103,10 @@ def context(target, extra_files=None):
             tgt = _target.create(tgt)
 
         possible_names = []
-        for opt in tgt.options:
-            if opt.startswith("-device"):
-                device = _alias(opt[8:])
-                possible_names.append(device)
-        possible_names.append(tgt.target_name)
+        device = tgt.attrs.get("device", "")
+        if device != "":
+            possible_names.append(_alias(device))
+        possible_names.append(tgt.id.name)
 
         all_packages = list(PACKAGE_VERSION.keys())
         for name in possible_names:

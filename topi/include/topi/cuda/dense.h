@@ -62,7 +62,7 @@ inline tvm::te::Tensor dense_cuda(const Target& target, const tvm::te::Tensor& d
   auto in_dim = data->shape[1];
   auto out_dim = weight->shape[0];
 
-  if (target->libs().count("cublas")) {
+  if (target->GetLibs().count("cublas")) {
     CHECK_EQ(data->dtype, out_dtype) << "Mixed precision not supported.";
     auto mm = topi::contrib::cublas_matmul(data, weight, false, true);
     if (bias.defined()) {
@@ -85,7 +85,7 @@ inline tvm::te::Tensor dense_cuda(const Target& target, const tvm::te::Tensor& d
  * \return A schedule for the given ops.
  */
 inline Schedule schedule_dense(const Target& target, const Array<Tensor>& outs) {
-  if (target->target_name == "cuda" && target->libs().count("cublas")) {
+  if (target->id->name == "cuda" && target->GetLibs().count("cublas")) {
     return topi::generic::schedule_extern(target, outs);
   }
 

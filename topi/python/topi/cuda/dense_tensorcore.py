@@ -95,7 +95,7 @@ def _schedule_dense_tensorcore(cfg, s, C):
     target = tvm.target.Target.current()
     if cfg.is_fallback:
         ref_log = autotvm.tophub.load_reference_log(
-            target.target_name, target.model, 'dense_tensorcore.cuda')
+            target.id.name, target.model, 'dense_tensorcore.cuda')
         cfg.fallback_with_reference_log(ref_log)
 
     # Deal with op fusion, such as bias and relu
