@@ -268,7 +268,6 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
   }
 
   std::stringstream ss;
-
   for (const auto& stage : stages) {
     if (stage->op->IsInstance<te::ComputeOpNode>()) {
       for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
@@ -283,10 +282,17 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
          << "tuple(" << stage->op->name << ".op.reduce_axis)\n";
     }
   }
-  std::vector<Step> step_vector(transform_steps.begin(), transform_steps.end());
   // Call each step's PrintAsPythonAPI method
   for (const auto& step : transform_steps) {
-    ss << step->PrintAsPythonAPI(&stages, &stage_to_axes, &schedule, step_vector);
+    if (auto ps = step.as<ReorderStepNode>()) {
+      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+    } else if (auto ps = step.as<SplitStepNode>()) {
+      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+    } else if (auto ps = step.as<FuseStepNode>()) {
+      ss << ps->PrintAsPythonAPI(&stages, &stage_to_axes);
+    } else {
+      LOG(FATAL) << "Invalid Step";
+    }
   }
 
   return ss.str();
@@ -365,8 +371,8 @@ void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
 
       auto find_res = bounds.find(axis);
       if (find_res != bounds.end()) {
-        new_iters.push_back(Iterator(iter->name, (*find_res).second, iter->iter_type,
-                                     iter->annotation, &iter->ori_iters, iter->attr));
+        new_iters.push_back(
+            Iterator(iter->name, (*find_res).second, iter->iter_type, iter->annotation));
       } else {
         LOG(FATAL) << "Infer bound fails";
       }
@@ -412,8 +418,7 @@ std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
     }
     // Call each step's ApplyToSchedule method
     // Note: some steps have extra parameters that must be passed and they may need different
-    // return value, so the ApplyToSchedule is not able to be merged to single interface like
-    // PrintAsPythonAPI does
+    // return value, so the ApplyToSchedule is not able to be merged to single interface
     if (auto ps = step.as<ReorderStepNode>()) {
       ps->ApplyToSchedule(stages, stage_to_axes);
     } else if (auto ps = step.as<SplitStepNode>()) {

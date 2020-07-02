@@ -34,7 +34,7 @@
  *    - In these two functions you need to incrementally update all data structures in State with
  *      CopyOnWrite style
  * 4. Add you step to `ComputeDAG::ReplaySteps` and make sure it works.
- * 5. Add serialization support in `struct Handler<std::vector<::tvm::ansor::Step> >`
+ * 5. Add serialization support in `struct Handler<Array<::tvm::ansor::Step> >`
  *    in `serialization.cc`.
  * 6. Add hash support in `struct hash<::tvm::ansor::Step>`. (search for this function in this file)
  * 7. Add its corresponding Python API to `loop_state.py` and necessary unit test.
@@ -47,9 +47,7 @@
 #include <tvm/node/node.h>
 #include <tvm/te/schedule.h>
 
-#include <string>
 #include <unordered_map>
-#include <vector>
 
 #include "utils.h"
 
@@ -58,8 +56,6 @@ namespace ansor {
 
 typedef std::unordered_map<tvm::te::Stage, Array<tir::IterVar>, ObjectHash, ObjectEqual>
     StageToAxesMap;
-
-class Step;
 
 /*!
  * \brief The base class for a transformation step. Each step has its corresponding tvm.te
@@ -70,22 +66,14 @@ class StepNode : public Object {
   /*! \brief The index of the target stage. */
   int stage_id;
 
-  /*!
-   * \brief Print step as equivalent python schedule API.
-   * \param stages A pointer to `te::Stage` vector.
-   * \param stage_to_axes A pointer to StageToAxesMap.
-   * \param schedule A pointer to `te::Schedule`.
-   * \param transform_steps Transform steps of the target state.
-   * \return Python schedule code.
-   */
-  virtual String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                                  te::Schedule* schedule,
-                                  const std::vector<Step>& transform_steps) const = 0;
-
   static constexpr const char* _type_key = "ansor.Step";
   TVM_DECLARE_BASE_OBJECT_INFO(StepNode, Object);
 };
 
+/*!
+ * \brief Managed reference to StepNode.
+ * \sa StepNode
+ */
 class Step : public ObjectRef {
  public:
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Step, ObjectRef, StepNode);
@@ -107,9 +95,13 @@ class ReorderStepNode : public StepNode {
    */
   void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
-  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                          te::Schedule* schedule,
-                          const std::vector<Step>& transform_steps) const final;
+  /*!
+   * \brief Print step as equivalent python schedule API.
+   * \param stages A pointer to `te::Stage` vector.
+   * \param stage_to_axes A pointer to StageToAxesMap.
+   * \return Python schedule code.
+   */
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "ansor.ReorderStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReorderStepNode, Object);
@@ -158,9 +150,13 @@ class SplitStepNode : public StepNode {
   Array<tir::IterVar> ApplyToSchedule(Array<te::Stage>* stages,
                                       StageToAxesMap* stage_to_axes) const;
 
-  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                          te::Schedule* schedule,
-                          const std::vector<Step>& transform_steps) const final;
+  /*!
+   * \brief Print step as equivalent python schedule API.
+   * \param stages A pointer to `te::Stage` vector.
+   * \param stage_to_axes A pointer to StageToAxesMap.
+   * \return Python schedule code.
+   */
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "ansor.SplitStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(SplitStepNode, Object);
@@ -199,9 +195,13 @@ class FuseStepNode : public StepNode {
    */
   tir::IterVar ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
-  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                          te::Schedule* schedule,
-                          const std::vector<Step>& transform_steps) const final;
+  /*!
+   * \brief Print step as equivalent python schedule API.
+   * \param stages A pointer to `te::Stage` vector.
+   * \param stage_to_axes A pointer to StageToAxesMap.
+   * \return Python schedule code.
+   */
+  String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   static constexpr const char* _type_key = "ansor.FuseStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuseStepNode, Object);
@@ -246,7 +246,15 @@ struct hash<::tvm::ansor::Step> {
     } else if (auto ps = step.as<::tvm::ansor::SplitStepNode>()) {
       size_t ret = ::dmlc::HashCombine(2,
                    ::dmlc::HashCombine(std::hash<int>()(ps->stage_id),
-                   ::dmlc::HashCombine(std::hash<int>()(ps->iter_id), ps->inner_to_outer)));
+                   ::dmlc::HashCombine(std::hash<int>()(ps->iter_id),
+                                       std::hash<bool>()(ps->inner_to_outer))));
+      if (ps->extent.defined()) {
+          const auto& pint = ps->extent.as<::tvm::tir::IntImmNode>();
+          CHECK(pint != nullptr);
+          ret = ::dmlc::HashCombine(ret, pint->value);
+      } else {
+        ret = ::dmlc::HashCombine(ret, 0x5D);  // a magic number
+      }
       for (const auto& x : ps->lengths) {
         if (x.defined()) {
           const auto& pint = x.as<::tvm::tir::IntImmNode>();

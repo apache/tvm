@@ -42,17 +42,13 @@ TVM_REGISTER_NODE_TYPE(StateNode);
 TVM_REGISTER_NODE_TYPE(IteratorNode);
 
 /********** Iterator **********/
-Iterator::Iterator(String name, Range range, IteratorType iter_type, IteratorAnnotation annotation,
-                   const std::vector<Iterator>* ori_iters, String attr) {
+Iterator::Iterator(String name, Range range, IteratorType iter_type,
+                   IteratorAnnotation annotation) {
   auto node = make_object<IteratorNode>();
   node->name = std::move(name);
   node->range = std::move(range);
   node->iter_type = iter_type;
   node->annotation = annotation;
-  if (ori_iters != nullptr) {
-    node->ori_iters = *ori_iters;
-  }
-  node->attr = std::move(attr);
   data_ = std::move(node);
 }
 
@@ -231,7 +227,6 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   PrimExpr new_extent = 1;
   IteratorType new_iter_type = kSpecial;
 
-  std::vector<Iterator> ori_iters;
   for (size_t i = 0; i < step->fused_ids.size(); ++i) {
     if (i > 0) {
       CHECK_EQ(step->fused_ids[i].as<IntImmNode>()->value,
@@ -239,7 +234,6 @@ Iterator State::DoFuseStep(const FuseStep& step) {
     }
 
     const Iterator& it = stage->iters[step->fused_ids[i].as<IntImmNode>()->value];
-    ori_iters.push_back(it);
     new_name = new_name + it->name + "@";
 
     if (it->range.defined() && new_extent.defined()) {
@@ -261,7 +255,7 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   if (new_extent.defined()) {
     range = Range::FromMinExtent(0, new_extent);
   }
-  Iterator new_it = Iterator(new_name, range, new_iter_type, kNone, &ori_iters);
+  Iterator new_it = Iterator(new_name, range, new_iter_type, kNone);
   Array<Iterator> new_iters;
   new_iters.insert(new_iters.end(), stage->iters.begin(),
                    stage->iters.begin() + step->fused_ids.front().as<IntImmNode>()->value);
@@ -368,9 +362,6 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state, size_t b
       } else {
         *os << iter->name << " (None)";
       }
-      if (!iter->attr.empty()) {
-        *os << " " << iter->attr;
-      }
       *os << "\n";
 
       indent += 2;
@@ -386,7 +377,7 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state, size_t b
 // Print state to ostream
 void PrintState(std::ostream* os, const StateNode* node, bool delete_trivial_loop) {
   // Gather placeholders
-  std::vector<String> placeholders;
+  Array<String> placeholders;
   for (const auto& stage : node->stages) {
     if (stage->op_type == kPlaceholder) {
       placeholders.push_back(stage->op->name);

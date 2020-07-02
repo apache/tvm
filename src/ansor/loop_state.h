@@ -42,7 +42,6 @@
 #include <tvm/runtime/container.h>
 
 #include <functional>
-#include <vector>
 
 #include "transform_step.h"
 
@@ -107,9 +106,6 @@ enum IteratorAnnotation {
   kTensorized = 9
 };
 
-// forward declaration
-class Iterator;
-
 /*!
  * \brief A for loop iterator
  * Similar to tvm::IterVar in `include/tvm/tir/expr.h`
@@ -124,15 +120,10 @@ class IteratorNode : public Object {
   IteratorType iter_type;
   /*! \brief The annotation type of this iterator. */
   IteratorAnnotation annotation;
-  /*! \brief The original iterators before fusion. */
-  std::vector<Iterator> ori_iters;
-  /*! \brief The extra attributes of this iterator. */
-  String attr;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("range", &range);
-    v->Visit("attr", &attr);
   }
 
   static constexpr const char* _type_key = "ansor.Iterator";
@@ -151,11 +142,8 @@ class Iterator : public ObjectRef {
    * \param range The target range of this iterator.
    * \param iter_type The iterator type of this iterator.
    * \param annotation The annotation type of this iterator.
-   * \param ori_iters The original iterators before fusion.
-   * \param attr The extra attribute of this iterator.
    */
-  Iterator(String name, Range range, IteratorType iter_type, IteratorAnnotation annotation,
-           const std::vector<Iterator>* ori_iters = nullptr, String attr = "");
+  Iterator(String name, Range range, IteratorType iter_type, IteratorAnnotation annotation);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Iterator, ObjectRef, IteratorNode);
 };

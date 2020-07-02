@@ -62,21 +62,6 @@ struct hash<std::tuple<T1, T2, T3>> {
   }
 };
 
-/*! \brief Hash function for std::vector */
-template <typename T>
-struct hash<std::vector<T>> {
-  std::size_t operator()(const std::vector<T>& vec) const {
-    if (vec.empty()) {
-      return 0;
-    }
-    std::size_t ret = std::hash<T>()(vec[0]);
-    for (size_t i = 1; i < vec.size(); ++i) {
-      ret = ::dmlc::HashCombine(ret, std::hash<T>()(vec[i]));
-    }
-    return ret;
-  }
-};
-
 }  // namespace std
 
 namespace tvm {

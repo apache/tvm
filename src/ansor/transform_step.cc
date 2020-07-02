@@ -64,9 +64,8 @@ void ReorderStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   stages->Set(stage_id, std::move(stage));
 }
 
-String ReorderStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                                         te::Schedule* schedule,
-                                         const std::vector<Step>& transform_steps) const {
+String ReorderStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
+                                         StageToAxesMap* stage_to_axes) const {
   const auto& stage = (*stages)[stage_id];
   std::stringstream ss;
 
@@ -127,9 +126,8 @@ Array<IterVar> ApplySplitToSchedule(Array<te::Stage>* stages, StageToAxesMap* st
   return outs;
 }
 
-std::string PrintSplitAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                                  int stage_id, int iter_id, const Array<PrimExpr>& lengths,
-                                  bool inner_to_outer) {
+String PrintSplitAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes, int stage_id,
+                             int iter_id, const Array<PrimExpr>& lengths, bool inner_to_outer) {
   const auto& stage = (*stages)[stage_id];
   auto to_split = (*stage_to_axes)[stage][iter_id];
   const auto& func_name = CleanName(stage->op->name);
@@ -177,9 +175,8 @@ Array<IterVar> SplitStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   return ApplySplitToSchedule(stages, stage_to_axes, stage_id, iter_id, lengths, inner_to_outer);
 }
 
-String SplitStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                                       te::Schedule* schedule,
-                                       const std::vector<Step>& transform_steps) const {
+String SplitStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
+                                       StageToAxesMap* stage_to_axes) const {
   return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id, lengths, inner_to_outer);
 }
 
@@ -218,9 +215,8 @@ IterVar FuseStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   return fused_axis;
 }
 
-String FuseStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                                      te::Schedule* schedule,
-                                      const std::vector<Step>& transform_steps) const {
+String FuseStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
+                                      StageToAxesMap* stage_to_axes) const {
   const auto& stage = (*stages)[stage_id];
   std::stringstream to_fuse;
 

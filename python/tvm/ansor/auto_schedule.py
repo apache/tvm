@@ -18,7 +18,7 @@
 """
 User interface for Ansor auto-scheduler.
 
-The basic schedule search process for Ansor is design to be:
+The basic schedule search process for Ansor is designed to be:
 `Program sampling` -> `Performance Tuning`.
 
 In `Program sampling`, we use some predefined or heuristic rules to generate several initial

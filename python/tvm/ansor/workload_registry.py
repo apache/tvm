@@ -44,6 +44,11 @@ def register_workload_by_func(func):
     The input function should take hashable and jsonable arguments
     (int, float, tuple of int, tvm.tensor.Tensor, ...) and return a list of tvm.tensor.Tensor.
 
+    Parameters
+    ----------
+    func : Function
+        The target function that returns the compute declaration Tensors.
+
     Examples
     --------
     @ansor.register_workload_by_func
@@ -54,9 +59,11 @@ def register_workload_by_func(func):
         C = te.compute((N, M), lambda i, j: tvm.sum(A[i][k] * B[k][j], axis=[k]), name='C')
         return [A, B, C]
     """
+    assert callable(func)
     func_name = func.__name__
     if func_name in WORKLOAD_FUNC_REGISTRY:
         raise RuntimeError('%s has been registered already' % func_name)
+
     WORKLOAD_FUNC_REGISTRY[func_name] = func
     return func
 
@@ -66,8 +73,9 @@ def make_workload_key_by_func(func, args):
 
     Parameters
     ----------
-    func : Function
+    func : Union[Function, str]
         The target function that returns the compute declaration Tensors.
+        Can be the a function or the function name.
     args : Args
         The args of the target function.
 
@@ -76,8 +84,6 @@ def make_workload_key_by_func(func, args):
     workload_key : Str
         The workload key of the target function.
     """
-    args = serialize_args(args)
-
     if callable(func):
         func_name = func.__name__
     elif isinstance(func, str):
@@ -88,6 +94,8 @@ def make_workload_key_by_func(func, args):
     if not func_name in WORKLOAD_FUNC_REGISTRY:
         raise ValueError("%s is not registered. "  % func,
                          "Please register it with @ansor.register_workload_by_func")
+
+    args = serialize_args(args)
 
     return json.dumps((func_name,) + args)
 
@@ -136,7 +144,7 @@ def workload_key_to_tensors(workload_key):
     return lookup(*args)
 
 
-def dump_workload_func_registry(filename):
+def save_workload_func_registry(filename):
     """ Dump workload function registry to a pickle binary file.
 
     Parameters
