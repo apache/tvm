@@ -34,6 +34,8 @@ namespace tvm {
 namespace relay {
 namespace qnn {
 
+TVM_REGISTER_NODE_TYPE(DequantizeAttrs);
+
 bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 4);
@@ -45,9 +47,16 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       << "Input type should be one of the quantized types [unit8, int8, int32] but was "
       << input_dtype;
 
-  // Check the types of scale and zero points.
-  CHECK(IsScalarType(types[1], DataType::Float(32)));  // input_scale
-  CHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
+  const auto* dequantize_attrs = attrs.as<DequantizeAttrs>();
+  int axis = dequantize_attrs->axis;
+  axis = (axis == -1) ? data->shape.size() - 1 : axis;
+  CHECK_LT(axis, static_cast<int>(data->shape.size()))
+      << "axis " << dequantize_attrs->axis << " is out of range";
+  CHECK_GE(axis, 0) << "axis " << dequantize_attrs->axis << " is out of range";
+
+  // Check and assign types for scale and zero points.
+  AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
+  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // zero point
 
   const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type, output will always be float 32.
@@ -55,16 +64,34 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Expr MakeDequantize(Expr data, Expr input_scale, Expr input_zero_point) {
+Expr MakeDequantize(Expr data, Expr input_scale, Expr input_zero_point, int axis) {
   // real_value = scale * (quantized_value - zero_point)
   // A more detailed explanation can be found here -
   // https://github.com/google/gemmlowp/blob/master/doc/quantization.md
+  auto attrs = make_object<DequantizeAttrs>();
+  attrs->axis = axis;
   static const Op& op = Op::Get("qnn.dequantize");
-  return Call(op, {data, input_scale, input_zero_point}, Attrs(), {});
+  return Call(op, {data, input_scale, input_zero_point}, Attrs(attrs), {});
 }
 
 Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
-                     const Expr& input_zero_point) {
+                     const Expr& input_zero_point, const Array<IndexExpr>& input_shape,
+                     const DequantizeAttrs* attrs) {
+  const auto axis = attrs->axis;
+
+  size_t n_dim = input_shape.size();
+
+  // Expand scale and zero point if the input tensor is channel quantized
+  auto expanded_input_scale = input_scale;
+  if (!IsConstScalar(input_scale)) {
+    expanded_input_scale = ExpandBiasToMatchAxis(input_scale, n_dim, {axis});
+  }
+
+  auto expanded_input_zero_point = input_zero_point;
+  if (!IsConstScalar(input_zero_point)) {
+    expanded_input_zero_point = ExpandBiasToMatchAxis(input_zero_point, n_dim, {axis});
+  }
+
   auto shift = Subtract(Cast(input_tensor, DataType::Int(32)), input_zero_point);
   auto scaled_output = Multiply(Cast(shift, DataType::Float(32)), input_scale);
   return scaled_output;
@@ -77,7 +104,20 @@ Expr DequantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto& input_scale = new_args[1];
   auto& input_zero_point = new_args[2];
   CHECK_EQ(types.size(), 4);
-  return DequantizeLower(data, input_scale, input_zero_point);
+
+  // Get attrs.
+  const auto* dequantize_attrs = attrs.as<DequantizeAttrs>();
+  CHECK(dequantize_attrs != nullptr);
+
+  // Find input shape.
+  CHECK_EQ(types.size(), 4);
+  auto in_type = types[0];
+  auto in_tensor_type = in_type.as<TensorTypeNode>();
+  CHECK(in_tensor_type != nullptr) << "Type information missing."
+                                   << " Please run infer_type pass.";
+  Array<IndexExpr> input_shape = in_tensor_type->shape;
+
+  return DequantizeLower(data, input_scale, input_zero_point, input_shape, dequantize_attrs);
 }
 
 RELAY_REGISTER_OP("qnn.dequantize")
@@ -85,6 +125,7 @@ RELAY_REGISTER_OP("qnn.dequantize")
 The input is always quantized (int8, uint8) and will be converted to float32 given input scale and zero_point.
 - **data**: Quantized tensor of any shape to dequantize. The input data can be of floating point
 )code" TVM_ADD_FILELINE)
+    .set_attrs_type<DequantizeAttrs>()
     .set_num_inputs(3)
     .add_argument("data", "Tensor", "The tensor to dequantize.")
     .add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
