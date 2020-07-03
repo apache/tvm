@@ -47,7 +47,7 @@ GLOBAL_BUILD_ARGUMENTS = None
 
 @tvm._ffi.register_object("ansor.MeasureCallback")
 class MeasureCallback(Object):
-    """ Base class for measurement callback function. """
+    """ The base class of measurement callback functions. """
 
 
 @tvm._ffi.register_object("ansor.MeasureInput")
@@ -117,7 +117,7 @@ class MeasureResult(Object):
 
 @tvm._ffi.register_object("ansor.ProgramBuilder")
 class ProgramBuilder(Object):
-    """ Base class of ProgramBuilder. """
+    """ The base class of ProgramBuilders. """
 
     def build(self, measure_inputs, verbose=1):
         """ Build programs and return results.
@@ -138,7 +138,7 @@ class ProgramBuilder(Object):
 
 @tvm._ffi.register_object("ansor.ProgramRunner")
 class ProgramRunner(Object):
-    """ Base class of ProgramRunner """
+    """ The base class of ProgramRunners. """
 
     def run(self, measure_inputs, build_results, verbose=1):
         """ Run measurement and return results.

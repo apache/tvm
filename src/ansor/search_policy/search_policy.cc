@@ -19,7 +19,7 @@
 
 /*!
  * \file ansor/search_policy/search_policy.cc
- * \brief The base class for search policies.
+ * \brief The base class of search policies.
  */
 
 #include "search_policy.h"

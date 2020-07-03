@@ -218,7 +218,7 @@ class MeasureCallback : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MeasureCallback, ObjectRef, MeasureCallbackNode);
 };
 
-// Base class for builder and runner
+// The base class of ProgramBuilders and ProgramRunners.
 
 /*! \brief ProgramBuilder that builds the programs */
 class ProgramBuilderNode : public Object {

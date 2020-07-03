@@ -55,7 +55,7 @@ namespace ansor {
 typedef Map<tvm::te::Stage, Array<tir::IterVar>, ObjectHash, ObjectEqual> StageToAxesMap;
 
 /*!
- * \brief The base class for transformation steps. Each step has its corresponding tvm.te
+ * \brief The base class of transformation steps. Each step has its corresponding tvm.te
  * schedule primitives.
  */
 class StepNode : public Object {

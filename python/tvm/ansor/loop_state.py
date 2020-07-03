@@ -192,7 +192,8 @@ class State:
             return self.stage_id_map[stage_id.op]
         if isinstance(stage_id, int):
             return stage_id
-        raise ValueError("Invalid stage_id: " + stage_id + ". Expect a int, Operation or Tensor")
+        raise ValueError("Invalid stage: " + stage_id +
+                         " . Expect to be a int, Operation or Tensor")
 
     def _update_stage_id_map(self):
         if not self.stages_cache:
@@ -210,7 +211,8 @@ class State:
             key = key.op
         if isinstance(key, Operation):
             return self.stages_cache[self.stage_id_map[key]]
-        raise ValueError("Invalid item: " + key + ". Expect a Operation or Tensor")
+        raise ValueError("Invalid item: " + key +
+                         " . Expect to be a Operation or Tensor")
 
     def __str__(self):
         return str(self.state_object)

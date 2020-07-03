@@ -59,7 +59,8 @@ class ComputeDAG(Object):
                 if not isinstance(item, tvm.te.Tensor):
                     raise ValueError("The input of ComputeDAG should be a list of Tensor")
         else:
-            raise ValueError("Invalid compute: " + compute + ". Expect a string or list of Tensor")
+            raise ValueError("Invalid compute: " + compute +
+                             " . `ComputeDAG` expects a string or list of Tensor")
         self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, compute)
 
     def get_init_state(self):
