@@ -194,21 +194,22 @@ def arm_cpu(model='unknown', options=None):
         Additional options
     """
     trans_table = {
-        "pixel2":    ["-model=snapdragon835", "-target=arm64-linux-android -mattr=+neon"],
-        "mate10":    ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
-        "mate10pro": ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
-        "p20":       ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
-        "p20pro":    ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
-        "rasp3b":    ["-model=bcm2837", "-target=armv7l-linux-gnueabihf -mattr=+neon"],
-        "rasp4b":    ["-model=bcm2711", "-target=arm-linux-gnueabihf -mattr=+neon"],
-        "rk3399":    ["-model=rk3399", "-target=aarch64-linux-gnu -mattr=+neon"],
-        "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi -mattr=+neon"],
-        "ultra96":   ["-model=ultra96", "-target=aarch64-linux-gnu -mattr=+neon"],
+        "pixel2":    ["-model=snapdragon835", "-target=arm64-linux-android", "-mattr=+neon"],
+        "mate10":    ["-model=kirin970", "-target=arm64-linux-android", "-mattr=+neon"],
+        "mate10pro": ["-model=kirin970", "-target=arm64-linux-android", "-mattr=+neon"],
+        "p20":       ["-model=kirin970", "-target=arm64-linux-android", "-mattr=+neon"],
+        "p20pro":    ["-model=kirin970", "-target=arm64-linux-android", "-mattr=+neon"],
+        "rasp3b":    ["-model=bcm2837", "-target=armv7l-linux-gnueabihf", "-mattr=+neon"],
+        "rasp4b":    ["-model=bcm2711", "-target=arm-linux-gnueabihf", "-mattr=+neon"],
+        "rk3399":    ["-model=rk3399", "-target=aarch64-linux-gnu", "-mattr=+neon"],
+        "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi", "-mattr=+neon"],
+        "ultra96":   ["-model=ultra96", "-target=aarch64-linux-gnu", "-mattr=+neon"],
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
     opts = ["-device=arm_cpu"] + pre_defined_opt
     opts = _merge_opts(opts, options)
+    print('opts=', opts)
     return _ffi_api.TargetCreate("llvm", *opts)
 
 
