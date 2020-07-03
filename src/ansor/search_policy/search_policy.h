@@ -19,16 +19,17 @@
 
 /*!
  * \file ansor/search_policy/search_policy.h
- * \brief The base class for search policy, including the abstract defination of search policy and
- * some other supporting structures.
+ * \brief The base class of search policies, including the abstract definition of search policy and
+ * other supporting data structures.
  *
  * The basic schedule search process for Ansor is design to be:
  * `Program sampling` -> `Performance Tuning`.
  *
- * In `Program sampling`, we use some predefined or heuristic rules to generate several initial
- * schedules. Based on these initial start points, we have `Performance Tuning` to apply cost model
- * and evolutionary search to seek for schedules with the best performance. Candidate schedules
- * will be measured in the target hardware.
+ * In `Program sampling`, we use some predefined precise or heuristic rules to generate several
+ * initial schedules. Based on these initial starting points, we perform `Performance Tuning` which
+ * uses cost model based evolutionary search to select schedules with the best performance.
+ *
+ * Candidate schedules are measured against the specific hardware target.
  *
  * \note Adding a new search policy.
  * In design, there's no need for users to implement their own search policy, our formal search
@@ -72,7 +73,7 @@ class SearchCallbackNode : public Object {
  public:
   /*!
    * \brief Run the registered callback function.
-   * \param policy A pointer to SearchPolicyNode.
+   * \param policy A pointer to a SearchPolicyNode.
    */
   virtual void Callback(SearchPolicyNode* policy) = 0;
 
@@ -90,7 +91,7 @@ class SearchCallback : public ObjectRef {
 };
 
 /*!
- * \brief The base class for search policy.
+ * \brief The base class for search policies.
  */
 class SearchPolicyNode : public Object {
  public:
@@ -115,7 +116,7 @@ class SearchPolicyNode : public Object {
    * \param early_stopping Early stop if no better schedule is found.
    * \param num_measures_per_round Max measure batch in one search round.
    * \param verbose Verbose level. 0 for silent, 1 to output information during schedule search.
-   * \param measurer A ProgramMeasurer which packs Builder & Runner inside.
+   * \param measurer A ProgramMeasurer which packs ProgramBuilder & ProgramRunner inside.
    * \param pre_search_callbacks SearchCallback to be called before schedule search.
    * \return The best state get.
    */

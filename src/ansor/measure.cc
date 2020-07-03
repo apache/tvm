@@ -37,8 +37,8 @@ TVM_REGISTER_NODE_TYPE(MeasureInputNode);
 TVM_REGISTER_NODE_TYPE(BuildResultNode);
 TVM_REGISTER_NODE_TYPE(MeasureResultNode);
 TVM_REGISTER_OBJECT_TYPE(MeasureCallbackNode);
-TVM_REGISTER_OBJECT_TYPE(RunnerNode);
-TVM_REGISTER_OBJECT_TYPE(BuilderNode);
+TVM_REGISTER_OBJECT_TYPE(ProgramRunnerNode);
+TVM_REGISTER_OBJECT_TYPE(ProgramBuilderNode);
 TVM_REGISTER_OBJECT_TYPE(LocalBuilderNode);
 TVM_REGISTER_OBJECT_TYPE(LocalRunnerNode);
 
@@ -145,8 +145,9 @@ Array<MeasureResult> LocalRunnerNode::Run(const Array<MeasureInput>& inputs,
 }
 
 /********** ProgramMeasurer **********/
-ProgramMeasurer::ProgramMeasurer(Builder builder, Runner runner, Array<MeasureCallback> callbacks,
-                                 int verbose, int max_continous_error) {
+ProgramMeasurer::ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
+                                 Array<MeasureCallback> callbacks, int verbose,
+                                 int max_continous_error) {
   auto node = make_object<ProgramMeasurerNode>();
   node->builder = std::move(builder);
   node->runner = std::move(runner);
@@ -306,13 +307,12 @@ TVM_REGISTER_GLOBAL("ansor.MeasureResult")
       return MeasureResult(costs, error_no, error_msg, all_cost, timestamp);
     });
 
-TVM_REGISTER_GLOBAL("ansor.BuilderBuild")
-    .set_body_typed([](const Builder& builder, const Array<MeasureInput>& inputs, int verbose) {
-      return builder->Build(inputs, verbose);
-    });
+TVM_REGISTER_GLOBAL("ansor.ProgramBuilderBuild")
+    .set_body_typed([](const ProgramBuilder& builder, const Array<MeasureInput>& inputs,
+                       int verbose) { return builder->Build(inputs, verbose); });
 
-TVM_REGISTER_GLOBAL("ansor.RunnerRun")
-    .set_body_typed([](const Runner& runner, const Array<MeasureInput>& inputs,
+TVM_REGISTER_GLOBAL("ansor.ProgramRunnerRun")
+    .set_body_typed([](const ProgramRunner& runner, const Array<MeasureInput>& inputs,
                        const Array<BuildResult>& build_results,
                        int verbose) { return runner->Run(inputs, build_results, verbose); });
 

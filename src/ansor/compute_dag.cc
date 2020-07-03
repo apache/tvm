@@ -46,24 +46,6 @@ using namespace tvm::tir;
 
 TVM_REGISTER_NODE_TYPE(ComputeDAGNode);
 
-// Update stage to axis mapping
-void UpdateStageAxis(const te::Stage& stage, StageToAxesMap* stage_to_axes) {
-  if (auto pop = stage->op.as<te::ComputeOpNode>()) {
-    Array<IterVar> axes;
-    for (const auto& axis : pop->axis) {
-      axes.push_back(axis);
-    }
-    for (const auto& axis : pop->reduce_axis) {
-      axes.push_back(axis);
-    }
-    stage_to_axes->Set(stage, std::move(axes));
-  } else if (stage->op->IsInstance<te::PlaceholderOpNode>()) {
-    {}  // do nothing
-  } else {
-    LOG(FATAL) << "Invalid op " << stage->op;
-  }
-}
-
 // Topo-sort ops from tensors according to their read-write relations.
 // Results are stored in ops
 void TopoSortOps(const Array<te::Tensor>& tensors, Array<te::Operation>* ops) {
@@ -240,11 +222,79 @@ ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   data_ = std::move(node);
 }
 
+// Update the te::stage to tir::IterVar axis mapping
+void UpdateStageAxis(const te::Stage& stage, StageToAxesMap* stage_to_axes) {
+  if (auto pop = stage->op.as<te::ComputeOpNode>()) {
+    Array<IterVar> axes;
+    for (const auto& axis : pop->axis) {
+      axes.push_back(axis);
+    }
+    for (const auto& axis : pop->reduce_axis) {
+      axes.push_back(axis);
+    }
+    stage_to_axes->Set(stage, std::move(axes));
+  } else if (stage->op->IsInstance<te::PlaceholderOpNode>()) {
+    {}  // do nothing on Placeholder
+  } else {
+    LOG(FATAL) << "Invalid op " << stage->op;
+  }
+}
+
 std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ApplySteps(
-    const Array<Step>& transform_steps) const {
-  Array<te::Stage> stages;
-  StageToAxesMap stage_to_axes;
-  return ReplaySteps(transform_steps, &stages, &stage_to_axes);
+    const Array<Step>& transform_steps, Array<te::Stage>* stages,
+    StageToAxesMap* stage_to_axes) const {
+  // Temporal object to be used if the input pointer is nullptr
+  Array<te::Stage> temp_stages;
+  StageToAxesMap temp_stage_to_axes;
+  if (stages == nullptr) {
+    stages = &temp_stages;
+  }
+  if (stage_to_axes == nullptr) {
+    stage_to_axes = &temp_stage_to_axes;
+  }
+  Array<te::Operation> ops;
+  for (const auto& op : operator->()->ops) {
+    if (!op->IsInstance<te::PlaceholderOpNode>()) {
+      ops.push_back(op);
+    }
+  }
+  // Create the initial schedule
+  te::Schedule schedule = te::create_schedule({ops.back()});
+
+  // init axes
+  for (const auto& x : operator->()->ops) {
+    const te::Stage& stage = schedule.operator[](x);
+    stages->push_back(stage);
+    UpdateStageAxis(stage, stage_to_axes);
+  }
+
+  // Use complete rate for the study in the paper
+  const char* complete_rate_str = getenv("ANSOR_PROGRAM_COMPLETE_RATE");
+  double complete_rate = -1.0;
+  if (complete_rate_str) {
+    complete_rate = std::stod(complete_rate_str);
+  }
+  size_t ct = 0;
+  // Apply the history steps to TVM schedule
+  for (const auto& step : transform_steps) {
+    if (complete_rate >= 0 && ct++ > transform_steps.size() * complete_rate) {
+      break;
+    }
+    // Call each step's ApplyToSchedule method
+    // Note: some steps have extra parameters that must be passed and they may need different
+    // return value, so the ApplyToSchedule is not able to be merged to single interface
+    if (auto ps = step.as<ReorderStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<SplitStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else if (auto ps = step.as<FuseStepNode>()) {
+      ps->ApplyToSchedule(stages, stage_to_axes);
+    } else {
+      LOG(FATAL) << "Invalid Step";
+    }
+  }
+
+  return std::make_pair(schedule, operator->()->tensors);
 }
 
 String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const {
@@ -256,6 +306,7 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
       ops.push_back(op);
     }
   }
+  // Create the initial schedule
   te::Schedule schedule = te::create_schedule({ops.back()});
 
   // init axes
@@ -296,22 +347,60 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
   return ss.str();
 }
 
-State ComputeDAG::ReplayAndInferBound(const Array<Step>& transform_steps) const {
-  State ret_state = operator->()->init_state;
-  StateNode* pstate = ret_state.CopyOnWrite();
-  pstate->transform_steps = transform_steps;
-  ret_state.DoSteps(transform_steps, *this);
-
-  InferBoundCommon(pstate);
-
-  return ret_state;
-}
-
 State ComputeDAG::InferBound(const State& state) const {
-  State ret_state = state;
-  StateNode* pstate = ret_state.CopyOnWrite();
+  State ret_state;
+  StateNode* pstate;
 
-  InferBoundCommon(pstate);
+  if (state->stages.size()) {
+    ret_state = state;
+    pstate = ret_state.CopyOnWrite();
+  } else {
+    // If the input state is incomplete with empty operation stage
+    // create a new state from init_state and update it first
+    ret_state = operator->()->init_state;
+    pstate = ret_state.CopyOnWrite();
+    pstate->transform_steps = state->transform_steps;
+    ret_state.DoSteps((*this));
+  }
+
+  Array<te::Stage> stages;
+  StageToAxesMap stage_to_axes;
+  te::Schedule sch;
+  Array<te::Tensor> tensors;
+  // Replay steps to tvm::Schedule
+  std::tie(sch, tensors) = ApplySteps(pstate->transform_steps, &stages, &stage_to_axes);
+  sch = sch.normalize();
+  // Get bound information from TVM schedule
+  Map<IterVar, Range> bounds = te::InferBound(sch);
+
+  // Update the state bound information
+  for (size_t i = 0; i < pstate->stages.size(); ++i) {
+    const Stage& stage = pstate->stages[i];
+
+    if (stage->compute_at == kInlined) {
+      continue;
+    }
+
+    Array<Iterator> new_iters;
+    new_iters.reserve(stage->iters.size());
+    // Get bound information from schedule
+    // the StageToAxesMap is used to find the corresponding IterVar in TVM schedule result
+    for (size_t j = 0; j < stage->iters.size(); ++j) {
+      const Iterator& iter = stage->iters[j];
+      const IterVar& axis = stage_to_axes.at(stages[i])[j];
+
+      auto find_res = bounds.find(axis);
+      if (find_res != bounds.end()) {
+        new_iters.push_back(
+            Iterator(iter->name, (*find_res).second, iter->iter_type, iter->annotation));
+      } else {
+        LOG(FATAL) << "Infer bound fails";
+      }
+    }
+
+    pstate->stages.Set(
+        i, Stage(stage->op, stage->op_type, std::move(new_iters), stage->compute_at, stage->attrs));
+  }
 
   return ret_state;
 }
@@ -338,97 +427,6 @@ void ComputeDAG::InferBound(Array<State>* states) const {
   pool.WaitBatch();
 
   *states = std::move(out_states);
-}
-
-void ComputeDAG::InferBoundCommon(StateNode* pstate) const {
-  Array<te::Stage> stages;
-  StageToAxesMap stage_to_axes;
-  te::Schedule sch;
-  Array<te::Tensor> tensors;
-  Map<IterVar, Range> bounds;
-
-  // Replay steps to tvm::Schedule
-  std::tie(sch, tensors) = ReplaySteps(pstate->transform_steps, &stages, &stage_to_axes);
-  sch = sch.normalize();
-  // Get bound information from TVM schedule
-  bounds = te::InferBound(sch);
-
-  // Update the state bound information
-  for (size_t i = 0; i < pstate->stages.size(); ++i) {
-    const Stage& stage = pstate->stages[i];
-
-    if (stage->compute_at == kInlined) {
-      continue;
-    }
-
-    Array<Iterator> new_iters;
-    new_iters.reserve(stage->iters.size());
-    for (size_t j = 0; j < stage->iters.size(); ++j) {
-      const Iterator& iter = stage->iters[j];
-      const IterVar& axis = stage_to_axes.at(stages[i])[j];
-
-      auto find_res = bounds.find(axis);
-      if (find_res != bounds.end()) {
-        new_iters.push_back(
-            Iterator(iter->name, (*find_res).second, iter->iter_type, iter->annotation));
-      } else {
-        LOG(FATAL) << "Infer bound fails";
-      }
-    }
-
-    pstate->stages.Set(
-        i, Stage(stage->op, stage->op_type, std::move(new_iters), stage->compute_at, stage->attrs));
-  }
-}
-
-std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ReplaySteps(
-    const Array<Step>& transform_steps, Array<te::Stage>* stages,
-    StageToAxesMap* stage_to_axes) const {
-  Array<te::Operation> ops;
-  for (const auto& op : operator->()->ops) {
-    if (!op->IsInstance<te::PlaceholderOpNode>()) {
-      ops.push_back(op);
-    }
-  }
-
-  te::Schedule schedule = te::create_schedule({ops.back()});
-
-  // init axes
-  stages->reserve(operator->()->ops.size());
-  for (const auto& x : operator->()->ops) {
-    const te::Stage& stage = schedule.operator[](x);
-    stages->push_back(stage);
-    UpdateStageAxis(stage, stage_to_axes);
-  }
-
-  // Use complete rate for the study in the paper
-  const char* complete_rate_str = getenv("ANSOR_PROGRAM_COMPLETE_RATE");
-  double complete_rate = -1.0;
-  if (complete_rate_str) {
-    complete_rate = std::stod(complete_rate_str);
-  }
-  size_t ct = 0;
-
-  // replay history
-  for (const auto& step : transform_steps) {
-    if (complete_rate >= 0 && ct++ > transform_steps.size() * complete_rate) {
-      break;
-    }
-    // Call each step's ApplyToSchedule method
-    // Note: some steps have extra parameters that must be passed and they may need different
-    // return value, so the ApplyToSchedule is not able to be merged to single interface
-    if (auto ps = step.as<ReorderStepNode>()) {
-      ps->ApplyToSchedule(stages, stage_to_axes);
-    } else if (auto ps = step.as<SplitStepNode>()) {
-      ps->ApplyToSchedule(stages, stage_to_axes);
-    } else if (auto ps = step.as<FuseStepNode>()) {
-      ps->ApplyToSchedule(stages, stage_to_axes);
-    } else {
-      LOG(FATAL) << "Invalid Step";
-    }
-  }
-
-  return std::make_pair(schedule, operator->()->tensors);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -500,7 +498,7 @@ TVM_REGISTER_GLOBAL("ansor.ComputeDAGPrintPythonCodeFromState")
 
 TVM_REGISTER_GLOBAL("ansor.ComputeDAGInferBoundFromState")
     .set_body_typed([](const ComputeDAG& dag, const State& state) {
-      return dag.ReplayAndInferBound(state->transform_steps);
+      return dag.InferBound(state);
     });
 
 }  // namespace ansor

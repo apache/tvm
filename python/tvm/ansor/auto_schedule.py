@@ -21,10 +21,11 @@ User interface for Ansor auto-scheduler.
 The basic schedule search process for Ansor is designed to be:
 `Program sampling` -> `Performance Tuning`.
 
-In `Program sampling`, we use some predefined or heuristic rules to generate several initial
-schedules. Based on these initial start points, we have `Performance Tuning` to apply cost model
-and evolutionary search to seek for schedules with the best performance. Candidate schedules will
-be measured in the target hardware.
+In `Program sampling`, we use some predefined precise or heuristic rules to generate several
+initial schedules. Based on these initial starting points, we perform `Performance Tuning` which
+uses cost model based evolutionary search to select schedules with the best performance.
+
+Candidate schedules are measured against the specific hardware target.
 """
 
 import tvm._ffi
@@ -36,10 +37,9 @@ from . import _ffi_api
 
 @tvm._ffi.register_object("ansor.HardwareParams")
 class HardwareParams(Object):
-    """ The parameters of target hardware, this is used to guide the search process of
-    SearchPolicy.
+    """ The parameters of target hardware used to guide the search process of SearchPolicy.
 
-    TODO(...): This is considering to merge with the new Target:
+    TODO(jcf94): This is considering to merge with the new Target:
     https://discuss.tvm.ai/t/rfc-tvm-target-specification/6844
 
     Parameters
@@ -64,14 +64,14 @@ class HardwareParams(Object):
 
 @tvm._ffi.register_object("ansor.SearchTask")
 class SearchTask(Object):
-    """ The meta-information of a search task.
+    """ The computation information and hardware parameters for a specific schedule search task.
 
     Parameters
     ----------
     dag : ComputeDAG
-        The ComputeDAG for target compute declaration.
+        The ComputeDAG for the target compute declaration.
     workload_key : str
-        The workload key for target compute declaration.
+        The workload key for the target compute declaration.
     target : tvm.target.Target
         The target device of this search task.
     target_host : Optional[tvm.target.Target]
@@ -88,7 +88,7 @@ class SearchTask(Object):
 
 @tvm._ffi.register_object("ansor.SearchPolicy")
 class SearchPolicy(Object):
-    """ The base class for search policy  """
+    """ The base class of search policies. """
 
 
 @tvm._ffi.register_object("ansor.EmptyPolicy")
@@ -100,8 +100,8 @@ class EmptyPolicy(SearchPolicy):
         self.__init_handle_by_constructor__(_ffi_api.EmptyPolicy)
 
 
-@tvm._ffi.register_object("ansor.TuneOption")
-class TuneOption(Object):
+@tvm._ffi.register_object("ansor.TuningOptions")
+class TuningOptions(Object):
     """ This controls the options of performance tuning.
 
     Parameters
@@ -122,10 +122,10 @@ class TuneOption(Object):
       We have: `num_search_rounds` = `num_measure_trials` // `num_measures_per_round`
     verbose: int = 1
       Verbosity level. 0 for silent, 1 to output information during schedule search.
-    builder: Union[Builder, str] = 'local'
-      Builder which builds the program.
-    runner: Union[Runner, str] = 'local'
-      Runner which runs the program and measures time costs.
+    builder: Union[ProgramBuilder, str] = 'local'
+      ProgramBuilder which builds the program.
+    runner: Union[ProgramRunner, str] = 'local'
+      ProgramRunner which runs the program and measures time costs.
     measure_callbacks: Optional[List[MeasureCallback]]
       Callback functions called after each measure.
       Candidates:
@@ -156,12 +156,12 @@ class TuneOption(Object):
         pre_search_callbacks = [] if pre_search_callbacks is None else pre_search_callbacks
 
         self.__init_handle_by_constructor__(
-            _ffi_api.TuneOption, num_measure_trials, early_stopping, num_measures_per_round,
+            _ffi_api.TuningOptions, num_measure_trials, early_stopping, num_measures_per_round,
             verbose, builder, runner, measure_callbacks, pre_search_callbacks)
 
 
 def auto_schedule(task, target, target_host=None, search_policy='default',
-                  hardware_params=None, tune_option=None):
+                  hardware_params=None, tuning_options=None):
     """ Do auto scheduling for a computation declaration.
 
     The task parameter can be a `string` as workload_key, or directly
@@ -179,7 +179,7 @@ def auto_schedule(task, target, target_host=None, search_policy='default',
         The search policy to be used for schedule search.
     hardware_params : Optional[HardwareParams]
         The hardware parameters of this schedule search.
-    tune_option : Optional[TuneOption]
+    tuning_options : Optional[TuningOptions]
         Tuning and measurement options.
 
     Returns
@@ -194,13 +194,14 @@ def auto_schedule(task, target, target_host=None, search_policy='default',
         else:
             raise ValueError("Invalid search policy: " + search_policy)
 
-    tune_option = tune_option if tune_option else TuneOption()
+    tuning_options = tuning_options if tuning_options else TuningOptions()
 
     if isinstance(task, str):
         dag = ComputeDAG(task)
         task = SearchTask(dag, task, target, target_host, hardware_params)
     elif not isinstance(task, SearchTask):
-        raise ValueError("Invalid task: " + task + ". Expect a string or SearchTask")
+        raise ValueError("Invalid task: " + task +
+                         " . `ansor.auto_schedule` expects a `str` or `SearchTask`.")
 
-    sch, tensors = _ffi_api.AutoSchedule(task, search_policy, tune_option)
+    sch, tensors = _ffi_api.AutoSchedule(task, search_policy, tuning_options)
     return sch, tensors

@@ -271,7 +271,9 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   return new_it;
 }
 
-void State::DoSteps(const Array<Step>& steps, const ComputeDAG& dag) {
+void State::DoSteps(const ComputeDAG& dag) {
+  CHECK(operator->()->stages.size()) << "Invalid State with empty operation stages.";
+
   // Use complete rate for the study in the paper
   const char* complete_rate_str = getenv("ANSOR_PROGRAM_COMPLETE_RATE");
   double complete_rate = -1.0;
@@ -279,9 +281,8 @@ void State::DoSteps(const Array<Step>& steps, const ComputeDAG& dag) {
     complete_rate = std::stod(complete_rate_str);
   }
   size_t ct = 0;
-
-  for (const auto& step : steps) {
-    if (complete_rate >= 0 && ct++ > steps.size() * complete_rate) {
+  for (const auto& step : operator->()->transform_steps) {
+    if (complete_rate >= 0 && ct++ > operator->()->transform_steps.size() * complete_rate) {
       break;
     }
     if (auto ps = step.as<ReorderStepNode>()) {

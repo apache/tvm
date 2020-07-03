@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Common utilities for ansor"""
+""" Common utilities for ansor. """
 
 from typing import Hashable
 import multiprocessing

@@ -33,7 +33,7 @@
  * 3. Implement `State::fuse` and `State::DoFuseStep`.
  *    - In these two functions you need to incrementally update all data structures in State with
  *      CopyOnWrite style
- * 4. Add you step to `ComputeDAG::ReplaySteps` and make sure it works.
+ * 4. Add you step to `ComputeDAG::ApplySteps` and make sure it works.
  * 5. Add serialization support in `struct Handler<Array<::tvm::ansor::Step> >`
  *    in `serialization.cc`.
  * 6. Add hash support in `struct hash<::tvm::ansor::Step>`. (search for this function in this file)
@@ -55,7 +55,7 @@ namespace ansor {
 typedef Map<tvm::te::Stage, Array<tir::IterVar>, ObjectHash, ObjectEqual> StageToAxesMap;
 
 /*!
- * \brief The base class for a transformation step. Each step has its corresponding tvm.te
+ * \brief The base class for transformation steps. Each step has its corresponding tvm.te
  * schedule primitives.
  */
 class StepNode : public Object {
@@ -87,15 +87,15 @@ class ReorderStepNode : public StepNode {
 
   /*!
    * \brief Apply the current state to tvm.schedule
-   * \param stages A pointer to `te::Stage` vector.
-   * \param stage_to_axes A pointer to StageToAxesMap.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
    */
   void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   /*!
    * \brief Print step as equivalent python schedule API.
-   * \param stages A pointer to `te::Stage` vector.
-   * \param stage_to_axes A pointer to StageToAxesMap.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
@@ -140,8 +140,8 @@ class SplitStepNode : public StepNode {
 
   /*!
    * \brief Apply the current state to tvm.schedule
-   * \param stages A pointer to `te::Stage` vector.
-   * \param stage_to_axes A pointer to StageToAxesMap.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return The iterator results after split.
    */
   Array<tir::IterVar> ApplyToSchedule(Array<te::Stage>* stages,
@@ -149,8 +149,8 @@ class SplitStepNode : public StepNode {
 
   /*!
    * \brief Print step as equivalent python schedule API.
-   * \param stages A pointer to `te::Stage` vector.
-   * \param stage_to_axes A pointer to StageToAxesMap.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
@@ -186,16 +186,16 @@ class FuseStepNode : public StepNode {
 
   /*!
    * \brief Apply the current state to tvm.schedule
-   * \param stages A pointer to `te::Stage` vector.
-   * \param stage_to_axes A pointer to StageToAxesMap.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return The iterator result after fuse.
    */
   tir::IterVar ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
   /*!
    * \brief Print step as equivalent python schedule API.
-   * \param stages A pointer to `te::Stage` vector.
-   * \param stage_to_axes A pointer to StageToAxesMap.
+   * \param stages A pointer to a `te::Stage` Array.
+   * \param stage_to_axes A pointer to a StageToAxesMap.
    * \return Python schedule code.
    */
   String PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;

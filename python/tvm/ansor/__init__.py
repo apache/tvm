@@ -26,7 +26,7 @@ from . import workload_registry
 
 # Shortcut
 from .compute_dag import ComputeDAG
-from .auto_schedule import SearchTask, TuneOption, HardwareParams, \
+from .auto_schedule import SearchTask, TuningOptions, HardwareParams, \
     auto_schedule, EmptyPolicy
 from .measure import MeasureInput, LocalBuilder, LocalRunner
 from .serialization import LogToFile, LogReader, best_measure_pair_in_file, \

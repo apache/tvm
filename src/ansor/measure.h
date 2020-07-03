@@ -220,8 +220,8 @@ class MeasureCallback : public ObjectRef {
 
 // Base class for builder and runner
 
-/*! \brief Builder that builds the programs */
-class BuilderNode : public Object {
+/*! \brief ProgramBuilder that builds the programs */
+class ProgramBuilderNode : public Object {
  public:
   /*! \brief The number of tasks to run in parallel */
   int n_parallel;
@@ -236,21 +236,21 @@ class BuilderNode : public Object {
    */
   virtual Array<BuildResult> Build(const Array<MeasureInput>& inputs, int verbose) = 0;
 
-  static constexpr const char* _type_key = "ansor.Builder";
-  TVM_DECLARE_BASE_OBJECT_INFO(BuilderNode, Object);
+  static constexpr const char* _type_key = "ansor.ProgramBuilder";
+  TVM_DECLARE_BASE_OBJECT_INFO(ProgramBuilderNode, Object);
 };
 
 /*!
- * \brief Managed reference to BuilderNode.
- * \sa BuilderNode
+ * \brief Managed reference to ProgramBuilderNode.
+ * \sa ProgramBuilderNode
  */
-class Builder : public ObjectRef {
+class ProgramBuilder : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Builder, ObjectRef, BuilderNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ProgramBuilder, ObjectRef, ProgramBuilderNode);
 };
 
-/*! \brief Runner that runs the built programs and measure the time cost. */
-class RunnerNode : public Object {
+/*! \brief ProgramRunner that runs the built programs and measure the time cost. */
+class ProgramRunnerNode : public Object {
  public:
   /*! \brief Timeout of a run. */
   int timeout;
@@ -265,23 +265,23 @@ class RunnerNode : public Object {
   virtual Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
                                    const Array<BuildResult>& build_results, int verbose) = 0;
 
-  static constexpr const char* _type_key = "ansor.Runner";
-  TVM_DECLARE_BASE_OBJECT_INFO(RunnerNode, Object);
+  static constexpr const char* _type_key = "ansor.ProgramRunner";
+  TVM_DECLARE_BASE_OBJECT_INFO(ProgramRunnerNode, Object);
 };
 
 /*!
- * \brief Managed reference to RunnerNode.
- * \sa RunnerNode
+ * \brief Managed reference to ProgramRunnerNode.
+ * \sa ProgramRunnerNode
  */
-class Runner : public ObjectRef {
+class ProgramRunner : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Runner, ObjectRef, RunnerNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ProgramRunner, ObjectRef, ProgramRunnerNode);
 };
 
 // Implementation of various builders and runners
 
 /*! \brief LocalBuilder use local CPU cores to build programs in parallel */
-class LocalBuilderNode : public BuilderNode {
+class LocalBuilderNode : public ProgramBuilderNode {
  public:
   /*! \brief Build function. */
   String build_func;
@@ -289,14 +289,14 @@ class LocalBuilderNode : public BuilderNode {
   Array<BuildResult> Build(const Array<MeasureInput>& inputs, int verbose) final;
 
   static constexpr const char* _type_key = "ansor.LocalBuilder";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LocalBuilderNode, BuilderNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LocalBuilderNode, ProgramBuilderNode);
 };
 
 /*!
  * \brief Managed reference to LocalBuilderNode.
  * \sa LocalBuilderNode
  */
-class LocalBuilder : public Builder {
+class LocalBuilder : public ProgramBuilder {
  public:
   /*!
    * \brief The constructor.
@@ -306,11 +306,11 @@ class LocalBuilder : public Builder {
    */
   LocalBuilder(int timeout, int n_parallel, const String& build_func);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(LocalBuilder, Builder, LocalBuilderNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(LocalBuilder, ProgramBuilder, LocalBuilderNode);
 };
 
 /*! \brief LocalRunner that uses local CPU/GPU to measures the time cost of programs */
-class LocalRunnerNode : public RunnerNode {
+class LocalRunnerNode : public ProgramRunnerNode {
  public:
   /*! \brief Number of measure times. */
   int number;
@@ -325,14 +325,14 @@ class LocalRunnerNode : public RunnerNode {
                            const Array<BuildResult>& build_results, int verbose) final;
 
   static constexpr const char* _type_key = "ansor.LocalRunner";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LocalRunnerNode, RunnerNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LocalRunnerNode, ProgramRunnerNode);
 };
 
 /*!
  * \brief Managed reference to LocalRunnerNode.
  * \sa LocalRunnerNode
  */
-class LocalRunner : public Runner {
+class LocalRunner : public ProgramRunner {
  public:
   /*!
    * \brief The constructor.
@@ -344,12 +344,12 @@ class LocalRunner : public Runner {
    */
   LocalRunner(int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LocalRunner, Runner, LocalRunnerNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LocalRunner, ProgramRunner, LocalRunnerNode);
 };
 
 /*!
  * \brief Measurer that measures the time costs of tvm programs
- * This class combines Builder and Runner, and provides a simpler API */
+ * This class combines ProgramBuilder and ProgramRunner, and provides a simpler API */
 class ProgramMeasurerNode : public Object {
  public:
   /*! \brief Measured programs counter. */
@@ -362,10 +362,10 @@ class ProgramMeasurerNode : public Object {
   std::unordered_map<String, State> best_state;
   /*! \brief Workload key to best state's count index map. */
   std::unordered_map<String, int> best_ct;
-  /*! \brief The Builder to build each program. */
-  Builder builder;
-  /*! \brief The Runner to measure each program. */
-  Runner runner;
+  /*! \brief The ProgramBuilder to build each program. */
+  ProgramBuilder builder;
+  /*! \brief The ProgramRunner to measure each program. */
+  ProgramRunner runner;
   /*! \brief MeasureCallback to be called after each measure batch. */
   Array<MeasureCallback> callbacks;
   /*! \brief Verbosity level. 0 for silent, 1 to output information during program measuring. */
@@ -381,7 +381,7 @@ class ProgramMeasurerNode : public Object {
    * \param task The current SearchTask.
    * \param policy The current SearchPolicy.
    * \param inputs The target MeasureInputs.
-   * \param results A pointer to MeasureResult vector, this is used as output.
+   * \param results A pointer to a MeasureResult Array, this is used as output.
    * \param batch_size Number of programs to be measured in one batch.
    */
   void Measure(const SearchTask& task, const SearchPolicy& policy,
@@ -392,7 +392,7 @@ class ProgramMeasurerNode : public Object {
    * This API will not print the measure results to screen.
    * \param task The current SearchTask.
    * \param inputs The target MeasureInputs.
-   * \param results A pointer to MeasureResult vector, this is used as output.
+   * \param results A pointer to a MeasureResult Array, this is used as output.
    */
   void SilentMeasure(const SearchTask& task, const Array<MeasureInput>& inputs,
                      Array<MeasureResult>* results);
@@ -412,14 +412,14 @@ class ProgramMeasurer : public ObjectRef {
  public:
   /*!
    * \brief The constructor.
-   * \param builder The Builder to build each program.
-   * \param runner The Runner to measure each program.
+   * \param builder The ProgramBuilder to build each program.
+   * \param runner The ProgramRunner to measure each program.
    * \param callbacks MeasureCallback to be called after each measure batch.
    * \param verbose Verbosity level. 0 for silent, 1 to output information during program measuring.
    * \param max_continous_error The number of max continuous error.
    */
-  ProgramMeasurer(Builder builder, Runner runner, Array<MeasureCallback> callbacks, int verbose,
-                  int max_continous_error = -1);
+  ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner, Array<MeasureCallback> callbacks,
+                  int verbose, int max_continous_error = -1);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ProgramMeasurer, ObjectRef, ProgramMeasurerNode);
 };

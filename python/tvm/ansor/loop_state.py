@@ -17,20 +17,28 @@
 # pylint: disable=unused-import
 
 """
-The definition of the "state" in search. A state consists a current loop structure
-and the transform history to reach its current loop structure.
-To enable flexible manipulation of the loop structures, we implemented a lightweight loop
-structure IR (Intermediate Representation) based on the original TVM IR but specifically
-for schedule search.
+The definition of the "state" in search.
 
-We don't use the existing TVM IR but to extend a new Sketch IR on it is because:
-1. We want fast incremental change to the loop structures;
+Each LoopState corresponds to a specific schedule for its target ComputeDAG.
+A LoopState consists of: 1. a current loop structure; 2. a history of transformations used to
+construct the loop structure.
+The loop structure keeps a preview of how the schedule will finally look like after lowering the
+current state (e.g. number of iterators, the extent of each iterator, the compute_at locations ...).
+During the schedule search process, the loop structure can provide search policy with necessary
+information on how to perform further operations with the current state.
+The transform history is a sequence of TransformStep which will finally be mapped to schedule
+primitives. The steps can also be used for serialization of a state.
+
+The LoopState can be seen as a lightweight loop structure IR specifically for schedule search.
+We don't use the existing TVM IR but to extend a new structure on it is because:
+1. We want fast incremental change to the loop structures, search policy needs to get the immediate
+loop structures update rather than after TVM lowering;
 2. We want serializable transform history for replay, backtracking, and mutation;
 3. We may create some macro schedule primitives that represent the combination of several
 TVM schedule primitives.
 
-After the search is done, we will lower this IR to TVM IR with TVM's schedule primitives.
-Because we share a lot common objects during search, the transformation is implemented in
+When the search is complete, we will lower the state to TVM IR with TVM's schedule primitives.
+Since we share a lot of common objects during search, the transformation is implemented in
 copy on write style. All objects are immutable, which is similar to TVM IR.
 """
 
@@ -60,9 +68,9 @@ class StateObject(Object):
 class State:
     """
     A state in the search process. It consists of the current loop structure
-    and the history steps to reach this state.
+    and a history of transformations used to construct it.
 
-    Each State corresponds to a specific schedule for the target ComputeDAG.
+    Each State corresponds to a specific schedule for its target ComputeDAG.
 
     Parameters
     ----------

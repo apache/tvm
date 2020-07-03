@@ -19,9 +19,18 @@
 
 /*!
  * \file ansor/compute_dag.h
- * \brief Compute declaration graph and its related analysis tools.
- * ComputeDAG is also responsible for the interaction with the original TVM schedule system, to
- * apply state to a runable TVM schedule or provide the schedule Python code.
+ * \brief The Ansor computational graph and related program analyses.
+ *
+ * We convert a compute declaration described by `tvm.compute` (could be a single operator or a
+ * subgraph) to a ComputeDAG. It keeps the input/output tensors of the target compute declaration,
+ * a list of all related operations in topo order as well as a set of analyses over each operation
+ * stage (e.g. the total float operation count, consumer/producer relations of each operation
+ * stage, whether a operation stage should be tiled/compute inlined ...). These analyses can
+ * help the search policy to do some specific decisions during schedule search process.
+ *
+ * ComputeDAG is also responsible for the interaction between Ansor LoopState and TVM schedule
+ * (e.g. applying the LoopState transform steps to TVM schedule, providing LoopState with extra
+ * information get from TVM schedule ...).
  */
 
 #ifndef TVM_ANSOR_COMPUTE_DAG_H_
@@ -74,9 +83,16 @@ class ComputeDAG : public ObjectRef {
    * \brief Apply transform steps to the init state of this DAG, and get the
    * equivalent `tvm::schedule`.
    * \param transform_steps Transform steps of the target state.
+   * \param stages A pointer to a `te::Stage` Array, default to be nullptr.
+   * Pass a valid pointer if these information needs to be used outside this function.
+   * \param stage_to_axes A pointer to a StageToAxesMap, default to be nullptr.
+   * Pass a valid pointer if these information needs to be used outside this function.
    * \return The return values can be used as arguments to `tvm.build` or `tvm.lower`.
    */
-  std::pair<te::Schedule, Array<te::Tensor> > ApplySteps(const Array<Step>& transform_steps) const;
+  std::pair<te::Schedule, Array<te::Tensor> > ApplySteps(
+      const Array<Step>& transform_steps, Array<te::Stage>* stages = nullptr,
+      StageToAxesMap* stage_to_axes = nullptr) const;
+
   /*!
    * \brief Print transform steps as equivalent python schedule API.
    * \param transform_steps Transform steps of the target state.
@@ -84,19 +100,6 @@ class ComputeDAG : public ObjectRef {
    */
   String PrintStepsAsPython(const Array<Step>& transform_steps) const;
 
-  /*!
-   * \brief Replay the transform steps and call ir_pass::InferBound to fill correct bound
-   * information.
-   * State api supports to define a split step with its split factor to be a blank placeholder,
-   * so sometimes we may get a State will incomplete iterator extent information.
-   * And another situation is after some steps (for exp. compute_at), it may be hard to track the
-   * extent change of all iterators.
-   * We perform infer bound using TVM schedule and fill the State with those informations. After
-   * applying this methods, the State is guaranteed to have complete interator extent information.
-   * \param transform_steps Transform steps of the target state.
-   * \return The State after inferbound.
-   */
-  State ReplayAndInferBound(const Array<Step>& transform_steps) const;
   /*!
    * \brief Fill the correct bound information for a given state by calling ir_pass::InferBound.
    * \param state The target state.
@@ -106,32 +109,12 @@ class ComputeDAG : public ObjectRef {
   /*!
    * \brief Fill the correct bound information for a list of given states.
    * Return the new states inplace.
-   * \param states A pointer to a State vector, States are updated inplace.
+   * \param states A pointer to a State Array, States are updated inplace.
    */
   void InferBound(Array<State>* states) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeDAG, ObjectRef, ComputeDAGNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeDAGNode);
-
- private:
-  /*!
-   * \brief Internal common parts for replaying steps. This is the key method to apply steps to
-   * TVM schedule.
-   * \param transform_steps Transform steps of the target state.
-   * \param stages A pointer to `te::Stage` vector.
-   * \param stage_to_axes A pointer to StageToAxesMap.
-   * \return The return values can be used as arguments to `tvm.build` or `tvm.lower`.
-   */
-  std::pair<te::Schedule, Array<te::Tensor> > ReplaySteps(const Array<Step>& transform_steps,
-                                                          Array<te::Stage>* stages,
-                                                          StageToAxesMap* stage_to_axes) const;
-
-  /*!
-   * \brief Internal common parts for inferring bound.
-   * \param pstate A pointer to StateNode, the target state will be updated with filled
-   * bound information.
-   */
-  void InferBoundCommon(StateNode* pstate) const;
 };
 
 }  // namespace ansor

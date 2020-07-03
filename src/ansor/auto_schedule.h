@@ -36,7 +36,7 @@ namespace tvm {
 namespace ansor {
 
 /*! \brief Tuning and measurement options. */
-class TuneOptionNode : public Object {
+class TuningOptionsNode : public Object {
  public:
   /*! \brief Number of total measurement trials. */
   int num_measure_trials;
@@ -46,10 +46,10 @@ class TuneOptionNode : public Object {
   int num_measures_per_round;
   /*! \brief Verbosity level. 0 for silent, 1 to output information during schedule searching. */
   int verbose;
-  /*! \brief Builder which builds the program */
-  Builder builder;
-  /*! \brief Runner which runs the program and measure time costs */
-  Runner runner;
+  /*! \brief ProgramBuilder which builds the program */
+  ProgramBuilder builder;
+  /*! \brief ProgramRunner which runs the program and measure time costs */
+  ProgramRunner runner;
   /*! \brief MeasureCallback functions to be called after each measure batch */
   Array<MeasureCallback> measure_callbacks;
   /*! \brief SearchCallback functions to be called before schedule search */
@@ -66,15 +66,15 @@ class TuneOptionNode : public Object {
     v->Visit("pre_search_callbacks", &pre_search_callbacks);
   }
 
-  static constexpr const char* _type_key = "ansor.TuneOption";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TuneOptionNode, Object);
+  static constexpr const char* _type_key = "ansor.TuningOptions";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TuningOptionsNode, Object);
 };
 
 /*!
- * \brief Managed reference to TuneOptionNode.
- * \sa TuneOptionNode
+ * \brief Managed reference to TuningOptionsNode.
+ * \sa TuningOptionsNode
  */
-class TuneOption : public ObjectRef {
+class TuningOptions : public ObjectRef {
  public:
   /*!
    * \brief The constructor
@@ -83,28 +83,29 @@ class TuneOption : public ObjectRef {
    * \param num_measures_per_round The number of programs to be measured at each search round.
    * \param verbose Verbosity level. 0 for silent, 1 to output information during schedule
    * search.
-   * \param builder Builder which builds the program.
-   * \param runner Runner which runs the program and measure time costs.
+   * \param builder ProgramBuilder which builds the program.
+   * \param runner ProgramRunner which runs the program and measure time costs.
    * \param measure_callbacks MeasureCallback functions to be called after each measure batch.
    * \param pre_search_callbacks SearchCallback functions to be called before schedule search.
    */
-  TuneOption(int num_measure_trials, int early_stopping, int num_measures_per_round, int verbose,
-             Builder builder, Runner runner, Array<MeasureCallback> measure_callbacks,
-             Array<SearchCallback> pre_search_callbacks);
+  TuningOptions(int num_measure_trials, int early_stopping, int num_measures_per_round, int verbose,
+                ProgramBuilder builder, ProgramRunner runner,
+                Array<MeasureCallback> measure_callbacks,
+                Array<SearchCallback> pre_search_callbacks);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TuneOption, ObjectRef, TuneOptionNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(TuningOptions, ObjectRef, TuningOptionsNode);
 };
 
 /*!
  * \brief Auto schedule search for a given compute declaration, by SearchTask.
  * \param task The target search task.
  * \param search_policy The search policy to be used for schedule search.
- * \param tune_option Tuning and measurement options.
+ * \param tuning_options Tuning and measurement options.
  * \return A `te::Schedule` and the target `te::Tensor` to be used in `tvm.lower` or `tvm.build`.
  */
 std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(SearchTask task,
                                                          SearchPolicy search_policy,
-                                                         TuneOption tune_option);
+                                                         TuningOptions tuning_options);
 }  // namespace ansor
 }  // namespace tvm
 

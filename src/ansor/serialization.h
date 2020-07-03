@@ -74,8 +74,8 @@ class LogReaderNode : public Object {
 
   /*!
    * \brief Read next line in the log file.
-   * \param inp A pointer to MeasureInputNode, this is used as output.
-   * \param res A pointer to MeasureResultNode, this is used as output.
+   * \param inp A pointer to a MeasureInputNode, this is used as output.
+   * \param res A pointer to a MeasureResultNode, this is used as output.
    * \return Whether the read is successful. */
   bool ReadNext(MeasureInputNode* inp, MeasureResultNode* res);
 
@@ -113,7 +113,7 @@ class LogReader : public ObjectRef {
 
 /*!
  * \brief Write measure records to an output stream.
- * \param os A pointer to output stream.
+ * \param os A pointer to a output stream.
  * \param inputs The target MeasureInputs to be written.
  * \param results The target MeasureResults to be written.
  */
@@ -123,9 +123,9 @@ void WriteMeasureRecords(std::ostream* os, const Array<MeasureInput>& inputs,
 /*!
  * \brief Read one measure record from a string.
  * \param str The target record string to be extract.
- * \param inp A pointer to MeasureInputNode, this is used as output.
- * \param res A pointer to MeasureResultNode, this is used as output.
- * \param log_version A pointer to log version string.
+ * \param inp A pointer to a MeasureInputNode, this is used as output.
+ * \param res A pointer to a MeasureResultNode, this is used as output.
+ * \param log_version A pointer to a log version string.
  */
 void ReadMeasureRecord(const std::string& str, MeasureInputNode* inp, MeasureResultNode* res,
                        std::string* log_version);

@@ -115,9 +115,9 @@ class MeasureResult(Object):
             error_msg, all_cost, timestamp)
 
 
-@tvm._ffi.register_object("ansor.Builder")
-class Builder(Object):
-    """ Base class of Builder. """
+@tvm._ffi.register_object("ansor.ProgramBuilder")
+class ProgramBuilder(Object):
+    """ Base class of ProgramBuilder. """
 
     def build(self, measure_inputs, verbose=1):
         """ Build programs and return results.
@@ -133,12 +133,12 @@ class Builder(Object):
         -------
         res : List[BuildResult]
         """
-        return _ffi_api.BuilderBuild(self, measure_inputs, verbose)
+        return _ffi_api.ProgramBuilderBuild(self, measure_inputs, verbose)
 
 
-@tvm._ffi.register_object("ansor.Runner")
-class Runner(Object):
-    """ Base class of Runner """
+@tvm._ffi.register_object("ansor.ProgramRunner")
+class ProgramRunner(Object):
+    """ Base class of ProgramRunner """
 
     def run(self, measure_inputs, build_results, verbose=1):
         """ Run measurement and return results.
@@ -156,11 +156,11 @@ class Runner(Object):
         -------
         res : List[MeasureResult]
         """
-        return _ffi_api.RunnerRun(self, measure_inputs, build_results, verbose)
+        return _ffi_api.ProgramRunnerRun(self, measure_inputs, build_results, verbose)
 
 
 @tvm._ffi.register_object("ansor.LocalBuilder")
-class LocalBuilder(Builder):
+class LocalBuilder(ProgramBuilder):
     """ LocalBuilder use local CPU cores to build programs in parallel.
 
     Parameters
@@ -182,7 +182,7 @@ class LocalBuilder(Builder):
 
 
 @tvm._ffi.register_object("ansor.LocalRunner")
-class LocalRunner(Runner):
+class LocalRunner(ProgramRunner):
     """ LocalRunner that uses local CPU/GPU to measures the time cost of programs.
 
     Parameters

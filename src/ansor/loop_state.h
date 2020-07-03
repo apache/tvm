@@ -19,21 +19,29 @@
 
 /*!
  * \file ansor/loop_state.h
- * \brief The definition of the "state" in search. A state consists the current loop structure
- * and the transform history to reach its current loop structure.
- * To enable flexible manipulation of the loop structures, we implemented a lightweight loop
- * structure IR (Intermediate Representation) based on the original TVM IR but specifically
- * for schedule search.
+ * \brief The definition of the "state" in search.
  *
- * We don't use the existing TVM IR but to extend a new Sketch IR on it is because:
- * 1. We want fast incremental change to the loop structures;
+ * Each LoopState corresponds to a specific schedule for its target ComputeDAG.
+ * A LoopState consists of: 1. a current loop structure; 2. a history of transformations used to
+ * construct it.
+ * The loop structure keeps a preview of how the schedule will finally look like after lowering the
+ * current state (e.g. number of iterators, the extent of each iterator, the compute_at locations
+ * ...). During the schedule search process, the loop structure can provide search policy with
+ * necessary information on how to perform further operations with the current state.
+ * The transform history is a sequence of TransformStep which will finally be mapped to schedule
+ * primitives. The steps can also be used for serialization of a state.
+ *
+ * The LoopState can be seen as a lightweight loop structure IR specifically for schedule search.
+ * We don't use the existing TVM IR but to extend a new structure on it is because:
+ * 1. We want fast incremental change to the loop structures, search policy needs to get the
+ * immediate loop structures update rather than after TVM lowering;
  * 2. We want serializable transform history for replay, backtracking, and mutation;
- * 3. We may create some macro schedule primitives that represent the combination of several
- * TVM schedule primitives.
+ * 3. We may create some macro schedule primitives that represent the combination of several TVM
+ * schedule primitives.
  *
- * After the search is done, we will lower this IR to TVM IR with TVM's schedule primitives.
- * Because we share a lot common objects during search, the transformation is implemented in
- * copy on write style. All objects are immutable, which is similar to TVM IR.
+ * When the search is complete, we will lower the state to TVM IR with TVM's schedule primitives.
+ * Since we share a lot of common objects during search, the transformation is implemented in copy
+ * on write style. All objects are immutable, which is similar to TVM IR.
  */
 
 #ifndef TVM_ANSOR_LOOP_STATE_H_
@@ -219,9 +227,9 @@ class Stage : public ObjectRef {
 };
 
 /*!
- * \brief A State in the search process.
- * It consists of the current loop structure and the history steps to reach this State.
- * Each State corresponds to a specific schedule for the target ComputeDAG.
+ * \brief A state in the search process.
+ * It consists of the current loop structure and a history of transformations used to construct it.
+ * Each State corresponds to a specific schedule for its target ComputeDAG.
  */
 class StateNode : public Object {
  public:
@@ -263,6 +271,22 @@ class State : public ObjectRef {
   explicit State(const Array<te::Operation>& ops);
 
   /*!
+   * \brief Print the state to a human readable string.
+   * \param delete_trivial_loop True for skipping the trivial loops.
+   * (undefined or extent == 1, default set to True)
+   * \return The human readable state structure.
+   */
+  String ToStr(bool delete_trivial_loop = true) const;
+
+  /*!
+   * \brief General do step functions with a runtime dynamic dispatcher.
+   * \param dag The target ComputeDAG.
+   */
+  void DoSteps(const ComputeDAG& dag);
+
+  /* Step APIs for State. */
+
+  /*!
    * \brief Schedule primitive corresponds to te.reorder.
    * \param stage_id The index of the target stage.
    * \param order The target iterator order.
@@ -285,21 +309,6 @@ class State : public ObjectRef {
    * \return The iterator result after fuse.
    */
   Iterator fuse(int stage_id, const Array<Iterator>& iters);
-
-  /*!
-   * \brief General do step functions with a runtime dynamic dispatcher.
-   * \param steps The target transform steps.
-   * \param dag The target ComputeDAG.
-   */
-  void DoSteps(const Array<Step>& steps, const ComputeDAG& dag);
-
-  /*!
-   * \brief Print the state to a string.
-   * \param delete_trivial_loop True for skipping the trivial loops.
-   * (undefined or extent == 1, default set to True)
-   * \return The human readable state structure.
-   */
-  String ToStr(bool delete_trivial_loop = true) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StateNode);

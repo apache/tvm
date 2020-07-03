@@ -33,7 +33,18 @@ from . import _ffi_api
 @tvm._ffi.register_object("ansor.ComputeDAG")
 class ComputeDAG(Object):
     """
-    Computation declaration graph.
+    The Ansor computational graph and related program analyses.
+
+    We convert a compute declaration described by `tvm.compute` (could be a single operator or a
+    subgraph) to a ComputeDAG. It keeps the input/output tensors of the target compute declaration,
+    a list of all related operations in topo order as well as a set of analyses over each operation
+    stage (e.g. the total float operation count, consumer/producer relations of each operation
+    stage, whether a operation stage should be tiled/compute inlined ...). These analyses can
+    help the search policy to do some specific decisions during schedule search process.
+
+    ComputeDAG is also responsible for the interaction between Ansor LoopState and TVM schedule
+    (e.g. applying the LoopState transform steps to TVM schedule, providing LoopState with extra
+    information get from TVM schedule ...).
 
     Parameters
     ----------
@@ -52,7 +63,7 @@ class ComputeDAG(Object):
         self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, compute)
 
     def get_init_state(self):
-        """ Get init state of this ComputeDAG.
+        """ Get the init state of this ComputeDAG.
 
         Returns
         -------
@@ -63,7 +74,7 @@ class ComputeDAG(Object):
 
     def apply_steps_from_state(self, state):
         """
-        Apply transform steps according to the history of a State.
+        Apply the history transform steps of a State to TVM schedule.
 
         Parameters
         ----------
@@ -96,14 +107,14 @@ class ComputeDAG(Object):
 
     def infer_bound_from_state(self, state):
         """
-        Infer bound for a state using TVM schedule.
+        Infer and fill the bound of all iterators of a state using TVM schedule.
 
         State api supports to define a split step with its split factor to be a blank placeholder,
         so sometimes we may get a State will incomplete iterator extent information.
         And another situation is after some steps (for exp. compute_at), it may be hard to track
         the extent change of all iterators.
 
-        We perform infer bound using TVM schedule and fill the State with those informations. After
+        We perform infer bound using TVM schedule and fill the State with those information. After
         applying this methods, the State is guaranteed to have complete interator extent
         information.
 
@@ -121,7 +132,7 @@ class ComputeDAG(Object):
         return State(_ffi_api.ComputeDAGInferBoundFromState(self, state_obj), self)
 
     def __hash__(self):
-        # TODO(...): Implement this more carefully and move this to c++ as a member function
+        # TODO(merrymercy): Implement this more carefully and move this to c++ as a member function
         # of ComputeDAG
         str_key = ''
         for op in self.ops:

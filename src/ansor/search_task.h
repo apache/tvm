@@ -34,7 +34,7 @@ namespace ansor {
 
 class HardwareParams;
 
-/*! \brief Hardware related parameters */
+/*! \brief The parameters of target hardware used to guide the search process of SearchPolicy. */
 class HardwareParamsNode : public Object {
  public:
   /*! \brief The number of cores. */
@@ -107,7 +107,9 @@ class HardwareParams : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(HardwareParamsNode);
 };
 
-/*! \brief Meta-info for a search task */
+/*!
+ * \brief The computation information and hardware parameters for a specific schedule search task.
+ */
 class SearchTaskNode : public Object {
  public:
   /*! \brief The ComputeDAG for target compute declaration. */
