@@ -24,8 +24,8 @@
  * \brief Defines implementations of generic string-based function lookup structs
  */
 
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 #include <tvm/runtime/crt/func_registry.h>
 
 /*!

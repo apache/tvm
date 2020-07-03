@@ -18,12 +18,12 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/internal/common/memory.h>
+#include <tvm/runtime/crt/memory.h>
 
 #include "crt_config.h"
 
-#define ROUND_UP(qty, modulo) (((qty) + ((modulo) - 1)) / (modulo) * (modulo))
+#define ROUND_UP(qty, modulo) (((qty) + ((modulo)-1)) / (modulo) * (modulo))
 
 static constexpr const unsigned int kTotalPages = 128;
 static constexpr const unsigned int kNumUsablePages = 95;
@@ -34,13 +34,14 @@ class MemoryManagerTest : public ::testing::Test {
  protected:
   void SetUp() override {
     memset(raw_memory_pool, 0, sizeof(raw_memory_pool));
-    memory_pool = (uint8_t*) (ROUND_UP(((uintptr_t) raw_memory_pool), (1 << kPageSizeBytesLog)));
+    memory_pool = (uint8_t*)(ROUND_UP(((uintptr_t)raw_memory_pool), (1 << kPageSizeBytesLog)));
     MemoryManagerCreate(&mgr, memory_pool, kMemoryPoolSizeBytes, kPageSizeBytesLog);
     ASSERT_EQ(kNumUsablePages, mgr.ptable.max_pages);
   }
 
   unsigned int AddressToPageNumber(void* a) {
-    return (reinterpret_cast<uintptr_t>(a) - reinterpret_cast<uintptr_t>(memory_pool)) >> kPageSizeBytesLog;
+    return (reinterpret_cast<uintptr_t>(a) - reinterpret_cast<uintptr_t>(memory_pool)) >>
+           kPageSizeBytesLog;
   }
 
   uint8_t raw_memory_pool[kMemoryPoolSizeBytes + (1 << kPageSizeBytesLog)];
@@ -118,9 +119,7 @@ TEST_F(MemoryManagerTest, Realloc) {
 }
 
 extern "C" {
-void TVMPlatformAbort(int error_code) {
-  FAIL() << "TVMPlatformAbort(" << error_code << ")";
-}
+void TVMPlatformAbort(int error_code) { FAIL() << "TVMPlatformAbort(" << error_code << ")"; }
 }
 
 int main(int argc, char** argv) {

@@ -65,7 +65,7 @@ typedef struct TVMGraphRuntime TVMGraphRuntime;
  * \param ctxs runtime execution context.
  */
 TVMGraphRuntime* TVMGraphRuntime_Create(const char* sym_json, const struct TVMModule* m,
-                                       const TVMContext* ctxs);
+                                        const TVMContext* ctxs);
 
 int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name);
 
@@ -94,7 +94,7 @@ int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t index, DLT
  * \return The result of this function execution.
  */
 int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
-                              const uint32_t param_size);
+                               const uint32_t param_size);
 
 /*!
  * \brief Execute the graph.

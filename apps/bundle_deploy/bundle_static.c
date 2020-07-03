@@ -25,17 +25,15 @@
 
 #include "bundle.h"
 
-
 /*! \brief macro to do C API call */
 #define TVM_CCALL(func)                                                              \
   do {                                                                               \
-    tvm_crt_error_t ret = (func);                                       \
-    if (ret != kTvmErrorNoError) {                                      \
+    tvm_crt_error_t ret = (func);                                                    \
+    if (ret != kTvmErrorNoError) {                                                   \
       fprintf(stderr, "%s: %d: error: %s\n", __FILE__, __LINE__, TVMGetLastError()); \
       exit(ret);                                                                     \
     }                                                                                \
   } while (0)
-
 
 TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
                                  const uint64_t params_size) {
@@ -67,22 +65,22 @@ TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
 }
 
 TVM_DLL void tvm_runtime_destroy(void* runtime) {
-  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*) runtime;
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*)runtime;
   TVMGraphRuntime_Release(&graph_runtime);
 }
 
 TVM_DLL void tvm_runtime_set_input(void* runtime, const char* name, DLTensor* tensor) {
-  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*) runtime;
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*)runtime;
   TVMGraphRuntime_SetInput(graph_runtime, name, tensor);
 }
 
 TVM_DLL void tvm_runtime_run(void* runtime) {
-  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*) runtime;
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*)runtime;
   TVMGraphRuntime_Run(graph_runtime);
 }
 
 TVM_DLL void tvm_runtime_get_output(void* runtime, int32_t index, DLTensor* tensor) {
-  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*) runtime;
+  TVMGraphRuntime* graph_runtime = (TVMGraphRuntime*)runtime;
   TVMGraphRuntime_GetOutput(graph_runtime, index, tensor);
 }
 
