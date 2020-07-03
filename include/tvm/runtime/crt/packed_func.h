@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/runtime/crt/common/packed_func.h
+ * \file tvm/runtime/crt/packed_func.h
  * \brief Type-erased function used across TVM API.
  */
-#ifndef TVM_RUNTIME_CRT_COMMON_PACKED_FUNC_H_
-#define TVM_RUNTIME_CRT_COMMON_PACKED_FUNC_H_
+#ifndef TVM_RUNTIME_CRT_PACKED_FUNC_H_
+#define TVM_RUNTIME_CRT_PACKED_FUNC_H_
 
 #include <assert.h>
 #include <stdio.h>
@@ -75,4 +75,4 @@ inline TVMModuleHandle TVMArgs_AsModuleHandle(const TVMArgs* args, size_t index)
 extern TVMPackedFunc* g_fexecs;
 extern uint32_t g_fexecs_count;
 
-#endif  // TVM_RUNTIME_CRT_COMMON_PACKED_FUNC_H_
+#endif  // TVM_RUNTIME_CRT_PACKED_FUNC_H_
