@@ -1658,8 +1658,8 @@ class OperatorConverter(object):
         axis_tensor = input_tensors[1]
         # In Tensorflow, `axis` argument is a Tensor, not attribute. We
         # support the case where it inputs from a scalar constant.
-        axis_value = self.get_tensor_value( axis_tensor )
-        assert( 1 == axis_value.size )
+        axis_value = self.get_tensor_value(axis_tensor)
+        assert axis_value.size == 1
         axis_value = axis_value.item()
 
         if op.BuiltinOptionsType() == BuiltinOptions.ArgMinOptions:
