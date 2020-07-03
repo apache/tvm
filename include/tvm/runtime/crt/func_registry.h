@@ -86,12 +86,14 @@ typedef struct TVMMutableFuncRegistry {
   size_t max_functions;
 } TVMMutableFuncRegistry;
 
+#define TVM_AVERAGE_FUNCTION_NAME_SIZE_BYTES 10
+
 /*!
  * \brief Size of an average function name in a TVMMutableFuncRegistry, in bytes.
  *
  * This is just an assumption made by the runtime for ease of use.
  */
-static const size_t kTvmAverageFunctionNameSizeBytes = 10;
+static const size_t kTvmAverageFunctionNameSizeBytes = TVM_AVERAGE_FUNCTION_NAME_SIZE_BYTES;
 
 /*!
  * \brief Size of an average entry in a TVMMutableFuncRegistry, in bytes.
@@ -99,7 +101,7 @@ static const size_t kTvmAverageFunctionNameSizeBytes = 10;
  * Assumes a constant average function name length.
  */
 static const size_t kTvmAverageFuncEntrySizeBytes =
-    kTvmAverageFunctionNameSizeBytes + 1 + sizeof(void*);
+    TVM_AVERAGE_FUNCTION_NAME_SIZE_BYTES + 1 + sizeof(void*);
 
 /*!
  * \brief Create a new mutable function registry from a block of memory.
