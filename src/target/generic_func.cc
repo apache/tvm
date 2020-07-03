@@ -102,7 +102,7 @@ void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   PackedFunc func;
 
   if (target.defined()) {
-    for (auto& k : target->keys()) {
+    for (auto& k : target->GetKeys()) {
       auto iter = node->dispatch_dict_.find(k);
       if (iter != node->dispatch_dict_.end()) {
         func = iter->second;

@@ -311,7 +311,7 @@ Doc TIRTextPrinter::VisitExpr_(const ProducerLoadNode* op) {
 Doc TIRTextPrinter::VisitExpr_(const LoadNode* op) {
   Doc doc;
   doc << "(" << PrintDType(op->dtype) << "*)" << Print(op->buffer_var) << "[" << Print(op->index)
-      << "])";
+      << "]";
   if (!is_one(op->predicate)) {
     doc << " if " << Print(op->predicate);
   }

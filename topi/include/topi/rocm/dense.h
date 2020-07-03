@@ -63,7 +63,7 @@ inline tvm::te::Tensor dense_rocm(const Target& target, const tvm::te::Tensor& d
   auto in_dim = data->shape[1];
   auto out_dim = weight->shape[0];
 
-  if (target->libs().count("rocblas")) {
+  if (target->GetLibs().count("rocblas")) {
     CHECK_EQ(data->dtype, out_dtype) << "Mixed precision not supported.";
     auto mm = topi::contrib::rocblas_matmul(data, weight, false, true);
     if (bias.defined()) {
@@ -86,7 +86,7 @@ inline tvm::te::Tensor dense_rocm(const Target& target, const tvm::te::Tensor& d
  * \return A schedule for the given ops.
  */
 inline Schedule schedule_dense(const Target& target, const Array<Tensor>& outs) {
-  if (target->target_name == "rocm" && target->libs().count("rocblas")) {
+  if (target->id->name == "rocm" && target->GetLibs().count("rocblas")) {
     return topi::generic::schedule_extern(target, outs);
   }
 
