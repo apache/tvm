@@ -24,7 +24,6 @@
 
 #include "search_task.h"
 
-#include <tvm/target/target.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 

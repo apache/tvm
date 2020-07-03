@@ -34,7 +34,7 @@ def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'
 
     random.seed(seed)
     N = 128
-    workload_key = ansor.make_workload_key_by_func(matmul_ansor_test, (N, N, N))
+    workload_key = ansor.make_workload_key(matmul_ansor_test, (N, N, N))
     dag = ansor.ComputeDAG(workload_key)
     target = tvm.target.create(target)
     task = ansor.SearchTask(dag, workload_key, target)

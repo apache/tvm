@@ -38,7 +38,7 @@ from .utils import serialize_args, deserialize_args
 WORKLOAD_FUNC_REGISTRY = {}
 
 
-def register_workload_by_func(func):
+def register_workload(func):
     """ Register a workload by generation function.
 
     The input function should take hashable and jsonable arguments
@@ -51,7 +51,7 @@ def register_workload_by_func(func):
 
     Examples
     --------
-    @ansor.register_workload_by_func
+    @ansor.register_workload
     def matmul(N, M, K):
         A = te.placeholder((N, K), name='A')
         B = te.placeholder((K, M), name='B')
@@ -68,7 +68,7 @@ def register_workload_by_func(func):
     return func
 
 
-def make_workload_key_by_func(func, args):
+def make_workload_key(func, args):
     """ make a workload key from function and arguments.
 
     Parameters
@@ -93,7 +93,7 @@ def make_workload_key_by_func(func, args):
 
     if not func_name in WORKLOAD_FUNC_REGISTRY:
         raise ValueError("%s is not registered. "  % func,
-                         "Please register it with @ansor.register_workload_by_func")
+                         "Please register it with @ansor.register_workload")
 
     args = serialize_args(args)
 
@@ -118,7 +118,7 @@ def decode_workload_key_to_func_args(workload_key):
     workload = json.loads(workload_key)
     if not workload[0] in WORKLOAD_FUNC_REGISTRY:
         raise ValueError("%s is not registered. " % workload[0] +
-                         "Please register it with @ansor.register_workload_by_func")
+                         "Please register it with @ansor.register_workload")
     return workload[0], deserialize_args(workload[1:])
 
 

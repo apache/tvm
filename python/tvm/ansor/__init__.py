@@ -31,4 +31,4 @@ from .auto_schedule import SearchTask, TuningOptions, HardwareParams, \
 from .measure import MeasureInput, LocalBuilder, LocalRunner
 from .serialization import LogToFile, LogReader, best_measure_pair_in_file, \
     load_from_file, append_measure_records_to_file
-from .workload_registry import register_workload_by_func, make_workload_key_by_func
+from .workload_registry import register_workload, make_workload_key
