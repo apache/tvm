@@ -1133,11 +1133,10 @@ def test_forward_cond():
 
 def test_forward_amp_cast():
     def verify(from_dtype, to_dtype):
-        from_nd = mx.nd.ones((2,2), dtype=from_dtype)
-        from_np = from_nd.asnumpy()
+        from_np = np.random.uniform(size=(1,3,18)).astype(from_dtype)
         x_var = mx.sym.var('x', dtype=from_dtype)
         mx_sym = mx.sym.amp_cast(x_var, dtype=to_dtype)
-        shape_dict = {'x': (2,2)}
+        shape_dict = {'x': (1,3,18)}
         dtype_dict = {'x': from_dtype}
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict, dtype_dict)
         for target, ctx in ctx_list():
@@ -1145,30 +1144,30 @@ def test_forward_amp_cast():
                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
                 op_res = intrp.evaluate()(from_np)
                 assert op_res.dtype == to_dtype, op_res.dtype
-                tvm.testing.assert_allclose(op_res.asnumpy(), 1.)
+                tvm.testing.assert_allclose(op_res.asnumpy(), from_np.astype(to_dtype))
 
     verify('float32', 'float16')
     verify('float16', 'float32')
 
 def test_forward_amp_multicast():
     def verify(dtypes, cast_narrow, expected_dtype):
-        x_nps = [np.ones((2,2), dtype=dtype) for dtype in dtypes]
+        x_nps = [np.random.uniform(size=(1,3,18)).astype(dtype) for dtype in dtypes]
         x_vars = [mx.sym.var(str(i), dtype=dtype) for i, dtype in enumerate(dtypes)]
         mx_sym = mx.sym.amp_multicast(*x_vars, cast_narrow=cast_narrow,
                                       num_outputs=len(dtypes))
         shape_dict = {}
         dtype_dict = {}
         for i, dtype in enumerate(dtypes):
-            shape_dict[str(i)] = (2,2)
+            shape_dict[str(i)] = (1,3,18)
             dtype_dict[str(i)] = dtype
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict, dtype_dict)
         for target, ctx in ctx_list():
             for kind in ["graph", "vm", "debug"]:
                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
                 op_res = intrp.evaluate()(*x_nps)
-                for res in op_res:
+                for i, res in enumerate(op_res):
                     assert res.dtype == expected_dtype, res.dtype
-                    tvm.testing.assert_allclose(res.asnumpy(), 1)
+                    tvm.testing.assert_allclose(res.asnumpy(), x_nps[i].astype(expected_dtype))
 
     verify(['float32', 'float16'], False, 'float32')
     verify(['float32', 'float16'], True,  'float16')
@@ -1375,8 +1374,6 @@ def test_forward_box_decode():
 
 
 if __name__ == '__main__':
-    test_forward_amp_multicast()
-    test_forward_amp_cast()
     test_forward_mlp()
     test_forward_vgg()
     test_forward_resnet()
@@ -1450,3 +1447,5 @@ if __name__ == '__main__':
     test_forward_interleaved_matmul_selfatt_qk()
     test_forward_interleaved_matmul_selfatt_valatt()
     test_forward_box_decode()
+    test_forward_amp_multicast()
+    test_forward_amp_cast()

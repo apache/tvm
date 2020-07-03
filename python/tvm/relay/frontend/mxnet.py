@@ -909,15 +909,14 @@ def _mx_amp_multicast(inputs, attrs):
     supported_dtypes = ['float16', 'float32']
     assert all([x in supported_dtypes for x in dtypes]), \
             "amp_multicast support is limited to float16 and float32 inputs only."
-    dtype = 'float32' if cast_narrow else dtypes[0]
-    for t in dtypes:
-        if cast_narrow and t == 'float16':
-            dtype = 'float16'
-            break
-        elif not cast_narrow and t == 'float32':
-            dtype = 'float32'
-            break
-    return [relay.cast(x, dtype) for x in inputs]
+    has_float16 = any(x == "float16" for x in dtypes)
+    has_float32 = any(x == "float32" for x in dtypes)
+    dtype = dtypes[0]
+    if cast_narrow and has_float16:
+       dtype = 'float16'
+    if not cast_narrow and has_float32:
+       dtype = 'float32'
+    return [_op.cast(x, dtype) for x in inputs]
 
 def _mx_grid_generator(inputs, attrs):
     transform_type = attrs.get_str("transform_type")
