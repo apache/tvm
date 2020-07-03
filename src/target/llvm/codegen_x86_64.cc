@@ -115,7 +115,6 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
 
 llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intrin_lanes,
                                              llvm::Type* result_ty,
-
                                              const std::vector<llvm::Value*>& args) {
   llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), id, {});
   size_t num_elems = llvm::cast<llvm::VectorType>(result_ty)->getNumElements();
@@ -137,9 +136,12 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
         split_args.push_back(v);
       }
     }
-    split_results.push_back(CallVectorIntrin(
-        id, intrin_lanes, llvm::VectorType::get(result_ty->getScalarType(), intrin_lanes),
-        split_args));
+#if TVM_LLVM_VERSION >= 110
+    llvm::Type* type = llvm::FixedVectorType::get(result_ty->getScalarType(), intrin_lanes);
+#else
+    llvm::Type* type = llvm::VectorType::get(result_ty->getScalarType(), intrin_lanes);
+#endif
+    split_results.push_back(CallVectorIntrin(id, intrin_lanes, type, split_args));
   }
   return CreateVecSlice(CreateVecConcat(split_results), 0, num_elems);
 }
