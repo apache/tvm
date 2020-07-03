@@ -326,7 +326,11 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
     }
   }
   if (dtype.lanes() != 1) {
+#if TVM_LLVM_VERSION >= 110
+    return llvm::FixedVectorType::get(etype, dtype.lanes());
+#else
     return llvm::VectorType::get(etype, dtype.lanes());
+#endif
   } else {
     return etype;
   }
@@ -453,7 +457,12 @@ std::unique_ptr<CodeGenLLVM::DebugInfo> CodeGenLLVM::CreateDebugInfo(llvm::Modul
 }
 
 llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
-  llvm::Constant* undef = llvm::UndefValue::get(llvm::VectorType::get(value->getType(), lanes));
+#if TVM_LLVM_VERSION >= 110
+  llvm::Type* type = llvm::FixedVectorType::get(value->getType(), lanes);
+#else
+  llvm::Type* type = llvm::VectorType::get(value->getType(), lanes);
+#endif
+  llvm::Constant* undef = llvm::UndefValue::get(type);
   llvm::Constant* zero = ConstInt32(0);
   value = builder_->CreateInsertElement(undef, value, zero);
 #if TVM_LLVM_VERSION >= 110
@@ -625,19 +634,6 @@ llvm::Value* CodeGenLLVM::GetConstString(const std::string& str) {
 }
 
 llvm::Value* CodeGenLLVM::CreateBufferPtr(DataType t, llvm::Value* buffer, llvm::Value* index) {
-  CHECK_EQ(t.lanes(), 1);
-  llvm::PointerType* btype = llvm::dyn_cast<llvm::PointerType>(buffer->getType());
-  CHECK(btype != nullptr);
-  llvm::PointerType* ptype = DTypeToLLVMType(t)->getPointerTo(btype->getAddressSpace());
-  if (btype != ptype) {
-    buffer = builder_->CreatePointerCast(buffer, ptype);
-  }
-
-  return builder_->CreateInBoundsGEP(buffer, index);
-}
-
-llvm::Value* CodeGenLLVM::CreateBufferVecPtr(DataType t, llvm::Value* buffer, llvm::Value* index) {
-  CHECK_GT(t.lanes(), 1);
   llvm::PointerType* btype = llvm::dyn_cast<llvm::PointerType>(buffer->getType());
   CHECK(btype != nullptr);
   llvm::PointerType* ptype = DTypeToLLVMType(t)->getPointerTo(btype->getAddressSpace());
@@ -792,7 +788,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       addrspace = llvm::dyn_cast<llvm::PointerType>(ptr->getType())->getAddressSpace();
     } else {
       PrimExpr index = r->base / make_const(DataType::Int(32), r->lanes);
-      ptr = CreateBufferVecPtr(l->dtype, MakeValue(l->buffer_var), MakeValue(index));
+      ptr = CreateBufferPtr(l->dtype, MakeValue(l->buffer_var), MakeValue(index));
       addrspace = llvm::dyn_cast<llvm::PointerType>(ptr->getType())->getAddressSpace();
     }
     return builder_->CreatePointerCast(ptr, t_char_->getPointerTo(addrspace));

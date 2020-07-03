@@ -494,7 +494,7 @@ def conv2d_transpose(data,
         Layout of the output, by default, out_layout is the same as data_layout
 
     output_padding : Tuple[int], optional
-        Additional zero-padding to be added to one side of the output.
+        Used to disambiguate the output shape.
 
     out_dtype : str, optional
         Specifies the output data type for mixed precision conv2d.
@@ -562,7 +562,7 @@ def conv1d_transpose(data,
         Layout of the output, by default, out_layout is the same as data_layout
 
     output_padding : Tuple[int], optional
-        Additional zero-padding to be added to one side of the output.
+        Used to disambiguate the output shape.
 
     out_dtype : str, optional
         Specifies the output data type for mixed precision conv2d.

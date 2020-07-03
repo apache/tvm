@@ -104,6 +104,7 @@ List of operators
    topi.logical_not
    topi.logical_xor
    topi.arange
+   topi.meshgrid
    topi.stack
    topi.repeat
    topi.tile
@@ -187,6 +188,7 @@ topi
 .. autofunction:: topi.greater
 .. autofunction:: topi.less
 .. autofunction:: topi.arange
+.. autofunction:: topi.meshgrid
 .. autofunction:: topi.stack
 .. autofunction:: topi.repeat
 .. autofunction:: topi.tile

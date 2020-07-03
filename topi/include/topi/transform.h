@@ -1258,6 +1258,38 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
 }
 
 /*!
+ * \brief Produce grids by expanding input over dimensions defined by other inputs
+ *
+ * \param inputs The input tensors
+ * \param indexing The indexing mode, either "xy" or "ij"
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the meshgrid operation
+ */
+inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& indexing,
+                              std::string name = "T_meshgrid", std::string tag = kInjective) {
+  const bool cartesian_indexing = indexing == "xy" && inputs.size() >= 2;
+  Array<PrimExpr> out_shape;
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    const int src_index = (cartesian_indexing && i < 2) ? 1 - i : i;
+    out_shape.push_back(inputs[src_index]->shape.size() == 0 ? 1 : inputs[src_index]->shape[0]);
+  }
+  Array<Tensor> result;
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    result.push_back(compute(
+        out_shape,
+        [&](const Array<Var>& indices) {
+          const int src_index = (cartesian_indexing && i < 2) ? 1 - i : i;
+          Array<PrimExpr> real_indices = {indices[src_index]};
+          return inputs[i](real_indices);
+        },
+        name, tag));
+  }
+  return result;
+}
+
+/*!
  * \brief Transform the layout according to \p src_layout and \p dst_layout
  * \param src the source input.
  * \param src_layout the source layout.

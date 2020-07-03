@@ -333,11 +333,9 @@ def wrap_compute_conv2d_transpose(topi_compute):
         out_dtype = attrs.out_dtype
         out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                      else out_dtype)
-        out = topi_compute(
-            inputs[0], inputs[1], strides, padding, out_dtype)
         output_padding = get_const_tuple(attrs.output_padding)
-        out = topi.nn.pad(out, [0, 0, 0, 0],
-                          [0, 0, output_padding[0], output_padding[1]])
+        out = topi_compute(
+            inputs[0], inputs[1], strides, padding, out_dtype, output_padding)
         return [out]
     return compute_conv2d_transpose
 
@@ -502,9 +500,8 @@ def wrap_compute_conv1d_transpose(topi_compute):
         strides = get_const_tuple(attrs.strides)
         out_dtype = attrs.out_dtype
         out_dtype = (inputs[0].dtype if out_dtype in ("same", "") else out_dtype)
-        out = topi_compute(inputs[0], inputs[1], strides, padding, out_dtype)
         output_padding = get_const_tuple(attrs.output_padding)
-        out = topi.nn.pad(out, [0, 0, 0], [0, 0, output_padding[0]])
+        out = topi_compute(inputs[0], inputs[1], strides, padding, out_dtype, output_padding)
         return [out]
     return _compute_conv1d_tranpsoe
 

@@ -1306,6 +1306,28 @@ def test_forward_interleaved_matmul_selfatt_valatt():
     verify(3, 10, 6, 8)
 
 
+def test_forward_box_decode():
+    def verify(data_shape, anchor_shape, stds=[1, 1, 1, 1], clip=-1, in_format="corner"):
+        dtype = "float32"
+        data = np.random.uniform(low=-2, high=2, size=data_shape).astype(dtype)
+        anchors = np.random.uniform(low=-2, high=2, size=anchor_shape).astype(dtype)
+        ref_res = mx.nd.contrib.box_decode(mx.nd.array(data), mx.nd.array(anchors), stds[0], stds[1], stds[2], stds[3], clip, in_format)
+        mx_sym = mx.sym.contrib.box_decode(mx.sym.var("data"), mx.sym.var("anchors"), stds[0], stds[1], stds[2], stds[3], clip, in_format)
+        shape_dict = {"data": data_shape, "anchors": anchor_shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(data, anchors)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
+
+    verify((1, 10, 4), (1, 10, 4))
+    verify((4, 10, 4), (1, 10, 4))
+    verify((1, 10, 4), (1, 10, 4), stds=[2, 3, 0.5, 1.5])
+    verify((1, 10, 4), (1, 10, 4), clip=1)
+    verify((1, 10, 4), (1, 10, 4), in_format="center")
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -1379,3 +1401,4 @@ if __name__ == '__main__':
     test_forward_arange_like()
     test_forward_interleaved_matmul_selfatt_qk()
     test_forward_interleaved_matmul_selfatt_valatt()
+    test_forward_box_decode()

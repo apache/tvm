@@ -59,9 +59,9 @@ def schedule_softmax(outs):
     #
     # TODO(tvm-team) Fix nvptx codegen or deprecate nvptx backend.
     def sched_warp_softmax():
-        if tgt.target_name == "nvptx" or tgt.target_name == "rocm":
+        if tgt.id.name == "nvptx" or tgt.id.name == "rocm":
             return softmax.dtype == "float32" or softmax.dtype == "int32"
-        if tgt.target_name != "cuda":
+        if tgt.id.name != "cuda":
             # this is used as the gpu schedule for other arches which may not have warp reductions
             return False
         return True

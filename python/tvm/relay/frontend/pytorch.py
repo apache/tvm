@@ -1727,6 +1727,12 @@ def _one_hot():
     return _impl
 
 
+def _meshgrid():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        return _op.meshgrid(data, indexing="ij")
+    return _impl
+
 def _pytorch_result_type(dtypes, non_tensor_inputs):
     """This promotes TVM dtypes like PyTorch would"""
     import torch
@@ -1869,6 +1875,7 @@ def _get_convert_map(prelude):
         "aten::mul_"                            : _elemwise("multiply"),
         "aten::pow"                             : _elemwise("power"),
         "aten::arange"                          : _arange(),
+        "aten::meshgrid"                        : _meshgrid(),
         "aten::div"                             : _elemwise("divide"),
         "aten::div_"                            : _elemwise("divide"),
         "aten::floor_divide"                    : _elemwise("floor_divide"),

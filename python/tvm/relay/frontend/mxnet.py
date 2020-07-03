@@ -978,6 +978,42 @@ def _mx_box_nms(inputs, attrs):
     return nms_out
 
 
+def _mx_box_decode(inputs, attrs):
+    std0 = relay.const(attrs.get_float('std0', 1), "float32")
+    std1 = relay.const(attrs.get_float('std1', 1), "float32")
+    std2 = relay.const(attrs.get_float('std2', 1), "float32")
+    std3 = relay.const(attrs.get_float('std3', 1), "float32")
+    clip = attrs.get_float('clip', -1)
+    in_format = attrs.get_str('format', 'corner')
+
+    anchors = inputs[1] # (1, N, 4) encoded in corner or center
+    a = _op.split(anchors, indices_or_sections=4, axis=-1)
+    # Convert to format "center".
+    if in_format == "corner":
+        a_width = a[2] - a[0]
+        a_height = a[3] - a[1]
+        a_x = a[0] + a_width * relay.const(0.5, "float32")
+        a_y = a[1] + a_height * relay.const(0.5, "float32")
+    else:
+        a_x, a_y, a_width, a_height = a
+    data = inputs[0] # (B, N, 4) predicted bbox offset
+    p = _op.split(data, indices_or_sections=4, axis=-1)
+    ox = p[0] * std0 * a_width + a_x
+    oy = p[1] * std1 * a_height + a_y
+    dw = p[2] * std2
+    dh = p[3] * std3
+    if clip > 0:
+        clip = relay.const(clip, "float32")
+        dw = _op.minimum(dw, clip)
+        dh = _op.minimum(dh, clip)
+    dw = _op.exp(dw)
+    dh = _op.exp(dh)
+    ow = dw * a_width * relay.const(0.5, "float32")
+    oh = dh * a_height * relay.const(0.5, "float32")
+    out = _op.concatenate([ox - ow, oy - oh, ox + ow, oy + oh], axis=-1)
+    return out
+
+
 def _mx_l2_normalize(inputs, attrs):
     new_attrs = {}
     mode = attrs.get_str('mode', 'instance')
@@ -2220,6 +2256,7 @@ _convert_map = {
     "_contrib_Proposal" : _mx_proposal,
     "_contrib_MultiProposal" : _mx_proposal,
     "_contrib_box_nms" : _mx_box_nms,
+    "_contrib_box_decode" : _mx_box_decode,
     "_contrib_DeformableConvolution" : _mx_deformable_convolution,
     "_contrib_AdaptiveAvgPooling2D" : _mx_adaptive_avg_pooling,
     "GridGenerator"                 : _mx_grid_generator,
