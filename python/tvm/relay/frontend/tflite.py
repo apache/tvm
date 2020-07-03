@@ -1648,13 +1648,19 @@ class OperatorConverter(object):
 
         assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 2, "input tensors length should be 2"
+        assert len(input_tensors) == 2, "two input tensor arguments expected"
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "one output tensor expected"
 
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
         axis_tensor = input_tensors[1]
-        # we support the case when the axis is a scalar not a tensor
-        axis_value = int(self.get_tensor_value(axis_tensor))
+        # In Tensorflow, `axis` argument is a Tensor, not attribute. We
+        # support the case where it inputs from a scalar constant.
+        axis_value = self.get_tensor_value( axis_tensor )
+        assert( 1 == axis_value.size )
+        axis_value = axis_value.item()
 
         if op.BuiltinOptionsType() == BuiltinOptions.ArgMinOptions:
             arg_min_max_options = ArgMinOptions()
@@ -1666,7 +1672,7 @@ class OperatorConverter(object):
 
         # set keepdims to True since tflite 1.13 removes all dims of size 1
         # WARNING: all other versions of tflite > 1.13 need keepdims=False
-        out = relay_op(in_expr, axis=axis_value, keepdims=True, exclude=False)
+        out = relay_op(in_expr, axis=axis_value, keepdims=False, exclude=False)
         # cast the output indices to the desired data type
         casted_output = _op.cast(out, self.get_tensor_type_str(output_dtype))
 
