@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 from __future__ import absolute_import
-from tvm._ffi.runtime_ctypes import TVMType
-
+import tvm
 from tvm import relay
+from tvm._ffi.runtime_ctypes import DataType
 
 import numpy as np
 from collections import defaultdict
@@ -38,8 +38,8 @@ class OpDesc(object):
             ret = []
             for dtype in dtypes:
                 if isinstance(dtype, (str, np.dtype)):
-                    dtype = TVMType(dtype)
-                assert isinstance(dtype, TVMType)
+                    dtype = DataType(dtype)
+                assert isinstance(dtype, DataType)
                 ret.append(dtype)
             return ret
 
@@ -76,7 +76,7 @@ class Hardware(object):
         self._op_descs = defaultdict(list)
 
     def __getitem__(self, op_name):
-        if isinstance(op_name, relay.Op):
+        if isinstance(op_name, tvm.ir.Op):
             op_name = op_name.name
         return self._op_descs[op_name]
 

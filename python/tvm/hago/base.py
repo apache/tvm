@@ -20,18 +20,16 @@ from __future__ import absolute_import
 
 from . import _quantize
 from .. import relay
-from ..relay.base import RelayNode, register_relay_node
 
-import tvm
-from tvm._ffi.runtime_ctypes import TVMType
+import tvm._ffi
+from tvm.runtime import Object
 import math
 import numpy as np
 from collections import namedtuple, defaultdict, OrderedDict
 
-DType = TVMType
 
-@register_relay_node("hago.QConfig")
-class QConfig(RelayNode):
+@tvm._ffi.register_object("hago.QConfig")
+class QConfig(Object):
     """Configure the quantization behavior by setting config variables.
 
     Note
@@ -91,7 +89,7 @@ class QConfig(RelayNode):
         return self
 
     def __exit__(self, ptype, value, trace):
-        _quantize._ExitQConfigScope(self)
+        _quantize._ExitQConfigScope()
 
     def __setattr__(self, name, value):
         if name in QConfig._node_defaults:
@@ -138,7 +136,7 @@ def qconfig(**kwargs):
     """
     node_args = {k: v if k not in kwargs else kwargs[k]
                  for k, v in QConfig._node_defaults.items()}
-    return tvm.make.node("hago.QConfig", **node_args)
+    return tvm.ir.make_node("hago.QConfig", **node_args)
 
 
 class QuantizeContext(object):
@@ -385,7 +383,7 @@ def eval_acc(func, dataset, device='gpu'):
         context = tvm.cpu()
     elif device == 'gpu':
         target = tvm.target.cuda()
-        context = tvm.gpu()
+        context = tvm.gpu(2)
     else:
         raise ValueError
 

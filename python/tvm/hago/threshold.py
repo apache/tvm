@@ -65,6 +65,8 @@ def threshold_estimate(graph, topology, bits, dataset=None, rectify=True):
     print('calculating threshold...')
     cfg = current_qconfig()
     stats = analysis.collect_stats(graph, dataset)
+    print('threshold strategy:')
+    print(cfg.threshold_estimate_strategy)
 
     if cfg.threshold_estimate_strategy == 'global_scale':
         thresholds = [cfg.global_scale for _ in exprs]

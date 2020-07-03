@@ -13,6 +13,14 @@ class Strategy(object):
         self.bits = bits
         self.thresholds = thresholds
 
+    def __str__(self):
+        return 'Strategy(model_hash=' + str(self.model_hash) + \
+                ', topology=' + str(self.topology) + \
+                ', bits=' + str(self.bits) + \
+                ', thresholds=' + str(self.thresholds) + ')'
+
+
+
 # TODO(ziheng): consider multiple measure metric in the future: latency, energy, etc 
 class MeasureResult(object):
     def __init__(self, sim_acc=None, quant_acc=None, kl_divergence=None):

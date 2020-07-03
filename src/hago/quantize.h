@@ -35,10 +35,16 @@ namespace hago {
 
 /*! \brief Attribute for simulated quantize operator */
 struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
+  DataType in_dtype;
+  DataType out_dtype;
   bool sign;
   std::string rounding;
 
   TVM_DECLARE_ATTRS(SimulatedQuantizeAttrs, "hago.SimulatedQuantizeAttrs") {
+    TVM_ATTR_FIELD(in_dtype)
+      .describe("in data type");
+    TVM_ATTR_FIELD(out_dtype)
+      .describe("out data type");
     TVM_ATTR_FIELD(sign).set_default(true)
         .describe("whether to use signed data type.");
     TVM_ATTR_FIELD(rounding).set_default("round")
@@ -54,7 +60,7 @@ class QConfigObj : public Object {
  public:
   Array<PrimExpr> skip_conv_layers = Array<PrimExpr>(ObjectPtr<Object>(nullptr));
   std::string search_strategy = "simulated_annealing";
-  std::string threshold_estimate_strategy = "max_range";
+  std::string threshold_estimate_strategy = "power2_range";
   double global_scale = 8.0;
   std::string log_file = ".quantize_strategy_search.log";
 
@@ -103,7 +109,7 @@ class QConfig : public ObjectRef {
    * configuration if a BuildConfig scope has not been entered.
    * \return The configuration that is the current context.
    */
-  static QConfig& Current();
+  static QConfig Current();
 
   using ContainerType = QConfigObj;
 };

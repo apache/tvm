@@ -77,7 +77,8 @@ def get_model(model_name, batch_size, qconfig, original=False, simulated=False, 
         logging.debug('current quantize config')
         logging.debug(hago.current_qconfig())
         hardware = hago.create_accelerator_description()
-        strategy, acc = hago.search_quantize_strategy(qmod, hardware, dataset=calib_set)
+        strategy, acc = hago.batched_search_quantize_strategy(qmod, hardware, dataset=calib_set)
+        # strategy, acc = hago.search_quantize_strategy(qmod, hardware, dataset=calib_set)
         print('simulated accuracy on calibration dataset: {}'.format(acc))
         quantizer = hago.create_quantizer(qmod['main'], hardware, strategy)
         simulated_graph = quantizer.simulate()
@@ -96,3 +97,73 @@ def eval_acc(mod, dataset, batch_fn, target='llvm', ctx=tvm.cpu(), log_interval=
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(mod, target)
     # create runtime module
+    m = tvm.contrib.graph_runtime.create(graph, lib, ctx)
+    m.set_input(**params)
+
+    # setup evaluaiton metric
+    dataset.reset()
+    batch_size = dataset.batch_size
+    acc_top1 = mx.metric.Accuracy()
+    acc_top5 = mx.metric.TopKAccuracy(5)
+    acc_top1.reset()
+    acc_top5.reset()
+    # Execute
+    for i, batch in enumerate(dataset):
+        data, label = batch_fn(batch, [mx.cpu(0)])
+        m.run(data=data[0].asnumpy())
+        out_arr = m.get_output(0)
+        acc_top1.update(label, [mx.nd.array(out_arr.asnumpy())])
+        acc_top5.update(label, [mx.nd.array(out_arr.asnumpy())])
+
+        if not (i + 1) % log_interval:
+            _, top1 = acc_top1.get()
+            _, top5 = acc_top5.get()
+            nsamples = (i + 1) * batch_size
+            logging.info('[%d samples] validation: acc-top1=%f acc-top5=%f', nsamples, top1, top5)
+    logging.info('[final] validation: acc-top1=%f acc-top5=%f', top1, top5)
+    return top1
+
+
+def get_calibration_dataset(dataset, batch_fn, num_samples=100):
+    dataset.reset()
+    ret = []
+    for i, batch in enumerate(dataset):
+        if i * dataset.batch_size > num_samples:
+            break
+        data, label = batch_fn(batch, [mx.cpu(0)])
+        ret.append({'data': data[0].asnumpy(), 'label': label[0].asnumpy()})
+    return ret
+
+
+def test_quantize_acc(cfg, rec_val):
+    qconfig = hago.qconfig(skip_conv_layers=[0],
+                           log_file='temp.log',
+                           search_strategy="default_setting")
+
+    val_data, batch_fn = get_val_data(cfg.model, rec_val=rec_val, batch_size=32)
+    calib_set = get_calibration_dataset(val_data, batch_fn)
+
+    mod = get_model(cfg.model, 32, qconfig, calib_set=calib_set)
+
+    acc = eval_acc(mod, val_data, batch_fn)
+    assert acc > cfg.expected_acc
+    return acc
+
+
+if __name__ == "__main__":
+    #TODO(for user): replace the line with the path to imagenet validation dataset
+    rec_val = "~/datasets1/imagenet/rec/val.rec"
+
+    results = []
+    configs = [
+        Config('resnet18_v1', expected_acc=0.67),
+    ]
+    # rec = hago.pick_best(".quantize_strategy_search.log", 'quant_acc')
+
+    # global scales
+    for config in configs:
+        acc = test_quantize_acc(config, rec_val)
+        results.append((config, acc))
+    for res in results:
+        print(res)
+

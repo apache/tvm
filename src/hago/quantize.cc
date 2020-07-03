@@ -44,7 +44,7 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
                           int num_inputs,
                           const Attrs& attrs,
                           const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 8);
+  CHECK_EQ(types.size(), 6);
   const auto param = attrs.as<SimulatedQuantizeAttrs>();
   CHECK(param != nullptr);
 
@@ -56,37 +56,39 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
   reporter->Assign(types[2], TensorType({}, DataType::Float(32)));     // out_scale
   reporter->Assign(types[3], TensorType({}, DataType::Float(32)));     // clip_min
   reporter->Assign(types[4], TensorType({}, DataType::Float(32)));     // clip_max
-  reporter->Assign(types[5], TensorType({}, DataType::Int(32)));       // in_dtype
-  reporter->Assign(types[6], TensorType({}, DataType::Int(32)));       // out_dtype
-  reporter->Assign(types[7], types[0]);                                // output
+  reporter->Assign(types[5], types[0]);                                // output
   return true;
 }
 
 
 RELAY_REGISTER_OP("hago.simulated_quantize")
 .describe(R"code(simulated quantize op)code" TVM_ADD_FILELINE)
-.set_num_inputs(7)
+.set_num_inputs(5)
 .add_argument("data", "Tensor", "The input data.")
 .add_argument("in_scale", "Scalar", "The scale of input.")
 .add_argument("out_scale", "Scalar", "The scale of output.")
 .add_argument("clip_min", "Scalar", "The clip min.")
 .add_argument("clip_max", "Scalar", "The clip max.")
-.add_argument("in_dtype", "Scalar", "The input data type.")
-.add_argument("out_dtype", "Scalar", "The output data type.")
 .set_attrs_type<SimulatedQuantizeAttrs>()
 .set_support_level(11)
 .add_type_rel("simulated_quantize", SimulatedQuantizeRel);
 
-TVM_REGISTER_GLOBAL("hago._quantize.simulated_quantize")
-.set_body_typed(
-  [](Expr data, Expr in_scale, Expr out_scale, Expr clip_min, Expr clip_max,
-     Expr in_dtype, Expr out_dtype, bool sign, std::string rounding) {
-    auto attrs = make_object<SimulatedQuantizeAttrs>();
-    attrs->sign = sign;
-    attrs->rounding = rounding;
-    static const Op& op = Op::Get("hago.simulated_quantize");
-    return CallNode::make(op, {data, in_scale, out_scale, clip_min, clip_max, in_dtype, out_dtype}, Attrs(attrs), {});
-  });
+
+Expr create_simulated_quantize(Expr data,
+                               Expr in_scale, Expr out_scale,
+                               Expr clip_min, Expr clip_max,
+                               DataType in_dtype, DataType out_dtype,
+                               bool sign, std::string rounding) {
+  auto attrs = make_object<SimulatedQuantizeAttrs>();
+  attrs->in_dtype = in_dtype;
+  attrs->out_dtype = out_dtype;
+  attrs->sign = sign;
+  attrs->rounding = rounding;
+  static const Op& op = Op::Get("hago.simulated_quantize");
+  return relay::Call(op, {data, in_scale, out_scale, clip_min, clip_max}, Attrs(attrs));
+}
+
+TVM_REGISTER_GLOBAL("hago._quantize.simulated_quantize").set_body_typed(create_simulated_quantize);
 
 
 /*! \brief Entry to hold the BuildConfig context stack. */
@@ -115,7 +117,7 @@ void QConfig::ExitQConfigScope() {
   entry->context_stack.pop();
 }
 
-QConfig& QConfig::Current() {
+QConfig QConfig::Current() {
   TVMQConfigThreadLocalEntry *entry = TVMQConfigThreadLocalStore::Get();
   if (entry->context_stack.size() > 0) {
     return entry->context_stack.top();
@@ -137,6 +139,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   p->stream << "log_file=" << op->log_file;
   p->stream << ")";
 });
+
 
 TVM_REGISTER_GLOBAL("hago._quantize._GetCurrentQConfig")
 .set_body_typed(QConfig::Current);

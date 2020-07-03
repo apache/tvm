@@ -18,7 +18,6 @@
 """Internal module for quantization."""
 from __future__ import absolute_import
 
-from .._ffi.runtime_ctypes import TVMType
 from ..relay.op import op as _reg
 
 import tvm
@@ -29,7 +28,7 @@ import functools
 import numpy as np
 import logging
 
-RUNTIME_DEBUG = False
+RUNTIME_DEBUG = True
 
 @tvm.register_func("tvm.contrib.print")
 def print_func(x, y, msg):
@@ -40,7 +39,7 @@ def print_func(x, y, msg):
 def my_print(data, msg):
     if not RUNTIME_DEBUG:
         return data
-    ret = tvm.extern(data.shape, [data], lambda ins, outs: tvm.call_packed(
+    ret = tvm.te.extern(data.shape, [data], lambda ins, outs: tvm.tir.call_packed(
         "tvm.contrib.print", ins[0], outs[0], msg))
     return ret
 
@@ -49,6 +48,7 @@ def inspect_func(x, y, msg):
     if RUNTIME_DEBUG:
         print('------------------------------')
         print(msg)
+        print(x)
         np_x = x.asnumpy()
         print('max value: {}'.format(np.max(np.abs(np_x))))
         print('mean: {}'.format(np.mean(np_x)))
@@ -58,7 +58,7 @@ def inspect_func(x, y, msg):
 def inspect(data, msg):
     if not RUNTIME_DEBUG:
         return data
-    ret = tvm.extern(data.shape, [data], lambda ins, outs: tvm.call_packed(
+    ret = tvm.te.extern(data.shape, [data], lambda ins, outs: tvm.tir.call_packed(
         "tvm.contrib.inspect", ins[0], outs[0], msg))
     return ret
 
@@ -101,13 +101,16 @@ def check_overflow(data, in_dtype, output):
 
 
 @_reg.register_compute("hago.simulated_quantize")
-def simulated_quantize_compute(attrs, inputs, out_type, target):
+def simulated_quantize_compute(attrs, inputs, out_type):
     """Compiler for simulated_quantize."""
     assert len(inputs) == 5
     assert attrs.sign
     assert attrs.rounding == "round"
 
-    data, in_scale, out_scale, clip_min, clip_max, in_dtype_enum, out_dtype_enum = inputs
+    data, in_scale, out_scale, clip_min, clip_max = inputs
+    # data = my_print(data, '*******************************************')
+    # data = my_print(data, "[in_scale={}, out_scale={}, clip_min={}, clip_max={}, in_dtype={}, out_dtype={}".format(in_scale, out_scale, clip_min, clip_max, attrs.in_dtype, attrs.out_dtype))
+    # data = inspect(data, 'original data')
 
     # simulate overflow truncate error
     if attrs.in_dtype != 'float32':
@@ -120,40 +123,34 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
         data = topi.cast(topi.round(data), 'int64')
         data = topi.cast(data, attrs.in_dtype)
         data = topi.multiply(data, in_scale)
-    data = my_print(data, '*******************************************')
-    data = my_print(data, "[in_scale={}, out_scale={}, clip_min={}, clip_max={}, in_dtype={}, out_dtype={}".format(in_scale, out_scale, clip_min, clip_max, attrs.in_dtype, attrs.out_dtype))
 
     # dequantize, directly return real value
     if attrs.out_dtype == 'float32':
         return [topi.identity(data)]
 
+
     # simulate rounding error
-    # data = inspect(data, 'original data')
     scaled_data = topi.divide(data, out_scale)
     # scaled_data = inspect(scaled_data, 'scaled data')
-    scaled_data = topi.round(scaled_data)
-    # clipped_data = topi.clip(scaled_data, clip_min, clip_max)
-    clipped_data = topi.maximum(topi.minimum(scaled_data, clip_max), clip_min)
-    # clipped_data = inspect(clipped_data, 'clipped data')
-    round_data = topi.cast(topi.cast(clipped_data, attrs.out_dtype), 'float32')
-    # round_data = inspect(round_data, 'round data')
-    ret = topi.multiply(round_data, out_scale)
 
-    ret = inspect(ret, 'return data')
-    ret = my_print(ret, '*******************************************')
+    round_data = topi.round(scaled_data)
+    # round_data = inspect(scaled_data, 'round data')
+
+    # clipped_data = topi.clip(scaled_data, clip_min, clip_max)
+    clipped_data = topi.maximum(topi.minimum(round_data, clip_max), clip_min)
+    # clipped_data = inspect(clipped_data, 'clipped data')
+
+    cast_data = topi.cast(topi.cast(clipped_data, attrs.out_dtype), 'float32')
+    # cast_data = inspect(cast_data, 'cast_data')
+
+    ret = topi.multiply(cast_data, out_scale)
+    # ret = inspect(ret, 'return data')
+    # ret = my_print(ret, '*******************************************')
     return [ret]
 
 
-
-# @_reg.register_schedule("hago.simulated_quantize")
-# def simulated_quantize_schedule(attrs, outputs, target):
-#     s = tvm.create_schedule([x.op for x in outputs])
-#     return s
-
-_reg.register_schedule("hago.simulated_quantize",
-                      _reg.schedule_injective)
-_reg.register_pattern("hago.simulated_quantize",
-                      _reg.OpPattern.OPAQUE)
+_reg.register_schedule("hago.simulated_quantize", tvm.relay.op.strategy.schedule_simulated_quantize)
+_reg.register_pattern("hago.simulated_quantize", _reg.OpPattern.OPAQUE)
 
 
 # constraint function registered for ops
@@ -161,7 +158,7 @@ _reg.register_pattern("hago.simulated_quantize",
 # out_dtype.bits >= out_bit
 
 def register_infer_bit(op_name, finfer_bit=None, level=10):
-    return _reg.register(op_name, "FHagoInferBit", finfer_bit, level)
+    return tvm.ir.register_op_attr(op_name, "FHagoInferBit", finfer_bit, level)
 
 def max_bit(attrs, in_bits):
     in_bits = [bit.value for bit in in_bits]
@@ -197,7 +194,7 @@ def infer_bit_for_conv2d(attrs, in_bits):
 # infer scale function registered for ops
 
 def register_infer_scale(op_name, finfer_scale=None, level=10):
-    return _reg.register(op_name, "FHagoInferScale", finfer_scale, level)
+    return tvm.ir.register_op_attr(op_name, "FHagoInferScale", finfer_scale, level)
 
 def product_scale(input_scales):
     input_scales = [scale.value for scale in input_scales]
@@ -222,7 +219,7 @@ register_infer_scale("nn.batch_flatten", identity_scale)
 # threshold rectify function registered for ops
 
 def register_threshold_rectify(op_name, frectify=None, level=10):
-    return _reg.register(op_name, "FHagoRectify", frectify, level)
+    return tvm.ir.register_op_attr(op_name, "FHagoRectify", frectify, level)
 
 @register_threshold_rectify("add")
 def threshold_rectify_for_add(input_bits, output_bits, input_thresholds, output_thresholds):
@@ -262,7 +259,7 @@ def threshold_rectify_for_add(input_bits, output_bits, input_thresholds, output_
 # realize registration for ops
 
 def register_realize(op_name, frealize=None, level=10):
-    return _reg.register(op_name, "FHagoRealize", frealize, level)
+    return tvm.ir.register_op_attr(op_name, "FHagoRealize", frealize, level)
 
 def forward_op(ref_call, args):
     """forward the operator of ref_call with provided arguments"""

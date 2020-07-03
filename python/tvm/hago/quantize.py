@@ -51,8 +51,8 @@ def select_constraint(graph, hardware, topology, bits):
                     selected = False
                     break
 
-            finfer_bit = node.op.get_attr("FHagoInferBit")
-            assert finfer_bit
+            # finfer_bit = node.op.get_attr("FHagoInferBit")
+            # assert finfer_bit
             # out_bits = finfer_bit(node.attrs, in_bits)
             # for dtype, bit in zip(cstr.odtypes, out_bits):
             #     if bit.value > dtype.bits:
@@ -103,14 +103,14 @@ def infer_quantized_dtypes(graph, node2cstr):
     # TODO(ziheng) consider datatype casting instead of only bit requirement
     def fvisit(node):
         if isinstance(node, (relay.Var, relay.Constant)):
-            prov_dtypes[node2idx[node]] = TVMType("float32")
+            prov_dtypes[node2idx[node]] = DataType("float32")
         if isinstance(node, relay.Call):
             if node2cstr[node] is None:
                 # use float computation
-                prov_dtypes[node2idx[node]] = TVMType('float32')
+                prov_dtypes[node2idx[node]] = DataType('float32')
                 for src in node.args:
                     eidx = edge2idx[(src, node)]
-                    req_dtypes[eidx] = TVMType('float32')
+                    req_dtypes[eidx] = DataType('float32')
                 return
 
             cstr = node2cstr[node]
@@ -123,7 +123,7 @@ def infer_quantized_dtypes(graph, node2cstr):
     return prov_dtypes, req_dtypes 
 
 
-def calculate_params(graph, topology, bits, thresholds, constraints):
+def calculate_params(graph, topology, constraints, bits, thresholds):
     """calculate parameters of simulated quantize op from bits and thresholds"""
     sign_bit = 1
 
@@ -133,8 +133,10 @@ def calculate_params(graph, topology, bits, thresholds, constraints):
     edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
     node2cstr = build_node_dict(graph, constraints, topology.node_conds) 
 
+    # graph, topology, bits, constraints
     prov_dtypes, req_dtypes = infer_quantized_dtypes(graph, node2cstr)
 
+    # num of edges + number of output edges
     internal_params, output_params = [], []
     def infer_scale_for_node(node):
         if isinstance(node, (relay.Var, relay.Constant)):
@@ -191,7 +193,7 @@ def calculate_params(graph, topology, bits, thresholds, constraints):
             print("{} -> OUT".format(node_str(node, node2idx)))
             in_scale = infer_scale_for_node(node)
             in_dtype = prov_dtypes[node2idx[node]]
-            out_dtype = 'float32'
+            out_dtype = DataType('float32')
             out_scale = 1.0
             param = SimulatedQuantizeParams(in_scale, out_scale, float('nan'), float('nan'),
                                             in_dtype, out_dtype)
@@ -217,72 +219,145 @@ def prerequisite_optimize(mod, params=None):
     """ Prerequisite optimization passes for quantization. Perform
     "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
     "CanonicalizeOps" optimization before quantization. """
-    optimize = relay.transform.Sequential([relay.transform.SimplifyInference(),
-                                           relay.transform.FoldConstant(),
-                                           relay.transform.FoldScaleAxis(),
-                                           relay.transform.CanonicalizeOps(),
-                                           relay.transform.FoldConstant()])
+    optimize = tvm.transform.Sequential([relay.transform.SimplifyInference(),
+                                         relay.transform.FoldConstant(),
+                                         relay.transform.FoldScaleAxis(),
+                                         relay.transform.CanonicalizeOps(),
+                                         relay.transform.FoldConstant()])
 
     if params:
-        mod['main'] = bind_params(mod['main'], params)
+        mod['main'] = relay.build_module.bind_params_by_name(mod['main'], params)
 
-    with relay.transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         mod = optimize(mod)
     return mod
 
 
 class Simulator(tvm.relay.ExprMutator):
-    def __init__(self):
+    def __init__(self, graph, topology, constraints):
+        """generate simulate graph"""
         super().__init__()
-        self.node2cstr = {}
+        self.graph = graph
+        self.topology = topology
+        self.constraints = constraints
 
-    def simulate(self, graph, hardware, topology, bits, thresholds):
-        constraints = select_constraint(graph, hardware, topology, bits)
-        self._original_node2cstr = build_node_dict(graph, constraints, topology.node_conds) 
-        self._op_params = calculate_params(graph, topology, bits, thresholds, constraints)
+        self._name_cnt = 0
+        self._node2idx = build_node_index(graph)
         self._edge2idx = build_edge_index(graph)
-        return self.visit(graph)
+        self._node2cstr = build_node_dict(graph, constraints, topology.node_conds) 
+        self._prov_dtypes, self._req_dtypes = infer_quantized_dtypes(graph, self._node2cstr)
+
+        self.snode2cstr = {}
+        self.internal_param_nodes = []
+        self.output_param_nodes = []
+        self.simulated_graph = self.visit(graph)
+
+    def eval(self, dataset, params, device='cpu'):
+        """compile simulated model and run it on the dataset"""
+        # prepare parameter mapping
+        if device == 'cpu':
+            target = 'llvm'
+            context = tvm.cpu()
+        elif device == 'gpu':
+            target = tvm.target.cuda()
+            context = tvm.gpu()
+
+        internal_params, output_params = params
+        param_map = {} 
+        for nodes, p in zip(self.internal_param_nodes, internal_params):
+            vals = [p.in_scale, p.out_scale, p.clip_min, p.clip_max]
+            for node, val in zip(nodes, vals):
+                param_map[node.name_hint] = tvm.nd.array(np.array(val, 'float32'))
+        for nodes, p in zip(self.output_param_nodes, output_params):
+            vals = [p.in_scale, p.out_scale, p.clip_min, p.clip_max]
+            for node, val in zip(nodes, vals):
+                param_map[node.name_hint] = tvm.nd.array(np.array(val, 'float32'))
+
+        print(self.simulated_graph)
+        intrp = relay.create_executor("graph", ctx=context, target=target).evaluate(self.simulated_graph)
+
+        outputs = []
+        num_correct = 0
+        num_samples = 0
+        for batch_id, batch in enumerate(dataset):
+            output = intrp(batch['data'], **param_map).asnumpy()
+            # print('output')
+            # print(output)
+            predict = np.argmax(output, axis=1)
+            # print('predict')
+            # print(predict)
+            label = batch['label']
+            # print('label')
+            # print(label)
+            num_correct += np.sum(predict == label)
+            num_samples += output.shape[0]
+            outputs.append(output)
+        # flatten outputs
+        outputs = np.concatenate(outputs)
+        acc = num_correct / num_samples
+        print('accuracy: {}'.format(acc))
+        # raise ValueError
+        return outputs, acc
 
     def visit_call(self, node):
         new_node = super().visit_call(node)
         new_args = []
         for idx, src in enumerate(node.args):
-            param = self._op_params[0][self._edge2idx[(src, node)]]
+            # sq's input dtype is the predecessor op's output dtype (provided dtype)
+            in_dtype = self._prov_dtypes[self._node2idx[src]]
+            # sq's output dtype is the successor op's input dtype (required dtype)
+            out_dtype = self._req_dtypes[self._edge2idx[(src, node)]]
+
+            in_scale = relay.var('in_scale' + str(self._name_cnt), 'float32')
+            out_scale = relay.var('out_scale' + str(self._name_cnt), 'float32')
+            clip_min = relay.var('clip_min' + str(self._name_cnt), 'float32')
+            clip_max = relay.var('clip_max' + str(self._name_cnt), 'float32')
+            self._name_cnt += 1
+            self.internal_param_nodes.append((in_scale, out_scale, clip_min, clip_max))
             new_arg = _quantize.simulated_quantize(new_node.args[idx],
-                                                   relay.const(param.in_scale, 'float32'),
-                                                   relay.const(param.out_scale, 'float32'),
-                                                   relay.const(param.clip_min, 'float32'),
-                                                   relay.const(param.clip_max, 'float32'),
-                                                   param.in_dtype,
-                                                   param.out_dtype,
+                                                   in_scale,
+                                                   out_scale,
+                                                   clip_min,
+                                                   clip_max,
+                                                   in_dtype,
+                                                   out_dtype,
                                                    True,
                                                    "round")
             new_args.append(new_arg)
-            self.node2cstr[new_arg] = None
+            self.snode2cstr[new_arg] = None
         new_node = relay.Call(new_node.op, new_args, new_node.attrs)
-        self.node2cstr[new_node] = self._original_node2cstr[node]
+        self.snode2cstr[new_node] = self._node2cstr[node]
         return new_node
 
     def visit_function(self, fn):
         # dequantize output
-        fn = super().visit_function(fn)
-        assert isinstance(fn.body, relay.Call)
-        param = self._op_params[1][0]
-        new_body = _quantize.simulated_quantize(fn.body,
-                                                relay.const(param.in_scale, 'float32'),
-                                                relay.const(param.out_scale, 'float32'),
-                                                relay.const(param.clip_min, 'float32'),
-                                                relay.const(param.clip_max, 'float32'),
-                                                param.in_dtype,
-                                                param.out_dtype,
+        new_fn = super().visit_function(fn)
+        assert isinstance(new_fn.body, relay.Call)
+        in_dtype = self._prov_dtypes[self._node2idx[fn.body]]
+
+        in_scale = relay.var('in_scale' + str(self._name_cnt), 'float32')
+        out_scale = relay.var('out_scale' + str(self._name_cnt), 'float32')
+        clip_min = relay.var('clip_min' + str(self._name_cnt), 'float32')
+        clip_max = relay.var('clip_max' + str(self._name_cnt), 'float32')
+        self._name_cnt += 1
+        self.output_param_nodes.append((in_scale, out_scale, clip_min, clip_max))
+        new_body = _quantize.simulated_quantize(new_fn.body,
+                                                in_scale,
+                                                out_scale,
+                                                clip_min,
+                                                clip_max,
+                                                in_dtype,
+                                                DataType('float32'),
                                                 True,
                                                 "round")
+
+        new_params = relay.analysis.free_vars(new_body)
         return relay.Function(
-            fn.params,
+            new_params,
             new_body,
-            fn.ret_type,
-            fn.type_params,
-            fn.attrs)
+            new_fn.ret_type,
+            new_fn.type_params,
+            new_fn.attrs)
 
 
 
@@ -425,13 +500,13 @@ class Quantizer(object):
     def simulate(self):
         simulator = Simulator()
         self.simulated_graph = simulator.simulate(self.original_graph, self.hardware, self.topology, self.bits, self.thresholds)
-        self._simulated_node2cstr = simulator.node2cstr
+        self._snode2cstr = simulator.snode2cstr
         return self.simulated_graph
 
     def quantize(self):
         if self.simulated_graph is None:
             self.simulate()
-        self.quantized_graph = _realize(self.simulated_graph, self._simulated_node2cstr)
+        self.quantized_graph = _realize(self.simulated_graph, self._snode2cstr)
         a = relay.transform.InferType()(relay.module.Module.from_expr(self.quantized_graph))
         # print(a)
         return self.quantized_graph

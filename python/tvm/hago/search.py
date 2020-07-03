@@ -37,6 +37,8 @@ import pickle
 import scipy
 from collections import namedtuple
 
+#TODO(ziheng): unify topology and constraints
+
 
 def generate_choices(graph, hardware, topology):
     def get_in_bits(hardware, node):
@@ -439,7 +441,7 @@ def search_quantize_strategy(mod, hardware, dataset=None):
     topology = analyze_topology(graph, hardware)
     choices = generate_choices(graph, hardware, topology)
     # search_space = create_search_space(graph, topology, choices)
-    model_hash = relay.analysis.structural_hash(graph)
+    model_hash = tvm.ir.structural_hash(graph)
 
 
     # search for bits settings with learning method
@@ -478,63 +480,32 @@ def search_quantize_strategy(mod, hardware, dataset=None):
     return best_strategy, best_acc
 
 
+def group_same_graph_guesses(graph, hardware, topology, decided, choices, default):
+    """group guesses which can share the same graph"""
+    constraints = []
+    for choice in choices:
+        bits = decided + [choice] + default
+        cstrs = qtz.select_constraint(graph, hardware, topology, bits)
+        constraints.append((cstrs, bits))
 
-class ExprSimulator(tvm.relay.ExprMutator):
-    def __init__(self):
-        super().__init__()
-        self.node2cstr = {}
+    def group_by_key(pairs):
+        m = defaultdict(list)
+        for p in pairs:
+            m[str(p[0])].append(p)
+        ret = []
+        for _, arr in m.items():
+            key = arr[0][0]
+            vals = [p[1] for p in arr]
+            ret.append((key, vals))
+        return ret
+    constraints = group_by_key(constraints)
 
-    def simulate(self, graph, hardware, topology, bits, thresholds):
-        constraints = select_constraint(graph, hardware, topology, bits)
-        self._original_node2cstr = build_node_dict(graph, constraints, topology.node_conds) 
-        self._op_params = calculate_params(graph, topology, bits, thresholds, constraints)
-        self._edge2idx = build_edge_index(graph)
-        return self.visit(graph)
-
-    def visit_call(self, node):
-        new_node = super().visit_call(node)
-        new_args = []
-        for idx, src in enumerate(node.args):
-            param = self._op_params[0][self._edge2idx[(src, node)]]
-            new_arg = _quantize.simulated_quantize(new_node.args[idx],
-                                                   relay.var('in_scale', 'float32'),
-                                                   relay.var('out_scale', 'float32'),
-                                                   relay.var('clip_min', 'float32'),
-                                                   relay.var('clip_max', 'float32'),
-                                                   "undef",
-                                                   "undef",
-                                                   True,
-                                                   "round")
-            new_args.append(new_arg)
-            self.node2cstr[new_arg] = None
-        new_node = relay.Call(new_node.op, new_args, new_node.attrs)
-        self.node2cstr[new_node] = self._original_node2cstr[node]
-        return new_node
-
-    def visit_function(self, fn):
-        # dequantize output
-        fn = super().visit_function(fn)
-        assert isinstance(fn.body, relay.Call)
-        param = self._op_params[1][0]
-        new_body = _quantize.simulated_quantize(fn.body,
-                                                relay.const(param.in_scale, 'float32'),
-                                                relay.const(param.out_scale, 'float32'),
-                                                relay.const(param.clip_min, 'float32'),
-                                                relay.const(param.clip_max, 'float32'),
-                                                "undef",
-                                                "undef",
-                                                True,
-                                                "round")
-        return relay.Function(
-            fn.params,
-            new_body,
-            fn.ret_type,
-            fn.type_params,
-            fn.attrs)
-
-
-def create_simulate_graph(graph, topology):
-    pass
+    groups = []
+    for cstrs, grouped_guesses in constraints:
+        simulator = qtz.Simulator(graph, topology, cstrs)
+        print(simulator.simulated_graph)
+        groups.append((simulator, grouped_guesses))
+    return groups
 
 
 def batched_search_quantize_strategy(mod, hardware, dataset=None):
@@ -562,25 +533,32 @@ def batched_search_quantize_strategy(mod, hardware, dataset=None):
     topology = analyze_topology(graph, hardware)
     choices = generate_choices(graph, hardware, topology)
     # search_space = create_search_space(graph, topology, choices)
-    model_hash = relay.analysis.structural_hash(graph)
+    model_hash = tvm.ir.structural_hash(graph)
 
     print(choices)
-    simulated_graph = create_simulate_graph(model)
     dim_idx = 0
     decided = []
     default = [bits[0] for bits in choices]
-    while True:
-        guesses = []
-        for choice in choices[dim_idx]:
-            guess = decided + [choice] + default[dim_idx+1:]
-            guesses.append(guess)
+    while dim_idx < len(choices):
+        groups = group_same_graph_guesses(graph, hardware, topology,
+                                          decided, choices[dim_idx], default[dim_idx+1:])
 
-        # coarse-grained threshold estimate
-        params = prepare_params(graph, topology, guesses, dataset)
-        accuracy = run_simulated_graph(simulated_graph, dataset, params)
-        best_idx = find_max(accuracy)
-
-        decided.append(bits_list[best_idx])
+        results = []
+        for simulator, grouped_guesses in groups:
+            constraints = simulator.constraints
+            for bits in grouped_guesses:
+                thresholds = threshold_estimate(graph, topology, bits, dataset)
+                params = qtz.calculate_params(graph, topology, constraints, bits, thresholds)
+                _, simulated_acc = simulator.eval(dataset, params)
+                strategy = Strategy(model_hash, topology, bits, thresholds)
+                results.append((strategy, simulated_acc))
+                measure = Measure(strategy, MeasureResult(sim_acc=simulated_acc))
+                fout.write(serialize(measure))
+                fout.write('\n')
+        best_strategy, best_acc = max(results, key=lambda item: (item[1], -sum(item[0].bits)))
+        best_bit = strategy.bits[dim_idx]
+        print('choose {} for the {}th bit, accuracy is: {}'.format(best_bit, dim_idx, best_acc))
+        decided.append(best_bit)
         dim_idx += 1
-    
-    raise ValueError
+    fout.close()
+    return best_strategy, best_acc
