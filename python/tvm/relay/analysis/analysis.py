@@ -356,6 +356,8 @@ def search_fc_transpose(expr):
 
 
 def get_calibration_data(mod, data):
+    """Get the calibration data of a given relay graph
+    """
     output_map = _ffi_api.get_calibrate_output_map(mod)
     print(output_map)
 
@@ -370,10 +372,14 @@ def get_calibration_data(mod, data):
     calib_data = {}
     for gvar, indices in output_map.items():
         offset = int(indices[0])
-        length = int(indices[1])
+        in_len = int(indices[1])
+        out_len = int(indices[2])
         value = {}
-        value["intputs"] = ref_res[offset:offset+length]
-        value["outputs"] = [ref_res[offset+length]]
+        value["inputs"] = ref_res[offset:offset+in_len]
+        if out_len == 1:
+            value["outputs"] = [ref_res[offset+in_len]]
+        else:
+            value["outputs"] = ref_res[offset+in_len:offset+in_len+out_len]
         calib_data[gvar] = value
 
     return calib_data

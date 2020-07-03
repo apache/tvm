@@ -46,7 +46,15 @@ IRModule GetCalibrateModule(IRModule module) {
         if (glob_funcs.count(var) > 0) {
           for (size_t i = 0; i < call->args.size(); i++)
             new_outputs.push_back(call->args[i]);
-          new_outputs.push_back(post);
+          // need to flatten the output if it is a tuple
+          auto* fn = glob_funcs[var].as<FunctionNode>();
+          if (auto* tn = fn->body.as<TupleNode>()) {
+            for (size_t i = 0; i < tn->fields.size(); i++) {
+              new_outputs.push_back(TupleGetItem(post, i));
+            }
+          } else {
+            new_outputs.push_back(post);
+          }
         }
       }
       return post;
@@ -94,15 +102,13 @@ IRModule GetCalibrateModule(IRModule module) {
   return module;
 }
 
-TVM_REGISTER_GLOBAL("relay.analysis.get_calibrate_module")
-    .set_body_typed([](IRModule mod) {
-      return GetCalibrateModule(mod);
-});
-
 Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
   class OutputMapper : public ExprRewriter {
    public:
-    OutputMapper(Map<GlobalVar, Array<Integer>>& output_map, int& offset) : output_map(output_map), offset(offset) {}
+    OutputMapper(Map<GlobalVar, Array<Integer>>& output_map, 
+                 const Map<GlobalVar, BaseFunc>& glob_funcs,
+                 int& offset) 
+      : output_map(output_map), glob_funcs(glob_funcs), offset(offset) {}
 
     Expr Rewrite_(const CallNode* call, const Expr& post) final {
       if (call->op->IsInstance<GlobalVarNode>()) {
@@ -110,14 +116,23 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
         Array<Integer> info;
         info.push_back(Integer(offset));
         info.push_back(Integer(call->args.size()));
+        int out_size = 1;
+        auto* fn = glob_funcs[var].as<FunctionNode>();
+        if (auto* tn = fn->body.as<TupleNode>()) {
+          info.push_back(Integer(tn->fields.size()));
+          out_size = tn->fields.size();
+        } else {
+          info.push_back(Integer(1));
+        }
         output_map.Set(var, info);
-        offset = offset + call->args.size() + 1;
+        offset = offset + call->args.size() + out_size;
       }
       return post;
     }
 
    private:
     Map<GlobalVar, Array<Integer>>& output_map;
+    const Map<GlobalVar, BaseFunc>& glob_funcs;
     int& offset;
   };
     
@@ -126,15 +141,23 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
   auto glob_funcs = module->functions;
   for (const auto& pair : glob_funcs) {
     if (auto* fn = pair.second.as<FunctionNode>()) {
-      auto func = GetRef<Function>(fn);
-      // Collect the output
-      OutputMapper output_mapper(output_map, offset);
-      auto body = PostOrderRewrite(func->body, &output_mapper);
+      auto* gl_var = pair.first.as<GlobalVarNode>();
+      if (gl_var->name_hint == "main") {
+        // Collect the output
+        OutputMapper output_mapper(output_map, glob_funcs, offset);
+        auto func = GetRef<Function>(fn);
+        PostOrderRewrite(func->body, &output_mapper);
+      }
     }
   }
 
   return output_map;
 }
+
+TVM_REGISTER_GLOBAL("relay.analysis.get_calibrate_module")
+    .set_body_typed([](IRModule mod) {
+      return GetCalibrateModule(mod);
+});
 
 TVM_REGISTER_GLOBAL("relay.analysis.get_calibrate_output_map")
     .set_body_typed([](const IRModule& mod) {

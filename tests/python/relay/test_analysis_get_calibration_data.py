@@ -16,19 +16,23 @@
 # under the License.
 
 import tvm
+import tvm.relay.testing
 from tvm import relay
+from tvm.relay import transform
 from tvm.relay.analysis import get_calibration_data
 
 import numpy as np
 
-def test_basic():
+def make_basic_graph():
     # A module with two subgraphs
     mod = tvm.IRModule()
 
     x0 = relay.var('x0', shape=(8, 8))
     y0 = relay.var('y0', shape=(8, 8))
     z0 = x0 + y0
-    f0 = relay.Function([x0, y0], z0)
+    z1 = x0 - y0
+    z2 = relay.Tuple((z0, z1))
+    f0 = relay.Function([x0, y0], z2)
     g0 = relay.GlobalVar("g0")
     mod[g0] = f0
 
@@ -43,16 +47,57 @@ def test_basic():
     y = relay.var('y', shape=(8, 8))
     z = relay.var('z', shape=(8, 8))
     c0 = relay.Call(g0, [x, y])
-    c1 = relay.Call(g1, [c0, z])
+    c1 = relay.Call(g1, [relay.TupleGetItem(c0, 0), z])
     fm = relay.Function([x, y, z], c1)
     mod["main"] = fm
+
+    return mod, g0, g1
+
+def test_basic_single_data():
+    mod, g0, g1 = make_basic_graph()
 
     x_data = np.random.rand(8, 8).astype('float32')
     y_data = np.random.rand(8, 8).astype('float32')
     z_data = np.random.rand(8, 8).astype('float32')
     data = get_calibration_data(mod, {"x": x_data, "y": y_data, "z": z_data})
 
-    print(data)
+    # Check the number and orders
+    assert len(data) == 2
+    assert len(data[g0]["inputs"]) == 2
+    assert len(data[g0]["outputs"]) == 2
+    assert len(data[g1]["inputs"]) == 2
+    assert len(data[g1]["outputs"]) == 1
+    tvm.testing.assert_allclose(data[g0]["inputs"][0].asnumpy(), x_data)
+    tvm.testing.assert_allclose(data[g0]["inputs"][1].asnumpy(), y_data)
+    tvm.testing.assert_allclose(data[g0]["outputs"][0].asnumpy(), x_data + y_data)
+    tvm.testing.assert_allclose(data[g0]["outputs"][1].asnumpy(), x_data - y_data)
+    tvm.testing.assert_allclose(data[g1]["inputs"][0].asnumpy(), x_data + y_data)
+    tvm.testing.assert_allclose(data[g1]["inputs"][1].asnumpy(), z_data)
+    tvm.testing.assert_allclose(data[g1]["outputs"][0].asnumpy(), x_data + y_data - z_data)
 
-test_basic()
+def test_mobilenet_dnnl():
+    dtype = 'float32'
+    ishape = (1, 3, 224, 224)
+    mod, params = relay.testing.mobilenet.get_workload(
+        batch_size=1, dtype='float32')
+
+
+    mod = transform.AnnotateTarget(["dnnl"])(mod)
+    mod = transform.MergeCompilerRegions()(mod)
+    mod = transform.PartitionGraph()(mod)
+
+
+    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+    data = get_calibration_data(mod, {"data": i_data, **params})
+
+    # Check the number and orders
+    assert len(data) == 2
+    #assert len(data[g0]["inputs"]) == 2
+    """
+    tvm.testing.assert_allclose(data[g0]["inputs"][0].asnumpy(), x_data)
+    tvm.testing.assert_allclose(data[g0]["inputs"][1].asnumpy(), y_data)
+    tvm.testing.assert_allclose(data[g1]["inputs"][1].asnumpy(), z_data)
+    """
+
+test_basic_single_data()
 
