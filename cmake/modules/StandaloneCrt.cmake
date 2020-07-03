@@ -100,18 +100,18 @@ if(USE_STANDALONE_CRT)
   add_library(host_standalone_crt_common STATIC IMPORTED GLOBAL)
   add_dependencies(host_standalone_crt_common host_standalone_crt)
   set_target_properties(host_standalone_crt_common PROPERTIES
-      IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common/libcommon.a
-      IMPORTED_OBJECTS ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common/libcommon.a
-      PUBLIC_HEADER ${crt_headers})
+      IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common/libcommon.a"
+      IMPORTED_OBJECTS "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common/libcommon.a"
+      PUBLIC_HEADER "${crt_headers}")
 #   add_dependencies(host_standalone_crt_common host_standalone_crt)
 # #      ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common/libcommon.a)
 
   add_library(host_standalone_crt_graph_runtime STATIC IMPORTED GLOBAL)
   add_dependencies(host_standalone_crt_graph_runtime host_standalone_crt)
   set_target_properties(host_standalone_crt_graph_runtime PROPERTIES
-      IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime/libgraph_runtime.a
-      IMPORTED_OBJECTS ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime/libgraph_runtime.a
-      PUBLIC_HEADER ${crt_headers})
+      IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime/libgraph_runtime.a"
+      IMPORTED_OBJECTS "${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime/libgraph_runtime.a"
+      PUBLIC_HEADER "${crt_headers}")
 #   add_dependencies(host_standalone_crt_graph_runtime host_standalone_crt)
 # #      ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime/libgraph_runtime.a)
 
@@ -128,7 +128,7 @@ if(USE_STANDALONE_CRT)
       string(REPLACE ".cc" "" __execname ${__srcname})
       add_executable(${__execname} ${__srcpath})
       list(APPEND TEST_EXECS ${__execname})
-      target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include)
+      target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_SOURCE_DIR}/src/runtime/crt/host)
 #      target_link_directories(${__execname} PRIVATE
 #          ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common
 #          ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime)

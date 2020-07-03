@@ -30,12 +30,9 @@ extern "C" {
 
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/c_runtime_api.h>
-
-struct TVMPackedFunc;
-typedef struct TVMPackedFunc TVMPackedFunc;
+#include <tvm/runtime/crt/packed_func.h>
 
 struct TVMModule;
-typedef struct TVMModule TVMModule;
 
 /*! \brief operator attributes about tvm op */
 typedef struct TVMOpParam {
@@ -67,10 +64,10 @@ typedef struct TVMGraphRuntime TVMGraphRuntime;
  * \param m TVM Module that exposes the functions to call.
  * \param ctxs runtime execution context.
  */
-TVMGraphRuntime* TVMGraphRuntimeCreate(const char* sym_json, const TVMModule* m,
+TVMGraphRuntime* TVMGraphRuntime_Create(const char* sym_json, const struct TVMModule* m,
                                        const TVMContext* ctxs);
 
-int TVMGraphRuntimeGetInputIndex(TVMGraphRuntime* runtime, const char* name);
+int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name);
 
 /*!
  * \brief set input to the graph based on name.
@@ -78,7 +75,7 @@ int TVMGraphRuntimeGetInputIndex(TVMGraphRuntime* runtime, const char* name);
  * \param name The name of the input.
  * \param data_in The input data.
  */
-void TVMGraphRuntimeSetInput(TVMGraphRuntime* runtime, const char* name, DLTensor* data_in);
+void TVMGraphRuntime_SetInput(TVMGraphRuntime* runtime, const char* name, DLTensor* data_in);
 
 /*!
  * \brief Return NDArray for given output index.
@@ -87,7 +84,7 @@ void TVMGraphRuntimeSetInput(TVMGraphRuntime* runtime, const char* name, DLTenso
  * \param out The DLTensor corresponding to given output node index.
  * \return The result of this function execution.
  */
-int TVMGraphRuntimeGetOutput(TVMGraphRuntime* runtime, const int32_t index, DLTensor* out);
+int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t index, DLTensor* out);
 
 /*!
  * \brief Load parameters from parameter blob.
@@ -96,20 +93,20 @@ int TVMGraphRuntimeGetOutput(TVMGraphRuntime* runtime, const int32_t index, DLTe
  * \param param_size The parameter size.
  * \return The result of this function execution.
  */
-int TVMGraphRuntimeLoadParams(TVMGraphRuntime* runtime, const char* param_blob,
+int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
                               const uint32_t param_size);
 
 /*!
  * \brief Execute the graph.
  * \param runtime The graph runtime.
  */
-void TVMGraphRuntimeRun(TVMGraphRuntime* runtime);
+void TVMGraphRuntime_Run(TVMGraphRuntime* runtime);
 
 /*!
  * \brief Release memory associated with the graph runtime.
  * \param runtime Pointer to graph runtime.
  */
-void TVMGraphRuntimeRelease(TVMGraphRuntime** runtime);
+void TVMGraphRuntime_Release(TVMGraphRuntime** runtime);
 
 #ifdef __cplusplus
 }  // extern "C"

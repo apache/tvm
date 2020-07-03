@@ -65,8 +65,6 @@ typedef struct TVMGraphRuntimeNode {
 } TVMGraphRuntimeNode;
 
 typedef struct TVMGraphRuntime {
-  TVMGraphRuntimeAPI api;
-
   /*! \brief The graph nodes. */
   TVMGraphRuntimeNode* nodes;
   /*! \brief The graph nodes counter. */
@@ -84,7 +82,7 @@ typedef struct TVMGraphRuntime {
   /*! \brief Additional graph attributes. */
   TVMGraphRuntimeGraphAttr attrs;
   /*! \brief The code module that contains both host and device code. */
-  TVMModule module;
+  TVMModuleHandle module_handle;
   /*! \brief Execution context of all devices including the host. */
   TVMContext ctxs[1];
   uint32_t ctxs_count;
@@ -99,12 +97,14 @@ typedef struct TVMGraphRuntime {
   uint32_t op_execs_count;
 } TVMGraphRuntime;
 
+typedef DLTensor* DLTensorPtr;
+
 // private functions
-void TVMGraphRuntime_SetInput(TVMGraphRuntimeAPI* api, const char* name, DLTensor* data_in);
-int TVMGraphRuntime_LoadParams(TVMGraphRuntimeAPI* api, const char* param_blob,
+void TVMGraphRuntime_SetInput(TVMGraphRuntime* runtime, const char* name, DLTensor* data_in);
+int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
                                const uint32_t param_size);
-void TVMGraphRuntime_Run(TVMGraphRuntimeAPI* api);
-int TVMGraphRuntime_GetOutput(TVMGraphRuntimeAPI* api, const int32_t idx, DLTensor* out);
+void TVMGraphRuntime_Run(TVMGraphRuntime* runtime);
+int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t idx, DLTensor* out);
 
 int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime* runtime, const TVMOpParam* param,
                                     DLTensorPtr* args, const uint32_t args_count,

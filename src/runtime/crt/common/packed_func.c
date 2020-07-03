@@ -23,9 +23,10 @@
  * \file src/runtime/crt/common/packed_func.c
  * \brief PackedFunc implementation.
  */
+#include <tvm/runtime/crt/packed_func.h>
+
 #include <string.h>
 #include <tvm/runtime/crt/internal/common/logging.h>
-#include <tvm/runtime/crt/internal/common/packed_func.h>
 
 DLDataType String2DLDataType(const char* s) {
   DLDataType t;
@@ -74,6 +75,37 @@ DLDataType String2DLDataType(const char* s) {
   return t;
 }
 
+int TVMPackedFunc_InitGlobalFunc(TVMPackedFunc* pf, const char* name, const TVMArgs* args) {
+  int status = 0;
+
+  pf->Call = &TVMPackedFunc_Call;
+  pf->SetArgs = &TVMPackedFunc_SetArgs;
+
+  status = TVMFuncGetGlobal(name, &pf->fexec);
+  if (status != 0) {
+    return status;
+  }
+
+  TVMPackedFunc_SetArgs(pf, args);
+  return status;
+}
+
+int TVMPackedFunc_InitModuleFunc(TVMPackedFunc* pf, TVMModuleHandle module, const char* name,
+                                 const TVMArgs* args) {
+  int status = 0;
+
+  pf->Call = &TVMPackedFunc_Call;
+  pf->SetArgs = &TVMPackedFunc_SetArgs;
+
+  status = TVMModGetFunction(module, name, 0, &pf->fexec);
+  if (status != 0) {
+    return status;
+  }
+
+  TVMPackedFunc_SetArgs(pf, args);
+  return status;
+}
+
 TVMArgs TVMArgs_Create(TVMValue* values, uint32_t* tcodes, uint32_t values_count) {
   uint32_t idx;
   TVMArgs args;
@@ -86,10 +118,14 @@ TVMArgs TVMArgs_Create(TVMValue* values, uint32_t* tcodes, uint32_t values_count
   return args;
 }
 
-void TVMPackedFunc_Call(TVMPackedFunc* pf) {
-  pf->fexec(pf->args.values, pf->args.tcodes, pf->args.values_count, 0, 0, NULL);
+int TVMPackedFunc_Call(TVMPackedFunc* pf) {
+  return TVMFuncCall(pf->fexec, pf->args.values, pf->args.tcodes, pf->args.values_count,
+                     pf->ret_value.values, pf->ret_value.tcodes);
 }
 
 void TVMPackedFunc_SetArgs(TVMPackedFunc* pf, const TVMArgs* args) {
   memcpy(&(pf->args), args, sizeof(TVMArgs));
 }
+
+TVMPackedFunc* g_fexecs;
+uint32_t g_fexecs_count;

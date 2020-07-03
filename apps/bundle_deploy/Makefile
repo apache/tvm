@@ -66,6 +66,9 @@ $(build_dir)/test_dynamic: test.cc ${build_dir}/test_graph.json ${build_dir}/tes
 	@mkdir -p $(@D)
 	g++ $(PKG_CXXFLAGS) -o $@  test.cc -ldl
 
+$(build_dir)/model.o: $(build_dir)/model.c
+	gcc $(PKG_CFLAGS) -c -o $@ $^
+
 $(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o ${build_dir}/func_registry.c ${build_dir}/model.o ${build_dir}/graph.json.c ${build_dir}/params.bin.c ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
 	@mkdir -p $(@D)
 	gcc $(PKG_CFLAGS) -o $@ demo_static.c ${build_dir}/bundle_static.o ${build_dir}/func_registry.c ${build_dir}/model.o -lm ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
@@ -82,11 +85,14 @@ $(build_dir)/graph.json.c: $(build_dir)/graph.json
 $(build_dir)/params.bin.c: $(build_dir)/params.bin
 	xxd -i $^  > $@
 
-$(build_dir)/func_registry.c $(build_dir)/model.o $(build_dir)/graph.json $(build_dir)/params.bin $(build_dir)/cat.bin: build_model.py
+$(build_dir)/func_registry.c $(build_dir)/model.c $(build_dir)/graph.json $(build_dir)/params.bin $(build_dir)/cat.bin: build_model.py
 	python3 $< -o $(build_dir)
 
-$(build_dir)/test_func_registry.c $(build_dir)/test_model.o $(build_dir)/test_graph.json $(build_dir)/test_params.bin $(build_dir)/test_data.bin $(build_dir)/test_output.bin: build_model.py
+$(build_dir)/test_func_registry.c $(build_dir)/test_model.c $(build_dir)/test_graph.json $(build_dir)/test_params.bin $(build_dir)/test_data.bin $(build_dir)/test_output.bin: build_model.py
 	python3 $< -o $(build_dir) --test
+
+$(build_dir)/test_model.o: $(build_dir)/test_model.c
+	gcc $(PKG_CFLAGS) -c -o $@ $^
 
 # Build our bundle against the serialized bundle.c API, the runtime.cc API, and
 # the serialized graph.json and params.bin
