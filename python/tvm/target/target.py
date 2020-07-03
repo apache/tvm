@@ -180,16 +180,16 @@ def arm_cpu(model='unknown', options=None):
         Additional options
     """
     trans_table = {
-        "pixel2":    ["-model=snapdragon835", "-mtriple=arm64-linux-android -mattr=+neon"],
-        "mate10":    ["-model=kirin970", "-mtriple=arm64-linux-android -mattr=+neon"],
-        "mate10pro": ["-model=kirin970", "-mtriple=arm64-linux-android -mattr=+neon"],
-        "p20":       ["-model=kirin970", "-mtriple=arm64-linux-android -mattr=+neon"],
-        "p20pro":    ["-model=kirin970", "-mtriple=arm64-linux-android -mattr=+neon"],
-        "rasp3b":    ["-model=bcm2837", "-mtriple=armv7l-linux-gnueabihf -mattr=+neon"],
-        "rasp4b":    ["-model=bcm2711", "-mtriple=arm-linux-gnueabihf -mattr=+neon"],
-        "rk3399":    ["-model=rk3399", "-mtriple=aarch64-linux-gnu -mattr=+neon"],
-        "pynq":      ["-model=pynq", "-mtriple=armv7a-linux-eabi -mattr=+neon"],
-        "ultra96":   ["-model=ultra96", "-mtriple=aarch64-linux-gnu -mattr=+neon"],
+        "pixel2":    ["-model=snapdragon835", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "mate10":    ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "mate10pro": ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "p20":       ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "p20pro":    ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "rasp3b":    ["-model=bcm2837", "-mtriple=armv7l-linux-gnueabihf", "-mattr=+neon"],
+        "rasp4b":    ["-model=bcm2711", "-mtriple=arm-linux-gnueabihf", "-mattr=+neon"],
+        "rk3399":    ["-model=rk3399", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
+        "pynq":      ["-model=pynq", "-mtriple=armv7a-linux-eabi", "-mattr=+neon"],
+        "ultra96":   ["-model=ultra96", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
