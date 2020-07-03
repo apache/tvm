@@ -27,6 +27,7 @@ echo set\(USE_SORT ON\) >> config.cmake
 echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_GRAPH_RUNTIME_DEBUG ON\) >> config.cmake
 echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
+echo set\(USE_STANDALONE_CRT ON\) >> config.cmake
 echo set\(USE_VM_PROFILER ON\) >> config.cmake
 echo set\(USE_EXAMPLE_EXT_RUNTIME ON\) >> config.cmake
 echo set\(USE_LLVM llvm-config-4.0\) >> config.cmake
