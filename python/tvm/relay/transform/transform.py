@@ -625,6 +625,17 @@ def AnnotateTarget(targets):
     return _ffi_api.AnnotateTarget([tvm.runtime.container.String(t) for t in targets])
 
 
+def DynamicToStatic():
+    """If possible, convert tvm.relay.dynamic* ops to static versions
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for dynamic->static conversion.
+    """
+    return _ffi_api.DynamicToStatic()
+
+
 def Inline():
     """Perform inlining on the given Relay IR module. The global functions that
     are marked as `inline` should be always inlined. A cost model will be

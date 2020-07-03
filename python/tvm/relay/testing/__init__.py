@@ -29,6 +29,7 @@ from tvm.relay import Prelude
 
 from . import mlp
 from . import resnet
+from . import resnet_3d
 from . import dqn
 from . import dcgan
 from . import mobilenet

@@ -208,6 +208,11 @@ class ArangeAttrs(Attrs):
     """Attributes used in arange operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.MeshgridAttrs")
+class MeshgridAttrs(Attrs):
+    """Attributes used in arange operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.StackAttrs")
 class StackAttrs(Attrs):
     """Attributes used in stack operators"""

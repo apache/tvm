@@ -588,6 +588,39 @@ def test_arange():
     # arange doesnt' support floating point right now, see type relation
     # verify_arange(20, 1, -1.5)
 
+def test_meshgrid():
+    def verify_meshgrid(lengths, indexing="ij"):
+        input_vars = []
+        input_data = []
+        for i, length in enumerate(lengths):
+            input_name = "x_{}".format(i)
+            if length == 0:
+                # Scalar
+                input_vars.append(relay.var(input_name, relay.scalar_type("float32")))
+                input_data.append(np.array(1, "float32"))
+            else:
+                input_vars.append(relay.var(input_name, relay.TensorType((length,), "float32")))
+                input_data.append(np.arange(length).astype("float32"))
+
+        z = relay.meshgrid(input_vars, indexing=indexing).astuple()
+        func = relay.Function(input_vars, z)
+        # Get ref
+        ref_res = np.meshgrid(*input_data, indexing=indexing)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(*input_data)
+                assert len(op_res) == len(ref_res)
+                for i in range(len(op_res)):
+                    tvm.testing.assert_allclose(op_res[i].asnumpy(), ref_res[i], rtol=1e-5)
+    verify_meshgrid([3, 5])
+    verify_meshgrid([4, 2], indexing="xy")
+    verify_meshgrid([3, 5, 2])
+    verify_meshgrid([3, 1, 5], indexing="xy")
+    # Length 0 signifies scalar.
+    verify_meshgrid([3, 5, 0])
+
 def test_tile():
     def verify_tile(dshape, reps):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
@@ -968,7 +1001,6 @@ def test_sparse_to_dense():
     #verify_sparse_to_dense([[[[0, 1, 4], [0, 2, 4]]]], [[[[3.1, 3.1, 3.1]]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
 
 if __name__ == "__main__":
-    test_arange()
     test_cast()
     test_zeros_ones()
     test_unary_identity()
@@ -992,6 +1024,7 @@ if __name__ == "__main__":
     test_squeeze_bad_axes_infer_type()
     test_split_infer_type()
     test_arange()
+    test_meshgrid()
     test_reverse()
     test_stack()
     test_tile()

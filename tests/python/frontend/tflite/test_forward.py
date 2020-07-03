@@ -73,6 +73,25 @@ def get_real_image(im_height, im_width):
     data = np.reshape(x, (1, im_height, im_width, 3))
     return data
 
+
+def pre_processed_image(height, width):
+    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
+    img_name = 'elephant-299.jpg'
+    image_url = os.path.join(repo_base, img_name)
+    img_path = download_testdata(image_url, img_name, module='data')
+    image = tf.io.read_file(img_path)
+    image = tf.image.decode_jpeg(image, channels=3)
+    with tf.name_scope('eval_image'):
+        if image.dtype != tf.float32:
+            image = tf.image.convert_image_dtype(image, dtype=tf.float32)
+        image = tf.image.central_crop(image, central_fraction=0.875)
+    # Resize the image to the specified height and width.
+    image = tf.image.resize(image, [height, width],
+                            align_corners=False)
+    image = tf.expand_dims(image, axis=0)
+    return image
+
+
 def get_real_image_object_detection(im_height, im_width):
     repo_base = 'https://github.com/dmlc/web-data/raw/master/gluoncv/detection/'
     img_name = 'street_small.jpg'
@@ -108,6 +127,18 @@ def vmobj_to_list(o):
                                o.constructor.name_hint)
     else:
         raise RuntimeError("Unknown object type: %s" % type(o))
+
+
+def _quantize_keras_model(keras_model, representative_data_gen):
+    """Utility function to quantize a Keras model using TFLite converter."""
+    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
+    converter.optimizations = [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
+    converter.representative_dataset = representative_data_gen
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    converter.inference_input_type = tf.uint8
+    converter.inference_output_type = tf.uint8
+    return converter.convert()
+
 
 def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target='llvm',
                   out_names=None, mode='graph_runtime'):
@@ -717,6 +748,70 @@ def test_forward_l2_pool2d():
 # Convolution
 # -----------
 
+
+def _test_tflite2_quantized_convolution(input_shape, kernel_shape,
+        dilations, strides, padding, data_format):
+    """ One iteration of TFLite2 quantized convolution with given shapes and attributes """
+    data_format = "channels_last" if "NHWC" else "channels_first"
+    data = np.random.uniform(0, 1, input_shape).astype('float32')
+    kernel = np.random.uniform(0, 1, kernel_shape).astype('float32')
+
+    data_in = tf.keras.layers.Input(shape=data.shape[1:])
+    conv = tf.keras.layers.Conv2D(filters=kernel_shape[3],
+                                  kernel_size=(kernel_shape[0], kernel_shape[1]),
+                                  strides=strides,
+                                  padding=padding,
+                                  data_format=data_format,
+                                  activation='relu',
+                                  use_bias=False)(data_in)
+    keras_model = tf.keras.models.Model(data_in, conv)
+    keras_model.layers[1].set_weights([kernel])
+
+    # To create quantized values with dynamic range of activations, needs representative dataset
+    def representative_data_gen():
+        for i in range(1):
+            yield [data]
+
+    tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen)
+
+    tflite_output = run_tflite_graph(tflite_model_quant, data)
+    tvm_output = run_tvm_graph(tflite_model_quant, data, data_in.name.replace(":0",""))
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-2, atol=1e-2)
+
+
+def _test_tflite2_quantized_depthwise_convolution(input_shape, kernel_shape,
+        dilations, strides, padding, data_format, depth_multiplier):
+    """One iteration of TFLite2 quantized depthwise convolution with given shapes and attributes"""
+    data_format = "channels_last" if "NHWC" else "channels_first"
+    data = np.random.uniform(0, 1, input_shape).astype('float32')
+    kernel = np.random.uniform(0, 1, kernel_shape).astype('float32')
+
+    data_in = tf.keras.layers.Input(shape=data.shape[1:])
+    conv = tf.keras.layers.DepthwiseConv2D(kernel_size=(kernel_shape[0], kernel_shape[1]),
+                                           strides=strides,
+                                           padding=padding,
+                                           data_format=data_format,
+                                           activation='relu',
+                                           use_bias=False,
+                                           depth_multiplier=depth_multiplier)(data_in)
+    keras_model = tf.keras.models.Model(data_in, conv)
+    keras_model.layers[1].set_weights([kernel])
+
+
+    # To create quantized values with dynamic range of activations, needs representative dataset
+    def representative_data_gen():
+        for i in range(1):
+            yield [data]
+
+    tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen)
+
+    tflite_output = run_tflite_graph(tflite_model_quant, data)
+    tvm_output = run_tvm_graph(tflite_model_quant, data, data_in.name.replace(":0",""))
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-2, atol=1e-2)
+
+
 def _test_convolution(tensor_in_sizes, filter_in_sizes,
                       dilations, strides, padding, data_format,
                       is_depthwise=False, quantized=False):
@@ -757,24 +852,38 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
                                 data_format=data_format)
 
         if quantized:
-            # For now only quantized conv2d is supported
-            assert not is_depthwise
+            if is_depthwise:
+                # Quantized the inputs and feed them to the convolution
+                inq_data = tf.quantization.fake_quant_with_min_max_args(in_data, min=-100, max=100, name='inq_data')
+                inq_filter = tf.quantization.fake_quant_with_min_max_args(in_filter, min=-100, max=100, name='inq_filter')
+                out = nn_ops.depthwise_conv2d_native(inq_data,
+                                                     inq_filter,
+                                                     strides=strides,
+                                                     padding=padding,
+                                                     data_format=data_format)
+                out = tf.quantization.fake_quant_with_min_max_args(out, min=-200, max=200, name="out")
 
-            # Quantized the inputs and feed them to the convolution
-            inq_data = tf.quantization.fake_quant_with_min_max_args(in_data, min=-100, max=100, name='inq_data')
-            inq_filter = tf.quantization.fake_quant_with_min_max_args(in_filter, min=-100, max=100, name='inq_filter')
-            out = nn_ops.conv2d(inq_data,
-                                inq_filter,
-                                strides=strides,
-                                padding=padding,
-                                data_format=data_format)
-            out = tf.quantization.fake_quant_with_min_max_args(out, min=-200, max=200, name="out")
+                # Set the input quantization range
+                input_range = {'in_data': (-100, 100)} if quantized else None
 
-            # Set the input quantization range
-            input_range = {'in_data': (-100, 100)} if quantized else None
+                # Compare
+                compare_tflite_with_tvm(data_array, 'in_data', [in_data], [out], quantized=quantized, input_range=input_range)
+            else:
+                # Quantized the inputs and feed them to the convolution
+                inq_data = tf.quantization.fake_quant_with_min_max_args(in_data, min=-100, max=100, name='inq_data')
+                inq_filter = tf.quantization.fake_quant_with_min_max_args(in_filter, min=-100, max=100, name='inq_filter')
+                out = nn_ops.conv2d(inq_data,
+                                    inq_filter,
+                                    strides=strides,
+                                    padding=padding,
+                                    data_format=data_format)
+                out = tf.quantization.fake_quant_with_min_max_args(out, min=-200, max=200, name="out")
 
-            # Compare
-            compare_tflite_with_tvm(data_array, 'in_data', [in_data], [out], quantized=quantized, input_range=input_range)
+                # Set the input quantization range
+                input_range = {'in_data': (-100, 100)} if quantized else None
+
+                # Compare
+                compare_tflite_with_tvm(data_array, 'in_data', [in_data], [out], quantized=quantized, input_range=input_range)
         else:
             data_array = np.reshape(data_array, tensor_in_sizes).astype('float32')
             compare_tflite_with_tvm(data_array, 'in_data', [in_data], [out])
@@ -787,14 +896,30 @@ def test_forward_convolution():
         _test_convolution([4, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NHWC', quantized=quantized)
         _test_convolution([4, 17, 17, 12], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID', 'NHWC', quantized=quantized)
 
-    # depthwise convolution
-    _test_convolution([4, 8, 8, 176], [1, 1, 176, 1], [1, 1], [1, 1], 'SAME', 'NHWC', True)
-    _test_convolution([4, 17, 17, 19], [3, 3, 19, 1], [1, 1], [2, 2], 'VALID', 'NHWC', True)
-    _test_convolution([4, 17, 17, 124], [1, 1, 124, 1], [1, 1], [1, 1], 'SAME', 'NHWC', True)
-    _test_convolution([4, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2], 'VALID', 'NHWC', True)
-    _test_convolution([4, 17, 17, 12], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NHWC', True)
-    # dephtwise convolution with single input channel
-    _test_convolution([1, 76, 64, 1], [9, 5, 1, 96], [1, 1], [1, 1], 'SAME', 'NHWC', True)
+        # depthwise convolution
+        _test_convolution([4, 8, 8, 176], [1, 1, 176, 1], [1, 1], [1, 1], 'SAME', 'NHWC', True, quantized=quantized)
+        _test_convolution([4, 17, 17, 19], [3, 3, 19, 1], [1, 1], [2, 2], 'VALID', 'NHWC', True, quantized=quantized)
+        _test_convolution([4, 17, 17, 124], [1, 1, 124, 1], [1, 1], [1, 1], 'SAME', 'NHWC', True, quantized=quantized)
+        _test_convolution([4, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2], 'VALID', 'NHWC', True, quantized=quantized)
+        _test_convolution([4, 17, 17, 12], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NHWC', True, quantized=quantized)
+        # depthwise convolution with single input channel
+        _test_convolution([1, 76, 64, 1], [9, 5, 1, 96], [1, 1], [1, 1], 'SAME', 'NHWC', True, quantized=quantized)
+
+    # TFLite2 quantized convolution testing
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
+        _test_tflite2_quantized_convolution([1, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
+        _test_tflite2_quantized_convolution([1, 17, 17, 12], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID', 'NHWC')
+        _test_tflite2_quantized_convolution([1, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
+        _test_tflite2_quantized_convolution([1, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NHWC')
+
+        # depthwise convolution
+        _test_tflite2_quantized_depthwise_convolution([1, 8, 8, 128], [1, 1, 128, 1], [1, 1], [1, 1],
+                                                      'SAME', 'NHWC', 1)
+        _test_tflite2_quantized_depthwise_convolution([1, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2],
+                                                      'VALID', 'NHWC', 1)
+        _test_tflite2_quantized_depthwise_convolution([1, 24, 24, 3], [7, 7, 3, 8], [1, 1], [2, 2],
+                                                      'SAME', 'NHWC', 8)
+
 
 
 #######################################################################
@@ -1686,38 +1811,33 @@ def test_forward_squeeze():
 def _test_quantize_dequantize(data):
     """ One iteration of quantize and dequantize """
 
-    # Define a dummy model
+    # Keras model to force TFLite converter to insert 2 TFLite quantize ops.
+    # First TFLite quantize op converts float32 tensor to int8 tensor - Qnn quantize.
+    # Second TFLite quantize op converts int8 tensor to int8 tensor - Qnn requantize.
     data_in = tf.keras.layers.Input(shape=data.shape[1:])
-    act_func =  tf.keras.layers.Activation('linear')
-    keras_model = tf.keras.models.Model(data_in, act_func(data_in))
-
-    # Load the model
-    converter = interpreter_wrapper.TFLiteConverter.from_keras_model(keras_model)
+    relu = tf.keras.layers.ReLU()(data_in)
+    add = tf.keras.layers.Add()([data_in, relu])
+    concat = tf.keras.layers.Concatenate(axis=0)([relu, add])
+    keras_model = tf.keras.models.Model(inputs=data_in, outputs=concat)
+    input_name = data_in.name.split(":")[0]
 
     # To create quantized values with dynamic range of activations, needs representative dataset
     def representative_data_gen():
-        for i in range(100):
+        for i in range(1):
             yield [data]
 
-    converter.optimizations = [tf.lite.Optimize.OPTIMIZE_FOR_SIZE]
-    converter.representative_dataset = representative_data_gen
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-    converter.inference_input_type = tf.uint8
-    converter.inference_output_type = tf.uint8
-
-    # Convert the model to TensorFlow Lite format
-    tflite_model_quant = converter.convert()
+    tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen)
 
     tflite_output = run_tflite_graph(tflite_model_quant, data)
-    tvm_output = run_tvm_graph(tflite_model_quant, data, 'input_1')
+    tvm_output = run_tvm_graph(tflite_model_quant, data, input_name)
     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
-                                rtol=1e-5, atol=1e-5)
+                                rtol=1e-5, atol=1e-2)
 
 
 def test_forward_quantize_dequantize():
     """ Quantize Dequantize """
     data = np.random.uniform(0, 1, (1, 4, 4, 3)).astype("float32")
-    if package_version.parse(tf.VERSION) >= package_version.parse('2.0.0'):
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
         _test_quantize_dequantize(data)
 
 
@@ -1945,16 +2065,38 @@ def test_forward_tanh():
 # ReLu
 # ----
 
-def _test_relu(data):
+def _test_relu(data, quantized=False):
     """ One iteration of ReLU """
-    with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-        out = nn_ops.relu(in_data)
-        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+    if quantized:
+        if package_version.parse(tf.VERSION) < package_version.parse('2.1.0'):
+            pytest.skip("Testcase requires tflite version >= 2.1.0")
+        data_in = tf.keras.layers.Input(shape=data.shape[1:])
+        relu =  tf.keras.layers.ReLU()(data_in)
+        keras_model = tf.keras.models.Model(inputs=data_in, outputs=relu)
+        input_name = data_in.name.split(":")[0]
+
+        # To create quantized values with dynamic range of activations, needs representative dataset
+        def representative_data_gen():
+            for i in range(1):
+                yield [data]
+
+        tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen)
+
+        tflite_output = run_tflite_graph(tflite_model_quant, data)
+        tvm_output = run_tvm_graph(tflite_model_quant, data, input_name)
+        tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                    rtol=1e-5, atol=1e-5)
+    else:
+        with tf.Graph().as_default():
+            in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+            out = nn_ops.relu(in_data)
+            compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
 
 def test_forward_relu():
     """ ReLU """
     _test_relu(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
+    _test_relu(np.arange(6.0, dtype=np.float32).reshape((1, 6)), quantized=True)
 
 #######################################################################
 # ReLU6
@@ -2471,6 +2613,66 @@ def test_forward_qnn_mobilenet_v3_net():
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 
+def test_forward_tflite2_qnn_resnet50():
+    """Test the Quantized TFLite version 2.1.0 Resnet50 model."""
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
+        tflite_model_file = download_testdata(
+            "https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/models/Quantized/resnet_50_quantized.tflite",
+            "resnet_50_quantized.tflite")
+        with open(tflite_model_file, "rb") as f:
+            tflite_model_buf = f.read()
+
+        data = pre_processed_image(224, 224)
+
+        tflite_output = run_tflite_graph(tflite_model_buf, data)
+        tflite_predictions = np.squeeze(tflite_output)
+        tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+        tvm_output = run_tvm_graph(tflite_model_buf, np.array(data), 'input_1')
+        tvm_predictions = np.squeeze(tvm_output)
+        tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+        tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+
+def test_forward_tflite2_qnn_inception_v1():
+    """Test the Quantized TFLite version 2.1.0 Inception V1 model."""
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
+        tflite_model_file = download_testdata(
+            "https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/models/Quantized/inception_v1_quantized.tflite",
+            "inception_v1_quantized.tflite")
+        with open(tflite_model_file, "rb") as f:
+            tflite_model_buf = f.read()
+
+        data = pre_processed_image(224, 224)
+
+        tflite_output = run_tflite_graph(tflite_model_buf, data)
+        tflite_predictions = np.squeeze(tflite_output)
+        tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+        tvm_output = run_tvm_graph(tflite_model_buf, np.array(data), 'input_1')
+        tvm_predictions = np.squeeze(tvm_output)
+        tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+        tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+
+def test_forward_tflite2_qnn_mobilenet_v2():
+    """Test the Quantized TFLite version 2.1.0 Mobilenet V2 model."""
+    if package_version.parse(tf.VERSION) >= package_version.parse('2.1.0'):
+        tflite_model_file = download_testdata(
+            "https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/models/Quantized/mobilenet_v2_quantized.tflite",
+            "mobilenet_v2_quantized.tflite")
+        with open(tflite_model_file, "rb") as f:
+            tflite_model_buf = f.read()
+
+        data = pre_processed_image(224, 224)
+
+        tflite_output = run_tflite_graph(tflite_model_buf, data)
+        tflite_predictions = np.squeeze(tflite_output)
+        tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+        tvm_output = run_tvm_graph(tflite_model_buf, np.array(data), 'input_1')
+        tvm_predictions = np.squeeze(tvm_output)
+        tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+        tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+
 #######################################################################
 # Quantized SSD Mobilenet
 # -----------------------
@@ -2689,3 +2891,8 @@ if __name__ == '__main__':
     #with Tflite 1.15.2
     test_forward_qnn_mobilenet_v3_net()
     test_forward_qnn_coco_ssd_mobilenet_v1()
+
+    # TFLite 2.1.0 quantized tests
+    test_forward_tflite2_qnn_resnet50()
+    test_forward_tflite2_qnn_inception_v1()
+    test_forward_tflite2_qnn_mobilenet_v2()

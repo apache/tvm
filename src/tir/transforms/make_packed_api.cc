@@ -51,7 +51,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
 
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   CHECK(target.defined()) << "MakePackedAPI: Require the target attribute";
-  int target_device_type = target.value()->device_type;
+  int target_device_type = target.value()->id->device_type;
 
   std::string name_hint = global_symbol.value();
 

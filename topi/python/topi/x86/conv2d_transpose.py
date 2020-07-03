@@ -40,14 +40,16 @@ def schedule_conv2d_transpose_nchw(outs):
             conv_out = op.input_tensors[0]
             # retrieve data
             data_vec = conv_out.op.input_tensors[0]
-            data_pad = data_vec.op.input_tensors[0]
-            data_dilate = data_pad.op.input_tensors[0]
-            s[data_dilate].compute_inline()
-            s[data_pad].compute_inline()
+            if isinstance(data_vec, te.ComputeOp):
+                data_pad = data_vec.op.input_tensors[0]
+                data_dilate = data_pad.op.input_tensors[0]
+                s[data_dilate].compute_inline()
+                s[data_pad].compute_inline()
             # retrieve kernel
             kernel_vec = conv_out.op.input_tensors[1]
-            kernel_transform = kernel_vec.op.input_tensors[0]
-            s[kernel_transform].compute_inline()
+            if isinstance(kernel_vec, te.ComputeOp):
+                kernel_transform = kernel_vec.op.input_tensors[0]
+                s[kernel_transform].compute_inline()
 
     traverse_inline(s, outs[0].op, _callback)
     return s

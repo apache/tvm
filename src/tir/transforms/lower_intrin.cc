@@ -40,12 +40,11 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
-  IntrinInjecter(arith::Analyzer* analyzer, std::string target_name)
-      : IRMutatorWithAnalyzer(analyzer) {
-    patterns_.push_back("tvm.intrin.rule." + target_name + ".");
+  IntrinInjecter(arith::Analyzer* analyzer, std::string target) : IRMutatorWithAnalyzer(analyzer) {
+    patterns_.push_back("tvm.intrin.rule." + target + ".");
     patterns_.push_back("tvm.intrin.rule.default.");
     fma_ = runtime::Registry::Get(patterns_[0] + "fma");
-    if (target_name == "stackvm") {
+    if (target == "stackvm") {
       support_bitwise_op_ = false;
     }
   }
@@ -275,9 +274,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   bool support_bitwise_op_{true};
 };
 
-Stmt LowerIntrinStmt(Stmt stmt, const std::string target_name) {
+Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
   arith::Analyzer analyzer;
-  return IntrinInjecter(&analyzer, target_name)(std::move(stmt));
+  return IntrinInjecter(&analyzer, target)(std::move(stmt));
 }
 
 namespace transform {
@@ -288,7 +287,7 @@ Pass LowerIntrin() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     CHECK(target.defined()) << "LowerIntrin: Require the target attribute";
     arith::Analyzer analyzer;
-    n->body = IntrinInjecter(&analyzer, target.value()->target_name)(std::move(n->body));
+    n->body = IntrinInjecter(&analyzer, target.value()->id->name)(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerIntrin", {});

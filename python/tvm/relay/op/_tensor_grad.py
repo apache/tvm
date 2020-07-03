@@ -511,7 +511,7 @@ def batch_matmul_grad(orig, grad):
 @register_gradient("reshape")
 def reshape_grad(orig, grad):
     """Gradient of reshape"""
-    return [reshape_like(grad, orig.args[0]), orig.args[1]]
+    return [reshape_like(grad, orig.args[0])]
 
 
 @register_gradient("cast")
