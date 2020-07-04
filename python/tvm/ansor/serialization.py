@@ -143,7 +143,7 @@ def best_measure_pair_in_file(filename, workload_key=None, target=None):
             continue
         if workload_key and inp.task.workload_key != workload_key:
             continue
-        if target and inp.task.target.target_name != target.target_name:
+        if target and inp.task.target.id.name != target.id.name:
             continue
 
         costs = [v.value for v in res.costs]

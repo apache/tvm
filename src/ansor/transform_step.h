@@ -36,8 +36,7 @@
  * 4. Add you step to `ComputeDAG::ApplySteps` and make sure it works.
  * 5. Add serialization support in `struct Handler<Array<::tvm::ansor::Step> >`
  *    in `serialization.cc`.
- * 6. Add hash support in `struct hash<::tvm::ansor::Step>`. (search for this function in this file)
- * 7. Add its corresponding Python API to `loop_state.py` and necessary unit test.
+ * 6. Add its corresponding Python API to `loop_state.py` and necessary unit test.
  */
 
 #ifndef TVM_ANSOR_TRANSFORM_STEP_H_
@@ -83,7 +82,7 @@ class ReorderStepNode : public StepNode {
    * \brief The iterator ids after reorder.
    * This array should specify the order of all iterators.
    */
-  Array<PrimExpr> after_ids;
+  Array<Integer> after_ids;
 
   /*!
    * \brief Apply the current state to tvm.schedule
@@ -115,7 +114,7 @@ class ReorderStep : public Step {
    * \param stage_id The index of the target stage.
    * \param after_ids The index of the iterators after reorder.
    */
-  ReorderStep(int stage_id, const Array<PrimExpr>& after_ids);
+  ReorderStep(int stage_id, const Array<Integer>& after_ids);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ReorderStep, Step, ReorderStepNode);
 };
@@ -129,9 +128,9 @@ class SplitStepNode : public StepNode {
   /*! \brief The id of the iter to split. */
   int iter_id;
   /*! \brief The extent length of the axis to split. */
-  PrimExpr extent;
+  Integer extent;
   /*! \brief The split factors. */
-  Array<PrimExpr> lengths;
+  Array<Integer> lengths;
   /*!
    * \brief If true, the `lengths` denote the lengths of iterators
    * from inner level to outer level
@@ -172,7 +171,7 @@ class SplitStep : public Step {
    * \param lengths The extent length of the axis to split.
    * \param inner_to_outer The split direction.
    */
-  SplitStep(int stage_id, int iter_id, PrimExpr extent, const Array<PrimExpr>& lengths,
+  SplitStep(int stage_id, int iter_id, PrimExpr extent, const Array<Integer>& lengths,
             bool inner_to_outer);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SplitStep, Step, SplitStepNode);
@@ -182,7 +181,7 @@ class SplitStep : public Step {
 class FuseStepNode : public StepNode {
  public:
   /*! \brief The ids of iterators to fuse. */
-  Array<PrimExpr> fused_ids;
+  Array<Integer> fused_ids;
 
   /*!
    * \brief Apply the current state to tvm.schedule
@@ -215,69 +214,12 @@ class FuseStep : public Step {
    * \param stage_id The index of the target stage.
    * \param fused_ids The index of the target iterators to be fused.
    */
-  FuseStep(int stage_id, const Array<PrimExpr>& fused_ids);
+  FuseStep(int stage_id, const Array<Integer>& fused_ids);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FuseStep, Step, FuseStepNode);
 };
 
 }  // namespace ansor
 }  // namespace tvm
-
-// Hash and equal function for Step
-namespace std {
-
-/*! \brief The hash function of each transform step. */
-template <>
-struct hash<::tvm::ansor::Step> {
-  std::size_t operator()(const ::tvm::ansor::Step& step) const {
-    // clang-format off
-    if (auto ps = step.as<::tvm::ansor::ReorderStepNode>()) {
-      size_t ret = ::dmlc::HashCombine(1, std::hash<int>()(ps->stage_id));
-      for (const auto& x : ps->after_ids) {
-        CHECK(x.defined());
-        const auto& pint = x.as<::tvm::tir::IntImmNode>();
-        CHECK(pint != nullptr);
-        ret = ::dmlc::HashCombine(ret, pint->value);
-      }
-      return ret;
-    } else if (auto ps = step.as<::tvm::ansor::SplitStepNode>()) {
-      size_t ret = ::dmlc::HashCombine(2,
-                   ::dmlc::HashCombine(std::hash<int>()(ps->stage_id),
-                   ::dmlc::HashCombine(std::hash<int>()(ps->iter_id),
-                                       std::hash<bool>()(ps->inner_to_outer))));
-      if (ps->extent.defined()) {
-        const auto& pint = ps->extent.as<::tvm::tir::IntImmNode>();
-        CHECK(pint != nullptr);
-        ret = ::dmlc::HashCombine(ret, pint->value);
-      } else {
-        ret = ::dmlc::HashCombine(ret, 0x5D);  // a magic number
-      }
-      for (const auto& x : ps->lengths) {
-        if (x.defined()) {
-          const auto& pint = x.as<::tvm::tir::IntImmNode>();
-          CHECK(pint != nullptr);
-          ret = ::dmlc::HashCombine(ret, pint->value);
-        } else {
-          ret = ::dmlc::HashCombine(ret, 0x5D);  // a magic number
-        }
-      }
-      return ret;
-    } else if (auto ps = step.as<::tvm::ansor::FuseStepNode>()) {
-      size_t ret = ::dmlc::HashCombine(3, std::hash<int>()(ps->stage_id));
-      for (const auto& x : ps->fused_ids) {
-        CHECK(x.defined());
-        const auto& pint = x.as<::tvm::tir::IntImmNode>();
-        CHECK(pint != nullptr);
-        ret = ::dmlc::HashCombine(ret, pint->value);
-      }
-      return ret;
-    } else {
-      LOG(FATAL) << "Invalid step";
-    }
-    return 0;
-    // clang-format on
-  }
-};
-}  // namespace std
 
 #endif  // TVM_ANSOR_TRANSFORM_STEP_H_

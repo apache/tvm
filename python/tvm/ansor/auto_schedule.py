@@ -50,16 +50,10 @@ class HardwareParams(Object):
         The width of vector units in bytes.
     cache_line_bytes : int
         The size of cache line in bytes.
-    max_unroll_vec : int
-        The max length of an axis to be unrolled or vectorized.
-    max_innermost_split_factor : int
-        The max split factor for the innermost tile.
     """
-    def __init__(self, num_cores, vector_unit_bytes, cache_line_bytes,
-                 max_unroll_vec, max_innermost_split_factor):
+    def __init__(self, num_cores, vector_unit_bytes, cache_line_bytes):
         self.__init_handle_by_constructor__(_ffi_api.HardwareParams, num_cores,
-                                            vector_unit_bytes, cache_line_bytes,
-                                            max_unroll_vec, max_innermost_split_factor)
+                                            vector_unit_bytes, cache_line_bytes)
 
 
 @tvm._ffi.register_object("ansor.SearchTask")
@@ -69,9 +63,9 @@ class SearchTask(Object):
     Parameters
     ----------
     dag : ComputeDAG
-        The ComputeDAG for the target compute declaration.
+        The ComputeDAG for the corresponding compute declaration.
     workload_key : str
-        The workload key for the target compute declaration.
+        The workload key for the corresponding compute declaration.
     target : tvm.target.Target
         The target device of this search task.
     target_host : Optional[tvm.target.Target]

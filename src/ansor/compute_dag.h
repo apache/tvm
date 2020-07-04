@@ -45,7 +45,7 @@
 namespace tvm {
 namespace ansor {
 
-/*! \brief Computation declaration graph. */
+/*! \brief The Ansor computational graph and related program analyses. */
 class ComputeDAGNode : public Object {
  public:
   /*! \brief Input and output tensors. */
@@ -56,6 +56,7 @@ class ComputeDAGNode : public Object {
   double flop_ct;
   /*! \brief The initial state without any transform steps. */
   State init_state;
+  // TODO(merrymercy): Add more analyses later.
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tensors", &tensors);

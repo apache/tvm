@@ -114,14 +114,14 @@ void State::reorder(int stage_id, const Array<Iterator>& order) {
   const Stage& stage = operator->()->stages[stage_id];
   CHECK_EQ(order.size(), stage->iters.size()) << "The order of all iterators "
                                               << "should be specified";
-  Array<PrimExpr> after_ids;
+  Array<Integer> after_ids;
   GetIndices(stage->iters, order, &after_ids);
   ReorderStep step = ReorderStep(stage_id, after_ids);
   CopyOnWrite()->transform_steps.push_back(step);
   DoReorderStep(step);
 }
 
-Array<Iterator> State::split(int stage_id, const Iterator& it, const Array<PrimExpr>& lengths,
+Array<Iterator> State::split(int stage_id, const Iterator& it, const Array<Integer>& lengths,
                              bool inner_to_outer) {
   const Stage& stage = operator->()->stages[stage_id];
   SplitStep step =
@@ -133,7 +133,7 @@ Array<Iterator> State::split(int stage_id, const Iterator& it, const Array<PrimE
 
 Iterator State::fuse(int stage_id, const Array<Iterator>& iters) {
   const Stage& stage = operator->()->stages[stage_id];
-  Array<PrimExpr> indices;
+  Array<Integer> indices;
   GetIndices(stage->iters, iters, &indices);
   FuseStep step = FuseStep(stage_id, indices);
   CopyOnWrite()->transform_steps.push_back(step);
@@ -145,7 +145,7 @@ void State::DoReorderStep(const ReorderStep& step) {
   const Stage& stage = operator->()->stages[step->stage_id];
   Array<Iterator> iters;
   for (auto x : step->after_ids) {
-    iters.push_back(stage->iters[x.as<IntImmNode>()->value]);
+    iters.push_back(stage->iters[x]);
   }
   StateNode* pstate = CopyOnWrite();
   pstate->stages.Set(step->stage_id, Stage(stage->op, stage->op_type, std::move(iters),
@@ -153,7 +153,7 @@ void State::DoReorderStep(const ReorderStep& step) {
 }
 
 // common part for DoSplitStep, DoFollowSplitStep, and DoFollowFusedSplitStep
-Array<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id, const Array<PrimExpr>& lengths,
+Array<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id, const Array<Integer>& lengths,
                                          bool inner_to_outer) {
   const Stage& stage = operator->()->stages[stage_id];
   const Iterator& it = stage->iters[iter_id];
@@ -229,11 +229,10 @@ Iterator State::DoFuseStep(const FuseStep& step) {
 
   for (size_t i = 0; i < step->fused_ids.size(); ++i) {
     if (i > 0) {
-      CHECK_EQ(step->fused_ids[i].as<IntImmNode>()->value,
-               step->fused_ids[i - 1].as<IntImmNode>()->value + 1);
+      CHECK_EQ(step->fused_ids[i]->value, step->fused_ids[i - 1]->value + 1);
     }
 
-    const Iterator& it = stage->iters[step->fused_ids[i].as<IntImmNode>()->value];
+    const Iterator& it = stage->iters[step->fused_ids[i]];
     new_name = new_name + it->name + "@";
 
     if (it->range.defined() && new_extent.defined()) {
@@ -258,10 +257,9 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   Iterator new_it = Iterator(new_name, range, new_iter_type, kNone);
   Array<Iterator> new_iters;
   new_iters.insert(new_iters.end(), stage->iters.begin(),
-                   stage->iters.begin() + step->fused_ids.front().as<IntImmNode>()->value);
+                   stage->iters.begin() + step->fused_ids.front());
   new_iters.push_back(new_it);
-  new_iters.insert(new_iters.end(),
-                   stage->iters.begin() + step->fused_ids.back().as<IntImmNode>()->value + 1,
+  new_iters.insert(new_iters.end(), stage->iters.begin() + step->fused_ids.back() + 1,
                    stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
@@ -429,8 +427,8 @@ TVM_REGISTER_GLOBAL("ansor.StateReorder")
     });
 
 TVM_REGISTER_GLOBAL("ansor.StateSplit")
-    .set_body_typed([](State state, int stage_id, const Iterator& it,
-                       const Array<PrimExpr>& lengths, bool inner_to_outer) {
+    .set_body_typed([](State state, int stage_id, const Iterator& it, const Array<Integer>& lengths,
+                       bool inner_to_outer) {
       const auto& res = state.split(stage_id, it, lengths, inner_to_outer);
       return Array<ObjectRef>{state, res};
     });

@@ -20,12 +20,11 @@
 import random
 import numpy as np
 import tempfile
-import threading
 
 import tvm
 from tvm import ansor
 
-from test_ansor_common import matmul_ansor_test
+from test_ansor_common import matmul_ansor_test, PropagatingThread
 
 def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local',
                   cost_model=None, num_measure_trials=2, params=None,
@@ -44,11 +43,12 @@ def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'
 
         search_policy = ansor.EmptyPolicy()
         # search_policy = ansor.SketchSearchPolicy(cost_model, params=params, seed=seed)
-        tune_option = ansor.TuneOption(num_measure_trials=num_measure_trials, runner=runner, verbose=0,
-                                       measure_callbacks=[ansor.LogToFile(log_file)],
-                                       pre_search_callbacks=pre_search_callbacks)
+        tuning_options = ansor.TuningOptions(num_measure_trials=num_measure_trials, runner=runner,
+                                             verbose=0,
+                                             measure_callbacks=[ansor.LogToFile(log_file)],
+                                             pre_search_callbacks=pre_search_callbacks)
         sch, args = ansor.auto_schedule(task, target, search_policy=search_policy,
-                                        tune_option=tune_option)
+                                        tuning_options=tuning_options)
         inp, res = ansor.best_measure_pair_in_file(log_file, workload_key, target)
 
         print("==== Python Code ====")
@@ -78,7 +78,7 @@ def test_search_basic():
         return
     # wrap the search in a new thread to avoid the conflict
     # between python's multiprocessing and tvm's thread pool
-    t = threading.Thread(target=search_common, kwargs={'seed': 944563397})
+    t = PropagatingThread(target=search_common, kwargs={'seed': 944563397})
     t.start()
     t.join()
 

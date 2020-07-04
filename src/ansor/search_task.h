@@ -43,12 +43,9 @@ class HardwareParamsNode : public Object {
   int vector_unit_bytes;
   /*! \brief The size of cache line in bytes. */
   int cache_line_bytes;
-  /*! \brief The max length of an axis to be unrolled or vectorized. */
-  int max_unroll_vec;
-  /*! \brief The max split factor for the innermost tile. */
-  int max_innermost_split_factor;
 
-  // Limitation params for GPU
+  // Some GPU related limitations
+  // Get from TVM device api
 
   /*! \brief The max shared memory per block. */
   int max_shared_memory_per_block{INT32_MAX};
@@ -65,8 +62,6 @@ class HardwareParamsNode : public Object {
     v->Visit("num_cores", &num_cores);
     v->Visit("vector_unit_bytes", &vector_unit_bytes);
     v->Visit("cache_line_bytes", &cache_line_bytes);
-    v->Visit("max_unroll_vec", &max_unroll_vec);
-    v->Visit("max_innermost_split_factor", &max_innermost_split_factor);
     v->Visit("max_shared_memory_per_block", &max_shared_memory_per_block);
     v->Visit("max_registers_per_block", &max_registers_per_block);
     v->Visit("max_threads_per_block", &max_threads_per_block);
@@ -97,11 +92,8 @@ class HardwareParams : public ObjectRef {
    * \param num_cores The number of cores.
    * \param vector_unit_bytes The width of vector units in bytes.
    * \param cache_line_bytes The size of cache line in bytes.
-   * \param max_unroll_vec The max length of an axis to be unrolled or vectorized.
-   * \param max_innermost_split_factor The max split factor for the innermost tile.
    */
-  HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes, int max_unroll_vec,
-                 int max_innermost_split_factor);
+  HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes);
 
   TVM_DEFINE_OBJECT_REF_METHODS(HardwareParams, ObjectRef, HardwareParamsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(HardwareParamsNode);

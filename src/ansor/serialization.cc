@@ -43,12 +43,11 @@ namespace dmlc {
 namespace json {
 
 inline std::vector<int>& IntArrayToVector(std::vector<int>* out,
-                                          const ::tvm::Array<::tvm::PrimExpr>& data) {
+                                          const ::tvm::Array<::tvm::Integer>& data) {
   out->clear();
   for (const auto& x : data) {
-    auto pi = x.as<::tvm::tir::IntImmNode>();
-    CHECK(pi != nullptr) << "Can only contain int values";
-    out->push_back(pi->value);
+    CHECK(x.defined());
+    out->push_back(x);
   }
   return *out;
 }
@@ -119,7 +118,7 @@ struct Handler<::tvm::Array<::tvm::ansor::Step>> {
         s = reader->NextArrayItem();
         CHECK(s);
         reader->Read(&int_list);
-        ::tvm::Array<::tvm::PrimExpr> after_ids;
+        ::tvm::Array<::tvm::Integer> after_ids;
         for (const auto& i : int_list) {
           after_ids.push_back(i);
         }
@@ -140,9 +139,9 @@ struct Handler<::tvm::Array<::tvm::ansor::Step>> {
         s = reader->NextArrayItem();
         CHECK(s);
         reader->Read(&inner_to_outer);
-        ::tvm::Array<::tvm::PrimExpr> lengths;
+        ::tvm::Array<::tvm::Integer> lengths;
         for (const auto& i : int_list) {
-          lengths.push_back(::tvm::PrimExpr(i));
+          lengths.push_back(i);
         }
         data->push_back(::tvm::ansor::SplitStep(
             stage_id, iter_id, extent == 0 ? ::tvm::PrimExpr() : extent, lengths, inner_to_outer));
@@ -153,7 +152,7 @@ struct Handler<::tvm::Array<::tvm::ansor::Step>> {
         s = reader->NextArrayItem();
         CHECK(s);
         reader->Read(&int_list);
-        ::tvm::Array<::tvm::PrimExpr> fused_ids;
+        ::tvm::Array<::tvm::Integer> fused_ids;
         for (const auto& i : int_list) {
           fused_ids.push_back(i);
         }

@@ -300,7 +300,7 @@ class State : public ObjectRef {
    * \param inner_to_outer True for split from inner to outer & False for outer to inner.
    * \return The iterator results after split.
    */
-  Array<Iterator> split(int stage_id, const Iterator& it, const Array<PrimExpr>& lengths,
+  Array<Iterator> split(int stage_id, const Iterator& it, const Array<Integer>& lengths,
                         bool inner_to_outer = true);
   /*!
    * \brief Schedule primitive corresponds to te.fuse.
@@ -344,7 +344,7 @@ class State : public ObjectRef {
    * \param inner_to_outer The split direction.
    * \return The iterator results after split.
    */
-  Array<Iterator> DoSplitStepCommon(int stage_id, int iter_id, const Array<PrimExpr>& lengths,
+  Array<Iterator> DoSplitStepCommon(int stage_id, int iter_id, const Array<Integer>& lengths,
                                     bool inner_to_outer);
 };
 

@@ -66,11 +66,11 @@ namespace ansor {
 /********** Utilities for Array, std::string **********/
 /*! \brief Get the first appearance index of elements in an Array */
 template <typename T>
-inline void GetIndices(const Array<T>& array, const Array<T>& to_locate, Array<PrimExpr>* indices) {
+inline void GetIndices(const Array<T>& array, const Array<T>& to_locate, Array<Integer>* indices) {
   for (const auto& v : to_locate) {
     auto it = std::find(array.begin(), array.end(), v);
     if (it != array.end()) {
-      indices->push_back(static_cast<int>(it - array.begin()));
+      indices->push_back(it - array.begin());
     } else {
       LOG(FATAL) << "Cannot find the item";
     }
