@@ -102,10 +102,6 @@ void ParseLLVMTargetOptions(const std::string& target_str, std::string* triple, 
       } else {
         LOG(FATAL) << "invalid -mfloat-abi option " << value;
       }
-    } else if (key == "-device" || key == "-libs" || key == "-model" || key == "-keys") {
-      // pass
-    } else {
-      LOG(FATAL) << "unknown option " << key;
     }
   }
 
