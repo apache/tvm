@@ -50,7 +50,7 @@ TVM_REGISTER_NODE_TYPE(ComputeDAGNode);
 // Results are stored in ops
 void TopoSortOps(const Array<te::Tensor>& tensors, Array<te::Operation>* ops) {
   std::unordered_map<const te::OperationNode*, int> degree;
-  std::unordered_map<const te::OperationNode*, std::vector<const te::OperationNode*> > edge_set;
+  std::unordered_map<const te::OperationNode*, std::vector<const te::OperationNode*>> edge_set;
   std::unordered_map<const te::OperationNode*, int> priority;
   std::unordered_set<const te::OperationNode*> visited;
 
@@ -240,7 +240,7 @@ void UpdateStageAxis(const te::Stage& stage, StageToAxesMap* stage_to_axes) {
   }
 }
 
-std::pair<te::Schedule, Array<te::Tensor> > ComputeDAG::ApplySteps(
+std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
     const Array<Step>& transform_steps, Array<te::Stage>* stages,
     StageToAxesMap* stage_to_axes) const {
   // Temporal object to be used if the input pointer is nullptr

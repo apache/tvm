@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file ansor/serialization.cc
+ * \file ansor/record.cc
  * \brief Json serialization format for dumping and loading tuning records.
  */
 
-#include "serialization.h"
+#include "record.h"
 
 #include <dmlc/json.h>
 #include <tvm/runtime/registry.h>

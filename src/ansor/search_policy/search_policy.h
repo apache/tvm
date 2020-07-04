@@ -37,15 +37,14 @@
  * mechanism will be provided to enable user-defined template search to serve the same functionality
  * as the current AutoTVM template.
  *
- * This guide is to help understand it better and incase some advanced users have special
- * requirements.
- * 1. The only funcion that must be implemented is Search(), the design principe for it is to be
- * the entry of starting a schedule search process and returns the best schedule get.
+ * This guide is for advanced uses who have special requirements.
+ * 1. The only function that must be implemented is Search(), which takes a task as input and
+ * returns the best states found.
  * 2. Information about the compute declaration of ops/subgraphs can be acquired from SearchTask.
- * This structure also contains some information about the target device. (e.g. knowing the weight
- * of the device vector unit, we can limit the max vectorize size during schedule generating)
- * 3. SearchCallback provides more flexibility to do extra affairs during the search process.
- * 4. ProgramMeasurer provides a simple but useful api to help check the performance of states get
+ * This structure also contains some information about the target device. (e.g. knowing the width
+ * of the device vector unit, we can limit the max vectorize size during schedule search)
+ * 3. SearchCallback provides more flexibility to do extra affairs before/after the search process.
+ * 4. ProgramMeasurer provides a simple but useful api to help check the performance of states got
  * during the search process.
  */
 
@@ -112,7 +111,7 @@ class SearchPolicyNode : public Object {
   /*!
    * \brief Do schedule search for a task. Takes the SearchTask as input and returns the best state
    * get during the search process.
-   * \param task The target search task.
+   * \param task  The SearchTask or workload key for the computation declaration
    * \param num_measure_trials Total schedules to be tried during this search.
    * \param early_stopping Early stop if no better schedule is found.
    * \param num_measures_per_round Max measure batch in one search round.

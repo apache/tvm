@@ -21,7 +21,7 @@
  * \file ansor/transform_step.h
  * \brief Transformation steps. For each schedule primitive, there is a corresponding transform
  * step. The implementation of each step consists of 2 parts:
- * - transform_step.cc: How each step interact with TVM system
+ * - transform_step.cc: How each step interact with TE and TE's schedule primitives
  * - loop_state.cc:     How each step reflect on LoopState
  *
  * \note Adding a new transform step.
@@ -34,8 +34,8 @@
  *    - In these two functions you need to incrementally update all data structures in State with
  *      CopyOnWrite style
  * 4. Add you step to `ComputeDAG::ApplySteps` and make sure it works.
- * 5. Add serialization support in `struct Handler<Array<::tvm::ansor::Step> >`
- *    in `serialization.cc`.
+ * 5. Add log record serialization support in `struct Handler<Array<::tvm::ansor::Step>>`
+ *    in `record.cc`.
  * 6. Add its corresponding Python API to `loop_state.py` and necessary unit test.
  */
 
@@ -59,7 +59,7 @@ typedef Map<tvm::te::Stage, Array<tir::IterVar>, ObjectHash, ObjectEqual> StageT
  */
 class StepNode : public Object {
  public:
-  /*! \brief The index of the target stage. */
+  /*! \brief The index of the stage. */
   int stage_id;
 
   static constexpr const char* _type_key = "ansor.Step";
@@ -111,8 +111,8 @@ class ReorderStep : public Step {
  public:
   /*!
    * \brief The constructor.
-   * \param stage_id The index of the target stage.
-   * \param after_ids The index of the iterators after reorder.
+   * \param stage_id The index of the stage to be reordered.
+   * \param after_ids The expected indexes of the iterators after reorder.
    */
   ReorderStep(int stage_id, const Array<Integer>& after_ids);
 
@@ -166,9 +166,10 @@ class SplitStep : public Step {
  public:
   /*!
    * \brief The constructor.
-   * \param stage_id The index of the target stage.
-   * \param extent The index of the target iterator.
-   * \param lengths The extent length of the axis to split.
+   * \param stage_id The index of the stage to be split.
+   * \param iter_id The index of the iterator to be split.
+   * \param extent The extent length of the axis to split.
+   * \param lengths The multiple split factors. Can be None to be filled by search policy.
    * \param inner_to_outer The split direction.
    */
   SplitStep(int stage_id, int iter_id, PrimExpr extent, const Array<Integer>& lengths,
@@ -211,8 +212,8 @@ class FuseStep : public Step {
  public:
   /*!
    * \brief The constructor.
-   * \param stage_id The index of the target stage.
-   * \param fused_ids The index of the target iterators to be fused.
+   * \param stage_id The index of the stage to be fused.
+   * \param fused_ids The index of the iterators to be fused.
    */
   FuseStep(int stage_id, const Array<Integer>& fused_ids);
 

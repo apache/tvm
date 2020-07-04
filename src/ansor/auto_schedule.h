@@ -97,15 +97,15 @@ class TuningOptions : public ObjectRef {
 };
 
 /*!
- * \brief Auto schedule search for a given compute declaration, by SearchTask.
- * \param task The target search task.
+ * \brief Auto schedule search for a given compute declaration.
+ * \param task The search task of the compute declaration.
  * \param search_policy The search policy to be used for schedule search.
  * \param tuning_options Tuning and measurement options.
- * \return A `te::Schedule` and the target `te::Tensor` to be used in `tvm.lower` or `tvm.build`.
+ * \return A `te::schedule` and the a Array of `te::Tensor` to be used in `tvm.lower` or
+ * `tvm.build`.
  */
-std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(SearchTask task,
-                                                         SearchPolicy search_policy,
-                                                         TuningOptions tuning_options);
+std::pair<te::Schedule, Array<te::Tensor>> AutoSchedule(SearchTask task, SearchPolicy search_policy,
+                                                        TuningOptions tuning_options);
 }  // namespace ansor
 }  // namespace tvm
 

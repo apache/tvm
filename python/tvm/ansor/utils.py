@@ -40,7 +40,7 @@ def get_func_name(func):
     Parameters
     ----------
     func: Function
-        The target function.
+        The input function.
 
     Returns
     -------
@@ -55,7 +55,7 @@ def get_const_int(exp):
 
     Parameters
     ----------
-    exp : tvm.Expr or int
+    exp : Union[tvm.tir.expr, int]
         The input expression.
 
     Returns
@@ -65,10 +65,10 @@ def get_const_int(exp):
     """
     if isinstance(exp, int):
         return exp
-    if not isinstance(exp, (expr.IntImm)):
+    if not isinstance(exp, expr.IntImm):
         opt = Sequential([Simplify()])
         exp = opt(exp)
-    if not isinstance(exp, (expr.IntImm)):
+    if not isinstance(exp, expr.IntImm):
         raise ValueError("Expect value to be constant int")
     return exp.value
 
@@ -78,12 +78,12 @@ def get_const_tuple(in_tuple):
 
     Parameters
     ----------
-    in_tuple : tuple of Expr
+    in_tuple : Tuple[tvm.tir.expr]
         The input.
 
     Returns
     -------
-    out_tuple : tuple of int
+    out_tuple : Tuple[int]
         The output.
     """
     return tuple(get_const_int(x) for x in in_tuple)

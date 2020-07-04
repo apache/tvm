@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file ansor/serialization.h
+ * \file ansor/record.h
  * \brief Json serialization format for dumping and loading tuning records.
  */
 
-#ifndef TVM_ANSOR_SERIALIZATION_H_
-#define TVM_ANSOR_SERIALIZATION_H_
+#ifndef TVM_ANSOR_RECORD_H_
+#define TVM_ANSOR_RECORD_H_
 
 #include <fstream>
 #include <string>
@@ -62,7 +62,7 @@ class LogToFile : public MeasureCallback {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LogToFile, MeasureCallback, LogToFileNode);
 };
 
-/*! \brief Log reader to load step logs from a target file.*/
+/*! \brief Log reader to load step logs from a file.*/
 class LogReaderNode : public Object {
  public:
   /*! \brief File name for this reader to load log from. */
@@ -85,8 +85,8 @@ class LogReaderNode : public Object {
    * \param skip_size Skip the first n lines.
    * \return The MeasureInputs and MeasureResults loaded from the log file.
    */
-  std::pair<Array<MeasureInput>, Array<MeasureResult> > ReadLines(int max_size = -1,
-                                                                  int skip_size = 0);
+  std::pair<Array<MeasureInput>, Array<MeasureResult>> ReadLines(int max_size = -1,
+                                                                 int skip_size = 0);
 
   static constexpr const char* _type_key = "ansor.LogReader";
   TVM_DECLARE_FINAL_OBJECT_INFO(LogReaderNode, Object);
@@ -114,15 +114,15 @@ class LogReader : public ObjectRef {
 /*!
  * \brief Write measure records to an output stream.
  * \param os A pointer to a output stream.
- * \param inputs The target MeasureInputs to be written.
- * \param results The target MeasureResults to be written.
+ * \param inputs The MeasureInputs to be written.
+ * \param results The MeasureResults to be written.
  */
 void WriteMeasureRecords(std::ostream* os, const Array<MeasureInput>& inputs,
                          const Array<MeasureResult>& results);
 
 /*!
  * \brief Read one measure record from a string.
- * \param str The target record string to be extract.
+ * \param str The record string to be extract.
  * \param inp A pointer to a MeasureInputNode, this is used as output.
  * \param res A pointer to a MeasureResultNode, this is used as output.
  * \param log_version A pointer to a log version string.
@@ -133,4 +133,4 @@ void ReadMeasureRecord(const std::string& str, MeasureInputNode* inp, MeasureRes
 }  // namespace ansor
 }  // namespace tvm
 
-#endif  // TVM_ANSOR_SERIALIZATION_H_
+#endif  // TVM_ANSOR_RECORD_H_

@@ -115,14 +115,14 @@ inline double FloatArrayMean(const Array<PrimExpr>& float_array) {
 }
 
 /********** Other Utilities **********/
-/*! \brief  Get an int value from an Expr */
+/*! \brief Get an int value from an Expr */
 inline int64_t GetIntImm(const PrimExpr& expr) {
   auto pint = expr.as<IntImmNode>();
   CHECK(pint != nullptr);
   return pint->value;
 }
 
-/*! \brief  Compute the product of the lengths of axes */
+/*! \brief Compute the product of the lengths of axes */
 inline int64_t AxisLengthProd(const Array<tir::IterVar>& axes) {
   int64_t ret = 1.0;
   for (const auto& x : axes) {
@@ -149,7 +149,7 @@ inline std::string CleanName(const std::string& str) {
   return ret;
 }
 
-/*! \brief  An empty output stream */
+/*! \brief An empty output stream */
 class NullStream : public std::ostream {
  public:
   NullStream() : std::ostream(nullptr) {}

@@ -21,27 +21,28 @@
  * \file ansor/loop_state.h
  * \brief The definition of the "state" in search.
  *
- * Each LoopState corresponds to a specific schedule for its target ComputeDAG.
- * A LoopState consists of: 1. a current loop structure; 2. a history of transformations used to
- * construct it.
+ * Each LoopState corresponds to a schedule for its ComputeDAG.
+ * A LoopState consists of: 1. a current loop structure; 2. a list of transformation steps used to
+ * construct the loop structure.
  * The loop structure keeps a preview of how the schedule will finally look like after lowering the
  * current state (e.g. number of iterators, the extent of each iterator, the compute_at locations
- * ...). During the schedule search process, the loop structure can provide search policy with
- * necessary information on how to perform further operations with the current state.
- * The transform history is a sequence of TransformStep which will finally be mapped to schedule
- * primitives. The steps can also be used for serialization of a state.
+ * ...).
+ * During the schedule search process, the loop structure can provide search policy with necessary
+ * information on how to manipulate the current state.
+ * The transform history is a sequence of `TransformStep` which will finally be mapped to TVM
+ * schedule primitives. The steps can also be used for the serialization of a state.
  *
  * The LoopState can be seen as a lightweight loop structure IR specifically for schedule search.
  * We don't use the existing TVM IR but to extend a new structure on it is because:
- * 1. We want fast incremental change to the loop structures, search policy needs to get the
+ * 1. We want fast incremental change to the loop structures. The search policy needs to get the
  * immediate loop structures update rather than after TVM lowering;
  * 2. We want serializable transform history for replay, backtracking, and mutation;
- * 3. We may create some macro schedule primitives that represent the combination of several TVM
- * schedule primitives.
+ * 3. We may create some macro schedule primitives that represent the combination of several
+ * TVM schedule primitives.
  *
  * When the search is complete, we will lower the state to TVM IR with TVM's schedule primitives.
- * Since we share a lot of common objects during search, the transformation is implemented in copy
- * on write style. All objects are immutable, which is similar to TVM IR.
+ * Since we share a lot of common objects during search, the transformation is implemented in
+ * copy on write style. All objects are immutable, which is similar to TVM IR.
  */
 
 #ifndef TVM_ANSOR_LOOP_STATE_H_
@@ -122,7 +123,7 @@ class IteratorNode : public Object {
  public:
   /*! \brief The name of this iterator. */
   String name;
-  /*! \brief The target range of this iterator. */
+  /*! \brief The range of this iterator. */
   Range range;
   /*! \brief The iterator type of this iterator. */
   IteratorType iter_type;
@@ -147,7 +148,7 @@ class Iterator : public ObjectRef {
   /*!
    * \brief The constructor.
    * \param name The name of this iterator.
-   * \param range The target range of this iterator.
+   * \param range The range of this iterator.
    * \param iter_type The iterator type of this iterator.
    * \param annotation The annotation type of this iterator.
    */
@@ -228,8 +229,9 @@ class Stage : public ObjectRef {
 
 /*!
  * \brief A state in the search process.
- * It consists of the current loop structure and a history of transformations used to construct it.
- * Each State corresponds to a specific schedule for its target ComputeDAG.
+ * It consists of the current loop structure and a list of transformation steps used to construct
+ * it.
+ * Each State corresponds to a specific schedule for its ComputeDAG.
  */
 class StateNode : public Object {
  public:
@@ -252,7 +254,8 @@ class StateNode : public Object {
  private:
   /*!
    * \brief The up-to-date ComputeDAG of this state, used for some steps that may change the
-   * stage structure of the ComputeDAG, for exp. CacheReadStep/CacheWriteStep(Will be added later).
+   * stage structure of the ComputeDAG (e.g. CacheReadStep/CacheWriteStep which Will be added
+   * later).
    * The default value is an empty ObjectRef. (means no modification to the original DAG)
    */
   ObjectRef current_compute_dag;
@@ -279,8 +282,11 @@ class State : public ObjectRef {
   String ToStr(bool delete_trivial_loop = true) const;
 
   /*!
-   * \brief General do step functions with a runtime dynamic dispatcher.
-   * \param dag The target ComputeDAG.
+   * \brief General do step functions with a runtime dynamic dispatcher. This will re-apply all the
+   * transform steps with the initial state.
+   * \param dag The original ComputeDAG of this state.
+   * \note This is different from the class member `current_compute_dag`, for some transform step
+   * may change the op stage structure of the ComputeDAG.
    */
   void DoSteps(const ComputeDAG& dag);
 
@@ -288,15 +294,15 @@ class State : public ObjectRef {
 
   /*!
    * \brief Schedule primitive corresponds to te.reorder.
-   * \param stage_id The index of the target stage.
-   * \param order The target iterator order.
+   * \param stage_id The index of the stage to be reordered.
+   * \param order The expected iterator order.
    */
   void reorder(int stage_id, const Array<Iterator>& order);
   /*!
    * \brief Schedule primitive corresponds to te.split.
-   * \param stage_id The index of the target stage.
-   * \param it The target iterator.
-   * \param lengths The target split factors. Can be None to be filled by search policy.
+   * \param stage_id The index of the stage to be split.
+   * \param it The iterator the be split.
+   * \param lengths The multiple split factors. Can be None to be filled by search policy.
    * \param inner_to_outer True for split from inner to outer & False for outer to inner.
    * \return The iterator results after split.
    */
@@ -304,8 +310,8 @@ class State : public ObjectRef {
                         bool inner_to_outer = true);
   /*!
    * \brief Schedule primitive corresponds to te.fuse.
-   * \param stage_id The index of the target stage.
-   * \param iters The target iterators to be fused.
+   * \param stage_id The index of the stage to be fused.
+   * \param iters The iterators to be fused.
    * \return The iterator result after fuse.
    */
   Iterator fuse(int stage_id, const Array<Iterator>& iters);
@@ -338,9 +344,9 @@ class State : public ObjectRef {
 
   /*!
    * \brief Common function for DoSplitStep and DoFollowSplitStep(Will be added later).
-   * \param stage_id The index of the target stage.
-   * \param iter_id The index of the target iterator.
-   * \param lengths The target split factors.
+   * \param stage_id The index of the stage to be split.
+   * \param iter_id The index of the iterator to be split.
+   * \param lengths The multiple split factors.
    * \param inner_to_outer The split direction.
    * \return The iterator results after split.
    */

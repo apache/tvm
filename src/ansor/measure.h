@@ -20,12 +20,13 @@
 /*!
  * \file ansor/measure.h
  * \brief Distributed measurement infrastructure to measure the runtime costs of tensor programs.
- * MeasureInput -> BuildeResult -> MeasureResult
+ * The flow of data structures is MeasureInput -> BuildeResult -> MeasureResult.
  */
 
 #ifndef TVM_ANSOR_MEASURE_H_
 #define TVM_ANSOR_MEASURE_H_
 
+#include <string>
 #include <unordered_map>
 #include <utility>
 
@@ -91,8 +92,8 @@ class MeasureInput : public ObjectRef {
  public:
   /*!
    * \brief The constructor.
-   * \param task The target SearchTeask.
-   * \param state The target State.
+   * \param task The SearchTeask of this measure.
+   * \param state The State to be measured.
    */
   MeasureInput(SearchTask task, State state);
 
@@ -335,7 +336,8 @@ class LocalRunnerNode : public ProgramRunnerNode {
 class LocalRunner : public ProgramRunner {
  public:
   /*!
-   * \brief The constructor.
+   * \brief The constructor. See the corresponding class in python/tvm/ansor/measure.py for more
+   * detailed parameter explaination.
    * \param timeout The timeout limit for each run.
    * \param number Number of measure times.
    * \param repeat Number of repeat times in each measure.
@@ -357,11 +359,11 @@ class ProgramMeasurerNode : public Object {
   /*! \brief Continuous error counter. */
   int error_ct;
   /*! \brief Workload key to best flops map. */
-  std::unordered_map<String, double> best_flops;
+  std::unordered_map<std::string, double> best_flops;
   /*! \brief Workload key to best state map. */
-  std::unordered_map<String, State> best_state;
+  std::unordered_map<std::string, State> best_state;
   /*! \brief Workload key to best state's count index map. */
-  std::unordered_map<String, int> best_ct;
+  std::unordered_map<std::string, int> best_ct;
   /*! \brief The ProgramBuilder to build each program. */
   ProgramBuilder builder;
   /*! \brief The ProgramRunner to measure each program. */
@@ -380,7 +382,7 @@ class ProgramMeasurerNode : public Object {
    * \brief Do measurement.
    * \param task The current SearchTask.
    * \param policy The current SearchPolicy.
-   * \param inputs The target MeasureInputs.
+   * \param inputs The MeasureInputs.
    * \param results A pointer to a MeasureResult Array, this is used as output.
    * \param batch_size Number of programs to be measured in one batch.
    */
@@ -391,7 +393,7 @@ class ProgramMeasurerNode : public Object {
    * \brief Do measurement silently.
    * This API will not print the measure results to screen.
    * \param task The current SearchTask.
-   * \param inputs The target MeasureInputs.
+   * \param inputs The MeasureInputs.
    * \param results A pointer to a MeasureResult Array, this is used as output.
    */
   void SilentMeasure(const SearchTask& task, const Array<MeasureInput>& inputs,

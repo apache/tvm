@@ -42,7 +42,8 @@ from .utils import get_const_tuple, NoDaemonPool, call_func_with_timeout
 # The maximum length of error message
 MAX_ERROR_MSG_LEN = 512
 
-# Global variables used in build function
+# We use fork and a global variable to copy arguments between processings.
+# This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
 GLOBAL_BUILD_ARGUMENTS = None
 
 @tvm._ffi.register_object("ansor.MeasureCallback")
@@ -57,9 +58,9 @@ class MeasureInput(Object):
     Parameters
     ----------
     task : SearchTask
-        The target SearchTask.
+        The SearchTask of this measure.
     state : State
-        The current State to be measured.
+        The State to be measured.
     """
     def __init__(self, task, state):
         self.__init_handle_by_constructor__(_ffi_api.MeasureInput, task, state.state_object)
@@ -190,11 +191,21 @@ class LocalRunner(ProgramRunner):
     timeout : int = 10
         The timeout limit for each run.
     number : int = 3
-        Number of measure times.
+        The number of times to run the generated code for taking average.
+        We call these runs as one `repeat` of measurement.
     repeat : int = 1
-        Number of repeat times in each measure.
+        The number of times to repeat the measurement.
+        In total, the generated code will be run (1 + number x repeat) times,
+        where the first "1" is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
     min_repeat_ms : int = 0
-        The minimum duration of one repeat in milliseconds.
+        The minimum duration of one `repeat` in milliseconds.
+        By default, one `repeat` contains `number` runs. If this parameter is set,
+        the parameters `number` will be dynamically adjusted to meet the
+        minimum duration requirement of one `repeat`.
+        i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+        will be automatically increased.
     cooldown_interval : float = 0.0
         The cool down interval between two measurements.
     """
@@ -235,7 +246,7 @@ def make_error_msg():
 
 def local_build_worker(index):
     """ Local builder function. """
-    # We use fork to copy arguments from a global variable.
+    # We use fork and a global variable to copy arguments between processings.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
     if not GLOBAL_BUILD_ARGUMENTS:
         raise ValueError("GLOBAL_BUILD_ARGUMENTS not found")
@@ -302,7 +313,7 @@ def local_build_worker(index):
 @tvm._ffi.register_func("ansor.local_builder.build")
 def local_builder_build(inputs, timeout, n_parallel, build_func, verbose):
     """ Local builder build function. """
-    # We use fork to copy arguments from a global variable.
+    # We use fork and a global variable to copy arguments between processings.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
     global GLOBAL_BUILD_ARGUMENTS
     GLOBAL_BUILD_ARGUMENTS = (inputs, build_func, timeout, verbose)

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Test measurement and log serialization"""
+""" Test measurement and log serialization. """
 
 import tvm
 from tvm import ansor
@@ -24,7 +24,7 @@ import tempfile
 from test_ansor_common import get_tiled_matmul
 
 
-def test_serialization():
+def test_record():
     dag, s = get_tiled_matmul()
 
     if not tvm.runtime.enabled("llvm"):
@@ -36,9 +36,9 @@ def test_serialization():
     res = ansor.measure.MeasureResult([0.1], 0, "", 0.2, 1)
 
     with tempfile.NamedTemporaryFile() as fp:
-        ansor.serialization.append_measure_records_to_file(fp.name, [inp], [res])
+        ansor.record.append_measure_records_to_file(fp.name, [inp], [res])
 
-        log_reader = ansor.serialization.LogReader(fp.name)
+        log_reader = ansor.record.LogReader(fp.name)
         inputs, results = log_reader.read_lines()
         assert len(inputs) == 1
 
@@ -68,5 +68,5 @@ def test_measure_local_builder_runner():
 
 
 if __name__ == "__main__":
-    test_serialization()
+    test_record()
     test_measure_local_builder_runner()

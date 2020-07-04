@@ -19,7 +19,7 @@
 
 from . import compute_dag
 from . import measure
-from . import serialization
+from . import record
 from . import loop_state
 from . import utils
 from . import workload_registry
@@ -29,6 +29,6 @@ from .compute_dag import ComputeDAG
 from .auto_schedule import SearchTask, TuningOptions, HardwareParams, \
     auto_schedule, EmptyPolicy
 from .measure import MeasureInput, LocalBuilder, LocalRunner
-from .serialization import LogToFile, LogReader, best_measure_pair_in_file, \
+from .record import LogToFile, LogReader, best_measure_pair_in_file, \
     load_from_file, append_measure_records_to_file
 from .workload_registry import register_workload, make_workload_key

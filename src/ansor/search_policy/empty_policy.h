@@ -32,9 +32,8 @@ namespace tvm {
 namespace ansor {
 
 /*!
- * \brief The EmptyPolicy will always generates the init state of a ComputeDAG.
- * This is an brief example of search policy, while can show the design of search policy,
- * the formal search policy will continue to follow it.
+ * \brief A brief example of the search policy which always returns the initial naive schedule
+ * (state), the formal search policy will continue to follow its design.
  * The key implementation for this structure is `Search()`, check `empty_policy.cc` for more
  * details.
  */

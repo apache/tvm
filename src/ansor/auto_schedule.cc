@@ -47,9 +47,8 @@ TuningOptions::TuningOptions(int num_measure_trials, int early_stopping, int num
   data_ = std::move(node);
 }
 
-std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(SearchTask task,
-                                                         SearchPolicy search_policy,
-                                                         TuningOptions tuning_options) {
+std::pair<te::Schedule, Array<te::Tensor>> AutoSchedule(SearchTask task, SearchPolicy search_policy,
+                                                        TuningOptions tuning_options) {
   // Create a ProgramMeasurer to handle the schedule build and performance measure
   ProgramMeasurer measurer =
       ProgramMeasurer(tuning_options->builder, tuning_options->runner,

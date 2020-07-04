@@ -44,8 +44,7 @@ class HardwareParamsNode : public Object {
   /*! \brief The size of cache line in bytes. */
   int cache_line_bytes;
 
-  // Some GPU related limitations
-  // Get from TVM device api
+  // GPU related parameters got from device query API
 
   /*! \brief The max shared memory per block. */
   int max_shared_memory_per_block{INT32_MAX};
@@ -104,9 +103,9 @@ class HardwareParams : public ObjectRef {
  */
 class SearchTaskNode : public Object {
  public:
-  /*! \brief The ComputeDAG for target compute declaration. */
+  /*! \brief The ComputeDAG for the compute declaration. */
   ComputeDAG compute_dag;
-  /*! \brief The workload key for target compute declaration. */
+  /*! \brief The workload key for the compute declaration. */
   String workload_key;
   /*! \brief The target device of this search task. */
   Target target;
@@ -135,8 +134,8 @@ class SearchTask : public ObjectRef {
  public:
   /*!
    * \brief The constructor.
-   * \param compute_dag The ComputeDAG for target compute declaration.
-   * \param workload_key The workload key for target compute declaration.
+   * \param compute_dag The ComputeDAG for the compute declaration.
+   * \param workload_key The workload key for the compute declaration.
    * \param target The target device of this search task.
    * \param target_host The target host device of this search task.
    * \param hardware_params Hardware parameters used in this search task.

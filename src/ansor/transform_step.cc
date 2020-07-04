@@ -162,7 +162,7 @@ SplitStep::SplitStep(int stage_id, int iter_id, PrimExpr extent, const Array<Int
   node->stage_id = stage_id;
   // Extent can be a unreducible expression in some special cases
   if (extent->IsInstance<IntImmNode>()) {
-    node->extent = std::move(tvm::Downcast<Integer>(extent));
+    node->extent = tvm::Downcast<Integer>(extent);
   }
   node->iter_id = iter_id;
   node->lengths = lengths;

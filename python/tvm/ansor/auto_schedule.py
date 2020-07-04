@@ -88,7 +88,7 @@ class SearchPolicy(Object):
 @tvm._ffi.register_object("ansor.EmptyPolicy")
 class EmptyPolicy(SearchPolicy):
     """ This is an example empty search policy which will always generate
-    the init state of target ComputeDAG.
+    the init state of ComputeDAG.
     """
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.EmptyPolicy)
@@ -101,19 +101,18 @@ class TuningOptions(Object):
     Parameters
     ----------
     num_measure_trials: int = 0
-      The number of total schedule measure trials.
-      Ansor takes `num_measure_trials` state for measuring in total, and finally gets the best
-      schedule among them.
-      With `num_measure_trials` == 0, Ansor will do the schedule search but don't involve
-      measurement, this can be used if we want to quickly get a runnable schedule without
-      performance tuning.
+      The number of measurement trials.
+      The search policy measures `num_measure_trials` schedules in total and returns the best one
+      among them.
+      With `num_measure_trials` == 0, the policy will do the schedule search but won't involve
+      measurement.
+      This can be used to get a runnable schedule quickly without auto-tuning.
     early_stopping: int = -1
-      Stops early the tuning if no improvement get after n measurements.
+      Stop the tuning early if getting no improvement after n measurements.
     num_measures_per_round: int = 64
-      The number of programs to be measured at each search round.
-      The whole schedule search process is designed to have several rounds to try a total
-      `num_measure_trials` schedules.
-      We have: `num_search_rounds` = `num_measure_trials` // `num_measures_per_round`
+      The number of schedules to be measured at each search round.
+      The whole schedule search process will try a total number of `num_measure_trials` in several
+      rounds.
     verbose: int = 1
       Verbosity level. 0 for silent, 1 to output information during schedule search.
     builder: Union[ProgramBuilder, str] = 'local'
@@ -121,7 +120,7 @@ class TuningOptions(Object):
     runner: Union[ProgramRunner, str] = 'local'
       ProgramRunner which runs the program and measures time costs.
     measure_callbacks: Optional[List[MeasureCallback]]
-      Callback functions called after each measure.
+      Callback functions called after each measurement.
       Candidates:
         - ansor.LogToFile
     pre_search_callbacks: Optional[List[SearchCallback]]
@@ -164,7 +163,7 @@ def auto_schedule(task, target, target_host=None, search_policy='default',
     Parameters
     ----------
     task : Union[SearchTask, str]
-        The target search task or workload key.
+        The SearchTask or workload key for the computation declaration.
     target : tvm.target.Target
         The target device of this schedule search.
     target_host : Optional[tvm.target.Target]
@@ -178,7 +177,7 @@ def auto_schedule(task, target, target_host=None, search_policy='default',
 
     Returns
     -------
-        A `te.schedule` and the target `te.Tensor`s to be used in `tvm.lower` or `tvm.build`
+        A `te.schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
     """
     if isinstance(search_policy, str):
         if search_policy == 'default':

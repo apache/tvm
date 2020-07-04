@@ -18,7 +18,7 @@
 """
 Workload registration and serialization.
 
-We use a json string to represent a workload (a compute dag).
+We use a json string to represent a workload (a computation graph).
 The format of the string is `[func_name, [args...]]`.
 The dag should be the return value of this `func_name(*args)`.
 
@@ -47,7 +47,7 @@ def register_workload(func):
     Parameters
     ----------
     func : Function
-        The target function that returns the compute declaration Tensors.
+        The generation function that returns the compute declaration Tensors.
 
     Examples
     --------
@@ -74,15 +74,15 @@ def make_workload_key(func, args):
     Parameters
     ----------
     func : Union[Function, str]
-        The target function that returns the compute declaration Tensors.
+        The function that returns the compute declaration Tensors.
         Can be the a function or the function name.
     args : Args
-        The args of the target function.
+        The args of the function.
 
     Returns
     -------
     workload_key : Str
-        The workload key of the target function.
+        The workload key of the function.
     """
     if callable(func):
         func_name = func.__name__
@@ -106,7 +106,7 @@ def decode_workload_key_to_func_args(workload_key):
     Parameters
     ----------
     workload_key : str
-        The target workload key.
+        The input workload key.
 
     Returns
     -------
@@ -131,7 +131,7 @@ def workload_key_to_tensors(workload_key):
     Parameters
     ----------
     workload_key : str
-        The target workload key.
+        The input workload key.
 
     Returns
     -------

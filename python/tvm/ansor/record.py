@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Serialization and other I/O support for tuning logs (measurement records)"""
+""" Serialization and other I/O support for tuning logs (measurement records). """
 
 import numpy as np
 
@@ -98,16 +98,16 @@ def load_from_file(filename):
 
 def append_measure_records_to_file(filename, inputs, results):
     """
-    Aappend measure records to file.
+    Append measure records to file.
 
     Parameters
     ----------
     filename : str
         File name to write log to.
     inputs: List[MeasureInputs]
-        The target MeasureInputs to be written.
+        The MeasureInputs to be written.
     results: List[MeasureResults]
-        The target MeasureResults to be written.
+        The MeasureResults to be written.
     """
     _ffi_api.AppendMeasureRecordsToFile(filename, inputs, results)
 
@@ -119,10 +119,10 @@ def best_measure_pair_in_file(filename, workload_key=None, target=None):
     ----------
     filename : str
         File name to load log from.
-    workload_key : Optional[str] = None
-        The workload key of the target compute declaration.
+    workload_key : Optional[str]
+        The workload key of the compute declaration.
         With `None`, this retuns the best measure pair of all workloads.
-    target : Optional[tvm.target.Target] = None
+    target : Optional[tvm.target.Target]
         The target device.
         With `None`, this retuns the best measure pair of all target devices.
 

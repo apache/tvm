@@ -36,15 +36,14 @@ class ComputeDAG(Object):
     The Ansor computational graph and related program analyses.
 
     We convert a compute declaration described by `tvm.compute` (could be a single operator or a
-    subgraph) to a ComputeDAG. It keeps the input/output tensors of the target compute declaration,
-    a list of all related operations in topo order as well as a set of analyses over each operation
-    stage (e.g. the total float operation count, consumer/producer relations of each operation
-    stage, whether a operation stage should be tiled/compute inlined ...). These analyses can
-    help the search policy to do some specific decisions during schedule search process.
-
-    ComputeDAG is also responsible for the interaction between Ansor LoopState and TVM schedule
-    (e.g. applying the LoopState transform steps to TVM schedule, providing LoopState with extra
-    information get from TVM schedule ...).
+    subgraph) to a ComputeDAG. It keeps the input/output tensors of the compute declaration,
+    a list of all operations in the DAG as well as static analysis results for the DAG (e.g. the
+    total float operation count, consumer/producer relations of each operation stage, whether an
+    operation stage should be tiled/compute inlined ...). These analyses can help the search policy
+    to make decisions during search process.
+    ComputeDAG is also responsible for the interaction between Ansor `LoopState` and TVM schedule
+    (e.g. applying the `LoopState` transform steps to TVM schedule, providing `LoopState` with extra
+    information got from TVM schedule ...).
 
     Parameters
     ----------
@@ -75,16 +74,16 @@ class ComputeDAG(Object):
 
     def apply_steps_from_state(self, state):
         """
-        Apply the history transform steps of a State to TVM schedule.
+        Apply the history transform steps from a State to get a TVM schedule.
 
         Parameters
         ----------
         state : Union[State, StateObject]
-            The target state to be applied to TVM schedule.
+            The state from which we get transform steps.
 
         Returns
         -------
-            A `te.schedule` and the target `te.Tensor`s to be used in `tvm.lower` or `tvm.build`
+            A `te.schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
         """
         state_obj = state if isinstance(state, StateObject) else state.state_object
         return _ffi_api.ComputeDAGApplyStepsFromState(self, state_obj)
@@ -93,10 +92,13 @@ class ComputeDAG(Object):
         """
         Print transform steps in the history of a State as TVM's python schedule primitive.
 
+        This can be used for debugging or to apply the schedule on a former TVM version without
+        Ansor support.
+
         Parameters
         ----------
         state : Union[State, StateObject]
-            The target state to be applied to TVM schedule.
+            The state from which we get transform steps.
 
         Returns
         -------
@@ -108,21 +110,19 @@ class ComputeDAG(Object):
 
     def infer_bound_from_state(self, state):
         """
-        Infer and fill the bound of all iterators of a state using TVM schedule.
+        Infer and fill the bound of all iterators of a state.
 
-        State api supports to define a split step with its split factor to be a blank placeholder,
-        so sometimes we may get a State will incomplete iterator extent information.
-        And another situation is after some steps (for exp. compute_at), it may be hard to track
-        the extent change of all iterators.
-
-        We perform infer bound using TVM schedule and fill the State with those information. After
-        applying this methods, the State is guaranteed to have complete interator extent
+        The states can lose complete bound information after some transform steps
+        (e.g., compute_at).
+        We can call this function to infer and fill all the bound information.
+        This function calls TVM InferBound pass internally to get the bound.
+        The returned state of this function is guaranteed to have complete iterator extent
         information.
 
         Parameters
         ----------
         state : Union[State, StateObject]
-            The target state to be applied to TVM schedule.
+            The state from which we get transform steps.
 
         Returns
         -------

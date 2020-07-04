@@ -19,20 +19,20 @@
 """
 The definition of the "state" in search.
 
-Each LoopState corresponds to a specific schedule for its target ComputeDAG.
-A LoopState consists of: 1. a current loop structure; 2. a history of transformations used to
+Each LoopState corresponds to a schedule for its ComputeDAG.
+A LoopState consists of: 1. a current loop structure; 2. a list of transformation steps used to
 construct the loop structure.
 The loop structure keeps a preview of how the schedule will finally look like after lowering the
 current state (e.g. number of iterators, the extent of each iterator, the compute_at locations ...).
 During the schedule search process, the loop structure can provide search policy with necessary
-information on how to perform further operations with the current state.
-The transform history is a sequence of TransformStep which will finally be mapped to schedule
-primitives. The steps can also be used for serialization of a state.
+information on how to manipulate the current state.
+The transform history is a sequence of `TransformStep` which will finally be mapped to TVM schedule
+primitives. The steps can also be used for the serialization of a state.
 
 The LoopState can be seen as a lightweight loop structure IR specifically for schedule search.
 We don't use the existing TVM IR but to extend a new structure on it is because:
-1. We want fast incremental change to the loop structures, search policy needs to get the immediate
-loop structures update rather than after TVM lowering;
+1. We want fast incremental change to the loop structures. The search policy needs to get the
+immediate loop structures update rather than after TVM lowering;
 2. We want serializable transform history for replay, backtracking, and mutation;
 3. We may create some macro schedule primitives that represent the combination of several
 TVM schedule primitives.
@@ -55,7 +55,7 @@ class Iterator(Object):
 
 @tvm._ffi.register_object("ansor.Stage")
 class Stage(Object):
-    """A stage in the compute declaration. Similar to tvm.te.schedule.Stage"""
+    """ A stage in the compute declaration. Similar to tvm.te.schedule.Stage. """
 
 
 @tvm._ffi.register_object("ansor.State")
@@ -68,16 +68,16 @@ class StateObject(Object):
 class State:
     """
     A state in the search process. It consists of the current loop structure
-    and a history of transformations used to construct it.
+    and a list of transformation steps used to construct it.
 
-    Each State corresponds to a specific schedule for its target ComputeDAG.
+    Each State corresponds to a specific schedule for its ComputeDAG.
 
     Parameters
     ----------
     state_object : StateObject
-        The target StateObject, corresponding to C++ internal State object.
+        The StateObject corresponding to C++ internal State object.
     dag : ComputeDAG
-        The original target ComputeDAG of this State.
+        The original ComputeDAG of this State.
 
     Notes
     -----
@@ -119,10 +119,10 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The target Stage to be reordered, can be a Stage order index, Stage operation or stage
+            The Stage to be reordered, can be a Stage order index, Stage operation or stage
             output tensor.
         order : List[Iterator]
-            Iterators in the expected order
+            Iterators in the expected order.
         """
         stage_id = self._resolve_stage_id(stage)
 
@@ -132,15 +132,18 @@ class State:
     def split(self, stage, iterator, lengths, inner_to_outer=True):
         """ Schedule primitive corresponds to te.split.
 
+        This API supports multiple split factors. (e.g. with 2 split factors, the original iterator
+        will be split to 3 parts, use `inner_to_outer` to control the split order)
+
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The target Stage to be split, can be a Stage order index, Stage operation or stage
+            The Stage to be split, can be a Stage order index, Stage operation or stage
             output tensor.
         iterator : Iterator
-            The iterator to split
+            The iterator to be split.
         lengths: List[int]
-            The split factors
+            The multiple split factors. Can be None to be filled by search policy.
         inner_to_outer: bool = True
             True to use `factor` to split from inner to outer,
             False to use `nparts` to split from outer to inner
@@ -163,7 +166,7 @@ class State:
         Parameters
         ----------
         stage : Union[int, Operation, Tensor]
-            The target Stage to be fused, can be a Stage order index, Stage operation or stage
+            The Stage to be fused, can be a Stage order index, Stage operation or stage
             output tensor.
         iters : List[Iterator]
             The iterators to be fused
