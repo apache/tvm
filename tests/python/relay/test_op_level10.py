@@ -430,6 +430,33 @@ def test_sequence_mask():
     _verify((2, 3, 5, 3), 0.0, 0, 'float32', 'int64')
     _verify((5, 8, 3), 0.1, 1, 'float64', 'float32')
 
+
+def test_sequence_last():
+    def _verify(data_shape, axis, dtype, itype):
+        max_length = data_shape[axis]
+        nbatch = data_shape[1 - axis]
+        data = relay.var("data", relay.TensorType(data_shape, dtype))
+        valid_length = relay.var("valid_length", relay.TensorType((nbatch,), itype))
+        out = relay.sequence_last(data, valid_length, axis)
+        checked = run_infer_type(out)
+        oshape = list(data_shape)
+        oshape.pop(axis)
+        assert checked.checked_type == relay.ty.TensorType(oshape, dtype)
+        func = relay.Function([data, valid_length], out)
+        data_np = np.random.uniform(size=data_shape).astype(dtype)
+        valid_length_np = np.random.randint(1, max_length, size=nbatch).astype(itype)
+        gt_out_np = topi.testing.sequence_last(data_np, valid_length_np, axis)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                out_relay = intrp.evaluate(func)(data_np, valid_length_np)
+                tvm.testing.assert_allclose(out_relay.asnumpy(), gt_out_np)
+    _verify((5, 10), 1, 'float32', 'int32')
+    _verify((2, 3, 5, 3), 0, 'float32', 'int32')
+    _verify((5, 8, 3), 1, 'float64', 'int32')
+
+
 def test_one_hot():
     def _get_oshape(indices_shape, depth, axis):
         oshape = []
@@ -478,5 +505,6 @@ if __name__ == "__main__":
     test_batch_matmul()
     test_shape_of()
     test_sequence_mask()
+    test_sequence_last()
     test_ndarray_size()
     test_one_hot()

@@ -900,6 +900,55 @@ def test_forward_sequence_mask():
     verify((5, 4, 3), False, 1.0, 1, 'float64', 'float64')
     verify((5, 4, 3, 2), True, 1.0, 0, 'float32', 'float32')
 
+
+def test_forward_sequence_last():
+    def verify(shape, use_sequence_length, axis, dtype):
+        data_np = np.random.uniform(size=shape).astype(dtype)
+
+        itype = "int32"
+        valid_length_np = np.random.randint(1, shape[axis], size=shape[1-axis]).astype(itype)
+        if use_sequence_length:
+            ref_res = mx.nd.SequenceLast(mx.nd.array(data_np, dtype=dtype),
+                                         sequence_length=mx.nd.array(valid_length_np, dtype=itype),
+                                         use_sequence_length=use_sequence_length,
+                                         axis=axis)
+            mx_sym = mx.sym.SequenceLast(mx.sym.var('data'),
+                                         sequence_length=mx.sym.var('valid_length'),
+                                         use_sequence_length=use_sequence_length,
+                                         axis=axis)
+            mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": shape,
+                                                        'valid_length': valid_length_np.shape},
+                                               dtype={"data": dtype,
+                                                      "valid_length": itype})
+        else:
+            ref_res = mx.nd.SequenceLast(mx.nd.array(data_np, dtype=dtype),
+                                         use_sequence_length=use_sequence_length,
+                                         axis=axis)
+            mx_sym = mx.sym.SequenceLast(mx.sym.var('data'),
+                                         use_sequence_length=use_sequence_length,
+                                         axis=axis)
+            mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": shape}, dtype={"data": dtype})
+
+        for target, ctx in ctx_list():
+            for kind in ['graph', 'debug']:
+                if use_sequence_length is False and kind == 'graph':
+                    # Disable the test for 'graph' when it's identity.
+                    continue
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                if use_sequence_length:
+                    op_res = intrp.evaluate()(data_np, valid_length_np)
+                else:
+                    op_res = intrp.evaluate()(data_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+
+    for use_sequence_length in [True, False]:
+        verify((5, 10), use_sequence_length,  0, 'float32')
+        verify((5, 10), use_sequence_length,  1, 'float32')
+        verify((5, 4, 3), use_sequence_length,  0, 'float32')
+        verify((5, 4, 3), use_sequence_length,  1, 'float64')
+        verify((5, 4, 3, 2), use_sequence_length, 0, 'float32')
+
+
 def test_forward_contrib_div_sqrt_dim():
     def verify(shape):
         x_np = np.random.uniform(size=shape).astype("float32")
@@ -1382,6 +1431,7 @@ if __name__ == '__main__':
     test_forward_argsort()
     test_forward_topk()
     test_forward_sequence_mask()
+    test_forward_sequence_last()
     test_forward_contrib_div_sqrt_dim()
     test_forward_batch_norm()
     test_forward_instance_norm()

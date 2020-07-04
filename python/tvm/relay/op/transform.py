@@ -1024,6 +1024,66 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
     """
     return _make.sequence_mask(data, valid_length, mask_value, axis)
 
+
+def sequence_last(data, valid_length, axis=0):
+    """Takes the last element of a sequence.
+
+    This function takes an n-dimensional input array of the form [MAX_LENGTH, batch_size, ...] or
+    [batch_size, MAX_LENGTH, ...] and returns an array of the same shape.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data.
+
+    valid_length : relay.Expr
+        The expected (valid) length of each sequence in the tensor.
+
+    axis : int
+        The axis of the length dimension.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[[  1.,   2.,   3.],
+              [  4.,   5.,   6.],
+              [  7.,   8.,   9.]],
+
+              [[ 10.,   11.,   12.],
+              [ 13.,   14.,   15.],
+              [ 16.,   17.,   18.]],
+
+              [[  19.,   20.,   21.],
+              [  22.,   23.,   24.],
+              [  25.,   26.,   27.]]]
+
+        // returns last sequence when sequence_length parameter is not used
+        relay.sequence_last(x) =
+             [[  19.,   20.,   21.],
+              [  22.,   23.,   24.],
+              [  25.,   26.,   27.]]
+
+        // sequence_length is used
+        relay.sequence_last(x, sequence_length=[1,1,1]) =
+             [[  1.,   2.,   3.],
+             [  4.,   5.,   6.],
+             [  7.,   8.,   9.]]
+
+        // sequence_length is used
+        relay.sequence_last(x, sequence_length=[1,2,3]) =
+            [[  1.,    2.,   3.],
+            [  13.,  14.,  15.],
+            [  25.,  26.,  27.]]
+    """
+    return _make.sequence_last(data, valid_length, axis)
+
+
 def one_hot(indices, on_value, off_value, depth, axis, dtype):
     """
     Returns a one-hot tensor where the locations repsented by indices take value on_value,

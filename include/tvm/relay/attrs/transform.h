@@ -329,6 +329,15 @@ struct SequenceMaskAttrs : public tvm::AttrsNode<SequenceMaskAttrs> {
   }
 };  // struct SequenceMaskAttrs.
 
+struct SequenceLastAttrs : public tvm::AttrsNode<SequenceLastAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(SequenceLastAttrs, "relay.attrs.SequenceLastAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0).describe(
+        "The axis of the length dimension. Can only be 0 or 1.");
+  }
+};  // struct SequenceLastAttrs.
+
 /*! \brief Attributes used in sparse_to_dense operator */
 struct SparseToDenseAttrs : public tvm::AttrsNode<SparseToDenseAttrs> {
   Array<Integer> output_shape;

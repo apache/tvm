@@ -480,6 +480,11 @@ class SequenceMaskAttrs(Attrs):
     """Attributes used in sequence_mask operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.SequenceLastAttrs")
+class SequenceLastAttrs(Attrs):
+    """Attributes used in sequence_last operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.ShapeFuncAttrs")
 class ShapeFuncAttrs(Attrs):
     """Attributes used in shape func operators"""

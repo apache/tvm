@@ -117,6 +117,7 @@ List of operators
    topi.argsort
    topi.topk
    topi.sequence_mask
+   topi.sequence_last
    topi.one_hot
 
 
@@ -198,6 +199,7 @@ topi
 .. autofunction:: topi.argsort
 .. autofunction:: topi.topk
 .. autofunction:: topi.sequence_mask
+.. autofunction:: topi.sequence_last
 .. autofunction:: topi.one_hot
 .. autofunction:: topi.logical_and
 .. autofunction:: topi.logical_or

@@ -2840,6 +2840,106 @@ Examples::
     .set_attr<FTVMCompute>("FTVMCompute", SequenceMaskCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+// relay.sequence_last
+TVM_REGISTER_NODE_TYPE(SequenceLastAttrs);
+
+bool SequenceLastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  // `types` contains: [data, valid_length, result]
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* valid_length = types[1].as<TensorTypeNode>();
+  CHECK(data);
+  CHECK(valid_length);
+  const auto param = attrs.as<SequenceLastAttrs>();
+  Array<IndexExpr> valid_length_shape;
+  CHECK(param->axis == 0 || param->axis == 1);
+  valid_length_shape.push_back(data->shape[1 - param->axis]);
+  reporter->Assign(types[1], TensorType(valid_length_shape, valid_length->dtype));
+
+  const int ndim = static_cast<int>(data->shape.size());
+  std::vector<IndexExpr> oshape;
+  oshape.reserve(ndim - 1);
+  for (int i = 0; i < ndim; ++i) {
+    if (i != param->axis) {
+      oshape.emplace_back(data->shape[i]);
+    }
+  }
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Array<te::Tensor> SequenceLastCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                      const Type& out_type) {
+  const auto* param = attrs.as<SequenceLastAttrs>();
+  CHECK(param != nullptr);
+  return Array<te::Tensor>{topi::sequence_last(inputs[0], inputs[1], param->axis)};
+}
+
+Expr MakeSequenceLast(Expr data, Expr valid_length, int axis) {
+  auto attrs = make_object<SequenceLastAttrs>();
+  attrs->axis = std::move(axis);
+  static const Op& op = Op::Get("sequence_last");
+  return Call(op, {data, valid_length}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.sequence_last").set_body_typed(MakeSequenceLast);
+
+RELAY_REGISTER_OP("sequence_last")
+    .describe(
+        R"code(Takes the last element of a sequence.
+
+This function takes an n-dimensional input array of the form [MAX_LENGTH, batch_size, ...] or
+[batch_size, MAX_LENGTH, ...] and returns an array of the same shape.
+
+`axis` means the axis of the length dimension and can only be 0 or 1. If axis is 0,
+the data must have shape [MAX_LENGTH, batch_size, ...]. Otherwise (axis=1), the data must have
+shape [batch_size, MAX_LENGTH, ...].
+
+`valid_length` gives the length of each sequence. `valid_length` should be
+a 1D int array with positive ints and has dimension [batch_size,].
+
+Examples::
+
+  x = [[[  1.,   2.,   3.],
+        [  4.,   5.,   6.],
+        [  7.,   8.,   9.]],
+
+        [[ 10.,   11.,   12.],
+        [ 13.,   14.,   15.],
+        [ 16.,   17.,   18.]],
+
+        [[  19.,   20.,   21.],
+        [  22.,   23.,   24.],
+        [  25.,   26.,   27.]]]
+
+  // returns last sequence when sequence_length parameter is not used
+  relay.sequence_last(x) =
+       [[  19.,   20.,   21.],
+        [  22.,   23.,   24.],
+        [  25.,   26.,   27.]]
+
+  // sequence_length is used
+  relay.sequence_last(x, sequence_length=[1,1,1]) =
+       [[  1.,   2.,   3.],
+       [  4.,   5.,   6.],
+       [  7.,   8.,   9.]]
+
+  // sequence_length is used
+  relay.sequence_last(x, sequence_length=[1,2,3]) =
+      [[  1.,    2.,   3.],
+      [  13.,  14.,  15.],
+      [  25.,  26.,  27.]]
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<SequenceLastAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("valid_length", "Tensor", "The real (valid) length of each sequence.")
+    .set_support_level(10)
+    .add_type_rel("SequenceLast", SequenceLastRel)
+    .set_attr<FTVMCompute>("FTVMCompute", SequenceLastCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
 // relay.one_hot
 TVM_REGISTER_NODE_TYPE(OneHotAttrs);
 

@@ -216,6 +216,7 @@ This level support backpropagation of broadcast operators. It is temporary.
    tvm.relay.annotation.on_device
    tvm.relay.reverse_reshape
    tvm.relay.sequence_mask
+   tvm.relay.sequence_last
    tvm.relay.nn.batch_matmul
    tvm.relay.nn.adaptive_max_pool2d
    tvm.relay.nn.adaptive_avg_pool2d

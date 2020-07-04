@@ -770,6 +770,47 @@ inline Tensor sequence_mask(const Tensor& data, const Tensor& valid_length, doub
 }
 
 /*!
+ * \brief Takes the last element of a sequence.
+ *
+ * \param data The source array.
+ * \param valid_length The real length of each sequence.
+ * \param axis The axis of the temporal dimension of the sequence
+ * \param name The name of the operation.
+ * \param tag The tag to mark the operation.
+ *
+ * \return A Tensor whose op member is the sequence_last operation
+ */
+inline Tensor sequence_last(const Tensor& data, const Tensor& valid_length, int axis,
+                            std::string name = "T_sequence_last", std::string tag = kInjective) {
+  CHECK(axis == 0 || axis == 1) << "axis must be either 0 or 1";
+  CHECK_EQ(valid_length->shape.size(), 1) << "valid_length must have ndim=1, i.e., (batch_size,).";
+
+  Array<PrimExpr> out_shape;
+  const int ndim = static_cast<int>(data->shape.size());
+  out_shape.reserve(ndim - 1);
+  for (int i = 0; i < ndim; ++i) {
+    if (i != axis) {
+      out_shape.push_back(data->shape[i]);
+    }
+  }
+
+  Tensor out = compute(
+      out_shape,
+      [&](const Array<Var>& out_index) {
+        Array<PrimExpr> len_indices;
+        len_indices.push_back(out_index[0]);
+        Array<PrimExpr> real_indices;
+        for (size_t j = 0; j < out_index.size(); ++j) {
+          real_indices.push_back(out_index[j]);
+        }
+        real_indices.insert(real_indices.begin() + axis, valid_length(len_indices) - 1);
+        return data(real_indices);
+      },
+      name, tag);
+  return out;
+}
+
+/*!
  * \brief Take elements from an array along an axis.
  *
  * \param a The source array.

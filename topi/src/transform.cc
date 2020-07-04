@@ -101,6 +101,11 @@ TVM_REGISTER_GLOBAL("topi.sequence_mask").set_body([](TVMArgs args, TVMRetValue*
   *rv = sequence_mask(args[0], args[1], pad_val, axis);
 });
 
+TVM_REGISTER_GLOBAL("topi.sequence_last").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int axis = args[2];
+  *rv = sequence_last(args[0], args[1], axis);
+});
+
 TVM_REGISTER_GLOBAL("topi.where").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = where(args[0], args[1], args[2]);
 });

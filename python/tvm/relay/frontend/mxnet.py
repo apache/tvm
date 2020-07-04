@@ -1159,6 +1159,21 @@ def _mx_sequence_mask(inputs, attrs):
         return inputs[0]
 
 
+def _mx_sequence_last(inputs, attrs):
+    assert len(inputs) == 1 or len(inputs) == 2
+    new_attrs = {}
+    use_sequence_length = attrs.get_bool('use_sequence_length', False)
+    axis = attrs.get_int('axis', 0)
+    new_attrs['axis'] = axis
+    if use_sequence_length:
+        return _op.sequence_last(*inputs, **new_attrs)
+    else:
+        num_splits = _infer_shape(inputs[0])[axis]
+        out = _op.split(*inputs, num_splits, **new_attrs)[num_splits - 1]
+        out = _op.squeeze(out, [axis])
+        return out
+
+
 def _mx_contrib_div_sqrt_dim(inputs, _):
     assert len(inputs) == 1
     ndim = len(_infer_type(inputs[0]).checked_type.shape)
@@ -2236,6 +2251,7 @@ _convert_map = {
     "topk"          : _mx_topk,
     "_unravel_index": _mx_unravel_index,
     "SequenceMask"  : _mx_sequence_mask,
+    "SequenceLast"  : _mx_sequence_last,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     "LinearRegressionOutput" : _mx_linear_regression_output,

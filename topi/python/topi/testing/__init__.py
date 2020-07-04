@@ -49,6 +49,7 @@ from .strided_slice_python import strided_slice_python, strided_set_python
 from .batch_matmul import batch_matmul
 from .slice_axis_python import slice_axis_python
 from .sequence_mask_python import sequence_mask
+from .sequence_last_python import sequence_last
 from .pool1d_python import pool1d_ncw_python
 from .pool3d_python import pool3d_ncdhw_python
 from .pool_grad_python import pool_grad_nchw
