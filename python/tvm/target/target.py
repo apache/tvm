@@ -43,19 +43,6 @@ class Target(Object):
     - :py:func:`tvm.target.mali` create Mali target
     - :py:func:`tvm.target.intel_graphics` create Intel Graphics target
     """
-    def __new__(cls):
-        # Always override new to enable class
-        obj = Object.__new__(cls)
-        obj._keys = None
-        obj._libs = None
-        return obj
-
-    @property
-    def keys(self):
-        if not self._keys:
-            self._keys = [str(k) for k in self.keys_]
-        return self._keys
-
     def __enter__(self):
         _ffi_api.EnterTargetScope(self)
         return self
@@ -103,14 +90,11 @@ class Target(Object):
     @property
     def mattr(self):
         """Returns the mattr from the target if it exists."""
-        return self.attrs.get("mattr", "")
+        return list(self.attrs.get("mattr", []))
 
     @property
     def libs(self):
-        if not self._libs:
-            self._libs = list(self.attrs.get("libs", ""))
-        return self._libs
-
+        return list(self.attrs.get("libs", []))
 
 
 def _merge_opts(opts, new_opts):

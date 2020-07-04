@@ -58,9 +58,8 @@ class TargetNode : public Object {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("id", &id);
     v->Visit("tag", &tag);
-    v->Visit("keys_", &keys);
+    v->Visit("keys", &keys);
     v->Visit("attrs", &attrs);
-    v->Visit("_str_repr_", &str_repr_);
   }
 
   template <typename TObjectRef>
