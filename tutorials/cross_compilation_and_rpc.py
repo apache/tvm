@@ -107,7 +107,7 @@ s = te.create_schedule(B.op)
 
 ######################################################################
 # Then we cross compile the kernel.
-# The target should be 'llvm -target=armv7l-linux-gnueabihf' for
+# The target should be 'llvm -mtriple=armv7l-linux-gnueabihf' for
 # Raspberry Pi 3B, but we use 'llvm' here to make this tutorial runnable
 # on our webpage building server. See the detailed note in the following block.
 
@@ -116,7 +116,7 @@ local_demo = True
 if local_demo:
     target = 'llvm'
 else:
-    target = 'llvm -target=armv7l-linux-gnueabihf'
+    target = 'llvm -mtriple=armv7l-linux-gnueabihf'
 
 func = tvm.build(s, [A, B], target=target, name='add_one')
 # save the lib at a local temp folder
@@ -131,14 +131,14 @@ func.export_library(path)
 #   to False and replace :code:`target` in :code:`build` with the appropriate
 #   target triple for your device. The target triple which might be
 #   different for different devices. For example, it is
-#   :code:`'llvm -target=armv7l-linux-gnueabihf'` for Raspberry Pi 3B and
-#   :code:`'llvm -target=aarch64-linux-gnu'` for RK3399.
+#   :code:`'llvm -mtriple=armv7l-linux-gnueabihf'` for Raspberry Pi 3B and
+#   :code:`'llvm -mtriple=aarch64-linux-gnu'` for RK3399.
 #
 #   Usually, you can query the target by running :code:`gcc -v` on your
 #   device, and looking for the line starting with :code:`Target:`
 #   (Though it may still be a loose configuration.)
 #
-#   Besides :code:`-target`, you can also set other compilation options
+#   Besides :code:`-mtriple`, you can also set other compilation options
 #   like:
 #
 #   * -mcpu=<cpuname>
@@ -224,7 +224,7 @@ print('%g secs/op' % cost)
 def run_opencl():
     # NOTE: This is the setting for my rk3399 board. You need to modify
     # them according to your environment.
-    target_host = "llvm -target=aarch64-linux-gnu"
+    target_host = "llvm -mtriple=aarch64-linux-gnu"
     opencl_device_host = '10.77.1.145'
     opencl_device_port = 9090
 

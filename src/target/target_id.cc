@@ -357,7 +357,6 @@ TVM_REGISTER_TARGET_ID("llvm")
     .add_attr_option<String>("mcpu")
     .add_attr_option<Array<String>>("mattr")
     .add_attr_option<String>("mtriple")
-    .add_attr_option<String>("target")  // FIXME: rename to mtriple
     .set_default_keys({"cpu"})
     .set_device_type(kDLCPU);
 

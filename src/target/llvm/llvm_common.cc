@@ -85,7 +85,7 @@ void ParseLLVMTargetOptions(const std::string& target_str, std::string* triple, 
     } else {
       CHECK(is >> value) << "Unspecified value for option " << key;
     }
-    if (key == "-target" || key == "-mtriple") {
+    if (key == "-mtriple") {
       *triple = value;
     } else if (key == "-mcpu") {
       *mcpu = value;
