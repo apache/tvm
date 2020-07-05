@@ -168,7 +168,8 @@ class LocalBuilder(ProgramBuilder):
     Parameters
     ----------
     timeout : int = 15
-        The timeout limit for each build.
+        The timeout limit (in second) for each build thread.
+        This is used in a wrapper of the multiprocessing.Process.join().
     n_parallel : int = multiprocessing.cpu_count()
         Number of threads used to build in parallel.
     build_func : str = 'default'
@@ -190,7 +191,8 @@ class LocalRunner(ProgramRunner):
     Parameters
     ----------
     timeout : int = 10
-        The timeout limit for each run.
+        The timeout limit (in second) for each run.
+        This is used in a wrapper of the multiprocessing.Process.join().
     number : int = 3
         The number of times to run the generated code for taking average.
         We call these runs as one `repeat` of measurement.
@@ -333,7 +335,8 @@ def local_builder_build(inputs, timeout, n_parallel, build_func='default', verbo
     inputs : List[MeasureInput]
         The MeasureInputs to be built.
     timeout : int
-        The timeout limit for each build thread.
+        The timeout limit (in second) for each build thread.
+        This is used in a wrapper of the multiprocessing.Process.join().
     n_parallel : int
         Number of threads used to build in parallel.
     build_func : str = 'default'
@@ -376,7 +379,8 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
     build_results : List[BuildResult]
         The BuildResults to be measured.
     timeout : int
-        The timeout limit for each build thread.
+        The timeout limit (in second) for each run.
+        This is used in a wrapper of the multiprocessing.Process.join().
     number : int = 3
         The number of times to run the generated code for taking average.
         We call these runs as one `repeat` of measurement.

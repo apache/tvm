@@ -88,17 +88,6 @@ Stage::Stage(te::Operation op, StageType op_type, const Array<Iterator>& iters,
   data_ = std::move(node);
 }
 
-Stage::Stage(te::Operation op, StageType op_type, Array<Iterator>&& iters, ComputeAtType compute_at,
-             StageAttributes attrs) {
-  auto node = make_object<StageNode>();
-  node->op = std::move(op);
-  node->op_type = op_type;
-  node->iters = std::move(iters);
-  node->compute_at = compute_at;
-  node->attrs = attrs;
-  data_ = std::move(node);
-}
-
 /********** State **********/
 State::State(const Array<te::Operation>& ops) {
   auto node = make_object<StateNode>();
@@ -148,8 +137,8 @@ void State::DoReorderStep(const ReorderStep& step) {
     iters.push_back(stage->iters[x]);
   }
   StateNode* pstate = CopyOnWrite();
-  pstate->stages.Set(step->stage_id, Stage(stage->op, stage->op_type, std::move(iters),
-                                           stage->compute_at, stage->attrs));
+  pstate->stages.Set(step->stage_id,
+                     Stage(stage->op, stage->op_type, iters, stage->compute_at, stage->attrs));
 }
 
 // common part for DoSplitStep, DoFollowSplitStep, and DoFollowFusedSplitStep
@@ -209,8 +198,8 @@ Array<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id, const Array<
   new_iters.insert(new_iters.end(), stage->iters.begin() + iter_id + 1, stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages.Set(stage_id, Stage(stage->op, stage->op_type, std::move(new_iters),
-                                     stage->compute_at, stage->attrs));
+  pstate->stages.Set(stage_id,
+                     Stage(stage->op, stage->op_type, new_iters, stage->compute_at, stage->attrs));
 
   return outs;
 }
@@ -263,8 +252,8 @@ Iterator State::DoFuseStep(const FuseStep& step) {
                    stage->iters.end());
 
   StateNode* pstate = CopyOnWrite();
-  pstate->stages.Set(stage_id, Stage(stage->op, stage->op_type, std::move(new_iters),
-                                     stage->compute_at, stage->attrs));
+  pstate->stages.Set(stage_id,
+                     Stage(stage->op, stage->op_type, new_iters, stage->compute_at, stage->attrs));
 
   return new_it;
 }

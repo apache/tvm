@@ -214,7 +214,7 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
 ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   auto node = make_object<ComputeDAGNode>();
   node->tensors = std::move(tensors);
-  node->ops = std::move(TopoSortOps(node->tensors));
+  node->ops = TopoSortOps(node->tensors);
   node->flop_ct = FlopEstimator().EstimateFlop(node->ops);
   node->init_state = State(node->ops);
   data_ = std::move(node);

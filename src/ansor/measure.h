@@ -77,7 +77,7 @@ class MeasureInputNode : public Object {
     v->Visit("state", &state);
   }
 
-  /*! \brief Do deep copy. */
+  /*! \brief Do shallow copy. */
   MeasureInput copy() const;
 
   static constexpr const char* _type_key = "ansor.MeasureInput";
@@ -167,7 +167,7 @@ class MeasureResultNode : public Object {
     v->Visit("timestamp", &timestamp);
   }
 
-  /*! \brief Do deep copy. */
+  /*! \brief Do shallow copy. */
   MeasureResult copy() const;
 
   static constexpr const char* _type_key = "ansor.MeasureResult";

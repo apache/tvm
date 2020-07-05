@@ -42,14 +42,13 @@
 namespace dmlc {
 namespace json {
 
-inline std::vector<int>& IntArrayToVector(std::vector<int>* out,
-                                          const ::tvm::Array<::tvm::Integer>& data) {
-  out->clear();
+inline std::vector<int> IntArrayToVector(const ::tvm::Array<::tvm::Integer>& data) {
+  std::vector<int> out;
   for (const auto& x : data) {
     CHECK(x.defined());
-    out->push_back(x);
+    out.push_back(x);
   }
-  return *out;
+  return out;
 }
 
 template <>
@@ -70,7 +69,6 @@ struct Handler<::tvm::Array<::tvm::ansor::Stage>> {
 template <>
 struct Handler<::tvm::Array<::tvm::ansor::Step>> {
   inline static void Write(dmlc::JSONWriter* writer, const ::tvm::Array<::tvm::ansor::Step>& data) {
-    std::vector<int> tmp;
     writer->BeginArray(false);
     for (size_t i = 0; i < data.size(); ++i) {
       writer->WriteArraySeperator();
@@ -78,18 +76,18 @@ struct Handler<::tvm::Array<::tvm::ansor::Step>> {
       if (auto ps = data[i].as<::tvm::ansor::ReorderStepNode>()) {
         writer->WriteArrayItem(std::string("RE"));
         writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(IntArrayToVector(&tmp, ps->after_ids));
+        writer->WriteArrayItem(IntArrayToVector(ps->after_ids));
       } else if (auto ps = data[i].as<::tvm::ansor::SplitStepNode>()) {
         writer->WriteArrayItem(std::string("SP"));
         writer->WriteArrayItem(ps->stage_id);
         writer->WriteArrayItem(ps->iter_id);
         writer->WriteArrayItem(ps->extent.defined() ? ::tvm::ansor::GetIntImm(ps->extent) : 0);
-        writer->WriteArrayItem(IntArrayToVector(&tmp, ps->lengths));
+        writer->WriteArrayItem(IntArrayToVector(ps->lengths));
         writer->WriteArrayItem(static_cast<int>(ps->inner_to_outer));
       } else if (auto ps = data[i].as<::tvm::ansor::FuseStepNode>()) {
         writer->WriteArrayItem(std::string("FU"));
         writer->WriteArrayItem(ps->stage_id);
-        writer->WriteArrayItem(IntArrayToVector(&tmp, ps->fused_ids));
+        writer->WriteArrayItem(IntArrayToVector(ps->fused_ids));
       } else {
         LOG(FATAL) << "Invalid step: " << data[i];
       }

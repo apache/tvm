@@ -206,21 +206,11 @@ class Stage : public ObjectRef {
    * \brief The constructor.
    * \param op A `te::Operation`.
    * \param op_type The stage type of this op.
-   * \param iters The iterators of this op. (copy)
+   * \param iters The iterators of this op.
    * \param compute_at The compute at type of this op.
    * \param attrs Other stage-level attributes.
    */
   Stage(te::Operation op, StageType op_type, const Array<Iterator>& iters, ComputeAtType compute_at,
-        StageAttributes attrs);
-  /*!
-   * \brief The constructor.
-   * \param op A `te::Operation`.
-   * \param op_type The stage type of this op.
-   * \param iters The iterators of this op. (move)
-   * \param compute_at The compute at type of this op.
-   * \param attrs Other stage-level attributes.
-   */
-  Stage(te::Operation op, StageType op_type, Array<Iterator>&& iters, ComputeAtType compute_at,
         StageAttributes attrs);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Stage, ObjectRef, StageNode);

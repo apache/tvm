@@ -115,7 +115,9 @@ Array<BuildResult> LocalBuilderNode::Build(const Array<MeasureInput>& inputs, in
     Array<BuildResult> results = (*f)(inputs, timeout, n_parallel, build_func, verbose);
     return results;
   }
-  LOG(FATAL) << "ansor.local_builder.build is not registered";
+  LOG(FATAL) << "ansor.local_builder.build is not registered. "
+             << "This is a function registered in Python, "
+             << "make sure the TVM Python runtime has been loaded successfully.";
   throw;
 }
 
@@ -138,7 +140,9 @@ Array<MeasureResult> LocalRunnerNode::Run(const Array<MeasureInput>& inputs,
                                         min_repeat_ms, cooldown_interval, verbose);
     return results;
   }
-  LOG(FATAL) << "ansor.local_runner.run is not registered";
+  LOG(FATAL) << "ansor.local_runner.run is not registered. "
+             << "This is a function registered in Python, "
+             << "make sure the TVM Python runtime has been loaded successfully.";
   throw;
 }
 

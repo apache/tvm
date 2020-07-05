@@ -39,7 +39,7 @@ from . import _ffi_api
 class HardwareParams(Object):
     """ The parameters of target hardware used to guide the search process of SearchPolicy.
 
-    TODO(jcf94): This is considering to merge with the new Target:
+    TODO(jcf94): This is considered to be merged with the new Target:
     https://discuss.tvm.ai/t/rfc-tvm-target-specification/6844
 
     Parameters
@@ -138,15 +138,21 @@ class TuningOptions(Object):
                 builder = LocalBuilder()
             else:
                 raise ValueError("Invalid builder: " + builder)
+        elif not isinstance(builder, tvm.ansor.measure.ProgramBuilder):
+            raise ValueError("Invalid builder: " + builder +
+                             " . TuningOptions expects a ProgramBuilder or string.")
 
         if isinstance(runner, str):
             if runner == 'local':
                 runner = LocalRunner()
             else:
                 raise ValueError("Invalid runner: " + runner)
+        elif not isinstance(runner, tvm.ansor.measure.ProgramRunner):
+            raise ValueError("Invalid runner: " + runner +
+                             " . TuningOptions expects a ProgramRunner or string.")
 
-        measure_callbacks = [] if measure_callbacks is None else measure_callbacks
-        pre_search_callbacks = [] if pre_search_callbacks is None else pre_search_callbacks
+        measure_callbacks = measure_callbacks if measure_callbacks else []
+        pre_search_callbacks = pre_search_callbacks if pre_search_callbacks else []
 
         self.__init_handle_by_constructor__(
             _ffi_api.TuningOptions, num_measure_trials, early_stopping, num_measures_per_round,
