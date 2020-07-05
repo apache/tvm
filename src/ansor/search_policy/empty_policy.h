@@ -19,7 +19,8 @@
 
 /*!
  * \file ansor/search_policy/empty_policy.h
- * \brief This is an brief example of search policy.
+ * \brief A brief example of the search policy which always returns the initial naive schedule
+ * (state).
  */
 
 #ifndef TVM_ANSOR_SEARCH_POLICY_EMPTY_POLICY_H_

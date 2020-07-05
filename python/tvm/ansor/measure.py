@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Distributed measurement infrastructure to measure the runtime costs of tensor programs
+"""
+Distributed measurement infrastructure to measure the runtime costs of tensor programs.
 
 These functions are responsible for building the tvm module, uploading it to
 remote devices, recording the running time costs, and checking the correctness of the output.
 
-We implement these in python to utilize python's multiprocessing and error handling
+We implement these in python to utilize python's multiprocessing and error handling.
 """
 
 import os
@@ -127,7 +128,7 @@ class ProgramBuilder(Object):
         ----------
         measure_inputs : List[MeasureInput]
             A List of MeasureInput.
-        verbost : int = 1
+        verbose : int = 1
             Verbosity level. 0 for silent, 1 to output information during program building.
 
         Returns
@@ -150,7 +151,7 @@ class ProgramRunner(Object):
             A List of MeasureInput.
         build_results : List[BuildResult]
             A List of BuildResult to be ran.
-        verbost : int = 1
+        verbose : int = 1
             Verbosity level. 0 for silent, 1 to output information during program running.
 
         Returns
@@ -245,7 +246,19 @@ def make_error_msg():
 
 
 def local_build_worker(index):
-    """ Local builder function. """
+    """
+    Build function of LocalBuilder to be ran in the Builder thread pool.
+
+    Parameters
+    ----------
+    index : int
+        The MeasureInput index to be processed by the current Builder thread.
+
+    Returns
+    -------
+    res : BuildResult
+        The build result of this Builder thread.
+    """
     # We use fork and a global variable to copy arguments between processings.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
     if not GLOBAL_BUILD_ARGUMENTS:
@@ -311,8 +324,28 @@ def local_build_worker(index):
 
 
 @tvm._ffi.register_func("ansor.local_builder.build")
-def local_builder_build(inputs, timeout, n_parallel, build_func, verbose):
-    """ Local builder build function. """
+def local_builder_build(inputs, timeout, n_parallel, build_func='default', verbose=1):
+    """
+    Build function of LocalBuilder to build the MeasureInputs to runnable modules.
+
+    Parameters
+    ----------
+    inputs : List[MeasureInput]
+        The MeasureInputs to be built.
+    timeout : int
+        The timeout limit for each build thread.
+    n_parallel : int
+        Number of threads used to build in parallel.
+    build_func : str = 'default'
+        The name of build function to process the built module.
+    verbose : int = 1
+        Verbosity level. 0 for silent, 1 to output information during program building.
+
+    Returns
+    -------
+    res : List[BuildResult]
+        The build results of these MeasureInputs.
+    """
     # We use fork and a global variable to copy arguments between processings.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
     global GLOBAL_BUILD_ARGUMENTS
@@ -332,8 +365,44 @@ def local_builder_build(inputs, timeout, n_parallel, build_func, verbose):
 
 @tvm._ffi.register_func("ansor.local_runner.run")
 def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, cooldown_interval,
-              verbose):
-    """ Local runner run function. """
+              verbose=1):
+    """
+    Run function of LocalRunner to test the performance of the input BuildResults.
+
+    Parameters
+    ----------
+    inputs : List[MeasureInput]
+        The MeasureInputs to be measured.
+    build_results : List[BuildResult]
+        The BuildResults to be measured.
+    timeout : int
+        The timeout limit for each build thread.
+    number : int = 3
+        The number of times to run the generated code for taking average.
+        We call these runs as one `repeat` of measurement.
+    repeat : int = 1
+        The number of times to repeat the measurement.
+        In total, the generated code will be run (1 + number x repeat) times,
+        where the first "1" is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
+    min_repeat_ms : int = 0
+        The minimum duration of one `repeat` in milliseconds.
+        By default, one `repeat` contains `number` runs. If this parameter is set,
+        the parameters `number` will be dynamically adjusted to meet the
+        minimum duration requirement of one `repeat`.
+        i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+        will be automatically increased.
+    cooldown_interval : float = 0.0
+        The cool down interval between two measurements.
+    verbose : int = 1
+        Verbosity level. 0 for silent, 1 to output information during program measuring.
+
+    Returns
+    -------
+    res : List[MeasureResult]
+        The measure results of these MeasureInputs.
+    """
     max_float = 1e10  # We use 1e10 instead of sys.float_info.max for better readability in log
 
     def timed_func(inp, build_res):

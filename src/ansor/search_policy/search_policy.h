@@ -128,7 +128,7 @@ class SearchPolicyNode : public Object {
    * \brief Call SearchCallback with the current SearchPolicyNode
    * \param callbacks SearchCallback to be called.
    */
-  void RunCallbacks(const Array<SearchCallback>& callbacks);
+  void RunCallbacks(const Optional<Array<SearchCallback>>& callbacks);
 
   static constexpr const char* _type_key = "ansor.SearchPolicy";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchPolicyNode, Object);

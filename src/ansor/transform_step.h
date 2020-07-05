@@ -24,7 +24,7 @@
  * - transform_step.cc: How each step interact with TE and TE's schedule primitives
  * - loop_state.cc:     How each step reflect on LoopState
  *
- * \note Adding a new transform step.
+ * \note To add a new transform step:
  * Take fuse step for example:
  * 1. Define class `FuseStepNode`, `FuseStep` in `transform_steps.h`, and implement its construction
  *    function `FuseStep::FuseStep(...)` in `transform_steps.cc`

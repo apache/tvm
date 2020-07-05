@@ -295,8 +295,21 @@ void State::DoSteps(const ComputeDAG& dag) {
   }
 }
 
+static const char* IteratorAnnotationString[] = {
+    "for",              // kNone = 0
+    "unroll",           // kUnroll = 1
+    "vectorize",        // kVectorize = 2
+    "parallel",         // kParallel = 3
+    "vthread",          // kVThread = 4
+    "gpu.blockIdx.x",   // kBlockX = 5
+    "gpu.threadIdx.x",  // kThreadX = 6
+    "gpu.blockIdx.y",   // kBlockY = 7
+    "gpu.threadIdx.y",  // kThreadY = 8
+    "tensorize"         // kTensorized = 9
+};
+
 // Print stage to ostream
-void PrintStage(std::ostream* os, int stage_id, const StateNode* state, size_t base_indent,
+void PrintStage(std::ostream* os, int stage_id, const State& state, size_t base_indent,
                 bool delete_trivial_loop) {
   const Stage& stage = state->stages[stage_id];
 
@@ -321,41 +334,7 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state, size_t b
       for (size_t j = 0; j < base_indent + indent; ++j) {
         *os << " ";
       }
-      switch (iter->annotation) {
-        case kNone:
-          *os << "for ";
-          break;
-        case kUnroll:
-          *os << "unroll ";
-          break;
-        case kParallel:
-          *os << "parallel ";
-          break;
-        case kVectorize:
-          *os << "vectorize ";
-          break;
-        case kVThread:
-          *os << "vthread ";
-          break;
-        case kBlockX:
-          *os << "gpu.blockIdx.x ";
-          break;
-        case kBlockY:
-          *os << "gpu.blockIdx.y ";
-          break;
-        case kThreadX:
-          *os << "gpu.threadIdx.x ";
-          break;
-        case kThreadY:
-          *os << "gpu.threadIdx.y ";
-          break;
-        case kTensorized:
-          *os << "tensorize ";
-          break;
-        default:
-          LOG(FATAL) << "Invalid Annotation " << iter->annotation;
-          break;
-      }
+      *os << IteratorAnnotationString[iter->annotation] << " ";
       if (iter->range.defined()) {
         *os << iter->name << " (" << iter->range->min << "," << iter->range->extent << ")";
       } else {
@@ -374,10 +353,10 @@ void PrintStage(std::ostream* os, int stage_id, const StateNode* state, size_t b
 }
 
 // Print state to ostream
-void PrintState(std::ostream* os, const StateNode* node, bool delete_trivial_loop) {
+void PrintState(std::ostream* os, const State& state, bool delete_trivial_loop) {
   // Gather placeholders
   Array<String> placeholders;
-  for (const auto& stage : node->stages) {
+  for (const auto& stage : state->stages) {
     if (stage->op_type == kPlaceholder) {
       placeholders.push_back(stage->op->name);
     }
@@ -393,13 +372,13 @@ void PrintState(std::ostream* os, const StateNode* node, bool delete_trivial_loo
   *os << "\n";
 
   // Print all stages
-  for (size_t i = 0; i < node->stages.size(); ++i) {
-    const Stage& stage = node->stages[i];
+  for (size_t i = 0; i < state->stages.size(); ++i) {
+    const Stage& stage = state->stages[i];
     if (stage->op_type == kPlaceholder) {
       continue;
     } else if (stage->op_type == kCompute) {
       if (stage->compute_at == kRoot) {
-        PrintStage(os, i, node, 0, delete_trivial_loop);
+        PrintStage(os, i, state, 0, delete_trivial_loop);
       }
     } else {
       LOG(FATAL) << "Invalid op type";
@@ -409,14 +388,13 @@ void PrintState(std::ostream* os, const StateNode* node, bool delete_trivial_loo
 
 String State::ToStr(bool delete_trivial_loop) const {
   std::ostringstream os;
-  PrintState(&os, operator->(), delete_trivial_loop);
+  PrintState(&os, (*this), delete_trivial_loop);
   return os.str();
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<StateNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const StateNode*>(ref.get());
-      PrintState(&p->stream, node, true);
+      PrintState(&p->stream, tvm::Downcast<State>(ref), true);
     });
 
 /********** State interface API for ffi **********/

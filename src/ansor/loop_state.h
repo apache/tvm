@@ -303,7 +303,7 @@ class State : public ObjectRef {
    * \param stage_id The index of the stage to be split.
    * \param it The iterator the be split.
    * \param lengths The multiple split factors. Can be None to be filled by search policy.
-   * \param inner_to_outer True for split from inner to outer & False for outer to inner.
+   * \param inner_to_outer Whether the factor go from inner to outer, or from outer to inner.
    * \return The iterator results after split.
    */
   Array<Iterator> split(int stage_id, const Iterator& it, const Array<Integer>& lengths,

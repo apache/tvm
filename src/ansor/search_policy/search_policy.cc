@@ -32,16 +32,16 @@ namespace ansor {
 TVM_REGISTER_OBJECT_TYPE(SearchCallbackNode);
 TVM_REGISTER_OBJECT_TYPE(SearchPolicyNode);
 
-void SearchPolicyNode::RunCallbacks(const Array<SearchCallback>& callbacks) {
-  if (callbacks.defined() && callbacks.size()) {
-    for (const auto& callback : callbacks) {
+void SearchPolicyNode::RunCallbacks(const Optional<Array<SearchCallback>>& callbacks) {
+  if (callbacks.defined()) {
+    for (const auto& callback : callbacks.value()) {
       callback->Callback(this);
     }
   }
 }
 
 TVM_REGISTER_GLOBAL("ansor.SearchPolicyRunCallbacks")
-    .set_body_typed([](SearchPolicy policy, Array<SearchCallback> callbacks) {
+    .set_body_typed([](SearchPolicy policy, Optional<Array<SearchCallback>> callbacks) {
       policy->RunCallbacks(callbacks);
     });
 

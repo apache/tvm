@@ -114,10 +114,9 @@ Array<BuildResult> LocalBuilderNode::Build(const Array<MeasureInput>& inputs, in
   if (const auto* f = runtime::Registry::Get("ansor.local_builder.build")) {
     Array<BuildResult> results = (*f)(inputs, timeout, n_parallel, build_func, verbose);
     return results;
-  } else {
-    LOG(FATAL) << "ansor.local_builder.build is not registered";
   }
-  return Array<BuildResult>();
+  LOG(FATAL) << "ansor.local_builder.build is not registered";
+  throw;
 }
 
 /********** LocalRunner **********/
@@ -138,10 +137,9 @@ Array<MeasureResult> LocalRunnerNode::Run(const Array<MeasureInput>& inputs,
     Array<MeasureResult> results = (*f)(inputs, build_results, timeout, number, repeat,
                                         min_repeat_ms, cooldown_interval, verbose);
     return results;
-  } else {
-    LOG(FATAL) << "ansor.local_runner.run is not registered";
   }
-  return Array<MeasureResult>();
+  LOG(FATAL) << "ansor.local_runner.run is not registered";
+  throw;
 }
 
 /********** ProgramMeasurer **********/
@@ -237,11 +235,10 @@ void ProgramMeasurerNode::SilentMeasure(const SearchTask& task, const Array<Meas
 
   results->clear();
   results->reserve(inputs.size());
-  Array<MeasureInput> input_batch(inputs.begin(), inputs.end());
 
   // Call builder and runner
-  Array<BuildResult> build_res_batch = builder->Build(input_batch, verbose);
-  Array<MeasureResult> result_batch = runner->Run(input_batch, build_res_batch, verbose);
+  Array<BuildResult> build_res_batch = builder->Build(inputs, verbose);
+  Array<MeasureResult> result_batch = runner->Run(inputs, build_res_batch, verbose);
 
   // Store result batch
   for (auto& res : result_batch) {

@@ -145,8 +145,7 @@ class State:
         lengths: List[int]
             The multiple split factors. Can be None to be filled by search policy.
         inner_to_outer: bool = True
-            True to use `factor` to split from inner to outer,
-            False to use `nparts` to split from outer to inner
+            Whether the factor go from inner to outer, or from outer to inner.
 
         Returns
         -------

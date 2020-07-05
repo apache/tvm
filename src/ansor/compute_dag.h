@@ -103,16 +103,14 @@ class ComputeDAG : public ObjectRef {
 
   /*!
    * \brief Fill the correct bound information for a given state by calling ir_pass::InferBound.
+   * The states can lose complete bound information after some transform steps (e.g., compute_at).
+   * We can call this function to infer and fill all the bound information.
+   * This function calls TVM InferBound pass internally to get the bound.
+   * The returned state of this function is guaranteed to have complete iterator extent information.
    * \param state The state to.
    * \return The State after inferbound.
    */
   State InferBound(const State& state) const;
-  /*!
-   * \brief Fill the correct bound information for a list of given states.
-   * Return the new states inplace.
-   * \param states A pointer to a State Array, States are updated inplace.
-   */
-  void InferBound(Array<State>* states) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeDAG, ObjectRef, ComputeDAGNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeDAGNode);

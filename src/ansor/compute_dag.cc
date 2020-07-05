@@ -47,8 +47,7 @@ using namespace tvm::tir;
 TVM_REGISTER_NODE_TYPE(ComputeDAGNode);
 
 // Topo-sort ops from tensors according to their read-write relations.
-// Results are stored in ops
-void TopoSortOps(const Array<te::Tensor>& tensors, Array<te::Operation>* ops) {
+Array<te::Operation> TopoSortOps(const Array<te::Tensor>& tensors) {
   std::unordered_map<const te::OperationNode*, int> degree;
   std::unordered_map<const te::OperationNode*, std::vector<const te::OperationNode*>> edge_set;
   std::unordered_map<const te::OperationNode*, int> priority;
@@ -88,7 +87,7 @@ void TopoSortOps(const Array<te::Tensor>& tensors, Array<te::Operation>* ops) {
   }
 
   // topo sort
-  ops->clear();
+  Array<te::Operation> ops;
 
   using Item = std::pair<const te::OperationNode*, int>;
   auto cmp = [](const Item& left, const Item& right) { return left.second < right.second; };
@@ -99,11 +98,11 @@ void TopoSortOps(const Array<te::Tensor>& tensors, Array<te::Operation>* ops) {
     }
   }
 
-  ops->reserve(degree.size());
+  ops.reserve(degree.size());
   while (!queue.empty()) {
     Item item = queue.top();
     queue.pop();
-    ops->push_back(GetRef<te::Operation>(item.first));
+    ops.push_back(GetRef<te::Operation>(item.first));
     for (const auto& dst : edge_set[item.first]) {
       degree[dst] -= 1;
       if (degree[dst] == 0) {
@@ -111,6 +110,8 @@ void TopoSortOps(const Array<te::Tensor>& tensors, Array<te::Operation>* ops) {
       }
     }
   }
+
+  return ops;
 }
 
 // Estimate number of float operations in an expression
@@ -212,18 +213,15 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
 
 ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   auto node = make_object<ComputeDAGNode>();
-  FlopEstimator estimator;
-  Array<te::Operation> ops;
   node->tensors = std::move(tensors);
-  TopoSortOps(node->tensors, &ops);
-  node->ops = std::move(ops);
-  node->flop_ct = estimator.EstimateFlop(node->ops);
+  node->ops = std::move(TopoSortOps(node->tensors));
+  node->flop_ct = FlopEstimator().EstimateFlop(node->ops);
   node->init_state = State(node->ops);
   data_ = std::move(node);
 }
 
 // Update the te::stage to tir::IterVar axis mapping
-void UpdateStageAxis(const te::Stage& stage, StageToAxesMap* stage_to_axes) {
+void UpdateStageToAxesMap(const te::Stage& stage, StageToAxesMap* stage_to_axes) {
   if (auto pop = stage->op.as<te::ComputeOpNode>()) {
     Array<IterVar> axes;
     for (const auto& axis : pop->axis) {
@@ -259,13 +257,13 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
     }
   }
   // Create the initial schedule
-  te::Schedule schedule = te::create_schedule({ops.back()});
+  te::Schedule schedule = te::create_schedule(ops);
 
   // init axes
   for (const auto& x : operator->()->ops) {
-    const te::Stage& stage = schedule.operator[](x);
+    const te::Stage& stage = schedule[x];
     stages->push_back(stage);
-    UpdateStageAxis(stage, stage_to_axes);
+    UpdateStageToAxesMap(stage, stage_to_axes);
   }
 
   // Use complete rate for the study in the paper
@@ -307,13 +305,13 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
     }
   }
   // Create the initial schedule
-  te::Schedule schedule = te::create_schedule({ops.back()});
+  te::Schedule schedule = te::create_schedule(ops);
 
   // init axes
   for (const auto& x : operator->()->ops) {
-    const te::Stage& stage = schedule.operator[](x);
+    const te::Stage& stage = schedule[x];
     stages.push_back(stage);
-    UpdateStageAxis(stage, &stage_to_axes);
+    UpdateStageToAxesMap(stage, &stage_to_axes);
   }
 
   std::stringstream ss;
@@ -351,16 +349,16 @@ State ComputeDAG::InferBound(const State& state) const {
   State ret_state;
   StateNode* pstate;
 
-  if (state->stages.size()) {
-    ret_state = state;
-    pstate = ret_state.CopyOnWrite();
-  } else {
+  if (state->stages.empty()) {
     // If the input state is incomplete with empty operation stage
     // create a new state from init_state and update it first
     ret_state = operator->()->init_state;
     pstate = ret_state.CopyOnWrite();
     pstate->transform_steps = state->transform_steps;
-    ret_state.DoSteps((*this));
+    ret_state.DoSteps(*this);
+  } else {
+    ret_state = state;
+    pstate = ret_state.CopyOnWrite();
   }
 
   Array<te::Stage> stages;
@@ -403,30 +401,6 @@ State ComputeDAG::InferBound(const State& state) const {
   }
 
   return ret_state;
-}
-
-void ComputeDAG::InferBound(Array<State>* states) const {
-  Array<State> out_states(states->size(), State());
-
-  auto worker_func = [&states, &out_states, this](int idx) {
-    try {
-      out_states.Set(idx, this->InferBound((*states)[idx]));
-    } catch (dmlc::Error& e) {
-      LOG(WARNING) << "InferBound fails on the state:\n"
-                   << (*states)[idx] << "\n"
-                   << e.what() << std::endl;
-    }
-  };
-
-  // Lower states in parallel
-  ThreadPool& pool = ThreadPool::Global();
-  pool.BeginBatch(states->size());
-  for (size_t i = 0; i < states->size(); ++i) {
-    pool.Enqueue(worker_func, i);
-  }
-  pool.WaitBatch();
-
-  *states = std::move(out_states);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

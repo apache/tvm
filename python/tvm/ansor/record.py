@@ -52,15 +52,15 @@ class LogReader(Object):
     def __init__(self, filename="ansor_tuning.json"):
         self.__init_handle_by_constructor__(_ffi_api.LogReader, filename)
 
-    def read_lines(self, max_lines=-1, skip_lines=0):
+    def read_lines(self, max_lines=None, skip_lines=None):
         """ Read multiple lines from the log file.
 
         Parameters
         ----------
-        max_lines : int = -1
-            The maximum number of lines. -1 means to read all lines.
-        skip_lines : int = 0
-            Skip the first n lines.
+        max_lines : Optional[int]
+            The maximum number of lines. None to read all lines.
+        skip_lines : Optional[int]
+            Skip the first n lines. None to read all lines.
 
         Returns
         -------
@@ -69,7 +69,8 @@ class LogReader(Object):
         results : List[MeasureResult]
             The MeasureResults loaded from the log file.
         """
-        inputs, results = _ffi_api.LogReaderReadLines(self, max_lines, skip_lines)
+        inputs, results = _ffi_api.LogReaderReadLines(self, max_lines if max_lines else -1,
+                                                      skip_lines if skip_lines else 0)
         return inputs, results
 
     def __iter__(self):
