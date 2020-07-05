@@ -43,21 +43,16 @@ Target Target::CreateTarget(const std::string& name, const std::vector<std::stri
   // tag is always empty
   target->tag = "";
   // parse attrs
-  target->attrs = id->ParseAttrsFromRawString(options);
+  target->attrs = id->ParseAttrsFromRaw(options);
   String device_name = target->GetAttr<String>("device", "").value();
-  // create string representation
-  {
-    std::ostringstream str_repr;
-    str_repr << name;
-    for (const auto& s : options) {
-      str_repr << ' ' << s;
-    }
-    target->str_repr_ = str_repr.str();
-  }
   // set up keys
   {
+    std::vector<String> keys;
     // user provided keys
-    Array<String> keys = target->GetAttr<Array<String>>("keys").value_or({});
+    if (Optional<Array<String>> user_keys = target->GetAttr<Array<String>>("keys")) {
+      keys = std::vector<String>(user_keys.value().begin(), user_keys.value().end());
+      target->attrs.erase("keys");
+    }
     // add `device_name`
     if (!device_name.empty()) {
       keys.push_back(device_name);
@@ -66,6 +61,20 @@ Target Target::CreateTarget(const std::string& name, const std::vector<std::stri
     for (const auto& key : target->id->default_keys) {
       keys.push_back(key);
     }
+    // de-duplicate keys
+    size_t new_size = 0;
+    for (size_t i = 0; i < keys.size(); ++i) {
+      if (keys[i] == "") {
+        continue;
+      }
+      keys[new_size++] = keys[i];
+      for (size_t j = i + 1; j < keys.size(); ++j) {
+        if (keys[j] == keys[i]) {
+          keys[j] = String("");
+        }
+      }
+    }
+    keys.resize(new_size);
     target->keys = std::move(keys);
   }
   return Target(target);
@@ -116,7 +125,26 @@ std::unordered_set<std::string> TargetNode::GetLibs() const {
 }
 
 const std::string& TargetNode::str() const {
-  CHECK(!str_repr_.empty());
+  if (str_repr_.empty()) {
+    std::ostringstream os;
+    os << id->name;
+    if (!this->keys.empty()) {
+      os << " -keys=";
+      bool is_first = true;
+      for (const String& s : keys) {
+        if (is_first) {
+          is_first = false;
+        } else {
+          os << ',';
+        }
+        os << s;
+      }
+    }
+    if (Optional<String> attrs_str = id->StringifyAttrsToRaw(attrs)) {
+      os << ' ' << attrs_str.value();
+    }
+    str_repr_ = os.str();
+  }
   return str_repr_;
 }
 

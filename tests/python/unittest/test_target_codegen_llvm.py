@@ -685,7 +685,7 @@ def test_dwarf_debug_information():
         # build two functions
         f2 = tvm.lower(s, [A, B, C], name="fadd1")
         f1 = tvm.lower(s, [A, B, C], name="fadd2")
-        m = tvm.build([f1, f2], target="llvm -target=aarch64-linux-gnu")
+        m = tvm.build([f1, f2], target="llvm -mtriple=aarch64-linux-gnu")
         ll = m.get_source("ll")
 
         # On non-Darwin OS, don't explicitly specify DWARF version.
@@ -695,7 +695,7 @@ def test_dwarf_debug_information():
 
         # Try Darwin, require DWARF-2
         m = tvm.build([f1, f2],
-                      target="llvm -target=x86_64-apple-darwin-macho")
+                      target="llvm -mtriple=x86_64-apple-darwin-macho")
         ll = m.get_source("ll")
         assert re.search(r"""i32 4, !"Dwarf Version", i32 2""", ll)
         assert re.search(r"""llvm.dbg.value""", ll)

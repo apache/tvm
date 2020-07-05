@@ -21,7 +21,7 @@ import os
 import ctypes
 
 def test_popcount():
-    target = 'llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon'
+    target = 'llvm -mtriple=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon'
 
     def check_correct_assembly(type, elements, counts):
         n = tvm.runtime.convert(elements)
@@ -45,7 +45,7 @@ def test_popcount():
 
 
 def test_vmlal_s16():
-    target = 'llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon'
+    target = 'llvm -mtriple=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon'
 
     def check_correct_assembly(N):
         K = te.size_var("K")
