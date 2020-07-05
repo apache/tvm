@@ -47,14 +47,14 @@ def test_llvm_add_pipeline():
             print("Skip because llvm is not enabled..")
             return
         temp = util.tempdir()
-        target = "llvm -target=i386-pc-linux-gnu"
+        target = "llvm -mtriple=i386-pc-linux-gnu"
         f = tvm.build(s, [A, B, C], target)
         path = temp.relpath("myadd.o")
         f.save(path)
         verify_elf(path, 0x03)
 
     def build_arm():
-        target = "llvm -target=armv7-none-linux-gnueabihf"
+        target = "llvm -mtriple=armv7-none-linux-gnueabihf"
         if not tvm.runtime.enabled(target):
             print("Skip because %s is not enabled.." % target)
             return

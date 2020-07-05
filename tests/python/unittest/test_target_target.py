@@ -59,8 +59,8 @@ def test_target_string_parse():
 
     assert target.id.name == "cuda"
     assert target.model == "unknown"
-    assert target.keys == ['cuda', 'gpu']
-    assert target.libs == ['cublas', 'cudnn']
+    assert set(target.keys) == set(['cuda', 'gpu'])
+    assert set(target.libs) == set(['cublas', 'cudnn'])
     assert str(target) == str(tvm.target.cuda(options="-libs=cublas,cudnn"))
 
     assert tvm.target.intel_graphics().device_name == "intel_graphics"
