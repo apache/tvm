@@ -133,7 +133,7 @@ def test_qnn_legalize_qnn_conv2d():
             assert 'cast' in legalized_mod.astext() and "qnn.conv2d" in legalized_mod.astext()
 
         # Since same dtype, there should not be any transformation
-        with tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu -mattr=+v8.2a,+dotprod'):
+        with tvm.target.create('llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod'):
             legalized_mod = relay.qnn.transform.Legalize()(mod)
             assert tvm.ir.structural_equal(mod, legalized_mod)
 
@@ -146,7 +146,7 @@ def test_qnn_legalize_qnn_conv2d():
             assert 'cast' in legalized_mod.astext() and "qnn" not in legalized_mod.astext()
 
         # Older ARM vesions.
-        with tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu'):
+        with tvm.target.create('llvm -device=arm_cpu -mtriple=aarch64-linux-gnu'):
             legalized_mod = relay.qnn.transform.Legalize()(mod)
             assert 'cast' in legalized_mod.astext() and "qnn" not in legalized_mod.astext()
 
@@ -161,7 +161,7 @@ def test_qnn_legalize_qnn_conv2d():
         assert tvm.ir.structural_equal(mod, legalized_mod)
 
     # ARM - so check that transformation has happened.
-    with tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu -mattr=+v8.2a,+dotprod'):
+    with tvm.target.create('llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod'):
         legalized_mod = relay.qnn.transform.Legalize()(mod)
         assert 'cast' in legalized_mod.astext() and "qnn.conv2d" in legalized_mod.astext()
 
@@ -174,7 +174,7 @@ def test_qnn_legalize_qnn_conv2d():
         assert 'cast' in legalized_mod.astext() and "qnn" not in legalized_mod.astext()
 
     # Older ARM vesions.
-    with tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu'):
+    with tvm.target.create('llvm -device=arm_cpu -mtriple=aarch64-linux-gnu'):
         legalized_mod = relay.qnn.transform.Legalize()(mod)
         assert 'cast' in legalized_mod.astext() and "qnn" not in legalized_mod.astext()
 
@@ -220,7 +220,7 @@ def test_qnn_legalize_qnn_dense():
             assert 'cast' in legalized_mod.astext() and "qnn.dense" in legalized_mod.astext()
 
         # Since same dtype, there should not be any transformation
-        with tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu -mattr=+v8.2a,+dotprod'):
+        with tvm.target.create('llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod'):
             legalized_mod = relay.qnn.transform.Legalize()(mod)
             assert tvm.ir.structural_equal(mod, legalized_mod)
 
@@ -233,7 +233,7 @@ def test_qnn_legalize_qnn_dense():
             assert 'cast' in legalized_mod.astext() and "qnn" not in legalized_mod.astext()
 
         # Older ARM vesions.
-        with tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu'):
+        with tvm.target.create('llvm -device=arm_cpu -mtriple=aarch64-linux-gnu'):
             legalized_mod = relay.qnn.transform.Legalize()(mod)
             assert 'cast' in legalized_mod.astext() and "qnn" not in legalized_mod.astext()
 
@@ -248,7 +248,7 @@ def test_qnn_legalize_qnn_dense():
         assert tvm.ir.structural_equal(mod, legalized_mod)
 
     # ARM - so check that transformation has happened.
-    with tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu -mattr=+v8.2a,+dotprod'):
+    with tvm.target.create('llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod'):
         legalized_mod = relay.qnn.transform.Legalize()(mod)
         assert 'cast' in legalized_mod.astext() and "qnn.dense" in legalized_mod.astext()
 
@@ -261,7 +261,7 @@ def test_qnn_legalize_qnn_dense():
         assert 'cast' in legalized_mod.astext() and "qnn" not in legalized_mod.astext()
 
     # Older ARM vesions.
-    with tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu'):
+    with tvm.target.create('llvm -device=arm_cpu -mtriple=aarch64-linux-gnu'):
         legalized_mod = relay.qnn.transform.Legalize()(mod)
         assert 'cast' in legalized_mod.astext() and "qnn" not in legalized_mod.astext()
 
