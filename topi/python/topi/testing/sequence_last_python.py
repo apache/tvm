@@ -37,7 +37,7 @@ def sequence_last(data, valid_length, axis):
     out : numpy.ndarray
         N-D with shape same as data
     """
-    data  = np.moveaxis(data, axis, 1)
+    data = np.moveaxis(data, axis, 1)
     dims = data.shape
     if valid_length is None:
         return data[:, -1]
