@@ -430,8 +430,7 @@ class Tuner(object):
                 for bits in grouped_guesses:
                     # TODO(ziheng) move thresholds outside
                     thresholds = threshold_estimate(self.graph, self.topology, bits, self.dataset)
-                    params = qtz.calculate_params(self.graph, self.topology, constraints, bits, thresholds)
-                    simulated_out = simulator.eval(self.dataset, params, self.ctx, self.target)
+                    simulated_out = simulator.eval(bits, thresholds, self.dataset, self.ctx, self.target)
                     measure_result = self.measure_func(self.graph, self.dataset, simulated_out)
                     strategy = Strategy(self.model_hash, self.topology, bits, thresholds)
                     results.append(Measure(strategy, measure_result))

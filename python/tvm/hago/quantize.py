@@ -115,96 +115,6 @@ def infer_quantized_dtypes(graph, node2cstr):
     return prov_dtypes, req_dtypes 
 
 
-def calculate_params(graph, topology, constraints, bits, thresholds):
-    """calculate parameters of simulated quantize op from bits and thresholds"""
-    sign_bit = 1
-
-    edge2idx  = build_edge_index(graph)
-    node2idx  = build_node_index(graph)
-    assert len(thresholds) == len(node2idx)
-    edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
-    node2cstr = build_node_dict(graph, constraints, topology.node_conds) 
-
-    # graph, topology, bits, constraints
-    prov_dtypes, req_dtypes = infer_quantized_dtypes(graph, node2cstr)
-
-    # num of edges + number of output edges
-    internal_params, output_params = [], []
-    def infer_scale_for_node(node):
-        if isinstance(node, (relay.Var, relay.Constant)):
-            scale = 1.0
-            return scale
-        assert isinstance(node, relay.Call)
-        finfer_scale = node.op.get_attr('FHagoInferScale')
-        assert finfer_scale
-        input_scales = [internal_params[edge2idx[(src, node)]].out_scale for src in node.args]
-        scale = finfer_scale(input_scales)
-        return scale
-
-    print('\ncalculate parameters')
-    def fvisit(node):
-        if isinstance(node, relay.Call):
-            for src in node.args:
-                eidx = edge2idx[(src, node)]
-                in_scale = infer_scale_for_node(src)
-                in_dtype = prov_dtypes[node2idx[src]]
-                out_dtype = req_dtypes[eidx]
-
-                print('---------')
-                print(edge_str((src, node), node2idx))
-                if 'float' in str(out_dtype):
-                    # dequantize
-                    out_scale = 1.0
-                    clip_min = float('nan')
-                    clip_max = float('nan')
-                    print('  not quantized'.format(edge_str((src, node))))
-                else:
-                    bit = edge2bit[(src, node)]
-                    integer_range = 2 ** (bit - sign_bit)
-                    thold = thresholds[node2idx[src]]
-                    out_scale = thold / integer_range 
-                    clip_min = - (integer_range - 1)
-                    clip_max =    integer_range - 1
-                    print('  bit={}, threshold={}'.format(bit, thold))
-
-                # print("{}[{}] -> {}[{}]".format(node_str(src), in_dtype, node_str(node), out_dtype))
-                param = SimulatedQuantizeParams(in_scale, out_scale, clip_min, clip_max,
-                                                in_dtype, out_dtype)
-                print('  {}'.format(param))
-                in_cond, in_expo = exponent_based_two(param.in_scale)
-                assert in_cond, "scale={}, expo={}\nparam\{}".format(param.in_scale, in_expo, param)
-                out_cond, out_expo = exponent_based_two(param.out_scale)
-                assert out_cond, "scale={}, expo={}\nparam={}".format(param.out_scale, out_expo, param)
-                internal_params.append(param)
-            return
-        if isinstance(node, relay.Function):
-            # handle output of function 
-            assert isinstance(node.body, relay.Call) 
-            node = node.body
-            print('---------')
-            print("{} -> OUT".format(node_str(node, node2idx)))
-            in_scale = infer_scale_for_node(node)
-            in_dtype = prov_dtypes[node2idx[node]]
-            out_dtype = DataType('float32')
-            out_scale = 1.0
-            param = SimulatedQuantizeParams(in_scale, out_scale, float('nan'), float('nan'),
-                                            in_dtype, out_dtype)
-            print('  {}'.format(param))
-            output_params.append(param)
-            return
-    relay.analysis.post_order_visit(graph, fvisit)
-
-    if current_qconfig().threshold_estimate_method == 'power_of_two_range':
-        # check all scale need to be power of 2
-        print('check scale to be power of two...')
-        params = internal_params + output_params
-        for param in params:
-            in_cond, in_expo = exponent_based_two(param.in_scale)
-            assert in_cond, "scale={}, expo={}\nparam\{}".format(param.in_scale, in_expo, param)
-            out_cond, out_expo = exponent_based_two(param.out_scale)
-            assert out_cond, "scale={}, expo={}\nparam={}".format(param.out_scale, out_expo, param)
-
-    return internal_params, output_params
 
 
 def prerequisite_optimize(func, params=None):
@@ -247,14 +157,14 @@ class Simulator(tvm.relay.ExprMutator):
         self._runtime = None
 
 
-    def eval(self, dataset, params, ctx, target):
+    def eval(self, bits, thresholds, dataset, ctx, target):
         """compile simulated model and run it on the dataset"""
         if self._runtime is None:
             # print(self.simulated_graph)
             self._runtime = relay.create_executor("graph", ctx=ctx, target=target).evaluate(self.simulated_graph)
 
         # prepare parameters
-        internal_params, output_params = params
+        internal_params, output_params = self.calculate_params(bits, thresholds)
         param_map = {} 
         for nodes, p in zip(self.internal_param_nodes, internal_params):
             vals = [p.in_scale, p.out_scale, p.clip_min, p.clip_max]
@@ -331,6 +241,113 @@ class Simulator(tvm.relay.ExprMutator):
             new_fn.ret_type,
             new_fn.type_params,
             new_fn.attrs)
+
+    def calculate_params(self, bits, thresholds):
+        """calculate parameters of simulated quantize op from bits and thresholds"""
+        graph, topology, constraints = self.graph, self.topology, self.constraints
+        sign_bit = 1
+        edge2idx  = build_edge_index(graph)
+        node2idx  = build_node_index(graph)
+        assert len(thresholds) == len(node2idx)
+        edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
+        node2cstr = build_node_dict(graph, constraints, topology.node_conds) 
+
+        # graph, topology, bits, constraints
+        prov_dtypes, req_dtypes = infer_quantized_dtypes(graph, node2cstr)
+
+        # num of edges + number of output edges
+        internal_params, output_params = [], []
+        def infer_scale_for_node(node):
+            if isinstance(node, (relay.Var, relay.Constant)):
+                scale = 1.0
+                return scale
+            assert isinstance(node, relay.Call)
+            finfer_scale = node.op.get_attr('FHagoInferScale')
+            assert finfer_scale
+            input_scales = [internal_params[edge2idx[(src, node)]].out_scale for src in node.args]
+            scale = finfer_scale(input_scales)
+            return scale
+
+        print('\ncalculate parameters')
+        def fvisit(node):
+            if isinstance(node, relay.Call):
+                for src in node.args:
+                    eidx = edge2idx[(src, node)]
+                    in_scale = infer_scale_for_node(src)
+                    in_dtype = prov_dtypes[node2idx[src]]
+                    out_dtype = req_dtypes[eidx]
+
+                    print('---------')
+                    print(edge_str((src, node), node2idx))
+                    if 'float' in str(out_dtype):
+                        # dequantize
+                        out_scale = 1.0
+                        clip_min = float('nan')
+                        clip_max = float('nan')
+                        print('  not quantized'.format(edge_str((src, node))))
+                    else:
+                        bit = edge2bit[(src, node)]
+                        integer_range = 2 ** (bit - sign_bit)
+                        thold = thresholds[node2idx[src]]
+                        out_scale = thold / integer_range 
+                        clip_min = - (integer_range - 1)
+                        clip_max =    integer_range - 1
+                        print('  bit={}, threshold={}'.format(bit, thold))
+
+                    # print("{}[{}] -> {}[{}]".format(node_str(src), in_dtype, node_str(node), out_dtype))
+                    param = SimulatedQuantizeParams(in_scale, out_scale, clip_min, clip_max,
+                                                    in_dtype, out_dtype)
+                    print('  {}'.format(param))
+                    in_cond, in_expo = exponent_based_two(param.in_scale)
+                    assert in_cond, "scale={}, expo={}\nparam\{}".format(param.in_scale, in_expo, param)
+                    out_cond, out_expo = exponent_based_two(param.out_scale)
+                    assert out_cond, "scale={}, expo={}\nparam={}".format(param.out_scale, out_expo, param)
+                    internal_params.append(param)
+                return
+            if isinstance(node, relay.Function):
+                # handle output of function 
+                assert isinstance(node.body, relay.Call) 
+                node = node.body
+                print('---------')
+                print("{} -> OUT".format(node_str(node, node2idx)))
+                in_scale = infer_scale_for_node(node)
+                in_dtype = prov_dtypes[node2idx[node]]
+                out_dtype = DataType('float32')
+                out_scale = 1.0
+                param = SimulatedQuantizeParams(in_scale, out_scale, float('nan'), float('nan'),
+                                                in_dtype, out_dtype)
+                print('  {}'.format(param))
+                output_params.append(param)
+                return
+        relay.analysis.post_order_visit(graph, fvisit)
+
+        if current_qconfig().threshold_estimate_method == 'power_of_two_range':
+            # check all scale need to be power of 2
+            print('check scale to be power of two...')
+            params = internal_params + output_params
+            for param in params:
+                in_cond, in_expo = exponent_based_two(param.in_scale)
+                assert in_cond, "scale={}, expo={}\nparam\{}".format(param.in_scale, in_expo, param)
+                out_cond, out_expo = exponent_based_two(param.out_scale)
+                assert out_cond, "scale={}, expo={}\nparam={}".format(param.out_scale, out_expo, param)
+
+        return internal_params, output_params
+
+
+    def bind_simulated_graph(self, bits, thresholds):
+        # prepare parameters
+        internal_params, output_params = self.calculate_params(bits, thresholds)
+        param_map = {} 
+        for nodes, p in zip(self.internal_param_nodes, internal_params):
+            vals = [p.in_scale, p.out_scale, p.clip_min, p.clip_max]
+            for node, val in zip(nodes, vals):
+                param_map[node.name_hint] = tvm.nd.array(np.array(val, 'float32'))
+        for nodes, p in zip(self.output_param_nodes, output_params):
+            vals = [p.in_scale, p.out_scale, p.clip_min, p.clip_max]
+            for node, val in zip(nodes, vals):
+                param_map[node.name_hint] = tvm.nd.array(np.array(val, 'float32'))
+        binded_simulated_graph = relay.build_module.bind_params_by_name(self.simulated_graph, param_map)
+        return binded_simulated_graph
 
 
 
@@ -471,9 +488,10 @@ class Quantizer(object):
         self.thresholds = thresholds
 
     def simulate(self):
-        simulator = Simulator()
-        self.simulated_graph = simulator.simulate(self.original_graph, self.hardware, self.topology, self.bits, self.thresholds)
-        self._snode2cstr = simulator.snode2cstr
+        constraints = select_constraint(self.original_graph, self.hardware, self.topology, self.bits)
+        self._simulator = Simulator(self.original_graph, self.topology, constraints)
+        self._snode2cstr = self._simulator.snode2cstr
+        self.simulated_graph = self._simulator.bind_simulated_graph(self.bits, self.thresholds)
         return self.simulated_graph
 
     def quantize(self):
