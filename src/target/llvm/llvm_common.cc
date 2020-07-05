@@ -73,9 +73,8 @@ void ParseLLVMTargetOptions(const std::string& target_str, std::string* triple, 
   bool soft_float_abi = false;
   std::string key, value;
   std::istringstream is(target_str.substr(start, target_str.length() - start));
-
   while (is >> key) {
-    if (key == "--system-lib" || key == "-system-lib") {
+    if (key == "-system-lib" || key == "-system-lib=0" || key == "-system-lib=1") {
       continue;
     }
     size_t pos = key.find('=');
@@ -86,7 +85,7 @@ void ParseLLVMTargetOptions(const std::string& target_str, std::string* triple, 
     } else {
       CHECK(is >> value) << "Unspecified value for option " << key;
     }
-    if (key == "-target" || key == "-mtriple") {
+    if (key == "-mtriple") {
       *triple = value;
     } else if (key == "-mcpu") {
       *mcpu = value;
@@ -103,10 +102,6 @@ void ParseLLVMTargetOptions(const std::string& target_str, std::string* triple, 
       } else {
         LOG(FATAL) << "invalid -mfloat-abi option " << value;
       }
-    } else if (key == "-device" || key == "-libs" || key == "-model") {
-      // pass
-    } else {
-      LOG(FATAL) << "unknown option " << key;
     }
   }
 

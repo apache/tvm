@@ -58,7 +58,7 @@ WORKLOADS = [(56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
             ]
 
 
-TARGET_NAME = 'llvm -device=arm_cpu -target=aarch64-linux-gnu -mattr=+v8.2a,+dotprod'
+TARGET_NAME = 'llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod'
 NUM_VEC_LANES = 16
 CTX = tvm.context(TARGET_NAME, 0)
 
