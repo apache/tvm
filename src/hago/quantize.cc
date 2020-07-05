@@ -133,8 +133,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   auto* op = static_cast<const QConfigObj*>(ref.get());
   p->stream << "qconfig(";
   p->stream << "skip_conv_layers==" << op->skip_conv_layers << ", ";
-  p->stream << "search_strategy=" << op->search_strategy << ", ";
-  p->stream << "threshold_estimate_strategy=" << op->threshold_estimate_strategy << ", ";
+  p->stream << "threshold_estimate_method=" << op->threshold_estimate_method << ", ";
   p->stream << "global_scale=" << op->global_scale << ", ";
   p->stream << "log_file=" << op->log_file;
   p->stream << ")";

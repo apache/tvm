@@ -51,14 +51,6 @@ def select_constraint(graph, hardware, topology, bits):
                     selected = False
                     break
 
-            # finfer_bit = node.op.get_attr("FHagoInferBit")
-            # assert finfer_bit
-            # out_bits = finfer_bit(node.attrs, in_bits)
-            # for dtype, bit in zip(cstr.odtypes, out_bits):
-            #     if bit.value > dtype.bits:
-            #         selected = False
-            #         break
-
             if selected:
                 return cstr
         raise ValueError("No feasible constraint")
@@ -202,7 +194,7 @@ def calculate_params(graph, topology, constraints, bits, thresholds):
             return
     relay.analysis.post_order_visit(graph, fvisit)
 
-    if current_qconfig().threshold_estimate_strategy == 'power2_range':
+    if current_qconfig().threshold_estimate_method == 'power_of_two_range':
         # check all scale need to be power of 2
         print('check scale to be power of two...')
         params = internal_params + output_params
@@ -215,7 +207,7 @@ def calculate_params(graph, topology, constraints, bits, thresholds):
     return internal_params, output_params
 
 
-def prerequisite_optimize(mod, params=None):
+def prerequisite_optimize(func, params=None):
     """ Prerequisite optimization passes for quantization. Perform
     "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
     "CanonicalizeOps" optimization before quantization. """
@@ -226,11 +218,12 @@ def prerequisite_optimize(mod, params=None):
                                          relay.transform.FoldConstant()])
 
     if params:
-        mod['main'] = relay.build_module.bind_params_by_name(mod['main'], params)
+        func = relay.build_module.bind_params_by_name(func, params)
 
     with tvm.transform.PassContext(opt_level=3):
+        mod = tvm.IRModule.from_expr(func)
         mod = optimize(mod)
-    return mod
+    return mod['main']
 
 
 class Simulator(tvm.relay.ExprMutator):
@@ -251,17 +244,16 @@ class Simulator(tvm.relay.ExprMutator):
         self.internal_param_nodes = []
         self.output_param_nodes = []
         self.simulated_graph = self.visit(graph)
+        self._runtime = None
 
-    def eval(self, dataset, params, device='cpu'):
+
+    def eval(self, dataset, params, ctx, target):
         """compile simulated model and run it on the dataset"""
-        # prepare parameter mapping
-        if device == 'cpu':
-            target = 'llvm'
-            context = tvm.cpu()
-        elif device == 'gpu':
-            target = tvm.target.cuda()
-            context = tvm.gpu()
+        if self._runtime is None:
+            # print(self.simulated_graph)
+            self._runtime = relay.create_executor("graph", ctx=ctx, target=target).evaluate(self.simulated_graph)
 
+        # prepare parameters
         internal_params, output_params = params
         param_map = {} 
         for nodes, p in zip(self.internal_param_nodes, internal_params):
@@ -273,31 +265,12 @@ class Simulator(tvm.relay.ExprMutator):
             for node, val in zip(nodes, vals):
                 param_map[node.name_hint] = tvm.nd.array(np.array(val, 'float32'))
 
-        print(self.simulated_graph)
-        intrp = relay.create_executor("graph", ctx=context, target=target).evaluate(self.simulated_graph)
-
         outputs = []
-        num_correct = 0
-        num_samples = 0
         for batch_id, batch in enumerate(dataset):
-            output = intrp(batch['data'], **param_map).asnumpy()
-            # print('output')
-            # print(output)
-            predict = np.argmax(output, axis=1)
-            # print('predict')
-            # print(predict)
-            label = batch['label']
-            # print('label')
-            # print(label)
-            num_correct += np.sum(predict == label)
-            num_samples += output.shape[0]
-            outputs.append(output)
-        # flatten outputs
-        outputs = np.concatenate(outputs)
-        acc = num_correct / num_samples
-        print('accuracy: {}'.format(acc))
-        # raise ValueError
-        return outputs, acc
+            out = self._runtime(batch['data'], **param_map).asnumpy()
+            outputs.append(out)
+        return outputs
+
 
     def visit_call(self, node):
         new_node = super().visit_call(node)
@@ -513,6 +486,6 @@ class Quantizer(object):
 
 def create_quantizer(graph, hardware, strategy):
     # check model hash
-    model_hash = relay.analysis.structural_hash(graph)
+    model_hash = tvm.ir.structural_hash(graph)
     assert model_hash == strategy.model_hash
     return Quantizer(graph, hardware, strategy.topology, strategy.bits, strategy.thresholds)

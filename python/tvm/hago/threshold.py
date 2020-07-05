@@ -65,14 +65,14 @@ def threshold_estimate(graph, topology, bits, dataset=None, rectify=True):
     print('calculating threshold...')
     cfg = current_qconfig()
     stats = analysis.collect_stats(graph, dataset)
-    print('threshold strategy:')
-    print(cfg.threshold_estimate_strategy)
+    print('threshold method:')
+    print(cfg.threshold_estimate_method)
 
-    if cfg.threshold_estimate_strategy == 'global_scale':
+    if cfg.threshold_estimate_method == 'global_scale':
         thresholds = [cfg.global_scale for _ in exprs]
-    elif cfg.threshold_estimate_strategy == 'max_range':
+    elif cfg.threshold_estimate_method == 'max_range':
         thresholds = [stats.range(i) for i in range(len(stats))]
-    elif cfg.threshold_estimate_strategy == 'power2_range':
+    elif cfg.threshold_estimate_method == 'power_of_two_range':
         thresholds = [stats.power2_range(i) for i in range(len(stats))]
     else:
         raise ValueError

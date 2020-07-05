@@ -59,15 +59,13 @@ class QConfig;
 class QConfigObj : public Object {
  public:
   Array<PrimExpr> skip_conv_layers = Array<PrimExpr>(ObjectPtr<Object>(nullptr));
-  std::string search_strategy = "simulated_annealing";
-  std::string threshold_estimate_strategy = "power2_range";
+  std::string threshold_estimate_method = "power_of_two_range";
   double global_scale = 8.0;
   std::string log_file = ".quantize_strategy_search.log";
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("skip_conv_layers", &skip_conv_layers);
-    v->Visit("search_strategy", &search_strategy);
-    v->Visit("threshold_estimate_strategy", &threshold_estimate_strategy);
+    v->Visit("threshold_estimate_method", &threshold_estimate_method);
     v->Visit("global_scale", &global_scale);
     v->Visit("log_file", &log_file);
   }

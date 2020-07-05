@@ -153,44 +153,6 @@ _reg.register_schedule("hago.simulated_quantize", tvm.relay.op.strategy.schedule
 _reg.register_pattern("hago.simulated_quantize", _reg.OpPattern.OPAQUE)
 
 
-# constraint function registered for ops
-# used for inferring output data type
-# out_dtype.bits >= out_bit
-
-def register_infer_bit(op_name, finfer_bit=None, level=10):
-    return tvm.ir.register_op_attr(op_name, "FHagoInferBit", finfer_bit, level)
-
-def max_bit(attrs, in_bits):
-    in_bits = [bit.value for bit in in_bits]
-    return [max(in_bits)]
-
-register_infer_bit("nn.relu", max_bit)
-register_infer_bit("nn.max_pool2d", max_bit)
-
-def carry_one_bit(attrs, in_bits):
-    # max(in_bits[0] - 1, in_bits[1] - 1) + 1 <= (out_bit - 1)
-    assert len(in_bits) == 2
-    in_bits = [bit.value for bit in in_bits]
-    return [max(in_bits) + 1] 
-
-register_infer_bit("add", carry_one_bit)
-
-@register_infer_bit("nn.conv2d")
-def infer_bit_for_conv2d(attrs, in_bits):
-    # (in_bits[0] - 1) + (in_bits[1] - 1) + 1 <= (out_bit - 1)
-    assert len(in_bits) == 2
-    kernel_size = [k.value for k in attrs["kernel_size"]]
-    size = functools.reduce(lambda x, y: x*y, kernel_size, 1.0) 
-    extra_bit = np.ceil(np.math.log(size, 2))
-    print('kernel_size: {}'.format(kernel_size))
-    print('extra bit for conv2d: {}'.format(extra_bit))
-    assert extra_bit >= 0
-    in_bits = [bit.value for bit in in_bits]
-    out_bit = in_bits[0] + in_bits[1] + int(extra_bit)
-    print('out bit: {}'.format(out_bit))
-    return [out_bit]
-
-
 # infer scale function registered for ops
 
 def register_infer_scale(op_name, finfer_scale=None, level=10):

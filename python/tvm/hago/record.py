@@ -2,9 +2,10 @@ from __future__ import absolute_import
 
 import json
 from json import JSONEncoder
+from enum import IntEnum
 from .topology import Topology
 
-HAGO_LOG_VERSION = 0.1
+HAGO_LOG_VERSION = 0.11
 
 class Strategy(object):
     def __init__(self, model_hash, topology, bits, thresholds):
@@ -20,24 +21,52 @@ class Strategy(object):
                 ', thresholds=' + str(self.thresholds) + ')'
 
 
+class MeasureKind(object):
+    MEASURE_KEYS = ['accuracy', 'kl_distance']
+    Accuracy = 0
+    # KLDistance = 1
+    @staticmethod
+    def enum_to_str(kind):
+        assert kind < len(MeasureKind.MEASURE_KEYS)
+        return MeasureKind.MEASURE_KEYS[kind]
+
+    @staticmethod
+    def str_to_enum(key): 
+        assert key in MeasureKind.MEASURE_KEYS
+        return MeasureKind.MEASURE_KEYS.index(key)
+
 
 # TODO(ziheng): consider multiple measure metric in the future: latency, energy, etc 
 class MeasureResult(object):
-    def __init__(self, sim_acc=None, quant_acc=None, kl_divergence=None):
-        self.sim_acc = sim_acc
-        self.quant_acc = quant_acc
-        self.kl_divergence = kl_divergence
+    def __init__(self, accuracy=None, kl_distance=None):
+        self.accuracy = accuracy
+        self.kl_distance = kl_distance
 
     def __str__(self):
-        return 'MeasureResult(sim_acc=' + str(self.sim_acc) + \
-                ', quant_acc=' + str(self.quant_acc) + \
-                ', kl_divergence=' + str(self.kl_divergence) + ')'
+        keys = self.__dict__.keys()
+        pairs = [key + '=' + str(getattr(self, key)) for key in keys]
+        return 'MeasureResult(' +  ', '.join(pairs) + ')'
 
 class Measure(object):
     def __init__(self, strategy, result):
         self.version = HAGO_LOG_VERSION
         self.strategy = strategy
         self.result = result
+
+    def __str__(self):
+        return 'Measure(version=' + str(self.version) + \
+                ', strategy=' + str(self.strategy) + \
+                ', result=' + str(self.result) + \
+                ')'
+
+
+def best_measure(measures, kind):
+    def compare_key(m):
+        key = MeasureKind.enum_to_str(kind)
+        attr = getattr(m.result, key)
+        nbit = sum(m.strategy.bits)
+        return (attr, nbit)
+    return max(measures, key=compare_key)
 
 
 def serialize(obj):
@@ -64,10 +93,9 @@ def deserialize(json_str):
         return Strategy(model_hash, topology, bits, thresholds)
     
     def decode_result(obj):
-        sim_acc = obj['sim_acc']
-        quant_acc = obj['quant_acc']
-        kl_divergence = obj['kl_divergence']
-        return MeasureResult(sim_acc, quant_acc, kl_divergence)
+        sim_acc = obj['accuracy']
+        kl_distance = obj['kl_distance']
+        return MeasureResult(accuracy, kl_distance)
     
     json_data = json.loads(json_str)
     measure = {}
@@ -85,6 +113,7 @@ def load_from_file(fname):
     return records
 
 
+# FIXME(ziheng))
 def pick_best(fname, key):
     records = load_from_file(fname)
     records.sort(key=lambda rec: getattr(rec['result'], key))

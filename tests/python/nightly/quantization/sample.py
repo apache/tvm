@@ -8,35 +8,48 @@ def create_hardware():
     hardware['nn.dense'].append(hago.OpDesc(idtypes=['int8', 'int8'], odtypes=['int32']))
     return hardware
 
+
+def test_dense(ishape=(32, 16), wshape=(10, 16), batch_num=3):
+    data = relay.var('data', shape=ishape)
+    weight = relay.var('weight', shape=wshape)
+    out = relay.nn.dense(data, weight)
+    func = relay.Function([data, weight], out)
+
+    weight_np = np.random.rand(*wshape).astype('float32')
+
+    # generate dataset
+    dataset = []
+    for i in range(batch_num):
+        data_np = np.random.rand(*ishape).astype('float32')
+        ex = relay.create_executor("debug", ctx=ctx, target=target)
+        out_np = ex.evaluate(func)(data_np, weight_np).asnumpy()
+        pred_np = np.argmax(out_np, axis=1)
+        dataset = [{'data': data_np, 'label': pred_np}]
+
+    params = {'weight': tvm.nd.array(weight_np)}
+    return func, params, dataset
+
+def test_conv2d():
+    pass
+
+
 target = 'llvm'
 ctx = tvm.cpu()
+# prepared by user
 hardware = create_hardware()
+func, params, dataset = test_dense() 
 
-ishape = (1, 16)
-wshape = (10, 16)
-
-data = relay.var('data', shape=ishape)
-weight = relay.var('weight', shape=wshape)
-out = relay.nn.dense(data, weight)
-func = relay.Function([data, weight], out)
-
-data_np = np.random.rand(*ishape).astype('float32')
-weight_np = np.random.rand(*wshape).astype('float32')
-out_np = np.matmul(data_np, weight_np.transpose())
-pred_np = np.argmax(out_np, axis=1)
-
-mod = tvm.IRModule()
-mod['main'] = func
-mod = hago.prerequisite_optimize(mod, {'weight': tvm.nd.array(weight_np)})
-ex = relay.create_executor("debug", mod=mod, ctx=ctx, target=target)
-out_np = ex.evaluate()(data_np)
-print('real out')
-print(out_np)
-dataset = [{'data': data_np, 'label': pred_np}]
-strategy, acc = hago.batched_search_quantize_strategy(mod, hardware, dataset=dataset)
-
-# graph = relay.create_executor('graph')
-# print(pred_np)
-# out = graph.evaluate(func)(data_np)
-# print(out.asnumpy())
-
+qconfig = hago.qconfig(skip_conv_layers=[0],
+                       log_file='temp.log',
+                       threshold_estimate_method="power_of_two_range")
+with qconfig:
+    func = hago.prerequisite_optimize(func, params)
+    space = hago.generate_search_space(func, hardware)
+    tuner = hago.BatchedGreedySearchTuner(space, 'accuracy')
+    strategy, result = hago.search_quantize_strategy(func, hardware, dataset, tuner, ctx, target)
+    print(strategy)
+    print(result)
+    raise ValueError
+    quantizer = hago.create_quantizer(func, hardware, strategy)
+    simulated_graph = quantizer.simulate()
+    quantized_graph = quantizer.quantize()

@@ -45,8 +45,7 @@ class QConfig(Object):
 
     _node_defaults = {
         "skip_conv_layers": [0],
-        "search_strategy": "simulated_annealing",
-        "threshold_estimate_strategy": "power2_range",
+        "threshold_estimate_method": "power_of_two_range",
         "global_scale": 8.0,
         "log_file": ".quantize_strategy_search.log",
         # "do_simulation": False,
@@ -377,20 +376,11 @@ def print_scale_info(graph, bits, thresholds):
     relay.analysis.post_order_visit(graph, fvisit_print)
 
 
-def eval_acc(func, dataset, device='gpu'):
-    if device == 'cpu':
-        target = 'llvm'
-        context = tvm.cpu()
-    elif device == 'gpu':
-        target = tvm.target.cuda()
-        context = tvm.gpu(2)
-    else:
-        raise ValueError
-
+def eval_acc(func, dataset, ctx=tvm.cpu(), target="llvm"):
     with relay.transform.build_config(opt_level=2):
         graph, lib, params = relay.build_module.build(func, target=target)
     outputs = []
-    runtime = tvm.contrib.graph_runtime.create(graph, lib, context)
+    runtime = tvm.contrib.graph_runtime.create(graph, lib, ctx)
     runtime.set_input(**params)
 
     num_outputs = runtime.get_num_outputs()

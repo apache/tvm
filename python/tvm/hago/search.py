@@ -39,8 +39,8 @@ from collections import namedtuple
 
 #TODO(ziheng): unify topology and constraints
 
-
-def generate_choices(graph, hardware, topology):
+def generate_search_space(graph, hardware):
+    topology = analyze_topology(graph, hardware)
     def get_in_bits(hardware, node):
         in_bits = [None] * len(node.args)
         int_cstrs = integer_constraints(hardware[node.op])
@@ -87,180 +87,8 @@ def generate_choices(graph, hardware, topology):
     return choices
 
 
-# TODO(ziheng) consider general structural search
-class SearchSpace(object):
-    def __init__(self):
-        pass
-
-    def random_sample(self):
-        pass
-
-    def next(self):
-        pass
-
-    def verify(self, combination):
-        pass
-
-    def neighbour(self, point, distance, portion):
-        pass
 
 
-
-# Primitive FVerify:
-# def verify(op, bits):
-# """bits = [in_bits] + [out_bits]"""
-
-# Composed FVerify:
-# bits
-
-
-def create_search_space(graph, topology, choices):
-    def group_cstrs(cstrs):
-        """ quick union find algorithm """
-        edge2idx = build_edge_index(graph)
-        eidx2father = {} # edge index to parent edge index
-        # initial
-        print('initial')
-        for cstr in cstrs:
-            for edge in cstr.edges:
-                eidx = edge2idx[edge]
-                eidx2father[eidx] = eidx
-
-        def find_root(eidx):
-            father_idx = eidx2father[eidx]
-            if father_idx == eidx:
-                return eidx
-            return find_root(father_idx)
-
-        print('union')
-        # union edges 
-        for cstr in cstrs:
-            roots = [find_root(edge2idx[edge]) for edge in cstr.edges]
-            root = min(roots)
-            for edge in cstr.edges:
-                eidx2father[find_root(edge2idx[edge])] = root
-
-        print('group')
-        # group constraints
-        root2gidx = {}
-        groups = [] 
-        for cstr in cstrs:
-            root = find_root(edge2idx[cstr.edges[0]])
-            print('root: {0}'.format(root))
-            if root not in root2gidx:
-                root2gidx[root] = len(groups)
-                groups.append([])
-            gidx = root2gidx[root]
-            print('gidx: {}'.format(gidx))
-            groups[gidx].append(cstr)
-        return groups
-
-    def merge_cstrs(cstrs):
-        print('begin group constraints')
-        groups = group_cstrs(cstrs)
-        node2idx = build_node_index(graph)
-        print('finished group constraints')
-        for gidx, group in enumerate(groups):
-            print('group {}:'.format(gidx))
-            edges = set(edge for cstr in group for edge in cstr.edges)
-            for edge in edges:
-                print(edge_str(edge, node2idx))
-
-        raise ValueError
-        new_cstrs = []
-        for group in groups:
-            if len(group) == 1:
-                new_cstrs.append(cstr)
-            else:
-                composed_cstr = group[0]
-                # TODO(ziheng): change to two-way merge
-                for cstr in group[1:]:
-                    edges = (composed_cstr.edges, cstr.edges)
-                    fverify = lambda atuple: composed_cstr.fverify(atuple[0]) and cstr.fverify(atuple[1]) 
-                new_cstrs.append(Constraint(edges, fverify))
-        return new_cstrs
-
-    Constraint = namedtuple('Constraint', ['edges', 'fverify'])
-    edge2choices = build_edge_dict(graph, choices, topology.edge_conds)
-    node2edges = build_node2edges(graph)
-    constraints = []
-    # [([edge0, edge1], [edge2]) -> fverify0, 
-    #  ([edge2, edge3], [edge4]) -> fverify1,
-    #  ...
-    # ]
-    def fvisit(node):
-        if isinstance(node, relay.Call):
-            fverify = node.op.get_attr('FHagoVerify')
-            if fverify:
-                in_edges = [(src, node) for src in node.args]
-                out_edges = node2edges[node]
-                constraints.append(Constraint(in_edges + out_edges, fverify))
-    relay.analysis.post_order_visit(graph, fvisit)
-    grouped_cstrs = merge_cstrs(constraints)
-    # [binary_tree_of_edge -> fverify
-    #   where fveify is:
-    #     lambda tuple: fverify0(tree(0)) and fverify(tree(1)))
-    #  ...
-    # ]
-
-    # realize to space
-    def flatten(tree_edges):
-        """edges can be a tree""" 
-        if isinstance(tree_edges, list):
-            # base case
-            return set(tree_edges)
-        lset = flatten(tree_edges[0])
-        rset = flatten(tree_edges[1])
-        return lset.union(rset)
-
-    def build_tree(tree_edges, edge2choice):
-        if isinstance(item, list):
-            # base case
-            return list(map(lambda x: edge2choice[x], item))
-        ltree = build_tree(tree_edges[0], edge2choice)
-        rtree = build_tree(tree_edges[1], edge2choice)
-        return (ltree, rtree)
-
-    def combine(edge_list, edge2choices):
-        choices_list = list(map(lambda x: edge2choices[edge], edge_list))
-        return itertools.product(*choices_list)
-
-    space = dict() 
-    combined_edges = []
-    for item in grouped_cstrs:
-        list_edges = list(flatten(item.edges))
-        combined_edges.append(list_edges)
-        # verify feasible combinations
-        combinations = []
-        for comb in combine(list_edges, edge2choices):
-            edge2choice = []
-            for edge, choice in zip(list_edges, comb):
-                edge2choice[edge] = choice
-            tree_args = build_tree(item.edges, edge2choice)
-            if item.fverify(tree_args):
-                combinations.append(comb)
-        space[list_edges].append(combinations)
-
-    for edge, choices in edge2choices.items():
-        if edge not in combined_edges:
-            space[edge] = choices
-
-    # space = [
-    #     edge0: [4, 5, ... 8],
-    #     (edge1, edge2, edge5): [(4, 4, 9), (4, 4, 10), ...],
-    #     edge3: [4, 5, ... 8],
-    #     ]
-
-    # random_sample
-    # choice = [
-    #   edge0: 4
-    #   edge1: 5
-    #   edge2: 5
-    #   edge5: 11
-    #   edge3: 8
-    #   ...
-    #   ]
-    return 0
 
 
 def grid_search(f, domains, args, max_iter=1000):
@@ -433,7 +261,7 @@ def calculate_kl(out_x, out_y):
 
 
 
-def search_quantize_strategy(mod, hardware, dataset=None):
+def old_search_quantize_strategy(mod, hardware, dataset=None):
     graph = mod['main']
     fout = open(current_qconfig().log_file, 'w+', buffering=1)
     origin_out, origin_acc = eval_acc(graph, dataset)
@@ -480,11 +308,35 @@ def search_quantize_strategy(mod, hardware, dataset=None):
     return best_strategy, best_acc
 
 
-def group_same_graph_guesses(graph, hardware, topology, decided, choices, default):
+def _accuracy_as_measure(graph, dataset, simulated_out):
+    # return a MeasureResult
+    num_samples = 0
+    num_correct = 0
+    for idx, batch in enumerate(dataset):
+        assert 'label' in batch
+        label = batch['label'] 
+        sim_out = simulated_out[idx]
+        sim_pred = np.argmax(sim_out, axis=1)
+        # pre-calculated label in the provided dataset
+        num_correct += np.sum(sim_pred == label) 
+        num_samples += label.shape[0]
+    acc = num_correct / num_samples
+    return MeasureResult(accuracy=acc)
+
+
+def get_measure_func(kind):
+    # return a function: (graph, dataset, simulated_out) -> MeasureResult
+    mapping = {
+        MeasureKind.Accuracy: _accuracy_as_measure,
+    }
+    assert kind in mapping, 'not exist measure: {}'.format(kind)
+    return mapping[kind]
+
+
+def _group_same_graph(graph, hardware, topology, bits_list):
     """group guesses which can share the same graph"""
     constraints = []
-    for choice in choices:
-        bits = decided + [choice] + default
+    for bits in bits_list:
         cstrs = qtz.select_constraint(graph, hardware, topology, bits)
         constraints.append((cstrs, bits))
 
@@ -508,7 +360,111 @@ def group_same_graph_guesses(graph, hardware, topology, decided, choices, defaul
     return groups
 
 
-def batched_search_quantize_strategy(mod, hardware, dataset=None):
+# TODO(tvm-team): unify hago.tuner and autotvm.tuner to a general combinatorial
+# optimization framework
+class Tuner(object):
+    def __init__(self, space, objective, max_trials=None):
+        # support different objective: accuracy, kl, transfer_learning_loss
+        self.space = space
+        self.measure_kind = objective
+        if isinstance(self.measure_kind, str):
+            self.measure_kind = MeasureKind.str_to_enum(self.measure_kind)
+        self.measure_func = get_measure_func(self.measure_kind) 
+        self.best_measure = None
+        self.max_trials = max_trials
+        if max_trials is None:
+            self.max_trials = math.inf
+
+    def has_next(self):
+        pass
+
+    def next_trials(self):
+        pass
+
+    def update(self, measures):
+        pass
+
+    def tune(self, graph, hardware, dataset, ctx, target):
+        self.graph = graph
+        self.hardware = hardware
+        self.model_hash = tvm.ir.structural_hash(graph)
+        self.topology = analyze_topology(graph, hardware)
+        self.dataset = dataset
+        self.ctx = ctx
+        self.target = target
+
+        num_trials = 0
+        while num_trials < self.max_trials:
+            if not self.has_next():
+                break
+
+            trials = self.next_trials()
+            measures = self._measure(trials)
+
+            self.update(measures)
+            num_trials += len(measures)
+        return self.best_measure
+
+    def _update_best_measure(self, measures):
+        if self.best_measure is None:
+            self.best_measure = best_measure(measures, self.measure_kind)
+        else:
+            temp = [m for m in measures]
+            temp.append(self.best_measure)
+            self.best_measure = best_measure(temp, self.measure_kind)
+
+        print('measures')
+        print(measures)
+        print('best_measure')
+        print(self.best_measure)
+        return self.best_measure
+
+    def _measure(self, bits_list):
+        # support single sample measure and batched measure
+        # [bits] -> Measure(strategy, MeasureResult)
+        results = []
+        if isinstance(bits_list, list):
+            groups = _group_same_graph(self.graph, self.hardware, self.topology, bits_list)
+            for simulator, grouped_guesses in groups:
+                constraints = simulator.constraints
+                for bits in grouped_guesses:
+                    # TODO(ziheng) move thresholds outside
+                    thresholds = threshold_estimate(self.graph, self.topology, bits, self.dataset)
+                    params = qtz.calculate_params(self.graph, self.topology, constraints, bits, thresholds)
+                    simulated_out = simulator.eval(self.dataset, params, self.ctx, self.target)
+                    measure_result = self.measure_func(self.graph, self.dataset, simulated_out)
+                    strategy = Strategy(self.model_hash, self.topology, bits, thresholds)
+                    results.append(Measure(strategy, measure_result))
+            return results
+        else:
+            raise ValueError
+
+
+
+class BatchedGreedySearchTuner(Tuner):
+    def __init__(self, space, objective, max_trials=None):
+        super(BatchedGreedySearchTuner, self).__init__(space, objective, max_trials)
+        self.dim_idx = 0
+        self.decided = []
+        self.default = [choices[0] for choices in space]
+
+    def has_next(self):
+        return self.dim_idx < len(self.space)
+
+    def next_trials(self):
+        trials = [self.decided + [choice] + self.default[self.dim_idx+1:]
+                  for choice in self.space[self.dim_idx]]
+        return trials
+
+    def update(self, measures):
+        ms = self._update_best_measure(measures)
+        best_bit = ms.strategy.bits[self.dim_idx]
+        self.decided.append(best_bit)
+        self.dim_idx += 1
+
+
+
+def search_quantize_strategy(graph, hardware, dataset, tuner, ctx, target):
     # (data_0, scale_0, clip_min_0)
     # (data_1, scale_0, clip_min_0)
     # (data_2, scale_0, clip_min_0)
@@ -523,42 +479,11 @@ def batched_search_quantize_strategy(mod, hardware, dataset=None):
     # (data_1, scale_0, clip_min_0)
     # (data_2, scale_0, clip_min_0)
     # accuracy
-
-    # generate best scale and clip_min
-    # jump to the next domain
-    graph = mod['main']
-    fout = open(current_qconfig().log_file, 'w+', buffering=1)
-    origin_out, origin_acc = eval_acc(graph, dataset)
+    assert isinstance(graph, relay.Function)
+    qconfig = current_qconfig()
+    fout = open(qconfig.log_file, 'w+', buffering=1)
+    origin_out, origin_acc = eval_acc(graph, dataset, ctx, target)
     print('original acc: {}'.format(origin_acc))
-    topology = analyze_topology(graph, hardware)
-    choices = generate_choices(graph, hardware, topology)
-    # search_space = create_search_space(graph, topology, choices)
-    model_hash = tvm.ir.structural_hash(graph)
 
-    print(choices)
-    dim_idx = 0
-    decided = []
-    default = [bits[0] for bits in choices]
-    while dim_idx < len(choices):
-        groups = group_same_graph_guesses(graph, hardware, topology,
-                                          decided, choices[dim_idx], default[dim_idx+1:])
-
-        results = []
-        for simulator, grouped_guesses in groups:
-            constraints = simulator.constraints
-            for bits in grouped_guesses:
-                thresholds = threshold_estimate(graph, topology, bits, dataset)
-                params = qtz.calculate_params(graph, topology, constraints, bits, thresholds)
-                _, simulated_acc = simulator.eval(dataset, params)
-                strategy = Strategy(model_hash, topology, bits, thresholds)
-                results.append((strategy, simulated_acc))
-                measure = Measure(strategy, MeasureResult(sim_acc=simulated_acc))
-                fout.write(serialize(measure))
-                fout.write('\n')
-        best_strategy, best_acc = max(results, key=lambda item: (item[1], -sum(item[0].bits)))
-        best_bit = strategy.bits[dim_idx]
-        print('choose {} for the {}th bit, accuracy is: {}'.format(best_bit, dim_idx, best_acc))
-        decided.append(best_bit)
-        dim_idx += 1
-    fout.close()
-    return best_strategy, best_acc
+    measure = tuner.tune(graph, hardware, dataset, ctx, target)
+    return measure.strategy, measure.result
