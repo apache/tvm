@@ -59,7 +59,7 @@ def select_constraint(graph, hardware, topology, bits):
     print('\nselect constraints')
     node2idx = build_node_index(graph)
     edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
-    constraints = []
+    constraints = [None] * len(node2idx)
 
     def fvisit(node):
         if isinstance(node, relay.Call):
@@ -73,12 +73,12 @@ def select_constraint(graph, hardware, topology, bits):
             cstr = select(node, in_bits, hardware)
             print('  {0}'.format(cstr))
             assert len(cstr.odtypes) == 1 
-            constraints.append(cstr)
+            constraints[node2idx[node]] = cstr
     relay.analysis.post_order_visit(graph, fvisit)
     return constraints  
 
 
-def infer_quantized_dtypes(graph, node2cstr):
+def infer_quantized_dtypes(graph, constraints):
     def assign_dtype(dtypes, idx, dtype):
         if dtypes[idx] is not None:
             assert dtypes[idx] == dtype, "previous dtype: {}, current dtype: {}".format(dtypes[idx], dtype)
@@ -97,7 +97,8 @@ def infer_quantized_dtypes(graph, node2cstr):
         if isinstance(node, (relay.Var, relay.Constant)):
             prov_dtypes[node2idx[node]] = DataType("float32")
         if isinstance(node, relay.Call):
-            if node2cstr[node] is None:
+            cstr = constraints[node2idx[node]]
+            if cstr is None:
                 # use float computation
                 prov_dtypes[node2idx[node]] = DataType('float32')
                 for src in node.args:
@@ -105,7 +106,6 @@ def infer_quantized_dtypes(graph, node2cstr):
                     req_dtypes[eidx] = DataType('float32')
                 return
 
-            cstr = node2cstr[node]
             assign_dtype(prov_dtypes, node2idx[node], cstr.odtype(0))
 
             for src, dtype in zip(node.args, cstr.idtypes):
@@ -147,10 +147,8 @@ class Simulator(tvm.relay.ExprMutator):
         self._name_cnt = 0
         self._node2idx = build_node_index(graph)
         self._edge2idx = build_edge_index(graph)
-        self._node2cstr = build_node_dict(graph, constraints, topology.node_conds) 
-        self._prov_dtypes, self._req_dtypes = infer_quantized_dtypes(graph, self._node2cstr)
+        self._prov_dtypes, self._req_dtypes = infer_quantized_dtypes(graph, constraints)
 
-        self.snode2cstr = {}
         self.internal_param_nodes = []
         self.output_param_nodes = []
         self.simulated_graph = self.visit(graph)
@@ -207,9 +205,7 @@ class Simulator(tvm.relay.ExprMutator):
                                                    True,
                                                    "round")
             new_args.append(new_arg)
-            self.snode2cstr[new_arg] = None
         new_node = relay.Call(new_node.op, new_args, new_node.attrs)
-        self.snode2cstr[new_node] = self._node2cstr[node]
         return new_node
 
     def visit_function(self, fn):
@@ -250,10 +246,9 @@ class Simulator(tvm.relay.ExprMutator):
         node2idx  = build_node_index(graph)
         assert len(thresholds) == len(node2idx)
         edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
-        node2cstr = build_node_dict(graph, constraints, topology.node_conds) 
 
         # graph, topology, bits, constraints
-        prov_dtypes, req_dtypes = infer_quantized_dtypes(graph, node2cstr)
+        prov_dtypes, req_dtypes = infer_quantized_dtypes(graph, constraints)
 
         # num of edges + number of output edges
         internal_params, output_params = [], []
@@ -350,52 +345,36 @@ class Simulator(tvm.relay.ExprMutator):
         return binded_simulated_graph
 
 
+class Realizer(tvm.relay.ExprMutator):
+    def __init__(self, original_graph, simulated_graph, constraints):
+        super().__init__()
+        self._original_graph = original_graph
+        self._simulated_graph = simulated_graph
+        self._constraints = constraints
+        self._node2idx = build_node_index(original_graph)
+        self._snode2idx = build_node_index(simulated_graph)  # for printing debug info
+        self._snode2node = build_node_mapping(simulated_graph, original_graph)
 
-def _realize(simulated_graph, node2cstr):
-    def transform_scale(data, in_scale, out_scale, dtype):
-        """calculate `data * in_scale / out_scale`"""
-        if math.isclose(in_scale, out_scale):
-            return data
+    def realize(self):
+        return self.visit(self._simulated_graph)
 
-        def use_shift(in_val, out_val):
-            # whether to use shift, consider floating point numeric error
-            in_cond, in_exp = exponent_based_two(in_val) 
-            out_cond, out_exp = exponent_based_two(out_val) 
-            if in_cond and out_cond:
-                return True, in_exp - out_exp 
-            return exponent_based_two(in_val / out_val)
+    def visit_call(self, node):
+        new_node = super().visit_call(node)
+        if node.op.name == "hago.simulated_quantize":
+            print('---------')
+            print('simulated_quantize({})'.format(node_str(node.args[0], self._snode2idx)))
+            new_node = self._realize_simulated_quantize(new_node)
+            return new_node
+        nidx = self._node2idx[self._snode2node[node]]
+        cstr = self._constraints[nidx]
+        frealize = node.op.get_attr("FHagoRealize")
+        if frealize and cstr is not None:
+            in_dtypes = list(map(str, cstr.idtypes))
+            out_dtypes = list(map(str, cstr.odtypes))
+            new_node = frealize(new_node, in_dtypes, out_dtypes)
+        return new_node
 
-        factor = in_scale / out_scale
-        do_shift, shift_factor = use_shift(in_scale, out_scale)
-        print('  factor: {}'.format(factor))
-        print('  shift_factor: {}'.format(shift_factor))
-        print('  rounded shift_factor: {}'.format(round(shift_factor)))
-        if do_shift:
-            if shift_factor > 0:
-                print('  use left shift')
-                out = relay.left_shift(data, relay.const(round(shift_factor), dtype))
-            else:
-                print('  use right shift')
-                # TODO(ziheng) statistic bias
-                # add bias for rounding
-                shift_factor = - round(shift_factor)
-                out = data + relay.const(2**(shift_factor - 1), dtype)
-                out = relay.right_shift(out, relay.const(shift_factor, dtype))
-        elif math.isclose(factor, round(factor)):
-            print('  use integer multiply')
-            # TODO(ziheng) overflow risk
-            out = relay.multiply(data, relay.const(factor, dtype))
-        else:
-            print('  use float multiply')
-            # TODO(ziheng) rounding
-            out = relay.cast(data, "float32")
-            out = relay.multiply(out, relay.const(factor, 'float32'))
-            out = relay.round(out)
-            out = relay.cast(out, dtype)
-            raise ValueError
-        return out
-    
-    def realize_simulated_quantize(node):
+    def _realize_simulated_quantize(self, node):
         data, in_scale, out_scale, clip_min, clip_max = node.args
         attrs = node.attrs
         in_scale = to_scalar(in_scale)
@@ -437,7 +416,7 @@ def _realize(simulated_graph, node2cstr):
                 # pre-casting
                 data = relay.cast(data, out_dtype)
                 dtype = out_dtype
-            data = transform_scale(data, in_scale, out_scale, dtype)
+            data = self._transform_scale(data, in_scale, out_scale, dtype)
             print('  clip min: {}'.format(clip_min))
             print('  clip max: {}'.format(clip_max))
             data = relay.clip(data, clip_min, clip_max)
@@ -445,37 +424,50 @@ def _realize(simulated_graph, node2cstr):
                 data = relay.cast(data, out_dtype)
             return data
 
-    class Realizer(tvm.relay.ExprMutator):
-        def __init__(self):
-            super().__init__()
+    def _transform_scale(self, data, in_scale, out_scale, dtype):
+        """calculate `data * in_scale / out_scale`"""
+        if math.isclose(in_scale, out_scale):
+            return data
 
-        def realize(self, graph):
-            self.node2idx = build_node_index(graph)
-            return self.visit(graph)
+        def use_shift(in_val, out_val):
+            # whether to use shift, consider floating point numeric error
+            in_cond, in_exp = exponent_based_two(in_val) 
+            out_cond, out_exp = exponent_based_two(out_val) 
+            if in_cond and out_cond:
+                return True, in_exp - out_exp 
+            return exponent_based_two(in_val / out_val)
 
-        def visit_call(self, node):
-            new_node = super().visit_call(node)
-            if node.op.name == "hago.simulated_quantize":
-                print('---------')
-                print('simulated_quantize({})'.format(node_str(node.args[0], self.node2idx)))
-                new_node = realize_simulated_quantize(new_node)
-                return new_node
-            cstr = node2cstr[node]
-            frealize = node.op.get_attr("FHagoRealize")
-            if frealize and cstr is not None:
-                in_dtypes = list(map(str, cstr.idtypes))
-                out_dtypes = list(map(str, cstr.odtypes))
-                new_node = frealize(new_node, in_dtypes, out_dtypes)
-            return new_node
+        factor = in_scale / out_scale
+        do_shift, shift_factor = use_shift(in_scale, out_scale)
+        print('  factor: {}'.format(factor))
+        print('  shift_factor: {}'.format(shift_factor))
+        print('  rounded shift_factor: {}'.format(round(shift_factor)))
+        if do_shift:
+            if shift_factor > 0:
+                print('  use left shift')
+                out = relay.left_shift(data, relay.const(round(shift_factor), dtype))
+            else:
+                print('  use right shift')
+                # TODO(ziheng) statistic bias
+                # add bias for rounding
+                shift_factor = - round(shift_factor)
+                out = data + relay.const(2**(shift_factor - 1), dtype)
+                out = relay.right_shift(out, relay.const(shift_factor, dtype))
+        elif math.isclose(factor, round(factor)):
+            print('  use integer multiply')
+            # TODO(ziheng) overflow risk
+            out = relay.multiply(data, relay.const(factor, dtype))
+        else:
+            print('  use float multiply')
+            # TODO(ziheng) rounding
+            out = relay.cast(data, "float32")
+            out = relay.multiply(out, relay.const(factor, 'float32'))
+            out = relay.round(out)
+            out = relay.cast(out, dtype)
+            raise ValueError
+        return out
+
     
-    # print('selected op description')
-    # for key in node2cstr:
-    #     print('{}: {}'.format(node_str(key), node2cstr[key]))
-
-    quantized_graph = Realizer().realize(simulated_graph)
-    return quantized_graph
-
-
 class Quantizer(object):
     def __init__(self, graph, hardware, topology, bits, thresholds):
         self.original_graph = graph
@@ -488,18 +480,18 @@ class Quantizer(object):
         self.thresholds = thresholds
 
     def simulate(self):
-        constraints = select_constraint(self.original_graph, self.hardware, self.topology, self.bits)
-        self._simulator = Simulator(self.original_graph, self.topology, constraints)
-        self._snode2cstr = self._simulator.snode2cstr
+        self.constraints = select_constraint(self.original_graph, self.hardware, self.topology, self.bits)
+        self._simulator = Simulator(self.original_graph, self.topology, self.constraints)
         self.simulated_graph = self._simulator.bind_simulated_graph(self.bits, self.thresholds)
         return self.simulated_graph
 
     def quantize(self):
         if self.simulated_graph is None:
             self.simulate()
-        self.quantized_graph = _realize(self.simulated_graph, self._snode2cstr)
-        a = relay.transform.InferType()(relay.module.Module.from_expr(self.quantized_graph))
-        # print(a)
+        self._realizer = Realizer(self.original_graph, self.simulated_graph, self.constraints)
+        self.quantized_graph = self._realizer.realize()
+        mod = relay.transform.InferType()(tvm.IRModule.from_expr(self.quantized_graph))
+        self.quantized_graph = mod['main']
         return self.quantized_graph
 
 def create_quantizer(graph, hardware, strategy):

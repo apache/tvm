@@ -246,6 +246,33 @@ def build_edge_dict(graph, alist, edge_conds):
     assert cnt == len(alist)
     return ret
 
+def build_node_mapping(sgraph, graph):
+    """build a snode -> node mapping"""
+    def fvisit_collect_nodes(e):
+        if isinstance(e, (relay.Var, relay.Constant, relay.Call)):
+            fvisit_collect_nodes.nodes.append(e)
+    fvisit_collect_nodes.nodes = []
+
+    def fvisit_collect_snodes(e):
+        if isinstance(e, relay.Call) and e.op.name == 'hago.simulated_quantize':
+            fvisit_collect_snodes.nodes.append(e.args[0])
+    fvisit_collect_snodes.nodes = []
+
+
+    relay.analysis.post_order_visit(sgraph, fvisit_collect_snodes)
+    snodes = fvisit_collect_snodes.nodes
+    relay.analysis.post_order_visit(graph, fvisit_collect_nodes)
+    nodes = fvisit_collect_nodes.nodes
+
+    print(len(snodes))
+    print(len(nodes))
+    assert(len(snodes) == len(nodes))
+    mapping = OrderedDict()
+    for snode, node in zip(snodes, nodes):
+        mapping[snode] = node
+    return mapping
+
+
 def bind_params(func, params):
     """Bind the params to the expression.
     """
