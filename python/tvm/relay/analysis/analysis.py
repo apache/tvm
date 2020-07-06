@@ -357,13 +357,25 @@ def search_fc_transpose(expr):
 
 def get_calibration_data(mod, data):
     """Get the calibration data of a given relay graph
+
+    This pass use the graph runtime to get the calibration data of a module, which
+    includes the input and output values of each subgraph. The returned data uses
+    the GlobalVar of each subgraph as a key. Users can further access the inputs and
+    outputs by using `inputs` or  `outputs` as the key.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+
+    data : Dict[str, NDArray]
+
+    Returns
+    -------
+    data : Dict[tvm.relay.GlobalVar, Dict[str, NDArray]]
     """
     output_map = _ffi_api.get_calibrate_output_map(mod)
-    print(output_map)
 
     mod = _ffi_api.get_calibrate_module(mod)
-    print(mod)
-
     mod = transform.Inline()(mod)
 
     ref_ex = build_module.create_executor("graph", mod=mod, ctx=cpu(0))
@@ -376,10 +388,7 @@ def get_calibration_data(mod, data):
         out_len = int(indices[2])
         value = {}
         value["inputs"] = ref_res[offset:offset+in_len]
-        if out_len == 1:
-            value["outputs"] = [ref_res[offset+in_len]]
-        else:
-            value["outputs"] = ref_res[offset+in_len:offset+in_len+out_len]
+        value["outputs"] = ref_res[offset+in_len:offset+in_len+out_len]
         calib_data[gvar] = value
 
     return calib_data

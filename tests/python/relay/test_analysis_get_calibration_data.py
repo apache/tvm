@@ -15,15 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import numpy as np
+
 import tvm
 import tvm.relay.testing
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.analysis import get_calibration_data
 
-import numpy as np
 
-def make_basic_graph():
+def check_data_size(mod, data):
+    assert len(data) == len(mod.functions) - 1
+    for key, value in mod.functions.items():
+        if key.name_hint != "main":
+            assert len(data[key]["inputs"]) == len(value.params)
+            if isinstance(value.body, relay.Tuple):
+                assert len(data[key]["outputs"]) == len(value.body.fields)
+            else:
+                assert len(data[key]["outputs"]) == 1
+
+def test_synthetic():
     # A module with two subgraphs
     mod = tvm.IRModule()
 
@@ -51,22 +62,13 @@ def make_basic_graph():
     fm = relay.Function([x, y, z], c1)
     mod["main"] = fm
 
-    return mod, g0, g1
-
-def test_basic_single_data():
-    mod, g0, g1 = make_basic_graph()
-
     x_data = np.random.rand(8, 8).astype('float32')
     y_data = np.random.rand(8, 8).astype('float32')
     z_data = np.random.rand(8, 8).astype('float32')
     data = get_calibration_data(mod, {"x": x_data, "y": y_data, "z": z_data})
 
     # Check the number and orders
-    assert len(data) == 2
-    assert len(data[g0]["inputs"]) == 2
-    assert len(data[g0]["outputs"]) == 2
-    assert len(data[g1]["inputs"]) == 2
-    assert len(data[g1]["outputs"]) == 1
+    check_data_size(mod, data)
     tvm.testing.assert_allclose(data[g0]["inputs"][0].asnumpy(), x_data)
     tvm.testing.assert_allclose(data[g0]["inputs"][1].asnumpy(), y_data)
     tvm.testing.assert_allclose(data[g0]["outputs"][0].asnumpy(), x_data + y_data)
@@ -81,23 +83,17 @@ def test_mobilenet_dnnl():
     mod, params = relay.testing.mobilenet.get_workload(
         batch_size=1, dtype='float32')
 
-
     mod = transform.AnnotateTarget(["dnnl"])(mod)
     mod = transform.MergeCompilerRegions()(mod)
     mod = transform.PartitionGraph()(mod)
-
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     data = get_calibration_data(mod, {"data": i_data, **params})
 
     # Check the number and orders
-    assert len(data) == 2
-    #assert len(data[g0]["inputs"]) == 2
-    """
-    tvm.testing.assert_allclose(data[g0]["inputs"][0].asnumpy(), x_data)
-    tvm.testing.assert_allclose(data[g0]["inputs"][1].asnumpy(), y_data)
-    tvm.testing.assert_allclose(data[g1]["inputs"][1].asnumpy(), z_data)
-    """
+    check_data_size(mod, data)
 
-test_basic_single_data()
+if __name__ == "__main__":
+    test_synthetic()
+    test_mobilenet_dnnl()
 
