@@ -56,7 +56,7 @@ TEST_F(MemoryManagerTest, AllocFreeFifo) {
 
   for (int i = 0; i < 2; i++) {
     void* ptrs[kNumUsablePages];
-    for (int idx = 0; idx < kNumUsablePages; idx++) {
+    for (size_t idx = 0; idx < kNumUsablePages; idx++) {
       void* a = mgr.Alloc(&mgr, 1);
       if (i == 0) {
         EXPECT_PAGE(idx, a);

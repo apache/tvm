@@ -129,10 +129,11 @@ if(USE_STANDALONE_CRT)
       add_executable(${__execname} ${__srcpath})
       list(APPEND TEST_EXECS ${__execname})
       target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_SOURCE_DIR}/src/runtime/crt/host)
+      target_compile_options(${__execname} PRIVATE -pthread)
 #      target_link_directories(${__execname} PRIVATE
 #          ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/common
 #          ${CMAKE_CURRENT_BINARY_DIR}/host_standalone_crt/graph_runtime)
-      target_link_libraries(${__execname} host_standalone_crt_graph_runtime host_standalone_crt_common ${GTEST_LIB})
+      target_link_libraries(${__execname} host_standalone_crt_graph_runtime host_standalone_crt_common ${GTEST_LIB} pthread)
       set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
       set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
     endforeach()
