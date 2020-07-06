@@ -78,23 +78,21 @@ def get_model(model_name, batch_size, qconfig, original=False, simulated=False, 
         logging.debug(hago.current_qconfig())
         hardware = hago.create_accelerator_description()
         space = hago.generate_search_space(graph, hardware)
-        tuner = hago.BatchedGreedySearchTuner(space, 'accuracy')
-        ctx = tvm.gpu(1)
-        target = 'cuda'
+        # tuner = hago.BatchedGreedySearchTuner(space, 'accuracy')
+        tuner = hago.DefaultSetting(space, 'accuracy')
+        ctx = tvm.cpu()
+        target = 'llvm'
         strategy, result = hago.search_quantize_strategy(graph, hardware, dataset, tuner, ctx, target)
-        print('simulated accuracy on calibration dataset: {}'.format(result.accuracy))
-        raise ValueError
-        quantizer = hago.create_quantizer(qmod['main'], hardware, strategy)
+
+        quantizer = hago.create_quantizer(graph, hardware, strategy)
         simulated_graph = quantizer.simulate()
         quantized_graph = quantizer.quantize()
-        logging.debug('after quantize')
+        logging.debug('simulated graph')
+        logging.debug(simulated_graph.astext(show_meta_data=False))
+        logging.debug('quantize graph')
         logging.debug(quantized_graph.astext(show_meta_data=False))
-        out, acc = hago.eval_acc(quantized_graph, dataset)
-        print('quantized accuracy on calibration dataset: {}'.format(acc))
         # hago.inspect_graph_statistic(qmod['main'], hardware, strategy, dataset=dataset)
-        qmod = relay.Module.from_expr(quantized_graph)
-        raise ValueError
-    return qmod
+        return quantized_graph
 
 
 def eval_acc(mod, dataset, batch_fn, target='llvm', ctx=tvm.cpu(), log_interval=100):
@@ -148,9 +146,6 @@ def test_quantize_acc(cfg, rec_val):
     dataset = get_calibration_dataset(val_data, batch_fn)
 
     mod = get_model(cfg.model, 32, qconfig, dataset=dataset)
-    acc = eval_acc(mod, val_data, batch_fn)
-    assert acc > cfg.expected_acc
-    return acc
 
 
 if __name__ == "__main__":
@@ -163,7 +158,6 @@ if __name__ == "__main__":
     ]
     # rec = hago.pick_best(".quantize_strategy_search.log", 'quant_acc')
 
-    # global scales
     for config in configs:
         acc = test_quantize_acc(config, rec_val)
         results.append((config, acc))

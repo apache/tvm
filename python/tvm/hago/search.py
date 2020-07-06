@@ -87,10 +87,6 @@ def generate_search_space(graph, hardware):
     return choices
 
 
-
-
-
-
 def grid_search(f, domains, args, max_iter=1000):
     num_iter = 0
     best_guess = None
@@ -464,6 +460,19 @@ class Tuner(object):
             raise ValueError
 
 
+class DefaultSetting(Tuner):
+    def __init__(self, space, objective):
+        super(DefaultSetting, self).__init__(space, objective, max_trials=1)
+
+    def has_next(self):
+        return True
+
+    def next_trials(self):
+        return [[choices[0] for choices in self.space]]
+
+    def update(self, measures):
+        ms = self._update_best_measure(measures)
+
 
 class BatchedGreedySearchTuner(Tuner):
     def __init__(self, space, objective, max_trials=None):
@@ -487,12 +496,12 @@ class BatchedGreedySearchTuner(Tuner):
         self.dim_idx += 1
 
 
-
 def search_quantize_strategy(graph, hardware, dataset, tuner, ctx, target):
     assert isinstance(graph, relay.Function)
     qconfig = current_qconfig()
     origin_out, origin_acc = eval_acc(graph, dataset, ctx, target)
     print('original acc: {}'.format(origin_acc))
+
     with open(qconfig.log_file, 'w+', buffering=1) as fout:
         measure = tuner.tune(graph, hardware, dataset, ctx, target, fout)
     return measure.strategy, measure.result

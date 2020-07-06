@@ -18,10 +18,10 @@
 """Internal module for quantization."""
 from __future__ import absolute_import
 
-from ..relay.op import op as _reg
-
 import tvm
 from tvm import relay
+from tvm._ffi.runtime_ctypes import DataType
+from ..relay.op import op as _reg
 import topi
 import math
 import functools
@@ -233,7 +233,7 @@ def forward_op(ref_call, args):
 @register_realize("add")
 def realize_addition(node, in_types, out_types):
     lhs, rhs = node.args
-    dtype = out_types[0].value
+    dtype = out_types[0]
     if in_types[0] != dtype:
         lhs = relay.cast(lhs, dtype)
     if in_types[1] != dtype:
@@ -243,7 +243,8 @@ def realize_addition(node, in_types, out_types):
 
 @register_realize("nn.conv2d")
 def realize_conv2d(node, in_types, out_types):
+    data, weight = node.args
     attrs_dict = {key: getattr(node.attrs, key) for key in dir(node.attrs)}
-    attrs_dict['out_dtype'] = out_types[0].value
-    attrs = tvm.make.node("relay.attrs.Conv2DAttrs", **attrs_dict)
+    attrs_dict['out_dtype'] = DataType(out_types[0])
+    attrs = tvm.ir.make_node("relay.attrs.Conv2DAttrs", **attrs_dict)
     return relay.Call(node.op, node.args, attrs, node.type_args)

@@ -88,7 +88,6 @@ def collect_stats(graph, dataset, ctx, target):
     out = relay.Tuple(outputs)
     func = relay.Function(graph.params, out)
     outputs = evaluate(func, dataset, ctx, target)
-    print(outputs)
     stats = Stats(outputs)
     logging.info("statistics collected")
     return stats

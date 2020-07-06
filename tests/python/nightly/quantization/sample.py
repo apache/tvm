@@ -29,32 +29,33 @@ def test_dense(ishape=(32, 16), wshape=(10, 16), batch_num=3):
     params = {'weight': tvm.nd.array(weight_np)}
     return func, params, dataset
 
-def test_conv2d():
-    pass
 
-device = 'gpu'
-if device == 'cpu':
-    target = 'llvm'
-    ctx = tvm.cpu()
-elif device == 'gpu':
-    target = 'cuda'
-    ctx = tvm.gpu(1)
-# prepared by user
-hardware = create_hardware()
-func, params, dataset = test_dense() 
-
-qconfig = hago.qconfig(skip_conv_layers=[0],
-                       log_file='temp.log',
-                       threshold_estimate_method="power_of_two_range")
-with qconfig:
-    func = hago.prerequisite_optimize(func, params)
-    space = hago.generate_search_space(func, hardware)
-    tuner = hago.BatchedGreedySearchTuner(space, 'accuracy')
-    strategy, result = hago.search_quantize_strategy(func, hardware, dataset, tuner, ctx, target)
-    quantizer = hago.create_quantizer(func, hardware, strategy)
-    simulated_graph = quantizer.simulate()
-    quantized_graph = quantizer.quantize()
-    print(strategy)
-    print(result)
-    print(simulated_graph)
-    print(quantized_graph)
+if __name__ == '__main__':
+    device = 'gpu'
+    device = 'cpu'
+    if device == 'cpu':
+        target = 'llvm'
+        ctx = tvm.cpu()
+    elif device == 'gpu':
+        target = 'cuda'
+        ctx = tvm.gpu(1)
+    # prepared by user
+    hardware = create_hardware()
+    func, params, dataset = test_dense() 
+    
+    qconfig = hago.qconfig(skip_conv_layers=[0],
+                           log_file='temp.log',
+                           threshold_estimate_method="power_of_two_range")
+    with qconfig:
+        func = hago.prerequisite_optimize(func, params)
+        space = hago.generate_search_space(func, hardware)
+        # tuner = hago.BatchedGreedySearchTuner(space, 'accuracy')
+        tuner = hago.DefaultSetting(space, 'accuracy')
+        strategy, result = hago.search_quantize_strategy(func, hardware, dataset, tuner, ctx, target)
+        quantizer = hago.create_quantizer(func, hardware, strategy)
+        simulated_graph = quantizer.simulate()
+        quantized_graph = quantizer.quantize()
+        print(strategy)
+        print(result)
+        print(simulated_graph)
+        print(quantized_graph)

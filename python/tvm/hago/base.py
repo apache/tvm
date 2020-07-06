@@ -255,16 +255,22 @@ def build_node_mapping(sgraph, graph):
 
     def fvisit_collect_snodes(e):
         if isinstance(e, relay.Call) and e.op.name == 'hago.simulated_quantize':
-            fvisit_collect_snodes.nodes.append(e.args[0])
+            node = e.args[0]
+            if node not in fvisit_collect_snodes.set:
+                # avoid multi-refer
+                fvisit_collect_snodes.set.add(node)
+                fvisit_collect_snodes.nodes.append(node)
     fvisit_collect_snodes.nodes = []
-
+    fvisit_collect_snodes.set = set([])
 
     relay.analysis.post_order_visit(sgraph, fvisit_collect_snodes)
     snodes = fvisit_collect_snodes.nodes
     relay.analysis.post_order_visit(graph, fvisit_collect_nodes)
     nodes = fvisit_collect_nodes.nodes
 
+    print('num of snodes:')
     print(len(snodes))
+    print('num of nodes:')
     print(len(nodes))
     assert(len(snodes) == len(nodes))
     mapping = OrderedDict()

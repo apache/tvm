@@ -410,7 +410,7 @@ class Realizer(tvm.relay.ExprMutator):
         else:
             # requantize
             dtype = in_dtype
-            if TVMType(out_dtype).bits > TVMType(in_dtype).bits:
+            if DataType(out_dtype).bits > DataType(in_dtype).bits:
                 # pre-casting
                 data = relay.cast(data, out_dtype)
                 dtype = out_dtype
