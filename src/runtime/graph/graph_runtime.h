@@ -68,7 +68,7 @@ struct TVMOpParam {
  *  This runtime can be acccesibly in various language via
  *  TVM runtime PackedFunc API.
  */
-class TVM_DLL GraphRuntime : public GraphRuntimeFactory {
+class TVM_DLL GraphRuntime : public ModuleNode {
   struct OpArgs {
     std::vector<DLTensor> args;
     std::vector<TVMValue> arg_values;
@@ -98,7 +98,6 @@ class TVM_DLL GraphRuntime : public GraphRuntimeFactory {
    *  processor.
    * \param ctxs The context of the host and devices where graph nodes will be
    *  executed on.
-   * \param params The params of graph.
    */
 
   void Init(const std::string& graph_json, tvm::runtime::Module module,

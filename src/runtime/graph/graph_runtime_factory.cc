@@ -84,7 +84,6 @@ PackedFunc GraphRuntimeFactory::GetFunction(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetJson(); });
   } else if (name == "get_lib") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_GT(this->imports().size(), 0);
       *rv = this->GetLib();
     });
   } else if (name == "get_params") {
@@ -98,6 +97,11 @@ PackedFunc GraphRuntimeFactory::GetFunction(
   } else if (name == "diable_package_params") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->package_params_ = false; });
+  } else if (name == "get_module_name") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+          *rv = this->GetModuleName();
+        });
   } else {
     return PackedFunc();
   }
@@ -198,7 +202,7 @@ Module RuntimeCreate(Module module, const std::vector<TVMContext>& ctxs) {
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime_factory.create").set_body([](TVMArgs args, TVMRetValue* rv) {
   CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
-                                "graph_runtime_factory.create needs at least 3, "
+                                "graph_runtime_factory.create needs at least 4, "
                                 "but it has "
                              << args.num_args;
   auto exec = make_object<GraphRuntimeFactory>();

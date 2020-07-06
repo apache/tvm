@@ -20,6 +20,7 @@
 import ctypes
 import struct
 import os
+import warnings
 from collections import namedtuple
 
 import tvm._ffi
@@ -224,7 +225,7 @@ class Module(object):
             raise NameError("time_evaluate is only supported when RPC is enabled")
 
     def _collect_modules(self, module_type_keys):
-        """Helper function to collect specifit modules, then return it."""
+        """Helper function to collect specific modules, then return it."""
         visited, stack, modules = set(), [], []
         type_keys = module_type_keys if isinstance(module_type_keys, (list, tuple)) else [module_type_keys]
         # append root module
@@ -240,7 +241,7 @@ class Module(object):
                     stack.append(m)
         return modules
 
-    def _dso_exportable(self):
+    def _dso_exportable_types(self):
         return ["llvm", "c"]
 
     def export_library(self,
@@ -296,7 +297,10 @@ class Module(object):
         for index, module in enumerate(graph_runtime_factory_modules):
             if not package_params:
                 module.get_function("diable_package_params")()
-                path_params = os.path.join(os.path.dirname(file_name), "deploy_" + str(index) + ".params")
+                params_file_name = "deploy_" + module.get_function("get_module_name")() + ".params"
+                warnings.warn("Disabled package params, we will generate file " + params_file_name,
+                              stacklevel=2)
+                path_params = os.path.join(os.path.dirname(file_name), params_file_name)
                 from tvm import relay
                 with open(path_params, "wb") as fo:
                     graph_params = {}
@@ -304,7 +308,7 @@ class Module(object):
                         graph_params[k] = v
                     fo.write(relay.save_param_dict(graph_params))
 
-        modules = self._collect_modules(self._dso_exportable())
+        modules = self._collect_modules(self._dso_exportable_types())
         temp = _util.tempdir()
         files = addons if addons else []
         is_system_lib = False

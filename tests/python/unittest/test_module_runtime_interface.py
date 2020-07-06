@@ -338,7 +338,7 @@ def test_package_params(format=".so"):
     get_output = gmod["get_output"]
     load_params = gmod["load_params"]
     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
-    loaded_params = bytearray(open(temp.relpath("deploy_0.params"), "rb").read())
+    loaded_params = bytearray(open(temp.relpath("deploy_default.params"), "rb").read())
     set_input("data", tvm.nd.array(data))
     load_params(loaded_params)
     run()
@@ -376,7 +376,7 @@ def test_multi_models_package_params(format=".so"):
     get_output = gmod["get_output"]
     load_params = gmod["load_params"]
     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
-    loaded_params = bytearray(open(temp.relpath("deploy_0.params"), "rb").read())
+    loaded_params = bytearray(open(temp.relpath("deploy_resnet18.params"), "rb").read())
     set_input("data", tvm.nd.array(data))
     load_params(loaded_params)
     run()
@@ -391,7 +391,7 @@ def test_multi_models_package_params(format=".so"):
     get_output = gmod["get_output"]
     load_params = gmod["load_params"]
     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
-    loaded_params = bytearray(open(temp.relpath("deploy_1.params"), "rb").read())
+    loaded_params = bytearray(open(temp.relpath("deploy_resnet50.params"), "rb").read())
     set_input("data", tvm.nd.array(data))
     load_params(loaded_params)
     run()
