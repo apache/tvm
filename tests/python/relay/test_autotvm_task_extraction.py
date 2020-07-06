@@ -25,6 +25,8 @@ def get_network(name, batch_size):
 
     if name == 'resnet-18':
         mod, params = relay.testing.resnet.get_workload(num_layers=18, batch_size=batch_size)
+    elif name == 'resnet3d-18':
+        mod, params = relay.testing.resnet_3d.get_workload(num_layers=18, batch_size=batch_size)
     elif name == 'mobilenet':
         mod, params = relay.testing.mobilenet.get_workload(batch_size=batch_size)
     elif name == 'dcgan':
@@ -40,6 +42,7 @@ def test_task_extraction():
     mod_list = []
     params_list = []
     conv2d = relay.op.get("nn.conv2d")
+    conv3d = relay.op.get("nn.conv3d")
     conv2d_transpose = relay.op.get("nn.conv2d_transpose")
     dense = relay.op.get("nn.dense")
 
@@ -77,6 +80,12 @@ def test_task_extraction():
     tasks = autotvm.task.extract_from_program(mod, target=target,
                                               params=params)
     assert len(tasks) == 13
+
+    mod, params, _ = get_network('resnet3d-18', batch_size=1)
+    tasks = autotvm.task.extract_from_program(mod, target=target,
+                                              params=params,
+                                              ops=(conv3d,))
+    assert len(tasks) == 12
 
     mod, params, _ = get_network('mobilenet', batch_size=1)
     mod_list.append(mod)

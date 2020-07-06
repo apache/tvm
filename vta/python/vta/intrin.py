@@ -82,16 +82,16 @@ def gemm(env, mock=False):
             irb.scope_attr(dev.vta_axis, "coproc_uop_scope",
                            dev.vta_push_uop)
             if index in (0, 2):
-                irb.emit(tvm.tir.call_extern(
-                    "int32", "VTAUopPush",
+                irb.emit(tvm.tir.call_intrin(
+                    "int32", "tir.vta.uop_push",
                     0, 0,
                     dout.access_ptr("rw", "int32"),
                     dinp.access_ptr("r", "int32"),
                     dwgt.access_ptr("r", "int32"),
                     0, 0, 0))
             else:
-                irb.emit(tvm.tir.call_extern(
-                    "int32", "VTAUopPush",
+                irb.emit(tvm.tir.call_intrin(
+                    "int32", "tir.vta.uop_push",
                     0, 1,
                     dout.access_ptr("rw", "int32"),
                     0,

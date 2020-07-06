@@ -91,9 +91,9 @@ def non_max_suppression(data,
         second dimension are like the output of arange(num_anchors)
         if get_valid_counts is not used before non_max_suppression.
 
-    max_output_size : int, optional
+    max_output_size : int or relay.Expr, optional
         Max number of output valid boxes for each instance.
-        By default all valid boxes are returned.
+        Return all valid boxes if the value of max_output_size is less than 0.
 
     iou_threshold : float, optional
         Non-maximum suppression threshold.
@@ -124,9 +124,11 @@ def non_max_suppression(data,
     out : relay.Expr or relay.Tuple
         return relay.Expr if return_indices is disabled, a 3-D tensor
         with shape [batch_size, num_anchors, 6] or [batch_size, num_anchors, 5].
-        if return_indices is True, return relay.Tuple of two 2-D tensors, with
+        If return_indices is True, return relay.Tuple of two 2-D tensors, with
         shape [batch_size, num_anchors] and [batch_size, num_valid_anchors] respectively.
     """
+    if isinstance(max_output_size, int):
+        max_output_size = expr.const(max_output_size, "int32")
     out = _make.non_max_suppression(data,
                                     valid_count,
                                     indices,

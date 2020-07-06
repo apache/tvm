@@ -30,7 +30,7 @@ from .. import ty as _ty
 from . import _backend
 
 logger = logging.getLogger('compile_engine')
-
+autotvm_logger = logging.getLogger('autotvm')
 
 @tvm._ffi.register_object("relay.LoweredOutput")
 class LoweredOutput(Object):
@@ -190,24 +190,38 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         return best_plevel_impl, outs
 
     outputs = {}
+    workloads = {}
     best_autotvm_impl = None
     best_cfg = None
     dispatch_ctx = autotvm.task.DispatchContext.current
+    autotvm.GLOBAL_SCOPE.silent = True
     for impl in all_impls:
         outs = impl.compute(attrs, inputs, out_type)
         outputs[impl] = outs
         workload = autotvm.task.get_workload(outs)
+        workloads[impl] = workload
         if workload is None:
+            # Not an AutoTVM tunable implementation
             continue
         cfg = dispatch_ctx.query(target, workload)
         if cfg.is_fallback:
-            # It's a fallback config
+            # Skip fallback config
             continue
         if best_cfg is None or best_cfg.cost > cfg.cost:
             best_autotvm_impl = impl
             best_cfg = cfg
+    autotvm.GLOBAL_SCOPE.silent = False
     if best_autotvm_impl:
+        # The best autotvm implementation definitely doesn't use fallback config
         return best_autotvm_impl, outputs[best_autotvm_impl]
+    # Use the implementation with highest plevel
+    if workloads[best_plevel_impl] is not None:
+        msg = "Cannot find config for target=%s, workload=%s. A fallback configuration "\
+              "is used, which may bring great performance regression." \
+              % (target, workloads[best_plevel_impl])
+        if msg not in autotvm.task.DispatchContext.warning_messages:
+            autotvm.task.DispatchContext.warning_messages.add(msg)
+            autotvm_logger.warning(msg)
     return best_plevel_impl, outputs[best_plevel_impl]
 
 

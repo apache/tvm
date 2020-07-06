@@ -131,6 +131,37 @@ def flip(a, axis=0):
     """
     return cpp.flip(a, axis)
 
+
+def reverse_sequence(a, seq_lengths, seq_axis=1, batch_axis=0):
+    """Reverse the tensor for variable length slices.
+    Input is first sliced along batch axis and then elements are reversed along seq axis.
+
+    Parameters
+    ----------
+    a : tvm.te.Tensor
+       The tensor to be reversed.
+
+    seq_lengths : tvm.te.Tensor
+       A 1D Tensor with length a.dims[batch_axis]
+       Must be one of the following types: int32, int64
+       if seq_lengths[i] > a.dims[seq_axis], it is rounded to a.dims[seq_axis]
+       if seq_lengths[i] < 1, it is rounded to 1
+
+    seq_axis : int, optional
+       The axis along which the elements will be reversed. Default is 1.
+
+    batch_axis : int, optional
+       The axis along which the tensor will be sliced. Default is 0.
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+       The computed result of same shape and type as of input.
+
+    """
+    return cpp.reverse_sequence(a, seq_lengths, seq_axis, batch_axis)
+
+
 def strided_slice(a, begin, end, strides=None, slice_mode="end"):
     """Slice of an array.
 
@@ -374,6 +405,38 @@ def take(a, indices, axis=None, mode="clip"):
     return cpp.take(a, indices, int(axis), mode)
 
 
+def gather(data, axis, indices):
+    """Gather values along given axis from given indices.
+
+    E.g. for a 3D tensor, output is computed as:
+
+    .. code-block:: python
+
+        out[i][j][k] = data[indices[i][j][k]][j][k]  # if axis == 0
+        out[i][j][k] = data[i][indices[i][j][k]][k]  # if axis == 1
+        out[i][j][k] = data[i][j][indices[i][j][k]]  # if axis == 2
+
+    ``indices`` must have same shape as ``data``, except at dimension ``axis``
+    which must just be not null. Output will have same shape as ``indices``.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The input data to the operator.
+
+    axis: int
+        The axis along which to index.
+
+    indices : tvm.te.Tensor
+        The indices of the values to extract.
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+    """
+    return cpp.gather(data, axis, indices)
+
+
 def gather_nd(a, indices):
     """Gather elements from a n-dimension array..
 
@@ -459,6 +522,25 @@ def arange(start, stop=None, step=1, dtype="float32"):
         stop = start
         start = 0
     return cpp.arange(start, stop, step, dtype)
+
+
+def meshgrid(a_tuple, indexing):
+    """Create coordinate matrices from coordinate vectors.
+
+    Parameters
+    ----------
+    a_tuple : tuple of tvm.te.Tensor
+        The coordinate vectors or scalars.
+
+    indexing : str
+        Indexing mode, either "ij" or "xy".
+
+    Returns
+    -------
+    result : tuple of tvm.te.Tensor
+        The resulting grids for each axis.
+    """
+    return cpp.meshgrid(a_tuple, indexing)
 
 
 def repeat(a, repeats, axis):

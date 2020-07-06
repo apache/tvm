@@ -88,19 +88,21 @@ def dot_16x1x16_uint8_int8_int32_skylake():
                 return ib.get()
 
             a_int8 = ins[0].vload([0], "uint8x4")
-            re_int32 = tvm.tir.call_pure_intrin('int32', 'reinterpret', a_int8)
+            re_int32 = tvm.tir.call_intrin('int32', 'tir.reinterpret', a_int8)
             vec_ai32 = re_int32.astype('int32x16')
-            vec_a = tvm.tir.call_pure_intrin('int8x64', 'reinterpret', vec_ai32)
+            vec_a = tvm.tir.call_intrin('int8x64', 'tir.reinterpret', vec_ai32)
             vec_b = ins[1].vload([0, 0], "int8x64")
             vec_one = tvm.tir.const(1, "int16x32")
-            pair_reduction = tvm.tir.call_llvm_intrin('int16x32',
-                                                      'llvm.x86.avx512.pmaddubs.w.512',
-                                                      tvm.tir.const(0, 'uint32'),
-                                                      vec_a, vec_b)
-            quad_reduction = tvm.tir.call_llvm_intrin('int32x16',
-                                                      'llvm.x86.avx512.pmaddw.d.512',
-                                                      tvm.tir.const(0, 'uint32'),
-                                                      pair_reduction, vec_one)
+            pair_reduction = tvm.tir.call_llvm_pure_intrin(
+                'int16x32',
+                'llvm.x86.avx512.pmaddubs.w.512',
+                tvm.tir.const(0, 'uint32'),
+                vec_a, vec_b)
+            quad_reduction = tvm.tir.call_llvm_pure_intrin(
+                'int32x16',
+                'llvm.x86.avx512.pmaddw.d.512',
+                tvm.tir.const(0, 'uint32'),
+                pair_reduction, vec_one)
             if index == 0:
                 ib.emit(outs[0].vstore(0, quad_reduction))
             else:
@@ -174,16 +176,17 @@ def dot_16x1x16_uint8_int8_int16():
                 return ib.get()
 
             a_int8 = ins[0].vload([0], "uint8x2")
-            re_int16 = tvm.tir.call_pure_intrin('int16', 'reinterpret', a_int8)
+            re_int16 = tvm.tir.call_intrin('int16', 'tir.reinterpret', a_int8)
             vec_ai16 = re_int16.astype('int16x32')
-            vec_a = tvm.tir.call_pure_intrin('int8x64', 'reinterpret', vec_ai16)
+            vec_a = tvm.tir.call_intrin('int8x64', 'tir.reinterpret', vec_ai16)
 
             for i in range(4):
                 vec_b = ins[1].vload([i*32, 0], "int8x64")
-                pair_reduction = tvm.tir.call_llvm_intrin('int16x32',
-                                                          'llvm.x86.avx512.pmaddubs.w.512',
-                                                          tvm.tir.const(0, 'uint32'),
-                                                          vec_a, vec_b)
+                pair_reduction = tvm.tir.call_llvm_pure_intrin(
+                    'int16x32',
+                    'llvm.x86.avx512.pmaddubs.w.512',
+                    tvm.tir.const(0, 'uint32'),
+                    vec_a, vec_b)
                 if index == 0:
                     ib.emit(outs[0].vstore([i*32], pair_reduction))
                 else:
@@ -254,7 +257,7 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
                 return ib.get()
 
             a_int8 = ins[0].vload([0], "uint8x4")
-            re_int32 = tvm.tir.call_pure_intrin('int32', 'reinterpret', a_int8)
+            re_int32 = tvm.tir.call_intrin('int32', 'tir.reinterpret', a_int8)
             vec_ai32 = re_int32.astype('int32x16')
             vec_b = ins[1].vload([0, 0], "int8x64")
 
@@ -262,24 +265,27 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
             llvm_id = tvm.target.codegen.llvm_lookup_intrinsic_id(vnni_inst_name)
 
             if llvm_id != 0: # VNNI is available for current LLVM version
-                vec_bi32 = tvm.tir.call_pure_intrin('int32x16', 'reinterpret', vec_b)
+                vec_bi32 = tvm.tir.call_intrin('int32x16', 'tir.reinterpret', vec_b)
                 vec_zero = tvm.tir.const(0, "int32x16")
-                quad_reduction = tvm.tir.call_llvm_intrin('int32x16',
-                                                          'llvm.x86.avx512.vpdpbusd.512',
-                                                          tvm.tir.const(0, 'uint32'),
-                                                          vec_zero,
-                                                          vec_ai32, vec_bi32)
+                quad_reduction = tvm.tir.call_llvm_pure_intrin(
+                    'int32x16',
+                    'llvm.x86.avx512.vpdpbusd.512',
+                    tvm.tir.const(0, 'uint32'),
+                    vec_zero,
+                    vec_ai32, vec_bi32)
             else: # Fall back to the normal AVX512
-                vec_a = tvm.tir.call_pure_intrin('int8x64', 'reinterpret', vec_ai32)
+                vec_a = tvm.tir.call_intrin('int8x64', 'tir.reinterpret', vec_ai32)
                 vec_one = tvm.tir.const(1, "int16x32")
-                pair_reduction = tvm.tir.call_llvm_intrin('int16x32',
-                                                          'llvm.x86.avx512.pmaddubs.w.512',
-                                                          tvm.tir.const(0, 'uint32'),
-                                                          vec_a, vec_b)
-                quad_reduction = tvm.tir.call_llvm_intrin('int32x16',
-                                                          'llvm.x86.avx512.pmaddw.d.512',
-                                                          tvm.tir.const(0, 'uint32'),
-                                                          pair_reduction, vec_one)
+                pair_reduction = tvm.tir.call_llvm_pure_intrin(
+                    'int16x32',
+                    'llvm.x86.avx512.pmaddubs.w.512',
+                    tvm.tir.const(0, 'uint32'),
+                    vec_a, vec_b)
+                quad_reduction = tvm.tir.call_llvm_pure_intrin(
+                    'int32x16',
+                    'llvm.x86.avx512.pmaddw.d.512',
+                    tvm.tir.const(0, 'uint32'),
+                    pair_reduction, vec_one)
 
             if index == 0:
                 ib.emit(outs[0].vstore(0, quad_reduction))

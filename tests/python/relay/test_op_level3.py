@@ -588,6 +588,39 @@ def test_arange():
     # arange doesnt' support floating point right now, see type relation
     # verify_arange(20, 1, -1.5)
 
+def test_meshgrid():
+    def verify_meshgrid(lengths, indexing="ij"):
+        input_vars = []
+        input_data = []
+        for i, length in enumerate(lengths):
+            input_name = "x_{}".format(i)
+            if length == 0:
+                # Scalar
+                input_vars.append(relay.var(input_name, relay.scalar_type("float32")))
+                input_data.append(np.array(1, "float32"))
+            else:
+                input_vars.append(relay.var(input_name, relay.TensorType((length,), "float32")))
+                input_data.append(np.arange(length).astype("float32"))
+
+        z = relay.meshgrid(input_vars, indexing=indexing).astuple()
+        func = relay.Function(input_vars, z)
+        # Get ref
+        ref_res = np.meshgrid(*input_data, indexing=indexing)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(*input_data)
+                assert len(op_res) == len(ref_res)
+                for i in range(len(op_res)):
+                    tvm.testing.assert_allclose(op_res[i].asnumpy(), ref_res[i], rtol=1e-5)
+    verify_meshgrid([3, 5])
+    verify_meshgrid([4, 2], indexing="xy")
+    verify_meshgrid([3, 5, 2])
+    verify_meshgrid([3, 1, 5], indexing="xy")
+    # Length 0 signifies scalar.
+    verify_meshgrid([3, 5, 0])
+
 def test_tile():
     def verify_tile(dshape, reps):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
@@ -663,6 +696,73 @@ def test_reverse():
     verify_reverse((2, 3, 4), -1)
 
 
+def test_reverse_sequence():
+    def verify_reverse_sequence(x_data, seq_lengths, batch_axis, seq_axis, ref_res):
+        seq_lengths_data = np.array(seq_lengths).astype("int32")
+        x = relay.var("x", relay.TensorType(x_data.shape, str(x_data.dtype)))
+        z = relay.reverse_sequence(x, relay.const(seq_lengths_data), seq_axis, batch_axis)
+        zz = run_infer_type(z)
+        assert zz.checked_type == x.type_annotation
+        func = relay.Function([x], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    indata = np.array(np.arange(0, 16)).reshape([4, 4]).astype("int32")
+    result = [[0, 5, 10, 15],
+              [4, 1, 6, 11],
+              [8, 9, 2, 7],
+              [12, 13, 14, 3]]
+    verify_reverse_sequence(indata, [1, 2, 3, 4], 1, 0, np.array(result))
+    verify_reverse_sequence(indata, [1, 2, 3, 4], -1, 0, np.array(result))
+    verify_reverse_sequence(indata.astype("float32"), [1, 2, 3, 4], 1, 0, np.array(result).astype("float32"))
+
+    indata = np.array(np.arange(0, 16)).reshape([4, 4]).astype("int32")
+    result = [[0, 1, 2, 3],
+              [5, 4, 6, 7],
+              [10, 9, 8, 11],
+              [15, 14, 13, 12]]
+    verify_reverse_sequence(indata, [1, 2, 3, 4], 0, 1, np.array(result))
+    verify_reverse_sequence(indata, [1, 2, 3, 4], 0, -1, np.array(result))
+    verify_reverse_sequence(indata.astype("float32"), [1, 2, 3, 4], 0, 1, np.array(result).astype("float32"))
+
+    indata = np.array(np.arange(0, 16)).reshape([4, 4]).astype("int32")
+    result = [[0, 1, 2, 3],
+              [4, 5, 6, 7],
+              [8, 9, 10, 11],
+              [15, 14, 13, 12]]
+    verify_reverse_sequence(indata, [-1, 0, 1, 5], 0, 1, np.array(result))
+
+    indata = np.array(np.arange(0, 54)).reshape([2, 3, 3, 3]).astype("int32")
+    result = [[[[18, 19, 20], [21, 22, 23], [24, 25, 26]],
+               [[9, 10, 11], [12, 13, 14], [15, 16, 17]],
+               [[0,  1,  2], [3,  4,  5], [6,  7,  8]]],
+              [[[45, 46, 47], [48, 49, 50], [51, 52, 53]],
+               [[36, 37, 38], [39, 40, 41], [42, 43, 44]],
+               [[27, 28, 29], [30, 31, 32], [33, 34, 35]]]]
+    verify_reverse_sequence(indata, [3, 3], 0, 1, np.array(result))
+
+    indata = np.array(np.arange(0, 54)).reshape([2, 3, 3, 3]).astype("int32")
+    result = [[[[9, 10, 11], [21, 22, 23], [15, 16, 17]],
+               [[0, 1, 2], [12, 13, 14], [6, 7, 8]],
+               [[18, 19, 20], [3, 4, 5], [24, 25, 26]]],
+              [[[36, 37, 38], [48, 49, 50], [42, 43, 44]],
+               [[27, 28, 29], [39, 40, 41], [33, 34, 35]],
+               [[45, 46, 47], [30, 31, 32], [51, 52, 53]]]]
+    verify_reverse_sequence(indata, [2, 3, 2], 2, 1, np.array(result))
+
+    indata = np.array(np.arange(0, 16)).reshape([4, 4]).astype("int32")
+    result = []
+    with pytest.raises(Exception) as execinfo:
+        verify_reverse_sequence(indata, [2, 3, 2, 4, 5], 1, 0, np.array(result))
+
+    assert "For reverse_sequnece seq_lengths size should match with dimension of batch axis," \
+           " but got dimension of batch_axis = 4, and seq_length size = 5" in execinfo.value.args[0]
+
+
 def test_scatter():
 
     def ref_scatter(data, indices, updates, axis=0):
@@ -709,6 +809,58 @@ def test_scatter():
     verify_scatter((6, 3, 4, 5), (2, 3, 4, 5), 1)
     verify_scatter((2, 3, 8, 5), (2, 3, 1, 1), 2)
     verify_scatter((16, 16, 4, 5), (16, 16, 4, 5), 3)
+
+
+def test_gather():
+    def verify_gather(data, axis, indices, ref_res):
+        data = np.asarray(data, dtype='float32')
+        indices = np.asarray(indices, dtype='int32')
+        ref_res = np.asarray(ref_res)
+
+        d = relay.var("x", relay.TensorType(data.shape, "float32"))
+        i = relay.var("y", relay.TensorType(indices.shape, "int32"))
+        z = relay.gather(d, axis, i)
+
+        func = relay.Function([d, i], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(data, indices)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res,
+                                            rtol=1e-5)
+
+    verify_gather([[1, 2], [3, 4]],
+                  1,
+                  [[0, 0], [1, 0]],
+                  [[1, 1], [4, 3]])
+    verify_gather([[[0, 1, 2], [3, 4, 5]], [[6, 7, 8], [9, 10, 11]]],
+                  0,
+                  [[[1, 0, 1], [1, 1, 0]]],
+                  [[[6, 1, 8], [9, 10, 5]]])
+    verify_gather([[[-0.2321, -0.2024, -1.7624], [-0.3829, -0.4246, 0.2448],
+                    [0.1822, 0.2360, -0.8965], [0.4497, -0.2224, 0.6103]],
+                   [[0.0408, -0.7667, -0.4303], [-0.3216, 0.7489, -0.1502],
+                    [0.0144, -0.4699, -0.0064], [-0.0768, -1.6064, 1.3390]]],
+                  1,
+                  [[[2, 2, 0], [1, 0, 3]], [[3, 2, 0], [1, 0, 0]]],
+                  [[[0.1822, 0.2360, -1.7624], [-0.3829, -0.2024, 0.6103]],
+                   [[-0.0768, -0.4699, -0.4303], [-0.3216, -0.7667, -0.4303]]])
+    verify_gather([[[0.3050, 1.6986, 1.1034], [0.7020, -0.6960, -2.1818],
+                    [0.3116, -0.5773, -0.9912], [0.0835, -1.3915, -1.0720]],
+                   [[0.1694, -0.6091, -0.6539], [-0.5234, -0.1218, 0.5084],
+                    [0.2374, -1.9537, -2.0078], [-0.5700, -1.0302, 0.1558]]],
+                  2,
+                  [[[1, 1, 0, 1], [0, 0, 2, 2], [1, 2, 1, 2], [2, 2, 1, 0]],
+                   [[0, 0, 1, 2], [2, 2, 1, 0], [1, 2, 0, 0], [0, 2, 0, 2]]],
+                  [[[1.6986, 1.6986, 0.3050, 1.6986],
+                    [0.7020, 0.7020, -2.1818, -2.1818],
+                    [-0.5773, -0.9912, -0.5773, -0.9912],
+                    [-1.0720, -1.0720, -1.3915, 0.0835]],
+                   [[0.1694, 0.1694, -0.6091, -0.6539],
+                    [0.5084, 0.5084, -0.1218, -0.5234],
+                    [-1.9537, -2.0078, 0.2374, 0.2374],
+                    [-0.5700, 0.1558, -0.5700, 0.1558]]])
 
 
 def test_gather_nd():
@@ -849,7 +1001,6 @@ def test_sparse_to_dense():
     #verify_sparse_to_dense([[[[0, 1, 4], [0, 2, 4]]]], [[[[3.1, 3.1, 3.1]]]], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1])
 
 if __name__ == "__main__":
-    test_arange()
     test_cast()
     test_zeros_ones()
     test_unary_identity()
@@ -873,6 +1024,7 @@ if __name__ == "__main__":
     test_squeeze_bad_axes_infer_type()
     test_split_infer_type()
     test_arange()
+    test_meshgrid()
     test_reverse()
     test_stack()
     test_tile()

@@ -25,6 +25,7 @@
 #include "./type_relations.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/tir/op.h>
@@ -75,10 +76,10 @@ Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2, DataType outp
       oshape.push_back(s2);
     } else if (EqualConstInt(s2, 1)) {
       oshape.push_back(s1);
-    } else if (s1.as<Any>()) {
+    } else if (s1.as<AnyNode>()) {
       // s1 == 1 || s1 == s2
       oshape.push_back(s2);
-    } else if (s2.as<Any>()) {
+    } else if (s2.as<AnyNode>()) {
       // s2 == 1 || s2 == s1
       oshape.push_back(s1);
     } else if (EqualCheck(s1, s2)) {
@@ -144,6 +145,20 @@ Array<IndexExpr> RankShape(const Array<IndexExpr>& shape) {
   } else {
     return {tvm::Integer(shape.size())};
   }
+}
+
+bool ShapeOfRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                const TypeReporter& reporter) {
+  CHECK_EQ(num_inputs, 1);
+  auto tt = types[0].as<TensorTypeNode>();
+  if (tt == nullptr) {
+    return false;
+  }
+  const auto* param = attrs.as<ShapeOfAttrs>();
+  CHECK(param != nullptr);
+  auto rank_shape = RankShape(tt->shape);
+  reporter->Assign(types[1], TensorType(rank_shape, param->dtype));
+  return true;
 }
 
 }  // namespace relay

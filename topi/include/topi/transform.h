@@ -150,44 +150,72 @@ inline Tensor transpose(const Tensor& x, Array<Integer> axes, std::string name =
 }
 
 /*!
- * \brief flip/reverse elements of an array in a particular axis
+ * \brief Reverse the tensor for variable length slices.
+ * Input is first sliced along batch axis and then elements are reversed along seq axis.
  *
  * \param x The input tensor
- * \param axis The axis along which the tensors will be reveresed
- * (allows negative indices)
+ * \param seq_lengths A 1D Tensor with length x.dims[batch_axis]. Optional Tensor() can be passed.
+ * If not defined batch axis is ignored and tensor is reversed along seq_axis.
+ * \param seq_axis The axis along which the elements will be reveresed
+ * \param batch_axis The axis along which the tensor will be sliced
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the reverse operation
+ * \return A Tensor whose op member is the reverse_sequence operation
  */
-inline Tensor flip(const Tensor& x, int axis = 0, std::string name = "T_flip",
-                   std::string tag = kInjective) {
+inline Tensor reverse_sequence(const Tensor& x, const Tensor& seq_lengths, int seq_axis = 1,
+                               int batch_axis = 0, std::string name = "T_reverse_sequence",
+                               std::string tag = kInjective) {
   size_t src_tensor_dim = x->shape.size();
-  int axis_inp = axis;
+  int seq_axis_inp = seq_axis;
 
-  if (axis < 0) {
-    axis = static_cast<int>(x->shape.size()) + axis;
+  if (seq_lengths.defined()) {
+    size_t seq_lengths_dim = seq_lengths->shape.size();
+    int batch_axis_inp = batch_axis;
+    if (batch_axis < 0) {
+      batch_axis = static_cast<int>(x->shape.size()) + batch_axis;
+    }
+
+    CHECK(seq_lengths_dim == 1) << "seq_lengths should be 1D vector";
+
+    CHECK(GetConstInt(seq_lengths->shape[0]) == GetConstInt(x->shape[batch_axis]))
+        << "For reverse_sequnece seq_lengths size should match with dimension of batch axis"
+        << ", but got dimension of batch_axis = " << GetConstInt(x->shape[batch_axis])
+        << ", and seq_length size = " << GetConstInt(seq_lengths->shape[0]);
+
+    CHECK((0 <= batch_axis) && (batch_axis < static_cast<int>(x->shape.size())))
+        << "batch_axis=" << batch_axis_inp << " is invalid for the "
+        << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
   }
 
-  CHECK((0 <= axis) && (axis < static_cast<int>(x->shape.size())))
-      << "axis=" << axis_inp << " is invalid for the " << static_cast<int>(x->shape.size())
+  if (seq_axis < 0) {
+    seq_axis = static_cast<int>(x->shape.size()) + seq_axis;
+  }
+  CHECK((0 <= seq_axis) && (seq_axis < static_cast<int>(x->shape.size())))
+      << "seq_axis=" << seq_axis_inp << " is invalid for the " << static_cast<int>(x->shape.size())
       << "-dimensional input tensor";
 
-  // Reverse the Input Tensor in the axis specified
-  return compute(
-      x->shape,
-      [&](const Array<Var>& indices) {
-        Array<PrimExpr> real_indices;
-        for (size_t i = 0; i < src_tensor_dim; ++i) {
-          if (i == static_cast<size_t>(axis)) {
-            real_indices.push_back(x->shape[i] - indices[i] - 1);
-          } else {
-            real_indices.push_back(indices[i]);
-          }
+  auto func = [&](const Array<Var>& indices) {
+    Array<PrimExpr> real_indices;
+    for (size_t i = 0; i < src_tensor_dim; ++i) {
+      if (i == static_cast<size_t>(seq_axis)) {
+        if (seq_lengths.defined()) {
+          auto len = seq_lengths(indices[batch_axis]);
+          auto idx = if_then_else(
+              len <= 1 || len <= indices[i], indices[i],
+              if_then_else(len > x->shape[i], x->shape[i] - 1 - indices[i], len - 1 - indices[i]));
+          real_indices.push_back(idx);
+        } else {
+          real_indices.push_back(x->shape[i] - 1 - indices[i]);
         }
-        return x(real_indices);
-      },
-      name, tag);
+      } else {
+        real_indices.push_back(indices[i]);
+      }
+    }
+    return x(real_indices);
+  };
+
+  return compute(x->shape, func, name, tag);
 }
 
 /*!
@@ -867,7 +895,7 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
     out = compute(
         oshape,
         [&](const Array<Var>& indices) {
-          return tvm::tir::SelectNode::make(condition(indices) != 0, x(indices), y(indices));
+          return tvm::tir::Select(condition(indices) != 0, x(indices), y(indices));
         },
         name, tag);
   } else {
@@ -878,7 +906,7 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
         oshape,
         [&](const Array<Var>& indices) {
           Array<PrimExpr> condition_idx{indices[0]};
-          return tvm::tir::SelectNode::make(condition(condition_idx) != 0, x(indices), y(indices));
+          return tvm::tir::Select(condition(condition_idx) != 0, x(indices), y(indices));
         },
         name, tag);
   }
@@ -986,6 +1014,54 @@ inline Tensor tile(const Tensor& x, Array<Integer> reps, std::string name = "T_t
         },
         name, tag);
   }
+}
+
+/*!
+ * \brief Gather values along given axis from given indices.
+ *
+ * \param data The input data to the operator.
+ * \param axis The axis along which to index.
+ * \param indices The indices of values to gather.
+ * \param name The name of the operation.
+ * \param tag The tag to mark the operation.
+ *
+ * \return A Tensor whose op member is the gather operation
+ */
+inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
+                     std::string name = "T_gather", std::string tag = kInjective) {
+  size_t ndim_d = data->shape.size();
+  size_t ndim_i = indices->shape.size();
+  CHECK_GE(ndim_d, 1) << "Cannot gather from a scalar.";
+  CHECK_EQ(ndim_d, ndim_i);
+  CHECK_GE(axis, 0);
+  CHECK_LT(axis, ndim_d);
+  size_t indices_dim_i = static_cast<size_t>(GetConstInt(indices->shape[axis]));
+  CHECK_GE(indices_dim_i, 1);
+  CHECK(indices->dtype.is_int());
+
+  Array<PrimExpr> out_shape;
+  for (size_t i = 0; i < ndim_i; ++i) {
+    out_shape.push_back(indices->shape[i]);
+  }
+
+  return compute(
+      out_shape,
+      [&](const Array<Var>& out_index) {
+        Array<PrimExpr> indices_position;
+        for (size_t i = 0; i < ndim_i; ++i) {
+          indices_position.push_back(out_index[i]);
+        }
+        Array<PrimExpr> real_indices;
+        for (size_t i = 0; i < ndim_i; ++i) {
+          if (i == (size_t)axis) {
+            real_indices.push_back(indices(indices_position));
+          } else {
+            real_indices.push_back(indices_position[i]);
+          }
+        }
+        return data(real_indices);
+      },
+      name, tag);
 }
 
 /*!
@@ -1182,6 +1258,38 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
 }
 
 /*!
+ * \brief Produce grids by expanding input over dimensions defined by other inputs
+ *
+ * \param inputs The input tensors
+ * \param indexing The indexing mode, either "xy" or "ij"
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the meshgrid operation
+ */
+inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& indexing,
+                              std::string name = "T_meshgrid", std::string tag = kInjective) {
+  const bool cartesian_indexing = indexing == "xy" && inputs.size() >= 2;
+  Array<PrimExpr> out_shape;
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    const int src_index = (cartesian_indexing && i < 2) ? 1 - i : i;
+    out_shape.push_back(inputs[src_index]->shape.size() == 0 ? 1 : inputs[src_index]->shape[0]);
+  }
+  Array<Tensor> result;
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    result.push_back(compute(
+        out_shape,
+        [&](const Array<Var>& indices) {
+          const int src_index = (cartesian_indexing && i < 2) ? 1 - i : i;
+          Array<PrimExpr> real_indices = {indices[src_index]};
+          return inputs[i](real_indices);
+        },
+        name, tag));
+  }
+  return result;
+}
+
+/*!
  * \brief Transform the layout according to \p src_layout and \p dst_layout
  * \param src the source input.
  * \param src_layout the source layout.
@@ -1194,8 +1302,8 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
                                const std::string& dst_layout,
                                const std::string name = "T_layout_trans",
                                const std::string tag = kInjective) {
-  Layout src_layout_struct = LayoutNode::make(src_layout);
-  Layout dst_layout_struct = LayoutNode::make(dst_layout);
+  Layout src_layout_struct(src_layout);
+  Layout dst_layout_struct(dst_layout);
 
   if (src_layout_struct.Equals(dst_layout_struct)) {
     return src;
@@ -1312,8 +1420,7 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
         }
 
         auto idx = iter_vars[true_axis];
-        return tir::SelectNode::make(indices(indices_indices) == idx, on_value_cast,
-                                     off_value_cast);
+        return tir::Select(indices(indices_indices) == idx, on_value_cast, off_value_cast);
       },
       name, tag);
 }

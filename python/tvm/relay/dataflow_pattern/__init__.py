@@ -97,6 +97,38 @@ class DFPattern(Node):
         """
         return has_type(ttype, self)
 
+    def has_dtype(self, dtype: str):
+        """
+        Add a type constraint to this pattern
+
+        Parameters
+        ----------
+        dtype: str
+            The dtype to match
+
+        Returns
+        -------
+        result: tvm.relay.dataflow_pattern.DFPattern
+            The resulting DataTypePattern
+        """
+        return has_dtype(dtype, self)
+
+    def has_shape(self, shape: List[tvm.ir.PrimExpr]):
+        """
+        Add a type constraint to this pattern
+
+        Parameters
+        ----------
+        shape: List[tvm.ir.PrimExpr]
+            The shape to match
+
+        Returns
+        -------
+        result: tvm.relay.dataflow_pattern.DFPattern
+            The resulting ShapePattern
+        """
+        return has_shape(shape, self)
+
     def match(self, expr: Expr) -> bool:
         """
         Match this pattern to an expression
@@ -261,7 +293,7 @@ def is_tuple(fields: tvm.ir.container.Array) -> "DFPattern":
     return TuplePattern(fields)
 
 
-def is_tuple_get_item(tuple_value: "DFPattern", index: int) -> "DFPattern":
+def is_tuple_get_item(tuple_value: "DFPattern", index: Optional[int] = None) -> "DFPattern":
     """
     Syntatic sugar for creating an ExprPattern.
 
@@ -270,8 +302,8 @@ def is_tuple_get_item(tuple_value: "DFPattern", index: int) -> "DFPattern":
     tuple_value: tvm.relay.dataflow_pattern.DFPattern
         The input tuple expression.
 
-    index: int
-        The index.
+    index: Optional[int]
+        The index to match; Default (None) to match a TupleGetItem with any index.
 
     Returns
     -------
@@ -293,17 +325,17 @@ def wildcard() -> "DFPattern":
     return WildcardPattern()
 
 
-def has_type(ttype, pattern: "DFPattern" = None) -> "DFPattern":
+def has_type(ttype: tvm.ir.type.Type, pattern: "DFPattern" = None) -> "DFPattern":
     """
     Syntatic sugar for creating a TypePattern
 
     Parameters
     ----------
-    pattern: tvm.relay.dataflow_pattern.DFPattern
-        The pattern that needs type annotation
-
     ttype: tvm.ir.type.Type
         The type to match
+
+    pattern: tvm.relay.dataflow_pattern.DFPattern
+        The pattern that needs type annotation
 
     Returns
     -------
@@ -313,6 +345,50 @@ def has_type(ttype, pattern: "DFPattern" = None) -> "DFPattern":
     if pattern is None:
         pattern = wildcard()
     return TypePattern(pattern, ttype)
+
+
+def has_dtype(dtype: str, pattern: "DFPattern" = None) -> "DFPattern":
+    """
+    Syntatic sugar for creating a DataTypePattern
+
+    Parameters
+    ----------
+    dtype: str
+        The dtype to match
+
+    pattern: tvm.relay.dataflow_pattern.DFPattern
+        The pattern that needs type annotation
+
+    Returns
+    -------
+    result: tvm.relay.dataflow_pattern.DFPattern
+        The resulting DataTypePattern
+    """
+    if pattern is None:
+        pattern = wildcard()
+    return DataTypePattern(pattern, dtype)
+
+
+def has_shape(shape: List[tvm.ir.PrimExpr], pattern: "DFPattern" = None) -> "DFPattern":
+    """
+    Syntatic sugar for creating a ShapePattern
+
+    Parameters
+    ----------
+    shape: List[tvm.ir.PrimExpr]
+        The shape to match
+
+    pattern: tvm.relay.dataflow_pattern.DFPattern
+        The pattern that needs type annotation
+
+    Returns
+    -------
+    result: tvm.relay.dataflow_pattern.DFPattern
+        The resulting ShapePattern
+    """
+    if pattern is None:
+        pattern = wildcard()
+    return ShapePattern(pattern, shape)
 
 
 def has_attr(attrs, pattern=None) -> "DFPattern":
@@ -479,12 +555,13 @@ class TupleGetItemPattern(DFPattern):
     tuple_value: tvm.relay.dataflow_pattern.DFPattern
         The input tuple expression.
 
-    index: int
-        The index.
+    index: Optional[int]
+        The index to match; Default (None) to match a TupleGetItem with any index.
     """
 
-    def __init__(self, tuple_value: "DFPattern", index: int):
-        self.__init_handle_by_constructor__(ffi.TupleGetItemPattern, tuple_value, index)
+    def __init__(self, tuple_value: "DFPattern", index: Optional[int] = None):
+        match_index = index if index is not None else -1
+        self.__init_handle_by_constructor__(ffi.TupleGetItemPattern, tuple_value, match_index)
 
 
 @register_df_node
@@ -514,7 +591,7 @@ class WildcardPattern(DFPattern):
 
 @register_df_node
 class TypePattern(DFPattern):
-    """Get index-th item from a TuplePattern.
+    """A pattern that matches another pattern with a certain type annotation.
 
     Parameters
     ----------
@@ -527,6 +604,40 @@ class TypePattern(DFPattern):
 
     def __init__(self, pattern: "DFPattern", ttype: tvm.ir.type.Type):
         self.__init_handle_by_constructor__(ffi.TypePattern, pattern, ttype)
+
+
+@register_df_node
+class DataTypePattern(DFPattern):
+    """A pattern that matches another pattern with certain data type
+
+    Parameters
+    ----------
+    pattern: tvm.relay.dataflow_pattern.DFPattern
+        The input pattern that needs type annotation.
+
+    dtype: str
+        The dtype to match.
+    """
+
+    def __init__(self, pattern: "DFPattern", dtype: str):
+        self.__init_handle_by_constructor__(ffi.DataTypePattern, pattern, dtype)
+
+
+@register_df_node
+class ShapePattern(DFPattern):
+    """A pattern that matches another pattern with a certain tensor shape
+
+    Parameters
+    ----------
+    pattern: tvm.relay.dataflow_pattern.DFPattern
+        The input pattern that needs type annotation.
+
+    shape: List[tvm.ir.PrimExpr]
+        The shape to match.
+    """
+
+    def __init__(self, pattern: "DFPattern", shape: List[tvm.ir.PrimExpr]):
+        self.__init_handle_by_constructor__(ffi.ShapePattern, pattern, shape)
 
 
 @register_df_node

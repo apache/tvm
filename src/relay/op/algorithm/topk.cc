@@ -56,7 +56,7 @@ bool TopKRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         out_shape.push_back(ck);
       }
     } else {
-      out_shape.push_back(Any::make());
+      out_shape.push_back(Any());
     }
   }
   auto values_ty = TensorType(out_shape, data->dtype);

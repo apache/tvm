@@ -40,10 +40,61 @@ namespace te {
 using arith::IntSet;
 using namespace tvm::tir;
 
-// Internal node container of Tensor
-class TensorNode;
 // internal node container for Operation
 class OperationNode;
+class Tensor;
+
+/*! \brief Operation that produces tensors */
+class Operation : public ObjectRef {
+ public:
+  /*! \brief default constructor  */
+  Operation() {}
+  explicit Operation(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const OperationNode* operator->() const;
+  /*!
+   * \brief get the i-th output of the operation.
+   * \param i the output index.
+   * \return The i-th output.
+   */
+  TVM_DLL Tensor output(size_t i) const;
+  /*! \brief specify container node */
+  using ContainerType = OperationNode;
+};
+
+/*! \brief Node to represent a tensor */
+class TensorNode : public DataProducerNode {
+ public:
+  /*! \brief The shape of the tensor */
+  Array<PrimExpr> shape;
+  /*! \brief data type in the content of the tensor */
+  DataType dtype;
+  /*! \brief the source operation, can be None */
+  Operation op;
+  /*! \brief the output index from source operation */
+  int value_index{0};
+  /*! \brief constructor */
+  TensorNode() {}
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("shape", &shape);
+    v->Visit("dtype", &dtype);
+    v->Visit("op", &op);
+    v->Visit("value_index", &value_index);
+  }
+
+  Array<PrimExpr> GetShape() const final { return shape; }
+
+  DataType GetDataType() const final { return dtype; }
+
+  TVM_DLL String GetNameHint() const final;
+
+  static constexpr const char* _type_key = "Tensor";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, DataProducerNode);
+};
 
 /*!
  * \brief Tensor structure representing a possible input,
@@ -51,14 +102,7 @@ class OperationNode;
  */
 class Tensor : public DataProducer {
  public:
-  /*! \brief default constructor, used internally */
-  Tensor() {}
-  explicit Tensor(ObjectPtr<Object> n) : DataProducer(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const TensorNode* operator->() const;
+  TVM_DLL Tensor(Array<PrimExpr> shape, DataType dtype, Operation op, int value_index);
   /*!
    * \brief check if two tensors equals each other.
    * \param other tensor to be checked.
@@ -131,69 +175,11 @@ class Tensor : public DataProducer {
    * \return the subsequent slice.
    */
   inline Slice operator[](PrimExpr i) const { return Slice(*this, {i}); }
-  /*! \brief specify container node */
-  using ContainerType = TensorNode;
-};
 
-/*! \brief Operation that produces tensors */
-class Operation : public tir::FunctionRef {
- public:
-  /*! \brief default constructor  */
-  Operation() {}
-  explicit Operation(ObjectPtr<Object> n) : FunctionRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const OperationNode* operator->() const;
-  /*!
-   * \brief get the i-th output of the operation.
-   * \param i the output index.
-   * \return The i-th output.
-   */
-  TVM_DLL Tensor output(size_t i) const;
-  /*! \brief specify container node */
-  using ContainerType = OperationNode;
-};
-
-/*! \brief Node to represent a tensor */
-class TensorNode : public DataProducerNode {
- public:
-  /*! \brief The shape of the tensor */
-  Array<PrimExpr> shape;
-  /*! \brief data type in the content of the tensor */
-  DataType dtype;
-  /*! \brief the source operation, can be None */
-  Operation op;
-  /*! \brief the output index from source operation */
-  int value_index{0};
-  /*! \brief constructor */
-  TensorNode() {}
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("shape", &shape);
-    v->Visit("dtype", &dtype);
-    v->Visit("op", &op);
-    v->Visit("value_index", &value_index);
-  }
-
-  Array<PrimExpr> GetShape() const final { return shape; }
-
-  DataType GetDataType() const final { return dtype; }
-
-  TVM_DLL String GetNameHint() const final;
-
-  TVM_DLL static Tensor make(Array<PrimExpr> shape, DataType dtype, Operation op, int value_index);
-
-  static constexpr const char* _type_key = "Tensor";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, DataProducerNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Tensor, DataProducer, TensorNode);
 };
 
 // Implementations of inline functions
-inline const TensorNode* Tensor::operator->() const {
-  return static_cast<const TensorNode*>(get());
-}
-
 inline size_t Tensor::ndim() const { return (*this)->shape.size(); }
 
 inline bool Tensor::operator==(const Tensor& other) const {

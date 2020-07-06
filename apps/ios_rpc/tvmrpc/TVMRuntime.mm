@@ -27,6 +27,7 @@
 #include "../../../src/runtime/dso_library.cc"
 #include "../../../src/runtime/file_util.cc"
 #include "../../../src/runtime/library_module.cc"
+#include "../../../src/runtime/metadata_module.cc"
 #include "../../../src/runtime/module.cc"
 #include "../../../src/runtime/ndarray.cc"
 #include "../../../src/runtime/object.cc"

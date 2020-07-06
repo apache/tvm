@@ -27,6 +27,10 @@ export RUST_DIR="$TVM_HOME/rust"
 export LLVM_CONFIG_PATH=`which llvm-config-10`
 echo "Using $LLVM_CONFIG_PATH"
 
+# to avoid CI CPU thread throttling.
+export TVM_BIND_THREADS=0
+export OMP_NUM_THREADS=1
+
 cd $RUST_DIR
 cargo fmt -- --check
 

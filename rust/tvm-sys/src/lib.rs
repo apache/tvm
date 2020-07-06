@@ -57,3 +57,15 @@ pub use context::{Context, DeviceType};
 pub use datatype::DataType;
 pub use errors::*;
 pub use packed_func::{ArgValue, RetValue};
+
+impl<T, E> std::convert::TryFrom<Result<T, E>> for RetValue
+where
+    RetValue: std::convert::TryFrom<T>,
+    E: From<<RetValue as std::convert::TryFrom<T>>::Error>,
+{
+    type Error = E;
+
+    fn try_from(val: Result<T, E>) -> Result<RetValue, Self::Error> {
+        val.and_then(|t| RetValue::try_from(t).map_err(|e| e.into()))
+    }
+}

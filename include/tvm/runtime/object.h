@@ -66,6 +66,8 @@ struct TypeIndex {
     kRuntimeString = 3,
     /*! \brief runtime::Array. */
     kRuntimeArray = 4,
+    /*! \brief runtime::Map. */
+    kRuntimeMap = 5,
     // static assignments that may subject to change.
     kRuntimeClosure,
     kRuntimeADT,
@@ -590,6 +592,7 @@ class ObjectRef {
   friend struct ObjectPtrHash;
   friend class TVMRetValue;
   friend class TVMArgsSetter;
+  friend class ObjectInternal;
   template <typename SubRef, typename BaseRef>
   friend SubRef Downcast(BaseRef ref);
 };
@@ -700,6 +703,7 @@ struct ObjectPtrEqual {
   explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {}    \
   TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                           \
   const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
+  const ObjectName* get() const { return operator->(); }                                       \
   using ContainerType = ObjectName;
 
 /*
@@ -713,6 +717,7 @@ struct ObjectPtrEqual {
   explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {}    \
   TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                           \
   const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
+  const ObjectName* get() const { return operator->(); }                                       \
   static constexpr bool _type_is_nullable = false;                                             \
   using ContainerType = ObjectName;
 

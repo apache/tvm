@@ -24,10 +24,13 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_C_H_
 #define TVM_TARGET_SOURCE_CODEGEN_C_H_
 
+#include <tvm/ir/op.h>
 #include <tvm/runtime/container.h>
 #include <tvm/target/codegen.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -220,6 +223,16 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   virtual bool IsScopePartOfType() const { return true; }
 
   /*!
+   * \brief Print external function call.
+   * \param ret_type The return type.
+   * \param global_symbol The symbolc of the target function.
+   * \param args The arguments to the function.
+   * \param skip_first_arg Whether to skip the first arguments.
+   * \param os The output stream.
+   */
+  virtual void PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                               bool skip_first_arg, std::ostream& os);  // NOLINT(*)
+  /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.
    * \param t The type to be checked.
@@ -245,6 +258,11 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   std::unordered_map<const VarNode*, std::string> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */
   std::unordered_map<const VarNode*, DataType> handle_data_type_;
+  /*! \brief Record of ops that have pre-defined global symbol. */
+  OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");
+  // cache commonly used ops
+  const Op& builtin_call_extern_ = builtin::call_extern();
+  const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
 
  private:
   /*! \brief whether to print in SSA form */

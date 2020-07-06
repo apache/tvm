@@ -25,6 +25,7 @@
 #define TOPI_ELEMWISE_H_
 
 #include <topi/tags.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 
 #include <algorithm>
@@ -213,8 +214,8 @@ inline Tensor sign(const Tensor& x, std::string name = "T_sign", std::string tag
         PrimExpr zero = make_zero(x->dtype);
         PrimExpr one = make_const(x->dtype, 1);
         PrimExpr minus_one = make_const(x->dtype, -1);
-        auto s1 = tvm::tir::SelectNode::make((x(i) < zero), minus_one, zero);
-        auto s2 = tvm::tir::SelectNode::make((x(i) > zero), one, s1);
+        auto s1 = tvm::tir::Select((x(i) < zero), minus_one, zero);
+        auto s2 = tvm::tir::Select((x(i) > zero), one, s1);
         return s2;
       },
       name, tag);
@@ -279,13 +280,13 @@ inline Tensor cast(const Tensor& x, DataType type, std::string name = "T_cast",
                    std::string tag = kElementWise) {
   return compute(
       x->shape,
-      [&](const Array<Var>& i) {
+      [&](const Array<Var>& i) -> PrimExpr {
         auto expr = x(i);
         if (expr.dtype().code() == type.code() && expr.dtype().bits() == type.bits()) {
           if (expr.dtype().lanes() == type.lanes()) {
             return expr;
           } else if (expr.dtype().lanes() == 1 && type.lanes() > 1) {
-            return tvm::tir::BroadcastNode::make(expr, type.lanes());
+            return tvm::tir::Broadcast(expr, type.lanes());
           }
         }
 
@@ -309,8 +310,7 @@ inline Tensor reinterpret(const Tensor& x, DataType type, std::string name = "te
   return compute(
       x->shape,
       [&](const Array<Var>& i) {
-        return tvm::tir::CallNode::make(type, "reinterpret", {x(i)},
-                                        tvm::tir::CallNode::PureIntrinsic);
+        return tvm::tir::Call(type, tvm::tir::builtin::reinterpret(), {x(i)});
       },
       name, tag);
 }

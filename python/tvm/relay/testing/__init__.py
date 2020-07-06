@@ -17,16 +17,19 @@
 #pylint: disable=invalid-name
 """Utilities for testing and benchmarks"""
 from __future__ import absolute_import as _abs
+import collections
 import numpy as np
 
 import tvm
 from tvm import te
 import tvm.relay as relay
 import tvm.relay.op as op
+from tvm.relay import Prelude
 
 
 from . import mlp
 from . import resnet
+from . import resnet_3d
 from . import dqn
 from . import dcgan
 from . import mobilenet
@@ -44,9 +47,11 @@ from .nat import add_nat_definitions, count, make_nat_value, make_nat_expr
 from .py_converter import to_python, run_as_python
 from ..transform import gradient
 
-def run_opt_pass(expr, opt_pass):
+def run_opt_pass(expr, opt_pass, import_prelude=False):
     assert isinstance(opt_pass, tvm.transform.Pass)
     mod = tvm.IRModule.from_expr(expr)
+    if import_prelude:
+        Prelude(mod)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
@@ -132,3 +137,18 @@ def check_grad(func, inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, me
 
 def rand(dtype, *shape):
     return tvm.nd.array(np.random.rand(*shape).astype(dtype))
+
+
+def count_ops(expr):
+    """count number of times a given op is called in the graph"""
+    class OpCounter(tvm.relay.ExprVisitor):
+        def visit_call(self, call):
+            if hasattr(call, 'op'):
+                self.node_counter[call.op.name] += 1
+            return super().visit_call(call)
+        def count(self, expr):
+            self.node_set = {}
+            self.node_counter = collections.Counter()
+            self.visit(expr)
+            return self.node_counter
+    return OpCounter().count(expr)

@@ -35,44 +35,60 @@
 namespace tvm {
 namespace tir {
 
-class IRVerifySSA final : public StmtExprVisitor {
+class SSAVerifier final : public StmtExprVisitor {
  public:
-  bool is_ssa{true};
+  bool is_ssa_{true};
 
   void VisitExpr(const PrimExpr& n) final {
-    if (!is_ssa) return;
+    if (!is_ssa_) return;
     StmtExprVisitor::VisitExpr(n);
   }
   void VisitStmt(const Stmt& n) final {
-    if (!is_ssa) return;
+    if (!is_ssa_) return;
     StmtExprVisitor::VisitStmt(n);
   }
   void VisitExpr_(const LetNode* op) final {
-    MarkDef(op->var.get());
+    // Weaker SSA condition
+    // A single var can be binded in multiple lets
+    // but they have to bind to the same value.
+    // This is used to enable cases when we reuse a single let
+    // expression to cosntruct a nested expr.
+    // (let x = 1 in x + 1) * (let x = 1 in x + 1)
+    auto it = def_map_.find(op->var);
+    if (it != def_map_.end()) {
+      if (!deep_equal_(it->second, op->value)) {
+        is_ssa_ = false;
+        return;
+      }
+    } else {
+      MarkDef(op->var, op->value);
+    }
     StmtExprVisitor::VisitExpr_(op);
   }
+
   void VisitStmt_(const LetStmtNode* op) final {
-    MarkDef(op->var.get());
+    MarkDef(op->var, op->value);
     StmtExprVisitor::VisitStmt_(op);
   }
   void VisitStmt_(const ForNode* op) final {
-    MarkDef(op->loop_var.get());
+    MarkDef(op->loop_var, op->loop_var);
     StmtExprVisitor::VisitStmt_(op);
   }
   void VisitStmt_(const AllocateNode* op) final {
-    MarkDef(op->buffer_var.get());
+    MarkDef(op->buffer_var, op->buffer_var);
     StmtExprVisitor::VisitStmt_(op);
   }
 
   void VisitExpr_(const VarNode* node) final {
+    auto var = GetRef<Var>(node);
     if (match_scope_) {
-      MarkDef(node, true);
+      MarkDef(var, var, true);
     }
   }
 
   void Run(const PrimFunc& func) {
     for (auto param : func->params) {
-      MarkDef(param.get());
+      MarkDef(param, param);
     }
 
     for (auto kv : func->buffer_map) {
@@ -99,25 +115,28 @@ class IRVerifySSA final : public StmtExprVisitor {
   }
 
  private:
-  void MarkDef(const VarNode* v, bool allow_dup = false) {
-    if (defined_.count(v) != 0) {
+  void MarkDef(const Var& var, PrimExpr value, bool allow_dup = false) {
+    if (def_map_.count(var) != 0) {
       if (!allow_dup) {
-        is_ssa = false;
+        is_ssa_ = false;
         return;
       }
     } else {
-      defined_[v] = 1;
+      def_map_[var] = value;
     }
   }
   // whether we are in match scope, where a var can occur multiple times.
   bool match_scope_{false};
-  std::unordered_map<const VarNode*, int> defined_;
+  // deep equal
+  ExprDeepEqual deep_equal_;
+  // def map, for let, maps to the bind value, for others maps to self.
+  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> def_map_;
 };
 
 bool VerifySSA(const PrimFunc& func) {
-  IRVerifySSA visitor;
+  SSAVerifier visitor;
   visitor.Run(func);
-  return visitor.is_ssa;
+  return visitor.is_ssa_;
 }
 
 TVM_REGISTER_GLOBAL("tir.analysis.verify_ssa").set_body_typed(VerifySSA);

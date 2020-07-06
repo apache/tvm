@@ -120,6 +120,7 @@ This level enables additional math and transform operators.
    tvm.relay.zeros_like
    tvm.relay.ones
    tvm.relay.ones_like
+   tvm.relay.gather
    tvm.relay.gather_nd
    tvm.relay.full
    tvm.relay.full_like
@@ -127,10 +128,12 @@ This level enables additional math and transform operators.
    tvm.relay.reinterpret
    tvm.relay.split
    tvm.relay.arange
+   tvm.relay.meshgrid
    tvm.relay.stack
    tvm.relay.repeat
    tvm.relay.tile
    tvm.relay.reverse
+   tvm.relay.reverse_sequence
    tvm.relay.unravel_index
    tvm.relay.sparse_to_dense
 

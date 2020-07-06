@@ -24,7 +24,8 @@ from .. import nn
 from ..util import get_const_tuple, traverse_inline
 
 @autotvm.task.register_topi_compute("conv1d_transpose_nchw.cuda")
-def conv1d_transpose_ncw(cfg, data, kernel, stride, padding, out_dtype):
+def conv1d_transpose_ncw(cfg, data, kernel, stride, padding, out_dtype,
+                         output_padding):
     """Transposed 1D convolution ncw forward operator.
 
     Parameters
@@ -43,6 +44,8 @@ def conv1d_transpose_ncw(cfg, data, kernel, stride, padding, out_dtype):
         string: ['VALID', 'SAME']
     out_dtype: str
         The output type. This is used in mixed precision
+    output_padding : ints
+        Used to disambiguate the output shape.
 
     Returns
     -------
@@ -51,13 +54,17 @@ def conv1d_transpose_ncw(cfg, data, kernel, stride, padding, out_dtype):
     """
     if isinstance(stride, (tuple, list)):
         stride = stride[0]
+    if isinstance(output_padding, (tuple, list)):
+        output_padding = output_padding[0]
+    assert output_padding < stride
     cfg.stride = stride
+    cfg.output_padding = output_padding
     batch, inp_channels, inp_width = get_const_tuple(data.shape)
     _, out_channels, kernel_size = get_const_tuple(kernel.shape)
     pad_left, pad_right = nn.get_pad_tuple1d(padding, kernel_size)
-    out_width = (inp_width - 1) * stride + kernel_size - pad_left - pad_right
+    out_width = (inp_width - 1) * stride + kernel_size - pad_left - pad_right + output_padding
     pad_left = kernel_size - 1 - pad_left
-    pad_right = kernel_size - 1 - pad_right
+    pad_right = kernel_size - 1 - pad_right + output_padding
     dilated_width = stride * (inp_width - 1) + 1
     data = te.compute(
         (batch, inp_channels, pad_left + dilated_width + pad_right),
@@ -117,7 +124,7 @@ def schedule_conv1d_transpose_ncw(cfg, outs):
             cfg.define_knob("auto_unroll_max_step", [64, 512, 1500])
 
             target = tvm.target.Target.current()
-            if target.target_name in ['nvptx', 'rocm']:
+            if target.id.name in ['nvptx', 'rocm']:
                 cfg.define_knob("unroll_explicit", [1])
             else:
                 cfg.define_knob("unroll_explicit", [0, 1])

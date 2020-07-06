@@ -134,7 +134,7 @@ def schedule_nhwc_tensorcore_cuda(cfg, s, Conv):
     target = tvm.target.Target.current()
     if cfg.is_fallback:
         ref_log = autotvm.tophub.load_reference_log(
-            target.target_name, target.model, 'conv2d_nhwc_tensorcore.cuda')
+            target.id.name, target.model, 'conv2d_nhwc_tensorcore.cuda')
         cfg.fallback_with_reference_log(ref_log)
 
     block_row_warps = cfg["block_row_warps"].val

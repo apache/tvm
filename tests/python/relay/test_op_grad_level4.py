@@ -19,17 +19,18 @@ from tvm import relay
 from tvm.relay.testing import check_grad
 
 
-def verify_sum_grad(d_shape, axis=None, keepdims=False, exclude=False):
+def verify_reduction_grad(red_fn, d_shape, axis=None, keepdims=False, exclude=False):
     data = relay.var("data", relay.TensorType(d_shape, "float32"))
-    fwd_func = relay.Function([data], relay.sum(data, axis=axis, keepdims=keepdims, exclude=exclude))
+    fwd_func = relay.Function([data], red_fn(data, axis=axis, keepdims=keepdims, exclude=exclude))
     check_grad(fwd_func)
 
 
-def test_sum_grad():
-    verify_sum_grad((4, 2))
-    verify_sum_grad((4, 2), axis=-1, keepdims=True)
-    verify_sum_grad((4, 2, 1), axis=(1, 2), exclude=True)
-    verify_sum_grad((4, 2, 1), axis=1)
+def test_reduction_grad():
+    for op in (relay.sum, relay.variance, relay.mean):
+        verify_reduction_grad(op, (4, 2))
+        verify_reduction_grad(op, (4, 2), axis=-1, keepdims=True)
+        verify_reduction_grad(op, (4, 2, 1), axis=(1, 2), exclude=True)
+        verify_reduction_grad(op, (4, 2, 1), axis=1)
 
 
 def verify_max_grad(d_shape, axis=None, keepdims=False, exclude=False):

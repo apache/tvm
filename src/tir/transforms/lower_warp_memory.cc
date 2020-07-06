@@ -30,6 +30,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -220,9 +221,8 @@ class WarpAccessRewriter : protected StmtExprMutator {
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 
-    return AllocateNode::make(op->buffer_var, op->dtype,
-                              {make_const(DataType::Int(32), alloc_size / width_)}, op->condition,
-                              this->VisitStmt(op->body));
+    return Allocate(op->buffer_var, op->dtype, {make_const(DataType::Int(32), alloc_size / width_)},
+                    op->condition, this->VisitStmt(op->body));
   }
 
  protected:
@@ -235,7 +235,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     if (op->buffer_var.get() == buffer_) {
       PrimExpr local_index, group;
       std::tie(local_index, group) = SplitIndexByGroup(op->index);
-      return StoreNode::make(op->buffer_var, op->value, local_index, op->predicate);
+      return Store(op->buffer_var, op->value, local_index, op->predicate);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -249,11 +249,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
       CHECK(!ExprUseVar(local_index, warp_index_))
           << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->index
           << " local_index=" << local_index;
-      PrimExpr load_value = LoadNode::make(op->dtype, op->buffer_var, local_index, op->predicate);
-      PrimExpr mask = CallNode::make(DataType::UInt(32), intrinsic::tvm_warp_activemask, {},
-                                     CallNode::Intrinsic);
-      return CallNode::make(load_value.dtype(), intrinsic::tvm_warp_shuffle,
-                            {mask, load_value, group, width_, warp_size_}, CallNode::Intrinsic);
+      PrimExpr load_value = Load(op->dtype, op->buffer_var, local_index, op->predicate);
+      PrimExpr mask = Call(DataType::UInt(32), builtin::tvm_warp_activemask(), {});
+      return Call(load_value.dtype(), builtin::tvm_warp_shuffle(),
+                  {mask, load_value, group, width_, warp_size_});
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -271,8 +270,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
       CHECK(arith::ramp(base, 1, index.dtype().lanes()).Match(index));
 
       std::tie(local_index, group) = SplitIndexByGroup(base.Eval());
-      local_index =
-          RampNode::make(local_index, make_const(local_index.dtype(), 1), index.dtype().lanes());
+      local_index = Ramp(local_index, make_const(local_index.dtype(), 1), index.dtype().lanes());
       return std::make_pair(local_index, group);
     }
     PrimExpr m = make_const(index.dtype(), warp_coeff_);
@@ -317,7 +315,7 @@ class BindVarBoundInfo : public StmtVisitor {
 
   void VisitStmt_(const ForNode* op) final {
     const Var& loop_var = op->loop_var;
-    analyzer_->Bind(loop_var, Range::make_by_min_extent(op->min, op->extent));
+    analyzer_->Bind(loop_var, Range::FromMinExtent(op->min, op->extent));
     StmtVisitor::VisitStmt_(op);
   }
 
@@ -326,7 +324,7 @@ class BindVarBoundInfo : public StmtVisitor {
       IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
       if (!var_dom_.count(iv->var.get())) {
-        Range dom = Range::make_by_min_extent(0, op->value);
+        Range dom = Range::FromMinExtent(0, op->value);
         var_dom_[iv->var.get()] = dom;
         analyzer_->Bind(iv->var, dom);
       }
@@ -369,12 +367,12 @@ class WarpMemoryRewriter : private StmtMutator {
     using runtime::StorageScope;
     if (op->attr_key == attr::storage_scope) {
       const VarNode* buf = op->node.as<VarNode>();
-      StorageScope scope = StorageScope::make(op->value.as<StringImmNode>()->value);
+      StorageScope scope = StorageScope::Create(op->value.as<StringImmNode>()->value);
       if (scope.rank == runtime::StorageRank::kWarp) {
         warp_buffer_.insert(buf);
         Stmt ret = StmtMutator::VisitStmt_(op);
         op = ret.as<AttrStmtNode>();
-        return AttrStmtNode::make(op->node, op->attr_key, StringImmNode::make("local"), op->body);
+        return AttrStmt(op->node, op->attr_key, StringImm("local"), op->body);
       }
     }
     return StmtMutator::VisitStmt_(op);
@@ -394,7 +392,8 @@ Pass LowerWarpMemory() {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     CHECK(target.defined()) << "LowerWarpMemory: Require the target attribute";
-    n->body = WarpMemoryRewriter(target.value()->thread_warp_size).Rewrite(std::move(n->body));
+    int warp_size = target.value()->GetAttr<Integer>("thread_warp_size", 1).value();
+    n->body = WarpMemoryRewriter(warp_size).Rewrite(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerWarpMemory", {});

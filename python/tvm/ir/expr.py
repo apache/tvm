@@ -118,7 +118,7 @@ class Range(Node):
                 _ffi_api.Range, begin, end)
 
     @staticmethod
-    def make_by_min_extent(min_value, extent):
+    def from_min_extent(min_value, extent):
         """Construct a Range by min and extent.
 
         This constructs a range in [min_value, min_value + extent)
@@ -136,4 +136,4 @@ class Range(Node):
         rng : Range
             The constructed range.
         """
-        return _ffi_api.range_by_min_extent(min_value, extent)
+        return _ffi_api.Range_from_min_extent(min_value, extent)

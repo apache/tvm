@@ -107,6 +107,7 @@ ALLOW_SPECIFIC_FILE = {
     "Jenkinsfile",
     # cargo config
     "rust/runtime/tests/test_wasm32/.cargo/config",
+    "rust/tvm-graph-rt/tests/test_wasm32/.cargo/config",
     "apps/sgx/.cargo/config",
     # html for demo purposes
     "web/apps/browser/rpc_server.html",
@@ -189,7 +190,7 @@ def main():
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
-    assert proc.returncode == 0
+    assert proc.returncode == 0, f'{" ".join(cmd)} errored: {out}'
     res = out.decode("utf-8")
     flist = res.split()
     error_list = []

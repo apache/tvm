@@ -80,8 +80,8 @@ class CustomDatatypesLowerer : public StmtExprMutator {
 
     if (toBeLowered) {
       auto new_allocate_type = DataType::UInt(allocate->dtype.bits(), allocate->dtype.lanes());
-      return AllocateNode::make(allocate->buffer_var, new_allocate_type, allocate->extents,
-                                allocate->condition, allocate->body);
+      return Allocate(allocate->buffer_var, new_allocate_type, allocate->extents,
+                      allocate->condition, allocate->body);
     }
     return stmt;
   }
@@ -92,7 +92,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     load = expr.as<LoadNode>();
     if (toBeLowered) {
       auto new_load_type = DataType::UInt(load->dtype.bits());
-      return LoadNode::make(new_load_type, load->buffer_var, load->index, load->predicate);
+      return Load(new_load_type, load->buffer_var, load->index, load->predicate);
     }
     return expr;
   }
@@ -139,7 +139,7 @@ Pass LowerCustomDatatypes() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     CHECK(target.defined()) << "LowerCustomDatatypes: Require the target attribute";
 
-    n->body = CustomDatatypesLowerer(target.value()->target_name)(std::move(n->body));
+    n->body = CustomDatatypesLowerer(target.value()->id->name)(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerCustomDatatypes", {});

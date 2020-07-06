@@ -31,13 +31,13 @@ namespace arith {
 using namespace tir;
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
-  analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
+  analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   return StmtExprMutator::VisitStmt_(op);
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
-  if (!tir::HasSideEffect(value)) {
+  if (SideEffect(value) <= CallEffectKind::kPure) {
     analyzer_->Bind(op->var, value);
   }
   // We keep the let-binding here
@@ -56,8 +56,10 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
   PrimExpr real_condition = condition;
+  static auto op_likely = Op::Get("tir.likely");
+
   if (auto call = condition.as<CallNode>()) {
-    if (call->is_intrinsic(CallNode::likely)) {
+    if (call->op.same_as(op_likely)) {
       real_condition = call->args[0];
     }
   }
@@ -68,8 +70,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
     then_case = this->VisitStmt(op->then_case);
   }
   if (op->else_case.defined()) {
-    With<ConstraintContext> ctx(analyzer_,
-                                analyzer_->rewrite_simplify(NotNode::make(real_condition)));
+    With<ConstraintContext> ctx(analyzer_, analyzer_->rewrite_simplify(Not(real_condition)));
     else_case = this->VisitStmt(op->else_case);
   }
   if (is_one(real_condition)) return then_case;
@@ -77,7 +78,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
     if (else_case.defined()) {
       return else_case;
     }
-    return EvaluateNode::make(0);
+    return Evaluate(0);
   }
 
   if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
@@ -96,7 +97,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
     IterVar iv = Downcast<IterVar>(op->node);
     CHECK_NE(iv->thread_tag.length(), 0U);
-    analyzer_->Bind(iv->var, Range::make_by_min_extent(0, op->value));
+    analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value));
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     return stmt;
   } else {
@@ -123,7 +124,8 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {
 
 PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
-  if (op->is_intrinsic(tir::intrinsic::tvm_if_then_else)) {
+  static auto op_if_then_else = Op::Get("tir.if_then_else");
+  if (op->op.same_as(op_if_then_else)) {
     PrimExpr cond = this->VisitExpr(op->args[0]);
     PrimExpr true_value, false_value;
     {
@@ -131,8 +133,7 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
       true_value = this->VisitExpr(op->args[1]);
     }
     {
-      With<ConstraintContext> constraint(analyzer_,
-                                         analyzer_->rewrite_simplify(NotNode::make(cond)));
+      With<ConstraintContext> constraint(analyzer_, analyzer_->rewrite_simplify(Not(cond)));
       false_value = this->VisitExpr(op->args[2]);
     }
     if (is_zero(cond)) {
@@ -145,7 +146,7 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
         false_value.same_as(op->args[2])) {
       return GetRef<PrimExpr>(op);
     } else {
-      return CallNode::make(op->dtype, op->name, {cond, true_value, false_value}, op->call_type);
+      return Call(op->dtype, op->op, {cond, true_value, false_value});
     }
   }
   return StmtExprMutator::VisitExpr_(op);
@@ -153,7 +154,7 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
 
 PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const LetNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
-  if (!tir::HasSideEffect(value)) {
+  if (SideEffect(value) <= CallEffectKind::kPure) {
     analyzer_->Bind(op->var, value);
   }
   // We keep the let-binding here
@@ -162,7 +163,7 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const LetNode* op) {
   if (value.same_as(op->value) && body.same_as(op->body)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return LetNode::make(op->var, value, body);
+    return Let(op->var, value, body);
   }
 }
 
@@ -174,7 +175,7 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const SelectNode* op) {
     true_value = VisitExpr(op->true_value);
   }
   {
-    With<ConstraintContext> constraint(analyzer_, analyzer_->rewrite_simplify(NotNode::make(cond)));
+    With<ConstraintContext> constraint(analyzer_, analyzer_->rewrite_simplify(Not(cond)));
     false_value = VisitExpr(op->false_value);
   }
   if (is_zero(cond)) {
@@ -188,7 +189,7 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const SelectNode* op) {
       false_value.same_as(op->false_value)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return SelectNode::make(cond, true_value, false_value);
+    return Select(cond, true_value, false_value);
   }
 }
 

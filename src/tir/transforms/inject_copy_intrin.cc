@@ -120,7 +120,7 @@ class CopyIntrinInjector : public StmtMutator {
         DataType t = loop_vars[i].dtype();
         PrimExpr svalue = src_shape[i];
         if (min_value.defined()) {
-          PrimExpr pbefore = analyzer_.Simplify(MaxNode::make(min_value, make_zero(t)));
+          PrimExpr pbefore = analyzer_.Simplify(Max(min_value, make_zero(t)));
           src_elem_offset = src_elem_offset + pbefore * load_strides[i];
           svalue = svalue - pbefore;
           pad_before.push_back(pbefore);
@@ -147,12 +147,12 @@ class CopyIntrinInjector : public StmtMutator {
       src_strides.push_back(make_const(DataType::Int(32), 1));
       dst_strides.push_back(make_const(DataType::Int(32), 1));
     }
-    Buffer dst = BufferNode::make(store->buffer_var, store->value.dtype(), dst_shape, dst_strides,
-                                  store_strides[loop_var_size], store->buffer_var->name_hint,
-                                  GetStorageScope(store->buffer_var.get()), 0, 0, kDefault);
-    Buffer src = BufferNode::make(load->buffer_var, load->dtype, src_shape, src_strides,
-                                  src_elem_offset, load->buffer_var->name_hint,
-                                  GetStorageScope(load->buffer_var.get()), 0, 0, kDefault);
+    Buffer dst = Buffer(store->buffer_var, store->value.dtype(), dst_shape, dst_strides,
+                        store_strides[loop_var_size], store->buffer_var->name_hint,
+                        GetStorageScope(store->buffer_var.get()), 0, 0, kDefault);
+    Buffer src = Buffer(load->buffer_var, load->dtype, src_shape, src_strides, src_elem_offset,
+                        load->buffer_var->name_hint, GetStorageScope(load->buffer_var.get()), 0, 0,
+                        kDefault);
     *out = flower_copy_fromto_(src, dst, pad_before, pad_after, pad_value);
     CHECK(out->defined()) << "flower function did not return correct stmt";
     return true;
@@ -183,7 +183,7 @@ Stmt InjectCopyIntrin(Stmt stmt, const std::string& pragma_key,
 
 namespace transform {
 
-Pass InjectCopyIntrin(std::string pragma_key, PackedFunc flower_copy_fromto) {
+Pass InjectCopyIntrin(String pragma_key, PackedFunc flower_copy_fromto) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = CopyIntrinInjector(pragma_key, flower_copy_fromto)(std::move(n->body));
