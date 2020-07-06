@@ -46,7 +46,7 @@ namespace relay {
 IRModule GetCalibrateModule(IRModule module) {
   class OutputCollector : public ExprRewriter {
    public:
-    OutputCollector(const Map<GlobalVar, BaseFunc>& glob_funcs)
+    explicit OutputCollector(const Map<GlobalVar, BaseFunc>& glob_funcs)
       : glob_funcs(glob_funcs) {}
 
     Expr Rewrite_(const CallNode* call, const Expr& post) final {
