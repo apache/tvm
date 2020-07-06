@@ -149,14 +149,14 @@ bool TileRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "tile: expect input type to be TensorType but get " << types[1];
     return false;
   }
-  const size_t ndim = data->shape.size();
   const IntImmNode* reps_shape = reps->shape[0].as<IntImmNode>();
   CHECK(reps_shape) << "Parameter reps must have static shape";
-  // check dimension match
-  CHECK_EQ(ndim, reps_shape->value) << "tile: the shape of reps must match the rank of data";
+  const size_t ndim = data->shape.size();
+  const size_t rndim = reps_shape->value;
+  size_t tndim = (ndim > rndim) ? ndim : rndim;
   std::vector<IndexExpr> oshape;
-  oshape.reserve(ndim);
-  for (size_t i = 0; i < ndim; ++i) {
+  oshape.reserve(tndim);
+  for (size_t i = 0; i < tndim; ++i) {
     oshape.emplace_back(Any());
   }
   reporter->Assign(types[2], TensorType(oshape, data->dtype));
@@ -167,7 +167,8 @@ Array<te::Tensor> TileCompute(const Attrs& attrs, const Array<te::Tensor>& input
                               const Type& out_type) {
   CHECK_EQ(inputs.size(), 2);
   const auto* out_ttype = out_type.as<TensorTypeNode>();
-  return {topi::dyn_tile(inputs[0], out_ttype->shape)};
+  size_t rndim = inputs[1]->shape[0].as<IntImmNode>()->value;
+  return {topi::dyn_tile(inputs[0], out_ttype->shape, rndim)};
 }
 
 Expr MakeTile(Expr data, Expr reps) {

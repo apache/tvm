@@ -73,7 +73,7 @@ def test_dyn_shape_reshape():
 def test_dyn_tile():
     def verify_tile(dshape, reps):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        r = relay.var("reps", relay.TensorType((len(dshape), ), "float32"))
+        r = relay.var("reps", relay.TensorType((len(reps), ), "float32"))
         z = relay.tile(x, r)
 
         func = relay.Function([x, r], z)
@@ -81,8 +81,8 @@ def test_dyn_tile():
         ref_res = np.tile(x_data, reps=reps)
         verify_func(func, [x_data, np.array(reps).astype("float32")], ref_res)
     verify_tile((2, 3, 4), (3, 2, 1))
-    verify_tile((2, 3, 4), (1, 2, 1))
-    verify_tile((1, 2, 3), (3, 2, 1))
+    verify_tile((2, 3, 4), (1, 2))
+    verify_tile((2, 3), (3, 2, 1))
 
 if __name__ == "__main__":
     test_dyn_reshape()

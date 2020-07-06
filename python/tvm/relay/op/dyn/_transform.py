@@ -87,20 +87,37 @@ def dynamic_reshape_shape_func(attrs, inputs, out_ndims):
 
 
 @script
-def _tile_shape_func(data, reps, ndim):
-    out = output_tensor((ndim,), "int64")
+def _tile_shape_func(data, reps, ndim, tndim, rndim):
+    out = output_tensor((tndim,), "int64")
 
-    for i in const_range(ndim):
-        out[i] = data.shape[i] * int64(reps[i])
+    if ndim == rndim:
+        for i in const_range(tndim):
+            out[i] = int64(data.shape[i] * reps[i])
+    elif ndim > rndim:
+        ngap = ndim - rndim
+        for i in const_range(ndim):
+            if i < ngap:
+                out[i] = int64(data.shape[i])
+            else:
+                out[i] = int64(data.shape[i] * reps[i - ngap])
+    else:
+        rgap = rndim - ndim
+        for i in const_range(rndim):
+            if i < rgap:
+                out[i] = int64(reps[i])
+            else:
+                out[i] = int64(reps[i] * data.shape[i - rgap])
     return out
 
 
 @_reg.register_shape_func("dyn.tile", True)
 def tile_shape_func(attrs, inputs, _):
     """
-    Shape function for tile op.
+    Shape function for dyn.tile op.
     """
+    reps = inputs[1]
     ndim = len(inputs[0].shape)
-    rdim = inputs[1].shape[0].value
-    assert ndim == rdim, "tile data and reps ranks don't match"
-    return [_tile_shape_func(inputs[0], inputs[1], convert(ndim))]
+    rndim = inputs[1].shape[0].value
+    tndim = ndim if ndim > rndim else rndim
+    return [_tile_shape_func(inputs[0], reps, convert(ndim),
+                             convert(tndim), convert(rndim))]
