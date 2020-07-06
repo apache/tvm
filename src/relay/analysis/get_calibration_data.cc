@@ -17,10 +17,14 @@
  * under the License.
  */
 
-/*
+/*!
  * \file src/relay/analysis/get_calibration_data.cc
  *
- * \brief 
+ * \brief To get the calibration data, we need to perform two
+ * steps. First, we need to prepare the module that generate
+ * the tensor values (GetCalibrateModule). Second, we need to
+ * generate the mapping between the values and the subgraphs
+ * (GetCalibrateOutputMap).
  */
 
 #include <tvm/relay/expr.h>
@@ -30,8 +34,14 @@
 namespace tvm {
 namespace relay {
 
-/*
-*/
+/*!
+ * \brief This function returns a module that will be used by
+ * the relay graph runtime for collecting the calibration data.
+ * To do that, we first make all inputs and outputs of each
+ * subgrpah into the final output (i.e., the final output is a
+ * tuple of tensors). Then, we change the compiler attribute of
+ * each subgraph. Finally, we mark all subgraph to be inlined.
+ */
 
 IRModule GetCalibrateModule(IRModule module) {
   class OutputCollector : public ExprRewriter {
@@ -67,7 +77,6 @@ IRModule GetCalibrateModule(IRModule module) {
    private:
     const Map<GlobalVar, BaseFunc>& glob_funcs;
     Array<Expr> new_outputs;
-
   };
 
   auto glob_funcs = module->functions;
@@ -77,10 +86,10 @@ IRModule GetCalibrateModule(IRModule module) {
     if (auto* fn = pair.second.as<FunctionNode>()) {
       auto func = GetRef<Function>(fn);
       auto* gl_var = pair.first.as<GlobalVarNode>();
+      // we only collect the outputs for main function
       if (gl_var->name_hint == "main") {
-        // Collect the output
         OutputCollector output_collector(glob_funcs);
-        auto body = PostOrderRewrite(func->body, &output_collector);
+        PostOrderRewrite(func->body, &output_collector);
         auto new_outputs = output_collector.GetNewOutputs();
         if (!new_outputs.empty()) {
           Array<Expr> fields;
@@ -88,19 +97,30 @@ IRModule GetCalibrateModule(IRModule module) {
             fields.push_back(output);
           }
           auto tuple = Tuple(fields);
-          func = Function(func->params, tuple, tuple->checked_type_, func->type_params, func->attrs);
+          func = Function(func->params, tuple, tuple->checked_type_, 
+                          func->type_params, func->attrs);
         }
+      // inline the function if it is not main function
       } else {
-        // Inline the function if it is not main function
         func = WithAttr(std::move(func), attr::kInline, tvm::Integer(1));
       }
-      // Reset the compiler attribute to null
+      // reset the compiler attribute to null
       func = WithAttr(std::move(func), attr::kCompiler, NullValue<ObjectRef>());
       module->Update(pair.first, func);
     }
   }
   return module;
 }
+
+/*!
+ * \brief This function generates the output mapping between
+ * the calibration data and each subgraph. The key is a
+ * GlobalVar that corresponds to each subgraph and the value
+ * is an array of integers. The size of the array is always
+ * three. The first value is the offset the points to the start.
+ * The second value is the number of inputs. The third value
+ * is the number of outputs.
+ */
 
 Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
   class OutputMapper : public ExprRewriter {
@@ -114,8 +134,12 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
       if (call->op->IsInstance<GlobalVarNode>()) {
         auto var = Downcast<GlobalVar>(call->op);
         Array<Integer> info;
+        // the first value is the offset
         info.push_back(Integer(offset));
+        // the second value is the number of inputs
         info.push_back(Integer(call->args.size()));
+        // the third value is the number of outputs
+        // we need to check if the output is a tuple
         int out_size = 1;
         auto* fn = glob_funcs[var].as<FunctionNode>();
         if (auto* tn = fn->body.as<TupleNode>()) {
@@ -125,6 +149,7 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
           info.push_back(Integer(1));
         }
         output_map.Set(var, info);
+        // calculate the offset for the next function
         offset = offset + call->args.size() + out_size;
       }
       return post;
@@ -143,7 +168,6 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
     if (auto* fn = pair.second.as<FunctionNode>()) {
       auto* gl_var = pair.first.as<GlobalVarNode>();
       if (gl_var->name_hint == "main") {
-        // Collect the output
         OutputMapper output_mapper(output_map, glob_funcs, offset);
         auto func = GetRef<Function>(fn);
         PostOrderRewrite(func->body, &output_mapper);
