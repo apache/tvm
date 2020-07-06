@@ -119,20 +119,25 @@ class Analyzer:
         """
         return self._modular_set(expr)
 
-    def simplify(self, expr):
+    def simplify(self, expr, steps=2):
         """Simplify expression via both rewrite and canonicalization.
 
         Parameters
         ----------
         expr : PrimExpr
             The expression.
+        steps : The simplification runs in the order of
+                rewrite_simplify (step 1) -> canonical_simplify (step 2) ->
+                rewrite_simplify (step 3) -> canonical_simplify (step 4) -> ...
+                param steps controls how many steps to run.
+                Default is 2, i.e., rewrite_simplify + canonical_simplify.
 
         Returns
         -------
         result : Expr
             The result.
         """
-        return self._simplify(expr)
+        return self._simplify(expr, steps)
 
     def rewrite_simplify(self, expr):
         """Simplify expression via rewriting rules.
