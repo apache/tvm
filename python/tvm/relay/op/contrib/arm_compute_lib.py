@@ -24,7 +24,7 @@ from ...dataflow_pattern import wildcard, is_op, is_constant
 from .register import register_pattern_table
 
 
-def is_acl_runtime_present():
+def is_arm_compute_runtime_present():
     """Check if the ACL graph runtime is present.
 
     Returns
@@ -32,12 +32,12 @@ def is_acl_runtime_present():
     ret: bool
         True if present, False if not.
     """
-    return tvm.get_global_func("relay.op.is_acl_runtime_enabled", True)
+    return tvm.get_global_func("relay.op.is_arm_compute_runtime_enabled", True)
 
 
-def partition_for_acl(mod, params=None):
+def partition_for_arm_compute_lib(mod, params=None):
     """Partition the graph greedily offloading supported
-    operators to ACL.
+    operators to Arm Compute Library.
 
     Parameters
     ----------
@@ -54,13 +54,13 @@ def partition_for_acl(mod, params=None):
         mod['main'] = bind_params_by_name(mod['main'], params)
 
     seq = tvm.transform.Sequential([transform.MergeComposite(pattern_table()),
-                                    transform.AnnotateTarget('acl'),
+                                    transform.AnnotateTarget('arm_compute_lib'),
                                     transform.PartitionGraph()])
 
     return seq(mod)
 
 
-@register_pattern_table("acl")
+@register_pattern_table("arm_compute_lib")
 def pattern_table():
     """Get the ACL pattern table."""
 
@@ -85,11 +85,11 @@ def pattern_table():
             call = call.args[0]
         return conv2d(call.attrs, call.args)
 
-    return [('acl.conv2d', conv_pattern(), check_conv)]
+    return [('arm_compute_lib.conv2d', conv_pattern(), check_conv)]
 
 
 def _register_external_op_helper(op_name, supported=True):
-    @tvm.ir.register_op_attr(op_name, "target.acl")
+    @tvm.ir.register_op_attr(op_name, "target.arm_compute_lib")
     def _func_wrapper(attrs, args):
         return supported
 
@@ -99,26 +99,20 @@ def _register_external_op_helper(op_name, supported=True):
 _register_external_op_helper("reshape")
 
 
-@tvm.ir.register_op_attr("nn.conv2d", "target.acl")
+@tvm.ir.register_op_attr("nn.conv2d", "target.arm_compute_lib")
 def conv2d(attrs, args):
     """Check if the external ACL codegen for conv2d should be used."""
-
-    # ACL only supports group size of 1
     if attrs.groups != 1:
         return False
-
-    # ACL only supports NHWC layout
     if attrs.data_layout != "NHWC":
         return False
 
     return True
 
 
-@tvm.ir.register_op_attr("nn.max_pool2d", "target.acl")
+@tvm.ir.register_op_attr("nn.max_pool2d", "target.arm_compute_lib")
 def max_pool2d(attrs, args):
     """Check if the external ACL codegen for maxpool2d should be used."""
-
-    # ACL only supports NHWC layout
     if attrs.layout != "NHWC":
         return False
 

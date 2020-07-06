@@ -37,42 +37,34 @@ def _get_model(shape, typef, sizes, strides, padding,
 
 def _get_expected_codegen(shape, typef, sizes, strides, padding,
                           ceil_mode):
-    codegen = {
-        "name": "max_pool",
-        "inputs": [],
-        "outputs": [],
-        "attrs": {
-            "pooling_type": ["String", "max"]
-        }
-    }
-
     if len(padding) == 2:
         padding = (padding[1], padding[1], padding[0], padding[0])
-    # Transpose padding to match ACL format
-    padding = (padding[1], padding[3], padding[0], padding[2])
-    output_height = ((shape[1] - sizes[0] + padding[2] + padding[3]) / strides[0]) + 1
-    output_width = ((shape[2] - sizes[1] + padding[0] + padding[1]) / strides[1]) + 1
+    output_height = ((shape[1] - sizes[0] + padding[0] + padding[2]) / strides[0]) + 1
+    output_width = ((shape[2] - sizes[1] + padding[1] + padding[3]) / strides[1]) + 1
     output_shape = (1, int(output_height), int(output_width), shape[3])
 
-    if typef == relay.nn.max_pool2d:
-        pooling_type = "max"
-    else:
-        raise NotImplementedError(f"No conversion from {typef} to pooling_type string.")
+    node = {
+        "op": "kernel",
+        "name": "nn.max_pool2d",
+        "inputs": [[0, 0, 0]],
+        "attrs": {
+            "num_inputs": "1",
+            "num_outputs": "1",
+            "layout": [["NHWC"]],
+            "shape": [[list(output_shape)]],
+            "dtype": [["float32"]],
+            "padding": [[str(p) for p in padding]],
+            "strides": [[str(s) for s in strides]],
+            "pool_size": [[str(s) for s in sizes]],
+            "ceil_mode": [[str(1 if ceil_mode else 0)]]
+        },
+    }
 
-    codegen["attrs"]["padding"] = ["IntVector", list(padding)]
-    codegen["attrs"]["strides"] = ["IntVector", list(strides)]
-    codegen["attrs"]["pool_size"] = ["IntVector", list(sizes)]
-    codegen["attrs"]["pooling_type"] = ["String", pooling_type]
-
-    inputs = [{"type": "var", "shape": list(shape)}]
-    outputs = [{"type": "var", "shape": list(output_shape)}]
-
-    codegen["inputs"] = inputs
-    codegen["outputs"] = outputs
-    codegen["attrs"]["num_inputs"] = ["Size_t", len(inputs)]
-    codegen["attrs"]["num_outputs"] = ["Size_t", len(outputs)]
-
-    return codegen
+    input = {
+        "op": "input",
+        "name": "",
+        "attrs": {"shape": [[list(shape)]], "dtype": [["float32"]]}}
+    return [input, node]
 
 
 def test_pooling():
@@ -80,6 +72,7 @@ def test_pooling():
         return
 
     device = Device()
+    np.random.seed(0)
 
     for size in [(2, 2), (3, 3)]:
         for stride in [(2, 2)]:

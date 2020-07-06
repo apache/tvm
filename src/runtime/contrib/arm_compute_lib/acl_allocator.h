@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file src/runtime/contrib/acl/acl_allocator.h
+ * \file src/runtime/contrib/arm_compute_lib/acl_allocator.h
  * \brief ACL Allocator implementation that requests memory from TVM.
  */
 
-#ifndef TVM_RUNTIME_CONTRIB_ACL_ACL_ALLOCATOR_H_
-#define TVM_RUNTIME_CONTRIB_ACL_ACL_ALLOCATOR_H_
+#ifndef TVM_RUNTIME_CONTRIB_ARM_COMPUTE_LIB_ACL_ALLOCATOR_H_
+#define TVM_RUNTIME_CONTRIB_ARM_COMPUTE_LIB_ACL_ALLOCATOR_H_
 
 #include <arm_compute/runtime/IAllocator.h>
 #include <arm_compute/runtime/IMemoryRegion.h>
@@ -38,9 +38,7 @@
 namespace tvm {
 namespace runtime {
 namespace contrib {
-namespace acl {
-
-namespace acl = arm_compute;
+namespace arm_compute_lib {
 
 /*!
  * \brief Override ACL memory allocator and replace with TVM workspace based allocation.
@@ -74,7 +72,7 @@ class ACLAllocator : public arm_compute::IAllocator {
    * \param alignment Alignment of the memory region.
    * \return The memory region object.
    */
-  std::unique_ptr<acl::IMemoryRegion> make_region(size_t size, size_t alignment) override;
+  std::unique_ptr<arm_compute::IMemoryRegion> make_region(size_t size, size_t alignment) override;
 
  private:
   /*! \brief Always allocate data in the context of the current CPU. */
@@ -120,7 +118,8 @@ class ACLMemoryRegion : public arm_compute::IMemoryRegion {
    * \return A wrapped memory sub-region with no ownership of the
    * underlying memory.
    */
-  std::unique_ptr<acl::IMemoryRegion> extract_subregion(size_t offset, size_t size) override;
+  std::unique_ptr<arm_compute::IMemoryRegion> extract_subregion(size_t offset,
+                                                                size_t size) override;
 
  private:
   /*! \brief Points to a region of memory allocated by TVM. */
@@ -133,9 +132,9 @@ class ACLMemoryRegion : public arm_compute::IMemoryRegion {
   runtime::DeviceAPI* device_api_ = runtime::DeviceAPI::Get(ctx_);
 };
 
-}  // namespace acl
+}  // namespace arm_compute_lib
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_CONTRIB_ACL_ACL_ALLOCATOR_H_
+#endif  // TVM_RUNTIME_CONTRIB_ARM_COMPUTE_LIB_ACL_ALLOCATOR_H_

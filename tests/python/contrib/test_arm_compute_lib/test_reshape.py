@@ -34,22 +34,26 @@ def _get_model(input_shape, output_shape, var_names):
 
 
 def _get_expected_codegen(input_shape, output_shape):
-    codegen = {
+    node = {
+        "op": "kernel",
         "name": "reshape",
-        "inputs": [],
-        "outputs": [],
-        "attrs": {}
+        "inputs": [[0, 0, 0]],
+        "attrs": {
+            "num_inputs": "1",
+            "num_outputs": "1",
+            "newshape": [[str(s) for s in output_shape]],
+            "shape": [[list(output_shape)]],
+            "dtype": [["float32"]],
+            "reverse": [["0"]]
+        },
     }
 
-    inputs = [{"type": "var", "shape": list(input_shape)}]
-    outputs = [{"type": "var", "shape": list(output_shape)}]
+    input = {
+        "op": "input",
+        "name": "",
+        "attrs": {"shape": [[list(input_shape)]], "dtype": [["float32"]]}}
 
-    codegen["inputs"] = inputs
-    codegen["outputs"] = outputs
-    codegen["attrs"]["num_inputs"] = ["Size_t", len(inputs)]
-    codegen["attrs"]["num_outputs"] = ["Size_t", len(outputs)]
-
-    return codegen
+    return [input, node]
 
 
 def test_reshape():
@@ -57,6 +61,7 @@ def test_reshape():
         return
 
     device = Device()
+    np.random.seed(0)
 
     inputs = {
         "a": tvm.nd.array(

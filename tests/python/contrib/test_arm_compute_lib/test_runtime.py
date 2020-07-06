@@ -34,6 +34,7 @@ def test_multiple_ops():
         return
 
     device = Device()
+    np.random.seed(0)
 
     def get_model(input_shape, var_names):
         """Return a model and any parameters it may have."""

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/runtime/contrib/acl/acl_allocator.cc
+ * \file src/runtime/contrib/arm_compute_lib/acl_allocator.cc
  * \brief ACL Allocator implementation that requests memory from TVM.
  */
 
@@ -27,7 +27,7 @@
 namespace tvm {
 namespace runtime {
 namespace contrib {
-namespace acl {
+namespace arm_compute_lib {
 
 void* ACLAllocator::allocate(size_t size, size_t alignment) {
   CHECK_GT(size, 0) << "Cannot allocate size less than or equal to zero";
@@ -36,38 +36,42 @@ void* ACLAllocator::allocate(size_t size, size_t alignment) {
 
 void ACLAllocator::free(void* ptr) { this->device_api_->FreeWorkspace(this->ctx_, ptr); }
 
-std::unique_ptr<acl::IMemoryRegion> ACLAllocator::make_region(size_t size, size_t alignment) {
-  return acl::support::cpp14::make_unique<ACLMemoryRegion>(size, alignment);
+std::unique_ptr<arm_compute::IMemoryRegion> ACLAllocator::make_region(size_t size,
+                                                                      size_t alignment) {
+  return arm_compute::support::cpp14::make_unique<ACLMemoryRegion>(size, alignment);
 }
 
-ACLMemoryRegion::ACLMemoryRegion(size_t size, size_t alignment) : IMemoryRegion(size) {
-  CHECK_GT(size, 0) << "Cannot allocate size less than or equal to zero";
-  this->ptr_ = this->device_api_->AllocDataSpace(this->ctx_, size, alignment, {});
+ACLMemoryRegion::ACLMemoryRegion(size_t size, size_t alignment)
+    : IMemoryRegion(size), ptr_(nullptr) {
+  if (size != 0) {
+    this->ptr_ = this->device_api_->AllocDataSpace(this->ctx_, size, alignment, {});
+  }
 }
 
 ACLMemoryRegion::ACLMemoryRegion(void* ptr, size_t size)
-    : IMemoryRegion(size), is_subregion_(true) {
+    : IMemoryRegion(size), ptr_(nullptr), is_subregion_(true) {
   if (size != 0) {
     this->ptr_ = ptr;
   }
 }
 
 ACLMemoryRegion::~ACLMemoryRegion() {
-  if (!is_subregion_) {
+  if (this->ptr_ != nullptr && !is_subregion_) {
     this->device_api_->FreeDataSpace(this->ctx_, this->ptr_);
   }
 }
 
-std::unique_ptr<acl::IMemoryRegion> ACLMemoryRegion::extract_subregion(size_t offset, size_t size) {
+std::unique_ptr<arm_compute::IMemoryRegion> ACLMemoryRegion::extract_subregion(size_t offset,
+                                                                               size_t size) {
   if (this->ptr_ != nullptr && (offset < _size) && (_size - offset >= size)) {
-    return acl::support::cpp14::make_unique<ACLMemoryRegion>(
+    return arm_compute::support::cpp14::make_unique<ACLMemoryRegion>(
         static_cast<uint8_t*>(this->ptr_) + offset, size);
   } else {
     return nullptr;
   }
 }
 
-}  // namespace acl
+}  // namespace arm_compute_lib
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm

@@ -18,6 +18,6 @@
 """Contrib modules."""
 from .register import get_pattern_table, register_pattern_table
 
-from .acl import *
+from .arm_compute_lib import *
 from .dnnl import *
 from .coreml import *

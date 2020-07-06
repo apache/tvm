@@ -21,14 +21,14 @@ import tvm
 from tvm import relay
 from tvm import rpc
 from tvm.contrib import graph_runtime
-from tvm.relay.op.contrib import acl
+from tvm.relay.op.contrib import arm_compute_lib
 from tvm.contrib import util
 
 
 class Device:
     """Adjust the following settings to connect to and use a remote device for tests."""
     use_remote = False
-    target = "llvm -target=aarch64-linux-gnu -mattr=+neon"
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+neon"
     # Enable cross compilation when connecting a remote device from a non-arm platform.
     cross_compile = None
     # cross_compile = "aarch64-linux-gnu-g++"
@@ -69,20 +69,20 @@ class Device:
 def skip_runtime_test():
     """Skip test if it requires the runtime and it's not present."""
     # ACL codegen not present.
-    if not tvm.get_global_func("relay.ext.acl", True):
-        print("Skip because ACL codegen is not available.")
+    if not tvm.get_global_func("relay.ext.arm_compute_lib", True):
+        print("Skip because Arm Compute Library codegen is not available.")
         return True
 
     # Remote device is in use or ACL runtime not present
-    if not Device.use_remote and not acl.is_acl_runtime_present():
+    if not Device.use_remote and not arm_compute_lib.is_arm_compute_runtime_present():
         print("Skip because runtime isn't present or a remote device isn't being used.")
         return True
 
 
 def skip_codegen_test():
     """Skip test if it requires the ACL codegen and it's not present."""
-    if not tvm.get_global_func("relay.ext.acl", True):
-        print("Skip because ACL codegen is not available.")
+    if not tvm.get_global_func("relay.ext.arm_compute_lib", True):
+        print("Skip because Arm Compute Library codegen is not available.")
         return True
 
 
@@ -90,9 +90,10 @@ def build_module(mod, target, params=None, enable_acl=True):
     """Build module with option to build for ACL."""
     if isinstance(mod, tvm.relay.expr.Call):
         mod = tvm.IRModule.from_expr(mod)
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
         if enable_acl:
-            mod = acl.partition_for_acl(mod, params)
+            mod = arm_compute_lib.partition_for_arm_compute_lib(mod, params)
+        relay.backend.compile_engine.get().clear()
         return relay.build(mod, target=target, params=params)
 
 
@@ -136,27 +137,31 @@ def verify(answers, atol, rtol):
 
 def extract_acl_modules(module):
     """Get the ACL module(s) from llvm module."""
-    return list(filter(lambda mod: mod.type_key == "acl",
+    return list(filter(lambda mod: mod.type_key == "arm_compute_lib",
                        module.imported_modules))
 
 
 def verify_codegen(module, known_good_codegen, num_acl_modules,
-                   target="llvm -target=aarch64-linux-gnu -mattr=+neon"):
+                   target="llvm -mtriple=aarch64-linux-gnu -mattr=+neon"):
     """Check acl codegen against a known good output."""
     _, module, _ = build_module(module, target)
     acl_modules = extract_acl_modules(module)
 
     assert len(acl_modules) == num_acl_modules, \
-        f"The number of ACL modules produced ({len(acl_modules)}) does not " \
+        f"The number of Arm Compute Library modules produced ({len(acl_modules)}) does not " \
         f"match the expected value ({num_acl_modules})."
 
     for mod in acl_modules:
-        source = mod.get_source()
-        source_json = json.loads(source)
-        func_name = list(source_json.keys())[0]
-        codegen = source_json[func_name]["node"]
+        source = mod.get_source("json")
+        codegen = json.loads(source)["nodes"]
+        # remove input and const names as these cannot be predetermined
+        for node in range(len(codegen)):
+            if codegen[node]["op"] == "input" or codegen[node]["op"] == "const":
+                codegen[node]["name"] = ""
+        codegen_str = json.dumps(codegen, sort_keys=True, indent=2)
+        known_good_codegen_str = json.dumps(known_good_codegen, sort_keys=True, indent=2)
 
-        assert codegen == known_good_codegen, \
+        assert codegen_str == known_good_codegen_str, \
             f"The JSON produced by codegen does not match the expected result. \n" \
-            f"Actual={json.dumps(codegen, sort_keys=True, indent=2)} \n" \
-            f"Expected={json.dumps(known_good_codegen, sort_keys=True, indent=2)}"
+            f"Actual={codegen_str} \n" \
+            f"Expected={known_good_codegen_str}"

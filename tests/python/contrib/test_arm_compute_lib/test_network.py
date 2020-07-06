@@ -27,6 +27,7 @@ from .infrastructure import Device
 def _build_and_run_keras_network(mod, params, inputs, device):
     """Helper function to build and run a network from the Keras frontend."""
     data = {}
+    np.random.seed(0)
     for name, shape in inputs.items():
         data[name] = np.random.uniform(-128, 127, shape).astype("float32")
 

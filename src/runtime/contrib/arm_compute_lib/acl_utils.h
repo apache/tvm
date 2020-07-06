@@ -18,39 +18,41 @@
  */
 
 /*!
- * \file src/runtime/contrib/acl/acl_utils.h
+ * \file src/runtime/contrib/arm_compute_lib/acl_utils.h
  * \brief Utils and common functions for the interface.
  */
 
-#ifndef TVM_RUNTIME_CONTRIB_ACL_ACL_UTILS_H_
-#define TVM_RUNTIME_CONTRIB_ACL_ACL_UTILS_H_
+#ifndef TVM_RUNTIME_CONTRIB_ARM_COMPUTE_LIB_ACL_UTILS_H_
+#define TVM_RUNTIME_CONTRIB_ARM_COMPUTE_LIB_ACL_UTILS_H_
 
 #include <arm_compute/core/Types.h>
+#include <arm_compute/runtime/MemoryManagerOnDemand.h>
 #include <arm_compute/runtime/Tensor.h>
 
+#include <memory>
+#include <string>
 #include <vector>
 
-#include "../../../relay/backend/contrib/acl/acl_api.h"
+#include "../json/json_node.h"
 
 namespace tvm {
 namespace runtime {
 namespace contrib {
-namespace acl {
+namespace arm_compute_lib {
 
-namespace api = relay::contrib::acl;
-namespace acl = arm_compute;
+using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 
 /*!
  * \brief Check if there are any errors from acl and forward them to TVM.
- *
- * \param status status of called function.
  *
  * Status values:
  * - 0 => OK
  * - 1 => RUNTIME_ERROR
  * - 2 => UNSUPPORTED_EXTENSION_USE
+ *
+ * \param status status of called function.
  */
-void CheckACLError(acl::Status status);
+void CheckACLError(const arm_compute::Status& status);
 
 /*!
  * \brief Make an acl tensor from JSON tensor representation.
@@ -59,29 +61,55 @@ void CheckACLError(acl::Status status);
  * \param data (optional) Initialize the tensor with memory.
  * \return arm_compute::Tensor.
  */
-acl::Tensor MakeTensor(const api::JSONTensor& tensor_rep, void* data = nullptr);
+arm_compute::Tensor MakeTensor(const JSONGraphNode& tensor_rep, void* data = nullptr);
+
+/*!
+ * \brief Make an acl tensor from type and shape, without having a JSON representation.
+ *
+ * \param shape The shape of the tensor to create.
+ * \return arm_compute::Tensor.
+ */
+arm_compute::Tensor MakeOutputTensor(const std::vector<int64_t>& shape);
 
 /*!
  * \brief Make an acl tensor info object from JSON tensor
  * representation.
  *
- * \param tensor_rep A JSON tensor representation.
+ * \param shape The shape of the tensor to create.
  * \return arm_compute::TensorInfo.
  */
-acl::TensorInfo MakeTensorInfo(const api::JSONTensor& tensor_rep);
+arm_compute::TensorInfo MakeTensorInfo(const std::vector<int64_t>& shape);
 
 /*!
  * \brief Convert vector object to acl TensorShape.
  * \note This requires reversing the given vector.
  *
  * \param shape The shape of the tensor as a vector.
- * \return acl TensorShape.
+ * \return arm_compute::TensorShape.
  */
-acl::TensorShape MakeTensorShape(const std::vector<int>& shape);
+arm_compute::TensorShape MakeTensorShape(const std::vector<int64_t>& shape);
 
-}  // namespace acl
+/*!
+ * \brief Create a memory manager for use with a layer that
+ * requires working memory.
+ *
+ * \return reference counted memory manager.
+ */
+std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeMemoryManager();
+
+/*
+ * \brief Convert TVM padding and stride format to acl PadStrideInfo.
+ *
+ * \param pad The pad vector.
+ * \param stride The stride vector.
+ * \return arm_compute::PadStrideInfo
+ */
+arm_compute::PadStrideInfo ToACLPadStride(const std::vector<std::string>& pad,
+                                          const std::vector<std::string>& stride);
+
+}  // namespace arm_compute_lib
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_CONTRIB_ACL_ACL_UTILS_H_
+#endif  // TVM_RUNTIME_CONTRIB_ARM_COMPUTE_LIB_ACL_UTILS_H_

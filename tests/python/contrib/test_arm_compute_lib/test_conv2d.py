@@ -69,43 +69,56 @@ def _get_model(shape, kernel_size, padding, strides,
 def _get_expected_codegen(shape, kernel_size, padding, strides,
                           dilation, groups, dtype, channels,
                           has_bias=False, has_activation=False):
-    codegen = {
-        "name": "conv2d",
-        "inputs": [],
-        "outputs": [],
-        "attrs": {
-            "groups": ["Int", 1],
-            "num_inputs": ["Size_t", 2],
-            "num_outputs": ["Size_t", 1]
-        }
-    }
-
     if len(padding) == 2:
         padding = (padding[0], padding[1], padding[0], padding[1])
-    # Transpose padding to match ACL format
-    padding = (padding[1], padding[3], padding[0], padding[2])
     weight_shape = (channels, kernel_size, kernel_size, shape[3] // groups)
-    output_height = ((shape[1] - kernel_size + padding[2] + padding[3]) / strides[0]) + 1
-    output_width = ((shape[2] - kernel_size + padding[0] + padding[1]) / strides[1]) + 1
+    output_height = ((shape[1] - kernel_size + padding[0] + padding[2]) / strides[0]) + 1
+    output_width = ((shape[2] - kernel_size + padding[1] + padding[3]) / strides[1]) + 1
     output_shape = (1, int(output_height), int(output_width), channels)
 
-    codegen["attrs"]["padding"] = ["IntVector", list(padding)]
-    codegen["attrs"]["strides"] = ["IntVector", list(strides)]
+    node = {
+            "op": "kernel",
+            "name": "arm_compute_lib.conv2d",
+            "inputs": [[0, 0, 0], [1, 0, 0]],
+            "attrs": {
+                "groups": [["1"]],
+                "num_inputs": str(3 if has_bias else 2),
+                "num_outputs": "1",
+                "data_layout": [["NHWC"]],
+                "kernel_layout": [["OHWI"]],
+                "channels": [["1"]],
+                "dilation": [["1", "1"]],
+                "out_layout": [[""]],
+                "out_dtype": [[""]],
+                "kernel_size": [[str(kernel_size), str(kernel_size)]],
+                "shape": [[list(output_shape)]],
+                "dtype": [[dtype]],
+                "padding": [[str(p) for p in padding]],
+                "strides": [[str(s) for s in strides]]
+            },
+        }
+
     if has_activation:
-        codegen["attrs"]["activation_type"] = ["String", "relu"]
+        node["attrs"]["activation_type"] = [["relu"]]
 
-    inputs = [{"type": "var", "shape": list(shape)},
-              {"type": "const", "shape": list(weight_shape)}]
+    input = {
+        "op": "input",
+        "name": "",
+        "attrs": {"shape": [[list(shape)]], "dtype": [["float32"]]}}
+    kernel = {
+        "op": "const",
+        "name": "",
+        "attrs": {"shape": [[list(weight_shape)]], "dtype": [["float32"]]}}
+
     if has_bias:
-        inputs.append({"type": "const", "shape": [weight_shape[0]]})
-    outputs = [{"type": "var", "shape": list(output_shape)}]
-
-    codegen["inputs"] = inputs
-    codegen["outputs"] = outputs
-    codegen["attrs"]["num_inputs"] = ["Size_t", len(inputs)]
-    codegen["attrs"]["num_outputs"] = ["Size_t", len(outputs)]
-
-    return codegen
+        bias = {
+            "op": "const",
+            "name": "",
+            "attrs": {"shape": [[[weight_shape[0]]]], "dtype": [["float32"]]}}
+        node["inputs"].append([2, 0, 0])
+        return [input, kernel, bias, node]
+    else:
+        return [input, kernel, node]
 
 
 def test_conv2d():
@@ -113,15 +126,16 @@ def test_conv2d():
         return
 
     device = Device()
+    np.random.seed(0)
 
-    shape = (1, 25, 25, 1)
+    shape = (1, 14, 14, 32)
     dtype = "float32"
 
     inputs = {
         "a": tvm.nd.array(np.random.uniform(-128, 127, shape).astype(dtype)),
     }
 
-    for kernel_size in [2, 3]:
+    for kernel_size in [1, 2, 3]:
         outputs = []
         func, params = _get_model(shape, kernel_size,
                                   (0, 0), (1, 1), 1, 1,
@@ -181,7 +195,6 @@ def test_codegen_conv2d():
         func, params = _get_model(*args, var_names=iter(inputs))
         exp_codegen = _get_expected_codegen(*args)
         verify_codegen(func, exp_codegen, 1)
-
     # Test composite convolution: (has_pad, has_bias, has_activation).
     for composite in [(False, True, False), (False, False, True), (False, True, True),
                       (True, False, False)]:
@@ -192,8 +205,7 @@ def test_codegen_conv2d():
                                   has_activation=composite[2])
         exp_codegen = _get_expected_codegen(*args,
                                             has_bias=composite[1],
-                                            has_activation=composite[2],
-                                            )
+                                            has_activation=composite[2])
         verify_codegen(func, exp_codegen, 1)
 
 
