@@ -97,7 +97,7 @@ IRModule GetCalibrateModule(IRModule module) {
             fields.push_back(output);
           }
           auto tuple = Tuple(fields);
-          func = Function(func->params, tuple, tuple->checked_type_, 
+          func = Function(func->params, tuple, tuple->checked_type_,
                           func->type_params, func->attrs);
         }
       // inline the function if it is not main function
@@ -125,9 +125,9 @@ IRModule GetCalibrateModule(IRModule module) {
 Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
   class OutputMapper : public ExprRewriter {
    public:
-    OutputMapper(Map<GlobalVar, Array<Integer>>& output_map, 
+    OutputMapper(Map<GlobalVar, Array<Integer>>* output_map,
                  const Map<GlobalVar, BaseFunc>& glob_funcs,
-                 int& offset) 
+                 int* offset)
       : output_map(output_map), glob_funcs(glob_funcs), offset(offset) {}
 
     Expr Rewrite_(const CallNode* call, const Expr& post) final {
@@ -135,7 +135,7 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
         auto var = Downcast<GlobalVar>(call->op);
         Array<Integer> info;
         // the first value is the offset
-        info.push_back(Integer(offset));
+        info.push_back(Integer(*offset));
         // the second value is the number of inputs
         info.push_back(Integer(call->args.size()));
         // the third value is the number of outputs
@@ -148,19 +148,19 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
         } else {
           info.push_back(Integer(1));
         }
-        output_map.Set(var, info);
+        output_map->Set(var, info);
         // calculate the offset for the next function
-        offset = offset + call->args.size() + out_size;
+        *offset = *offset + call->args.size() + out_size;
       }
       return post;
     }
 
    private:
-    Map<GlobalVar, Array<Integer>>& output_map;
+    Map<GlobalVar, Array<Integer>>* output_map;
     const Map<GlobalVar, BaseFunc>& glob_funcs;
-    int& offset;
+    int* offset;
   };
-    
+
   Map<GlobalVar, Array<Integer>> output_map;
   int offset = 0;
   auto glob_funcs = module->functions;
@@ -168,7 +168,7 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
     if (auto* fn = pair.second.as<FunctionNode>()) {
       auto* gl_var = pair.first.as<GlobalVarNode>();
       if (gl_var->name_hint == "main") {
-        OutputMapper output_mapper(output_map, glob_funcs, offset);
+        OutputMapper output_mapper(&output_map, glob_funcs, &offset);
         auto func = GetRef<Function>(fn);
         PostOrderRewrite(func->body, &output_mapper);
       }
