@@ -56,6 +56,7 @@ def test_check_correctness():
 
     def _callback_correct(tuner, measure_inputs, measure_results):
         for _, res in zip(measure_inputs, measure_results):
+            print(res)
             assert res.error_no == 0
 
     tuner = autotvm.tuner.RandomTuner(task)
@@ -79,5 +80,5 @@ def test_check_correctness():
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
-    test_task_tuner_without_measurement()
+    # test_task_tuner_without_measurement()
     test_check_correctness()

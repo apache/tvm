@@ -187,7 +187,7 @@ class RPCModuleNode final : public ModuleNode {
   }
 
   PackedFunc GetTimeEvaluator(const std::string& name, TVMContext ctx, int number, int repeat,
-                              int min_repeat_ms) {
+                              int min_repeat_ms, PackedFunc f_prepare) {
     InitRemoteFunc(&remote_get_time_evaluator_, "runtime.RPCTimeEvaluator");
     // Remove session mask because we pass ctx by parts.
     int dev_type = ctx.device_type;
@@ -198,11 +198,11 @@ class RPCModuleNode final : public ModuleNode {
     if (module_handle_ != nullptr) {
       return remote_get_time_evaluator_(GetRef<Module>(this), name,
                                         static_cast<int>(ctx.device_type), ctx.device_id, number,
-                                        repeat, min_repeat_ms);
+                                        repeat, min_repeat_ms, f_prepare);
     } else {
       return remote_get_time_evaluator_(Optional<Module>(nullptr), name,
                                         static_cast<int>(ctx.device_type), ctx.device_id, number,
-                                        repeat, min_repeat_ms);
+                                        repeat, min_repeat_ms, f_prepare);
     }
   }
 
@@ -240,7 +240,7 @@ class RPCModuleNode final : public ModuleNode {
   // The local channel
   std::shared_ptr<RPCSession> sess_;
   // remote function to get time evaluator
-  TypedPackedFunc<PackedFunc(Optional<Module>, std::string, int, int, int, int, int)>
+  TypedPackedFunc<PackedFunc(Optional<Module>, std::string, int, int, int, int, int, PackedFunc)>
       remote_get_time_evaluator_;
   // remote function getter for modules.
   TypedPackedFunc<PackedFunc(Module, std::string, bool)> remote_mod_get_function_;
@@ -259,7 +259,12 @@ void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const TVMArgValue& arg) const {
     CHECK(rmod->sess() == sess_)
         << "ValueError: Cannot pass in module into a different remote session";
     return rmod->module_handle();
-  } else {
+  }
+//  else if (arg.type_code() == kTVMPackedFuncHandle) {
+//    PackedFunc pf = arg;
+//    pf.body()
+//  }
+    else {
     LOG(FATAL) << "ValueError: Cannot pass type " << runtime::ArgTypeCode2Str(arg.type_code())
                << " as an argument to the remote";
     return nullptr;
@@ -316,9 +321,10 @@ std::shared_ptr<RPCSession> RPCModuleGetSession(Module mod) {
  * we assume exist in cache (ie. weights) are evicted during e2e runs,
  * which leads to lower performance.
  */
-inline void CacheFlush(const char* addr, unsigned int len) {
+inline void CacheFlushImpl(const char* addr, unsigned int len) {
 // TODO(FrozenGene): Support ARM.
 #if (defined(_M_X64) || defined(__x86_64__))
+  std::cout << "len " << len << "\n";
   const size_t cache_line = 64;
 
   if (addr == nullptr || len <= 0) {
@@ -333,8 +339,18 @@ inline void CacheFlush(const char* addr, unsigned int len) {
 #endif
 }
 
+PackedFunc CPUCacheFlush(int begin_index) {
+  auto f_cache_flush = [begin_index](TVMArgs args, TVMRetValue* rv) {
+    for (int i = begin_index; i < args.size(); i++) {
+      CacheFlushImpl(static_cast<char*>((args[i].operator DLTensor*()->data)),
+                     GetDataSize(*(args[i].operator DLTensor*())));
+    }
+  };
+  return PackedFunc(f_cache_flush);
+}
+
 PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repeat,
-                             int min_repeat_ms) {
+                             int min_repeat_ms, PackedFunc f_prepare) {
   CHECK(pf != nullptr);
 
   if (static_cast<int>(ctx.device_type) == static_cast<int>(kDLMicroDev)) {
@@ -343,23 +359,17 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repe
     return (*get_micro_time_evaluator)(pf, ctx, number, repeat);
   }
 
-  auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue* rv) mutable {
+  auto ftimer = [pf, ctx, number, repeat, min_repeat_ms, f_prepare](TVMArgs args, TVMRetValue* rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;
-    const char* cache_flush = std::getenv("TVM_AUTO_CACHE_FLUSH");
     // skip first time call, to activate lazy compilation components.
     pf.CallPacked(args, &temp);
 
     DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
 
     for (int i = 0; i < repeat; ++i) {
-      if (cache_flush && std::atoi(cache_flush) != 0) {
-        CHECK_EQ(number, 1);
-        // we want to keep input data
-        for (int j = 1; j < args.size(); j++) {
-          CacheFlush(static_cast<char*>((args[j].operator DLTensor*()->data)),
-                     GetDataSize(*(args[j].operator DLTensor*())));
-        }
+      if (f_prepare != nullptr) {
+        f_prepare.CallPacked(args, &temp);
       }
       std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin,
           tend;
@@ -400,7 +410,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repe
 
 TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
     .set_body_typed([](Optional<Module> opt_mod, std::string name, int device_type, int device_id,
-                       int number, int repeat, int min_repeat_ms) {
+                       int number, int repeat, int min_repeat_ms, PackedFunc f_prepare) {
       TVMContext ctx;
       ctx.device_type = static_cast<DLDeviceType>(device_type);
       ctx.device_id = device_id;
@@ -408,17 +418,27 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
         Module m = opt_mod.value();
         std::string tkey = m->type_key();
         if (tkey == "rpc") {
+          // Wrong
           return static_cast<RPCModuleNode*>(m.operator->())
-              ->GetTimeEvaluator(name, ctx, number, repeat, min_repeat_ms);
+              ->GetTimeEvaluator(name, ctx, number, repeat, min_repeat_ms, f_prepare);
+          // Pass
+//          ctx.device_type = static_cast<DLDeviceType>(ctx.device_type % kRPCSessMask);
+//          return WrapTimeEvaluator(m.GetFunction(name, false), ctx, number, repeat, min_repeat_ms, f_prepare);
         } else {
-          return WrapTimeEvaluator(m.GetFunction(name, false), ctx, number, repeat, min_repeat_ms);
+          std::cout << "First LOCAL " << tkey << " \n";
+          return WrapTimeEvaluator(m.GetFunction(name, false), ctx, number, repeat, min_repeat_ms, f_prepare);
         }
       } else {
         auto* pf = runtime::Registry::Get(name);
         CHECK(pf != nullptr) << "Cannot find " << name << " in the global function";
-        return WrapTimeEvaluator(*pf, ctx, number, repeat, min_repeat_ms);
+        return WrapTimeEvaluator(*pf, ctx, number, repeat, min_repeat_ms, f_prepare);
       }
     });
+
+TVM_REGISTER_GLOBAL("runtime.cpu_cache_flush")
+.set_body_typed([](int begin_index) {
+  return CPUCacheFlush(begin_index);
+});
 
 // server function registration.
 TVM_REGISTER_GLOBAL("tvm.rpc.server.ImportModule").set_body_typed([](Module parent, Module child) {

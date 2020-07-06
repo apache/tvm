@@ -473,8 +473,10 @@ def run_through_rpc(measure_input, build_result,
         remote.upload(build_result.filename)
         func = remote.load_module(os.path.split(build_result.filename)[1])
         ctx = remote.context(str(measure_input.target), 0)
+        cache_flush_packed = remote.get_function("runtime.cpu_cache_flush")(1)
         time_f = func.time_evaluator(
-            func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
+            func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms,
+            f_prepare=cache_flush_packed)
 
         # set input
         if ref_input:

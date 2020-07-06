@@ -327,7 +327,7 @@ struct RemoteSpace {
  * \return f_timer A timer function.
  */
 PackedFunc WrapTimeEvaluator(PackedFunc f, TVMContext ctx, int number, int repeat,
-                             int min_repeat_ms);
+                             int min_repeat_ms, PackedFunc f_prepare);
 
 /*!
  * \brief Create a Global RPC module that refers to the session.
