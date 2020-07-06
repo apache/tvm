@@ -649,10 +649,6 @@ def Inline():
     return _ffi_api.Inline()
 
 
-def CalibratePartitionGraph():
-    return _ffi_api.CalibratePartitionGraph()
-
-
 def gradient(expr, mod=None, mode='higher_order'):
     """
     Transform the input function,
