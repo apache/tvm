@@ -102,5 +102,5 @@ def tile_shape_func(attrs, inputs, _):
     """
     ndim = len(inputs[0].shape)
     rdim = inputs[1].shape[0].value
-    assert ndim == rdim, "tile data and res ranks don't match"
+    assert ndim == rdim, "tile data and reps ranks don't match"
     return [_tile_shape_func(inputs[0], inputs[1], convert(ndim))]

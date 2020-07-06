@@ -1020,7 +1020,7 @@ inline Tensor tile(const Tensor& x, Array<Integer> reps, std::string name = "T_t
  * \brief Creates an operation to tile elements of an array
  *
  * \param x The input tensor
- * \param reps The number of times for repeating the tensor
+ * \param new_shape The shape of the output after tiling
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
@@ -1029,8 +1029,6 @@ inline Tensor tile(const Tensor& x, Array<Integer> reps, std::string name = "T_t
 inline Tensor dyn_tile(const Tensor& x, Array<PrimExpr> new_shape, std::string name = "T_tile",
                        std::string tag = kBroadcast) {
   size_t ndim = x->shape.size();
-  std::cout << ndim << std::endl;
-  std::cout << new_shape << std::endl;
   if (is_empty_shape(new_shape)) {
     return compute(
         new_shape, [&](const Array<Var>& indices) { return tvm::cast(x->dtype, 0); }, name, tag);
