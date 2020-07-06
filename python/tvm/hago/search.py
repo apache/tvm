@@ -26,7 +26,7 @@ from .threshold import threshold_estimate
 from .hardware import *
 from .record import *
 from .topology import Topology, analyze_topology
-from .analysis import compare
+from . import analysis
 
 import tvm
 import random
@@ -308,19 +308,34 @@ def old_search_quantize_strategy(mod, hardware, dataset=None):
     return best_strategy, best_acc
 
 
-def _accuracy_as_measure(graph, dataset, simulated_out):
+def _accuracy_as_measure(graph, dataset, simulated_out, ctx=None, target=None):
     # return a MeasureResult
     num_samples = 0
     num_correct = 0
     for idx, batch in enumerate(dataset):
         assert 'label' in batch
-        label = batch['label'] 
-        sim_out = simulated_out[idx]
+        label = batch['label'].asnumpy()
+        sim_out = simulated_out[idx].asnumpy()
         sim_pred = np.argmax(sim_out, axis=1)
         # pre-calculated label in the provided dataset
         num_correct += np.sum(sim_pred == label) 
         num_samples += label.shape[0]
     acc = num_correct / num_samples
+
+    # for idx, batch in enumerate(dataset):
+    #     print('batch {}'.format(idx))
+    #     runtime = relay.create_executor("graph", ctx=ctx, target=target).evaluate(graph)
+    #     out = runtime(batch['data']).asnumpy()
+    #     sim_out = simulated_out[idx].asnumpy()
+    #     err = analysis.compare(sim_out, out)
+    #     if np.abs(err) > 0.1:
+    #         # print('data')
+    #         # print(batch['data'])
+    #         print('real out')
+    #         print(out)
+    #         print('sim out')
+    #         print(sim_out)
+    #         raise ValueError
     return MeasureResult(accuracy=acc)
 
 
@@ -384,7 +399,7 @@ class Tuner(object):
     def update(self, measures):
         pass
 
-    def tune(self, graph, hardware, dataset, ctx, target):
+    def tune(self, graph, hardware, dataset, ctx, target, fout=None):
         self.graph = graph
         self.hardware = hardware
         self.model_hash = tvm.ir.structural_hash(graph)
@@ -392,6 +407,7 @@ class Tuner(object):
         self.dataset = dataset
         self.ctx = ctx
         self.target = target
+        self.stats = analysis.collect_stats(graph, dataset, ctx, target)
 
         num_trials = 0
         while num_trials < self.max_trials:
@@ -401,9 +417,16 @@ class Tuner(object):
             trials = self.next_trials()
             measures = self._measure(trials)
 
+            if fout is not None:
+                self._write_to_file(fout, measures)
             self.update(measures)
             num_trials += len(measures)
         return self.best_measure
+
+    def _write_to_file(self, fout, measures):
+        for m in measures:
+            fout.write(serialize(m))
+            fout.write('\n')
 
     def _update_best_measure(self, measures):
         if self.best_measure is None:
@@ -414,7 +437,8 @@ class Tuner(object):
             self.best_measure = best_measure(temp, self.measure_kind)
 
         print('measures')
-        print(measures)
+        for m in measures:
+            print(m)
         print('best_measure')
         print(self.best_measure)
         return self.best_measure
@@ -429,9 +453,10 @@ class Tuner(object):
                 constraints = simulator.constraints
                 for bits in grouped_guesses:
                     # TODO(ziheng) move thresholds outside
-                    thresholds = threshold_estimate(self.graph, self.topology, bits, self.dataset)
+                    thresholds = threshold_estimate(self.graph, self.topology, self.stats, bits)
                     simulated_out = simulator.eval(bits, thresholds, self.dataset, self.ctx, self.target)
-                    measure_result = self.measure_func(self.graph, self.dataset, simulated_out)
+                    measure_result = self.measure_func(self.graph, self.dataset, simulated_out,
+                                                       self.ctx, self.target)
                     strategy = Strategy(self.model_hash, self.topology, bits, thresholds)
                     results.append(Measure(strategy, measure_result))
             return results
@@ -464,25 +489,10 @@ class BatchedGreedySearchTuner(Tuner):
 
 
 def search_quantize_strategy(graph, hardware, dataset, tuner, ctx, target):
-    # (data_0, scale_0, clip_min_0)
-    # (data_1, scale_0, clip_min_0)
-    # (data_2, scale_0, clip_min_0)
-    # accuracy
-
-    # (data_0, scale_1, clip_min_1)
-    # (data_1, scale_1, clip_min_1)
-    # (data_2, scale_1, clip_min_1)
-    # accuracy
-    # ...
-    # (data_0, scale_0, clip_min_0)
-    # (data_1, scale_0, clip_min_0)
-    # (data_2, scale_0, clip_min_0)
-    # accuracy
     assert isinstance(graph, relay.Function)
     qconfig = current_qconfig()
-    fout = open(qconfig.log_file, 'w+', buffering=1)
     origin_out, origin_acc = eval_acc(graph, dataset, ctx, target)
     print('original acc: {}'.format(origin_acc))
-
-    measure = tuner.tune(graph, hardware, dataset, ctx, target)
+    with open(qconfig.log_file, 'w+', buffering=1) as fout:
+        measure = tuner.tune(graph, hardware, dataset, ctx, target, fout)
     return measure.strategy, measure.result

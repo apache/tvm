@@ -60,34 +60,38 @@ def get_val_data(model_name,
     return val_data, batch_fn
 
 
-def get_model(model_name, batch_size, qconfig, original=False, simulated=False, calib_set=None):
+def get_model(model_name, batch_size, qconfig, original=False, simulated=False, dataset=None):
     gluon_model = gluon.model_zoo.vision.get_model(model_name, pretrained=True)
     img_size = 299 if model_name == 'inceptionv3' else 224
     data_shape = (batch_size, 3, img_size, img_size)
     mod, params = relay.frontend.from_mxnet(gluon_model, {"data": data_shape})
 
-    qmod = hago.prerequisite_optimize(mod, params=params)
+    graph = hago.prerequisite_optimize(mod['main'], params=params)
     logging.debug('original')
-    logging.debug(qmod['main'].astext(show_meta_data=False))
+    logging.debug(graph.astext(show_meta_data=False))
 
     if original:
-        return qmod
+        return graph
 
     with qconfig:
         logging.debug('current quantize config')
         logging.debug(hago.current_qconfig())
         hardware = hago.create_accelerator_description()
-        strategy, acc = hago.batched_search_quantize_strategy(qmod, hardware, dataset=calib_set)
-        # strategy, acc = hago.search_quantize_strategy(qmod, hardware, dataset=calib_set)
-        print('simulated accuracy on calibration dataset: {}'.format(acc))
+        space = hago.generate_search_space(graph, hardware)
+        tuner = hago.BatchedGreedySearchTuner(space, 'accuracy')
+        ctx = tvm.gpu(1)
+        target = 'cuda'
+        strategy, result = hago.search_quantize_strategy(graph, hardware, dataset, tuner, ctx, target)
+        print('simulated accuracy on calibration dataset: {}'.format(result.accuracy))
+        raise ValueError
         quantizer = hago.create_quantizer(qmod['main'], hardware, strategy)
         simulated_graph = quantizer.simulate()
         quantized_graph = quantizer.quantize()
         logging.debug('after quantize')
         logging.debug(quantized_graph.astext(show_meta_data=False))
-        out, acc = hago.eval_acc(quantized_graph, calib_set)
+        out, acc = hago.eval_acc(quantized_graph, dataset)
         print('quantized accuracy on calibration dataset: {}'.format(acc))
-        # hago.inspect_graph_statistic(qmod['main'], hardware, strategy, dataset=calib_set)
+        # hago.inspect_graph_statistic(qmod['main'], hardware, strategy, dataset=dataset)
         qmod = relay.Module.from_expr(quantized_graph)
         raise ValueError
     return qmod
@@ -131,20 +135,19 @@ def get_calibration_dataset(dataset, batch_fn, num_samples=100):
         if i * dataset.batch_size > num_samples:
             break
         data, label = batch_fn(batch, [mx.cpu(0)])
-        ret.append({'data': data[0].asnumpy(), 'label': label[0].asnumpy()})
+        ret.append({'data': tvm.nd.array(data[0].asnumpy()),
+                    'label': tvm.nd.array(label[0].asnumpy())})
     return ret
 
 
 def test_quantize_acc(cfg, rec_val):
     qconfig = hago.qconfig(skip_conv_layers=[0],
-                           log_file='temp.log',
-                           search_strategy="default_setting")
+                           log_file='temp.log')
 
     val_data, batch_fn = get_val_data(cfg.model, rec_val=rec_val, batch_size=32)
-    calib_set = get_calibration_dataset(val_data, batch_fn)
+    dataset = get_calibration_dataset(val_data, batch_fn)
 
-    mod = get_model(cfg.model, 32, qconfig, calib_set=calib_set)
-
+    mod = get_model(cfg.model, 32, qconfig, dataset=dataset)
     acc = eval_acc(mod, val_data, batch_fn)
     assert acc > cfg.expected_acc
     return acc
@@ -166,4 +169,3 @@ if __name__ == "__main__":
         results.append((config, acc))
     for res in results:
         print(res)
-

@@ -403,6 +403,25 @@ def print_scale_info(graph, bits, thresholds):
     relay.analysis.post_order_visit(graph, fvisit_print)
 
 
+# def evaluate(func, dataset, ctx=tvm.cpu(), target='llvm', fcallback=None):
+#     # list of array: (num_outputs, num_batch, arr)
+#     with relay.transform.build_config(opt_level=2):
+#         graph, lib, params = relay.build_module.build(func, target=target)
+#     runtime = graph_runtime.create(graph, lib, ctx)
+#     runtime.set_input(**params)
+#     num_outputs = runtime.get_num_outputs()
+#     outputs = [[] for i in range(num_outputs)]
+# 
+#     for batch_id, batch in enumerate(dataset):
+#         runtime.set_input('data', tvm.nd.array(batch['data']))
+#         runtime.run()
+#         for i in range(num_outputs):
+#             output = runtime.get_output(i).asnumpy()
+#             outputs[i].append(output)
+#     fcallback(func, dataset, outputs)
+#     return outputs
+
+
 def eval_acc(func, dataset, ctx=tvm.cpu(), target="llvm"):
     with relay.transform.build_config(opt_level=2):
         graph, lib, params = relay.build_module.build(func, target=target)
@@ -421,7 +440,7 @@ def eval_acc(func, dataset, ctx=tvm.cpu(), target="llvm"):
         runtime.run()
         output = runtime.get_output(0).asnumpy()
         predict = np.argmax(output, axis=1)
-        label = batch['label']
+        label = batch['label'].asnumpy()
         num_correct += np.sum(predict == label)
         num_samples += output.shape[0]
         outputs.append(output)

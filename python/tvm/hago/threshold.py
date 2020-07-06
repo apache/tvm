@@ -61,24 +61,24 @@ def threshold_rectify(graph, topology, bits, thresholds):
     return thresholds
 
 
-def threshold_estimate(graph, topology, bits, dataset=None, rectify=True):
+def threshold_estimate(graph, topology, stats, bits=None, rectify=True):
     print('calculating threshold...')
     cfg = current_qconfig()
-    stats = analysis.collect_stats(graph, dataset)
     print('threshold method:')
     print(cfg.threshold_estimate_method)
 
     if cfg.threshold_estimate_method == 'global_scale':
         thresholds = [cfg.global_scale for _ in exprs]
     elif cfg.threshold_estimate_method == 'max_range':
-        thresholds = [stats.range(i) for i in range(len(stats))]
+        thresholds = stats.range
     elif cfg.threshold_estimate_method == 'power_of_two_range':
-        thresholds = [stats.power2_range(i) for i in range(len(stats))]
+        thresholds = stats.power_of_two_range
     else:
         raise ValueError
 
     print('before rectify, thresholds: {}'.format(thresholds))
     if rectify:
+        assert bits is not None
         thresholds = threshold_rectify(graph, topology, bits, thresholds)
     print('after rectify, thresholds: {}'.format(thresholds))
     return thresholds

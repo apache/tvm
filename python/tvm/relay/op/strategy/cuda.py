@@ -602,3 +602,7 @@ def correlation_strategy_cuda(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.cuda.schedule_correlation_nchw),
         name="correlation.cuda")
     return strategy
+
+@schedule_simulated_quantize.register(["cuda", "gpu"])
+def schedule_simulated_quantize_cuda(attrs, outs, target):
+    return topi.cuda.schedule_injective(outs)

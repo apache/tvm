@@ -28,7 +28,7 @@ import functools
 import numpy as np
 import logging
 
-RUNTIME_DEBUG = True
+RUNTIME_DEBUG = False
 
 @tvm.register_func("tvm.contrib.print")
 def print_func(x, y, msg):
@@ -50,9 +50,9 @@ def inspect_func(x, y, msg):
         print(msg)
         print(x)
         np_x = x.asnumpy()
-        print('max value: {}'.format(np.max(np.abs(np_x))))
-        print('mean: {}'.format(np.mean(np_x)))
-        print('var: {}'.format(np.var(np_x)))
+        print('max value: {:.4f}'.format(np.max(np.abs(np_x))))
+        print('mean: {:.4f}'.format(np.mean(np_x)))
+        print('var: {:.4f}'.format(np.var(np_x)))
     x.copyto(y)
 
 def inspect(data, msg):
@@ -108,9 +108,9 @@ def simulated_quantize_compute(attrs, inputs, out_type):
     assert attrs.rounding == "round"
 
     data, in_scale, out_scale, clip_min, clip_max = inputs
-    # data = my_print(data, '*******************************************')
+    data = my_print(data, '\n\n*******************************************')
     # data = my_print(data, "[in_scale={}, out_scale={}, clip_min={}, clip_max={}, in_dtype={}, out_dtype={}".format(in_scale, out_scale, clip_min, clip_max, attrs.in_dtype, attrs.out_dtype))
-    # data = inspect(data, 'original data')
+    data = inspect(data, 'original data')
 
     # simulate overflow truncate error
     if attrs.in_dtype != 'float32':
@@ -126,26 +126,26 @@ def simulated_quantize_compute(attrs, inputs, out_type):
 
     # dequantize, directly return real value
     if attrs.out_dtype == 'float32':
+        data = my_print(data, '*******************************************\n\n')
         return [topi.identity(data)]
 
 
     # simulate rounding error
     scaled_data = topi.divide(data, out_scale)
-    # scaled_data = inspect(scaled_data, 'scaled data')
+    scaled_data = inspect(scaled_data, 'scaled data')
 
     round_data = topi.round(scaled_data)
-    # round_data = inspect(scaled_data, 'round data')
+    round_data = inspect(round_data, 'round data')
 
-    # clipped_data = topi.clip(scaled_data, clip_min, clip_max)
     clipped_data = topi.maximum(topi.minimum(round_data, clip_max), clip_min)
-    # clipped_data = inspect(clipped_data, 'clipped data')
+    clipped_data = inspect(clipped_data, 'clipped data')
 
     cast_data = topi.cast(topi.cast(clipped_data, attrs.out_dtype), 'float32')
-    # cast_data = inspect(cast_data, 'cast_data')
+    cast_data = inspect(cast_data, 'cast_data')
 
     ret = topi.multiply(cast_data, out_scale)
-    # ret = inspect(ret, 'return data')
-    # ret = my_print(ret, '*******************************************')
+    ret = inspect(ret, 'return data')
+    ret = my_print(ret, '*******************************************\n\n')
     return [ret]
 
 

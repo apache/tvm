@@ -32,26 +32,25 @@ from collections import OrderedDict
 
 
 class Stats(object):
-    def __init__(self, raw_data):
+    def __init__(self, data):
         """
-        raw_data: intermediate data * number_of_batches
+        data: intermediate data * number_of_batches
         """
-        self.raw_data = raw_data
+        self.data = data
+        self.range = []
+        self.power_of_two_range = []
+        for idx in range(len(data)):
+            arr = np.concatenate(self.data[idx]).reshape(-1)
+            arange = np.amax(np.abs(arr))
+            power_of_two_range = 2**np.math.ceil(np.math.log(arange, 2)) if arange > 0 else 1.0
+            self.range.append(arange)
+            self.power_of_two_range.append(power_of_two_range)
 
     def __len__(self):
-        return len(self.raw_data)
+        return len(self.data)
 
     def data(self, idx):
-        return self.raw_data[idx] 
-
-    def range(self, idx):
-        arr = np.concatenate(self.raw_data[idx]).reshape(-1)
-        return np.amax(np.abs(arr))
-
-    def power2_range(self, idx):
-        arr = np.concatenate(self.raw_data[idx]).reshape(-1)
-        arange = np.amax(np.abs(arr))
-        return 2**np.math.ceil(np.math.log(arange, 2)) if arange > 0 else 1.0
+        return self.data[idx] 
 
     def mean(self, idx):
         pass
@@ -60,11 +59,11 @@ class Stats(object):
         pass
 
 
-def evaluate(func, dataset):
+def evaluate(func, dataset, ctx, target):
     # list of array: (num_outputs, num_batch, arr)
     with relay.transform.build_config(opt_level=2):
-        graph, lib, params = relay.build_module.build(func, target="llvm")
-    runtime = graph_runtime.create(graph, lib, tvm.cpu())
+        graph, lib, params = relay.build_module.build(func, target=target)
+    runtime = graph_runtime.create(graph, lib, ctx)
     runtime.set_input(**params)
     num_outputs = runtime.get_num_outputs()
     outputs = [[] for i in range(num_outputs)]
@@ -78,7 +77,7 @@ def evaluate(func, dataset):
     return outputs
 
 
-def collect_stats(graph, dataset):
+def collect_stats(graph, dataset, ctx, target):
     assert isinstance(graph, relay.Function)
     logging.info("collecting statistics for calibration...")
     outputs = []
@@ -88,8 +87,11 @@ def collect_stats(graph, dataset):
     relay.analysis.post_order_visit(graph, fvisit)
     out = relay.Tuple(outputs)
     func = relay.Function(graph.params, out)
-    outputs = evaluate(func, dataset)
-    return Stats(outputs)
+    outputs = evaluate(func, dataset, ctx, target)
+    print(outputs)
+    stats = Stats(outputs)
+    logging.info("statistics collected")
+    return stats
 
 
 def compare(np_x, np_y):
@@ -98,8 +100,11 @@ def compare(np_x, np_y):
     print('mean      : {:.4f}, {:.4f}'.format(np.mean(np_x), np.mean(np_y)))
     print('var       : {:.4f}, {:.4f}'.format(np.var(np_x), np.var(np_y)))
     abs_err = np.abs(np_x - np_y)
+    rel_err = (np_x - np_y) / np.max(np.abs(np_y))
     idx = np.unravel_index(np.argmax(abs_err, axis=None), abs_err.shape)
-    print('maximum absolute error: {:.4f}, compare {:.4f} with {:.4f}'.format(np.max(abs_err), np_x[idx], np_y[idx]))
+    print('maximum absolute error: {:.4f}({:.2f}%), compare {:.4f} with {:.4f}'
+          .format(np.max(abs_err), rel_err[idx] * 100, np_x[idx], np_y[idx]))
+    return rel_err[idx]
 
 
 # def construct_subtopology(graph, topology):

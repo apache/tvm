@@ -115,8 +115,6 @@ def infer_quantized_dtypes(graph, constraints):
     return prov_dtypes, req_dtypes 
 
 
-
-
 def prerequisite_optimize(func, params=None):
     """ Prerequisite optimization passes for quantization. Perform
     "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
@@ -157,10 +155,6 @@ class Simulator(tvm.relay.ExprMutator):
 
     def eval(self, bits, thresholds, dataset, ctx, target):
         """compile simulated model and run it on the dataset"""
-        if self._runtime is None:
-            # print(self.simulated_graph)
-            self._runtime = relay.create_executor("graph", ctx=ctx, target=target).evaluate(self.simulated_graph)
-
         # prepare parameters
         internal_params, output_params = self.calculate_params(bits, thresholds)
         param_map = {} 
@@ -173,9 +167,13 @@ class Simulator(tvm.relay.ExprMutator):
             for node, val in zip(nodes, vals):
                 param_map[node.name_hint] = tvm.nd.array(np.array(val, 'float32'))
 
+        if self._runtime is None:
+            # print(self.simulated_graph)
+            self._runtime = relay.create_executor("graph", ctx=ctx, target=target).evaluate(self.simulated_graph)
+
         outputs = []
         for batch_id, batch in enumerate(dataset):
-            out = self._runtime(batch['data'], **param_map).asnumpy()
+            out = self._runtime(batch['data'], **param_map)
             outputs.append(out)
         return outputs
 
