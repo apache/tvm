@@ -182,6 +182,17 @@ inline int64_t ZeroAwareGCD(int64_t a, int64_t b) {
   return b;
 }
 
+/*!
+ * \brief Calculate the least common multiple for two values.
+ * \param a an integer number
+ * \param b an integer number
+ * \return the least common multiple.
+ */
+inline int64_t LeastCommonMultiple(int64_t a, int64_t b) {
+  int64_t x, y;
+  return (a * b) / ExtendedEuclidean(a, b, &x, &y);
+}
+
 }  // namespace arith
 }  // namespace tvm
 #endif  // TVM_ARITH_INT_OPERATOR_H_
