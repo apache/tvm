@@ -143,7 +143,7 @@ struct Scope {
 
 /*! \brief A stack of scopes.
  *
- * In order to properly handle scoping we must maintain a scope of stacks.
+ * In order to properly handle scoping we must maintain a stack of scopes.
  *
  * A stack allows users to write programs which contain repeated variable
  * names and to properly handle both nested scopes and removal of variables
@@ -235,7 +235,7 @@ struct InternTable {
  * method to parse the next tokens in the stream.
  *
  * For example if we are parsing a type and encounter a "Tensor" token we switch
- * into a mode for parsing `[`, a shape, a comma, a data type and then a ']'.
+ * into a mode for parsing `[`, a shape, a comma, a data type and then a `]`.
  *
  * Certain matches like this are unambiguous and proceed in a straight line fashion
  * once the initial token is found. Other parsing is more complex and requires some
@@ -244,7 +244,7 @@ struct InternTable {
  * For example when we find a '(' in an expression context, it may be part of
  * a tuple, the arguments to a call, or a parenthesized expression. The below code
  * disambiguate these cases by factoring expression parsing into a series of methods
- * which encode the parsing context the and thus how to interpret the parenthesis.
+ * which encode the parsing context and thus how to interpret the parenthesis.
  *
  * For more information one should be able to read the code in order starting with
  * `ParseModule` or `ParseExpr`.
