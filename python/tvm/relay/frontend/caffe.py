@@ -14,21 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
+# pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel, eval-used, unused-variable, no-else-continue, logging-format-interpolation, no-else-continue, no-else-return
 """Caffe frontend."""
 from __future__ import absolute_import as _abs
-import math
+import logging
+
 import numpy as np
 import tvm
+from tvm.ir import IRModule
 from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
-from tvm.ir import IRModule
 from .. import op as _op
 from ... import nd as _nd
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
-import logging
 
 __all__ = ['from_caffe']
 
@@ -211,8 +211,6 @@ class OperatorConverter(object):
         channel_shared = norm_params.channel_shared
         eps = norm_params.eps
 
-        scale_type = norm_params.scale_filler.type
-
         if channel_shared:
             scale = np.asarray(norm_params.scale_filler.value, np.float32)
             scale_expr = self.exp_tab.new_const(scale, dtype='float32')
@@ -259,7 +257,8 @@ class OperatorConverter(object):
         for r in priorbox_params.aspect_ratio:
             if r != 1:
                 ratios.append(r)
-                if flip: ratios.append(1 / r)
+                if flip:
+                    ratios.append(1 / r)
 
         min_size = priorbox_params.min_size
         max_size = priorbox_params.max_size
@@ -284,7 +283,7 @@ class OperatorConverter(object):
             for w in range(pre_w):
                 center_x = (w + offsets) * step_w
                 center_y = (h + offsets) * step_h
-                for s in range(len(min_size)):
+                for s, _ in enumerate(min_size):
                     min_size_ = min_size[s]
                     box_width = box_height = min_size_
                     out = self.add_box(out, center_x, center_y, box_width,
@@ -296,7 +295,7 @@ class OperatorConverter(object):
                         box_width = box_height = np.sqrt(min_size_ * max_size_)
                         out = self.add_box(out, center_x, center_y, box_width,
                                            box_height, img_w, img_h)
-                    for r in range(len(ratios)):
+                    for r, _ in enumerate(ratios):
                         ar = ratios[r]
                         if ar != 1:
                             box_width = min_size_ * np.sqrt(ar)
@@ -1012,9 +1011,9 @@ class OperatorConverter(object):
                 changed_layers[
                     temp_layers["scale"].name] = temp_layers['bn'].name
 
-            for index, plt in enumerate(pl.bottom):
+            for idx, plt in enumerate(pl.bottom):
                 if plt in changed_layers:
-                    pl.bottom[index] = changed_layers[plt]
+                    pl.bottom[idx] = changed_layers[plt]
 
             if op_type not in ['BatchNorm', 'Scale']:
                 new_layers.append(pl)
@@ -1134,7 +1133,7 @@ def from_caffe(init_net, predict_net, shape_dict, dtype_dict):
     logging.debug('caffe frontend')
 
     old_caffe = False
-    if (len(predict_net.input) != 0):  # old caffe version
+    if len(predict_net.input) != 0:  # old caffe version
         old_caffe = True
         model_inputs = list(predict_net.input)
 
