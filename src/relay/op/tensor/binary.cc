@@ -40,7 +40,7 @@ namespace relay {
 
 // Addition
 RELAY_REGISTER_BINARY_OP("add")
-    .describe("Elementwise add with with broadcasting")
+    .describe("Elementwise add with broadcasting")
     .set_support_level(1)
     .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::add));
 
