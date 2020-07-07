@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#ifndef TVM_PARSER_PARSER_H_
+#define TVM_PARSER_PARSER_H_
 /*!
  * \file parser.h
  * \brief A parser for TVM IR.
@@ -37,3 +39,5 @@ IRModule Parse(std::string file_name, std::string file_content);
 
 }  // namespace parser
 }  // namespace tvm
+
+#endif  // TVM_PARSER_PARSER_H_
