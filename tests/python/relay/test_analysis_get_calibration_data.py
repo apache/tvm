@@ -34,7 +34,7 @@ def check_data_size(mod, data):
             else:
                 assert len(data[key]["outputs"]) == 1
 
-def test_synthetic():
+def test_simple_graph():
     # A module with two subgraphs
     mod = tvm.IRModule()
 
@@ -53,6 +53,7 @@ def test_synthetic():
     f1 = relay.Function([x1, y1], z1)
     g1 = relay.GlobalVar("g1")
     mod[g1] = f1
+
 
     x = relay.var('x', shape=(8, 8))
     y = relay.var('y', shape=(8, 8))
@@ -78,6 +79,10 @@ def test_synthetic():
     tvm.testing.assert_allclose(data[g1]["outputs"][0].asnumpy(), x_data + y_data - z_data)
 
 def test_mobilenet_dnnl():
+    if not tvm.get_global_func("relay.ext.dnnl", True):
+        print("skip because DNNL codegen is not available")
+        return
+
     dtype = 'float32'
     ishape = (1, 3, 224, 224)
     mod, params = relay.testing.mobilenet.get_workload(
@@ -94,6 +99,5 @@ def test_mobilenet_dnnl():
     check_data_size(mod, data)
 
 if __name__ == "__main__":
-    test_synthetic()
+    test_simple_graph()
     test_mobilenet_dnnl()
-

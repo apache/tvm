@@ -366,8 +366,10 @@ def get_calibration_data(mod, data):
     Parameters
     ----------
     mod : tvm.IRModule
+        The input module for collecting the calibration data
 
     data : Dict[str, NDArray]
+        The input data for running the module
 
     Returns
     -------
@@ -386,9 +388,8 @@ def get_calibration_data(mod, data):
         offset = int(indices[0])
         in_len = int(indices[1])
         out_len = int(indices[2])
-        value = {}
-        value["inputs"] = ref_res[offset:offset+in_len]
-        value["outputs"] = ref_res[offset+in_len:offset+in_len+out_len]
+        value = {"inputs": ref_res[offset:offset + in_len],
+                 "outputs": ref_res[offset + in_len:offset + in_len + out_len]}
         calib_data[gvar] = value
 
     return calib_data
