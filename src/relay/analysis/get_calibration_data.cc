@@ -27,9 +27,9 @@
  * (GetCalibrateOutputMap).
  */
 
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/analysis.h>
 
 namespace tvm {
 namespace relay {
@@ -54,8 +54,7 @@ IRModule GetCalibrateModule(IRModule module) {
         // check if the function implementation is available
         // intrinsic functions are excluded for now
         if (glob_funcs_.count(var) > 0) {
-          for (size_t i = 0; i < call->args.size(); i++)
-            new_outputs_.push_back(call->args[i]);
+          for (size_t i = 0; i < call->args.size(); i++) new_outputs_.push_back(call->args[i]);
           // need to flatten the output if it is a tuple
           auto* fn = glob_funcs_[var].as<FunctionNode>();
           if (auto* tn = fn->body.as<TupleNode>()) {
@@ -70,9 +69,7 @@ IRModule GetCalibrateModule(IRModule module) {
       return post;
     }
 
-    Array<Expr> GetNewOutputs() {
-      return new_outputs_;
-    }
+    Array<Expr> GetNewOutputs() { return new_outputs_; }
 
    private:
     const Map<GlobalVar, BaseFunc>& glob_funcs_;
@@ -97,8 +94,8 @@ IRModule GetCalibrateModule(IRModule module) {
             fields.push_back(output);
           }
           auto tuple = Tuple(fields);
-          func = Function(func->params, tuple, tuple->checked_type_,
-                          func->type_params, func->attrs);
+          func =
+              Function(func->params, tuple, tuple->checked_type_, func->type_params, func->attrs);
         }
       } else {
         // we need to inline the functions in order to run grpah runtime
@@ -126,9 +123,8 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
   class OutputMapper : public ExprRewriter {
    public:
     OutputMapper(Map<GlobalVar, Array<Integer>>* output_map,
-                 const Map<GlobalVar, BaseFunc>& glob_funcs,
-                 size_t* offset)
-      : output_map_(output_map), glob_funcs_(glob_funcs), offset_(offset) {}
+                 const Map<GlobalVar, BaseFunc>& glob_funcs, size_t* offset)
+        : output_map_(output_map), glob_funcs_(glob_funcs), offset_(offset) {}
 
     Expr Rewrite_(const CallNode* call, const Expr& post) final {
       if (call->op->IsInstance<GlobalVarNode>()) {
@@ -178,15 +174,12 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
   return output_map;
 }
 
-TVM_REGISTER_GLOBAL("relay.analysis.get_calibrate_module")
-    .set_body_typed([](IRModule mod) {
-      return GetCalibrateModule(mod);
+TVM_REGISTER_GLOBAL("relay.analysis.get_calibrate_module").set_body_typed([](IRModule mod) {
+  return GetCalibrateModule(mod);
 });
 
 TVM_REGISTER_GLOBAL("relay.analysis.get_calibrate_output_map")
-    .set_body_typed([](const IRModule& mod) {
-      return GetCalibrateOutputMap(mod);
-});
+    .set_body_typed([](const IRModule& mod) { return GetCalibrateOutputMap(mod); });
 
 }  // namespace relay
 }  // namespace tvm
