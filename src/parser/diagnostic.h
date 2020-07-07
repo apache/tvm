@@ -38,10 +38,21 @@
 namespace tvm {
 namespace parser {
 
+/*! \brief A program source in any language.
+ *
+ * Could represent the source from an ML framework or the internal
+ * source of a TVM program.
+ */
 struct Source {
+  /*! \brief The raw source. */
   std::string source;
+  /*! \brief A mapping of line breaks into the raw source. */
   std::vector<std::pair<int, int>> line_map;
+
+  /*! \brief An empty source. */
   Source() : source(), line_map() {}
+
+  /*! \brief Construct a source from a string. */
   Source(const std::string& source) : source(source) {
     int index = 0;
     int length = 0;
@@ -66,6 +77,16 @@ struct Source {
 
   Source(const Source& source) : source(source.source), line_map(source.line_map) {}
 
+  /*! \brief Generate an error message at a specific line and column with the
+   * annotated message.
+   *
+   * The error is written directly to the `out` std::ostream.
+   *
+   * \param out The output ostream.
+   * \param line The line at which to report a diagnostic.
+   * \param line The column at which to report a diagnostic.
+   * \param msg The message to attach.
+   */
   void ReportAt(std::ostream& out, int line, int column, const std::string& msg) const {
     CHECK(line - 1 <= line_map.size())
         << "requested line: " << (line - 1)
@@ -96,6 +117,7 @@ struct Source {
   }
 };
 
+/*! \brief The diagnostic level, controls the printing of the message. */
 enum DiagnosticLevel {
   Bug,
   Error,
@@ -104,19 +126,32 @@ enum DiagnosticLevel {
   Help,
 };
 
+/*! \brief A diagnostic message. */
 struct Diagnostic {
+  /*! \brief The level. */
   DiagnosticLevel level;
+  /*! \brief The span at which to report an error. */
   Span span;
+  /*! \brief The diagnostic message. */
   std::string message;
+
   Diagnostic(int line, int column, const std::string& message) : level(DiagnosticLevel::Error), span(SourceName(), line, column), message(message) {}
 };
 
+/*! \brief A diagnostic context for recording errors against a source file.
+ * TODO(@jroesch): convert source map and improve in follow up PR, the parser
+ * assumes a single global file for now.
+ */
 struct DiagnosticContext {
+  /*! \brief The source to report against. */
   Source source;
+
+  /*! \brief The set of diagnostics to report. */
   std::vector<Diagnostic> diagnostics;
 
   DiagnosticContext(const Source& source) : source(source) {}
 
+  /*! \brief Emit a diagnostic. */
   void Emit(const Diagnostic& diagnostic) {
       diagnostics.push_back(diagnostic);
   }
