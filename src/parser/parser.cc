@@ -314,8 +314,8 @@ class Parser {
    * \return The Nth token.
    */
   Token Lookahead(int n) {
-    CHECK_LE(1, n) <<
-      "lookahead where n >= 1 is invalid";
+    CHECK_GE(n, 1) <<
+      "lookahead is only valid when n >= 1";
 
     // We intend to skip n - 1 tokens, then return the nth.
     auto old_pos = pos;
