@@ -194,8 +194,8 @@ std::string ToString(const TokenType& token_type) {
       return "Null";
     // Older compilers warn even though the above code is exhaustive.
     default:
-        LOG(FATAL) << "unreachable code";
-        return "";
+      LOG(FATAL) << "unreachable code";
+      return "";
   }
 }
 
@@ -303,8 +303,8 @@ std::string Pretty(const TokenType& token_type) {
       return "null";
     // Older compilers warn even though the above code is exhaustive.
     default:
-        LOG(FATAL) << "unreachable code";
-        return "";
+      LOG(FATAL) << "unreachable code";
+      return "";
   }
 }
 
