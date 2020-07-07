@@ -61,7 +61,7 @@ using arith::IntSet;
 using PartitionKey = std::pair<PrimExpr, bool>;
 struct PartitionKeyHash {
   std::size_t operator()(PartitionKey const& k) const noexcept {
-    std::size_t h1 = ObjectPtrHash{}(k.first);
+    std::size_t h1 = ObjectPtrHash{}(k.first);  // NOLINT(whitespace/braces)
     std::size_t h2 = std::hash<bool>{}(k.second);
     return h1 ^ h2;
   }
@@ -69,6 +69,7 @@ struct PartitionKeyHash {
 
 struct PartitionKeyEqual {
   bool operator()(const PartitionKey& k1, const PartitionKey& k2) const {
+    // NOLINTNEXTLINE(whitespace/braces)
     return k1.second == k2.second && ObjectPtrEqual{}(k1.first, k2.first);
   }
 };
@@ -387,11 +388,12 @@ class LoopPartitioner : public StmtMutator {
   }
 
  private:
-  Stmt TryPartition(const Stmt& stmt, Var var, PrimExpr min, PrimExpr max,
-                    Stmt body, bool partition_thread_scope);
+  Stmt TryPartition(const Stmt& stmt, Var var, PrimExpr min, PrimExpr max, Stmt body,
+                    bool partition_thread_scope);
 
-  std::pair<IntSet, ExpressionSet> GetIntervalAndCondset(
-      const Partition& partitions, const arith::IntervalSet& for_interval, bool cond_value);
+  std::pair<IntSet, ExpressionSet> GetIntervalAndCondset(const Partition& partitions,
+                                                         const arith::IntervalSet& for_interval,
+                                                         bool cond_value);
 
   inline Stmt MakeFor(const Object* op, PrimExpr extent, Stmt body);
 
@@ -469,8 +471,8 @@ std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
  * which will eventually be simplified to empty code. And because only one loop was generated
  * from loop 2 we stop recursing.
  */
-Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min,
-                                   PrimExpr max, Stmt body, bool partition_thread_scope) {
+Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, PrimExpr max, Stmt body,
+                                   bool partition_thread_scope) {
   using namespace arith;
   // include hint of var.
   hint_map_.insert({var.get(), IntSet::Interval(min, max)});
