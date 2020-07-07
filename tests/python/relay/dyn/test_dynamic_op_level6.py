@@ -32,7 +32,7 @@ def test_dynamic_topk():
         if isinstance(out, relay.expr.TupleWrapper):
             out = out.astuple()
         func = relay.Function([x, k_var], out)
-        print(func)
+
         np_data = np.random.uniform(size=shape).astype("float32")
         if is_ascend:
             np_indices = np.argsort(np_data, axis=axis)
