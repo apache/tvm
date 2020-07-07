@@ -48,7 +48,7 @@ def test_dyn_broadcast_to():
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x,np.array(dyn_shape).as(shape_type))
+                op_res = intrp.evaluate(func)(x,np.array(dyn_shape).astype(shape_type))
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 test_dyn_broadcast_to()
