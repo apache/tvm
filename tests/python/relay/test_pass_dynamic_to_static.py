@@ -108,8 +108,30 @@ def test_dynamic_to_static_quad_reshape():
     verify_reshape((2, 3, 4), (8, 3))
     verify_reshape((4, 7), (2, 7, 2))
 
+def test_dynamic_to_static_tile():
+    def verify_tile(shape, reps, oshape):
+        x = relay.var("x", relay.TensorType(shape, "float32"))
+        y = relay.var("y", relay.TensorType(reps, "float32"))
+        z = relay.tile(x, relay.shape_of(y))
+        func = run_infer_type(relay.Function([x, y], z))
+        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+
+        zz = func2.body
+        assert isinstance(zz, relay.Call)
+        assert zz.op == relay.op.get("tile")
+        assert zz.checked_type == relay.ty.TensorType(oshape, "float32")
+
+        x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
+        y_data = np.random.uniform(low=-1, high=1, size=reps).astype("float32")
+        ref_res = np.tile(x_data, reps)
+        verify_func(func2, [x_data, y_data], ref_res)
+
+    verify_tile((2, 3, 4), (2, 1, 5), (4, 3, 20))
+    verify_tile((4, 7), (4, 2), (16, 14))
+
 if __name__=="__main__":
     test_dynamic_to_static_reshape()
     test_dynamic_to_static_double_reshape()
     test_dynamic_to_static_quad_reshape()
+    test_dynamic_to_static_tile()
 

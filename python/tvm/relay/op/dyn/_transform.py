@@ -17,10 +17,13 @@
 """Backend compiler related feature registration"""
 # pylint: disable=invalid-name,unused-argument, len-as-condition, too-many-nested-blocks, too-many-local-variables, too-many-arguments
 from __future__ import absolute_import
+
+from tvm.runtime import convert
 from tvm.te.hybrid import script
 from .. import op as _reg
 
 _reg.register_injective_schedule("dyn.reshape")
+_reg.register_broadcast_schedule("dyn.tile")
 
 @script
 def _reshape_shape_func_input_data(data, newshape, ndim):
@@ -81,3 +84,40 @@ def _reshape_shape_func_input_data(data, newshape, ndim):
 @_reg.register_shape_func("dyn.reshape", True)
 def dynamic_reshape_shape_func(attrs, inputs, out_ndims):
     return [_reshape_shape_func_input_data(*inputs, out_ndims[0])]
+
+
+@script
+def _tile_shape_func(data, reps, ndim, tndim, rndim):
+    out = output_tensor((tndim,), "int64")
+
+    if ndim == rndim:
+        for i in const_range(tndim):
+            out[i] = int64(data.shape[i] * reps[i])
+    elif ndim > rndim:
+        ngap = ndim - rndim
+        for i in const_range(ndim):
+            if i < ngap:
+                out[i] = int64(data.shape[i])
+            else:
+                out[i] = int64(data.shape[i] * reps[i - ngap])
+    else:
+        rgap = rndim - ndim
+        for i in const_range(rndim):
+            if i < rgap:
+                out[i] = int64(reps[i])
+            else:
+                out[i] = int64(reps[i] * data.shape[i - rgap])
+    return out
+
+
+@_reg.register_shape_func("dyn.tile", True)
+def tile_shape_func(attrs, inputs, _):
+    """
+    Shape function for dyn.tile op.
+    """
+    reps = inputs[1]
+    ndim = len(inputs[0].shape)
+    rndim = inputs[1].shape[0].value
+    tndim = ndim if ndim > rndim else rndim
+    return [_tile_shape_func(inputs[0], reps, convert(ndim),
+                             convert(tndim), convert(rndim))]
