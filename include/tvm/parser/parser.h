@@ -21,12 +21,14 @@
  * \file parser.h
  * \brief A parser for TVM IR.
  */
-#include <fstream>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include "codegen_source_base.h"
+
+#include <fstream>
+
 #include "../../runtime/file_util.h"
 #include "../../runtime/meta_data.h"
+#include "codegen_source_base.h"
 
 namespace tvm {
 namespace parser {

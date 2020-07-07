@@ -155,6 +155,7 @@ template <typename T>
 class ScopeStack {
  private:
   std::vector<Scope<T>> scope_stack;
+
  public:
   /*! \brief Adds a variable binding to the current scope. */
   void Add(const std::string& name, const T& value) {
@@ -314,8 +315,7 @@ class Parser {
    * \return The Nth token.
    */
   Token Lookahead(int n) {
-    CHECK_GE(n, 1) <<
-      "lookahead is only valid when n >= 1";
+    CHECK_GE(n, 1) << "lookahead is only valid when n >= 1";
 
     // We intend to skip n - 1 tokens, then return the nth.
     auto old_pos = pos;
@@ -336,7 +336,8 @@ class Parser {
    */
   void Consume(const TokenType& token_type) {
     if (tokens[pos]->token_type != token_type) {
-      std::string message = "expected a " + Pretty(token_type) + " found " + Pretty(Peek()->token_type);
+      std::string message =
+          "expected a " + Pretty(token_type) + " found " + Pretty(Peek()->token_type);
       this->diag_ctx.Emit({tokens[pos]->line, tokens[pos]->column, message});
       this->diag_ctx.Render(std::cout);
     }
@@ -400,10 +401,10 @@ class Parser {
   }
 
   /*! \brief Bind a type variable in the type scope.
-  *
-  * "A" -> TypeVar("A", ...), these are needed to map from raw string names
-  * to unique type variable nodes.
-  */
+   *
+   * "A" -> TypeVar("A", ...), these are needed to map from raw string names
+   * to unique type variable nodes.
+   */
   TypeVar BindTypeVar(const std::string& name, const TypeKind type_kind) {
     auto type_var = TypeVar(name, type_kind);
     this->type_scopes.Add(name, type_var);
@@ -968,8 +969,7 @@ class Parser {
       case TokenType::Identifier: {
         auto id = Match(TokenType::Identifier);
         auto ctor = ctors.Get(id.ToString());
-        CHECK(ctor)
-          << "undefined identifier";
+        CHECK(ctor) << "undefined identifier";
         if (Peek()->token_type == TokenType::OpenParen) {
           auto fields = ParsePatternList();
           return PatternConstructor(ctor.value(), fields);
@@ -1217,7 +1217,7 @@ class Parser {
     });
   }
 
-    /*! \brief Parse a shape. */
+  /*! \brief Parse a shape. */
   Array<tvm::PrimExpr> ParseShape() {
     auto dims = ParseSequence<tvm::PrimExpr>(TokenType::OpenParen, TokenType::Comma,
                                              TokenType::CloseParen, [&]() {
@@ -1270,7 +1270,7 @@ class Parser {
    *
    * This matches either a `Tensor[shape, dtype]`, a user defined ADT, a tuple type,
    * a scalar type or an incomplete type `_`.
-  */
+   */
   Type ParseType() {
     auto tok = Peek();
 
@@ -1329,7 +1329,6 @@ class Parser {
   // TODO(@jroesch): this is the final remaining feature.
   ObjectRef ParseMetadata() { return ObjectRef(); }
 
-
   /*! \brief A helper for debugging the parser, displays the next N tokens in the token stream. */
   void DisplayNextN(int n) {
     std::cout << "remaining tokens: " << std::endl;
@@ -1339,7 +1338,7 @@ class Parser {
     }
   }
 
-   // A function for debugging the operator parser.
+  // A function for debugging the operator parser.
   void DebugStack(const std::vector<Expr>& exprs, const std::vector<Rule>& rules) {
     std::cout << "Expr Stack: ";
     for (auto expr : exprs) {

@@ -94,8 +94,7 @@ class SpanNode : public Object {
   }
 
   bool SEqualReduce(const SpanNode* other, SEqualReducer equal) const {
-    return equal(source, other->source) && equal(line, other->line) &&
-           equal(column, other->column);
+    return equal(source, other->source) && equal(line, other->line) && equal(column, other->column);
   }
 
   static constexpr const char* _type_key = "Span";

@@ -27,10 +27,12 @@
 #ifndef TVM_PARSER_OP_TABLE_H_
 #define TVM_PARSER_OP_TABLE_H_
 
-#include <fstream>
-#include <tvm/runtime/object.h>
-#include <tvm/runtime/container.h>
 #include <tvm/ir/op.h>
+#include <tvm/runtime/container.h>
+#include <tvm/runtime/object.h>
+
+#include <fstream>
+
 #include "./tokenizer.h"
 
 namespace tvm {
@@ -45,7 +47,8 @@ struct Rule {
 
   Rule() : tokens(), precedence(0), arity(0), op(tvm::Op()), left_assoc(false) {}
 
-  Rule(std::vector<TokenType> tokens, tvm::Op op, int precedence, int arity = 2, bool left_assoc = false)
+  Rule(std::vector<TokenType> tokens, tvm::Op op, int precedence, int arity = 2,
+       bool left_assoc = false)
       : tokens(tokens), precedence(precedence), arity(arity), op(op), left_assoc(left_assoc) {}
 
   Rule(const Rule& rule) {
@@ -67,24 +70,23 @@ struct OperatorTable {
       for (auto token : rule.tokens) {
         key << ToString(token);
       }
-      this->this_is_a_hack.insert({ key.str(), rule });
+      this->this_is_a_hack.insert({key.str(), rule});
     }
   }
 };
 
 OperatorTable DefaultOpTable() {
-  return OperatorTable({
-      Rule({TokenType::Star}, Op::Get("multiply"), 12, 2, true),
-      Rule({TokenType::Division}, Op::Get("divide"), 12, 2, true),
-      Rule({TokenType::Plus}, Op::Get("add"), 10, 2, true),
-      Rule({TokenType::Minus}, Op::Get("subtract"), 10, 2, true),
-      Rule({TokenType::LAngle}, Op::Get("less"), 8, 2, true),
-      Rule({TokenType::LAngle, TokenType::Equal}, Op::Get("less_equal"), 8, 2, true),
-      Rule({TokenType::RAngle}, Op::Get("greater"), 8, 2, true),
-      Rule({TokenType::RAngle, TokenType::Equal}, Op::Get("greater_equal"), 8, 2, true),
-      Rule({TokenType::Equal, TokenType::Equal}, Op::Get("equal"), 7, 2, true),
-      Rule({TokenType::Bang, TokenType::Equal}, Op::Get("not_equal"), 7, 2, true)
-    });
+  return OperatorTable(
+      {Rule({TokenType::Star}, Op::Get("multiply"), 12, 2, true),
+       Rule({TokenType::Division}, Op::Get("divide"), 12, 2, true),
+       Rule({TokenType::Plus}, Op::Get("add"), 10, 2, true),
+       Rule({TokenType::Minus}, Op::Get("subtract"), 10, 2, true),
+       Rule({TokenType::LAngle}, Op::Get("less"), 8, 2, true),
+       Rule({TokenType::LAngle, TokenType::Equal}, Op::Get("less_equal"), 8, 2, true),
+       Rule({TokenType::RAngle}, Op::Get("greater"), 8, 2, true),
+       Rule({TokenType::RAngle, TokenType::Equal}, Op::Get("greater_equal"), 8, 2, true),
+       Rule({TokenType::Equal, TokenType::Equal}, Op::Get("equal"), 7, 2, true),
+       Rule({TokenType::Bang, TokenType::Equal}, Op::Get("not_equal"), 7, 2, true)});
 }
 
 }  // namespace parser

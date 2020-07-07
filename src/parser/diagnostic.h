@@ -30,10 +30,11 @@
 #ifndef TVM_PARSER_DIAGNOSTIC_H_
 #define TVM_PARSER_DIAGNOSTIC_H_
 
-#include <fstream>
-#include <tvm/runtime/object.h>
-#include <tvm/runtime/container.h>
 #include <tvm/ir/span.h>
+#include <tvm/runtime/container.h>
+#include <tvm/runtime/object.h>
+
+#include <fstream>
 
 namespace tvm {
 namespace parser {
@@ -56,7 +57,7 @@ struct Source {
   Source(const std::string& source) : source(source) {
     int index = 0;
     int length = 0;
-    line_map.push_back({ index, length});
+    line_map.push_back({index, length});
     for (auto c : source) {
       if (c == '\n') {
         // Record the length of the line.
@@ -64,7 +65,7 @@ struct Source {
         // Bump past the newline.
         index += 1;
         // Record the start of the next line, and put placeholder for length.
-        line_map.push_back({ index, 0 });
+        line_map.push_back({index, 0});
         // Reset length to zero.
         length = 0;
       } else {
@@ -89,8 +90,7 @@ struct Source {
    */
   void ReportAt(std::ostream& out, int line, int column, const std::string& msg) const {
     CHECK(line - 1 <= line_map.size())
-        << "requested line: " << (line - 1)
-        << "line_map size: " << line_map.size()
+        << "requested line: " << (line - 1) << "line_map size: " << line_map.size()
         << "source: " << source;
 
     // Adjust for zero indexing, now have (line_start, line_length);
@@ -135,7 +135,8 @@ struct Diagnostic {
   /*! \brief The diagnostic message. */
   std::string message;
 
-  Diagnostic(int line, int column, const std::string& message) : level(DiagnosticLevel::Error), span(SourceName(), line, column), message(message) {}
+  Diagnostic(int line, int column, const std::string& message)
+      : level(DiagnosticLevel::Error), span(SourceName(), line, column), message(message) {}
 };
 
 /*! \brief A diagnostic context for recording errors against a source file.
@@ -152,19 +153,18 @@ struct DiagnosticContext {
   DiagnosticContext(const Source& source) : source(source) {}
 
   /*! \brief Emit a diagnostic. */
-  void Emit(const Diagnostic& diagnostic) {
-      diagnostics.push_back(diagnostic);
-  }
+  void Emit(const Diagnostic& diagnostic) { diagnostics.push_back(diagnostic); }
 
-  // TODO(@jroesch): eventually modularize the rendering interface to provide control of how to format errors.
+  // TODO(@jroesch): eventually modularize the rendering interface to provide control of how to
+  // format errors.
   void Render(std::ostream& ostream) {
-      for (auto diagnostic : diagnostics) {
-          source.ReportAt(ostream, diagnostic.span->line, diagnostic.span->column, diagnostic.message);
-      }
+    for (auto diagnostic : diagnostics) {
+      source.ReportAt(ostream, diagnostic.span->line, diagnostic.span->column, diagnostic.message);
+    }
 
-      if (diagnostics.size()) {
-          LOG(FATAL) << "parse error occured";
-      }
+    if (diagnostics.size()) {
+      LOG(FATAL) << "parse error occured";
+    }
   }
 };
 

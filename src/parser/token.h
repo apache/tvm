@@ -25,9 +25,10 @@
 #ifndef TVM_PARSER_TOKEN_H_
 #define TVM_PARSER_TOKEN_H_
 
-#include <fstream>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/container.h>
+#include <tvm/runtime/object.h>
+
+#include <fstream>
 
 namespace tvm {
 namespace parser {
@@ -35,289 +36,289 @@ namespace parser {
 using namespace runtime;
 
 enum TokenType {
-    CommentStart,
-    CommentEnd,
-    LineComment,
-    Comment,
-    Whitespace,
-    Newline,
-    StringLiteral,
-    Identifier,
-    Local,
-    Global,
-    Op,
-    Graph,
-    OpenParen,
-    CloseParen,
-    AtSymbol,
-    Percent,
-    Comma,
-    Period,
-    Equal,
-    Semicolon,
-    Colon,
-    Integer,
-    Float,
-    Division,
-    Boolean,
-    Plus,
-    Star,
-    Minus,
-    RAngle,
-    LAngle,
-    RCurly,
-    LCurly,
-    RSquare,
-    LSquare,
-    Bang,
-    At,
-    Question,
-    If,
-    Else,
-    Underscore,
-    Let,
-    Fn,
-    Defn,
-    TypeDef,
-    Extern,
-    Match,
-    PartialMatch,
-    Unknown,
-    EndOfFile,
-    Null,
+  CommentStart,
+  CommentEnd,
+  LineComment,
+  Comment,
+  Whitespace,
+  Newline,
+  StringLiteral,
+  Identifier,
+  Local,
+  Global,
+  Op,
+  Graph,
+  OpenParen,
+  CloseParen,
+  AtSymbol,
+  Percent,
+  Comma,
+  Period,
+  Equal,
+  Semicolon,
+  Colon,
+  Integer,
+  Float,
+  Division,
+  Boolean,
+  Plus,
+  Star,
+  Minus,
+  RAngle,
+  LAngle,
+  RCurly,
+  LCurly,
+  RSquare,
+  LSquare,
+  Bang,
+  At,
+  Question,
+  If,
+  Else,
+  Underscore,
+  Let,
+  Fn,
+  Defn,
+  TypeDef,
+  Extern,
+  Match,
+  PartialMatch,
+  Unknown,
+  EndOfFile,
+  Null,
 };
 
 std::string ToString(const TokenType& token_type) {
-    switch (token_type) {
-        case TokenType::CommentStart:
-            return "CommentStart";
-        case TokenType::CommentEnd:
-            return "CommentEnd";
-        case TokenType::LineComment:
-            return "LineComment";
-        case TokenType::Comment:
-            return "Comment";
-        case TokenType::Whitespace:
-            return "WhiteSpace";
-        case TokenType::Newline:
-            return "Newline";
-        case TokenType::StringLiteral:
-            return "StringLiteral";
-        case TokenType::Identifier:
-            return "Identifier";
-        case TokenType::Local:
-            return "Local";
-        case TokenType::Global:
-            return "Global";
-        case TokenType::Graph:
-            return "Graph";
-        case TokenType::Op:
-            return "Op";
-        case TokenType::OpenParen:
-            return "OpenParen";
-        case TokenType::CloseParen:
-            return "CloseParen";
-        case TokenType::AtSymbol:
-            return "AtSymbol";
-        case TokenType::Percent:
-            return "Percent";
-        case TokenType::Comma:
-            return "Comma";
-        case TokenType::Colon:
-            return "Colon";
-        case TokenType::Semicolon:
-            return "Semicolon";
-        case TokenType::Period:
-            return "Period";
-        case TokenType::Equal:
-            return "Equal";
-        case TokenType::Integer:
-            return "Integer";
-        case TokenType::Float:
-            return "Float";
-        case TokenType::Plus:
-            return "Plus";
-        case TokenType::Star:
-            return "Star";
-        case TokenType::Minus:
-            return "Minus";
-        case TokenType::Division:
-            return "Division";
-        case TokenType::RAngle:
-            return "RAngle";
-        case TokenType::LAngle:
-            return "LAngle";
-        case TokenType::RCurly:
-            return "RCurly";
-        case TokenType::LCurly:
-            return "LCurly";
-        case TokenType::RSquare:
-            return "RSquare";
-        case TokenType::LSquare:
-            return "LSquare";
-        case TokenType::Bang:
-            return "Bang";
-        case TokenType::Underscore:
-            return "Underscore";
-        case TokenType::At:
-            return "At";
-        case TokenType::Let:
-            return "Let";
-        case TokenType::If:
-            return "If";
-        case TokenType::Else:
-            return "Else";
-        case TokenType::Fn:
-            return "Fn";
-        case TokenType::Defn:
-            return "Defn";
-        case TokenType::TypeDef:
-            return "TypeDef";
-        case TokenType::Extern:
-            return "Extern";
-        case TokenType::Match:
-            return "Match";
-        case TokenType::PartialMatch:
-            return "PartialMatch";
-        case TokenType::Question:
-            return "Question";
-        case TokenType::Boolean:
-            return "Boolean";
-        case TokenType::Unknown:
-            return "Unknown";
-        case TokenType::EndOfFile:
-            return "EndOfFile";
-        case TokenType::Null:
-            return "Null";
-    }
+  switch (token_type) {
+    case TokenType::CommentStart:
+      return "CommentStart";
+    case TokenType::CommentEnd:
+      return "CommentEnd";
+    case TokenType::LineComment:
+      return "LineComment";
+    case TokenType::Comment:
+      return "Comment";
+    case TokenType::Whitespace:
+      return "WhiteSpace";
+    case TokenType::Newline:
+      return "Newline";
+    case TokenType::StringLiteral:
+      return "StringLiteral";
+    case TokenType::Identifier:
+      return "Identifier";
+    case TokenType::Local:
+      return "Local";
+    case TokenType::Global:
+      return "Global";
+    case TokenType::Graph:
+      return "Graph";
+    case TokenType::Op:
+      return "Op";
+    case TokenType::OpenParen:
+      return "OpenParen";
+    case TokenType::CloseParen:
+      return "CloseParen";
+    case TokenType::AtSymbol:
+      return "AtSymbol";
+    case TokenType::Percent:
+      return "Percent";
+    case TokenType::Comma:
+      return "Comma";
+    case TokenType::Colon:
+      return "Colon";
+    case TokenType::Semicolon:
+      return "Semicolon";
+    case TokenType::Period:
+      return "Period";
+    case TokenType::Equal:
+      return "Equal";
+    case TokenType::Integer:
+      return "Integer";
+    case TokenType::Float:
+      return "Float";
+    case TokenType::Plus:
+      return "Plus";
+    case TokenType::Star:
+      return "Star";
+    case TokenType::Minus:
+      return "Minus";
+    case TokenType::Division:
+      return "Division";
+    case TokenType::RAngle:
+      return "RAngle";
+    case TokenType::LAngle:
+      return "LAngle";
+    case TokenType::RCurly:
+      return "RCurly";
+    case TokenType::LCurly:
+      return "LCurly";
+    case TokenType::RSquare:
+      return "RSquare";
+    case TokenType::LSquare:
+      return "LSquare";
+    case TokenType::Bang:
+      return "Bang";
+    case TokenType::Underscore:
+      return "Underscore";
+    case TokenType::At:
+      return "At";
+    case TokenType::Let:
+      return "Let";
+    case TokenType::If:
+      return "If";
+    case TokenType::Else:
+      return "Else";
+    case TokenType::Fn:
+      return "Fn";
+    case TokenType::Defn:
+      return "Defn";
+    case TokenType::TypeDef:
+      return "TypeDef";
+    case TokenType::Extern:
+      return "Extern";
+    case TokenType::Match:
+      return "Match";
+    case TokenType::PartialMatch:
+      return "PartialMatch";
+    case TokenType::Question:
+      return "Question";
+    case TokenType::Boolean:
+      return "Boolean";
+    case TokenType::Unknown:
+      return "Unknown";
+    case TokenType::EndOfFile:
+      return "EndOfFile";
+    case TokenType::Null:
+      return "Null";
+  }
 }
 
 std::string Pretty(const TokenType& token_type) {
-    switch (token_type) {
-        case TokenType::CommentStart:
-            return "`/*`";
-        case TokenType::CommentEnd:
-            return "`*/`";
-        case TokenType::LineComment:
-            return "`//`";
-        case TokenType::Comment:
-            return "comment";
-        case TokenType::Whitespace:
-            return "whitespace";
-        case TokenType::Newline:
-            return "newline";
-        case TokenType::StringLiteral:
-            return "string literal";
-        case TokenType::Identifier:
-            return "identifier";
-        case TokenType::Local:
-            return "local variable";
-        case TokenType::Global:
-            return "global variable";
-        case TokenType::Graph:
-            return "graph variable";
-        case TokenType::Op:
-            return "operator";
-        case TokenType::OpenParen:
-            return "`(`";
-        case TokenType::CloseParen:
-            return "`)`";
-        case TokenType::AtSymbol:
-            return "`@`";
-        case TokenType::Percent:
-            return "`%`";
-        case TokenType::Comma:
-            return "`,`";
-        case TokenType::Colon:
-            return "`:`";
-        case TokenType::Semicolon:
-            return "`;`";
-        case TokenType::Period:
-            return "`.`";
-        case TokenType::Equal:
-            return "`=`";
-        case TokenType::Integer:
-            return "integer";
-        case TokenType::Float:
-            return "float";
-        case TokenType::Plus:
-            return "`+`";
-        case TokenType::Star:
-            return "`*`";
-        case TokenType::Minus:
-            return "`-`";
-        case TokenType::Division:
-            return "`/`";
-        case TokenType::RAngle:
-            return "`<`";
-        case TokenType::LAngle:
-            return "`>`";
-        case TokenType::RCurly:
-            return "`}`";
-        case TokenType::LCurly:
-            return "`{`";
-        case TokenType::RSquare:
-            return "`]`";
-        case TokenType::LSquare:
-            return "`[`";
-        case TokenType::Bang:
-            return "`!`";
-        case TokenType::Underscore:
-            return "`_`";
-        case TokenType::At:
-            return "`@`";
-        case TokenType::Let:
-            return "`let`";
-        case TokenType::If:
-            return "`if`";
-        case TokenType::Else:
-            return "`else`";
-        case TokenType::Fn:
-            return "`fn`";
-        case TokenType::Defn:
-            return "`def`";
-        case TokenType::TypeDef:
-            return "`type`";
-        case TokenType::Extern:
-            return "`extern`";
-        case TokenType::Boolean:
-            return "boolean";
-        case TokenType::Match:
-            return "`match`";
-        case TokenType::PartialMatch:
-            return "`match?`";
-        case TokenType::Question:
-            return "`?`";
-        case TokenType::Unknown:
-            return "unknown";
-        case TokenType::EndOfFile:
-            return "end of file";
-        case TokenType::Null:
-            return "null";
-    }
+  switch (token_type) {
+    case TokenType::CommentStart:
+      return "`/*`";
+    case TokenType::CommentEnd:
+      return "`*/`";
+    case TokenType::LineComment:
+      return "`//`";
+    case TokenType::Comment:
+      return "comment";
+    case TokenType::Whitespace:
+      return "whitespace";
+    case TokenType::Newline:
+      return "newline";
+    case TokenType::StringLiteral:
+      return "string literal";
+    case TokenType::Identifier:
+      return "identifier";
+    case TokenType::Local:
+      return "local variable";
+    case TokenType::Global:
+      return "global variable";
+    case TokenType::Graph:
+      return "graph variable";
+    case TokenType::Op:
+      return "operator";
+    case TokenType::OpenParen:
+      return "`(`";
+    case TokenType::CloseParen:
+      return "`)`";
+    case TokenType::AtSymbol:
+      return "`@`";
+    case TokenType::Percent:
+      return "`%`";
+    case TokenType::Comma:
+      return "`,`";
+    case TokenType::Colon:
+      return "`:`";
+    case TokenType::Semicolon:
+      return "`;`";
+    case TokenType::Period:
+      return "`.`";
+    case TokenType::Equal:
+      return "`=`";
+    case TokenType::Integer:
+      return "integer";
+    case TokenType::Float:
+      return "float";
+    case TokenType::Plus:
+      return "`+`";
+    case TokenType::Star:
+      return "`*`";
+    case TokenType::Minus:
+      return "`-`";
+    case TokenType::Division:
+      return "`/`";
+    case TokenType::RAngle:
+      return "`<`";
+    case TokenType::LAngle:
+      return "`>`";
+    case TokenType::RCurly:
+      return "`}`";
+    case TokenType::LCurly:
+      return "`{`";
+    case TokenType::RSquare:
+      return "`]`";
+    case TokenType::LSquare:
+      return "`[`";
+    case TokenType::Bang:
+      return "`!`";
+    case TokenType::Underscore:
+      return "`_`";
+    case TokenType::At:
+      return "`@`";
+    case TokenType::Let:
+      return "`let`";
+    case TokenType::If:
+      return "`if`";
+    case TokenType::Else:
+      return "`else`";
+    case TokenType::Fn:
+      return "`fn`";
+    case TokenType::Defn:
+      return "`def`";
+    case TokenType::TypeDef:
+      return "`type`";
+    case TokenType::Extern:
+      return "`extern`";
+    case TokenType::Boolean:
+      return "boolean";
+    case TokenType::Match:
+      return "`match`";
+    case TokenType::PartialMatch:
+      return "`match?`";
+    case TokenType::Question:
+      return "`?`";
+    case TokenType::Unknown:
+      return "unknown";
+    case TokenType::EndOfFile:
+      return "end of file";
+    case TokenType::Null:
+      return "null";
+  }
 }
 
 class Token;
 
 class TokenNode : public Object {
-public:
-    int line;
-    int column;
-    TokenType token_type;
-    mutable runtime::ObjectRef data;
+ public:
+  int line;
+  int column;
+  TokenType token_type;
+  mutable runtime::ObjectRef data;
 
-    void VisitAttrs(AttrVisitor* v) {}
+  void VisitAttrs(AttrVisitor* v) {}
 
-    static constexpr const char* _type_key = "parser.Token";
-    TVM_DECLARE_FINAL_OBJECT_INFO(TokenNode, Object);
+  static constexpr const char* _type_key = "parser.Token";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TokenNode, Object);
 };
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<TokenNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const TokenNode*>(ref.get());
-    p->stream << "Token(line=" << node->line << ", column=" << node->column << ", token_type=" << ToString(node->token_type) << ", data=" << node->data << ")";
-  });
-
+    .set_dispatch<TokenNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const TokenNode*>(ref.get());
+      p->stream << "Token(line=" << node->line << ", column=" << node->column
+                << ", token_type=" << ToString(node->token_type) << ", data=" << node->data << ")";
+    });
 
 TVM_REGISTER_NODE_TYPE(TokenNode);
 
@@ -340,17 +341,11 @@ Token::Token(int line, int column, TokenType token_type, ObjectRef data) {
   data_ = std::move(n);
 }
 
-Token Token::Null() {
-    return Token(0, 0, TokenType::Null);
-}
+Token Token::Null() { return Token(0, 0, TokenType::Null); }
 
-int64_t Token::ToNumber() const {
-    return Downcast<tvm::Integer>(this->operator->()->data);
-}
+int64_t Token::ToNumber() const { return Downcast<tvm::Integer>(this->operator->()->data); }
 
-std::string Token::ToString() const {
-    return Downcast<tvm::String>(this->operator->()->data);
-}
+std::string Token::ToString() const { return Downcast<tvm::String>(this->operator->()->data); }
 
 }  // namespace parser
 }  // namespace tvm
