@@ -53,8 +53,8 @@ bool IsIdentLetter(char c) { return '_' == c || ('a' <= c && c <= 'z') || ('A' <
 bool IsIdent(char c) { return IsIdentLetter(c) || IsDigit(c); }
 
 static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
-    {"let", TokenType::Let},    {"fn", TokenType::Fn},     {"def", TokenType::Defn},
-    {"if", TokenType::If},      {"else", TokenType::Else}, {"type", TokenType::TypeDef},
+    {"let", TokenType::Let},     {"fn", TokenType::Fn},        {"def", TokenType::Defn},
+    {"if", TokenType::If},       {"else", TokenType::Else},    {"type", TokenType::TypeDef},
     {"match", TokenType::Match}, {"extern", TokenType::Extern}};
 
 struct Tokenizer {

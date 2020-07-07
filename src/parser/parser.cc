@@ -465,7 +465,7 @@ class Parser {
   /*! \brief Convert a numeric token to an NDArray for embedding into the Relay program. */
   NDArray NumberToNDArray(const Token& token) {
     if (token->token_type == TokenType::Integer) {
-      DLContext ctx = { DLDeviceType::kDLCPU, 0};
+      DLContext ctx = {DLDeviceType::kDLCPU, 0};
       auto dtype = String2DLDataType("int32");
       auto data = NDArray::Empty({}, dtype, ctx);
       auto array = reinterpret_cast<int32_t*>(data->data);
@@ -474,7 +474,7 @@ class Parser {
       array[0] = (int32_t)value;
       return data;
     } else if (token->token_type == TokenType::Float) {
-      DLContext ctx = { DLDeviceType::kDLCPU, 0};
+      DLContext ctx = {DLDeviceType::kDLCPU, 0};
       auto dtype = String2DLDataType("float32");
       auto data = NDArray::Empty({}, dtype, ctx);
       auto array = reinterpret_cast<float*>(data->data);
@@ -491,7 +491,7 @@ class Parser {
 
   /*! \brief Convert a boolean value to an NDArray for embedding into the Relay program. */
   NDArray BooleanToNDarray(bool value) {
-    DLContext ctx = { DLDeviceType::kDLCPU, 0};
+    DLContext ctx = {DLDeviceType::kDLCPU, 0};
     auto dtype = String2DLDataType("bool");
     auto data = NDArray::Empty({}, dtype, ctx);
     auto array = reinterpret_cast<bool*>(data->data);
@@ -645,7 +645,8 @@ class Parser {
           Consume(TokenType::Extern);
           auto type_def = ParseTypeDef();
           if (type_def->constructors.size()) {
-            diag_ctx.Emit({ next->line, next->column, "an external type may not have any constructors" });
+            diag_ctx.Emit(
+                {next->line, next->column, "an external type may not have any constructors"});
           }
           defs.types.push_back(type_def);
         }
