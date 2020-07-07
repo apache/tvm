@@ -481,4 +481,5 @@ if __name__ == "__main__":
     test_batch_matmul()
     test_shape_of()
     test_sequence_mask()
+    test_one_hot()
     test_ndarray_size()
