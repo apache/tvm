@@ -2146,7 +2146,18 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
                                       const Type& out_type) {
   const StridedSliceAttrs* param = attrs.as<StridedSliceAttrs>();
   CHECK(param != nullptr);
-  if (param->begin && param->end && param->strides) {
+
+  bool dyn = false;
+  for (auto& v : out_type.as<TensorTypeNode>()->shape) {
+    if (const tir::VarNode* var_node = v.as<tir::VarNode>()) {
+      if (var_node->name_hint == "any_dim") {
+        dyn = true;
+        break;
+      }
+    }
+  }
+
+  if (param->begin && param->end && param->strides && !dyn) {
     Array<Integer> begin, end, strides;
     begin = param->begin.value();
     end = param->end.value();

@@ -179,7 +179,7 @@ def run_tf_graph(sess, input_data, input_node, output_node):
 
 def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
                         no_gpu=False, opt_level=3, mode='graph_runtime',
-                        cuda_layout="NCHW"):
+                        cuda_layout="NCHW", ignore_in_shape=False):
     """Generic function to generate and compare tensorflow and TVM output"""
     def name_without_num(name):
         return name.split(':')[0] if ":" in name else name
@@ -208,7 +208,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
             tvm_output = run_tvm_graph(final_graph_def, in_data, in_node,
                                        target=device, out_names=out_name,
                                        num_output=len(out_name), opt_level=opt_level, mode=mode,
-                                       cuda_layout=cuda_layout)
+                                       cuda_layout=cuda_layout, ignore_in_shape=ignore_in_shape)
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
@@ -1354,19 +1354,30 @@ def test_forward_batch_matmul():
 
 def _test_stridedslice(ip_shape, begin, end, stride, dtype,
                        begin_mask=0, end_mask=0, new_axis_mask=0,
-                       shrink_axis_mask=0, ellipsis_mask=0):
+                       shrink_axis_mask=0, ellipsis_mask=0, dynamic_input=False):
     """ One iteration of a Stridedslice """
+
+    var_shape = ip_shape
+    if dynamic_input:
+        # Generate a dynamic shape
+        assert isinstance(var_shape, tuple)
+        var_shape = list(var_shape)
+        var_shape[0] = None
 
     tf.reset_default_graph()
     with tf.Graph().as_default():
-        in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+        in_data = tf.placeholder(dtype, var_shape, name="in_data")
         tf.strided_slice(in_data, begin, end, stride, begin_mask=begin_mask,
                          end_mask=end_mask, new_axis_mask=new_axis_mask,
                          shrink_axis_mask=shrink_axis_mask,
                          ellipsis_mask=ellipsis_mask, name="strided_slice")
         np_data = np.random.uniform(size=ip_shape).astype(dtype)
 
-        compare_tf_with_tvm(np_data, 'in_data:0', 'strided_slice:0')
+        if dynamic_input:
+            compare_tf_with_tvm(np_data, 'in_data:0', 'strided_slice:0', mode="vm",
+                                ignore_in_shape=True)
+        else:
+            compare_tf_with_tvm(np_data, 'in_data:0', 'strided_slice:0')
 
 
 def test_forward_stridedslice():
@@ -1421,6 +1432,8 @@ def test_forward_stridedslice():
     _test_stridedslice((3, 4, 5, 4, 5, 6), [1, 2, 0, -3], [4, 5, 3, 3], [2, 2, 1, 1],
                        'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2,
                        begin_mask=5, end_mask=8)
+    _test_stridedslice((2, 1), [0, 0], [1, 1], [1, 1], 'float32', dynamic_input=True)
+
 
 #######################################################################
 # FloorDiv, RealDiv

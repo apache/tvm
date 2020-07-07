@@ -1458,6 +1458,15 @@ def _stridedSlice():
 
                 return ret
 
+        def _dyn():
+            for d in data_shape:
+                if not isinstance(d, int):
+                    return True
+            return False
+
+        if _dyn():
+            return _op.strided_slice(inputs[0], begin, end, stride)
+
         def _transform_mask(stride_dim, ellipsis_mask):
             """Handle mask inputs to create new begin, end, stride and output shape"""
             m_begin = [0] * data_dim
