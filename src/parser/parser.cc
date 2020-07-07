@@ -697,7 +697,7 @@ class Parser {
 
   std::string HackTokensAsString(int n) {
     std::stringstream key;
-    n = std::min((int)(tokens.size() - pos), n);
+    n = std::min(static_cast<int>(tokens.size() - pos), n);
     for (int i = 0; i < n; i++) {
       key << ToString(tokens.at(pos + i)->token_type);
     }
@@ -771,7 +771,7 @@ class Parser {
         }
       }
 
-      CHECK(exprs.size() >= 1);
+      CHECK_GE(exprs.size(), 1);
 
       if (exprs.size() == 1) {
         return exprs[0];
@@ -1332,7 +1332,7 @@ class Parser {
   /*! \brief A helper for debugging the parser, displays the next N tokens in the token stream. */
   void DisplayNextN(int n) {
     std::cout << "remaining tokens: " << std::endl;
-    auto bound = std::min(pos + n, (int)tokens.size());
+    auto bound = std::min(pos + n, static_cast<int>(tokens.size()));
     for (int i = 0; i < bound - pos; i++) {
       std::cout << tokens[pos + i] << std::endl;
     }

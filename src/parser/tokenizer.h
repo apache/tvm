@@ -27,6 +27,9 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
+#include <vector>
+#include <string>
+#include <unordered_map>
 #include <fstream>
 
 #include "./token.h"
@@ -91,7 +94,7 @@ struct Tokenizer {
     Backward,
   };
 
-  void MatchComment(std::string& buffer) {
+  void MatchComment(std::string* buffer) {
     // We only invoke this after we have matched the first start
     // token assume, we are proceeding the parse forward with
     // nesting = 1.
@@ -130,7 +133,7 @@ struct Tokenizer {
             } else {
               buffer += Next();
               state = CommentParserState::Proceed;
-            };
+            }
           }
           continue;
         }
@@ -315,7 +318,7 @@ struct Tokenizer {
         // Eat the first /* pair before entering the state machine.
         Next();
         std::string comment;
-        MatchComment(comment);
+        MatchComment(&comment);
         auto token = NewToken(TokenType::Comment, tvm::String(comment));
         return token;
       } else {
@@ -371,7 +374,7 @@ struct Tokenizer {
     this->tokens.push_back(NewToken(TokenType::EndOfFile));
   }
 
-  Tokenizer(std::string& source) : pos(0), col(1), line(1), source(source), tokens() {}
+  explicit Tokenizer(std::string& source) : pos(0), col(1), line(1), source(source), tokens() {}
 };
 
 std::vector<Token> Condense(const std::vector<Token>& tokens) {

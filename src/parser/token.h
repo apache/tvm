@@ -29,6 +29,8 @@
 #include <tvm/runtime/object.h>
 
 #include <fstream>
+#include <string>
+#include <utility>
 
 namespace tvm {
 namespace parser {

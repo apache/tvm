@@ -31,6 +31,9 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
+#include <string>
+#include <unordered_map>
+#include <vector>
 #include <fstream>
 
 #include "./tokenizer.h"
@@ -64,7 +67,7 @@ struct OperatorTable {
   std::vector<Rule> rules;
   std::unordered_map<std::string, Rule> this_is_a_hack;
 
-  OperatorTable(std::vector<Rule> rules) : rules(rules), this_is_a_hack() {
+  explicit OperatorTable(std::vector<Rule> rules) : rules(rules), this_is_a_hack() {
     for (auto rule : rules) {
       std::stringstream key;
       for (auto token : rule.tokens) {

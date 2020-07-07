@@ -34,7 +34,10 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
+#include <string>
 #include <fstream>
+#include <vector>
+#include <utility>
 
 namespace tvm {
 namespace parser {
@@ -54,7 +57,7 @@ struct Source {
   Source() : source(), line_map() {}
 
   /*! \brief Construct a source from a string. */
-  Source(const std::string& source) : source(source) {
+  explicit Source(const std::string& source) : source(source) {
     int index = 0;
     int length = 0;
     line_map.push_back({index, length});
@@ -150,7 +153,7 @@ struct DiagnosticContext {
   /*! \brief The set of diagnostics to report. */
   std::vector<Diagnostic> diagnostics;
 
-  DiagnosticContext(const Source& source) : source(source) {}
+  explicit DiagnosticContext(const Source& source) : source(source) {}
 
   /*! \brief Emit a diagnostic. */
   void Emit(const Diagnostic& diagnostic) { diagnostics.push_back(diagnostic); }
