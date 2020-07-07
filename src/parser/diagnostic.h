@@ -34,10 +34,10 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
-#include <string>
 #include <fstream>
-#include <vector>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace parser {

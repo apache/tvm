@@ -27,10 +27,10 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
-#include <vector>
+#include <fstream>
 #include <string>
 #include <unordered_map>
-#include <fstream>
+#include <vector>
 
 #include "./token.h"
 

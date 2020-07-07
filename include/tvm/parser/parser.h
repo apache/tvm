@@ -26,8 +26,8 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
-#include <string>
 #include <fstream>
+#include <string>
 
 namespace tvm {
 namespace parser {

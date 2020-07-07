@@ -31,10 +31,10 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 
+#include <fstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <fstream>
 
 #include "./tokenizer.h"
 
