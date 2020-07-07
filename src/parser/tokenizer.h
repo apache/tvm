@@ -186,11 +186,16 @@ struct Tokenizer {
             auto token = NewToken(TokenType::Newline);
             Next();
             return token;
-        } else if (this->Peek() == '\r' && this->Peek() == '\n') {
-            // fix me
-            auto token = NewToken(TokenType::Newline);
+        } else if (next == '\r') {
             Next();
-            return token;
+            if (More() && Peek() == '\n') {
+                auto token = NewToken(TokenType::Newline);
+                return token;
+            } else {
+                // TODO(@jroesch): have lexer use diagnostic context too.
+                LOG(FATAL) << "lexer error";
+                return Token();
+            }
         } else if (next == '"') {
             LOG(FATAL) << "string not working yet";
             return NewToken(TokenType::Unknown);
