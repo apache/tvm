@@ -72,14 +72,15 @@ struct Definitions {
 /*! \brief A structure representing the semantic versioning information
  * for a Relay program.
  */
-struct SemVer {
-  int major;
-  int minor;
-  int patch;
+class SemVer {
+ public:
+  int major_version;
+  int minor_version;
+  int patch_version;
 
-  SemVer() : major(0), minor(0), patch(0) {}
-  SemVer(int major, int minor, int patch) : major(major), minor(minor), patch(patch) {}
-  SemVer(const SemVer& other) : major(other.major), minor(other.minor), patch(other.patch) {}
+  SemVer() : major_version(0), minor_version(0), patch_version(0) {}
+  SemVer(int major_version, int minor_version, int patch_version) : major_version(major_version), minor_version(minor_version), patch_version(patch_version) {}
+  SemVer(const SemVer& other) : major_version(other.major_version), minor_version(other.minor_version), patch_version(other.patch_version) {}
 };
 
 /*! \brief A reference to a "meta-expression".
