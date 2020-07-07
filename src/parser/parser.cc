@@ -643,8 +643,11 @@ class Parser {
         }
         case TokenType::Extern: {
           Consume(TokenType::Extern);
-          // TODO(@jroesch): add some validation here?
-          defs.types.push_back(ParseTypeDef());
+          auto type_def = ParseTypeDef();
+          if (type_def->constructors.size()) {
+            diag_ctx.Emit({ next->line, next->column, "an external type may not have any constructors" });
+          }
+          defs.types.push_back(type_def);
         }
         default:
           return defs;
@@ -675,29 +678,32 @@ class Parser {
           });
     }
 
-    // Parse the list of constructors.
-    auto ctors = ParseSequence<tvm::Constructor>(
-        TokenType::LCurly, TokenType::Comma, TokenType::RCurly, [&]() {
-          // First match the name of the constructor.
-          auto ctor_name = Match(TokenType::Identifier).ToString();
+    Array<tvm::Constructor> ctors;
+    if (Peek()->token_type == TokenType::LCurly) {
+      // Parse the list of constructors.
+      ctors = ParseSequence<tvm::Constructor>(
+          TokenType::LCurly, TokenType::Comma, TokenType::RCurly, [&]() {
+            // First match the name of the constructor.
+            auto ctor_name = Match(TokenType::Identifier).ToString();
 
-          Constructor ctor;
-          // Match the optional field list.
-          if (Peek()->token_type != TokenType::OpenParen) {
-            ctor = tvm::Constructor(ctor_name, {}, type_global);
-          } else {
-            auto arg_types =
-                ParseSequence<Type>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen,
-                                    [&]() { return ParseType(); });
-            ctor = tvm::Constructor(ctor_name, arg_types, type_global);
-          }
+            Constructor ctor;
+            // Match the optional field list.
+            if (Peek()->token_type != TokenType::OpenParen) {
+              ctor = tvm::Constructor(ctor_name, {}, type_global);
+            } else {
+              auto arg_types =
+                  ParseSequence<Type>(TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen,
+                                      [&]() { return ParseType(); });
+              ctor = tvm::Constructor(ctor_name, arg_types, type_global);
+            }
 
-          CHECK(ctor.defined());
+            CHECK(ctor.defined());
 
-          this->ctors.Add(ctor_name, ctor);
+            this->ctors.Add(ctor_name, ctor);
 
-          return ctor;
-        });
+            return ctor;
+          });
+    }
 
     // Now pop the type scope.
     if (should_pop) {

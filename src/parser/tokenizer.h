@@ -55,7 +55,7 @@ bool IsIdent(char c) { return IsIdentLetter(c) || IsDigit(c); }
 static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
     {"let", TokenType::Let},    {"fn", TokenType::Fn},     {"def", TokenType::Defn},
     {"if", TokenType::If},      {"else", TokenType::Else}, {"type", TokenType::TypeDef},
-    {"match", TokenType::Match}};
+    {"match", TokenType::Match}, {"extern", TokenType::Extern}};
 
 struct Tokenizer {
   size_t pos;
@@ -112,13 +112,13 @@ struct Tokenizer {
           } else if (Peek() == '*') {
             state = CommentParserState::Backward;
           }
-          buffer += Next();
+          buffer->operator+=(Next());
           continue;
         }
         case CommentParserState::Forward: {
           if (Peek() == '*') {
             nesting += 1;
-            buffer += Next();
+            buffer->operator+=(Next());
           }
           state = CommentParserState::Proceed;
           continue;
@@ -131,7 +131,7 @@ struct Tokenizer {
               buffer->pop_back();
               return;
             } else {
-              *buffer += Next();
+              buffer->operator+=(Next());
               state = CommentParserState::Proceed;
             }
           }

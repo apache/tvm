@@ -75,9 +75,6 @@ def graph_equal(lhs, rhs):
 
 
 def roundtrip_expr(expr):
-    if expr is None:
-        import pdb; pdb.set_trace()
-
     x = tvm.parser.parse_expr(str(str(expr)))
     assert_graph_equal(x, expr)
 
@@ -221,15 +218,14 @@ def test_vars():
     assert var.body.name_hint == "foo"
 
     # global var
-    import pdb; pdb.set_trace()
     global_var = parse_text("@foo")
     assert isinstance(global_var, relay.GlobalVar)
     assert global_var.name_hint == "foo"
 
     # operator id
-    op = parse_text("foo")
-    assert isinstance(op, relay.Op)
-    assert op.name == "foo"
+    op = parse_text("add")
+    assert isinstance(op, tvm.ir.Op)
+    assert op.name == "add"
 
 
 def test_let():
