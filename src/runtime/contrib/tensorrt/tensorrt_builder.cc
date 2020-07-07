@@ -211,9 +211,13 @@ runtime::TrtEngineAndContext TensorRTBuilder::BuildEngine(
 nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(
     DLTensor* dptr, DLDeviceType src_device) {
   CHECK_EQ(dptr->ctx.device_type, src_device);
-  CHECK_EQ(static_cast<int>(dptr->dtype.code), kDLFloat);
+  CHECK(static_cast<int>(dptr->dtype.code) == kDLFloat ||
+        static_cast<int>(dptr->dtype.code) == kDLInt);
+  const auto trt_dtype = static_cast<int>(dptr->dtype.code) == kDLFloat
+                             ? nvinfer1::DataType::kFLOAT
+                             : nvinfer1::DataType::kINT32;
   const size_t weight_bytes = runtime::GetDataSize(*dptr);
-  nvinfer1::Weights weight{nvinfer1::DataType::kFLOAT, nullptr, 0};
+  nvinfer1::Weights weight{trt_dtype, nullptr, 0};
   size_t count = 1;
   for (tvm_index_t i = 0; i < dptr->ndim; ++i) {
     count *= dptr->shape[i];

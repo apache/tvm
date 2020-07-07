@@ -832,7 +832,7 @@ class TransposeOpConverter : public TrtOpConverter {
 
 class ReshapeOpConverter : public TrtOpConverter {
  public:
-  ReshapeOpConverter() : TrtOpConverter({kTensor}) {}
+  ReshapeOpConverter() : TrtOpConverter({kTensor, kWeight}) {}
 
   void Convert(AddTrtLayerParams* params) const {
     auto input = params->inputs.at(0).tensor;

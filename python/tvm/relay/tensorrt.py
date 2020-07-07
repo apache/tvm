@@ -249,6 +249,9 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
         if attrs.layout != "NCHW":
             print("nn.max_pool2d: layout is {} but must be NCHW.".format(attrs.layout))
             return False
+        if attrs.ceil_mode and trt_version < (5, 1, 5):
+            print("nn.avg_pool2d: ceil_mode=True requires TensorRT 5.1.5 or greater.")
+            return False
         return True
 
     @tvm.ir.register_op_attr("nn.avg_pool2d", "target.tensorrt")
@@ -362,8 +365,11 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
 
     @tvm.ir.register_op_attr("reshape", "target.tensorrt")
     def reshape_whitelist_fn(attrs, args): # pylint: disable=unused-variable
-        if any([x.checked_type.dtype != "float32" for x in args]):
+        if args[0].checked_type.dtype != "float32":
             print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if not isinstance(args[1], Constant):
+            print("reshape: New shape must be a constant.")
             return False
         if any([x < -1 for x in map(int, attrs.newshape)]):
             print("reshape: new shape dims must be explicit.")
@@ -458,16 +464,8 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
 
     @tvm.ir.register_op_attr("image.resize", "target.tensorrt")
     def resize_whitelist_fn(attrs, args): # pylint: disable=unused-variable
-        if any([x.checked_type.dtype != "float32" for x in args]):
-            print("Only float32 inputs are supported for TensorRT.")
-            return False
-        if trt_version < (6, 0, 1):
-            print("image.resize: requires TensorRT version 6.0.1 or higher.")
-            return False
-        if attrs.method != "nearest_neighbor" and attrs.method != "bilinear":
-            return False
-        # TODO(trevmorr): coordinate transform method
-        return True
+        # TODO(trevmorr): Output does not match TVM. Disable.
+        return False
 
     @tvm.ir.register_op_attr("nn.adaptive_max_pool2d", "target.tensorrt")
     def adapative_max_pool2d_whitelist_fn(attrs, args): # pylint: disable=unused-variable
@@ -491,13 +489,8 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
 
     @tvm.ir.register_op_attr("nn.upsampling", "target.tensorrt")
     def upsampling_whitelist_fn(attrs, args): # pylint: disable=unused-variable
-        if any([x.checked_type.dtype != "float32" for x in args]):
-            print("Only float32 inputs are supported for TensorRT.")
-            return False
-        if trt_version < (6, 0, 1):
-            print("nn.upsampling: requires TensorRT version 6.0.1 or higher.")
-            return False
-        return True
+        # TODO(trevmorr): Output does not match TVM. Disable.
+        return False
 
 class VarReplacer(ExprMutator):
     """
