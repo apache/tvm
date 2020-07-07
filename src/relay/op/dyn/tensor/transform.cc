@@ -198,11 +198,10 @@ RELAY_REGISTER_OP("dyn.tile")
     .set_attr<FTVMCompute>("FTVMCompute", TileCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
-
 // broadcast_to operator
 bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                   const TypeReporter& reporter) {
-                     // types = [data_type, broadcast_shape_type, ret_type]
+                    const TypeReporter& reporter) {
+  // types = [data_type, broadcast_shape_type, ret_type]
   CHECK_EQ(types.size(), 3);
 
   const auto* target_shape = types[1].as<TensorTypeNode>();
