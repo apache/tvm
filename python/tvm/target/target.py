@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Target data structure."""
+import os
+import re
 import warnings
 import tvm._ffi
 
