@@ -53,7 +53,7 @@ IRModule GetCalibrateModule(IRModule module) {
       // intrinsic functions are excluded for now
       if (call->op->IsInstance<GlobalVarNode>()) {
         auto var = Downcast<GlobalVar>(call->op);
-        CHECK(glob_funcs_.count(var) > 0);
+        CHECK_GT(glob_funcs_.count(var), 0) << "Function " << var << " is not defined";
         for (size_t i = 0; i < call->args.size(); i++) new_outputs_.push_back(call->args[i]);
         // need to flatten the output if it is a tuple
         auto* fn = glob_funcs_[var].as<FunctionNode>();
@@ -128,8 +128,9 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
     Expr Rewrite_(const CallNode* call, const Expr& post) final {
       if (call->op->IsInstance<GlobalVarNode>()) {
         auto var = Downcast<GlobalVar>(call->op);
-        CHECK(glob_funcs_.count(var) > 0);
-        CHECK(output_map_->count(var) == 0) << "Repeated function call is not supported.";
+        CHECK_GT(glob_funcs_.count(var), 0) << "Function " << var << " is not defined";
+        CHECK_EQ(output_map_->count(var), 0)
+            << "Repeated function call " << var << " is not supported.";
         Array<Integer> info;
         // the first value is the offset
         info.push_back(Integer(*offset_));
