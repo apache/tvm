@@ -22,13 +22,8 @@ Support level10 operator test cases.
 
 import numpy as np
 import tvm
-from tvm import te
-import topi.testing
 from tvm import relay
-from tvm.relay import transform
 from tvm.relay.testing import ctx_list, run_infer_type
-import topi
-import topi.testing
 import random
 
 def test_dyn_broadcast_to():
