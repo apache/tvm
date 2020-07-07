@@ -18,7 +18,6 @@
 """Backend compiler related feature registration"""
 
 from ..op import register_shape_func
-
 from .._tensor import full_shape_func
 
 register_shape_func("dyn.broadcast_to", True, full_shape_func)

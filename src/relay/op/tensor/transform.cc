@@ -1782,6 +1782,7 @@ RELAY_REGISTER_OP("collapse_sum_like")
 // CollapseSumTo: <A, B> -> B where Broadcast(A, B) = A
 bool CollapseSumToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
+  
   CHECK_EQ(types.size(), 3);
   const InitOpAttrs* param = attrs.as<InitOpAttrs>();
 
@@ -1802,7 +1803,6 @@ bool CollapseSumToRel(const Array<Type>& types, int num_inputs, const Attrs& att
       oshape.push_back(Any());
     }
   }
-
   reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return BroadcastRel({types[0], types[2], types[0]}, 2, Attrs(), reporter);
 }
