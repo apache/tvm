@@ -213,6 +213,7 @@ def test_broadcast_to_like():
     x = relay.Var("x", relay.ty.TensorType(shape , dtype))
     y = relay.Var("y", relay.ty.TensorType(shape_like, dtype))
     z = relay.broadcast_to_like(x, y)
+    
     zz = run_infer_type(z)
     assert zz.checked_type == relay.ty.TensorType(shape_like, dtype)
 
@@ -220,6 +221,7 @@ def test_broadcast_to_like():
     x = np.random.uniform(size=shape).astype(dtype)
     y = np.random.uniform(size=shape_like).astype(dtype)
     ref_res = np.broadcast_to(x, shape_like)
+    
     for target, ctx in ctx_list():
         for kind in ["graph", "debug"]:
             intrp = relay.create_executor(kind, ctx=ctx, target=target)
@@ -455,13 +457,13 @@ def test_one_hot():
         func = relay.Function([indices], out)
         indices_np = np.random.randint(0, depth, size=indices_shape).astype("int32")
         out_np = topi.testing.one_hot(indices_np, on_value, off_value, depth, axis, dtype)
-
+        
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 out_relay = intrp.evaluate(func)(indices_np)
                 tvm.testing.assert_allclose(out_relay.asnumpy(), out_np)
-
+               
     _verify((3,), 3, 1, 0, -1, "int32")
     _verify((3,), 3, 1.0, 0.0, -1, "float32")
     _verify((2, 2), 5, 2, -2, 0, "int32")
@@ -472,6 +474,7 @@ def test_one_hot():
 if __name__ == "__main__":
     test_adaptive_pool()
     test_collapse_sum_like()
+    test_broadcast_to()
     test_broadcast_to_like()
     test_slice_like()
     test_reverse_reshape()
@@ -479,4 +482,3 @@ if __name__ == "__main__":
     test_shape_of()
     test_sequence_mask()
     test_ndarray_size()
-    test_one_hot()

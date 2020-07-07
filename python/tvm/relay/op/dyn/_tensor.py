@@ -14,9 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin, invalid-name
-"""The Relay namespace containing dynamic ops."""
+#pylint: disable=invalid-name, unused-argument, len-as-condition
+"""Backend compiler related feature registration"""
 
-from . import _algorithm
-from . import _transform
-from . import _tensor
+from tvm.te.hybrid import script
+import topi
+
+from ..op import register_compute, register_shape_func
+from ..op import register_broadcast_schedule, register_injective_schedule
+from ..op import register_pattern, OpPattern
+
+from .._tensor import full_shape_func
+
+register_shape_func("dyn.broadcast_to", True, full_shape_func)
