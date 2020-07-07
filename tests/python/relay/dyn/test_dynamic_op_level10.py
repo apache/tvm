@@ -29,7 +29,8 @@ import random
 def test_dyn_broadcast_to():
     dtype = 'uint8'
     rank = 3
-    dyn_shape = relay.Var("shape", relay.ty.TensorType((rank,), 'int64'))
+    shape_type = 'int64'
+    dyn_shape = relay.Var("shape", relay.ty.TensorType((rank,), shape_type))
     x_shape = (1,)
     x = relay.Var("x", relay.ty.TensorType(x_shape, dtype))
     z = relay.broadcast_to(x, dyn_shape)
@@ -47,7 +48,7 @@ def test_dyn_broadcast_to():
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x,np.array(dyn_shape))
+                op_res = intrp.evaluate(func)(x,np.array(dyn_shape).as(shape_type))
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 test_dyn_broadcast_to()
