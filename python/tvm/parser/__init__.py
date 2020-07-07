@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""The under development unified IR parsing infrastructure."""
 from . import _ffi_api
 
 def parse(source, source_name="from_string"):
