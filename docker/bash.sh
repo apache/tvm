@@ -69,6 +69,12 @@ else
     DOCKER_BINARY="docker"
 fi
 
+if [[ "${DOCKER_IMAGE_NAME}" == *"ci"* ]]; then
+    CI_PY_ENV="-e PYTHONPATH=/workspace/python:/workspace/topi/python"
+else
+    CI_PY_ENV=""
+fi
+
 # Print arguments.
 echo "WORKSPACE: ${WORKSPACE}"
 echo "DOCKER CONTAINER NAME: ${DOCKER_IMAGE_NAME}"
@@ -98,10 +104,10 @@ ${DOCKER_BINARY} run --rm --pid=host\
     -e "CI_BUILD_UID=$(id -u)" \
     -e "CI_BUILD_GROUP=$(id -g -n)" \
     -e "CI_BUILD_GID=$(id -g)" \
-    -e "PYTHONPATH=/workspace/python:/workspace/topi/python"\
     -e "CI_PYTEST_ADD_OPTIONS=$CI_PYTEST_ADD_OPTIONS" \
-    ${CUDA_ENV}\
+    ${CI_PY_ENV} \
+    ${CUDA_ENV} \
     ${CI_DOCKER_EXTRA_PARAMS[@]} \
-    ${DOCKER_IMAGE_NAME}\
+    ${DOCKER_IMAGE_NAME} \
     bash --login /docker/with_the_same_user \
     ${COMMAND[@]}
