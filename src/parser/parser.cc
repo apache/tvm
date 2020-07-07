@@ -152,9 +152,10 @@ struct Scope {
  * This is the classic approach to lexical scoping.
  */
 template <typename T>
-struct ScopeStack {
+class ScopeStack {
+ private:
   std::vector<Scope<T>> scope_stack;
-
+ public:
   /*! \brief Adds a variable binding to the current scope. */
   void Add(const std::string& name, const T& value) {
     if (!this->scope_stack.size()) {
@@ -166,7 +167,7 @@ struct ScopeStack {
   /*! \brief Looks up a variable name in the scope stack returning the matching variable
    * in most recent scope. */
   T Lookup(const std::string& name) {
-    for (auto scope = this->scope_stack.rbegin(); scope != this->scope_stack.rend(); scope++) {
+    for (auto scope = this->scope_stack.rbegin(); scope != this->scope_stack.rend(); ++scope) {
       auto it = scope->name_map.find(name);
       if (it != scope->name_map.end()) {
         return it->second;
@@ -245,7 +246,8 @@ struct InternTable {
  * For more information one should be able to read the code in order starting with
  * `ParseModule` or `ParseExpr`.
  */
-struct Parser {
+class Parser {
+ public:
   /*! \brief The version that the parser is parsing. */
   SemVer version;
 
