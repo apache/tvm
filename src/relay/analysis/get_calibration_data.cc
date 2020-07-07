@@ -44,16 +44,16 @@ namespace relay {
  */
 
 IRModule GetCalibrateModule(IRModule module) {
-  class OutputCollector : public ExprRewriter {
+  class Collector : public ExprRewriter {
    public:
-    explicit OutputCollector(const Map<GlobalVar, BaseFunc>& glob_funcs) : glob_funcs_(glob_funcs) {}
+    explicit Collector(const Map<GlobalVar, BaseFunc>& glob_funcs) : glob_funcs_(glob_funcs) {}
 
     Expr Rewrite_(const CallNode* call, const Expr& post) final {
       if (call->op->IsInstance<GlobalVarNode>()) {
         auto var = Downcast<GlobalVar>(call->op);
         // check if the function implementation is available
         // intrinsic functions are excluded for now
-        if (glob_funcs.count(var) > 0) {
+        if (glob_funcs_.count(var) > 0) {
           for (size_t i = 0; i < call->args.size(); i++)
             new_outputs_.push_back(call->args[i]);
           // need to flatten the output if it is a tuple
@@ -88,9 +88,9 @@ IRModule GetCalibrateModule(IRModule module) {
       auto* gl_var = pair.first.as<GlobalVarNode>();
       // we only collect the outputs for main function
       if (gl_var->name_hint == "main") {
-        OutputCollector output_collector(glob_funcs);
-        PostOrderRewrite(func->body, &output_collector);
-        auto new_outputs = output_collector.GetNewOutputs();
+        Collector collector(glob_funcs);
+        PostOrderRewrite(func->body, &collector);
+        auto new_outputs = collector.GetNewOutputs();
         if (!new_outputs.empty()) {
           Array<Expr> fields;
           for (const auto& output : new_outputs) {
