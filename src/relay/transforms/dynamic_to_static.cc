@@ -32,7 +32,8 @@ namespace relay {
 
 class DynamicToStaticMutator : public MixedModeMutator {
  public:
-  DynamicToStaticMutator() : dyn_reshape_op_(Op::Get("dyn.reshape")) {}
+  DynamicToStaticMutator()
+      : dyn_reshape_op_(Op::Get("dyn.reshape")), dyn_tile_op_(Op::Get("dyn.tile")) {}
 
  private:
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
@@ -46,6 +47,14 @@ class DynamicToStaticMutator : public MixedModeMutator {
         static const Op& reshape = Op::Get("reshape");
         return Call(reshape, {call_node->args[0]}, Attrs(attrs), {});
       }
+    } else if (call_node->op == dyn_tile_op_) {
+      if (const ConstantNode* reps = call_node->args[1].as<ConstantNode>()) {
+        auto attrs = make_object<TileAttrs>();
+        CHECK_EQ(reps->data->ndim, 1);
+        attrs->reps = ToVector(reps->data);
+        static const Op& op = Op::Get("tile");
+        return Call(op, {call_node->args[0]}, Attrs(attrs), {});
+      }
     }
     return post;
   }
@@ -58,6 +67,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
   }
 
   const Op& dyn_reshape_op_;
+  const Op& dyn_tile_op_;
 };
 
 Expr DynamicToStatic(Function f, IRModule m) {
