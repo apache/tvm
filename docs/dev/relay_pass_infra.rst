@@ -388,7 +388,7 @@ We've covered the concept of different level of passes and the context used for
 compilation. It would be interesting to see how easily users can register
 a pass.  Let's take const folding as an example. This pass has already been
 implemented to fold constants in a Relay function (found in
-`src/relay/transforms/fold_constant.cc`_).
+`src/relay/pass/fold_constant.cc`_).
 
 An API was provided to perform the ``Expr`` to ``Expr`` transformation.
 
