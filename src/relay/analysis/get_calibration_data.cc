@@ -49,21 +49,20 @@ IRModule GetCalibrateModule(IRModule module) {
     explicit Collector(const Map<GlobalVar, BaseFunc>& glob_funcs) : glob_funcs_(glob_funcs) {}
 
     Expr Rewrite_(const CallNode* call, const Expr& post) final {
+      // check if the function implementation is available
+      // intrinsic functions are excluded for now
       if (call->op->IsInstance<GlobalVarNode>()) {
         auto var = Downcast<GlobalVar>(call->op);
-        // check if the function implementation is available
-        // intrinsic functions are excluded for now
-        if (glob_funcs_.count(var) > 0) {
-          for (size_t i = 0; i < call->args.size(); i++) new_outputs_.push_back(call->args[i]);
-          // need to flatten the output if it is a tuple
-          auto* fn = glob_funcs_[var].as<FunctionNode>();
-          if (auto* tn = fn->body.as<TupleNode>()) {
-            for (size_t i = 0; i < tn->fields.size(); i++) {
-              new_outputs_.push_back(TupleGetItem(post, i));
-            }
-          } else {
-            new_outputs_.push_back(post);
+        CHECK(glob_funcs_.count(var) > 0);
+        for (size_t i = 0; i < call->args.size(); i++) new_outputs_.push_back(call->args[i]);
+        // need to flatten the output if it is a tuple
+        auto* fn = glob_funcs_[var].as<FunctionNode>();
+        if (auto* tn = fn->body.as<TupleNode>()) {
+          for (size_t i = 0; i < tn->fields.size(); i++) {
+            new_outputs_.push_back(TupleGetItem(post, i));
           }
+        } else {
+          new_outputs_.push_back(post);
         }
       }
       return post;
@@ -129,6 +128,8 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
     Expr Rewrite_(const CallNode* call, const Expr& post) final {
       if (call->op->IsInstance<GlobalVarNode>()) {
         auto var = Downcast<GlobalVar>(call->op);
+        CHECK(glob_funcs_.count(var) > 0);
+        CHECK(output_map_->count(var) == 0) << "Repeated function call is not supported.";
         Array<Integer> info;
         // the first value is the offset
         info.push_back(Integer(*offset_));
