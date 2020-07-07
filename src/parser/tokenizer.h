@@ -58,7 +58,7 @@ static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
     {"match", TokenType::Match}};
 
 struct Tokenizer {
-  int pos;
+  size_t pos;
   int col;
   int line;
   char next_char;
@@ -128,10 +128,10 @@ struct Tokenizer {
             nesting -= 1;
             if (nesting == 0) {
               Next();
-              buffer.pop_back();
+              buffer->pop_back();
               return;
             } else {
-              buffer += Next();
+              *buffer += Next();
               state = CommentParserState::Proceed;
             }
           }
@@ -380,7 +380,7 @@ struct Tokenizer {
 std::vector<Token> Condense(const std::vector<Token>& tokens) {
   std::vector<Token> out;
 
-  for (auto i = 0; i < tokens.size(); i++) {
+  for (size_t i = 0; i < tokens.size(); i++) {
     auto current = tokens.at(i);
     switch (current->token_type) {
       case TokenType::Percent: {

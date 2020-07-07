@@ -192,6 +192,10 @@ std::string ToString(const TokenType& token_type) {
       return "EndOfFile";
     case TokenType::Null:
       return "Null";
+    // Older compilers warn even though the above code is exhaustive.
+    default:
+        LOG(FATAL) << "unreachable code";
+        return "";
   }
 }
 
@@ -297,6 +301,10 @@ std::string Pretty(const TokenType& token_type) {
       return "end of file";
     case TokenType::Null:
       return "null";
+    // Older compilers warn even though the above code is exhaustive.
+    default:
+        LOG(FATAL) << "unreachable code";
+        return "";
   }
 }
 
