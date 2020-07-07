@@ -92,7 +92,7 @@ struct Source {
    * \param msg The message to attach.
    */
   void ReportAt(std::ostream& out, int line, int column, const std::string& msg) const {
-    CHECK(line - 1 <= line_map.size())
+    CHECK(line - 1 <= static_cast<int64_t>(line_map.size()))
         << "requested line: " << (line - 1) << "line_map size: " << line_map.size()
         << "source: " << source;
 

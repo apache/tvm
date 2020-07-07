@@ -295,7 +295,7 @@ class Parser {
   Token Peek() {
     // For now we ignore all whitespace tokens and comments.
     // We can tweak this behavior later to enable white space sensitivity in the parser.
-    while (pos < tokens.size() && ignore_whitespace &&
+    while (pos < static_cast<int64_t>(tokens.size()) && ignore_whitespace &&
            (tokens.at(pos)->token_type == TokenType::Whitespace ||
             tokens.at(pos)->token_type == TokenType::Newline ||
             tokens.at(pos)->token_type == TokenType::LineComment ||
@@ -303,7 +303,7 @@ class Parser {
       pos++;
     }
 
-    if (pos < tokens.size()) {
+    if (pos < static_cast<int64_t>(tokens.size())) {
       return Token(this->tokens.at(pos));
     } else {
       return Token::Null();
@@ -602,9 +602,16 @@ class Parser {
     if (id->token_type == TokenType::Identifier && id.ToString() == "v0") {
       auto id = Match(TokenType::Identifier);
       Consume(TokenType::Period);
-      // CHECK_EQ(minor_and_patch)
       Consume(TokenType::Float);
     }
+    // TODO(@jroesch): the current lexing makes it hard to parse this
+    // in a way that doesnt feel like a hack.
+    //
+    // We should move to module level attributes instead
+    // so we can tag modules with top-level data.
+    //
+    // #[text_version = "0.0.4"]
+    //
     // For now we only support current version.
     return SemVer{.major = 0, .minor = 0, .patch = 4};
   }
