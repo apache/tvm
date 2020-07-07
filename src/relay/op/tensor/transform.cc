@@ -1782,19 +1782,18 @@ RELAY_REGISTER_OP("collapse_sum_like")
 // CollapseSumTo: <A, B> -> B where Broadcast(A, B) = A
 bool CollapseSumToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
-  
   CHECK_EQ(types.size(), 3);
-  const InitOpAttrs* param = attrs.as<InitOpAttrs>(); 
+  const InitOpAttrs* param = attrs.as<InitOpAttrs>();
 
   const auto* target_shape = types[1].as<TensorTypeNode>();
   DataType out_dtype = types[0].as<TensorTypeNode>()->dtype;
 
-  const IntImmNode* rank = target_shape->shape[0].as<IntImmNode>(); 
+  const IntImmNode* rank = target_shape->shape[0].as<IntImmNode>();
   CHECK(rank) << "Parameter must have static rank";
 
   std::vector<IndexExpr> oshape;
-  if(param->shape) {
-    const Array<Integer>& cshape_array = param->shape.value(); 
+  if (param->shape) {
+    const Array<Integer>& cshape_array = param->shape.value();
     for (size_t i = 0; i < cshape_array.size(); i++) {
       oshape.push_back(cshape_array[i]);
     }
@@ -1803,7 +1802,7 @@ bool CollapseSumToRel(const Array<Type>& types, int num_inputs, const Attrs& att
       oshape.push_back(Any());
     }
   }
-  
+
   reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return BroadcastRel({types[0], types[2], types[0]}, 2, Attrs(), reporter);
 }
@@ -1832,23 +1831,20 @@ RELAY_REGISTER_OP("collapse_sum_to")
 
 bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
+  // types = [data_type, ret_type], broadcast_to_type is in attrs bc static
 
-                      // types = [data_type, ret_type], broadcast_to_type is in attrs bc static
-
-  
   const InitOpAttrs* param = attrs.as<InitOpAttrs>();
   CHECK(param);
-  
-  DataType out_dtype = types[0].as<TensorTypeNode>()->dtype; 
-  std::vector<IndexExpr> oshape; 
-  
-  const Array<Integer>& cshape_array = param->shape.value(); 
-    for (size_t i = 0; i < cshape_array.size(); ++i) {
-      oshape.push_back(cshape_array[i]); 
+
+  DataType out_dtype = types[0].as<TensorTypeNode>()->dtype;
+  std::vector<IndexExpr> oshape;
+
+  const Array<Integer>& cshape_array = param->shape.value();
+  for (size_t i = 0; i < cshape_array.size(); ++i) {
+    oshape.push_back(cshape_array[i]);
   }
   reporter->Assign(types[1], TensorType(oshape, out_dtype));
   return BroadcastRel({types[0], types[1], types[1]}, 2, Attrs(), reporter);
-  
 }
 
 Expr MakeBroadCastTo(Expr data, Array<Integer> shape) {

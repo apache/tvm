@@ -207,19 +207,19 @@ bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   CHECK_EQ(types.size(), 3);
 
   const auto* target_shape = types[1].as<TensorTypeNode>();
-  DataType out_dtype = types[0].as<TensorTypeNode>()->dtype; 
+  DataType out_dtype = types[0].as<TensorTypeNode>()->dtype;
   // rank must be static
   const IntImmNode* rank = target_shape->shape[0].as<IntImmNode>();
   CHECK(rank) << "Target shape must have static rank";  // rank must be static even in dyn pass
-                                                           // could add support for dyn rank in futures
+                                                        // could add support for dyn rank in futures
 
   std::vector<IndexExpr> oshape;
   for (int i = 0; i < rank->value; ++i) {
     oshape.push_back(Any());
   }
 
-  reporter->Assign(types[2], TensorType(oshape, out_dtype)); 
-  return true; 
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return true;
 }
 
 Expr MakeBroadCastTo(Expr data, Expr shape) {
@@ -229,8 +229,7 @@ Expr MakeBroadCastTo(Expr data, Expr shape) {
 }
 
 Array<te::Tensor> BroadCastToCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                    const Type& out_type) {
-
+                                     const Type& out_type) {
   const auto* out_ttype = out_type.as<TensorTypeNode>();
   return {topi::broadcast_to(inputs[0], out_ttype->shape)};
 }

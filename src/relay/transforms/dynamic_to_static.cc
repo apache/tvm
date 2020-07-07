@@ -73,7 +73,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
         attrs->shape = ToVector(shape->data);
         static const Op& broadcast_to = Op::Get("broadcast_to");
         // pass in one arg to static broadcast to
-        return Call(broadcast_to, {call_node->args[0]}, Attrs(attrs), {}); 
+        return Call(broadcast_to, {call_node->args[0]}, Attrs(attrs), {});
       }
     }
     return post;

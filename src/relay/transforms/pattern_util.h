@@ -314,7 +314,7 @@ static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> s
 }
 
 /*!
- * \brief Check whether a shape is static and create corresponding Constant. 
+ * \brief Check whether a shape is static and create corresponding Constant.
  Eventually this will be removed and replaced with CheckConstantShapeArrayInteger
  *
  * \param shape The Array of the shape values.
@@ -334,22 +334,23 @@ static inline Constant CheckConstantShape(const Array<IndexExpr>& shape) {
 }
 
 /*!
- * \brief Check whether a shape is static and create corresponding Array<Integer>. Will replace CheckConstantShape after dynamic refactorization is complete
+ * \brief Check whether a shape is static and create corresponding Array<Integer>. Will replace
+ * CheckConstantShape after dynamic refactorization is complete
  *
  * \param shape The Array of the shape values.
  * \return A Constant.
  */
 static inline Array<Integer> CheckConstantShapeArrayInteger(const Array<IndexExpr>& shape) {
-  Array<Integer> constShape; 
-  //auto shape_array =
-  //     runtime::NDArray::Empty({int64_t(shape.size())}, DataType::Int(64), {kDLCPU, 0}); 
-  //auto* shape_data = static_cast<int64_t*>(shape_array->data);
+  Array<Integer> constShape;
+  // auto shape_array =
+  //     runtime::NDArray::Empty({int64_t(shape.size())}, DataType::Int(64), {kDLCPU, 0});
+  // auto* shape_data = static_cast<int64_t*>(shape_array->data);
   for (size_t i = 0; i < shape.size(); ++i) {
     const auto& dim_val = shape[i].as<IntImmNode>();
     CHECK(dim_val) << "Do not support symbolic shape for "
                       "Array format. Pass shape as Expr instead.";
-    
-    //shape_data[i] = dim_val->value;
+
+    // shape_data[i] = dim_val->value;
     constShape.push_back(dim_val->value);
   }
   return constShape;
