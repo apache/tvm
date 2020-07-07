@@ -16,8 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Copyright (c) 2020 T-Head Semiconductor Co., Ltd. All rights reserved.
-
 set -e
 set -u
 set -o pipefail

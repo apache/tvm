@@ -14,9 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-# Copyright (c) 2020 T-Head Semiconductor Co., Ltd. All rights reserved.
-
 # pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
 """Caffe frontend."""
 from __future__ import absolute_import as _abs
