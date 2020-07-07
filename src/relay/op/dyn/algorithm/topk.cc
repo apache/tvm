@@ -27,14 +27,13 @@
 
 namespace tvm {
 namespace relay {
-
-TVM_REGISTER_NODE_TYPE(TopKAttrs);
+namespace dyn {
 
 bool TopKRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
              const TypeReporter& reporter) {
   // `types` contains: [data, result]
   const TopKAttrs* param = attrs.as<TopKAttrs>();
-  CHECK_EQ(types.size(), 2);
+  CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   CHECK(data);
   int ndim = data->shape.size();
@@ -48,49 +47,45 @@ bool TopKRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     if (i != axis) {
       out_shape.push_back(data->shape[i]);
     } else {
-      const Integer& ck = param->k.value();
-      if (ck->value < 1) {
-        out_shape.push_back(data->shape[i]);
-      } else {
-        out_shape.push_back(ck);
-      }
+      out_shape.push_back(Any());
     }
   }
   auto values_ty = TensorType(out_shape, data->dtype);
   auto indices_ty = TensorType(out_shape, param->dtype);
   if (param->ret_type == "both") {
-    reporter->Assign(types[1], TupleType({values_ty, indices_ty}));
+    reporter->Assign(types[2], TupleType({values_ty, indices_ty}));
   } else if (param->ret_type == "values") {
-    reporter->Assign(types[1], values_ty);
+    reporter->Assign(types[2], values_ty);
   } else if (param->ret_type == "indices") {
-    reporter->Assign(types[1], indices_ty);
+    reporter->Assign(types[2], indices_ty);
   } else {
     LOG(FATAL) << "Unsupported ret type: " << param->ret_type;
   }
   return true;
 }
 
-Expr MakeTopK(Expr data, int k, int axis, String ret_type, bool is_ascend, DataType dtype) {
+Expr MakeTopK(Expr data, Expr k, int axis, String ret_type, bool is_ascend, DataType dtype) {
   auto attrs = make_object<TopKAttrs>();
-  attrs->k = Integer(k);
   attrs->axis = axis;
   attrs->ret_type = ret_type;
   attrs->is_ascend = is_ascend;
   attrs->dtype = dtype;
-  static const Op& op = Op::Get("topk");
-  return Call(op, {data}, Attrs(attrs), {});
+  static const Op& op = Op::Get("dyn.topk");
+  return Call(op, {data, k}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.topk").set_body_typed(MakeTopK);
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.topk").set_body_typed(MakeTopK);
 
-RELAY_REGISTER_OP("topk")
+RELAY_REGISTER_OP("dyn.topk")
     .describe(R"doc(Get the top k elements in an input tensor along the given axis.
 )doc" TVM_ADD_FILELINE)
-    .set_num_inputs(1)
+    .set_num_inputs(2)
     .set_attrs_type<TopKAttrs>()
     .add_argument("data", "Tensor", "Input data.")
+    .add_argument("k", "Tensor", "Number of top elements.")
     .set_support_level(6)
-    .add_type_rel("TopK", TopKRel);
+    .add_type_rel("DynTopK", TopKRel);
 
+}  // namespace dyn
 }  // namespace relay
 }  // namespace tvm
