@@ -79,8 +79,12 @@ class SemVer {
   int patch_version;
 
   SemVer() : major_version(0), minor_version(0), patch_version(0) {}
-  SemVer(int major_version, int minor_version, int patch_version) : major_version(major_version), minor_version(minor_version), patch_version(patch_version) {}
-  SemVer(const SemVer& other) : major_version(other.major_version), minor_version(other.minor_version), patch_version(other.patch_version) {}
+  SemVer(int major_version, int minor_version, int patch_version)
+      : major_version(major_version), minor_version(minor_version), patch_version(patch_version) {}
+  SemVer(const SemVer& other)
+      : major_version(other.major_version),
+        minor_version(other.minor_version),
+        patch_version(other.patch_version) {}
 };
 
 /*! \brief A reference to a "meta-expression".
