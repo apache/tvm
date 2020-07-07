@@ -415,7 +415,6 @@ std::vector<Token> Condense(const std::vector<Token>& tokens) {
                   auto tok = Token(current->line, current->column, TokenType::Global, next->data);
                   CHECK(tok.defined());
                   out.push_back(tok);
-                  std::cout << "Global Token: " << tok << std::endl;
                 } else {
                   CHECK(current.defined());
                   out.push_back(current);

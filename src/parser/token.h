@@ -79,6 +79,7 @@ enum TokenType {
     Fn,
     Defn,
     TypeDef,
+    Extern,
     Match,
     PartialMatch,
     Unknown,
@@ -172,6 +173,8 @@ std::string ToString(const TokenType& token_type) {
             return "Defn";
         case TokenType::TypeDef:
             return "TypeDef";
+        case TokenType::Extern:
+            return "Extern";
         case TokenType::Match:
             return "Match";
         case TokenType::PartialMatch:
@@ -275,6 +278,8 @@ std::string Pretty(const TokenType& token_type) {
             return "`def`";
         case TokenType::TypeDef:
             return "`type`";
+        case TokenType::Extern:
+            return "`extern`";
         case TokenType::Boolean:
             return "boolean";
         case TokenType::Match:

@@ -189,6 +189,7 @@ struct InternTable {
   /*! \brief The internal table mapping strings to a unique allocation. */
   std::unordered_map<std::string, T> table;
 
+  /*! \brief Add the unique allocation. */
   void Add(const std::string& name, const T& t) {
     auto it = table.find(name);
     if (it != table.end()) {
@@ -198,12 +199,13 @@ struct InternTable {
     }
   }
 
-  T Get(const std::string& name) {
+  /*! \brief Return the unique allocation. */
+  Optional<T> Get(const std::string& name) {
     auto it = table.find(name);
     if (it != table.end()) {
-      return it->second;
+      return Optional<T>(it->second);
     } else {
-      return T();
+      return Optional<T>();
     }
   }
 };
@@ -626,6 +628,11 @@ class Parser {
           defs.types.push_back(ParseTypeDef());
           continue;
         }
+        case TokenType::Extern: {
+          Consume(TokenType::Extern);
+          // TODO(@jroesch): add some validation here?
+          defs.types.push_back(ParseTypeDef());
+        }
         default:
           return defs;
       }
@@ -961,11 +968,13 @@ class Parser {
       case TokenType::Identifier: {
         auto id = Match(TokenType::Identifier);
         auto ctor = ctors.Get(id.ToString());
+        CHECK(ctor)
+          << "undefined identifier";
         if (Peek()->token_type == TokenType::OpenParen) {
           auto fields = ParsePatternList();
-          return PatternConstructor(ctor, fields);
+          return PatternConstructor(ctor.value(), fields);
         } else {
-          return PatternConstructor(ctor, {});
+          return PatternConstructor(ctor.value(), {});
         }
       }
       default:
@@ -1145,15 +1154,20 @@ class Parser {
           auto string = next.ToString();
           Consume(TokenType::Global);
           auto global = global_names.Get(string);
-          CHECK(global.defined());
-          return Expr(global);
+          if (!global) {
+            auto global_var = GlobalVar(string);
+            global_names.Add(string, global_var);
+            return Expr(global_var);
+          } else {
+            return Expr(global.value());
+          }
         }
         case TokenType::Identifier: {
           auto string = next.ToString();
           Consume(TokenType::Identifier);
           auto ctor = ctors.Get(string);
-          if (ctor.defined()) {
-            return Expr(ctor);
+          if (ctor) {
+            return Expr(ctor.value());
           } else {
             return Expr(Op::Get(string));
           }
@@ -1231,10 +1245,10 @@ class Parser {
     Type head_type;
     auto global_type = type_names.Get(name);
 
-    if (!global_type.defined()) {
+    if (!global_type) {
       head_type = LookupTypeVar(tok);
     } else {
-      head_type = global_type;
+      head_type = global_type.value();
     }
 
     CHECK(head_type.defined()) << "internal error: head type must be defined";
