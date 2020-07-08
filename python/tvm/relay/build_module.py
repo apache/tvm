@@ -250,7 +250,7 @@ def build(mod, target=None, target_host=None, params=None, mod_name='default'):
     with tophub_context:
         bld_mod = BuildModule()
         graph_json, mod, params = bld_mod.build(mod, target, target_host, params)
-        mod = _graph_runtime_factory.create("graph", graph_json, mod, params, mod_name)
+        mod = _graph_runtime_factory.create(graph_json, mod, mod_name, params)
         return mod
 
 

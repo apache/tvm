@@ -20,6 +20,7 @@ from tvm.relay import testing
 import tvm
 from tvm.contrib import graph_runtime
 from tvm.runtime import graph_runtime_factory
+from tvm.contrib.debugger import debug_runtime
 
 def get_workload(num_layers=18):
     mod, params = relay.testing.resnet.get_workload(num_layers=num_layers)
@@ -66,10 +67,10 @@ def test_cpu():
     set_input("data", tvm.nd.array(data))
     run()
     out = get_output(0).asnumpy()
-
-    # graph runtime
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
-    gmod = graph_runtime.create4unified(complied_graph_lib['default'], ctx)
+
+    # graph runtime wrapper
+    gmod = graph_runtime.GraphModule(complied_graph_lib['default'](ctx))
     gmod.set_input("data", data)
     gmod.run()
     out = gmod.get_output(0).asnumpy()
@@ -91,40 +92,6 @@ def test_gpu():
     out = get_output(0).asnumpy()
 
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
-
-def test_multi_models():
-    resnet18_mod, resnet18_params = get_workload()
-    resnet50_mod, resnet50_params = get_workload(50)
-    with relay.build_config(opt_level=3):
-        complied_graph_lib = relay.build_module.build(
-            resnet18_mod, "llvm", params=resnet18_params, mod_name='resnet18')
-    with relay.build_config(opt_level=3):
-        resnet50_gpu_lib = relay.build_module.build(
-            resnet50_mod, "cuda", params=resnet50_params, mod_name='resnet50')
-    complied_graph_lib.import_module(resnet50_gpu_lib)
-    data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
-    # resnet18
-    cpu_ctx = tvm.cpu()
-    gmod = complied_graph_lib['resnet18'](cpu_ctx)
-    set_input = gmod["set_input"]
-    get_input = gmod["get_input"]
-    run = gmod["run"]
-    get_output = gmod["get_output"]
-    set_input("data", tvm.nd.array(data))
-    run()
-    out = get_output(0).asnumpy()
-    tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
-
-    # resnet50
-    gpu_ctx = tvm.gpu()
-    gmod = complied_graph_lib['resnet50'](gpu_ctx)
-    set_input = gmod["set_input"]
-    run = gmod["run"]
-    get_output = gmod["get_output"]
-    set_input("data", tvm.nd.array(data))
-    run()
-    out = get_output(0).asnumpy()
-    tvm.testing.assert_allclose(out, verify(data, 50), atol=1e-5)
 
 def test_cpu_export(format=".so"):
     mod, params = get_workload()
@@ -245,7 +212,7 @@ def test_previous_gpu_export(format=".so"):
 def test_rpc_export(format=".so"):
     mod, params = get_workload()
     with relay.build_config(opt_level=3):
-        complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
+        complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
     from tvm.contrib import util
     temp = util.tempdir()
@@ -263,7 +230,7 @@ def test_rpc_export(format=".so"):
     remote.upload(path_lib)
     loaded_lib = remote.load_module(path_lib)
     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
-    ctx = remote.cpu()
+    ctx = remote.gpu()
     gmod = loaded_lib['default'](ctx)
     set_input = gmod["set_input"]
     run = gmod["run"]
@@ -273,7 +240,7 @@ def test_rpc_export(format=".so"):
     out = get_output(0).asnumpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
-    gmod = graph_runtime.create4unified(loaded_lib['default'], ctx)
+    gmod = graph_runtime.GraphModule(loaded_lib['default'](ctx))
     gmod.set_input("data", data)
     gmod.run()
     out = gmod.get_output(0).asnumpy()
@@ -398,22 +365,52 @@ def test_multi_models_package_params(format=".so"):
     out = get_output(0).asnumpy()
     tvm.testing.assert_allclose(out, verify(data, num_layers=50), atol=1e-5)
 
+
+def test_debug_graph_runtime():
+    mod, params = get_workload()
+    with relay.build_config(opt_level=3):
+        complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
+    data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
+    # raw api
+    ctx = tvm.cpu()
+    # gmod = complied_graph_lib['debug_create']('default', ctx)
+    # set_input = gmod["set_input"]
+    # run = gmod["run"]
+    # get_output = gmod["get_output"]
+    # set_input("data", tvm.nd.array(data))
+    # run()
+    # out = get_output(0).asnumpy()
+    # tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+    debug_g_mod = debug_runtime.GraphModuleDebug(complied_graph_lib['debug_create']('default', ctx), [ctx], complied_graph_lib['get_json'](), None)
+    # debug_g_mod = debug_runtime.create(complied_graph_lib['get_json'](), complied_graph_lib['get_lib'](), ctx)
+    debug_g_mod.set_input("data", data)
+    debug_g_mod.run()
+    out = debug_g_mod.get_output(0).asnumpy()
+    # # graph runtime wrapper
+    # tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+    #gmod = graph_runtime.GraphModule(complied_graph_lib['default'](ctx))
+    # gmod.set_input("data", data)
+    # gmod.run()
+    # out = gmod.get_output(0).asnumpy()
+    #
+    # tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+
 if __name__ == "__main__":
-    test_legacy_compatibility()
-    test_cpu()
-    test_gpu()
-    test_multi_models()
-    test_cpu_export(".so")
-    test_cpu_export(".tar")
-    test_gpu_export(".so")
-    test_gpu_export(".tar")
-    test_rpc_export(".so")
-    test_rpc_export(".tar")
-    test_previous_cpu_export(".so")
-    test_previous_cpu_export(".tar")
-    test_previous_gpu_export(".so")
-    test_previous_gpu_export(".tar")
-    test_previous_rpc_export(".so")
-    test_previous_rpc_export(".tar")
-    test_package_params(".so")
-    test_multi_models_package_params(".so")
+    # test_legacy_compatibility()
+    # test_cpu()
+    # test_gpu()
+    # test_cpu_export(".so")
+    # test_cpu_export(".tar")
+    # test_gpu_export(".so")
+    # test_gpu_export(".tar")
+    # test_rpc_export(".so")
+    # test_rpc_export(".tar")
+    test_debug_graph_runtime()
+    # test_previous_cpu_export(".so")
+    # test_previous_cpu_export(".tar")
+    # test_previous_gpu_export(".so")
+    # test_previous_gpu_export(".tar")
+    # test_previous_rpc_export(".so")
+    # test_previous_rpc_export(".tar")
+    # test_package_params(".so")
+    # test_multi_models_package_params(".so")

@@ -27,18 +27,21 @@ from .module import Module
 from . import ndarray
 
 
-def create(graph_runtime_kind, graph_json_str, libmod, params, module_name='default'):
+def create(graph_json_str, libmod, libmod_name, params):
     """Create a runtime executor module given a graph and module.
     Parameters
     ----------
-    graph_runtime_kind: str
-        The kind of graph runtime. Like graphruntime, vm and so on.
     graph_json_str : str or graph class
         The graph to be deployed in json format output by nnvm graph.
         The graph can only contain one operator(tvm_op) that
         points to the name of PackedFunc in the libmod.
     libmod : tvm.Module
         The module of the corresponding function
+    libmod_name: str
+        The name of module
+    params : dict of str to NDArray
+        The parameters of module
+
     Returns
     -------
     graph_module : GraphModule
@@ -54,7 +57,7 @@ def create(graph_runtime_kind, graph_json_str, libmod, params, module_name='defa
     for k, v in params.items():
         args.append(k)
         args.append(ndarray.array(v))
-    return GraphRuntimeFactoryModule(fcreate(graph_runtime_kind, graph_json_str, libmod, module_name, *args))
+    return GraphRuntimeFactoryModule(fcreate(graph_json_str, libmod, libmod_name, *args))
 
 
 class GraphRuntimeFactoryModule(Module):
@@ -75,9 +78,6 @@ class GraphRuntimeFactoryModule(Module):
 
     def __init__(self, module):
         self.module = module
-        self._select_module = module["select_module"]
-        self._import_module = module["import_module"]
-        self.selected_module = None
         self.graph_json = None
         self.lib = None
         self.params = {}
@@ -86,42 +86,6 @@ class GraphRuntimeFactoryModule(Module):
 
     def __del__(self):
         pass
-
-    def runtime_create(self, ctx):
-        """Create the runtime using ctx
-
-        Parameters
-        ----------
-        ctx : TVMContext or list of TVMContext
-        """
-        ctx, num_rpc_ctx, device_type_id = get_device_ctx(self.selected_module, ctx)
-        if num_rpc_ctx == len(ctx):
-            fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime_factory.runtime_create")
-        else:
-            fcreate = get_global_func("tvm.graph_runtime_factory.runtime_create")
-        return fcreate(self.selected_module, *device_type_id)
-
-    def import_module(self, mod):
-        """Create the runtime using ctx
-
-        Parameters
-        ----------
-        mod : GraphRuntimeFactoryModule
-            The graph runtime factory module we want to import
-        """
-        return self._import_module(mod)
-
-    def __getitem__(self, key='default'):
-        """Get specific module
-
-        Parameters
-        ----------
-        key : str
-            The key of module.
-        """
-        self.selected_module = self._select_module(key)
-        self.selected_module._entry = self.runtime_create
-        return self.selected_module
 
     def __iter__(self):
         warnings.warn(

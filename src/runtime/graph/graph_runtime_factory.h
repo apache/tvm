@@ -30,6 +30,8 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <algorithm>
+#include <numeric>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -43,17 +45,11 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
    * \brief Initialize the GraphRuntimeFactory with graph and context.
    * \param graph_json The execution graph.
    * \param params The params of graph.
-   * \param kind The runtime kind to be created.
+   * \param module_name The module name of graph.
    */
-  void Init(const std::string& kind, const std::string& graph_json,
+  void Init(const std::string& graph_json,
             const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
             const std::string& module_name = "default");
-
-  /*!
-   * \brief Import other GraphRuntimeFactory module.
-   * \param other The GraphRuntimeFactory module we want to import.
-   */
-  void ImportModule(Module other);
 
   /*!
    * \brief Get member function to front-end
@@ -84,6 +80,15 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
   Module RuntimeCreate(Module module, const std::vector<TVMContext>& ctxs);
 
   /*!
+   * \brief Create a specific debug runtime module
+   * \param module The module we will be used for creating runtime
+   * \param ctxs The context of the host and devices where graph nodes will be
+   *  executed on.
+   * \return created debug runtime module
+   */
+  Module DebugRuntimeCreate(Module module, const std::vector<TVMContext>& ctxs);
+
+  /*!
    * \brief Select the specific module
    * \param name The name of the module
    * \return selected module
@@ -94,37 +99,48 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
 
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() const { return params_; }
 
+  /*!
+   * \brief Get sorted keys of params.
+   * \param params The graph params value we want to sort.
+   * \return The sorted keys of params
+   */
+  std::vector<std::string> GetSorterParamKeys(const std::unordered_map<std::string, tvm::runtime::NDArray>& params) const {
+    std::unordered_map<std::string, tvm::runtime::NDArray> value = params;
+    // upload big arrays first to avoid memory issue in rpc mode
+    std::vector<std::string> keys;
+    for (const auto& p : value) {
+      keys.emplace_back(p.first);
+    }
+    std::sort(std::begin(keys), std::end(keys),
+              [&](const std::string& lhs, const std::string& rhs) -> bool {
+                auto lhs_shape = value[lhs].Shape();
+                auto rhs_shape = value[rhs].Shape();
+                auto lhs_prod = std::accumulate(std::begin(lhs_shape), std::end(lhs_shape), 1,
+                                                std::multiplies<int64_t>());
+                auto rhs_prod = std::accumulate(std::begin(rhs_shape), std::end(rhs_shape), 1,
+                                                std::multiplies<int64_t>());
+                return lhs_prod > rhs_prod;
+              });
+
+    return keys;
+  }
+
   Module GetLib() const {
     CHECK_GT(this->imports().size(), 0);
     return this->imports_[0];
   }
 
-  const std::string& GetKind() const { return kind_; }
-
   const std::string& GetModuleName() const { return module_name_; }
-
-  const std::vector<std::string>& GetGraphRuntimeFactoryModuleList() const {
-    return graph_runtime_factory_module_list_;
-  }
-
-  void SetGraphRuntimeFactoryModuleList(
-      const std::vector<std::string>& graph_runtime_factory_module_list) {
-    graph_runtime_factory_module_list_ = graph_runtime_factory_module_list;
-  }
 
  protected:
   /*! \brief The execution graph. */
   std::string graph_json_;
   /*! \brief The params. */
   std::unordered_map<std::string, tvm::runtime::NDArray> params_;
-  /*! \brief runtime kind */
-  std::string kind_;
   /*! \brief module name */
   std::string module_name_;
   /*! \brief whether to package params */
   bool package_params_ = true;
-  /*! \brief graph runtime factory module lists */
-  std::vector<std::string> graph_runtime_factory_module_list_;
 };
 
 }  // namespace runtime

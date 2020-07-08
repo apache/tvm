@@ -31,16 +31,12 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
-#include <algorithm>
-#include <functional>
 #include <memory>
-#include <numeric>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "./graph_runtime_factory.h"
 namespace tvm {
 namespace runtime {
 
@@ -174,36 +170,6 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   uint32_t GetNumOfNodes() const { return static_cast<uint32_t>(nodes_.size()); }
 
   std::string GetNodeName(uint32_t nid) const { return nodes_[nid].name; }
-
-  /*!
-   * \brief Set the graph params.
-   * \param params The graph params value we want to set.
-   */
-  void SetParams(const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
-    std::unordered_map<std::string, tvm::runtime::NDArray> value = params;
-    // upload big arrays first to avoid memory issue in rpc mode
-    std::vector<std::string> keys;
-    for (const auto& p : value) {
-      keys.emplace_back(p.first);
-    }
-    std::sort(std::begin(keys), std::end(keys),
-              [&](const std::string& lhs, const std::string& rhs) -> bool {
-                auto lhs_shape = value[lhs].Shape();
-                auto rhs_shape = value[rhs].Shape();
-                auto lhs_prod = std::accumulate(std::begin(lhs_shape), std::end(lhs_shape), 1,
-                                                std::multiplies<int64_t>());
-                auto rhs_prod = std::accumulate(std::begin(rhs_shape), std::end(rhs_shape), 1,
-                                                std::multiplies<int64_t>());
-                return lhs_prod > rhs_prod;
-              });
-
-    for (const auto& key : keys) {
-      int in_idx = this->GetInputIndex(key);
-      if (in_idx >= 0) {
-        this->SetInput(in_idx, const_cast<DLTensor*>(value[key].operator->()));
-      }
-    }
-  }
 
  protected:
   // Memory pool entry.

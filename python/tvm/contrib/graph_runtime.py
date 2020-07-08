@@ -63,15 +63,6 @@ def create(graph_json_str, libmod, ctx):
 
     return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
 
-# TODO (FrozenGene): rename
-def create4unified(libmod, ctx):
-    ctx, num_rpc_ctx, device_type_id = get_device_ctx(libmod, ctx)
-    if num_rpc_ctx == len(ctx):
-        fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime_factory.runtime_create")
-    else:
-        fcreate = tvm._ffi.get_global_func("tvm.graph_runtime_factory.runtime_create")
-
-    return GraphModule(fcreate(libmod, *device_type_id))
 
 def get_device_ctx(libmod, ctx):
     """Parse and validate all the device context(s).
