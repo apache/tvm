@@ -64,8 +64,8 @@ TVM_REGISTER_NODE_TYPE(SourceNameNode)
 Span::Span(SourceName source, int lineno, int col_offset) {
   auto n = make_object<SpanNode>();
   n->source = std::move(source);
-  n->lineno = lineno;
-  n->col_offset = col_offset;
+  n->line = lineno;
+  n->column = col_offset;
   data_ = std::move(n);
 }
 
@@ -78,7 +78,6 @@ TVM_REGISTER_GLOBAL("ir.Span").set_body_typed([](SourceName source, int lineno, 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<SpanNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const SpanNode*>(ref.get());
-      p->stream << "Span(" << node->source << ", " << node->lineno << ", " << node->col_offset
-                << ")";
+      p->stream << "Span(" << node->source << ", " << node->line << ", " << node->column << ")";
     });
 }  // namespace tvm
