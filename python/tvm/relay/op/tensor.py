@@ -939,8 +939,10 @@ def zeros(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Expr):
+        return _dyn.make.zeros(shape, dtype)
     if isinstance(shape, (list, tuple)):
-        shape = const(list(shape), "int32")
+        shape = const(list(shape), "int32") # change mes
     return _make.zeros(shape, dtype)
 
 
@@ -976,8 +978,10 @@ def ones(shape, dtype):
     result : relay.Expr
         The resulting tensor.
     """
+    if isinstance(shape, Expr):
+        return _dyn.make.ones(shape, dtype)
     if isinstance(shape, (list, tuple)):
-        shape = const(list(shape), "int32")
+        shape = const(list(shape), "int32") # change me
     return _make.ones(shape, dtype)
 
 

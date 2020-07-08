@@ -84,7 +84,22 @@ def test_dyn_tile():
     verify_tile((2, 3, 4), (1, 2))
     verify_tile((2, 3), (3, 2, 1))
 
+
+def test_dyn_zeros_ones():
+    def verify_zeros_ones(shape, dtype):
+        for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
+            shape = relay.var("x", relay.TensorType(shape, "float32"))
+            y = op(shape, dtype)
+            yy = run_infer_type(y)
+            assert yy.checked_type == relay.TensorType(shape, dtype)
+            intrp = create_executor()
+            intrp_res = intrp.evaluate(y).asnumpy()
+            np.testing.assert_allclose(intrp_res, ref(shape, dtype))
+    
+    verify_zeros_ones((124, 50), "float64")
+
 if __name__ == "__main__":
     test_dyn_reshape()
     test_dyn_shape_reshape()
     test_dyn_tile()
+    test_dyn_zeros_ones()

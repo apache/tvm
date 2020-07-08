@@ -244,6 +244,72 @@ RELAY_REGISTER_OP("dyn.broadcast_to")
     .set_attr<FTVMCompute>("FTVMCompute", BroadCastToCompute)
     .set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
+// zeros and ones operator
+bool InitOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // types = [zeros_shape, ret_type]
+  CHECK_EQ(types.size(), 2);
+  const InitOpAttrs* param = attrs.as<InitOpAttrs>();
+  const auto* fill_shape = types[0].as<TensorTypeNode>();
+  DataType out_dtype = param->dtype;
+
+  const IntImmNode* shape_shape = fill_shape->shape[0].as<IntImmNode>();
+  CHECK(shape_shape) << "Parameter shape must have static rank";
+
+  std::vector<IndexExpr> oshape;
+  for (int i = 0; i < shape_shape->value; ++i) {
+    oshape.push_back(Any());
+  }
+  
+  reporter->Assign(types[1], TensorType(oshape, out_dtype));
+  return true;
+}
+
+Expr MakeZeros(Expr shape, DataType dtype) { 
+  auto attrs = make_object<InitOpAttrs>();
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("dyn.zeros");
+  return Call(op, {shape}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn_make.zeros").set_body_typed(MakeZeros);
+
+RELAY_REGISTER_OP("dyn.zeros")
+    .describe(R"code(Fill array with zeros.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<InitOpAttrs>()
+    .set_num_inputs(1)
+    .add_argument("shape", "Tensor", "Target shape.")
+    .set_support_level(3)
+    .add_type_rel("DynamicInitOp", InitOpRel);
+
+Expr MakeOnes(Expr shape, DataType dtype) {
+  auto attrs = make_object<InitOpAttrs>();
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("dyn.ones");
+  return Call(op, {shape}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.ones").set_body_typed(MakeOnes);
+
+RELAY_REGISTER_OP("dyn.ones")
+    .describe(R"code(Fill array with ones.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<InitOpAttrs>()
+    .set_num_inputs(1)
+    .add_argument("shape", "Tensor", "Target shape.")
+    .set_support_level(3)
+    .add_type_rel("DynamicInitOp", InitOpRel);
+
+
+
+
+
+
+
+
 }  // namespace dyn
 }  // namespace relay
 }  // namespace tvm

@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 #pylint: disable=invalid-name, unused-argument, len-as-condition
-"""Backend compiler related feature registration"""
+"""Backend compiler related feature registration for dynamic ops"""
 
 from ..op import register_shape_func
 from .._tensor import full_shape_func
 
 register_shape_func("dyn.broadcast_to", True, full_shape_func)
+register_shape_func("dyn.ones", True, no_data_full_shape_func)
+register_shape_func("dyn.zeros", True, no_data_full_shape_func)
