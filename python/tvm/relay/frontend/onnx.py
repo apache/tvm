@@ -1166,6 +1166,14 @@ class HardSigmoid(OnnxOpConverter):
         attr = {'a_min': 0, 'a_max': 1}
         return AttrCvt('clip')([transformX], attr)
 
+class Softsign(OnnxOpConverter):
+    """ Operator converter for Softsign.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        x = inputs[0]
+        return x / (1 + _op.abs(x))
+
 class Reduce(OnnxOpConverter):
     """ Operator converter for reduce ops.
     """
@@ -1493,9 +1501,11 @@ class Expand(OnnxOpConverter):
         return _op.broadcast_to(inputs[0], shape=tuple(shape))
 
 
-class LSTM(OnnxOpConverter):
-    """ Operator converter for LSTM.
+class RNN(OnnxOpConverter):
+    """ Operator converter for RNNs such as LSTM and GRU.
     """
+
+    name = ""
 
     @classmethod
     def _activation_helper(cls, activation, alpha, beta):
@@ -1527,9 +1537,18 @@ class LSTM(OnnxOpConverter):
             "HardSigmoid",
         ]
         return activation.decode("utf-8") in needs_beta
-
+    
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
+        if cls.name == 'LSTM':
+            return cls.lstm(inputs, attr, params)
+        elif cls.name == 'GRU':
+            return cls.gru(inputs, attr, params)
+        else:
+            raise NotImplementedError("%s RNNs are not yet supported." % cls.name)
+
+    @classmethod
+    def lstm(cls, inputs, attr, params):
         # Unpack inputs, note that if optional and not provided then value will be None.
         X = inputs[0]
         W = inputs[1]
@@ -1636,6 +1655,121 @@ class LSTM(OnnxOpConverter):
         C_t = _op.expand_dims(C_t, axis=0)
 
         return _expr.TupleWrapper(_expr.Tuple((output, H_t, C_t)), 3)
+
+    @classmethod
+    def gru(cls, inputs, attr, params):
+        # Unpack inputs, note that if optional and not provided then value will be None.
+        X = inputs[0]
+        W = inputs[1]
+        R = inputs[2]
+        B = inputs['B']
+        # Sequence length currently unused as it can be inferred from shapes.
+        #sequence_lens = inputs['sequence_lens']
+        h_0 = inputs['initial_h']
+        linear_before_reset = attr.get('linear_before_reset', 0)
+
+        num_directions = infer_shape(W)[0]
+        W_dtype = infer_type(W).type_annotation.dtype
+
+        if num_directions != 1:
+            raise NotImplementedError("Bidirectional GRUs not yet supported.")
+        # Remove num_directions axis from weights.
+        W = _op.squeeze(W, axis=[0])
+        R = _op.squeeze(R, axis=[0])
+        if B is not None:
+            B = _op.squeeze(B, axis=[0])
+
+        X_shape = infer_shape(X)
+        hidden_size = infer_shape(R)[-1]
+        batch_size = X_shape[1]
+
+        # Initialize state if not provided.
+        # Otherwise remove bidirectional axis.
+        if h_0 is None:
+            h_0 = _op.zeros((batch_size, hidden_size), W_dtype)
+        else:
+            h_0 = _op.squeeze(h_0, axis=[0])
+
+        H_t = h_0
+        h_list = []
+
+        if 'activations' in attr:
+            activations = attr['activations']
+            if len(activations) != 2:
+                raise NotImplementedError("GRU assumes 2 activation functions are provided")
+            alpha_loc = 0
+            alphas = attr.get('activation_alpha', [])
+            if isinstance(alphas, float):
+                alphas = [alphas]
+            beta_loc = 0
+            betas = attr.get('activation_beta', [])
+            if isinstance(betas, float):
+                betas = [betas]
+            acts = []
+            for i in range(2):
+                alpha = None
+                beta = None
+                activation = activations[i]
+                if cls._activation_needs_alpha(activation) and len(alphas) > alpha_loc:
+                    alpha = alphas[alpha_loc]
+                    alpha_loc += 1
+                if cls._activation_needs_beta(activation) and len(betas) > beta_loc:
+                    beta = betas[beta_loc]
+                    beta_loc += 1
+                acts.append(cls._activation_helper(activation, alpha, beta))
+            f_act, g_act = acts
+        else:
+            f_act = _op.sigmoid
+            g_act = _op.tanh
+
+        X_steps = _op.split(X, indices_or_sections=X_shape[0], axis=0)
+        for step in X_steps:
+            step = _op.squeeze(step, axis=[0])
+            current = _op.nn.dense(step, W)
+            cz, cr, ch = _op.split(current, 3, axis=1)
+            rz, rr, rh = _op.split(R, 3, axis=0)
+            z = cz + _op.nn.dense(H_t, rz)
+            r = cr + _op.nn.dense(H_t, rr)
+            if B is not None:
+                WB, RB = _op.split(B, 2)
+                wbz, wbr, wbh = _op.split(WB, 3, axis=-1)
+                rbz, rbr, rbh = _op.split(RB, 3, axis=-1)
+                z += wbz + rbz
+                r += wbr + rbr
+                if linear_before_reset:
+                    h = ch + (r * (_op.nn.dense(H_t, rh) + rbh)) + wbh
+                else:
+                    h = ch + _op.nn.dense((r * H_t), rh) + wbh + rbh
+            else:
+                if linear_before_reset:
+                    h = ch + (r * (_op.nn.dense(H_t, rh)))
+                else:
+                    h = ch + _op.nn.dense((r * H_t), rh)
+
+            z = f_act(z)
+            r = f_act(r)
+            h = g_act(h)
+
+            H_t = ((_expr.const(1, dtype=W_dtype) - z) * h) + (z * H_t)
+            h_list.append(_op.expand_dims(H_t, axis=0))
+        # Concatenate outputs and add back in direction axis.
+        concatenated = _op.concatenate(h_list, 0)
+        output = _op.expand_dims(concatenated, axis=1)
+        H_t = _op.expand_dims(H_t, axis=0)
+
+        return _expr.TupleWrapper(_expr.Tuple((output, H_t)), 2)
+
+
+class LSTM(RNN):
+    """Operator converter for LSTM
+    """
+    name = "LSTM"
+
+
+class GRU(RNN):
+    """Operator convert for GRU
+    """
+    name = "GRU"
 
 
 class Resize(OnnxOpConverter):
@@ -1826,6 +1960,7 @@ def _get_convert_map(opset):
         'PRelu': Prelu.get_converter(opset),
         'Sigmoid': Renamer('sigmoid'),
         'HardSigmoid': HardSigmoid.get_converter(opset),
+        'Softsign': Softsign.get_converter(opset),
         'Max': Maximum.get_converter(opset),
         'Min': Minimum.get_converter(opset),
         'Sum': Sum.get_converter(opset),
@@ -1859,6 +1994,7 @@ def _get_convert_map(opset):
         'LRN': LRN.get_converter(opset),
         # Recurrent Layers
         'LSTM': LSTM.get_converter(opset),
+        'GRU': GRU.get_converter(opset),
 
         # defs/vision
         'MaxRoiPool': MaxRoiPool.get_converter(opset),
