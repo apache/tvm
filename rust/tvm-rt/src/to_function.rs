@@ -193,12 +193,22 @@ pub trait ToFunction<I, O>: Sized {
             local_args.push(arg_value);
         }
 
+        // Ref-count be 2.
         let rv = match Self::call(resource_handle, local_args.as_slice()) {
             Ok(v) => v,
             Err(msg) => {
                 crate::set_last_error(&msg);
                 return -1;
             }
+        };
+
+        match rv {
+            RetValue::ObjectHandle(object) =>
+            { let optr = crate::object::ObjectPtr::from_raw(object as _).unwrap();
+              println!("after call: {}", optr.count());
+              crate::object::ObjectPtr::leak(optr);
+            },
+            _ => {}
         };
 
         let (mut ret_val, ret_tcode) = rv.to_tvm_value();
@@ -210,6 +220,17 @@ pub trait ToFunction<I, O>: Sized {
             &mut ret_type_code as *mut _,
             1 as c_int
         ));
+
+        // ref-count 3
+        match rv {
+            RetValue::ObjectHandle(object) =>
+            { let optr = crate::object::ObjectPtr::from_raw(object as _).unwrap();
+              println!("after set return: {}", optr.count());
+              crate::object::ObjectPtr::leak(optr);
+            },
+            _ => {}
+        };
+
         0
     }
 

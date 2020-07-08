@@ -722,8 +722,8 @@ class TVMRetValue : public TVMPODValue_ {
   /*!
    * \brief Move the value back to front-end via C API.
    *  This marks the current container as null.
-   *  The managed resources is moved to front-end and
-   *  the front end should take charge in managing them.
+   *  The managed resources are moved to the front-end.
+   *  The front end should take charge in managing them.
    *
    * \param ret_value The return value.
    * \param ret_type_code The return type code.

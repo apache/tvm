@@ -98,6 +98,7 @@ impl Object {
         let type_key = T::TYPE_KEY;
         let cstring = CString::new(type_key).expect("type key must not contain null characters");
 
+        // TODO(@jroesch): look into TVMObjectTypeKey2Index.
         if type_key == "runtime.Object" {
             return 0;
         } else {
@@ -188,7 +189,7 @@ fn dec_ref<T: IsObject>(ptr: NonNull<T>) {
 }
 
 impl ObjectPtr<Object> {
-    fn from_raw(object_ptr: *mut Object) -> Option<ObjectPtr<Object>> {
+    pub fn from_raw(object_ptr: *mut Object) -> Option<ObjectPtr<Object>> {
         let non_null = NonNull::new(object_ptr);
         non_null.map(|ptr| {
             debug_assert!(unsafe { ptr.as_ref().count() } >= 0);
@@ -292,6 +293,7 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
                 let handle: *mut Object = unsafe { std::mem::transmute(handle) };
                 let optr = ObjectPtr::from_raw(handle).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
+                println!("back to type {}", optr.count());
                 optr.downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", ret_value), "ObjectHandle")),
@@ -303,7 +305,6 @@ impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
     fn from(object_ptr: ObjectPtr<T>) -> ArgValue<'a> {
         debug_assert!(object_ptr.count() >= 1);
         let raw_object_ptr = ObjectPtr::leak(object_ptr);
-
         let void_ptr: *mut std::ffi::c_void = unsafe { std::mem::transmute(raw_object_ptr) };
         assert!(!void_ptr.is_null());
         ArgValue::ObjectHandle(void_ptr)
@@ -348,6 +349,17 @@ mod tests {
         assert_eq!(ptr.count(), 1);
         let object = ObjectPtr::leak(ptr);
         assert_eq!(object.count(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_clone() -> anyhow::Result<()> {
+        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        assert_eq!(ptr.count(), 1);
+        let ptr2 = ptr.clone();
+        assert_eq!(ptr2.count(), 2);
+        drop(ptr);
+        assert_eq!(ptr2.count(), 1);
         Ok(())
     }
 
@@ -401,7 +413,7 @@ mod tests {
 
     fn test_fn(o: ObjectPtr<Object>) -> ObjectPtr<Object> {
         // The call machinery adds at least 1 extra count while inside the call.
-        assert_eq!(o.count(), 3);
+        assert_eq!(o.count(), 2);
         return o;
     }
 
@@ -424,5 +436,35 @@ mod tests {
         assert_eq!(same.count(), 4);
         drop(same);
         assert_eq!(stay.count(), 3);
+    }
+
+    // fn test_fn2(o: ArgValue<'static>) -> RetValue {
+    //     // The call machinery adds at least 1 extra count while inside the call.
+    //     match o {
+    //         ArgValue::ObjectHandle(ptr) => RetValue::ObjectHandle(ptr),
+    //         _ => panic!()
+    //     }
+    // }
+
+    #[test]
+    fn test_ref_count_boundary2() {
+        use super::*;
+        use crate::function::{register, Function, Result};
+        // 1
+        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        assert_eq!(ptr.count(), 1);
+        // 2
+        // let stay = ptr.clone();
+        // assert_eq!(ptr.count(), 2);
+        register(test_fn, "my_func").unwrap();
+        let func = Function::get("my_func").unwrap();
+        // let func = func.to_boxed_fn::<dyn Fn(ObjectPtr<Object>) -> Result<ObjectPtr<Object>>>();
+        let same = func.invoke(vec![ptr.into()]).unwrap();
+        let same: ObjectPtr<Object> = same.try_into().unwrap();
+        drop(func);
+        // assert_eq!(stay.count(), 2);
+        assert_eq!(same.count(), 2);
+        drop(same);
+        // assert_eq!(stay.count(), 2);
     }
 }
