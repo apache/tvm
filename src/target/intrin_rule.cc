@@ -115,7 +115,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.isinf")
       *rv = isinf(call->args[0]);
     });
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.fixed_point_multiply")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.qmuls")
     .set_body([](const TVMArgs& args, TVMRetValue* rv) {
       using tir::make_const;
 
@@ -123,42 +123,41 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.fixed_point_multiply")
       const tir::CallNode* call = e.as<tir::CallNode>();
       CHECK(call != nullptr);
 
-      PrimExpr tensor = call->args[0];
-      PrimExpr fixed_point_multiplier = call->args[1];
-      PrimExpr shift = call->args[2];
+      PrimExpr x = call->args[0];
+      PrimExpr y = call->args[1];
+      PrimExpr q = call->args[2];
+      PrimExpr s = call->args[3];
 
       // Only int32 types are supported (any number of lanes is allowed)
-      CHECK(tensor.dtype().code() == DLDataTypeCode::kDLInt && tensor.dtype().bits() == 32);
-      CHECK(fixed_point_multiplier.dtype().code() == DLDataTypeCode::kDLInt &&
-            fixed_point_multiplier.dtype().bits() == 32);
-      CHECK(shift.dtype().code() == DLDataTypeCode::kDLInt && shift.dtype().bits() == 32);
+      CHECK(x.dtype().code() == DLDataTypeCode::kDLInt && x.dtype().bits() == 32);
+      CHECK(y.dtype().code() == DLDataTypeCode::kDLInt && y.dtype().bits() == 32);
+      CHECK(s.dtype().code() == DLDataTypeCode::kDLInt && s.dtype().bits() == 32);
 
-      DataType hp_dtype = DataType::Int(64, tensor.dtype().lanes());
-      DataType lp_dtype = DataType::Int(32, tensor.dtype().lanes());
+      DataType hp_dtype = DataType::Int(64, x.dtype().lanes());
+      DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
 
       // 1) Calculating the integer multiplier and integer shift
-      PrimExpr zero = make_const(shift.dtype(), 0);
-      PrimExpr left_shift = tir::Select((shift > zero), shift, zero);
-      PrimExpr right_shift = tir::Select(shift > zero, zero, -shift);
+      PrimExpr zero = make_const(s.dtype(), 0);
+      PrimExpr left_shift = tir::Select((s > zero), s, zero);
+      PrimExpr right_shift = tir::Select(s > zero, zero, -s);
 
       // 2) Multiply the integer multiplier
-      tensor = tir::Select(left_shift != zero, tensor << cast(hp_dtype, left_shift),
-                           cast(hp_dtype, tensor));
+      x = tir::Select(left_shift != zero, x << cast(hp_dtype, left_shift), cast(hp_dtype, x));
 
       // 3) Perform the multiplication in higher precision.
-      tensor = tensor * fixed_point_multiplier;
+      x = x * y;
 
       // 4) Find the rounding scalar
-      PrimExpr total_right_shift = right_shift + 31;
+      PrimExpr total_right_shift = right_shift + q;
       PrimExpr pos_rounding_value = (make_const(hp_dtype, 1) << (total_right_shift - 1));
 
-      tensor = tensor + pos_rounding_value;
+      x = x + pos_rounding_value;
 
       // 5) Simply right shift the result to get the final output.
-      tensor = tensor >> total_right_shift;
+      x = x >> total_right_shift;
 
       // 6) The fixed point multiplication keeps the value in int32 range. Casting back to int32.
-      *rv = cast(lp_dtype, tensor);
+      *rv = cast(lp_dtype, x);
     });
 
 }  // namespace intrin

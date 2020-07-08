@@ -553,15 +553,22 @@ TVM_DLL PrimExpr trunc(PrimExpr x);
 TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
 
 /*!
- * \brief Execute a fixed point multiplication y = round(x * m * 2^s).
- * The default rounding rule is to the nearest value, rounding half up
+ * \brief Execute a multiplication between two Q-numbers x and y
+ * followed by a right shift s. The mathematical expression is:
+ *
+ *    out = round(x*y*2^-s)
+ *
+ * More about Q-numbers here: https://en.wikipedia.org/wiki/Q_(number_format)
+ *
+ * The rounding rule is to the nearest value, rounding half up
  * (i.e., round(x.1) = x and round (x.5) = x+1)
- * \param x input value
- * \param m integer multiplier
- * \param s integer shift
+ * \param x first Q-number
+ * \param y second Q-number
+ * \param q Q-ness of x and y
+ * \param s integer right shift
  * \return The constructed expression.
  */
-TVM_DLL PrimExpr fixed_point_multiply(PrimExpr x, PrimExpr m, PrimExpr s);
+TVM_DLL PrimExpr qmuls(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s);
 
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)           \

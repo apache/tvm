@@ -965,17 +965,24 @@ def popcount(x):
     """
     return call_intrin(x.dtype, "tir.popcount", x)
 
-def fixed_point_multiply(x, m, s):
-    """Execute a fixed point multiplication y = round(x * m * 2^s).
-    The default rounding rule is to the nearest value, rounding half up
+def qmuls(x, y, q, s):
+    """Execute a multiplication between two Q-numbers x and y
+    followed by a right shift s. The mathematical expression is:
+
+       out = round(x*y*2^-s)
+
+    More about Q-numbers here: https://en.wikipedia.org/wiki/Q_(number_format)
+    The rounding rule is to the nearest value, rounding half up
     (i.e., round(x.1) = x and round (x.5) = x+1)
 
     Parameters
     ----------
     x : PrimExpr
-        Input argument.
-    m : PrimExpr
-        Integer multiplier
+        First Q-number
+    y : PrimExpr
+        Second Q-number
+    q : PrimExpr
+        Q-ness of x and y
     s : PrimExpr
         Integer shift
 
@@ -984,7 +991,7 @@ def fixed_point_multiply(x, m, s):
     y : PrimExpr
         The result.
     """
-    return call_intrin(x.dtype, "tir.fixed_point_multiply", x, m, s)
+    return call_intrin(x.dtype, "tir.qmuls", x, y, q, s)
 
 def fmod(x, y):
     """Return the remainder of x divided by y with the same sign as x.

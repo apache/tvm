@@ -452,17 +452,26 @@ def dot_int8_int8_int32(int32_lanes, dtype='uint'):
         C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer},
         default_buffer_params=buffer_params)
 
-def _fixed_point_multiply_arm(op):
+def _qmuls_arm(op):
     """
-    Implementation of fixed point multiplication through arm
-    intrinsics sqrdmulh and srshl
+    Implementation of qmuls through arm intrinsics sqrdmulh and srshl
+    when q == 31. 
+
+    Please note that this is introducing a small round-up error for 
+    some corner cases. This is because we are rounding twice instead 
+    than only once. I.e.:
+
+        * original qmuls: round(x*y*2^-s)
+        * arm qmuls: round(round(x*y)*2^-s)
     """
     x = op.args[0]
-    multiplier = op.args[1]
-    shift = op.args[2]
+    y = op.args[1]
+    q = op.args[2]
+    s = op.args[3]
 
     # Don't use this intrinsic if we don't have a int32x4 vector
-    if x.dtype != "int32x4":
+    # and if we are not multiplying q31 numbers
+    if x.dtype != "int32x4" and q == 31:
         return op
 
     # Case 1, shift is negative
@@ -470,27 +479,27 @@ def _fixed_point_multiply_arm(op):
                                         'llvm.aarch64.neon.sqrdmulh',
                                         tvm.tir.const(2, 'uint32'),
                                         x,
-                                        multiplier)
+                                        y)
 
-    fixup = (sqrdmulh & (-shift)) >> 31
+    fixup = (sqrdmulh & (-s)) >> 31
     fixed_up_x = (sqrdmulh + fixup)
     out_1 = tvm.tir.call_llvm_intrin(op.dtype,
                                      'llvm.aarch64.neon.srshl',
                                      tvm.tir.const(2, 'uint32'),
                                      sqrdmulh,
-                                     shift)
+                                     s)
 
     # Case 2, shift is positive
-    x = x * (1 << (shift))
+    x = x * (1 << (s))
     out_2 = tvm.tir.call_llvm_intrin(op.dtype,
                                      'llvm.aarch64.neon.sqrdmulh',
                                      tvm.tir.const(2, 'uint32'),
                                      x,
-                                     multiplier)
+                                     y)
 
     # Select depending on the shift
-    return tvm.tir.Select(shift < 0, out_1, out_2)
+    return tvm.tir.Select(s < 0, out_1, out_2)
 
 tvm.target.intrin.register_intrin_rule("llvm.aarch64",
-                                       "fixed_point_multiply",
-                                       _fixed_point_multiply_arm, override=True)
+                                       "qmuls",
+                                       _qmuls_arm, override=True)
