@@ -195,8 +195,7 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
   auto glob_funcs = module->functions;
   for (const auto& pair : glob_funcs) {
     if (auto* fn = pair.second.as<FunctionNode>()) {
-      auto* gl_var = pair.first.as<GlobalVarNode>();
-      if (gl_var->name_hint == "main") {
+      if (pair.first->name_hint == "main") {
         OutputMapper output_mapper(&output_map, module, &offset);
         auto func = GetRef<Function>(fn);
         PostOrderRewrite(func->body, &output_mapper);
