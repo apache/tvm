@@ -1533,15 +1533,13 @@ class RNN(OnnxOpConverter):
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
         if cls.name == 'LSTM':
-            return cls.lstm(inputs, attr, params)
-        elif cls.name == 'GRU':
-            return cls.gru(inputs, attr, params)
-        else:
-            raise NotImplementedError("%s RNNs are not yet supported." %
-                                      cls.name)
+            return cls._lstm(inputs, attr, params)
+        if cls.name == 'GRU':
+            return cls._gru(inputs, attr, params)
+        raise NotImplementedError("%s RNNs are not yet supported." % cls.name)
 
     @classmethod
-    def lstm(cls, inputs, attr, params):
+    def _lstm(cls, inputs, attr, params):
         # Unpack inputs, note that if optional and not provided then value will be None.
         X = inputs[0]
         W = inputs[1]
@@ -1653,7 +1651,7 @@ class RNN(OnnxOpConverter):
         return _expr.TupleWrapper(_expr.Tuple((output, H_t, C_t)), 3)
 
     @classmethod
-    def gru(cls, inputs, attr, params):
+    def _gru(cls, inputs, attr, params):
         # Unpack inputs, note that if optional and not provided then value will be None.
         X = inputs[0]
         W = inputs[1]
