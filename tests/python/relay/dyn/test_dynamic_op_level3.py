@@ -88,7 +88,6 @@ def test_dyn_tile():
 def test_dyn_zeros_ones():
     def verify_zeros_ones(shape, dtype):
         for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
-            
             rank = len(shape)
             dyn_shape = relay.Var("shape", relay.ty.TensorType((rank,), 'int64'))
             y = op(dyn_shape, dtype)

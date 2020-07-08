@@ -201,6 +201,26 @@ def test_dynamic_to_static_broadcast_to():
         ref_res = np.broadcast_to(x_data, y_data.shape)
         verify_func(func2, [x_data, y_data], ref_res)
     verify_broadcast_to((3, 1), (3, 3))
+    
+def test_dynamic_to_static_zeros_ones():
+    def verify_ones_zeros(shape, dtype):
+        for op, ref, op_str in [(relay.zeros, np.zeros, "zeros"), (relay.ones, np.ones, "ones")]:
+            x = relay.var("x", relay.TensorType(shape, dtype))
+            y = op(relay.shape_of(x), dtype)
+            
+            func = run_infer_type(relay.Function([x], y))
+            func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+
+            zz = func2.body
+            assert isinstance(zz, relay.Constant)
+            assert zz.checked_type == relay.ty.TensorType(shape, dtype)
+
+            x_data = np.random.uniform(low=1, high=1, size=shape)
+            ref_res = ref(x_data.shape)
+            verify_func(func2, [x_data], ref_res)
+
+    verify_ones_zeros((1, 2, 3), 'int64')
+    verify_ones_zeros((9, 8, 3, 4), 'float32')
 
 if __name__=="__main__":
     test_dynamic_to_static_reshape()
