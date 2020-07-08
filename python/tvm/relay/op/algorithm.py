@@ -18,7 +18,8 @@
 from __future__ import absolute_import as _abs
 from . import _make
 from .dyn import _make as _dyn_make
-from ..expr import TupleWrapper, Expr
+from ..expr import TupleWrapper, Expr, Constant
+import numpy as np
 
 def argsort(data, axis=-1, is_ascend=1, dtype="int32"):
     """Performs sorting along the given axis and returns an array of indicies
@@ -83,6 +84,8 @@ def topk(data, k=1, axis=-1, ret_type="both",
     out : relay.Expr or List[relay.Expr]
         The computed result.
     """
+    if isinstance(k, Constant):
+        k = np.asscalar(k.data.asnumpy())
     if isinstance(k, Expr):
         out = _dyn_make.topk(data, k, axis, ret_type, is_ascend, dtype)
     else:
