@@ -92,7 +92,7 @@ register_broadcast_schedule("fast_erf")
 # zeros
 @register_compute("zeros")
 def zeros_compute(attrs, inputs, output_type):
-    assert len(inputs) == 1
+    assert len(inputs) == 0
     return [topi.full(output_type.shape, output_type.dtype, 0.0)]
 
 register_broadcast_schedule("zeros")
@@ -109,7 +109,7 @@ register_broadcast_schedule("zeros_like")
 # ones
 @register_compute("ones")
 def ones_compute(attrs, inputs, output_type):
-    assert len(inputs) == 1
+    assert len(inputs) == 0
     return [topi.full(output_type.shape, output_type.dtype, 1.0)]
 
 register_broadcast_schedule("ones")

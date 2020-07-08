@@ -303,13 +303,6 @@ RELAY_REGISTER_OP("dyn.ones")
     .set_support_level(3)
     .add_type_rel("DynamicInitOp", InitOpRel);
 
-
-
-
-
-
-
-
 }  // namespace dyn
 }  // namespace relay
 }  // namespace tvm

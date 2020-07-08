@@ -942,8 +942,10 @@ def zeros(shape, dtype):
     """
     if isinstance(shape, Expr):
         return _dyn_make.zeros(shape, dtype)
+    if isinstance(shape, int):
+        shape = [shape]
     if isinstance(shape, (list, tuple)):
-        shape = const(list(shape), "int32") # change mes
+        shape = list(shape)
     return _make.zeros(shape, dtype)
 
 
@@ -981,8 +983,10 @@ def ones(shape, dtype):
     """
     if isinstance(shape, Expr):
         return _dyn_make.ones(shape, dtype)
+    if isinstance(shape, int):
+        shape = [shape]
     if isinstance(shape, (list, tuple)):
-        shape = const(list(shape), "int32") # change me
+        shape = list(shape)
     return _make.ones(shape, dtype)
 
 

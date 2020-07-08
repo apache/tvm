@@ -526,7 +526,7 @@ inline Expr ZerosLike(Expr e) {
 }
 
 inline Expr Zeros(Array<IndexExpr> shape, DataType dtype) {
-  return MakeZeros(CheckConstantShape(shape), dtype);
+  return MakeZeros(CheckConstantShapeArrayInteger(shape), dtype);
 }
 
 inline Expr OnesLike(Expr e) {
@@ -535,7 +535,7 @@ inline Expr OnesLike(Expr e) {
 }
 
 inline Expr Ones(Array<IndexExpr> shape, DataType dtype) {
-  return MakeOnes(CheckConstantShape(shape), dtype);
+  return MakeOnes(CheckConstantShapeArrayInteger(shape), dtype);
 }
 
 inline Expr CollapseSumLike(Expr e) {
@@ -624,6 +624,7 @@ static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_
 }
 
 static inline Expr Tile(Expr data, Array<Integer> reps) { return MakeTile(data, reps); }
+
 Expr MakeBroadCastTo(Expr data, Array<Integer> shape);
 
 static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {

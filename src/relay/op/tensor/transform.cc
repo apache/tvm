@@ -979,37 +979,29 @@ RELAY_REGISTER_OP("full")
 
 bool InitOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
+  // types = [ret_type]
+  CHECK_EQ(types.size(), 1);
+
   const InitOpAttrs* param = attrs.as<InitOpAttrs>();
-  const auto* fill_shape = types[0].as<TensorTypeNode>();
+  CHECK(param);
+  
   DataType out_dtype = param->dtype;
+  std::vector<IndexExpr> oshape; 
 
-  const IntImmNode* shape_shape = fill_shape->shape[0].as<IntImmNode>();
-  CHECK(shape_shape) << "Parameter shape must have static shape";
-
-  std::vector<IndexExpr> oshape;
-  if (param->shape) {
-    const Array<Integer>& cshape_array = param->shape.value();
-    for (size_t i = 0; i < cshape_array.size(); ++i) {
-      oshape.push_back(cshape_array[i]);
-    }
-  } else {
-    for (int i = 0; i < shape_shape->value; ++i) {
-      oshape.push_back(Any());
-    }
+  const Array<Integer>& cshape_array = param->shape.value();
+  for (size_t i = 0; i < cshape_array.size(); ++i) {
+    oshape.push_back(cshape_array[i]);
   }
-  reporter->Assign(types[1], TensorType(oshape, out_dtype));
+  reporter->Assign(types[0], TensorType(oshape, out_dtype));
   return true;
 }
 
-Expr MakeZeros(Expr shape, DataType dtype) {
+Expr MakeZeros(Array<Integer> shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
-  if (const auto* cshape = shape.as<ConstantNode>()) {
-    attrs->shape = ToVector(cshape->data);
-  }
+  attrs->shape = std::move(shape); 
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("zeros");
-  return Call(op, {shape}, Attrs(attrs), {});
+  return Call(op, {}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.zeros").set_body_typed(MakeZeros);
@@ -1019,19 +1011,16 @@ RELAY_REGISTER_OP("zeros")
 
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<InitOpAttrs>()
-    .set_num_inputs(1)
-    .add_argument("shape", "Tensor", "Target shape.")
+    .set_num_inputs(0)
     .set_support_level(3)
     .add_type_rel("InitOp", InitOpRel);
 
-Expr MakeOnes(Expr shape, DataType dtype) {
+Expr MakeOnes(Array<Integer> shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
-  if (const auto* cshape = shape.as<ConstantNode>()) {
-    attrs->shape = ToVector(cshape->data);
-  }
+  attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("ones");
-  return Call(op, {shape}, Attrs(attrs), {});
+  return Call(op, {}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.ones").set_body_typed(MakeOnes);
@@ -1041,8 +1030,7 @@ RELAY_REGISTER_OP("ones")
 
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<InitOpAttrs>()
-    .set_num_inputs(1)
-    .add_argument("shape", "Tensor", "Target shape.")
+    .set_num_inputs(0)
     .set_support_level(3)
     .add_type_rel("InitOp", InitOpRel);
 
@@ -1831,6 +1819,7 @@ RELAY_REGISTER_OP("collapse_sum_to")
 bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
   // types = [data_type, ret_type], broadcast_to_type is in attrs bc static
+  CHECK_EQ(types.size(), 2); 
 
   const InitOpAttrs* param = attrs.as<InitOpAttrs>();
   CHECK(param);
