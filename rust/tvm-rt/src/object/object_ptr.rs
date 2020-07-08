@@ -98,7 +98,7 @@ impl Object {
         let type_key = T::TYPE_KEY;
         let cstring = CString::new(type_key).expect("type key must not contain null characters");
 
-        if type_key == "Object" {
+        if type_key == "runtime.Object" {
             return 0;
         } else {
             let mut index = 0;
@@ -115,7 +115,7 @@ impl Object {
     pub fn count(&self) -> i32 {
         // need to do atomic read in C++
         // ABI compatible atomics is funky/hard.
-        self.ref_count.load(std::sync::atomic::Ordering::SeqCst)
+        self.ref_count.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Allocates a base object value for an object subtype of type T.
@@ -163,7 +163,7 @@ pub unsafe trait IsObject {
 }
 
 unsafe impl IsObject for Object {
-    const TYPE_KEY: &'static str = "Object";
+    const TYPE_KEY: &'static str = "runtime.Object";
 
     fn as_object<'s>(&'s self) -> &'s Object {
         self
@@ -231,20 +231,20 @@ impl<T: IsObject> ObjectPtr<T> {
         // ABI compatible atomics is funky/hard.
         self.as_object()
             .ref_count
-            .load(std::sync::atomic::Ordering::SeqCst)
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     fn as_object<'s>(&'s self) -> &'s Object {
         unsafe { self.ptr.as_ref().as_object() }
     }
 
-    pub fn upcast(&self) -> ObjectPtr<Object> {
+    pub fn upcast(self) -> ObjectPtr<Object> {
         ObjectPtr {
             ptr: self.ptr.cast(),
         }
     }
 
-    pub fn downcast<U: IsObject>(&self) -> Result<ObjectPtr<U>, Error> {
+    pub fn downcast<U: IsObject>(self) -> Result<ObjectPtr<U>, Error> {
         let child_index = Object::get_type_index::<U>();
         let object_index = self.as_object().type_index;
 
@@ -256,8 +256,9 @@ impl<T: IsObject> ObjectPtr<T> {
         };
 
         if is_derived {
+            // NB: self gets dropped here causng a dec ref which we need to migtigate with an inc ref before it is dropped.
+            inc_ref(self.ptr);
             let ptr = self.ptr.cast();
-            inc_ref(ptr);
             Ok(ObjectPtr { ptr })
         } else {
             Err(Error::downcast("TODOget_type_key".into(), U::TYPE_KEY))
@@ -276,7 +277,8 @@ impl<T: IsObject> std::ops::Deref for ObjectPtr<T> {
 impl<'a, T: IsObject> From<ObjectPtr<T>> for RetValue {
     fn from(object_ptr: ObjectPtr<T>) -> RetValue {
         let raw_object_ptr = ObjectPtr::leak(object_ptr);
-        let void_ptr = unsafe { std::mem::transmute(raw_object_ptr) };
+        let void_ptr: *mut std::ffi::c_void = unsafe { std::mem::transmute(raw_object_ptr) };
+        assert!(!void_ptr.is_null());
         RetValue::ObjectHandle(void_ptr)
     }
 }
@@ -302,7 +304,8 @@ impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
         debug_assert!(object_ptr.count() >= 1);
         let raw_object_ptr = ObjectPtr::leak(object_ptr);
 
-        let void_ptr = unsafe { std::mem::transmute(raw_object_ptr) };
+        let void_ptr: *mut std::ffi::c_void = unsafe { std::mem::transmute(raw_object_ptr) };
+        assert!(!void_ptr.is_null());
         ArgValue::ObjectHandle(void_ptr)
     }
 }
@@ -316,6 +319,7 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
                 let handle = unsafe { std::mem::transmute(handle) };
                 let optr = ObjectPtr::from_raw(handle).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
+                println!("count: {}", optr.count());
                 optr.downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
@@ -339,8 +343,18 @@ mod tests {
     }
 
     #[test]
+    fn test_leak() -> anyhow::Result<()> {
+        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        assert_eq!(ptr.count(), 1);
+        let object = ObjectPtr::leak(ptr);
+        assert_eq!(object.count(), 1);
+        Ok(())
+    }
+
+    #[test]
     fn roundtrip_retvalue() -> Result<()> {
         let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        assert_eq!(ptr.count(), 1);
         let ret_value: RetValue = ptr.clone().into();
         let ptr2: ObjectPtr<Object> = ret_value.try_into()?;
         assert_eq!(ptr.count(), ptr2.count());
@@ -353,14 +367,22 @@ mod tests {
             ptr.fdeleter == ptr2.fdeleter,
             "objects have different deleters"
         );
+        // After dropping the second pointer we should only see only refcount.
+        drop(ptr2);
+        assert_eq!(ptr.count(), 1);
         Ok(())
     }
 
     #[test]
     fn roundtrip_argvalue() -> Result<()> {
         let ptr = ObjectPtr::new(Object::base_object::<Object>());
-        let arg_value: ArgValue = ptr.clone().into();
+        assert_eq!(ptr.count(), 1);
+        let ptr_clone = ptr.clone();
+        assert_eq!(ptr.count(), 2);
+        let arg_value: ArgValue = ptr_clone.into();
+        assert_eq!(ptr.count(), 2);
         let ptr2: ObjectPtr<Object> = arg_value.try_into()?;
+        assert_eq!(ptr2.count(), 2);
         assert_eq!(ptr.count(), ptr2.count());
         assert_eq!(ptr.count(), 2);
         ensure!(
@@ -371,12 +393,15 @@ mod tests {
             ptr.fdeleter == ptr2.fdeleter,
             "objects have different deleters"
         );
+        // After dropping the second pointer we should only see only refcount.
+        drop(ptr2);
+        assert_eq!(ptr.count(), 1);
         Ok(())
     }
 
     fn test_fn(o: ObjectPtr<Object>) -> ObjectPtr<Object> {
         // The call machinery adds at least 1 extra count while inside the call.
-        // assert_eq!(o.count(), 3);
+        assert_eq!(o.count(), 3);
         return o;
     }
 
@@ -394,9 +419,10 @@ mod tests {
         let func = Function::get("my_func").unwrap();
         let func = func.to_boxed_fn::<dyn Fn(ObjectPtr<Object>) -> Result<ObjectPtr<Object>>>();
         let same = func(ptr).unwrap();
-        assert_eq!(stay.count(), 2);
-        assert_eq!(same.count(), 2);
+        drop(func);
+        assert_eq!(stay.count(), 4);
+        assert_eq!(same.count(), 4);
         drop(same);
-        assert_eq!(stay.count(), 1);
+        assert_eq!(stay.count(), 3);
     }
 }
