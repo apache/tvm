@@ -1166,14 +1166,6 @@ class HardSigmoid(OnnxOpConverter):
         attr = {'a_min': 0, 'a_max': 1}
         return AttrCvt('clip')([transformX], attr)
 
-class Softsign(OnnxOpConverter):
-    """ Operator converter for Softsign.
-    """
-    @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        x = inputs[0]
-        return x / (1 + _op.abs(x))
-
 class Reduce(OnnxOpConverter):
     """ Operator converter for reduce ops.
     """
@@ -1537,7 +1529,7 @@ class RNN(OnnxOpConverter):
             "HardSigmoid",
         ]
         return activation.decode("utf-8") in needs_beta
-    
+
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
         if cls.name == 'LSTM':
@@ -1545,7 +1537,8 @@ class RNN(OnnxOpConverter):
         elif cls.name == 'GRU':
             return cls.gru(inputs, attr, params)
         else:
-            raise NotImplementedError("%s RNNs are not yet supported." % cls.name)
+            raise NotImplementedError("%s RNNs are not yet supported." %
+                                      cls.name)
 
     @classmethod
     def lstm(cls, inputs, attr, params):
@@ -1596,7 +1589,8 @@ class RNN(OnnxOpConverter):
         if 'activations' in attr:
             activations = attr['activations']
             if len(activations) != 3:
-                raise NotImplementedError("LSTM assumes 3 activation functions are provided")
+                raise NotImplementedError(
+                    "LSTM assumes 3 activation functions are provided")
             alpha_loc = 0
             alphas = attr.get('activation_alpha', [])
             if isinstance(alphas, float):
@@ -1610,10 +1604,12 @@ class RNN(OnnxOpConverter):
                 alpha = None
                 beta = None
                 activation = activations[i]
-                if cls._activation_needs_alpha(activation) and len(alphas) > alpha_loc:
+                if cls._activation_needs_alpha(
+                        activation) and len(alphas) > alpha_loc:
                     alpha = alphas[alpha_loc]
                     alpha_loc += 1
-                if cls._activation_needs_beta(activation) and len(betas) > beta_loc:
+                if cls._activation_needs_beta(
+                        activation) and len(betas) > beta_loc:
                     beta = betas[beta_loc]
                     beta_loc += 1
                 acts.append(cls._activation_helper(activation, alpha, beta))
@@ -1696,7 +1692,8 @@ class RNN(OnnxOpConverter):
         if 'activations' in attr:
             activations = attr['activations']
             if len(activations) != 2:
-                raise NotImplementedError("GRU assumes 2 activation functions are provided")
+                raise NotImplementedError(
+                    "GRU assumes 2 activation functions are provided")
             alpha_loc = 0
             alphas = attr.get('activation_alpha', [])
             if isinstance(alphas, float):
@@ -1710,10 +1707,12 @@ class RNN(OnnxOpConverter):
                 alpha = None
                 beta = None
                 activation = activations[i]
-                if cls._activation_needs_alpha(activation) and len(alphas) > alpha_loc:
+                if cls._activation_needs_alpha(
+                        activation) and len(alphas) > alpha_loc:
                     alpha = alphas[alpha_loc]
                     alpha_loc += 1
-                if cls._activation_needs_beta(activation) and len(betas) > beta_loc:
+                if cls._activation_needs_beta(
+                        activation) and len(betas) > beta_loc:
                     beta = betas[beta_loc]
                     beta_loc += 1
                 acts.append(cls._activation_helper(activation, alpha, beta))
@@ -1960,7 +1959,6 @@ def _get_convert_map(opset):
         'PRelu': Prelu.get_converter(opset),
         'Sigmoid': Renamer('sigmoid'),
         'HardSigmoid': HardSigmoid.get_converter(opset),
-        'Softsign': Softsign.get_converter(opset),
         'Max': Maximum.get_converter(opset),
         'Min': Minimum.get_converter(opset),
         'Sum': Sum.get_converter(opset),
