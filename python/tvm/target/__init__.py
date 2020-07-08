@@ -26,7 +26,7 @@ The list of options include:
 
    The device name.
 
-- **-mtriple=<target triple>** or **-target**
+- **-mtriple=<target triple>**
 
    Specify the target triple, which is useful for cross
    compilation.

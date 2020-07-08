@@ -23,6 +23,8 @@
  */
 #include <tvm/target/target_id.h>
 
+#include <algorithm>
+
 #include "../node/attr_registry.h"
 #include "../runtime/object_internal.h"
 
@@ -57,7 +59,8 @@ const TargetId& TargetId::Get(const String& target_id_name) {
   return reg->id_;
 }
 
-void VerifyTypeInfo(const ObjectRef& obj, const TargetIdNode::ValueTypeInfo& info) {
+void TargetIdNode::VerifyTypeInfo(const ObjectRef& obj,
+                                  const TargetIdNode::ValueTypeInfo& info) const {
   CHECK(obj.defined()) << "Object is None";
   if (!runtime::ObjectInternal::DerivedFrom(obj.get(), info.type_index)) {
     LOG(FATAL) << "AttributeError: expect type \"" << info.type_key << "\" but get "
@@ -205,8 +208,30 @@ static inline ObjectRef ParseScalar(uint32_t type_index, const std::string& str)
   return ObjectRef(nullptr);
 }
 
-Map<String, ObjectRef> TargetIdNode::ParseAttrsFromRawString(
-    const std::vector<std::string>& options) {
+static inline Optional<String> StringifyScalar(const ObjectRef& obj) {
+  if (const auto* p = obj.as<IntImmNode>()) {
+    return String(std::to_string(p->value));
+  }
+  if (const auto* p = obj.as<StringObj>()) {
+    return GetRef<String>(p);
+  }
+  return NullOpt;
+}
+
+static inline Optional<String> Join(const std::vector<String>& array, char separator) {
+  if (array.empty()) {
+    return NullOpt;
+  }
+  std::ostringstream os;
+  os << array[0];
+  for (size_t i = 1; i < array.size(); ++i) {
+    os << separator << array[i];
+  }
+  return String(os.str());
+}
+
+Map<String, ObjectRef> TargetIdNode::ParseAttrsFromRaw(
+    const std::vector<std::string>& options) const {
   std::unordered_map<String, ObjectRef> attrs;
   for (size_t iter = 0, end = options.size(); iter < end;) {
     std::string s = options[iter++];
@@ -245,6 +270,9 @@ Map<String, ObjectRef> TargetIdNode::ParseAttrsFromRawString(
       }
       LOG(FATAL) << os.str();
     }
+    // check if `name` has been set once
+    CHECK(!attrs.count(name)) << "AttributeError: key \"" << name
+                              << "\" appears more than once in the target string";
     // then `name` is valid, let's parse them
     // only several types are supported when parsing raw string
     const auto& info = it->second;
@@ -285,6 +313,39 @@ Map<String, ObjectRef> TargetIdNode::ParseAttrsFromRawString(
   return attrs;
 }
 
+Optional<String> TargetIdNode::StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) const {
+  std::ostringstream os;
+  std::vector<String> keys;
+  for (const auto& kv : attrs) {
+    keys.push_back(kv.first);
+  }
+  std::sort(keys.begin(), keys.end());
+  std::vector<String> result;
+  for (const auto& key : keys) {
+    const ObjectRef& obj = attrs[key];
+    Optional<String> value = NullOpt;
+    if (const auto* array = obj.as<ArrayNode>()) {
+      std::vector<String> items;
+      for (const ObjectRef& item : *array) {
+        Optional<String> str = StringifyScalar(item);
+        if (str.defined()) {
+          items.push_back(str.value());
+        } else {
+          items.clear();
+          break;
+        }
+      }
+      value = Join(items, ',');
+    } else {
+      value = StringifyScalar(obj);
+    }
+    if (value.defined()) {
+      result.push_back("-" + key + "=" + value.value());
+    }
+  }
+  return Join(result, ' ');
+}
+
 // TODO(@junrushao1994): remove some redundant attributes
 
 TVM_REGISTER_TARGET_ID("llvm")
@@ -294,9 +355,8 @@ TVM_REGISTER_TARGET_ID("llvm")
     .add_attr_option<String>("model")
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<String>("mcpu")
-    .add_attr_option<String>("mattr")
+    .add_attr_option<Array<String>>("mattr")
     .add_attr_option<String>("mtriple")
-    .add_attr_option<String>("target")  // FIXME: rename to mtriple
     .set_default_keys({"cpu"})
     .set_device_type(kDLCPU);
 

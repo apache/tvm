@@ -52,7 +52,7 @@ key = "iphone"
 #sdk = "iphonesimulator"
 arch = "arm64"
 sdk = "iphoneos"
-target_host = "llvm -target=%s-apple-darwin" % arch
+target_host = "llvm -mtriple=%s-apple-darwin" % arch
 
 # override metal compiler to compile to iphone
 @tvm.register_func("tvm_callback_metal_compile")
