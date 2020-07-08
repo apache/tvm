@@ -43,6 +43,10 @@ class LegalizeLayoutTranform(ExprMutator):
                 return relay.transpose(visit.args[0], axes=[0, 2, 3, 1])
             elif src_layout == "NHWC" and dst_layout == "NCHW":
                 return relay.transpose(visit.args[0], axes=[0, 3, 1, 2])
+            elif src_layout == "NDHWC" and dst_layout == "NCDHW":
+                return relay.transpose(visit.args[0], axes=[0, 4, 1, 2, 3])
+            elif src_layout == "NCDHW" and dst_layout == "NDHWC":
+                return relay.transpose(visit.args[0], axes=[0, 2, 3, 4, 1])
             elif src_layout == "HWIO" and dst_layout == "OIHW":
                 return relay.transpose(visit.args[0], axes=[3, 2, 0, 1])
             elif src_layout == "HWOI" and dst_layout == "OIHW":
@@ -492,6 +496,76 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
         # TODO(trevmorr): Output does not match TVM. Disable.
         return False
 
+    @tvm.ir.register_op_attr("nn.conv3d", "target.tensorrt")
+    def conv3d_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if trt_version < (6, 0, 1):
+            print("nn.conv3d: requires TensorRT version 6.0.1 or higher.")
+            return False
+        if attrs.data_layout != "NCDHW":
+            print("nn.conv3d: data_layout is {} but must be NCDHW.".format(attrs.data_layout))
+            return False
+        if attrs.kernel_layout != "OIDHW":
+            print("nn.conv3d: kernel_layout is {} but must be OIDHW.".format(attrs.kernel_layout))
+            return False
+        if attrs.out_layout and attrs.out_layout != "NCDHW":
+            print("nn.conv3d: out_layout is {} but must be NCDHW.".format(attrs.out_layout))
+            return False
+        return True
+
+    @tvm.ir.register_op_attr("nn.max_pool3d", "target.tensorrt")
+    def max_pool_3d_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if trt_version < (6, 0, 1):
+            print("nn.max_pool3d: requires TensorRT version 6.0.1 or higher.")
+            return False
+        if attrs.layout != "NCDHW":
+            print("nn.max_pool3d: layout is {} but must be NCDHW.".format(attrs.layout))
+            return False
+        return True
+
+    @tvm.ir.register_op_attr("nn.avg_pool3d", "target.tensorrt")
+    def avg_pool_3d_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if trt_version < (6, 0, 1):
+            print("nn.avg_pool3d: requires TensorRT version 6.0.1 or higher.")
+            return False
+        if attrs.layout != "NCDHW":
+            print("nn.avg_pool3d: layout is {} but must be NCDHW.".format(attrs.layout))
+            return False
+        return True
+
+    @tvm.ir.register_op_attr("nn.conv3d_transpose", "target.tensorrt")
+    def conv3d_transpose_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if attrs.data_layout != "NCDHW":
+            print("nn.conv3d_transpose: data_layout is {} but must be NCDHW.".format(
+                attrs.data_layout))
+            return False
+        if attrs.kernel_layout != "OIDHW":
+            print("nn.conv3d_transpose: kernel_layout is {} but must be OIDHW.".format(
+                attrs.kernel_layout))
+            return False
+        if attrs.out_layout and attrs.out_layout != "NCDHW":
+            print("nn.conv3d_transpose: out_layout is {} but must be NCDHW.".format(
+                attrs.out_layout))
+            return False
+        if attrs.dilation and any([rate != 1 for rate in map(int, attrs.dilation)]):
+            print("nn.conv3d_transpose: dilation rate must be 1.")
+            return False
+        if attrs.output_padding and any([x != 0 for x in map(int, attrs.output_padding)]):
+            print("nn.conv3d_transpose: output padding is not supported.")
+            return False
+        return True
+
 class VarReplacer(ExprMutator):
     """
     Visit an expression while replacing vars according to var_map. Used by
@@ -680,7 +754,8 @@ def EnableTrt(mod, params=None, trt_version=None, use_implicit_batch=True,
                                     SimplifySliceLikePass(),
                                     RemoveDropoutPass(),
                                     transform.RemoveUnusedFunctions(),
-                                    transform.ConvertLayout({'nn.conv2d': ['NCHW', 'default']}),
+                                    transform.ConvertLayout({'nn.conv2d': ['NCHW', 'default'],
+                                                             'nn.conv3d': ['NCDHW', 'default']}),
                                     transform.FoldConstant(),
                                     LegalizeLayoutTranformPass(),
                                     transform.AnnotateTarget('tensorrt'),

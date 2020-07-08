@@ -327,6 +327,29 @@ def test_tensorrt_ops():
         f = relay.Function([x, y], out)
         return f, {'x': (1, 3), 'y': (1, 3)}, []
 
+    def test_conv3d(x_shape=(1, 32, 8, 8, 8), k_shape=(16, 32, 3, 3, 3), groups=1, padding=(0, 0, 0), strides=(1, 1, 1), dilation=(1, 1, 1)):
+        x = relay.var('x', shape=(x_shape), dtype='float32')
+        kernel = relay.var('kernel', shape=(k_shape), dtype='float32')
+        out = relay.nn.conv3d(x, kernel, channels=k_shape[0], kernel_size=k_shape[2:], groups=groups, padding=padding, strides=strides, dilation=dilation)
+        f = relay.Function([x, kernel], out)
+        return f, {'x': x_shape, 'kernel': k_shape}, ['kernel']
+
+    def test_pool3d(op, x_shape=(1, 3, 8, 32, 32), pool_size=(2, 2, 2), strides=(2, 2, 2), padding=(0, 0, 0), ceil_mode=False, count_include_pad=None):
+        x = relay.var('x', shape=(x_shape), dtype='float32')
+        if count_include_pad is not None:
+            out = op(x, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode, count_include_pad=count_include_pad)
+        else:
+            out = op(x, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode)
+        f = relay.Function([x], out)
+        return f, {'x': x_shape}, []
+
+    def test_conv3d_transpose(x_shape=(1, 32, 8, 8, 8), k_shape=(32, 16, 3, 3, 3), groups=1, padding=(0, 0, 0), strides=(1, 1, 1), output_padding=(0, 0, 0)):
+        x = relay.var('x', shape=(x_shape), dtype='float32')
+        kernel = relay.var('kernel', shape=(k_shape), dtype='float32')
+        out = relay.nn.conv3d_transpose(x, kernel, channels=k_shape[1], kernel_size=k_shape[2:5], groups=groups, padding=padding, strides=strides, output_padding=output_padding)
+        f = relay.Function([x, kernel], out)
+        return f, {'x': x_shape, 'kernel': k_shape}, ['kernel']
+
     run_and_verify(test_float_const())
     run_and_verify(test_multiple_outputs())
     run_and_verify(test_clip())
@@ -411,6 +434,15 @@ def test_tensorrt_ops():
     #             for coordinate_transformation_mode in ['asymmetric']:
     #                 # TODO(trevmorr): 'align_corners' gives incorrect results. 'half_pixel' not supported?
     #                 run_and_verify(test_resize(x_shape, out_size, layout, method, coordinate_transformation_mode))
+    run_and_verify(test_conv3d())
+    run_and_verify(test_conv3d(padding=(0, 0, 0, 1, 1, 1)))
+    run_and_verify(test_pool3d(relay.nn.avg_pool3d))
+    run_and_verify(test_pool3d(relay.nn.max_pool3d))
+    run_and_verify(test_pool3d(relay.nn.max_pool3d, padding=(0, 0, 0, 1, 1, 1)))
+    run_and_verify(test_pool3d(relay.nn.max_pool3d, strides=(1, 1, 1)))
+    run_and_verify(test_conv3d_transpose())
+    # Verify that op is not converted because output_padding isn't supported by TRT.
+    run_and_verify(test_conv3d_transpose(output_padding=(1, 1, 1, 1, 1, 1)))
 
 def test_tensorrt_integration(test_all_models=False):
     if should_skip():

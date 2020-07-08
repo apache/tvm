@@ -220,15 +220,49 @@ class TrtOpConverter {
       // two int : bottom, right will use same padding as top, left
       *prepadding =
           nvinfer1::DimsHW(padding[0].as<IntImmNode>()->value, padding[1].as<IntImmNode>()->value);
-      *postpadding =
-          nvinfer1::DimsHW(padding[0].as<IntImmNode>()->value, padding[1].as<IntImmNode>()->value);
+      *postpadding = *prepadding;
       *use_asymmetric_padding = false;
     } else {
       // one int : same padding used on all sides
       *prepadding =
           nvinfer1::DimsHW(padding[0].as<IntImmNode>()->value, padding[0].as<IntImmNode>()->value);
+      *postpadding = *prepadding;
+      *use_asymmetric_padding = false;
+    }
+  }
+
+  /*!
+   * \brief Get pre/post padding values from padding attributes array for volumetric ops.
+   * \param padding Padding from relay op attributes.
+   * \param padding_is_asymmetric True if both pre and post are needed for asymmetric padding.
+   * \param prepadding Prepadding value or symmetric padding values if !padding_is_asymmetric.
+   * \param postpadding Postpadding value if padding_is_asymmetric.
+   */
+  void GetPadding3D(const Array<IndexExpr>& padding, bool* use_asymmetric_padding,
+                    nvinfer1::Dims* prepadding, nvinfer1::Dims* postpadding) const {
+    CHECK(padding.size() == 1 || padding.size() == 3 || padding.size() == 6);
+    if (padding.size() == 6) {
+      // six int : padding width in the order of (front, top, left, back, bottom, right)
+      *prepadding =
+          nvinfer1::Dims3(padding[0].as<IntImmNode>()->value, padding[1].as<IntImmNode>()->value,
+                          padding[2].as<IntImmNode>()->value);
       *postpadding =
-          nvinfer1::DimsHW(padding[0].as<IntImmNode>()->value, padding[0].as<IntImmNode>()->value);
+          nvinfer1::Dims3(padding[3].as<IntImmNode>()->value, padding[4].as<IntImmNode>()->value,
+                          padding[5].as<IntImmNode>()->value);
+      *use_asymmetric_padding = true;
+    } else if (padding.size() == 3) {
+      // three int : back, bottom, right will use same padding as front, top, left
+      *prepadding =
+          nvinfer1::Dims3(padding[0].as<IntImmNode>()->value, padding[1].as<IntImmNode>()->value,
+                          padding[2].as<IntImmNode>()->value);
+      *postpadding = *prepadding;
+      *use_asymmetric_padding = false;
+    } else {
+      // one int : same padding used on all sides
+      *prepadding =
+          nvinfer1::Dims3(padding[0].as<IntImmNode>()->value, padding[0].as<IntImmNode>()->value,
+                          padding[0].as<IntImmNode>()->value);
+      *postpadding = *prepadding;
       *use_asymmetric_padding = false;
     }
   }
@@ -396,6 +430,53 @@ class Conv2DOpConverter : public TrtOpConverter {
     params->outputs.push_back(conv_layer->getOutput(0));
   }
 };
+
+#if TRT_VERSION_GE(6, 0, 1)
+class Conv3DOpConverter : public TrtOpConverter {
+ public:
+  Conv3DOpConverter() : TrtOpConverter({kTensor, kWeight}) {}
+
+  void Convert(AddTrtLayerParams* params) const {
+    auto input_tensor = params->inputs.at(0).tensor;
+    auto input_dims = TrtDimsToVector(input_tensor->getDimensions());
+    auto weight_shape = params->inputs.at(1).weight_shape;
+    const auto* attrs = params->call->attrs.as<Conv3DAttrs>();
+    CHECK_EQ(attrs->data_layout, "NCDHW");
+    CHECK(attrs->out_layout == "" || attrs->out_layout == "NCDHW");
+    CHECK_EQ(attrs->kernel_layout, "OIDHW");
+
+    nvinfer1::Dims prepadding, postpadding;
+    bool use_asymmetric_padding;
+    GetPadding3D(attrs->padding, &use_asymmetric_padding, &prepadding, &postpadding);
+
+    // Could use attrs->channels.as<IntImmNode>()->value
+    const int num_outputs = weight_shape[0];
+    const auto kernel_size = nvinfer1::Dims3(weight_shape[2], weight_shape[3], weight_shape[4]);
+    nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
+    auto conv_layer = params->network->addConvolutionNd(*input_tensor, num_outputs, kernel_size,
+                                                        params->inputs.at(1).weight, bias);
+    CHECK(conv_layer != nullptr);
+    if (use_asymmetric_padding) {
+      conv_layer->setPrePadding(prepadding);
+      conv_layer->setPostPadding(postpadding);
+    } else {
+      conv_layer->setPaddingNd(prepadding);
+    }
+    CHECK_EQ(attrs->strides.size(), 3);
+    const auto strides = nvinfer1::Dims3(attrs->strides[0].as<IntImmNode>()->value,
+                                         attrs->strides[1].as<IntImmNode>()->value,
+                                         attrs->strides[2].as<IntImmNode>()->value);
+    conv_layer->setStrideNd(strides);
+    CHECK_EQ(attrs->dilation.size(), 3);
+    const auto dilation = nvinfer1::Dims3(attrs->dilation[0].as<IntImmNode>()->value,
+                                          attrs->dilation[1].as<IntImmNode>()->value,
+                                          attrs->dilation[2].as<IntImmNode>()->value);
+    conv_layer->setDilationNd(dilation);
+    conv_layer->setNbGroups(attrs->groups);
+    params->outputs.push_back(conv_layer->getOutput(0));
+  }
+};
+#endif  // TRT_VERSION_GE(6, 0, 1)
 
 // Using FullyConnected
 class DenseOpConverter : public TrtOpConverter {
@@ -603,6 +684,74 @@ class PoolingOpConverter : public TrtOpConverter {
     params->outputs.push_back(pool_layer->getOutput(0));
   }
 };
+
+#if TRT_VERSION_GE(6, 0, 1)
+class Pooling3DOpConverter : public TrtOpConverter {
+ public:
+  Pooling3DOpConverter() : TrtOpConverter({kTensor}) {}
+
+  // Get attributes from MaxPool2DAttrs or AvgPool2DAttrs. If
+  // use_assymetric_padding is false, symmetric padding values will be returned
+  // in prepadding only.
+  template <class PoolAttrs>
+  void GetPoolAttrs(const PoolAttrs* attrs, nvinfer1::Dims* prepadding, nvinfer1::Dims* postpadding,
+                    nvinfer1::Dims* window_size, nvinfer1::Dims* strides, bool* ceil_mode,
+                    bool* use_asymmetric_padding) const {
+    CHECK_EQ(attrs->layout, "NCDHW");
+    GetPadding3D(attrs->padding, use_asymmetric_padding, prepadding, postpadding);
+    *window_size = nvinfer1::Dims3(attrs->pool_size[0].template as<IntImmNode>()->value,
+                                   attrs->pool_size[1].template as<IntImmNode>()->value,
+                                   attrs->pool_size[2].template as<IntImmNode>()->value);
+    *strides = nvinfer1::Dims3(attrs->strides[0].template as<IntImmNode>()->value,
+                               attrs->strides[1].template as<IntImmNode>()->value,
+                               attrs->strides[2].template as<IntImmNode>()->value);
+    *ceil_mode = attrs->ceil_mode;
+  }
+
+  void Convert(AddTrtLayerParams* params) const {
+    auto input = params->inputs.at(0).tensor;
+    static const std::unordered_map<std::string, nvinfer1::PoolingType> op_map = {
+        {"nn.max_pool3d", nvinfer1::PoolingType::kMAX},
+        {"nn.avg_pool3d", nvinfer1::PoolingType::kAVERAGE}};
+    auto it = op_map.find(params->op_name);
+    CHECK(it != op_map.end()) << "Unsupported pooling type " << params->op_name << " in TensorRT";
+
+    nvinfer1::Dims prepadding, postpadding, window_size, strides;
+    bool use_asymmetric_padding = false, ceil_mode = false, count_include_pad = true;
+    if (params->op_name == "nn.max_pool3d") {
+      const auto* attrs = params->call->attrs.as<MaxPool3DAttrs>();
+      GetPoolAttrs<MaxPool3DAttrs>(attrs, &prepadding, &postpadding, &window_size, &strides,
+                                   &ceil_mode, &use_asymmetric_padding);
+    } else if (params->op_name == "nn.avg_pool3d") {
+      const auto* attrs = params->call->attrs.as<AvgPool3DAttrs>();
+      count_include_pad = attrs->count_include_pad;
+      GetPoolAttrs<AvgPool3DAttrs>(attrs, &prepadding, &postpadding, &window_size, &strides,
+                                   &ceil_mode, &use_asymmetric_padding);
+    }
+    auto pool_layer = params->network->addPoolingNd(*input, it->second, window_size);
+    CHECK(pool_layer != nullptr);
+    pool_layer->setStrideNd(strides);
+    if (use_asymmetric_padding) {
+      pool_layer->setPrePadding(prepadding);
+      pool_layer->setPostPadding(postpadding);
+    } else {
+      pool_layer->setPaddingNd(prepadding);
+    }
+    if (params->op_name == "nn.avg_pool3d") {
+      // count_include_pad=True is useless if there is no padding. TRT doesn't
+      // like count_include_pad in combination with strides even when there is
+      // no padding or assymetric padding even, so turn off inclusive to avoid
+      // error message. Note: Padding will always be symmetric with
+      // count_include_pad since partitioner will prevent unsupported case.
+      pool_layer->setAverageCountExcludesPadding(!count_include_pad);
+    }
+    if (ceil_mode) {
+      pool_layer->setPaddingMode(nvinfer1::PaddingMode::kEXPLICIT_ROUND_UP);
+    }
+    params->outputs.push_back(pool_layer->getOutput(0));
+  }
+};
+#endif  // TRT_VERSION_GE(6, 0, 1)
 
 class GlobalPoolingOpConverter : public TrtOpConverter {
  public:
@@ -814,6 +963,64 @@ class Conv2DTransposeOpConverter : public TrtOpConverter {
     params->outputs.push_back(output);
   }
 };
+
+#if TRT_VERSION_GE(6, 0, 1)
+class Conv3DTransposeOpConverter : public TrtOpConverter {
+ public:
+  Conv3DTransposeOpConverter() : TrtOpConverter({kTensor, kWeight}) {}
+
+  void Convert(AddTrtLayerParams* params) const {
+    auto input_tensor = params->inputs.at(0).tensor;
+    auto weight_shape = params->inputs.at(1).weight_shape;
+    const auto* attrs = params->call->attrs.as<Conv3DTransposeAttrs>();
+    CHECK_EQ(attrs->data_layout, "NCDHW");
+    CHECK(attrs->out_layout == "" || attrs->out_layout == "NCDHW");
+    CHECK_EQ(attrs->kernel_layout, "OIDHW");
+    CHECK(attrs->dilation[0].as<IntImmNode>()->value == 1 &&
+          attrs->dilation[1].as<IntImmNode>()->value == 1 &&
+          attrs->dilation[2].as<IntImmNode>()->value == 1);
+
+    nvinfer1::Dims prepadding, postpadding;
+    bool use_asymmetric_padding;
+    GetPadding3D(attrs->padding, &use_asymmetric_padding, &prepadding, &postpadding);
+
+    // Could use attrs->channels.as<IntImmNode>()->value
+    const int num_outputs = weight_shape[1];
+    const auto kernel_size = nvinfer1::Dims3(weight_shape[2], weight_shape[3], weight_shape[4]);
+    nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
+    auto deconv_layer = params->network->addDeconvolutionNd(*input_tensor, num_outputs, kernel_size,
+                                                            params->inputs.at(1).weight, bias);
+    CHECK(deconv_layer != nullptr);
+    if (use_asymmetric_padding) {
+      deconv_layer->setPrePadding(prepadding);
+      deconv_layer->setPostPadding(postpadding);
+    } else {
+      deconv_layer->setPaddingNd(prepadding);
+    }
+    const auto strides = nvinfer1::Dims3(attrs->strides[0].as<IntImmNode>()->value,
+                                         attrs->strides[1].as<IntImmNode>()->value,
+                                         attrs->strides[2].as<IntImmNode>()->value);
+    deconv_layer->setStrideNd(strides);
+    deconv_layer->setNbGroups(attrs->groups);
+    nvinfer1::ITensor* output = deconv_layer->getOutput(0);
+    // Output padding.
+    if (attrs->output_padding.size()) {
+      GetPadding3D(attrs->output_padding, &use_asymmetric_padding, &prepadding, &postpadding);
+      // Are any post-padding values non-zero?
+      if (std::any_of(postpadding.d, postpadding.d + postpadding.nbDims,
+                      [](int x) { return x != 0; })) {
+        // TODO(trevmorr): TRT only supports 2-D padding, so this is currently not supported.
+        CHECK(false) << "TRT does not support padding on 3 dimensions.";
+        // Output padding for Conv2D transpose is always asymmetric and applied to post only.
+        prepadding = nvinfer1::Dims3(0, 0, 0);
+        auto pad_layer = params->network->addPaddingNd(*output, prepadding, postpadding);
+        output = pad_layer->getOutput(0);
+      }
+    }
+    params->outputs.push_back(output);
+  }
+};
+#endif  // TRT_VERSION_GE(6, 0, 1)
 
 class TransposeOpConverter : public TrtOpConverter {
  public:
