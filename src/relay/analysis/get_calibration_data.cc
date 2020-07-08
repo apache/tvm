@@ -43,66 +43,91 @@ namespace relay {
  * each function. Finally, we mark all function to be inlined.
  */
 
-IRModule GetCalibrateModule(IRModule module) {
-  class Collector : public ExprRewriter {
-   public:
-    explicit Collector(const Map<GlobalVar, BaseFunc>& glob_funcs) : glob_funcs_(glob_funcs) {}
+class Collector : public ExprRewriter {
+ public:
+  explicit Collector(const IRModule& module) { glob_funcs_ = module->functions; }
 
-    Expr Rewrite_(const CallNode* call, const Expr& post) final {
-      // check if the function implementation is available
-      // intrinsic functions are excluded for now
-      if (call->op->IsInstance<GlobalVarNode>()) {
-        auto var = Downcast<GlobalVar>(call->op);
-        CHECK_GT(glob_funcs_.count(var), 0) << "Function " << var << " is not defined";
-        for (size_t i = 0; i < call->args.size(); i++) new_outputs_.push_back(call->args[i]);
-        // need to flatten the output if it is a tuple
-        auto* fn = glob_funcs_[var].as<FunctionNode>();
-        if (auto* tn = fn->body.as<TupleNode>()) {
-          for (size_t i = 0; i < tn->fields.size(); i++) {
-            new_outputs_.push_back(TupleGetItem(post, i));
+  Expr Rewrite_(const CallNode* call, const Expr& post) final {
+    // check if the function implementation is available
+    // intrinsic functions are excluded for now
+    if (call->op->IsInstance<GlobalVarNode>()) {
+      auto var = Downcast<GlobalVar>(call->op);
+      CHECK_GT(glob_funcs_.count(var), 0) << "Function " << var << " is not defined";
+      // we only handle functions with Compiler attribute set
+      auto* fn = glob_funcs_[var].as<FunctionNode>();
+      auto func = GetRef<Function>(fn);
+      if (func->GetAttr<String>(attr::kCompiler)) {
+        // collect all the inputs and outputs
+        for (const auto& it : call->args) new_outputs_.push_back(it);
+        new_outputs_.push_back(post);
+      }
+    }
+    return post;
+  }
+
+  Array<Expr> GetNewOutputs() { return new_outputs_; }
+
+ private:
+  Map<GlobalVar, BaseFunc> glob_funcs_;
+  Array<Expr> new_outputs_;
+};
+
+Expr FlattenToTuple(const Array<Expr>& exprs, const IRModule& module) {
+  auto glob_funcs = module->functions;
+  Array<Expr> fields;
+  for (const auto& it : exprs) {
+    bool is_tuple = false;
+    if (auto* cn = it.as<CallNode>()) {
+      if (cn->op.as<GlobalVarNode>()) {
+        if (auto* fn = glob_funcs[Downcast<GlobalVar>(cn->op)].as<FunctionNode>()) {
+          if (auto* tn = fn->body.as<TupleNode>()) {
+            is_tuple = true;
+            for (size_t i = 0; i < tn->fields.size(); i++) {
+              fields.push_back(TupleGetItem(it, i));
+            }
           }
-        } else {
-          new_outputs_.push_back(post);
         }
       }
-      return post;
     }
+    if (!is_tuple) {
+      fields.push_back(it);
+    }
+  }
+  return Tuple(fields);
+}
 
-    Array<Expr> GetNewOutputs() { return new_outputs_; }
-
-   private:
-    const Map<GlobalVar, BaseFunc>& glob_funcs_;
-    Array<Expr> new_outputs_;
-  };
-
+IRModule GetCalibrateModule(IRModule module) {
   auto glob_funcs = module->functions;
   // module is mutable, hence, we make a copy of it.
   module.CopyOnWrite();
   for (const auto& pair : glob_funcs) {
     if (auto* fn = pair.second.as<FunctionNode>()) {
       auto func = GetRef<Function>(fn);
-      auto* gl_var = pair.first.as<GlobalVarNode>();
       // we only collect the outputs for main function
-      if (gl_var->name_hint == "main") {
-        Collector collector(glob_funcs);
+      if (pair.first->name_hint == "main") {
+        Collector collector(module);
         PostOrderRewrite(func->body, &collector);
         auto new_outputs = collector.GetNewOutputs();
         if (!new_outputs.empty()) {
-          Array<Expr> fields;
-          for (const auto& output : new_outputs) {
-            fields.push_back(output);
-          }
-          auto tuple = Tuple(fields);
+          Expr tuple = FlattenToTuple(new_outputs, module);
           func =
               Function(func->params, tuple, tuple->checked_type_, func->type_params, func->attrs);
+          module->Update(pair.first, func);
         }
-      } else {
+      }
+    }
+  }
+  // reset the attribute of functions for running graph runtime
+  for (const auto& pair : glob_funcs) {
+    if (auto* fn = pair.second.as<FunctionNode>()) {
+      auto func = GetRef<Function>(fn);
+      if (func->GetAttr<String>(attr::kCompiler)) {
         // we need to inline the functions in order to run grpah runtime
         func = WithAttr(std::move(func), attr::kInline, tvm::Integer(1));
+        // reset the compiler attribute to null for llvm execution
+        func = WithAttr(std::move(func), attr::kCompiler, NullValue<ObjectRef>());
+        module->Update(pair.first, func);
       }
-      // reset the compiler attribute to null for llvm execution
-      func = WithAttr(std::move(func), attr::kCompiler, NullValue<ObjectRef>());
-      module->Update(pair.first, func);
     }
   }
   return module;
@@ -118,19 +143,23 @@ IRModule GetCalibrateModule(IRModule module) {
  * is the number of outputs.
  */
 
-Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
-  class OutputMapper : public ExprRewriter {
-   public:
-    OutputMapper(Map<GlobalVar, Array<Integer>>* output_map,
-                 const Map<GlobalVar, BaseFunc>& glob_funcs, size_t* offset)
-        : output_map_(output_map), glob_funcs_(glob_funcs), offset_(offset) {}
+class OutputMapper : public ExprRewriter {
+ public:
+  OutputMapper(Map<GlobalVar, Array<Integer>>* output_map, const IRModule& module, size_t* offset)
+      : output_map_(output_map), offset_(offset) {
+    glob_funcs_ = module->functions;
+  }
 
-    Expr Rewrite_(const CallNode* call, const Expr& post) final {
-      if (call->op->IsInstance<GlobalVarNode>()) {
-        auto var = Downcast<GlobalVar>(call->op);
-        CHECK_GT(glob_funcs_.count(var), 0) << "Function " << var << " is not defined";
-        CHECK_EQ(output_map_->count(var), 0)
-            << "Repeated function call " << var << " is not supported.";
+  Expr Rewrite_(const CallNode* call, const Expr& post) final {
+    if (call->op->IsInstance<GlobalVarNode>()) {
+      auto var = Downcast<GlobalVar>(call->op);
+      CHECK_GT(glob_funcs_.count(var), 0) << "Function " << var << " is not defined";
+      CHECK_EQ(output_map_->count(var), 0)
+          << "Repeated function call " << var << " is not supported.";
+      // we only handle functions with Compiler attribute set
+      auto* fn = glob_funcs_[var].as<FunctionNode>();
+      auto func = GetRef<Function>(fn);
+      if (func->GetAttr<String>(attr::kCompiler)) {
         Array<Integer> info;
         // the first value is the offset
         info.push_back(Integer(*offset_));
@@ -150,15 +179,17 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
         // calculate the offset for the next function
         *offset_ = *offset_ + call->args.size() + out_size;
       }
-      return post;
     }
+    return post;
+  }
 
-   private:
-    Map<GlobalVar, Array<Integer>>* output_map_;
-    const Map<GlobalVar, BaseFunc>& glob_funcs_;
-    size_t* offset_;
-  };
+ private:
+  Map<GlobalVar, Array<Integer>>* output_map_;
+  Map<GlobalVar, BaseFunc> glob_funcs_;
+  size_t* offset_;
+};
 
+Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
   Map<GlobalVar, Array<Integer>> output_map;
   size_t offset = 0;
   auto glob_funcs = module->functions;
@@ -166,7 +197,7 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
     if (auto* fn = pair.second.as<FunctionNode>()) {
       auto* gl_var = pair.first.as<GlobalVarNode>();
       if (gl_var->name_hint == "main") {
-        OutputMapper output_mapper(&output_map, glob_funcs, &offset);
+        OutputMapper output_mapper(&output_map, module, &offset);
         auto func = GetRef<Function>(fn);
         PostOrderRewrite(func->body, &output_mapper);
       }

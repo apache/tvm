@@ -44,6 +44,7 @@ def test_simple_graph():
     z1 = x0 - y0
     z2 = relay.Tuple((z0, z1))
     f0 = relay.Function([x0, y0], z2)
+    f0 = f0.with_attr("Compiler", "test_graph")
     g0 = relay.GlobalVar("g0")
     mod[g0] = f0
 
@@ -51,6 +52,7 @@ def test_simple_graph():
     y1 = relay.var('y1', shape=(8, 8))
     z1 = x1 - y1
     f1 = relay.Function([x1, y1], z1)
+    f1 = f1.with_attr("Compiler", "test_graph")
     g1 = relay.GlobalVar("g1")
     mod[g1] = f1
 
