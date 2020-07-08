@@ -265,14 +265,14 @@ bool InitOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Expr MakeZeros(Expr shape, DataType dtype) { 
+Expr MakeZeros(Expr shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("dyn.zeros");
   return Call(op, {shape}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.dyn_make.zeros").set_body_typed(MakeZeros);
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.zeros").set_body_typed(MakeZeros);
 
 RELAY_REGISTER_OP("dyn.zeros")
     .describe(R"code(Fill array with zeros.

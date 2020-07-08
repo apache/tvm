@@ -20,7 +20,8 @@ from tvm.runtime import ndarray as _nd
 from tvm.runtime import TVMContext as _TVMContext
 
 from . import _make
-from ..expr import Tuple, const
+from .dyn import _make as _dyn_make
+from ..expr import Tuple, const, Expr
 
 
 # We create a wrapper function for each operator in the
@@ -940,7 +941,7 @@ def zeros(shape, dtype):
         The resulting tensor.
     """
     if isinstance(shape, Expr):
-        return _dyn.make.zeros(shape, dtype)
+        return _dyn_make.zeros(shape, dtype)
     if isinstance(shape, (list, tuple)):
         shape = const(list(shape), "int32") # change mes
     return _make.zeros(shape, dtype)
@@ -979,7 +980,7 @@ def ones(shape, dtype):
         The resulting tensor.
     """
     if isinstance(shape, Expr):
-        return _dyn.make.ones(shape, dtype)
+        return _dyn_make.ones(shape, dtype)
     if isinstance(shape, (list, tuple)):
         shape = const(list(shape), "int32") # change me
     return _make.ones(shape, dtype)

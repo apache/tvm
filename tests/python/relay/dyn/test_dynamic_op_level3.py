@@ -88,15 +88,25 @@ def test_dyn_tile():
 def test_dyn_zeros_ones():
     def verify_zeros_ones(shape, dtype):
         for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
-            shape = relay.var("x", relay.TensorType(shape, "float32"))
-            y = op(shape, dtype)
+            
+            rank = len(shape)
+            dyn_shape = relay.Var("shape", relay.ty.TensorType((rank,), 'int64'))
+            y = op(dyn_shape, dtype)
             yy = run_infer_type(y)
-            assert yy.checked_type == relay.TensorType(shape, dtype)
-            intrp = create_executor()
-            intrp_res = intrp.evaluate(y).asnumpy()
-            np.testing.assert_allclose(intrp_res, ref(shape, dtype))
-    
-    verify_zeros_ones((124, 50), "float64")
+            assert yy.checked_type == relay.ty.TensorType((relay.Any(),) * rank, dtype)
+
+            func = relay.Function([dyn_shape], y)
+            ref_res = ref(shape, dtype)
+            for target, ctx in ctx_list():
+                if (target != 'cuda'): #skip cuda because no dynamic support for GPU 
+                    for kind in ["vm", "debug"]:
+                        mod = tvm.ir.IRModule.from_expr(func)
+                        intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                        op_res = intrp.evaluate(func)(np.array(shape).astype('int64'))
+                        tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+
+    verify_zeros_ones((124, 50), 'float64')
 
 if __name__ == "__main__":
     test_dyn_reshape()
