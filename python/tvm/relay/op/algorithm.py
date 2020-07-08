@@ -16,10 +16,10 @@
 # under the License.
 """Classic algorithm operation"""
 from __future__ import absolute_import as _abs
+import numpy as np
 from . import _make
 from .dyn import _make as _dyn_make
 from ..expr import TupleWrapper, Expr, Constant
-import numpy as np
 
 def argsort(data, axis=-1, is_ascend=1, dtype="int32"):
     """Performs sorting along the given axis and returns an array of indicies
