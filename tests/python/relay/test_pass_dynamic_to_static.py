@@ -204,7 +204,7 @@ def test_dynamic_to_static_broadcast_to():
     
 def test_dynamic_to_static_zeros_ones():
     def verify_ones_zeros(shape, dtype):
-        for op, ref, op_str in [(relay.zeros, np.zeros, "zeros"), (relay.ones, np.ones, "ones")]:
+        for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
             x = relay.var("x", relay.TensorType(shape, dtype))
             y = op(relay.shape_of(x), dtype)
             
