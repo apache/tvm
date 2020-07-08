@@ -1119,6 +1119,10 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const ShuffleNode* op) {
   }
   llvm::Value* mask = llvm::ConstantDataVector::get(builder_->getContext(), idx);
   auto res = builder_->CreateShuffleVector(v0, llvm::UndefValue::get(v0->getType()), mask);
+  // If the output is a single-element vector, convert it back to a scalar.
+  if (idx.size() == 1) {
+    res = builder_->CreateExtractElement(res, ConstInt32(0));
+  }
   return res;
 }
 
