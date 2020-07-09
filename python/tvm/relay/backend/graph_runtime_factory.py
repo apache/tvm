@@ -18,8 +18,8 @@
 import warnings
 from tvm._ffi.base import string_types
 from tvm._ffi.registry import get_global_func
-from .module import Module
-from . import ndarray
+from tvm.runtime.module import Module
+from tvm.runtime import ndarray
 
 
 def create(graph_json_str, libmod, libmod_name, params):

@@ -19,7 +19,6 @@ from tvm import relay
 from tvm.relay import testing
 import tvm
 from tvm.contrib import graph_runtime
-from tvm.runtime import graph_runtime_factory
 from tvm.contrib.debugger import debug_runtime
 
 def verify(data):
