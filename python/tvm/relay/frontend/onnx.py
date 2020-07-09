@@ -2242,6 +2242,8 @@ class GraphProto(ExprFunctor):
 def from_onnx(model,
               shape=None,
               dtype="float32",
+              big_model=False,
+              model_path=None,
               opset=None):
     """Convert a ONNX model into an equivalent Relay Function.
 
@@ -2263,6 +2265,14 @@ def from_onnx(model,
     dtype : str or dict of str to str
         The input types to the graph
 
+    big_model : bool
+        Whether the size of the input model is larger than 2GB
+
+    model_path : str, optional
+        The path of input model, and the external data
+        files need under the same directory
+        Must be set if 'big_model' is True
+
     opset : int, optional
         Override to autodetected opset.
         This can be helpful for some testing.
@@ -2280,7 +2290,11 @@ def from_onnx(model,
         if hasattr(onnx.checker, 'check_model'):
             # try use onnx's own model checker before converting any model
             try:
-                onnx.checker.check_model(model)
+                if not big_model:
+                    onnx.checker.check_model(model)
+                if big_model:
+                    onnx.checker.check_model(model_path)
+                    # onnx.checker.check_model(model) will fail if model's size > 2GB
             except onnx.onnx_cpp2py_export.checker.ValidationError as e:
                 import warnings
                 # the checker is a bit violent about errors, so simply print warnings here
