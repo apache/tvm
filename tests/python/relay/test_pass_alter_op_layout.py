@@ -1078,7 +1078,7 @@ def test_alter_layout_nhwc_int8_aarch64():
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
         import topi
-        with tvm.target.create("llvm -device=arm_cpu -target=aarch64-linux-gnu"):
+        with tvm.target.create("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu"):
             with Int8Fallback():
                 tmp =  topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
                 return tmp
