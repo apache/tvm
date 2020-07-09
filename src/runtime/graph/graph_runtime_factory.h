@@ -134,7 +134,7 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
   }
 
   Module GetLib() const {
-    CHECK_EQ(this->imports().size(), 0);
+    CHECK_EQ(this->imports().size(), 1);
     return this->imports_[0];
   }
 
