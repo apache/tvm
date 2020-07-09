@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Register FFI APIs from C++ for the namespace tvm.ansor"""
+""" Register FFI APIs from C++ for the namespace tvm.ansor. """
 import tvm._ffi
 
 

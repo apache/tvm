@@ -26,9 +26,9 @@ from tvm import ansor
 
 from test_ansor_common import matmul_ansor_test, PropagatingThread
 
-def search_common(workload=matmul_ansor_test, target="llvm", seed=random.randint(1, 1 << 30),
-                  runner='local', cost_model=None, num_measure_trials=2, params=None,
-                  pre_search_callbacks=None):
+def search_common(workload=matmul_ansor_test, target="llvm", search_policy = ansor.EmptyPolicy(),
+                  seed=random.randint(1, 1 << 30), runner='local', cost_model=None,
+                  num_measure_trials=2, params=None, pre_search_callbacks=None):
     print("Test %s schedule search with the default search policy" % (target))
 
     random.seed(seed)
@@ -41,14 +41,11 @@ def search_common(workload=matmul_ansor_test, target="llvm", seed=random.randint
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
 
-        search_policy = ansor.EmptyPolicy()
-        # search_policy = ansor.SketchSearchPolicy(cost_model, params=params, seed=seed)
         tuning_options = ansor.TuningOptions(num_measure_trials=num_measure_trials, runner=runner,
                                              verbose=0,
                                              measure_callbacks=[ansor.RecordToFile(log_file)],
                                              pre_search_callbacks=pre_search_callbacks)
-        sch, args = ansor.auto_schedule(task, target, search_policy=search_policy,
-                                        tuning_options=tuning_options)
+        sch, args = ansor.auto_schedule(task, search_policy, tuning_options)
         inp, res = ansor.load_best(log_file, workload_key, target)
 
         print("==== Python Code ====")

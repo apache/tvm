@@ -30,7 +30,6 @@ Candidate schedules are measured against the specific hardware target.
 
 import tvm._ffi
 from tvm.runtime import Object
-from .compute_dag import ComputeDAG
 from .measure import LocalBuilder, LocalRunner
 from . import _ffi_api
 
@@ -157,8 +156,7 @@ class TuningOptions(Object):
             pre_search_callbacks)
 
 
-def auto_schedule(task, target, target_host=None, search_policy='default',
-                  hardware_params=None, tuning_options=None):
+def auto_schedule(task, search_policy='default', tuning_options=None):
     """ Do auto scheduling for a computation declaration.
 
     The task parameter can be a `string` as workload_key, or directly
@@ -166,16 +164,10 @@ def auto_schedule(task, target, target_host=None, search_policy='default',
 
     Parameters
     ----------
-    task : Union[SearchTask, str]
-        The SearchTask or workload key for the computation declaration.
-    target : tvm.target.Target
-        The target device of this schedule search.
-    target_host : Optional[tvm.target.Target]
-        The target host device of this schedule search.
+    task : SearchTask
+        The SearchTask for the computation declaration.
     search_policy : Union[SearchPolicy, str] = 'default'
         The search policy to be used for schedule search.
-    hardware_params : Optional[HardwareParams]
-        The hardware parameters of this schedule search.
     tuning_options : Optional[TuningOptions]
         Tuning and measurement options.
 
@@ -183,6 +175,10 @@ def auto_schedule(task, target, target_host=None, search_policy='default',
     -------
         A `te.schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
     """
+    if not isinstance(task, SearchTask):
+        raise ValueError("Invalid task: " + task +
+                         " . `ansor.auto_schedule` expects a SearchTask.")
+
     if isinstance(search_policy, str):
         if search_policy == 'default':
             # TODO(jcf94): This is an example policy for minimum system, will be upgrated to
@@ -190,15 +186,10 @@ def auto_schedule(task, target, target_host=None, search_policy='default',
             search_policy = EmptyPolicy()
         else:
             raise ValueError("Invalid search policy: " + search_policy)
+    elif not isinstance(search_policy, SearchPolicy):
+        raise ValueError("Invalid search policy: " + search_policy +
+                         " . `ansor.auto_schedule` expects a SearchPolicy or a string.")
 
-    tuning_options = tuning_options if tuning_options else TuningOptions()
-
-    if isinstance(task, str):
-        dag = ComputeDAG(task)
-        task = SearchTask(dag, task, target, target_host, hardware_params)
-    elif not isinstance(task, SearchTask):
-        raise ValueError("Invalid task: " + task +
-                         " . `ansor.auto_schedule` expects a `str` or `SearchTask`.")
-
-    sch, tensors = _ffi_api.AutoSchedule(task, search_policy, tuning_options)
+    sch, tensors = _ffi_api.AutoSchedule(task, search_policy,
+                                         tuning_options if tuning_options else TuningOptions())
     return sch, tensors

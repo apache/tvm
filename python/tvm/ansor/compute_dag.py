@@ -59,7 +59,7 @@ class ComputeDAG(Object):
                     raise ValueError("The input of ComputeDAG should be a list of Tensor")
         else:
             raise ValueError("Invalid compute: " + compute +
-                             " . `ComputeDAG` expects a string or list of Tensor")
+                             " . ComputeDAG expects a string or list of Tensor")
         self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, compute)
 
     def get_init_state(self):
@@ -112,7 +112,7 @@ class ComputeDAG(Object):
         """
         Infer and fill the bound of all iterators of a state.
 
-        The states can lose complete bound information after some transform steps
+        The states may lose complete bound information after some transform steps
         (e.g., compute_at).
         We can call this function to infer and fill all the bound information.
         This function calls TVM InferBound pass internally to get the bound.
