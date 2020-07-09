@@ -2583,7 +2583,8 @@ def verify_rnn(seq_length,
                alphas=None,
                betas=None,
                use_initial_state=False,
-               use_peep=False):
+               use_peep=False,
+               linear_before_reset=False):
     if rnn_type == 'LSTM':
         multiplier = 4
     elif rnn_type == 'GRU':
@@ -2676,6 +2677,9 @@ def verify_rnn(seq_length,
     if betas is not None:
         betas_attr = helper.make_attribute('activation_beta', betas)
         rnn_node.attribute.append(betas_attr)
+    if linear_before_reset and rnn_type == 'GRU':
+        lbr_attr = helper.make_attribute('linear_before_reset', 1)
+        rnn_node.attribute.append(lbr_attr)
 
     graph = helper.make_graph([rnn_node],
                               "rnn_test",
@@ -2817,7 +2821,8 @@ def test_gru():
         input_size=16,
         hidden_size=32,
         use_bias=True,
-        rnn_type='GRU')
+        rnn_type='GRU',
+        linear_before_reset=True)
     # Non power of two.
     verify_rnn(
         seq_length=3,

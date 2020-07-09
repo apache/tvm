@@ -60,6 +60,8 @@ class onnx_input():
 
     def __getitem__(self, item):
         if isinstance(item, int):
+            if item > (len(self.input_keys) - 1):
+                return None
             return self.input_dict[self.input_keys[item]]
         if isinstance(item, str):
             if item not in self.input_keys:
@@ -1544,12 +1546,12 @@ class RNN(OnnxOpConverter):
         X = inputs[0]
         W = inputs[1]
         R = inputs[2]
-        B = inputs['B']
+        B = inputs[3]
         # Sequence length currently unused as it can be inferred from shapes.
         #sequence_lens = inputs['sequence_lens']
-        h_0 = inputs['initial_h']
-        c_0 = inputs['initial_c']
-        P = inputs['P']
+        h_0 = inputs[5]
+        c_0 = inputs[6]
+        P = inputs[7]
 
         num_directions = infer_shape(W)[0]
         W_dtype = infer_type(W).type_annotation.dtype
@@ -1656,10 +1658,10 @@ class RNN(OnnxOpConverter):
         X = inputs[0]
         W = inputs[1]
         R = inputs[2]
-        B = inputs['B']
+        B = inputs[3]
         # Sequence length currently unused as it can be inferred from shapes.
         #sequence_lens = inputs['sequence_lens']
-        h_0 = inputs['initial_h']
+        h_0 = inputs[5]
         linear_before_reset = attr.get('linear_before_reset', 0)
 
         num_directions = infer_shape(W)[0]
