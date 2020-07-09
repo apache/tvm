@@ -1669,14 +1669,7 @@ class OperatorConverter(object):
         # Dense expected Input shape: [batch_size, n_units]
         # Dense expected Weight shape: [out_dim, n_units]
         # Dense output shape: [batch_size, out_dim]
-        # So it is evident that input shape: [batch_size = input_size / n_units, n_units]
-        input_size = 1
-        for _, shape in enumerate(input_tensor_shape):
-            input_size *= shape
-
-        # First get the batch size
-        batch_size = int(input_size / weight_tensor_shape[1])
-        target_shape = tuple((batch_size, weight_tensor_shape[1]))
+        target_shape = tuple((-1, weight_tensor_shape[1]))
         in_expr = self.get_expr(input_tensor_idx)
         in_expr = _op.reshape(in_expr, target_shape)
 
