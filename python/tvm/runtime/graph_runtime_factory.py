@@ -39,8 +39,8 @@ def create(graph_json_str, libmod, libmod_name, params):
 
     Returns
     -------
-    graph_module : GraphModule
-        Runtime graph module that can be used to execute the graph.
+    graph_module : GraphRuntimeFactoryModule
+        Runtime graph runtime factory module.
     """
     if not isinstance(graph_json_str, string_types):
         try:
@@ -57,15 +57,9 @@ def create(graph_json_str, libmod, libmod_name, params):
 
 class GraphRuntimeFactoryModule(Module):
     """Graph runtime factory module.
-
     This is a module of graph runtime factory
 
     Parameters
-    ----------
-    module : Module
-        The interal tvm module that holds the actual graph functions.
-
-    Attributes
     ----------
     module : Module
         The interal tvm module that holds the actual graph functions.
