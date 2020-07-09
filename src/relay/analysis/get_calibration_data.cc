@@ -77,7 +77,7 @@ Expr FlattenOutputTuple(const Array<Expr>& exprs) {
   for (const auto& it : exprs) {
     CHECK(it->checked_type_.defined());
     if (auto* tn = it->checked_type_.as<TupleTypeNode>()) {
-      // TODO: for now input argument cannot be a tuple
+      // TODO(seanlatias): for now input argument cannot be a tuple
       CHECK(it->IsInstance<CallNode>());
       for (size_t i = 0; i < tn->fields.size(); i++) {
         fields.push_back(TupleGetItem(it, i));
