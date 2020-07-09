@@ -358,10 +358,16 @@ def search_fc_transpose(expr):
 def get_calibration_data(mod, data):
     """Get the calibration data of a given relay graph
 
-    This pass use the graph runtime to get the calibration data of a module, which
-    includes the input and output values of each subgraph. The returned data uses
-    the GlobalVar of each subgraph as a key. Users can further access the inputs and
+    This pass uses the graph runtime to get the calibration data of a module, which
+    includes the input and output values of each function. The returned data uses
+    the GlobalVar of each function as a key. Users can further access the inputs and
     outputs by using `inputs` or  `outputs` as the key.
+
+    Following are some limitations:
+    1. The input module (graph) cannot have control flows.
+    2. The input arguments of each function cannot be tuples (outputs can be tuples).
+    3. We only handle top-level functions (i.e., nested function is not handled).
+    4. We only handle functions with `Compiler` attribute being set.
 
     Parameters
     ----------

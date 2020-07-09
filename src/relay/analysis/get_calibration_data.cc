@@ -72,24 +72,17 @@ class Collector : public ExprRewriter {
   Array<Expr> new_outputs_;
 };
 
-Expr FlattenToTuple(const Array<Expr>& exprs, const IRModule& module) {
-  auto glob_funcs = module->functions;
+Expr FlattenOutputTuple(const Array<Expr>& exprs) {
   Array<Expr> fields;
   for (const auto& it : exprs) {
-    bool is_tuple = false;
-    if (auto* cn = it.as<CallNode>()) {
-      if (cn->op.as<GlobalVarNode>()) {
-        if (auto* fn = glob_funcs[Downcast<GlobalVar>(cn->op)].as<FunctionNode>()) {
-          if (auto* tn = fn->body.as<TupleNode>()) {
-            is_tuple = true;
-            for (size_t i = 0; i < tn->fields.size(); i++) {
-              fields.push_back(TupleGetItem(it, i));
-            }
-          }
-        }
+    CHECK(it->checked_type_.defined());
+    if (auto* tn = it->checked_type_.as<TupleTypeNode>()) {
+      // TODO: for now input argument cannot be a tuple
+      CHECK(it->IsInstance<CallNode>());
+      for (size_t i = 0; i < tn->fields.size(); i++) {
+        fields.push_back(TupleGetItem(it, i));
       }
-    }
-    if (!is_tuple) {
+    } else {
       fields.push_back(it);
     }
   }
@@ -108,12 +101,9 @@ IRModule GetCalibrateModule(IRModule module) {
         Collector collector(module);
         PostOrderRewrite(func->body, &collector);
         auto new_outputs = collector.GetNewOutputs();
-        if (!new_outputs.empty()) {
-          Expr tuple = FlattenToTuple(new_outputs, module);
-          func =
-              Function(func->params, tuple, tuple->checked_type_, func->type_params, func->attrs);
-          module->Update(pair.first, func);
-        }
+        Expr tuple = FlattenOutputTuple(new_outputs);
+        func = Function(func->params, tuple, tuple->checked_type_, func->type_params, func->attrs);
+        module->Update(pair.first, func);
       }
     }
   }
