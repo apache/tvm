@@ -275,6 +275,30 @@ def scatter(data, indices, updates, axis):
     """
     return _make.scatter(data, indices, updates, axis)
 
+def scatter_add(data, indices, updates, axis):
+    """Update data by adding values in updates at positions defined by indices
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    indices : relay.Expr
+        The index locations to update.
+
+    updates : relay.Expr
+        The values to add.
+
+    axis : int
+        The axis to scatter_add on
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    return _make.scatter_add(data, indices, updates, axis)
+
 def reshape_like(data, shape_like):
     """Reshapes the input array by the size of another array.
     For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation reshapes
