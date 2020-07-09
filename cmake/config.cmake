@@ -218,3 +218,6 @@ set(USE_FALLBACK_STL_MAP OFF)
 # Whether to use hexagon device
 set(USE_HEXAGON_DEVICE OFF)
 set(USE_HEXAGON_SDK /path/to/sdk)
+
+# Whether to compile the standalone C runtime.
+set(USE_STANDALONE_CRT ON)

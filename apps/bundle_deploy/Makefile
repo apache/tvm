@@ -94,9 +94,12 @@ $(build_dir)/test_func_registry.c $(build_dir)/test_model.c $(build_dir)/test_gr
 $(build_dir)/test_model.o: $(build_dir)/test_model.c
 	gcc $(PKG_CFLAGS) -c -o $@ $^
 
+$(build_dir)/func_registry.o: $(build_dir)/func_registry.c
+	gcc $(PKG_CFLAGS) -c -o $@ $^
+
 # Build our bundle against the serialized bundle.c API, the runtime.cc API, and
 # the serialized graph.json and params.bin
-$(build_dir)/bundle.so: bundle.cc $(build_dir)/model.o $(build_dir)/func_registry.c ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
+$(build_dir)/bundle.so: bundle.cc $(build_dir)/model.o $(build_dir)/func_registry.o ${build_dir}/crt/graph_runtime/libgraph_runtime.a ${build_dir}/crt/common/libcommon.a
 	@mkdir -p $(@D)
 	g++ -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 

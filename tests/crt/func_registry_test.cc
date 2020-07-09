@@ -51,7 +51,10 @@ TEST_P(StrCmpTestFixture, Match) {
   EXPECT_EQ(param.a + a_length, cursor);
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 INSTANTIATE_TEST_CASE_P(StrCmpTests, StrCmpTestFixture, ::testing::ValuesIn(strcmp_tests));
+#pragma GCC diagnostic pop
 
 TEST(StrCmpScan, Test) {
   const char* a = "Foo\0Bar\0Whoops\0";
@@ -145,10 +148,18 @@ static TVMBackendPackedCFunc TestFunctionHandle(uint8_t number) {
 }
 
 static void snprintf_truncate(char* target, size_t bytes, const char* str) {
+#ifdef __GNUC__
+#if __GNUC__ > 7 || (__GNUC__ == 7 && __GNUC_MINOR__ >= 1)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+#endif
   EXPECT_GT(snprintf(target, bytes, "%s", str), 0);
+#ifdef __GNUC__
+#if __GNUC__ > 7 || (__GNUC__ == 7 && __GNUC_MINOR__ >= 1)
 #pragma GCC diagnostic pop
+#endif
+#endif
 }
 
 TEST(MutableFuncRegistry, Create) {
@@ -158,29 +169,29 @@ TEST(MutableFuncRegistry, Create) {
 
   // function_name_chars is used to produce 2 function names. The second one is expected to
   // overfill `names`.
-  EXPECT_EQ(kTvmAverageFuncEntrySizeBytes + kTvmAverageFunctionNameSizeBytes,
+  EXPECT_EQ(kTvmAverageFuncEntrySizeBytes + kTvmAverageFunctionNameStrlenBytes,
             strlen(function_name_chars));
 
-  for (unsigned int buf_size = 0; buf_size < 10 + 1 + sizeof(void*); buf_size++) {
+  for (unsigned int buf_size = 0; buf_size < kTvmAverageFuncEntrySizeBytes; buf_size++) {
     EXPECT_EQ(kTvmErrorBufferTooSmall, TVMMutableFuncRegistry_Create(NULL, mem_buffer, buf_size));
   }
 
   for (unsigned int rem = 0; rem < kTvmAverageFuncEntrySizeBytes; rem++) {
     // test_function name will be used to test overfilling.
-    char test_function_name[kTvmAverageFunctionNameSizeBytes + 2 + rem];
+    char test_function_name[kTvmAverageFunctionNameStrlenBytes + 2 + rem];
     TVMMutableFuncRegistry reg;
     memset(mem_buffer, 0, sizeof(mem_buffer));
     EXPECT_EQ(kTvmErrorNoError, TVMMutableFuncRegistry_Create(
                                     &reg, mem_buffer, kTvmAverageFuncEntrySizeBytes * 2 + rem));
 
     snprintf_truncate(
-      test_function_name, kTvmAverageFunctionNameSizeBytes + 1, function_name_chars);
+      test_function_name, kTvmAverageFunctionNameStrlenBytes + 1, function_name_chars);
 
     // Add function #1, and verify it can be retrieved.
     EXPECT_EQ(kTvmErrorNoError,
               TVMMutableFuncRegistry_Set(&reg, test_function_name, TestFunctionHandle(0x01), 0));
 
-    tvm_function_index_t func_index = 10;
+    tvm_function_index_t func_index = 100;
     EXPECT_EQ(kTvmErrorNoError,
               TVMFuncRegistry_Lookup(&reg.registry, test_function_name, &func_index));
     EXPECT_EQ(func_index, 0);
@@ -191,7 +202,7 @@ TEST(MutableFuncRegistry, Create) {
 
     // Ensure that overfilling `names` by 1 char is not allowed.
     snprintf_truncate(
-      test_function_name, kTvmAverageFunctionNameSizeBytes + rem + 2,
+      test_function_name, kTvmAverageFunctionNameStrlenBytes + rem + 2,
       function_name_chars + 1);
 
     EXPECT_EQ(kTvmErrorFunctionRegistryFull,
@@ -201,7 +212,7 @@ TEST(MutableFuncRegistry, Create) {
 
     // Add function #2, with intentionally short (by 2 char) name. Verify it can be retrieved.
     snprintf_truncate(
-      test_function_name, kTvmAverageFunctionNameSizeBytes - 2 + 1,
+      test_function_name, kTvmAverageFunctionNameStrlenBytes - 2 + 1,
       function_name_chars + 1);
     EXPECT_EQ(kTvmErrorNoError,
               TVMMutableFuncRegistry_Set(&reg, test_function_name, TestFunctionHandle(0x02), 0));
