@@ -87,7 +87,6 @@ class State:
         self.state_object = state_object
         self.compute_dag = dag
 
-        self.stages_cache = None  # A list to cache all stages
         self.stage_id_map = {}    # A dict maps operation to stage id
         self._update_stage_id_map()
 
@@ -98,9 +97,7 @@ class State:
         -------
         stages : List[Stage]
         """
-        if not self.stages_cache:
-            self.stages_cache = self.state_object.stages
-        return self.stages_cache
+        return self.state_object.stages
 
     @property
     def stage_ops(self):
@@ -109,9 +106,7 @@ class State:
         -------
         ops: List[Operation]
         """
-        if not self.stages_cache:
-            self.stages_cache = self.state_object.stages
-        return [stage.op for stage in self.stages_cache]
+        return [stage.op for stage in self.stages]
 
     def reorder(self, stage, order):
         """ Schedule primitive corresponds to te.reorder.
@@ -127,7 +122,6 @@ class State:
         stage_id = self._resolve_stage_id(stage)
 
         self.state_object = _ffi_api.StateReorder(self.state_object, stage_id, order)
-        self._clear_cache()
 
     def split(self, stage, iterator, lengths, inner_to_outer=True):
         """ Schedule primitive corresponds to te.split.
@@ -156,7 +150,6 @@ class State:
 
         self.state_object, res = _ffi_api.StateSplit(self.state_object, stage_id, iterator, lengths,
                                                      inner_to_outer)
-        self._clear_cache()
         return res
 
     def fuse(self, stage, iters):
@@ -178,7 +171,6 @@ class State:
         stage_id = self._resolve_stage_id(stage)
 
         self.state_object, res = _ffi_api.StateFuse(self.state_object, stage_id, iters)
-        self._clear_cache()
         return res
 
     def copy(self):
@@ -198,21 +190,14 @@ class State:
                          " . Expect to be a int, Operation or Tensor")
 
     def _update_stage_id_map(self):
-        if not self.stages_cache:
-            self.stages_cache = self.state_object.stages
-        for index, stage in enumerate(self.stages_cache):
+        for index, stage in enumerate(self.stages):
             self.stage_id_map[stage.op] = index
 
-    def _clear_cache(self):
-        self.stages_cache = None
-
     def __getitem__(self, key):
-        if not self.stages_cache:
-            self.stages_cache = self.state_object.stages
         if isinstance(key, Tensor):
             key = key.op
         if isinstance(key, Operation):
-            return self.stages_cache[self.stage_id_map[key]]
+            return self.stages[self.stage_id_map[key]]
         raise ValueError("Invalid item: " + key +
                          " . Expect to be a Operation or Tensor")
 

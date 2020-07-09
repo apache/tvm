@@ -42,12 +42,12 @@ TVM_REGISTER_NODE_TYPE(StateNode);
 TVM_REGISTER_NODE_TYPE(IteratorNode);
 
 /********** Iterator **********/
-Iterator::Iterator(String name, Range range, IteratorType iter_type,
+Iterator::Iterator(String name, Range range, IteratorKind iter_kind,
                    IteratorAnnotation annotation) {
   auto node = make_object<IteratorNode>();
   node->name = std::move(name);
   node->range = std::move(range);
-  node->iter_type = iter_type;
+  node->iter_kind = iter_kind;
   node->annotation = annotation;
   data_ = std::move(node);
 }
@@ -56,29 +56,31 @@ Iterator::Iterator(String name, Range range, IteratorType iter_type,
 Stage::Stage(te::Operation op) {
   auto node = make_object<StageNode>();
   if (op->IsInstance<te::ComputeOpNode>()) {
-    node->op_type = kCompute;
+    node->op_type = StageKind::kCompute;
     auto* pop = op.as<te::ComputeOpNode>();
     for (const auto& axis : pop->axis) {
-      node->iters.push_back(Iterator(CleanName(axis->var->name_hint), axis->dom, kSpace, kNone));
+      node->iters.push_back(Iterator(CleanName(axis->var->name_hint), axis->dom,
+                                     IteratorKind::kSpatial, IteratorAnnotation::kNone));
     }
     for (const auto& axis : pop->reduce_axis) {
-      node->iters.push_back(Iterator(CleanName(axis->var->name_hint), axis->dom, kReduce, kNone));
+      node->iters.push_back(Iterator(CleanName(axis->var->name_hint), axis->dom,
+                                     IteratorKind::kReduction, IteratorAnnotation::kNone));
     }
   } else if (op->IsInstance<te::PlaceholderOpNode>()) {
-    node->op_type = kPlaceholder;
+    node->op_type = StageKind::kPlaceholder;
   } else {
     LOG(FATAL) << "Unsupported operator type" << op->_type_key;
   }
 
-  node->compute_at = kRoot;
+  node->compute_at = ComputeAtKind::kRoot;
   node->op = std::move(op);
   node->attrs.auto_unroll_max_step = 0;
   node->attrs.storage_offset = 0;
   data_ = std::move(node);
 }
 
-Stage::Stage(te::Operation op, StageType op_type, const Array<Iterator>& iters,
-             ComputeAtType compute_at, StageAttributes attrs) {
+Stage::Stage(te::Operation op, StageKind op_type, const Array<Iterator>& iters,
+             ComputeAtKind compute_at, StageAttributes attrs) {
   auto node = make_object<StageNode>();
   node->op = std::move(op);
   node->op_type = op_type;
@@ -94,7 +96,7 @@ State::State(const Array<te::Operation>& ops) {
   for (const auto& op : ops) {
     node->stages.push_back(Stage(op));
   }
-  node->complete = true;
+  node->concrete = true;
   data_ = std::move(node);
 }
 
@@ -110,8 +112,8 @@ void State::reorder(int stage_id, const Array<Iterator>& order) {
   DoReorderStep(step);
 }
 
-Array<Iterator> State::split(int stage_id, const Iterator& it, const Array<Integer>& lengths,
-                             bool inner_to_outer) {
+Array<Iterator> State::split(int stage_id, const Iterator& it,
+                             const Array<Optional<Integer>>& lengths, bool inner_to_outer) {
   const Stage& stage = operator->()->stages[stage_id];
   SplitStep step =
       SplitStep(stage_id, GetIndex(stage->iters, it),
@@ -142,22 +144,25 @@ void State::DoReorderStep(const ReorderStep& step) {
 }
 
 // common part for DoSplitStep, DoFollowSplitStep, and DoFollowFusedSplitStep
-Array<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id, const Array<Integer>& lengths,
+Array<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id,
+                                         const Array<Optional<Integer>>& lengths,
                                          bool inner_to_outer) {
   const Stage& stage = operator->()->stages[stage_id];
   const Iterator& it = stage->iters[iter_id];
+  bool concrete = true;
 
-  PrimExpr tosplit_min, tosplit_extent;
+  Optional<PrimExpr> tosplit_min, tosplit_extent;
   if (it->range.defined()) {
     tosplit_min = it->range->min;
     tosplit_extent = it->range->extent;
   } else {
-    tosplit_min = tosplit_extent = PrimExpr();
+    tosplit_min = NullOpt;
+    tosplit_extent = NullOpt;
   }
 
   Array<Iterator> outs;
   for (size_t i = 0; i < lengths.size(); ++i) {
-    PrimExpr l;
+    Optional<Integer> l;
     String name;
     if (inner_to_outer) {
       l = lengths[lengths.size() - i - 1];
@@ -167,29 +172,32 @@ Array<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id, const Array<
       name = it->name + "." + std::to_string(i);
     }
     Iterator res;
-    if (l.defined() && tosplit_min.defined() && tosplit_extent.defined()) {
-      res = Iterator(name, Range::FromMinExtent(tosplit_min, l), it->iter_type, kNone);
-      tosplit_min = 0;
-      tosplit_extent = indexdiv(tosplit_extent + l - 1, l);
+    if (l && tosplit_min && tosplit_extent) {
+      res = Iterator(name, Range::FromMinExtent(tosplit_min.value(), l.value()), it->iter_kind,
+                     IteratorAnnotation::kNone);
+      tosplit_min = Integer(0);
+      tosplit_extent = indexdiv(tosplit_extent.value() + l.value() - 1, l.value());
     } else {
-      res = Iterator(name, Range(), it->iter_type, kNone);
-      tosplit_min = tosplit_extent = PrimExpr();
+      res = Iterator(name, Range(), it->iter_kind, IteratorAnnotation::kNone);
+      tosplit_min = NullOpt;
+      tosplit_extent = NullOpt;
+      concrete = false;
     }
     outs.push_back(std::move(res));
   }
 
   Range range;
-  if (tosplit_min.defined() && tosplit_extent.defined()) {
-    range = Range::FromMinExtent(tosplit_min, tosplit_extent);
+  if (tosplit_min && tosplit_extent) {
+    range = Range::FromMinExtent(tosplit_min.value(), tosplit_extent.value());
   }
   if (inner_to_outer) {
-    outs.push_back(Iterator(it->name + ".0", range, it->iter_type, kNone));
+    outs.push_back(Iterator(it->name + ".0", range, it->iter_kind, IteratorAnnotation::kNone));
     // Reverse the Iterator array
     Array<Iterator> temp(outs.rbegin(), outs.rend());
     outs = std::move(temp);
   } else {
-    outs.push_back(
-        Iterator(it->name + "." + std::to_string(lengths.size()), range, it->iter_type, kNone));
+    outs.push_back(Iterator(it->name + "." + std::to_string(lengths.size()), range, it->iter_kind,
+                            IteratorAnnotation::kNone));
   }
 
   Array<Iterator> new_iters;
@@ -200,6 +208,7 @@ Array<Iterator> State::DoSplitStepCommon(int stage_id, int iter_id, const Array<
   StateNode* pstate = CopyOnWrite();
   pstate->stages.Set(stage_id,
                      Stage(stage->op, stage->op_type, new_iters, stage->compute_at, stage->attrs));
+  pstate->concrete &= concrete;
 
   return outs;
 }
@@ -214,7 +223,7 @@ Iterator State::DoFuseStep(const FuseStep& step) {
 
   String new_name;
   PrimExpr new_extent = 1;
-  IteratorType new_iter_type = kSpecial;
+  IteratorKind new_iter_kind = IteratorKind::kSpecial;
 
   for (size_t i = 0; i < step->fused_ids.size(); ++i) {
     if (i > 0) {
@@ -231,10 +240,10 @@ Iterator State::DoFuseStep(const FuseStep& step) {
     }
 
     if (i == 0) {
-      new_iter_type = it->iter_type;
+      new_iter_kind = it->iter_kind;
     } else {
-      if (new_iter_type != it->iter_type) {
-        new_iter_type = kMixed;
+      if (new_iter_kind != it->iter_kind) {
+        new_iter_kind = IteratorKind::kMixed;
       }
     }
   }
@@ -243,7 +252,7 @@ Iterator State::DoFuseStep(const FuseStep& step) {
   if (new_extent.defined()) {
     range = Range::FromMinExtent(0, new_extent);
   }
-  Iterator new_it = Iterator(new_name, range, new_iter_type, kNone);
+  Iterator new_it = Iterator(new_name, range, new_iter_kind, IteratorAnnotation::kNone);
   Array<Iterator> new_iters;
   new_iters.insert(new_iters.end(), stage->iters.begin(),
                    stage->iters.begin() + step->fused_ids.front());
@@ -261,17 +270,7 @@ Iterator State::DoFuseStep(const FuseStep& step) {
 void State::DoSteps(const ComputeDAG& dag) {
   CHECK(operator->()->stages.size()) << "Invalid State with empty operation stages.";
 
-  // Use complete rate for the study in the paper
-  const char* complete_rate_str = getenv("ANSOR_PROGRAM_COMPLETE_RATE");
-  double complete_rate = -1.0;
-  if (complete_rate_str) {
-    complete_rate = std::stod(complete_rate_str);
-  }
-  size_t ct = 0;
   for (const auto& step : operator->()->transform_steps) {
-    if (complete_rate >= 0 && ct++ > operator->()->transform_steps.size() * complete_rate) {
-      break;
-    }
     if (auto ps = step.as<ReorderStepNode>()) {
       DoReorderStep(GetRef<ReorderStep>(ps));
     } else if (auto ps = step.as<SplitStepNode>()) {
@@ -323,7 +322,7 @@ void PrintStage(std::ostream* os, int stage_id, const State& state, size_t base_
       for (size_t j = 0; j < base_indent + indent; ++j) {
         *os << " ";
       }
-      *os << IteratorAnnotationString[iter->annotation] << " ";
+      *os << IteratorAnnotationString[static_cast<int>(iter->annotation)] << " ";
       if (iter->range.defined()) {
         *os << iter->name << " (" << iter->range->min << "," << iter->range->extent << ")";
       } else {
@@ -346,7 +345,7 @@ void PrintState(std::ostream* os, const State& state, bool delete_trivial_loop) 
   // Gather placeholders
   Array<String> placeholders;
   for (const auto& stage : state->stages) {
-    if (stage->op_type == kPlaceholder) {
+    if (stage->op_type == StageKind::kPlaceholder) {
       placeholders.push_back(stage->op->name);
     }
   }
@@ -363,10 +362,10 @@ void PrintState(std::ostream* os, const State& state, bool delete_trivial_loop) 
   // Print all stages
   for (size_t i = 0; i < state->stages.size(); ++i) {
     const Stage& stage = state->stages[i];
-    if (stage->op_type == kPlaceholder) {
+    if (stage->op_type == StageKind::kPlaceholder) {
       continue;
-    } else if (stage->op_type == kCompute) {
-      if (stage->compute_at == kRoot) {
+    } else if (stage->op_type == StageKind::kCompute) {
+      if (stage->compute_at == ComputeAtKind::kRoot) {
         PrintStage(os, i, state, 0, delete_trivial_loop);
       }
     } else {
@@ -394,8 +393,8 @@ TVM_REGISTER_GLOBAL("ansor.StateReorder")
     });
 
 TVM_REGISTER_GLOBAL("ansor.StateSplit")
-    .set_body_typed([](State state, int stage_id, const Iterator& it, const Array<Integer>& lengths,
-                       bool inner_to_outer) {
+    .set_body_typed([](State state, int stage_id, const Iterator& it,
+                       const Array<Optional<Integer>>& lengths, bool inner_to_outer) {
       const auto& res = state.split(stage_id, it, lengths, inner_to_outer);
       return Array<ObjectRef>{state, res};
     });

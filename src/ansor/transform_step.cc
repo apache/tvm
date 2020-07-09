@@ -41,7 +41,7 @@ ReorderStep::ReorderStep(int stage_id, const Array<Integer>& after_ids) {
   auto node = make_object<ReorderStepNode>();
   node->stage_id = stage_id;
   for (const auto& x : after_ids) {
-    CHECK(x.defined() && x->IsInstance<IntImmNode>());
+    CHECK(x->IsInstance<IntImmNode>());
   }
   node->after_ids = after_ids;
   data_ = std::move(node);
@@ -84,8 +84,8 @@ String ReorderStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
 
 /********** Split **********/
 Array<IterVar> ApplySplitToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-                                    int stage_id, int iter_id, const Array<Integer>& lengths,
-                                    bool inner_to_outer) {
+                                    int stage_id, int iter_id,
+                                    const Array<Optional<Integer>>& lengths, bool inner_to_outer) {
   auto stage = (*stages)[stage_id];
   const Array<IterVar>& axes = stage_to_axes->at(stage);
 
@@ -94,7 +94,7 @@ Array<IterVar> ApplySplitToSchedule(Array<te::Stage>* stages, StageToAxesMap* st
     IterVar outer = axes[iter_id], inner;
     for (int i = static_cast<int>(lengths.size()) - 1; i >= 0; i--) {
       IterVar to_split = outer;
-      stage.split(to_split, lengths[i], &outer, &inner);
+      stage.split(to_split, lengths[i].value(), &outer, &inner);
       outs.push_back(inner);
     }
     outs.push_back(outer);
@@ -102,7 +102,7 @@ Array<IterVar> ApplySplitToSchedule(Array<te::Stage>* stages, StageToAxesMap* st
     IterVar outer, inner = axes[iter_id];
     for (size_t i = 0; i < lengths.size(); i++) {
       IterVar to_split = inner;
-      stage.split_by_nparts(to_split, lengths[i], &outer, &inner);
+      stage.split_by_nparts(to_split, lengths[i].value(), &outer, &inner);
       outs.push_back(outer);
     }
     outs.push_back(inner);
@@ -127,7 +127,8 @@ Array<IterVar> ApplySplitToSchedule(Array<te::Stage>* stages, StageToAxesMap* st
 }
 
 String PrintSplitAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes, int stage_id,
-                             int iter_id, const Array<Integer>& lengths, bool inner_to_outer) {
+                             int iter_id, const Array<Optional<Integer>>& lengths,
+                             bool inner_to_outer) {
   const auto& stage = (*stages)[stage_id];
   auto to_split = stage_to_axes->at(stage)[iter_id];
   const auto& func_name = CleanName(stage->op->name);
@@ -156,13 +157,13 @@ String PrintSplitAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_
   return ss.str();
 }
 
-SplitStep::SplitStep(int stage_id, int iter_id, PrimExpr extent, const Array<Integer>& lengths,
-                     bool inner_to_outer) {
+SplitStep::SplitStep(int stage_id, int iter_id, Optional<PrimExpr> extent,
+                     const Array<Optional<Integer>>& lengths, bool inner_to_outer) {
   auto node = make_object<SplitStepNode>();
   node->stage_id = stage_id;
   // Extent can be a unreducible expression in some special cases
-  if (extent->IsInstance<IntImmNode>()) {
-    node->extent = tvm::Downcast<Integer>(extent);
+  if (extent && extent.value()->IsInstance<IntImmNode>()) {
+    node->extent = tvm::Downcast<Integer>(extent.value());
   }
   node->iter_id = iter_id;
   node->lengths = lengths;
@@ -185,7 +186,7 @@ FuseStep::FuseStep(int stage_id, const Array<Integer>& fused_ids) {
   auto node = make_object<FuseStepNode>();
   node->stage_id = stage_id;
   for (const auto& x : fused_ids) {
-    CHECK(x.defined() && x->IsInstance<IntImmNode>());
+    CHECK(x->IsInstance<IntImmNode>());
   }
   node->fused_ids = fused_ids;
   data_ = std::move(node);

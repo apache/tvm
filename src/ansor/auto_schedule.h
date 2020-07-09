@@ -51,9 +51,9 @@ class TuningOptionsNode : public Object {
   /*! \brief ProgramRunner which runs the program and measure time costs */
   ProgramRunner runner;
   /*! \brief MeasureCallback functions to be called after each measure batch */
-  Array<MeasureCallback> measure_callbacks;
+  Optional<Array<MeasureCallback>> measure_callbacks;
   /*! \brief SearchCallback functions to be called before schedule search */
-  Array<SearchCallback> pre_search_callbacks;
+  Optional<Array<SearchCallback>> pre_search_callbacks;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("num_measure_trials", &num_measure_trials);
@@ -90,8 +90,8 @@ class TuningOptions : public ObjectRef {
    */
   TuningOptions(int num_measure_trials, int early_stopping, int num_measures_per_round, int verbose,
                 ProgramBuilder builder, ProgramRunner runner,
-                Array<MeasureCallback> measure_callbacks,
-                Array<SearchCallback> pre_search_callbacks);
+                Optional<Array<MeasureCallback>> measure_callbacks,
+                Optional<Array<SearchCallback>> pre_search_callbacks);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TuningOptions, ObjectRef, TuningOptionsNode);
 };

@@ -33,8 +33,8 @@ TVM_REGISTER_NODE_TYPE(TuningOptionsNode);
 
 TuningOptions::TuningOptions(int num_measure_trials, int early_stopping, int num_measures_per_round,
                              int verbose, ProgramBuilder builder, ProgramRunner runner,
-                             Array<MeasureCallback> measure_callbacks,
-                             Array<SearchCallback> pre_search_callbacks) {
+                             Optional<Array<MeasureCallback>> measure_callbacks,
+                             Optional<Array<SearchCallback>> pre_search_callbacks) {
   auto node = make_object<TuningOptionsNode>();
   node->num_measure_trials = num_measure_trials;
   node->early_stopping = early_stopping;
@@ -64,8 +64,8 @@ std::pair<te::Schedule, Array<te::Tensor>> AutoSchedule(SearchTask task, SearchP
 TVM_REGISTER_GLOBAL("ansor.TuningOptions")
     .set_body_typed([](int num_measure_trials, int early_stopping, int num_measures_per_round,
                        int verbose, ProgramBuilder builder, ProgramRunner runner,
-                       Array<MeasureCallback> measure_callbacks,
-                       Array<SearchCallback> pre_search_callbacks) {
+                       Optional<Array<MeasureCallback>> measure_callbacks,
+                       Optional<Array<SearchCallback>> pre_search_callbacks) {
       return TuningOptions(num_measure_trials, early_stopping, num_measures_per_round, verbose,
                            builder, runner, measure_callbacks, pre_search_callbacks);
     });

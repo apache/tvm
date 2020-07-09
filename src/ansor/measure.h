@@ -301,7 +301,8 @@ class LocalBuilder : public ProgramBuilder {
  public:
   /*!
    * \brief The constructor.
-   * \param timeout The timeout limit for each build.
+   * \param timeout The timeout limit (in second) for each build thread.
+   * This will be used in a wrapper of the multiprocessing.Process.join().
    * \param n_parallel Number of threads used to build in parallel.
    * \param build_func The name of registered build function.
    */
@@ -338,7 +339,8 @@ class LocalRunner : public ProgramRunner {
   /*!
    * \brief The constructor. See the corresponding class in python/tvm/ansor/measure.py for more
    * detailed parameter explaination.
-   * \param timeout The timeout limit for each run.
+   * \param timeout The timeout limit (in second) for each run.
+   * This is used in a wrapper of the multiprocessing.Process.join().
    * \param number Number of measure times.
    * \param repeat Number of repeat times in each measure.
    * \param min_repeat_ms The minimum duration of one repeat in milliseconds.
@@ -369,7 +371,7 @@ class ProgramMeasurerNode : public Object {
   /*! \brief The ProgramRunner to measure each program. */
   ProgramRunner runner;
   /*! \brief MeasureCallback to be called after each measure batch. */
-  Array<MeasureCallback> callbacks;
+  Optional<Array<MeasureCallback>> callbacks;
   /*! \brief Verbosity level. 0 for silent, 1 to output information during program measuring. */
   int verbose;
   /*! \brief The number of max continuous error. */
@@ -420,8 +422,9 @@ class ProgramMeasurer : public ObjectRef {
    * \param verbose Verbosity level. 0 for silent, 1 to output information during program measuring.
    * \param max_continous_error The number of max continuous error.
    */
-  ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner, Array<MeasureCallback> callbacks,
-                  int verbose, int max_continous_error = -1);
+  ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
+                  Optional<Array<MeasureCallback>> callbacks, int verbose,
+                  int max_continous_error = -1);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ProgramMeasurer, ObjectRef, ProgramMeasurerNode);
 };

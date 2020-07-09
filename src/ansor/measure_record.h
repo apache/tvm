@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file ansor/record.h
+ * \file ansor/measure_record.h
  * \brief Json serialization format for dumping and loading tuning records.
  */
 
-#ifndef TVM_ANSOR_RECORD_H_
-#define TVM_ANSOR_RECORD_H_
+#ifndef TVM_ANSOR_MEASURE_RECORD_H_
+#define TVM_ANSOR_MEASURE_RECORD_H_
 
 #include <fstream>
 #include <string>
@@ -35,7 +35,7 @@ namespace tvm {
 namespace ansor {
 
 /*! \brief Callback for logging the input and results of measurements to file */
-class LogToFileNode : public MeasureCallbackNode {
+class RecordToFileNode : public MeasureCallbackNode {
  public:
   /*! \brief File name for this callback to write log to. */
   String filename;
@@ -43,34 +43,34 @@ class LogToFileNode : public MeasureCallbackNode {
   void Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
                 const Array<MeasureResult>& results) final;
 
-  static constexpr const char* _type_key = "ansor.LogToFile";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LogToFileNode, MeasureCallbackNode);
+  static constexpr const char* _type_key = "ansor.RecordToFile";
+  TVM_DECLARE_FINAL_OBJECT_INFO(RecordToFileNode, MeasureCallbackNode);
 };
 
 /*!
- * \brief Managed reference to LogToFileNode.
- * \sa LogToFileNode
+ * \brief Managed reference to RecordToFileNode.
+ * \sa RecordToFileNode
  */
-class LogToFile : public MeasureCallback {
+class RecordToFile : public MeasureCallback {
  public:
   /*!
    * \brief The constructor.
    * \param filename File name for this callback to write log.
    */
-  explicit LogToFile(String filename);
+  explicit RecordToFile(String filename);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LogToFile, MeasureCallback, LogToFileNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RecordToFile, MeasureCallback, RecordToFileNode);
 };
 
 /*! \brief Log reader to load step logs from a file.*/
-class LogReaderNode : public Object {
+class RecordReaderNode : public Object {
  public:
   /*! \brief File name for this reader to load log from. */
   String filename;
   /*! \brief The reading file stream. */
   std::ifstream infile;
 
-  ~LogReaderNode();
+  ~RecordReaderNode();
 
   /*!
    * \brief Read next line in the log file.
@@ -88,8 +88,8 @@ class LogReaderNode : public Object {
   std::pair<Array<MeasureInput>, Array<MeasureResult>> ReadLines(int max_size = -1,
                                                                  int skip_size = 0);
 
-  static constexpr const char* _type_key = "ansor.LogReader";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LogReaderNode, Object);
+  static constexpr const char* _type_key = "ansor.RecordReader";
+  TVM_DECLARE_FINAL_OBJECT_INFO(RecordReaderNode, Object);
 
  private:
   /*! \brief A string object to store the next line. */
@@ -97,18 +97,18 @@ class LogReaderNode : public Object {
 };
 
 /*!
- * \brief Managed reference to LogReaderNode.
- * \sa LogReaderNode
+ * \brief Managed reference to RecordReaderNode.
+ * \sa RecordReaderNode
  */
-class LogReader : public ObjectRef {
+class RecordReader : public ObjectRef {
  public:
   /*!
    * \brief The constructor.
    * \param filename File name for this callback to write log.
    */
-  explicit LogReader(String filename);
+  explicit RecordReader(String filename);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LogReader, ObjectRef, LogReaderNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RecordReader, ObjectRef, RecordReaderNode);
 };
 
 /*!
@@ -133,4 +133,4 @@ void ReadMeasureRecord(const std::string& str, MeasureInputNode* inp, MeasureRes
 }  // namespace ansor
 }  // namespace tvm
 
-#endif  // TVM_ANSOR_RECORD_H_
+#endif  // TVM_ANSOR_MEASURE_RECORD_H_

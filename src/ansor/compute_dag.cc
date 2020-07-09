@@ -123,7 +123,7 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
       if (auto pop = op.as<te::ComputeOpNode>()) {
         double num_element = AxisLengthProd(pop->axis);
         if (num_element == -1) {
-          fail = true;
+          fail_ = true;
           break;
         }
         double op_per_element = 0;
@@ -138,7 +138,7 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
       }
     }
 
-    return fail ? -1 : ret;
+    return fail_ ? -1 : ret;
   }
 
   double VisitExpr_(const ReduceNode* op) final {
@@ -147,7 +147,7 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
       if (auto imm = x->dom->extent.as<IntImmNode>()) {
         num_iter *= imm->value;
       } else {
-        fail = true;
+        fail_ = true;
         num_iter = -1;
       }
     }
@@ -204,11 +204,12 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
   }
 
   double VisitExprDefault_(const Object* op) final {
-    fail = true;
+    fail_ = true;
     return -1.0;
   }
 
-  bool fail{false};
+ private:
+  bool fail_{false};
 };
 
 ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
@@ -257,7 +258,9 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
     }
   }
   // Create the initial schedule
-  te::Schedule schedule = te::create_schedule(ops);
+  // TODO(jcf94): Currently we only checked single output dag for Ansor,
+  // update this after testing with multiple outputs.
+  te::Schedule schedule = te::create_schedule({ops.back()});
 
   // init axes
   for (const auto& x : operator->()->ops) {
@@ -266,18 +269,8 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
     UpdateStageToAxesMap(stage, stage_to_axes);
   }
 
-  // Use complete rate for the study in the paper
-  const char* complete_rate_str = getenv("ANSOR_PROGRAM_COMPLETE_RATE");
-  double complete_rate = -1.0;
-  if (complete_rate_str) {
-    complete_rate = std::stod(complete_rate_str);
-  }
-  size_t ct = 0;
   // Apply the history steps to TVM schedule
   for (const auto& step : transform_steps) {
-    if (complete_rate >= 0 && ct++ > transform_steps.size() * complete_rate) {
-      break;
-    }
     // Call each step's ApplyToSchedule method
     // Note: some steps have extra parameters that must be passed and they may need different
     // return value, so the ApplyToSchedule is not able to be merged to single interface
@@ -305,7 +298,9 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
     }
   }
   // Create the initial schedule
-  te::Schedule schedule = te::create_schedule(ops);
+  // TODO(jcf94): Currently we only checked single output dag for Ansor,
+  // update this after testing with multiple outputs.
+  te::Schedule schedule = te::create_schedule({ops.back()});
 
   // init axes
   for (const auto& x : operator->()->ops) {
@@ -346,6 +341,8 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
 }
 
 State ComputeDAG::InferBound(const State& state) const {
+  CHECK(state->concrete) << "Only concrete state can be processed to get bound info.";
+
   State ret_state;
   StateNode* pstate;
 
@@ -375,7 +372,7 @@ State ComputeDAG::InferBound(const State& state) const {
   for (size_t i = 0; i < pstate->stages.size(); ++i) {
     const Stage& stage = pstate->stages[i];
 
-    if (stage->compute_at == kInlined) {
+    if (stage->compute_at == ComputeAtKind::kInlined) {
       continue;
     }
 
@@ -390,7 +387,7 @@ State ComputeDAG::InferBound(const State& state) const {
       auto find_res = bounds.find(axis);
       if (find_res != bounds.end()) {
         new_iters.push_back(
-            Iterator(iter->name, (*find_res).second, iter->iter_type, iter->annotation));
+            Iterator(iter->name, (*find_res).second, iter->iter_kind, iter->annotation));
       } else {
         LOG(FATAL) << "Infer bound fails";
       }

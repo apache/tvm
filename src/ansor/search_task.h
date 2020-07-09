@@ -141,7 +141,7 @@ class SearchTask : public ObjectRef {
    * \param hardware_params Hardware parameters used in this search task.
    */
   SearchTask(ComputeDAG compute_dag, String workload_key, Target target, Target target_host,
-             HardwareParams hardware_params);
+             Optional<HardwareParams> hardware_params);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SearchTask, ObjectRef, SearchTaskNode);
 };

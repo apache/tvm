@@ -21,8 +21,8 @@
  * \file ansor/transform_step.h
  * \brief Transformation steps. For each schedule primitive, there is a corresponding transform
  * step. The implementation of each step consists of 2 parts:
- * - transform_step.cc: How each step interact with TE and TE's schedule primitives
- * - loop_state.cc:     How each step reflect on LoopState
+ * - transform_step.cc: How each step interacts with TE and TE's schedule primitives
+ * - loop_state.cc:     How each step updates LoopState
  *
  * \note To add a new transform step:
  * Take fuse step for example:
@@ -128,9 +128,9 @@ class SplitStepNode : public StepNode {
   /*! \brief The id of the iter to split. */
   int iter_id;
   /*! \brief The extent length of the axis to split. */
-  Integer extent;
+  Optional<Integer> extent;
   /*! \brief The split factors. */
-  Array<Integer> lengths;
+  Array<Optional<Integer>> lengths;
   /*!
    * \brief If true, the `lengths` denote the lengths of iterators
    * from inner level to outer level
@@ -172,8 +172,8 @@ class SplitStep : public Step {
    * \param lengths The multiple split factors. Can be None to be filled by search policy.
    * \param inner_to_outer The split direction.
    */
-  SplitStep(int stage_id, int iter_id, PrimExpr extent, const Array<Integer>& lengths,
-            bool inner_to_outer);
+  SplitStep(int stage_id, int iter_id, Optional<PrimExpr> extent,
+            const Array<Optional<Integer>>& lengths, bool inner_to_outer);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SplitStep, Step, SplitStepNode);
 };

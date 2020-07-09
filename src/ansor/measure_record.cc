@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file ansor/record.cc
+ * \file ansor/measure_record.cc
  * \brief Json serialization format for dumping and loading tuning records.
  */
 
-#include "record.h"
+#include "measure_record.h"
 
 #include <dmlc/json.h>
 #include <tvm/runtime/registry.h>
@@ -47,6 +47,16 @@ inline std::vector<int> IntArrayToVector(const ::tvm::Array<::tvm::Integer>& dat
   for (const auto& x : data) {
     CHECK(x.defined());
     out.push_back(x);
+  }
+  return out;
+}
+
+inline std::vector<int> IntArrayToVector(
+    const ::tvm::Array<::tvm::Optional<::tvm::Integer>>& data) {
+  std::vector<int> out;
+  for (const auto& x : data) {
+    CHECK(x);
+    out.push_back(x.value());
   }
   return out;
 }
@@ -81,7 +91,7 @@ struct Handler<::tvm::Array<::tvm::ansor::Step>> {
         writer->WriteArrayItem(std::string("SP"));
         writer->WriteArrayItem(ps->stage_id);
         writer->WriteArrayItem(ps->iter_id);
-        writer->WriteArrayItem(ps->extent.defined() ? ::tvm::ansor::GetIntImm(ps->extent) : 0);
+        writer->WriteArrayItem(ps->extent ? ::tvm::ansor::GetIntImm(ps->extent.value()) : 0);
         writer->WriteArrayItem(IntArrayToVector(ps->lengths));
         writer->WriteArrayItem(static_cast<int>(ps->inner_to_outer));
       } else if (auto ps = data[i].as<::tvm::ansor::FuseStepNode>()) {
@@ -137,9 +147,9 @@ struct Handler<::tvm::Array<::tvm::ansor::Step>> {
         s = reader->NextArrayItem();
         CHECK(s);
         reader->Read(&inner_to_outer);
-        ::tvm::Array<::tvm::Integer> lengths;
+        ::tvm::Array<::tvm::Optional<::tvm::Integer>> lengths;
         for (const auto& i : int_list) {
-          lengths.push_back(i);
+          lengths.push_back(::tvm::Integer(i));
         }
         data->push_back(::tvm::ansor::SplitStep(
             stage_id, iter_id, extent == 0 ? ::tvm::PrimExpr() : extent, lengths, inner_to_outer));
@@ -224,7 +234,7 @@ struct Handler<::tvm::ansor::MeasureInputNode> {
     bool s;
     auto task_node = ::tvm::make_object<::tvm::ansor::SearchTaskNode>();
     auto state_node = ::tvm::make_object<::tvm::ansor::StateNode>();
-    state_node->complete = true;
+    state_node->concrete = true;
 
     reader->BeginArray();
     s = reader->NextArrayItem();
@@ -290,13 +300,13 @@ struct Handler<::tvm::ansor::MeasureResultNode> {
 namespace tvm {
 namespace ansor {
 
-TVM_REGISTER_OBJECT_TYPE(LogToFileNode);
-TVM_REGISTER_OBJECT_TYPE(LogReaderNode);
+TVM_REGISTER_OBJECT_TYPE(RecordToFileNode);
+TVM_REGISTER_OBJECT_TYPE(RecordReaderNode);
 
 const std::string ANSOR_LOG_VERSION = "v0.2";  // NOLINT(*)
 
-LogToFile::LogToFile(String filename) {
-  auto node = make_object<LogToFileNode>();
+RecordToFile::RecordToFile(String filename) {
+  auto node = make_object<RecordToFileNode>();
   node->filename = std::move(filename);
   data_ = std::move(node);
 }
@@ -334,22 +344,22 @@ void ReadMeasureRecord(const std::string& str, MeasureInputNode* inp, MeasureRes
   }
 }
 
-void LogToFileNode::Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
-                             const Array<MeasureResult>& results) {
+void RecordToFileNode::Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
+                                const Array<MeasureResult>& results) {
   std::ofstream ofs(filename, std::ofstream::app);
   WriteMeasureRecords(&ofs, inputs, results);
 }
 
-LogReader::LogReader(String filename) {
-  auto node = make_object<LogReaderNode>();
+RecordReader::RecordReader(String filename) {
+  auto node = make_object<RecordReaderNode>();
   node->filename = filename;
   node->infile.open(filename, std::ifstream::in);
   data_ = std::move(node);
 }
 
-LogReaderNode::~LogReaderNode() { infile.close(); }
+RecordReaderNode::~RecordReaderNode() { infile.close(); }
 
-bool LogReaderNode::ReadNext(MeasureInputNode* inp, MeasureResultNode* res) {
+bool RecordReaderNode::ReadNext(MeasureInputNode* inp, MeasureResultNode* res) {
   std::string log_version;
 
   while (std::getline(infile, cur_line)) {
@@ -364,8 +374,8 @@ bool LogReaderNode::ReadNext(MeasureInputNode* inp, MeasureResultNode* res) {
   return false;
 }
 
-std::pair<Array<MeasureInput>, Array<MeasureResult>> LogReaderNode::ReadLines(int max_size,
-                                                                              int skip_size) {
+std::pair<Array<MeasureInput>, Array<MeasureResult>> RecordReaderNode::ReadLines(int max_size,
+                                                                                 int skip_size) {
   auto inp = make_object<MeasureInputNode>();
   auto res = make_object<MeasureResultNode>();
   Array<MeasureInput> inputs;
@@ -388,21 +398,21 @@ std::pair<Array<MeasureInput>, Array<MeasureResult>> LogReaderNode::ReadLines(in
   return std::make_pair(inputs, results);
 }
 
-TVM_REGISTER_GLOBAL("ansor.LogToFile").set_body_typed([](const String& filename) {
-  return LogToFile(filename);
+TVM_REGISTER_GLOBAL("ansor.RecordToFile").set_body_typed([](const String& filename) {
+  return RecordToFile(filename);
 });
 
-TVM_REGISTER_GLOBAL("ansor.LogReader").set_body_typed([](const String& filename) {
-  return LogReader(filename);
+TVM_REGISTER_GLOBAL("ansor.RecordReader").set_body_typed([](const String& filename) {
+  return RecordReader(filename);
 });
 
-TVM_REGISTER_GLOBAL("ansor.LogReaderReadLines")
-    .set_body_typed([](LogReader reader, int size, int skip_size) {
+TVM_REGISTER_GLOBAL("ansor.RecordReaderReadLines")
+    .set_body_typed([](RecordReader reader, int size, int skip_size) {
       const auto& res = reader->ReadLines(size, skip_size);
       return Array<ObjectRef>{res.first, res.second};
     });
 
-TVM_REGISTER_GLOBAL("ansor.LogReaderReadNext").set_body_typed([](LogReader reader) {
+TVM_REGISTER_GLOBAL("ansor.RecordReaderReadNext").set_body_typed([](RecordReader reader) {
   auto inp = make_object<MeasureInputNode>();
   auto res = make_object<MeasureResultNode>();
   if (reader->ReadNext(inp.get(), res.get())) {
@@ -412,7 +422,7 @@ TVM_REGISTER_GLOBAL("ansor.LogReaderReadNext").set_body_typed([](LogReader reade
   }
 });
 
-TVM_REGISTER_GLOBAL("ansor.AppendMeasureRecordsToFile")
+TVM_REGISTER_GLOBAL("ansor.SaveRecords")
     .set_body_typed([](String filename, Array<MeasureInput> in, Array<MeasureResult> res) {
       std::ofstream ofs(filename, std::ofstream::app);
       WriteMeasureRecords(&ofs, in, res);

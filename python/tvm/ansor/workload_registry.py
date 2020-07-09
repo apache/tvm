@@ -25,7 +25,7 @@ The dag should be the return value of this `func_name(*args)`.
 Rationale: The workload is actually a compute dag defined by tvm dsl. But serializing compute dags
 and matching them efficiently is not easy. Therefore, we use the above string to encode a compute
 dag.
-These strings are efficient for serialization/matching and wont' be too long.
+These strings are efficient for serialization/matching and won't be too long.
 When we need the dag, we decode the string and call the function, which will return the dag.
 """
 
@@ -33,13 +33,13 @@ import pickle
 import json
 
 import tvm._ffi
-from .utils import serialize_args, deserialize_args
+from .utils import serialize_args, deserialize_args, get_func_name
 
 WORKLOAD_FUNC_REGISTRY = {}
 
 
 def register_workload(func):
-    """ Register a workload by generation function.
+    """ Register a function that generates a certain workload.
 
     The input function should take hashable and jsonable arguments
     (int, float, tuple of int, tvm.tensor.Tensor, ...) and return a list of tvm.tensor.Tensor.
@@ -59,8 +59,10 @@ def register_workload(func):
         C = te.compute((N, M), lambda i, j: tvm.sum(A[i][k] * B[k][j], axis=[k]), name='C')
         return [A, B, C]
     """
+    global WORKLOAD_FUNC_REGISTRY
     assert callable(func)
-    func_name = func.__name__
+
+    func_name = get_func_name(func)
     if func_name in WORKLOAD_FUNC_REGISTRY:
         raise RuntimeError('%s has been registered already' % func_name)
 
@@ -69,7 +71,7 @@ def register_workload(func):
 
 
 def make_workload_key(func, args):
-    """ make a workload key from function and arguments.
+    """ Make a workload key by function and arguments.
 
     Parameters
     ----------
@@ -84,12 +86,15 @@ def make_workload_key(func, args):
     workload_key : Str
         The workload key of the function.
     """
+    global WORKLOAD_FUNC_REGISTRY
+
     if callable(func):
-        func_name = func.__name__
+        func_name = get_func_name(func)
     elif isinstance(func, str):
         func_name = func
     else:
-        raise ValueError("Invalid function: " + str(func))
+        raise ValueError("Invalid function: " + str(func) +
+                         " . `make_workload_key` expects a callable function or its function name")
 
     if not func_name in WORKLOAD_FUNC_REGISTRY:
         raise ValueError("%s is not registered. "  % func,
@@ -115,6 +120,8 @@ def decode_workload_key_to_func_args(workload_key):
     args : List[Tensor]
         The args of the generation function.
     """
+    global WORKLOAD_FUNC_REGISTRY
+
     workload = json.loads(workload_key)
     if not workload[0] in WORKLOAD_FUNC_REGISTRY:
         raise ValueError("%s is not registered. " % workload[0] +
@@ -138,6 +145,8 @@ def workload_key_to_tensors(workload_key):
     tensors : List[Tensor]
         The registered compute declaration Tensors.
     """
+    global WORKLOAD_FUNC_REGISTRY
+
     name, args = decode_workload_key_to_func_args(workload_key)
     lookup = WORKLOAD_FUNC_REGISTRY[name]
     assert callable(lookup)

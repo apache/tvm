@@ -47,7 +47,7 @@ def get_func_name(func):
     name: str
         The function name.
     """
-    return func.func_name if hasattr(func, 'func_name') else func.__name__
+    return func.func_name if hasattr(func, 'func_name') else func.__qualname__
 
 
 def get_const_int(exp):

@@ -42,7 +42,7 @@ class EmptyPolicyNode : public SearchPolicyNode {
  public:
   State Search(SearchTask task, int num_measure_trials, int early_stopping,
                int num_measures_per_round, int verbose, ProgramMeasurer measurer,
-               Array<SearchCallback> pre_search_callbacks) final;
+               Optional<Array<SearchCallback>> pre_search_callbacks) final;
 
   static constexpr const char* _type_key = "ansor.EmptyPolicy";
   TVM_DECLARE_FINAL_OBJECT_INFO(EmptyPolicyNode, SearchPolicyNode);

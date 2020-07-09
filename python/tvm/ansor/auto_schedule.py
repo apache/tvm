@@ -107,7 +107,7 @@ class TuningOptions(Object):
       With `num_measure_trials` == 0, the policy will do the schedule search but won't involve
       measurement.
       This can be used to get a runnable schedule quickly without auto-tuning.
-    early_stopping: int = -1
+    early_stopping: Optional[int]
       Stop the tuning early if getting no improvement after n measurements.
     num_measures_per_round: int = 64
       The number of schedules to be measured at each search round.
@@ -122,7 +122,7 @@ class TuningOptions(Object):
     measure_callbacks: Optional[List[MeasureCallback]]
       Callback functions called after each measurement.
       Candidates:
-        - ansor.LogToFile
+        - ansor.RecordToFile
     pre_search_callbacks: Optional[List[SearchCallback]]
       Callback functions called before the search process.
       Candidates:
@@ -130,7 +130,7 @@ class TuningOptions(Object):
         - ansor.PreloadCustomSketchRule
         TODO(jcf94): Add these implementation in later PRs.
     """
-    def __init__(self, num_measure_trials=0, early_stopping=-1, num_measures_per_round=64,
+    def __init__(self, num_measure_trials=0, early_stopping=None, num_measures_per_round=64,
                  verbose=1, builder='local', runner='local', measure_callbacks=None,
                  pre_search_callbacks=None):
         if isinstance(builder, str):
@@ -151,11 +151,9 @@ class TuningOptions(Object):
             raise ValueError("Invalid runner: " + runner +
                              " . TuningOptions expects a ProgramRunner or string.")
 
-        measure_callbacks = measure_callbacks if measure_callbacks else []
-        pre_search_callbacks = pre_search_callbacks if pre_search_callbacks else []
-
         self.__init_handle_by_constructor__(
-            _ffi_api.TuningOptions, num_measure_trials, early_stopping, num_measures_per_round,
+            _ffi_api.TuningOptions, num_measure_trials, early_stopping if early_stopping else -1,
+            num_measures_per_round,
             verbose, builder, runner, measure_callbacks, pre_search_callbacks)
 
 

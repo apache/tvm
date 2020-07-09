@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Computational graph and its analysis tools """
+""" The Ansor computational graph and related program analyses. """
 
 import hashlib
 
@@ -92,8 +92,8 @@ class ComputeDAG(Object):
         """
         Print transform steps in the history of a State as TVM's python schedule primitive.
 
-        This can be used for debugging or to apply the schedule on a former TVM version without
-        Ansor support.
+        This is used to print transformation steps for debugging.
+        Use `apply_steps_from_state` if you want to get a schedule for code generation.
 
         Parameters
         ----------

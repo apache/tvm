@@ -33,7 +33,7 @@ TVM_REGISTER_OBJECT_TYPE(SearchCallbackNode);
 TVM_REGISTER_OBJECT_TYPE(SearchPolicyNode);
 
 void SearchPolicyNode::RunCallbacks(const Optional<Array<SearchCallback>>& callbacks) {
-  if (callbacks.defined()) {
+  if (callbacks) {
     for (const auto& callback : callbacks.value()) {
       callback->Callback(this);
     }

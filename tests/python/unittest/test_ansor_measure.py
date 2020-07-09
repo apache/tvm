@@ -36,9 +36,9 @@ def test_record():
     res = ansor.measure.MeasureResult([0.1], 0, "", 0.2, 1)
 
     with tempfile.NamedTemporaryFile() as fp:
-        ansor.record.append_measure_records_to_file(fp.name, [inp], [res])
+        ansor.save_records(fp.name, [inp], [res])
 
-        log_reader = ansor.record.LogReader(fp.name)
+        log_reader = ansor.RecordReader(fp.name)
         inputs, results = log_reader.read_lines()
         assert len(inputs) == 1
 

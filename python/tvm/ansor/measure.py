@@ -21,6 +21,13 @@ Distributed measurement infrastructure to measure the runtime costs of tensor pr
 These functions are responsible for building the tvm module, uploading it to
 remote devices, recording the running time costs, and checking the correctness of the output.
 
+We separate the measurement into two steps: build and run.
+A builder builds the executable binary files and a runner runs the binary files to
+get the measurement results. The flow of data structures is
+
+                `ProgramBuilder`                 `ProgramRunner`
+`MeasureInput` -----------------> `BuildResult` ----------------> `MeasureResult`
+
 We implement these in python to utilize python's multiprocessing and error handling.
 """
 
@@ -261,6 +268,8 @@ def local_build_worker(index):
     res : BuildResult
         The build result of this Builder thread.
     """
+    global GLOBAL_BUILD_ARGUMENTS
+
     # We use fork and a global variable to copy arguments between processings.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
     if not GLOBAL_BUILD_ARGUMENTS:
@@ -352,6 +361,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func='default', verbo
     # We use fork and a global variable to copy arguments between processings.
     # This can avoid expensive serialization of TVM IR when using multiprocessing.Pool
     global GLOBAL_BUILD_ARGUMENTS
+
     GLOBAL_BUILD_ARGUMENTS = (inputs, build_func, timeout, verbose)
 
     pool = NoDaemonPool(n_parallel)

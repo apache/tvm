@@ -35,7 +35,7 @@ TVM_REGISTER_NODE_TYPE(EmptyPolicyNode);
 
 State EmptyPolicyNode::Search(SearchTask task, int num_measure_trials, int early_stopping,
                               int num_measures_per_round, int verbose, ProgramMeasurer measurer,
-                              Array<SearchCallback> pre_search_callbacks) {
+                              Optional<Array<SearchCallback>> pre_search_callbacks) {
   cur_task = task;
 
   // Run pre_search_callbacks before the search process

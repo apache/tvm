@@ -122,7 +122,7 @@ class SearchPolicyNode : public Object {
    */
   virtual State Search(SearchTask task, int num_measure_trials, int early_stopping,
                        int num_measures_per_round, int verbose, ProgramMeasurer measurer,
-                       Array<SearchCallback> pre_search_callbacks) = 0;
+                       Optional<Array<SearchCallback>> pre_search_callbacks) = 0;
 
   /*!
    * \brief Call SearchCallback with the current SearchPolicyNode
@@ -136,10 +136,16 @@ class SearchPolicyNode : public Object {
  protected:
   /*!
    * \brief The set of already measured states.
-   * We store the string format for redundancy check.
+   * During the schedule search process, we may generate `equal states` through different search
+   * branches. (Equal States: 1. the transform steps are totally the same; 2. even with different
+   * steps, two states may still result in a same schedule. e.g. To split a axis with extent 512
+   * to 3 parts [8, 16, 4]. We can split from inner to outter by factors [16, 4], while we can
+   * get a same result to split from outter to inner by factors [8, 16])
+   * We store the string format of a state for redundancy check. This is used to make sure a
+   * measured state will never be measured again.
    */
   std::unordered_set<String> measured_states_set_;
-  /*! \brief The array of already measured states. */
+  /*! \brief The array of already measured states. This can be used in evolutionary search. */
   std::vector<State> measured_states_vector_;
   /*! \brief The throughputs of already measured states */
   std::vector<float> measured_states_throughputs_;

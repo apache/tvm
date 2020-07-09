@@ -47,7 +47,10 @@ namespace ansor {
 /*! \brief The Ansor computational graph and related program analyses. */
 class ComputeDAGNode : public Object {
  public:
-  /*! \brief Input and output tensors. */
+  /*!
+   * \brief Input and output tensors.
+   * This is used as the input of `tvm.lower` or `tvm.build`.
+   */
   Array<te::Tensor> tensors;
   /*! \brief All related operations in topo order. */
   Array<te::Operation> ops;
@@ -94,8 +97,7 @@ class ComputeDAG : public ObjectRef {
 
   /*!
    * \brief Print transform steps as equivalent python schedule API.
-   * This can be used for debugging or to apply the schedule on a former TVM version without Ansor
-   * support.
+   * This can be used for debugging.
    * \param transform_steps Transform steps of a state.
    * \return The Python schedule code.
    */

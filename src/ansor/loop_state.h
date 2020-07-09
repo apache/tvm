@@ -62,7 +62,7 @@ using namespace tvm::tir;
 class ComputeDAG;
 
 /*! \brief The type of a stage. */
-enum StageType {
+enum class StageKind : int {
   /*! \brief A placeholder stage. */
   kPlaceholder = 0,
   /*! \brief A compute stage. */
@@ -70,7 +70,7 @@ enum StageType {
 };
 
 /*! \brief The type of compute location. */
-enum ComputeAtType {
+enum class ComputeAtKind : int {
   /*! \brief Compute at root. */
   kRoot = 0,
   /*! \brief Compute inlined. */
@@ -80,11 +80,11 @@ enum ComputeAtType {
 };
 
 /*! \brief The type of an iterator. */
-enum IteratorType {
+enum class IteratorKind : int {
   /*! \brief Spatial iterator. */
-  kSpace = 0,
+  kSpatial = 0,
   /*! \brief Reduction iterator. */
-  kReduce = 1,
+  kReduction = 1,
   /*! \brief Fused spatial and reduction iterator. */
   kMixed = 2,
   /*! \brief Special iterator. (e.g. virtual root iterator) */
@@ -92,7 +92,7 @@ enum IteratorType {
 };
 
 /*! \brief The type of an iterator's annotation. */
-enum IteratorAnnotation {
+enum class IteratorAnnotation : int {
   /*! \brief This iterator has no annotation. */
   kNone = 0,
   /*! \brief This iterator has been unrolled. */
@@ -126,7 +126,7 @@ class IteratorNode : public Object {
   /*! \brief The range of this iterator. */
   Range range;
   /*! \brief The iterator type of this iterator. */
-  IteratorType iter_type;
+  IteratorKind iter_kind;
   /*! \brief The annotation type of this iterator. */
   IteratorAnnotation annotation;
 
@@ -149,10 +149,10 @@ class Iterator : public ObjectRef {
    * \brief The constructor.
    * \param name The name of this iterator.
    * \param range The range of this iterator.
-   * \param iter_type The iterator type of this iterator.
+   * \param iter_kind The iterator type of this iterator.
    * \param annotation The annotation type of this iterator.
    */
-  Iterator(String name, Range range, IteratorType iter_type, IteratorAnnotation annotation);
+  Iterator(String name, Range range, IteratorKind iter_kind, IteratorAnnotation annotation);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Iterator, ObjectRef, IteratorNode);
 };
@@ -174,11 +174,11 @@ class StageNode : public Object {
   /*! \brief The operator of this stage */
   te::Operation op;
   /*! \brief The type of this stage. */
-  StageType op_type;
+  StageKind op_type;
   /*! \brief The iterators in this stage. */
   Array<Iterator> iters;
   /*! \brief The compute location of this stage. */
-  ComputeAtType compute_at;
+  ComputeAtKind compute_at;
   /*! \brief Other stage-level attributes. */
   StageAttributes attrs;
 
@@ -210,7 +210,7 @@ class Stage : public ObjectRef {
    * \param compute_at The compute at type of this op.
    * \param attrs Other stage-level attributes.
    */
-  Stage(te::Operation op, StageType op_type, const Array<Iterator>& iters, ComputeAtType compute_at,
+  Stage(te::Operation op, StageKind op_type, const Array<Iterator>& iters, ComputeAtKind compute_at,
         StageAttributes attrs);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Stage, ObjectRef, StageNode);
@@ -229,13 +229,16 @@ class StateNode : public Object {
   Array<Stage> stages;
   /*! \brief History transformation steps. */
   Array<Step> transform_steps;
-  /*! \brief Indicate whether this state has unfilled tile sizes. */
-  bool complete;
+  /*!
+   * \brief Indicate whether this state has unfilled tile sizes. A concrete state means that all
+   * tile sizes of the state is filled. Only concrete state can be apply to TVM schedule.
+   */
+  bool concrete;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("stages", &stages);
     v->Visit("transform_steps", &transform_steps);
-    v->Visit("complete", &complete);
+    v->Visit("concrete", &concrete);
   }
 
   static constexpr const char* _type_key = "ansor.State";
@@ -296,7 +299,7 @@ class State : public ObjectRef {
    * \param inner_to_outer Whether the factor go from inner to outer, or from outer to inner.
    * \return The iterator results after split.
    */
-  Array<Iterator> split(int stage_id, const Iterator& it, const Array<Integer>& lengths,
+  Array<Iterator> split(int stage_id, const Iterator& it, const Array<Optional<Integer>>& lengths,
                         bool inner_to_outer = true);
   /*!
    * \brief Schedule primitive corresponds to te.fuse.
@@ -340,8 +343,8 @@ class State : public ObjectRef {
    * \param inner_to_outer The split direction.
    * \return The iterator results after split.
    */
-  Array<Iterator> DoSplitStepCommon(int stage_id, int iter_id, const Array<Integer>& lengths,
-                                    bool inner_to_outer);
+  Array<Iterator> DoSplitStepCommon(int stage_id, int iter_id,
+                                    const Array<Optional<Integer>>& lengths, bool inner_to_outer);
 };
 
 }  // namespace ansor
@@ -358,7 +361,14 @@ struct hash<::tvm::ansor::State> {
   }
 };
 
-/*! \brief The equal_to function for ansor::State. */
+/*!
+ * \brief The equal_to function for ansor::State.
+ * We use the schedule result(its string format) of a state to check if two states are `euqal`.
+ * Equal States: 1. the transform steps are totally the same; 2. even with different steps, two
+ * states may still result in a same schedule. e.g. To split a axis with extent 512 to 3 parts
+ * [8, 16, 4]. We can split from inner to outter by factors [16, 4], while we can get a same result
+ * to split from outter to inner by factors [8, 16])
+ */
 template <>
 struct equal_to<::tvm::ansor::State> {
   bool operator()(const ::tvm::ansor::State& lhs, const ::tvm::ansor::State& rhs) const {

@@ -148,7 +148,7 @@ Array<MeasureResult> LocalRunnerNode::Run(const Array<MeasureInput>& inputs,
 
 /********** ProgramMeasurer **********/
 ProgramMeasurer::ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
-                                 Array<MeasureCallback> callbacks, int verbose,
+                                 Optional<Array<MeasureCallback>> callbacks, int verbose,
                                  int max_continous_error) {
   auto node = make_object<ProgramMeasurerNode>();
   node->builder = std::move(builder);
@@ -217,8 +217,10 @@ void ProgramMeasurerNode::Measure(const SearchTask& task, const SearchPolicy& po
     }
 
     // Call callback functions
-    for (const auto& callback : callbacks) {
-      callback->Callback(policy, input_batch, result_batch);
+    if (callbacks) {
+      for (const auto& callback : callbacks.value()) {
+        callback->Callback(policy, input_batch, result_batch);
+      }
     }
 
     // Store result batch

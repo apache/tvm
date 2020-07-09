@@ -45,11 +45,11 @@ def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'
         # search_policy = ansor.SketchSearchPolicy(cost_model, params=params, seed=seed)
         tuning_options = ansor.TuningOptions(num_measure_trials=num_measure_trials, runner=runner,
                                              verbose=0,
-                                             measure_callbacks=[ansor.LogToFile(log_file)],
+                                             measure_callbacks=[ansor.RecordToFile(log_file)],
                                              pre_search_callbacks=pre_search_callbacks)
         sch, args = ansor.auto_schedule(task, target, search_policy=search_policy,
                                         tuning_options=tuning_options)
-        inp, res = ansor.best_measure_pair_in_file(log_file, workload_key, target)
+        inp, res = ansor.load_best(log_file, workload_key, target)
 
         print("==== Python Code ====")
         print(dag.print_python_code_from_state(inp.state))
