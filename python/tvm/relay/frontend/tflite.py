@@ -67,6 +67,8 @@ class OperatorConverter(object):
             'ABS': self.convert_abs,
             'ADD': self.convert_add,
             'ADD_N': self.convert_add_n,
+            'ARG_MAX': self.convert_arg_max,
+            'ARG_MIN': self.convert_arg_min,
             'AVERAGE_POOL_2D': self.convert_average_pool2d,
             'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
             'CAST': self.convert_cast,
@@ -157,8 +159,6 @@ class OperatorConverter(object):
             'UNPACK': self.convert_unpack,
             'WHERE': self.convert_select,
             'ZEROS_LIKE': self.convert_zeros_like,
-            'ARG_MIN': self.convert_arg_min,
-            'ARG_MAX': self.convert_arg_max,
         }
 
     def check_unsupported_ops(self):
@@ -1639,14 +1639,12 @@ class OperatorConverter(object):
     def _convert_arg_min_max(self, relay_op, op):
         """Generic method to convert TFLite arg_min_max"""
         try:
-            from tflite.Operator import Operator
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ArgMinOptions import ArgMinOptions
             from tflite.ArgMaxOptions import ArgMaxOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
-        assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "two input tensor arguments expected"
 
@@ -1668,18 +1666,18 @@ class OperatorConverter(object):
             arg_min_max_options = ArgMaxOptions()
         op_options = op.BuiltinOptions()
         arg_min_max_options.Init(op_options.Bytes, op_options.Pos)
-        output_dtype = arg_min_max_options.OutputType()
 
         # set keepdims to True since tflite 1.13 removes all dims of size 1
         # WARNING: all other versions of tflite > 1.13 need keepdims=False
         out = relay_op(in_expr, axis=axis_value, keepdims=False, exclude=False)
-        # cast the output indices to the desired data type
-        casted_output = _op.cast(out, self.get_tensor_type_str(output_dtype))
 
-        return casted_output
+        return out
 
     def convert_arg_min(self, op):
         """Convert TFLite ARG_MIN"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized ARG_MIN operator is not supported yet.')
         return self._convert_arg_min_max(_op.argmin, op)
 
     def convert_arg_max(self, op):

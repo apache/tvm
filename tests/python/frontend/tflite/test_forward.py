@@ -1759,26 +1759,35 @@ def test_all_reduce():
 # Arg_min_max
 # -----------
 
-def _test_arg_min_max(math_op, data, axis, output_dtype):
+def _test_arg_min_max(math_op, data, axis, quantized=False):
     """ One iteration of arg_min_max"""
+
     with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-        out = math_op(input=in_data, axis=axis, output_type=output_dtype)
-        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
-
-def _test_arg_min(data, axis, output_dtype):
-    """ One iteration of arg_min """
-    return _test_arg_min_max(math_ops.argmin, data, axis, output_dtype)
-
-def _test_arg_max(data, axis, output_dtype):
-    """ One iteration of arg_max """
-    return _test_arg_min_max(math_ops.argmax, data, axis, output_dtype)
+        t_name="in"
+        in_data = array_ops.placeholder(shape=data.shape, dtype=np.float32, name=t_name )
+        input_range=None
+        qmin, qmax = -100, 102
+        if quantized:
+            inq_data = tf.quantization.fake_quant_with_min_max_args(in_data, min=qmin, max=qmax, name= 'q' + t_name )
+            input_range = { inq_data.name.split(':')[0]: (qmin, qmax)}
+            out = math_op(input=inq_data, axis=axis)
+            compare_tflite_with_tvm([data], [inq_data.name], [inq_data], [out], quantized=True, input_range=input_range)
+        else:
+            out = math_op(input=in_data, axis=axis)
+            compare_tflite_with_tvm([data], [in_data.name], [in_data], [out])
 
 def test_forward_arg_min_max():
+    data = np.array(np.random.uniform(0, 100, (3, 4)), dtype=np.uint8)
+    # test quantized
+    # There is no quantized version of ArgMin
+    for axis in [None, 0, 1, -1]:
+        _test_arg_min_max(math_ops.argmax, data, axis, True)
+
     data = np.array(np.random.uniform(0, 100, (3, 4)), dtype=np.float32)
     for axis in [None, 0, 1, -1]:
-        _test_arg_min(data=data, axis=axis, output_dtype=np.int32)
-        _test_arg_max(data=data, axis=axis, output_dtype=np.int32)
+        _test_arg_min_max(math_ops.argmax, data, axis)
+        _test_arg_min_max(math_ops.argmin, data, axis)
+
 
 #######################################################################
 # Select, Where
