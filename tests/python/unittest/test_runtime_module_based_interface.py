@@ -278,6 +278,9 @@ def test_mod_export():
 
 def test_remove_package_params():
     def verify_cpu_remove_package_params(obj_format):
+        if not tvm.runtime.enabled("llvm"):
+            print("Skip because llvm is not enabled")
+            return
         mod, params = relay.testing.resnet.get_workload(num_layers=18)
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
@@ -321,6 +324,9 @@ def test_remove_package_params():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_gpu_remove_package_params(obj_format):
+        if not tvm.runtime.enabled("cuda"):
+            print("Skip because cuda is not enabled")
+            return
         mod, params = relay.testing.resnet.get_workload(num_layers=18)
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
