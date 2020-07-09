@@ -229,4 +229,4 @@ if __name__=="__main__":
     test_dynamic_to_static_tile()
     test_dynamic_to_static_topk()
     test_dynamic_to_static_broadcast_to()
-
+    test_dynamic_to_static_zeros_ones()
