@@ -40,6 +40,7 @@ _depthwise_conv2d_nchw_implement = {
 
 _depthwise_conv2d_nhwc_implement = {
     "generic": (topi.nn.depthwise_conv2d_nhwc, topi.generic.schedule_depthwise_conv2d_nhwc),
+    "arm_cpu": (topi.arm_cpu.compute_depthwise_conv2d_nhwc, topi.arm_cpu.schedule_depthwise_conv2d_nhwc),
     "gpu": (topi.nn.depthwise_conv2d_nhwc, topi.cuda.schedule_depthwise_conv2d_nhwc),
 }
 
@@ -385,8 +386,7 @@ def test_depthwise_conv2d():
     depthwise_conv2d_with_workload_nhwc(1, 728, 32, 1, 3, 1, "VALID")
     depthwise_conv2d_with_workload_nhwc(4, 256, 64, 2, 5, 2, "VALID")
     # dilation = 2
-    # disabled because it uses too large shared memory on cuda
-    # depthwise_conv2d_with_workload_nhwc(1, 728, 64, 1, 3, 1, "SAME", dilation=2)
+    depthwise_conv2d_with_workload_nhwc(1, 728, 64, 1, 3, 1, "SAME", dilation=2)
 
     # NCHW[x]c
     depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "SAME")
