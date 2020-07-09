@@ -21,6 +21,7 @@
  * \file src/runtime/container.cc
  * \brief Implementations of common containers.
  */
+#include <tvm/node/container.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
@@ -28,6 +29,11 @@
 #include <tvm/runtime/vm.h>
 
 namespace tvm {
+
+#if (USE_FALLBACK_STL_MAP == 0)
+TVM_DLL constexpr uint64_t tvm::DenseMapNode::kNextProbeLocation[];
+#endif
+
 namespace runtime {
 
 using namespace vm;

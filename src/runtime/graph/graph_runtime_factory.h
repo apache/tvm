@@ -25,6 +25,7 @@
 #ifndef TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
 #define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
 
+#include <tvm/node/container.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
@@ -50,8 +51,7 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
    * \param params The params of graph.
    * \param module_name The module name of graph.
    */
-  void Init(const std::string& graph_json,
-            const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
+  void Init(const std::string& graph_json, const tvm::Map<String, tvm::runtime::NDArray>& params,
             const std::string& module_name = "default");
 
   /*!
@@ -98,18 +98,14 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
    */
   Module SelectModule(const std::string& name);
 
-  const std::string& GetJson() const { return graph_json_; }
-
-  std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() const { return params_; }
-
   /*!
    * \brief Set params.
    * \param graph_runtime The graph runtime we want to set the params into.
    * \param params The graph params value we want to set.
    */
   void SetParams(GraphRuntime* graph_runtime,
-                 const std::unordered_map<std::string, tvm::runtime::NDArray>& params) const {
-    std::unordered_map<std::string, tvm::runtime::NDArray> value = params;
+                 const tvm::Map<String, tvm::runtime::NDArray>& params) const {
+    tvm::Map<String, tvm::runtime::NDArray> value = params;
     // upload big arrays first to avoid memory issue in rpc mode
     std::vector<std::string> keys;
     for (const auto& p : value) {
@@ -133,6 +129,10 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
     }
   }
 
+  const std::string& GetJson() const { return graph_json_; }
+
+  tvm::Map<String, tvm::runtime::NDArray> GetParams() const { return params_; }
+
   Module GetLib() const {
     CHECK_EQ(this->imports().size(), 1);
     return this->imports_[0];
@@ -144,7 +144,7 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
   /*! \brief The execution graph. */
   std::string graph_json_;
   /*! \brief The params. */
-  std::unordered_map<std::string, tvm::runtime::NDArray> params_;
+  tvm::Map<String, tvm::runtime::NDArray> params_;
   /*! \brief module name */
   std::string module_name_;
 };

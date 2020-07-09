@@ -35,7 +35,7 @@ namespace tvm {
 namespace runtime {
 
 void GraphRuntimeFactory::Init(const std::string& graph_json,
-                               const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
+                               const tvm::Map<String, tvm::runtime::NDArray>& params,
                                const std::string& module_name) {
   graph_json_ = graph_json;
   params_ = params;
@@ -51,13 +51,8 @@ PackedFunc GraphRuntimeFactory::GetFunction(
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetLib(); });
   } else if (name == "get_params") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      Map<String, tvm::runtime::NDArray> ret;
-      for (const auto& kv : this->GetParams()) {
-        ret.Set(kv.first, kv.second);
-      }
-      *rv = ret;
-    });
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetParams(); });
   } else if (name == module_name_) {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       auto module = this->SelectModule(module_name_);
@@ -158,7 +153,7 @@ Module GraphRuntimeFactory::SelectModule(const std::string& name) {
 Module GraphRuntimeFactoryModuleLoadBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
   std::string graph_json;
-  std::unordered_map<std::string, tvm::runtime::NDArray> params;
+  tvm::Map<String, tvm::runtime::NDArray> params;
   std::string module_name;
   CHECK(stream->Read(&graph_json));
   uint64_t sz;
@@ -169,7 +164,7 @@ Module GraphRuntimeFactoryModuleLoadBinary(void* strm) {
   for (size_t i = 0; i < sz; ++i) {
     tvm::runtime::NDArray temp;
     temp.Load(stream);
-    params[names[i]] = temp;
+    params.Set(names[i], temp);
   }
   CHECK(stream->Read(&module_name));
   auto exec = make_object<GraphRuntimeFactory>();
@@ -185,10 +180,9 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_factory.create").set_body([](TVMArgs args
   auto exec = make_object<GraphRuntimeFactory>();
   // The argument order is graph_json, module, module_name, params.
   CHECK_EQ((args.size() - 3) % 2, 0);
-  std::unordered_map<std::string, tvm::runtime::NDArray> params;
+  tvm::Map<String, tvm::runtime::NDArray> params;
   for (size_t i = 3; i < static_cast<size_t>(args.size()); i += 2) {
-    std::string name = args[i].operator String();
-    params[name] = args[i + 1].operator tvm::runtime::NDArray();
+    params.Set(args[i].operator String(), args[i + 1].operator tvm::runtime::NDArray());
   }
   exec->Init(args[0], params, args[2]);
   exec->Import(args[1]);
