@@ -984,9 +984,9 @@ bool InitOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const InitOpAttrs* param = attrs.as<InitOpAttrs>();
   CHECK(param);
-  
+
   DataType out_dtype = param->dtype;
-  std::vector<IndexExpr> oshape; 
+  std::vector<IndexExpr> oshape;
 
   const Array<Integer>& cshape_array = param->shape.value();
   for (size_t i = 0; i < cshape_array.size(); ++i) {
@@ -998,7 +998,7 @@ bool InitOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 Expr MakeZeros(Array<Integer> shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
-  attrs->shape = std::move(shape); 
+  attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("zeros");
   return Call(op, {}, Attrs(attrs), {});
@@ -1819,7 +1819,7 @@ RELAY_REGISTER_OP("collapse_sum_to")
 bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
   // types = [data_type, ret_type], broadcast_to_type is in attrs bc static
-  CHECK_EQ(types.size(), 2); 
+  CHECK_EQ(types.size(), 2);
 
   const InitOpAttrs* param = attrs.as<InitOpAttrs>();
   CHECK(param);

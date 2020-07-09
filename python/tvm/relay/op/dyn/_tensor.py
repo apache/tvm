@@ -23,7 +23,6 @@ from ..op import register_shape_func, register_compute
 from ..op import register_broadcast_schedule
 from ..op import register_pattern, OpPattern
 from .._tensor import full_shape_func, no_data_full_shape_func
-from .._tensor import zeros_compute, ones_compute
 
 # ones
 @register_compute("dyn.ones")
@@ -34,7 +33,6 @@ def ones_compute(attrs, inputs, output_type):
 register_broadcast_schedule("dyn.ones")
 register_pattern("dyn.ones", OpPattern.ELEMWISE)
 
-# zeros -- copied from static op, maybe import with a wrapper but I think they might need to be different
 @register_compute("dyn.zeros")
 def zeros_compute(attrs, inputs, output_type):
     assert len(inputs) == 1

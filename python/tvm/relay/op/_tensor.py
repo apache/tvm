@@ -17,7 +17,6 @@
 #pylint: disable=invalid-name, unused-argument, len-as-condition
 """Backend compiler related feature registration"""
 
-from tvm.te.hybrid import script
 import topi
 
 from .op import register_compute, register_shape_func

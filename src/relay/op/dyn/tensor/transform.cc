@@ -31,6 +31,7 @@
 #include <tvm/runtime/registry.h>
 
 #include <vector>
+#include <utility>
 
 namespace tvm {
 namespace relay {
@@ -260,7 +261,7 @@ bool InitOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   for (int i = 0; i < shape_shape->value; ++i) {
     oshape.push_back(Any());
   }
-  
+
   reporter->Assign(types[1], TensorType(oshape, out_dtype));
   return true;
 }
