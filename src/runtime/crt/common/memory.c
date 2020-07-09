@@ -103,8 +103,10 @@ IndexedEntry* MultiMap_End(struct MultiMap* map) {
 void MultiMap_Erase(struct MultiMap* map, IndexedEntry* entry) {
   for (uint32_t idx = 0; idx < map->num_entries; idx++) {
     if ((map->entries + idx) == entry) {
-      memcpy(map->entries + idx, map->entries + (idx + 1),
-             sizeof(IndexedEntry) * (map->num_entries - idx));
+      // NOTE: do not use memcpy due to overlap.
+      for (uint32_t src_idx = idx + 1; src_idx < map->num_entries; src_idx++) {
+        map->entries[src_idx - 1] = map->entries[src_idx];
+      }
       map->num_entries--;
       break;
     }

@@ -169,7 +169,7 @@ TEST(MutableFuncRegistry, Create) {
 
   // function_name_chars is used to produce 2 function names. The second one is expected to
   // overfill `names`; assert there are at least enough data in function_name_chars to do this.
-  EXPECT_GE(kTvmAverageFuncEntrySizeBytes + kTvmAverageFunctionNameStrlenBytes,
+  EXPECT_LE(kTvmAverageFuncEntrySizeBytes + kTvmAverageFunctionNameStrlenBytes,
             strlen(function_name_chars));
 
   for (unsigned int buf_size = 0; buf_size < kTvmAverageFuncEntrySizeBytes; buf_size++) {

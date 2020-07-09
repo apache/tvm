@@ -26,7 +26,8 @@
 #define ROUND_UP(qty, modulo) (((qty) + ((modulo)-1)) / (modulo) * (modulo))
 
 static constexpr const unsigned int kTotalPages = 128;
-static constexpr const unsigned int kNumUsablePages = 95;
+static constexpr const unsigned int kNumUsablePages = (
+  sizeof(void*) == 8 ? 95 : (sizeof(void*) == 4 ? 99 : 0));
 static constexpr const unsigned int kPageSizeBytesLog = 8;  // 256 byte pages.
 static constexpr const unsigned int kMemoryPoolSizeBytes = kTotalPages * (1 << kPageSizeBytesLog);
 
