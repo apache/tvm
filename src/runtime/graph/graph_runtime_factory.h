@@ -25,19 +25,19 @@
 #ifndef TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
 #define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
 
-#include "./graph_runtime.h"
-
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <algorithm>
+#include <functional>
 #include <numeric>
 #include <string>
 #include <unordered_map>
-#include <functional>
 #include <vector>
+
+#include "./graph_runtime.h"
 
 namespace tvm {
 namespace runtime {
