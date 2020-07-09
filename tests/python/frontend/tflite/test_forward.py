@@ -1777,16 +1777,16 @@ def _test_arg_min_max(math_op, data, axis, quantized=False):
             compare_tflite_with_tvm([data], [in_data.name], [in_data], [out])
 
 def test_forward_arg_min_max():
-    data = np.array(np.random.uniform(0, 100, (3, 4)), dtype=np.uint8)
     # test quantized
-    # There is no quantized version of ArgMin
-    for axis in [None, 0, 1, -1]:
-        _test_arg_min_max(math_ops.argmax, data, axis, True)
+    for data in [np.array(np.random.uniform(-100, 100, (3, 4)), dtype=np.uint8)]:
+        # There is no quantized version of ArgMin
+        for axis in [None, 0, 1, -1]:
+            _test_arg_min_max(math_ops.argmax, data, axis, True)
 
-    data = np.array(np.random.uniform(0, 100, (3, 4)), dtype=np.float32)
-    for axis in [None, 0, 1, -1]:
-        _test_arg_min_max(math_ops.argmax, data, axis)
-        _test_arg_min_max(math_ops.argmin, data, axis)
+    for data in [np.array(np.random.uniform(-100, 100, (3, 4)), dtype=np.float32)]:
+        for axis in [None, 0, 1, -1]:
+            _test_arg_min_max(math_ops.argmax, data, axis)
+            _test_arg_min_max(math_ops.argmin, data, axis)
 
 
 #######################################################################
