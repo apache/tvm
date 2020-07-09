@@ -138,7 +138,7 @@ class State:
             The iterator to be split.
         lengths: List[int]
             The multiple split factors. Can be None to be filled by search policy.
-        inner_to_outer: bool = True
+        inner_to_outer: boolean = True
             Whether the factor go from inner to outer, or from outer to inner.
 
         Returns

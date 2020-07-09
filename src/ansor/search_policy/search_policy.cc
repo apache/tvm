@@ -49,7 +49,7 @@ TVM_REGISTER_GLOBAL("ansor.SearchPolicySetTask")
     .set_body_typed([](SearchPolicy policy, SearchTask task) { policy->cur_task = task; });
 
 TVM_REGISTER_GLOBAL("ansor.SearchPolicySetVerbose")
-    .set_body_typed([](SearchPolicy policy, int verbose) { policy->verbose = verbose; });
+    .set_body_typed([](SearchPolicy policy, bool verbose) { policy->verbose = verbose; });
 
 }  // namespace ansor
 }  // namespace tvm

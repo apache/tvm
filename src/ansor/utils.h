@@ -163,9 +163,7 @@ NullStream& operator<<(NullStream& os, const T& value) {
 }
 
 /*! \brief Get std cout with verbose control */
-inline std::ostream& StdCout(int verbose) {
-  return verbose == 1 ? std::cout : NullStream::Global();
-}
+inline std::ostream& StdCout(bool verbose) { return verbose ? std::cout : NullStream::Global(); }
 
 /*! \brief Print multiple chars */
 inline std::string Chars(const char& str, int times) {
@@ -177,7 +175,7 @@ inline std::string Chars(const char& str, int times) {
 }
 
 /*! \brief Print a title */
-inline void PrintTitle(const std::string& title, int verbose) {
+inline void PrintTitle(const std::string& title, bool verbose) {
   StdCout(verbose) << Chars('-', 60) << "\n"
                    << Chars('-', 25) << "  [ " << title << " ]\n"
                    << Chars('-', 60) << std::endl;

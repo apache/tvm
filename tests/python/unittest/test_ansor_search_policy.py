@@ -26,14 +26,14 @@ from tvm import ansor
 
 from test_ansor_common import matmul_ansor_test, PropagatingThread
 
-def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local',
-                  cost_model=None, num_measure_trials=2, params=None,
+def search_common(workload=matmul_ansor_test, target="llvm", seed=random.randint(1, 1 << 30),
+                  runner='local', cost_model=None, num_measure_trials=2, params=None,
                   pre_search_callbacks=None):
     print("Test %s schedule search with the default search policy" % (target))
 
     random.seed(seed)
     N = 128
-    workload_key = ansor.make_workload_key(matmul_ansor_test, (N, N, N))
+    workload_key = ansor.make_workload_key(workload, (N, N, N))
     dag = ansor.ComputeDAG(workload_key)
     target = tvm.target.create(target)
     task = ansor.SearchTask(dag, workload_key, target)
@@ -73,7 +73,7 @@ def search_common(target="llvm", seed=random.randint(1, 1 << 30), runner='local'
     print()
 
 
-def test_search_basic():
+def test_workload_registry_search_basic():
     if not tvm.runtime.enabled("llvm"):
         return
     # wrap the search in a new thread to avoid the conflict
@@ -81,6 +81,14 @@ def test_search_basic():
     t = PropagatingThread(target=search_common, kwargs={'seed': 944563397})
     t.start()
     t.join()
+    t = PropagatingThread(target=search_common,
+                          kwargs={'seed': 944563397, 'workload': "matmul_ansor_test"})
+    t.start()
+    t.join()
+    t = PropagatingThread(target=search_common,
+                          kwargs={'seed': 944563397, 'workload': "matmul_ansor_test_rename_1"})
+    t.start()
+    t.join()
 
 if __name__ == "__main__":
-    test_search_basic()
+    test_workload_registry_search_basic()

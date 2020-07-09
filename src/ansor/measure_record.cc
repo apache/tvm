@@ -362,12 +362,12 @@ RecordReaderNode::~RecordReaderNode() { infile.close(); }
 bool RecordReaderNode::ReadNext(MeasureInputNode* inp, MeasureResultNode* res) {
   std::string log_version;
 
-  while (std::getline(infile, cur_line)) {
-    if (cur_line[0] == '#' || cur_line[0] == ' ') {
+  while (std::getline(infile, cur_line_)) {
+    if (cur_line_[0] == '#' || cur_line_[0] == ' ') {
       // skip comment lines begin with '#' or ' '
       continue;
     }
-    ReadMeasureRecord(cur_line, inp, res, &log_version);
+    ReadMeasureRecord(cur_line_, inp, res, &log_version);
     return true;
   }
 

@@ -113,8 +113,8 @@ class TuningOptions(Object):
       The number of schedules to be measured at each search round.
       The whole schedule search process will try a total number of `num_measure_trials` in several
       rounds.
-    verbose: int = 1
-      Verbosity level. 0 for silent, 1 to output information during schedule search.
+    verbose: boolean = True
+      Verbosity level. False for silent, True to output information during schedule search.
     builder: Union[ProgramBuilder, str] = 'local'
       ProgramBuilder which builds the program.
     runner: Union[ProgramRunner, str] = 'local'
@@ -131,7 +131,7 @@ class TuningOptions(Object):
         TODO(jcf94): Add these implementation in later PRs.
     """
     def __init__(self, num_measure_trials=0, early_stopping=None, num_measures_per_round=64,
-                 verbose=1, builder='local', runner='local', measure_callbacks=None,
+                 verbose=True, builder='local', runner='local', measure_callbacks=None,
                  pre_search_callbacks=None):
         if isinstance(builder, str):
             if builder == 'local':
@@ -153,8 +153,8 @@ class TuningOptions(Object):
 
         self.__init_handle_by_constructor__(
             _ffi_api.TuningOptions, num_measure_trials, early_stopping if early_stopping else -1,
-            num_measures_per_round,
-            verbose, builder, runner, measure_callbacks, pre_search_callbacks)
+            num_measures_per_round, verbose, builder, runner, measure_callbacks,
+            pre_search_callbacks)
 
 
 def auto_schedule(task, target, target_host=None, search_policy='default',

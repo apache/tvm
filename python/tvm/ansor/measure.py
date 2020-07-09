@@ -128,15 +128,15 @@ class MeasureResult(Object):
 class ProgramBuilder(Object):
     """ The base class of ProgramBuilders. """
 
-    def build(self, measure_inputs, verbose=1):
+    def build(self, measure_inputs, verbose=True):
         """ Build programs and return results.
 
         Parameters
         ----------
         measure_inputs : List[MeasureInput]
             A List of MeasureInput.
-        verbose : int = 1
-            Verbosity level. 0 for silent, 1 to output information during program building.
+        verbose : boolean = True
+            Verbosity level. False for silent, True to output information during program building.
 
         Returns
         -------
@@ -149,7 +149,7 @@ class ProgramBuilder(Object):
 class ProgramRunner(Object):
     """ The base class of ProgramRunners. """
 
-    def run(self, measure_inputs, build_results, verbose=1):
+    def run(self, measure_inputs, build_results, verbose=True):
         """ Run measurement and return results.
 
         Parameters
@@ -158,8 +158,8 @@ class ProgramRunner(Object):
             A List of MeasureInput.
         build_results : List[BuildResult]
             A List of BuildResult to be ran.
-        verbose : int = 1
-            Verbosity level. 0 for silent, 1 to output information during program running.
+        verbose : boolean = True
+            Verbosity level. False for silent, True to output information during program running.
 
         Returns
         -------
@@ -318,7 +318,7 @@ def local_build_worker(index):
         else:
             filename = ""
 
-        if verbose == 1:
+        if verbose:
             if error_no == MeasureErrorNo.NO_ERROR:
                 print(".", end="")
             else:
@@ -327,7 +327,7 @@ def local_build_worker(index):
 
     res = call_func_with_timeout(timeout, timed_func)
     if isinstance(res, TimeoutError):
-        if verbose == 1:
+        if verbose:
             print(".T", end="")  # Build timeout
         res = None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout
 
@@ -335,7 +335,7 @@ def local_build_worker(index):
 
 
 @tvm._ffi.register_func("ansor.local_builder.build")
-def local_builder_build(inputs, timeout, n_parallel, build_func='default', verbose=1):
+def local_builder_build(inputs, timeout, n_parallel, build_func='default', verbose=True):
     """
     Build function of LocalBuilder to build the MeasureInputs to runnable modules.
 
@@ -350,8 +350,8 @@ def local_builder_build(inputs, timeout, n_parallel, build_func='default', verbo
         Number of threads used to build in parallel.
     build_func : str = 'default'
         The name of build function to process the built module.
-    verbose : int = 1
-        Verbosity level. 0 for silent, 1 to output information during program building.
+    verbose : boolean = True
+        Verbosity level. False for silent, True to output information during program building.
 
     Returns
     -------
@@ -378,7 +378,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func='default', verbo
 
 @tvm._ffi.register_func("ansor.local_runner.run")
 def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, cooldown_interval,
-              verbose=1):
+              verbose=True):
     """
     Run function of LocalRunner to test the performance of the input BuildResults.
 
@@ -409,8 +409,8 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
         will be automatically increased.
     cooldown_interval : float = 0.0
         The cool down interval between two measurements.
-    verbose : int = 1
-        Verbosity level. 0 for silent, 1 to output information during program measuring.
+    verbose : boolean = True
+        Verbosity level. False for silent, True to output information during program measuring.
 
     Returns
     -------
@@ -450,7 +450,7 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
         toc = time.time()
         time.sleep(cooldown_interval)
 
-        if verbose == 1:
+        if verbose:
             if error_no == MeasureErrorNo.NO_ERROR:
                 print("*", end="")
             else:
@@ -468,13 +468,13 @@ def local_run(inputs, build_results, timeout, number, repeat, min_repeat_ms, coo
             res = call_func_with_timeout(
                 timeout, timed_func, args=(inp, build_res))
             if isinstance(res, TimeoutError):
-                if verbose == 1:
+                if verbose:
                     print("*T", end="")  # Run timeout
                 res = (max_float,), MeasureErrorNo.RUN_TIMEOUT, None, \
                     build_res.time_cost + timeout, time.time()
         measure_results.append(MeasureResult(*res))
 
-    if verbose == 1:
+    if verbose:
         print("")
 
     return measure_results

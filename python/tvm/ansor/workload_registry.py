@@ -38,7 +38,7 @@ from .utils import serialize_args, deserialize_args, get_func_name
 WORKLOAD_FUNC_REGISTRY = {}
 
 
-def register_workload(func):
+def register_workload(func_name, f=None, override=False):
     """ Register a function that generates a certain workload.
 
     The input function should take hashable and jsonable arguments
@@ -46,8 +46,12 @@ def register_workload(func):
 
     Parameters
     ----------
-    func : Function
-        The generation function that returns the compute declaration Tensors.
+    func_name : Union[Function, str]
+        The generation function that returns the compute declaration Tensors or its function name.
+    f : Optional[Function]
+        The generation function to be registered.
+    override : boolean = False
+        Whether override existing entry.
 
     Examples
     --------
@@ -60,14 +64,22 @@ def register_workload(func):
         return [A, B, C]
     """
     global WORKLOAD_FUNC_REGISTRY
-    assert callable(func)
 
-    func_name = get_func_name(func)
-    if func_name in WORKLOAD_FUNC_REGISTRY:
-        raise RuntimeError('%s has been registered already' % func_name)
+    if callable(func_name):
+        f = func_name
+        func_name = get_func_name(f)
+    if not isinstance(func_name, str):
+        raise ValueError("expect string function name")
 
-    WORKLOAD_FUNC_REGISTRY[func_name] = func
-    return func
+    def register(myf):
+        """internal register function"""
+        if func_name in WORKLOAD_FUNC_REGISTRY and not override:
+            raise RuntimeError('%s has been registered already' % func_name)
+        WORKLOAD_FUNC_REGISTRY[func_name] = myf
+        return myf
+    if f:
+        return register(f)
+    return register
 
 
 def make_workload_key(func, args):

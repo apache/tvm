@@ -110,7 +110,7 @@ LocalBuilder::LocalBuilder(int timeout, int n_parallel, const String& build_func
   data_ = std::move(node);
 }
 
-Array<BuildResult> LocalBuilderNode::Build(const Array<MeasureInput>& inputs, int verbose) {
+Array<BuildResult> LocalBuilderNode::Build(const Array<MeasureInput>& inputs, bool verbose) {
   if (const auto* f = runtime::Registry::Get("ansor.local_builder.build")) {
     Array<BuildResult> results = (*f)(inputs, timeout, n_parallel, build_func, verbose);
     return results;
@@ -134,7 +134,7 @@ LocalRunner::LocalRunner(int timeout, int number, int repeat, int min_repeat_ms,
 }
 
 Array<MeasureResult> LocalRunnerNode::Run(const Array<MeasureInput>& inputs,
-                                          const Array<BuildResult>& build_results, int verbose) {
+                                          const Array<BuildResult>& build_results, bool verbose) {
   if (const auto* f = runtime::Registry::Get("ansor.local_runner.run")) {
     Array<MeasureResult> results = (*f)(inputs, build_results, timeout, number, repeat,
                                         min_repeat_ms, cooldown_interval, verbose);
@@ -148,7 +148,7 @@ Array<MeasureResult> LocalRunnerNode::Run(const Array<MeasureInput>& inputs,
 
 /********** ProgramMeasurer **********/
 ProgramMeasurer::ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
-                                 Optional<Array<MeasureCallback>> callbacks, int verbose,
+                                 Optional<Array<MeasureCallback>> callbacks, bool verbose,
                                  int max_continous_error) {
   auto node = make_object<ProgramMeasurerNode>();
   node->builder = std::move(builder);
@@ -261,7 +261,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<MeasureResultNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const MeasureResultNode*>(ref.get());
-      if (node->error_no == kNoError) {
+      if (node->error_no == static_cast<int>(MeasureErrorNO::kNoError)) {
         p->stream << "MeasureResult(cost:[";
         auto old_config = p->stream.precision(4);
         for (size_t i = 0; i < node->costs.size(); ++i) {
@@ -312,12 +312,12 @@ TVM_REGISTER_GLOBAL("ansor.MeasureResult")
 
 TVM_REGISTER_GLOBAL("ansor.ProgramBuilderBuild")
     .set_body_typed([](const ProgramBuilder& builder, const Array<MeasureInput>& inputs,
-                       int verbose) { return builder->Build(inputs, verbose); });
+                       bool verbose) { return builder->Build(inputs, verbose); });
 
 TVM_REGISTER_GLOBAL("ansor.ProgramRunnerRun")
     .set_body_typed([](const ProgramRunner& runner, const Array<MeasureInput>& inputs,
                        const Array<BuildResult>& build_results,
-                       int verbose) { return runner->Run(inputs, build_results, verbose); });
+                       bool verbose) { return runner->Run(inputs, build_results, verbose); });
 
 TVM_REGISTER_GLOBAL("ansor.LocalBuilder")
     .set_body_typed([](int timeout, int n_parallel, const String& build_func) {

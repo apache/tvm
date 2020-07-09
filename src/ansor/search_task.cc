@@ -61,7 +61,7 @@ SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target targe
   node->target = std::move(target);
   node->target_host = std::move(target_host);
   if (hardware_params) {
-    node->hardware_params = std::move(hardware_params.value());
+    node->hardware_params = hardware_params.value();
   } else {
     node->hardware_params =
         HardwareParamsNode::GetDefaultHardwareParams(node->target, node->target_host);

@@ -32,6 +32,15 @@ def matmul_ansor_test(N, M, K):
     return [A, B, C]
 
 
+@ansor.register_workload("matmul_ansor_test_rename_1")
+def matmul_ansor_test_rename_0(N, M, K):
+    A = te.placeholder((N, K), name='A')
+    B = te.placeholder((K, M), name='B')
+    k = te.reduce_axis((0, K), name='k')
+    C = te.compute((N, M), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+    return [A, B, C]
+
+
 def conv2d_nchw_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation=1):
     data = te.placeholder((N, CI, H, W), name='Data')
     kernel = te.placeholder((CO, CI, kernel_size, kernel_size), name='Kernel')

@@ -93,7 +93,7 @@ class RecordReaderNode : public Object {
 
  private:
   /*! \brief A string object to store the next line. */
-  std::string cur_line;
+  std::string cur_line_;
 };
 
 /*!

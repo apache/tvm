@@ -394,7 +394,7 @@ State ComputeDAG::InferBound(const State& state) const {
     }
 
     pstate->stages.Set(
-        i, Stage(stage->op, stage->op_type, std::move(new_iters), stage->compute_at, stage->attrs));
+        i, Stage(stage->op, stage->op_type, new_iters, stage->compute_at, stage->attrs));
   }
 
   return ret_state;
