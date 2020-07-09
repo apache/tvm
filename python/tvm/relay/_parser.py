@@ -116,8 +116,6 @@ class FuncOp(OpWrapper):
             attrs = {}
         if self.operator in (op.strided_slice,):
             x = self.operator(*args)
-        elif self.operator in (op.zeros, op.ones, op.full, op.broadcast_to):
-            x = self.operator(*args, dtype=attrs["dtype"])
         else:
             x = self.operator(*args, **{k: self.convert(v) for k, v in attrs.items()})
         if isinstance(x, expr.TupleWrapper):
