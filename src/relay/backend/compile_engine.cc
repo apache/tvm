@@ -76,12 +76,7 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
   // even if the result of shape inference becomes int64.
   Array<IndexExpr> res;
   for (IndexExpr val : shape) {
-    const int64_t* pval = tir::as_const_int(val);
-    if (pval != nullptr) {
-      CHECK_LE(pval[0], std::numeric_limits<int32_t>::max());
-      CHECK_GE(pval[0], std::numeric_limits<int32_t>::min());
-      res.push_back(IntImm(DataType::Int(32), *pval));
-    } else if (val->IsInstance<tir::AnyNode>()) {
+    if (val->IsInstance<tir::AnyNode>()) {
       res.push_back(val.as<tir::AnyNode>()->ToVar());
     } else {
       res.push_back(val);
