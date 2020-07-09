@@ -25,6 +25,8 @@
 #ifndef TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
 #define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
 
+#include "./graph_runtime.h"
+
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
@@ -34,6 +36,7 @@
 #include <numeric>
 #include <string>
 #include <unordered_map>
+#include <functional>
 #include <vector>
 
 namespace tvm {
@@ -57,7 +60,7 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   /*!
    * \return The type key of the executor.
@@ -100,11 +103,12 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() const { return params_; }
 
   /*!
-   * \brief Get sorted keys of params.
-   * \param params The graph params value we want to sort.
-   * \return The sorted keys of params
+   * \brief Set params.
+   * \param graph_runtime The graph runtime we want to set the params into.
+   * \param params The graph params value we want to set.
    */
-  std::vector<std::string> GetSorterParamKeys(const std::unordered_map<std::string, tvm::runtime::NDArray>& params) const {
+  void SetParams(GraphRuntime* graph_runtime,
+                 const std::unordered_map<std::string, tvm::runtime::NDArray>& params) const {
     std::unordered_map<std::string, tvm::runtime::NDArray> value = params;
     // upload big arrays first to avoid memory issue in rpc mode
     std::vector<std::string> keys;
@@ -121,12 +125,16 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
                                                 std::multiplies<int64_t>());
                 return lhs_prod > rhs_prod;
               });
-
-    return keys;
+    for (const auto& key : keys) {
+      int in_idx = graph_runtime->GetInputIndex(key);
+      if (in_idx >= 0) {
+        graph_runtime->SetInput(in_idx, const_cast<DLTensor*>(value[key].operator->()));
+      }
+    }
   }
 
   Module GetLib() const {
-    CHECK_GT(this->imports().size(), 0);
+    CHECK_EQ(this->imports().size(), 0);
     return this->imports_[0];
   }
 
@@ -139,8 +147,6 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
   std::unordered_map<std::string, tvm::runtime::NDArray> params_;
   /*! \brief module name */
   std::string module_name_;
-  /*! \brief whether to package params */
-  bool package_params_ = true;
 };
 
 }  // namespace runtime

@@ -31,8 +31,6 @@
 #include <iterator>
 #include <vector>
 
-#include "./graph_runtime.h"
-
 namespace tvm {
 namespace runtime {
 
@@ -46,32 +44,12 @@ void GraphRuntimeFactory::Init(const std::string& graph_json,
 
 PackedFunc GraphRuntimeFactory::GetFunction(
     const std::string& name, const tvm::runtime::ObjectPtr<tvm::runtime::Object>& sptr_to_self) {
-  if (name == "runtime_create") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      std::vector<TVMContext> contexts;
-      TVMContext ctx;
-      // arg is: module, ctxs
-      CHECK_EQ((args.size() - 1) % 2, 0);
-      for (int i = 1; i < args.num_args; i += 2) {
-        int dev_type = args[i];
-        ctx.device_type = static_cast<DLDeviceType>(dev_type);
-        ctx.device_id = args[i + 1];
-        contexts.push_back(ctx);
-      }
-      *rv = this->RuntimeCreate(args[0], contexts);
-    });
-  } else if (name == "select_module") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.size(), 1);
-      *rv = this->SelectModule(args[0]);
-    });
-  } else if (name == "get_json") {
+  if (name == "get_json") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetJson(); });
   } else if (name == "get_lib") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->GetLib();
-    });
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetLib(); });
   } else if (name == "get_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       Map<String, tvm::runtime::NDArray> ret;
@@ -80,14 +58,6 @@ PackedFunc GraphRuntimeFactory::GetFunction(
       }
       *rv = ret;
     });
-  } else if (name == "diable_package_params") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->package_params_ = false; });
-  } else if (name == "get_module_name") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          *rv = this->GetModuleName();
-        });
   } else if (name == module_name_) {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       auto module = this->SelectModule(module_name_);
@@ -108,29 +78,34 @@ PackedFunc GraphRuntimeFactory::GetFunction(
       }
       *rv = this->DebugRuntimeCreate(module, contexts);
     });
+  } else if (name == "remove_params") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      auto exec = make_object<GraphRuntimeFactory>();
+      exec->Init(this->GetJson(), {}, this->GetModuleName());
+      exec->Import(this->GetLib());
+      *rv = Module(exec);
+    });
   } else {
-      return PackedFunc();
+    return PackedFunc();
   }
 }
 
 void GraphRuntimeFactory::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(graph_json_);
-  stream->Write(package_params_);
-  if (package_params_) {
-    std::vector<std::string> names;
-    std::vector<DLTensor*> arrays;
-    for (const auto& v : params_) {
-      names.emplace_back(v.first);
-      arrays.emplace_back(const_cast<DLTensor*>(v.second.operator->()));
-    }
-    uint64_t sz = arrays.size();
-    CHECK(sz == names.size());
-    stream->Write(sz);
-    stream->Write(names);
-    for (size_t i = 0; i < sz; ++i) {
-      tvm::runtime::SaveDLTensor(stream, arrays[i]);
-    }
+  std::vector<std::string> names;
+  std::vector<DLTensor*> arrays;
+  for (const auto& v : params_) {
+    names.emplace_back(v.first);
+    arrays.emplace_back(const_cast<DLTensor*>(v.second.operator->()));
   }
+  uint64_t sz = arrays.size();
+  CHECK(sz == names.size());
+  stream->Write(sz);
+  stream->Write(names);
+  for (size_t i = 0; i < sz; ++i) {
+    tvm::runtime::SaveDLTensor(stream, arrays[i]);
+  }
+  stream->Write(module_name_);
 }
 
 Module GraphRuntimeFactory::RuntimeCreate(Module module, const std::vector<TVMContext>& ctxs) {
@@ -139,14 +114,7 @@ Module GraphRuntimeFactory::RuntimeCreate(Module module, const std::vector<TVMCo
   auto exec = make_object<GraphRuntime>();
   exec->Init(factory_module->GetJson(), factory_module->GetLib(), ctxs);
   // set params
-  auto params = factory_module->GetParams();
-  auto keys = factory_module->GetSorterParamKeys(params);
-  for (const auto& key : keys) {
-    int in_idx = exec->GetInputIndex(key);
-    if (in_idx >= 0) {
-      exec->SetInput(in_idx, const_cast<DLTensor*>(params[key].operator->()));
-    }
-  }
+  SetParams(exec.get(), factory_module->GetParams());
   return Module(exec);
 }
 
@@ -156,9 +124,9 @@ Module GraphRuntimeFactory::DebugRuntimeCreate(Module module, const std::vector<
   const PackedFunc* pf = tvm::runtime::Registry::Get("tvm.graph_runtime_debug.create");
   CHECK(pf != nullptr) << "Cannot find function tvm.graph_runtime_debug.create in registry. "
                           "Do you enable debug graph runtime build?";
-  // Debug runtime will call GetAllContexs, so we unpack the ctxs.
+  // Debug runtime create packed function will call GetAllContexs, so we unpack the ctxs.
   std::vector<int> unpacked_ctxs;
-  for(const auto& ctx: ctxs) {
+  for (const auto& ctx : ctxs) {
     unpacked_ctxs.emplace_back(ctx.device_type);
     unpacked_ctxs.emplace_back(ctx.device_id);
   }
@@ -168,22 +136,14 @@ Module GraphRuntimeFactory::DebugRuntimeCreate(Module module, const std::vector<
   runtime::TVMArgsSetter setter(values.data(), codes.data());
   setter(0, factory_module->GetJson());
   setter(1, factory_module->GetLib());
-  for (int i = 0; i < unpacked_ctxs.size(); ++i) {
+  for (size_t i = 0; i < unpacked_ctxs.size(); ++i) {
     setter(i + 2, unpacked_ctxs[i]);
   }
   TVMRetValue rv;
   pf->CallPacked(TVMArgs(values.data(), codes.data(), args_size), &rv);
   Module mod = rv.operator Module();
   // debug graph runtime is one child class of graph runtime.
-  GraphRuntime* exec = const_cast<GraphRuntime*>(mod.as<GraphRuntime>());
-  auto params = factory_module->GetParams();
-  auto keys = factory_module->GetSorterParamKeys(params);
-  for (const auto& key : keys) {
-    int in_idx = exec->GetInputIndex(key);
-    if (in_idx >= 0) {
-      exec->SetInput(in_idx, const_cast<DLTensor*>(params[key].operator->()));
-    }
-  }
+  SetParams(const_cast<GraphRuntime*>(mod.as<GraphRuntime>()), factory_module->GetParams());
   return mod;
 }
 
@@ -198,24 +158,22 @@ Module GraphRuntimeFactory::SelectModule(const std::string& name) {
 Module GraphRuntimeFactoryModuleLoadBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
   std::string graph_json;
-  bool package_params;
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
+  std::string module_name;
   CHECK(stream->Read(&graph_json));
-  CHECK(stream->Read(&package_params));
-  if (package_params) {
-    uint64_t sz;
-    CHECK(stream->Read(&sz));
-    std::vector<std::string> names;
-    CHECK(stream->Read(&names));
-    CHECK(sz == names.size());
-    for (size_t i = 0; i < sz; ++i) {
-      tvm::runtime::NDArray temp;
-      temp.Load(stream);
-      params[names[i]] = temp;
-    }
+  uint64_t sz;
+  CHECK(stream->Read(&sz));
+  std::vector<std::string> names;
+  CHECK(stream->Read(&names));
+  CHECK(sz == names.size());
+  for (size_t i = 0; i < sz; ++i) {
+    tvm::runtime::NDArray temp;
+    temp.Load(stream);
+    params[names[i]] = temp;
   }
+  CHECK(stream->Read(&module_name));
   auto exec = make_object<GraphRuntimeFactory>();
-  exec->Init(graph_json, params);
+  exec->Init(graph_json, params, module_name);
   return Module(exec);
 }
 

@@ -15,14 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Graph runtime factory."""
-import numpy as np
 import warnings
 from tvm._ffi.base import string_types
 from tvm._ffi.registry import get_global_func
-from tvm._ffi.runtime_ctypes import TVMContext
-from tvm.contrib.graph_runtime import get_device_ctx
-from .packed_func import _set_class_module
-from tvm.rpc import base as rpc_base
 from .module import Module
 from . import ndarray
 
@@ -89,7 +84,8 @@ class GraphRuntimeFactoryModule(Module):
 
     def __iter__(self):
         warnings.warn(
-            "legacy graph runtime behaviour of producing json / lib / params will be removed in the next release ",
+            "legacy graph runtime behaviour of producing json / lib / params will be "
+            "removed in the next release ",
             DeprecationWarning, 2)
         self.graph_json = self.module["get_json"]()
         self.lib = self.module["get_lib"]()

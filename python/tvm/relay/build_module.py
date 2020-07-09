@@ -209,6 +209,9 @@ def build(mod, target=None, target_host=None, params=None, mod_name='default'):
         Input parameters to the graph that do not change
         during inference time. Used for constant folding.
 
+    mod_name: Optional[str]
+        The module name we will build
+
     Returns
     -------
     graph_json : str
