@@ -455,10 +455,10 @@ def dot_int8_int8_int32(int32_lanes, dtype='uint'):
 def _qmuls_arm(op):
     """
     Implementation of qmuls through arm intrinsics sqrdmulh and srshl
-    when q == 31. 
+    when q == 31.
 
-    Please note that this is introducing a small round-up error for 
-    some corner cases. This is because we are rounding twice instead 
+    Please note that this is introducing a small round-up error for
+    some corner cases. This is because we are rounding twice instead
     than only once. I.e.:
 
         * original qmuls: round(x*y*2^-s)
