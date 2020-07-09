@@ -490,7 +490,11 @@ def test_debug_graph_runtime():
 
     # raw api
     ctx = tvm.cpu()
-    gmod = complied_graph_lib['debug_create']('default', ctx)
+    try:
+        gmod = complied_graph_lib['debug_create']('default', ctx)
+    except:
+        print("Skip because debug graph_runtime not enabled")
+        return
     set_input = gmod["set_input"]
     run = gmod["run"]
     get_output = gmod["get_output"]
