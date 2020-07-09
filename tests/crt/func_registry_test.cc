@@ -184,8 +184,8 @@ TEST(MutableFuncRegistry, Create) {
     EXPECT_EQ(kTvmErrorNoError, TVMMutableFuncRegistry_Create(
                                     &reg, mem_buffer, kTvmAverageFuncEntrySizeBytes * 2 + rem));
 
-    snprintf_truncate(
-      test_function_name, kTvmAverageFunctionNameStrlenBytes + 1, function_name_chars);
+    snprintf_truncate(test_function_name, kTvmAverageFunctionNameStrlenBytes + 1,
+                      function_name_chars);
 
     // Add function #1, and verify it can be retrieved.
     EXPECT_EQ(kTvmErrorNoError,
@@ -201,9 +201,8 @@ TEST(MutableFuncRegistry, Create) {
     EXPECT_EQ(func, TestFunctionHandle(0x01));
 
     // Ensure that overfilling `names` by 1 char is not allowed.
-    snprintf_truncate(
-      test_function_name, kTvmAverageFunctionNameStrlenBytes + rem + 2,
-      function_name_chars + 1);
+    snprintf_truncate(test_function_name, kTvmAverageFunctionNameStrlenBytes + rem + 2,
+                      function_name_chars + 1);
 
     EXPECT_EQ(kTvmErrorFunctionRegistryFull,
               TVMMutableFuncRegistry_Set(&reg, test_function_name, TestFunctionHandle(0x02), 0));
@@ -211,9 +210,8 @@ TEST(MutableFuncRegistry, Create) {
               TVMFuncRegistry_Lookup(&reg.registry, test_function_name, &func_index));
 
     // Add function #2, with intentionally short (by 2 char) name. Verify it can be retrieved.
-    snprintf_truncate(
-      test_function_name, kTvmAverageFunctionNameStrlenBytes - 2 + 1,
-      function_name_chars + 1);
+    snprintf_truncate(test_function_name, kTvmAverageFunctionNameStrlenBytes - 2 + 1,
+                      function_name_chars + 1);
     EXPECT_EQ(kTvmErrorNoError,
               TVMMutableFuncRegistry_Set(&reg, test_function_name, TestFunctionHandle(0x02), 0));
 

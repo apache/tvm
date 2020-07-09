@@ -193,7 +193,7 @@ static int DecodeFunctionHandle(TVMFunctionHandle handle, tvm_module_index_t* mo
     return -1;
   }
 
-  *function_index = ((uint32_t) ((uintptr_t)handle)) & ~0x8000;
+  *function_index = ((uint32_t)((uintptr_t)handle)) & ~0x8000;
   *module_index = unvalidated_module_index;
   return 0;
 }
