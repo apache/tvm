@@ -45,13 +45,14 @@ namespace relay {
 
 class Collector : public ExprRewriter {
  public:
-  explicit Collector(const IRModule& module) { glob_funcs_ = module->functions; }
+  explicit Collector(const IRModule& module) : module_(module) {}
 
   Expr Rewrite_(const CallNode* call, const Expr& post) final {
     // check if the function implementation is available
     // intrinsic functions are excluded for now
     if (call->op->IsInstance<GlobalVarNode>()) {
       auto var = Downcast<GlobalVar>(call->op);
+      auto glob_funcs_ = module_->functions;
       CHECK_GT(glob_funcs_.count(var), 0) << "Function " << var << " is not defined";
       // we only handle functions with Compiler attribute set
       auto* fn = glob_funcs_[var].as<FunctionNode>();
@@ -68,7 +69,7 @@ class Collector : public ExprRewriter {
   Array<Expr> GetNewOutputs() { return new_outputs_; }
 
  private:
-  Map<GlobalVar, BaseFunc> glob_funcs_;
+  const IRModule& module_;
   Array<Expr> new_outputs_;
 };
 
@@ -136,13 +137,12 @@ IRModule GetCalibrateModule(IRModule module) {
 class OutputMapper : public ExprRewriter {
  public:
   OutputMapper(Map<GlobalVar, Array<Integer>>* output_map, const IRModule& module, size_t* offset)
-      : output_map_(output_map), offset_(offset) {
-    glob_funcs_ = module->functions;
-  }
+      : output_map_(output_map), module_(module), offset_(offset) {}
 
   Expr Rewrite_(const CallNode* call, const Expr& post) final {
     if (call->op->IsInstance<GlobalVarNode>()) {
       auto var = Downcast<GlobalVar>(call->op);
+      auto glob_funcs_ = module_->functions;
       CHECK_GT(glob_funcs_.count(var), 0) << "Function " << var << " is not defined";
       CHECK_EQ(output_map_->count(var), 0)
           << "Repeated function call " << var << " is not supported.";
@@ -175,7 +175,7 @@ class OutputMapper : public ExprRewriter {
 
  private:
   Map<GlobalVar, Array<Integer>>* output_map_;
-  Map<GlobalVar, BaseFunc> glob_funcs_;
+  const IRModule& module_;
   size_t* offset_;
 };
 
