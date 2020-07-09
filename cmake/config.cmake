@@ -184,6 +184,18 @@ set(USE_SORT ON)
 # Whether use MKL-DNN (DNNL) codegen
 set(USE_DNNL_CODEGEN OFF)
 
+# Whether to use ACL (Arm Compute Library) codegen
+# We provide 2 separate flags since we cannot build the ACL runtime on x86.
+# This is useful for cases where you want to cross-compile a relay graph
+# on x86 then run on AArch.
+#
+# USE_ACL - Support for compiling a relay graph offloading supported
+#           operators to ACL. OFF/ON
+# USE_ACL_GRAPH_RUNTIME - Run ACL annotated functions via the ACL
+#                         runtime. OFF/ON/"path/to/ACL"
+set(USE_ACL OFF)
+set(USE_ACL_GRAPH_RUNTIME OFF)
+
 # Build ANTLR parser for Relay text format
 # Possible values:
 # - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)

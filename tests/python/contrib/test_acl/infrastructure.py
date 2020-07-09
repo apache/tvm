@@ -1,0 +1,162 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+from itertools import zip_longest, combinations
+import json
+
+import tvm
+from tvm import relay
+from tvm import rpc
+from tvm.contrib import graph_runtime
+from tvm.relay.op.contrib import acl
+from tvm.contrib import util
+
+
+class Device:
+    """Adjust the following settings to connect to and use a remote device for tests."""
+    use_remote = False
+    target = "llvm -target=aarch64-linux-gnu -mattr=+neon"
+    # Enable cross compilation when connecting a remote device from a non-arm platform.
+    cross_compile = None
+    # cross_compile = "aarch64-linux-gnu-g++"
+
+    def __init__(self):
+        """Keep remote device for lifetime of object."""
+        self.device = self._get_remote()
+
+    @classmethod
+    def _get_remote(cls):
+        """Get a remote (or local) device to use for testing."""
+        if cls.use_remote:
+            # Here you may adjust settings to run the ACL unit tests via a remote
+            # device using the RPC mechanism. Use this in the case you want to compile
+            # an ACL module on a different machine to what you run the module on i.e.
+            # x86 -> AArch64.
+            #
+            # Use the following to connect directly to a remote device:
+            # device = rpc.connect(
+            #     hostname="0.0.0.0",
+            #     port=9090)
+            #
+            # Or connect via a tracker:
+            # device = tvm.autotvm.measure.request_remote(
+            #     host="0.0.0.0",
+            #     port=9090,
+            #     device_key="device_key",
+            #     timeout=1000)
+            #
+            # return device
+            raise NotImplementedError(
+                "Please adjust these settings to connect to your remote device.")
+        else:
+            device = rpc.LocalSession()
+            return device
+
+
+def skip_runtime_test():
+    """Skip test if it requires the runtime and it's not present."""
+    # ACL codegen not present.
+    if not tvm.get_global_func("relay.ext.acl", True):
+        print("Skip because ACL codegen is not available.")
+        return True
+
+    # Remote device is in use or ACL runtime not present
+    if not Device.use_remote and not acl.is_acl_runtime_present():
+        print("Skip because runtime isn't present or a remote device isn't being used.")
+        return True
+
+
+def skip_codegen_test():
+    """Skip test if it requires the ACL codegen and it's not present."""
+    if not tvm.get_global_func("relay.ext.acl", True):
+        print("Skip because ACL codegen is not available.")
+        return True
+
+
+def build_module(mod, target, params=None, enable_acl=True):
+    """Build module with option to build for ACL."""
+    if isinstance(mod, tvm.relay.expr.Call):
+        mod = tvm.IRModule.from_expr(mod)
+    with tvm.transform.PassContext(opt_level=3):
+        if enable_acl:
+            mod = acl.partition_for_acl(mod, params)
+        return relay.build(mod, target=target, params=params)
+
+
+def build_and_run(mod, inputs, outputs, params, device, enable_acl=True, no_runs=1):
+    """Build and run the relay module."""
+    graph, lib, params = build_module(mod, device.target, params, enable_acl)
+    lib = update_lib(lib, device.device, device.cross_compile)
+    gen_module = graph_runtime.create(graph, lib, ctx=device.device.cpu(0))
+    gen_module.set_input(**inputs)
+    gen_module.set_input(**params)
+    for _ in range(no_runs):
+        gen_module.run()
+    out = [gen_module.get_output(i) for i in range(outputs)]
+    return out
+
+
+def update_lib(lib, device, cross_compile):
+    """Export the library to the remote/local device."""
+    lib_name = "mod.so"
+    temp = util.tempdir()
+    lib_path = temp.relpath(lib_name)
+    if cross_compile:
+        lib.export_library(lib_path, cc=cross_compile)
+    else:
+        lib.export_library(lib_path)
+    device.upload(lib_path)
+    lib = device.load_module(lib_name)
+    return lib
+
+
+def verify(answers, atol, rtol):
+    """Compare the array of answers. Each entry is a list of outputs."""
+    if len(answers) < 2:
+        raise RuntimeError(
+            f"No results to compare: expected at least two, found {len(answers)}")
+    for answer in zip_longest(*answers):
+        for outs in combinations(answer, 2):
+            tvm.testing.assert_allclose(
+               outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol)
+
+
+def extract_acl_modules(module):
+    """Get the ACL module(s) from llvm module."""
+    return list(filter(lambda mod: mod.type_key == "acl",
+                       module.imported_modules))
+
+
+def verify_codegen(module, known_good_codegen, num_acl_modules,
+                   target="llvm -target=aarch64-linux-gnu -mattr=+neon"):
+    """Check acl codegen against a known good output."""
+    _, module, _ = build_module(module, target)
+    acl_modules = extract_acl_modules(module)
+
+    assert len(acl_modules) == num_acl_modules, \
+        f"The number of ACL modules produced ({len(acl_modules)}) does not " \
+        f"match the expected value ({num_acl_modules})."
+
+    for mod in acl_modules:
+        source = mod.get_source()
+        source_json = json.loads(source)
+        func_name = list(source_json.keys())[0]
+        codegen = source_json[func_name]["node"]
+
+        assert codegen == known_good_codegen, \
+            f"The JSON produced by codegen does not match the expected result. \n" \
+            f"Actual={json.dumps(codegen, sort_keys=True, indent=2)} \n" \
+            f"Expected={json.dumps(known_good_codegen, sort_keys=True, indent=2)}"

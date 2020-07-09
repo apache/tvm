@@ -1,0 +1,111 @@
+<!---
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+
+# Relay Arm&reg; Compute Library Integration
+Arm Compute Library (ACL) is an open source project that provides accelerated kernels for Arm CPU's
+and GPU's. Currently the integration offloads operators to ACL to use hand-crafted assembler
+routines in the library. By offloading select operators from a relay graph to ACL we can achieve
+a performance boost on such devices.
+
+## Building with ACL support
+The current implementation has two separate build options in cmake. The reason for this split is
+because ACL cannot be used on an x86 machine. However, we still want to be able compile an ACL
+runtime module on an x86 machine.
+
+* USE_ACL=ON/OFF - Enabling this flag will add support for compiling an ACL runtime module.
+* USE_GRAPH_RUNTIME_ACL=ON/OFF/path-to-acl - Enabling this flag will allow the graph runtime to
+compute the ACL offloaded functions.
+
+These flags can be used in different scenarios depending on your setup. For example, if you want
+to compile ACL on an x86 machine and then run the module on a remote Arm device via RPC, you will
+need to use USE_ACL=ON on the x86 machine and USE_GRAPH_RUNTIME_ACL=ON on the remote AArch64
+device.
+## Usage
+_Note:_ this may not stay up-to-date with changes to the API.
+1. Create a relay graph. This may be a single operator or a whole graph. The intention is that any
+relay graph can be input. The ACL integration will only pick supported operators to be offloaded
+whilst the rest will be computed via TVM. (For this example we will use a single
+max_pool2d operator).
+    ```
+    import tvm
+    from tvm import relay
+
+    data_type = "float32"
+    data_shape = (1, 14, 14, 512)
+    strides = (2, 2)
+    padding = (0, 0, 0, 0)
+    pool_size = (2, 2)
+    layout = "NHWC"
+    output_shape = (1, 7, 7, 512)
+
+    data = relay.var('data', shape=data_shape, dtype=data_type)
+    out = relay.nn.max_pool2d(data, pool_size=pool_size, strides=strides,
+                              layout=layout, padding=padding)
+    module = tvm.IRModule.from_expr(out)
+    ```
+2. Annotate and partition the graph for ACL.
+    ```
+    module = relay.transform.AnnotateTarget("acl")(module)
+    module = relay.transform.PartitionGraph()(module)
+    ```
+3. Build the Relay graph.
+    ```
+    target = "llvm -target=aarch64-linux-gnu -mattr=+neon"
+    with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            json, lib, params = relay.build(module, target=target)
+    ```
+4. Export the module.
+    ```
+    lib_path = '~/lib_acl.so'
+    cross_compile = 'aarch64-linux-gnu-c++'
+    lib.export_library(lib_path, cc=cross_compile)
+    ```
+ 5. Run Inference. This must be on an Arm device. If compiling on x86 device and running on aarch64
+ consider using the RPC mechanism.
+    ```
+    tvm.runtime.load_module('lib_acl.so')
+    gen_module = tvm.contrib.graph_runtime.create(json, lib, ctx)
+
+    d_data = np.random.uniform(0, 1, data_shape).astype(data_type)
+    map_inputs = {'data': d_data}
+    gen_module.map_inputs(**map_inputs)
+    gen_module.run()
+    ```
+
+## More examples
+The example above only shows a basic example of how ACL can be used for offloading a single
+Maxpool2D. If you would like to see more examples for each implemented operator and for
+networks refer to the tests: `tests/python/contrib/test_acl`. Here you can modify
+`infrastructure.py` to use the remote device you have setup.
+
+## Adding a new operator
+Adding a new operator requires changes to a series of places. This section will give a hint on
+what needs to be changed and where, it will not however dive into the complexities for an
+individual operator. This is left to the developer.
+
+There are a series of files we need to make changes to:
+* `python/relay/op/contrib/acl.py` In this file we define the operators we wish to offload using the
+`op.register` decorator. This will mean the annotation pass recognizes this operator as ACL
+offloadable.
+* `src/relay/backend/contrib/acl/codegen_acl.h` Implement `Make[OpName]` method. This is where we
+declare how the operator should be represented by JSON. This will be used to create the ACL module.
+* `src/runtime/contrib/acl/acl_kernel.h` Implement `Create[OpName]Layer` method. This is where we
+define how the JSON representation can be used to create an ACL function. We simply define how to
+translate from the JSON representation to ACL API.
+* `tests/python/contrib/test_acl` Add unit tests for the given operator.
