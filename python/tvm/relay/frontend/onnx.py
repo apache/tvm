@@ -1499,8 +1499,6 @@ class RNN(OnnxOpConverter):
     """ Operator converter for RNNs such as LSTM and GRU.
     """
 
-    name = ""
-
     @classmethod
     def _activation_helper(cls, activation, alpha, beta):
         convert_map = _get_convert_map(1)
@@ -1532,16 +1530,13 @@ class RNN(OnnxOpConverter):
         ]
         return activation.decode("utf-8") in needs_beta
 
-    @classmethod
-    def _impl_v7(cls, inputs, attr, params):
-        if cls.name == 'LSTM':
-            return cls._lstm(inputs, attr, params)
-        if cls.name == 'GRU':
-            return cls._gru(inputs, attr, params)
-        raise NotImplementedError("%s RNNs are not yet supported." % cls.name)
+
+class LSTM(RNN):
+    """Operator converter for LSTM
+    """
 
     @classmethod
-    def _lstm(cls, inputs, attr, params):
+    def _impl_v7(cls, inputs, attr, params):
         # Unpack inputs, note that if optional and not provided then value will be None.
         X = inputs[0]
         W = inputs[1]
@@ -1652,8 +1647,13 @@ class RNN(OnnxOpConverter):
 
         return _expr.TupleWrapper(_expr.Tuple((output, H_t, C_t)), 3)
 
+
+class GRU(RNN):
+    """Operator convert for GRU
+    """
+
     @classmethod
-    def _gru(cls, inputs, attr, params):
+    def _impl_v7(cls, inputs, attr, params):
         # Unpack inputs, note that if optional and not provided then value will be None.
         X = inputs[0]
         W = inputs[1]
@@ -1757,18 +1757,6 @@ class RNN(OnnxOpConverter):
         H_t = _op.expand_dims(H_t, axis=0)
 
         return _expr.TupleWrapper(_expr.Tuple((output, H_t)), 2)
-
-
-class LSTM(RNN):
-    """Operator converter for LSTM
-    """
-    name = "LSTM"
-
-
-class GRU(RNN):
-    """Operator convert for GRU
-    """
-    name = "GRU"
 
 
 class Resize(OnnxOpConverter):
