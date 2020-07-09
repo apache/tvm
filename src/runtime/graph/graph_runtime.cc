@@ -247,7 +247,11 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   CHECK(size == weight_names_.size()) << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
     int in_idx = GetInputIndex(weight_names_[i]);
-    if (in_idx < 0) continue;
+    if (in_idx < 0) {
+      NDArray temp;
+      temp.Load(strm);
+      continue;
+    }
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     CHECK_LT(eid, data_entry_.size());
 
