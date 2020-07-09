@@ -289,8 +289,8 @@ inline IntervalSet Combine<tir::FloorMod>(Analyzer* analyzer, IntervalSet a, Int
     if (analyzer->CanProveGreaterEqual(divisor, 0)) {
       if (divisor.as<tir::IntImmNode>()) {
         // a mod b = a - (a / b) * b if a_max / b == a_min / b
-        auto qmax = floordiv(a->max_value, divisor);
-        auto qmin = floordiv(a->min_value, divisor);
+        auto qmax = a->HasUpperBound() ? floordiv(a->max_value, divisor) : pos_inf();
+        auto qmin = a->HasLowerBound() ? floordiv(a->min_value, divisor) : neg_inf();
         if (analyzer->CanProve(qmax == qmin)) {
           auto tmax = a->max_value - divisor * qmin;
           auto tmin = a->min_value - divisor * qmin;
