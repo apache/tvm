@@ -57,7 +57,7 @@ def invoke_tvm_op(func, inputs, outputs):
     return _ffi_api.invoke_tvm_op(func, inputs, outputs)
 
 
-def shape_func(func, inputs, outputs, dependent=False):
+def shape_func(func, inputs, outputs, is_inputs):
     """Invoke the shape function of the passed function.
 
     Parameters
@@ -71,9 +71,13 @@ def shape_func(func, inputs, outputs, dependent=False):
     outputs : tvm.relay.Tuple
         The tupled outputs.
 
+    is_inputs : List[bool]
+        A boolean list indicating whether the shape function should expect
+        shape or input at each position.
+
     Returns
     -------
     result : tvm.relay.Expr
         The shape function expression.
     """
-    return _ffi_api.shape_func(func, inputs, outputs, dependent)
+    return _ffi_api.shape_func(func, inputs, outputs, is_inputs)

@@ -133,7 +133,7 @@ RELAY_REGISTER_OP("vm.shape_func")
                              return {topi::identity(inputs[0])};
                            });
 
-bool InvokeTVMOPRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+bool InvokeTVMOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 4u);
   auto func_type = types[0].as<FuncTypeNode>();
@@ -169,7 +169,7 @@ RELAY_REGISTER_OP("vm.invoke_tvm_op")
     .add_argument("op", "Function", "The operation to call")
     .add_argument("ins", "Tuple", "The input tensors.")
     .add_argument("outs", "Tuple", "The output tensors.")
-    .add_type_rel("InvokeTVMOP", InvokeTVMOPRel)
+    .add_type_rel("InvokeTVMOp", InvokeTVMOpRel)
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
