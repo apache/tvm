@@ -21,7 +21,7 @@ from tvm.runtime import TVMContext as _TVMContext
 
 from . import _make
 from .dyn import _make as _dyn_make
-from ..expr import Tuple, const, Expr
+from ..expr import Tuple, Expr
 
 
 # We create a wrapper function for each operator in the
