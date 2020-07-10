@@ -22,6 +22,7 @@
  * \file dynamic_to_static.cc
  * \brief Rewrite Dynamic Operations to Static operations where possible
  */
+#include <tvm/relay/attrs/algorithm.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
@@ -33,7 +34,9 @@ namespace relay {
 class DynamicToStaticMutator : public MixedModeMutator {
  public:
   DynamicToStaticMutator()
-      : dyn_reshape_op_(Op::Get("dyn.reshape")), dyn_tile_op_(Op::Get("dyn.tile")) {}
+      : dyn_reshape_op_(Op::Get("dyn.reshape")),
+        dyn_tile_op_(Op::Get("dyn.tile")),
+        dyn_topk_op_(Op::Get("dyn.topk")) {}
 
  private:
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
@@ -55,6 +58,20 @@ class DynamicToStaticMutator : public MixedModeMutator {
         static const Op& op = Op::Get("tile");
         return Call(op, {call_node->args[0]}, Attrs(attrs), {});
       }
+    } else if (call_node->op == dyn_topk_op_) {
+      if (const ConstantNode* k = call_node->args[1].as<ConstantNode>()) {
+        const TopKAttrs* param = call_node->attrs.as<TopKAttrs>();
+        CHECK(param);
+        auto attrs = make_object<TopKAttrs>();
+        attrs->k = Integer(ToScalar(k->data, 0));
+        std::cout << attrs->k << std::endl;
+        attrs->axis = param->axis;
+        attrs->ret_type = param->ret_type;
+        attrs->is_ascend = param->is_ascend;
+        attrs->dtype = param->dtype;
+        static const Op& op = Op::Get("topk");
+        return Call(op, {call_node->args[0]}, Attrs(attrs), {});
+      }
     }
     return post;
   }
@@ -68,6 +85,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
 
   const Op& dyn_reshape_op_;
   const Op& dyn_tile_op_;
+  const Op& dyn_topk_op_;
 };
 
 Expr DynamicToStatic(Function f, IRModule m) {
