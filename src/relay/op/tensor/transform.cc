@@ -3047,5 +3047,26 @@ RELAY_REGISTER_OP("sparse_to_dense")
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute", SparseToDenseCompute);
 
+TVM_REGISTER_GLOBAL("relay.op._make.invert_permutation").set_body_typed([](Expr data) {
+    static const Op& op = Op::Get("invert_permutation");                                     
+    return Call(op, {data}, Attrs(), {});                                      
+  });
+
+RELAY_REGISTER_OP("invert_permutation")
+    .describe(R"code(Computes the inverse permutation of a tensor. 
+
+    - **data**: A 1-D tensor of integers containing location of sparse values
+
+    Example::
+      -  invert_permutation([3, 4, 0, 2, 1]) = [2, 4, 3, 0, 1]
+
+    )code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "Input data.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_support_level(1)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false);
+
 }  // namespace relay
 }  // namespace tvm

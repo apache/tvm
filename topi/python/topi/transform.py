@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
+from tvm.te import hybrid
 import topi
 from . import cpp
 from . import tag
@@ -794,3 +795,26 @@ def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0
     """
 
     return cpp.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
+
+@hybrid.script
+def invert_permutation(data):
+    """Compute definition of invert_permutation.
+
+    for an output tensor y and an input tensor x, this operation computes the following:
+    y[x[i]] = i for i in [0, 1, ..., len(x) - 1]
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        1-D tensor 
+
+    Returns
+    -------
+    out : tvm.te.Tensor
+    """
+    result = output_tensor(data.shape, data.dtype)
+    nums = data.shape[0]
+    for ind in range(nums):
+        r_ind = data[ind]
+        result[r_ind] = ind
+    return result

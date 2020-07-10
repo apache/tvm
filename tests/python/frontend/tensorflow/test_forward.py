@@ -2915,6 +2915,15 @@ def test_forward_unary():
     _test_forward_unary(tf.log1p)
 
 
+def test_forward_invert_permutation():
+    np_data = np.array([3, 4, 0, 2, 1], dtype=np.int32)
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(dtype=tf.int32, shape=(5), name="in_data")
+        result = tf.invert_permutation(in_data, name='result')
+        compare_tf_with_tvm([np_data], ['in_data:0'], result.name, no_gpu=True)
+
+
 def test_forward_atan2():
     """test operator tan """
     tf.disable_eager_execution()
@@ -3819,6 +3828,7 @@ if __name__ == '__main__':
     test_forward_isinf()
     test_forward_unravel_index()
     test_forward_unary()
+    test_forward_invert_permutation()
 
     # Reductions
     test_forward_argminmax()
