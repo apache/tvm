@@ -2239,11 +2239,10 @@ class GraphProto(ExprFunctor):
             outputs = outputs[:-1]
         return outputs
 
-def from_onnx(model,
+def from_onnx(model_path=None,
+              external_data_files_path=None,
               shape=None,
               dtype="float32",
-              big_model=False,
-              model_path=None,
               opset=None):
     """Convert a ONNX model into an equivalent Relay Function.
 
@@ -2256,22 +2255,19 @@ def from_onnx(model,
 
     Parameters
     ----------
-    model : protobuf object
-        ONNX ModelProto after ONNX v1.1.0
+    model_path : str
+        The path of the ONNX model
+
+    external_data_files_path : str, optional
+        The path of the external data files of the big ONNX model
+        It is only needed if the external data files is not under
+        the same directory of the big model
 
     shape : dict of str to tuple, optional
         The input shape to the graph
 
     dtype : str or dict of str to str
         The input types to the graph
-
-    big_model : bool
-        Whether the size of the input model is larger than 2GB
-
-    model_path : str, optional
-        The path of input model, and the external data
-        files need under the same directory
-        Must be set if 'big_model' is True
 
     opset : int, optional
         Override to autodetected opset.
@@ -2287,18 +2283,19 @@ def from_onnx(model,
     """
     try:
         import onnx
+        from onnx.external_data_helper import load_external_data_for_model
+
+        model = onnx.load(model_path)
+        # load external data for the big model
+        if external_data_files_path is not None:
+            load_external_data_for_model(external_data_files_path)
+
         if hasattr(onnx.checker, 'check_model'):
             # try use onnx's own model checker before converting any model
             try:
-                if not big_model:
-                    onnx.checker.check_model(model)
-                if big_model:
-                    onnx.checker.check_model(model_path)
-                    # onnx.checker.check_model(model) will fail if model's size > 2GB
+                onnx.checker.check_model(model)
             except onnx.onnx_cpp2py_export.checker.ValidationError as e:
                 import warnings
-                # the checker is a bit violent about errors, so simply print warnings here
-                warnings.warn(str(e))
     except ImportError:
         pass
     global g
