@@ -2296,6 +2296,7 @@ def from_onnx(model_path=None,
                 onnx.checker.check_model(model)
             except onnx.onnx_cpp2py_export.checker.ValidationError as e:
                 import warnings
+                warnings.warn(str(e))
     except ImportError:
         pass
     global g
