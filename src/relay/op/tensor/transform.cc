@@ -3047,10 +3047,12 @@ RELAY_REGISTER_OP("sparse_to_dense")
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute", SparseToDenseCompute);
 
-TVM_REGISTER_GLOBAL("relay.op._make.invert_permutation").set_body_typed([](Expr data) {
-    static const Op& op = Op::Get("invert_permutation");
-    return Call(op, {data}, Attrs(), {});
-  });
+Expr MakeInvertPermutation(Expr data) {
+  static const Op& op = Op::Get("invert_permutation");
+  return Call(op, {data}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.invert_permutation").set_body_typed(MakeInvertPermutation);
 
 RELAY_REGISTER_OP("invert_permutation")
     .describe(R"code(Computes the inverse permutation of a tensor. 
