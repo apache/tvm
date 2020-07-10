@@ -19,27 +19,6 @@
 from __future__ import absolute_import as _abs
 from . import _make
 
-def invoke_tvm_op(func, inputs, outputs):
-    """Call a primitive function with the TVM operator calling convention.
-
-    Parameters
-    ----------
-    func : tvm.relay.Expr
-        The input expr.
-
-    inputs : tvm.relay.Expr
-        A tuple of the inputs to pass to the TVM function.
-
-    outputs : tvm.relay.Expr
-        A tuple of the outputs to pass to the TVM function.
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The invoke_tvm_op call node.
-    """
-    return _make.invoke_tvm_op(func, inputs, outputs)
-
 def alloc_tensor(storage, offset, shape, dtype='float32', assert_shape=None):
     """Allocate a tensor with the provided shape, and dtype.
 
@@ -84,25 +63,6 @@ def alloc_storage(size, alignment, ctx, dtype_hint='float32'):
         The alloc_storage expression.
     """
     return _make.alloc_storage(size, alignment, ctx, dtype_hint)
-
-def shape_func(func, inputs, outputs, dependent=False):
-    """Invoke the shape function of the passed function.
-
-    Parameters
-    ----------
-    func : tvm.relay.Expr
-        The primitive function from which to compute the shape function.
-    inputs : tvm.relay.Tuple
-        The tupled inputs.
-    outputs : tvm.relay.Tuple
-        The tupled outputs.
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The shape function expression.
-    """
-    return _make.shape_func(func, inputs, outputs, dependent)
 
 def flatten_tuple_type(ty):
     """Return a sequence of the types contained in the tuple type in order.
