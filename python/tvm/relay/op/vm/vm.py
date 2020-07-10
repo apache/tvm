@@ -33,3 +33,51 @@ def shape_of(expr):
         The expression with the evaluated tensor shape.
     """
     return _ffi_api.shape_of(expr)
+
+
+def invoke_tvm_op(func, inputs, outputs):
+    """Call a primitive function with the TVM operator calling convention.
+
+    Parameters
+    ----------
+    func : tvm.relay.Expr
+        The input expr.
+
+    inputs : tvm.relay.Expr
+        A tuple of the inputs to pass to the TVM function.
+
+    outputs : tvm.relay.Expr
+        A tuple of the outputs to pass to the TVM function.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The invoke_tvm_op call node.
+    """
+    return _ffi_api.invoke_tvm_op(func, inputs, outputs)
+
+
+def shape_func(func, inputs, outputs, is_inputs):
+    """Invoke the shape function of the passed function.
+
+    Parameters
+    ----------
+    func : tvm.relay.Expr
+        The primitive function from which to compute the shape function.
+
+    inputs : tvm.relay.Tuple
+        The tupled inputs.
+
+    outputs : tvm.relay.Tuple
+        The tupled outputs.
+
+    is_inputs : List[bool]
+        A boolean list indicating whether the shape function should expect
+        shape or input at each position.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The shape function expression.
+    """
+    return _ffi_api.shape_func(func, inputs, outputs, is_inputs)

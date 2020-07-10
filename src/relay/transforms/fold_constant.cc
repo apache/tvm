@@ -82,8 +82,8 @@ class ConstantFolder : public ExprMutator {
         module_(module),
         shape_of_op_(Op::Get("shape_of")),
         vm_shape_of_op_(Op::Get("vm.shape_of")),
-        invoke_tvm_op_(Op::Get("memory.invoke_tvm_op")),
-        shape_func_op_(Op::Get("memory.shape_func")),
+        invoke_tvm_op_(Op::Get("vm.invoke_tvm_op")),
+        shape_func_op_(Op::Get("vm.shape_func")),
         alloc_tensor_op_(Op::Get("memory.alloc_tensor")),
         alloc_storage_op_(Op::Get("memory.alloc_storage")),
         cast_op_(Op::Get("cast")) {}
