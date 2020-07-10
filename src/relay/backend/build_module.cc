@@ -441,7 +441,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       if (!target_host.defined())
         target_host = (pf != nullptr) ? target::llvm() : target::stackvm();
 
-      if (target_host.defined() && target_host->target_name == "llvm") {
+      if (target_host.defined() && target_host->id->name == "llvm") {
         // If we can decide the target is LLVM, we then create an empty LLVM module.
         ret_.mod = (*pf)(target_host->str(), "empty_module");
       } else {
@@ -467,7 +467,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     Target target_host = target_host_;
     if (!target_host_.defined()) {
       for (const auto& it : targets_) {
-        if (it.second->device_type == kDLCPU) {
+        if (it.second->id->device_type == kDLCPU) {
           target_host = it.second;
           break;
         }

@@ -46,16 +46,15 @@ AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "tophub
 
 # the version of each package
 PACKAGE_VERSION = {
-    'arm_cpu':          "v0.06",
+    'arm_cpu':          "v0.07",
     'llvm':             "v0.04",
 
-    'cuda':             "v0.08",
+    'cuda':             "v0.09",
     'rocm':             "v0.05",
     'opencl':           "v0.04",
     'mali':             "v0.06",
     'intel_graphics':   "v0.02",
-
-    'vta':              "v0.08",
+    'vta':              "v0.09",
     'amd_apu':          "v0.01",
 }
 
@@ -104,11 +103,10 @@ def context(target, extra_files=None):
             tgt = _target.create(tgt)
 
         possible_names = []
-        for opt in tgt.options:
-            if opt.startswith("-device"):
-                device = _alias(opt[8:])
-                possible_names.append(device)
-        possible_names.append(tgt.target_name)
+        device = tgt.attrs.get("device", "")
+        if device != "":
+            possible_names.append(_alias(device))
+        possible_names.append(tgt.id.name)
 
         all_packages = list(PACKAGE_VERSION.keys())
         for name in possible_names:

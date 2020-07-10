@@ -82,7 +82,7 @@ struct TransposeAttrs : public tvm::AttrsNode<TransposeAttrs> {
 
 /*! \brief Attributes used in reshape operators */
 struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
-  Optional<Array<Integer>> newshape;
+  Array<Integer> newshape;
   bool reverse;
   TVM_DECLARE_ATTRS(ReshapeAttrs, "relay.attrs.ReshapeAttrs") {
     TVM_ATTR_FIELD(newshape).describe(
@@ -152,6 +152,19 @@ struct ArangeAttrs : public tvm::AttrsNode<ArangeAttrs> {
     TVM_ATTR_FIELD(dtype).describe("Target data type.");
   }
 };  // struct ArangeAttrs
+
+/*! \brief Attributes used in meshgrid operators */
+struct MeshgridAttrs : public tvm::AttrsNode<MeshgridAttrs> {
+  std::string indexing;
+
+  TVM_DECLARE_ATTRS(MeshgridAttrs, "relay.attrs.MeshgridAttrs") {
+    TVM_ATTR_FIELD(indexing)
+        .describe(
+            "Indexing mode, either \"ij\" for matrix or \"xy\" for cartesian in which first two"
+            "dimensions are swapped.")
+        .set_default("ij");
+  }
+};  // struct MeshgridAttrs
 
 /*! \brief Attributes used in stack operators */
 struct StackAttrs : public tvm::AttrsNode<StackAttrs> {

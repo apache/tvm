@@ -46,7 +46,7 @@ key = "iphone"
 # Change target configuration, this is setting for iphone6s
 arch = "arm64"
 sdk = "iphoneos"
-target = "llvm -target=%s-apple-darwin" % arch
+target = "llvm -mtriple=%s-apple-darwin" % arch
 
 # override metal compiler to compile to iphone
 @tvm.register_func("tvm_callback_metal_compile")

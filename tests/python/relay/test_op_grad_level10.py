@@ -21,15 +21,17 @@ from tvm.relay.testing import check_grad
 
 
 def test_cross_entropy_grad():
-    x = relay.var("x", shape=(2, 5))
-    y = relay.var("y", shape=(2, 5))
-    check_grad(relay.Function([x, y], relay.op.nn.cross_entropy(x, y)), eps=0.01, scale=0.1, mean=1)
+    for dtype in ('float32', 'float64'):
+        x = relay.var("x", shape=(2, 5), dtype=dtype)
+        y = relay.var("y", shape=(2, 5), dtype=dtype)
+        check_grad(relay.Function([x, y], relay.op.nn.cross_entropy(x, y)), eps=0.01, scale=0.1, mean=1)
 
 
 def test_cross_entropy_with_logits_grad():
-    x = relay.var("x", shape=(2, 5))
-    y = relay.var("y", shape=(2, 5))
-    check_grad(relay.Function([x, y], relay.op.nn.cross_entropy_with_logits(x, y)), eps=0.01, scale=0.1, mean=1)
+    for dtype in ('float32', 'float64'):
+        x = relay.var("x", shape=(2, 5), dtype=dtype)
+        y = relay.var("y", shape=(2, 5), dtype=dtype)
+        check_grad(relay.Function([x, y], relay.op.nn.cross_entropy_with_logits(x, y)), eps=0.01, scale=0.1, mean=1)
     
 def test_checkpoint():
     inputs = [relay.var("x{}".format(i), shape=(1,)) for i in range(4)]

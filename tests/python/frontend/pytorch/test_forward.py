@@ -466,6 +466,25 @@ def test_forward_arange():
     verify_model(Arange11().float().eval())
     verify_model(Arange12().float().eval())
 
+def test_forward_mesh_grid():
+    torch.set_grad_enabled(False)
+
+    class MeshGrid1(Module):
+        def forward(self, *args):
+            x = torch.tensor([1, 2, 3])
+            y = torch.tensor([4, 5, 6])
+            grid_x, grid_y = torch.meshgrid([x, y])
+            return grid_x, grid_y
+
+    class MeshGrid2(Module):
+        def forward(self, *args):
+            x = torch.tensor([1, 2, 3], dtype=torch.float32)
+            y = torch.add(torch.tensor(5, dtype=torch.float32), 1)
+            grid_x, grid_y = torch.meshgrid([x, y])
+            return grid_x, grid_y
+
+    verify_model(MeshGrid1().float().eval())
+    verify_model(MeshGrid2().float().eval())
 
 def test_forward_abs():
     torch.set_grad_enabled(False)
@@ -934,6 +953,45 @@ def test_forward_clone():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Clone1().float().eval(), input_data=input_data)
+
+
+def test_forward_gather():
+    torch.set_grad_enabled(False)
+
+    class Gather1(Module):
+        def forward(self, *args):
+            return torch.gather(args[0], 0, args[1])
+
+    class Gather2(Module):
+        def forward(self, *args):
+            return torch.gather(args[0], 1, args[1])
+
+    class Gather3(Module):
+        def forward(self, *args):
+            return torch.gather(args[0], 2, args[1])
+
+    input_data = torch.rand((4,)).float()
+    index = torch.tensor([1])
+    verify_model(Gather1().float().eval(), input_data=[input_data, index])
+
+    input_data = torch.rand((2, 2)).float()
+    index = torch.tensor([[1, 0], [0, 1]])
+    verify_model(Gather1().float().eval(), input_data=[input_data, index])
+
+    input_data = torch.tensor([[1, 2], [3, 4]])
+    index = torch.tensor([[0, 0], [1, 0]])
+    verify_model(Gather2().float().eval(), input_data=[input_data, index])
+
+    input_data = torch.rand((2, 2)).float()
+    index = torch.tensor([[1, 0], [0, 1]])
+    verify_model(Gather2().float().eval(), input_data=[input_data, index])
+
+    input_data = torch.rand((3, 3, 3)).float()
+    index = torch.tensor([[[1, 0, 0], [1, 0, 1], [0, 1, 1]],
+                          [[1, 1, 1], [1, 2, 1], [1, 0, 1]],
+                          [[1, 2, 1], [1, 2, 1], [1, 2, 1]]])
+    verify_model(Gather3().float().eval(), input_data=[input_data, index])
+
 
 def test_forward_logsoftmax():
     torch.set_grad_enabled(False)
@@ -2677,8 +2735,10 @@ if __name__ == "__main__":
     test_forward_full_like()
     test_forward_linspace()
     test_forward_arange()
+    test_forward_mesh_grid()
     test_forward_chunk()
     test_forward_split()
+    test_forward_gather()
     test_upsample()
     test_forward_upsample3d()
     test_to()

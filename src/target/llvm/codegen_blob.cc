@@ -33,7 +33,7 @@ namespace codegen {
 std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> CodeGenBlob(
     const std::string& data, bool system_lib, const std::string& target_triple) {
   InitializeLLVM();
-  auto tm = GetLLVMTargetMachine(std::string("-target ") + target_triple);
+  auto tm = GetLLVMTargetMachine(std::string("-mtriple ") + target_triple);
   auto triple = tm->getTargetTriple();
   auto ctx = std::make_shared<llvm::LLVMContext>();
   std::string module_name = "devc";
