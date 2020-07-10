@@ -1656,7 +1656,6 @@ class OperatorConverter(object):
         output_tensor_type = output_tensor.tensor.Type()
         output_tensor_type_str = self.get_tensor_type_str(output_tensor_type)
 
-        input_tensor_shape = input_tensor.tensor.ShapeAsNumpy()
         weight_tensor_shape = weight_tensor.tensor.ShapeAsNumpy()
 
         # Weight should have only 2 dimensions(TFLite convention)
