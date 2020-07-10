@@ -65,13 +65,13 @@ class TensorRTModule : public runtime::ModuleNode {
 
   PackedFunc GetFunction(const std::string& name,
                          const ObjectPtr<Object>& sptr_to_self) final {
-#if TVM_GRAPH_RUNTIME_TENSORRT
     // Returning nullptr tells TVM that the function is not in this module, so
     // it can look for the correct one.
     auto it_subgraph = serialized_subgraphs_.find(name);
     if (it_subgraph == serialized_subgraphs_.end()) {
       return PackedFunc(nullptr);
     }
+#if TVM_GRAPH_RUNTIME_TENSORRT
     // Generate an external packed function
     return PackedFunc([this, name](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
       auto it = trt_engine_cache_.find(name);
