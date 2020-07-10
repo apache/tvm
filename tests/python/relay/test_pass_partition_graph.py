@@ -462,21 +462,17 @@ def test_extern_dnnl_mobilenet():
 
     dtype = 'float32'
     ishape = (1, 3, 224, 224)
-    mod, params = relay.testing.mobilenet.get_workload(
-        batch_size=1, dtype='float32')
-
-    mod = transform.AnnotateTarget(["dnnl"])(mod)
+    ref_mod, params = relay.testing.mobilenet.get_workload(batch_size=1, dtype='float32')
+    mod = transform.AnnotateTarget(["dnnl"])(ref_mod)
     mod = transform.MergeCompilerRegions()(mod)
     mod = transform.PartitionGraph()(mod)
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
-    ref_mod, params = relay.testing.mobilenet.get_workload(batch_size=1,
-                                                           dtype='float32')
     ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu(0))
     ref_res = ref_ex.evaluate()(i_data, **params)
+    compile_engine.get().clear()
 
-    check_result(mod, {"data": i_data},
-                 (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
+    check_result(mod, {"data": i_data}, (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
 
 
 def test_function_lifting():
