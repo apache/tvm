@@ -22,14 +22,14 @@
  */
 #ifdef TVM_LLVM_VERSION
 
-#include "codegen_cpu.h"
-
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/tir/analysis.h>
 
 #include <algorithm>
 #include <memory>
 #include <unordered_map>
+
+#include "codegen_cpu.h"
 
 namespace tvm {
 namespace codegen {
@@ -782,8 +782,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
     builder_->CreateRet(ConstInt32(-1));
     auto next_block = std::next(builder_->GetInsertBlock()->getIterator());
-    llvm::BasicBlock* new_bb =
-        llvm::BasicBlock::Create(*ctx_, "cont", function_, &*next_block);
+    llvm::BasicBlock* new_bb = llvm::BasicBlock::Create(*ctx_, "cont", function_, &*next_block);
     builder_->SetInsertPoint(new_bb);
     return ConstInt32(-1);
   } else if (op->op.same_as(builtin::tvm_struct_get())) {
