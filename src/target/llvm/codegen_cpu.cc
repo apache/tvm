@@ -22,14 +22,14 @@
  */
 #ifdef TVM_LLVM_VERSION
 
+#include "codegen_cpu.h"
+
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/tir/analysis.h>
 
 #include <algorithm>
 #include <memory>
 #include <unordered_map>
-
-#include "codegen_cpu.h"
 
 namespace tvm {
 namespace codegen {
