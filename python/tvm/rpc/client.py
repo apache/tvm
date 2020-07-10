@@ -186,6 +186,10 @@ class RPCSession(object):
         """Construct extension device."""
         return self.context(12, dev_id)
 
+    def hexagon(self, dev_id=0):
+        """Construct Hexagon device."""
+        return self.context(14, dev_id)
+
     def webgpu(self, dev_id=0):
         """Construct WebGPU device."""
         return self.context(15, dev_id)
