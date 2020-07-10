@@ -781,6 +781,9 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     return CreateStaticHandle();
   } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
     builder_->CreateRet(ConstInt32(-1));
+    auto next_block = std::next(builder_->GetInsertBlock()->getIterator());
+    llvm::BasicBlock* new_bb = llvm::BasicBlock::Create(*ctx_, "cont", function_, &*next_block);
+    builder_->SetInsertPoint(new_bb);
     return ConstInt32(-1);
   } else if (op->op.same_as(builtin::tvm_struct_get())) {
     CHECK_EQ(op->args.size(), 3U);
