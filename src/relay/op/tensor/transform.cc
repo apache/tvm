@@ -3048,8 +3048,8 @@ RELAY_REGISTER_OP("sparse_to_dense")
     .set_attr<FTVMCompute>("FTVMCompute", SparseToDenseCompute);
 
 TVM_REGISTER_GLOBAL("relay.op._make.invert_permutation").set_body_typed([](Expr data) {
-    static const Op& op = Op::Get("invert_permutation");                                     
-    return Call(op, {data}, Attrs(), {});                                      
+    static const Op& op = Op::Get("invert_permutation");
+    return Call(op, {data}, Attrs(), {});
   });
 
 RELAY_REGISTER_OP("invert_permutation")
