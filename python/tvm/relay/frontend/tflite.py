@@ -1637,7 +1637,7 @@ class OperatorConverter(object):
         return self._convert_reduce(_op.reduce.any, op)
 
     def _convert_arg_min_max(self, relay_op, op):
-        """Generic method to convert TFLite arg_min_max"""
+        """Generic method converting TFLite arg_min_max"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ArgMinOptions import ArgMinOptions
