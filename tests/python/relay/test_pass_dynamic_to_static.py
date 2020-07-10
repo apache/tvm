@@ -129,9 +129,62 @@ def test_dynamic_to_static_tile():
     verify_tile((2, 3, 4), (2, 1, 5), (4, 3, 20))
     verify_tile((4, 7), (4, 2), (16, 14))
 
+def test_dynamic_to_static_topk():
+    def verify_topk(k, axis, ret_type, is_ascend, dtype):
+        shape = (20, 100)
+        x = relay.var("x", relay.TensorType(shape, "float32"))
+        k_var = relay.const(k)
+        out = relay.topk(x, k_var, axis, ret_type, is_ascend, dtype)
+        if isinstance(out, relay.expr.TupleWrapper):
+            out = out.astuple()
+        func = relay.Function([x], out)
+
+        np_data = np.random.uniform(size=shape).astype("float32")
+        if is_ascend:
+            np_indices = np.argsort(np_data, axis=axis)
+        else:
+            np_indices = np.argsort(-np_data, axis=axis)
+        kk = k if k >= 1 else shape[axis]
+        if axis == 0:
+            np_indices = np_indices[:kk, :]
+            np_values = np.zeros(np_indices.shape).astype("float32")
+            for i in range(shape[1]):
+                np_values[:, i] = np_data[np_indices[:, i], i]
+        else:
+            np_indices = np_indices[:, :kk]
+            np_values = np.zeros(np_indices.shape).astype("float32")
+            for i in range(shape[0]):
+                np_values[i, :] = np_data[i, np_indices[i, :]]
+        np_indices = np_indices.astype(dtype)
+
+        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+        zz = func2.body
+        assert isinstance(zz, relay.Call)
+        assert zz.op == relay.op.get("topk")
+
+        for target, ctx in ctx_list():
+            if "llvm" not in target: continue
+            for kind in ["graph", "vm", "debug"]:
+                mod = tvm.ir.IRModule.from_expr(func2)
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(np_data)
+                if ret_type == "both":
+                    tvm.testing.assert_allclose(op_res[0].asnumpy(), np_values)
+                    tvm.testing.assert_allclose(op_res[1].asnumpy(), np_indices)
+                elif ret_type == "values":
+                    tvm.testing.assert_allclose(op_res.asnumpy(), np_values)
+                else:
+                    tvm.testing.assert_allclose(op_res.asnumpy(), np_indices)
+    np.random.seed(0)
+    for k in [0, 1, 5]:
+        for axis in [0, -1, 1]:
+            for ret_type in ["both", "values", "indices"]:
+                verify_topk(k, axis, ret_type, True, "int64")
+                verify_topk(k, axis, ret_type, False, "float32")
 if __name__=="__main__":
     test_dynamic_to_static_reshape()
     test_dynamic_to_static_double_reshape()
     test_dynamic_to_static_quad_reshape()
     test_dynamic_to_static_tile()
+    test_dynamic_to_static_topk()
 
