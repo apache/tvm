@@ -609,6 +609,7 @@ bool IntSet::MatchRange(const Range& b) const {
   const IntSet& a = *this;
   const IntervalSetNode* a_int = a.as<IntervalSetNode>();
   if (!a_int) return false;
+  if (!a_int->HasUpperBound() || !a_int->HasLowerBound()) return false;
   Analyzer ana;
   return ProveEqual(&ana, a_int->min_value, b->min) &&
          ProveEqual(&ana, a_int->max_value, b->extent + b->min - 1);
