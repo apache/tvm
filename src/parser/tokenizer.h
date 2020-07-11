@@ -301,6 +301,18 @@ struct Tokenizer {
     } else if (next == '%') {
       auto token = NewToken(TokenType::Percent);
       Next();
+
+      std::stringstream number;
+      while (More() && IsDigit(Peek())) {
+        number << Next();
+      }
+
+      auto number_str = number.str();
+      if (number_str.size()) {
+        auto num_tok = ParseNumber(true, false, number_str);
+        token = Token(token->line, token->column, TokenType::Graph, num_tok->data);
+      }
+
       return token;
     } else if (next == '/') {
       Next();

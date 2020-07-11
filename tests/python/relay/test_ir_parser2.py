@@ -225,6 +225,11 @@ def test_vars():
     assert isinstance(op, tvm.ir.Op)
     assert op.name == "add"
 
+    # operator id with prefix
+    op = parse_text("nn.global_avg_pool2d")
+    assert isinstance(op, tvm.ir.Op)
+    assert op.name == "nn.global_avg_pool2d"
+
 
 def test_let():
     assert_parses_as(
@@ -891,18 +896,17 @@ def test_import_grad():
 # convert error from attribute construction to real error message
 # lexing issue with projection of graph variables
 
-def test_hierarchical_identifiers():
-    assert False
+# def test_hierarchical_identifiers():
+#     assert False
 
 def test_resnet():
     mod, params = relay.testing.resnet.get_workload()
     text = str(mod.astext())
-    print(text)
-    parse_module(text)
-    import pdb; pdb.set_trace()
+    parsed_mod = parse_module(text)
+    tvm.ir.assert_structural_equal(mod, parsed_mod)
 
 if __name__ == "__main__":
     # import sys
     # pytest.main(sys.argv)
-    test_hierarchical_identifiers()
-    # test_resnet()
+    # test_hierarchical_identifiers()
+    test_resnet()

@@ -763,12 +763,14 @@ class Parser {
             // Stack should only grow proportionally to the number of
             // nested scopes.
             // Parses `{` expression `}`.
-            return Bracket<Expr>(TokenType::LCurly, TokenType::RCurly, [&]() {
+            auto block = Bracket<Expr>(TokenType::LCurly, TokenType::RCurly, [&]() {
               PushScope();
               auto expr = ParseExpr();
               PopScopes(1);
               return expr;
             });
+            exprs.push_back(block);
+            break;
           }
           // Parses `let ...`;
           case TokenType::Let:
@@ -851,11 +853,9 @@ class Parser {
 
     while (true) {
       auto next = Peek();
-      std::cout << "right here about to parse graph" << std::endl;
       if (next->token_type == TokenType::Graph && Lookahead(2)->token_type == TokenType::Equal) {
         Match(TokenType::Graph);
         Match(TokenType::Equal);
-        DisplayNextN(10);
         auto val = this->ParseExprBinOp();
         Match(TokenType::Semicolon);
         AddGraphBinding(next, val);
@@ -1108,34 +1108,46 @@ class Parser {
     });
   }
 
-  ObjectRef ParseAtributeValue() {
+  ObjectRef ParseAttributeValue() {
     auto next = Peek();
     switch (next->token_type) {
       case TokenType::Float:
       case TokenType::Integer:
       case TokenType::Boolean:
         return Match(next->token_type)->data;
+      case TokenType::LSquare: {
+        return ParseSequence<ObjectRef>(TokenType::LSquare, TokenType::Comma, TokenType::RSquare, [&]() {
+          return ParseAttributeValue();
+        });
+      }
       default:
         return ParseAtomicExpr();
     }
   }
 
-  Attrs ParseAttrs(const std::string& type_key) {
+  Map<String, ObjectRef> ParseAttrs() {
     Map<String, ObjectRef> kwargs;
     while (Peek()->token_type == TokenType::Identifier) {
       auto key = Match(TokenType::Identifier).ToString();
       Match(TokenType::Equal);
       // TOOD(@jroesch): syntactically what do we allow to appear in attribute right hand side.
-      auto value = ParseAtributeValue();
+      auto value = ParseAttributeValue();
       kwargs.Set(key, value);
       WhenMatch(TokenType::Comma);
     }
-    auto attrs = tvm::ReflectionVTable::Global()->CreateObject(type_key, kwargs);
-    return Downcast<Attrs>(attrs);
+    return kwargs;
   }
 
   Expr ParseCallArgs(Expr op) {
-    Attrs call_attrs;
+    Map<String, ObjectRef> raw_attrs;
+    std::string op_key;
+    bool is_op = false;
+
+    if (auto op_node = op.as<OpNode>()) {
+      is_op = true;
+      op_key = op_node->attrs_type_key;
+    }
+
     if (Peek()->token_type == TokenType::OpenParen) {
       Array<Expr> args = ParseSequence<Expr>(
           TokenType::OpenParen, TokenType::Comma, TokenType::CloseParen,
@@ -1144,16 +1156,23 @@ class Parser {
             auto is_ident = Lookahead(1)->token_type == TokenType::Identifier;
             auto next_is_equal = Lookahead(2)->token_type == TokenType::Equal;
 
-            if (is_ident && next_is_equal) {
-              if (auto op_node = op.as<OpNode>()) {
-                call_attrs = ParseAttrs(op_node->attrs_type_key);
-                return true;
-              }
+            if (is_op && is_ident && next_is_equal) {
+              raw_attrs = ParseAttrs();
+              return true;
             }
 
             return false;
           });
-      return Expr(Call(op, args, call_attrs, {}));
+
+      Attrs attrs;
+
+      if (is_op && op_key.size()) {
+        auto attr_obj = tvm::ReflectionVTable::Global()->CreateObject(op_key, raw_attrs);
+        CHECK(attr_obj.defined());
+        attrs = Downcast<Attrs>(attr_obj);
+      }
+
+      return Expr(Call(op, args, attrs, {}));
     } else {
       return Expr();
     }
@@ -1196,7 +1215,7 @@ class Parser {
   }
 
   Expr ParseAtomicExpr() {
-    return ConsumeWhitespace<Expr>([this] {
+    auto expr = ConsumeWhitespace<Expr>([this] {
       auto next = Peek();
       switch (next->token_type) {
         case TokenType::Integer:
@@ -1305,6 +1324,13 @@ class Parser {
         }
       }
     });
+
+    if (WhenMatch(TokenType::Period)) {
+      auto index = Match(TokenType::Integer).ToNumber();
+      expr = relay::TupleGetItem(expr, index);
+    }
+
+    return expr;
   }
 
   /*! \brief Parse a shape. */
