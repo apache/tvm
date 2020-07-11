@@ -32,7 +32,7 @@ namespace auto_schedule {
 TVM_REGISTER_NODE_TYPE(TuningOptionsNode);
 
 TuningOptions::TuningOptions(int num_measure_trials, int early_stopping, int num_measures_per_round,
-                             bool verbose, ProgramBuilder builder, ProgramRunner runner,
+                             int verbose, ProgramBuilder builder, ProgramRunner runner,
                              Optional<Array<MeasureCallback>> measure_callbacks,
                              Optional<Array<SearchCallback>> pre_search_callbacks) {
   auto node = make_object<TuningOptionsNode>();
@@ -63,7 +63,7 @@ std::pair<te::Schedule, Array<te::Tensor>> AutoSchedule(SearchTask task, SearchP
 
 TVM_REGISTER_GLOBAL("auto_schedule.TuningOptions")
     .set_body_typed([](int num_measure_trials, int early_stopping, int num_measures_per_round,
-                       bool verbose, ProgramBuilder builder, ProgramRunner runner,
+                       int verbose, ProgramBuilder builder, ProgramRunner runner,
                        Optional<Array<MeasureCallback>> measure_callbacks,
                        Optional<Array<SearchCallback>> pre_search_callbacks) {
       return TuningOptions(num_measure_trials, early_stopping, num_measures_per_round, verbose,

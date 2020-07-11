@@ -46,9 +46,9 @@ class TuningOptionsNode : public Object {
   int num_measures_per_round;
   /*!
    * \brief Verbosity level.
-   * False for silent, true to output information during schedule searching.
+   * 0 for silent, 1 to output information during schedule searching.
    */
-  bool verbose;
+  int verbose;
   /*! \brief ProgramBuilder which builds the program */
   ProgramBuilder builder;
   /*! \brief ProgramRunner which runs the program and measure time costs */
@@ -84,15 +84,15 @@ class TuningOptions : public ObjectRef {
    * \param num_measure_trials Number of total measurement trials.
    * \param early_stopping Stops early the tuning if no improvement after n measurements.
    * \param num_measures_per_round The number of programs to be measured at each search round.
-   * \param verbose Verbosity level. False for silent, true to output information during schedule
+   * \param verbose Verbosity level. 0 for silent, 1 to output information during schedule
    * search.
    * \param builder ProgramBuilder which builds the program.
    * \param runner ProgramRunner which runs the program and measure time costs.
    * \param measure_callbacks MeasureCallback functions to be called after each measure batch.
    * \param pre_search_callbacks SearchCallback functions to be called before schedule search.
    */
-  TuningOptions(int num_measure_trials, int early_stopping, int num_measures_per_round,
-                bool verbose, ProgramBuilder builder, ProgramRunner runner,
+  TuningOptions(int num_measure_trials, int early_stopping, int num_measures_per_round, int verbose,
+                ProgramBuilder builder, ProgramRunner runner,
                 Optional<Array<MeasureCallback>> measure_callbacks,
                 Optional<Array<SearchCallback>> pre_search_callbacks);
 

@@ -41,7 +41,7 @@ namespace auto_schedule {
 class EmptyPolicyNode : public SearchPolicyNode {
  public:
   State Search(SearchTask task, int num_measure_trials, int early_stopping,
-               int num_measures_per_round, bool verbose, ProgramMeasurer measurer,
+               int num_measures_per_round, int verbose, ProgramMeasurer measurer,
                Optional<Array<SearchCallback>> pre_search_callbacks) final;
 
   static constexpr const char* _type_key = "auto_schedule.EmptyPolicy";

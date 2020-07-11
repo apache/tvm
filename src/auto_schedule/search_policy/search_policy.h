@@ -99,9 +99,9 @@ class SearchPolicyNode : public Object {
   SearchTask cur_task;
   /*!
    * \brief Verbose level to control the screen output during schedule search.
-   * False for silent, true to output state & measure information during search process.
+   * 0 for silent, 1 to output state & measure information during search process.
    */
-  bool verbose;
+  int verbose;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("cur_task", &cur_task);
@@ -115,14 +115,14 @@ class SearchPolicyNode : public Object {
    * \param num_measure_trials Total schedules to be tried during this search.
    * \param early_stopping Early stop if no better schedule is found.
    * \param num_measures_per_round Max measure batch in one search round.
-   * \param verbose Verbose level. False for silent, true to output information during schedule
+   * \param verbose Verbose level. 0 for silent, 1 to output information during schedule
    * search.
    * \param measurer A ProgramMeasurer which packs ProgramBuilder & ProgramRunner inside.
    * \param pre_search_callbacks SearchCallback to be called before schedule search.
    * \return The best state get.
    */
   virtual State Search(SearchTask task, int num_measure_trials, int early_stopping,
-                       int num_measures_per_round, bool verbose, ProgramMeasurer measurer,
+                       int num_measures_per_round, int verbose, ProgramMeasurer measurer,
                        Optional<Array<SearchCallback>> pre_search_callbacks) = 0;
 
   /*!

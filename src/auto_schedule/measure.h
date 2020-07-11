@@ -20,7 +20,17 @@
 /*!
  * \file auto_schedule/measure.h
  * \brief Distributed measurement infrastructure to measure the runtime costs of tensor programs.
- * The flow of data structures is MeasureInput -> BuildeResult -> MeasureResult.
+ * These functions are responsible for building the tvm module, uploading it to remote devices,
+ * recording the running time costs, and checking the correctness of the output.
+ *
+ * We separate the measurement into two steps: build and run.
+ * A builder builds the executable binary files and a runner runs the binary files to get the
+ * measurement results. The flow of data structures is
+ *
+ *                 `ProgramBuilder`                 `ProgramRunner`
+ * `MeasureInput` -----------------> `BuildResult` ----------------> `MeasureResult`
+ *
+ * We implement these in python to utilize python's multiprocessing and error handling.
  */
 
 #ifndef TVM_AUTO_SCHEDULE_MEASURE_H_
@@ -232,11 +242,11 @@ class ProgramBuilderNode : public Object {
   /*!
    * \brief Build programs and return results.
    * \param inputs An Array of MeasureInput.
-   * \param verbose Verbosity level. False for silent, true to output information during program
+   * \param verbose Verbosity level. 0 for silent, 1 to output information during program
    * building.
    * \return An Array of MeasureResult.
    */
-  virtual Array<BuildResult> Build(const Array<MeasureInput>& inputs, bool verbose) = 0;
+  virtual Array<BuildResult> Build(const Array<MeasureInput>& inputs, int verbose) = 0;
 
   static constexpr const char* _type_key = "auto_schedule.ProgramBuilder";
   TVM_DECLARE_BASE_OBJECT_INFO(ProgramBuilderNode, Object);
@@ -261,12 +271,12 @@ class ProgramRunnerNode : public Object {
    * \brief Run measurement and return results.
    * \param inputs An Array of MeasureInput.
    * \param build_results An Array of BuildResult.
-   * \param verbose Verbosity level. False for silent, true to output information during program
+   * \param verbose Verbosity level. 0 for silent, 1 to output information during program
    * running.
    * \return An Array of MeasureResult.
    */
   virtual Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
-                                   const Array<BuildResult>& build_results, bool verbose) = 0;
+                                   const Array<BuildResult>& build_results, int verbose) = 0;
 
   static constexpr const char* _type_key = "auto_schedule.ProgramRunner";
   TVM_DECLARE_BASE_OBJECT_INFO(ProgramRunnerNode, Object);
@@ -289,7 +299,7 @@ class LocalBuilderNode : public ProgramBuilderNode {
   /*! \brief Build function. */
   String build_func;
 
-  Array<BuildResult> Build(const Array<MeasureInput>& inputs, bool verbose) final;
+  Array<BuildResult> Build(const Array<MeasureInput>& inputs, int verbose) final;
 
   static constexpr const char* _type_key = "auto_schedule.LocalBuilder";
   TVM_DECLARE_FINAL_OBJECT_INFO(LocalBuilderNode, ProgramBuilderNode);
@@ -326,7 +336,7 @@ class LocalRunnerNode : public ProgramRunnerNode {
   double cooldown_interval;
 
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
-                           const Array<BuildResult>& build_results, bool verbose) final;
+                           const Array<BuildResult>& build_results, int verbose) final;
 
   static constexpr const char* _type_key = "auto_schedule.LocalRunner";
   TVM_DECLARE_FINAL_OBJECT_INFO(LocalRunnerNode, ProgramRunnerNode);
@@ -375,7 +385,7 @@ class ProgramMeasurerNode : public Object {
   /*! \brief MeasureCallback to be called after each measure batch. */
   Optional<Array<MeasureCallback>> callbacks;
   /*! \brief Verbosity level. 0 for silent, 1 to output information during program measuring. */
-  bool verbose;
+  int verbose;
   /*! \brief The number of max continuous error. */
   int max_continous_error;
 
@@ -421,12 +431,12 @@ class ProgramMeasurer : public ObjectRef {
    * \param builder The ProgramBuilder to build each program.
    * \param runner The ProgramRunner to measure each program.
    * \param callbacks MeasureCallback to be called after each measure batch.
-   * \param verbose Verbosity level. False for silent, true to output information during program
+   * \param verbose Verbosity level. 0 for silent, 1 to output information during program
    * measuring.
    * \param max_continous_error The number of max continuous error.
    */
   ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
-                  Optional<Array<MeasureCallback>> callbacks, bool verbose,
+                  Optional<Array<MeasureCallback>> callbacks, int verbose,
                   int max_continous_error = -1);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ProgramMeasurer, ObjectRef, ProgramMeasurerNode);

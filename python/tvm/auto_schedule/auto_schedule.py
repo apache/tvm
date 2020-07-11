@@ -104,16 +104,15 @@ class TuningOptions(Object):
       The search policy measures `num_measure_trials` schedules in total and returns the best one
       among them.
       With `num_measure_trials` == 0, the policy will do the schedule search but won't involve
-      measurement.
-      This can be used to get a runnable schedule quickly without auto-tuning.
+      measurement. This can be used to get a runnable schedule quickly without auto-tuning.
     early_stopping: Optional[int]
       Stop the tuning early if getting no improvement after n measurements.
     num_measures_per_round: int = 64
       The number of schedules to be measured at each search round.
       The whole schedule search process will try a total number of `num_measure_trials` in several
       rounds.
-    verbose: boolean = True
-      Verbosity level. False for silent, True to output information during schedule search.
+    verbose: int = 1
+      Verbosity level. 0 for silent, 1 to output information during schedule search.
     builder: Union[ProgramBuilder, str] = 'local'
       ProgramBuilder which builds the program.
     runner: Union[ProgramRunner, str] = 'local'
@@ -130,7 +129,7 @@ class TuningOptions(Object):
         TODO(jcf94): Add these implementation in later PRs.
     """
     def __init__(self, num_measure_trials=0, early_stopping=None, num_measures_per_round=64,
-                 verbose=True, builder='local', runner='local', measure_callbacks=None,
+                 verbose=1, builder='local', runner='local', measure_callbacks=None,
                  pre_search_callbacks=None):
         if isinstance(builder, str):
             if builder == 'local':

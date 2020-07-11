@@ -163,7 +163,9 @@ NullStream& operator<<(NullStream& os, const T& value) {
 }
 
 /*! \brief Get std cout with verbose control */
-inline std::ostream& StdCout(bool verbose) { return verbose ? std::cout : NullStream::Global(); }
+inline std::ostream& StdCout(int verbose, int setting = 1) {
+  return verbose >= setting ? std::cout : NullStream::Global();
+}
 
 /*! \brief Print multiple chars */
 inline std::string Chars(const char& str, int times) {
@@ -175,13 +177,16 @@ inline std::string Chars(const char& str, int times) {
 }
 
 /*! \brief Print a title */
-inline void PrintTitle(const std::string& title, bool verbose) {
+inline void PrintTitle(const std::string& title, int verbose) {
   StdCout(verbose) << Chars('-', 60) << "\n"
                    << Chars('-', 25) << "  [ " << title << " ]\n"
                    << Chars('-', 60) << std::endl;
 }
 
-/*! \brief A simple thread pool */
+/*!
+ * \brief A simple thread pool.
+ * TODO(merrymercy): Move this to `src/support/parallel_for`
+ */
 class ThreadPool {
  public:
   void Launch(size_t n = 1) {

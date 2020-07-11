@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Serialization and other I/O support for tuning logs (measurement records). """
+""" Serialization and other I/O support for measurement records (tuning logs). """
 
 import numpy as np
 

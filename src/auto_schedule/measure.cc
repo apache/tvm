@@ -110,7 +110,7 @@ LocalBuilder::LocalBuilder(int timeout, int n_parallel, const String& build_func
   data_ = std::move(node);
 }
 
-Array<BuildResult> LocalBuilderNode::Build(const Array<MeasureInput>& inputs, bool verbose) {
+Array<BuildResult> LocalBuilderNode::Build(const Array<MeasureInput>& inputs, int verbose) {
   if (const auto* f = runtime::Registry::Get("auto_schedule.local_builder.build")) {
     Array<BuildResult> results = (*f)(inputs, timeout, n_parallel, build_func, verbose);
     return results;
@@ -134,7 +134,7 @@ LocalRunner::LocalRunner(int timeout, int number, int repeat, int min_repeat_ms,
 }
 
 Array<MeasureResult> LocalRunnerNode::Run(const Array<MeasureInput>& inputs,
-                                          const Array<BuildResult>& build_results, bool verbose) {
+                                          const Array<BuildResult>& build_results, int verbose) {
   if (const auto* f = runtime::Registry::Get("auto_schedule.local_runner.run")) {
     Array<MeasureResult> results = (*f)(inputs, build_results, timeout, number, repeat,
                                         min_repeat_ms, cooldown_interval, verbose);
@@ -148,7 +148,7 @@ Array<MeasureResult> LocalRunnerNode::Run(const Array<MeasureInput>& inputs,
 
 /********** ProgramMeasurer **********/
 ProgramMeasurer::ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
-                                 Optional<Array<MeasureCallback>> callbacks, bool verbose,
+                                 Optional<Array<MeasureCallback>> callbacks, int verbose,
                                  int max_continous_error) {
   auto node = make_object<ProgramMeasurerNode>();
   node->builder = std::move(builder);
@@ -312,12 +312,12 @@ TVM_REGISTER_GLOBAL("auto_schedule.MeasureResult")
 
 TVM_REGISTER_GLOBAL("auto_schedule.ProgramBuilderBuild")
     .set_body_typed([](const ProgramBuilder& builder, const Array<MeasureInput>& inputs,
-                       bool verbose) { return builder->Build(inputs, verbose); });
+                       int verbose) { return builder->Build(inputs, verbose); });
 
 TVM_REGISTER_GLOBAL("auto_schedule.ProgramRunnerRun")
     .set_body_typed([](const ProgramRunner& runner, const Array<MeasureInput>& inputs,
                        const Array<BuildResult>& build_results,
-                       bool verbose) { return runner->Run(inputs, build_results, verbose); });
+                       int verbose) { return runner->Run(inputs, build_results, verbose); });
 
 TVM_REGISTER_GLOBAL("auto_schedule.LocalBuilder")
     .set_body_typed([](int timeout, int n_parallel, const String& build_func) {
