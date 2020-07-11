@@ -17,6 +17,7 @@
 import tvm
 from tvm import te
 from tvm import relay
+import tvm.relay.testing
 import pytest
 from numpy import isclose
 from typing import Union
@@ -73,7 +74,6 @@ def assert_graph_equal(lhs, rhs):
 def graph_equal(lhs, rhs):
     return tvm.ir.structural_equal(lhs, rhs, map_free_vars=True)
 
-
 def roundtrip_expr(expr):
     x = tvm.parser.parse_expr(str(str(expr)))
     assert_graph_equal(x, expr)
@@ -98,7 +98,6 @@ def parse_module(code):
     mod = tvm.parser.parse(code)
     roundtrip(mod)
     return mod
-
 
 def assert_parses_as(code, expr):
     parsed = parse_text(code)
@@ -209,7 +208,6 @@ def test_parens():
 def test_op_assoc():
     assert graph_equal(parse_text("1 * 1 + 1 < 1 == 1"), parse_text("(((1 * 1) + 1) < 1) == 1"))
     assert graph_equal(parse_text("1 == 1 < 1 + 1 * 1"), parse_text("1 == (1 < (1 + (1 * 1)))"))
-
 
 def test_vars():
     # var
@@ -886,6 +884,25 @@ def test_import_grad():
     mod = tvm.IRModule()
     mod.import_from_std("gradient.rly")
 
+# hiearchy id, i.e parse nn.conv2d
+# do with multiple levels
+#
+# call attributes not correctly parsing
+# convert error from attribute construction to real error message
+# lexing issue with projection of graph variables
+
+def test_hierarchical_identifiers():
+    assert False
+
+def test_resnet():
+    mod, params = relay.testing.resnet.get_workload()
+    text = str(mod.astext())
+    print(text)
+    parse_module(text)
+    import pdb; pdb.set_trace()
+
 if __name__ == "__main__":
-    import sys
-    pytest.main(sys.argv)
+    # import sys
+    # pytest.main(sys.argv)
+    test_hierarchical_identifiers()
+    # test_resnet()

@@ -542,7 +542,7 @@ class Parser {
    */
   template <typename T>
   Array<T> ParseSequence(TokenType start, TokenType sep, TokenType stop, std::function<T()> parse,
-                         std::function<void()> before_stop = nullptr) {
+                         std::function<bool()> before_stop = nullptr) {
     Match(start);
     if (WhenMatch(stop)) {
       return Array<T>();
@@ -550,23 +550,28 @@ class Parser {
       auto data = parse();
       Array<T> elements = {data};
 
-      // parse '(' expr ')'
+      // parse '(' expr ','? ')'
       // if we are at the end invoke leftover parser
-      if (Peek()->token_type == stop && before_stop) {
-        before_stop();
-      }
+      // if (Peek()->token_type == sep && before_stop) {
+      //  before_stop();
+      // }
+
       if (WhenMatch(stop)) {
         return elements;
         // parse '( expr ',' * ')'
       } else if (WhenMatch(sep)) {
-        // if we are at the end invoke leftover parser
-        if (Peek()->token_type == stop && before_stop) {
-          before_stop();
-        }
         while (true) {
           if (WhenMatch(stop)) {
             break;
           } else {
+            // If before stop is
+            if (before_stop) {
+              auto did_parse = before_stop();
+              if (did_parse) {
+                Match(stop);
+                return elements;
+              }
+            }
             auto data = parse();
             WhenMatch(sep);
             elements.push_back(data);
@@ -757,6 +762,7 @@ class Parser {
             // NB: Might need to optimize to remove deep recursion.
             // Stack should only grow proportionally to the number of
             // nested scopes.
+            // Parses `{` expression `}`.
             return Bracket<Expr>(TokenType::LCurly, TokenType::RCurly, [&]() {
               PushScope();
               auto expr = ParseExpr();
@@ -764,6 +770,7 @@ class Parser {
               return expr;
             });
           }
+          // Parses `let ...`;
           case TokenType::Let:
             exprs.push_back(ParseBindingExpr());
             break;
@@ -778,6 +785,7 @@ class Parser {
             exprs.push_back(ParseIf());
             break;
           }
+          // %x ...
           case TokenType::Graph:
             if (Lookahead(2)->token_type == TokenType::Equal) {
               exprs.push_back(ParseBindingExpr());
@@ -843,9 +851,11 @@ class Parser {
 
     while (true) {
       auto next = Peek();
+      std::cout << "right here about to parse graph" << std::endl;
       if (next->token_type == TokenType::Graph && Lookahead(2)->token_type == TokenType::Equal) {
         Match(TokenType::Graph);
         Match(TokenType::Equal);
+        DisplayNextN(10);
         auto val = this->ParseExprBinOp();
         Match(TokenType::Semicolon);
         AddGraphBinding(next, val);
@@ -1098,11 +1108,30 @@ class Parser {
     });
   }
 
+  ObjectRef ParseAtributeValue() {
+    auto next = Peek();
+    switch (next->token_type) {
+      case TokenType::Float:
+      case TokenType::Integer:
+      case TokenType::Boolean:
+        return Match(next->token_type)->data;
+      default:
+        return ParseAtomicExpr();
+    }
+  }
+
   Attrs ParseAttrs(const std::string& type_key) {
     Map<String, ObjectRef> kwargs;
+    while (Peek()->token_type == TokenType::Identifier) {
+      auto key = Match(TokenType::Identifier).ToString();
+      Match(TokenType::Equal);
+      // TOOD(@jroesch): syntactically what do we allow to appear in attribute right hand side.
+      auto value = ParseAtributeValue();
+      kwargs.Set(key, value);
+      WhenMatch(TokenType::Comma);
+    }
     auto attrs = tvm::ReflectionVTable::Global()->CreateObject(type_key, kwargs);
-    LOG(FATAL) << Attrs();
-    return Attrs();
+    return Downcast<Attrs>(attrs);
   }
 
   Expr ParseCallArgs(Expr op) {
@@ -1118,8 +1147,11 @@ class Parser {
             if (is_ident && next_is_equal) {
               if (auto op_node = op.as<OpNode>()) {
                 call_attrs = ParseAttrs(op_node->attrs_type_key);
+                return true;
               }
             }
+
+            return false;
           });
       return Expr(Call(op, args, call_attrs, {}));
     } else {
@@ -1152,6 +1184,17 @@ class Parser {
     });
   }
 
+  Expr GetOp(const std::string& op_name, const Token& tok) {
+    try {
+      return Op::Get(op_name);
+    } catch (dmlc::Error e) {
+      std::stringstream msg;
+      msg << "operator `" << op_name << "` not found, perhaps you forgot to register it?";
+      this->diag_ctx.Emit({ tok->line, tok->column, msg.str() });
+      return Expr();
+    }
+  }
+
   Expr ParseAtomicExpr() {
     return ConsumeWhitespace<Expr>([this] {
       auto next = Peek();
@@ -1170,10 +1213,12 @@ class Parser {
           Expr e = Constant(boolean);
           return e;
         }
+        // Parse a local of the form `%x`.
         case TokenType::Local: {
           Consume(TokenType::Local);
           return Expr(LookupLocal(next));
         }
+        // Parse a local of the form `@x`.
         case TokenType::Global: {
           auto string = next.ToString();
           Consume(TokenType::Global);
@@ -1186,6 +1231,8 @@ class Parser {
             return Expr(global.value());
           }
         }
+        // Parse a local of the form `x`.
+        // Right now we fail to parse `x.y`.
         case TokenType::Identifier: {
           auto string = next.ToString();
           Consume(TokenType::Identifier);
@@ -1193,7 +1240,26 @@ class Parser {
           if (ctor) {
             return Expr(ctor.value());
           } else {
-            return Expr(Op::Get(string));
+            // id(x) ^ ';' this is works
+            // id(x) ^ '.' id(y) this is works
+
+            // ^ id(x) '.' id(y) this is works
+            // id(x) ^ '.' id(y) this is works
+            // id(x) '.' ^ id(y) this is works
+            // id(x) '.' id(y) ^ this is works
+            // DisplayNextN(10);
+
+            if (Peek()->token_type == TokenType::Period) {
+              std::stringstream hier_id;
+              Consume(TokenType::Period);
+              auto second_id = Match(TokenType::Identifier);
+              hier_id << string << "."
+                      << second_id.ToString();
+              return GetOp(hier_id.str(), next);
+            } else {
+              auto op = GetOp(string, next);
+              return op;
+            }
           }
         }
         case TokenType::Graph: {
