@@ -246,7 +246,7 @@ test_target = 'cpu'
 # Change target configuration.
 # Run `adb shell cat /proc/cpuinfo` to find the arch.
 arch = 'arm64'
-target = 'llvm -target=%s-linux-android' % arch
+target = 'llvm -mtriple=%s-linux-android' % arch
 target_host = None
 
 if local_demo:

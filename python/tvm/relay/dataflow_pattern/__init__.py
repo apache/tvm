@@ -293,7 +293,7 @@ def is_tuple(fields: tvm.ir.container.Array) -> "DFPattern":
     return TuplePattern(fields)
 
 
-def is_tuple_get_item(tuple_value: "DFPattern", index: int) -> "DFPattern":
+def is_tuple_get_item(tuple_value: "DFPattern", index: Optional[int] = None) -> "DFPattern":
     """
     Syntatic sugar for creating an ExprPattern.
 
@@ -302,8 +302,8 @@ def is_tuple_get_item(tuple_value: "DFPattern", index: int) -> "DFPattern":
     tuple_value: tvm.relay.dataflow_pattern.DFPattern
         The input tuple expression.
 
-    index: int
-        The index.
+    index: Optional[int]
+        The index to match; Default (None) to match a TupleGetItem with any index.
 
     Returns
     -------
@@ -555,12 +555,13 @@ class TupleGetItemPattern(DFPattern):
     tuple_value: tvm.relay.dataflow_pattern.DFPattern
         The input tuple expression.
 
-    index: int
-        The index.
+    index: Optional[int]
+        The index to match; Default (None) to match a TupleGetItem with any index.
     """
 
-    def __init__(self, tuple_value: "DFPattern", index: int):
-        self.__init_handle_by_constructor__(ffi.TupleGetItemPattern, tuple_value, index)
+    def __init__(self, tuple_value: "DFPattern", index: Optional[int] = None):
+        match_index = index if index is not None else -1
+        self.__init_handle_by_constructor__(ffi.TupleGetItemPattern, tuple_value, match_index)
 
 
 @register_df_node

@@ -40,7 +40,9 @@ _reg.register_injective_schedule("reshape_like")
 _reg.register_injective_schedule("full")
 _reg.register_injective_schedule("full_like")
 _reg.register_injective_schedule("arange")
+_reg.register_injective_schedule("meshgrid")
 _reg.register_injective_schedule("reverse")
+_reg.register_injective_schedule("reverse_sequence")
 _reg.register_injective_schedule("cast")
 _reg.register_injective_schedule("cast_like")
 _reg.register_injective_schedule("reinterpret")
@@ -56,6 +58,7 @@ _reg.register_injective_schedule("gather_nd")
 _reg.register_injective_schedule("sequence_mask")
 _reg.register_injective_schedule("one_hot")
 _reg.register_reduce_schedule("collapse_sum_like")
+_reg.register_reduce_schedule("collapse_sum_to")
 _reg.register_injective_schedule("unravel_index")
 _reg.register_injective_schedule("sparse_to_dense")
 
@@ -271,82 +274,11 @@ def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
             out[infer_idx] = old_size // new_size
     return out
 
-@script
-def _reshape_shape_func_input_data(data, newshape, ndim):
-    out = output_tensor((ndim,), "int64")
-    data_shape = allocate((len(data.shape),), "int64")
-    for x in const_range(len(data.shape)):
-        data_shape[x] = int64(data.shape[x])
-    src_idx = 0
-    dst_idx = 0
-    infer_idx = -1
-    copy = False
-    skip = 0
-    for i in const_range(len(newshape)):
-        if skip > 0:
-            skip -= 1
-        elif newshape[i] > 0:
-            out[dst_idx] = int64(newshape[i])
-            src_idx += 1
-            dst_idx += 1
-        elif newshape[i] == 0:
-            out[dst_idx] = data_shape[src_idx]
-            src_idx += 1
-            dst_idx += 1
-        elif newshape[i] == -1:
-            assert infer_idx < 0, "One and only one dim can be inferred"
-            out[dst_idx] = int64(1)
-            infer_idx = i
-            dst_idx += 1
-        elif newshape[i] == -2:
-            copy = True
-        elif newshape[i] == -3:
-            assert data_shape.shape[0] - src_idx > 1, \
-                "Not enough dims in input shape for -3"
-            out[dst_idx] = data_shape[src_idx] * data_shape[src_idx+1]
-            src_idx += 2
-            dst_idx += 1
-        elif newshape[i] == -4:
-            assert len(newshape) - i > 2, "Not enough dims in new shape for -4"
-            if newshape[i+1] == -1:
-                assert newshape[i+2] != -1, "Split dims cannot both be -1."
-                out[dst_idx] = data_shape[src_idx] // int64(newshape[i+2])
-                out[dst_idx+1] = int64(newshape[i+2])
-            else:
-                out[dst_idx] = int64(newshape[i+1])
-                if newshape[i+2] == -1:
-                    out[dst_idx+1] = data_shape[src_idx] // int64(newshape[i+1])
-                else:
-                    out[dst_idx+1] = int64(newshape[i+2])
-            assert data_shape[src_idx] == out[dst_idx] * out[dst_idx+1],\
-                "Product of split dims doesn't match to input dim"
-            src_idx += 1
-            dst_idx += 2
-            skip = 2
-        else:
-            assert False, "Invalid special values in new shape"
-    if len(data_shape.shape) > 0:
-        # if data is not constant, we can then handle -1 and -2
-        if copy:
-            for i in range(src_idx, data_shape.shape[0]):
-                out[dst_idx] = data_shape[i]
-                dst_idx += 1
-        if infer_idx >= 0:
-            old_size = int64(1)
-            for i in const_range(data_shape.shape[0]):
-                old_size *= data_shape[i]
-            new_size = int64(1)
-            for i in const_range(out.shape[0]):
-                new_size *= out[i]
-            out[infer_idx] = old_size // new_size
-    return out
-
-@_reg.register_shape_func("reshape", True)
+@_reg.register_shape_func("reshape", False)
 def reshape_shape_func(attrs, inputs, out_ndims):
-    if attrs.newshape is None:
-        return [_reshape_shape_func_input_data(*inputs, out_ndims[0])]
+    newshape = get_const_tuple(attrs.newshape)
     return [_reshape_shape_func_input_shape(inputs[0],
-                                            convert(attrs.newshape),
+                                            convert(newshape),
                                             out_ndims[0])]
 
 @script

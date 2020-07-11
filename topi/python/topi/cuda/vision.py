@@ -53,7 +53,7 @@ def schedule_reorg(outs):
         The computation schedule for reorg.
     """
     target = tvm.target.Target.current(allow_none=False)
-    cpp_target = cpp.TEST_create_target(target.target_name)
+    cpp_target = cpp.TEST_create_target(target.id.name)
     return cpp.cuda.schedule_injective(cpp_target, outs)
 
 def schedule_nms(outs):

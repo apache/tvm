@@ -169,7 +169,7 @@ class ReflectionVTable {
    * \return The corresponding attribute value.
    * \note This function will throw an exception if the object does not contain the field.
    */
-  TVM_DLL runtime::TVMRetValue GetAttr(Object* self, const std::string& attr_name) const;
+  TVM_DLL runtime::TVMRetValue GetAttr(Object* self, const String& attr_name) const;
 
   /*!
    * \brief List all the fields in the object.

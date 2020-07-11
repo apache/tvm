@@ -83,7 +83,7 @@ Var Var::copy_with_suffix(const String& suffix) const {
   } else {
     new_ptr = make_object<VarNode>(*node);
   }
-  new_ptr->name_hint = new_ptr->name_hint.operator std::string() + suffix.operator std::string();
+  new_ptr->name_hint = new_ptr->name_hint + suffix;
   return Var(new_ptr);
 }
 
@@ -126,7 +126,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // IterVar
-IterVar::IterVar(Range dom, Var var, IterVarType t, std::string thread_tag) {
+IterVar::IterVar(Range dom, Var var, IterVarType t, String thread_tag) {
   ObjectPtr<IterVarNode> n = make_object<IterVarNode>();
   n->dom = dom;
   n->var = var;
@@ -136,7 +136,7 @@ IterVar::IterVar(Range dom, Var var, IterVarType t, std::string thread_tag) {
 }
 
 TVM_REGISTER_GLOBAL("tir.IterVar")
-    .set_body_typed([](Range dom, Var var, int iter_type, std::string thread_tag) {
+    .set_body_typed([](Range dom, Var var, int iter_type, String thread_tag) {
       return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag);
     });
 
@@ -159,16 +159,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(IterVarNode);
 
 // StringImm
-StringImm::StringImm(std::string value) {
+StringImm::StringImm(String value) {
   ObjectPtr<StringImmNode> node = make_object<StringImmNode>();
   node->dtype = DataType::Handle();
   node->value = std::move(value);
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.StringImm").set_body_typed([](std::string value) {
-  return StringImm(value);
-});
+TVM_REGISTER_GLOBAL("tir.StringImm").set_body_typed([](String value) { return StringImm(value); });
 
 TVM_REGISTER_NODE_TYPE(StringImmNode);
 
@@ -700,50 +698,20 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // Call
-Call::Call(DataType dtype, std::string name, Array<PrimExpr> args, CallType call_type) {
+Call::Call(DataType dtype, RelayExpr op, Array<PrimExpr> args) {
   for (size_t i = 0; i < args.size(); ++i) {
     CHECK(args[i].defined());
   }
 
   ObjectPtr<CallNode> node = make_object<CallNode>();
   node->dtype = dtype;
-  node->name = std::move(name);
+  node->op = std::move(op);
   node->args = std::move(args);
-  node->call_type = call_type;
   data_ = std::move(node);
 }
 
-const char* CallNode::vectorizable_intrinsics[] = {"floor",
-                                                   "ceil",
-                                                   "sign",
-                                                   "trunc",
-                                                   "fabs",
-                                                   "round",
-                                                   "exp",
-                                                   "tanh",
-                                                   "sqrt",
-                                                   "log",
-                                                   "sin",
-                                                   "cos",
-                                                   "pow",
-                                                   "tan",
-                                                   tir::CallNode::shift_left,
-                                                   tir::CallNode::shift_right,
-                                                   tir::CallNode::likely,
-                                                   tir::CallNode::popcount};
-
-bool CallNode::is_vectorizable() const {
-  size_t cnt = sizeof(CallNode::vectorizable_intrinsics) / sizeof(char*);
-  for (size_t i = 0; i < cnt; ++i) {
-    if (name == CallNode::vectorizable_intrinsics[i]) {
-      return true;
-    }
-  }
-  return false;
-}
-
 TVM_REGISTER_GLOBAL("tir.Call")
-    .set_body_typed([](DataType type, std::string name, Array<ObjectRef> args, int call_type) {
+    .set_body_typed([](DataType type, RelayExpr op, Array<ObjectRef> args) {
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
         CHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>());
@@ -753,7 +721,7 @@ TVM_REGISTER_GLOBAL("tir.Call")
           prim_expr_args.push_back(Downcast<PrimExpr>(it));
         }
       }
-      return Call(type, name, prim_expr_args, static_cast<CallNode::CallType>(call_type));
+      return Call(type, op, prim_expr_args);
     });
 
 TVM_REGISTER_NODE_TYPE(CallNode);
@@ -761,7 +729,13 @@ TVM_REGISTER_NODE_TYPE(CallNode);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<CallNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const CallNode*>(node.get());
-      p->stream << op->name << "(";
+      if (auto* ptr_op = op->op.as<OpNode>()) {
+        p->stream << ptr_op->name << "(";
+      } else {
+        auto* ptr_gvar = op->op.as<GlobalVarNode>();
+        CHECK(ptr_gvar != nullptr);
+        p->stream << "@" << ptr_gvar->name_hint << "(";
+      }
       for (size_t i = 0; i < op->args.size(); ++i) {
         p->Print(op->args[i]);
         if (i < op->args.size() - 1) {

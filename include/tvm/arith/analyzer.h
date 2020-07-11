@@ -128,17 +128,17 @@ class ConstIntBoundAnalyzer {
    *
    * \param var The variable of interest.
    * \param info The bound information.
-   * \param override Whether do we allow override of existing information.
+   * \param allow_override Whether do we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var, const ConstIntBound& info, bool override = false);
+  TVM_DLL void Update(const Var& var, const ConstIntBound& info, bool allow_override = false);
   /*!
    * \brief Bind variable to a range.
    *
    * \param var The variable.
    * \param range The range we bind to.
-   * \param override Whether we allow overriding an existing var's range.
+   * \param allow_override Whether we allow overriding an existing var's range.
    */
-  TVM_DLL void Bind(const Var& var, const Range& range, bool override = false);
+  TVM_DLL void Bind(const Var& var, const Range& range, bool allow_override = false);
 
  private:
   friend class Analyzer;
@@ -217,9 +217,9 @@ class ModularSetAnalyzer {
    *
    * \param var The variable of interest.
    * \param info The bound information.
-   * \param override Whether do we allow override of existing information.
+   * \param allow_override Whether do we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var, const ModularSet& info, bool override = false);
+  TVM_DLL void Update(const Var& var, const ModularSet& info, bool allow_override = false);
 
  private:
   friend class Analyzer;
@@ -256,9 +256,9 @@ class RewriteSimplifier {
    *
    * \param var The variable of interest.
    * \param new_expr
-   * \param override Whether do we allow override of existing information.
+   * \param allow_override Whether do we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool override = false);
+  TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
 
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
@@ -290,9 +290,9 @@ class CanonicalSimplifier {
    *
    * \param var The variable of interest.
    * \param new_expr
-   * \param override Whether do we allow override of existing information.
+   * \param allow_override Whether do we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool override = false);
+  TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
 
  private:
   friend class Analyzer;
@@ -404,9 +404,9 @@ class TVM_DLL Analyzer {
    *
    * \param var The variable.
    * \param expr The expression we bind to.
-   * \param override Whether we allow overriding an existing var's expression.
+   * \param allow_override Whether we allow overriding an existing var's expression.
    */
-  void Bind(const Var& var, const PrimExpr& expr, bool override = false);
+  void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
   /*!
    * \brief Notify all the sub-analyzers that var
    *        is created and binded to a range.
@@ -415,16 +415,16 @@ class TVM_DLL Analyzer {
    *
    * \param var The variable.
    * \param range The range we bind to.
-   * \param override Whether we allow overriding an existing var's expression.
+   * \param allow_override Whether we allow overriding an existing var's expression.
    */
-  void Bind(const Var& var, const Range& range, bool override = false);
+  void Bind(const Var& var, const Range& range, bool allow_override = false);
   /*!
    * \brief Bind all the vars in the Map
    *
    * \param variables The {variable -> range} map.
-   * \param override Whether we allow overriding an existing var's expression.
+   * \param allow_override Whether we allow overriding an existing var's expression.
    */
-  void Bind(const Map<Var, Range>& variables, bool override = false);
+  void Bind(const Map<Var, Range>& variables, bool allow_override = false);
   /*!
    * \brief Whether can we prove expr >= val.
 
@@ -464,11 +464,16 @@ class TVM_DLL Analyzer {
    * \brief Simplify expr.
    *
    * \param expr The expression to be simplified.
+   * \param steps The simplification runs in the order of
+   *        rewrite_simplify (step 1) -> canonical_simplify (step 2) ->
+   *        rewrite_simplify (step 3) -> canonical_simplify (step 4) -> ...
+   *        param steps controls how many steps to run.
+   *        Default is 2, i.e., rewrite_simplify + canonical_simplify.
    * \return The result.
    *
    * \note Analyzer will call into sub-analyzers to get the result.
    */
-  PrimExpr Simplify(const PrimExpr& expr);
+  PrimExpr Simplify(const PrimExpr& expr, int steps = 2);
 };
 
 }  // namespace arith

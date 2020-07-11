@@ -40,7 +40,12 @@ TVM_REGISTER_GLOBAL("topi.transpose").set_body([](TVMArgs args, TVMRetValue* rv)
 });
 
 TVM_REGISTER_GLOBAL("topi.flip").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = flip(args[0], args[1]);
+  // pass empty seq_lengths tensor to reverse_sequence
+  *rv = reverse_sequence(args[0], Tensor(), args[1]);
+});
+
+TVM_REGISTER_GLOBAL("topi.reverse_sequence").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = reverse_sequence(args[0], args[1], args[2], args[3]);
 });
 
 TVM_REGISTER_GLOBAL("topi.reshape").set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -102,6 +107,10 @@ TVM_REGISTER_GLOBAL("topi.where").set_body([](TVMArgs args, TVMRetValue* rv) {
 
 TVM_REGISTER_GLOBAL("topi.arange").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = arange(args[0], args[1], args[2], args[3]);
+});
+
+TVM_REGISTER_GLOBAL("topi.meshgrid").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = meshgrid(args[0], args[1]);
 });
 
 TVM_REGISTER_GLOBAL("topi.repeat").set_body([](TVMArgs args, TVMRetValue* rv) {

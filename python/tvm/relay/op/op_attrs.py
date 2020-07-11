@@ -208,6 +208,11 @@ class ArangeAttrs(Attrs):
     """Attributes used in arange operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.MeshgridAttrs")
+class MeshgridAttrs(Attrs):
+    """Attributes used in arange operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.StackAttrs")
 class StackAttrs(Attrs):
     """Attributes used in stack operators"""
@@ -226,6 +231,10 @@ class TileAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.ReverseAttrs")
 class ReverseAttrs(Attrs):
     """Attributes used in reverse operators"""
+
+@tvm._ffi.register_object("relay.attrs.ReverseSequenceAttrs")
+class ReverseSequenceAttrs(Attrs):
+    """Attributes used in reverse sequence operators"""
 
 
 @tvm._ffi.register_object("relay.attrs.SqueezeAttrs")
@@ -369,3 +378,143 @@ class SubPixelAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.CorrelationAttrs")
 class CorrelationAttrs(Attrs):
     """Attributes used in correlation operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.AdaptivePool2DAttrs")
+class AdaptivePool2DAttrs(Attrs):
+    """Attributes used in 2D adaptive pooling operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.AdaptivePool3DAttrs")
+class AdaptivePool3DAttrs(Attrs):
+    """Attributes used in 3D adaptive pooling operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.AffineGridAttrs")
+class AffineGridAttrs(Attrs):
+    """Attributes used in affine_grid operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.AllocStorageAttrs")
+class AllocStorageAttrs(Attrs):
+    """Attributes used in alloc_storage operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.AllocTensorAttrs")
+class AllocTensorAttrs(Attrs):
+    """Attributes used in alloc_tensor operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.CastHintAttrs")
+class CastHintAttrs(Attrs):
+    """Attributes used in cast_hint annotation operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.Conv1DTransposeAttrs")
+class Conv1DTransposeAttrs(Attrs):
+    """Attributes used in 1D transposed convolution operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.ExpandDimsAttrs")
+class ExpandDimsAttrs(Attrs):
+    """Attributes used in expand_dims operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.GridSampleAttrs")
+class GridSampleAttrs(Attrs):
+    """Attributes used in grid_sample operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.GroupNormAttrs")
+class GroupNormAttrs(Attrs):
+    """Attributes used in group norm operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.InstanceNormAttrs")
+class InstanceNormAttrs(Attrs):
+    """Attributes used in instance norm operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.LayerNormAttrs")
+class LayerNormAttrs(Attrs):
+    """Attributes used in layer norm operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.NdarraySizeAttrs")
+class NdarraySizeAttrs(Attrs):
+    """Attributes used in ndarray_size operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.OneHotAttrs")
+class OneHotAttrs(Attrs):
+    """Attributes used in one_hot operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.QuantizeAttrs")
+class QuantizeAttrs(Attrs):
+    """Attributes used in quantize operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.ReduceAttrs")
+class ReduceAttrs(Attrs):
+    """Attributes used in reduction operators (e.g. sum)"""
+
+
+@tvm._ffi.register_object("relay.attrs.RequantizeAttrs")
+class RequantizeAttrs(Attrs):
+    """Attributes used in requantize operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.Resize3dAttrs")
+class Resize3dAttrs(Attrs):
+    """Attributes used in resize3d operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.ScatterAttrs")
+class ScatterAttrs(Attrs):
+    """Attributes used in scatter operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.SequenceMaskAttrs")
+class SequenceMaskAttrs(Attrs):
+    """Attributes used in sequence_mask operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.ShapeFuncAttrs")
+class ShapeFuncAttrs(Attrs):
+    """Attributes used in shape func operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.SimulatedQuantizeAttrs")
+class SimulatedQuantizeAttrs(Attrs):
+    """Attributes used in simulated_quantize operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.SparseDenseAttrs")
+class SparseDenseAttrs(Attrs):
+    """Attributes used in sparse_dense operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.SparseToDenseAttrs")
+class SparseToDenseAttrs(Attrs):
+    """Attributes used in sparse_to_dense operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.SparseTransposeAttrs")
+class SparseTransposeAttrs(Attrs):
+    """Attributes used in sparse_transpose operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.TopkAttrs")
+class TopkAttrs(Attrs):
+    """Attributes used in topk operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.TupleGetItemAttrs")
+class TupleGetItemAttrs(Attrs):
+    """Attributes used in tuple item access operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.WithFuncIdAttrs")
+class WithFuncIdAttrs(Attrs):
+    """Attributes used in with_funcid annotation operators"""

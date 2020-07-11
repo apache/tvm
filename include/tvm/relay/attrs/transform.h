@@ -82,7 +82,7 @@ struct TransposeAttrs : public tvm::AttrsNode<TransposeAttrs> {
 
 /*! \brief Attributes used in reshape operators */
 struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
-  Optional<Array<Integer>> newshape;
+  Array<Integer> newshape;
   bool reverse;
   TVM_DECLARE_ATTRS(ReshapeAttrs, "relay.attrs.ReshapeAttrs") {
     TVM_ATTR_FIELD(newshape).describe(
@@ -153,6 +153,19 @@ struct ArangeAttrs : public tvm::AttrsNode<ArangeAttrs> {
   }
 };  // struct ArangeAttrs
 
+/*! \brief Attributes used in meshgrid operators */
+struct MeshgridAttrs : public tvm::AttrsNode<MeshgridAttrs> {
+  std::string indexing;
+
+  TVM_DECLARE_ATTRS(MeshgridAttrs, "relay.attrs.MeshgridAttrs") {
+    TVM_ATTR_FIELD(indexing)
+        .describe(
+            "Indexing mode, either \"ij\" for matrix or \"xy\" for cartesian in which first two"
+            "dimensions are swapped.")
+        .set_default("ij");
+  }
+};  // struct MeshgridAttrs
+
 /*! \brief Attributes used in stack operators */
 struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
   Integer axis;
@@ -193,6 +206,20 @@ struct ReverseAttrs : public tvm::AttrsNode<ReverseAttrs> {
         .describe("The axis along which to reverse elements.");
   }
 };  // struct ReverseAttrs
+
+/*! \brief Attributes used in reverse_sequence operators */
+struct ReverseSequenceAttrs : public tvm::AttrsNode<ReverseSequenceAttrs> {
+  Integer seq_axis;
+  Integer batch_axis;
+
+  TVM_DECLARE_ATTRS(ReverseSequenceAttrs, "relay.attrs.ReverseSequenceAttrs") {
+    TVM_ATTR_FIELD(seq_axis).set_default(1).describe(
+        "The seq axis along which to reverse elements.");
+    TVM_ATTR_FIELD(batch_axis)
+        .set_default(0)
+        .describe("The batch axis along which to slice the tensor.");
+  }
+};  // struct ReverseSequenceAttrs
 
 /*! \brief Attributes used in squeeze operators */
 struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {

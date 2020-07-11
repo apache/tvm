@@ -196,6 +196,7 @@ tvm_t.*
 .python_history
 .pytest_cache
 .local
+cmake-build-debug
 
 # Visual Studio Code
 .vscode

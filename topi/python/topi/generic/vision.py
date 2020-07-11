@@ -37,7 +37,7 @@ def schedule_reorg(outs):
       The computation schedule for the op.
     """
     target = tvm.target.Target.current(allow_none=False)
-    cpp_target = cpp.TEST_create_target(target.target_name)
+    cpp_target = cpp.TEST_create_target(target.id.name)
     return cpp.generic.default_schedule(cpp_target, outs, False)
 
 def schedule_get_valid_counts(outs):

@@ -177,7 +177,7 @@ if local_demo:
 else:
     target = tvm.target.arm_cpu('rasp3b')
     # The above line is a simple form of
-    # target = tvm.target.create('llvm -device=arm_cpu -model=bcm2837 -target=armv7l-linux-gnueabihf -mattr=+neon')
+    # target = tvm.target.create('llvm -device=arm_cpu -model=bcm2837 -mtriple=armv7l-linux-gnueabihf -mattr=+neon')
 
 with tvm.transform.PassContext(opt_level=3):
     graph, lib, params = relay.build(func, target, params=params)

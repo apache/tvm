@@ -1,4 +1,4 @@
-# License .to the Apache Software Foundation (ASF) under one
+# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -27,6 +27,7 @@ from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
 from .object import Object
 from . import _ffi_api, container
+
 
 def _convert(arg, cargs):
     if isinstance(arg, Object):
@@ -59,6 +60,7 @@ def convert(args):
 
 class Executable(object):
     """Relay VM executable"""
+
     def __init__(self, mod):
         self.mod = mod
         self._function_params = {}
@@ -106,7 +108,7 @@ class Executable(object):
 
             import numpy as np
             import tvm
-from tvm import te
+            from tvm import te
             from tvm import relay
             # define a simple network.
             x = relay.var('x', shape=(10, 10))
@@ -272,6 +274,7 @@ from tvm import te
 
 class VirtualMachine(object):
     """Relay VM runtime."""
+
     def __init__(self, mod):
         if not isinstance(mod, (Executable, tvm.runtime.Module)):
             raise TypeError("mod is expected to be the type of Executable or " +
@@ -309,12 +312,17 @@ class VirtualMachine(object):
             Named arguments to the function.
         """
         if kwargs:
+            # kwargs is a super set of the required function parameters. We
+            # only find the ones that are needed.
             func_params = self._exec.get_function_params(func_name)
             new_args = [None] * len(func_params)
-            assert len(args) + len(kwargs) == len(func_params)
+            cnt = 0
             for k in kwargs:
-                idx = func_params.index(k)
-                new_args[idx] = kwargs[k]
+                if k in func_params:
+                    idx = func_params.index(k)
+                    new_args[idx] = kwargs[k]
+                    cnt += 1
+            assert len(args) + cnt == len(func_params)
             idx = 0
             for i, arg in enumerate(new_args):
                 if arg is None:

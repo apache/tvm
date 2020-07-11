@@ -98,7 +98,7 @@ class LayoutAxis {
 class LayoutNode : public Object {
  public:
   /*! \brief string representation of layout, "" for scalar. */
-  std::string name;
+  String name;
   /*! \brief specify each axis of the layout,
    *   in which the variable name is the name of the axis.
    *   The IterVar's extent indicates the size of the axis,
@@ -112,7 +112,7 @@ class LayoutNode : public Object {
     v->Visit("axes", &axes);
   }
 
-  static constexpr const char* _type_key = "Layout";
+  static constexpr const char* _type_key = "tir.Layout";
   TVM_DECLARE_FINAL_OBJECT_INFO(LayoutNode, Object);
 };
 
@@ -308,7 +308,7 @@ class BijectiveLayoutNode : public Object {
     v->Visit("backward_rule", &backward_rule);
   }
 
-  static constexpr const char* _type_key = "BijectiveLayout";
+  static constexpr const char* _type_key = "tir.BijectiveLayout";
   TVM_DECLARE_FINAL_OBJECT_INFO(BijectiveLayoutNode, Object);
 };
 

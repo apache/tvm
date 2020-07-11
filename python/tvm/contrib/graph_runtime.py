@@ -162,7 +162,12 @@ class GraphModule(object):
             keys = list(params.keys())
             keys.sort(key=lambda x: -np.prod(params[x].shape))
             for k in keys:
-                self._get_input(k).copyfrom(params[k])
+                # TODO(zhiics) Skip the weights for submodule in a better way.
+                # We should use MetadataModule for initialization and remove
+                # params from set_input
+                val = self._get_input(k)
+                if val:
+                    self._get_input(k).copyfrom(params[k])
 
     def run(self, **input_dict):
         """Run forward execution of the graph

@@ -20,15 +20,15 @@ VTA Installation Guide
 
 We present three installation guides, each extending on the previous one:
 
-1. `Simulator Installation`_
+1. `VTA Simulator Installation`_
 2. `Xilinx Pynq FPGA Setup`_
 3. `Intel DE10 FPGA Setup`_
 4. `Bitstream Generation with Xilinx Toolchains`_
 5. `Bitstream Generation with Intel Toolchains`_
 
 
-Simulator Installation
-----------------------
+VTA Simulator Installation
+--------------------------
 
 You need `TVM installed <https://tvm.apache.org/docs/install/index.html>`_ on your machine.
 For a quick and easy start, checkout the `Docker Guide <https://tvm.apache.org/docs/install/docker.html>`_.
@@ -199,6 +199,7 @@ In addition, you'll need to edit the ``vta_config.json`` file on the host to ind
 This time again, we will run the 2D convolution testbench.
 Beforehand, we need to program the Pynq board FPGA with a VTA bitstream, and build the VTA runtime via RPC.
 The following ``test_program_rpc.py`` script will perform two operations:
+
 * FPGA programming, by downloading a pre-compiled bitstream from a `VTA bitstream repository <https://github.com/uwsaml/vta-distro>`_ that matches the default ``vta_config.json`` configuration set by the host, and sending it over to the Pynq via RPC to program the Pynq's FPGA.
 * Runtime building on the Pynq, which needs to be run every time the ``vta_config.json`` configuration is modified. This ensures that the VTA software runtime that generates the accelerator's executable via just-in-time (JIT) compilation matches the specifications of the VTA design that is programmed on the FPGA. The build process takes about 30 seconds to complete so be patient!
 
@@ -226,14 +227,14 @@ You can also try out our `VTA programming tutorials <https://tvm.apache.org/docs
 Intel DE10 FPGA Setup
 ---------------------
 
-Similar to the PYNQ side setup steps, this third guide bring us the details on how can we setup up the Linux environment for Intel FPGA boards like DE10-Nano.
+Similar to the Pynq-side setup steps, this third guide bring us the details on how can we setup up the Linux environment for Intel FPGA boards like DE10-Nano.
 
 In terms of hardware components, you would need the `DE10-Nano Development Kit <https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&No=1046>`_, which can be acquired for $130, or $100 for academics from `Terasic <https://www.terasic.com.tw/>`_. A microSD card would be delivered the kit. Power cables and USB cables would be included as well. However, an additional Ethernet cable would be needed to connect the board to LAN.
 
 The rest part of this guide would provide the steps to
 
 * Flash the microSD card with latest Angstrom Linux image
-* Cross compilation setup
+* Cross-compilation setup
 * Device-side RPC server setup and deployment
 
 DE10-Nano Board Setup
@@ -269,7 +270,7 @@ This would take a few minutes for your PC to write the whole file systems into t
 After this process completes, you are ready to unmount the SD card and insert it into your DE10-Nano board.
 Now you can connect the power cable and serial port to boot the Angstrom Linux.
 
-   **Note**: When boot up from the microSD card, you might notice the incompatibility of the linux kernel ``zImage`` in the microSD card.
+   **Note**: When boot up from the microSD card, you might notice the incompatibility of the Linux kernel ``zImage`` in the microSD card.
    In this case, you might need to build the ``zImage`` file of your own from `socfpga-4.9.78-ltsi <https://github.com/altera-opensource/linux-socfpga/tree/socfpga-4.9.78-ltsi>`_ branch of the `linux-socfpga <https://github.com/altera-opensource/linux-socfpga>`_ repository.
    For a quick fix, you can also download a prebuilt version of the ``zImage`` file `from this link <https://raw.githubusercontent.com/liangfu/de10-nano-supplement/master/zImage>`_.
 
@@ -304,7 +305,7 @@ Specifically, to compile application executables for the system, you need to dow
 Bitstream Generation with Xilinx Toolchains
 -------------------------------------------
 
-If you're interested in generating the Xilinx FPGA bitstream on your own instead of using the pre-built VTA bistreams, follow the instructions below.
+If you're interested in generating the Xilinx FPGA bitstream on your own instead of using the pre-built VTA bitstreams, follow the instructions below.
 
 Xilinx Toolchain Installation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -364,7 +365,7 @@ The last step is to update your ``~/.bashrc`` with the following lines. This wil
    export XILINX_VIVADO=${XILINX_PATH}/Vivado/2018.3
    export PATH=${XILINX_VIVADO}/bin:${PATH}
 
-HLS-based Custom VTA Bitstream Compilation for PYNQ
+HLS-based Custom VTA Bitstream Compilation for Pynq
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 High-level hardware parameters are listed in the VTA configuration file and can be customized by the user.

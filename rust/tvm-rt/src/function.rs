@@ -32,12 +32,12 @@ use std::{
     ptr, str,
 };
 
-pub use tvm_sys::{ffi, ArgValue, RetValue};
-
 use crate::errors::Error;
 
 use super::to_boxed_fn::ToBoxedFn;
-use super::to_function::{ToFunction, Typed};
+
+pub use super::to_function::{ToFunction, Typed};
+pub use tvm_sys::{ffi, ArgValue, RetValue};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -60,6 +60,14 @@ impl Function {
     pub(crate) fn new(handle: ffi::TVMFunctionHandle) -> Self {
         Function {
             handle,
+            is_global: false,
+            from_rust: false,
+        }
+    }
+
+    pub unsafe fn null() -> Self {
+        Function {
+            handle: std::ptr::null_mut(),
             is_global: false,
             from_rust: false,
         }
@@ -171,7 +179,11 @@ impl TryFrom<RetValue> for Function {
 
 impl<'a> From<Function> for ArgValue<'a> {
     fn from(func: Function) -> ArgValue<'a> {
-        ArgValue::FuncHandle(func.handle)
+        if func.handle.is_null() {
+            ArgValue::Null
+        } else {
+            ArgValue::FuncHandle(func.handle)
+        }
     }
 }
 

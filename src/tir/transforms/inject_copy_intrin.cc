@@ -183,7 +183,7 @@ Stmt InjectCopyIntrin(Stmt stmt, const std::string& pragma_key,
 
 namespace transform {
 
-Pass InjectCopyIntrin(std::string pragma_key, PackedFunc flower_copy_fromto) {
+Pass InjectCopyIntrin(String pragma_key, PackedFunc flower_copy_fromto) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = CopyIntrinInjector(pragma_key, flower_copy_fromto)(std::move(n->body));

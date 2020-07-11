@@ -54,7 +54,7 @@ class OperationInliner final : public StmtExprMutator {
 
       bool has_side_effect = false;
       for (size_t i = 0; i < op->indices.size(); ++i) {
-        if (HasSideEffect(op->indices[i])) has_side_effect = true;
+        if (SideEffect(op->indices[i]) > CallEffectKind::kReadState) has_side_effect = true;
       }
       if (has_side_effect) {
         for (size_t i = 0; i < args_.size(); ++i) {

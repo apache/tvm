@@ -24,6 +24,7 @@
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
+#include <tvm/target/target_id.h>
 #include <tvm/tir/expr.h>
 
 #include <algorithm>
@@ -35,6 +36,50 @@ using runtime::PackedFunc;
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
 
+Target Target::CreateTarget(const std::string& name, const std::vector<std::string>& options) {
+  TargetId id = TargetId::Get(name);
+  ObjectPtr<TargetNode> target = make_object<TargetNode>();
+  target->id = id;
+  // tag is always empty
+  target->tag = "";
+  // parse attrs
+  target->attrs = id->ParseAttrsFromRaw(options);
+  String device_name = target->GetAttr<String>("device", "").value();
+  // set up keys
+  {
+    std::vector<String> keys;
+    // user provided keys
+    if (Optional<Array<String>> user_keys = target->GetAttr<Array<String>>("keys")) {
+      keys = std::vector<String>(user_keys.value().begin(), user_keys.value().end());
+      target->attrs.erase("keys");
+    }
+    // add `device_name`
+    if (!device_name.empty()) {
+      keys.push_back(device_name);
+    }
+    // add default keys
+    for (const auto& key : target->id->default_keys) {
+      keys.push_back(key);
+    }
+    // de-duplicate keys
+    size_t new_size = 0;
+    for (size_t i = 0; i < keys.size(); ++i) {
+      if (keys[i] == "") {
+        continue;
+      }
+      keys[new_size++] = keys[i];
+      for (size_t j = i + 1; j < keys.size(); ++j) {
+        if (keys[j] == keys[i]) {
+          keys[j] = String("");
+        }
+      }
+    }
+    keys.resize(new_size);
+    target->keys = std::move(keys);
+  }
+  return Target(target);
+}
+
 TVM_REGISTER_NODE_TYPE(TargetNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -43,119 +88,15 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << op->str();
     });
 
-/*!
- * \brief Construct a Target node from the given name and options.
- * \param target_name The major target name. Should be one of
- * {"aocl", "aocl_sw_emu", "c", "cuda", "ext_dev", "hexagon", "hybrid", "llvm",
- *  "metal", "nvptx", "opencl", "rocm", "sdaccel", "stackvm", "vulkan"}
- * \param options Additional options appended to the target
- * \return The constructed Target
- */
-Target CreateTarget(const std::string& target_name, const std::vector<std::string>& options) {
-  auto t = make_object<TargetNode>();
-  t->target_name = target_name;
-
-  std::string libs_flag = "-libs=";
-  std::string device_flag = "-device=";
-  std::string keys_flag = "-keys=";
-  for (auto& item : options) {
-    t->options_array.push_back(item);
-
-    if (item.find(libs_flag) == 0) {
-      std::stringstream ss(item.substr(libs_flag.length()));
-      std::string lib_item;
-      while (std::getline(ss, lib_item, ',')) {
-        t->libs_array.push_back(lib_item);
-      }
-    } else if (item.find(device_flag) == 0) {
-      t->device_name = item.substr(device_flag.length());
-      t->keys_array.push_back(t->device_name);
-    } else if (item.find(keys_flag) == 0) {
-      std::stringstream ss(item.substr(keys_flag.length()));
-      std::string key_item;
-      while (std::getline(ss, key_item, ',')) {
-        t->keys_array.push_back(key_item);
-      }
-    }
-  }
-
-  if (t->device_name.length() > 0) {
-    t->keys_array.push_back(t->device_name);
-  }
-  t->device_type = kDLCPU;
-  t->thread_warp_size = 1;
-  if (target_name == "c" && t->device_name == "micro_dev") {
-    t->device_type = kDLMicroDev;
-  } else if (target_name == "c" || target_name == "llvm") {
-    t->keys_array.push_back("cpu");
-  } else if (target_name == "cuda" || target_name == "nvptx") {
-    t->device_type = kDLGPU;
-    t->keys_array.push_back("cuda");
-    t->keys_array.push_back("gpu");
-    t->max_num_threads = 1024;
-    t->thread_warp_size = 32;
-  } else if (target_name == "rocm" || target_name == "opencl") {
-    // For now assume rocm schedule for opencl
-    if (target_name == "opencl") {
-      t->device_type = kDLOpenCL;
-    } else {  // rocm
-      t->device_type = kDLROCM;
-      t->thread_warp_size = 64;
-    }
-    t->keys_array.push_back(target_name);
-    t->keys_array.push_back("gpu");
-    t->max_num_threads = 256;
-    if (t->device_name == "intel_graphics") {
-      t->thread_warp_size = 16;
-    }
-  } else if (target_name == "metal" || target_name == "vulkan" || target_name == "webgpu") {
-    if (target_name == "metal") {
-      t->device_type = kDLMetal;
-    } else if (target_name == "vulkan") {
-      t->device_type = kDLVulkan;
-    } else {
-      t->device_type = kDLWebGPU;
-    }
-    t->keys_array.push_back(target_name);
-    t->keys_array.push_back("gpu");
-    t->max_num_threads = 256;
-  } else if (target_name == "sdaccel") {
-    t->device_type = kDLOpenCL;
-    t->keys_array.push_back("sdaccel");
-    t->keys_array.push_back("hls");
-  } else if (target_name == "aocl" || target_name == "aocl_sw_emu") {
-    t->device_type = kDLAOCL;
-    t->keys_array.push_back("aocl");
-    t->keys_array.push_back("hls");
-  } else if (target_name == "stackvm") {
-    t->device_type = kDLCPU;
-  } else if (target_name == "ext_dev") {
-    t->device_type = kDLExtDev;
-  } else if (target_name == "hybrid") {
-    t->device_type = kDLCPU;
-  } else if (target_name == "hexagon") {
-    t->keys_array.push_back("hexagon");
-    t->device_type = kDLHexagon;
-  } else if (target_name == "webgpu") {
-    t->keys_array.push_back("webgpu");
-    t->device_type = kDLWebGPU;
-  } else {
-    LOG(ERROR) << "Unknown target name " << target_name << "; falling back to stackvm";
-    return target::stackvm();
-  }
-
-  return Target(t);
-}
-
 TVM_REGISTER_GLOBAL("target.TargetCreate").set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string target_name = args[0];
+  std::string name = args[0];
   std::vector<std::string> options;
   for (int i = 1; i < args.num_args; ++i) {
     std::string arg = args[i];
     options.push_back(arg);
   }
 
-  *ret = CreateTarget(target_name, options);
+  *ret = Target::CreateTarget(name, options);
 });
 
 TVM_REGISTER_GLOBAL("target.TargetFromString").set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -163,38 +104,47 @@ TVM_REGISTER_GLOBAL("target.TargetFromString").set_body([](TVMArgs args, TVMRetV
   *ret = Target::Create(target_str);
 });
 
-std::vector<std::string> TargetNode::keys() const {
+std::vector<std::string> TargetNode::GetKeys() const {
   std::vector<std::string> result;
-  for (auto& expr : keys_array) {
+  for (auto& expr : keys) {
     result.push_back(expr);
   }
   return result;
 }
 
-std::vector<std::string> TargetNode::options() const {
-  std::vector<std::string> result;
-  for (auto& expr : options_array) {
-    result.push_back(expr);
+std::unordered_set<std::string> TargetNode::GetLibs() const {
+  Optional<Array<String>> libs = this->GetAttr<Array<String>>("libs");
+  if (!libs.defined()) {
+    return {};
   }
-  return result;
-}
-
-std::unordered_set<std::string> TargetNode::libs() const {
   std::unordered_set<std::string> result;
-  for (auto& expr : libs_array) {
-    result.insert(expr);
+  for (const auto& item : libs.value()) {
+    result.insert(item);
   }
   return result;
 }
 
 const std::string& TargetNode::str() const {
-  if (str_repr_.length() != 0) return str_repr_;
-  std::ostringstream result;
-  result << target_name;
-  for (const auto& x : options()) {
-    result << " " << x;
+  if (str_repr_.empty()) {
+    std::ostringstream os;
+    os << id->name;
+    if (!this->keys.empty()) {
+      os << " -keys=";
+      bool is_first = true;
+      for (const String& s : keys) {
+        if (is_first) {
+          is_first = false;
+        } else {
+          os << ',';
+        }
+        os << s;
+      }
+    }
+    if (Optional<String> attrs_str = id->StringifyAttrsToRaw(attrs)) {
+      os << ' ' << attrs_str.value();
+    }
+    str_repr_ = os.str();
   }
-  str_repr_ = result.str();
   return str_repr_;
 }
 
@@ -202,39 +152,14 @@ bool StartsWith(const std::string& str, const std::string& pattern) {
   return str.compare(0, pattern.length(), pattern) == 0;
 }
 
-std::string GetDeviceName(const std::string& target_str) {
-  std::istringstream ss(target_str);
-  std::string target_name;
-  ss >> target_name;
-
-  std::string item;
-  while (ss >> item) {
-    if (StartsWith(item, "-device=")) {
-      return item.substr(std::string("-device=").length());
-    }
+Target Target::Create(const String& target_str) {
+  std::vector<std::string> splits;
+  std::istringstream is(target_str);
+  for (std::string s; is >> s; splits.push_back(s)) {
   }
-
-  return "";
-}
-
-Target Target::Create(const std::string& target_str) {
-  if (target_str.length() == 0) {
-    LOG(ERROR) << "target_str must not be empty";
-  }
-
-  std::istringstream ss(target_str);
-  std::string target_name;
-
-  ss >> target_name;
-  auto device_name = GetDeviceName(target_str);
-
-  std::vector<std::string> options;
-  std::string item;
-  while (ss >> item) {
-    options.push_back(item);
-  }
-
-  return CreateTarget(target_name, options);
+  CHECK(!splits.empty()) << "ValueError: Cannot parse empty target string: \"" << target_str
+                         << "\"";
+  return CreateTarget(splits[0], {splits.begin() + 1, splits.end()});
 }
 
 /*! \brief Entry to hold the Target context stack. */
@@ -290,28 +215,45 @@ std::vector<std::string> MergeOptions(std::vector<std::string> opts,
   return opts;
 }
 
-Target llvm(const std::vector<std::string>& options) { return CreateTarget("llvm", options); }
+Target llvm(const std::vector<std::string>& options) {
+  return Target::CreateTarget("llvm", options);
+}
 
-Target cuda(const std::vector<std::string>& options) { return CreateTarget("cuda", options); }
+Target cuda(const std::vector<std::string>& options) {
+  return Target::CreateTarget("cuda", options);
+}
 
-Target rocm(const std::vector<std::string>& options) { return CreateTarget("rocm", options); }
+Target rocm(const std::vector<std::string>& options) {
+  return Target::CreateTarget("rocm", options);
+}
 
-Target opencl(const std::vector<std::string>& options) { return CreateTarget("opencl", options); }
+Target opencl(const std::vector<std::string>& options) {
+  return Target::CreateTarget("opencl", options);
+}
 
-Target metal(const std::vector<std::string>& options) { return CreateTarget("metal", options); }
+Target metal(const std::vector<std::string>& options) {
+  return Target::CreateTarget("metal", options);
+}
 
 Target mali(const std::vector<std::string>& options) {
-  return CreateTarget("opencl", MergeOptions(options, {"-device=mali"}));
+  return Target::CreateTarget("opencl", MergeOptions(options, {"-device=mali"}));
 }
 
 Target intel_graphics(const std::vector<std::string>& options) {
-  return CreateTarget("opencl", MergeOptions(options, {"-device=intel_graphics"}));
+  return Target::CreateTarget(
+      "opencl", MergeOptions(options, {"-device=intel_graphics", "-thread_warp_size=16"}));
 }
 
-Target stackvm(const std::vector<std::string>& options) { return CreateTarget("stackvm", options); }
+Target stackvm(const std::vector<std::string>& options) {
+  return Target::CreateTarget("stackvm", options);
+}
 
-Target ext_dev(const std::vector<std::string>& options) { return CreateTarget("ext_dev", options); }
+Target ext_dev(const std::vector<std::string>& options) {
+  return Target::CreateTarget("ext_dev", options);
+}
 
-Target hexagon(const std::vector<std::string>& options) { return CreateTarget("hexagon", options); }
+Target hexagon(const std::vector<std::string>& options) {
+  return Target::CreateTarget("hexagon", options);
+}
 }  // namespace target
 }  // namespace tvm

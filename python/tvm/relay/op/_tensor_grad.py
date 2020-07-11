@@ -69,7 +69,7 @@ def log2_grad(orig, grad):
     """Returns [grad * 1 / (log(2) * x)]"""
     x = orig.args[0]
     ones = ones_like(x)
-    two = const(2.0)
+    two = const(2.0, dtype=x.checked_type.dtype)
     return [grad * ones / (log(two) * x)]
 
 
@@ -78,7 +78,7 @@ def log10_grad(orig, grad):
     """Returns [grad * 1 / (log(10) * x)]"""
     x = orig.args[0]
     ones = ones_like(x)
-    ten = const(10.0)
+    ten = const(10.0, dtype=x.checked_type.dtype)
     return [grad * ones / (log(ten) * x)]
 
 
@@ -175,8 +175,9 @@ def exp_grad(orig, grad):
 @register_gradient("sqrt")
 def sqrt_grad(orig, grad):
     """Returns [grad * 0.5 * (x ^ -0.5)]"""
-    a = const(0.5)  # (TODO) type?
-    return [grad * a * power(orig.args[0], negative(a))]
+    x = orig.args[0]
+    a = const(0.5, dtype=x.checked_type.dtype)
+    return [grad * a * power(x, negative(a))]
 
 
 @register_gradient("sigmoid")
@@ -261,6 +262,13 @@ def collapse_sum_like_grad(orig, grad):
     return [broadcast_to_like(grad, x), zeros_like(y)]
 
 
+@register_gradient("collapse_sum_to")
+def collapse_sum_to_grad(orig, grad):
+    """Returns [broadcast_to_like(grad, x), 0]"""
+    x, y = orig.args
+    return [broadcast_to_like(grad, x), zeros_like(y)]
+
+
 @register_gradient("abs")
 def abs_grad(orig, grad):
     """Returns grad * (select(x < 0, -1, 1))."""
@@ -270,14 +278,22 @@ def abs_grad(orig, grad):
     return [where(less(x, zeros), -ones * grad, ones * grad)]
 
 
+@register_gradient("erf")
+def erf_grad(orig, grad):
+    # c_2_div_sqrt_pi = 2.0 / math.sqrt(math.pi)
+    inp, = orig.args
+    c_2_div_sqrt_pi = const(1.1283791670955126, dtype=inp.checked_type.dtype)
+    return [c_2_div_sqrt_pi * exp(- inp * inp) * grad]
+
+
 @register_gradient("clip")
 def clip_grad(orig, grad):
     """Returns grad * (select(x < min || max < x , 0, 1))."""
     x = orig.args[0]
     a_min = orig.attrs.get_int("a_min")
     a_max = orig.attrs.get_int("a_max")
-    a_mins = broadcast_to_like(const(a_min), x)
-    a_maxs = broadcast_to_like(const(a_max), x)
+    a_mins = broadcast_to_like(const(a_min, dtype=x.checked_type.dtype), x)
+    a_maxs = broadcast_to_like(const(a_max, dtype=x.checked_type.dtype), x)
     zeros = zeros_like(x)
     ones = ones_like(x)
     return [where(less(x, a_mins), zeros, where(less(a_maxs, x), zeros, ones * grad))]
@@ -479,10 +495,23 @@ def dense_grad(orig, grad):
             collapse_sum_like(_nn.dense(transpose(grad), transpose(data),
                                         units=data.checked_type.shape[1]), weight)]
 
+
+@register_gradient("nn.batch_matmul")
+def batch_matmul_grad(orig, grad):
+    """gradient for nn.batch_matmul: in einsum LHS_bik,RHS_bjk->RES_bij
+       grads: GRAD_OUT_bij,RHS_bjk->GRAD_IN_LHS_bik
+              GRAD_OUT_bij,LHS_bik->GRAD_IN_RHS_bjk
+    """
+    lhs, rhs = orig.args
+    return [collapse_sum_like(_nn.batch_matmul(grad, transpose(rhs, [0, 2, 1])), lhs),
+            collapse_sum_like(_nn.batch_matmul(transpose(grad, [0, 2, 1]),
+                                               transpose(lhs, [0, 2, 1])), rhs)]
+
+
 @register_gradient("reshape")
 def reshape_grad(orig, grad):
     """Gradient of reshape"""
-    return [reshape_like(grad, orig.args[0]), orig.args[1]]
+    return [reshape_like(grad, orig.args[0])]
 
 
 @register_gradient("cast")
@@ -529,12 +558,48 @@ def sum_grad(orig, grad):
     return [broadcast_to_like(grad, data)]
 
 
+@register_gradient("mean")
+def mean_grad(orig, grad):
+    """Returns grad broadcasted to data dims"""
+    data, axis = orig.args[0], _get_reduce_axis(orig)
+    shape = data.checked_type.concrete_shape
+    if axis is None:
+        axis = list(range(len(data.checked_type.concrete_shape)))
+    if not orig.attrs.keepdims:
+        grad = _unreduce_expand(grad, axis)
+    mult = 1.0
+    for a in axis:
+        mult /= shape[a]
+    return [broadcast_to_like(grad * const(mult, dtype=data.checked_type.dtype), data)]
+
+
+@register_gradient("variance")
+def variance_grad(orig, grad):
+    """Note that we take mean as an argument in the variance node"""
+    data, data_mean, axis = orig.args[0], orig.args[1], _get_reduce_axis(orig)
+    shape = data.checked_type.concrete_shape
+    if axis is None:
+        axis = list(range(len(data.checked_type.concrete_shape)))
+    if not orig.attrs.keepdims:
+        grad = _unreduce_expand(grad, axis)
+    mult = 2.0
+    for a in axis:
+        mult /= shape[a]
+    return [(grad * const(mult, dtype=data.checked_type.dtype)) * data,
+            const(-2, dtype=data.checked_type.dtype) * grad * data_mean]
+
+
+@register_gradient("copy")
+def copy_grad(orig, grad):
+    return [grad]
+
+
 @register_gradient("nn.cross_entropy")
 def cross_entropy_grad(orig, grad):
     x, y = orig.args
     shape = shape_of(x)
     batch_size = take(shape, const(0, dtype='int32'), axis=0)
-    grad = grad / batch_size.astype('float32')
+    grad = grad / batch_size.astype(x.checked_type.dtype)
     return [-grad * y / x, -grad * log(x)]
 
 
@@ -543,5 +608,5 @@ def cross_entropy_with_logits_grad(orig, grad):
     x, y = orig.args
     shape = shape_of(x)
     batch_size = take(shape, const(0, dtype='int32'), axis=0)
-    grad = grad / batch_size.astype('float32')
+    grad = grad / batch_size.astype(x.checked_type.dtype)
     return [-grad * y, -grad * x]

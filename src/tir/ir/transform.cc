@@ -94,7 +94,7 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   IRModuleNode* mod_ptr = mod.CopyOnWrite();
   auto* func_dict = mod_ptr->functions.CopyOnWrite();
   // directly loop over the underlying dict
-  for (auto& kv : func_dict->data) {
+  for (auto& kv : *func_dict) {
     // only picks up tir::PrimFunc
     if (kv.second->IsInstance<PrimFuncNode>()) {
       // move out the function so that it is the only copy.
@@ -110,7 +110,7 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
 
   // automatic removal of None
   for (const auto& gv : deleted_list) {
-    func_dict->data.erase(gv);
+    func_dict->erase(gv);
   }
   pass_ctx.Trace(mod, pass_info, false);
   return mod;
@@ -118,7 +118,7 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
 
 Pass CreatePrimFuncPass(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, const std::string& name, const tvm::Array<runtime::String>& required) {
+    int opt_level, String name, tvm::Array<String> required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return PrimFuncPass(pass_func, pass_info);
 }

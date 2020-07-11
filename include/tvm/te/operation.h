@@ -53,7 +53,7 @@ struct TensorDom {
 /*!
  * \brief Base class of all operation nodes
  */
-class OperationNode : public tir::FunctionBaseNode {
+class OperationNode : public Object {
  public:
   /*! \brief optional name of the operation */
   std::string name;
@@ -61,8 +61,10 @@ class OperationNode : public tir::FunctionBaseNode {
   std::string tag;
   /*! \brief additional attributes of the operation*/
   Map<String, ObjectRef> attrs;
-  /*! \return name of the operation */
-  const std::string& func_name() const final { return name; }
+  // virtual destructor.
+  virtual ~OperationNode() {}
+  /*! \return number of outputs */
+  virtual int num_outputs() const = 0;
   /*!
    * \return The list of iteration variable at root
    * \note root_iter_vars decides the shape of the outputs.

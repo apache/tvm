@@ -127,8 +127,8 @@ void HybridOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* ana
     if (it == out_dom_map->end()) continue;
     TensorDom& dom = it->second;
     for (size_t i = 0; i < t->shape.size(); ++i) {
-      dom.data[i].emplace_back(IntSet::range(
-          Range::make_by_min_extent(make_const(t->shape[i].dtype(), 0), t->shape[i])));
+      dom.data[i].emplace_back(
+          IntSet::FromRange(Range::FromMinExtent(make_const(t->shape[i].dtype(), 0), t->shape[i])));
     }
   }
 }
@@ -152,7 +152,7 @@ Stmt HybridOpNode::BuildRealize(const Stage& stage,
     Tensor t = stage->op.output(k);
     Region bounds;
     for (size_t i = 0; i < t->shape.size(); ++i) {
-      bounds.push_back(Range::make_by_min_extent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
+      bounds.push_back(Range::FromMinExtent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
     realize_body = tir::ProducerRealize(t, bounds, const_true(), realize_body);
   }
@@ -447,7 +447,7 @@ std::vector<IterVar> GatherLoopVars(Stmt stmt) {
   PostOrderVisit(stmt, [&res_](const ObjectRef& node) {
     if (const ForNode* op = node.as<ForNode>()) {
       Var loop_var(op->loop_var);
-      Range dom = Range::make_by_min_extent(op->min, op->extent);
+      Range dom = Range::FromMinExtent(op->min, op->extent);
       res_.push_back(IterVar(dom, loop_var, ForTypeToIterVarType(op->for_type)));
     }
   });

@@ -69,7 +69,7 @@ def schedule_batch_matmul(cfg, outs):
         cfg.define_split("tile_k", k, num_outputs=2)
         cfg.define_knob("auto_unroll_max_step", [8, 16, 32, 64])
         target = tvm.target.Target.current()
-        if target.target_name in ['nvptx', 'rocm']:
+        if target.id.name in ['nvptx', 'rocm']:
             # llvm-based backends cannot do non-explicit unrolling
             cfg.define_knob("unroll_explicit", [1])
         else:

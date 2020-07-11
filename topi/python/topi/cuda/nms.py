@@ -34,13 +34,21 @@ def cuda_atomic_add_rule(op):
         return tvm.tir.call_pure_extern("int32", "atomicAdd", op.args[0], op.args[1])
     raise RuntimeError("only support int32, float32 and float64")
 
+def opencl_atomic_add_rule(op):
+    if op.dtype == "int32":
+        return tvm.tir.call_pure_extern("int32", "atomic_add", op.args[0], op.args[1])
+    raise RuntimeError("only support int32")
 
 tvm.target.intrin.register_intrin_rule(
     "cuda", "atomic_add", cuda_atomic_add_rule, override=True)
 
+tvm.target.intrin.register_intrin_rule(
+    "opencl", "atomic_add", opencl_atomic_add_rule, override=True)
+
+tvm.ir.register_op_attr("tir.atomic_add", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
 
 def atomic_add(x, y):
-    return tvm.tir.call_pure_intrin(y.dtype, "atomic_add", x, y)
+    return tvm.tir.call_intrin(y.dtype, "tir.atomic_add", x, y)
 
 
 def get_valid_counts_ir(data, valid_count, out, out_indices,
@@ -113,7 +121,7 @@ def get_valid_counts_ir(data, valid_count, out, out_indices,
         with ib.if_scope(
                 tvm.tir.all(data[tid * elem_length + score_index] > score_threshold,
                             tvm.tir.any(id_index < 0, data[tid * elem_length + id_index] >= 0))):
-            atomic_add_return[0] = atomic_add(tvm.tir.call_pure_intrin("handle", "tvm_address_of",
+            atomic_add_return[0] = atomic_add(tvm.tir.call_intrin("handle", "tir.address_of",
                                                                        valid_count[i]), one_count)
             with ib.for_range(0, elem_length) as k:
                 out[tid * elem_length + k] = data[tid * elem_length + k]
@@ -457,7 +465,7 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
             in_buffers=[data_buf, sort_tensor_buf, valid_count_buf],
             name="nms",
             tag="nms")
-
+    # TODO(yongwww): Update cuda nms to be consistent with cpu version
     if return_indices:
         return box_indices
 

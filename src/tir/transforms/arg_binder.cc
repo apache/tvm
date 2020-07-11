@@ -24,6 +24,7 @@
 #include "arg_binder.h"
 
 #include <tvm/runtime/device_api.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
@@ -141,7 +142,7 @@ void ArgBinder::BindBuffer(const Buffer& arg, const Buffer& value, const std::st
   }
 }
 
-inline PrimExpr TVMArrayGet(DataType t, Var arr, intrinsic::TVMStructFieldKind kind) {
+inline PrimExpr TVMArrayGet(DataType t, Var arr, builtin::TVMStructFieldKind kind) {
   return TVMStructGet(t, arr, 0, kind);
 }
 
@@ -152,7 +153,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   const DataType tvm_ndim_type = DataType::Int(32);
   const Stmt nop = Evaluate(0);
   // dimension checks
-  PrimExpr v_ndim = TVMArrayGet(tvm_ndim_type, handle, intrinsic::kArrNDim);
+  PrimExpr v_ndim = TVMArrayGet(tvm_ndim_type, handle, builtin::kArrNDim);
   PrimExpr a_ndim = make_const(tvm_ndim_type, static_cast<int64_t>(buffer->shape.size()));
   std::ostringstream ndim_err_msg;
   ndim_err_msg << arg_name << ".ndim is expected to equal " << buffer->shape.size();
@@ -162,11 +163,11 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   DataType dtype = buffer->dtype;
   std::ostringstream type_err_msg;
   type_err_msg << arg_name << ".dtype is expected to be " << dtype;
-  PrimExpr cond = (TVMArrayGet(DataType::UInt(8), handle, intrinsic::kArrTypeCode) ==
+  PrimExpr cond = (TVMArrayGet(DataType::UInt(8), handle, builtin::kArrTypeCode) ==
                        IntImm(DataType::UInt(8), dtype.code()) &&
-                   TVMArrayGet(DataType::UInt(8), handle, intrinsic::kArrTypeBits) ==
+                   TVMArrayGet(DataType::UInt(8), handle, builtin::kArrTypeBits) ==
                        IntImm(DataType::UInt(8), dtype.bits()) &&
-                   TVMArrayGet(DataType::UInt(16), handle, intrinsic::kArrTypeLanes) ==
+                   TVMArrayGet(DataType::UInt(16), handle, builtin::kArrTypeLanes) ==
                        IntImm(DataType::UInt(16), dtype.lanes()));
   if (!(dtype == DataType::Int(4) || dtype == DataType::UInt(4) || dtype == DataType::Int(1))) {
     auto type_msg = tvm::tir::StringImm(type_err_msg.str());
@@ -174,7 +175,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     asserts_.emplace_back(AssertStmt(cond, type_msg, nop));
   }
   // data field
-  if (Bind_(buffer->data, TVMArrayGet(DataType::Handle(), handle, intrinsic::kArrData),
+  if (Bind_(buffer->data, TVMArrayGet(DataType::Handle(), handle, builtin::kArrData),
             arg_name + ".data", true)) {
     Var vptr(buffer->data);
     def_handle_dtype_.Set(vptr, tir::TypeAnnotation(buffer->dtype));
@@ -186,7 +187,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   Var v_shape(arg_name + ".shape", DataType::Handle());
   def_handle_dtype_.Set(v_shape, make_const(tvm_shape_type, 0));
   init_nest_.emplace_back(
-      LetStmt(v_shape, TVMArrayGet(DataType::Handle(), handle, intrinsic::kArrShape), nop));
+      LetStmt(v_shape, TVMArrayGet(DataType::Handle(), handle, builtin::kArrShape), nop));
   for (size_t k = 0; k < buffer->shape.size(); ++k) {
     if (dtype == DataType::Int(4) || dtype == DataType::UInt(4) || dtype == DataType::Int(1)) {
       break;
@@ -202,9 +203,8 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   Var v_strides(arg_name + ".strides", DataType::Handle());
   def_handle_dtype_.Set(v_strides, tir::TypeAnnotation(tvm_shape_type));
   init_nest_.emplace_back(
-      LetStmt(v_strides, TVMArrayGet(DataType::Handle(), handle, intrinsic::kArrStrides), nop));
-  PrimExpr is_null =
-      Call(DataType::Bool(1), intrinsic::tvm_handle_is_null, {v_strides}, CallNode::PureIntrinsic);
+      LetStmt(v_strides, TVMArrayGet(DataType::Handle(), handle, builtin::kArrStrides), nop));
+  PrimExpr is_null = Call(DataType::Bool(1), builtin::isnullptr(), {v_strides});
   if (buffer->strides.size() == 0) {
     // Assert the buffer is compact
     DataType stype = buffer->DefaultIndexType();
@@ -262,12 +262,12 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
 
   if (const auto* const_offset = buffer->elem_offset.as<IntImmNode>()) {
     Bind_(make_const(DataType::UInt(64), const_offset->value * data_bytes),
-          TVMArrayGet(DataType::UInt(64), handle, intrinsic::kArrByteOffset),
+          TVMArrayGet(DataType::UInt(64), handle, builtin::kArrByteOffset),
           arg_name + ".byte_offset", true);
   } else {
     if (Bind_(buffer->elem_offset,
               cast(buffer->elem_offset.dtype(),
-                   (TVMArrayGet(DataType::UInt(64), handle, intrinsic::kArrByteOffset) /
+                   (TVMArrayGet(DataType::UInt(64), handle, builtin::kArrByteOffset) /
                     make_const(DataType::UInt(64), data_bytes))),
               arg_name + ".elem_offset", true)) {
       if (buffer->offset_factor > 1) {
@@ -280,9 +280,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     }
   }
   // device info.
-  Bind_(device_type, TVMArrayGet(DataType::Int(32), handle, intrinsic::kArrDeviceType),
+  Bind_(device_type, TVMArrayGet(DataType::Int(32), handle, builtin::kArrDeviceType),
         arg_name + ".device_type", true);
-  Bind_(device_id, TVMArrayGet(DataType::Int(32), handle, intrinsic::kArrDeviceId),
+  Bind_(device_id, TVMArrayGet(DataType::Int(32), handle, builtin::kArrDeviceId),
         arg_name + ".device_id", true);
 }
 

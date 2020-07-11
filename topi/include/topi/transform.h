@@ -150,44 +150,72 @@ inline Tensor transpose(const Tensor& x, Array<Integer> axes, std::string name =
 }
 
 /*!
- * \brief flip/reverse elements of an array in a particular axis
+ * \brief Reverse the tensor for variable length slices.
+ * Input is first sliced along batch axis and then elements are reversed along seq axis.
  *
  * \param x The input tensor
- * \param axis The axis along which the tensors will be reveresed
- * (allows negative indices)
+ * \param seq_lengths A 1D Tensor with length x.dims[batch_axis]. Optional Tensor() can be passed.
+ * If not defined batch axis is ignored and tensor is reversed along seq_axis.
+ * \param seq_axis The axis along which the elements will be reveresed
+ * \param batch_axis The axis along which the tensor will be sliced
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the reverse operation
+ * \return A Tensor whose op member is the reverse_sequence operation
  */
-inline Tensor flip(const Tensor& x, int axis = 0, std::string name = "T_flip",
-                   std::string tag = kInjective) {
+inline Tensor reverse_sequence(const Tensor& x, const Tensor& seq_lengths, int seq_axis = 1,
+                               int batch_axis = 0, std::string name = "T_reverse_sequence",
+                               std::string tag = kInjective) {
   size_t src_tensor_dim = x->shape.size();
-  int axis_inp = axis;
+  int seq_axis_inp = seq_axis;
 
-  if (axis < 0) {
-    axis = static_cast<int>(x->shape.size()) + axis;
+  if (seq_lengths.defined()) {
+    size_t seq_lengths_dim = seq_lengths->shape.size();
+    int batch_axis_inp = batch_axis;
+    if (batch_axis < 0) {
+      batch_axis = static_cast<int>(x->shape.size()) + batch_axis;
+    }
+
+    CHECK(seq_lengths_dim == 1) << "seq_lengths should be 1D vector";
+
+    CHECK(GetConstInt(seq_lengths->shape[0]) == GetConstInt(x->shape[batch_axis]))
+        << "For reverse_sequnece seq_lengths size should match with dimension of batch axis"
+        << ", but got dimension of batch_axis = " << GetConstInt(x->shape[batch_axis])
+        << ", and seq_length size = " << GetConstInt(seq_lengths->shape[0]);
+
+    CHECK((0 <= batch_axis) && (batch_axis < static_cast<int>(x->shape.size())))
+        << "batch_axis=" << batch_axis_inp << " is invalid for the "
+        << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
   }
 
-  CHECK((0 <= axis) && (axis < static_cast<int>(x->shape.size())))
-      << "axis=" << axis_inp << " is invalid for the " << static_cast<int>(x->shape.size())
+  if (seq_axis < 0) {
+    seq_axis = static_cast<int>(x->shape.size()) + seq_axis;
+  }
+  CHECK((0 <= seq_axis) && (seq_axis < static_cast<int>(x->shape.size())))
+      << "seq_axis=" << seq_axis_inp << " is invalid for the " << static_cast<int>(x->shape.size())
       << "-dimensional input tensor";
 
-  // Reverse the Input Tensor in the axis specified
-  return compute(
-      x->shape,
-      [&](const Array<Var>& indices) {
-        Array<PrimExpr> real_indices;
-        for (size_t i = 0; i < src_tensor_dim; ++i) {
-          if (i == static_cast<size_t>(axis)) {
-            real_indices.push_back(x->shape[i] - indices[i] - 1);
-          } else {
-            real_indices.push_back(indices[i]);
-          }
+  auto func = [&](const Array<Var>& indices) {
+    Array<PrimExpr> real_indices;
+    for (size_t i = 0; i < src_tensor_dim; ++i) {
+      if (i == static_cast<size_t>(seq_axis)) {
+        if (seq_lengths.defined()) {
+          auto len = seq_lengths(indices[batch_axis]);
+          auto idx = if_then_else(
+              len <= 1 || len <= indices[i], indices[i],
+              if_then_else(len > x->shape[i], x->shape[i] - 1 - indices[i], len - 1 - indices[i]));
+          real_indices.push_back(idx);
+        } else {
+          real_indices.push_back(x->shape[i] - 1 - indices[i]);
         }
-        return x(real_indices);
-      },
-      name, tag);
+      } else {
+        real_indices.push_back(indices[i]);
+      }
+    }
+    return x(real_indices);
+  };
+
+  return compute(x->shape, func, name, tag);
 }
 
 /*!
@@ -989,6 +1017,43 @@ inline Tensor tile(const Tensor& x, Array<Integer> reps, std::string name = "T_t
 }
 
 /*!
+ * \brief Creates an operation to tile elements of an array
+ *
+ * \param x The input tensor
+ * \param new_shape The shape of the output after tiling
+ * \param rdim The rank of the reps, provided by caller
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the tile operation
+ */
+inline Tensor dyn_tile(const Tensor& x, Array<PrimExpr> new_shape, size_t rdim,
+                       std::string name = "T_tile", std::string tag = kBroadcast) {
+  size_t ndim = x->shape.size();
+  if (is_empty_shape(new_shape)) {
+    return compute(
+        new_shape, [&](const Array<Var>& indices) { return tvm::cast(x->dtype, 0); }, name, tag);
+  } else {
+    return compute(
+        new_shape,
+        [&](const Array<Var>& indices) {
+          Array<PrimExpr> idx;
+          if (ndim >= rdim) {
+            for (size_t i = 0; i < ndim; ++i) {
+              idx.push_back(indexmod(indices[i], x->shape[i]));
+            }
+          } else {
+            for (size_t i = 0; i < ndim; ++i) {
+              idx.push_back(indexmod(indices[rdim - ndim + i], x->shape[i]));
+            }
+          }
+          return x(idx);
+        },
+        name, tag);
+  }
+}
+
+/*!
  * \brief Gather values along given axis from given indices.
  *
  * \param data The input data to the operator.
@@ -1227,6 +1292,38 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
       {num_elem},
       [&](const Array<Var>& indices) { return tvm::cast(dtype, start + step * indices[0]); }, name,
       tag);
+}
+
+/*!
+ * \brief Produce grids by expanding input over dimensions defined by other inputs
+ *
+ * \param inputs The input tensors
+ * \param indexing The indexing mode, either "xy" or "ij"
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the meshgrid operation
+ */
+inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& indexing,
+                              std::string name = "T_meshgrid", std::string tag = kInjective) {
+  const bool cartesian_indexing = indexing == "xy" && inputs.size() >= 2;
+  Array<PrimExpr> out_shape;
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    const int src_index = (cartesian_indexing && i < 2) ? 1 - i : i;
+    out_shape.push_back(inputs[src_index]->shape.size() == 0 ? 1 : inputs[src_index]->shape[0]);
+  }
+  Array<Tensor> result;
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    result.push_back(compute(
+        out_shape,
+        [&](const Array<Var>& indices) {
+          const int src_index = (cartesian_indexing && i < 2) ? 1 - i : i;
+          Array<PrimExpr> real_indices = {indices[src_index]};
+          return inputs[i](real_indices);
+        },
+        name, tag));
+  }
+  return result;
 }
 
 /*!

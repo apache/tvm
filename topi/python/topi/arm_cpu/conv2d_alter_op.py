@@ -59,16 +59,16 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     data, kernel = tinfos
     out_dtype = out_type.dtype
 
-    # We only perform layout alteration for NCHW data layout.
-    if data_layout == "NHWC":
-        return None
-
     # Extract data types
     data_tensor, kernel_tensor = tinfos
     data_dtype = data_tensor.dtype
     kernel_dtype = kernel_tensor.dtype
 
     idxd = tvm.tir.indexdiv
+
+    # We don't perform layout alteration for NHWC layout with real data types
+    if data_layout == "NHWC" and data_dtype not in ['uint8', 'int8']:
+        return None
 
     if topi_tmpl == "conv2d_nchw_spatial_pack.arm_cpu":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
@@ -88,21 +88,27 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         return relay.nn.conv2d(*inputs, **new_attrs)
 
     if topi_tmpl == "conv2d_nhwc_spatial_pack.arm_cpu":
+        assert (data.dtype == 'int8' and kernel.dtype == 'int8' or
+                data.dtype == 'uint8' and kernel.dtype == 'uint8')
+
         assert data_layout == "NHWC" and kernel_layout == "HWIO"
-        N, H, W, CI = get_const_tuple(data.shape)
-        KH, KW, _, CO = get_const_tuple(kernel.shape)
-        VC = cfg['tile_co'].size[-1]
 
-        new_attrs['kernel_layout'] = 'OHWI%do' % VC
+        data_expr, kernel_expr = inputs
 
-        new_data = data
-        new_kernel = te.placeholder((idxd(CO, VC), KH, KW, CI, VC), dtype=kernel.dtype)
+        data_int16 = relay.cast(data_expr, dtype='int16')
+        kernel_int16 = relay.cast(kernel_expr, dtype='int16')
+
+        new_attrs = {k : attrs[k] for k in attrs.keys()}
+
+        new_data = te.placeholder(data.shape, 'int16')
+        new_kernel = te.placeholder(kernel.shape, 'int16')
+
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, out_dtype],
-            "conv2d_nhwc_spatial_pack.arm_cpu")
+            'conv2d_nhwc_spatial_pack.arm_cpu')
         dispatch_ctx.update(target, new_workload, cfg)
 
-        return relay.nn.conv2d(*inputs, **new_attrs)
+        return relay.nn.conv2d(data_int16, kernel_int16, **new_attrs)
 
     if topi_tmpl == "conv2d_nchw_winograd.arm_cpu":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
@@ -235,5 +241,41 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
              new_attrs['out_layout'], out_dtype], topi_tmpl)
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_depthwise_conv2d_nchwc(*inputs, **new_attrs)
+    if topi_tmpl == "conv2d_NHWC_quantized.arm_cpu":
+        assert (data.dtype == 'int8' and kernel.dtype == 'int8' or
+                data.dtype == 'uint8' and kernel.dtype == 'uint8')
+        assert data_layout == "NHWC" and kernel_layout == "HWIO"
+        KH, KW, IC, OC = get_const_tuple(kernel.shape)
+        K = KH * KW * IC
+        N = OC
+
+        tile_rows = 4
+        tile_cols = 16
+        pad_K = 0
+        pad_N = 0
+
+        if N % tile_rows != 0:
+            pad_N = tile_rows - (N % tile_rows)
+        if K % tile_cols != 0:
+            pad_K = tile_cols - (K % tile_cols)
+
+        N_padded = N + pad_N
+        K_padded = K + pad_K
+        kernel_expr = relay.nn.contrib_conv2d_gemm_weight_transform(inputs[1], tile_rows, tile_cols)
+        new_kernel = te.placeholder((N_padded // tile_rows,
+                                     K_padded // tile_cols,
+                                     tile_rows,
+                                     tile_cols), kernel.dtype)
+
+        new_workload_name = "conv2d_NHWC_quantized_without_transform.arm_cpu"
+        new_workload = autotvm.task.args_to_workload([data, new_kernel,
+                                                      strides, padding, dilation,
+                                                      out_dtype, (KH, KW), OC],
+                                                     new_workload_name)
+        dispatch_ctx.update(target, new_workload, cfg)
+
+        return relay.nn.contrib_conv2d_gemm_without_weight_transform(inputs[0],
+                                                                     kernel_expr,
+                                                                     **new_attrs)
 
     return None

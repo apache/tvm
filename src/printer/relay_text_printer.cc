@@ -456,9 +456,7 @@ Doc RelayTextPrinter::VisitExpr_(const FunctionNode* op) {
   return PrintFunc(Doc::Text("fn "), GetRef<Function>(op));
 }
 
-Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) {
-  return Doc::Text('@' + op->name_hint.operator std::string());
-}
+Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) { return Doc::Text("@" + op->name_hint); }
 
 Doc RelayTextPrinter::VisitExpr_(const OpNode* op) { return Doc::Text(op->name); }
 
@@ -833,9 +831,7 @@ std::vector<Doc> RelayTextPrinter::PrintFuncAttrs(const Attrs& attrs) {
 }
 
 TVM_REGISTER_GLOBAL("ir.TextPrinter").set_body_typed([](ObjectRef node) {
-  std::cout << "The program: " << node << std::endl;
   auto text = AsText(node, false, nullptr);
-  std::cout << "The text " << text;
   return text;
 });
 

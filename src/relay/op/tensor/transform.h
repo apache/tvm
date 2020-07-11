@@ -38,7 +38,7 @@
 namespace tvm {
 namespace relay {
 
-extern Expr MakeReshape(Expr data, Expr newshape);
+Expr MakeReshape(Expr data, Array<Integer> newshape);
 
 template <typename AttrType>
 bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,

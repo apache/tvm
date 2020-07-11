@@ -112,6 +112,14 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_direct_simd),
                     name='conv2d_direct_simd.micro_dev')
             elif kernel_layout == "HWIO":
+                is_aarch64 = "aarch64" in str(isa.target)
+
+                if is_aarch64 and data.dtype in ["int8", "uint8"]:
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized),
+                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized),
+                        name="conv2d_NHWC_quantized.arm_cpu")
+
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_spatial_pack),
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack),
@@ -244,6 +252,40 @@ def conv2d_winograd_without_weight_transfrom_strategy_arm_cpu(attrs, inputs, out
     else:
         raise RuntimeError("Unsupported conv2d_winograd_without_weight_transfrom layout {}".
                            format(layout))
+    return strategy
+
+def wrap_compute_conv2d_gemm(topi_compute):
+    """wrap topi compute for conv2d_gemm"""
+
+    def _compute_conv2d_gemm(attrs, inputs, out_type):
+        padding = attrs.get_int_tuple("padding")
+        strides = attrs.get_int_tuple("strides")
+        dilation = attrs.get_int_tuple("dilation")
+        out_dtype = attrs.get_str("out_dtype")
+        channels = attrs['channels']
+        kernel_size = attrs['kernel_size']
+        out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
+        return [topi_compute(inputs[0], inputs[1], strides, padding,
+                             dilation, out_dtype, kernel_size, channels)]
+
+    return _compute_conv2d_gemm
+
+@conv2d_gemm_without_weight_transform_strategy.register("arm_cpu")
+def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_type, target):
+    """conv2d_winograd_without_weight_transfrom arm cpu strategy"""
+    layout = attrs.data_layout
+    data = inputs[0]
+    strategy = _op.OpStrategy()
+
+    if layout == "NHWC" and data.dtype in ['int8', 'uint8']:
+        strategy.add_implementation(
+            wrap_compute_conv2d_gemm(topi.arm_cpu.compute_conv2d_NHWC_quantized_without_transform),
+            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized),
+            name="conv2d_NHWC_quantized_without_transform.arm_cpu")
+    else:
+        raise RuntimeError(
+            "Unsupported conv2d_NHWC_quantized_without_transform layout {0} with datatype {1}".
+            format(layout, data.dtype))
     return strategy
 
 @conv2d_transpose_strategy.register(["arm_cpu", "micro_dev"])

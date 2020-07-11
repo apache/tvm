@@ -19,7 +19,8 @@
 """Transform operators."""
 
 from . import _make
-from ..expr import TupleWrapper, const
+from .dyn import _make as _dyn_make
+from ..expr import TupleWrapper, const, Expr, Tuple
 from ...tir import expr as _expr
 
 
@@ -210,8 +211,10 @@ def reshape(data, newshape):
     result : relay.Expr
         The reshaped result.
     """
+    if isinstance(newshape, Expr):
+        return _dyn_make.reshape(data, newshape)
     if isinstance(newshape, int):
-        newshape = const([newshape])
+        newshape = [newshape]
     if isinstance(newshape, (tuple, list)):
         tempshape = []
         for shape in newshape:
@@ -222,8 +225,8 @@ def reshape(data, newshape):
                     tempshape.append(int(shape))
                 except ValueError as err:
                     raise RuntimeError('Unrecognized shape type: %s' % err)
-        newshape = const(tempshape)
-    return _make.reshape(data, newshape)
+        newshape = tempshape
+    return _make.reshape(data, list(newshape))
 
 def argwhere(condition):
     """Find the indices of elements of a tensor that are
@@ -415,6 +418,45 @@ def arange(start, stop=None, step=None, dtype="float32"):
 
     return _make.arange(start, stop, step, dtype)
 
+def meshgrid(data, indexing="ij"):
+    """Create coordinate matrices from coordinate vectors.
+
+    .. note::
+        Similar to ``numpy.meshgrid``.
+
+    Parameters
+    ----------
+    data : Union(List[relay.Expr], Tuple[relay.Expr])
+        A list of tensors, which must be either scalars or 1-D vectors.
+
+    indexing : str
+        Indexing mode, either "ij" for matrix indexing or "xy" for Cartesian indexing.
+
+    Returns
+    -------
+    ret : relay.Tuple([relay.Expr, relay.Expr])
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [1, 2, 3]
+        y = [4, 5]
+
+        gx, gy = relay.meshgrid([x, y])
+
+        gx = [[1., 1.],
+              [2., 2.],
+              [3., 3.]]
+
+        gy = [[4., 5.],
+              [4., 5.],
+              [4., 5.]]
+    """
+    data = list(data)
+    ret_size = len(data)
+    return TupleWrapper(_make.meshgrid(Tuple(data), indexing), ret_size)
 
 def repeat(data, repeats, axis):
     """Repeats elements of an array.
@@ -454,7 +496,7 @@ def tile(data, reps):
     data : relay.Expr
         The input data to the operator.
 
-    reps : tuple of int
+    reps : tuple of int or relay.Expr
         The number of times repeating the tensor data.
 
     Returns
@@ -482,7 +524,8 @@ def tile(data, reps):
     data is promoted to be d-dimensional by prepending new axes.
     If data.ndim >=  d, reps is promoted to a.ndim by pre-pending 1's to it.
     """
-
+    if isinstance(reps, Expr):
+        return _dyn_make.tile(data, reps)
     return _make.tile(data, reps)
 
 
@@ -513,6 +556,53 @@ def reverse(data, axis):
         relay.reverse(x, axis=1) = [[2., 1.], [4., 3.]]
     """
     return _make.reverse(data, axis)
+
+
+def reverse_sequence(data, seq_lengths, seq_axis=1, batch_axis=0):
+    """Reverse the tensor for variable length slices.
+    Input is first sliced along batch axis and then elements are reversed along seq axis.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The tensor to be reversed.
+
+    seq_lengths : relay.Expr
+        A 1D Tensor with length a.dims[batch_axis]
+        Must be one of the following types: int32, int64
+        if seq_lengths[i] > a.dims[seq_axis], it is rounded to a.dims[seq_axis]
+        if seq_lengths[i] < 1, it is rounded to 1
+
+    seq_axis : int, optional
+        The axis along which the elements will be reversed. Default is 1.
+
+    batch_axis : int, optional
+        The axis along which the tensor will be sliced. Default is 0.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result of same shape and type as of input.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[0, 1, 2, 3],
+             [4, 5, 6, 7],
+             [8, 9, 10, 11],
+             [12, 13, 14, 15]]
+        relay.reverse(x, [1, 2, 3, 4], 0, 1) = [[0, 5, 10, 15],
+                                                [4, 1, 6, 11],
+                                                [8, 9, 2, 7],
+                                                [12, 13, 14, 3]]
+
+        relay.reverse(x, [1, 2, 3, 4], 1, 0) = [[0, 1, 2, 3],
+                                                [5, 4, 6, 7],
+                                                [10, 9, 8, 11],
+                                                [15, 14, 13, 12]]
+    """
+    return _make.reverse_sequence(data, seq_lengths, seq_axis, batch_axis)
 
 
 def where(condition, x, y):
@@ -611,6 +701,27 @@ def collapse_sum_like(data, collapse_type):
         The resulting tensor.
     """
     return _make.collapse_sum_like(data, collapse_type)
+
+
+def collapse_sum_to(data, shape):
+    """Return a summation of data to the specified shape.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+
+    shape : relay.Expr
+        Shape to collapse to.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    if isinstance(shape, (list, tuple)):
+        shape = const(list(shape), "int32")
+    return _make.collapse_sum_to(data, shape)
 
 
 def split(data, indices_or_sections, axis=0):

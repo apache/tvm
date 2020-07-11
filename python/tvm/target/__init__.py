@@ -16,7 +16,7 @@
 # under the License.
 """Target description and codgen module.
 
-TVM's target string is in fomat ``<target_name> [-option=value]...``.
+TVM's target string is in fomat ``<target_id> [-option=value]...``.
 
 Note
 ----
@@ -26,7 +26,7 @@ The list of options include:
 
    The device name.
 
-- **-mtriple=<target triple>** or **-target**
+- **-mtriple=<target triple>**
 
    Specify the target triple, which is useful for cross
    compilation.

@@ -251,7 +251,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       target_ = pstr->getString().str();
     } else {
       std::ostringstream os;
-      os << "llvm -target " << module_->getTargetTriple();
+      os << "llvm -mtriple " << module_->getTargetTriple();
       target_ = os.str();
     }
     mptr_ = module_.get();

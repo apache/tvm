@@ -524,6 +524,12 @@ inline Expr OnesLike(Expr e) {
   return Call(op, {e});
 }
 
+Expr MakeOnes(Expr shape, DataType dtype);
+
+inline Expr Ones(Array<IndexExpr> shape, DataType dtype) {
+  return MakeOnes(CheckConstantShape(shape), dtype);
+}
+
 inline Expr CollapseSumLike(Expr e) {
   static const Op& op = Op::Get("collapse_sum_like");
   return Call(op, {e});
@@ -624,12 +630,10 @@ static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclu
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-Expr MakeReshape(Expr data, Expr newshape);
+Expr MakeReshape(Expr data, Array<Integer> newshape);
 
 static inline Expr Reshape(Expr data, Array<Integer> newshape) {
-  auto newshape_tensor =
-      MakeConstantTensor(DataType::Int(32), {static_cast<int64_t>(newshape.size())}, newshape);
-  return MakeReshape(data, newshape_tensor);
+  return MakeReshape(data, newshape);
 }
 
 static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,

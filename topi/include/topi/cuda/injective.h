@@ -47,7 +47,7 @@ namespace cuda {
 inline Schedule schedule_injective_from_existing(Schedule sch, const Tensor& out) {
   auto fused = detail::Fuse(sch[out], sch[out]->op.as<ComputeOpNode>()->axis);
   auto target = Target::Current(false);
-  auto num_thread = target->max_num_threads;
+  int num_thread = target->GetAttr<Integer>("max_num_threads").value();
   IterVar bx, tx;
   sch[out].split(fused, num_thread, &bx, &tx);
   sch[out].bind(bx, thread_axis(Range(), "blockIdx.x"));

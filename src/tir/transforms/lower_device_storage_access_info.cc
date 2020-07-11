@@ -25,6 +25,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target_info.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -79,7 +80,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
       return MakeAccessPtr(op);
     } else {
       return StmtExprMutator::VisitExpr_(op);

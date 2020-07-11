@@ -15,11 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """Target data structure."""
+import os
+import re
 import warnings
 import tvm._ffi
 
 from tvm.runtime import Object
 from . import _ffi_api
+
+
+@tvm._ffi.register_object
+class TargetId(Object):
+    """Id of a compilation target
+    """
 
 
 @tvm._ffi.register_object
@@ -37,49 +45,6 @@ class Target(Object):
     - :py:func:`tvm.target.mali` create Mali target
     - :py:func:`tvm.target.intel_graphics` create Intel Graphics target
     """
-    def __new__(cls):
-        # Always override new to enable class
-        obj = Object.__new__(cls)
-        obj._keys = None
-        obj._options = None
-        obj._libs = None
-        return obj
-
-    @property
-    def keys(self):
-        if not self._keys:
-            self._keys = [str(k) for k in self.keys_array]
-        return self._keys
-
-    @property
-    def options(self):
-        if not self._options:
-            self._options = [str(o) for o in self.options_array]
-        return self._options
-
-    @property
-    def libs(self):
-        if not self._libs:
-            self._libs = [str(l) for l in self.libs_array]
-        return self._libs
-
-    @property
-    def model(self):
-        for opt in self.options_array:
-            if opt.startswith('-model='):
-                return opt[7:]
-        return 'unknown'
-
-    @property
-    def mcpu(self):
-        """Returns the mcpu from the target if it exists."""
-        mcpu = ''
-        if self.options is not None:
-            for opt in self.options:
-                if 'mcpu' in opt:
-                    mcpu = opt.split('=')[1]
-        return mcpu
-
     def __enter__(self):
         _ffi_api.EnterTargetScope(self)
         return self
@@ -101,6 +66,37 @@ class Target(Object):
         ValueError if current target is not set.
         """
         return _ffi_api.GetCurrentTarget(allow_none)
+
+    @property
+    def max_num_threads(self):
+        return int(self.attrs["max_num_threads"])
+
+    @property
+    def thread_warp_size(self):
+        return int(self.attrs["thread_warp_size"])
+
+    @property
+    def device_name(self):
+        return str(self.attrs.get("device", ""))
+
+    @property
+    def model(self):
+        """Returns model from the target if it exists."""
+        return str(self.attrs.get("model", "unknown"))
+
+    @property
+    def mcpu(self):
+        """Returns the mcpu from the target if it exists."""
+        return str(self.attrs.get("mcpu", ""))
+
+    @property
+    def mattr(self):
+        """Returns the mattr from the target if it exists."""
+        return list(self.attrs.get("mattr", []))
+
+    @property
+    def libs(self):
+        return list(self.attrs.get("libs", []))
 
 
 def _merge_opts(opts, new_opts):
@@ -167,7 +163,7 @@ def intel_graphics(model='unknown', options=None):
     options : str or list of str
         Additional options
     """
-    opts = ["-device=intel_graphics", '-model=%s' % model]
+    opts = ["-device=intel_graphics", "-model=%s" % model, "-thread_warp_size=16"]
     opts = _merge_opts(opts, options)
     return _ffi_api.TargetCreate("opencl", *opts)
 
@@ -184,16 +180,16 @@ def arm_cpu(model='unknown', options=None):
         Additional options
     """
     trans_table = {
-        "pixel2":    ["-model=snapdragon835", "-target=arm64-linux-android -mattr=+neon"],
-        "mate10":    ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
-        "mate10pro": ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
-        "p20":       ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
-        "p20pro":    ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
-        "rasp3b":    ["-model=bcm2837", "-target=armv7l-linux-gnueabihf -mattr=+neon"],
-        "rasp4b":    ["-model=bcm2711", "-target=arm-linux-gnueabihf -mattr=+neon"],
-        "rk3399":    ["-model=rk3399", "-target=aarch64-linux-gnu -mattr=+neon"],
-        "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi -mattr=+neon"],
-        "ultra96":   ["-model=ultra96", "-target=aarch64-linux-gnu -mattr=+neon"],
+        "pixel2":    ["-model=snapdragon835", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "mate10":    ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "mate10pro": ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "p20":       ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "p20pro":    ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
+        "rasp3b":    ["-model=bcm2837", "-mtriple=armv7l-linux-gnueabihf", "-mattr=+neon"],
+        "rasp4b":    ["-model=bcm2711", "-mtriple=arm-linux-gnueabihf", "-mattr=+neon"],
+        "rk3399":    ["-model=rk3399", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
+        "pynq":      ["-model=pynq", "-mtriple=armv7a-linux-eabi", "-mattr=+neon"],
+        "ultra96":   ["-model=ultra96", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
@@ -216,7 +212,7 @@ def rasp(options=None):
 
 
 def vta(model='unknown', options=None):
-    opts = ["-device=vta", '-keys=cpu', '-model=%s' % model]
+    opts = ["-device=vta", '-keys=vta,cpu', '-model=%s' % model]
     opts = _merge_opts(opts, options)
     ret = _ffi_api.TargetCreate("ext_dev", *opts)
     return ret
@@ -252,7 +248,7 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
         Size of hvx register. Value of 0 indicates disabled hvx.
     """
     # Example compiler arguments
-    # llvm -target=hexagon -mcpu=hexagonv66 -mattr=+hvxv66,+hvx-length128b
+    # llvm -mtriple=hexagon -mcpu=hexagonv66 -mattr=+hvxv66,+hvx-length128b
 
     # Check for valid codegen cpu
     valid_hex = ['v60', 'v62', 'v65', 'v66', 'v67', 'v67t']
@@ -267,7 +263,7 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
 
     # Target string
     def create_target(cpu_ver):
-        target = ' -target=hexagon'
+        target = ' -mtriple=hexagon'
         mcpu = ' -mcpu=hexagon' + cpu_ver
         mattr = ''
         # HVX enable
