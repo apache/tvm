@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/runtime/crt/ndarray.h
+ * \file tvm/runtime/crt/include/tvm/runtime/crt/internal/common/ndarray.h
  * \brief Abstract device memory management API
  */
-#ifndef TVM_RUNTIME_CRT_NDARRAY_H_
-#define TVM_RUNTIME_CRT_NDARRAY_H_
+#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_NDARRAY_H_
+#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_NDARRAY_H_
 
 #include <dlpack/dlpack.h>
 #include <stdio.h>
@@ -54,4 +54,4 @@ TVMNDArray TVMNDArray_CreateView(TVMNDArray* arr, const tvm_index_t* shape, uint
 
 int TVMNDArray_Release(TVMNDArray* arr);
 
-#endif  // TVM_RUNTIME_CRT_NDARRAY_H_
+#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_NDARRAY_H_

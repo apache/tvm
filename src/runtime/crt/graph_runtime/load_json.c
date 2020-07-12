@@ -17,12 +17,15 @@
  * under the License.
  */
 
+// LINT_C_FILE
+
 /*!
  * \file load_json.c
  * \brief Load graph from JSON file.
  */
-#include "load_json.h"
-
+#include <stdlib.h>
+#include <string.h>
+#include <tvm/runtime/crt/internal/graph_runtime/load_json.h>
 #include <tvm/runtime/crt/memory.h>
 
 // the node entry structure in serialized format

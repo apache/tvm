@@ -17,11 +17,12 @@
  * under the License.
  */
 
-/* Explicitly declare posix_memalign function */
-#if _POSIX_C_SOURCE < 200112L
-#undef _POSIX_C_SOURCE
-#define _POSIX_C_SOURCE 200809L
-#endif
+/*!
+ * \file apps/bundle_deploy/crt_config.h
+ * \brief CRT configuration for bundle_deploy app.
+ */
+#ifndef TVM_RUNTIME_CRT_CONFIG_H_
+#define TVM_RUNTIME_CRT_CONFIG_H_
 
 /*! Support low-level debugging in MISRA-C runtime */
 #define TVM_CRT_DEBUG 0
@@ -56,11 +57,12 @@
 #define TVM_CRT_LOG_VIRT_MEM_SIZE 24
 
 /*! \brief Page size for virtual memory allocation */
-#define TVM_CRT_PAGE_BYTES 4096
+#define TVM_CRT_PAGE_BYTES_LOG 12
 
-#include "../../src/runtime/crt/crt_backend_api.c"
-#include "../../src/runtime/crt/crt_runtime_api.c"
-#include "../../src/runtime/crt/graph_runtime.c"
-#include "../../src/runtime/crt/load_json.c"
-#include "../../src/runtime/crt/memory.c"
-#include "../../src/runtime/crt/ndarray.c"
+/*! Maximum number of registered modules. */
+#define TVM_CRT_MAX_REGISTERED_MODULES 2
+
+/*! Size of the global function registry, in bytes. */
+#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 200
+
+#endif  // TVM_RUNTIME_CRT_CONFIG_H_

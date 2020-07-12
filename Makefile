@@ -51,6 +51,9 @@ vta:
 cpptest:
 	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE) cpptest
 
+crttest:
+	@mkdir -p build && cd build && cmake .. && $(MAKE) crttest
+
 # EMCC; Web related scripts
 EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\
 	-Oz -s RESERVED_FUNCTION_POINTERS=2 -s MAIN_MODULE=1 -s NO_EXIT_RUNTIME=1\

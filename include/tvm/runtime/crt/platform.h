@@ -17,21 +17,28 @@
  * under the License.
  */
 
-#include <dlpack/dlpack.h>
-#include <tvm/runtime/module.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+/*!
+ * \file tvm/runtime/crt/platform.h
+ * \brief The virtual memory manager for micro-controllers
+ */
 
-#include "../../src/runtime/c_runtime_api.cc"
-#include "../../src/runtime/cpu_device_api.cc"
-#include "../../src/runtime/file_util.cc"
-#include "../../src/runtime/graph/graph_runtime.cc"
-#include "../../src/runtime/library_module.cc"
-#include "../../src/runtime/module.cc"
-#include "../../src/runtime/ndarray.cc"
-#include "../../src/runtime/object.cc"
-#include "../../src/runtime/registry.cc"
-#include "../../src/runtime/system_library.cc"
-#include "../../src/runtime/thread_pool.cc"
-#include "../../src/runtime/threading_backend.cc"
-#include "../../src/runtime/workspace_pool.cc"
+#ifndef TVM_RUNTIME_CRT_PLATFORM_H_
+#define TVM_RUNTIME_CRT_PLATFORM_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*! \brief Called when an internal error occurs and execution cannot continue.
+ *
+ * The platform should ideally restart or hang at this point.
+ *
+ * \param code An error code.
+ */
+void __attribute__((noreturn)) TVMPlatformAbort(int code);
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
+
+#endif  // TVM_RUNTIME_CRT_PLATFORM_H_

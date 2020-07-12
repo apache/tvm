@@ -17,21 +17,17 @@
  * under the License.
  */
 
+// LINT_C_FILE
+
 /*!
- * \file tvm/runtime/packed_func.h
- * \brief Type-erased function used across TVM API.
+ * \file src/runtime/crt/common/packed_func.c
+ * \brief PackedFunc implementation.
  */
-#ifndef TVM_RUNTIME_CRT_PACKED_FUNC_H_
-#define TVM_RUNTIME_CRT_PACKED_FUNC_H_
+#include <string.h>
+#include <tvm/runtime/crt/internal/common/logging.h>
+#include <tvm/runtime/crt/packed_func.h>
 
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <tvm/runtime/c_runtime_api.h>
-
-#include "module.h"
-
-static inline DLDataType String2DLDataType(const char* s) {
+DLDataType String2DLDataType(const char* s) {
   DLDataType t;
   // handle None type
   if (strlen(s) == 0) {
@@ -78,13 +74,38 @@ static inline DLDataType String2DLDataType(const char* s) {
   return t;
 }
 
-typedef struct TVMArgs {
-  TVMValue values[TVM_CRT_MAX_ARGS];
-  int tcodes[TVM_CRT_MAX_ARGS]; /* Data type should be identical to type_codes in TVMPackedCFunc */
-  uint32_t values_count;
-} TVMArgs;
+int TVMPackedFunc_InitGlobalFunc(TVMPackedFunc* pf, const char* name, const TVMArgs* args) {
+  int status = 0;
 
-static inline TVMArgs TVMArgs_Create(TVMValue* values, uint32_t* tcodes, uint32_t values_count) {
+  pf->Call = &TVMPackedFunc_Call;
+  pf->SetArgs = &TVMPackedFunc_SetArgs;
+
+  status = TVMFuncGetGlobal(name, &pf->fexec);
+  if (status != 0) {
+    return status;
+  }
+
+  TVMPackedFunc_SetArgs(pf, args);
+  return status;
+}
+
+int TVMPackedFunc_InitModuleFunc(TVMPackedFunc* pf, TVMModuleHandle module, const char* name,
+                                 const TVMArgs* args) {
+  int status = 0;
+
+  pf->Call = &TVMPackedFunc_Call;
+  pf->SetArgs = &TVMPackedFunc_SetArgs;
+
+  status = TVMModGetFunction(module, name, 0, &pf->fexec);
+  if (status != 0) {
+    return status;
+  }
+
+  TVMPackedFunc_SetArgs(pf, args);
+  return status;
+}
+
+TVMArgs TVMArgs_Create(TVMValue* values, uint32_t* tcodes, uint32_t values_count) {
   uint32_t idx;
   TVMArgs args;
   memset(&args, 0, sizeof(args));
@@ -96,49 +117,14 @@ static inline TVMArgs TVMArgs_Create(TVMValue* values, uint32_t* tcodes, uint32_
   return args;
 }
 
-static inline int TVMNoOperation(TVMValue* args, int* type_codes, int num_args,
-                                 TVMRetValueHandle ret, void* res) {
-  return 0;
+int TVMPackedFunc_Call(TVMPackedFunc* pf) {
+  return TVMFuncCall(pf->fexec, pf->args.values, pf->args.tcodes, pf->args.values_count,
+                     pf->ret_value.values, pf->ret_value.tcodes);
 }
 
-typedef struct TVMPackedFunc {
-  char name[200];
-  TVMPackedCFunc fexec;
-  TVMArgs args;
-  void (*Call)(struct TVMPackedFunc* pf);
-  void (*SetArgs)(struct TVMPackedFunc* pf, const struct TVMArgs* args);
-} TVMPackedFunc;
-
-static inline void TVMPackedFunc_Call(TVMPackedFunc* pf) {
-  pf->fexec(pf->args.values, pf->args.tcodes, pf->args.values_count, 0, 0);
-}
-
-static inline void TVMPackedFunc_SetArgs(TVMPackedFunc* pf, const TVMArgs* args) {
+void TVMPackedFunc_SetArgs(TVMPackedFunc* pf, const TVMArgs* args) {
   memcpy(&(pf->args), args, sizeof(TVMArgs));
 }
 
-TVMPackedFunc* g_fexecs = 0;
-uint32_t g_fexecs_count = 0;
-
-// Implement TVMModule::GetFunction
-// Put implementation in this file so we have seen the TVMPackedFunc
-static inline void TVMModule_GetFunction(TVMModule* mod, const char* name, TVMPackedFunc* pf) {
-  int idx;
-  memset(pf, 0, sizeof(TVMPackedFunc));
-  assert(strlen(name) <= sizeof(pf->name));
-  snprintf(pf->name, strlen(name), "%s", name);
-  pf->Call = TVMPackedFunc_Call;
-  pf->SetArgs = TVMPackedFunc_SetArgs;
-  pf->fexec = &TVMNoOperation;
-  for (idx = 0; idx < g_fexecs_count; idx++) {
-    if (!strcmp(g_fexecs[idx].name, name)) {
-      pf->fexec = g_fexecs[idx].fexec;
-      break;
-    }
-  }
-  if (idx == g_fexecs_count) {
-    fprintf(stderr, "function handle for %s not found\n", name);
-  }
-}
-
-#endif  // TVM_RUNTIME_CRT_PACKED_FUNC_H_
+TVMPackedFunc* g_fexecs;
+uint32_t g_fexecs_count;

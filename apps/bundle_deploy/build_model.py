@@ -21,6 +21,7 @@ import os
 from tvm import relay
 import tvm
 from tvm import te
+from tvm.micro import func_registry
 import logging
 import json
 
@@ -33,19 +34,21 @@ def build_module(opts):
     func = mod["main"]
     func = relay.Function(func.params, relay.nn.softmax(func.body), None, func.type_params, func.attrs)
 
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3, config={'tir.disable_vectorize': True}):
         graph, lib, params = relay.build(
-            func, 'llvm --system-lib', params=params)
+            func, 'c', params=params)
 
     build_dir = os.path.abspath(opts.out_dir)
     if not os.path.isdir(build_dir):
         os.makedirs(build_dir)
 
-    lib.save(os.path.join(build_dir, 'model.o'))
+    lib.save(os.path.join(build_dir, 'model.c'), 'cc')
     with open(os.path.join(build_dir, 'graph.json'), 'w') as f_graph_json:
         f_graph_json.write(graph)
     with open(os.path.join(build_dir, 'params.bin'), 'wb') as f_params:
         f_params.write(relay.save_param_dict(params))
+    func_registry.graph_json_to_c_func_registry(os.path.join(build_dir, 'graph.json'),
+                                                os.path.join(build_dir, 'func_registry.c'))
 
 def build_test_module(opts):
     import numpy as np
@@ -57,20 +60,23 @@ def build_test_module(opts):
     x_data = np.random.rand(10, 5).astype('float32')
     y_data = np.random.rand(1, 5).astype('float32')
     params = {"y": y_data}
-    graph, lib, params = relay.build(
-        tvm.IRModule.from_expr(func), "llvm --system-lib", params=params)
+    with tvm.transform.PassContext(opt_level=3, config={'tir.disable_vectorize': True}):
+        graph, lib, params = relay.build(
+            tvm.IRModule.from_expr(func), "c", params=params)
 
     build_dir = os.path.abspath(opts.out_dir)
     if not os.path.isdir(build_dir):
         os.makedirs(build_dir)
 
-    lib.save(os.path.join(build_dir, 'test_model.o'))
+    lib.save(os.path.join(build_dir, 'test_model.c'), 'cc')
     with open(os.path.join(build_dir, 'test_graph.json'), 'w') as f_graph_json:
         f_graph_json.write(graph)
     with open(os.path.join(build_dir, 'test_params.bin'), 'wb') as f_params:
         f_params.write(relay.save_param_dict(params))
     with open(os.path.join(build_dir, "test_data.bin"), "wb") as fp:
         fp.write(x_data.astype(np.float32).tobytes())
+    func_registry.graph_json_to_c_func_registry(os.path.join(build_dir, 'test_graph.json'),
+                                                os.path.join(build_dir, 'test_func_registry.c'))
     x_output = x_data + y_data
     with open(os.path.join(build_dir, "test_output.bin"), "wb") as fp:
         fp.write(x_output.astype(np.float32).tobytes())

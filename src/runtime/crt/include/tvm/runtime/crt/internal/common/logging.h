@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file runtime/crt/loggin.h
+ * \file runtime/crt/include/tvm/runtime/crt/internal/common/logging.h
  * \brief A replacement of the dmlc logging system that avoids
  *  the usage of GLOG and C++ headers
  */
 
-#ifndef TVM_RUNTIME_CRT_LOGGING_H_
-#define TVM_RUNTIME_CRT_LOGGING_H_
+#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_LOGGING_H_
+#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_LOGGING_H_
 
 #ifndef CHECK
 #define CHECK(x)                                 \
@@ -70,4 +70,4 @@
 #define CHECK_NE(x, y, fmt, ...) CHECK_BINARY_OP(!=, x, y, fmt, ##__VA_ARGS__)
 #endif
 
-#endif  // TVM_RUNTIME_CRT_LOGGING_H_
+#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_LOGGING_H_
