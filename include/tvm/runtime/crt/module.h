@@ -17,37 +17,25 @@
  * under the License.
  */
 
-#define TVM_CRT_LOG_VIRT_MEM_SIZE 16
-#define TVM_CRT_PAGE_BYTES 4096
+/*!
+ * \file include/tvm/runtime/crt/module.h
+ * \brief Runtime container of the functions
+ */
+#ifndef TVM_RUNTIME_CRT_MODULE_H_
+#define TVM_RUNTIME_CRT_MODULE_H_
 
-#include <gtest/gtest.h>
-#include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/crt/func_registry.h>
 
-#include "../../src/runtime/crt/memory.c"
+/*!
+ * \brief Module container of TVM.
+ */
+typedef struct TVMModule {
+  /*! \brief The function registry associated with this mdoule. */
+  const TVMFuncRegistry* registry;
+} TVMModule;
 
-TEST(CRTMemory, Alloc) {
-  for (int idx = 0; idx < 65536; idx++) {
-    void* a = vmalloc(1);
-    EXPECT_EQ(vleak_size, 1);
-    vfree(a);
-    EXPECT_EQ(vleak_size, 0);
-  }
-}
+/*! \brief Entry point for the system lib module. */
+const TVMModule* TVMSystemLibEntryPoint(void);
 
-TEST(CRTMemory, Realloc) {
-  for (int idx = 0; idx < 65536; idx++) {
-    void* a = vrealloc(0, 1);
-    EXPECT_EQ(vleak_size, 1);
-    void* b = vrealloc(a, 1);
-    EXPECT_EQ(a, b);
-    EXPECT_EQ(vleak_size, 1);
-    vfree(a);
-    EXPECT_EQ(vleak_size, 0);
-  }
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
-}
+#endif  // TVM_RUNTIME_CRT_MODULE_H_

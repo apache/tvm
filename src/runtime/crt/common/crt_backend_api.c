@@ -17,31 +17,37 @@
  * under the License.
  */
 
-/*!
- * \file src/runtime/crt/module.h
- * \brief Runtime container of the functions
- */
-#ifndef TVM_RUNTIME_CRT_MODULE_H_
-#define TVM_RUNTIME_CRT_MODULE_H_
+// LINT_C_FILE
 
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/memory.h>
 
-struct TVMPackedFunc;
+void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, int dtype_code_hint,
+                               int dtype_bits_hint) {
+  void* ptr = 0;
+  assert(nbytes > 0);
+  unsigned int dtype_bytes = dtype_bits_hint / 8;
+  ptr = vmalloc(nbytes * dtype_bytes);
+  return ptr;
+}
 
-/*!
- * \brief Module container of TVM.
- */
-typedef struct TVMModule {
-  /*!
-   * \brief Get packed function from current module by name.
-   *
-   * \param name The name of the function.
-   * \param pf The result function.
-   *
-   *  This function will return PackedFunc(nullptr) if function do not exist.
-   */
-  void (*GetFunction)(struct TVMModule* mod, const char* name, struct TVMPackedFunc* pf);
-} TVMModule;
+int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
+  vfree(ptr);
+  return 0;
+}
 
-#endif  // TVM_RUNTIME_CRT_MODULE_H_
+int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_task) {
+  TVMParallelGroupEnv env;
+  env.num_task = 1;
+  flambda(0, &env, cdata);
+  return 0;
+}
+
+int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr) {
+  return TVMFuncRegisterGlobal(name, ptr, 0);
+}
