@@ -583,7 +583,8 @@ relay_to_onnx_op_mapping = {
     'zeros_like': ConstantOfShapeZeros,
     'ones_like': ConstantOfShapeOnes,
     'subtract': rename('Sub'),
-    'split': Split
+    'split': Split,
+    'exp': rename('Exp')
 }
 
 
@@ -653,13 +654,12 @@ class RelayToONNXConverter(ExprVisitor):
 
     def __init__(self, name, params, opset_version):
         super().__init__()
-        self._name = {}
+        self._name = name
         self._mc = ModelContainer(name, opset_version)
         self._params = params
         self._node_dict = {}
         self._node_count = 0
         self.last_node = None
-        self.list_nodes = set()
 
     @classmethod
     def _get_node_entry(cls, relay_node, name):
@@ -676,8 +676,6 @@ class RelayToONNXConverter(ExprVisitor):
         """ Traverse Relay graph and generate a ONNX model"""
 
         self.visit(func)
-        print("nodelist {}".format(self.list_nodes))
-        print("nodelist bad {}".format(self.list_nodes - relay_to_onnx_op_mapping.keys()))
         self._add_output(self._node_dict[self.last_node])
         model = self._mc.make_model()
         polished_model = onnx.utils.polish_model(model)
@@ -689,7 +687,7 @@ class RelayToONNXConverter(ExprVisitor):
 
     def visit_constant(self, const):
         node_index = self._node_count
-        name = "Constant_" + str(node_index)
+        name = self._name + "_const_" + str(node_index)
         node_entry = self._get_node_entry(const, name)
         node_entry["types"] = [const.checked_type]
 
@@ -752,14 +750,12 @@ class RelayToONNXConverter(ExprVisitor):
 
     def _add_node(self, node_entry, idx):
         """Convert Relay operator node to ONNX operator and add it to container nodes list"""
-        # if node_entry['op'].name not in relay_to_onnx_op_mapping:
-        #     raise NotImplementedError("Currently the operator '{0}' is "
-        #                               "not supported.".format(node_entry['op'].name))
+        if node_entry['op'].name not in relay_to_onnx_op_mapping:
+            raise NotImplementedError("Currently the operator '{0}' is "
+                                      "not supported.".format(node_entry['op'].name))
+        converter = relay_to_onnx_op_mapping[node_entry['op'].name]()
 
-        self.list_nodes.add(node_entry['op'].name)
-        # converter = relay_to_onnx_op_mapping[node_entry['op'].name]()
-        #
-        # return converter.convert(node_entry, self._mc, self._node_dict)
+        return converter.convert(node_entry, self._mc, self._node_dict)
 
     def _add_params(self, node_entry, idx):
         """Add param value to initializer and name to inputs"""
@@ -864,6 +860,7 @@ def onnx_compiler(func):
     assert isinstance(func, tvm.relay.function.Function)
     name = str(func.attrs.global_symbol)
     model = to_onnx(func, {}, name)
+    const_vars = [const.name for const in model.graph.initializer]
     name_bytes = bytes(name, 'utf-8')
     name_size = struct.pack('I', len(name_bytes))
     model_serialized = model.SerializeToString()
@@ -872,7 +869,7 @@ def onnx_compiler(func):
 
     runtime_func = "runtime.ONNXModuleCreate"
     fcreate = tvm._ffi.get_global_func(runtime_func)
-    return fcreate(data.hex(), name, [])
+    return fcreate(data.hex(), name, const_vars)
 
 
 @tvm._ffi.register_func("relay.ext.onnx.save_to_file")

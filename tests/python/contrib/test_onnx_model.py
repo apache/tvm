@@ -69,7 +69,7 @@ def _verify_results(mod, params, in_data):
     np.testing.assert_allclose(a, b, rtol=1e-7, atol=1e-7)
 
 
-def atest_resnet():
+def test_resnet():
     num_class = 1000
     in_data_shapes = OrderedDict({"data": (1, 3, 224, 224)})
     in_data = get_data(in_data_shapes, dtype="float32")
@@ -79,7 +79,7 @@ def atest_resnet():
         _verify_results(mod, params, in_data)
 
 
-def atest_squeezenet():
+def test_squeezenet():
     in_data_shapes = OrderedDict({"data": (1, 3, 224, 224)})
     in_data = get_data(in_data_shapes, dtype="float32")
     for version in ['1.0', '1.1']:
@@ -87,8 +87,8 @@ def atest_squeezenet():
         _verify_results(mod, params, in_data)
 
 
-#@pytest.mark.skip("USE_TARGET_ONNX should be ON")
-def atest_partition():
+@pytest.mark.skip("USE_TARGET_ONNX should be ON")
+def test_partition():
     in_1 = relay.var('in_1', shape=(10, 10), dtype='float32')
     in_2 = relay.var('in_2', shape=(10, 10), dtype='float32')
     in_3 = relay.var('in_3', shape=(10, 10), dtype='float32')
@@ -154,29 +154,16 @@ def atest_partition():
     with tvm.transform.PassContext(opt_level=3, disabled_pass=['FuseOps']):
         graph_json, mod1, params = relay.build(mod, target)
 
-    assert mod1.type_key == "llvm"
-    assert mod1.imported_modules[0].type_key == "onnx"
+    assert mod1.type_key == "metadata"
+    assert mod1.imported_modules[0].type_key == "llvm"
     assert mod1.imported_modules[0].get_source()
-
-
-def test_sample_model():
-    import json
-    with open("/Users/mahesh/Downloads/alex.json") as f:
-        a = json.load(f)
-
-    ir = tvm.ir.load_json(a)
-
-    print(ir)
-
-    a= func_to_onnx(ir, {}, "alex")
-
-    pass
+    assert mod1.imported_modules[1].type_key == "onnx"
+    assert mod1.imported_modules[1].get_source()
 
 
 if __name__ == '__main__':
-    # test_resnet()
-    # test_squeezenet()
-    # # test_partition needs USE_TARGET_ONNX to be ON
-    # test_partition()
+    test_resnet()
+    test_squeezenet()
+    # test_partition needs USE_TARGET_ONNX to be ON
+    test_partition()
 
-    test_sample_model()
