@@ -17,46 +17,23 @@
  * under the License.
  */
 
-/*!
- * \file tvm/runtime/crt/memory.h
- * \brief The virtual memory manager for micro-controllers
- */
+// LINT_C_FILE
 
-#ifndef TVM_RUNTIME_CRT_MEMORY_H_
-#define TVM_RUNTIME_CRT_MEMORY_H_
+/*!
+ * \file tvm/runtime/crt/include/tvm/runtime/crt/internal/common/func_registry.h
+ * \brief Abstract device memory management API
+ */
+#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_FUNC_REGISTRY_H_
+#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_FUNC_REGISTRY_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdlib.h>
-
-extern int vleak_size;
-
-/*!
- * \brief Allocate memory from manager
- * \param size The size of memory
- * \return The virtual address
- */
-void* vmalloc(size_t size);
-
-/*!
- * \brief Reallocate memory from manager
- * \param ptr The pointer to the memory area to be reallocated
- * \param size The size of memory
- * \return The virtual address
- */
-void* vrealloc(void* ptr, size_t size);
-
-/*!
- * \brief Free the memory.
- * \param ptr The pointer to the memory to deallocate
- * \return The virtual address
- */
-void vfree(void* ptr);
+int strcmp_cursor(const char** cursor, const char* name);
 
 #ifdef __cplusplus
 }  // extern "C"
 #endif
 
-#endif  // TVM_RUNTIME_CRT_MEMORY_H_
+#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_FUNC_REGISTRY_H_

@@ -17,103 +17,65 @@
  * under the License.
  */
 
+// LINT_C_FILE
+
 /*!
  * \file memory.c
- * \brief Virtal memory manager
+ * \brief Virtual memory manager
  *
  * To maximize portability, thread-safe feature has been dropped for now.
  */
 
 #include <inttypes.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/internal/common/logging.h>
+#include <tvm/runtime/crt/internal/common/memory.h>
 #include <tvm/runtime/crt/memory.h>
-
-#include "logging.h"
-
-/*! Number of bits in a page */
-#define TVM_CRT_PAGE_BITS (TVM_CRT_PAGE_BYTES << 3)
-
-/*! \brief Translate log memory size into bytes */
-#define TVM_CRT_VIRT_MEM_SIZE (1 << TVM_CRT_LOG_VIRT_MEM_SIZE)
-
-/*! \brief Number of possible page entries in total */
-#define TVM_CRT_MAX_PAGES (TVM_CRT_VIRT_MEM_SIZE / TVM_CRT_PAGE_BYTES)
-
-/*! \brief Physical address type */
-typedef uint32_t tvm_phy_addr_t;
-
-/*! \brief The bits in page table */
-static const tvm_phy_addr_t kPageBits = TVM_CRT_PAGE_BITS;
-
-/*! \brief Page size, also the maximum allocable size */
-static const tvm_phy_addr_t kPageSize = TVM_CRT_PAGE_BYTES;
+#include <tvm/runtime/crt/platform.h>
 
 /**
  * \brief Memory pool for virtual dynamic memory allocation
  */
-static char g_memory_pool[TVM_CRT_VIRT_MEM_SIZE];
-
-/*! \brief A page in the DRAM */
-typedef struct Page {
-  /*! \brief Start location in page table */
-  tvm_index_t ptable_begin;
-  /*! \brief The total number of pages */
-  tvm_index_t num_pages;
-  /*! \brief Data */
-  char* data;
-} Page;
+static uint8_t g_memory_pool[TVM_CRT_VIRT_MEM_SIZE];
 
 // construct a new page
-Page PageCreate(tvm_index_t ptable_begin, tvm_index_t num_pages) {
+Page PageCreate(uint8_t* memory_pool, size_t page_size_bytes, tvm_index_t ptable_begin,
+                tvm_index_t num_pages) {
   Page page;
   page.ptable_begin = ptable_begin;
   page.num_pages = num_pages;
-  page.data = g_memory_pool + ptable_begin * kPageSize;
+  page.data = memory_pool + ptable_begin * page_size_bytes;
   return page;
 }
 
-typedef struct PageTable {
-  Page page[TVM_CRT_MAX_PAGES];
-  uint32_t count;
-  void (*resize)(struct PageTable* ptable, uint32_t size, Page* page);
-} PageTable;
-
-void PageTable_Resize(struct PageTable* ptable, uint32_t new_size, Page* page) {
-  CHECK_LE(ptable->count, new_size, "size value (%d) is smaller than expected (%d).", new_size,
-           ptable->count);
-  for (uint32_t idx = ptable->count; idx < new_size; idx++) {
+void PageTable_Resize(struct PageTable* ptable, size_t new_size, Page* page) {
+  CHECK_LE(ptable->num_pages, new_size, "size value (%zu) is smaller than expected (%zu).",
+           new_size, ptable->num_pages);
+  for (uint32_t idx = ptable->num_pages; idx < new_size; idx++) {
     ptable->page[idx] = *page;
   }
-  ptable->count = new_size;
+  ptable->num_pages = new_size;
 }
 
-typedef struct PageEntry {
-  char* addr;
-  Page page;
-} PageEntry;
-
-typedef struct TLB {
-  PageEntry entries[TVM_CRT_MAX_PAGES];
-  uint32_t count;
-  void (*set)(struct TLB* tlb, char* data, Page* page);
-  PageEntry* (*find)(struct TLB* tlb, char* data);
-} TLB;
-
-void TLB_Set(TLB* tlb, char* data, Page* page) {
+void TLB_Set(TLB* tlb, uint8_t* data, Page* page) {
   PageEntry* entry = tlb->find(tlb, data);
   if (entry == 0) {
-    tlb->entries[tlb->count].addr = data;
-    tlb->entries[tlb->count].page = *page;
-    tlb->count++;
+    tlb->entries[tlb->num_pages].addr = data;
+    tlb->entries[tlb->num_pages].page = *page;
+    tlb->num_pages++;
   } else {
     entry->addr = data;
     entry->page = *page;
   }
 }
 
-PageEntry* TLB_Find(TLB* tlb, char* data) {
+PageEntry* TLB_Find(TLB* tlb, uint8_t* data) {
   PageEntry* entry = 0;
-  for (uint32_t idx = 0; idx < tlb->count; idx++) {
+  for (uint32_t idx = 0; idx < tlb->num_pages; idx++) {
     if (tlb->entries[idx].addr == data) {
       entry = tlb->entries + idx;
       break;
@@ -122,23 +84,9 @@ PageEntry* TLB_Find(TLB* tlb, char* data) {
   return entry;
 }
 
-typedef struct IndexedEntry {
-  tvm_index_t index;
-  Page page;
-} IndexedEntry;
-
-typedef struct MultiMap {
-  IndexedEntry entries[TVM_CRT_MAX_PAGES];
-  uint32_t count;
-  IndexedEntry* (*lower_bound)(struct MultiMap* map, uint32_t npage);
-  IndexedEntry* (*end)(struct MultiMap* map);
-  void (*erase)(struct MultiMap* map, IndexedEntry* entry);
-  void (*insert)(struct MultiMap* map, uint32_t npage, Page* p);
-} MultiMap;
-
 IndexedEntry* MultiMap_LowerBound(struct MultiMap* map, uint32_t npage) {
   IndexedEntry* entry = 0;
-  for (uint32_t idx = 0; idx < map->count; idx++) {
+  for (uint32_t idx = 0; idx < map->num_entries; idx++) {
     if (map->entries[idx].index >= npage) {
       entry = map->entries + idx;
       break;
@@ -153,57 +101,26 @@ IndexedEntry* MultiMap_End(struct MultiMap* map) {
 }
 
 void MultiMap_Erase(struct MultiMap* map, IndexedEntry* entry) {
-  for (uint32_t idx = 0; idx < map->count; idx++) {
+  for (uint32_t idx = 0; idx < map->num_entries; idx++) {
     if ((map->entries + idx) == entry) {
-      memcpy(map->entries + idx, map->entries + (idx + 1),
-             sizeof(IndexedEntry) * (map->count - idx));
-      map->count--;
+      // NOTE: do not use memcpy due to overlap.
+      for (uint32_t src_idx = idx + 1; src_idx < map->num_entries; src_idx++) {
+        map->entries[src_idx - 1] = map->entries[src_idx];
+      }
+      map->num_entries--;
       break;
     }
   }
 }
 
 void MultiMap_Insert(struct MultiMap* map, uint32_t npage, Page* p) {
-  CHECK_LE(map->count + 1, TVM_CRT_MAX_PAGES, "invalid number of free pages.");
-  for (uint32_t idx = map->count; idx < (map->count + npage); idx++) {
-    map->entries[map->count].index = npage;
-    map->entries[map->count].page = *p;
+  CHECK_LE(map->num_entries + 1, map->max_entries, "invalid number of free pages.");
+  for (uint32_t idx = map->num_entries; idx < (map->num_entries + npage); idx++) {
+    map->entries[map->num_entries].index = npage;
+    map->entries[map->num_entries].page = *p;
   }
-  map->count++;
+  map->num_entries++;
 }
-
-/*!
- * \brief DRAM memory manager
- *  Implements simple paging to allow physical address translation.
- */
-typedef struct MemoryManager {
-  /*!
-   * \brief Allocate memory from manager
-   * \param size The size of memory
-   * \return The virtual address
-   */
-  void* (*Alloc)(struct MemoryManager* mgr, tvm_index_t size);
-  /*!
-   * \brief Allocate memory from manager
-   * \param ptr The pointer to the memory area to be reallocated
-   * \param size The size of memory
-   * \return The virtual address
-   */
-  void* (*Realloc)(struct MemoryManager* mgr, void* ptr, tvm_index_t size);
-  /*!
-   * \brief Free the memory.
-   * \param ptr The pointer to the memory to deallocate
-   * \return The virtual address
-   */
-  void (*Free)(struct MemoryManager* mgr, void* data);
-
-  // Physical address -> page
-  PageTable ptable;
-  // Virtual address -> page
-  TLB pmap;
-  // Free map
-  MultiMap free_map;
-} MemoryManager;
 
 /*!
  * \brief Allocate memory from manager
@@ -211,8 +128,10 @@ typedef struct MemoryManager {
  * \return The virtual address
  */
 void* MemoryManager_Alloc(MemoryManager* mgr, tvm_index_t size) {
-  char* data = 0;
-  tvm_index_t npage = (size + kPageSize - 1) / kPageSize;
+  uint8_t* data = 0;
+  PageTable* ptable = &(mgr->ptable);
+  tvm_index_t npage = (size + ptable->page_size_bytes - 1) / ptable->page_size_bytes;
+
   MultiMap* free_map = &(mgr->free_map);
   IndexedEntry* it = free_map->lower_bound(free_map, npage);
   tvm_index_t start = 0;
@@ -223,13 +142,12 @@ void* MemoryManager_Alloc(MemoryManager* mgr, tvm_index_t size) {
     start = p.ptable_begin;
     npage = p.num_pages;
   } else {
-    PageTable* ptable = &(mgr->ptable);
-    start = ptable->count;
-    CHECK_LE((unsigned)(start + npage), (sizeof(g_memory_pool) / kPageSize),
+    start = ptable->num_pages;
+    CHECK_LE((unsigned)(start + npage), ptable->max_pages,
              "insufficient memory, start=%" PRId64 ", npage=%" PRId64 ", total=%" PRId64 "", start,
              npage, start + npage);
     /* insert page entry */
-    Page p = PageCreate(start, npage);
+    Page p = PageCreate(ptable->memory_pool, ptable->page_size_bytes, start, npage);
     ptable->resize(ptable, start + npage, &p);
     data = p.data;
     TLB* pmap = &(mgr->pmap);
@@ -237,8 +155,8 @@ void* MemoryManager_Alloc(MemoryManager* mgr, tvm_index_t size) {
   }
   vleak_size++;
 #if TVM_CRT_DEBUG > 1
-  printf("allocate: addr=%p, start=%d/%d, npage=%d, vleak=%d\n", data, start, TVM_CRT_MAX_PAGES,
-         npage, vleak_size);
+  printf("allocate: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d\n", data, start,
+         ptable->max_pages, npage, vleak_size);
 #endif  // TVM_CRT_DEBUG
   return data;
 }
@@ -250,16 +168,16 @@ void* MemoryManager_Alloc(MemoryManager* mgr, tvm_index_t size) {
  * \return The virtual address
  */
 void* MemoryManager_Realloc(MemoryManager* mgr, void* ptr, tvm_index_t size) {
-  char* data = (char*)ptr;  // NOLINT(*)
+  uint8_t* data = (uint8_t*)ptr;  // NOLINT(*)
   PageTable* ptable = &(mgr->ptable);
   TLB* pmap = &(mgr->pmap);
   MultiMap* free_map = &(mgr->free_map);
   tvm_index_t start = 0;
-  tvm_index_t npage = (size + kPageSize - 1) / kPageSize;
+  tvm_index_t npage = (size + ptable->page_size_bytes - 1) / ptable->page_size_bytes;
   if (ptr) {
     // get page size for given pointer
-    CHECK_NE(pmap->count, 0, "invalid translation look-aside buffer.");
-    PageEntry* entry = pmap->find(pmap, (char*)ptr);  // NOLINT(*)
+    CHECK_NE(pmap->num_pages, 0, "invalid translation look-aside buffer.");
+    PageEntry* entry = pmap->find(pmap, (uint8_t*)ptr);  // NOLINT(*)
     CHECK_NE(entry, 0, "no valid page entry found.");
     Page* pptr = &(entry->page);
     // if the page size is smaller than target page size,
@@ -275,17 +193,17 @@ void* MemoryManager_Realloc(MemoryManager* mgr, void* ptr, tvm_index_t size) {
         npage = it->page.num_pages;
         free_map->erase(free_map, it);
       } else {
-        start = ptable->count;
-        CHECK_LE((unsigned)(start + npage), (sizeof(g_memory_pool) / kPageSize),
+        start = ptable->num_pages;
+        CHECK_LE((unsigned)(start + npage), ptable->max_pages,
                  "insufficient memory, start=%" PRId64 ", npage=%" PRId64 ", total=%" PRId64 "",
                  start, npage, start + npage);
-        Page p = PageCreate(start, npage);
+        Page p = PageCreate(mgr->ptable.memory_pool, mgr->ptable.page_size_bytes, start, npage);
         ptable->resize(ptable, start + npage, &p);
         data = p.data;
         pmap->set(pmap, data, &p);
       }
       // copy previous data to the new entry
-      memcpy(data, ptr, kPageSize * pptr->num_pages);
+      memcpy(data, ptr, ptable->page_size_bytes * pptr->num_pages);
       // release memory
       free_map->insert(free_map, pptr->num_pages, pptr);
     } else {
@@ -301,12 +219,12 @@ void* MemoryManager_Realloc(MemoryManager* mgr, void* ptr, tvm_index_t size) {
       npage = p.num_pages;
     } else {
       PageTable* ptable = &(mgr->ptable);
-      start = ptable->count;
-      CHECK_LE((unsigned)(start + npage), (sizeof(g_memory_pool) / kPageSize),
+      start = ptable->num_pages;
+      CHECK_LE((unsigned)(start + npage), ptable->max_pages,
                "insufficient memory, start=%" PRId64 ", npage=%" PRId64 ", total=%" PRId64 "",
                start, npage, start + npage);
       /* insert page entry */
-      Page p = PageCreate(start, npage);
+      Page p = PageCreate(mgr->ptable.memory_pool, mgr->ptable.page_size_bytes, start, npage);
       ptable->resize(ptable, start + npage, &p);
       data = p.data;
       TLB* pmap = &(mgr->pmap);
@@ -315,8 +233,9 @@ void* MemoryManager_Realloc(MemoryManager* mgr, void* ptr, tvm_index_t size) {
     vleak_size++;
   }
 #if TVM_CRT_DEBUG > 1
-  printf("reallocate: addr=%p, start=%d/%d, npage=%d, vleak=%d, size=%d\n", data, start,
-         TVM_CRT_MAX_PAGES, npage, vleak_size, size);
+  printf("reallocate: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d, size=%" PRId64
+         "\n",
+         data, start, mgr->ptable.max_pages, npage, vleak_size, size);
 #endif  // TVM_CRT_DEBUG
   return data;
 }
@@ -328,49 +247,79 @@ void* MemoryManager_Realloc(MemoryManager* mgr, void* ptr, tvm_index_t size) {
  */
 void MemoryManager_Free(MemoryManager* mgr, void* ptr) {
   TLB* pmap = &(mgr->pmap);
-  CHECK_NE(pmap->count, 0, "invalid translation look-aside buffer.");
-  PageEntry* entry = pmap->find(pmap, (char*)ptr);  // NOLINT(*)
+  CHECK_NE(pmap->num_pages, 0, "invalid translation look-aside buffer.");
+  PageEntry* entry = pmap->find(pmap, (uint8_t*)ptr);  // NOLINT(*)
   CHECK_NE(entry, 0, "no valid page entry found.");
   Page* p = &(entry->page);
   MultiMap* free_map = &(mgr->free_map);
   free_map->insert(free_map, p->num_pages, p);
   vleak_size--;
 #if TVM_CRT_DEBUG > 1
-  printf("release: addr=%p, start=%d/%d, npage=%d, vleak=%d\n", ptr, entry->page.ptable_begin,
-         TVM_CRT_MAX_PAGES, entry->page.num_pages, vleak_size);
+  printf("release: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d\n", ptr,
+         entry->page.ptable_begin, mgr->ptable.max_pages, entry->page.num_pages, vleak_size);
 #endif  // TVM_CRT_DEBUG
 }
 
-MemoryManager* MemoryManagerCreate() {
-  static MemoryManager mgr;
-  memset(&mgr, 0, sizeof(MemoryManager));
+#define ROUND_UP(qty, modulo) (((qty) + ((modulo)-1)) / (modulo) * (modulo))
+
+void MemoryManagerCreate(MemoryManager* manager, uint8_t* memory_pool,
+                         size_t memory_pool_size_bytes, size_t page_size_bytes_log2) {
+  memset(manager, 0, sizeof(MemoryManager));
+  memset(memory_pool, 0, sizeof(memory_pool_size_bytes));
+
   /* handle MemoryManager member functions */
-  mgr.Alloc = MemoryManager_Alloc;
-  mgr.Realloc = MemoryManager_Realloc;
-  mgr.Free = MemoryManager_Free;
+  manager->Alloc = MemoryManager_Alloc;
+  manager->Realloc = MemoryManager_Realloc;
+  manager->Free = MemoryManager_Free;
+
+  // Allocate enough space for MAX_PAGES.
+  size_t page_size_bytes = 1 << page_size_bytes_log2;
+  size_t metadata_bytes_per_page = sizeof(Page) + sizeof(PageEntry) + sizeof(IndexedEntry);
+  size_t bytes_needed_per_page = page_size_bytes + metadata_bytes_per_page;
+  size_t num_pages = memory_pool_size_bytes / bytes_needed_per_page;
+
+  size_t metadata_pages_bytes = ROUND_UP(metadata_bytes_per_page * num_pages, page_size_bytes);
+  size_t metadata_num_pages = metadata_pages_bytes >> page_size_bytes_log2;
+  uint8_t* metadata_cursor = memory_pool + (num_pages << page_size_bytes_log2);
+
+  manager->ptable.memory_pool = memory_pool;
+
   /* handle PageTable member functions */
-  mgr.ptable.resize = PageTable_Resize;
+  manager->ptable.page = (Page*)metadata_cursor;
+  metadata_cursor += sizeof(Page) * num_pages;
+
+  manager->ptable.page_size_bytes = (1 << page_size_bytes_log2);
+  manager->ptable.max_pages = num_pages;
+  manager->ptable.resize = PageTable_Resize;
+
   /* handle TLB member functions */
-  mgr.pmap.set = TLB_Set;
-  mgr.pmap.find = TLB_Find;
+  manager->pmap.entries = (PageEntry*)metadata_cursor;
+  metadata_cursor += sizeof(PageEntry) * num_pages;
+  manager->pmap.max_pages = num_pages;
+  manager->pmap.num_pages = 0;
+
+  manager->pmap.set = TLB_Set;
+  manager->pmap.find = TLB_Find;
   /* handle free_map member functions */
-  mgr.free_map.lower_bound = MultiMap_LowerBound;
-  mgr.free_map.end = MultiMap_End;
-  mgr.free_map.erase = MultiMap_Erase;
-  mgr.free_map.insert = MultiMap_Insert;
-  return &mgr;
+  manager->free_map.entries = (IndexedEntry*)metadata_cursor;
+  metadata_cursor += sizeof(IndexedEntry) * num_pages;
+  manager->free_map.max_entries = num_pages;
+  manager->free_map.lower_bound = MultiMap_LowerBound;
+  manager->free_map.end = MultiMap_End;
+  manager->free_map.erase = MultiMap_Erase;
+  manager->free_map.insert = MultiMap_Insert;
 }
 
 MemoryManager* TVMGetGlobalMemoryManager() {
   /* initialize once */
   static uint32_t initialized = 0;
-  static MemoryManager* mgr;
+  static MemoryManager mgr;
   if (!initialized) {
-    mgr = MemoryManagerCreate();
     memset(g_memory_pool, 0, sizeof(g_memory_pool));
+    MemoryManagerCreate(&mgr, g_memory_pool, TVM_CRT_VIRT_MEM_SIZE, TVM_CRT_PAGE_BYTES_LOG);
     initialized = 1;
   }
-  return mgr;
+  return &mgr;
 }
 
 /** \brief Allocate memory from manager */
@@ -390,3 +339,5 @@ void vfree(void* ptr) {
   MemoryManager* mgr = TVMGetGlobalMemoryManager();
   mgr->Free(mgr, ptr);
 }
+
+int vleak_size = 0;

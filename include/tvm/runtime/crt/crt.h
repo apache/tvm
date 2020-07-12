@@ -18,45 +18,28 @@
  */
 
 /*!
- * \file tvm/runtime/crt/memory.h
- * \brief The virtual memory manager for micro-controllers
+ * \file tvm/runtime/crt/crt.h
+ * \brief Defines core life cycle functions used by CRT.
  */
 
-#ifndef TVM_RUNTIME_CRT_MEMORY_H_
-#define TVM_RUNTIME_CRT_MEMORY_H_
+#ifndef TVM_RUNTIME_CRT_CRT_H_
+#define TVM_RUNTIME_CRT_CRT_H_
+
+#include <tvm/runtime/crt/error_codes.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdlib.h>
-
-extern int vleak_size;
-
 /*!
- * \brief Allocate memory from manager
- * \param size The size of memory
- * \return The virtual address
+ * \brief Initialize various data structures used by the rutnime.
+ * \return An error code describing the outcome of intialization. Generally, initialization
+ *     is only expected to fail due to a misconfiguration.
  */
-void* vmalloc(size_t size);
-
-/*!
- * \brief Reallocate memory from manager
- * \param ptr The pointer to the memory area to be reallocated
- * \param size The size of memory
- * \return The virtual address
- */
-void* vrealloc(void* ptr, size_t size);
-
-/*!
- * \brief Free the memory.
- * \param ptr The pointer to the memory to deallocate
- * \return The virtual address
- */
-void vfree(void* ptr);
+tvm_crt_error_t TVMInitializeRuntime(void);
 
 #ifdef __cplusplus
 }  // extern "C"
 #endif
 
-#endif  // TVM_RUNTIME_CRT_MEMORY_H_
+#endif  // TVM_RUNTIME_CRT_CRT_H_
