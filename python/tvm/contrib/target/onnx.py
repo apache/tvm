@@ -527,9 +527,9 @@ class ConstantOfShapeZeros(OpConverter):
         input_node = node_dict[node_entry['inputs'][0]]
         assert len(input_node) == 1, "input node can not be a Tuple"
         input_node = input_node[0]
-        dtype = input_node['relay_node'].type_annotation.dtype
+        dtype = input_node['types'][0].dtype
         input_shape_name = 'shape_{}'.format(node_entry['name'])
-        shape = [val.value for val in input_node['relay_node'].type_annotation.shape]
+        shape = [val.value for val in input_node['types'][0].shape]
         shape = numpy.asarray(shape).astype(numpy.int64)
         add_input(shape, input_shape_name, model_container)
 
@@ -659,6 +659,7 @@ class RelayToONNXConverter(ExprVisitor):
         self._node_dict = {}
         self._node_count = 0
         self.last_node = None
+        self.list_nodes = set()
 
     @classmethod
     def _get_node_entry(cls, relay_node, name):
@@ -675,6 +676,8 @@ class RelayToONNXConverter(ExprVisitor):
         """ Traverse Relay graph and generate a ONNX model"""
 
         self.visit(func)
+        print("nodelist {}".format(self.list_nodes))
+        print("nodelist bad {}".format(self.list_nodes - relay_to_onnx_op_mapping.keys()))
         self._add_output(self._node_dict[self.last_node])
         model = self._mc.make_model()
         polished_model = onnx.utils.polish_model(model)
@@ -749,13 +752,14 @@ class RelayToONNXConverter(ExprVisitor):
 
     def _add_node(self, node_entry, idx):
         """Convert Relay operator node to ONNX operator and add it to container nodes list"""
-        if node_entry['op'].name not in relay_to_onnx_op_mapping:
-            raise NotImplementedError("Currently the operator '{0}' is "
-                                      "not supported.".format(node_entry['op'].name))
+        # if node_entry['op'].name not in relay_to_onnx_op_mapping:
+        #     raise NotImplementedError("Currently the operator '{0}' is "
+        #                               "not supported.".format(node_entry['op'].name))
 
-        converter = relay_to_onnx_op_mapping[node_entry['op'].name]()
-
-        return converter.convert(node_entry, self._mc, self._node_dict)
+        self.list_nodes.add(node_entry['op'].name)
+        # converter = relay_to_onnx_op_mapping[node_entry['op'].name]()
+        #
+        # return converter.convert(node_entry, self._mc, self._node_dict)
 
     def _add_params(self, node_entry, idx):
         """Add param value to initializer and name to inputs"""
@@ -850,27 +854,25 @@ def to_onnx(relay_ir, params, name, opset_version=11, path=None):
 
 
 @tvm._ffi.register_func("relay.ext.onnx")
-def onnx_compiler(ref):
-    """Create a runtime module for ONNX from IRModule
+def onnx_compiler(func):
+    """Create a runtime module for ONNX from Relay Function
 
-    :param ref: IRModule subgraphs for onnx codegen
+    :param func: Relay function
     :return: runtime module for ONNX
     """
-    data = b''
-    if isinstance(ref, tvm.ir.module.IRModule):
-        for var, func in ref.functions.items():
-            name = var.name_hint
-            model = to_onnx(func, {}, name)
-            name_bytes = bytes(name, 'utf-8')
-            name_size = struct.pack('I', len(name_bytes))
-            model_serialized = model.SerializeToString()
-            model_size = struct.pack('I', model.ByteSize())
 
-            data += name_size + name_bytes + model_size + model_serialized
+    assert isinstance(func, tvm.relay.function.Function)
+    name = str(func.attrs.global_symbol)
+    model = to_onnx(func, {}, name)
+    name_bytes = bytes(name, 'utf-8')
+    name_size = struct.pack('I', len(name_bytes))
+    model_serialized = model.SerializeToString()
+    model_size = struct.pack('I', model.ByteSize())
+    data = b'' + name_size + name_bytes + model_size + model_serialized
 
     runtime_func = "runtime.ONNXModuleCreate"
     fcreate = tvm._ffi.get_global_func(runtime_func)
-    return fcreate(data.hex())
+    return fcreate(data.hex(), name, [])
 
 
 @tvm._ffi.register_func("relay.ext.onnx.save_to_file")
