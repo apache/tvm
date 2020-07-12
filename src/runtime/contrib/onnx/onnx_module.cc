@@ -31,14 +31,23 @@ using namespace tvm::runtime;
 
 class ONNXSourceModuleNode : public runtime::ModuleNode {
  public:
-  explicit ONNXSourceModuleNode(String code) : code_(code) {}
-
+  explicit ONNXSourceModuleNode(const std::string& code, const std::string& symbol,
+                    const Array<String>& const_vars)
+      : code_(code), symbol_(symbol), const_vars_(const_vars) {}
   const char* type_key() const { return "onnx"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
-    LOG(FATAL) << "ONNX Source module cannot execute, to get executable module"
+    if (name == "get_symbol") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_; });
+    } else if (name == "get_const_vars") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->const_vars_; });
+    } else {
+       LOG(FATAL) << "ONNX Source module cannot execute, to get executable module"
                << " build TVM with 'onnx' runtime support";
-    return PackedFunc();
+      return PackedFunc(nullptr);
+    }
   }
 
   std::string GetSource(const std::string& format) final { return code_; }
@@ -52,10 +61,13 @@ class ONNXSourceModuleNode : public runtime::ModuleNode {
 
  protected:
   String code_;
+  std::string symbol_;
+  Array<String> const_vars_;
 };
 
-Module ONNXSourceModuleNodeCreate(String code) {
-  auto n = make_object<ONNXSourceModuleNode>(code);
+Module ONNXSourceModuleNodeCreate(const String& code, const String& symbol,
+                                    const Array<String>& const_vars) {
+  auto n = make_object<ONNXSourceModuleNode>(code.operator std::string(), symbol.operator std::string(), const_vars);
   return Module(n);
 }
 

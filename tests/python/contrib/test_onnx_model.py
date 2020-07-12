@@ -69,7 +69,7 @@ def _verify_results(mod, params, in_data):
     np.testing.assert_allclose(a, b, rtol=1e-7, atol=1e-7)
 
 
-def test_resnet():
+def atest_resnet():
     num_class = 1000
     in_data_shapes = OrderedDict({"data": (1, 3, 224, 224)})
     in_data = get_data(in_data_shapes, dtype="float32")
@@ -79,7 +79,7 @@ def test_resnet():
         _verify_results(mod, params, in_data)
 
 
-def test_squeezenet():
+def atest_squeezenet():
     in_data_shapes = OrderedDict({"data": (1, 3, 224, 224)})
     in_data = get_data(in_data_shapes, dtype="float32")
     for version in ['1.0', '1.1']:
@@ -87,8 +87,8 @@ def test_squeezenet():
         _verify_results(mod, params, in_data)
 
 
-@pytest.mark.skip("USE_TARGET_ONNX should be ON")
-def test_partition():
+#@pytest.mark.skip("USE_TARGET_ONNX should be ON")
+def atest_partition():
     in_1 = relay.var('in_1', shape=(10, 10), dtype='float32')
     in_2 = relay.var('in_2', shape=(10, 10), dtype='float32')
     in_3 = relay.var('in_3', shape=(10, 10), dtype='float32')
@@ -151,7 +151,7 @@ def test_partition():
     mod = IRModule.from_expr(func)
     mod = transform.PartitionGraph()(mod)
 
-    with relay.build_config(opt_level=3, disabled_pass=['FuseOps']):
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=['FuseOps']):
         graph_json, mod1, params = relay.build(mod, target)
 
     assert mod1.type_key == "llvm"
@@ -159,8 +159,24 @@ def test_partition():
     assert mod1.imported_modules[0].get_source()
 
 
+def test_sample_model():
+    import json
+    with open("/Users/mahesh/Downloads/alex.json") as f:
+        a = json.load(f)
+
+    ir = tvm.ir.load_json(a)
+
+    print(ir)
+
+    a= func_to_onnx(ir, {}, "alex")
+
+    pass
+
+
 if __name__ == '__main__':
-    test_resnet()
-    test_squeezenet()
-    # test_partition needs USE_TARGET_ONNX to be ON
+    # test_resnet()
+    # test_squeezenet()
+    # # test_partition needs USE_TARGET_ONNX to be ON
     # test_partition()
+
+    test_sample_model()
