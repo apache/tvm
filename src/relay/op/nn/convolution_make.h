@@ -24,7 +24,8 @@
 #ifndef TVM_RELAY_OP_NN_CONVOLUTION_MAKE_H_
 #define TVM_RELAY_OP_NN_CONVOLUTION_MAKE_H_
 
-#include <tvm/tir/analysis.h>
+#include <tvm/relay/attrs/nn.h>
+#include <tvm/relay/op.h>
 
 #include <string>
 #include <utility>

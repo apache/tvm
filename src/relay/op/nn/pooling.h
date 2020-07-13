@@ -24,6 +24,9 @@
 #ifndef TVM_RELAY_OP_NN_POOLING_H_
 #define TVM_RELAY_OP_NN_POOLING_H_
 
+#include <tvm/relay/attrs/nn.h>
+#include <tvm/relay/op.h>
+
 #include <utility>
 
 namespace tvm {

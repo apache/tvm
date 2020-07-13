@@ -22,7 +22,6 @@
  * \brief Convolution operators
  */
 #include "convolution.h"
-#include "convolution_make.h"
 
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
@@ -32,6 +31,7 @@
 
 #include "../../transforms/infer_layout_util.h"
 #include "../op_common.h"
+#include "convolution_make.h"
 
 namespace tvm {
 namespace relay {

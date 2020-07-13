@@ -33,9 +33,10 @@ namespace relay {
 
 class DynamicToStaticMutator : public MixedModeMutator {
  public:
-  DynamicToStaticMutator()
+  DynamicToStaticMutator() {}
 
-      private : Expr Rewrite_(const CallNode* pre, const Expr& post) override {
+ private:
+  Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     const CallNode* call_node = post.as<CallNode>();
     if (call_node->op == Op::Get("dyn.reshape")) {
       if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {

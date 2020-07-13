@@ -21,6 +21,8 @@
  * \file pooling.cc
  * \brief Pooling operators
  */
+#include "pooling.h"
+
 #include <topi/nn/pooling.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
@@ -29,7 +31,6 @@
 
 #include <vector>
 
-#include "pooling.h"
 #include "../../transforms/infer_layout_util.h"
 
 namespace tvm {
