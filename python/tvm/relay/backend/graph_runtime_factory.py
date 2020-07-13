@@ -85,7 +85,7 @@ class GraphRuntimeFactoryModule(object):
 
     # Sometimes we want to get params explicitly.
     # For example, we want to save its params value to
-    # an independentfile.
+    # an independent file.
     def get_params(self):
         return self.params
 
