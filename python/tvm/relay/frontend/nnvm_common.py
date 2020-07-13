@@ -70,6 +70,7 @@ def _softmax_op(new_op):
             data = inputs[0]
             length = inputs[1]
             data_shape = _infer_shape(data)
+            data_dtype = _infer_type(data).checked_type.dtype
             length_shape = _infer_shape(length)
 
             if axis < 0:
@@ -97,7 +98,7 @@ def _softmax_op(new_op):
 
             res = _op.sequence_mask(data=data,
                                     valid_length=length,
-                                    mask_value=float(min_value("float").value),
+                                    mask_value=float(min_value(data_dtype).value),
                                     axis=axis)
 
             # Apply softmax
