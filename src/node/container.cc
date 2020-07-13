@@ -357,4 +357,7 @@ TVM_REGISTER_GLOBAL("node.MapItems").set_body([](TVMArgs args, TVMRetValue* ret)
   *ret = std::move(rkvs);
 });
 
+#if (USE_FALLBACK_STL_MAP == 0)
+TVM_DLL constexpr uint64_t DenseMapNode::kNextProbeLocation[];
+#endif
 }  // namespace tvm

@@ -18,7 +18,6 @@
 import warnings
 from tvm._ffi.base import string_types
 from tvm._ffi.registry import get_global_func
-from tvm.runtime.module import Module
 from tvm.runtime import ndarray
 
 
@@ -52,39 +51,56 @@ def create(graph_json_str, libmod, libmod_name, params):
     for k, v in params.items():
         args.append(k)
         args.append(ndarray.array(v))
-    return GraphRuntimeFactoryModule(fcreate(graph_json_str, libmod, libmod_name, *args))
+    return fcreate(graph_json_str, libmod, libmod_name, *args)
 
 
-class GraphRuntimeFactoryModule(Module):
+class GraphRuntimeFactoryModule(object):
     """Graph runtime factory module.
     This is a module of graph runtime factory
 
     Parameters
     ----------
-    module : Module
-        The interal tvm module that holds the actual graph functions.
+    graph_json_str : str or graph class
+        The graph to be deployed in json format output by nnvm graph.
+        The graph can only contain one operator(tvm_op) that
+        points to the name of PackedFunc in the libmod.
+    libmod : tvm.Module
+        The module of the corresponding function
+    libmod_name: str
+        The name of module
+    params : dict of str to NDArray
+        The parameters of module
     """
 
-    def __init__(self, module):
-        self.module = module
-        self.graph_json = None
-        self.lib = None
-        self.params = {}
+    def __init__(self, graph_json_str, libmod, libmod_name, params):
+        self.graph_json = graph_json_str
+        self.lib = libmod
+        self.libmod_name = libmod_name
+        self.params = params
         self.iter_cnt = 0
-        super(GraphRuntimeFactoryModule, self).__init__(self.module.handle)
+        self.module = create(graph_json_str, libmod, libmod_name, params)
 
-    def __del__(self):
-        pass
+    def export_library(self,
+                       file_name,
+                       fcompile=None,
+                       addons=None,
+                       **kwargs):
+        return self.module.export_library(file_name, fcompile, addons, **kwargs)
+
+    # Sometimes we want to get params explicitly.
+    # For example, we want to save its params value to
+    # an independentfile.
+    def get_params(self):
+        return self.params
+
+    def __getitem__(self, item):
+        return self.module.__getitem__(item)
 
     def __iter__(self):
         warnings.warn(
             "legacy graph runtime behaviour of producing json / lib / params will be "
             "removed in the next release ",
             DeprecationWarning, 2)
-        self.graph_json = self.module["get_json"]()
-        self.lib = self.module["get_lib"]()
-        for k, v in self.module["get_params"]().items():
-            self.params[k] = v
         return self
 
 

@@ -25,7 +25,6 @@
 #ifndef TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
 #define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_FACTORY_H_
 
-#include <tvm/node/container.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
@@ -46,13 +45,14 @@ namespace runtime {
 class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
  public:
   /*!
-   * \brief Initialize the GraphRuntimeFactory with graph and context.
+   * \brief Construct the GraphRuntimeFactory.
    * \param graph_json The execution graph.
    * \param params The params of graph.
    * \param module_name The module name of graph.
    */
-  void Init(const std::string& graph_json, const tvm::Map<String, tvm::runtime::NDArray>& params,
-            const std::string& module_name = "default");
+  GraphRuntimeFactory(const std::string& graph_json,
+                      const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
+                      const std::string& module_name = "default");
 
   /*!
    * \brief Get member function to front-end
@@ -75,28 +75,19 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
 
   /*!
    * \brief Create a specific runtime module
-   * \param module The module we will be used for creating runtime
    * \param ctxs The context of the host and devices where graph nodes will be
    *  executed on.
    * \return created runtime module
    */
-  Module RuntimeCreate(Module module, const std::vector<TVMContext>& ctxs);
+  Module RuntimeCreate(const std::vector<TVMContext>& ctxs);
 
   /*!
    * \brief Create a specific debug runtime module
-   * \param module The module we will be used for creating runtime
    * \param ctxs The context of the host and devices where graph nodes will be
    *  executed on.
    * \return created debug runtime module
    */
-  Module DebugRuntimeCreate(Module module, const std::vector<TVMContext>& ctxs);
-
-  /*!
-   * \brief Select the specific module
-   * \param name The name of the module
-   * \return selected module
-   */
-  Module SelectModule(const std::string& name);
+  Module DebugRuntimeCreate(const std::vector<TVMContext>& ctxs);
 
   /*!
    * \brief Set params.
@@ -104,8 +95,8 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
    * \param params The graph params value we want to set.
    */
   void SetParams(GraphRuntime* graph_runtime,
-                 const tvm::Map<String, tvm::runtime::NDArray>& params) const {
-    tvm::Map<String, tvm::runtime::NDArray> value = params;
+                 const std::unordered_map<std::string, tvm::runtime::NDArray>& params) const {
+    std::unordered_map<std::string, tvm::runtime::NDArray> value = params;
     // upload big arrays first to avoid memory issue in rpc mode
     std::vector<std::string> keys;
     for (const auto& p : value) {
@@ -113,13 +104,9 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
     }
     std::sort(std::begin(keys), std::end(keys),
               [&](const std::string& lhs, const std::string& rhs) -> bool {
-                auto lhs_shape = value[lhs].Shape();
-                auto rhs_shape = value[rhs].Shape();
-                auto lhs_prod = std::accumulate(std::begin(lhs_shape), std::end(lhs_shape), 1,
-                                                std::multiplies<int64_t>());
-                auto rhs_prod = std::accumulate(std::begin(rhs_shape), std::end(rhs_shape), 1,
-                                                std::multiplies<int64_t>());
-                return lhs_prod > rhs_prod;
+                auto lhs_size = GetDataSize(value[lhs].ToDLPack()->dl_tensor);
+                auto rhs_size = GetDataSize(value[rhs].ToDLPack()->dl_tensor);
+                return lhs_size > rhs_size;
               });
     for (const auto& key : keys) {
       int in_idx = graph_runtime->GetInputIndex(key);
@@ -129,22 +116,11 @@ class TVM_DLL GraphRuntimeFactory : public runtime::ModuleNode {
     }
   }
 
-  const std::string& GetJson() const { return graph_json_; }
-
-  tvm::Map<String, tvm::runtime::NDArray> GetParams() const { return params_; }
-
-  Module GetLib() const {
-    CHECK_EQ(this->imports().size(), 1);
-    return this->imports_[0];
-  }
-
-  const std::string& GetModuleName() const { return module_name_; }
-
  protected:
   /*! \brief The execution graph. */
   std::string graph_json_;
   /*! \brief The params. */
-  tvm::Map<String, tvm::runtime::NDArray> params_;
+  std::unordered_map<std::string, tvm::runtime::NDArray> params_;
   /*! \brief module name */
   std::string module_name_;
 };
