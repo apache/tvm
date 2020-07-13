@@ -146,6 +146,14 @@ class PEqualChecker<IntImm> {
 };
 
 template <>
+class PEqualChecker<FloatImm> {
+ public:
+  bool operator()(const FloatImm& lhs, const FloatImm& rhs) const {
+    return BaseValueEqual()(lhs->value, rhs->value);
+  }
+};
+
+template <>
 class PEqualChecker<tir::Var> {
  public:
   bool operator()(const tir::Var& lhs, const tir::Var& rhs) const { return lhs.same_as(rhs); }
