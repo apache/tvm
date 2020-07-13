@@ -170,8 +170,8 @@ class LoopUnroller : public StmtExprMutator {
     // For loop must have a constant integer extent
     CHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
     if (value == 0) return Evaluate(0);
-    if (explicit_unroll_max_extent_ > 0 && value > explicit_unroll_max_extent_ &&
-        explicit_unroll_) {
+    if (explicit_unroll_ && explicit_unroll_max_extent_ > 0 &&
+        value > explicit_unroll_max_extent_ ) {
       // Do not unroll too long loops
       ForType for_type = op->for_type == ForType::Unrolled ? ForType::Serial : op->for_type;
       return For(op->loop_var, op->min, op->extent, for_type, op->device_api, op->body);
