@@ -124,13 +124,14 @@ def test_unroll_explicitly_max_extent():
         "tir.UnrollLoop": {"explicit_unroll_max_extent": n-1}
     }):
         ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
-        assert tvm.ir.structural_equal(ret, stmt)
+        assert isinstance(ret.body.body, tvm.tir.For)
+        assert ret.body.body.for_type == tvm.tir.For.Serial
 
     with tvm.transform.PassContext(config={
         "tir.UnrollLoop": {"explicit_unroll_max_extent": n}
     }):
         ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
-        assert not tvm.ir.structural_equal(ret, stmt)
+        assert not isinstance(ret.body.body, tvm.tir.For)
 
 
 if __name__ == "__main__":
