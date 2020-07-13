@@ -208,7 +208,7 @@ class LoopUnroller : public StmtExprMutator {
   // max extent of loop to auto unroll
   // this not not count the total steps, only count the number of loops
   int auto_max_extent_;
-  // Whether to explicitly unroll the loop instead of setting a pragma
+  // Whether to explicitly unroll the loop instead of using pragma
   bool explicit_unroll_;
   // The maximum extent of a loop that can be unrolled explicitly (-1 means infinite)
   int explicit_unroll_max_extent_;
