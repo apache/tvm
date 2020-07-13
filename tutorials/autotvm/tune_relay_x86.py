@@ -35,7 +35,6 @@ from tvm.relay import testing
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from tvm.autotvm.graph_tuner import DPTuner, PBQPTuner
 import tvm.contrib.graph_runtime as runtime
-# from tvm.contrib.debugger import debug_runtime as runtime
 
 #################################################################
 # Define network
@@ -85,12 +84,12 @@ def get_network(name, batch_size):
 # Platinum 8000 series, the target should be "llvm -mcpu=skylake-avx512".
 # For AWS EC2 c4 instance with Intel Xeon E5-2666 v3, it should be
 # "llvm -mcpu=core-avx2".
-target = "llvm -mcpu=skylake-avx512"
+target = "llvm"
 
 batch_size = 1
 dtype = "float32"
 model_name = "resnet-18"
-log_file = "%s.dense.log" % model_name
+log_file = "%s.log" % model_name
 graph_opt_sch_file = "%s_graph_opt.log" % model_name
 
 # Set the input name of the graph
@@ -124,7 +123,8 @@ tuning_option = {
     'measure_option': autotvm.measure_option(
         builder=autotvm.LocalBuilder(),
         runner=autotvm.LocalRunner(number=1, repeat=10,
-                                   min_repeat_ms=0),
+                                   min_repeat_ms=0,
+                                   enable_cpu_cache_flush=True),
     ),
 }
 
@@ -184,20 +184,12 @@ def tune_and_evaluate(tuning_opt):
                                               ops=(relay.op.get("nn.conv2d"),))
 
     # run tuning tasks
-    # set TVM_AUTO_CACHE_FLUSH environment value be 1 to enable flush
-    # the cache during tuning kernel so that we could get more accurate
-    # performance when we run e2e testing.
-    # os.environ["TVM_AUTO_CACHE_FLUSH"] = "1"
     tune_kernels(tasks, **tuning_opt)
     tune_graph(mod["main"], data_shape, log_file, graph_opt_sch_file)
 
     # compile kernels with graph-level best records
-    # graph_opt_sch_file = 'resnet-18_graph_opt_clflush.log'
     with autotvm.apply_graph_best(graph_opt_sch_file):
         print("Compile...")
-        # os.environ["TVM_BIND_MASTER_CORE_0"] = "1"
-        # when we run e2e testing, we could enable the cache back.
-        # os.environ["TVM_AUTO_CACHE_FLUSH"] = "0"
         with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build_module.build(
                 mod, target=target, params=params)
@@ -215,12 +207,11 @@ def tune_and_evaluate(tuning_opt):
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print("Mean inference time (std dev): %.2f ms (%.2f ms)" %
               (np.mean(prof_res), np.std(prof_res)))
-        # module.run()
 
 # We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run it by yourself.
 
-tune_and_evaluate(tuning_option)
+# tune_and_evaluate(tuning_option)
 
 ######################################################################
 # Sample Output

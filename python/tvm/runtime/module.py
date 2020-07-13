@@ -163,7 +163,7 @@ class Module(object):
         """
         _ffi_api.ModuleSaveToFile(self, file_name, fmt)
 
-    def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0, f_prepare=None):
+    def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0, f_prepare=''):
         """Get an evaluator that measures time cost of running function.
 
         Parameters
@@ -192,6 +192,8 @@ class Module(object):
             minimum duration requirement of one `repeat`.
             i.e., When the run time of one `repeat` falls below this time, the `number` parameter
             will be automatically increased.
+        f_prepare: str, optional
+            The prepared function name we want to execute before executing the time evaluator.
 
         Note
         ----

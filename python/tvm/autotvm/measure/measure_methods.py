@@ -180,12 +180,14 @@ class RPCRunner(Runner):
         Whether check correctness after measurement. This will use llvm cpu target to
         call your template and get the reference output.
         This can work for TOPI templates, but may not work for your custom template.
+    enable_cpu_cache_flush: bool
+        Whether to enable cpu cache flush
     """
     def __init__(self,
                  key, host, port, priority=1,
                  timeout=10, n_parallel=None,
                  number=4, repeat=3, min_repeat_ms=0, cooldown_interval=0.1,
-                 check_correctness=False):
+                 check_correctness=False, enable_cpu_cache_flush=False):
         super(RPCRunner, self).__init__(timeout, n_parallel)
 
         self.key = key
@@ -200,6 +202,7 @@ class RPCRunner(Runner):
 
         self.ref_input = None
         self.ref_output = None
+        self.enable_cpu_cache_flush = enable_cpu_cache_flush
         self.check_correctness = check_correctness
         self.cooldown_interval = cooldown_interval
 
@@ -267,7 +270,8 @@ class RPCRunner(Runner):
                                            self.cooldown_interval,
                                            remote_args,
                                            self.ref_input,
-                                           self.ref_output)
+                                           self.ref_output,
+                                           self.enable_cpu_cache_flush)
                 futures.append(ret)
 
             for future in futures:
@@ -309,7 +313,8 @@ class LocalRunner(RPCRunner):
         Whether check correctness after measurement. This will use llvm cpu target to
         call your template and get the reference output.
         This can work for TOPI templates, but may not work for your custom template.
-
+    enable_cpu_cache_flush: bool
+        Whether to enable cpu cache flush
     Note
     ----
     This is a "fake" local mode. We start a silent rpc tracker and rpc server
@@ -318,13 +323,14 @@ class LocalRunner(RPCRunner):
     def __init__(self,
                  timeout=10,
                  number=4, repeat=3, min_repeat_ms=0, cooldown_interval=0.1,
-                 check_correctness=False):
+                 check_correctness=False, enable_cpu_cache_flush=False):
         super(LocalRunner, self).__init__('', None, None, 0,
                                           timeout=timeout, n_parallel=1,
                                           number=number, repeat=repeat,
                                           min_repeat_ms=min_repeat_ms,
                                           cooldown_interval=cooldown_interval,
-                                          check_correctness=check_correctness)
+                                          check_correctness=check_correctness,
+                                          enable_cpu_cache_flush=enable_cpu_cache_flush)
         self.tracker = None
         self.server = None
 
@@ -421,7 +427,8 @@ def _wrap_build_func(build_func):
 
 def run_through_rpc(measure_input, build_result,
                     number, repeat, min_repeat_ms, cooldown_interval,
-                    remote_args, ref_input=None, ref_output=None):
+                    remote_args, ref_input=None, ref_output=None,
+                    enable_cpu_cache_flush=False):
     """Run a generated library through rpc
 
     Parameters
@@ -454,6 +461,8 @@ def run_through_rpc(measure_input, build_result,
         The reference input used for checking correctness
     ref_output: List of np.ndarray
         The reference output used for checking correctness
+    enable_cpu_cache_flush: bool
+        Whether to enable cpu cache flush
     """
     if isinstance(build_result, MeasureResult):
         return build_result
@@ -473,10 +482,10 @@ def run_through_rpc(measure_input, build_result,
         remote.upload(build_result.filename)
         func = remote.load_module(os.path.split(build_result.filename)[1])
         ctx = remote.context(str(measure_input.target), 0)
-        cache_flush_packed = remote.get_function("runtime.cpu_cache_flush")(1)
+        f_prepare = 'cache_flush_cpu_non_first_arg' if enable_cpu_cache_flush else ''
         time_f = func.time_evaluator(
             func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms,
-            f_prepare=cache_flush_packed)
+            f_prepare=f_prepare)
 
         # set input
         if ref_input:
