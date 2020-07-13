@@ -583,7 +583,7 @@ static inline Expr Dense(Expr data, Expr weight, IndexExpr units, DataType out_d
 }
 
 static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
-  return MakeReduce(data, axis, keepdims, exclude, "mean");
+  return MakeReduce(data, axis, keepdims, exclude, "sum");
 }
 
 static inline Expr Reshape(Expr data, Array<Integer> newshape) {

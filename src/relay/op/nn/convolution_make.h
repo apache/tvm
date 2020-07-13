@@ -35,10 +35,11 @@ namespace tvm {
 namespace relay {
 
 template <typename T>
-Expr MakeConv(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
-              Array<IndexExpr> dilation, int groups, IndexExpr channels,
-              Array<IndexExpr> kernel_size, std::string data_layout, std::string kernel_layout,
-              std::string out_layout, DataType out_dtype, std::string op_name) {
+inline Expr MakeConv(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
+                     Array<IndexExpr> dilation, int groups, IndexExpr channels,
+                     Array<IndexExpr> kernel_size, std::string data_layout,
+                     std::string kernel_layout, std::string out_layout, DataType out_dtype,
+                     std::string op_name) {
   auto attrs = make_object<T>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -55,11 +56,11 @@ Expr MakeConv(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr>
 }
 
 template <typename T>
-Expr MakeConvWinograd(Expr data, Expr weight, int tile_size, Array<IndexExpr> strides,
-                      Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
-                      IndexExpr channels, Array<IndexExpr> kernel_size, std::string data_layout,
-                      std::string kernel_layout, std::string out_layout, DataType out_dtype,
-                      std::string op_name) {
+inline Expr MakeConvWinograd(Expr data, Expr weight, int tile_size, Array<IndexExpr> strides,
+                             Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
+                             IndexExpr channels, Array<IndexExpr> kernel_size,
+                             std::string data_layout, std::string kernel_layout,
+                             std::string out_layout, DataType out_dtype, std::string op_name) {
   auto attrs = make_object<T>();
   attrs->tile_size = tile_size;
   attrs->strides = std::move(strides);
@@ -77,10 +78,11 @@ Expr MakeConvWinograd(Expr data, Expr weight, int tile_size, Array<IndexExpr> st
 }
 
 template <typename T>
-Expr MakeConvGemm(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
-                  Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                  Array<IndexExpr> kernel_size, std::string data_layout, std::string kernel_layout,
-                  std::string out_layout, DataType out_dtype, std::string op_name) {
+inline Expr MakeConvGemm(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
+                         Array<IndexExpr> dilation, int groups, IndexExpr channels,
+                         Array<IndexExpr> kernel_size, std::string data_layout,
+                         std::string kernel_layout, std::string out_layout, DataType out_dtype,
+                         std::string op_name) {
   auto attrs = make_object<T>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -97,11 +99,12 @@ Expr MakeConvGemm(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexE
 }
 
 template <typename T>
-Expr MakeConvTranspose(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
-                       Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                       Array<IndexExpr> kernel_size, std::string data_layout,
-                       std::string kernel_layout, std::string out_layout,
-                       Array<IndexExpr> output_padding, DataType out_dtype, std::string op_name) {
+inline Expr MakeConvTranspose(Expr data, Expr weight, Array<IndexExpr> strides,
+                              Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
+                              IndexExpr channels, Array<IndexExpr> kernel_size,
+                              std::string data_layout, std::string kernel_layout,
+                              std::string out_layout, Array<IndexExpr> output_padding,
+                              DataType out_dtype, std::string op_name) {
   auto attrs = make_object<T>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -119,11 +122,12 @@ Expr MakeConvTranspose(Expr data, Expr weight, Array<IndexExpr> strides, Array<I
 }
 
 template <typename T>
-Expr MakeDeformableConv(Expr data, Expr offset, Expr weight, Array<IndexExpr> strides,
-                        Array<IndexExpr> padding, Array<IndexExpr> dilation, int deformable_groups,
-                        int groups, int channels, Array<IndexExpr> kernel_size,
-                        std::string data_layout, std::string kernel_layout, std::string out_layout,
-                        DataType out_dtype, std::string op_name) {
+inline Expr MakeDeformableConv(Expr data, Expr offset, Expr weight, Array<IndexExpr> strides,
+                               Array<IndexExpr> padding, Array<IndexExpr> dilation,
+                               int deformable_groups, int groups, int channels,
+                               Array<IndexExpr> kernel_size, std::string data_layout,
+                               std::string kernel_layout, std::string out_layout,
+                               DataType out_dtype, std::string op_name) {
   auto attrs = make_object<T>();
   attrs->strides = strides;
   attrs->padding = padding;

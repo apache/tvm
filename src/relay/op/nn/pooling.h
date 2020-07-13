@@ -33,8 +33,8 @@ namespace tvm {
 namespace relay {
 
 template <typename T>
-Expr MakeMaxPool(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                 Array<IndexExpr> padding, String layout, bool ceil_mode, String op_name) {
+inline Expr MakeMaxPool(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
+                        Array<IndexExpr> padding, String layout, bool ceil_mode, String op_name) {
   auto attrs = make_object<T>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
@@ -46,9 +46,9 @@ Expr MakeMaxPool(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides
 }
 
 template <typename T>
-Expr MakeAvgPool(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
-                 Array<IndexExpr> padding, String layout, bool ceil_mode, bool count_include_pad,
-                 String op_name) {
+inline Expr MakeAvgPool(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
+                        Array<IndexExpr> padding, String layout, bool ceil_mode,
+                        bool count_include_pad, String op_name) {
   auto attrs = make_object<T>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
