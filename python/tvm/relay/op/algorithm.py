@@ -16,7 +16,7 @@
 # under the License.
 """Classic algorithm operation"""
 from __future__ import absolute_import as _abs
-import numpy as np
+
 from . import _make
 from .dyn import _make as _dyn_make
 from ..expr import TupleWrapper, Expr, Constant

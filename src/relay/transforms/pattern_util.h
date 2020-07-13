@@ -573,19 +573,9 @@ static inline Expr Conv2D(Expr data, Expr weight, Array<IndexExpr> strides,
                           Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
                           IndexExpr channels, Array<IndexExpr> kernel_size, std::string data_layout,
                           std::string kernel_layout, std::string out_layout, DataType out_dtype) {
-  auto attrs = make_object<Conv2DAttrs>();
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = std::move(channels);
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->out_dtype = std::move(out_dtype);
-  static const Op& op = Op::Get("nn.conv2d");
-  return Call(op, {data, weight}, Attrs(attrs), {});
+  return MakeConv<Conv2DAttrs>(data, weight, strides, padding, dilation, groups, channels,
+                               kernel_size, data_layout, kernel_layout, out_layout, out_dtype,
+                               "nn.conv2d");
 }
 
 static inline Expr Dense(Expr data, Expr weight, IndexExpr units, DataType out_dtype) {
@@ -603,15 +593,8 @@ static inline Expr Reshape(Expr data, Array<Integer> newshape) {
 static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
                              Array<IndexExpr> padding, std::string layout, bool ceil_mode,
                              bool count_include_pad) {
-  auto attrs = make_object<AvgPool2DAttrs>();
-  attrs->pool_size = std::move(pool_size);
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->layout = std::move(layout);
-  attrs->ceil_mode = ceil_mode;
-  attrs->count_include_pad = count_include_pad;
-  static const Op& op = Op::Get("nn.avg_pool2d");
-  return Call(op, {data}, Attrs(attrs), {});
+  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
+                                     count_include_pad, "nn.avg_pool2d");
 }
 
 static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value,

@@ -43,7 +43,6 @@ def test_dyn_reshape():
         z = relay.reshape(x, y)
 
         func = relay.Function([x, y], z)
-        print(func)
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
         ref_res = np.reshape(x_data, oshape)
         verify_func(func, [x_data, np.array(newshape).astype("int64")], ref_res)
