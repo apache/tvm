@@ -21,7 +21,7 @@
  * \file src/relay/analysis/get_calibration_data.cc
  *
  * \brief To get the calibration data, we need to perform two
- * steps. First, we need to prepare the module that generate
+ * steps. First, we need to prepare the module that generates
  * the tensor values (GetCalibrateModule). Second, we need to
  * generate the mapping between the values and the functions
  * (GetCalibrateOutputMap).
@@ -54,8 +54,7 @@ class Collector : public ExprRewriter {
       auto var = Downcast<GlobalVar>(call->op);
       CHECK(module_->ContainGlobalVar(var->name_hint)) << "Function " << var << " is not defined";
       // we only handle functions with Compiler attribute set
-      auto* fn = module_->Lookup(var).as<FunctionNode>();
-      auto func = GetRef<Function>(fn);
+      auto func = Downcast<Function>(module_->Lookup(var));
       if (func->GetAttr<String>(attr::kCompiler)) {
         // collect all the inputs and outputs
         for (const auto& it : call->args) new_outputs_.push_back(it);
@@ -144,9 +143,8 @@ class OutputMapper : public ExprRewriter {
       CHECK(module_->ContainGlobalVar(var->name_hint)) << "Function " << var << " is not defined";
       CHECK_EQ(output_map_->count(var), 0)
           << "Repeated function call " << var << " is not supported.";
+      auto func = Downcast<Function>(module_->Lookup(var));
       // we only handle functions with Compiler attribute set
-      auto* fn = module_->Lookup(var).as<FunctionNode>();
-      auto func = GetRef<Function>(fn);
       if (func->GetAttr<String>(attr::kCompiler)) {
         Array<Integer> info;
         // the first value is the offset
@@ -156,7 +154,7 @@ class OutputMapper : public ExprRewriter {
         // the third value is the number of outputs
         // we need to check if the output is a tuple
         size_t out_size = 1;
-        if (auto* tn = fn->body.as<TupleNode>()) {
+        if (auto* tn = func->body.as<TupleNode>()) {
           info.push_back(Integer(tn->fields.size()));
           out_size = tn->fields.size();
         } else {
