@@ -912,7 +912,7 @@ def test_unrolled_vectorization():
     func_tvm = tvm.build(s, [A, B, C], target=target)
     func_tvm(a_tvm, b_tvm, c_tvm)
     c_np = c_tvm.asnumpy()
-    tvm.testing.assert_allclose(c_np, 128 * np.ones((N, N)))
+    tvm.testing.assert_allclose(c_np, N * np.ones((N, N)))
 
 if __name__ == "__main__":
     test_cuda_vectorize_add()
