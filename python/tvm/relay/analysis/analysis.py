@@ -21,6 +21,8 @@ This file contains the set of passes for Relay, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 from tvm.ir import IRModule
+from tvm.relay import transform, build_module
+from tvm.runtime.ndarray import cpu
 
 from . import _ffi_api
 from .feature import Feature
@@ -351,3 +353,49 @@ def search_fc_transpose(expr):
     """
     ret = _ffi_api.search_fc_transpose(expr)
     return ret
+
+
+def get_calibration_data(mod, data):
+    """Get the calibration data of a given relay graph
+
+    This pass uses the graph runtime to get the calibration data of a module, which
+    includes the input and output values of each function. The returned data uses
+    the GlobalVar of each function as a key. Users can further access the inputs and
+    outputs by using `inputs` or  `outputs` as the key.
+
+    Following are some limitations:
+    1. The input module (graph) cannot have control flows.
+    2. The input arguments of each function cannot be tuples (outputs can be tuples).
+    3. We only handle top-level functions (i.e., nested function is not handled).
+    4. We only handle functions with `Compiler` attribute being set.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The input module for collecting the calibration data
+
+    data : Dict[str, NDArray]
+        The input data for running the module
+
+    Returns
+    -------
+    data : Dict[tvm.relay.GlobalVar, Dict[str, NDArray]]
+    """
+    output_map = _ffi_api.get_calibrate_output_map(mod)
+
+    mod = _ffi_api.get_calibrate_module(mod)
+    mod = transform.Inline()(mod)
+
+    ref_ex = build_module.create_executor("graph", mod=mod, ctx=cpu(0))
+    ref_res = ref_ex.evaluate()(**data)
+
+    calib_data = {}
+    for gvar, indices in output_map.items():
+        offset = int(indices[0])
+        in_len = int(indices[1])
+        out_len = int(indices[2])
+        value = {"inputs": ref_res[offset:offset + in_len],
+                 "outputs": ref_res[offset + in_len:offset + in_len + out_len]}
+        calib_data[gvar] = value
+
+    return calib_data
