@@ -361,8 +361,7 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const PrimExpr& expr) const {
 //
 // This trick comes from Halide's CodeGen_LLVM
 //
-void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer, PrimExpr index,
-                               DataType type) {
+void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer, PrimExpr index) {
   if (alias_var_set_.count(buffer) != 0) {
     // Mark all possibly aliased pointer as same type.
     llvm::MDNode* meta = md_tbaa_alias_set_;
@@ -393,11 +392,21 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer, P
     }
   }
   llvm::MDNode* meta = md_tbaa_root_;
-  std::ostringstream buffer_addr, buffer_type;
+  std::ostringstream buffer_addr;
   buffer_addr << buffer;
   meta = md_builder_->createTBAAScalarTypeNode(buffer_addr.str(), meta);
-  buffer_type << type.element_of();
+
+  // Extract the underlying type of the allocated buffer.
+  llvm::Type* buf_type = GetVarValue(buffer)->getType()->getScalarType();
+  if (buf_type->isPointerTy()) {
+    buf_type = buf_type->getPointerElementType();
+  }
+
+  std::string tmp;
+  llvm::raw_string_ostream buffer_type(tmp);
+  buffer_type << *buf_type;
   meta = md_builder_->createTBAAScalarTypeNode(buffer_type.str(), meta);
+
   // create a tree-shape access structure.
   if (width != 0) {
     for (int64_t w = 1024; w >= width; w /= 2) {
@@ -1030,7 +1039,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
 #else
     llvm::LoadInst* load = builder_->CreateAlignedLoad(ptr, alignment, is_volatile);
 #endif
-    AddAliasInfo(load, op->buffer_var.get(), op->index, t);
+    AddAliasInfo(load, op->buffer_var.get(), op->index);
     return load;
   } else {
     // vector load
@@ -1048,7 +1057,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
 #else
         llvm::LoadInst* load = builder_->CreateAlignedLoad(ptr, alignment, is_volatile);
 #endif
-        AddAliasInfo(load, op->buffer_var.get(), op->index, t);
+        AddAliasInfo(load, op->buffer_var.get(), op->index);
         return load;
       }
     }
@@ -1064,7 +1073,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
     llvm::LoadInst* load = builder_->CreateAlignedLoad(ptr, basic_align, is_volatile);
 #endif
     ret = builder_->CreateInsertElement(ret, load, ConstInt32(i));
-    AddAliasInfo(load, op->buffer_var.get(), PrimExpr(), t);
+    AddAliasInfo(load, op->buffer_var.get(), PrimExpr());
   };
   this->Scalarize(op->index, f);
   return ret;
@@ -1148,7 +1157,7 @@ void CodeGenLLVM::VisitStmt_(const StoreNode* op) {
 #else
     llvm::StoreInst* store = builder_->CreateAlignedStore(value, ptr, alignment, is_volatile);
 #endif
-    AddAliasInfo(store, op->buffer_var.get(), op->index, op->value.dtype());
+    AddAliasInfo(store, op->buffer_var.get(), op->index);
     return;
   } else {
     // vector store
@@ -1166,7 +1175,7 @@ void CodeGenLLVM::VisitStmt_(const StoreNode* op) {
 #else
         llvm::StoreInst* store = builder_->CreateAlignedStore(value, ptr, alignment, is_volatile);
 #endif
-        AddAliasInfo(store, op->buffer_var.get(), op->index, op->value.dtype());
+        AddAliasInfo(store, op->buffer_var.get(), op->index);
         return;
       }
     }
@@ -1183,7 +1192,7 @@ void CodeGenLLVM::VisitStmt_(const StoreNode* op) {
     llvm::StoreInst* store = builder_->CreateAlignedStore(builder_->CreateExtractElement(value, i),
                                                           ptr, basic_align, is_volatile);
 #endif
-    AddAliasInfo(store, op->buffer_var.get(), PrimExpr(), op->value.dtype());
+    AddAliasInfo(store, op->buffer_var.get(), PrimExpr());
   };
   this->Scalarize(op->index, f);
 }
