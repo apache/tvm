@@ -22,7 +22,7 @@ from tvm.runtime import ndarray
 
 
 def create(graph_json_str, libmod, libmod_name, params):
-    """Create a runtime executor module given a graph and module.
+    """Create a runtime executor module.
     Parameters
     ----------
     graph_json_str : str or graph class
@@ -38,7 +38,7 @@ def create(graph_json_str, libmod, libmod_name, params):
 
     Returns
     -------
-    graph_module : GraphRuntimeFactoryModule
+    graph_module : Module
         Runtime graph runtime factory module.
     """
     if not isinstance(graph_json_str, string_types):
@@ -80,11 +80,7 @@ class GraphRuntimeFactoryModule(object):
         self.iter_cnt = 0
         self.module = create(graph_json_str, libmod, libmod_name, params)
 
-    def export_library(self,
-                       file_name,
-                       fcompile=None,
-                       addons=None,
-                       **kwargs):
+    def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
         return self.module.export_library(file_name, fcompile, addons, **kwargs)
 
     # Sometimes we want to get params explicitly.
