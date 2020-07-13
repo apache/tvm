@@ -75,10 +75,13 @@ class ManifestAllocPass(ExprMutator):
 
     def compute_storage_in_relay(self, shape, dtype):
         dtype = DataType(dtype)
+        print(shape)
         els = op.prod(shape)
+        print(els)
         num = expr.const(dtype.bits * dtype.lanes, self.compute_dtype)
         num = num + expr.const(7, self.compute_dtype)
         div = expr.const(8, self.compute_dtype)
+        print(els, num, div)
         return els * (num / div)
 
     def compute_storage(self, tensor_type):
@@ -165,9 +168,10 @@ class ManifestAllocPass(ExprMutator):
             expr.Tuple(out_shapes), is_inputs)
 
         scope.let("shape_func", shape_call)
-
+        
         storages = []
         for out_shape, out_type in zip(out_shapes, out_types):
+            print(out_shape)
             size = self.compute_storage_in_relay(
                 out_shape, out_type.dtype)
             alignment = self.compute_alignment(out_type.dtype)
