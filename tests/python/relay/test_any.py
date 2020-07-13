@@ -816,6 +816,55 @@ def test_mixed_input_type():
         assert result.asnumpy().shape == ref_out_shape, \
             "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
 
+def verify_any_crop_and_resize(data_shape, boxes_shape, box_indices_shape, crop_size, 
+                               static_boxes, static_box_indices_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    indices_dtype = "int32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    boxes = relay.var('boxes', shape=boxes_shape, dtype=dtype)
+    box_indices = relay.var('box_indices', shape=box_indices_shape, dtype=indices_dtype)
+    y = relay.image.crop_and_resize(data, boxes, box_indices, crop_size, 'NHWC')
+    mod["main"] = relay.Function([data, boxes, box_indices], y)
+    data_np = np.random.uniform(size=data_shape).astype(dtype)
+    boxes_np = np.random.uniform(size=static_boxes).astype(dtype)
+    box_indices_np = np.random.uniform(size=static_box_indices_shape).astype(indices_dtype)    
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np, boxes_np, box_indices_np)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+
+def test_any_crop_and_resize():
+    verify_any_crop_and_resize(
+        data_shape=(1, 234, 234, 256), 
+        boxes_shape=(relay.Any(), 4), 
+        box_indices_shape=(relay.Any(),),
+        crop_size=(14, 14),
+        static_boxes=(128, 4),
+        static_box_indices_shape=(128,),
+        ref_out_shape=(128, 14, 14, 256))
+
+def verify_any_mirror_pad(data_shape, pad_width, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = relay.nn.mirror_pad(data, pad_width)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        assert result.asnumpy().shape == ref_out_shape, \
+            "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
+
+def test_any_mirror_pad():
+    verify_any_mirror_pad(
+        data_shape=(1, 256, 232, 232),
+        pad_width=((0, 0), (0, 0), (1, 1), (1, 1)),
+        static_data_shape=(1, 256, 232, 232),
+        ref_out_shape=(1, 256, 234, 234))
+
 if __name__ == "__main__":
     test_any_full()
     test_any_full_like()
@@ -850,3 +899,6 @@ if __name__ == "__main__":
     test_recursive_concat_with_wrong_annotation()
     test_tuple_get_item()
     test_mixed_input_type()
+    test_any_crop_and_resize()
+    test_any_mirror_pad()
+
