@@ -1755,6 +1755,39 @@ def test_all_reduce():
     if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
         _test_forward_reduce(_test_reduce_any, dtype="bool")
 
+#######################################################################
+# Arg_min_max
+# -----------
+
+def _test_arg_min_max(math_op, data, axis, quantized=False):
+    """ One iteration of arg_min_max"""
+
+    with tf.Graph().as_default():
+        t_name="in"
+        in_data = array_ops.placeholder(shape=data.shape, dtype=np.float32, name=t_name )
+        input_range=None
+        qmin, qmax = -100, 102
+        if quantized:
+            inq_data = tf.quantization.fake_quant_with_min_max_args(in_data, min=qmin, max=qmax, name= 'q' + t_name )
+            input_range = { inq_data.name.split(':')[0]: (qmin, qmax)}
+            out = math_op(input=inq_data, axis=axis)
+            compare_tflite_with_tvm([data], [inq_data.name], [inq_data], [out], quantized=True, input_range=input_range)
+        else:
+            out = math_op(input=in_data, axis=axis)
+            compare_tflite_with_tvm([data], [in_data.name], [in_data], [out])
+
+def test_forward_arg_min_max():
+    # test quantized
+    for data in [np.array(np.random.uniform(-100, 100, (3, 4)), dtype=np.uint8)]:
+        # There is no quantized version of ArgMin
+        for axis in [None, 0, 1, -1]:
+            _test_arg_min_max(math_ops.argmax, data, axis, True)
+
+    for data in [np.array(np.random.uniform(-100, 100, (3, 4)), dtype=np.float32)]:
+        for axis in [None, 0, 1, -1]:
+            _test_arg_min_max(math_ops.argmax, data, axis)
+            _test_arg_min_max(math_ops.argmin, data, axis)
+
 
 #######################################################################
 # Select, Where
@@ -2834,6 +2867,7 @@ if __name__ == '__main__':
     test_forward_sparse_to_dense()
     test_forward_select()
     test_forward_quantize_dequantize()
+    test_forward_arg_min_max()
 
     # NN
     test_forward_convolution()
