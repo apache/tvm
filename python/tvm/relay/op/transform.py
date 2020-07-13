@@ -1125,8 +1125,11 @@ def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0
 
 
 def invert_permutation(data):
-    """Computes the inverse permutation of a tensor. This operation computes the inverse of an index permutation.
-    It takes a 1-D integer tensor x, which represents the indices of a zero-based array and swaps each value with its index position.
+    """Computes the inverse permutation of a tensor. 
+    This operation computes the inverse of an index permutation.
+    It takes a 1-D integer tensor x, 
+    which represents the indices of a zero-based array 
+    and swaps each value with its index position.
 
     for an output tensor y and an input tensor x, this operation computes the following:
     y[x[i]] = i for i in [0, 1, ..., len(x) - 1]
