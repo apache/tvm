@@ -89,6 +89,9 @@ class GraphRuntimeFactoryModule(object):
     def get_params(self):
         return self.params
 
+    def get_json(self):
+        return self.graph_json
+
     def __getitem__(self, item):
         return self.module.__getitem__(item)
 

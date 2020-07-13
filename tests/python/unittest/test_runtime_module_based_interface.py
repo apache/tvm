@@ -504,7 +504,8 @@ def test_debug_graph_runtime():
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     # debug graph runtime wrapper
-    debug_g_mod = debug_runtime.GraphModuleDebug(complied_graph_lib['debug_create']('default', ctx), [ctx], complied_graph_lib['get_json'](), None)
+    debug_g_mod = debug_runtime.GraphModuleDebug(complied_graph_lib['debug_create']('default', ctx), [ctx],
+                                                 complied_graph_lib.get_json(), None)
     debug_g_mod.set_input("data", data)
     debug_g_mod.run()
     out = debug_g_mod.get_output(0).asnumpy()
