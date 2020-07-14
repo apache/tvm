@@ -625,8 +625,6 @@ static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_
 
 static inline Expr Tile(Expr data, Array<Integer> reps) { return MakeTile(data, reps); }
 
-Expr MakeBroadCastTo(Expr data, Array<Integer> shape);
-
 static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
   return MakeBroadCastTo(data, CheckConstantShapeArrayInteger(shape));
 }

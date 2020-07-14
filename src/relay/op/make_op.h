@@ -36,7 +36,7 @@
 namespace tvm {
 namespace relay {
 
-Expr MakeBroadCastTo(Expr data, Expr shape);
+Expr MakeBroadCastTo(Expr data, Array<Integer> shape);
 
 Expr MakeCast(Expr data, DataType dtype);
 
@@ -52,7 +52,7 @@ Expr MakeFull(Expr fill_value, Expr shape, DataType dtype);
 
 Expr MakeLayoutTransform(Expr data, String src_layout, String dst_layout);
 
-Expr MakeOnes(Expr shape, DataType dtype);
+Expr MakeOnes(Array<Integer> shape, DataType dtype);
 
 Expr MakePad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value, String pad_mode);
 
@@ -76,7 +76,7 @@ Expr MakeTopK(Expr data, int k, int axis, String ret_type, bool is_ascend, DataT
 
 Expr MakeVariance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, bool exclude);
 
-Expr MakeZeros(Expr shape, DataType dtype);
+Expr MakeZeros(Array<Integer> shape, DataType dtype);
 
 }  // namespace relay
 }  // namespace tvm
