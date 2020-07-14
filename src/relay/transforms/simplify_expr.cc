@@ -72,7 +72,6 @@ class SimplifyReshape {
   DFPattern x_;
   /*! \brief Pattern for consecutive reshape or reverse_reshape ops */
   DFPattern pattern_;
-
 };
 
 /*!
