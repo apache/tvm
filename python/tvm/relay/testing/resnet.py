@@ -59,9 +59,11 @@ def residual_unit(data,
     name : str
         Base name of the operators
     """
+    bn_axis = data_layout.index('C')
     if bottle_neck:
         bn1 = layers.batch_norm_infer(data=data,
                                       epsilon=2e-5,
+                                      axis=bn_axis,
                                       name=name + '_bn1')
         act1 = relay.nn.relu(data=bn1)
         conv1 = layers.conv2d(
@@ -73,13 +75,13 @@ def residual_unit(data,
             name=name + '_conv1',
             data_layout=data_layout,
             kernel_layout=kernel_layout)
-        bn2 = layers.batch_norm_infer(data=conv1, epsilon=2e-5, name=name + '_bn2')
+        bn2 = layers.batch_norm_infer(data=conv1, epsilon=2e-5, axis=bn_axis, name=name + '_bn2')
         act2 = relay.nn.relu(data=bn2)
         conv2 = layers.conv2d(
             data=act2, channels=int(num_filter*0.25), kernel_size=(3, 3),
             strides=(1, 1), padding=(1, 1), name=name + '_conv2',
             data_layout=data_layout, kernel_layout=kernel_layout)
-        bn3 = layers.batch_norm_infer(data=conv2, epsilon=2e-5, name=name + '_bn3')
+        bn3 = layers.batch_norm_infer(data=conv2, epsilon=2e-5, axis=bn_axis, name=name + '_bn3')
         act3 = relay.nn.relu(data=bn3)
         conv3 = layers.conv2d(
             data=act3, channels=num_filter, kernel_size=(1, 1),
@@ -94,13 +96,13 @@ def residual_unit(data,
                 data_layout=data_layout, kernel_layout=kernel_layout)
         return relay.add(conv3, shortcut)
 
-    bn1 = layers.batch_norm_infer(data=data, epsilon=2e-5, name=name + '_bn1')
+    bn1 = layers.batch_norm_infer(data=data, epsilon=2e-5, axis=bn_axis, name=name + '_bn1')
     act1 = relay.nn.relu(data=bn1)
     conv1 = layers.conv2d(
         data=act1, channels=num_filter, kernel_size=(3, 3),
         strides=stride, padding=(1, 1), name=name + '_conv1',
         data_layout=data_layout, kernel_layout=kernel_layout)
-    bn2 = layers.batch_norm_infer(data=conv1, epsilon=2e-5, name=name + '_bn2')
+    bn2 = layers.batch_norm_infer(data=conv1, epsilon=2e-5, axis=bn_axis, name=name + '_bn2')
     act2 = relay.nn.relu(data=bn2)
     conv2 = layers.conv2d(
         data=act2, channels=num_filter, kernel_size=(3, 3),
@@ -156,12 +158,16 @@ def resnet(units,
 
     data_layout = layout
     kernel_layout = "OIHW" if layout == "NCHW" else "HWIO"
+    bn_axis = data_layout.index('C')
 
     num_unit = len(units)
     assert num_unit == num_stages
     data = relay.var("data", shape=data_shape, dtype=dtype)
-    data = layers.batch_norm_infer(data=data, epsilon=2e-5, scale=False, name='bn_data')
+    data = layers.batch_norm_infer(data=data, epsilon=2e-5, axis=bn_axis, scale=False,
+                                   name='bn_data')
     (_, _, height, _) = data_shape
+    if layout == "NHWC":
+        (_, height, _, _) = data_shape
     if height <= 32:            # such as cifar10
         body = layers.conv2d(
             data=data, channels=filter_list[0], kernel_size=(3, 3),
@@ -172,7 +178,7 @@ def resnet(units,
             data=data, channels=filter_list[0], kernel_size=(7, 7),
             strides=(2, 2), padding=(3, 3), name="conv0",
             data_layout=data_layout, kernel_layout=kernel_layout)
-        body = layers.batch_norm_infer(data=body, epsilon=2e-5, name='bn0')
+        body = layers.batch_norm_infer(data=body, epsilon=2e-5, axis=bn_axis, name='bn0')
         body = relay.nn.relu(data=body)
         body = relay.nn.max_pool2d(data=body, pool_size=(3, 3), strides=(2, 2), padding=(1, 1),
                                    layout=data_layout)
@@ -187,7 +193,7 @@ def resnet(units,
                 body, filter_list[i+1], (1, 1), True,
                 name='stage%d_unit%d' % (i + 1, j + 2), bottle_neck=bottle_neck,
                 data_layout=data_layout, kernel_layout=kernel_layout)
-    bn1 = layers.batch_norm_infer(data=body, epsilon=2e-5, name='bn1')
+    bn1 = layers.batch_norm_infer(data=body, epsilon=2e-5, axis=bn_axis, name='bn1')
     relu1 = relay.nn.relu(data=bn1)
     # Although kernel is not used here when global_pool=True, we should put one
     pool1 = relay.nn.global_avg_pool2d(data=relu1, layout=data_layout)
@@ -209,6 +215,8 @@ def get_net(batch_size,
     Original author Wei Wu
     """
     (_, height, _) = image_shape
+    if layout == "NHWC":
+        (height, _, _) = image_shape
     data_shape = (batch_size,) + image_shape
     if height <= 28:
         num_stages = 3

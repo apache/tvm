@@ -901,7 +901,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     }
   }
 
-  // Constant evaluate a expression.
+  // Constant evaluate an expression.
   PStatic ConstEvaluate(const Expr& expr, LetList* ll) {
     std::vector<transform::Pass> passes = {transform::FuseOps(0), transform::InferType()};
     auto mod = IRModule::FromExpr(expr);

@@ -35,7 +35,7 @@ def test_rpc():
         return
     # generate the wasm library
     target_device = "webgpu"
-    target_host = "llvm -target=wasm32-unknown-unknown-wasm -system-lib"
+    target_host = "llvm -mtriple=wasm32-unknown-unknown-wasm -system-lib"
     if not tvm.runtime.enabled(target_host):
         raise RuntimeError("Target %s is not enbaled" % target_host)
 

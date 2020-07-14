@@ -31,71 +31,10 @@
 
 #include "../../transforms/infer_layout_util.h"
 #include "../op_common.h"
+#include "convolution_make.h"
 
 namespace tvm {
 namespace relay {
-
-template <typename T>
-Expr MakeConv(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
-              Array<IndexExpr> dilation, int groups, IndexExpr channels,
-              Array<IndexExpr> kernel_size, std::string data_layout, std::string kernel_layout,
-              std::string out_layout, DataType out_dtype, std::string op_name) {
-  auto attrs = make_object<T>();
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = std::move(channels);
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->out_dtype = std::move(out_dtype);
-  const Op& op = Op::Get(op_name);
-  return Call(op, {data, weight}, Attrs(attrs), {});
-}
-
-template <typename T>
-Expr MakeConvWinograd(Expr data, Expr weight, int tile_size, Array<IndexExpr> strides,
-                      Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
-                      IndexExpr channels, Array<IndexExpr> kernel_size, std::string data_layout,
-                      std::string kernel_layout, std::string out_layout, DataType out_dtype,
-                      std::string op_name) {
-  auto attrs = make_object<T>();
-  attrs->tile_size = tile_size;
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = std::move(channels);
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->out_dtype = std::move(out_dtype);
-  const Op& op = Op::Get(op_name);
-  return Call(op, {data, weight}, Attrs(attrs), {});
-}
-
-template <typename T>
-Expr MakeConvGemm(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
-                  Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                  Array<IndexExpr> kernel_size, std::string data_layout, std::string kernel_layout,
-                  std::string out_layout, DataType out_dtype, std::string op_name) {
-  auto attrs = make_object<T>();
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = std::move(channels);
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->out_dtype = std::move(out_dtype);
-  const Op& op = Op::Get(op_name);
-  return Call(op, {data, weight}, Attrs(attrs), {});
-}
 
 Expr MakeConvWinogradWeightTransform(Expr weight, int tile_size, std::string op_name) {
   auto attrs = make_object<ConvWinogradWeightTransformAttrs>();
@@ -110,50 +49,6 @@ Expr MakeConvGemmWeightTransform(Expr weight, int tile_rows, int tile_cols, std:
   attrs->tile_cols = tile_cols;
   const Op& op = Op::Get(op_name);
   return Call(op, {weight}, Attrs(attrs), {});
-}
-
-template <typename T>
-Expr MakeConvTranspose(Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
-                       Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                       Array<IndexExpr> kernel_size, std::string data_layout,
-                       std::string kernel_layout, std::string out_layout,
-                       Array<IndexExpr> output_padding, DataType out_dtype, std::string op_name) {
-  auto attrs = make_object<T>();
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = std::move(channels);
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->output_padding = std::move(output_padding);
-  attrs->out_dtype = std::move(out_dtype);
-  const Op& op = Op::Get(op_name);
-  return Call(op, {data, weight}, Attrs(attrs), {});
-}
-
-template <typename T>
-Expr MakeDeformableConv(Expr data, Expr offset, Expr weight, Array<IndexExpr> strides,
-                        Array<IndexExpr> padding, Array<IndexExpr> dilation, int deformable_groups,
-                        int groups, int channels, Array<IndexExpr> kernel_size,
-                        std::string data_layout, std::string kernel_layout, std::string out_layout,
-                        DataType out_dtype, std::string op_name) {
-  auto attrs = make_object<T>();
-  attrs->strides = strides;
-  attrs->padding = padding;
-  attrs->dilation = dilation;
-  attrs->deformable_groups = deformable_groups;
-  attrs->groups = groups;
-  attrs->channels = channels;
-  attrs->kernel_size = kernel_size;
-  attrs->data_layout = data_layout;
-  attrs->kernel_layout = kernel_layout;
-  attrs->out_layout = out_layout;
-  attrs->out_dtype = out_dtype;
-  const Op& op = Op::Get(op_name);
-  return Call(op, {data, offset, weight}, Attrs{attrs}, {});
 }
 
 // relay.nn.conv1d

@@ -19,6 +19,13 @@ set -e
 set -u
 set -o pipefail
 
+if [[ "$1" == "-i" ]]; then
+    INPLACE_FORMAT=1
+    shift 1
+else
+    INPLACE_FORMAT=0
+fi
+
 if [[ "$#" -lt 1 ]]; then
     echo "Usage: tests/lint/git-clang-format.sh [-i] <commit>"
     echo ""
@@ -28,13 +35,6 @@ if [[ "$#" -lt 1 ]]; then
     echo "- Compare against upstream/master: tests/lint/git-clang-format.sh upstream/master"
     echo "You can also add -i option to do inplace format"
     exit 1
-fi
-
-if [[ "$1" == "-i" ]]; then
-    INPLACE_FORMAT=1
-    shift 1
-else
-    INPLACE_FORMAT=0
 fi
 
 cleanup()

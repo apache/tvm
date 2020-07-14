@@ -191,7 +191,7 @@ target = tvm.target.create('opencl -device=mali')
 
 # Replace "aarch64-linux-gnu" with the correct target of your board.
 # This target host is used for cross compilation. You can query it by :code:`gcc -v` on your device.
-target_host = 'llvm -target=aarch64-linux-gnu'
+target_host = 'llvm -mtriple=aarch64-linux-gnu'
 
 # Also replace this with the device key in your tracker
 device_key = 'rk3399'

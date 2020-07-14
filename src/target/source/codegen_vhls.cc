@@ -179,7 +179,8 @@ runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
   std::string xclbin;
   if (const auto* f = Registry::Get("tvm_callback_sdaccel_compile")) {
     Target target = Target::Create(target_str);
-    xclbin = (*f)(kernel_info, target->device_name).operator std::string();
+    String device = target->GetAttr<String>("device", "").value();
+    xclbin = (*f)(kernel_info, device).operator std::string();
   } else {
     LOG(FATAL) << "Cannot compile Vivado HLS code.";
   }

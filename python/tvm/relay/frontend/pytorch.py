@@ -1666,6 +1666,16 @@ def _type_as():
     return _impl
 
 
+def _gather():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        axis = inputs[1]
+        indices = inputs[2]
+
+        return _op.gather(data, axis, indices)
+    return _impl
+
+
 def _add(prelude):
     # add_ is overloaded for tensor add and list concat
     def _impl(inputs, input_types):
@@ -1726,6 +1736,12 @@ def _one_hot():
         return _op.one_hot(indices, on_value, off_value, num_classes, -1, dtype)
     return _impl
 
+
+def _meshgrid():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        return _op.meshgrid(data, indexing="ij")
+    return _impl
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):
     """This promotes TVM dtypes like PyTorch would"""
@@ -1869,6 +1885,7 @@ def _get_convert_map(prelude):
         "aten::mul_"                            : _elemwise("multiply"),
         "aten::pow"                             : _elemwise("power"),
         "aten::arange"                          : _arange(),
+        "aten::meshgrid"                        : _meshgrid(),
         "aten::div"                             : _elemwise("divide"),
         "aten::div_"                            : _elemwise("divide"),
         "aten::floor_divide"                    : _elemwise("floor_divide"),
@@ -2023,6 +2040,7 @@ def _get_convert_map(prelude):
         "aten::__getitem__"                     : _list_getitem(prelude),
         "aten::len"                             : _list_len(prelude),
         "aten::type_as"                         : _type_as(),
+        "aten::gather"                          : _gather(),
     }
     return convert_map
 
@@ -2154,6 +2172,8 @@ def _get_constant(node):
             return node.f(attr_name)
         elif ty in ["TensorType", "CompleteTensorType"]:
             tensor = node.t(attr_name)
+            if tensor.is_cuda:
+                tensor = tensor.cpu()
             if len(tensor.shape) == 0:  # tensor(0.1)
                 # TODO(t-vi): When is this needed?
                 return tensor.item()

@@ -146,6 +146,7 @@ class OpNode : public RelayExprNode {
   // Internal function to compute if it is primitive op
   bool IsPrimitiveOp_() const {
     const auto& fn_ty = this->op_type;
+    CHECK(fn_ty.get() != nullptr);
     if (fn_ty->type_constraints.size() != 1) return false;
     const TypeRelationNode* rel = fn_ty->type_constraints[0].as<TypeRelationNode>();
     if (rel == nullptr) return false;

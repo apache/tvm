@@ -479,7 +479,7 @@ def test_engine_extern():
                options=["-O2", "-std=c++14", "-I" + tmp_path.relpath("")])
 
 def test_json_extern():
-    if not tvm.get_global_func("module.loadfile_examplejson", True):
+    if not tvm.get_global_func("runtime.module.loadfile_examplejson", True):
         print("Skip because JSON example runtime is not enabled.")
         return
 

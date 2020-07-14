@@ -519,7 +519,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     if (op.as<OpNode>()) {
       OpMatch<void> matcher;
       matcher
-          .Match("memory.invoke_tvm_op",
+          .Match("vm.invoke_tvm_op",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
                    CHECK_EQ(args.size(), 3);
                    EmitInvokeTVMOp(Downcast<Function>(args[0]), args[1], args[2]);
@@ -581,7 +581,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
                    Emit(Instruction::AllocStorage(size_register, alignment, dtype, NewRegister()));
                  })
-          .Match("memory.shape_func",
+          .Match("vm.shape_func",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
                    CHECK_EQ(args.size(), 3);
                    auto shape_func = Downcast<Function>(args[0]);

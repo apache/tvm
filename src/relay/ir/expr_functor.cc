@@ -385,23 +385,23 @@ void ExprVisitor::VisitExpr(const Expr& expr) {
   }
 }
 
-void ExprVisitor::ExprVisitor::VisitExpr_(const VarNode* op) {
+void ExprVisitor::VisitExpr_(const VarNode* op) {
   if (op->type_annotation.defined()) {
     this->VisitType(op->type_annotation);
   }
 }
 
-void ExprVisitor::ExprVisitor::VisitExpr_(const GlobalVarNode* op) {}
+void ExprVisitor::VisitExpr_(const GlobalVarNode* op) {}
 
-void ExprVisitor::ExprVisitor::VisitExpr_(const ConstantNode* op) {}
+void ExprVisitor::VisitExpr_(const ConstantNode* op) {}
 
-void ExprVisitor::ExprVisitor::VisitExpr_(const TupleNode* op) {
+void ExprVisitor::VisitExpr_(const TupleNode* op) {
   for (auto field : op->fields) {
     this->VisitExpr(field);
   }
 }
 
-void ExprVisitor::ExprVisitor::VisitExpr_(const FunctionNode* op) {
+void ExprVisitor::VisitExpr_(const FunctionNode* op) {
   for (auto param : op->params) {
     this->VisitExpr(param);
   }
@@ -437,11 +437,11 @@ void ExprVisitor::VisitExpr_(const OpNode* op) { return; }
 
 void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) { this->VisitExpr(op->tuple); }
 
-void ExprVisitor::ExprVisitor::VisitExpr_(const RefCreateNode* op) { this->VisitExpr(op->value); }
+void ExprVisitor::VisitExpr_(const RefCreateNode* op) { this->VisitExpr(op->value); }
 
-void ExprVisitor::ExprVisitor::VisitExpr_(const RefReadNode* op) { this->VisitExpr(op->ref); }
+void ExprVisitor::VisitExpr_(const RefReadNode* op) { this->VisitExpr(op->ref); }
 
-void ExprVisitor::ExprVisitor::VisitExpr_(const RefWriteNode* op) {
+void ExprVisitor::VisitExpr_(const RefWriteNode* op) {
   this->VisitExpr(op->ref);
   this->VisitExpr(op->value);
 }

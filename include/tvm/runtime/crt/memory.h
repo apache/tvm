@@ -25,7 +25,13 @@
 #ifndef TVM_RUNTIME_CRT_MEMORY_H_
 #define TVM_RUNTIME_CRT_MEMORY_H_
 
-static int vleak_size = 0;
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdlib.h>
+
+extern int vleak_size;
 
 /*!
  * \brief Allocate memory from manager
@@ -48,5 +54,9 @@ void* vrealloc(void* ptr, size_t size);
  * \return The virtual address
  */
 void vfree(void* ptr);
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
 
 #endif  // TVM_RUNTIME_CRT_MEMORY_H_

@@ -73,6 +73,7 @@ def _schedule_conv_NCHWc(s, cfg, data_vec, kernel_vec, conv_out, last):
         s[data_vec].parallel(parallel_axis)
         data_vec = data_vec.op.input_tensors[0]
 
+    oc_bn = cfg["tile_oc"].size[-1]
     if isinstance(kernel_vec.op, tvm.te.ComputeOp) and \
             kernel_vec.name == 'kernel_vec':
         # data and kernel are not pre-computed, schedule layout transform here.
@@ -84,7 +85,6 @@ def _schedule_conv_NCHWc(s, cfg, data_vec, kernel_vec, conv_out, last):
 
         oc_chunk, ic_chunk, oh, ow, ic_block, oc_block = s[kernel_vec].op.axis
         s[kernel_vec].reorder(oc_chunk, oh, ic_chunk, ow, ic_block, oc_block)
-        oc_bn = cfg["tile_oc"].size[-1]
         if oc_bn > 1:
             s[kernel_vec].vectorize(oc_block)
         parallel_axis = s[kernel_vec].fuse(oc_chunk, oh)

@@ -139,7 +139,7 @@ Pass LowerCustomDatatypes() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     CHECK(target.defined()) << "LowerCustomDatatypes: Require the target attribute";
 
-    n->body = CustomDatatypesLowerer(target.value()->target_name)(std::move(n->body));
+    n->body = CustomDatatypesLowerer(target.value()->id->name)(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerCustomDatatypes", {});

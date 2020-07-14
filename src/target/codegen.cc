@@ -47,7 +47,12 @@ runtime::Module Build(IRModule mod, const Target& target) {
           .value()) {
     mod = tir::transform::SkipAssert()(mod);
   }
-  std::string build_f_name = "target.build." + target->target_name;
+  std::string build_f_name;
+  if (target->id->name == "micro_dev") {
+    build_f_name = "target.build.c";
+  } else {
+    build_f_name = "target.build." + target->id->name;
+  }
   // the build function.
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);
   CHECK(bf != nullptr) << "target.build." << target << " is not enabled";

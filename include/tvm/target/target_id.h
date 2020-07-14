@@ -43,6 +43,8 @@ template <typename, typename, typename>
 struct ValueTypeInfoMaker;
 }
 
+class Target;
+
 /*! \brief Perform schema validation */
 TVM_DLL void TargetValidateSchema(const Map<String, ObjectRef>& config);
 
@@ -54,6 +56,25 @@ class TargetIdNode : public Object {
  public:
   /*! \brief Name of the target id */
   String name;
+  /*! \brief Device type of target id */
+  int device_type;
+  /*! \brief Default keys of the target */
+  Array<String> default_keys;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("name", &name);
+    v->Visit("device_type", &device_type);
+    v->Visit("default_keys", &default_keys);
+  }
+
+  Map<String, ObjectRef> ParseAttrsFromRaw(const std::vector<std::string>& options) const;
+
+  Optional<String> StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) const;
+
+  static constexpr const char* _type_key = "TargetId";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TargetIdNode, Object);
+
+ private:
   /*! \brief Stores the required type_key and type_index of a specific attr of a target */
   struct ValueTypeInfo {
     String type_key;
@@ -62,19 +83,20 @@ class TargetIdNode : public Object {
     std::unique_ptr<ValueTypeInfo> val;
   };
 
-  static constexpr const char* _type_key = "TargetId";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TargetIdNode, Object);
-
- private:
   uint32_t AttrRegistryIndex() const { return index_; }
   String AttrRegistryName() const { return name; }
   /*! \brief Perform schema validation */
   void ValidateSchema(const Map<String, ObjectRef>& config) const;
+  /*! \brief Verify if the obj is consistent with the type info */
+  void VerifyTypeInfo(const ObjectRef& obj, const TargetIdNode::ValueTypeInfo& info) const;
   /*! \brief A hash table that stores the type information of each attr of the target key */
   std::unordered_map<String, ValueTypeInfo> key2vtype_;
+  /*! \brief A hash table that stores the default value of each attr of the target key */
+  std::unordered_map<String, ObjectRef> key2default_;
   /*! \brief Index used for internal lookup of attribute registry */
   uint32_t index_;
   friend void TargetValidateSchema(const Map<String, ObjectRef>&);
+  friend class Target;
   friend class TargetId;
   template <typename, typename>
   friend class AttrRegistry;
@@ -91,6 +113,7 @@ class TargetIdNode : public Object {
  */
 class TargetId : public ObjectRef {
  public:
+  TargetId() = default;
   /*! \brief Get the attribute map given the attribute name */
   template <typename ValueType>
   static inline TargetIdAttrMap<ValueType> GetAttrMap(const String& attr_name);
@@ -110,6 +133,7 @@ class TargetId : public ObjectRef {
   template <typename, typename>
   friend class AttrRegistry;
   friend class TargetIdRegEntry;
+  friend class Target;
 };
 
 /*!
@@ -149,12 +173,30 @@ class TargetIdRegEntry {
   inline TargetIdRegEntry& set_attr(const String& attr_name, const ValueType& value,
                                     int plevel = 10);
   /*!
+   * \brief Set DLPack's device_type the target
+   * \param device_type Device type
+   */
+  inline TargetIdRegEntry& set_device_type(int device_type);
+  /*!
+   * \brief Set DLPack's device_type the target
+   * \param keys The default keys
+   */
+  inline TargetIdRegEntry& set_default_keys(std::vector<String> keys);
+  /*!
    * \brief Register a valid configuration option and its ValueType for validation
    * \param key The configuration key
    * \tparam ValueType The value type to be registered
    */
   template <typename ValueType>
   inline TargetIdRegEntry& add_attr_option(const String& key);
+  /*!
+   * \brief Register a valid configuration option and its ValueType for validation
+   * \param key The configuration key
+   * \param default_value The default value of the key
+   * \tparam ValueType The value type to be registered
+   */
+  template <typename ValueType>
+  inline TargetIdRegEntry& add_attr_option(const String& key, ObjectRef default_value);
   /*! \brief Set name of the TargetId to be the same as registry if it is empty */
   inline TargetIdRegEntry& set_name();
   /*!
@@ -286,11 +328,29 @@ inline TargetIdRegEntry& TargetIdRegEntry::set_attr(const String& attr_name, con
   return *this;
 }
 
+inline TargetIdRegEntry& TargetIdRegEntry::set_device_type(int device_type) {
+  id_->device_type = device_type;
+  return *this;
+}
+
+inline TargetIdRegEntry& TargetIdRegEntry::set_default_keys(std::vector<String> keys) {
+  id_->default_keys = keys;
+  return *this;
+}
+
 template <typename ValueType>
 inline TargetIdRegEntry& TargetIdRegEntry::add_attr_option(const String& key) {
   CHECK(!id_->key2vtype_.count(key))
       << "AttributeError: add_attr_option failed because '" << key << "' has been set once";
   id_->key2vtype_[key] = detail::ValueTypeInfoMaker<ValueType>()();
+  return *this;
+}
+
+template <typename ValueType>
+inline TargetIdRegEntry& TargetIdRegEntry::add_attr_option(const String& key,
+                                                           ObjectRef default_value) {
+  add_attr_option<ValueType>(key);
+  id_->key2default_[key] = default_value;
   return *this;
 }
 

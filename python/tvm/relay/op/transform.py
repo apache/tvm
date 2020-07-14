@@ -19,7 +19,8 @@
 """Transform operators."""
 
 from . import _make
-from ..expr import TupleWrapper, const
+from .dyn import _make as _dyn_make
+from ..expr import TupleWrapper, const, Expr, Tuple
 from ...tir import expr as _expr
 
 
@@ -210,8 +211,10 @@ def reshape(data, newshape):
     result : relay.Expr
         The reshaped result.
     """
+    if isinstance(newshape, Expr):
+        return _dyn_make.reshape(data, newshape)
     if isinstance(newshape, int):
-        newshape = const([newshape])
+        newshape = [newshape]
     if isinstance(newshape, (tuple, list)):
         tempshape = []
         for shape in newshape:
@@ -222,8 +225,8 @@ def reshape(data, newshape):
                     tempshape.append(int(shape))
                 except ValueError as err:
                     raise RuntimeError('Unrecognized shape type: %s' % err)
-        newshape = const(tempshape)
-    return _make.reshape(data, newshape)
+        newshape = tempshape
+    return _make.reshape(data, list(newshape))
 
 def argwhere(condition):
     """Find the indices of elements of a tensor that are
@@ -415,6 +418,45 @@ def arange(start, stop=None, step=None, dtype="float32"):
 
     return _make.arange(start, stop, step, dtype)
 
+def meshgrid(data, indexing="ij"):
+    """Create coordinate matrices from coordinate vectors.
+
+    .. note::
+        Similar to ``numpy.meshgrid``.
+
+    Parameters
+    ----------
+    data : Union(List[relay.Expr], Tuple[relay.Expr])
+        A list of tensors, which must be either scalars or 1-D vectors.
+
+    indexing : str
+        Indexing mode, either "ij" for matrix indexing or "xy" for Cartesian indexing.
+
+    Returns
+    -------
+    ret : relay.Tuple([relay.Expr, relay.Expr])
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [1, 2, 3]
+        y = [4, 5]
+
+        gx, gy = relay.meshgrid([x, y])
+
+        gx = [[1., 1.],
+              [2., 2.],
+              [3., 3.]]
+
+        gy = [[4., 5.],
+              [4., 5.],
+              [4., 5.]]
+    """
+    data = list(data)
+    ret_size = len(data)
+    return TupleWrapper(_make.meshgrid(Tuple(data), indexing), ret_size)
 
 def repeat(data, repeats, axis):
     """Repeats elements of an array.
@@ -454,7 +496,7 @@ def tile(data, reps):
     data : relay.Expr
         The input data to the operator.
 
-    reps : tuple of int
+    reps : tuple of int or relay.Expr
         The number of times repeating the tensor data.
 
     Returns
@@ -482,7 +524,8 @@ def tile(data, reps):
     data is promoted to be d-dimensional by prepending new axes.
     If data.ndim >=  d, reps is promoted to a.ndim by pre-pending 1's to it.
     """
-
+    if isinstance(reps, Expr):
+        return _dyn_make.tile(data, reps)
     return _make.tile(data, reps)
 
 

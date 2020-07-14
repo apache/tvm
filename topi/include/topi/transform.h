@@ -1017,6 +1017,43 @@ inline Tensor tile(const Tensor& x, Array<Integer> reps, std::string name = "T_t
 }
 
 /*!
+ * \brief Creates an operation to tile elements of an array
+ *
+ * \param x The input tensor
+ * \param new_shape The shape of the output after tiling
+ * \param rdim The rank of the reps, provided by caller
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the tile operation
+ */
+inline Tensor dyn_tile(const Tensor& x, Array<PrimExpr> new_shape, size_t rdim,
+                       std::string name = "T_tile", std::string tag = kBroadcast) {
+  size_t ndim = x->shape.size();
+  if (is_empty_shape(new_shape)) {
+    return compute(
+        new_shape, [&](const Array<Var>& indices) { return tvm::cast(x->dtype, 0); }, name, tag);
+  } else {
+    return compute(
+        new_shape,
+        [&](const Array<Var>& indices) {
+          Array<PrimExpr> idx;
+          if (ndim >= rdim) {
+            for (size_t i = 0; i < ndim; ++i) {
+              idx.push_back(indexmod(indices[i], x->shape[i]));
+            }
+          } else {
+            for (size_t i = 0; i < ndim; ++i) {
+              idx.push_back(indexmod(indices[rdim - ndim + i], x->shape[i]));
+            }
+          }
+          return x(idx);
+        },
+        name, tag);
+  }
+}
+
+/*!
  * \brief Gather values along given axis from given indices.
  *
  * \param data The input data to the operator.
@@ -1255,6 +1292,38 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
       {num_elem},
       [&](const Array<Var>& indices) { return tvm::cast(dtype, start + step * indices[0]); }, name,
       tag);
+}
+
+/*!
+ * \brief Produce grids by expanding input over dimensions defined by other inputs
+ *
+ * \param inputs The input tensors
+ * \param indexing The indexing mode, either "xy" or "ij"
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the meshgrid operation
+ */
+inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& indexing,
+                              std::string name = "T_meshgrid", std::string tag = kInjective) {
+  const bool cartesian_indexing = indexing == "xy" && inputs.size() >= 2;
+  Array<PrimExpr> out_shape;
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    const int src_index = (cartesian_indexing && i < 2) ? 1 - i : i;
+    out_shape.push_back(inputs[src_index]->shape.size() == 0 ? 1 : inputs[src_index]->shape[0]);
+  }
+  Array<Tensor> result;
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    result.push_back(compute(
+        out_shape,
+        [&](const Array<Var>& indices) {
+          const int src_index = (cartesian_indexing && i < 2) ? 1 - i : i;
+          Array<PrimExpr> real_indices = {indices[src_index]};
+          return inputs[i](real_indices);
+        },
+        name, tag));
+  }
+  return result;
 }
 
 /*!
