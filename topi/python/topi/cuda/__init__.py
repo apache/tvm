@@ -52,3 +52,4 @@ from .conv3d_ndhwc_tensorcore import *
 from .dense_tensorcore import *
 from .correlation import *
 from .sparse import *
+from .transform import *
