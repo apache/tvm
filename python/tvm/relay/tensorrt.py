@@ -346,9 +346,6 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
         if args[0].checked_type.dtype != "float32":
             print("Only float32 inputs are supported for TensorRT.")
             return False
-        if not isinstance(args[1], Constant):
-            print("reshape: New shape must be a constant.")
-            return False
         if any([x < -1 for x in map(int, attrs.newshape)]):
             print("reshape: new shape dims must be explicit.")
             return False

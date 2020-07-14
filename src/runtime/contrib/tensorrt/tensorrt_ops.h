@@ -1033,18 +1033,17 @@ class TransposeOpConverter : public TrtOpConverter {
 
 class ReshapeOpConverter : public TrtOpConverter {
  public:
-  ReshapeOpConverter() : TrtOpConverter({kTensor, kWeight}) {}
+  ReshapeOpConverter() : TrtOpConverter({kTensor}) {}
 
   void Convert(AddTrtLayerParams* params) const {
     auto input = params->inputs.at(0).tensor;
     const auto* attrs = params->call->attrs.as<ReshapeAttrs>();
-    CHECK(attrs->newshape);
     CHECK_EQ(attrs->reverse, false);
     std::vector<int> new_shape;
     const int start_index = TRT_HAS_IMPLICIT_BATCH(params) ? 1 : 0;
-    for (size_t i = start_index; i < attrs->newshape.value().size(); ++i) {
-      CHECK(attrs->newshape.value()[i].defined());
-      const int value = attrs->newshape.value()[i].as<IntImmNode>()->value;
+    for (size_t i = start_index; i < attrs->newshape.size(); ++i) {
+      CHECK(attrs->newshape[i].defined());
+      const int value = attrs->newshape[i]->value;
       CHECK_GE(value, -1);
       new_shape.push_back(value);
     }
