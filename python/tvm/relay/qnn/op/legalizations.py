@@ -239,7 +239,7 @@ def is_fast_int8_on_arm():
 def is_aarch64_arm():
     """ Checks whether we are compiling for an AArch64 target. """
     target = tvm.target.Target.current(allow_none=False)
-    return 'aarch64' in target.attrs.get("target", "")
+    return 'aarch64' in target.attrs.get("mtriple", "")
 
 ########################
 # ARM CPU legalizations.

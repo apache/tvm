@@ -27,7 +27,7 @@ from .tensor_intrin import gemv_quantized, gemv_quantized_impl
 def is_aarch64_arm():
     """ Checks whether we are compiling for an AArch64 target. """
     target = tvm.target.Target.current(allow_none=False)
-    return 'aarch64' in target.attrs.get("target", "")
+    return 'aarch64' in target.attrs.get("mtriple", "")
 
 
 # Compute function
