@@ -436,7 +436,8 @@ bool MatchPattern(DFPattern pattern, Expr expr) {
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.match").set_body_typed(MatchPattern);
 
-/* \brief PatternGrouper does pre-rewriting pattern matching and analysis
+/*!
+ * \brief PatternGrouper does pre-rewriting pattern matching and analysis
  *
  * This class creates a number of groups of matched expressions, ensures they don't overlap, and
  * returns them to the caller for post-analysis rewriting.
@@ -446,7 +447,7 @@ TVM_REGISTER_GLOBAL("relay.dataflow_pattern.match").set_body_typed(MatchPattern)
  */
 class PatternGrouper {
  public:
-  /* \brief Internal Group class for storing analysis */
+  /*! \brief Internal Group class for storing analysis */
   struct Group {
     Expr root_node;
     int gid;
@@ -456,11 +457,11 @@ class PatternGrouper {
     Array<Expr> args;
   };
 
-  /* \brief Return the group assignments of expressions */
+  /*! \brief Return the group assignments of expressions */
   const std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual>& GetGIDAssignments() {
     return gid_assignments_;
   }
-  /* \brief Group expressions that match the pattern */
+  /*! \brief Group expressions that match the pattern */
   const std::unordered_map<int, Group>& GroupMatches(const DFPattern& pattern, const Expr& pre) {
     groups_.clear();
     gid_assignments_.clear();
@@ -474,7 +475,7 @@ class PatternGrouper {
   }
 
  protected:
-  /* \brief Iteratively traverse the Expression in pre-order to find subgraphs
+  /*! \brief Iteratively traverse the Expression in pre-order to find subgraphs
    *
    * If we traverse the graph in post-order, we can run into situtations where a small subgraph will
    * match the pattern. Due to options like AltPattern, a larger subgraph with more nodes later in
@@ -501,7 +502,7 @@ class PatternGrouper {
       }
     }
   }
-  /* \brief Creates a new set of nodes based on Group inputs, used to create functions and perform
+  /*! \brief Creates a new set of nodes based on Group inputs, used to create functions and perform
    * group overlap analysis */
   class MatchExtractor : public ExprMutator {
    public:
@@ -563,7 +564,7 @@ class PatternGrouper {
     const std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> inputs_;
   };
 
-  /* \brief Create a group based on a matched expression */
+  /*! \brief Create a group based on a matched expression */
   void CreateGroup(const Expr& expr) {
     int var_number = 0;
 
@@ -661,7 +662,7 @@ class PatternGrouper {
     groups_[group.gid] = std::move(group);
   }
 
-  /* \brief EmbedConst implements rules for embedding constants into partitioned functions or
+  /*! \brief EmbedConst implements rules for embedding constants into partitioned functions or
    * lifting them into the function arguments.
    *
    * The rules depend on what pattern the ConstantNode matched.
@@ -703,21 +704,23 @@ class PatternGrouper {
 
 // Rewrite
 
-DFPatternCallback::DFPatternCallback(DFPattern pattern, PackedFunc function) {
+DFPatternCallback::DFPatternCallback(DFPattern pattern, PackedFunc function, bool require_type) {
   ObjectPtr<DFPatternCallbackNode> n = make_object<DFPatternCallbackNode>();
-  n->pattern_ = std::move(pattern);
-  n->function_ = std::move(function);
+  n->pattern = std::move(pattern);
+  n->function = std::move(function);
+  n->require_type = require_type;
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(DFPatternCallbackNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.DFPatternCallback")
-    .set_body_typed([](DFPattern pattern, PackedFunc function) {
-      return DFPatternCallback(pattern, function);
+    .set_body_typed([](DFPattern pattern, PackedFunc function, bool require_type) {
+      return DFPatternCallback(pattern, function, require_type);
     });
 
-/* \brief PatternRewriter rewrites the expression by finding matches and allowing user callback
+/*!
+ * \brief PatternRewriter rewrites the expression by finding matches and allowing user callback
  * function to rewrite those matches
  *
  * The class uses PatternGrouper to support the dominator pattern.
@@ -736,11 +739,14 @@ class PatternRewriter : protected MixedModeMutator {
       last = post;
       for (auto callback : callbacks) {
         callback_ = callback;
+        if (callback_->require_type) {
+          post = InferType(post);
+        }
         auto grouper = PatternGrouper();
-        groups_ = grouper.GroupMatches(callback_->pattern_, post);
+        groups_ = grouper.GroupMatches(callback_->pattern, post);
         gid_assignments_ = grouper.GetGIDAssignments();
         memo_.clear();
-        post = InferType(this->VisitExpr(post));
+        post = this->VisitExpr(post);
         count++;
       }
     } while (!StructuralEqual()(last, post) || count >= 100);
@@ -765,7 +771,7 @@ class PatternRewriter : protected MixedModeMutator {
         node_map.insert({kv.first, tmp});
       }
       // run the user callback function
-      return callback_->function_(pre, post, Map<DFPattern, Array<Expr>>(node_map));
+      return callback_->function(pre, post, Map<DFPattern, Array<Expr>>(node_map));
     }
     return post;
   }
@@ -781,7 +787,8 @@ Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr) {
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.rewrite").set_body_typed(RewritePatterns);
 
-/* \brief PatternPartitioner replaces expressions that match a pattern with function call that
+/*!
+ * \brief PatternPartitioner replaces expressions that match a pattern with function call that
  * perform the same computation but allow for further analysis and lowering.
  *
  * The class uses PatternGrouper to support the dominator pattern.

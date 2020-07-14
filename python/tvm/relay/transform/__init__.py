@@ -19,4 +19,3 @@
 # transformation passes
 from .transform import *
 from . import memory_alloc
-from .simplify_expr import SimplifyExpr

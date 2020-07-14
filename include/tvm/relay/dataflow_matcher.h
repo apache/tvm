@@ -42,11 +42,16 @@ class DFPatternCallback;
 class DFPatternCallbackNode : public Object {
  public:
   /*! \brief Pattern this callback matches */
-  DFPattern pattern_;
+  DFPattern pattern;
   /*! \brief Function to call when finding a matched expression */
-  PackedFunc function_;
+  PackedFunc function;
+  /*! \brief Require InferType to be run before the callback */
+  bool require_type;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("pattern", &pattern);
+    v->Visit("require_type", &require_type);
+  }
 
   static constexpr const char* _type_key = "DFPatternCallbackNode";
   TVM_DECLARE_BASE_OBJECT_INFO(DFPatternCallbackNode, Object);
@@ -58,7 +63,7 @@ class DFPatternCallbackNode : public Object {
  */
 class DFPatternCallback : public ObjectRef {
  public:
-  TVM_DLL DFPatternCallback(DFPattern pattern, PackedFunc callback);
+  TVM_DLL DFPatternCallback(DFPattern pattern, PackedFunc callback, bool require_type);
   TVM_DEFINE_OBJECT_REF_METHODS(DFPatternCallback, ObjectRef, DFPatternCallbackNode);
 };
 

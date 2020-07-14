@@ -687,7 +687,15 @@ class DFPatternCallback:
     the callback returns.
 
     Users are expect to inherit from this class and provide a "self.pattern" to match
+
+    Parameters
+    ----------
+    require_type: bool
+        Whether InferType is required to be run before the callback.
     """
+    def __init__(self, require_type=False):
+        self.pattern = None
+        self.require_type = require_type
 
     def rewrite(self, expr: Expr) -> Expr:
         """
@@ -727,8 +735,8 @@ class DFPatternCallback:
 
 class _DFPatternCallback(Object):
     """C++ implemenation"""
-    def __init__(self, pattern, callback):
-        self.__init_handle_by_constructor__(ffi.DFPatternCallback, pattern, callback)
+    def __init__(self, pattern, callback, require_type):
+        self.__init_handle_by_constructor__(ffi.DFPatternCallback, pattern, callback, require_type)
 
 
 def rewrite(callbacks, expr: Expr) -> Expr:
@@ -748,11 +756,14 @@ def rewrite(callbacks, expr: Expr) -> Expr:
         The Expression with matched subgraphs rewritten by the callbacks.
     """
     if isinstance(callbacks, DFPatternCallback):
-        tmp = [_DFPatternCallback(callbacks.pattern, callbacks.callback)]
+        assert callbacks.pattern is not None
+        tmp = [_DFPatternCallback(callbacks.pattern, callbacks.callback, callbacks.require_type)]
     else:
         tmp = []
         for callback in callbacks:
-            tmp.append(_DFPatternCallback(callback.pattern, callback.callback))
+            assert callback.pattern is not None
+            tmp.append(_DFPatternCallback(callback.pattern, callback.callback,
+                                          callback.require_type))
 
     return ffi.rewrite(tmp, expr)
 
